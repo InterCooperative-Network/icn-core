@@ -7,8 +7,27 @@ license.workspace = true
 
 [dependencies]
 icn-common = { path = "../icn-common", version = "0.1.0" }
-libp2p = { version = "0.53", optional = true }
+libp2p = {
+    version = "0.53",
+    optional = true,
+    features = [
+        "gossipsub",
+        "kad",
+        "macros",
+        "tokio",
+        "tcp",
+        "dns",
+        "yamux",
+        "noise",
+        "identify",
+        "ping",
+        "json"
+    ]
+}
+serde = { version = "1.0", features = ["derive"] }
+tokio = { version = "1.0", features = ["full"], optional = true }
+bs58 = { version = "0.5.0", optional = true }
 
 [features]
 default = []
-with-libp2p = ["dep:libp2p"]
+with-libp2p = ["dep:libp2p", "dep:tokio", "dep:bs58"]

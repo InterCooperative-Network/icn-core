@@ -1,21 +1,64 @@
 # ICN Core
 
-[![Rust CI](https://github.com/InterCooperative-Network/icn-core/actions/workflows/ci.yml/badge.svg)](https://github.com/InterCooperative-Network/icn-core/actions/workflows/ci.yml)
+`icn-core` is the reference implementation of the InterCooperative Network (ICN) protocol, written in Rust.
+It provides the foundational crates for building ICN nodes, CLI tools, and other related infrastructure.
 
-A monorepo of core Rust crates for the InterCooperative Network (ICN).
+## Overview
+
+The InterCooperative Network is envisioned as a decentralized network fostering collaboration and resource sharing. This repository contains the core building blocks for such a network.
+
+## Current Project Status (MVP - Functional Protocol Stack)
+
+The project has achieved a significant milestone, delivering an MVP with a functional, albeit stubbed, protocol stack. Key features include:
+
+*   **Modular Crate Structure:** Well-defined crates for common types (`icn-common`), API definitions (`icn-api`), DAG L1 logic (`icn-dag`), identity placeholders (`icn-identity`), networking abstractions (`icn-network`), a node runner (`icn-node`), and a CLI (`icn-cli`).
+*   **Real Protocol Data Models:** Core data types like DIDs, CIDs, DagBlocks, Transactions, and NodeStatus are defined in `icn-common` and utilize `serde` for serialization.
+*   **In-Memory DAG Store:** `icn-dag` provides a basic in-memory L1 DAG block store (`put_block`, `get_block`).
+*   **API Layer:** `icn-api` exposes functions for node interaction (info, status) and DAG operations (submit, retrieve blocks).
+*   **Node & CLI Prototypes:**
+    *   `icn-node`: A binary that demonstrates the integration of API, DAG, and network components. It shows how to get node status, submit/retrieve DAG blocks, and perform stubbed network operations like peer discovery and message broadcasting/sending.
+    *   `icn-cli`: A command-line tool to interact with the node via the API. It supports commands for node info/status, DAG put/get, and now includes **stubbed network operations** (`network discover-peers`, `network send-message`).
+*   **Stubbed Networking Layer:** `icn-network` defines a `NetworkService` trait, `NetworkMessage` enum (now serializable), and a `StubNetworkService` for simulated P2P interactions.
+*   **Refined Error Handling:** Comprehensive error handling is implemented across all layers. Functions return `Result<T, CommonError>`, using specific error variants defined in `icn-common`. The CLI and Node applications now handle these errors more gracefully, providing better user feedback and exiting with appropriate status codes.
+*   **Repository Hygiene:** Includes `LICENSE` (Apache 2.0), `CODE_OF_CONDUCT.md`, `CONTRIBUTING.md`, `SECURITY.md`, `.editorconfig`, `rust-toolchain.toml`, issue templates, and a `CHANGELOG.md`.
+*   **CI & Dependabot:** Basic CI pipeline (`ci.yml`) for formatting, linting, testing, and docs. Dependabot is set up for Cargo dependency updates.
+*   **Basic Documentation:** READMEs for each crate, module-level documentation, and an initial `docs/ONBOARDING.md`.
 
 ## Getting Started
 
+Refer to `docs/ONBOARDING.md` for detailed instructions on prerequisites, setup, building, testing, and running the components.
+
+### Quick CLI Examples:
+
 ```bash
-# Clone
-git clone git@github.com:InterCooperative-Network/icn-core.git
-cd icn-core
-
-# Build & test
+# Build all crates (from the icn-core workspace root)
 cargo build
-cargo test
 
+# Run the CLI (examples)
+./target/debug/icn-cli info
+./target/debug/icn-cli status
+./target/debug/icn-cli status offline # Test error path
+
+# DAG operations (requires valid JSON for DagBlock and Cid)
+./target/debug/icn-cli dag put '{"cid":{"version":1,"codec":113,"hash_alg":18,"hash_bytes":[...]},"data":[...],"links":[]}'
+./target/debug/icn-cli dag get '{"version":1,"codec":113,"hash_alg":18,"hash_bytes":[...]}'
+
+# Network operations (stubbed)
+./target/debug/icn-cli network discover-peers
+./target/debug/icn-cli network send-message mock_peer_1 '{"RequestBlock":{"version":1,"codec":112,"hash_alg":18,"hash_bytes":[100,97,116,97]}}'
 ```
+
+## Error Handling Philosophy
+
+This project prioritizes robust and clear error handling to improve developer experience and system reliability:
+
+1.  **No Panics in Libraries:** Library crates (`icn-common`, `icn-api`, `icn-dag`, `icn-network`, etc.) should avoid `panic!` for recoverable errors. Instead, they return `Result<T, CommonError>`.
+2.  **Specific Error Variants:** The `icn_common::CommonError` enum defines a comprehensive set of error variants (e.g., `StorageError`, `BlockNotFound`, `NetworkConnectionError`, `PeerNotFound`, `SerializationError`, `InvalidInputError`). This allows calling code to match on specific error types and handle them appropriately.
+3.  **Clear Error Messages:** Error variants include a `String` payload to provide contextual information about the error.
+4.  **Graceful Handling in Binaries:** Executables (`icn-node`, `icn-cli`) catch these `Result`s, print user-friendly error messages (typically to `stderr`), and exit with non-zero status codes when an operation fails.
+5.  **Propagation:** Errors are propagated up the call stack, often wrapped with additional context at each layer (e.g., API layer might wrap a `StorageError` from `icn-dag`).
+
+This approach ensures that errors are not silently ignored and that developers using or contributing to the codebase can understand and react to issues effectively.
 
 ## Crate Descriptions
 

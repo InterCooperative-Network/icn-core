@@ -1,134 +1,180 @@
-# Onboarding New Contributors to ICN Core
+# Developer Onboarding Guide for ICN Core
 
-Welcome to the InterCooperative Network (ICN) Core project! We're excited to have you.
-This guide will help you get your development environment set up and make your first contribution.
+Welcome to the InterCooperative Network (ICN) Core project! This guide will help you get set up, understand the codebase, and start contributing.
 
-## Prerequisites
+## 1. Prerequisites
 
-*   **Rust:** Ensure you have Rust installed. We recommend using `rustup` for managing Rust versions.
-    *   Installation: `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
-    *   This project currently uses the `stable` toolchain, as specified in `rust-toolchain.toml`.
+*   **Rust:** Install the latest stable Rust toolchain. You can get it from [rustup.rs](https://rustup.rs/).
+    *   Run `rustup update stable` to ensure you have the most recent version.
+    *   The project uses the `stable` channel, as defined in `rust-toolchain.toml`.
 *   **Git:** For version control.
-*   **GitHub Account:** For fork/clone and submitting Pull Requests.
+*   **EditorConfig Plugin:** (Recommended) For your IDE/editor to maintain consistent coding styles across the project (uses `.editorconfig`).
+*   **Basic Familiarity:** With Rust programming, `cargo`, and decentralized systems concepts (DIDs, CIDs, P2P) will be helpful.
 
-## 1. Fork and Clone the Repository
+## 2. Project Setup
 
-1.  **Fork:** Go to the [ICN Core GitHub repository](https://github.com/InterCooperative-Network/icn-core) (replace with actual URL) and click the "Fork" button.
-2.  **Clone:** Clone your forked repository to your local machine:
+1.  **Clone the Repository:**
     ```bash
-    git clone git@github.com:YOUR_USERNAME/icn-core.git
+    git clone <repository-url> # Replace with the actual URL
     cd icn-core
     ```
+2.  **Initial Build & Test:**
+    ```bash
+    cargo build
+    cargo test --all # Run tests for all crates in the workspace
+    ```
+    This will download all dependencies and compile the project. If all tests pass, your setup is correct.
 
-## 2. Build the Project
+## 3. Building and Running Components
 
-Navigate to the root of the cloned `icn-core` directory and build the entire workspace:
+### 3.1. Building
 
-```bash
-cargo build
-```
+*   **Build all crates (debug mode):**
+    ```bash
+    cargo build
+    ```
+*   **Build all crates (release mode):**
+    ```bash
+    cargo build --release
+    ```
+*   **Build a specific crate (e.g., `icn-cli`):**
+    ```bash
+    cargo build -p icn-cli
+    ```
 
-This will compile all crates in the monorepo.
+Binaries will be placed in the `target/debug/` or `target/release/` directory at the workspace root.
 
-## 3. Run Tests
+### 3.2. Testing
 
-After a successful build, run all tests to ensure everything is working correctly:
+*   **Run all tests in the workspace:**
+    ```bash
+    cargo test --all
+    ```
+*   **Run tests for a specific crate (e.g., `icn-common`):**
+    ```bash
+    cargo test -p icn-common
+    ```
+*   **Run a specific test function:**
+    ```bash
+    cargo test -p <crate_name> --test <test_module_name> <test_function_name>
+    # Or just part of the name
+    cargo test <partial_test_name>
+    ```
 
-```bash
-cargo test --all
-```
+### 3.3. Linting & Formatting
 
-## 4. Check Formatting and Linting
+The project uses `cargo fmt` for code formatting and `cargo clippy` for linting. These are checked in CI.
 
-We use `rustfmt` for code formatting and `clippy` for linting. Please run these before committing your changes:
+*   **Check formatting:**
+    ```bash
+    cargo fmt --all --check
+    ```
+*   **Apply formatting:**
+    ```bash
+    cargo fmt --all
+    ```
+*   **Run Clippy (strict, deny warnings):**
+    ```bash
+    cargo clippy --all -- -D warnings
+    ```
 
-```bash
-cargo fmt --all --check  # Check formatting
-cargo clippy --all -- -D warnings # Run clippy, denying all warnings
-```
+### 3.4. Running Binaries
 
-To automatically format your code:
-```bash
-cargo fmt --all
-```
+*   **`icn-node` (Demonstration):**
+    The `icn-node` currently runs a sequence of demonstrations (API calls, DAG operations, stubbed network interactions) and then exits. It does not yet run as a persistent daemon.
+    ```bash
+    ./target/debug/icn-node
+    ```
+*   **`icn-cli`:**
+    The CLI interacts with the (conceptual) node via the `icn-api`.
+    ```bash
+    # General help
+    ./target/debug/icn-cli --help
 
-## 5. Running Binaries
+    # Node info and status
+    ./target/debug/icn-cli info
+    ./target/debug/icn-cli status
+    ./target/debug/icn-cli status offline # Test error case
 
-This workspace includes two binaries:
+    # DAG operations (requires valid JSON strings)
+    # Example: submit a block (replace ... with actual valid JSON parts)
+    ./target/debug/icn-cli dag put '{"cid":{"version":1,"codec":113,"hash_alg":18,"hash_bytes":[...]},"data":[...],"links":[]}'
+    # Example: retrieve a block
+    ./target/debug/icn-cli dag get '{"version":1,"codec":113,"hash_alg":18,"hash_bytes":[...]}'
 
-*   `icn-node`: The ICN daemon.
-*   `icn-cli`: The command-line interface.
+    # Network operations (uses stubbed services via API)
+    ./target/debug/icn-cli network discover-peers
+    # Example: send a RequestBlock message (replace ... with actual valid JSON parts)
+    ./target/debug/icn-cli network send-message mock_peer_1 '{"RequestBlock":{"version":1,"codec":112,"hash_alg":18,"hash_bytes":[100,97,116,97]}}'
+    ```
 
-You can run them using `cargo run`:
+## 4. Understanding the Codebase
 
-```bash
-# Run the ICN node (it will print status and then loop)
-cd crates/icn-node
-cargo run
-cd ../.. # Back to root
+*   **Workspace Root (`Cargo.toml`):** Defines the workspace members (all the crates).
+*   **`crates/` directory:** Contains all individual library and binary crates.
+    *   **`icn-common`**: Core data structures (CIDs, DIDs, `DagBlock`, `NodeStatus`, etc.) and the central `CommonError` enum used throughout the workspace.
+    *   **`icn-api`**: Defines functions that act as the API layer for node interactions. Currently, these are direct function calls but are designed to be adaptable for RPC.
+    *   **`icn-dag`**: Implements L1 DAG block storage (currently an in-memory `HashMap`).
+    *   **`icn-network`**: Contains networking abstractions (`NetworkService` trait, `NetworkMessage` enum) and a `StubNetworkService` for testing.
+    *   **`icn-identity`**: Placeholders for DID management and cryptographic functions.
+    *   **`icn-node`**: The main binary executable that demonstrates integration of other crates.
+    *   **`icn-cli`**: The command-line interface client.
+    *   Other crates (`icn-economics`, `icn-governance`, etc.) are placeholders for future development.
+*   **`docs/` directory:** Contains this onboarding guide and potentially other architectural documents.
+*   **`.github/` directory:** CI workflows, issue templates, Dependabot configuration.
 
-# Run the ICN CLI with a command (e.g., info)
-cd crates/icn-cli
-cargo run -- info
-cargo run -- status
-cargo run -- status offline # Test status with simulated offline error
-cd ../.. # Back to root
-```
+### Error Handling Approach
 
-Or, after building with `cargo build` (or `cargo build --release` for an optimized build), you can find the executables in `target/debug/` (or `target/release/`) and run them directly:
+A key principle in `icn-core` is robust error handling:
+*   Library functions return `Result<T, icn_common::CommonError>` instead of panicking on recoverable errors.
+*   `CommonError` provides specific variants for different error conditions (e.g., `StorageError`, `PeerNotFound`, `DeserializationError`).
+*   Binary crates (`icn-node`, `icn-cli`) handle these `Result`s, print informative error messages to `stderr`, and exit with non-zero status codes on failure.
+This makes the system more predictable and easier to debug.
 
-```bash
-./target/debug/icn-node
-./target/debug/icn-cli info
-```
+## 5. Example Workflow: Adding a New API Endpoint
 
-## 6. Understanding the Codebase
+1.  **Define Data Structures (if new):** If your endpoint uses new request/response types, define them in `icn-common/src/lib.rs` (ensure they derive `Serialize`, `Deserialize` if they cross API boundaries).
+2.  **Define API Function:** Add the function signature to `icn-api/src/lib.rs`. It should take necessary parameters and return `Result<ResponseType, CommonError>`.
+3.  **Implement API Function Logic:** This might involve calling functions from other crates (e.g., `icn-dag`, `icn-identity`, `icn-network`). Handle their `Result`s appropriately.
+4.  **Add Unit Tests:** In `icn-api/src/lib.rs` (within `#[cfg(test)] mod tests`), add tests for your new API function, covering both success and error cases.
+5.  **Expose in `icn-cli` (if applicable):**
+    *   Add a new command/subcommand in `icn-cli/src/main.rs`.
+    *   Implement a handler function that parses arguments, calls the new API function from `icn-api`.
+    *   Handle the `Result`, print output to `stdout` or errors to `stderr`, and manage exit codes.
+    *   Update `print_usage()` and any relevant subcommand usage messages.
+6.  **Demonstrate in `icn-node` (if applicable):** If it's a core function, add a call to it in `icn-node/src/main.rs` as part of its demonstration sequence, showing how to use it and handle its outcome.
+7.  **Documentation:** Update relevant `README.md` files (for `icn-api`, `icn-cli`, etc.) and this `ONBOARDING.md` if the new endpoint is significant for developers.
+8.  **Run Checks:** `cargo fmt --all`, `cargo clippy --all -- -D warnings`, `cargo test --all`.
+9.  **Commit & Push:** Follow commit message guidelines (see `CONTRIBUTING.md`).
 
-*   Start by reading the main `README.md` for an overview of the project and crate structure.
-*   Each crate in the `crates/` directory has its own `README.md` explaining its purpose and planned API.
-*   The `lib.rs` (for library crates) or `main.rs` (for binary crates) in each crate's `src/` directory contains module-level documentation and `// TODO:` or `/// Planned:` comments indicating areas for development.
+## 6. Contribution Steps
 
-## 7. How to Add a New API Endpoint (Example Flow)
+1.  **Find/Create an Issue:** Look for existing issues labeled "good first issue" or "help wanted." If you have a new idea, create an issue to discuss it first.
+2.  **Fork the Repository:** (If you are an external contributor).
+3.  **Create a Branch:** `git checkout -b feature/my-new-feature` or `fix/some-bug`.
+4.  **Implement Changes:** Write code, add tests, update documentation.
+5.  **Test Thoroughly:** Ensure all tests pass, including any new ones you've added.
+6.  **Format & Lint:** Run `cargo fmt --all` and `cargo clippy --all -- -D warnings`.
+7.  **Commit Changes:** Use conventional commit messages.
+8.  **Push to Your Fork/Branch.**
+9.  **Create a Pull Request:** Target the `main` branch of the upstream repository. Clearly describe your changes and link the relevant issue.
 
-This is a simplified guide to adding a new query-type API endpoint:
+## 7. Next Steps for the Project (and areas for contribution)
 
-1.  **Define Types in `icn-common` (`crates/icn-common/src/lib.rs`):**
-    *   If your new endpoint returns a new data structure, define it here (e.g., `pub struct MyNewData { ... }`).
-    *   If it can return specific new errors, add variants to the `CommonError` enum.
+The immediate next steps focus on making the protocol stack more concrete:
 
-2.  **Implement Logic in `icn-api` (`crates/icn-api/src/lib.rs`):**
-    *   Create a new public function, e.g., `pub fn get_my_new_data(...) -> Result<MyNewData, CommonError> { ... }`.
-    *   This function will contain the core logic, potentially calling into other crates or accessing node state (in a real scenario).
-    *   Add unit tests for this new function, covering success and error cases.
+*   **Real Persistence:** Implement file-based or SQLite backends for `icn-dag`.
+*   **Real Networking:** Integrate `libp2p` into `icn-network` for actual P2P communication.
+*   **Configuration:** Add configuration file support for `icn-node`.
+*   **Identity Implementation:** Flesh out DID methods and cryptographic primitives in `icn-identity`.
 
-3.  **Expose via `icn-node` (Conceptual - `crates/icn-node/src/main.rs`):**
-    *   In a real node with an RPC server, you would register your new API function with the server so it can be called remotely.
-    *   For now, you can simulate its use by calling it directly in `icn-node`'s `main` function to test integration, similar to how `get_node_info` and `get_node_status` are called.
+Look for `TODO:` comments in the code and open GitHub issues for good places to start contributing.
 
-4.  **Add Command to `icn-cli` (`crates/icn-cli/src/main.rs`):**
-    *   Add a new match arm in `main` for your new command (e.g., `"mynewdata"`).
-    *   Call the `icn_api::get_my_new_data()` function.
-    *   Print the results or errors nicely to the console.
+(TODO: Add simple sequence diagrams for core flows like block storage and peer messaging once the APIs stabilize further.)
 
-5.  **Update Documentation:**
-    *   Mention the new API endpoint in `icn-api/README.md` under "Planned Public API" (or move it to a "Implemented API" section).
-    *   Add module/function documentation (`/// ...`).
+// TODO (#issue_url_for_multinode_docs): Create a new document (e.g., `docs/MULTI_NODE_GUIDE.md`) detailing 
+// configuration, bootstrapping, and dev/test workflows for setting up and running multi-node local clusters 
+// once real networking and persistence are implemented.
 
-## 8. Making a Contribution
-
-1.  **Find an Issue:** Look for issues tagged "good first issue" or "help wanted" on GitHub.
-2.  **Discuss:** If you plan to work on a larger feature, it's good to discuss it in the relevant issue first.
-3.  **Branch:** Create a new branch for your changes: `git checkout -b your-feature-branch`.
-4.  **Code:** Implement your changes, including tests and documentation.
-5.  **Test & Lint:** Run `cargo test --all`, `cargo fmt --all --check`, and `cargo clippy --all -- -D warnings`.
-6.  **Commit:** Write clear and concise commit messages.
-7.  **Push:** Push your branch to your fork: `git push origin your-feature-branch`.
-8.  **Pull Request:** Open a Pull Request (PR) against the `main` branch of the main `icn-core` repository.
-    *   Provide a clear description of your changes in the PR.
-    *   Link any relevant issues.
-
-## Questions?
-
-If you have any questions, don't hesitate to ask in the GitHub issues or (if available) the project's communication channels (e.g., Discord, Matrix).
-
-Thank you for contributing to ICN Core! 
+--- 
+Thank you for your interest in contributing to ICN Core! 

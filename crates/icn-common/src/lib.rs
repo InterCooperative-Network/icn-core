@@ -28,14 +28,36 @@ pub struct NodeStatus {
 #[derive(Debug, Serialize, Deserialize)]
 pub enum CommonError {
     PlaceholderError(String),
-    ApiError(String),
-    NodeOffline(String),
-    NetworkUnhealthy(String),
-    SerializationError(String),
-    DeserializationError(String),
-    NotFoundError(String),
-    InvalidInputError(String),
-    StorageError(String),
+    ApiError(String),               // General API error
+    NodeOffline(String),            // Node is offline
+    NetworkUnhealthy(String),       // Network is generally unhealthy
+    SerializationError(String),     // Error during serialization
+    DeserializationError(String),   // Error during deserialization
+    NotFoundError(String),          // Generic not found
+    InvalidInputError(String),      // Input validation failed
+    StorageError(String),           // General storage error
+
+    // Network specific errors
+    NetworkConnectionError(String), // e.g. Cannot connect to peer
+    PeerNotFound(String),           // Specific peer not found
+    MessageSendError(String),       // Failed to send a message
+    MessageReceiveError(String),    // Failed to receive/parse a message
+
+    // Storage specific errors
+    BlockNotFound(String),      // Specific to DAG block not found
+    DatabaseError(String),      // For underlying database issues if not general StorageError
+
+    // Identity specific errors
+    IdentityError(String),              // General identity error
+    KeyPairGenerationError(String),
+    SignatureError(String),             // For signing or verification failures
+    DidResolutionError(String),
+    CredentialError(String),            // For Verifiable Credential issues
+
+    // DAG specific errors
+    DagValidationError(String),     // e.g. CID mismatch, invalid link
+    BlockTooLargeError(String),
+
     // TODO: Add more specific error variants as needed
 }
 
