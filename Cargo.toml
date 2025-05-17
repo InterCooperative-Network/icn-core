@@ -1,0 +1,22 @@
+[workspace]
+members = [
+    "crates/icn-common",
+    "crates/icn-identity",
+    "crates/icn-dag",
+    "crates/icn-mesh",
+    "crates/icn-runtime",
+    "crates/icn-protocol",
+    "crates/icn-governance",
+    "crates/icn-economics",
+    "crates/icn-network",
+    "crates/icn-api",
+    "crates/icn-cli",
+    "crates/icn-node",
+]
+
+# Optional: centralize workspace-wide settings
+[workspace.package]
+edition = "2021"
+version = "0.1.0"
+authors = ["InterCooperative Network <dev@intercooperative.network>"]
+license = "Apache-2.0"
