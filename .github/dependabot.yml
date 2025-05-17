@@ -1,0 +1,17 @@
+version: 2
+updates:
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    reviewers:
+      - "YOUR_GITHUB_USERNAME_OR_TEAM"
+    # Add assignees if desired
+    # assignees:
+    #   - "YOUR_GITHUB_USERNAME"
+    # Add labels if desired
+    # labels:
+    #   - "dependencies" 
