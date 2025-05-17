@@ -6,9 +6,10 @@
 //! The CLI aims for usability, discoverability, and scriptability.
 
 // Use the icn_api crate
-use icn_api::get_node_info;
+use icn_api::{get_node_info, get_node_status};
 // Use icn_common for types if needed, though get_node_info wraps them.
 // use icn_common::NodeInfo;
+use icn_common::CommonError;
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
@@ -30,15 +31,42 @@ fn main() {
                     }
                 }
             }
+            "status" => { // Node status command
+                // Allow simulating offline for CLI testing: `icn-cli status offline`
+                let simulate_online = if args.len() > 2 && args[2] == "offline" {
+                    println!("Requesting node status (simulating offline)...");
+                    false
+                } else {
+                    println!("Requesting node status (simulating online)...");
+                    true
+                };
+
+                match get_node_status(simulate_online) {
+                    Ok(status) => {
+                        println!("--- Node Status ---");
+                        println!("Online:         {}", status.is_online);
+                        println!("Peer Count:     {}", status.peer_count);
+                        println!("Block Height:   {}", status.current_block_height);
+                        println!("Version:        {}", status.version);
+                        println!("-------------------");
+                    }
+                    Err(CommonError::NodeOffline(msg)) => {
+                        eprintln!("Error: Node is offline - {}", msg);
+                    }
+                    Err(e) => {
+                        eprintln!("Error retrieving node status: {:?}", e);
+                    }
+                }
+            }
             "hello" => { // Simple hello command
                 println!("Hello from ICN CLI!");
             }
             _ => {
-                println!("Unknown command: {}. Try 'info' or 'hello'.", args[1]);
+                println!("Unknown command: {}. Try 'info', 'status', or 'hello'.", args[1]);
             }
         }
     } else {
-        println!("ICN CLI. Available commands: info, hello");
+        println!("ICN CLI. Available commands: info, status, hello");
     }
 }
 

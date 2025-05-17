@@ -14,11 +14,22 @@ pub struct NodeInfo {
     pub status_message: String,
 }
 
+/// Represents the operational status of an ICN node.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NodeStatus {
+    pub is_online: bool,
+    pub peer_count: u32,
+    pub current_block_height: u64, // Example field
+    pub version: String,
+}
+
 #[derive(Debug)]
 pub enum CommonError {
     PlaceholderError(String),
     ApiError(String),
     // TODO: Add more specific error variants: e.g., SerializationError, IoError, NotFound, PermissionDenied
+    NodeOffline(String),
+    NetworkUnhealthy(String),
 }
 
 // TODO: Define struct for DIDs (e.g., pub struct Did { method: String, id_string: String, ... })
@@ -42,5 +53,17 @@ mod tests {
             status_message: "All good".to_string(),
         };
         assert_eq!(info.name, "Test Node");
+    }
+
+    #[test]
+    fn node_status_can_be_created() {
+        let status = NodeStatus {
+            is_online: true,
+            peer_count: 10,
+            current_block_height: 12345,
+            version: ICN_CORE_VERSION.to_string(),
+        };
+        assert!(status.is_online);
+        assert_eq!(status.peer_count, 10);
     }
 }
