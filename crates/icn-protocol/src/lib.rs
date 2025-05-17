@@ -1,7 +1,7 @@
 #![doc = include_str!("../README.md")]
 
 //! # ICN Protocol Crate
-//! This crate defines core message formats, communication protocols, and potentially helpers 
+//! This crate defines core message formats, communication protocols, and potentially helpers
 //! for a domain-specific language (e.g., CCL) within the InterCooperative Network (ICN).
 //! It focuses on message serialization, protocol definitions, and versioning.
 

@@ -1,7 +1,7 @@
 #![doc = include_str!("../README.md")]
 
 //! # ICN Identity Crate
-//! This crate manages decentralized identities (DIDs), verifiable credentials (VCs), 
+//! This crate manages decentralized identities (DIDs), verifiable credentials (VCs),
 //! and cryptographic operations for the InterCooperative Network (ICN).
 //! It focuses on security, interoperability with DID/VC standards, and usability.
 

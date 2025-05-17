@@ -1,7 +1,7 @@
 #![doc = include_str!("../README.md")]
 
 //! # ICN DAG Crate
-//! This crate implements or defines interfaces for content-addressed Directed Acyclic Graph (DAG) 
+//! This crate implements or defines interfaces for content-addressed Directed Acyclic Graph (DAG)
 //! storage and manipulation, crucial for the InterCooperative Network (ICN) data model.
 //! It handles DAG primitives, content addressing, storage abstraction, and serialization formats.
 
