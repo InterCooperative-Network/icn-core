@@ -1,0 +1,17 @@
+# Rust/Cargo
+/target/
+**/*.rs.bk
+**/*.rs.bak
+Cargo.lock
+
+# IDEs and editors
+/.idea/
+/.vscode/
+/*.sw?
+*~
+.project
+.DS_Store
+
+# Logs and temporary
+*.log
+tmp/
