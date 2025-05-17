@@ -1,6 +1,6 @@
 # ICN Core
 
-[![Rust CI](https://github.com/USERNAME/icn-core/actions/workflows/ci.yml/badge.svg)](https://github.com/USERNAME/icn-core/actions/workflows/ci.yml)
+[![Rust CI](https://github.com/InterCooperative-Network/icn-core/actions/workflows/ci.yml/badge.svg)](https://github.com/InterCooperative-Network/icn-core/actions/workflows/ci.yml)
 
 A monorepo of core Rust crates for the InterCooperative Network (ICN).
 
