@@ -5,8 +5,12 @@
 //! for a domain-specific language (e.g., CCL) within the InterCooperative Network (ICN).
 //! It focuses on message serialization, protocol definitions, and versioning.
 
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
+use icn_common::{NodeInfo, CommonError, ICN_CORE_VERSION};
+
+/// Placeholder function demonstrating use of common types for protocol messages.
+pub fn serialize_protocol_message(info: &NodeInfo, message_type: u16) -> Result<Vec<u8>, CommonError> {
+    let msg_string = format!("Msg type {} from node: {} (v{})", message_type, info.name, info.version);
+    Ok(msg_string.into_bytes())
 }
 
 #[cfg(test)]
@@ -14,8 +18,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
+    fn test_serialize_protocol_message() {
+        let node_info = NodeInfo {
+            name: "ProtoNode".to_string(),
+            version: ICN_CORE_VERSION.to_string(),
+            status_message: "Protocol active".to_string(),
+        };
+        let result = serialize_protocol_message(&node_info, 1);
+        assert!(result.is_ok());
+        let bytes = result.unwrap();
+        assert!(!bytes.is_empty());
+        assert!(String::from_utf8(bytes).unwrap().contains("ProtoNode"));
     }
 }

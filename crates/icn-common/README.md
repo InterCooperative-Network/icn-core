@@ -24,6 +24,17 @@ The API style focuses on:
 *   **Clarity:** Well-documented and easy-to-understand types and functions.
 *   **Generality:** Providing utilities that are broadly applicable within the ICN context.
 
+## Planned Public API
+
+This crate will provide foundational types and utilities including:
+
+*   **Identifiers:** Structs for DIDs (Decentralized Identifiers), CIDs (Content Identifiers), and other ICN-specific IDs.
+*   **Error Handling:** A comprehensive error enum (`CommonError`) and `Result` type for standardized error reporting across crates.
+*   **Data Structures:** Common data structures used in multiple protocols (e.g., for proposals, votes, economic transactions).
+*   **Serialization:** Helpers or traits for consistent serialization/deserialization (e.g., using Serde with CBOR).
+*   **Constants:** Widely used network constants (like `ICN_CORE_VERSION`).
+*   **Traits:** Common traits for extensibility in other crates (e.g., `Identifiable`, `Signable`).
+
 ## Contributing
 
 Contributions are welcome! Please see the main [CONTRIBUTING.md](../../CONTRIBUTING.md) in the root of the `icn-core` repository for guidelines.

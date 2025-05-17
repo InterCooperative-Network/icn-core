@@ -45,3 +45,37 @@ All interactions within this project are governed by our [Code of Conduct](CODE_
 ## License
 
 This project is licensed under the Apache License 2.0. See the [LICENSE](LICENSE) file for details.
+
+## Next Milestones
+
+The following are high-level milestones for the development of ICN Core. These are subject to change and community input.
+
+1.  **Foundation & Basic APIs (Q1-Q2 202X)**
+    *   Solidify `icn-common` with core data types (DIDs, CIDs, robust errors).
+    *   Implement initial JSON-RPC/gRPC skeletons in `icn-api` for basic node interaction (e.g., status, identity query).
+    *   Develop basic DID management in `icn-identity` (generation, simple resolution).
+    *   Set up basic node persistence for configuration and identity keys in `icn-node`.
+
+2.  **Networking & Basic DAG (Q2-Q3 202X)**
+    *   Wire up basic libp2p stack in `icn-network` (peer discovery, basic pub/sub or request-response).
+    *   Implement initial in-memory `icn-dag` store with put/get operations for CIDs.
+    *   `icn-node` can connect to a bootstrap peer and exchange basic messages.
+    *   `icn-cli` can make basic API calls to a running node over the network (local for now).
+
+3.  **Core Protocols - Governance & Economics (Q3-Q4 202X)**
+    *   Define and implement basic proposal submission and voting logic in `icn-governance`.
+    *   Define basic token structures and transfer logic in `icn-economics` (in-memory ledger initially).
+    *   Integrate governance and economics actions into `icn-api` and `icn-node`.
+
+4.  **Runtime & Mesh (Q4 202X - Q1 202Y)**
+    *   Integrate a WASM runtime into `icn-runtime`.
+    *   Define initial host functions for WASM contracts to interact with node services (DAG, identity, economics).
+    *   Basic job definition and local execution PoC in `icn-mesh`.
+
+5.  **Federation & Advanced Features (202Y Onwards)**
+    *   Implement initial federation sync protocols in `icn-network` and `icn-protocol`.
+    *   Advanced DAG features (e.g., selectors, sharding considerations).
+    *   More sophisticated governance and economic models.
+    *   Full `icn-mesh` job scheduling and distributed execution.
+
+This roadmap will be refined into more detailed issues on GitHub. Community feedback is highly encouraged!

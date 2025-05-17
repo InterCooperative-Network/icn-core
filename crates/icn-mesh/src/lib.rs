@@ -5,8 +5,11 @@
 //! InterCooperative Network (ICN) mesh network. It handles job definition, resource discovery,
 //! scheduling, execution management, and fault tolerance.
 
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
+use icn_common::{NodeInfo, CommonError, ICN_CORE_VERSION};
+
+/// Placeholder function demonstrating use of common types for mesh operations.
+pub fn schedule_mesh_job(info: &NodeInfo, job_id: &str) -> Result<String, CommonError> {
+    Ok(format!("Scheduled mesh job {} on node: {} (v{})", job_id, info.name, info.version))
 }
 
 #[cfg(test)]
@@ -14,8 +17,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
+    fn test_schedule_mesh_job() {
+        let node_info = NodeInfo {
+            name: "MeshNode".to_string(),
+            version: ICN_CORE_VERSION.to_string(),
+            status_message: "Mesh active".to_string(),
+        };
+        let result = schedule_mesh_job(&node_info, "job-123");
+        assert!(result.is_ok());
+        assert!(result.unwrap().contains("job-123"));
     }
 }

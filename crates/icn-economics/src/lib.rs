@@ -5,8 +5,11 @@
 //! It manages token models, ledger interactions, transaction logic, and incentive mechanisms,
 //! aiming for security, accuracy, and interoperability.
 
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
+use icn_common::{NodeInfo, CommonError, ICN_CORE_VERSION};
+
+/// Placeholder function demonstrating use of common types for economics.
+pub fn process_economic_event(info: &NodeInfo, event_details: &str) -> Result<String, CommonError> {
+    Ok(format!("Processed economic event '{} ' for node: {} (v{})", event_details, info.name, info.version))
 }
 
 #[cfg(test)]
@@ -14,8 +17,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
+    fn test_process_economic_event() {
+        let node_info = NodeInfo {
+            name: "EcoNode".to_string(),
+            version: ICN_CORE_VERSION.to_string(),
+            status_message: "Economics active".to_string(),
+        };
+        let result = process_economic_event(&node_info, "test_transaction");
+        assert!(result.is_ok());
+        assert!(result.unwrap().contains("test_transaction"));
     }
 }
