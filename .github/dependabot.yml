@@ -7,8 +7,8 @@ updates:
     commit-message:
       prefix: "chore"
       include: "scope"
-    reviewers:
-      - "YOUR_GITHUB_USERNAME_OR_TEAM"
+    #reviewers:
+    #  - "YOUR_GITHUB_USERNAME_OR_TEAM"
     # Add assignees if desired
     # assignees:
     #   - "YOUR_GITHUB_USERNAME"
