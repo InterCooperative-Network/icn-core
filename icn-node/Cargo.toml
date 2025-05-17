@@ -1,0 +1,4 @@
+icn-api = { path = "../icn-api", version = "0.1.0" }
+icn-common = { path = "../icn-common", version = "0.1.0" }
+icn-network = { path = "../icn-network", version = "0.1.0" }
+serde_json = "1.0" 

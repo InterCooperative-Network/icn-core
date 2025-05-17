@@ -7,3 +7,5 @@ license.workspace = true
 
 [dependencies]
 icn-common = { path = "../icn-common", version = "0.1.0" }
+icn-dag = { path = "../icn-dag", version = "0.1.0" }
+serde_json = "1.0"

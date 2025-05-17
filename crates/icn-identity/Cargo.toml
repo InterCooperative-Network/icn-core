@@ -7,3 +7,6 @@ license.workspace = true
 
 [dependencies]
 icn-common = { path = "../icn-common", version = "0.1.0" }
+rand = "0.8"
+bs58 = "0.5"
+# TODO: Add actual crypto libraries like ed25519-dalek, x25519-dalek, k256 etc. later
