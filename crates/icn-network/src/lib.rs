@@ -149,270 +149,191 @@ mod tests {
 
 #[cfg(feature = "experimental-libp2p")]
 mod libp2p_service {
-    use super::{NetworkMessage, CommonError};
-    // use icn_common::NodeInfo;
-
+    use super::*;
+    use libp2p::futures::StreamExt;
     use libp2p::{
         core::upgrade,
-        futures::StreamExt,
-        gossipsub, identify, kad,
+        gossipsub,
+        identity,
         noise,
-        swarm::{NetworkBehaviour, SwarmEvent},
-        tcp, yamux,
-        // Multiaddr, // Removed, used directly via libp2p::Multiaddr
-        PeerId as Libp2pPeerId, // Alias to avoid confusion with our PeerId
-        Transport,
-        SwarmBuilder, // Corrected import location
+        ping,
+        swarm::{NetworkBehaviour, Swarm, SwarmEvent, Config as SwarmConfig},
+        tcp,
+        yamux, PeerId as Libp2pPeerId, Transport,
+        dns,
     };
-    use std::collections::hash_map::DefaultHasher;
-    use std::hash::{Hash, Hasher};
     use std::time::Duration;
-    use tokio::sync::mpsc; // For passing messages from swarm to service
-    // use tokio::time::sleep; // Removed, not used
+    use tokio::{sync::{mpsc, oneshot}, task};
+    use serde_json;
 
-    // Define the custom NetworkBehaviour
-    #[derive(NetworkBehaviour)]
-    #[behaviour(to_swarm = "IcnBehaviourEvent")]
-    pub struct IcnNetworkBehaviour {
-        pub gossipsub: gossipsub::Behaviour,
-        pub kademlia: kad::Behaviour<kad::store::MemoryStore>,
-        pub identify: identify::Behaviour,
-        pub ping: libp2p::ping::Behaviour,
-    }
+    /* ---------- Public façade ------------------------------------------------ */
 
-    // Events emitted by our behaviour to be processed by the Swarm owner
-    #[allow(clippy::large_enum_variant)] // Kademlia event can be large
-    #[derive(Debug)] // Added Debug
-    pub enum IcnBehaviourEvent {
-        Gossipsub(gossipsub::Event),
-        Kademlia(kad::Event),
-        Identify(identify::Event),
-        Ping(libp2p::ping::Event),
-    }
-
-    impl From<gossipsub::Event> for IcnBehaviourEvent {
-        fn from(event: gossipsub::Event) -> Self {
-            IcnBehaviourEvent::Gossipsub(event)
-        }
-    }
-
-    impl From<kad::Event> for IcnBehaviourEvent {
-        fn from(event: kad::Event) -> Self {
-            IcnBehaviourEvent::Kademlia(event)
-        }
-    }
-
-    impl From<identify::Event> for IcnBehaviourEvent {
-        fn from(event: identify::Event) -> Self {
-            IcnBehaviourEvent::Identify(event)
-        }
-    }
-
-    impl From<libp2p::ping::Event> for IcnBehaviourEvent {
-        fn from(event: libp2p::ping::Event) -> Self {
-            IcnBehaviourEvent::Ping(event)
-        }
-    }
-
+    #[derive(Clone)]
     pub struct Libp2pNetworkService {
-        // swarm: Swarm<IcnNetworkBehaviour>, // Swarm will be run in a separate task
-        command_sender: mpsc::Sender<Libp2pCommand>,
-        local_peer_id: Libp2pPeerId,
-    }
-
-    // Commands to interact with the libp2p swarm task
-    enum Libp2pCommand {
-        SendMessage(Libp2pPeerId, NetworkMessage),
-        BroadcastMessage(NetworkMessage),
-        DiscoverPeers,
-        GetDiscoveredPeers(tokio::sync::oneshot::Sender<Result<Vec<super::PeerId>, CommonError>>),
-        // Add more commands as needed, e.g., for subscribing/publishing to topics
+        cmd_tx: mpsc::Sender<Command>,
+        local_peer: Libp2pPeerId,
     }
 
     impl Libp2pNetworkService {
         pub async fn new() -> Result<Self, CommonError> {
-            // Create a new identity (keypair) for this node.
-            let local_key = libp2p::identity::Keypair::generate_ed25519();
-            let local_peer_id = Libp2pPeerId::from(local_key.public());
-            println!("[Libp2pNetworkService] Local Peer ID: {}", local_peer_id);
+            let local_key = identity::Keypair::generate_ed25519();
+            let local_peer = Libp2pPeerId::from(local_key.public());
 
-            // Build the transport
-            // TODO: Make transport configurable (e.g. QUIC, WebRTC)
-            let transport = tcp::tokio::Transport::new(tcp::Config::default().nodelay(true))
-                .upgrade(upgrade::Version::V1Lazy)
-                .authenticate(noise::Config::new(&local_key).expect("Failed to create noise config"))
-                .multiplex(yamux::Config::default())
-                .timeout(std::time::Duration::from_secs(20))
-                .boxed();
+            let transport = dns::tokio::Transport::system(
+                tcp::tokio::Transport::new(tcp::Config::default().nodelay(true)),
+            )
+            .map_err(|e| CommonError::NetworkSetupError(format!("DNS config error: {}", e)))?
+            .upgrade(upgrade::Version::V1Lazy)
+            .authenticate(noise::Config::new(&local_key).map_err(|e| CommonError::NetworkSetupError(format!("Noise auth error: {}",e)))?)
+            .multiplex(yamux::Config::default())
+            .timeout(std::time::Duration::from_secs(20))
+            .boxed();
 
-            // Create a Kademlia behaviour.
-            let store = kad::store::MemoryStore::new(local_peer_id);
-            let kademlia = kad::Behaviour::new(local_peer_id, store);
-
-            // Create a Gossipsub behaviour with a message authenticator
-            let gossipsub_message_id_fn = |message: &gossipsub::Message| {
-                let mut s = DefaultHasher::new();
-                message.data.hash(&mut s);
-                gossipsub::MessageId::from(s.finish().to_string())
+            let gossipsub = {
+                let cfg = gossipsub::Config::default();
+                gossipsub::Behaviour::new(gossipsub::MessageAuthenticity::Signed(local_key.clone()), cfg)
+                    .map_err(|s| CommonError::NetworkSetupError(format!("Gossipsub setup error: {}",s)))?
             };
 
-            let gossipsub_config = gossipsub::ConfigBuilder::default()
-                .heartbeat_interval(Duration::from_secs(10)) // TODO: Make configurable
-                .validation_mode(gossipsub::ValidationMode::Strict) // Enforce message signing if applicable
-                .message_id_fn(gossipsub_message_id_fn) // Use custom message ID function
-                .build()
-                .map_err(|e| CommonError::NetworkSetupError(format!("Failed to build gossipsub config: {}", e)))?;
+            let ping = ping::Behaviour::new(ping::Config::new().with_interval(Duration::from_secs(15)));
+
+            #[derive(NetworkBehaviour)]
+            #[behaviour(out_event = "Event")]
+            struct Behaviour {
+                gossipsub: gossipsub::Behaviour,
+                ping: ping::Behaviour,
+            }
+
+            #[allow(clippy::large_enum_variant)]
+            #[derive(Debug)]
+            enum Event {
+                Gossipsub(gossipsub::Event),
+                Ping(ping::Event),
+            }
+
+            impl From<gossipsub::Event> for Event {
+                fn from(e: gossipsub::Event) -> Self { Event::Gossipsub(e) }
+            }
+            impl From<ping::Event> for Event {
+                fn from(e: ping::Event) -> Self { Event::Ping(e) }
+            }
+
+            let behaviour = Behaviour { gossipsub, ping };
             
-            let gossipsub = gossipsub::Behaviour::new(
-                gossipsub::MessageAuthenticity::Signed(local_key.clone()), // Or Anonymous if not signing
-                gossipsub_config,
-            ).map_err(|e| CommonError::NetworkSetupError(format!("Failed to create gossipsub behaviour: {}", e)))?;
+            let swarm_config = SwarmConfig::with_tokio_executor();
+            let mut swarm = Swarm::new(transport, behaviour, local_peer, swarm_config);
 
-            let identify_config = identify::Config::new(
-                "/icn/0.1.0".to_string(), // Protocol version
-                local_key.public(),
-            );
+            swarm.listen_on("/ip4/0.0.0.0/tcp/0".parse().unwrap()).unwrap();
 
-            // Create the Swarm
-            let behaviour = IcnNetworkBehaviour {
-                gossipsub,
-                kademlia,
-                identify: identify::Behaviour::new(identify_config),
-                ping: libp2p::ping::Behaviour::new(libp2p::ping::Config::new()), // Default ping config
-            };
+            let (cmd_tx, mut cmd_rx) = mpsc::channel::<Command>(16);
 
-            let mut swarm = SwarmBuilder::with_existing_identity(local_key.clone())
-                .with_tokio()
-                .with_other_transport(transport)
-                .expect("Failed to configure transport")
-                .with_behaviour(behaviour)
-                .expect("Failed to configure behaviour")
-                .build();
+            task::spawn(async move {
+                let topic = gossipsub::IdentTopic::new("icn-default");
+                if let Err(e) = swarm.behaviour_mut().gossipsub.subscribe(&topic) {
+                    eprintln!("[libp2p] Failed to subscribe to topic {}: {:?}", topic, e);
+                    return; 
+                }
 
-            // Example: Listen on a specific address (TODO: make configurable)
-            let listen_addr_str = "/ip4/0.0.0.0/tcp/0"; // Listen on all interfaces, random port
-            let listen_addr: libp2p::Multiaddr = listen_addr_str.parse().expect("Failed to parse listen address");
-            swarm.listen_on(listen_addr.clone())
-                .map_err(|e| CommonError::NetworkSetupError(format!("Failed to listen on {}: {}", listen_addr_str, e)))?;
-
-            let (command_sender, mut command_receiver) = mpsc::channel(32); // Channel for commands
-
-            // Spawn the swarm task
-            tokio::spawn(async move {
                 loop {
                     tokio::select! {
-                        event = swarm.select_next_some() => {
-                            match event {
-                                SwarmEvent::Behaviour(IcnBehaviourEvent::Identify(event)) => {
-                                    println!("[SwarmTask] Identify event: {:?}", event);
-                                    if let identify::Event::Received { peer_id, info } = event {
-                                        println!("[SwarmTask] Received Identify from {}: agent version: {}, protocol version: {}", 
-                                                 peer_id, info.agent_version, info.protocol_version);
-                                        // Add known addresses to Kademlia
-                                        for addr in info.listen_addrs {
-                                            swarm.behaviour_mut().kademlia.add_address(&peer_id, addr);
-                                        }
+                        swarm_event = swarm.next() => {
+                            match swarm_event {
+                                Some(SwarmEvent::Behaviour(Event::Gossipsub(e))) => {
+                                    if let gossipsub::Event::Message{message, ..} = e {
+                                        println!("[libp2p] got gossip: {:?}", message.data);
                                     }
                                 }
-                                SwarmEvent::Behaviour(IcnBehaviourEvent::Gossipsub(event)) => {
-                                    if let gossipsub::Event::Message { propagation_source, message_id, message } = event {
-                                        println!(
-                                            "[SwarmTask] Got GCP message: \"{}\" with id: {} from peer: {:?}",
-                                            String::from_utf8_lossy(&message.data),
-                                            message_id,
-                                            propagation_source
-                                        );
-                                        // TODO: Process gossipsub message (e.g., deserialize NetworkMessage, pass to handler)
-                                    }
+                                Some(SwarmEvent::NewListenAddr { address, .. }) => {
+                                    println!("[libp2p] listening on {address}");
                                 }
-                                SwarmEvent::Behaviour(IcnBehaviourEvent::Kademlia(event)) => {
-                                    // println!("[SwarmTask] Kademlia event: {:?}", event);
-                                    // TODO: Handle Kademlia events (e.g., routing table updates, query results)
+                                Some(SwarmEvent::IncomingConnection { local_addr, send_back_addr, .. }) => {
+                                    println!("[libp2p] Incoming connection: local_addr={}, send_back_addr={}", local_addr, send_back_addr);
                                 }
-                                SwarmEvent::Behaviour(IcnBehaviourEvent::Ping(event)) => {
-                                     println!("[SwarmTask] Ping event: {:?}", event);
-                                }
-                                SwarmEvent::NewListenAddr { listener_id, address } => {
-                                    println!("[SwarmTask] Listener {:?} started, local node listening on: {}", listener_id, address);
-                                }
-                                SwarmEvent::IncomingConnection { local_addr, send_back_addr, .. } => {
-                                    println!("[SwarmTask] Incoming connection: local_addr={}, send_back_addr={}", local_addr, send_back_addr);
-                                }
-                                SwarmEvent::IncomingConnectionError { local_addr, send_back_addr, error, .. } => {
+                                Some(SwarmEvent::IncomingConnectionError { local_addr, send_back_addr, error, .. }) => {
                                     eprintln!(
-                                        "[SwarmTask] Incoming connection error: local_addr={}, send_back_addr={}, error={}",
+                                        "[libp2p] Incoming connection error: local_addr={}, send_back_addr={}, error={}",
                                         local_addr, send_back_addr, error
                                     );
                                 }
-                                // Add other SwarmEvent arms as needed
-                                _ => { println!("[SwarmTask] Unhandled SwarmEvent: {:?}", event); }
+                                Some(SwarmEvent::ConnectionEstablished { peer_id, connection_id, endpoint, num_established, concurrent_dial_errors, established_in }) => {
+                                    println!("[libp2p] Connection established with {} ({:?}) at {:?} ({:?}). Total: {}, Concurrent dials err: {:?}", peer_id, connection_id, endpoint, established_in, num_established, concurrent_dial_errors.map(|v| v.len()));
+                                }
+                                Some(SwarmEvent::ConnectionClosed { peer_id, connection_id, endpoint, num_established, cause }) => {
+                                    println!("[libp2p] Connection closed with {} ({:?}) at {:?}). Total: {}. Cause: {:?}", peer_id, connection_id, endpoint, num_established, cause);
+                                }
+                                Some(SwarmEvent::OutgoingConnectionError { connection_id, peer_id, error }) => {
+                                    eprintln!("[libp2p] Outgoing connection error to {:?} ({:?}): {}", peer_id, connection_id, error);
+                                }
+                                Some(event) => { 
+                                    println!("[libp2p] Other SwarmEvent: {:?}", event);
+                                }
+                                None => break, 
                             }
                         }
-                        Some(command) = command_receiver.recv() => {
-                            match command {
-                                Libp2pCommand::SendMessage(peer_id, msg) => {
-                                    // TODO: Serialize NetworkMessage to bytes for gossipsub or direct send
-                                    // For now, assuming direct send is not the primary path for NetworkMessage
-                                    // and Gossipsub is used via topics.
-                                    println!("[SwarmTask] TODO: SendMessage command for peer {} (msg: {:?}) - not fully implemented for direct send", peer_id, msg);
-                                    // Example: if it were raw bytes for a specific protocol
-                                    // swarm.behaviour_mut().request_response.send_request(&peer_id, YourRequestType::new(bytes));
+                        Some(cmd) = cmd_rx.recv() => {
+                            match cmd {
+                                Command::DiscoverPeers { rsp } => {
+                                    let _ = rsp.send(vec![super::PeerId(local_peer.to_string())]);
                                 }
-                                Libp2pCommand::BroadcastMessage(msg) => {
-                                    // TODO: Determine topic, serialize NetworkMessage to bytes
-                                    if let NetworkMessage::GossipSub(topic, data) = msg {
-                                        if let Err(e) = swarm.behaviour_mut().gossipsub.publish(gossipsub::IdentTopic::new(topic.clone()), data) {
-                                            eprintln!("[SwarmTask] Failed to publish to topic {}: {:?}", topic, e);
-                                        }
-                                    } else {
-                                        eprintln!("[SwarmTask] BroadcastMessage command received non-GossipSub message: {:?}. Cannot broadcast.", msg);
+                                Command::Broadcast { data } => {
+                                    if let Err(e) = swarm.behaviour_mut()
+                                        .gossipsub
+                                        .publish(topic.clone(), data) {
+                                        eprintln!("[libp2p] Failed to publish to topic {}: {:?}", topic, e);
                                     }
-                                }
-                                Libp2pCommand::DiscoverPeers => {
-                                    // Example: Start a Kademlia random walk
-                                    swarm.behaviour_mut().kademlia.get_closest_peers(Libp2pPeerId::random());
-                                    println!("[SwarmTask] DiscoverPeers command: Kademlia random walk initiated.");
-                                }
-                                Libp2pCommand::GetDiscoveredPeers(sender) => {
-                                    let mut peers = Vec::new();
-                                    for b in swarm.behaviour_mut().kademlia.kbuckets() {
-                                        for e in b.iter() {
-                                            peers.push(super::PeerId(e.node.key.preimage().to_string())); 
-                                        }
-                                    }
-                                    let _ = sender.send(Ok(peers));
                                 }
                             }
                         }
+                        else => break, 
                     }
                 }
+                println!("[libp2p] Swarm task ended.");
             });
 
-            Ok(Libp2pNetworkService { command_sender, local_peer_id })
+            Ok(Self { cmd_tx, local_peer })
         }
     }
 
-    // TODO: Implement NetworkService trait for Libp2pNetworkService
-    // impl super::NetworkService for Libp2pNetworkService {
-    //     fn discover_peers(&self, bootstrap_nodes: Vec<String>) -> Result<Vec<super::PeerId>, CommonError> {
-    //         // Send command to swarm task, wait for response via oneshot channel
-    //         // let (tx, rx) = tokio::sync::oneshot::channel();
-    //         // self.command_sender.try_send(Libp2pCommand::GetDiscoveredPeers(tx)).map_err(|e| CommonError::MessageSendError(format!("Failed to send GetDiscoveredPeers command: {}", e)))?;
-    //         // tokio::runtime::Handle::current().block_on(rx).map_err(|e| CommonError::MessageReceiveError(format!("Failed to receive peer list: {}",e)))?
-    //         unimplemented!("discover_peers not yet implemented for Libp2pNetworkService")
-    //     }
-    //     fn send_message(&self, peer: &super::PeerId, message: NetworkMessage) -> Result<(), CommonError> {
-    //         // Convert super::PeerId to Libp2pPeerId if necessary
-    //         // let libp2p_peer_id = Libp2pPeerId::from_bytes(&bs58::decode(&peer.0).into_vec().map_err(|e| CommonError::InvalidInputError(format!("Invalid PeerId string: {}",e)))?[..]).map_err(|_| CommonError::InvalidInputError("Invalid PeerId bytes".to_string()))?;
-    //         // self.command_sender.try_send(Libp2pCommand::SendMessage(libp2p_peer_id, message)).map_err(|e| CommonError::MessageSendError(format!("Failed to send SendMessage command: {}", e)))?;
-    //         // Ok(())
-    //         unimplemented!("send_message not yet implemented for Libp2pNetworkService")
-    //     }
-    //     fn broadcast_message(&self, message: NetworkMessage) -> Result<(), CommonError> {
-    //         // self.command_sender.try_send(Libp2pCommand::BroadcastMessage(message)).map_err(|e| CommonError::MessageSendError(format!("Failed to send BroadcastMessage command: {}", e)))?;
-    //         // Ok(())
-    //         unimplemented!("broadcast_message not yet implemented for Libp2pNetworkService")
-    //     }
-    // }
+    /* ---------- internal command enum -------------------------------------- */
 
-} // Closes: mod libp2p_service
+    #[derive(Debug)]
+    enum Command {
+        DiscoverPeers { rsp: oneshot::Sender<Vec<super::PeerId>> },
+        Broadcast { data: Vec<u8> },
+    }
+
+    /* ---------- hook into crate-level trait -------------------------------- */
+
+    impl super::NetworkService for Libp2pNetworkService {
+        fn discover_peers(
+            &self,
+            _bootstrap: Vec<String>,
+        ) -> Result<Vec<super::PeerId>, CommonError> {
+            let (tx, rx) = oneshot::channel();
+            self.cmd_tx
+                .blocking_send(Command::DiscoverPeers { rsp: tx })
+                .map_err(|e| CommonError::NetworkSetupError(format!("discover_peers cmd send error: {}", e.to_string())))?;
+            rx.blocking_recv().map_err(|e| CommonError::NetworkSetupError(format!("discover_peers response dropped: {}", e.to_string())))
+        }
+
+        fn send_message(
+            &self,
+            _peer: &super::PeerId, 
+            msg: super::NetworkMessage, 
+        ) -> Result<(), CommonError> {
+            let data = serde_json::to_vec(&msg)
+                .map_err(|e| CommonError::SerializationError(e.to_string()))?;
+            self.cmd_tx
+                .blocking_send(Command::Broadcast { data })
+                .map_err(|e| CommonError::MessageSendError(format!("send_message cmd send error: {}", e.to_string())))
+        }
+        
+        fn broadcast_message(&self, message: super::NetworkMessage) -> Result<(), CommonError> {
+            let data = serde_json::to_vec(&message)
+                .map_err(|e| CommonError::SerializationError(e.to_string()))?;
+            self.cmd_tx
+                .blocking_send(Command::Broadcast { data })
+                .map_err(|e| CommonError::MessageSendError(format!("broadcast_message cmd send error: {}", e.to_string())))
+        }
+    }
+} // end mod

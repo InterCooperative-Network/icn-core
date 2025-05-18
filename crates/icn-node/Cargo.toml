@@ -19,7 +19,7 @@ axum = { version = "0.7", features = ["json"] }
 
 [features]
 default = ["icn-network/default"]
-with-libp2p = ["icn-network/with-libp2p"]
+with-libp2p = ["icn-network/experimental-libp2p"]
 
 [dev-dependencies]
 reqwest = { version = "0.11", features = ["json"] }
