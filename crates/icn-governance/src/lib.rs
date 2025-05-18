@@ -8,6 +8,8 @@
 use icn_common::{NodeInfo, CommonError, Did};
 use icn_network::PeerId;
 use std::collections::HashMap;
+#[cfg(feature = "persist-sled")]
+use std::path::PathBuf;
 
 #[cfg(feature = "serde")]
 use serde::{Serialize, Deserialize};
@@ -82,31 +84,61 @@ pub struct Vote {
     pub voted_at: u64, // Timestamp
 }
 
+// Define the Backend enum
+#[derive(Debug)]
+enum Backend {
+    InMemory {
+        proposals: HashMap<ProposalId, Proposal>,
+    },
+    #[cfg(feature = "persist-sled")]
+    Sled {
+        db: sled::Db,
+        // Define names for trees (sled's equivalent of tables/collections)
+        // We'll store proposals in a tree named "proposals"
+        // Key: ProposalId.0 (String), Value: bincode-serialized Proposal
+        proposals_tree_name: String,
+    },
+}
+
 /// Manages governance proposals and voting.
-#[derive(Debug, Default)]
+#[derive(Debug)] // Removed Default, as `new` is now more explicit
 pub struct GovernanceModule {
-    proposals: HashMap<ProposalId, Proposal>,
+    backend: Backend,
     // TODO: Add member list, voting rules (quorum, threshold), etc.
 }
 
 impl GovernanceModule {
+    /// Creates a new GovernanceModule with an in-memory backend.
     pub fn new() -> Self {
-        Default::default()
+        GovernanceModule {
+            backend: Backend::InMemory {
+                proposals: HashMap::new(),
+            },
+        }
+    }
+
+    #[cfg(feature = "persist-sled")]
+    /// Creates a new GovernanceModule with a sled persistent backend.
+    pub fn new_sled(db_path: PathBuf) -> Result<Self, CommonError> {
+        let db = sled::open(db_path)
+            .map_err(|e| CommonError::StorageError(format!("Failed to open sled database: {}", e)))?;
+        
+        let proposals_tree_name = "proposals_v1".to_string(); // versioned tree name
+        // sled automatically creates trees when first accessed, so no explicit creation needed here.
+
+        Ok(GovernanceModule {
+            backend: Backend::Sled {
+                db,
+                proposals_tree_name,
+            },
+        })
     }
 
     pub fn submit_proposal(&mut self, proposer: Did, proposal_type: ProposalType, description: String, duration_secs: u64) -> Result<ProposalId, CommonError> {
-        // Simulate getting current time
         let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs();
-        // Simple ID generation: ProposerDIDString:ShortDescriptionHash:Timestamp
-        let desc_hash_part = description.chars().take(10).collect::<String>(); // First 10 chars as a stand-in for a hash
-        // Use proposer.to_string() which correctly formats the DID as a string
-        let proposal_id_str = format!("{}:{}:{}", proposer.to_string(), desc_hash_part, now);
+        let desc_hash_part = description.chars().take(10).collect::<String>();
+        let proposal_id_str = format!("prop:{}:{}:{}", proposer.to_string(), desc_hash_part, now);
         let proposal_id = ProposalId(proposal_id_str);
-
-        if self.proposals.contains_key(&proposal_id) {
-            // Use .0 to get the inner String for the error message, consistent with ProposalId structure
-            return Err(CommonError::ProposalExists(proposal_id.0.clone()));
-        }
 
         let proposal = Proposal {
             id: proposal_id.clone(),
@@ -115,43 +147,145 @@ impl GovernanceModule {
             description,
             created_at: now,
             voting_deadline: now + duration_secs,
-            status: ProposalStatus::VotingOpen, // Automatically open for voting
+            status: ProposalStatus::VotingOpen,
             votes: HashMap::new(),
         };
-        self.proposals.insert(proposal_id.clone(), proposal);
+
+        match &mut self.backend {
+            Backend::InMemory { proposals } => {
+                if proposals.contains_key(&proposal_id) {
+                    return Err(CommonError::ProposalExists(proposal_id.0.clone()));
+                }
+                proposals.insert(proposal_id.clone(), proposal);
+            }
+            #[cfg(feature = "persist-sled")]
+            Backend::Sled { db, proposals_tree_name } => {
+                let tree = db.open_tree(proposals_tree_name)
+                    .map_err(|e| CommonError::StorageError(format!("Failed to open proposals tree: {}", e)))?;
+                
+                let key = proposal_id.0.as_bytes();
+                if tree.contains_key(key)
+                    .map_err(|e| CommonError::StorageError(format!("Failed to check key existence in proposals tree: {}", e)))? {
+                    return Err(CommonError::ProposalExists(proposal_id.0.clone()));
+                }
+
+                // Serialize using bincode for sled
+                let encoded_proposal = bincode::serialize(&proposal)
+                    .map_err(|e| CommonError::SerializationError(format!("Failed to serialize proposal: {}", e)))?;
+                
+                tree.insert(key, encoded_proposal)
+                    .map_err(|e| CommonError::StorageError(format!("Failed to insert proposal into sled: {}", e)))?;
+            }
+        }
         Ok(proposal_id)
     }
 
     pub fn cast_vote(&mut self, voter: Did, proposal_id: &ProposalId, option: VoteOption) -> Result<(), CommonError> {
-        let proposal = self.proposals.get_mut(proposal_id)
-            .ok_or_else(|| CommonError::ProposalNotFound(proposal_id.0.clone()))?;
-
-        // TODO: Validate voter eligibility (e.g., is a member)
-        // TODO: Check if voting period is still open
         let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs();
-        if now > proposal.voting_deadline {
-            return Err(CommonError::VotingClosed(proposal_id.0.clone()));
-        }
-        if proposal.status != ProposalStatus::VotingOpen {
-             return Err(CommonError::VotingClosed(format!("Proposal {} not open for voting, status: {:?}", proposal_id.0, proposal.status)));
-        }
 
-        let vote = Vote {
-            voter: voter.clone(),
-            proposal_id: proposal_id.clone(),
-            option,
-            voted_at: now,
-        };
-        proposal.votes.insert(voter, vote);
-        Ok(())
+        match &mut self.backend {
+            Backend::InMemory { proposals } => {
+                let proposal = proposals.get_mut(proposal_id)
+                    .ok_or_else(|| CommonError::ProposalNotFound(proposal_id.0.clone()))?;
+
+                if now > proposal.voting_deadline {
+                    return Err(CommonError::VotingClosed(proposal_id.0.clone()));
+                }
+                if proposal.status != ProposalStatus::VotingOpen {
+                    return Err(CommonError::VotingClosed(format!("Proposal {} not open for voting, status: {:?}", proposal_id.0, proposal.status)));
+                }
+
+                let vote = Vote {
+                    voter: voter.clone(),
+                    proposal_id: proposal_id.clone(),
+                    option,
+                    voted_at: now,
+                };
+                proposal.votes.insert(voter, vote);
+                Ok(())
+            }
+            #[cfg(feature = "persist-sled")]
+            Backend::Sled { db, proposals_tree_name } => {
+                let tree = db.open_tree(proposals_tree_name)
+                    .map_err(|e| CommonError::StorageError(format!("Failed to open proposals tree: {}", e)))?;
+                
+                let key = proposal_id.0.as_bytes();
+                let proposal_bytes = tree.get(key)
+                    .map_err(|e| CommonError::StorageError(format!("Failed to get proposal from sled: {}", e)))?
+                    .ok_or_else(|| CommonError::ProposalNotFound(proposal_id.0.clone()))?;
+                
+                let mut proposal: Proposal = bincode::deserialize(&proposal_bytes)
+                    .map_err(|e| CommonError::SerializationError(format!("Failed to deserialize proposal: {}", e)))?;
+
+                if now > proposal.voting_deadline {
+                    return Err(CommonError::VotingClosed(proposal_id.0.clone()));
+                }
+                if proposal.status != ProposalStatus::VotingOpen {
+                    return Err(CommonError::VotingClosed(format!("Proposal {} not open for voting, status: {:?}", proposal_id.0, proposal.status)));
+                }
+
+                let vote = Vote {
+                    voter: voter.clone(),
+                    proposal_id: proposal_id.clone(),
+                    option,
+                    voted_at: now,
+                };
+                proposal.votes.insert(voter, vote);
+
+                let encoded_proposal = bincode::serialize(&proposal)
+                    .map_err(|e| CommonError::SerializationError(format!("Failed to serialize updated proposal: {}", e)))?;
+                
+                tree.insert(key, encoded_proposal)
+                    .map_err(|e| CommonError::StorageError(format!("Failed to insert updated proposal into sled: {}", e)))?;
+                Ok(())
+            }
+        }
     }
 
-    pub fn get_proposal(&self, proposal_id: &ProposalId) -> Option<&Proposal> {
-        self.proposals.get(proposal_id)
+    pub fn get_proposal(&self, proposal_id: &ProposalId) -> Result<Option<Proposal>, CommonError> {
+        match &self.backend {
+            Backend::InMemory { proposals } => {
+                Ok(proposals.get(proposal_id).cloned())
+            }
+            #[cfg(feature = "persist-sled")]
+            Backend::Sled { db, proposals_tree_name } => {
+                let tree = db.open_tree(proposals_tree_name)
+                    .map_err(|e| CommonError::StorageError(format!("Failed to open proposals tree: {}", e)))?;
+                let key = proposal_id.0.as_bytes();
+                match tree.get(key) {
+                    Ok(Some(proposal_bytes)) => {
+                        let proposal: Proposal = bincode::deserialize(&proposal_bytes)
+                            .map_err(|e| CommonError::SerializationError(format!("Failed to deserialize proposal: {}", e)))?;
+                        Ok(Some(proposal))
+                    }
+                    Ok(None) => Ok(None),
+                    Err(e) => Err(CommonError::StorageError(format!("Failed to get proposal from sled: {}", e))),
+                }
+            }
+        }
     }
 
-    pub fn list_proposals(&self) -> Vec<&Proposal> {
-        self.proposals.values().collect()
+    pub fn list_proposals(&self) -> Result<Vec<Proposal>, CommonError> {
+        match &self.backend {
+            Backend::InMemory { proposals } => {
+                Ok(proposals.values().cloned().collect())
+            }
+            #[cfg(feature = "persist-sled")]
+            Backend::Sled { db, proposals_tree_name } => {
+                let tree = db.open_tree(proposals_tree_name)
+                    .map_err(|e| CommonError::StorageError(format!("Failed to open proposals tree: {}", e)))?;
+                
+                let mut result_proposals = Vec::new();
+                for item in tree.iter() {
+                    let (_key, val_bytes) = item
+                        .map_err(|e| CommonError::StorageError(format!("Failed to iterate over proposals in sled: {}", e)))?;
+                    let proposal: Proposal = bincode::deserialize(&val_bytes)
+                        .map_err(|e| CommonError::SerializationError(format!("Failed to deserialize proposal from sled: {}", e)))?;
+                    result_proposals.push(proposal);
+                }
+                Ok(result_proposals)
+            }
+        }
     }
 
     // TODO: Implement tally_votes, close_voting_period, execute_proposal methods

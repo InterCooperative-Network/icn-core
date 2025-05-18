@@ -5,9 +5,9 @@
 //! It integrates various core components to operate a functional ICN node, handling initialization,
 //! lifecycle, configuration, service hosting, and persistence.
 
-use icn_common::{Cid, DagBlock, NodeInfo, NodeStatus, ICN_CORE_VERSION, CommonError, Did};
+use icn_common::{Cid, DagBlock, NodeInfo, NodeStatus, ICN_CORE_VERSION, Did};
 use icn_dag::{StorageService, InMemoryDagStore, FileDagStore};
-use icn_governance::{GovernanceModule, Proposal, ProposalId, VoteOption, ProposalType};
+use icn_governance::{GovernanceModule, ProposalId, VoteOption, ProposalType};
 use icn_api::{SubmitProposalRequest as ApiSubmitProposalRequest, CastVoteRequest as ApiCastVoteRequest};
 
 use axum::{
@@ -52,6 +52,34 @@ struct AppState {
     node_version: String,
 }
 
+// --- Public App Constructor ---
+pub fn app() -> Router {
+    // For tests, we'll use in-memory storage and default governance.
+    // A more sophisticated setup might allow configuration for tests.
+    let dag_storage: Arc<Mutex<dyn StorageService<DagBlock> + Send + Sync>> =
+        Arc::new(Mutex::new(InMemoryDagStore::new()));
+    
+    let governance_module = Arc::new(Mutex::new(GovernanceModule::new()));
+
+    let app_state = AppState {
+        dag_storage,
+        governance_module,
+        node_name: "ICN Reference Node".to_string(), // Consistent with test assertion
+        node_version: ICN_CORE_VERSION.to_string(), // Consistent with test assertion
+    };
+
+    Router::new()
+        .route("/info", get(info_handler))
+        .route("/status", get(status_handler))
+        .route("/dag/put", post(dag_put_handler))
+        .route("/dag/get", post(dag_get_handler))
+        .route("/governance/submit", post(gov_submit_handler))
+        .route("/governance/vote", post(gov_vote_handler))
+        .route("/governance/proposals", get(gov_list_proposals_handler))
+        .route("/governance/proposal/:proposal_id", get(gov_get_proposal_handler))
+        .with_state(app_state)
+}
+
 // --- Main Application Logic ---
 #[tokio::main]
 async fn main() {
@@ -73,16 +101,16 @@ async fn main() {
             }
         };
 
-    let governance_module = Arc::new(Mutex::new(GovernanceModule::new()));
+    let governance_module = Arc::new(Mutex::new(GovernanceModule::new())); // Consider sled for main app
 
     let app_state = AppState {
         dag_storage,
         governance_module,
-        node_name: "ICN Reference Node".to_string(),
+        node_name: "ICN Reference Node".to_string(), // This could be configurable
         node_version: ICN_CORE_VERSION.to_string(),
     };
 
-    let app = Router::new()
+    let router = Router::new()
         .route("/info", get(info_handler))
         .route("/status", get(status_handler))
         .route("/dag/put", post(dag_put_handler))
@@ -91,15 +119,14 @@ async fn main() {
         .route("/governance/vote", post(gov_vote_handler))
         .route("/governance/proposals", get(gov_list_proposals_handler))
         .route("/governance/proposal/:proposal_id", get(gov_get_proposal_handler))
-        .with_state(app_state);
+        .with_state(app_state); // Use the state built from CLI args
 
     let addr_str = cli.listen_addr;
     let addr: SocketAddr = addr_str.parse().expect("Invalid listen address");
     println!("ICN Node HTTP server listening on {}", addr);
     
-    // Corrected server binding and serving for Axum 0.7.x
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-    axum::serve(listener, app.into_make_service()).await.unwrap();
+    axum::serve(listener, router.into_make_service()).await.unwrap(); // Use the router from main
 }
 
 // --- Utility Functions for HTTP Responses ---
@@ -226,8 +253,10 @@ async fn gov_vote_handler(
 async fn gov_list_proposals_handler(
     State(state): State<AppState>,
 ) -> impl IntoResponse {
-    let proposals: Vec<Proposal> = state.governance_module.lock().unwrap().list_proposals().into_iter().cloned().collect();
-    (StatusCode::OK, Json(proposals))
+    match state.governance_module.lock().unwrap().list_proposals() {
+        Ok(proposals) => (StatusCode::OK, Json(proposals)).into_response(),
+        Err(e) => map_rust_error_to_json_response(e, StatusCode::INTERNAL_SERVER_ERROR).into_response(),
+    }
 }
 
 // GET /governance/proposal/:proposal_id – Get a specific proposal.
@@ -235,21 +264,21 @@ async fn gov_get_proposal_handler(
     State(state): State<AppState>,
     AxumPath(proposal_id_str): AxumPath<String>,
 ) -> impl IntoResponse {
-    let proposal_id: ProposalId = match proposal_id_str.parse() {
+    let proposal_id: ProposalId = match ProposalId::from_str(&proposal_id_str) {
         Ok(id) => id,
-        // If parsing fails, return a BAD_REQUEST error
-        Err(_) => return map_rust_error_to_json_response(
-            format!("Invalid proposal ID format: {}", proposal_id_str),
+        Err(e) => return map_rust_error_to_json_response(
+            format!("Invalid proposal ID format: {}. Error: {}", proposal_id_str, e),
             StatusCode::BAD_REQUEST
         ).into_response(),
     };
 
     match state.governance_module.lock().unwrap().get_proposal(&proposal_id) {
-        Some(proposal) => (StatusCode::OK, Json(proposal.clone())).into_response(),
-        None => map_rust_error_to_json_response(
+        Ok(Some(proposal)) => (StatusCode::OK, Json(proposal)).into_response(), // Proposal is already owned
+        Ok(None) => map_rust_error_to_json_response(
             format!("Proposal not found for ID: {}", proposal_id_str),
             StatusCode::NOT_FOUND,
         ).into_response(),
+        Err(e) => map_rust_error_to_json_response(e, StatusCode::INTERNAL_SERVER_ERROR).into_response(),
     }
 }
 

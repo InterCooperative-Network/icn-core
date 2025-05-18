@@ -171,10 +171,11 @@ pub fn get_proposal_api(
 ) -> Result<Option<Proposal>, CommonError> { // Returns the full Proposal struct (needs to be serializable)
     let proposal_id_str: String = serde_json::from_str(&proposal_id_json)
         .map_err(|e| CommonError::DeserializationError(format!("Failed to parse Proposal ID JSON: {}", e)))?;
-    let proposal_id = ProposalId(proposal_id_str);
+    let proposal_id = ProposalId::from_str(&proposal_id_str)
+        .map_err(|e| CommonError::InvalidInputError(format!("Invalid ProposalId format: {}", e)))?;
 
     let module = gov_module.lock().map_err(|_e| CommonError::ApiError("Failed to lock governance module for getting proposal".to_string()))?;
-    Ok(module.get_proposal(&proposal_id).cloned()) // Clone to return an owned Proposal
+    module.get_proposal(&proposal_id) // This now returns Result<Option<Proposal>, CommonError>
 }
 
 /// API endpoint to list all current proposals.
@@ -182,7 +183,7 @@ pub fn list_proposals_api(
     gov_module: Arc<Mutex<GovernanceModule>>,
 ) -> Result<Vec<Proposal>, CommonError> { // Returns a list of full Proposal structs
     let module = gov_module.lock().map_err(|_e| CommonError::ApiError("Failed to lock governance module for listing proposals".to_string()))?;
-    Ok(module.list_proposals().into_iter().cloned().collect()) // Clone to return owned Proposals
+    module.list_proposals() // This now returns Result<Vec<Proposal>, CommonError>
 }
 
 // --- Network API Functions ---
