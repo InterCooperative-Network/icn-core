@@ -398,7 +398,8 @@ mod tests {
         }
 
         // Verify vote was cast
-        let proposal = gov_module.lock().unwrap().get_proposal(&proposal_id).unwrap().clone();
+        let proposal_opt = gov_module.lock().unwrap().get_proposal(&proposal_id).unwrap();
+        let proposal = proposal_opt.as_ref().expect("Proposal should exist after voting");
         assert_eq!(proposal.votes.len(), 1);
         assert_eq!(proposal.votes.get(&Did::from_str(&voter_did_str).unwrap()).unwrap().option, VoteOption::Yes);
 

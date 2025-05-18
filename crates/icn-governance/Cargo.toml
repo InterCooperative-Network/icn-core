@@ -18,3 +18,7 @@ default = []
 # It's also a feature of icn-common, which these types use.
 serde = ["dep:serde"]
 persist-sled = ["dep:sled", "dep:bincode", "serde"] # persist-sled implies serde for the types
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+tempfile = "3"

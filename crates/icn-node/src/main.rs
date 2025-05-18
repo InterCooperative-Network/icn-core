@@ -81,6 +81,7 @@ pub fn app() -> Router {
 }
 
 // --- Main Application Logic ---
+#[allow(dead_code)] // Allowed because this main is not used when icn-node is a library (e.g. for tests)
 #[tokio::main]
 async fn main() {
     let cli = Cli::parse();

@@ -73,6 +73,7 @@ pub enum CommonError {
     AlreadyVoted(String),
     InvalidVoteOption(String),
     NotEligibleToVote(String),
+    NetworkSetupError(String), // For errors during network service initialization (e.g. libp2p setup)
 
     // TODO: Add more specific error variants as needed
 }
