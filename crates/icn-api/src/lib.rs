@@ -216,8 +216,7 @@ pub fn send_network_message_api(peer_id_str: String, message_json: String) -> Re
 mod tests {
     use super::*;
     use icn_common::DagLink; // For test setup
-    use icn_dag::{InMemoryDagStore, FileDagStore}; // For creating test stores
-    use tempfile::tempdir; // For FileDagStore tests
+    use icn_dag::InMemoryDagStore; // For creating test stores, removed FileDagStore
     use icn_governance::GovernanceModule; // For governance tests
 
     // Helper to create a default in-memory store for tests
@@ -353,7 +352,7 @@ mod tests {
         match get_proposal_api(Arc::clone(&gov_module), proposal_id_json) {
             Ok(Some(proposal)) => {
                 assert_eq!(proposal.id.0, proposal_id_str);
-                assert_eq!(proposal.proposer.0, proposer_did_str);
+                assert_eq!(proposal.proposer.to_string(), proposer_did_str);
                 assert_eq!(proposal.description, "Increase max block size");
                 if let ProposalType::SystemParameterChange(param, val) = proposal.proposal_type {
                     assert_eq!(param, "max_block_size");
@@ -379,7 +378,7 @@ mod tests {
     #[test]
     fn test_cast_vote_api() {
         let gov_module = new_test_governance_module();
-        let proposer_did = Did("did:example:proposer_for_vote_test".to_string());
+        let proposer_did = Did::from_str("did:example:proposer_for_vote_test").unwrap();
         let voter_did_str = "did:example:voter456".to_string();
 
         let proposal_type = ProposalType::GenericText("A test proposal for voting".to_string());
@@ -400,7 +399,7 @@ mod tests {
         // Verify vote was cast
         let proposal = gov_module.lock().unwrap().get_proposal(&proposal_id).unwrap().clone();
         assert_eq!(proposal.votes.len(), 1);
-        assert_eq!(proposal.votes.get(&Did(voter_did_str)).unwrap().option, VoteOption::Yes);
+        assert_eq!(proposal.votes.get(&Did::from_str(&voter_did_str).unwrap()).unwrap().option, VoteOption::Yes);
 
         // Test invalid vote option
         let cast_vote_req_invalid = CastVoteRequest {

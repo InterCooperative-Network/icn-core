@@ -16,3 +16,6 @@ serde_json = "1.0"
 [features]
 default = []
 types-only = [] # Allows depending only on types, no extra code, if types are pub
+
+[dev-dependencies]
+tempfile = "3.0"

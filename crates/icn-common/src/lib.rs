@@ -7,6 +7,7 @@
 
 use serde::{Serialize, Deserialize};
 use std::fmt;
+use bs58;
 
 pub const ICN_CORE_VERSION: &str = "0.1.0-dev-functional";
 
@@ -136,15 +137,15 @@ impl Cid {
     }
     pub fn to_string_approx(&self) -> String {
         // This is a highly simplified string representation, not a real Base58BTC or Base32 CID string.
-        format!("cidv{}-{}-{}-<hash_bytes_len_{}>", self.version, self.codec, self.hash_alg, self.hash_bytes.len())
+        // Using bs58 encoding of the hash bytes to make it more unique for filenames.
+        format!("cidv{}-{}-{}-{}", self.version, self.codec, self.hash_alg, bs58::encode(&self.hash_bytes).into_string())
     }
 }
 
 impl fmt::Display for Cid {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // Using the approximate string representation for now.
-        // A proper implementation would involve base encoding (e.g., Base58BTC for CIDv0, Base32 for CIDv1).
-        write!(f, "cidv{}-{}-{}-<hash_bytes_len_{}>", self.version, self.codec, self.hash_alg, self.hash_bytes.len())
+        // Using the more unique approximate string representation.
+        write!(f, "{}", self.to_string_approx())
     }
 }
 
