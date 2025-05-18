@@ -61,14 +61,15 @@ async fn main() {
         match cli.storage_backend {
             StorageBackendType::Memory => Arc::new(Mutex::new(InMemoryDagStore::new())),
             StorageBackendType::File => {
-                if !cli.storage_path.exists() {
-                    std::fs::create_dir_all(&cli.storage_path)
-                        .expect("Failed to create storage directory");
-                }
-                Arc::new(Mutex::new(
-                    FileDagStore::new(&cli.storage_path)
-                        .expect("Failed to initialize file dag store"),
-                ))
+                let store_path = cli.storage_path.clone();
+                println!("Using FileDagStore at: {:?}", store_path);
+                let file_store = FileDagStore::new(store_path)
+                    .map_err(|e| {
+                        eprintln!("Failed to initialize FileDagStore: {}", e);
+                        std::process::exit(1);
+                    })
+                    .unwrap();
+                Arc::new(Mutex::new(file_store)) as Arc<Mutex<dyn StorageService<DagBlock> + Send + Sync>>
             }
         };
 
@@ -225,10 +226,8 @@ async fn gov_vote_handler(
 async fn gov_list_proposals_handler(
     State(state): State<AppState>,
 ) -> impl IntoResponse {
-    match state.governance_module.lock().unwrap().list_proposals() {
-        Ok(proposals) => (StatusCode::OK, Json(proposals)).into_response(),
-        Err(e) => map_rust_error_to_json_response(e, StatusCode::INTERNAL_SERVER_ERROR).into_response(),
-    }
+    let proposals: Vec<Proposal> = state.governance_module.lock().unwrap().list_proposals().into_iter().cloned().collect();
+    (StatusCode::OK, Json(proposals))
 }
 
 // GET /governance/proposal/:proposal_id – Get a specific proposal.
@@ -238,17 +237,19 @@ async fn gov_get_proposal_handler(
 ) -> impl IntoResponse {
     let proposal_id: ProposalId = match proposal_id_str.parse() {
         Ok(id) => id,
-        Err(e) => return map_rust_error_to_json_response(e, StatusCode::BAD_REQUEST).into_response(),
+        // If parsing fails, return a BAD_REQUEST error
+        Err(_) => return map_rust_error_to_json_response(
+            format!("Invalid proposal ID format: {}", proposal_id_str),
+            StatusCode::BAD_REQUEST
+        ).into_response(),
     };
 
     match state.governance_module.lock().unwrap().get_proposal(&proposal_id) {
-        Ok(Some(proposal)) => (StatusCode::OK, Json(proposal)).into_response(),
-        Ok(None) => map_rust_error_to_json_response(
+        Some(proposal) => (StatusCode::OK, Json(proposal.clone())).into_response(),
+        None => map_rust_error_to_json_response(
             format!("Proposal not found for ID: {}", proposal_id_str),
             StatusCode::NOT_FOUND,
-        )
-        .into_response(),
-        Err(e) => map_rust_error_to_json_response(e, StatusCode::INTERNAL_SERVER_ERROR).into_response(),
+        ).into_response(),
     }
 }
 

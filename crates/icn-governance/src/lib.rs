@@ -5,7 +5,8 @@
 //! It handles proposal systems, voting procedures, quorum logic, and decision execution,
 //! focusing on transparency, fairness, and flexibility.
 
-use icn_common::{NodeInfo, CommonError, ICN_CORE_VERSION, Cid, Did, PeerId};
+use icn_common::{NodeInfo, CommonError, Did};
+use icn_network::PeerId;
 use std::collections::HashMap;
 
 #[cfg(feature = "serde")]
@@ -39,7 +40,7 @@ pub enum ProposalType {
     GenericText(String), // For general purpose proposals
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ProposalStatus {
     Pending,     // Newly created, awaiting votes
@@ -180,7 +181,7 @@ mod tests {
     fn test_submit_governance_proposal() {
         let node_info = NodeInfo {
             name: "GovNode".to_string(),
-            version: ICN_CORE_VERSION.to_string(),
+            version: icn_common::ICN_CORE_VERSION.to_string(),
             status_message: "Governance active".to_string(),
         };
         let result = submit_governance_proposal(&node_info, 101);

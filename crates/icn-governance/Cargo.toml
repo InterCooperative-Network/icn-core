@@ -6,5 +6,6 @@ authors.workspace = true
 license.workspace = true
 
 [dependencies]
-icn-common = { path = "../icn-common", version = "0.1.0" }
+icn-common = { path = "../icn-common" }
+icn-network = { path = "../icn-network" }
 serde = { version = "1.0", features = ["derive"], optional = true }

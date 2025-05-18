@@ -12,9 +12,10 @@ use std::io::{self, Read}; // Added for reading from stdin
 
 // Types from our ICN crates that CLI will interact with (serialize/deserialize)
 // These types are expected to be sent to/received from the icn-node HTTP API.
-use icn_common::{NodeInfo, NodeStatus, DagBlock, Cid, Proposal, ProposalId};
+use icn_common::{NodeInfo, NodeStatus, DagBlock, Cid};
 // Using aliased request structs from icn-api for clarity, these are what the node expects
 use icn_api::{SubmitProposalRequest as ApiSubmitProposalRequest, CastVoteRequest as ApiCastVoteRequest};
+use icn_governance::{Proposal, ProposalId};
 
 
 // --- CLI Argument Parsing --- 

@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use std::sync::Mutex; // For basic interior mutability for the global store
 use std::path::PathBuf; // For FileDagStore
 use std::fs::{File, OpenOptions}; // For FileDagStore
-use std::io::{Read, Write, Seek, SeekFrom}; // For FileDagStore
+use std::io::{Read, Write}; // Removed Seek, SeekFrom
 use serde::{Serialize, Deserialize}; // For FileDagStore block serialization
 
 // --- Storage Service Trait ---

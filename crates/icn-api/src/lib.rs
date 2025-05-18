@@ -6,7 +6,7 @@
 //! The API aims for clarity, modularity, and extensibility, typically using JSON-RPC or gRPC.
 
 // Depending on icn_common crate
-use icn_common::{NodeInfo, NodeStatus, CommonError, ICN_CORE_VERSION, DagBlock, Cid};
+use icn_common::{NodeInfo, NodeStatus, CommonError, ICN_CORE_VERSION, DagBlock, Cid, Did};
 // Remove direct use of icn_dag::put_block and icn_dag::get_block which use global store
 // use icn_dag::{put_block as dag_put_block, get_block as dag_get_block};
 use icn_dag::StorageService; // Import the trait
@@ -14,8 +14,9 @@ use std::sync::{Arc, Mutex}; // To accept the storage service
 // Added imports for network functionality
 use icn_network::{PeerId, NetworkMessage, NetworkService, StubNetworkService};
 // Added imports for governance functionality
-use icn_governance::{GovernanceModule, ProposalId, ProposalType, VoteOption, Proposal, Vote};
-use icn_common::Did; // Ensure Did is in scope
+use icn_governance::{GovernanceModule, ProposalId, ProposalType, VoteOption, Proposal};
+use serde::{Serialize, Deserialize};
+use std::str::FromStr;
 
 /// Planned: Define a trait for the ICN API service for RPC implementation.
 // pub trait IcnApiService {
@@ -105,7 +106,7 @@ pub fn retrieve_dag_block(
 // --- Governance API Functions ---
 
 // Structs for API request/response, if different from core governance types or for JSON convenience
-#[derive(serde::Serialize, serde::Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct SubmitProposalRequest {
     pub proposer_did: String, // DID as string
     pub proposal_type_json: serde_json::Value, // Flexible for different proposal types
@@ -113,7 +114,7 @@ pub struct SubmitProposalRequest {
     pub duration_secs: u64,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct CastVoteRequest {
     pub voter_did: String, // DID as string
     pub proposal_id: String,
@@ -128,7 +129,8 @@ pub fn submit_proposal_api(
     let request: SubmitProposalRequest = serde_json::from_str(&request_json)
         .map_err(|e| CommonError::DeserializationError(format!("Failed to parse SubmitProposalRequest JSON: {}", e)))?;
 
-    let proposer_did = Did(request.proposer_did);
+    let proposer_did = Did::from_str(&request.proposer_did)
+        .map_err(|e| CommonError::InvalidInputError(format!("Invalid proposer_did format: {:?}", e)))?;
     
     // Deserialize ProposalType from request.proposal_type_json
     // This is a bit manual; a more robust solution might involve a tagged enum for ProposalType on the API boundary
@@ -148,7 +150,8 @@ pub fn cast_vote_api(
     let request: CastVoteRequest = serde_json::from_str(&request_json)
         .map_err(|e| CommonError::DeserializationError(format!("Failed to parse CastVoteRequest JSON: {}", e)))?;
 
-    let voter_did = Did(request.voter_did);
+    let voter_did = Did::from_str(&request.voter_did)
+        .map_err(|e| CommonError::InvalidInputError(format!("Invalid voter_did format: {:?}", e)))?;
     let proposal_id = ProposalId(request.proposal_id);
     let vote_option = match request.vote_option.to_lowercase().as_str() {
         "yes" => VoteOption::Yes,

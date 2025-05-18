@@ -6,6 +6,7 @@
 //! reduce code duplication, ensure consistency, and simplify dependencies.
 
 use serde::{Serialize, Deserialize};
+use std::fmt;
 
 pub const ICN_CORE_VERSION: &str = "0.1.0-dev-functional";
 
@@ -23,6 +24,12 @@ pub struct NodeStatus {
     pub peer_count: u32,
     pub current_block_height: u64, // Example field
     pub version: String,
+}
+
+impl fmt::Display for CommonError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self) // Simple Display implementation using Debug
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -58,6 +65,14 @@ pub enum CommonError {
     DagValidationError(String),     // e.g. CID mismatch, invalid link
     BlockTooLargeError(String),
 
+    // Governance specific errors
+    ProposalExists(String),
+    ProposalNotFound(String),
+    VotingClosed(String),
+    AlreadyVoted(String),
+    InvalidVoteOption(String),
+    NotEligibleToVote(String),
+
     // TODO: Add more specific error variants as needed
 }
 
@@ -68,7 +83,7 @@ pub enum CommonError {
 // --- Real Protocol Data Models ---
 
 /// Represents a Decentralized Identifier (DID).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Did {
     pub method: String,         // e.g., "key", "web", "ion"
     pub id_string: String,      // The method-specific identifier string
@@ -122,6 +137,14 @@ impl Cid {
     pub fn to_string_approx(&self) -> String {
         // This is a highly simplified string representation, not a real Base58BTC or Base32 CID string.
         format!("cidv{}-{}-{}-<hash_bytes_len_{}>", self.version, self.codec, self.hash_alg, self.hash_bytes.len())
+    }
+}
+
+impl fmt::Display for Cid {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // Using the approximate string representation for now.
+        // A proper implementation would involve base encoding (e.g., Base58BTC for CIDv0, Base32 for CIDv1).
+        write!(f, "cidv{}-{}-{}-<hash_bytes_len_{}>", self.version, self.codec, self.hash_alg, self.hash_bytes.len())
     }
 }
 

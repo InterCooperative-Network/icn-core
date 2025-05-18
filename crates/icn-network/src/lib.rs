@@ -5,7 +5,7 @@
 //! likely using libp2p. It covers P2P communication, transport protocols, peer discovery,
 //! message routing, and federation synchronization.
 
-use icn_common::{NodeInfo, CommonError, ICN_CORE_VERSION, DagBlock, Cid, Did};
+use icn_common::{NodeInfo, CommonError, DagBlock, Cid, Did};
 use serde::{Serialize, Deserialize};
 
 // --- Peer and Message Scaffolding ---
@@ -135,7 +135,7 @@ mod tests {
     fn test_send_network_ping_uses_stub() {
         let node_info = NodeInfo {
             name: "NetNodePing".to_string(),
-            version: ICN_CORE_VERSION.to_string(),
+            version: "0.1.0".to_string(),
             status_message: "Network ping test".to_string(),
         };
         let result = send_network_ping(&node_info, "peer-xyz-ping");
@@ -332,3 +332,89 @@ mod libp2p_service {
                                     println!("[Libp2pSwarm] Listening on: {}", address);
                                 }
                                 SwarmEvent::ConnectionEstablished { peer_id, .. } => {
+                                    println!("[Libp2pSwarm] Connection established with {}", peer_id);
+                                }
+                                SwarmEvent::ConnectionClosed { peer_id, cause, .. } => {
+                                    println!("[Libp2pSwarm] Connection to {} closed, cause: {:?}", peer_id, cause);
+                                }
+                                SwarmEvent::IncomingConnection { local_addr, send_back_addr } => {
+                                    println!("[Libp2pSwarm] Incoming connection: local_addr: {}, send_back_addr: {}", local_addr, send_back_addr);
+                                }
+                                SwarmEvent::IncomingConnectionError { local_addr, send_back_addr, error } => {
+                                     println!("[Libp2pSwarm] Incoming connection error: local_addr: {}, send_back_addr: {}, error: {}", local_addr, send_back_addr, error);
+                                }
+                                // Add a catch-all for other swarm events
+                                _ => { /* println!("[Libp2pSwarm] Other Swarm Event: {:?}", event); */ }
+                            } // Closes: match event
+                        }, // Closes: event = swarm.select_next_some() arm
+                        // Branch for commands from command_receiver
+                        Some(command) = command_receiver.recv() => {
+                            // TODO: Process commands sent to the Libp2pCommand channel
+                            match command {
+                                Libp2pCommand::SendMessage(peer_id, msg) => {
+                                    println!("[Libp2pSwarm] TODO: Send unicast message to {}: {:?}", peer_id, msg);
+                                    // Example: swarm.behaviour_mut().gossipsub.publish(...); or other direct send
+                                }
+                                Libp2pCommand::BroadcastMessage(msg) => {
+                                    println!("[Libp2pSwarm] TODO: Broadcast message: {:?}", msg);
+                                    if let NetworkMessage::GossipSub(topic, data) = msg {
+                                        let topic_hash = libp2p::gossipsub::IdentTopic::new(topic);
+                                        if let Err(e) = swarm.behaviour_mut().gossipsub.publish(topic_hash, data) {
+                                            eprintln!("[Libp2pSwarm] Failed to publish gossipsub message: {:?}", e);
+                                        }
+                                    }
+                                }
+                                Libp2pCommand::DiscoverPeers => {
+                                     println!("[Libp2pSwarm] TODO: Handle DiscoverPeers command");
+                                     // Example: swarm.behaviour_mut().kademlia.bootstrap().ok();
+                                }
+                                Libp2pCommand::GetDiscoveredPeers(sender) => {
+                                    println!("[Libp2pSwarm] TODO: Handle GetDiscoveredPeers command");
+                                    // This is a simplified example; actual peer representation might differ.
+                                    let peers_info: Vec<super::PeerId> = swarm
+                                        .behaviour()
+                                        .kademlia
+                                        .kbuckets()
+                                        .flat_map(|kbucket| kbucket.iter().map(|entry| super::PeerId(entry.node.key.preimage().to_string())))
+                                        .collect();
+                                    let _ = sender.send(Ok(peers_info));
+                                }
+                            }
+                        }, // Closes: Some(command) = command_receiver.recv() arm
+                        else => {
+                            // Both Swarm and command channel are closed, exit the loop.
+                            println!("[Libp2pSwarm] Event loop finished.");
+                            break;
+                        }
+                    } // Closes: tokio::select!
+                } // Closes: loop
+            }); // Closes: tokio::spawn
+
+            Ok(Self { command_sender, local_peer_id })
+        } // Closes: pub async fn new()
+    } // Closes: impl Libp2pNetworkService
+
+    // TODO: Implement NetworkService trait for Libp2pNetworkService
+    // impl super::NetworkService for Libp2pNetworkService {
+    //     fn discover_peers(&self, bootstrap_nodes: Vec<String>) -> Result<Vec<super::PeerId>, CommonError> {
+    //         // Send command to swarm task, wait for response via oneshot channel
+    //         // let (tx, rx) = tokio::sync::oneshot::channel();
+    //         // self.command_sender.try_send(Libp2pCommand::GetDiscoveredPeers(tx)).map_err(|e| CommonError::MessageSendError(format!("Failed to send GetDiscoveredPeers command: {}", e)))?;
+    //         // tokio::runtime::Handle::current().block_on(rx).map_err(|e| CommonError::MessageReceiveError(format!("Failed to receive peer list: {}",e)))?
+    //         unimplemented!("discover_peers not yet implemented for Libp2pNetworkService")
+    //     }
+    //     fn send_message(&self, peer: &super::PeerId, message: NetworkMessage) -> Result<(), CommonError> {
+    //         // Convert super::PeerId to Libp2pPeerId if necessary
+    //         // let libp2p_peer_id = Libp2pPeerId::from_bytes(&bs58::decode(&peer.0).into_vec().map_err(|e| CommonError::InvalidInputError(format!("Invalid PeerId string: {}",e)))?[..]).map_err(|_| CommonError::InvalidInputError("Invalid PeerId bytes".to_string()))?;
+    //         // self.command_sender.try_send(Libp2pCommand::SendMessage(libp2p_peer_id, message)).map_err(|e| CommonError::MessageSendError(format!("Failed to send SendMessage command: {}", e)))?;
+    //         // Ok(())
+    //         unimplemented!("send_message not yet implemented for Libp2pNetworkService")
+    //     }
+    //     fn broadcast_message(&self, message: NetworkMessage) -> Result<(), CommonError> {
+    //         // self.command_sender.try_send(Libp2pCommand::BroadcastMessage(message)).map_err(|e| CommonError::MessageSendError(format!("Failed to send BroadcastMessage command: {}", e)))?;
+    //         // Ok(())
+    //         unimplemented!("broadcast_message not yet implemented for Libp2pNetworkService")
+    //     }
+    // }
+
+} // Closes: mod libp2p_service
