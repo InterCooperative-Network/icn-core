@@ -21,7 +21,7 @@ use clap::Parser;
 use serde::Serialize;
 use std::{net::SocketAddr, path::PathBuf, sync::Arc, sync::Mutex, str::FromStr};
 
-// --- CLI Arguments ---
+// --- CLI Arguments --- 
 
 #[derive(Parser, Debug)]
 #[clap(author, version = ICN_CORE_VERSION, about = "ICN Node HTTP Server", long_about = None)]
@@ -89,7 +89,7 @@ async fn main() {
     let dag_storage: Arc<Mutex<dyn StorageService<DagBlock> + Send + Sync>> =
         match cli.storage_backend {
             StorageBackendType::Memory => Arc::new(Mutex::new(InMemoryDagStore::new())),
-            StorageBackendType::File => {
+        StorageBackendType::File => {
                 let store_path = cli.storage_path.clone();
                 println!("Using FileDagStore at: {:?}", store_path);
                 let file_store = FileDagStore::new(store_path)

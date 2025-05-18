@@ -121,7 +121,7 @@ async fn get_request<T: for<'de> Deserialize<'de>>(
     if res.status().is_success() {
         let body = res.json::<T>().await?;
         Ok(body)
-    } else {
+            } else {
         let status = res.status();
         let error_text = res.text().await.unwrap_or_else(|_| "Failed to read error body".to_string());
         Err(anyhow::anyhow!("Request failed with status {}: {}\nURL: {}", status, error_text, url))
@@ -175,7 +175,7 @@ async fn handle_dag_put(cli: &Cli, client: &Client, block_json_or_stdin: &str) -
         let mut buffer = String::new();
         io::stdin().read_to_string(&mut buffer)?;
         buffer
-    } else {
+            } else {
         block_json_or_stdin.to_string()
     };
 
