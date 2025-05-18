@@ -43,9 +43,9 @@ mod kademlia_peer_discovery_tests {
         sleep(Duration::from_secs(20)).await;
 
         // Node 2 discovers peers
-        println!("Node 2 attempting to discover peers...");
+        println!("Node 2 attempting to discover peers (targeting Node 1)...");
         let discovered_peers_on_node2 = node2_service
-            .discover_peers(Vec::new()) // Pass Vec::new() as per current trait signature
+            .discover_peers(Some(node1_libp2p_peer_id.to_string())) // Target Node 1
             .await
             .expect("Node 2 discover_peers failed");
         
@@ -59,15 +59,34 @@ mod kademlia_peer_discovery_tests {
         println!("Node 2 successfully discovered Node 1 ({}) via Kademlia.", node1_icn_peer_id.0);
 
         // Optionally, Node 1 discovers peers (Node 2)
-        println!("Node 1 attempting to discover peers...");
+        println!("Node 1 attempting to discover peers (targeting Node 2)...");
         let discovered_peers_on_node1 = node1_service
-            .discover_peers(Vec::new()) // Pass Vec::new() as per current trait signature
+            .discover_peers(Some(node2_libp2p_peer_id.to_string())) // Target Node 2
             .await
             .expect("Node 1 discover_peers failed");
 
         println!("Node 1 discovered peers: {:?}", discovered_peers_on_node1.iter().map(|p| &p.0).collect::<Vec<_>>());
         
         let node2_icn_peer_id = IcnPeerId(node2_libp2p_peer_id.to_string());
+
+        // --- BEGIN DETAILED LOGGING ---
+        println!("[DEBUG] Asserting: discovered_peers_on_node1.contains(&node2_icn_peer_id)");
+        println!("[DEBUG] discovered_peers_on_node1 ({} items):", discovered_peers_on_node1.len());
+        for (idx, peer) in discovered_peers_on_node1.iter().enumerate() {
+            println!("[DEBUG]   Item {}: PeerId({:?}), Bytes: {:?}", idx, peer.0, peer.0.as_bytes());
+        }
+        println!("[DEBUG] node2_icn_peer_id: PeerId({:?}), Bytes: {:?}", node2_icn_peer_id.0, node2_icn_peer_id.0.as_bytes());
+        
+        if !discovered_peers_on_node1.is_empty() {
+            let first_peer_in_vec = &discovered_peers_on_node1[0];
+            println!("[DEBUG] Direct comparison (discovered_peers_on_node1[0] == node2_icn_peer_id): {}", first_peer_in_vec == &node2_icn_peer_id);
+            println!("[DEBUG]   LHS (discovered_peers_on_node1[0]): PeerId({:?}), Bytes: {:?}", first_peer_in_vec.0, first_peer_in_vec.0.as_bytes());
+            println!("[DEBUG]   RHS (node2_icn_peer_id):           PeerId({:?}), Bytes: {:?}", node2_icn_peer_id.0, node2_icn_peer_id.0.as_bytes());
+        } else {
+            println!("[DEBUG] discovered_peers_on_node1 is empty, cannot do direct comparison of first element.");
+        }
+        // --- END DETAILED LOGGING ---
+
         assert!(
             discovered_peers_on_node1.contains(&node2_icn_peer_id),
             "Node 1 should have discovered Node 2. Expected: {}, Found: {:?}", node2_icn_peer_id.0, discovered_peers_on_node1

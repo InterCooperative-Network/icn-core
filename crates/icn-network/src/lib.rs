@@ -25,7 +25,7 @@ pub enum NetworkMessage {
 /// Placeholder for a network service trait.
 /// TODO: Define methods for sending messages, discovering peers, subscribing to topics.
 pub trait NetworkService {
-    async fn discover_peers(&self, bootstrap_nodes: Vec<String>) -> Result<Vec<PeerId>, CommonError>;
+    async fn discover_peers(&self, target_peer_id_str: Option<String>) -> Result<Vec<PeerId>, CommonError>;
     async fn send_message(&self, peer: &PeerId, message: NetworkMessage) -> Result<(), CommonError>;
     async fn broadcast_message(&self, message: NetworkMessage) -> Result<(), CommonError>;
     // fn subscribe_to_topic(&self, topic: &str) -> Result<(), CommonError>;
@@ -41,13 +41,9 @@ pub struct StubNetworkService;
 // It will involve managing Swarm, Behaviours (e.g., Kademlia, Gossipsub), and transport configurations.
 
 impl NetworkService for StubNetworkService {
-    async fn discover_peers(&self, bootstrap_nodes: Vec<String>) -> Result<Vec<PeerId>, CommonError> {
-        println!("[StubNetworkService] Discovering peers (bootstrap: {:?})... returning mock peers.", bootstrap_nodes);
-        if bootstrap_nodes.is_empty() && true { // Simulate an error condition for an empty bootstrap list for demonstration
-            // For a real implementation, this might be a configuration error or a different specific error.
-            // Here, using a generic NetworkConnectionError to illustrate.
-            // return Err(CommonError::InvalidInputError("Bootstrap node list cannot be empty.".to_string()));
-        }
+    async fn discover_peers(&self, target_peer_id_str: Option<String>) -> Result<Vec<PeerId>, CommonError> {
+        println!("[StubNetworkService] Discovering peers (target: {:?})... returning mock peers.", target_peer_id_str);
+        // Keep existing mock logic, target_peer_id_str is ignored by stub for now
         Ok(vec![PeerId("mock_peer_1".to_string()), PeerId("mock_peer_2".to_string())])
     }
 
@@ -91,7 +87,7 @@ mod tests {
     #[tokio::test]
     async fn test_stub_network_service_discover() {
         let service = StubNetworkService::default();
-        let peers = service.discover_peers(vec!["/ip4/127.0.0.1/tcp/12345".to_string()]).await.unwrap();
+        let peers = service.discover_peers(Some("/ip4/127.0.0.1/tcp/12345".to_string())).await.unwrap();
         assert_eq!(peers.len(), 2);
         assert_eq!(peers[0].0, "mock_peer_1");
 
@@ -169,6 +165,7 @@ pub mod libp2p_service {
     use serde_json;
     use std::sync::{Arc, Mutex};
     use std::collections::HashMap;
+    use std::str::FromStr;
 
     /* ---------- Public façade ------------------------------------------------ */
 
@@ -284,34 +281,40 @@ pub mod libp2p_service {
                                 Some(SwarmEvent::Behaviour(Event::Kademlia(event))) => {
                                     match event {
                                         kad::Event::OutboundQueryProgressed { id, result, .. } => {
-                                            // Log all OutboundQueryProgressed results for now
                                             println!("[libp2p] Kademlia OutboundQueryProgressed: query_id={:?}, result={:?}", id, result);
+                                            if !pending_kad_queries.contains_key(&id) {
+                                                println!("[libp2p] WARNING: No pending Kademlia query found in map for id={:?}! This event won't be sent to a discover_peers caller.", id);
+                                            }
 
                                             match result {
                                                 kad::QueryResult::GetClosestPeers(Ok(data)) => {
                                                     if let Some(sender) = pending_kad_queries.remove(&id) {
+                                                        println!("[libp2p] Found sender for query_id={:?}. Sending Ok(peers_count={}).", id, data.peers.len());
                                                         let peers = data.peers.into_iter().map(|p| super::PeerId(p.to_string())).collect();
                                                         if let Err(e) = sender.send(Ok(peers)) {
-                                                            eprintln!("[libp2p] Failed to send Kademlia GetClosestPeers result: {:?}", e);
+                                                            eprintln!("[libp2p] Failed to send Kademlia GetClosestPeers (Ok) result for query_id={:?}: {:?}", id, e);
                                                         }
                                                     } else {
-                                                        // This might happen if the query was not initiated by our DiscoverPeers command
-                                                        // or if it completed in a single step and was handled by OutboundQueryCompleted.
-                                                        println!("[libp2p] Kademlia GetClosestPeers query {:?} completed but no sender found (or already handled).
-", id);
+                                                        println!("[libp2p] Kademlia GetClosestPeers query_id={:?} (Ok data) had no sender or already handled.", id);
                                                     }
                                                 }
                                                 kad::QueryResult::GetClosestPeers(Err(err)) => {
                                                     if let Some(sender) = pending_kad_queries.remove(&id) {
-                                                        eprintln!("[libp2p] Kademlia GetClosestPeers query {:?} failed: {:?}", id, err);
-                                                        let common_err = CommonError::NetworkSetupError(format!("Kademlia GetClosestPeers query failed: {:?}", err));
+                                                        println!("[libp2p] Found sender for query_id={:?}. Sending Err({:?}).", id, err);
+                                                        let common_err = CommonError::NetworkSetupError(format!("Kademlia GetClosestPeers query_id={:?} failed: {:?}", id, err));
                                                         if let Err(e) = sender.send(Err(common_err)) {
-                                                            eprintln!("[libp2p] Failed to send Kademlia GetClosestPeers error result: {:?}", e);
+                                                            eprintln!("[libp2p] Failed to send Kademlia GetClosestPeers (Err) result for query_id={:?}: {:?}", id, e);
                                                         }
+                                                    } else {
+                                                         println!("[libp2p] Kademlia GetClosestPeers query_id={:?} (Err data) had no sender or already handled.", id);
                                                     }
                                                 }
-                                                // TODO: Handle other QueryResult types if necessary (GetRecord, PutRecord, etc.)
-                                                _ => {}
+                                                _ => {
+                                                    println!("[libp2p] Kademlia OutboundQueryProgressed for query_id={:?}: Unhandled QueryResult type: {:?}", id, result);
+                                                    if pending_kad_queries.contains_key(&id) {
+                                                         println!("[libp2p] NOTE: Query_id={:?} for unhandled result is still in pending_kad_queries. Potential hang if not processed further by other Kademlia events.", id);
+                                                    }
+                                                }
                                             }
                                         }
                                         kad::Event::RoutingUpdated { peer, is_new_peer, addresses, bucket_range, old_peer } => {
@@ -364,13 +367,13 @@ pub mod libp2p_service {
                         }
                         Some(cmd) = cmd_rx.recv() => {
                             match cmd {
-                                Command::DiscoverPeers { rsp } => {
-                                    let local_id = *swarm.local_peer_id();
-                                    println!("[libp2p] Received DiscoverPeers command. Triggering Kademlia get_closest_peers for local_peer_id: {:?}.", local_id);
-                                    let query_id = swarm.behaviour_mut().kademlia.get_closest_peers(local_id);
-                                    // Store the sender to respond when Kademlia result comes back
+                                Command::DiscoverPeers { target, rsp } => {
+                                    let local_id_for_fallback = *swarm.local_peer_id();
+                                    let query_target_peer_id = target.clone().unwrap_or(local_id_for_fallback);
+                                    println!("[libp2p] DiscoverPeers CMD: Will query Kademlia for effective target: {:?}. Original CMD target was: {:?}", query_target_peer_id, target);
+                                    let query_id = swarm.behaviour_mut().kademlia.get_closest_peers(query_target_peer_id);
+                                    println!("[libp2p] Inserting pending Kademlia query: id={:?} for CMD target={:?}", query_id, target);
                                     if pending_kad_queries.insert(query_id, rsp).is_some() {
-                                        // This should not happen if QueryIds are unique and properly managed
                                         eprintln!("[libp2p] Kademlia query ID {:?} collision detected! Overwriting previous sender.", query_id);
                                     }
                                 }
@@ -405,7 +408,10 @@ pub mod libp2p_service {
 
     #[derive(Debug)]
     enum Command {
-        DiscoverPeers { rsp: oneshot::Sender<Result<Vec<super::PeerId>, CommonError>> },
+        DiscoverPeers { 
+            target: Option<Libp2pPeerId>, 
+            rsp: oneshot::Sender<Result<Vec<super::PeerId>, CommonError>> 
+        },
         Broadcast { data: Vec<u8> },
     }
 
@@ -414,11 +420,21 @@ pub mod libp2p_service {
     impl super::NetworkService for Libp2pNetworkService {
         async fn discover_peers(
             &self,
-            _bootstrap: Vec<String>,
+            target_peer_id_str: Option<String>,
         ) -> Result<Vec<super::PeerId>, CommonError> {
+            let target_libp2p_id = match target_peer_id_str {
+                Some(id_str) => {
+                    match Libp2pPeerId::from_str(&id_str) {
+                        Ok(peer_id) => Some(peer_id),
+                        Err(e) => return Err(CommonError::InvalidInputError(format!("Invalid target PeerId string '{}': {}", id_str, e))),
+                    }
+                }
+                None => None,
+            };
+
             let (tx, rx) = oneshot::channel();
             self.cmd_tx
-                .send(Command::DiscoverPeers { rsp: tx }).await
+                .send(Command::DiscoverPeers { target: target_libp2p_id, rsp: tx }).await
                 .map_err(|e| CommonError::NetworkSetupError(format!("discover_peers cmd send error: {}", e.to_string())))?;
             rx.await.map_err(|e| CommonError::NetworkSetupError(format!("discover_peers response dropped: {}", e.to_string())))?
         }
