@@ -11,3 +11,7 @@ icn-dag = { path = "../icn-dag", version = "0.1.0" }
 icn-network = { path = "../icn-network", version = "0.1.0" }
 icn-governance = { path = "../icn-governance", version = "0.1.0", features = ["serde"] }
 serde_json = "1.0"
+
+[features]
+default = []
+types-only = [] # Allows depending only on types, no extra code, if types are pub

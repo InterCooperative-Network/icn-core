@@ -1,44 +1,97 @@
-# Contributing to ICN Core
+# Contributing to the InterCooperative Network (ICN) Core
 
-Thank you for your interest in contributing to the InterCooperative Network (ICN) Core project! We welcome contributions from everyone.
+First off, thank you for considering contributing to ICN Core! We welcome contributions from everyone and are excited to see how you can help make this project better.
 
-This document provides guidelines for contributing to the project. Please read it carefully to ensure a smooth and effective contribution process.
+This document provides a roadmap of good first issues, guidance on setting up your development environment, and how to get started with multi-node testing.
 
-## How to Contribute
+## Getting Started
 
-We use GitHub to manage issues and feature requests, as well as to accept contributions via pull requests.
+*   **Project Overview**: Start with the main `README.md` (if available at the root, otherwise check individual crate READMEs) for a general understanding of the project structure and goals.
+*   **Onboarding**: Refer to `docs/ONBOARDING.md` (if it exists, otherwise the primary README) for detailed instructions on building, testing, and the general development workflow.
+*   **Multi-Node Testing**: Check out the `MULTI_NODE_GUIDE.md` for a comprehensive guide on running local ICN clusters.
+*   **Testnet Script**: The `scripts/run_local_testnet.sh` script provides a starting point for launching multiple nodes for testing.
 
-### Reporting Bugs
+## 🚀 ICN Multi-Node & Contributor Roadmap: "Good First Issues"
 
-If you find a bug, please ensure the bug was not already reported by searching on GitHub under [Issues](https://github.com/USERNAME/icn-core/issues). If you're unable to find an open issue addressing the problem, open a new one. Be sure to include a title and clear description, as much relevant information as possible, and a code sample or an executable test case demonstrating the expected behavior that is not occurring.
+Below are actionable, bite-sized issues to drive forward the next major features for the InterCooperative Network. These are ideal entry points for new contributors, and represent real, high-impact steps toward a robust federated protocol.
 
-### Suggesting Enhancements
+### 🗄️ Storage (`icn-dag`)
 
-If you have an idea for an enhancement, please open an issue to discuss it. This allows us to coordinate efforts and ensure that the proposed enhancement aligns with the project's goals.
+*   **\[Storage] Implement `SqliteDagStore`**
+    Create a SQLite-based DAG backend with CRUD, using `rusqlite`.
+    *Difficulty: Medium*
+*   **\[Storage] Robust CID Validation in `FileDagStore::get`**
+    Ensure CIDs match content on retrieval; return validation errors.
+    *Difficulty: Easy*
+*   **\[Storage] Configurable Directory Sharding**
+    Implement sharding of stored files for scalability.
+    *Difficulty: Medium*
+*   **\[Storage] Block CID Validation on Put**
+    Check block CIDs match computed hashes at store time.
+    *Difficulty: Medium*
 
-### Pull Requests
+### 🌐 Networking (`icn-network`, `icn-node`)
 
-1.  Fork the repository and create your branch from `main`.
-2.  If you've added code that should be tested, add tests.
-3.  If you've changed APIs, update the documentation.
-4.  Ensure the test suite passes (`cargo test --all`).
-5.  Make sure your code lints (`cargo fmt --all --check` and `cargo clippy --all -- -D warnings`).
-6.  Issue that pull request!
+*   **\[Network] Configurable Listen Address**
+    Allow CLI/config selection of libp2p listen address.
+    *Difficulty: Medium*
+*   **\[Network] Bootstrap Peers via CLI/Config**
+    Allow user-defined bootstraps for P2P mesh.
+    *Difficulty: Medium*
+*   **\[Network] Graceful Swarm Shutdown**
+    Implement signal-based or programmatic shutdown for network tasks.
+    *Difficulty: Medium*
+*   **\[Network] JSON Gossipsub Serialization**
+    Encode/decode `NetworkMessage` via JSON for pub/sub.
+    *Difficulty: Easy-Medium*
+*   **\[API] List Connected/Known Peers**
+    CLI/API to query/display current peers.
+    *Difficulty: Medium*
 
-## Coding Conventions
+### 👥 Governance & Federation (`icn-governance`, `icn-api`, `icn-node`)
 
-*   Follow the official [Rust coding style guidelines](https://doc.rust-lang.org/book/appendix-02-operators.html).
-*   Ensure your code is well-documented.
-*   Write clear and concise commit messages.
+*   **\[Governance] Quorum & Threshold Checks**
+    Proposal vote tallying with quorum logic.
+    *Difficulty: Medium*
+*   **\[Governance] Member List for Voter Validation**
+    Only eligible DIDs can vote.
+    *Difficulty: Medium*
+*   **\[Governance] Proposal Propagation via Network**
+    Define & implement proposal propagation over mesh.
+    *Difficulty: Medium (initial step)*
+
+### 🛠️ CLI/Node Experience
+
+*   **\[CLI] Improved JSON Parsing for Proposal Submission**
+    Better error messages and help for proposal types.
+    *Difficulty: Easy*
+*   **\[CLI] Display Local Peer ID**
+    Command to print node's libp2p Peer ID.
+    *Difficulty: Medium*
+
+---
+
+**If you want to take on an issue, please check the project's issue tracker. If these specific issues are not yet created, feel free to open one based on this list, or discuss with a maintainer. Every PR and every discussion helps shape the future of the ICN!**
+
+When issues are created in the tracker, they should ideally be labeled with `good first issue`, `help wanted`, or a component-specific label (e.g. `network`, `storage`, `governance`) to help contributors find tasks that match their interests and skill levels.
+
+## Development Process
+
+1.  **Fork the repository** (if you're an external contributor).
+2.  **Target `develop`**: All feature branches and pull requests should target the `develop` branch. The `main` branch is reserved for stable, tagged releases.
+3.  **Create a new branch** from `develop` for your feature or bug fix: `git checkout -b feature/my-new-feature develop` or `fix/issue-description develop`.
+4.  **Make your changes**. Ensure you add relevant tests and update documentation as needed.
+5.  **Run tests**: `cargo test --all` (or per-crate tests).
+6.  **Format your code**: `cargo fmt --all`.
+7.  **Lint your code**: `cargo clippy --all -- -D warnings` (or per-crate).
+8.  **Commit your changes**: Write clear, concise commit messages.
+9.  **Push to your branch**.
+10. **Open a Pull Request (PR)** against the `develop` branch of the upstream repository.
+    *   Provide a clear description of your changes in the PR.
+    *   Link to any relevant issues.
 
 ## Code of Conduct
 
-Please note that this project is released with a Contributor Code of Conduct. By participating in this project you agree to abide by its terms. See [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
+Please note that this project is released with a Contributor Code of Conduct. By participating in this project you agree to abide by its terms.
 
-## License
-
-By contributing, you agree that your contributions will be licensed under the Apache License 2.0. See [LICENSE](LICENSE).
-
-## Questions?
-
-If you have any questions, feel free to open an issue or reach out to the maintainers. 
+Thank you for your contributions! 

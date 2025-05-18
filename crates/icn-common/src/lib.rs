@@ -84,6 +84,18 @@ impl Did {
     }
 }
 
+impl std::str::FromStr for Did {
+    type Err = CommonError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let parts: Vec<_> = s.splitn(3, ':').collect();
+        if parts.len() == 3 && parts[0] == "did" && !parts[1].is_empty() && !parts[2].is_empty() {
+            Ok(Did { method: parts[1].to_string(), id_string: parts[2].to_string() })
+        } else {
+            Err(CommonError::InvalidInputError(format!("Invalid DID string format: {}. Expected 'did:method:id' with non-empty method and id.", s)))
+        }
+    }
+}
+
 /// Represents a Content Identifier (CID).
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)] // Hash is important for CIDs as keys
 pub struct Cid {

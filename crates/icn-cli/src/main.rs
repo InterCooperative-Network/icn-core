@@ -1,293 +1,244 @@
 #![doc = include_str!("../README.md")]
 
 //! # ICN CLI Crate
-//! This crate provides a command-line interface (CLI) for interacting with the InterCooperative Network (ICN).
-//! It allows users and administrators to manage nodes, interact with the network, and perform administrative tasks.
-//! The CLI aims for usability, discoverability, and scriptability.
+//! This crate provides a command-line interface (CLI) for interacting with an ICN HTTP node.
 
-// Use the icn_api crate
-use icn_api::{get_node_info, get_node_status, submit_dag_block, retrieve_dag_block, discover_peers_api, send_network_message_api};
-// Use icn_common for types if needed, though get_node_info wraps them.
-// use icn_common::NodeInfo;
-use icn_common::{CommonError, DagBlock, Cid};
+use clap::{Parser, Subcommand};
+use reqwest::Client;
+use serde::{Deserialize, Serialize};
+use serde_json::Value as JsonValue; // For generic JSON data if needed
 use std::process::exit;
+use std::io::{self, Read}; // Added for reading from stdin
 
-fn handle_info_command() {
-    println!("Requesting node info via icn_api...");
-    match get_node_info() {
-        Ok(info) => {
-            println!("--- Node Information ---");
-            // Adjusting to actual fields in NodeInfo: name, version, status_message
-            println!("Name:    {}", info.name);
-            println!("Version: {}", info.version);
-            println!("Status:  {}", info.status_message);
-            println!("------------------------");
-        }
-        Err(e) => {
-            eprintln!("Error: Failed to retrieve node info: {:?}", e);
-            exit(1);
-        }
+// Types from our ICN crates that CLI will interact with (serialize/deserialize)
+// These types are expected to be sent to/received from the icn-node HTTP API.
+use icn_common::{NodeInfo, NodeStatus, DagBlock, Cid, Proposal, ProposalId};
+// Using aliased request structs from icn-api for clarity, these are what the node expects
+use icn_api::{SubmitProposalRequest as ApiSubmitProposalRequest, CastVoteRequest as ApiCastVoteRequest};
+
+
+// --- CLI Argument Parsing --- 
+
+#[derive(Parser, Debug)]
+#[clap(author, version, about = "ICN Command Line Interface")]
+struct Cli {
+    #[clap(long, global = true, default_value = "http://127.0.0.1:7845", help = "Base URL of the ICN node API")]
+    api_url: String,
+
+    #[clap(subcommand)]
+    command: Commands,
+}
+
+#[derive(Subcommand, Debug)]
+enum Commands {
+    /// Get node information (version, name, status message)
+    Info,
+    /// Get node status (online, peers, block height)
+    Status,
+    /// DAG block operations
+    Dag { #[clap(subcommand)] command: DagCommands },
+    /// Governance operations
+    Governance { #[clap(subcommand)] command: GovernanceCommands },
+}
+
+#[derive(Subcommand, Debug)]
+enum DagCommands {
+    /// Store a DAG block (provide block as JSON string, or '-' to read from stdin)
+    Put { 
+        #[clap(help = "DAG block content as a JSON string, or '-' to read from stdin")]
+        block_json_or_stdin: String 
+    },
+    /// Retrieve a DAG block by its CID (provide CID as JSON string)
+    Get { 
+        #[clap(help = "CID of the block to retrieve, as a JSON string")]
+        cid_json: String 
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum GovernanceCommands {
+    /// Submit a new proposal (provide proposal request as JSON string, or '-' to read from stdin)
+    Submit { 
+        #[clap(help = "Proposal submission request as a JSON string (ApiSubmitProposalRequest format), or '-' to read from stdin")]
+        proposal_request_json_or_stdin: String 
+    },
+    /// Cast a vote on a proposal (provide vote request as JSON string)
+    Vote { 
+        #[clap(help = "Vote casting request as a JSON string (ApiCastVoteRequest format)")]
+        vote_request_json: String 
+    },
+    /// List all proposals
+    Proposals,
+    /// Get a specific proposal by its ID
+    Proposal { 
+        #[clap(help = "ID of the proposal to retrieve")]
+        id: String 
+    },
+}
+
+// --- Main CLI Logic ---
+
+#[tokio::main]
+async fn main() {
+    let cli = Cli::parse();
+    let client = Client::new();
+
+    if let Err(e) = run_command(&cli, &client).await {
+        eprintln!("Error: {}", e);
+        exit(1);
     }
 }
 
-fn handle_status_command(args: &[String]) {
-    let simulate_online = if args.len() > 2 && args[2] == "offline" {
-        println!("Requesting node status (simulating offline)...");
-        false
+async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
+    match &cli.command {
+        Commands::Info => handle_info(cli, client).await?,
+        Commands::Status => handle_status(cli, client).await?,
+        Commands::Dag { command } => match command {
+            DagCommands::Put { block_json_or_stdin } => handle_dag_put(cli, client, block_json_or_stdin).await?,
+            DagCommands::Get { cid_json } => handle_dag_get(cli, client, cid_json).await?,
+        },
+        Commands::Governance { command } => match command {
+            GovernanceCommands::Submit { proposal_request_json_or_stdin } => handle_gov_submit(cli, client, proposal_request_json_or_stdin).await?,
+            GovernanceCommands::Vote { vote_request_json } => handle_gov_vote(cli, client, vote_request_json).await?,
+            GovernanceCommands::Proposals => handle_gov_list_proposals(cli, client).await?,
+            GovernanceCommands::Proposal { id } => handle_gov_get_proposal(cli, client, id).await?,
+        },
+    }
+    Ok(())
+}
+
+// --- HTTP Helper Functions ---
+
+async fn get_request<T: for<'de> Deserialize<'de>>(
+    api_url: &str,
+    client: &Client,
+    path: &str,
+) -> Result<T, anyhow::Error> {
+    let url = format!("{}{}", api_url, path);
+    let res = client.get(&url).send().await?;
+
+    if res.status().is_success() {
+        let body = res.json::<T>().await?;
+        Ok(body)
     } else {
-        println!("Requesting node status (simulating online)...");
-        true
+        let status = res.status();
+        let error_text = res.text().await.unwrap_or_else(|_| "Failed to read error body".to_string());
+        Err(anyhow::anyhow!("Request failed with status {}: {}\nURL: {}", status, error_text, url))
+    }
+}
+
+async fn post_request<S: Serialize, T: for<'de> Deserialize<'de>>(
+    api_url: &str,
+    client: &Client,
+    path: &str,
+    body: &S,
+) -> Result<T, anyhow::Error> {
+    let url = format!("{}{}", api_url, path);
+    let res = client.post(&url).json(body).send().await?;
+
+    if res.status().is_success() {
+        let response_body = res.json::<T>().await?;
+        Ok(response_body)
+    } else {
+        let status = res.status();
+        let error_text = res.text().await.unwrap_or_else(|_| "Failed to read error body".to_string());
+        Err(anyhow::anyhow!("Request failed with status {}: {}\nURL: {}", status, error_text, url))
+    }
+}
+
+// --- Command Handlers ---
+
+async fn handle_info(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
+    let response: NodeInfo = get_request(&cli.api_url, client, "/info").await?;
+    println!("--- Node Information ---");
+    println!("Name:    {}", response.name);
+    println!("Version: {}", response.version);
+    println!("Status:  {}", response.status_message);
+    println!("------------------------");
+    Ok(())
+}
+
+async fn handle_status(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
+    let response: NodeStatus = get_request(&cli.api_url, client, "/status").await?;
+    println!("--- Node Status ---");
+    println!("Online:         {}", response.is_online);
+    println!("Peer Count:     {}", response.peer_count);
+    println!("Block Height:   {}", response.current_block_height);
+    println!("Version:        {}", response.version);
+    println!("-------------------");
+    Ok(())
+}
+
+async fn handle_dag_put(cli: &Cli, client: &Client, block_json_or_stdin: &str) -> Result<(), anyhow::Error> {
+    let block_json_content = if block_json_or_stdin == "-" {
+        let mut buffer = String::new();
+        io::stdin().read_to_string(&mut buffer)?;
+        buffer
+    } else {
+        block_json_or_stdin.to_string()
     };
 
-    match get_node_status(simulate_online) {
-        Ok(status) => {
-            println!("--- Node Status ---");
-            // Adjusting to actual fields in NodeStatus: is_online, peer_count, current_block_height, version
-            println!("Online:         {}", status.is_online);
-            println!("Peer Count:     {}", status.peer_count);
-            println!("Block Height:   {}", status.current_block_height);
-            println!("Version:        {}", status.version);
-            println!("-------------------");
-        }
-        Err(CommonError::NodeOffline(msg)) => {
-            eprintln!("Error: Node is offline - {}", msg);
-            exit(1);
-        }
-        Err(e) => {
-            eprintln!("Error: Failed to retrieve node status: {:?}", e);
-            exit(1);
-        }
-    }
+    let block: DagBlock = serde_json::from_str(&block_json_content)
+        .map_err(|e| anyhow::anyhow!("Invalid DagBlock JSON provided. Error: {}", e))?;
+    let response_cid: Cid = post_request(&cli.api_url, client, "/dag/put", &block).await?;
+    println!("Successfully submitted block. CID: {}", serde_json::to_string_pretty(&response_cid)?);
+    Ok(())
 }
 
-fn handle_dag_put_command(args: &[String]) {
-    if args.len() > 3 {
-        let block_data_json = &args[3];
-        println!("Attempting to submit DAG block via API...");
-        match submit_dag_block(block_data_json.to_string()) {
-            Ok(cid) => {
-                println!("Successfully submitted block. CID: {}", cid.to_string_approx());
-            }
-            Err(CommonError::DeserializationError(msg)) => {
-                 eprintln!("Error: Invalid DagBlock JSON provided: {}. Please provide a valid JSON string for the DagBlock.", msg);
-                 exit(1);
-            }
-            Err(e) => {
-                eprintln!("Error: Failed to submit DAG block: {:?}", e);
-                exit(1);
-            }
-        }
+async fn handle_dag_get(cli: &Cli, client: &Client, cid_json: &str) -> Result<(), anyhow::Error> {
+    let cid: Cid = serde_json::from_str(cid_json)
+        .map_err(|e| anyhow::anyhow!("Invalid CID JSON provided: {}. Error: {}", cid_json, e))?;
+    let response_block: DagBlock = post_request(&cli.api_url, client, "/dag/get", &cid).await?;
+    println!("--- Retrieved DAG Block ---");
+    println!("{}", serde_json::to_string_pretty(&response_block)?);
+    println!("-------------------------");
+    Ok(())
+}
+
+async fn handle_gov_submit(cli: &Cli, client: &Client, proposal_request_json_or_stdin: &str) -> Result<(), anyhow::Error> {
+    let proposal_request_content = if proposal_request_json_or_stdin == "-" {
+        let mut buffer = String::new();
+        io::stdin().read_to_string(&mut buffer)?;
+        buffer
     } else {
-        eprintln!("Usage: icn-cli dag put <DAG_BLOCK_JSON_STRING>");
-        eprintln!(r#"Example: icn-cli dag put '{{"cid":{{"version":1,"codec":113,"hash_alg":18,"hash_bytes":[104,101,108,108,111]}},"data":[104,101,108,108,111],"links":[]}}'"#);
-        exit(1);
-    }
+        proposal_request_json_or_stdin.to_string()
+    };
+
+    let request: ApiSubmitProposalRequest = serde_json::from_str(&proposal_request_content)
+        .map_err(|e| anyhow::anyhow!("Invalid ApiSubmitProposalRequest JSON. Error: {}", e))?;
+    let response_proposal_id: ProposalId = post_request(&cli.api_url, client, "/governance/submit", &request).await?;
+    println!("Successfully submitted proposal. Proposal ID: {}", serde_json::to_string_pretty(&response_proposal_id)?);
+    Ok(())
 }
 
-fn handle_dag_get_command(args: &[String]) {
-    if args.len() > 3 {
-        let cid_json = &args[3];
-        println!("Attempting to retrieve DAG block via API...");
-        match retrieve_dag_block(cid_json.to_string()) {
-            Ok(Some(block)) => {
-                println!("--- Retrieved DAG Block ---");
-                println!("{:#?}", block); // Pretty print
-                println!("-------------------------");
-            }
-            Ok(None) => {
-                println!("Block not found for the given CID: {}", cid_json);
-            }
-            Err(CommonError::DeserializationError(msg)) => {
-                 eprintln!("Error: Invalid CID JSON provided: {}. Please provide a valid JSON string for the CID.", msg);
-                 exit(1);
-            }
-            Err(e) => {
-                eprintln!("Error: Failed to retrieve DAG block: {:?}", e);
-                exit(1);
-            }
-        }
+async fn handle_gov_vote(cli: &Cli, client: &Client, vote_request_json: &str) -> Result<(), anyhow::Error> {
+    let request: ApiCastVoteRequest = serde_json::from_str(vote_request_json)
+        .map_err(|e| anyhow::anyhow!("Invalid ApiCastVoteRequest JSON: {}. Error: {}", vote_request_json, e))?;
+    // Assuming the response is a simple success message or confirmation JSON
+    let response: JsonValue = post_request(&cli.api_url, client, "/governance/vote", &request).await?;
+    println!("Vote response: {}", serde_json::to_string_pretty(&response)?);
+    Ok(())
+}
+
+async fn handle_gov_list_proposals(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
+    let proposals: Vec<Proposal> = get_request(&cli.api_url, client, "/governance/proposals").await?;
+    println!("--- All Proposals ---");
+    if proposals.is_empty() {
+        println!("No proposals found.");
     } else {
-        eprintln!("Usage: icn-cli dag get <CID_JSON_STRING>");
-        eprintln!(r#"Example: icn-cli dag get '{{"version":1,"codec":113,"hash_alg":18,"hash_bytes":[104,101,108,108,111]}}'"#);
-        exit(1);
+        println!("{}", serde_json::to_string_pretty(&proposals)?);
     }
+    println!("---------------------");
+    Ok(())
 }
 
-fn handle_network_discover_peers_command(_args: &[String]) {
-    println!("Requesting network peer discovery via icn_api...");
-    // Currently, discover_peers_api in stub ignores bootstrap nodes, so passing an empty vec.
-    // A real CLI might take bootstrap nodes as arguments.
-    match discover_peers_api(Vec::new()) {
-        Ok(peers) => {
-            if peers.is_empty() {
-                println!("No peers discovered (stubbed network service might return a fixed list or be configured).");
-            } else {
-                println!("--- Discovered Peers ---");
-                for peer in peers {
-                    println!("  Peer ID: {}", peer.0); // Assuming PeerId is a tuple struct PeerId(String)
-                }
-                println!("----------------------");
-            }
-        }
-        Err(e) => {
-            eprintln!("Error: Failed to discover network peers: {:?}", e);
-            exit(1);
-        }
-    }
+async fn handle_gov_get_proposal(cli: &Cli, client: &Client, proposal_id: &str) -> Result<(), anyhow::Error> {
+    let path = format!("/governance/proposal/{}", proposal_id);
+    let proposal: Proposal = get_request(&cli.api_url, client, &path).await?;
+    println!("--- Proposal Details (ID: {}) ---", proposal_id);
+    println!("{}", serde_json::to_string_pretty(&proposal)?);
+    println!("-----------------------------------");
+    Ok(())
 }
 
-fn handle_network_send_message_command(args: &[String]) {
-    if args.len() > 4 { // icn-cli network send-message <PEER_ID> <MESSAGE_JSON>
-        let peer_id_str = args[3].clone();
-        let message_json = args[4].clone();
-        println!("Attempting to send network message to peer {} via icn_api...", peer_id_str);
-        
-        match send_network_message_api(peer_id_str, message_json) {
-            Ok(_) => {
-                println!("Successfully sent message.");
-            }
-            Err(CommonError::DeserializationError(msg)) => {
-                eprintln!("Error: Invalid NetworkMessage JSON provided: {}.", msg);
-                eprintln!("Please ensure the message is a valid JSON representation of a NetworkMessage variant (e.g., RequestBlock, AnnounceBlock).");
-                exit(1);
-            }
-            Err(CommonError::PeerNotFound(msg)) => {
-                eprintln!("Error: Peer not found: {}.", msg);
-                exit(1);
-            }
-             Err(CommonError::ApiError(msg)) if msg.to_lowercase().contains("peer not found") => { // More robust check for wrapped PeerNotFound
-                eprintln!("Error: Peer not found (reported by API): {}.", msg);
-                exit(1);
-            }
-            Err(e) => {
-                eprintln!("Error: Failed to send network message: {:?}", e);
-                exit(1);
-            }
-        }
-    } else {
-        eprintln!("Usage: icn-cli network send-message <PEER_ID> <MESSAGE_JSON>");
-        eprintln!("  <PEER_ID>: String identifier of the target peer.");
-        eprintln!("  <MESSAGE_JSON>: JSON string of the NetworkMessage.");
-        eprintln!(r#"Example: icn-cli network send-message mock_peer_1 '{{"RequestBlock":{{"version":1,"codec":112,"hash_alg":18,"hash_bytes":[100,97,116,97]}}}}'"#);
-        exit(1);
-    }
-}
-
-fn main() {
-    let args: Vec<String> = std::env::args().collect();
-
-    if args.len() <= 1 {
-        print_usage();
-        exit(0);
-    }
-
-    match args[1].as_str() {
-        "info" => handle_info_command(),
-        "status" => handle_status_command(&args),
-        "hello" => println!("Hello from ICN CLI!"),
-        "dag" => {
-            if args.len() > 2 {
-                match args[2].as_str() {
-                    "put" => handle_dag_put_command(&args),
-                    "get" => handle_dag_get_command(&args),
-                    _ => {
-                        eprintln!("Error: Unknown DAG command: {}. Try 'put' or 'get'.", args[2]);
-                        print_dag_usage();
-                        exit(1);
-                    }
-                }
-            } else {
-                print_dag_usage();
-                exit(1);
-            }
-        }
-        "network" => {
-            if args.len() > 2 {
-                match args[2].as_str() {
-                    "discover-peers" => handle_network_discover_peers_command(&args),
-                    "send-message" => handle_network_send_message_command(&args),
-                    _ => {
-                        eprintln!("Error: Unknown network command: {}. Try 'discover-peers' or 'send-message'.", args[2]);
-                        print_network_usage();
-                        exit(1);
-                    }
-                }
-            } else {
-                print_network_usage();
-                exit(1);
-            }
-        }
-        "--help" | "-h" | "help" => {
-            print_usage();
-            exit(0);
-        }
-        _ => {
-            eprintln!("Error: Unknown command: {}", args[1]);
-            print_usage();
-            exit(1);
-        }
-    }
-}
-
-fn print_usage() {
-    println!("ICN CLI - InterCooperative Network Command Line Interface");
-    println!("Usage: icn-cli <command> [options]");
-    println!("");
-    println!("Available commands:");
-    println!("  info                     Display node information.");
-    println!("  status [offline]         Display node status. Optionally simulate offline.");
-    println!("  dag put <JSON_BLOCK>     Submit a DAG block (as a JSON string).");
-    println!("  dag get <JSON_CID>       Retrieve a DAG block by its CID (as a JSON string).");
-    println!("  network discover-peers   Discover network peers (stubbed).");
-    println!("  network send-message <PEER_ID> <JSON_MESSAGE>  Send a message to a peer (stubbed).");
-    println!("  hello                    A friendly greeting.");
-    println!("  help, -h, --help         Show this help message.");
-    println!("");
-}
-
-fn print_dag_usage() {
-    println!("ICN CLI - DAG Subcommands");
-    println!("Usage: icn-cli dag <subcommand> [arguments]");
-    println!("");
-    println!("Available DAG subcommands:");
-    println!("  put <DAG_BLOCK_JSON_STRING>    Submit a DAG block. The block must be a valid JSON string.");
-    println!(r#"                                     Example: icn-cli dag put '{{"...block_data..."}}'"#);
-    println!("  get <CID_JSON_STRING>            Retrieve a DAG block by its CID. The CID must be a valid JSON string.");
-    println!(r#"                                     Example: icn-cli dag get '{{"...cid_data..."}}'"#);
-    println!("");
-}
-
-fn print_network_usage() {
-    println!("ICN CLI - Network Subcommands");
-    println!("Usage: icn-cli network <subcommand> [arguments]");
-    println!("");
-    println!("Available network subcommands:");
-    println!("  discover-peers                       Discover network peers (uses stubbed service).");
-    println!("  send-message <PEER_ID> <MESSAGE_JSON>  Send a message to a specific peer (uses stubbed service).");
-    println!("    <PEER_ID>:      The string identifier of the target peer (e.g., \"mock_peer_1\").");
-    println!("    <MESSAGE_JSON>: The message to send, as a JSON string. Examples:");
-    println!(r#"      '{{"RequestBlock":{{"version":1,"codec":112,"hash_alg":18,"hash_bytes":[100,97,116,97]}}}}' (for RequestBlock)"#);
-    println!(r#"      '{{"AnnounceBlock":{{"cid":{{"version":1,...}},"data":[...],"links":[]}}}}' (for AnnounceBlock)"#);
-    println!("");
-}
-
-#[cfg(test)]
-mod tests {
-    // For CLI, tests often involve running the binary with arguments and checking output,
-    // or testing argument parsing logic directly.
-    // The `it_compiles` test is a basic check.
-    #[test]
-    fn it_compiles() {
-        assert!(true);
-    }
-
-    // Example of how you might test a function if logic was extracted:
-    // fn process_info_command() -> Result<String, String> {
-    //     // ... logic of info command ...
-    //     Ok("Processed".to_string())
-    // }
-    // #[test]
-    // fn test_info_logic() {
-    //     assert!(process_info_command().is_ok());
-    // }
-}
+// TODO: Add tests for CLI commands, possibly using a mock HTTP server or by running the actual icn-node.

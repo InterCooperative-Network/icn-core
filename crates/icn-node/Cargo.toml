@@ -7,14 +7,15 @@ license.workspace = true
 
 [dependencies]
 icn-common = { path = "../icn-common", version = "0.1.0" }
-icn-api = { path = "../icn-api", version = "0.1.0" }
+icn-api = { path = "../icn-api", version = "0.1.0", default-features = false, features = ["types-only"] }
 icn-network = { path = "../icn-network", version = "0.1.0", default-features = false }
 icn-dag = { path = "../icn-dag", version = "0.1.0" }
 icn-governance = { path = "../icn-governance", version = "0.1.0", features = ["serde"] }
 serde_json = "1.0"
 clap = { version = "4.0", features = ["derive"] }
-tokio = { version = "1.0", features = ["full"], optional = true }
+tokio = { version = "1.0", features = ["full"] }
+axum = { version = "0.7", features = ["json"] }
 
 [features]
 default = ["icn-network/default"]
-with-libp2p = ["icn-network/with-libp2p", "dep:tokio"]
+with-libp2p = ["icn-network/with-libp2p"]

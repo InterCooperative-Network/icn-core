@@ -17,6 +17,19 @@ use serde::{Serialize, Deserialize};
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ProposalId(pub String); // Could be a hash of the proposal content
 
+impl std::str::FromStr for ProposalId {
+    type Err = icn_common::CommonError; // Or a more specific error type if desired
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.is_empty() {
+            // Or based on whatever validation rules ProposalId might have.
+            // For now, just ensuring it's not empty.
+            Err(icn_common::CommonError::InvalidInputError("Proposal ID cannot be empty".to_string()))
+        } else {
+            Ok(ProposalId(s.to_string()))
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ProposalType {
@@ -83,13 +96,15 @@ impl GovernanceModule {
     pub fn submit_proposal(&mut self, proposer: Did, proposal_type: ProposalType, description: String, duration_secs: u64) -> Result<ProposalId, CommonError> {
         // Simulate getting current time
         let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs();
-        // Simple ID generation: ProposerDID:ShortDescriptionHash:Timestamp
+        // Simple ID generation: ProposerDIDString:ShortDescriptionHash:Timestamp
         let desc_hash_part = description.chars().take(10).collect::<String>(); // First 10 chars as a stand-in for a hash
-        let proposal_id_str = format!("{}:{}:{}", proposer.0, desc_hash_part, now);
+        // Use proposer.to_string() which correctly formats the DID as a string
+        let proposal_id_str = format!("{}:{}:{}", proposer.to_string(), desc_hash_part, now);
         let proposal_id = ProposalId(proposal_id_str);
 
         if self.proposals.contains_key(&proposal_id) {
-            return Err(CommonError::ProposalExists(proposal_id.0));
+            // Use .0 to get the inner String for the error message, consistent with ProposalId structure
+            return Err(CommonError::ProposalExists(proposal_id.0.clone()));
         }
 
         let proposal = Proposal {

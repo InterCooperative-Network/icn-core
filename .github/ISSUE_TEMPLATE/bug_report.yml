@@ -1,0 +1,26 @@
+name: "🐛 Bug Report"
+description: "Something isn't working"
+labels: ["type: bug"]
+body:
+  - type: textarea
+    attributes:
+      label: What happened?
+      description: Clear, reproducible description (steps, expected vs actual).
+  - type: input
+    attributes:
+      label: Reproduction
+      description: Minimal code or CLI commands.
+  - type: dropdown
+    attributes:
+      label: Affected crate(s)
+      options:
+        - icn-core
+        - icn-governance
+        - icn-economics
+        - icn-identity
+        - icn-api
+        - icn-dag
+        - icn-network
+        - icn-node
+        - icn-common
+        - other 
