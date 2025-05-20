@@ -1,4 +1,4 @@
-"""//! Defines the Host ABI function indices for the ICN runtime.
+//! Defines the Host ABI function indices for the ICN runtime.
 
 // TODO: Finalize all ABI indices once the full specification is stable.
 // These are initial assignments based on current understanding.
@@ -21,5 +21,4 @@ pub const ABI_HOST_SUBMIT_MESH_JOB: u32 = 16;
 // pub const ABI_HOST_LOG_MESSAGE: u32 = 1;
 // pub const ABI_HOST_GET_BLOCK_INFO: u32 = 2;
 // pub const ABI_HOST_PUT_DAG_BLOCK: u32 = 3;
-// ...
-"" 
+// ... 
