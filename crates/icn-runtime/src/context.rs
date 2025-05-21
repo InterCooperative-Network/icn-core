@@ -1,100 +1,53 @@
 //! Defines the `RuntimeContext`, `HostEnvironment`, and related types for the ICN runtime.
 
-use icn_common::{Did, Cid, CommonError}; // Assuming Did, Cid might be needed. Adjust as necessary.
+use icn_common::{Did, Cid, CommonError}; // Removed JobId as CommonJobId
 use std::collections::{HashMap, VecDeque}; // Added HashMap for ManaLedger
 use std::str::FromStr; // For Did::from_str in new_with_dummy_mana
 use std::sync::atomic::{AtomicU32, Ordering}; // Modified import for Ordering
 use icn_governance::GovernanceModule; // Assuming this can be imported
-use icn_mesh::{MeshJob as ActualMeshJob, Bid, select_executor, SelectionPolicy}; // Import from icn-mesh
+use icn_mesh::{ActualMeshJob, MeshJobBid, MeshJobAnnounce, MeshBidSubmit, select_executor, SelectionPolicy, JobId, JobAssignmentNotice, JobState, SubmitReceiptMessage}; // Import from icn-mesh
 use icn_economics::{charge_mana, EconError}; // For mana charging
+use icn_identity::ExecutionReceipt as IdentityExecutionReceipt; // Import and alias ExecutionReceipt
 use tokio::sync::{mpsc, Mutex}; // For channel-based communication if needed and Mutex for shared state
 use tokio::time::{sleep, Duration}; // For timeouts
 use std::sync::Arc; // For shared state
+use async_trait::async_trait; // For async traits
 
 // Counter for generating unique (within this runtime instance) job IDs for stubs
 pub static NEXT_JOB_ID: AtomicU32 = AtomicU32::new(1);
 
 // --- Placeholder Types ---
-// TODO: Replace these with actual types from their respective crates (e.g., icn-mesh, icn-dag)
-
 // TODO: Define these types properly, likely in a shared crate (e.g., icn-governance or icn-common)
-#[derive(Debug, Clone)] // Added derive for placeholder
+#[derive(Debug, Clone)] 
 pub struct CreateProposalPayload {
     pub proposal_type_str: String,
-    pub type_specific_payload: Vec<u8>, // Or a more structured type
+    pub type_specific_payload: Vec<u8>, 
     pub description: String,
     pub duration_secs: u64,
 }
 
-#[derive(Debug, Clone)] // Added derive for placeholder
+#[derive(Debug, Clone)] 
 pub struct CastVotePayload {
     pub proposal_id_str: String,
-    pub vote_option_str: String, // e.g., "Yes", "No", "Abstain"
+    pub vote_option_str: String, 
 }
 
-/// Placeholder for a job specification submitted to the mesh.
-#[derive(Debug, Clone)]
-pub struct MeshJob { // This is the placeholder MeshJob, it will be shadowed by ActualMeshJob for pending_mesh_jobs
-    pub id: String, // A unique identifier for the job spec itself
-    pub data: Vec<u8>, // Serialized job data
-    pub owner: Did,    // Submitter of the job
-    // These fields are specific to the old placeholder and will not be in ActualMeshJob
-    pub current_identity: Did, 
-    pub mana_ledger: SimpleManaLedger,
-    pub pending_mesh_jobs: VecDeque<MeshJob>, // This will be VecDeque<ActualMeshJob> in RuntimeContext
-    pub governance_module: GovernanceModule, 
-}
+// Fully commented out old placeholder structs
+// /// Placeholder for a job specification submitted to the mesh.
+// #[derive(Debug, Clone)]
+// pub struct MeshJob { ... }
+// /// Placeholder for a Job ID returned by the mesh network.
+// #[derive(Debug, Clone, PartialEq, Eq, Hash)] 
+// pub struct OldJobId(pub String);
+// /// Represents a receipt of execution that can be signed and anchored.
+// #[derive(Debug, Clone)] 
+// pub struct OldExecutionReceipt { ... }
 
-/// Placeholder for a Job ID returned by the mesh network.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)] // Corrected deriveDebug
-pub struct JobId(pub String);
 
-// --- New: Execution Receipt --- 
-
-/// Represents a receipt of execution that can be signed and anchored.
-#[derive(Debug, Clone)] // TODO: Add Serialize, Deserialize if needed for network/storage
-pub struct ExecutionReceipt {
-    pub job_id: JobId,              // Identifier of the job that was executed
-    pub executor_did: Did,          // DID of the peer that executed the job
-    pub result_cid: Cid,            // CID of the execution result data
-    pub input_cids: Vec<Cid>,       // CIDs of the input data/dependencies
-    pub mana_used: u64,             // Mana consumed by the execution
-    pub execution_timestamp: u64,   // Unix timestamp of when execution completed
-    pub federation_scope: Option<String>, // Optional: scope of the federation if applicable
-    pub signature: Option<Vec<u8>>, // Signature of the receipt (hash of above fields) by executor_did
-    // TODO: Add other relevant fields like error information if job failed, etc.
-}
-
-impl ExecutionReceipt {
-    /// Placeholder for a method to calculate the hash of the receipt for signing.
-    pub fn sighash(&self) -> [u8; 32] {
-        // TODO: Implement proper hashing (e.g., SHA2-256) of all relevant fields.
-        // For now, returning a dummy hash.
-        // This should exclude the `signature` field itself.
-        let data_to_hash = format!(
-            "{:?}|{:?}|{:?}|{:?}|{}|{}",
-            self.job_id,
-            self.executor_did,
-            self.result_cid,
-            self.input_cids,
-            self.mana_used,
-            self.execution_timestamp
-        );
-        // In a real scenario, use a proper cryptographic hash function.
-        // Here, we'll just use a fixed-size array derived from a simple hash for stubbing.
-        let mut hasher = std::collections::hash_map::DefaultHasher::new();
-        std::hash::Hash::hash(&data_to_hash, &mut hasher);
-        let hash_val = std::hash::Hasher::finish(&hasher);
-        let mut output = [0u8; 32];
-        output[..8].copy_from_slice(&hash_val.to_ne_bytes());
-        output // This is NOT cryptographically secure, just a placeholder
-    }
-}
-
-// --- New: Core Service Traits ---
+// --- Core Service Traits ---
 
 /// Trait for a service that can sign data on behalf of a DID.
-pub trait Signer {
+pub trait Signer: Send + Sync + std::fmt::Debug {
     /// Signs the given data (e.g., a receipt hash) using the key associated with the provided DID.
     fn sign(&self, did: &Did, data: &[u8]) -> Result<Vec<u8>, HostAbiError>;
     /// Verifies a signature against the given data and DID.
@@ -102,17 +55,26 @@ pub trait Signer {
 }
 
 /// Trait for a service that can store and retrieve data in a content-addressable DAG.
-pub trait DagStore {
+pub trait DagStore: Send + Sync + std::fmt::Debug {
     /// Stores a block of data and returns its CID.
     fn put(&self, data: &[u8]) -> Result<Cid, HostAbiError>;
     /// Retrieves a block of data by its CID.
     fn get(&self, cid: &Cid) -> Result<Option<Vec<u8>>, HostAbiError>;
-    // TODO: Add other methods like `has`, `remove`, etc.
+}
+
+/// Trait for a service that can broadcast and receive mesh-specific messages.
+#[async_trait]
+pub trait MeshNetworkService: Send + Sync + std::fmt::Debug {
+    async fn announce_job(&self, announcement: MeshJobAnnounce) -> Result<(), HostAbiError>;
+    async fn collect_bids_for_job(&self, job_id: JobId, duration: Duration) -> Result<Vec<MeshJobBid>, HostAbiError>;
+    /// Broadcasts the job assignment to the selected executor (and potentially other listeners).
+    async fn broadcast_assignment(&self, notice: JobAssignmentNotice) -> Result<(), HostAbiError>;
+    /// Attempts to receive a submitted execution receipt (non-blocking).
+    async fn try_receive_receipt(&self) -> Result<Option<SubmitReceiptMessage>, HostAbiError>;
 }
 
 // --- Host ABI Error --- 
 
-/// Errors that can occur during Host ABI function calls via the RuntimeContext.
 #[derive(Debug)]
 pub enum HostAbiError {
     NotImplemented(String),
@@ -121,11 +83,11 @@ pub enum HostAbiError {
     JobSubmissionFailed(String),
     InvalidParameters(String),
     DagOperationFailed(String),
+    SignatureError(String),
     InternalError(String),
-    Common(CommonError), // For conversion
+    Common(CommonError), 
 }
 
-// Implement std::fmt::Display for HostAbiError
 impl std::fmt::Display for HostAbiError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -135,6 +97,7 @@ impl std::fmt::Display for HostAbiError {
             HostAbiError::JobSubmissionFailed(msg) => write!(f, "Job submission failed: {}", msg),
             HostAbiError::InvalidParameters(msg) => write!(f, "Invalid parameters: {}", msg),
             HostAbiError::DagOperationFailed(msg) => write!(f, "DAG operation failed: {}", msg),
+            HostAbiError::SignatureError(msg) => write!(f, "Signature error: {}", msg),
             HostAbiError::InternalError(msg) => write!(f, "Internal runtime error: {}", msg),
             HostAbiError::Common(e) => write!(f, "Common error: {}", e),
         }
@@ -144,24 +107,20 @@ impl std::fmt::Display for HostAbiError {
 impl std::error::Error for HostAbiError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            HostAbiError::Common(_) => None, // Corrected: CommonError may not be std::error::Error
-            // TODO: If CommonError is made to implement std::error::Error, this can be Some(e).
+            HostAbiError::Common(_) => None,
             _ => None, 
         }
     }
 }
 
-// Central Error Conversion: From CommonError to HostAbiError
 impl From<CommonError> for HostAbiError {
     fn from(err: CommonError) -> Self {
         HostAbiError::Common(err)
     }
 }
 
-
 // --- Mana Ledger (Simple In-Memory Version) ---
-// TODO: Replace with `ManaRepositoryAdapter` + `SledManaLedger` integration when ready.
-#[derive(Debug, Clone)] // Added Clone here
+#[derive(Debug, Clone)] 
 pub struct SimpleManaLedger {
     balances: HashMap<Did, u64>,
 }
@@ -187,206 +146,275 @@ impl SimpleManaLedger {
         *balance -= amount;
         Ok(())
     }
+
+    pub fn credit(&mut self, account: &Did, amount: u64) -> Result<(), HostAbiError> {
+        let balance = self.balances.entry(account.clone()).or_insert(0);
+        *balance += amount;
+        Ok(())
+    }
 }
 
 // --- Runtime Context --- 
-
-/// `RuntimeContext` manages the state and capabilities available to an executing
-/// ICN script or WASM module. It provides scoped access to identity, mana,
-/// mesh job submission, DAG anchoring, etc.
 #[derive(Debug)]
 pub struct RuntimeContext {
-    /// The DID of the identity currently executing within this context.
     pub current_identity: Did,
-    /// Simple in-memory mana ledger for now.
     pub mana_ledger: SimpleManaLedger, 
-    /// Queue for jobs submitted by this context to the mesh network.
     pub pending_mesh_jobs: Arc<Mutex<VecDeque<ActualMeshJob>>>, 
+    pub job_states: Arc<Mutex<HashMap<JobId, JobState>>>,
     pub governance_module: GovernanceModule,
-    // TODO: Placeholder for DAG store access
-    // pub dag_store: Arc<dyn DagStoreAccess>,
-    // TODO: Add fields for policy enforcers, etc.
-    // TODO: Add a network layer handle for broadcasting job announcements
-    // pub network_layer: Arc<dyn NetworkService>, // Example
-    // TODO: Add a way to store job assignments
-    // pub job_assignments: Arc<Mutex<HashMap<JobId, Did>>>, // Example
+    pub mesh_network_service: Arc<dyn MeshNetworkService>,
+    pub signer: Arc<dyn Signer>, 
+    pub dag_store: Arc<dyn DagStore>,
 }
 
 impl RuntimeContext {
-    /// Creates a new `RuntimeContext` for a given identity.
-    /// Initializes with an empty mana ledger and an empty job queue.
-    pub fn new(current_identity: Did) -> Self {
+    pub fn new(
+        current_identity: Did, 
+        mesh_network_service: Arc<dyn MeshNetworkService>,
+        signer: Arc<dyn Signer>,
+        dag_store: Arc<dyn DagStore>
+    ) -> Self {
         Self {
             current_identity,
             mana_ledger: SimpleManaLedger::new(),
-            pending_mesh_jobs: Arc::new(Mutex::new(VecDeque::new())), // Initialize Arc<Mutex<VecDeque>>
+            pending_mesh_jobs: Arc::new(Mutex::new(VecDeque::new())), 
+            job_states: Arc::new(Mutex::new(HashMap::new())),
             governance_module: GovernanceModule::new(),
-            // job_assignments: Arc::new(Mutex::new(HashMap::new())), // Initialize if added
+            mesh_network_service,
+            signer,
+            dag_store,
         }
     }
 
-    /// Test helper to create a context with some initial mana for the current identity.
     #[cfg(test)]
-    pub(crate) fn new_with_initial_mana(current_identity_str: &str, initial_mana: u64) -> Self {
+    pub(crate) fn new_with_stubs(current_identity_str: &str) -> Self {
         let current_identity = Did::from_str(current_identity_str).expect("Invalid DID for test context");
-        let mut ctx = Self::new(current_identity.clone());
+        Self::new(
+            current_identity, 
+            Arc::new(StubMeshNetworkService::new()),
+            Arc::new(StubSigner),
+            Arc::new(StubDagStore::new())
+        )
+    }
+
+    #[cfg(test)]
+    pub(crate) fn new_with_stubs_and_mana(current_identity_str: &str, initial_mana: u64) -> Self {
+        let current_identity = Did::from_str(current_identity_str).expect("Invalid DID for test context");
+        let mut ctx = Self::new(
+            current_identity.clone(), 
+            Arc::new(StubMeshNetworkService::new()),
+            Arc::new(StubSigner),
+            Arc::new(StubDagStore::new())
+        );
         ctx.mana_ledger.set_balance(&current_identity, initial_mana);
         ctx
     }
-
-    /// Submits a mesh job from the current runtime context.
-    /// This is called by `host_submit_mesh_job` in `lib.rs`.
-    /// `host_submit_mesh_job` now handles mana charging and most job preparation.
-    /// This function's role is primarily to add the job to the shared queue.
+    
     pub async fn internal_queue_mesh_job(&self, job: ActualMeshJob) -> Result<(), HostAbiError> {
-        // Mana should have been charged by the caller (host_submit_mesh_job)
         let mut queue = self.pending_mesh_jobs.lock().await;
         queue.push_back(job.clone());
-        println!("[CONTEXT] Queued mesh job: id={}", job.id);
+        let mut states = self.job_states.lock().await;
+        states.insert(job.id.clone(), JobState::Pending);
+        println!("[CONTEXT] Queued mesh job: id={:?}, state=Pending", job.id);
         Ok(())
     }
 
     pub async fn spawn_mesh_job_manager(&self) {
-        let pending_jobs_queue_clone: Arc<Mutex<VecDeque<ActualMeshJob>>> = Arc::clone(&self.pending_mesh_jobs);
-        // let job_assignments_clone = Arc::clone(&self.job_assignments); // Example for storing assignments
-        // let network_layer_clone = Arc::clone(&self.network_layer); // Example for network access
+        let pending_jobs_queue_clone = Arc::clone(&self.pending_mesh_jobs);
+        let job_states_clone = Arc::clone(&self.job_states);
+        let network_service_clone = Arc::clone(&self.mesh_network_service);
+        let signer_clone = Arc::clone(&self.signer);
+        let dag_store_clone = Arc::clone(&self.dag_store);
+        let current_identity_clone = self.current_identity.clone();
+        let mana_ledger_for_refunds = Arc::new(Mutex::new(self.mana_ledger.clone())); // Clone mana ledger for JobManager refunds
 
-        // Define constants for bidding/assignment logic (these should be configurable)
-        const MANA_RESERVE_AMOUNT: u64 = 5; // Example mana reserve
-        const MIN_REPUTATION_THRESHOLD: u64 = 10; // Example reputation threshold
+        let mut assigned_jobs: HashMap<JobId, (ActualMeshJob, Did, std::time::Instant)> = HashMap::new();
+        const JOB_EXECUTION_TIMEOUT: Duration = Duration::from_secs(5 * 60);
+        let reputation_updater = crate::ReputationUpdater::new();
 
         tokio::spawn(async move {
             loop {
-                let mut job_to_process: Option<ActualMeshJob> = None;
+                let mut job_to_assign_option: Option<ActualMeshJob> = None;
                 {
                     let mut queue = pending_jobs_queue_clone.lock().await;
                     if let Some(job) = queue.pop_front() {
-                        job_to_process = Some(job);
+                        let states = job_states_clone.lock().await;
+                        if let Some(JobState::Pending) = states.get(&job.id) {
+                            job_to_assign_option = Some(job);
+                        } else {
+                            println!("[JobManager] Job {:?} from queue is no longer Pending. Skipping.", job.id);
+                        }
                     }
-                } // Mutex guard dropped here
+                }
 
-                if let Some(job) = job_to_process {
-                    println!("[JobManager] Processing job: id={}", job.id);
-
-                    // 1. Broadcast MeshJobAnnouncement via network layer (stub)
-                    println!("[JobManager] Broadcasting job announcement for id={}", job.id);
-                    // network_layer_clone.broadcast(MeshJobAnnouncement { job_id: job.id.clone(), ... }).await.unwrap_or_else(|e| {
-                    //     eprintln!("[JobManager] Error broadcasting job announcement: {}", e);
-                    // });
+                if let Some(job_to_assign) = job_to_assign_option {
+                    println!("[JobManager] Attempting to assign job: id={:?}", job_to_assign.id);
+                    let announcement = MeshJobAnnounce {
+                        job_id: job_to_assign.id.clone(),
+                        manifest_cid: job_to_assign.manifest_cid.clone(),
+                        creator_did: job_to_assign.creator_did.clone(),
+                        cost_mana: job_to_assign.cost_mana,
+                    };
+                    if let Err(e) = network_service_clone.announce_job(announcement).await {
+                        eprintln!("[JobManager] Error broadcasting job announcement for id={:?}: {:?}. Re-queuing job.", job_to_assign.id, e);
+                        pending_jobs_queue_clone.lock().await.push_back(job_to_assign);
+                        sleep(Duration::from_secs(5)).await; 
+                        continue;
+                    }
                     
-                    let bid_window_secs = 30; // Example bid window
-                    println!("[JobManager] Collecting bids for {} seconds for job id={}...", bid_window_secs, job.id);
-                    sleep(Duration::from_secs(bid_window_secs)).await;
-
-                    // 2. Collect bids (stub - assume bids are collected somehow)
-                    // In a real system, bids would arrive via the network and be stored.
-                    // For now, creating dummy bids.
-                    let mut received_bids: Vec<Bid> = Vec::new();
-                    // Example: Add a dummy bid
-                    // received_bids.push(Bid {
-                    //     job_id: job.id.clone(),
-                    //     executor: Did::new("key", "dummy-executor-1"),
-                    //     price: 10,
-                    //     resources: icn_mesh::Resources {}, // Assuming Resources is defaultable or constructed
-                    // });
-                    // received_bids.push(Bid {
-                    //     job_id: job.id.clone(),
-                    //     executor: Did::new("key", "dummy-executor-2"),
-                    //     price: 12,
-                    //     resources: icn_mesh::Resources {},
-                    // });
-                     println!("[JobManager] Collected {} bids for job id={}", received_bids.len(), job.id);
+                    let bid_window = Duration::from_secs(30); 
+                    println!("[JobManager] Collecting bids for {} seconds for job id={:?}...", bid_window.as_secs(), job_to_assign.id);
                     
-                    let mut valid_bids: Vec<Bid> = Vec::new();
-                    for bid in received_bids {
-                        // Bid Acceptance: Verify executor mana >= reserve; reputation >= threshold
-                        // A. Mana check (charge_mana will be used, but here it's a check)
-                        //    For the check, we'd typically use a get_balance function.
-                        //    Since charge_mana has a side effect, for a "check", one might need a dry-run version
-                        //    or rely on subsequent assignment check. For now, let's assume `charge_mana`
-                        //    is the point of truth for ability to reserve.
-                        //    If charge_mana fails with InsufficientBalance, the bid is rejected.
-                        //    This check is simplified here. A full system would have a ManaLedger query.
-                        match charge_mana(&bid.executor, MANA_RESERVE_AMOUNT) {
+                    let received_bids = match network_service_clone.collect_bids_for_job(job_to_assign.id.clone(), bid_window).await {
+                        Ok(bids) => bids,
+                        Err(e) => {
+                            eprintln!("[JobManager] Error collecting bids for job id={:?}: {:?}. Re-queuing job.", job_to_assign.id, e);
+                            pending_jobs_queue_clone.lock().await.push_back(job_to_assign);
+                            sleep(Duration::from_secs(5)).await;
+                            continue;
+                        }
+                    };
+                    println!("[JobManager] Collected {} bids for job id={:?}", received_bids.len(), job_to_assign.id);
+                    
+                    let mut valid_bids: Vec<MeshJobBid> = Vec::new();
+                    for bid in received_bids { 
+                        match charge_mana(&bid.executor_did, 5) {
                             Ok(_) => {
-                                println!("[JobManager] Executor {:?} has sufficient mana reserve for bid on job id={}.", bid.executor, job.id);
-                                // TODO: Add reputation check
-                                // let reputation = get_reputation(&bid.executor); // Placeholder
-                                let reputation: u64 = 20; // Placeholder
-                                if reputation >= MIN_REPUTATION_THRESHOLD {
-                                    println!("[JobManager] Executor {:?} meets reputation threshold for bid on job id={}.", bid.executor, job.id);
+                                println!("[JobManager] Executor {:?} has sufficient mana reserve for bid on job id={:?}.", bid.executor_did, job_to_assign.id);
+                                let reputation: u64 = 20; 
+                                if reputation >= 10 {
+                                    println!("[JobManager] Executor {:?} meets reputation threshold for bid on job id={:?}.", bid.executor_did, job_to_assign.id);
                                     valid_bids.push(bid);
                                 } else {
-                                    println!("[JobManager] Executor {:?} REJECTED (reputation {} < {}) for bid on job id={}", 
-                                             bid.executor, reputation, MIN_REPUTATION_THRESHOLD, job.id);
-                                    // TODO: Refund mana if it was actually charged as part of a "reserve" mechanism.
-                                    // For now, charge_mana is a direct spend, so this flow needs refinement for reservations.
+                                    println!("[JobManager] Executor {:?} REJECTED (reputation {} < {}) for bid on job id={:?}", 
+                                             bid.executor_did, reputation, 10, job_to_assign.id);
                                 }
                             }
                             Err(EconError::InsufficientBalance(_)) => {
-                                println!("[JobManager] Executor {:?} REJECTED (insufficient mana for reserve) for bid on job id={}", 
-                                         bid.executor, job.id);
+                                println!("[JobManager] Executor {:?} REJECTED (insufficient mana for reserve) for bid on job id={:?}", 
+                                         bid.executor_did, job_to_assign.id);
                             }
                             Err(e) => {
-                                eprintln!("[JobManager] Error checking mana for executor {:?} for bid on job id={}: {:?}", 
-                                         bid.executor, job.id, e);
+                                eprintln!("[JobManager] Error checking mana for executor {:?} for bid on job id={:?}: {:?}", 
+                                         bid.executor_did, job_to_assign.id, e);
                             }
                         }
                     }
-                    println!("[JobManager] {} valid bids after filtering for job id={}", valid_bids.len(), job.id);
+                    println!("[JobManager] {} valid bids after filtering for job id={:?}", valid_bids.len(), job_to_assign.id);
 
-                    // 3. Call icn_mesh::select_executor
-                    let selection_policy = SelectionPolicy {}; // Placeholder policy
+                    let selection_policy = SelectionPolicy::default(); 
                     if let Some(selected_executor_did) = select_executor(valid_bids, selection_policy) {
-                        // Assignment: Ensure executor still has mana (idempotency for reserve or final charge)
-                        // This is a re-check or finalization of the mana reserve.
-                        match charge_mana(&selected_executor_did, MANA_RESERVE_AMOUNT) { // Or a different assignment cost
+                        match charge_mana(&selected_executor_did, 5) { 
                             Ok(_) => {
-                                println!("[JobManager] Selected executor {:?} for job id={}. Mana re-confirmed/assigned.", 
-                                         selected_executor_did, job.id);
-                                // 4. Store assignment in runtime state (stub)
-                                // let mut assignments = job_assignments_clone.lock().await;
-                                // assignments.insert(job.id.clone(), selected_executor_did.clone());
-                                // println!("[JobManager] Job id={} assigned to executor {:?}", job.id, selected_executor_did);
-                                // TODO: Notify executor, change JobState, etc.
+                                println!("[JobManager] Selected executor {:?} for job id={:?}. Mana re-confirmed/assigned.", 
+                                         selected_executor_did, job_to_assign.id);
+                                
+                                {
+                                    let mut states = job_states_clone.lock().await;
+                                    states.insert(job_to_assign.id.clone(), JobState::Assigned { executor: selected_executor_did.clone() });
+                                    println!("[JobManager] Job id={:?} state changed to Assigned to executor {:?}", job_to_assign.id, selected_executor_did);
+                                }
+                                assigned_jobs.insert(job_to_assign.id.clone(), (job_to_assign.clone(), selected_executor_did.clone(), std::time::Instant::now()));
+                                let notice = JobAssignmentNotice {
+                                    job_id: job_to_assign.id.clone(),
+                                    executor_did: selected_executor_did.clone(),
+                                };
+                                if let Err(e) = network_service_clone.broadcast_assignment(notice).await {
+                                    eprintln!("[JobManager] Error broadcasting job assignment for id={:?}: {:?}. Job remains Assigned.", job_to_assign.id, e);
+                                }
+
                             }
                             Err(EconError::InsufficientBalance(_)) => {
-                                println!("[JobManager] Selected executor {:?} for job id={} now has INSUFFICIENT MANA. Trying next bid.", 
-                                         selected_executor_did, job.id);
-                                // TODO: Logic to choose next best bid. This simple version just fails.
-                                // This would involve re-running select_executor with remaining valid_bids (excluding this one).
+                                println!("[JobManager] Selected executor {:?} for job id={:?} now has INSUFFICIENT MANA. Trying next bid.", 
+                                         selected_executor_did, job_to_assign.id);
                             }
                             Err(e) => {
-                                eprintln!("[JobManager] Error confirming mana for selected executor {:?} for job id={}: {:?}",
-                                         selected_executor_did, job.id, e);
+                                eprintln!("[JobManager] Error confirming mana for selected executor {:?} for job id={:?}: {:?}",
+                                         selected_executor_did, job_to_assign.id, e);
                             }
                         }
                     } else {
-                        println!("[JobManager] No suitable executor found for job id={}", job.id);
-                        // TODO: Handle no bid / no selection (e.g., requeue, timeout, refund submitter's original mana)
-                        // Refunding submitter's mana:
-                        // match icn_economics::credit_mana(&job.submitter, job.mana_cost) {
-                        //     Ok(_) => println!("[JobManager] Refunded {} mana to submitter {:?} for timed-out job id={}",
-                        //                     job.mana_cost, job.submitter, job.id),
-                        //     Err(e) => eprintln!("[JobManager] Error refunding mana for job id={}: {:?}", job.id, e),
-                        // }
+                        println!("[JobManager] No suitable executor found for job id={:?}. Re-queuing with potential backoff.", job_to_assign.id);
+                        pending_jobs_queue_clone.lock().await.push_back(job_to_assign);
+                        sleep(Duration::from_secs(10)).await;
                     }
-                } else {
-                    // No job in queue, wait before checking again
-                    sleep(Duration::from_secs(5)).await;
                 }
+
+                if let Ok(Some(receipt_msg)) = network_service_clone.try_receive_receipt().await {
+                    let job_id_from_receipt = receipt_msg.receipt.job_id.clone();
+                    println!("[JobManager] Received receipt for job_id: {:?}", job_id_from_receipt);
+
+                    if let Some((_original_job, assigned_executor_did, _assignment_time)) = assigned_jobs.get(&job_id_from_receipt) {
+                        if receipt_msg.receipt.executor_did == *assigned_executor_did {
+                            let mut receipt_to_anchor = receipt_msg.receipt.clone(); 
+                            let mut temp_anchor_ctx = RuntimeContext::new(
+                                current_identity_clone.clone(),
+                                network_service_clone.clone(),
+                                signer_clone.clone(),
+                                dag_store_clone.clone()
+                            );
+                            match temp_anchor_ctx.anchor_receipt(&mut receipt_to_anchor) {
+                                Ok(anchored_cid) => {
+                                    println!("[JobManager] Receipt for job {:?} anchored successfully with CID: {:?}", job_id_from_receipt, anchored_cid);
+                                    reputation_updater.submit(&receipt_to_anchor);
+                                    let mut states = job_states_clone.lock().await;
+                                    states.insert(job_id_from_receipt.clone(), JobState::Completed { receipt: receipt_to_anchor });
+                                    assigned_jobs.remove(&job_id_from_receipt);
+                                    println!("[JobManager] Job {:?} state changed to Completed.", job_id_from_receipt);
+                                }
+                                Err(e) => {
+                                    eprintln!("[JobManager] Failed to anchor receipt for job {:?}: {:?}", job_id_from_receipt, e);
+                                    let mut states = job_states_clone.lock().await;
+                                    states.insert(job_id_from_receipt.clone(), JobState::Failed { reason: format!("Anchor failed: {:?}", e) });
+                                    assigned_jobs.remove(&job_id_from_receipt);
+                                }
+                            }
+                        } else {
+                            eprintln!("[JobManager] Received receipt for job {:?} from unexpected executor {:?}. Expected {:?}. Discarding.", 
+                                     job_id_from_receipt, receipt_msg.receipt.executor_did, assigned_executor_did);
+                        }
+                    } else {
+                        println!("[JobManager] Received receipt for unknown or already processed job_id: {:?}. Discarding.", job_id_from_receipt);
+                    }
+                } else if let Err(e) = network_service_clone.try_receive_receipt().await {
+                    eprintln!("[JobManager] Error calling try_receive_receipt: {:?}", e);
+                }
+
+                let mut timed_out_job_ids = Vec::new();
+                for (job_id, (_original_job, _executor_did, assignment_time)) in &assigned_jobs {
+                    if assignment_time.elapsed() > JOB_EXECUTION_TIMEOUT {
+                        timed_out_job_ids.push(job_id.clone());
+                    }
+                }
+                for job_id in timed_out_job_ids {
+                    println!("[JobManager] Job {:?} timed out.", job_id);
+                    if let Some((timed_out_job, timed_out_executor_did, _)) = assigned_jobs.remove(&job_id) { // Remove and get job details
+                        let mut states = job_states_clone.lock().await;
+                        states.insert(job_id.clone(), JobState::Failed { reason: format!("Execution timed out by executor {:?}", timed_out_executor_did) });
+                        
+                        // Refund the original submitter
+                        let mut ledger = mana_ledger_for_refunds.lock().await;
+                        match ledger.credit(&timed_out_job.creator_did, timed_out_job.cost_mana) {
+                            Ok(_) => println!("[JobManager] Refunded {} mana to submitter {:?} for timed out job {:?}", 
+                                            timed_out_job.cost_mana, timed_out_job.creator_did, job_id),
+                            Err(e) => eprintln!("[JobManager] Error refunding mana for job {:?}: {:?}. Submitter: {:?}, Amount: {}", 
+                                            job_id, e, timed_out_job.creator_did, timed_out_job.cost_mana),
+                        }
+                        // TODO: Potentially penalize the executor who timed out (reputation system)
+                    }
+                }
+
+                sleep(Duration::from_millis(500)).await;
             }
         });
         println!("[RuntimeContext] Mesh job manager spawned.");
     }
 
-    /// Retrieves the mana for the given account.
     pub fn get_mana(&self, account: &Did) -> Result<u64, HostAbiError> {
         println!("[CONTEXT] get_mana called for account: {:?}", account);
         self.mana_ledger.get_balance(account).ok_or_else(|| HostAbiError::AccountNotFound(account.clone()))
     }
 
-    /// Spends mana from the given account.
     pub fn spend_mana(&mut self, account: &Did, amount: u64) -> Result<(), HostAbiError> {
         println!("[CONTEXT] spend_mana called for account: {:?} amount: {}", account, amount);
         if account != &self.current_identity {
@@ -397,194 +425,169 @@ impl RuntimeContext {
         self.mana_ledger.spend(account, amount)
     }
 
-    /// Anchors an execution receipt.
-    /// This involves: (stubbed for now)
-    ///  1. Validating the receipt (e.g., ensuring it pertains to the current context/executor).
-    ///  2. Signing the receipt if not already signed, or verifying signature.
-    ///  3. Storing the receipt in the DAG.
-    ///  4. Optionally, submitting info to a reputation system.
-    pub fn anchor_receipt(&self, receipt: &mut ExecutionReceipt) -> Result<Cid, HostAbiError> {
-        // TODO: record metric `icn_runtime_receipt_anchored_total{status="success/failure"}`
+    pub fn credit_mana(&mut self, account: &Did, amount: u64) -> Result<(), HostAbiError> {
+        println!("[CONTEXT] credit_mana called for account: {:?} amount: {}", account, amount);
+        // Policy: For now, allow crediting any account, as this might be done by system processes (e.g. refunds)
+        // If only self-crediting is allowed, add: if account != &self.current_identity { return Err(...) }
+        self.mana_ledger.credit(account, amount)
+    }
+
+    pub fn anchor_receipt(&self, receipt: &mut IdentityExecutionReceipt) -> Result<Cid, HostAbiError> { 
         println!("[CONTEXT] anchor_receipt called for job_id: {:?}", receipt.job_id);
 
-        // 1. Validate the receipt (basic validation for now)
         if receipt.executor_did != self.current_identity {
             return Err(HostAbiError::InvalidParameters(
                 "Receipt executor_did does not match current context identity.".to_string(),
             ));
         }
+        
+        let sighash_data = format!("{:?}|{:?}|{:?}|{}", receipt.job_id, receipt.executor_did, receipt.result_cid, receipt.cpu_ms);
 
-        // 2. Sign the receipt (if a Signer trait object were available)
-        // if let Some(signer) = &self.signer {
-        //     if receipt.signature.is_none() {
-        //         let sighash = receipt.sighash();
-        //         receipt.signature = Some(signer.sign(&self.current_identity, &sighash)?);
-        //     } else {
-        //         // Optionally verify if already signed
-        //         let sighash = receipt.sighash();
-        //         if !signer.verify(&self.current_identity, &sighash, receipt.signature.as_ref().unwrap())? {
-        //             return Err(HostAbiError::InvalidParameters("Provided signature is invalid.".to_string()));
-        //         }
-        //     }
-        // } else {
-        //     // If no signer, we can't proceed with signing. For now, we might allow unsigned or error out.
-        //     // For this stub, let's assume signing is required and would happen here.
-        //     println!("[CONTEXT_WARN] No signer available in RuntimeContext, cannot sign receipt.");
-        //     return Err(HostAbiError::NotImplemented("Signing service not available in context".to_string()));
-        // }
-        // For stubbing, let's just ensure a signature placeholder if none, or use existing.
-        if receipt.signature.is_none() {
-            receipt.signature = Some(b"dummy_signature_for_stub".to_vec());
-            println!("[CONTEXT_STUB] Receipt signed with a dummy signature.");
+        if receipt.sig.is_empty() {
+            let signature = self.signer.sign(&self.current_identity, sighash_data.as_bytes())?;
+            receipt.sig = signature;
+            println!("[CONTEXT] Receipt signed with new signature.");
+        } else {
+            let is_valid = self.signer.verify(&self.current_identity, sighash_data.as_bytes(), &receipt.sig)?;
+            if !is_valid {
+                return Err(HostAbiError::SignatureError("Provided signature is invalid.".to_string()));
+            }
+            println!("[CONTEXT] Existing signature on receipt verified.");
         }
 
-        // 3. Store the receipt in the DAG (if a DagStore trait object were available)
-        // let receipt_bytes = serde_json::to_vec(receipt) // Assuming receipt is serializable
-        //     .map_err(|e| HostAbiError::InternalError(format!("Failed to serialize receipt: {}", e)))?;
-        // if let Some(dag_store) = &self.dag_store {
-        //     let cid = dag_store.put(&receipt_bytes)?;
-        //     println!("[CONTEXT_STUB] Receipt anchored to DAG with CID: {:?}", cid);
-        //     // 4. Optionally, submit to reputation system here
-        //     Ok(cid)
-        // } else {
-        //     println!("[CONTEXT_WARN] No DAG store available in RuntimeContext, cannot anchor receipt.");
-        //     Err(HostAbiError::NotImplemented("DAG store service not available in context".to_string()))
-        // }
-        // For stubbing, generate a dummy CID
-        let dummy_receipt_data = format!("{:?}", receipt);
-        let dummy_cid_val = NEXT_JOB_ID.fetch_add(1, Ordering::SeqCst);
-        let dummy_cid = Cid::new_v1_dummy(0x55, 0x12, format!("receipt_cid_{}", dummy_cid_val).as_bytes());
-        println!("[CONTEXT_STUB] Receipt {:?} (data: \"{}\") notionally anchored. Dummy CID: {:?}", receipt.job_id, dummy_receipt_data, dummy_cid);
-        Ok(dummy_cid)
+        let receipt_bytes = serde_json::to_vec(receipt)
+            .map_err(|e| HostAbiError::InternalError(format!("Failed to serialize receipt: {}", e)))?;
+        
+        let cid = self.dag_store.put(&receipt_bytes)?;
+        println!("[CONTEXT] Receipt anchored to DAG with CID: {:?}", cid);
+        Ok(cid)
     }
 
-    // --- New Governance Methods for RuntimeContext ---
-
-    pub fn create_governance_proposal(&mut self, payload: CreateProposalPayload) -> Result<String, HostAbiError> {
-        println!("[CONTEXT] create_governance_proposal called with payload: {:?}", payload);
-        // TODO: Convert CreateProposalPayload into types expected by governance_module.submit_proposal
-        // This involves mapping proposal_type_str and type_specific_payload to icn_governance::ProposalType
-        // For now, using a placeholder/stub for that conversion and call.
-        // let gov_proposal_type = map_to_gov_proposal_type(&payload.proposal_type_str, payload.type_specific_payload)?;
-        // let proposal_id = self.governance_module.submit_proposal(
-        //     self.current_identity.clone(), 
-        //     gov_proposal_type, 
-        //     payload.description, // Assuming description is directly usable
-        //     payload.duration_secs
-        // ).map_err(|e| HostAbiError::InternalError(format!("GovModule submit_proposal error: {}", e)))?;
-        // Ok(proposal_id.0) // Assuming GovProposalId is a tuple struct (String)
+    pub fn create_governance_proposal(&mut self, _payload: CreateProposalPayload) -> Result<String, HostAbiError> {
         todo!("Implement mapping for CreateProposalPayload and call governance_module.submit_proposal");
     }
 
-    pub fn cast_governance_vote(&mut self, payload: CastVotePayload) -> Result<(), HostAbiError> {
-        println!("[CONTEXT] cast_governance_vote called with payload: {:?}", payload);
-        // TODO: Convert CastVotePayload into types expected by governance_module.cast_vote
-        // This involves parsing proposal_id_str to GovProposalId and vote_option_str to GovVoteOption.
-        // let gov_proposal_id = icn_governance::ProposalId::from_str(&payload.proposal_id_str)
-        //     .map_err(|e| HostAbiError::InvalidParameters(format!("Invalid proposal_id format: {}", e)))?;
-        // let gov_vote_option = map_to_gov_vote_option(&payload.vote_option_str)?;
-        // self.governance_module.cast_vote(
-        //     self.current_identity.clone(),
-        //     &gov_proposal_id,
-        //     gov_vote_option
-        // ).map_err(|e| HostAbiError::InternalError(format!("GovModule cast_vote error: {}", e)))?;
-        // Ok(())
+    pub fn cast_governance_vote(&mut self, _payload: CastVotePayload) -> Result<(), HostAbiError> {
         todo!("Implement mapping for CastVotePayload and call governance_module.cast_vote");
     }
 
-    pub fn close_governance_proposal_voting(&mut self, proposal_id_str: &str) -> Result<String, HostAbiError> {
-        println!("[CONTEXT] close_governance_proposal_voting called for proposal_id: {}", proposal_id_str);
-        // TODO: The existing GovernanceModule likely handles closing/tallying internally based on deadlines or explicit calls.
-        // It has a `tally_votes` method. We might need to expose a way to trigger this or get status.
-        // For now, this is a conceptual placeholder.
-        // let gov_proposal_id = icn_governance::ProposalId::from_str(proposal_id_str)
-        //     .map_err(|e| HostAbiError::InvalidParameters(format!("Invalid proposal_id format: {}", e)))?;
-        // let status = self.governance_module.tally_votes(&gov_proposal_id) // Assuming tally_votes updates and returns status
-        //     .map_err(|e| HostAbiError::InternalError(format!("GovModule tally_votes error: {}", e)))?;
-        // Ok(format!("{:?}", status)) // Convert GovProposalStatus to string
+    pub fn close_governance_proposal_voting(&mut self, _proposal_id_str: &str) -> Result<String, HostAbiError> {
         todo!("Integrate with GovernanceModule proposal closing/tallying logic");
     }
 
-    pub fn execute_governance_proposal(&mut self, proposal_id_str: &str) -> Result<(), HostAbiError> {
-        println!("[CONTEXT] execute_governance_proposal called for proposal_id: {}", proposal_id_str);
-        // TODO: This is highly complex.
-        // - Fetch the proposal from GovernanceModule.
-        // - Verify it was accepted.
-        // - Interpret its `ProposalType` and payload.
-        // - Dispatch to appropriate runtime functions or ABI calls (e.g., change system param, call mesh job, etc.).
-        // - Generate and anchor an ExecutionReceipt.
-        // let gov_proposal_id = icn_governance::ProposalId::from_str(proposal_id_str)
-        //     .map_err(|e| HostAbiError::InvalidParameters(format!("Invalid proposal_id format: {}", e)))?;
-        // let proposal = self.governance_module.get_proposal(&gov_proposal_id)
-        //     .map_err(|e| HostAbiError::InternalError(format!("GovModule get_proposal error: {}", e)))?
-        //     .ok_or_else(|| HostAbiError::InvalidParameters(format!("Proposal not found: {}", proposal_id_str)))?;
-        // if proposal.status != icn_governance::ProposalStatus::Accepted { // Assuming Accepted status
-        //    return Err(HostAbiError::InvalidParameters(format!("Proposal {} is not accepted for execution.", proposal_id_str)));
-        // }
-        // ... execution logic based on proposal.proposal_type ...
+    pub fn execute_governance_proposal(&mut self, _proposal_id_str: &str) -> Result<(), HostAbiError> {
         todo!("Implement full governance proposal execution logic");
     }
-
-    // TODO: Add other methods for DAG anchoring, policy checks, etc.
 }
 
-// --- Host Environment Trait and Implementation ---
-
-/// The `HostEnvironment` trait defines the interface that a WASM runtime (or other execution environment)
-/// uses to interact with the host system capabilities, mediated by a `RuntimeContext`.
-pub trait HostEnvironment {
-    // TODO: Define methods that the WASM runtime will call.
-    // These will typically be wrappers around RuntimeContext methods, adapting types as needed.
-    // fn call_host_abi(&mut self, context: &mut RuntimeContext, abi_index: u32, args: &[u8]) -> Result<Vec<u8>, HostAbiError>;
-
-    // Example of a more specific function if not using a generic dispatcher:
-    fn env_submit_mesh_job(&self, ctx: &mut RuntimeContext, job_data_ptr: u32, job_data_len: u32) -> Result<u32, HostAbiError>; // Returns JobId_ptr
+pub trait HostEnvironment: Send + Sync + std::fmt::Debug {
+    fn env_submit_mesh_job(&self, ctx: &mut RuntimeContext, job_data_ptr: u32, job_data_len: u32) -> Result<u32, HostAbiError>; 
     fn env_account_get_mana(&self, ctx: &RuntimeContext, account_did_ptr: u32, account_did_len: u32) -> Result<u64, HostAbiError>;
     fn env_account_spend_mana(&self, ctx: &mut RuntimeContext, account_did_ptr: u32, account_did_len: u32, amount: u64) -> Result<(), HostAbiError>;
 }
 
-/// `ConcreteHostEnvironment` is an example implementation of the `HostEnvironment` trait.
-/// It would typically hold references to system services or configurations needed to
-/// fulfill the host functions.
-pub struct ConcreteHostEnvironment {
-    // Example: configuration, shared services, etc.
-    // pub mesh_client: Arc<MeshClient>,
-    // pub mana_service: Arc<ManaService>,
-}
+#[derive(Debug)]
+pub struct ConcreteHostEnvironment {}
 
 impl ConcreteHostEnvironment {
-    pub fn new() -> Self {
-        // TODO: Initialize with actual services
-        Self {}
-    }
+    pub fn new() -> Self { Self {} }
 }
-
-impl Default for ConcreteHostEnvironment {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+impl Default for ConcreteHostEnvironment { fn default() -> Self { Self::new() } }
 
 impl HostEnvironment for ConcreteHostEnvironment {
-    // TODO: Implement the trait methods.
-    // These methods will likely involve:
-    //  1. Reading/writing to the WASM module's memory (for pointers like job_data_ptr).
-    //  2. Deserializing arguments from WASM.
-    //  3. Calling the appropriate `RuntimeContext` method.
-    //  4. Serializing results back to WASM and writing to its memory.
-
     fn env_submit_mesh_job(&self, _ctx: &mut RuntimeContext, _job_data_ptr: u32, _job_data_len: u32) -> Result<u32, HostAbiError> {
-        println!("[CONCRETE_HOST_ENV_STUB] env_submit_mesh_job called");
         todo!("ConcreteHostEnvironment::env_submit_mesh_job");
     }
-
     fn env_account_get_mana(&self, _ctx: &RuntimeContext, _account_did_ptr: u32, _account_did_len: u32) -> Result<u64, HostAbiError> {
-        println!("[CONCRETE_HOST_ENV_STUB] env_account_get_mana called");
         todo!("ConcreteHostEnvironment::env_account_get_mana");
     }
-
     fn env_account_spend_mana(&self, _ctx: &mut RuntimeContext, _account_did_ptr: u32, _account_did_len: u32, _amount: u64) -> Result<(), HostAbiError> {
-        println!("[CONCRETE_HOST_ENV_STUB] env_account_spend_mana called");
         todo!("ConcreteHostEnvironment::env_account_spend_mana");
+    }
+} 
+
+#[derive(Debug, Clone)]
+pub struct StubSigner;
+impl Signer for StubSigner {
+    fn sign(&self, did: &Did, data: &[u8]) -> Result<Vec<u8>, HostAbiError> {
+        println!("[StubSigner] Signing data for DID {:?}: (data_len={})", did, data.len());
+        let mut sig_content = b"signed:".to_vec();
+        sig_content.extend_from_slice(did.id_string.as_bytes());
+        sig_content.extend_from_slice(b":");
+        sig_content.extend_from_slice(&data[..std::cmp::min(data.len(), 8)]);
+        Ok(sig_content)
+    }
+    fn verify(&self, did: &Did, data: &[u8], signature: &[u8]) -> Result<bool, HostAbiError> {
+        println!("[StubSigner] Verifying signature for DID {:?}: (data_len={}, sig_len={})", did, data.len(), signature.len());
+        let expected_sig_prefix = format!("signed:{}:", did.id_string);
+        let expected_data_prefix = &data[..std::cmp::min(data.len(), 8)];
+        
+        let sig_str = String::from_utf8_lossy(signature);
+        if sig_str.starts_with(&expected_sig_prefix) {
+            let data_part_in_sig = sig_str.trim_start_matches(&expected_sig_prefix);
+            Ok(data_part_in_sig.as_bytes() == expected_data_prefix)
+        } else {
+            Ok(false)
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct StubDagStore {
+    store: Arc<Mutex<HashMap<Cid, Vec<u8>>>>,
+}
+impl StubDagStore {
+    pub fn new() -> Self {
+        Self { store: Arc::new(Mutex::new(HashMap::new())) }
+    }
+}
+impl DagStore for StubDagStore {
+    fn put(&self, data: &[u8]) -> Result<Cid, HostAbiError> {
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        std::hash::Hash::hash_slice(data, &mut hasher);
+        let hash_val = std::hash::Hasher::finish(&hasher);
+        let cid = Cid::new_v1_dummy(0x70, 0x12, &hash_val.to_ne_bytes());
+        
+        let mut store_lock = futures::executor::block_on(self.store.lock());
+        store_lock.insert(cid.clone(), data.to_vec());
+        println!("[StubDagStore] Stored data with CID: {:?}", cid);
+        Ok(cid)
+    }
+    fn get(&self, cid: &Cid) -> Result<Option<Vec<u8>>, HostAbiError> {
+        let store_lock = futures::executor::block_on(self.store.lock());
+        let data = store_lock.get(cid).cloned();
+        if data.is_some() {
+            println!("[StubDagStore] Retrieved data for CID: {:?}", cid);
+        } else {
+            println!("[StubDagStore] No data found for CID: {:?}", cid);
+        }
+        Ok(data)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct StubMeshNetworkService {}
+impl StubMeshNetworkService { pub fn new() -> Self { Self {} } }
+
+#[async_trait]
+impl MeshNetworkService for StubMeshNetworkService {
+    async fn announce_job(&self, announcement: MeshJobAnnounce) -> Result<(), HostAbiError> {
+        println!("[StubMeshNetworkService] Announced job: {:?}", announcement.job_id);
+        Ok(())
+    }
+
+    async fn collect_bids_for_job(&self, job_id: JobId, duration: Duration) -> Result<Vec<MeshJobBid>, HostAbiError> {
+        println!("[StubMeshNetworkService] Collecting bids for job {:?} for {:?}. STUB: Returning empty vec.", job_id, duration);
+        Ok(Vec::new()) 
+    }
+
+    async fn broadcast_assignment(&self, notice: JobAssignmentNotice) -> Result<(), HostAbiError> {
+        println!("[StubMeshNetworkService] Broadcast assignment for job {:?} to executor {:?}", notice.job_id, notice.executor_did);
+        Ok(())
+    }
+
+    async fn try_receive_receipt(&self) -> Result<Option<SubmitReceiptMessage>, HostAbiError> {
+        println!("[StubMeshNetworkService] try_receive_receipt called. STUB: Returning None.");
+        Ok(None)
     }
 } 

@@ -9,11 +9,14 @@ pub mod abi;
 pub mod context;
 
 use icn_common::{NodeInfo, CommonError, ICN_CORE_VERSION, Did, Cid};
-use context::{RuntimeContext, HostAbiError, JobId, ExecutionReceipt};
-use icn_mesh::MeshJob as ActualMeshJob;
+use context::{RuntimeContext, HostAbiError};
+use icn_mesh::ActualMeshJob;
 use icn_economics::{charge_mana, EconError};
 use serde_json;
 use std::str::FromStr;
+use icn_identity;
+use futures;
+use std::sync::Arc;
 
 /// Placeholder function demonstrating use of common types for runtime operations.
 /// This function is not directly part of the Host ABI layer discussed below but serves as an example.
@@ -33,7 +36,7 @@ pub fn execute_icn_script(info: &NodeInfo, script_id: &str) -> Result<String, Co
 /// by the runtime (new JobId generation, context's current_identity).
 ///
 /// TODO: WASM bindings will need to handle memory marshalling for `job_json`.
-pub async fn host_submit_mesh_job(ctx: &mut RuntimeContext, job_json: &str) -> Result<JobId, HostAbiError> {
+pub async fn host_submit_mesh_job(ctx: &mut RuntimeContext, job_json: &str) -> Result<Cid, HostAbiError> {
     // TODO: record metric `icn_runtime_abi_call_total{method="host_submit_mesh_job"}`
     println!("[RUNTIME_ABI] host_submit_mesh_job called with job_json: {}", job_json);
 
@@ -43,10 +46,10 @@ pub async fn host_submit_mesh_job(ctx: &mut RuntimeContext, job_json: &str) -> R
 
     // 1. Deserialize MeshJob
     let mut job_to_submit: ActualMeshJob = serde_json::from_str(job_json)
-        .map_err(|e| HostAbiError::InvalidParameters(format!("Failed to deserialize MeshJob: {}. Input: {}", e, job_json)))?;
+        .map_err(|e| HostAbiError::InvalidParameters(format!("Failed to deserialize ActualMeshJob: {}. Input: {}", e, job_json)))?;
 
     // 2. Call ResourcePolicyEnforcer::spend_mana(did, cost).
-    match charge_mana(&ctx.current_identity, job_to_submit.mana_cost) {
+    match charge_mana(&ctx.current_identity, job_to_submit.cost_mana) {
         Ok(_) => { /* Mana spent successfully */ }
         Err(EconError::InsufficientBalance(_)) => return Err(HostAbiError::InsufficientMana),
         Err(e) => return Err(HostAbiError::InternalError(format!("Economic error during mana spend: {:?}", e))),
@@ -55,19 +58,21 @@ pub async fn host_submit_mesh_job(ctx: &mut RuntimeContext, job_json: &str) -> R
     // 3. Prepare and queue the job. 
     //    ID and submitter are overridden here.
     let job_id_val = context::NEXT_JOB_ID.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-    let job_id_str = format!("job_{}", job_id_val);
+    // Create a dummy CID for the JobId for now.
+    // In a real scenario, this might be derived from the job content or other unique inputs.
+    let job_id_cid = Cid::new_v1_dummy(0x55, 0x13, format!("job_cid_{}", job_id_val).as_bytes());
     
-    job_to_submit.id = job_id_str.clone();
-    job_to_submit.submitter = ctx.current_identity.clone();
+    job_to_submit.id = job_id_cid.clone();
+    job_to_submit.creator_did = ctx.current_identity.clone();
 
     // Call the internal queuing function on RuntimeContext
     ctx.internal_queue_mesh_job(job_to_submit.clone()).await?; // Await the async call
     
-    println!("[RUNTIME_ABI] Job {} submitted by {:?} with cost {} was queued successfully.", 
-             job_id_str, ctx.current_identity, job_to_submit.mana_cost);
+    println!("[RUNTIME_ABI] Job {:?} submitted by {:?} with cost {} was queued successfully.", 
+             job_id_cid, ctx.current_identity, job_to_submit.cost_mana);
 
-    // 4. Return JobId.
-    Ok(JobId(job_id_str))
+    // 4. Return JobId (which is now a Cid).
+    Ok(job_id_cid)
 }
 
 /// ABI Index: (defined in `abi::ABI_HOST_GET_PENDING_MESH_JOBS`)
@@ -80,7 +85,10 @@ pub fn host_get_pending_mesh_jobs(ctx: &RuntimeContext) -> Result<Vec<ActualMesh
 
     // Directly clone the jobs from the queue. This provides a snapshot.
     // Depending on WASM interface, this might need to be serialized (e.g., to JSON).
-    let jobs: Vec<ActualMeshJob> = ctx.pending_mesh_jobs.iter().cloned().collect();
+    // Need to acquire the lock and then await its resolution.
+    let jobs = futures::executor::block_on(async {
+        ctx.pending_mesh_jobs.lock().await.iter().cloned().collect::<Vec<ActualMeshJob>>()
+    });
     
     println!("[RUNTIME_ABI] Returning {} pending jobs.", jobs.len());
     Ok(jobs)
@@ -135,12 +143,11 @@ pub fn host_account_spend_mana(ctx: &mut RuntimeContext, account_id_str: &str, a
 }
 
 // Placeholder for a reputation updater service/struct
-#[derive(Debug)]
 pub struct ReputationUpdater;
 
 impl ReputationUpdater {
     pub fn new() -> Self { ReputationUpdater }
-    pub fn submit(&self, receipt: &ExecutionReceipt) {
+    pub fn submit(&self, receipt: &icn_identity::ExecutionReceipt) {
         // TODO: Implement actual reputation update logic
         println!("[ReputationUpdater STUB] Submitted receipt for job_id: {:?}, executor: {:?}", 
                  receipt.job_id, receipt.executor_did);
@@ -150,7 +157,7 @@ impl ReputationUpdater {
 /// ABI Index: (Not yet defined, suggest reserving one, e.g., 23)
 /// Anchors an execution receipt to the DAG and updates reputation.
 ///
-/// The `receipt_json` is expected to be a JSON string serializing `context::ExecutionReceipt`.
+/// The `receipt_json` is expected to be a JSON string serializing `icn_identity::ExecutionReceipt`.
 ///
 /// TODO: WASM bindings will need to handle memory marshalling for `receipt_json` and returned `Cid`.
 pub fn host_anchor_receipt(ctx: &mut RuntimeContext, receipt_json: &str, reputation_updater: &ReputationUpdater) -> Result<Cid, HostAbiError> {
@@ -162,8 +169,8 @@ pub fn host_anchor_receipt(ctx: &mut RuntimeContext, receipt_json: &str, reputat
     }
 
     // 1. Deserialize ExecutionReceipt
-    let mut receipt: ExecutionReceipt = serde_json::from_str(receipt_json)
-        .map_err(|e| HostAbiError::InvalidParameters(format!("Failed to deserialize ExecutionReceipt: {}. Input: {}", e, receipt_json)))?;
+    let mut receipt: icn_identity::ExecutionReceipt = serde_json::from_str(receipt_json)
+        .map_err(|e| HostAbiError::InvalidParameters(format!("Failed to deserialize icn_identity::ExecutionReceipt: {}. Input: {}", e, receipt_json)))?;
 
     // Ensure the receipt is for the current identity if it's being submitted by the executor itself
     // This check might be more nuanced depending on who is allowed to call this ABI function.
@@ -189,21 +196,32 @@ pub fn host_anchor_receipt(ctx: &mut RuntimeContext, receipt_json: &str, reputat
 mod tests {
     use super::*;
     use super::abi;
-    use super::context::{RuntimeContext, HostAbiError, JobId, SimpleManaLedger};
+    use super::context::{RuntimeContext, HostAbiError, SimpleManaLedger, StubMeshNetworkService, StubSigner, StubDagStore};
     use icn_common::Did;
     use std::str::FromStr;
+    use std::sync::Arc;
 
     const TEST_IDENTITY_DID_STR: &str = "did:icn:test:dummy_executor";
     const OTHER_IDENTITY_DID_STR: &str = "did:icn:test:other_account";
 
     fn create_test_context() -> RuntimeContext {
         let test_did = Did::from_str(TEST_IDENTITY_DID_STR).expect("Failed to create test DID");
-        RuntimeContext::new(test_did)
+        RuntimeContext::new(
+            test_did, 
+            Arc::new(StubMeshNetworkService::new()),
+            Arc::new(StubSigner),
+            Arc::new(StubDagStore::new())
+        )
     }
 
     fn create_test_context_with_mana(initial_mana: u64) -> RuntimeContext {
         let test_did = Did::from_str(TEST_IDENTITY_DID_STR).expect("Failed to create test DID");
-        let mut ctx = RuntimeContext::new(test_did.clone());
+        let mut ctx = RuntimeContext::new(
+            test_did.clone(), 
+            Arc::new(StubMeshNetworkService::new()),
+            Arc::new(StubSigner),
+            Arc::new(StubDagStore::new())
+        );
         ctx.mana_ledger.set_balance(&test_did, initial_mana);
         ctx
     }
@@ -222,13 +240,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_host_submit_mesh_job_calls_context() {
-        let mut ctx = create_test_context();
-        let job_spec = r#"{"cid":{"version":1,"codec":85,"hash_alg":18,"hash_bytes":[]},"spec":{},"mana_cost":10}"#;
+        let mut ctx = create_test_context_with_mana(100);
+        let job_spec = r#"{"manifest_cid":{"version":1,"codec":85,"hash_alg":18,"hash_bytes":[]},"spec":{},"cost_mana":10}"#;
         let result = host_submit_mesh_job(&mut ctx, job_spec).await;
         assert!(result.is_ok(), "host_submit_mesh_job failed: {:?}", result.err());
         let queue = ctx.pending_mesh_jobs.lock().await;
         assert_eq!(queue.len(), 1, "Job not added to queue");
-        assert_eq!(queue.front().unwrap().mana_cost, 10);
+        assert_eq!(queue.front().unwrap().cost_mana, 10);
     }
 
     #[tokio::test]
@@ -248,7 +266,7 @@ mod tests {
     #[tokio::test]
     async fn test_host_submit_mesh_job_insufficient_mana() {
         let mut ctx = create_test_context_with_mana(5);
-        let job_spec = r#"{"cid":{"version":1,"codec":85,"hash_alg":18,"hash_bytes":[]},"spec":{},"mana_cost":10}"#;
+        let job_spec = r#"{"manifest_cid":{"version":1,"codec":85,"hash_alg":18,"hash_bytes":[]},"spec":{},"cost_mana":10}"#;
         let result = host_submit_mesh_job(&mut ctx, job_spec).await;
         assert!(result.is_err());
         match result.err().unwrap() {
@@ -262,8 +280,8 @@ mod tests {
     #[tokio::test]
     async fn test_host_get_pending_mesh_jobs_retrieves_correctly() {
         let mut ctx = create_test_context_with_mana(100);
-        let job_spec1 = r#"{"cid":{"version":1,"codec":1,"hash_alg":1,"hash_bytes":[1]},"spec":{},"mana_cost":10}"#;
-        let job_spec2 = r#"{"cid":{"version":1,"codec":2,"hash_alg":2,"hash_bytes":[2]},"spec":{},"mana_cost":20}"#;
+        let job_spec1 = r#"{"manifest_cid":{"version":1,"codec":1,"hash_alg":1,"hash_bytes":[1]},"spec":{},"cost_mana":10}"#;
+        let job_spec2 = r#"{"manifest_cid":{"version":1,"codec":2,"hash_alg":2,"hash_bytes":[2]},"spec":{},"cost_mana":20}"#;
         
         host_submit_mesh_job(&mut ctx, job_spec1).await.unwrap();
         host_submit_mesh_job(&mut ctx, job_spec2).await.unwrap();
@@ -272,8 +290,8 @@ mod tests {
         assert!(pending_jobs_result.is_ok());
         let pending_jobs = pending_jobs_result.unwrap();
         assert_eq!(pending_jobs.len(), 2);
-        assert_eq!(pending_jobs[0].mana_cost, 10);
-        assert_eq!(pending_jobs[1].mana_cost, 20);
+        assert_eq!(pending_jobs[0].cost_mana, 10);
+        assert_eq!(pending_jobs[1].cost_mana, 20);
     }
 
     #[tokio::test]

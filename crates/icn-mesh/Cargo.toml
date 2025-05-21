@@ -7,3 +7,5 @@ license.workspace = true
 
 [dependencies]
 icn-common = { path = "../icn-common" }
+icn-identity = { path = "../icn-identity" }
+serde = { version = "1.0", features = ["derive"] }
