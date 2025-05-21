@@ -3,13 +3,29 @@
 use icn_common::{Did, Cid, CommonError}; // Assuming Did, Cid might be needed. Adjust as necessary.
 use std::collections::{HashMap, VecDeque}; // Added HashMap for ManaLedger
 use std::str::FromStr; // For Did::from_str in new_with_dummy_mana
-use std::sync::atomic::{AtomicU32, Ordering as AtomicOrdering}; // Renamed Ordering to avoid conflict if any, and for clarity
+use std::sync::atomic::{AtomicU32, Ordering}; // Modified import for Ordering
+use icn_governance::GovernanceModule; // Assuming this can be imported
 
 // Counter for generating unique (within this runtime instance) job IDs for stubs
 static NEXT_JOB_ID: AtomicU32 = AtomicU32::new(1);
 
-// --- Placeholder Types --- 
+// --- Placeholder Types ---
 // TODO: Replace these with actual types from their respective crates (e.g., icn-mesh, icn-dag)
+
+// TODO: Define these types properly, likely in a shared crate (e.g., icn-governance or icn-common)
+#[derive(Debug, Clone)] // Added derive for placeholder
+pub struct CreateProposalPayload {
+    pub proposal_type_str: String,
+    pub type_specific_payload: Vec<u8>, // Or a more structured type
+    pub description: String,
+    pub duration_secs: u64,
+}
+
+#[derive(Debug, Clone)] // Added derive for placeholder
+pub struct CastVotePayload {
+    pub proposal_id_str: String,
+    pub vote_option_str: String, // e.g., "Yes", "No", "Abstain"
+}
 
 /// Placeholder for a job specification submitted to the mesh.
 #[derive(Debug, Clone)]
@@ -17,11 +33,82 @@ pub struct MeshJob {
     pub id: String, // A unique identifier for the job spec itself
     pub data: Vec<u8>, // Serialized job data
     pub owner: Did,    // Submitter of the job
+    /// The DID of the identity currently executing within this context.
+    pub current_identity: Did,
+    /// Simple in-memory mana ledger for now.
+    pub mana_ledger: SimpleManaLedger,
+    /// Queue for jobs submitted by this context to the mesh network.
+    pub pending_mesh_jobs: VecDeque<MeshJob>,
+    pub governance_module: GovernanceModule, // Added GovernanceModule
+    // TODO: Placeholder for DAG store access
+    // pub dag_store: Arc<dyn DagStoreAccess>,
+    // TODO: Add fields for policy enforcers, etc.
 }
 
 /// Placeholder for a Job ID returned by the mesh network.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)] // Corrected deriveDebug
 pub struct JobId(pub String);
+
+// --- New: Execution Receipt --- 
+
+/// Represents a receipt of execution that can be signed and anchored.
+#[derive(Debug, Clone)] // TODO: Add Serialize, Deserialize if needed for network/storage
+pub struct ExecutionReceipt {
+    pub job_id: JobId,              // Identifier of the job that was executed
+    pub executor_did: Did,          // DID of the peer that executed the job
+    pub result_cid: Cid,            // CID of the execution result data
+    pub input_cids: Vec<Cid>,       // CIDs of the input data/dependencies
+    pub mana_used: u64,             // Mana consumed by the execution
+    pub execution_timestamp: u64,   // Unix timestamp of when execution completed
+    pub federation_scope: Option<String>, // Optional: scope of the federation if applicable
+    pub signature: Option<Vec<u8>>, // Signature of the receipt (hash of above fields) by executor_did
+    // TODO: Add other relevant fields like error information if job failed, etc.
+}
+
+impl ExecutionReceipt {
+    /// Placeholder for a method to calculate the hash of the receipt for signing.
+    pub fn sighash(&self) -> [u8; 32] {
+        // TODO: Implement proper hashing (e.g., SHA2-256) of all relevant fields.
+        // For now, returning a dummy hash.
+        // This should exclude the `signature` field itself.
+        let data_to_hash = format!(
+            "{:?}|{:?}|{:?}|{:?}|{}|{}",
+            self.job_id,
+            self.executor_did,
+            self.result_cid,
+            self.input_cids,
+            self.mana_used,
+            self.execution_timestamp
+        );
+        // In a real scenario, use a proper cryptographic hash function.
+        // Here, we'll just use a fixed-size array derived from a simple hash for stubbing.
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        std::hash::Hash::hash(&data_to_hash, &mut hasher);
+        let hash_val = std::hash::Hasher::finish(&hasher);
+        let mut output = [0u8; 32];
+        output[..8].copy_from_slice(&hash_val.to_ne_bytes());
+        output // This is NOT cryptographically secure, just a placeholder
+    }
+}
+
+// --- New: Core Service Traits ---
+
+/// Trait for a service that can sign data on behalf of a DID.
+pub trait Signer {
+    /// Signs the given data (e.g., a receipt hash) using the key associated with the provided DID.
+    fn sign(&self, did: &Did, data: &[u8]) -> Result<Vec<u8>, HostAbiError>;
+    /// Verifies a signature against the given data and DID.
+    fn verify(&self, did: &Did, data: &[u8], signature: &[u8]) -> Result<bool, HostAbiError>;
+}
+
+/// Trait for a service that can store and retrieve data in a content-addressable DAG.
+pub trait DagStore {
+    /// Stores a block of data and returns its CID.
+    fn put(&self, data: &[u8]) -> Result<Cid, HostAbiError>;
+    /// Retrieves a block of data by its CID.
+    fn get(&self, cid: &Cid) -> Result<Option<Vec<u8>>, HostAbiError>;
+    // TODO: Add other methods like `has`, `remove`, etc.
+}
 
 // --- Host ABI Error --- 
 
@@ -115,6 +202,7 @@ pub struct RuntimeContext {
     pub mana_ledger: SimpleManaLedger, 
     /// Queue for jobs submitted by this context to the mesh network.
     pub pending_mesh_jobs: VecDeque<MeshJob>,
+    pub governance_module: GovernanceModule, // Added GovernanceModule
     // TODO: Placeholder for DAG store access
     // pub dag_store: Arc<dyn DagStoreAccess>,
     // TODO: Add fields for policy enforcers, etc.
@@ -128,6 +216,7 @@ impl RuntimeContext {
             current_identity,
             mana_ledger: SimpleManaLedger::new(),
             pending_mesh_jobs: VecDeque::new(),
+            governance_module: GovernanceModule::new(), // Initialize with default in-memory gov module
         }
     }
 
@@ -142,12 +231,16 @@ impl RuntimeContext {
 
     /// Submits a mesh job from the current runtime context.
     pub fn submit_mesh_job(&mut self, job_data: Vec<u8>) -> Result<JobId, HostAbiError> {
-        let job_id_val = NEXT_JOB_ID.fetch_add(1, AtomicOrdering::SeqC);
+        let job_id_val = NEXT_JOB_ID.fetch_add(1, Ordering::SeqCst);
         let job_id_str = format!("job_{}", job_id_val);
         let job = MeshJob {
             id: job_id_str.clone(), 
             data: job_data,
             owner: self.current_identity.clone(),
+            current_identity: self.current_identity.clone(),
+            mana_ledger: self.mana_ledger.clone(),
+            pending_mesh_jobs: self.pending_mesh_jobs.clone(),
+            governance_module: self.governance_module.clone(),
         };
         self.pending_mesh_jobs.push_back(job.clone());
         println!("[CONTEXT_STUB] submit_mesh_job called for job: {:?}, owner: {:?}", job.id, self.current_identity);
@@ -169,6 +262,134 @@ impl RuntimeContext {
             ));
         }
         self.mana_ledger.spend(account, amount)
+    }
+
+    /// Anchors an execution receipt.
+    /// This involves: (stubbed for now)
+    ///  1. Validating the receipt (e.g., ensuring it pertains to the current context/executor).
+    ///  2. Signing the receipt if not already signed, or verifying signature.
+    ///  3. Storing the receipt in the DAG.
+    ///  4. Optionally, submitting info to a reputation system.
+    pub fn anchor_receipt(&self, receipt: &mut ExecutionReceipt) -> Result<Cid, HostAbiError> {
+        // TODO: record metric `icn_runtime_receipt_anchored_total{status="success/failure"}`
+        println!("[CONTEXT] anchor_receipt called for job_id: {:?}", receipt.job_id);
+
+        // 1. Validate the receipt (basic validation for now)
+        if receipt.executor_did != self.current_identity {
+            return Err(HostAbiError::InvalidParameters(
+                "Receipt executor_did does not match current context identity.".to_string(),
+            ));
+        }
+
+        // 2. Sign the receipt (if a Signer trait object were available)
+        // if let Some(signer) = &self.signer {
+        //     if receipt.signature.is_none() {
+        //         let sighash = receipt.sighash();
+        //         receipt.signature = Some(signer.sign(&self.current_identity, &sighash)?);
+        //     } else {
+        //         // Optionally verify if already signed
+        //         let sighash = receipt.sighash();
+        //         if !signer.verify(&self.current_identity, &sighash, receipt.signature.as_ref().unwrap())? {
+        //             return Err(HostAbiError::InvalidParameters("Provided signature is invalid.".to_string()));
+        //         }
+        //     }
+        // } else {
+        //     // If no signer, we can't proceed with signing. For now, we might allow unsigned or error out.
+        //     // For this stub, let's assume signing is required and would happen here.
+        //     println!("[CONTEXT_WARN] No signer available in RuntimeContext, cannot sign receipt.");
+        //     return Err(HostAbiError::NotImplemented("Signing service not available in context".to_string()));
+        // }
+        // For stubbing, let's just ensure a signature placeholder if none, or use existing.
+        if receipt.signature.is_none() {
+            receipt.signature = Some(b"dummy_signature_for_stub".to_vec());
+            println!("[CONTEXT_STUB] Receipt signed with a dummy signature.");
+        }
+
+        // 3. Store the receipt in the DAG (if a DagStore trait object were available)
+        // let receipt_bytes = serde_json::to_vec(receipt) // Assuming receipt is serializable
+        //     .map_err(|e| HostAbiError::InternalError(format!("Failed to serialize receipt: {}", e)))?;
+        // if let Some(dag_store) = &self.dag_store {
+        //     let cid = dag_store.put(&receipt_bytes)?;
+        //     println!("[CONTEXT_STUB] Receipt anchored to DAG with CID: {:?}", cid);
+        //     // 4. Optionally, submit to reputation system here
+        //     Ok(cid)
+        // } else {
+        //     println!("[CONTEXT_WARN] No DAG store available in RuntimeContext, cannot anchor receipt.");
+        //     Err(HostAbiError::NotImplemented("DAG store service not available in context".to_string()))
+        // }
+        // For stubbing, generate a dummy CID
+        let dummy_receipt_data = format!("{:?}", receipt);
+        let dummy_cid_val = NEXT_JOB_ID.fetch_add(1, Ordering::SeqCst);
+        let dummy_cid = Cid::new_v1_dummy(0x55, 0x12, format!("receipt_cid_{}", dummy_cid_val).as_bytes());
+        println!("[CONTEXT_STUB] Receipt {:?} (data: \"{}\") notionally anchored. Dummy CID: {:?}", receipt.job_id, dummy_receipt_data, dummy_cid);
+        Ok(dummy_cid)
+    }
+
+    // --- New Governance Methods for RuntimeContext ---
+
+    pub fn create_governance_proposal(&mut self, payload: CreateProposalPayload) -> Result<String, HostAbiError> {
+        println!("[CONTEXT] create_governance_proposal called with payload: {:?}", payload);
+        // TODO: Convert CreateProposalPayload into types expected by governance_module.submit_proposal
+        // This involves mapping proposal_type_str and type_specific_payload to icn_governance::ProposalType
+        // For now, using a placeholder/stub for that conversion and call.
+        // let gov_proposal_type = map_to_gov_proposal_type(&payload.proposal_type_str, payload.type_specific_payload)?;
+        // let proposal_id = self.governance_module.submit_proposal(
+        //     self.current_identity.clone(), 
+        //     gov_proposal_type, 
+        //     payload.description, // Assuming description is directly usable
+        //     payload.duration_secs
+        // ).map_err(|e| HostAbiError::InternalError(format!("GovModule submit_proposal error: {}", e)))?;
+        // Ok(proposal_id.0) // Assuming GovProposalId is a tuple struct (String)
+        todo!("Implement mapping for CreateProposalPayload and call governance_module.submit_proposal");
+    }
+
+    pub fn cast_governance_vote(&mut self, payload: CastVotePayload) -> Result<(), HostAbiError> {
+        println!("[CONTEXT] cast_governance_vote called with payload: {:?}", payload);
+        // TODO: Convert CastVotePayload into types expected by governance_module.cast_vote
+        // This involves parsing proposal_id_str to GovProposalId and vote_option_str to GovVoteOption.
+        // let gov_proposal_id = icn_governance::ProposalId::from_str(&payload.proposal_id_str)
+        //     .map_err(|e| HostAbiError::InvalidParameters(format!("Invalid proposal_id format: {}", e)))?;
+        // let gov_vote_option = map_to_gov_vote_option(&payload.vote_option_str)?;
+        // self.governance_module.cast_vote(
+        //     self.current_identity.clone(),
+        //     &gov_proposal_id,
+        //     gov_vote_option
+        // ).map_err(|e| HostAbiError::InternalError(format!("GovModule cast_vote error: {}", e)))?;
+        // Ok(())
+        todo!("Implement mapping for CastVotePayload and call governance_module.cast_vote");
+    }
+
+    pub fn close_governance_proposal_voting(&mut self, proposal_id_str: &str) -> Result<String, HostAbiError> {
+        println!("[CONTEXT] close_governance_proposal_voting called for proposal_id: {}", proposal_id_str);
+        // TODO: The existing GovernanceModule likely handles closing/tallying internally based on deadlines or explicit calls.
+        // It has a `tally_votes` method. We might need to expose a way to trigger this or get status.
+        // For now, this is a conceptual placeholder.
+        // let gov_proposal_id = icn_governance::ProposalId::from_str(proposal_id_str)
+        //     .map_err(|e| HostAbiError::InvalidParameters(format!("Invalid proposal_id format: {}", e)))?;
+        // let status = self.governance_module.tally_votes(&gov_proposal_id) // Assuming tally_votes updates and returns status
+        //     .map_err(|e| HostAbiError::InternalError(format!("GovModule tally_votes error: {}", e)))?;
+        // Ok(format!("{:?}", status)) // Convert GovProposalStatus to string
+        todo!("Integrate with GovernanceModule proposal closing/tallying logic");
+    }
+
+    pub fn execute_governance_proposal(&mut self, proposal_id_str: &str) -> Result<(), HostAbiError> {
+        println!("[CONTEXT] execute_governance_proposal called for proposal_id: {}", proposal_id_str);
+        // TODO: This is highly complex.
+        // - Fetch the proposal from GovernanceModule.
+        // - Verify it was accepted.
+        // - Interpret its `ProposalType` and payload.
+        // - Dispatch to appropriate runtime functions or ABI calls (e.g., change system param, call mesh job, etc.).
+        // - Generate and anchor an ExecutionReceipt.
+        // let gov_proposal_id = icn_governance::ProposalId::from_str(proposal_id_str)
+        //     .map_err(|e| HostAbiError::InvalidParameters(format!("Invalid proposal_id format: {}", e)))?;
+        // let proposal = self.governance_module.get_proposal(&gov_proposal_id)
+        //     .map_err(|e| HostAbiError::InternalError(format!("GovModule get_proposal error: {}", e)))?
+        //     .ok_or_else(|| HostAbiError::InvalidParameters(format!("Proposal not found: {}", proposal_id_str)))?;
+        // if proposal.status != icn_governance::ProposalStatus::Accepted { // Assuming Accepted status
+        //    return Err(HostAbiError::InvalidParameters(format!("Proposal {} is not accepted for execution.", proposal_id_str)));
+        // }
+        // ... execution logic based on proposal.proposal_type ...
+        todo!("Implement full governance proposal execution logic");
     }
 
     // TODO: Add other methods for DAG anchoring, policy checks, etc.
