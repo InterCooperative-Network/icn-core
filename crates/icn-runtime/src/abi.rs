@@ -16,6 +16,10 @@ pub const ABI_HOST_ACCOUNT_SPEND_MANA: u32 = 11; // Example, TBD
 /// Submits a job to the ICN mesh network.
 pub const ABI_HOST_SUBMIT_MESH_JOB: u32 = 16;
 
+/// ABI Index for `host_get_pending_mesh_jobs`.
+/// Retrieves pending mesh jobs from the runtime.
+pub const ABI_HOST_GET_PENDING_MESH_JOBS: u32 = 22; // New
+
 // --- Governance ABI Functions (RFC 0010) ---
 // TODO: Finalize these indices and add others as needed.
 

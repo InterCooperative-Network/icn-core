@@ -5,6 +5,9 @@ use std::collections::{HashMap, VecDeque}; // Added HashMap for ManaLedger
 use std::str::FromStr; // For Did::from_str in new_with_dummy_mana
 use std::sync::atomic::{AtomicU32, Ordering}; // Modified import for Ordering
 use icn_governance::GovernanceModule; // Assuming this can be imported
+use icn_mesh::{MeshJob as ActualMeshJob, Bid, select_executor, SelectionPolicy}; // Import from icn-mesh
+use tokio::sync::mpsc; // For channel-based communication if needed
+use tokio::time::{sleep, Duration}; // For timeouts
 
 // Counter for generating unique (within this runtime instance) job IDs for stubs
 static NEXT_JOB_ID: AtomicU32 = AtomicU32::new(1);
@@ -245,6 +248,75 @@ impl RuntimeContext {
         self.pending_mesh_jobs.push_back(job.clone());
         println!("[CONTEXT_STUB] submit_mesh_job called for job: {:?}, owner: {:?}", job.id, self.current_identity);
         Ok(JobId(job_id_str))
+    }
+
+    pub async fn spawn_mesh_job_manager(&self) {
+        // This function would typically be part of a larger node service.
+        // It needs a way to clone or share `pending_mesh_jobs` and other relevant state,
+        // possibly using Arc<Mutex<...>> or message passing.
+        // For simplicity in this example, we'll assume it can somehow access the queue.
+        // This is a simplified placeholder.
+
+        // TODO: This needs proper shared state management (e.g. Arc<Mutex<VecDeque<ActualMeshJob>>>)
+        // For now, this won't compile correctly as it tries to access self.pending_mesh_jobs directly in a static context.
+        // This is a conceptual sketch.
+        
+        // let pending_jobs_queue = self.pending_mesh_jobs.clone(); // This clone won't work as intended for a shared queue
+
+        tokio::spawn(async move {
+            loop {
+                // println!("[JobManager] Checking for pending jobs...");
+                // TODO: This part needs to safely access and pop from a shared pending_mesh_jobs queue.
+                // For now, we'll simulate job processing without direct queue access.
+                // let job = match pending_jobs_queue.lock().await.pop_front() { // Example with Arc<Mutex<...>>
+                //    Some(j) => j,
+                //    None => {
+                //        sleep(Duration::from_secs(5)).await; // Wait if queue is empty
+                //        continue;
+                //    }
+                // };
+                
+                // Simulate getting a job (replace with actual queue logic)
+                // This is a HACK to make it compile without proper shared state
+                if false { // Disabled for now
+                    let _job: ActualMeshJob = ActualMeshJob { 
+                        id: "dummy_job_id".to_string(), 
+                        cid: Cid::new_v1_dummy(0,0,b""), 
+                        spec: icn_mesh::JobSpec, 
+                        submitter: Did::new("key", "dummy_submitter"), 
+                        mana_cost: 0 
+                    };
+
+                    // println!("[JobManager] Processing job: {:?}", job.id);
+
+                    // 1. Broadcast MeshJobAnnouncement (stub)
+                    // println!("[JobManager] Broadcasting job announcement for {:?}", job.id);
+                    // network_layer.broadcast(MeshJobAnnouncement { job_id: job.id.clone(), ... }).await;
+
+                    let bid_window_secs = 30; // Example bid window
+                    // println!("[JobManager] Collecting bids for {} seconds...", bid_window_secs);
+                    sleep(Duration::from_secs(bid_window_secs)).await;
+
+                    // 2. Collect bids (stub - assume bids are collected somehow)
+                    let bids: Vec<Bid> = vec![]; // Placeholder for actual bid collection
+                    // println!("[JobManager] Collected {} bids for job {:?}", bids.len(), job.id);
+
+                    // 3. Call icn_mesh::select_executor
+                    let selection_policy = SelectionPolicy {}; // Placeholder
+                    if let Some(selected_executor_did) = select_executor(bids, selection_policy) {
+                        // println!("[JobManager] Selected executor {:?} for job {:?}", selected_executor_did, job.id);
+                        // 4. Store assignment in runtime state (stub)
+                        // self.runtime_state.assign_job(job.id, selected_executor_did).await;
+                        // println!("[JobManager] Job {:?} assigned to {:?}", job.id, selected_executor_did);
+                    } else {
+                        // println!("[JobManager] No suitable executor found for job {:?}", job.id);
+                        // TODO: Handle no bid / no selection (e.g., requeue, timeout, refund mana)
+                    }
+                }
+                sleep(Duration::from_secs(10)).await; // Check queue periodically
+            }
+        });
+        println!("[RuntimeContext] Mesh job manager spawned.");
     }
 
     /// Retrieves the mana for the given account.
