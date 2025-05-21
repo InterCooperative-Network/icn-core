@@ -8,8 +8,11 @@
 pub mod abi;
 pub mod context;
 
-use icn_common::{NodeInfo, CommonError, ICN_CORE_VERSION, Did};
-use context::{RuntimeContext, HostAbiError, JobId};
+use icn_common::{NodeInfo, CommonError, ICN_CORE_VERSION, Did, Cid};
+use context::{RuntimeContext, HostAbiError, JobId, ExecutionReceipt};
+use icn_mesh::MeshJob as ActualMeshJob;
+use icn_economics::{charge_mana, EconError};
+use serde_json;
 use std::str::FromStr;
 
 /// Placeholder function demonstrating use of common types for runtime operations.
@@ -25,22 +28,62 @@ pub fn execute_icn_script(info: &NodeInfo, script_id: &str) -> Result<String, Co
 /// ABI Index: (defined in `abi::ABI_HOST_SUBMIT_MESH_JOB`)
 /// Submits a job to the mesh network using the provided runtime context.
 ///
-/// The `job_spec_json` is expected to be a JSON string describing the job.
-/// This will be parsed and transformed into a `MeshJob` structure internally.
+/// The `job_json` is expected to be a JSON string serializing `icn_mesh::MeshJob`.
+/// The `id` and `submitter` fields within the deserialized job will be overridden
+/// by the runtime (new JobId generation, context's current_identity).
 ///
-/// TODO: Implement full logic for job_spec_json parsing into a `Vec<u8>` or structured type for `ctx.submit_mesh_job`.
-/// TODO: WASM bindings will need to handle memory marshalling for `job_spec_json`.
-pub fn host_submit_mesh_job(ctx: &mut RuntimeContext, job_spec_json: &str) -> Result<JobId, HostAbiError> {
+/// TODO: WASM bindings will need to handle memory marshalling for `job_json`.
+pub async fn host_submit_mesh_job(ctx: &mut RuntimeContext, job_json: &str) -> Result<JobId, HostAbiError> {
     // TODO: record metric `icn_runtime_abi_call_total{method="host_submit_mesh_job"}`
-    println!("[RUNTIME_ABI] host_submit_mesh_job called with spec: {}", job_spec_json);
+    println!("[RUNTIME_ABI] host_submit_mesh_job called with job_json: {}", job_json);
 
-    if job_spec_json.is_empty() {
-        return Err(HostAbiError::InvalidParameters("Job specification JSON cannot be empty".to_string()));
+    if job_json.is_empty() {
+        return Err(HostAbiError::InvalidParameters("Job JSON cannot be empty".to_string()));
     }
-    // For now, let's assume job_spec_json can be directly used or converted to Vec<u8>.
-    // A real implementation would parse this JSON into a more structured MeshJob or its data payload.
-    let job_data = job_spec_json.as_bytes().to_vec(); 
-    ctx.submit_mesh_job(job_data)
+
+    // 1. Deserialize MeshJob
+    let mut job_to_submit: ActualMeshJob = serde_json::from_str(job_json)
+        .map_err(|e| HostAbiError::InvalidParameters(format!("Failed to deserialize MeshJob: {}. Input: {}", e, job_json)))?;
+
+    // 2. Call ResourcePolicyEnforcer::spend_mana(did, cost).
+    match charge_mana(&ctx.current_identity, job_to_submit.mana_cost) {
+        Ok(_) => { /* Mana spent successfully */ }
+        Err(EconError::InsufficientBalance(_)) => return Err(HostAbiError::InsufficientMana),
+        Err(e) => return Err(HostAbiError::InternalError(format!("Economic error during mana spend: {:?}", e))),
+    }
+
+    // 3. Prepare and queue the job. 
+    //    ID and submitter are overridden here.
+    let job_id_val = context::NEXT_JOB_ID.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    let job_id_str = format!("job_{}", job_id_val);
+    
+    job_to_submit.id = job_id_str.clone();
+    job_to_submit.submitter = ctx.current_identity.clone();
+
+    // Call the internal queuing function on RuntimeContext
+    ctx.internal_queue_mesh_job(job_to_submit.clone()).await?; // Await the async call
+    
+    println!("[RUNTIME_ABI] Job {} submitted by {:?} with cost {} was queued successfully.", 
+             job_id_str, ctx.current_identity, job_to_submit.mana_cost);
+
+    // 4. Return JobId.
+    Ok(JobId(job_id_str))
+}
+
+/// ABI Index: (defined in `abi::ABI_HOST_GET_PENDING_MESH_JOBS`)
+/// Retrieves a snapshot of the current pending mesh jobs from the runtime context.
+///
+/// TODO: WASM bindings will need to handle memory marshalling for the returned Vec<ActualMeshJob> (e.g., serialize to JSON string).
+pub fn host_get_pending_mesh_jobs(ctx: &RuntimeContext) -> Result<Vec<ActualMeshJob>, HostAbiError> {
+    // TODO: record metric `icn_runtime_abi_call_total{method="host_get_pending_mesh_jobs"}`
+    println!("[RUNTIME_ABI] host_get_pending_mesh_jobs called.");
+
+    // Directly clone the jobs from the queue. This provides a snapshot.
+    // Depending on WASM interface, this might need to be serialized (e.g., to JSON).
+    let jobs: Vec<ActualMeshJob> = ctx.pending_mesh_jobs.iter().cloned().collect();
+    
+    println!("[RUNTIME_ABI] Returning {} pending jobs.", jobs.len());
+    Ok(jobs)
 }
 
 /// ABI Index: (defined in `abi::ABI_HOST_ACCOUNT_GET_MANA`)
@@ -91,6 +134,57 @@ pub fn host_account_spend_mana(ctx: &mut RuntimeContext, account_id_str: &str, a
     ctx.spend_mana(&account_did, amount)
 }
 
+// Placeholder for a reputation updater service/struct
+#[derive(Debug)]
+pub struct ReputationUpdater;
+
+impl ReputationUpdater {
+    pub fn new() -> Self { ReputationUpdater }
+    pub fn submit(&self, receipt: &ExecutionReceipt) {
+        // TODO: Implement actual reputation update logic
+        println!("[ReputationUpdater STUB] Submitted receipt for job_id: {:?}, executor: {:?}", 
+                 receipt.job_id, receipt.executor_did);
+    }
+}
+
+/// ABI Index: (Not yet defined, suggest reserving one, e.g., 23)
+/// Anchors an execution receipt to the DAG and updates reputation.
+///
+/// The `receipt_json` is expected to be a JSON string serializing `context::ExecutionReceipt`.
+///
+/// TODO: WASM bindings will need to handle memory marshalling for `receipt_json` and returned `Cid`.
+pub fn host_anchor_receipt(ctx: &mut RuntimeContext, receipt_json: &str, reputation_updater: &ReputationUpdater) -> Result<Cid, HostAbiError> {
+    // TODO: record metric `icn_runtime_abi_call_total{method="host_anchor_receipt"}`
+    println!("[RUNTIME_ABI] host_anchor_receipt called with receipt_json: {}", receipt_json);
+
+    if receipt_json.is_empty() {
+        return Err(HostAbiError::InvalidParameters("Receipt JSON cannot be empty".to_string()));
+    }
+
+    // 1. Deserialize ExecutionReceipt
+    let mut receipt: ExecutionReceipt = serde_json::from_str(receipt_json)
+        .map_err(|e| HostAbiError::InvalidParameters(format!("Failed to deserialize ExecutionReceipt: {}. Input: {}", e, receipt_json)))?;
+
+    // Ensure the receipt is for the current identity if it's being submitted by the executor itself
+    // This check might be more nuanced depending on who is allowed to call this ABI function.
+    // If only the executor who ran the job calls it, then current_identity should match receipt.executor_did.
+    if ctx.current_identity != receipt.executor_did {
+        // This could be an error, or it could be a case where a node service is anchoring on behalf of an executor.
+        // For now, let's log a warning. The `ctx.anchor_receipt` itself has a stricter check.
+        println!("[RUNTIME_ABI_WARN] host_anchor_receipt called by {:?} for a receipt from executor {:?}. Ensure this is intended.", 
+                 ctx.current_identity, receipt.executor_did);
+    }
+
+    // 2. Call ctx.anchor_receipt (which handles internal signing and DAG storage)
+    let anchored_cid = ctx.anchor_receipt(&mut receipt)?; // anchor_receipt might modify receipt (e.g. add signature)
+    println!("[RUNTIME_ABI] Receipt for job_id {:?} anchored with CID: {:?}", receipt.job_id, anchored_cid);
+
+    // 3. Submit to reputation updater
+    reputation_updater.submit(&receipt);
+
+    Ok(anchored_cid)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -126,31 +220,72 @@ mod tests {
         assert!(result.unwrap().contains("script-xyz"));
     }
 
-    #[test]
-    #[should_panic(expected = "RuntimeContext::submit_mesh_job: Hook into mesh job queue and return actual JobId")]
-    fn test_host_submit_mesh_job_calls_context() {
+    #[tokio::test]
+    async fn test_host_submit_mesh_job_calls_context() {
         let mut ctx = create_test_context();
-        let job_spec = "{\"name\": \"test_job_001\"}";
-        let result = host_submit_mesh_job(&mut ctx, job_spec);
-        assert!(result.is_ok());
+        let job_spec = r#"{"cid":{"version":1,"codec":85,"hash_alg":18,"hash_bytes":[]},"spec":{},"mana_cost":10}"#;
+        let result = host_submit_mesh_job(&mut ctx, job_spec).await;
+        assert!(result.is_ok(), "host_submit_mesh_job failed: {:?}", result.err());
+        let queue = ctx.pending_mesh_jobs.lock().await;
+        assert_eq!(queue.len(), 1, "Job not added to queue");
+        assert_eq!(queue.front().unwrap().mana_cost, 10);
     }
 
-    #[test]
-    fn test_host_submit_mesh_job_empty_spec() {
+    #[tokio::test]
+    async fn test_host_submit_mesh_job_empty_spec() {
         let mut ctx = create_test_context();
         let job_spec = "";
-        let result = host_submit_mesh_job(&mut ctx, job_spec);
+        let result = host_submit_mesh_job(&mut ctx, job_spec).await;
         assert!(result.is_err());
         match result.err().unwrap() {
             HostAbiError::InvalidParameters(msg) => {
-                assert_eq!(msg, "Job specification JSON cannot be empty");
+                assert_eq!(msg, "Job JSON cannot be empty");
             }
             e => panic!("Expected InvalidParameters error, got {:?}", e),
         }
     }
 
+    #[tokio::test]
+    async fn test_host_submit_mesh_job_insufficient_mana() {
+        let mut ctx = create_test_context_with_mana(5);
+        let job_spec = r#"{"cid":{"version":1,"codec":85,"hash_alg":18,"hash_bytes":[]},"spec":{},"mana_cost":10}"#;
+        let result = host_submit_mesh_job(&mut ctx, job_spec).await;
+        assert!(result.is_err());
+        match result.err().unwrap() {
+            HostAbiError::InsufficientMana => { /* Expected */ }
+            e => panic!("Expected InsufficientMana, got {:?}", e),
+        }
+        let queue = ctx.pending_mesh_jobs.lock().await;
+        assert_eq!(queue.len(), 0, "Job should not be added to queue on insufficient mana");
+    }
+
+    #[tokio::test]
+    async fn test_host_get_pending_mesh_jobs_retrieves_correctly() {
+        let mut ctx = create_test_context_with_mana(100);
+        let job_spec1 = r#"{"cid":{"version":1,"codec":1,"hash_alg":1,"hash_bytes":[1]},"spec":{},"mana_cost":10}"#;
+        let job_spec2 = r#"{"cid":{"version":1,"codec":2,"hash_alg":2,"hash_bytes":[2]},"spec":{},"mana_cost":20}"#;
+        
+        host_submit_mesh_job(&mut ctx, job_spec1).await.unwrap();
+        host_submit_mesh_job(&mut ctx, job_spec2).await.unwrap();
+
+        let pending_jobs_result = host_get_pending_mesh_jobs(&ctx);
+        assert!(pending_jobs_result.is_ok());
+        let pending_jobs = pending_jobs_result.unwrap();
+        assert_eq!(pending_jobs.len(), 2);
+        assert_eq!(pending_jobs[0].mana_cost, 10);
+        assert_eq!(pending_jobs[1].mana_cost, 20);
+    }
+
+    #[tokio::test]
+    async fn test_host_get_pending_mesh_jobs_empty_queue() {
+        let ctx = create_test_context();
+        let pending_jobs_result = host_get_pending_mesh_jobs(&ctx);
+        assert!(pending_jobs_result.is_ok());
+        let pending_jobs = pending_jobs_result.unwrap();
+        assert_eq!(pending_jobs.len(), 0);
+    }
+
     #[test]
-    #[should_panic(expected = "RuntimeContext::get_mana: Read mana from repository for the account")]
     fn test_host_account_get_mana_calls_context() {
         let ctx = create_test_context_with_mana(100);
         let account_id = ctx.current_identity.to_string();

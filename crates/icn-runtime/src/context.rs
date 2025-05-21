@@ -6,11 +6,13 @@ use std::str::FromStr; // For Did::from_str in new_with_dummy_mana
 use std::sync::atomic::{AtomicU32, Ordering}; // Modified import for Ordering
 use icn_governance::GovernanceModule; // Assuming this can be imported
 use icn_mesh::{MeshJob as ActualMeshJob, Bid, select_executor, SelectionPolicy}; // Import from icn-mesh
-use tokio::sync::mpsc; // For channel-based communication if needed
+use icn_economics::{charge_mana, EconError}; // For mana charging
+use tokio::sync::{mpsc, Mutex}; // For channel-based communication if needed and Mutex for shared state
 use tokio::time::{sleep, Duration}; // For timeouts
+use std::sync::Arc; // For shared state
 
 // Counter for generating unique (within this runtime instance) job IDs for stubs
-static NEXT_JOB_ID: AtomicU32 = AtomicU32::new(1);
+pub static NEXT_JOB_ID: AtomicU32 = AtomicU32::new(1);
 
 // --- Placeholder Types ---
 // TODO: Replace these with actual types from their respective crates (e.g., icn-mesh, icn-dag)
@@ -32,20 +34,15 @@ pub struct CastVotePayload {
 
 /// Placeholder for a job specification submitted to the mesh.
 #[derive(Debug, Clone)]
-pub struct MeshJob {
+pub struct MeshJob { // This is the placeholder MeshJob, it will be shadowed by ActualMeshJob for pending_mesh_jobs
     pub id: String, // A unique identifier for the job spec itself
     pub data: Vec<u8>, // Serialized job data
     pub owner: Did,    // Submitter of the job
-    /// The DID of the identity currently executing within this context.
-    pub current_identity: Did,
-    /// Simple in-memory mana ledger for now.
+    // These fields are specific to the old placeholder and will not be in ActualMeshJob
+    pub current_identity: Did, 
     pub mana_ledger: SimpleManaLedger,
-    /// Queue for jobs submitted by this context to the mesh network.
-    pub pending_mesh_jobs: VecDeque<MeshJob>,
-    pub governance_module: GovernanceModule, // Added GovernanceModule
-    // TODO: Placeholder for DAG store access
-    // pub dag_store: Arc<dyn DagStoreAccess>,
-    // TODO: Add fields for policy enforcers, etc.
+    pub pending_mesh_jobs: VecDeque<MeshJob>, // This will be VecDeque<ActualMeshJob> in RuntimeContext
+    pub governance_module: GovernanceModule, 
 }
 
 /// Placeholder for a Job ID returned by the mesh network.
@@ -164,7 +161,7 @@ impl From<CommonError> for HostAbiError {
 
 // --- Mana Ledger (Simple In-Memory Version) ---
 // TODO: Replace with `ManaRepositoryAdapter` + `SledManaLedger` integration when ready.
-#[derive(Debug)]
+#[derive(Debug, Clone)] // Added Clone here
 pub struct SimpleManaLedger {
     balances: HashMap<Did, u64>,
 }
@@ -204,22 +201,27 @@ pub struct RuntimeContext {
     /// Simple in-memory mana ledger for now.
     pub mana_ledger: SimpleManaLedger, 
     /// Queue for jobs submitted by this context to the mesh network.
-    pub pending_mesh_jobs: VecDeque<MeshJob>,
-    pub governance_module: GovernanceModule, // Added GovernanceModule
+    pub pending_mesh_jobs: Arc<Mutex<VecDeque<ActualMeshJob>>>, 
+    pub governance_module: GovernanceModule,
     // TODO: Placeholder for DAG store access
     // pub dag_store: Arc<dyn DagStoreAccess>,
     // TODO: Add fields for policy enforcers, etc.
+    // TODO: Add a network layer handle for broadcasting job announcements
+    // pub network_layer: Arc<dyn NetworkService>, // Example
+    // TODO: Add a way to store job assignments
+    // pub job_assignments: Arc<Mutex<HashMap<JobId, Did>>>, // Example
 }
 
 impl RuntimeContext {
     /// Creates a new `RuntimeContext` for a given identity.
-    /// Initializes with an empty mana ledger.
+    /// Initializes with an empty mana ledger and an empty job queue.
     pub fn new(current_identity: Did) -> Self {
         Self {
             current_identity,
             mana_ledger: SimpleManaLedger::new(),
-            pending_mesh_jobs: VecDeque::new(),
-            governance_module: GovernanceModule::new(), // Initialize with default in-memory gov module
+            pending_mesh_jobs: Arc::new(Mutex::new(VecDeque::new())), // Initialize Arc<Mutex<VecDeque>>
+            governance_module: GovernanceModule::new(),
+            // job_assignments: Arc::new(Mutex::new(HashMap::new())), // Initialize if added
         }
     }
 
@@ -233,87 +235,146 @@ impl RuntimeContext {
     }
 
     /// Submits a mesh job from the current runtime context.
-    pub fn submit_mesh_job(&mut self, job_data: Vec<u8>) -> Result<JobId, HostAbiError> {
-        let job_id_val = NEXT_JOB_ID.fetch_add(1, Ordering::SeqCst);
-        let job_id_str = format!("job_{}", job_id_val);
-        let job = MeshJob {
-            id: job_id_str.clone(), 
-            data: job_data,
-            owner: self.current_identity.clone(),
-            current_identity: self.current_identity.clone(),
-            mana_ledger: self.mana_ledger.clone(),
-            pending_mesh_jobs: self.pending_mesh_jobs.clone(),
-            governance_module: self.governance_module.clone(),
-        };
-        self.pending_mesh_jobs.push_back(job.clone());
-        println!("[CONTEXT_STUB] submit_mesh_job called for job: {:?}, owner: {:?}", job.id, self.current_identity);
-        Ok(JobId(job_id_str))
+    /// This is called by `host_submit_mesh_job` in `lib.rs`.
+    /// `host_submit_mesh_job` now handles mana charging and most job preparation.
+    /// This function's role is primarily to add the job to the shared queue.
+    pub async fn internal_queue_mesh_job(&self, job: ActualMeshJob) -> Result<(), HostAbiError> {
+        // Mana should have been charged by the caller (host_submit_mesh_job)
+        let mut queue = self.pending_mesh_jobs.lock().await;
+        queue.push_back(job.clone());
+        println!("[CONTEXT] Queued mesh job: id={}", job.id);
+        Ok(())
     }
 
     pub async fn spawn_mesh_job_manager(&self) {
-        // This function would typically be part of a larger node service.
-        // It needs a way to clone or share `pending_mesh_jobs` and other relevant state,
-        // possibly using Arc<Mutex<...>> or message passing.
-        // For simplicity in this example, we'll assume it can somehow access the queue.
-        // This is a simplified placeholder.
+        let pending_jobs_queue_clone: Arc<Mutex<VecDeque<ActualMeshJob>>> = Arc::clone(&self.pending_mesh_jobs);
+        // let job_assignments_clone = Arc::clone(&self.job_assignments); // Example for storing assignments
+        // let network_layer_clone = Arc::clone(&self.network_layer); // Example for network access
 
-        // TODO: This needs proper shared state management (e.g. Arc<Mutex<VecDeque<ActualMeshJob>>>)
-        // For now, this won't compile correctly as it tries to access self.pending_mesh_jobs directly in a static context.
-        // This is a conceptual sketch.
-        
-        // let pending_jobs_queue = self.pending_mesh_jobs.clone(); // This clone won't work as intended for a shared queue
+        // Define constants for bidding/assignment logic (these should be configurable)
+        const MANA_RESERVE_AMOUNT: u64 = 5; // Example mana reserve
+        const MIN_REPUTATION_THRESHOLD: u64 = 10; // Example reputation threshold
 
         tokio::spawn(async move {
             loop {
-                // println!("[JobManager] Checking for pending jobs...");
-                // TODO: This part needs to safely access and pop from a shared pending_mesh_jobs queue.
-                // For now, we'll simulate job processing without direct queue access.
-                // let job = match pending_jobs_queue.lock().await.pop_front() { // Example with Arc<Mutex<...>>
-                //    Some(j) => j,
-                //    None => {
-                //        sleep(Duration::from_secs(5)).await; // Wait if queue is empty
-                //        continue;
-                //    }
-                // };
-                
-                // Simulate getting a job (replace with actual queue logic)
-                // This is a HACK to make it compile without proper shared state
-                if false { // Disabled for now
-                    let _job: ActualMeshJob = ActualMeshJob { 
-                        id: "dummy_job_id".to_string(), 
-                        cid: Cid::new_v1_dummy(0,0,b""), 
-                        spec: icn_mesh::JobSpec, 
-                        submitter: Did::new("key", "dummy_submitter"), 
-                        mana_cost: 0 
-                    };
+                let mut job_to_process: Option<ActualMeshJob> = None;
+                {
+                    let mut queue = pending_jobs_queue_clone.lock().await;
+                    if let Some(job) = queue.pop_front() {
+                        job_to_process = Some(job);
+                    }
+                } // Mutex guard dropped here
 
-                    // println!("[JobManager] Processing job: {:?}", job.id);
+                if let Some(job) = job_to_process {
+                    println!("[JobManager] Processing job: id={}", job.id);
 
-                    // 1. Broadcast MeshJobAnnouncement (stub)
-                    // println!("[JobManager] Broadcasting job announcement for {:?}", job.id);
-                    // network_layer.broadcast(MeshJobAnnouncement { job_id: job.id.clone(), ... }).await;
-
+                    // 1. Broadcast MeshJobAnnouncement via network layer (stub)
+                    println!("[JobManager] Broadcasting job announcement for id={}", job.id);
+                    // network_layer_clone.broadcast(MeshJobAnnouncement { job_id: job.id.clone(), ... }).await.unwrap_or_else(|e| {
+                    //     eprintln!("[JobManager] Error broadcasting job announcement: {}", e);
+                    // });
+                    
                     let bid_window_secs = 30; // Example bid window
-                    // println!("[JobManager] Collecting bids for {} seconds...", bid_window_secs);
+                    println!("[JobManager] Collecting bids for {} seconds for job id={}...", bid_window_secs, job.id);
                     sleep(Duration::from_secs(bid_window_secs)).await;
 
                     // 2. Collect bids (stub - assume bids are collected somehow)
-                    let bids: Vec<Bid> = vec![]; // Placeholder for actual bid collection
-                    // println!("[JobManager] Collected {} bids for job {:?}", bids.len(), job.id);
+                    // In a real system, bids would arrive via the network and be stored.
+                    // For now, creating dummy bids.
+                    let mut received_bids: Vec<Bid> = Vec::new();
+                    // Example: Add a dummy bid
+                    // received_bids.push(Bid {
+                    //     job_id: job.id.clone(),
+                    //     executor: Did::new("key", "dummy-executor-1"),
+                    //     price: 10,
+                    //     resources: icn_mesh::Resources {}, // Assuming Resources is defaultable or constructed
+                    // });
+                    // received_bids.push(Bid {
+                    //     job_id: job.id.clone(),
+                    //     executor: Did::new("key", "dummy-executor-2"),
+                    //     price: 12,
+                    //     resources: icn_mesh::Resources {},
+                    // });
+                     println!("[JobManager] Collected {} bids for job id={}", received_bids.len(), job.id);
+                    
+                    let mut valid_bids: Vec<Bid> = Vec::new();
+                    for bid in received_bids {
+                        // Bid Acceptance: Verify executor mana >= reserve; reputation >= threshold
+                        // A. Mana check (charge_mana will be used, but here it's a check)
+                        //    For the check, we'd typically use a get_balance function.
+                        //    Since charge_mana has a side effect, for a "check", one might need a dry-run version
+                        //    or rely on subsequent assignment check. For now, let's assume `charge_mana`
+                        //    is the point of truth for ability to reserve.
+                        //    If charge_mana fails with InsufficientBalance, the bid is rejected.
+                        //    This check is simplified here. A full system would have a ManaLedger query.
+                        match charge_mana(&bid.executor, MANA_RESERVE_AMOUNT) {
+                            Ok(_) => {
+                                println!("[JobManager] Executor {:?} has sufficient mana reserve for bid on job id={}.", bid.executor, job.id);
+                                // TODO: Add reputation check
+                                // let reputation = get_reputation(&bid.executor); // Placeholder
+                                let reputation: u64 = 20; // Placeholder
+                                if reputation >= MIN_REPUTATION_THRESHOLD {
+                                    println!("[JobManager] Executor {:?} meets reputation threshold for bid on job id={}.", bid.executor, job.id);
+                                    valid_bids.push(bid);
+                                } else {
+                                    println!("[JobManager] Executor {:?} REJECTED (reputation {} < {}) for bid on job id={}", 
+                                             bid.executor, reputation, MIN_REPUTATION_THRESHOLD, job.id);
+                                    // TODO: Refund mana if it was actually charged as part of a "reserve" mechanism.
+                                    // For now, charge_mana is a direct spend, so this flow needs refinement for reservations.
+                                }
+                            }
+                            Err(EconError::InsufficientBalance(_)) => {
+                                println!("[JobManager] Executor {:?} REJECTED (insufficient mana for reserve) for bid on job id={}", 
+                                         bid.executor, job.id);
+                            }
+                            Err(e) => {
+                                eprintln!("[JobManager] Error checking mana for executor {:?} for bid on job id={}: {:?}", 
+                                         bid.executor, job.id, e);
+                            }
+                        }
+                    }
+                    println!("[JobManager] {} valid bids after filtering for job id={}", valid_bids.len(), job.id);
 
                     // 3. Call icn_mesh::select_executor
-                    let selection_policy = SelectionPolicy {}; // Placeholder
-                    if let Some(selected_executor_did) = select_executor(bids, selection_policy) {
-                        // println!("[JobManager] Selected executor {:?} for job {:?}", selected_executor_did, job.id);
-                        // 4. Store assignment in runtime state (stub)
-                        // self.runtime_state.assign_job(job.id, selected_executor_did).await;
-                        // println!("[JobManager] Job {:?} assigned to {:?}", job.id, selected_executor_did);
+                    let selection_policy = SelectionPolicy {}; // Placeholder policy
+                    if let Some(selected_executor_did) = select_executor(valid_bids, selection_policy) {
+                        // Assignment: Ensure executor still has mana (idempotency for reserve or final charge)
+                        // This is a re-check or finalization of the mana reserve.
+                        match charge_mana(&selected_executor_did, MANA_RESERVE_AMOUNT) { // Or a different assignment cost
+                            Ok(_) => {
+                                println!("[JobManager] Selected executor {:?} for job id={}. Mana re-confirmed/assigned.", 
+                                         selected_executor_did, job.id);
+                                // 4. Store assignment in runtime state (stub)
+                                // let mut assignments = job_assignments_clone.lock().await;
+                                // assignments.insert(job.id.clone(), selected_executor_did.clone());
+                                // println!("[JobManager] Job id={} assigned to executor {:?}", job.id, selected_executor_did);
+                                // TODO: Notify executor, change JobState, etc.
+                            }
+                            Err(EconError::InsufficientBalance(_)) => {
+                                println!("[JobManager] Selected executor {:?} for job id={} now has INSUFFICIENT MANA. Trying next bid.", 
+                                         selected_executor_did, job.id);
+                                // TODO: Logic to choose next best bid. This simple version just fails.
+                                // This would involve re-running select_executor with remaining valid_bids (excluding this one).
+                            }
+                            Err(e) => {
+                                eprintln!("[JobManager] Error confirming mana for selected executor {:?} for job id={}: {:?}",
+                                         selected_executor_did, job.id, e);
+                            }
+                        }
                     } else {
-                        // println!("[JobManager] No suitable executor found for job {:?}", job.id);
-                        // TODO: Handle no bid / no selection (e.g., requeue, timeout, refund mana)
+                        println!("[JobManager] No suitable executor found for job id={}", job.id);
+                        // TODO: Handle no bid / no selection (e.g., requeue, timeout, refund submitter's original mana)
+                        // Refunding submitter's mana:
+                        // match icn_economics::credit_mana(&job.submitter, job.mana_cost) {
+                        //     Ok(_) => println!("[JobManager] Refunded {} mana to submitter {:?} for timed-out job id={}",
+                        //                     job.mana_cost, job.submitter, job.id),
+                        //     Err(e) => eprintln!("[JobManager] Error refunding mana for job id={}: {:?}", job.id, e),
+                        // }
                     }
+                } else {
+                    // No job in queue, wait before checking again
+                    sleep(Duration::from_secs(5)).await;
                 }
-                sleep(Duration::from_secs(10)).await; // Check queue periodically
             }
         });
         println!("[RuntimeContext] Mesh job manager spawned.");

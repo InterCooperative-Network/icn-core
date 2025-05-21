@@ -20,6 +20,10 @@ pub const ABI_HOST_SUBMIT_MESH_JOB: u32 = 16;
 /// Retrieves pending mesh jobs from the runtime.
 pub const ABI_HOST_GET_PENDING_MESH_JOBS: u32 = 22; // New
 
+/// ABI Index for `host_anchor_receipt`.
+/// Anchors an execution receipt to the DAG and updates reputation.
+pub const ABI_HOST_ANCHOR_RECEIPT: u32 = 23; // New
+
 // --- Governance ABI Functions (RFC 0010) ---
 // TODO: Finalize these indices and add others as needed.
 
