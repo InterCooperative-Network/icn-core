@@ -9,7 +9,7 @@ use icn_mesh::{ActualMeshJob, MeshJobBid, MeshJobAnnounce, MeshBidSubmit, select
 use icn_economics::{charge_mana, EconError}; // For mana charging
 use icn_identity::ExecutionReceipt as IdentityExecutionReceipt; // Import and alias ExecutionReceipt
 use tokio::sync::{mpsc, Mutex}; // For channel-based communication if needed and Mutex for shared state
-use tokio::time::{sleep, Duration}; // For timeouts
+use tokio::time::{sleep, Duration, Instant as TokioInstant}; // For timeouts and Tokio Instant
 use std::sync::Arc; // For shared state
 use async_trait::async_trait; // For async traits
 
@@ -162,8 +162,17 @@ pub struct RuntimeContext {
     pub pending_mesh_jobs: Arc<Mutex<VecDeque<ActualMeshJob>>>, 
     pub job_states: Arc<Mutex<HashMap<JobId, JobState>>>,
     pub governance_module: GovernanceModule,
+    #[cfg(not(test))] // Keep private for non-test builds
+    mesh_network_service: Arc<dyn MeshNetworkService>,
+    #[cfg(test)] // Make pub for test builds
     pub mesh_network_service: Arc<dyn MeshNetworkService>,
-    pub signer: Arc<dyn Signer>, 
+    #[cfg(not(test))] // Keep private for non-test builds
+    signer: Arc<dyn Signer>, 
+    #[cfg(test)] // Make pub for test builds
+    pub signer: Arc<dyn Signer>,
+    #[cfg(not(test))] // Keep private for non-test builds
+    dag_store: Arc<dyn DagStore>,
+    #[cfg(test)] // Make pub for test builds
     pub dag_store: Arc<dyn DagStore>,
 }
 
@@ -187,7 +196,7 @@ impl RuntimeContext {
     }
 
     #[cfg(test)]
-    pub(crate) fn new_with_stubs(current_identity_str: &str) -> Self {
+    pub fn new_with_stubs(current_identity_str: &str) -> Self {
         let current_identity = Did::from_str(current_identity_str).expect("Invalid DID for test context");
         Self::new(
             current_identity, 
@@ -198,7 +207,7 @@ impl RuntimeContext {
     }
 
     #[cfg(test)]
-    pub(crate) fn new_with_stubs_and_mana(current_identity_str: &str, initial_mana: u64) -> Self {
+    pub fn new_with_stubs_and_mana(current_identity_str: &str, initial_mana: u64) -> Self {
         let current_identity = Did::from_str(current_identity_str).expect("Invalid DID for test context");
         let mut ctx = Self::new(
             current_identity.clone(), 
@@ -228,7 +237,7 @@ impl RuntimeContext {
         let current_identity_clone = self.current_identity.clone();
         let mana_ledger_for_refunds = Arc::new(Mutex::new(self.mana_ledger.clone())); // Clone mana ledger for JobManager refunds
 
-        let mut assigned_jobs: HashMap<JobId, (ActualMeshJob, Did, std::time::Instant)> = HashMap::new();
+        let mut assigned_jobs: HashMap<JobId, (ActualMeshJob, Did, TokioInstant)> = HashMap::new();
         const JOB_EXECUTION_TIMEOUT: Duration = Duration::from_secs(5 * 60);
         let reputation_updater = crate::ReputationUpdater::new();
 
@@ -314,7 +323,7 @@ impl RuntimeContext {
                                     states.insert(job_to_assign.id.clone(), JobState::Assigned { executor: selected_executor_did.clone() });
                                     println!("[JobManager] Job id={:?} state changed to Assigned to executor {:?}", job_to_assign.id, selected_executor_did);
                                 }
-                                assigned_jobs.insert(job_to_assign.id.clone(), (job_to_assign.clone(), selected_executor_did.clone(), std::time::Instant::now()));
+                                assigned_jobs.insert(job_to_assign.id.clone(), (job_to_assign.clone(), selected_executor_did.clone(), TokioInstant::now()));
                                 let notice = JobAssignmentNotice {
                                     job_id: job_to_assign.id.clone(),
                                     executor_did: selected_executor_did.clone(),
@@ -566,8 +575,28 @@ impl DagStore for StubDagStore {
 }
 
 #[derive(Debug, Clone)]
-pub struct StubMeshNetworkService {}
-impl StubMeshNetworkService { pub fn new() -> Self { Self {} } }
+pub struct StubMeshNetworkService {
+    staged_bids: Arc<Mutex<HashMap<JobId, VecDeque<MeshJobBid>>>>,
+    staged_receipts: Arc<Mutex<VecDeque<SubmitReceiptMessage>>>,
+}
+impl StubMeshNetworkService { 
+    pub fn new() -> Self { 
+        Self {
+            staged_bids: Arc::new(Mutex::new(HashMap::new())),
+            staged_receipts: Arc::new(Mutex::new(VecDeque::new())),
+        }
+    }
+    // Test helper to stage a bid
+    pub async fn stage_bid(&self, job_id: JobId, bid: MeshJobBid) {
+        let mut bids_map = self.staged_bids.lock().await;
+        bids_map.entry(job_id).or_default().push_back(bid);
+    }
+    // Test helper to stage a receipt
+    pub async fn stage_receipt(&self, receipt_message: SubmitReceiptMessage) {
+        let mut receipts_queue = self.staged_receipts.lock().await;
+        receipts_queue.push_back(receipt_message);
+    }
+}
 
 #[async_trait]
 impl MeshNetworkService for StubMeshNetworkService {
@@ -576,9 +605,17 @@ impl MeshNetworkService for StubMeshNetworkService {
         Ok(())
     }
 
-    async fn collect_bids_for_job(&self, job_id: JobId, duration: Duration) -> Result<Vec<MeshJobBid>, HostAbiError> {
-        println!("[StubMeshNetworkService] Collecting bids for job {:?} for {:?}. STUB: Returning empty vec.", job_id, duration);
-        Ok(Vec::new()) 
+    async fn collect_bids_for_job(&self, job_id: JobId, _duration: Duration) -> Result<Vec<MeshJobBid>, HostAbiError> {
+        println!("[StubMeshNetworkService] Collecting bids for job {:?}.", job_id);
+        let mut bids_map = self.staged_bids.lock().await;
+        if let Some(job_bids_queue) = bids_map.get_mut(&job_id) {
+            let bids: Vec<MeshJobBid> = job_bids_queue.drain(..).collect();
+            println!("[StubMeshNetworkService] Found {} staged bids for job {:?}", bids.len(), job_id);
+            Ok(bids)
+        } else {
+            println!("[StubMeshNetworkService] No staged bids found for job {:?}. Returning empty vec.", job_id);
+            Ok(Vec::new()) 
+        }
     }
 
     async fn broadcast_assignment(&self, notice: JobAssignmentNotice) -> Result<(), HostAbiError> {
@@ -587,7 +624,13 @@ impl MeshNetworkService for StubMeshNetworkService {
     }
 
     async fn try_receive_receipt(&self) -> Result<Option<SubmitReceiptMessage>, HostAbiError> {
-        println!("[StubMeshNetworkService] try_receive_receipt called. STUB: Returning None.");
-        Ok(None)
+        let mut receipts_queue = self.staged_receipts.lock().await;
+        if let Some(receipt_msg) = receipts_queue.pop_front() {
+            println!("[StubMeshNetworkService] try_receive_receipt: Popped staged receipt for job {:?}", receipt_msg.receipt.job_id);
+            Ok(Some(receipt_msg))
+        } else {
+            // println!("[StubMeshNetworkService] try_receive_receipt called. No staged receipts. Returning None.");
+            Ok(None)
+        }
     }
 } 
