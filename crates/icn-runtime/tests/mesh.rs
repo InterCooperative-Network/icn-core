@@ -1,14 +1,14 @@
 // crates/icn-runtime/tests/mesh.rs
 
 use icn_common::{Did, Cid};
-use icn_identity::ExecutionReceipt as IdentityExecutionReceipt; // Use the alias consistently
-use icn_mesh::{ActualMeshJob, JobId, JobSpec, JobState, MeshJobBid, Resources, SubmitReceiptMessage};
-use icn_runtime::context::{RuntimeContext, HostAbiError, StubMeshNetworkService, StubSigner, StubDagStore, DagStore, JobState as ContextJobState};
+use icn_identity::ExecutionReceipt as IdentityExecutionReceipt;
+use icn_runtime::context::{RuntimeContext, HostAbiError, StubMeshNetworkService, StubDagStore, DagStore};
 use icn_runtime::host_submit_mesh_job;
+use icn_mesh::{JobId, ActualMeshJob, MeshJobBid, JobState, SubmitReceiptMessage, JobSpec, Resources};
 use serde_json::json;
 use std::str::FromStr;
 use std::sync::Arc;
-use tokio::time::{sleep, Duration, Instant};
+use tokio::time::{sleep, Duration};
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
@@ -250,7 +250,163 @@ async fn test_mesh_job_timeout_and_refund() {
     println!("Timeout and refund test completed. Submitter mana checked.");
 }
 
-// TODO: test_invalid_receipt_wrong_executor
+// Placeholder for new_mesh_test_context_with_two_executors
+// This helper needs to be properly implemented or use existing ones if available.
+// For now, it uses the existing single context creator.
+fn new_mesh_test_context_with_two_executors() -> (Arc<RuntimeContext>, Arc<RuntimeContext>, Arc<RuntimeContext>, Arc<StubDagStore>) {
+    // TODO: This is a simplified stub. Properly implement context creation for multiple distinct DIDs.
+    // The main issue is that create_test_context initializes SimpleManaLedger anew each time.
+    // For a multi-actor test, they might need to share a ManaLedger or have distinct pre-funded DIDs.
+    // For now, we create separate contexts. The DAG store can be from any of them if it's a shared stub.
+    let submitter_ctx = create_test_context("did:icn:test:submitter_multi_exec", 200);
+    let executor1_ctx = create_test_context("did:icn:test:executor1_multi_exec", 100);
+    let executor2_ctx = create_test_context("did:icn:test:executor2_multi_exec", 100);
+    let dag_store = get_stub_dag_store(&submitter_ctx); // Assumes StubDagStore is shareable or cloned appropriately
+    (submitter_ctx, executor1_ctx, executor2_ctx, dag_store)
+}
+
+// Placeholder for create_test_job
+// Returns a JSON string payload for host_submit_mesh_job, and the expected cost
+fn create_test_job_payload_and_cost() -> (String, u64) {
+    // TODO: Implement this helper function more robustly
+    let manifest_cid = Cid::new_v1_dummy(0x55, 0x13, b"test_job_manifest_for_invalid_receipt");
+    let job_cost = 20u64;
+    let job_json_payload = json!({
+        "manifest_cid": manifest_cid,
+        "spec": { "details": "job for invalid receipt test"}, 
+        "cost_mana": job_cost,
+    }).to_string();
+    (job_json_payload, job_cost)
+}
+
+// Placeholder for create_test_bid
+// Returns a MeshJobBid
+fn create_test_bid(job_id: &Cid, executor_ctx: &Arc<RuntimeContext>, price: u64) -> MeshJobBid {
+    // TODO: Implement this helper function
+    MeshJobBid {
+        job_id: job_id.clone(), // JobId is a Cid here
+        executor_did: executor_ctx.current_identity.clone(),
+        price_mana: price,
+        resources: Resources::default(),
+    }
+}
+
+// Placeholder for assign_job_to_executor (simulated)
+// In a real test, this would involve the job manager's logic.
+// Here, we directly update the job_manager_ctx's state for simplicity.
+async fn assign_job_to_executor_directly(job_manager_ctx: &Arc<RuntimeContext>, job_id: Cid, assigned_executor_did: &Did) {
+    // TODO: This is a test utility to bypass full job manager loop for specific assignment tests.
+    println!("Test util: Directly assigning job {:?} to executor {:?}", job_id, assigned_executor_did);
+    let mut states = job_manager_ctx.job_states.lock().await;
+    states.insert(job_id, JobState::Assigned { executor: assigned_executor_did.clone() });
+}
+
+
+// Placeholder for forge_execution_receipt
+// Creates an IdentityExecutionReceipt, signed by the forging_executor_ctx.
+// IMPORTANT: The actual `anchor_receipt` on the `job_manager_ctx` is what validates.
+// This helper just creates a receipt structure and has the forger sign it.
+fn forge_execution_receipt(job_id: &Cid, result_cid_val: &[u8], forging_executor_ctx: &Arc<RuntimeContext>) -> IdentityExecutionReceipt {
+    // TODO: Implement this helper function
+    let mut receipt = IdentityExecutionReceipt {
+        job_id: job_id.clone(), // JobId is a Cid
+        executor_did: forging_executor_ctx.current_identity.clone(), // Forged: signed by this DID
+        result_cid: Cid::new_v1_dummy(0x55, 0x13, result_cid_val),
+        cpu_ms: 50,
+        sig: Vec::new(), // Will be filled by the forger's context
+    };
+    // The forging_executor_ctx signs the receipt using its own identity and signer.
+    forging_executor_ctx.anchor_receipt(&mut receipt).expect("Forger failed to sign its own receipt for forging");
+    receipt // Returns the signed receipt
+}
+
+
+#[tokio::test]
+async fn test_invalid_receipt_wrong_executor() {
+    // Setup:
+    // Job Manager context - this will manage the job states and process bids/receipts.
+    let job_manager_ctx = create_test_context("did:icn:test:job_manager_for_invalid_receipt_test", 0);
+    job_manager_ctx.spawn_mesh_job_manager().await; // Start the job manager task
+
+    // Actors
+    let submitter_ctx = create_test_context("did:icn:test:submitter_for_invalid_receipt", 100);
+    let executor1_ctx = create_test_context("did:icn:test:legit_executor_for_invalid_receipt", 100); // Legitimate
+    let executor2_ctx = create_test_context("did:icn:test:forging_executor_for_invalid_receipt", 100); // Forger
+
+    // 1. Submit a mesh job as the submitter.
+    let (job_payload, job_cost) = create_test_job_payload_and_cost();
+    let submitted_job_id = host_submit_mesh_job(&submitter_ctx, &job_payload) // Corrected: host_submit_mesh_job is a free function
+        .await
+        .expect("Job submission by submitter failed");
+
+    // Manually transfer/inform the job manager about the job for this test setup.
+    // This simulates the job appearing in the manager's queue.
+    let job_details_for_manager = ActualMeshJob {
+        id: submitted_job_id.clone(),
+        manifest_cid: Cid::new_v1_dummy(0x55, 0x13, b"test_job_manifest_for_invalid_receipt"), // Match manifest from payload
+        spec: serde_json::from_str::<serde_json::Value>(&job_payload).unwrap()["spec"].as_object().cloned().map_or_else(JobSpec::default, |_| JobSpec::default()), // Simplified spec
+        creator_did: submitter_ctx.current_identity.clone(),
+        cost_mana: job_cost,
+    };
+    job_manager_ctx.internal_queue_mesh_job(job_details_for_manager).await.expect("Failed to queue job in job manager");
+    assert_job_state(&job_manager_ctx, &submitted_job_id, JobStateVariant::Pending).await;
+
+
+    // 2. Executor 1 (legitimate) bids for the job.
+    let bid1 = create_test_bid(&submitted_job_id, &executor1_ctx, 10);
+    let network_stub_for_job_manager = get_stub_network_service(&job_manager_ctx);
+    network_stub_for_job_manager.stage_bid(submitted_job_id.clone(), bid1).await;
+
+    // Allow job manager to process the bid and assign.
+    sleep(Duration::from_millis(1200)).await; // Adjust as needed for job manager cycle time
+    assert_job_state(&job_manager_ctx, &submitted_job_id, JobStateVariant::Assigned { expected_executor: Some(executor1_ctx.current_identity.clone()) }).await;
+
+    // 3. Executor 2 (the *wrong* one) forges an execution receipt.
+    // The receipt is for the submitted_job_id, but signed by executor2_ctx.
+    let forged_receipt = forge_execution_receipt(&submitted_job_id, b"forged_result_data", &executor2_ctx);
+    
+    // Sanity check: the forged_receipt should have executor2's DID
+    assert_eq!(forged_receipt.executor_did, executor2_ctx.current_identity);
+    // And it should have a signature (filled by forge_execution_receipt helper)
+    assert!(!forged_receipt.sig.is_empty(), "Forged receipt should have a signature");
+
+
+    // 4. Submit the forged receipt to the job manager. This should fail.
+    // The job_manager_ctx.anchor_receipt method is synchronous.
+    let result = job_manager_ctx.anchor_receipt(&mut forged_receipt.clone()); // Clone as anchor_receipt might mutate for its own signing if it were the executor
+
+    // 5. Assertions
+    assert!(result.is_err(), "Anchoring a forged receipt by the wrong executor should fail. Result: {:?}", result);
+    
+    let err = result.err().unwrap();
+    println!("Anchor receipt failed with error: {:?}", err); // For debugging
+
+    match err {
+        HostAbiError::InvalidParameters(msg) => {
+            println!("Correctly failed with InvalidParameters: {}", msg);
+            // Optionally, assert that msg contains something about executor mismatch if the implementation provides that.
+            // e.g., assert!(msg.to_lowercase().contains("executor"));
+        }
+        HostAbiError::SignatureError(msg) => {
+            println!("Failed with SignatureError: {}. This might be secondary if executor check is first.", msg);
+            // This could happen if the signature is invalid for *any* reason, not just wrong DID.
+        }
+        HostAbiError::InternalError(msg) => {
+            println!("Failed with InternalError: {}. Check internal logic.", msg);
+        }
+        HostAbiError::NotImplemented(msg) => {
+             panic!("Test failed due to 'NotImplemented': {}. Anchor receipt logic for executor validation needs to be implemented.", msg);
+        }
+        other_error => {
+            panic!("Expected InvalidParameters, SignatureError, or InternalError related to executor mismatch, but got: {:?}", other_error);
+        }
+    }
+
+    // Ensure job state remains 'Assigned' to executor1 and not 'Completed'.
+    assert_job_state(&job_manager_ctx, &submitted_job_id, JobStateVariant::Assigned { expected_executor: Some(executor1_ctx.current_identity.clone()) }).await;
+    println!("Test 'test_invalid_receipt_wrong_executor' completed successfully.");
+}
+
 // TODO: test_invalid_receipt_bad_signature (requires more control over StubSigner or a mockable signer)
 // TODO: test_duplicate_bids_same_executor
 // TODO: test_insufficient_mana_on_submission (already covered by lib.rs tests, but could have e2e)

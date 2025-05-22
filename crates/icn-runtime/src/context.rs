@@ -3,12 +3,13 @@
 use icn_common::{Did, Cid, CommonError}; // Removed JobId as CommonJobId
 use std::collections::{HashMap, VecDeque}; // Added HashMap for ManaLedger
 use std::str::FromStr; // For Did::from_str in new_with_dummy_mana
-use std::sync::atomic::{AtomicU32, Ordering}; // Modified import for Ordering
+use std::sync::atomic::AtomicU32; // Modified import for Ordering
 use icn_governance::GovernanceModule; // Assuming this can be imported
-use icn_mesh::{ActualMeshJob, MeshJobBid, MeshJobAnnounce, MeshBidSubmit, select_executor, SelectionPolicy, JobId, JobAssignmentNotice, JobState, SubmitReceiptMessage}; // Import from icn-mesh
+pub use icn_mesh::JobState; // Import from icn-mesh
+use icn_mesh::{ActualMeshJob, MeshJobBid, MeshJobAnnounce, select_executor, SelectionPolicy, JobId, JobAssignmentNotice, SubmitReceiptMessage}; // Import from icn-mesh
 use icn_economics::{charge_mana, EconError}; // For mana charging
 use icn_identity::ExecutionReceipt as IdentityExecutionReceipt; // Import and alias ExecutionReceipt
-use tokio::sync::{mpsc, Mutex}; // For channel-based communication if needed and Mutex for shared state
+use tokio::sync::Mutex; // For channel-based communication if needed and Mutex for shared state
 use tokio::time::{sleep, Duration, Instant as TokioInstant}; // For timeouts and Tokio Instant
 use std::sync::Arc; // For shared state
 use async_trait::async_trait; // For async traits
@@ -56,12 +57,13 @@ pub trait Signer: Send + Sync + std::fmt::Debug {
 }
 
 /// Trait for a service that can store and retrieve data in a content-addressable DAG.
-pub trait DagStore: Send + Sync + std::fmt::Debug {
+pub trait DagStore: Send + Sync + std::fmt::Debug + DowncastSync {
     /// Stores a block of data and returns its CID.
     fn put(&self, data: &[u8]) -> Result<Cid, HostAbiError>;
     /// Retrieves a block of data by its CID.
     fn get(&self, cid: &Cid) -> Result<Option<Vec<u8>>, HostAbiError>;
 }
+impl_downcast!(sync DagStore);
 
 /// Trait for a service that can broadcast and receive mesh-specific messages.
 #[async_trait]
@@ -168,17 +170,8 @@ pub struct RuntimeContext {
     pub pending_mesh_jobs: Arc<Mutex<VecDeque<ActualMeshJob>>>, 
     pub job_states: Arc<Mutex<HashMap<JobId, JobState>>>,
     pub governance_module: GovernanceModule,
-    #[cfg(not(test))] // Keep private for non-test builds
-    mesh_network_service: Arc<dyn MeshNetworkService>,
-    #[cfg(test)] // Make pub for test builds
     pub mesh_network_service: Arc<dyn MeshNetworkService>,
-    #[cfg(not(test))] // Keep private for non-test builds
-    signer: Arc<dyn Signer>, 
-    #[cfg(test)] // Make pub for test builds
-    pub signer: Arc<dyn Signer>,
-    #[cfg(not(test))] // Keep private for non-test builds
-    dag_store: Arc<dyn DagStore>,
-    #[cfg(test)] // Make pub for test builds
+    pub signer: Arc<dyn Signer>, 
     pub dag_store: Arc<dyn DagStore>,
 }
 
@@ -212,7 +205,6 @@ impl RuntimeContext {
         )
     }
 
-    #[cfg(test)]
     pub fn new_with_stubs_and_mana(current_identity_str: &str, initial_mana: u64) -> Self {
         let current_identity = Did::from_str(current_identity_str).expect("Invalid DID for test context");
         let ctx = Self::new(
@@ -365,7 +357,7 @@ impl RuntimeContext {
                     if let Some((_original_job, assigned_executor_did, _assignment_time)) = assigned_jobs.get(&job_id_from_receipt) {
                         if receipt_msg.receipt.executor_did == *assigned_executor_did {
                             let mut receipt_to_anchor = receipt_msg.receipt.clone(); 
-                            let mut temp_anchor_ctx = RuntimeContext::new(
+                            let temp_anchor_ctx = RuntimeContext::new(
                                 current_identity_clone.clone(),
                                 network_service_clone.clone(),
                                 signer_clone.clone(),
@@ -448,31 +440,113 @@ impl RuntimeContext {
         self.mana_ledger.credit(account, amount).await
     }
 
-    pub fn anchor_receipt(&self, receipt: &mut IdentityExecutionReceipt) -> Result<Cid, HostAbiError> { 
-        println!("[CONTEXT] anchor_receipt called for job_id: {:?}, executor: {:?}", receipt.job_id, receipt.executor_did);
+    pub fn anchor_receipt(&self, receipt: &IdentityExecutionReceipt) -> Result<Cid, HostAbiError> { 
+        println!("[CONTEXT] anchor_receipt called by context {:?} for job_id: {:?}, claimed executor: {:?}", 
+                 self.current_identity, receipt.job_id, receipt.executor_did);
 
-        if self.current_identity != receipt.executor_did {
-            return Err(HostAbiError::SignatureError(
-                format!("Context identity {:?} does not match receipt executor {:?}. Cannot sign and anchor.", 
-                        self.current_identity, receipt.executor_did)
-            ));
+        // 1. Fetch JobState and Validate Assigned Executor
+        let job_id = &receipt.job_id;
+        let assigned_executor_did = { // Scope for job_states lock
+            let job_states_guard = futures::executor::block_on(self.job_states.lock());
+            match job_states_guard.get(job_id) {
+                Some(JobState::Assigned { executor }) => {
+                    if executor != &receipt.executor_did {
+                        return Err(HostAbiError::InvalidParameters(format!(
+                            "Receipt for job {:?} submitted by unauthorized executor {:?}. Expected assigned executor {:?}.",
+                            job_id, receipt.executor_did, executor
+                        )));
+                    }
+                    executor.clone() // DID of the correctly assigned executor
+                }
+                Some(JobState::Pending) => {
+                    return Err(HostAbiError::InvalidParameters(format!(
+                        "Job {:?} is still Pending, cannot anchor receipt.", job_id
+                    )));
+                }
+                Some(JobState::Completed { .. }) => {
+                     // NOTE: Consider if re-anchoring a completed job's receipt is allowed or an error.
+                     // For now, let's treat it as an error to prevent duplicate processing.
+                    return Err(HostAbiError::InvalidParameters(format!(
+                        "Job {:?} is already Completed. Cannot re-anchor receipt.", job_id
+                    )));
+                }
+                Some(JobState::Failed { .. }) => {
+                    return Err(HostAbiError::InvalidParameters(format!(
+                        "Job {:?} is Failed. Cannot anchor receipt.", job_id
+                    )));
+                }
+                None => {
+                    return Err(HostAbiError::InvalidParameters(format!(
+                        "Job {:?} not found. Cannot anchor receipt.", job_id
+                    )));
+                }
+            }
+        };
+        
+        // At this point, assigned_executor_did is confirmed to be receipt.executor_did.
+        // Sanity check, though the logic above should ensure this.
+        if assigned_executor_did != receipt.executor_did {
+            // This should ideally be unreachable if the logic above is correct.
+            return Err(HostAbiError::InternalError(format!(
+                "Mismatch after assigned executor check. Assigned: {:?}, Receipt: {:?}. This is a bug.",
+                assigned_executor_did, receipt.executor_did
+            )));
         }
 
-        let receipt_data_to_sign = serde_json::to_vec(&(
+        // 2. Verify the signature on the receipt.
+        // The receipt.sig should have been populated by the executor when they created/signed it.
+        if receipt.sig.is_empty() {
+            return Err(HostAbiError::SignatureError("Receipt signature is missing.".to_string()));
+        }
+
+        let receipt_data_to_verify = serde_json::to_vec(&(
             &receipt.job_id, 
             &receipt.executor_did, 
             &receipt.result_cid, 
             receipt.cpu_ms
-        )).map_err(|e| HostAbiError::InternalError(format!("Failed to serialize receipt for signing: {}", e)))?;
+        )).map_err(|e| HostAbiError::InternalError(format!("Failed to serialize receipt for signature verification: {}", e)))?;
 
-        let signature = self.signer.sign(&self.current_identity, &receipt_data_to_sign)?;
-        receipt.sig = signature;
+        match self.signer.verify(&receipt.executor_did, &receipt_data_to_verify, &receipt.sig) {
+            Ok(true) => {
+                println!("[CONTEXT] Signature verified for receipt from executor {:?}", receipt.executor_did);
+            }
+            Ok(false) => {
+                return Err(HostAbiError::SignatureError(format!(
+                    "Invalid signature on receipt for job {:?} from executor {:?}.",
+                    job_id, receipt.executor_did
+                )));
+            }
+            Err(e) => {
+                return Err(HostAbiError::SignatureError(format!(
+                    "Error during signature verification for job {:?}, executor {:?}: {:?}",
+                    job_id, receipt.executor_did, e
+                )));
+            }
+        }
 
+        // 3. If valid, anchor the receipt to the DAG.
         let final_receipt_bytes = serde_json::to_vec(receipt)
             .map_err(|e| HostAbiError::InternalError(format!("Failed to serialize final receipt for DAG: {}", e)))?;
 
         let cid = self.dag_store.put(&final_receipt_bytes)?;
-        println!("[CONTEXT] Anchored receipt for job_id {:?} with CID: {:?}. Executor: {:?}", receipt.job_id, cid, receipt.executor_did);
+        println!("[CONTEXT] Anchored receipt for job_id {:?} with CID: {:?}. Executor: {:?}. Receipt cost {}ms.", 
+                 receipt.job_id, cid, receipt.executor_did, receipt.cpu_ms);
+        
+        // 4. Update the job state to Completed.
+        // NOTE: This needs to be done carefully to avoid deadlocks if the job manager also holds this lock.
+        // For now, let's assume this function is called in a context where it's safe to update.
+        // In a more complex system, this state update might be signaled back to the job manager.
+        { // Scope for job_states lock
+            let mut job_states_guard = futures::executor::block_on(self.job_states.lock());
+            job_states_guard.insert(job_id.clone(), JobState::Completed { receipt: receipt.clone() });
+            println!("[CONTEXT] Job {:?} state updated to Completed.", job_id);
+        }
+
+        // TODO: Trigger reputation update for receipt.executor_did based on receipt.cpu_ms or other metrics.
+        // For now, just a placeholder print.
+        println!("[CONTEXT] Placeholder: Reputation update needed for executor {:?} for job {:?}.", receipt.executor_did, job_id);
+
+
         Ok(cid)
     }
 

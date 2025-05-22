@@ -65,11 +65,10 @@ pub struct ActualMeshJob {
     pub cost_mana: u64,
 }
 
-// Placeholder for JobSpec struct
 /// Detailed specification for a mesh job.
 /// TODO: Define fields for inputs, outputs, resource requirements, timeouts, etc.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct JobSpec;
+pub struct JobSpec {}
 
 /// Represents a bid submitted by an executor node for a specific mesh job.
 #[derive(Debug, Clone, Serialize, Deserialize)] // Added Serialize, Deserialize

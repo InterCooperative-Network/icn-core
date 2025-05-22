@@ -19,3 +19,4 @@ types-only = [] # Allows depending only on types, no extra code, if types are pu
 
 [dev-dependencies]
 tempfile = "3.0"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
