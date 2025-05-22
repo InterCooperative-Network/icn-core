@@ -12,6 +12,7 @@ use tokio::sync::{mpsc, Mutex}; // For channel-based communication if needed and
 use tokio::time::{sleep, Duration, Instant as TokioInstant}; // For timeouts and Tokio Instant
 use std::sync::Arc; // For shared state
 use async_trait::async_trait; // For async traits
+use downcast_rs::{impl_downcast, DowncastSync};
 
 // Counter for generating unique (within this runtime instance) job IDs for stubs
 pub static NEXT_JOB_ID: AtomicU32 = AtomicU32::new(1);
@@ -64,7 +65,7 @@ pub trait DagStore: Send + Sync + std::fmt::Debug {
 
 /// Trait for a service that can broadcast and receive mesh-specific messages.
 #[async_trait]
-pub trait MeshNetworkService: Send + Sync + std::fmt::Debug {
+pub trait MeshNetworkService: Send + Sync + std::fmt::Debug + DowncastSync {
     async fn announce_job(&self, announcement: MeshJobAnnounce) -> Result<(), HostAbiError>;
     async fn collect_bids_for_job(&self, job_id: JobId, duration: Duration) -> Result<Vec<MeshJobBid>, HostAbiError>;
     /// Broadcasts the job assignment to the selected executor (and potentially other listeners).
@@ -72,6 +73,7 @@ pub trait MeshNetworkService: Send + Sync + std::fmt::Debug {
     /// Attempts to receive a submitted execution receipt (non-blocking).
     async fn try_receive_receipt(&self) -> Result<Option<SubmitReceiptMessage>, HostAbiError>;
 }
+impl_downcast!(sync MeshNetworkService);
 
 // --- Host ABI Error --- 
 
@@ -122,24 +124,27 @@ impl From<CommonError> for HostAbiError {
 // --- Mana Ledger (Simple In-Memory Version) ---
 #[derive(Debug, Clone)] 
 pub struct SimpleManaLedger {
-    balances: HashMap<Did, u64>,
+    balances: Arc<Mutex<HashMap<Did, u64>>>,
 }
 
 impl SimpleManaLedger {
     pub fn new() -> Self {
-        Self { balances: HashMap::new() }
+        Self { balances: Arc::new(Mutex::new(HashMap::new())) }
     }
 
-    pub fn get_balance(&self, account: &Did) -> Option<u64> {
-        self.balances.get(account).cloned()
+    pub async fn get_balance(&self, account: &Did) -> Option<u64> {
+        let balances = self.balances.lock().await;
+        balances.get(account).cloned()
     }
 
-    pub fn set_balance(&mut self, account: &Did, amount: u64) {
-        self.balances.insert(account.clone(), amount);
+    pub async fn set_balance(&self, account: &Did, amount: u64) {
+        let mut balances = self.balances.lock().await;
+        balances.insert(account.clone(), amount);
     }
 
-    pub fn spend(&mut self, account: &Did, amount: u64) -> Result<(), HostAbiError> {
-        let balance = self.balances.get_mut(account).ok_or_else(|| HostAbiError::AccountNotFound(account.clone()))?;
+    pub async fn spend(&self, account: &Did, amount: u64) -> Result<(), HostAbiError> {
+        let mut balances = self.balances.lock().await;
+        let balance = balances.get_mut(account).ok_or_else(|| HostAbiError::AccountNotFound(account.clone()))?;
         if *balance < amount {
             return Err(HostAbiError::InsufficientMana);
         }
@@ -147,8 +152,9 @@ impl SimpleManaLedger {
         Ok(())
     }
 
-    pub fn credit(&mut self, account: &Did, amount: u64) -> Result<(), HostAbiError> {
-        let balance = self.balances.entry(account.clone()).or_insert(0);
+    pub async fn credit(&self, account: &Did, amount: u64) -> Result<(), HostAbiError> {
+        let mut balances = self.balances.lock().await;
+        let balance = balances.entry(account.clone()).or_insert(0);
         *balance += amount;
         Ok(())
     }
@@ -209,13 +215,15 @@ impl RuntimeContext {
     #[cfg(test)]
     pub fn new_with_stubs_and_mana(current_identity_str: &str, initial_mana: u64) -> Self {
         let current_identity = Did::from_str(current_identity_str).expect("Invalid DID for test context");
-        let mut ctx = Self::new(
+        let ctx = Self::new(
             current_identity.clone(), 
             Arc::new(StubMeshNetworkService::new()),
             Arc::new(StubSigner),
             Arc::new(StubDagStore::new())
         );
-        ctx.mana_ledger.set_balance(&current_identity, initial_mana);
+        // `set_balance` is now async, but this function is sync.
+        // For test setup, block on the future.
+        futures::executor::block_on(ctx.mana_ledger.set_balance(&current_identity, initial_mana));
         ctx
     }
     
@@ -235,7 +243,8 @@ impl RuntimeContext {
         let signer_clone = Arc::clone(&self.signer);
         let dag_store_clone = Arc::clone(&self.dag_store);
         let current_identity_clone = self.current_identity.clone();
-        let mana_ledger_for_refunds = Arc::new(Mutex::new(self.mana_ledger.clone())); // Clone mana ledger for JobManager refunds
+        // Share the same Arc<Mutex<HashMap<...>>> by cloning the Arc, not the SimpleManaLedger struct itself.
+        let mana_ledger_for_refunds = self.mana_ledger.clone(); 
 
         let mut assigned_jobs: HashMap<JobId, (ActualMeshJob, Did, TokioInstant)> = HashMap::new();
         const JOB_EXECUTION_TIMEOUT: Duration = Duration::from_secs(5 * 60);
@@ -402,9 +411,9 @@ impl RuntimeContext {
                         states.insert(job_id.clone(), JobState::Failed { reason: format!("Execution timed out by executor {:?}", timed_out_executor_did) });
                         
                         // Refund the original submitter
-                        let mut ledger = mana_ledger_for_refunds.lock().await;
-                        match ledger.credit(&timed_out_job.creator_did, timed_out_job.cost_mana) {
-                            Ok(_) => println!("[JobManager] Refunded {} mana to submitter {:?} for timed out job {:?}", 
+                        // mana_ledger_for_refunds is now the same shared ledger instance
+                        match mana_ledger_for_refunds.credit(&timed_out_job.creator_did, timed_out_job.cost_mana).await {
+                            Ok(_) => println!("[JobManager] Refunded {} mana to submitter {:?} for timed out job {:?}. Mana ledger shared.", 
                                             timed_out_job.cost_mana, timed_out_job.creator_did, job_id),
                             Err(e) => eprintln!("[JobManager] Error refunding mana for job {:?}: {:?}. Submitter: {:?}, Amount: {}", 
                                             job_id, e, timed_out_job.creator_did, timed_out_job.cost_mana),
@@ -419,56 +428,51 @@ impl RuntimeContext {
         println!("[RuntimeContext] Mesh job manager spawned.");
     }
 
-    pub fn get_mana(&self, account: &Did) -> Result<u64, HostAbiError> {
+    pub async fn get_mana(&self, account: &Did) -> Result<u64, HostAbiError> {
         println!("[CONTEXT] get_mana called for account: {:?}", account);
-        self.mana_ledger.get_balance(account).ok_or_else(|| HostAbiError::AccountNotFound(account.clone()))
+        self.mana_ledger.get_balance(account).await.ok_or_else(|| HostAbiError::AccountNotFound(account.clone()))
     }
 
-    pub fn spend_mana(&mut self, account: &Did, amount: u64) -> Result<(), HostAbiError> {
+    pub async fn spend_mana(&self, account: &Did, amount: u64) -> Result<(), HostAbiError> {
         println!("[CONTEXT] spend_mana called for account: {:?} amount: {}", account, amount);
         if account != &self.current_identity {
             return Err(HostAbiError::InvalidParameters(
                 "Attempting to spend mana for an account other than the current context identity.".to_string(),
             ));
         }
-        self.mana_ledger.spend(account, amount)
+        self.mana_ledger.spend(account, amount).await
     }
 
-    pub fn credit_mana(&mut self, account: &Did, amount: u64) -> Result<(), HostAbiError> {
+    pub async fn credit_mana(&self, account: &Did, amount: u64) -> Result<(), HostAbiError> {
         println!("[CONTEXT] credit_mana called for account: {:?} amount: {}", account, amount);
-        // Policy: For now, allow crediting any account, as this might be done by system processes (e.g. refunds)
-        // If only self-crediting is allowed, add: if account != &self.current_identity { return Err(...) }
-        self.mana_ledger.credit(account, amount)
+        self.mana_ledger.credit(account, amount).await
     }
 
     pub fn anchor_receipt(&self, receipt: &mut IdentityExecutionReceipt) -> Result<Cid, HostAbiError> { 
-        println!("[CONTEXT] anchor_receipt called for job_id: {:?}", receipt.job_id);
+        println!("[CONTEXT] anchor_receipt called for job_id: {:?}, executor: {:?}", receipt.job_id, receipt.executor_did);
 
-        if receipt.executor_did != self.current_identity {
-            return Err(HostAbiError::InvalidParameters(
-                "Receipt executor_did does not match current context identity.".to_string(),
+        if self.current_identity != receipt.executor_did {
+            return Err(HostAbiError::SignatureError(
+                format!("Context identity {:?} does not match receipt executor {:?}. Cannot sign and anchor.", 
+                        self.current_identity, receipt.executor_did)
             ));
         }
-        
-        let sighash_data = format!("{:?}|{:?}|{:?}|{}", receipt.job_id, receipt.executor_did, receipt.result_cid, receipt.cpu_ms);
 
-        if receipt.sig.is_empty() {
-            let signature = self.signer.sign(&self.current_identity, sighash_data.as_bytes())?;
-            receipt.sig = signature;
-            println!("[CONTEXT] Receipt signed with new signature.");
-        } else {
-            let is_valid = self.signer.verify(&self.current_identity, sighash_data.as_bytes(), &receipt.sig)?;
-            if !is_valid {
-                return Err(HostAbiError::SignatureError("Provided signature is invalid.".to_string()));
-            }
-            println!("[CONTEXT] Existing signature on receipt verified.");
-        }
+        let receipt_data_to_sign = serde_json::to_vec(&(
+            &receipt.job_id, 
+            &receipt.executor_did, 
+            &receipt.result_cid, 
+            receipt.cpu_ms
+        )).map_err(|e| HostAbiError::InternalError(format!("Failed to serialize receipt for signing: {}", e)))?;
 
-        let receipt_bytes = serde_json::to_vec(receipt)
-            .map_err(|e| HostAbiError::InternalError(format!("Failed to serialize receipt: {}", e)))?;
-        
-        let cid = self.dag_store.put(&receipt_bytes)?;
-        println!("[CONTEXT] Receipt anchored to DAG with CID: {:?}", cid);
+        let signature = self.signer.sign(&self.current_identity, &receipt_data_to_sign)?;
+        receipt.sig = signature;
+
+        let final_receipt_bytes = serde_json::to_vec(receipt)
+            .map_err(|e| HostAbiError::InternalError(format!("Failed to serialize final receipt for DAG: {}", e)))?;
+
+        let cid = self.dag_store.put(&final_receipt_bytes)?;
+        println!("[CONTEXT] Anchored receipt for job_id {:?} with CID: {:?}. Executor: {:?}", receipt.job_id, cid, receipt.executor_did);
         Ok(cid)
     }
 
