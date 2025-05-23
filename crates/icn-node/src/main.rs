@@ -7,8 +7,8 @@
 
 use icn_common::{Cid, DagBlock, NodeInfo, NodeStatus, ICN_CORE_VERSION, Did};
 use icn_dag::{StorageService, InMemoryDagStore, FileDagStore};
-use icn_governance::{GovernanceModule, ProposalId, VoteOption, ProposalType};
-use icn_api::{SubmitProposalRequest as ApiSubmitProposalRequest, CastVoteRequest as ApiCastVoteRequest};
+use icn_governance::{GovernanceModule, ProposalId, VoteOption};
+use icn_api::governance_trait::{SubmitProposalRequest as ApiSubmitProposalRequest, CastVoteRequest as ApiCastVoteRequest};
 
 use axum::{
     extract::{State, Path as AxumPath},
@@ -205,9 +205,22 @@ async fn gov_submit_handler(
         Err(e) => return map_rust_error_to_json_response(e, StatusCode::BAD_REQUEST).into_response(),
     };
 
-    let proposal_type: ProposalType = match serde_json::from_value(request.proposal_type_json.clone()) {
-        Ok(pt) => pt,
-        Err(e) => return map_rust_error_to_json_response(format!("Failed to parse proposal_type_json: {}", e), StatusCode::BAD_REQUEST).into_response(),
+    let proposal_type: icn_governance::ProposalType = match request.proposal {
+        icn_api::governance_trait::ProposalInputType::SystemParameterChange { param, value } => {
+            icn_governance::ProposalType::SystemParameterChange(param, value)
+        }
+        icn_api::governance_trait::ProposalInputType::MemberAdmission { did } => {
+            match icn_common::Did::from_str(&did) { // Assuming Did is from icn_common and FromStr
+                Ok(parsed_did) => icn_governance::ProposalType::NewMemberInvitation(parsed_did),
+                Err(e) => return map_rust_error_to_json_response(format!("Failed to parse MemberAdmission DID: {}", e), StatusCode::BAD_REQUEST).into_response(),
+            }
+        }
+        icn_api::governance_trait::ProposalInputType::SoftwareUpgrade { version } => {
+            icn_governance::ProposalType::SoftwareUpgrade(version)
+        }
+        icn_api::governance_trait::ProposalInputType::GenericText { text } => {
+            icn_governance::ProposalType::GenericText(text)
+        }
     };
 
     match state.governance_module.lock().unwrap().submit_proposal(
