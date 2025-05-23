@@ -1,3 +1,5 @@
+cargo-features = ["edition2024"]
+
 [package]
 name = "icn-network"
 version.workspace = true
@@ -6,28 +8,26 @@ authors.workspace = true
 license.workspace = true
 
 [dependencies]
-icn-common = { path = "../icn-common", version = "0.1.0" }
-libp2p = {
-    version = "0.53",
-    optional = true,
-    features = [
-        "gossipsub",
-        "kad",
-        "macros",
-        "tokio",
-        "tcp",
-        "dns",
-        "yamux",
-        "noise",
-        "identify",
-        "ping",
-        "json"
-    ]
-}
+icn-common = { path = "../icn-common" }
 serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0", optional = true }
 tokio = { version = "1.0", features = ["full"], optional = true }
 bs58 = { version = "0.5.0", optional = true }
 
+libp2p = { version = "0.53", optional = true, features = [
+    "gossipsub",
+    "kad",
+    "macros",
+    "tokio",
+    "tcp",
+    "dns",
+    "yamux",
+    "noise",
+    "identify",
+    "ping",
+    "json"
+]}
+
 [features]
 default = []
-with-libp2p = ["dep:libp2p", "dep:tokio", "dep:bs58"]
+experimental-libp2p = ["dep:libp2p", "dep:tokio", "dep:bs58", "dep:serde_json"]

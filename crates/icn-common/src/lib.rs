@@ -6,6 +6,8 @@
 //! reduce code duplication, ensure consistency, and simplify dependencies.
 
 use serde::{Serialize, Deserialize};
+use std::fmt;
+use bs58;
 
 pub const ICN_CORE_VERSION: &str = "0.1.0-dev-functional";
 
@@ -23,6 +25,12 @@ pub struct NodeStatus {
     pub peer_count: u32,
     pub current_block_height: u64, // Example field
     pub version: String,
+}
+
+impl fmt::Display for CommonError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self) // Simple Display implementation using Debug
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -58,6 +66,15 @@ pub enum CommonError {
     DagValidationError(String),     // e.g. CID mismatch, invalid link
     BlockTooLargeError(String),
 
+    // Governance specific errors
+    ProposalExists(String),
+    ProposalNotFound(String),
+    VotingClosed(String),
+    AlreadyVoted(String),
+    InvalidVoteOption(String),
+    NotEligibleToVote(String),
+    NetworkSetupError(String), // For errors during network service initialization (e.g. libp2p setup)
+
     // TODO: Add more specific error variants as needed
 }
 
@@ -68,7 +85,7 @@ pub enum CommonError {
 // --- Real Protocol Data Models ---
 
 /// Represents a Decentralized Identifier (DID).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Did {
     pub method: String,         // e.g., "key", "web", "ion"
     pub id_string: String,      // The method-specific identifier string
@@ -81,6 +98,18 @@ impl Did {
     }
     pub fn to_string(&self) -> String {
         format!("did:{}:{}", self.method, self.id_string)
+    }
+}
+
+impl std::str::FromStr for Did {
+    type Err = CommonError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let parts: Vec<_> = s.splitn(3, ':').collect();
+        if parts.len() == 3 && parts[0] == "did" && !parts[1].is_empty() && !parts[2].is_empty() {
+            Ok(Did { method: parts[1].to_string(), id_string: parts[2].to_string() })
+        } else {
+            Err(CommonError::InvalidInputError(format!("Invalid DID string format: {}. Expected 'did:method:id' with non-empty method and id.", s)))
+        }
     }
 }
 
@@ -109,7 +138,15 @@ impl Cid {
     }
     pub fn to_string_approx(&self) -> String {
         // This is a highly simplified string representation, not a real Base58BTC or Base32 CID string.
-        format!("cidv{}-{}-{}-<hash_bytes_len_{}>", self.version, self.codec, self.hash_alg, self.hash_bytes.len())
+        // Using bs58 encoding of the hash bytes to make it more unique for filenames.
+        format!("cidv{}-{}-{}-{}", self.version, self.codec, self.hash_alg, bs58::encode(&self.hash_bytes).into_string())
+    }
+}
+
+impl fmt::Display for Cid {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // Using the more unique approximate string representation.
+        write!(f, "{}", self.to_string_approx())
     }
 }
 

@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use std::sync::Mutex; // For basic interior mutability for the global store
 use std::path::PathBuf; // For FileDagStore
 use std::fs::{File, OpenOptions}; // For FileDagStore
-use std::io::{Read, Write, Seek, SeekFrom}; // For FileDagStore
+use std::io::{Read, Write}; // Removed Seek, SeekFrom
 use serde::{Serialize, Deserialize}; // For FileDagStore block serialization
 
 // --- Storage Service Trait ---
@@ -157,7 +157,8 @@ impl StorageService<DagBlock> for FileDagStore {
     }
 
     fn contains(&self, cid: &Cid) -> Result<bool, CommonError> {
-        Ok(self.get_block_path(cid).exists())
+        let path = self.get_block_path(cid);
+        Ok(path.exists())
     }
 }
 
@@ -222,7 +223,7 @@ mod tests {
     }
 
     // Generic test suite for any StorageService<DagBlock> implementation
-    fn test_storage_service_suite<S: StorageService<DagBlock>>(mut store: S) {
+    fn test_storage_service_suite<S: StorageService<DagBlock>>(store: &mut S) {
         let block1 = create_test_block("block1_service_test");
         let block2 = create_test_block("block2_service_test");
 
@@ -268,8 +269,8 @@ mod tests {
     
     #[test]
     fn test_in_memory_dag_store_service() {
-        let store = InMemoryDagStore::new();
-        test_storage_service_suite(store);
+        let mut store = InMemoryDagStore::new(); // Make store mutable
+        test_storage_service_suite(&mut store); // Pass as mutable reference
     }
 
     #[test]

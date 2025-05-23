@@ -1,0 +1,88 @@
+name: ICN Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_bump:
+        description: 'Version bump type (patch, minor, major, or specific version X.Y.Z)'
+        required: true
+        default: 'patch'
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # needed to push new commits and tags
+      # packages: write # if publishing to GitHub Packages registry
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Fetch all history for cargo-release
+          token: ${{ secrets.GITHUB_TOKEN }} # Use GITHUB_TOKEN for pushing commits/tags
+
+      - name: Install Rust toolchain (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-release
+        run: cargo install cargo-release
+
+      - name: Configure Git user
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      # Potentially configure registry token if publishing to crates.io
+      # - name: Login to crates.io
+      #   env:
+      #     CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+      #   run: cargo login $CARGO_REGISTRY_TOKEN
+
+      - name: Determine version bump
+        id: version_bump
+        run: |
+          VERSION_INPUT="${{ github.event.inputs.version_bump }}"
+          if [[ "$VERSION_INPUT" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "BUMP_LEVEL=$VERSION_INPUT" >> $GITHUB_ENV
+            echo "IS_SPECIFIC_VERSION=true" >> $GITHUB_ENV
+          else
+            echo "BUMP_LEVEL=$VERSION_INPUT" >> $GITHUB_ENV
+            echo "IS_SPECIFIC_VERSION=false" >> $GITHUB_ENV
+          fi
+
+      - name: Prepare release (version bump, changelog, tag)
+        run: |
+          if [[ "${{ env.IS_SPECIFIC_VERSION }}" == "true" ]]; then
+            cargo release --no-publish --no-push --allow-branch develop --execute ${{ env.BUMP_LEVEL }}
+          else
+            cargo release --no-publish --no-push --allow-branch develop --execute ${{ env.BUMP_LEVEL }}-all
+          fi
+
+      # The cargo-release tool will have created a commit and a tag.
+      # We need to push these to the develop branch first.
+      - name: Push changes and tags to develop
+        run: |
+          git push origin HEAD:develop --follow-tags
+
+      # Optional: Create GitHub Release
+      # cargo-release can also create GitHub releases, but doing it manually or via another action offers more control.
+      # Example using a dedicated action:
+      # - name: Create GitHub Release
+      #   uses: softprops/action-gh-release@v1
+      #   with:
+      #     tag_name: ${{ env.GIT_TAG_NAME }} # GIT_TAG_NAME should be set by cargo-release or extracted
+      #     fail_on_unmatched_files: true
+      #     generate_release_notes: true # If you want GitHub to auto-generate release notes from PRs
+      #   env:
+      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Placeholder for actual publishing to crates.io (if desired)
+      # This would typically happen after merging to main and tagging the release there.
+      # - name: Publish to crates.io
+      #   if: github.ref == 'refs/heads/main' # Example: only publish from main
+      #   run: cargo publish --all-features --workspace
+
+      - name: Notify completion
+        run: echo "Release process initiated for version bump: ${{ github.event.inputs.version_bump }}. Changes pushed to develop." 

@@ -1,3 +1,5 @@
+cargo-features = ["edition2024"]
+
 [package]
 name = "icn-common"
 version.workspace = true
@@ -7,4 +9,9 @@ license.workspace = true
 
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
+bs58 = "0.5"
+
+[dev-dependencies]
 serde_json = "1.0"
+
+# TODO: Add other common utility crates like 'hex', 'log', 'thiserror' as needed.

@@ -1,3 +1,5 @@
+cargo-features = ["edition2024"]
+
 [package]
 name = "icn-economics"
 version.workspace = true
@@ -6,4 +8,4 @@ authors.workspace = true
 license.workspace = true
 
 [dependencies]
-icn-common = { path = "../icn-common", version = "0.1.0" }
+icn-common = { path = "../icn-common" }
