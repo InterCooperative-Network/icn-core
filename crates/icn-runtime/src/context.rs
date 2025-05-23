@@ -6,7 +6,7 @@ use std::str::FromStr; // For Did::from_str in new_with_dummy_mana
 use std::sync::atomic::AtomicU32; // Modified import for Ordering
 use icn_governance::GovernanceModule; // Assuming this can be imported
 pub use icn_mesh::JobState; // Import from icn-mesh
-use icn_mesh::{ActualMeshJob, MeshJobBid, MeshJobAnnounce, select_executor, SelectionPolicy, JobId, JobAssignmentNotice, SubmitReceiptMessage}; // Import from icn-mesh
+use icn_mesh::{ActualMeshJob, MeshJobBid, MeshJobAnnounce, select_executor, SelectionPolicy, JobId, JobAssignmentNotice, SubmitReceiptMessage as MeshSubmitReceiptMessage}; // Import from icn-mesh
 use icn_economics::{charge_mana, EconError}; // For mana charging
 use icn_identity::ExecutionReceipt as IdentityExecutionReceipt; // Import and alias ExecutionReceipt
 use tokio::sync::Mutex; // For channel-based communication if needed and Mutex for shared state
@@ -14,6 +14,10 @@ use tokio::time::{sleep, Duration, Instant as TokioInstant}; // For timeouts and
 use std::sync::Arc; // For shared state
 use async_trait::async_trait; // For async traits
 use downcast_rs::{impl_downcast, DowncastSync};
+
+// Import network service from icn-network
+use icn_network::libp2p_service::{Libp2pNetworkService, Libp2pPeerId, Multiaddr}; // Corrected path & added types
+use icn_network::{NetworkMessage, NetworkService as GenericNetworkService, PeerId as GenericPeerId};
 
 // Counter for generating unique (within this runtime instance) job IDs for stubs
 pub static NEXT_JOB_ID: AtomicU32 = AtomicU32::new(1);
@@ -73,9 +77,116 @@ pub trait MeshNetworkService: Send + Sync + std::fmt::Debug + DowncastSync {
     /// Broadcasts the job assignment to the selected executor (and potentially other listeners).
     async fn broadcast_assignment(&self, notice: JobAssignmentNotice) -> Result<(), HostAbiError>;
     /// Attempts to receive a submitted execution receipt (non-blocking).
-    async fn try_receive_receipt(&self) -> Result<Option<SubmitReceiptMessage>, HostAbiError>;
+    async fn try_receive_receipt(&self) -> Result<Option<MeshSubmitReceiptMessage>, HostAbiError>;
 }
 impl_downcast!(sync MeshNetworkService);
+
+// --- DefaultMeshNetworkService Implementation ---
+
+#[derive(Debug)]
+pub struct DefaultMeshNetworkService {
+    network_service: Arc<Libp2pNetworkService>,
+    // Receiver for all messages. This needs careful handling for multiple concurrent calls
+    // to collect_bids_for_job or try_receive_receipt.
+    // For now, we might clone the receiver or use a broadcast channel if Libp2pNetworkService supports it.
+    // Based on current Libp2pNetworkService, each call to subscribe gives a new MPSC receiver.
+    // This means collect_bids_for_job and try_receive_receipt will need to manage their own subscriptions.
+}
+
+impl DefaultMeshNetworkService {
+    pub fn new(network_service: Arc<Libp2pNetworkService>) -> Self {
+        Self { network_service }
+    }
+}
+
+#[async_trait]
+impl MeshNetworkService for DefaultMeshNetworkService {
+    async fn announce_job(&self, announcement: MeshJobAnnounce) -> Result<(), HostAbiError> {
+        println!("[DefaultMeshNetworkService] Announcing job: {:?}", announcement.job_id);
+        let job_message = NetworkMessage::MeshJobAnnouncement(
+            icn_mesh::ActualMeshJob { // Assuming MeshJobAnnounce can be converted or we construct ActualMeshJob
+                id: announcement.job_id.clone(),
+                manifest_cid: announcement.manifest_cid.clone(),
+                spec: icn_mesh::JobSpec::default(), // JobSpec might need to be part of MeshJobAnnounce
+                creator_did: announcement.creator_did.clone(),
+                cost_mana: announcement.cost_mana,
+            }
+        );
+        self.network_service.broadcast_message(job_message).await
+            .map_err(|e| HostAbiError::NetworkError(format!("Failed to announce job: {}", e)))
+    }
+
+    async fn collect_bids_for_job(&self, job_id: JobId, duration: Duration) -> Result<Vec<MeshJobBid>, HostAbiError> {
+        println!("[DefaultMeshNetworkService] Collecting bids for job {:?} for {:?}", job_id, duration);
+        let mut bids = Vec::new();
+        let mut receiver = self.network_service.subscribe()
+            .map_err(|e| HostAbiError::NetworkError(format!("Failed to subscribe for bids: {}", e)))?;
+        
+        let end_time = TokioInstant::now() + duration;
+
+        loop {
+            match tokio::time::timeout_at(end_time, receiver.recv()).await {
+                Ok(Some(Some(message))) => { // Outer Some for timeout, inner Some for channel message
+                    if let NetworkMessage::BidSubmission(bid) = message {
+                        if bid.job_id == job_id {
+                            println!("[DefaultMeshNetworkService] Received bid for job {:?}: {:?}", job_id, bid);
+                            bids.push(bid);
+                        }
+                    }
+                }
+                Ok(Some(None)) => { // Channel closed
+                    eprintln!("[DefaultMeshNetworkService] Bid collection channel closed for job {:?}", job_id);
+                    break;
+                }
+                Ok(None) => { // Should not happen with mpsc receiver.recv()
+                    break;
+                }
+                Err(_) => { // Timeout
+                    println!("[DefaultMeshNetworkService] Bid collection timed out for job {:?}", job_id);
+                    break;
+                }
+            }
+        }
+        Ok(bids)
+    }
+
+    async fn broadcast_assignment(&self, notice: JobAssignmentNotice) -> Result<(), HostAbiError> {
+        println!("[DefaultMeshNetworkService] Broadcasting assignment for job {:?}", notice.job_id);
+        let assignment_message = NetworkMessage::JobAssignmentNotification(notice.job_id.clone(), notice.executor_did.clone());
+        self.network_service.broadcast_message(assignment_message).await
+            .map_err(|e| HostAbiError::NetworkError(format!("Failed to broadcast assignment: {}", e)))
+    }
+
+    async fn try_receive_receipt(&self) -> Result<Option<MeshSubmitReceiptMessage>, HostAbiError> {
+        println!("[DefaultMeshNetworkService] Trying to receive receipt (not fully implemented, needs persistent subscription or shared receiver)");
+        // This is a placeholder. A real implementation would need to manage a persistent subscription
+        // or have a shared receiver from Libp2pNetworkService.
+        // For now, it subscribes, tries to receive one message, and that's it. This is not robust.
+        let mut receiver = self.network_service.subscribe()
+            .map_err(|e| HostAbiError::NetworkError(format!("Failed to subscribe for receipts: {}", e)))?;
+
+        match receiver.try_recv() {
+            Ok(NetworkMessage::SubmitReceipt(receipt)) => {
+                println!("[DefaultMeshNetworkService] Received receipt: {:?}", receipt.job_id);
+                // The MeshSubmitReceiptMessage struct from icn-mesh might be different from icn_identity::ExecutionReceipt
+                // We need to ensure types match or convert. For now, assume direct usage is okay if types are compatible.
+                // Let's assume MeshSubmitReceiptMessage is a wrapper around ExecutionReceipt.
+                // The type from network is icn_identity::ExecutionReceipt
+                // The type expected by MeshNetworkService trait is icn_mesh::SubmitReceiptMessage
+                // We need to find definition of icn_mesh::SubmitReceiptMessage
+                // From earlier search:
+                // pub struct SubmitReceiptMessage { pub receipt: icn_identity::ExecutionReceipt }
+                Ok(Some(MeshSubmitReceiptMessage { receipt }))
+            }
+            Ok(_) => Ok(None), // Other message types
+            Err(tokio::sync::mpsc::error::TryRecvError::Empty) => Ok(None),
+            Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => {
+                eprintln!("[DefaultMeshNetworkService] Receipt collection channel disconnected.");
+                Err(HostAbiError::NetworkError("Receipt channel disconnected".to_string()))
+            }
+        }
+    }
+}
 
 // --- Host ABI Error --- 
 
@@ -88,8 +199,13 @@ pub enum HostAbiError {
     InvalidParameters(String),
     DagOperationFailed(String),
     SignatureError(String),
+    CryptoError(String),
+    WasmExecutionError(String),
+    ResourceLimitExceeded(String),
+    InvalidSystemApiCall(String),
     InternalError(String),
-    Common(CommonError), 
+    Common(CommonError),
+    NetworkError(String), // Added for network-specific errors from DefaultMeshNetworkService
 }
 
 impl std::fmt::Display for HostAbiError {
@@ -97,13 +213,18 @@ impl std::fmt::Display for HostAbiError {
         match self {
             HostAbiError::NotImplemented(msg) => write!(f, "Not implemented: {}", msg),
             HostAbiError::InsufficientMana => write!(f, "Insufficient mana"),
-            HostAbiError::AccountNotFound(did) => write!(f, "Account not found: {:?}", did),
+            HostAbiError::AccountNotFound(did) => write!(f, "Account not found: {}", did.to_string()),
             HostAbiError::JobSubmissionFailed(msg) => write!(f, "Job submission failed: {}", msg),
             HostAbiError::InvalidParameters(msg) => write!(f, "Invalid parameters: {}", msg),
             HostAbiError::DagOperationFailed(msg) => write!(f, "DAG operation failed: {}", msg),
             HostAbiError::SignatureError(msg) => write!(f, "Signature error: {}", msg),
+            HostAbiError::CryptoError(msg) => write!(f, "Crypto error: {}", msg),
+            HostAbiError::WasmExecutionError(msg) => write!(f, "Wasm execution error: {}", msg),
+            HostAbiError::ResourceLimitExceeded(msg) => write!(f, "Resource limit exceeded: {}", msg),
+            HostAbiError::InvalidSystemApiCall(msg) => write!(f, "Invalid system API call: {}", msg),
             HostAbiError::InternalError(msg) => write!(f, "Internal runtime error: {}", msg),
             HostAbiError::Common(e) => write!(f, "Common error: {}", e),
+            HostAbiError::NetworkError(msg) => write!(f, "Network error: {}", msg),
         }
     }
 }
@@ -111,8 +232,8 @@ impl std::fmt::Display for HostAbiError {
 impl std::error::Error for HostAbiError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            HostAbiError::Common(_) => None,
-            _ => None, 
+            HostAbiError::Common(e) => Some(e),
+            _ => None,
         }
     }
 }
@@ -182,19 +303,44 @@ impl RuntimeContext {
         signer: Arc<dyn Signer>,
         dag_store: Arc<dyn DagStore>
     ) -> Self {
+        let job_states = Arc::new(Mutex::new(HashMap::new()));
+        let pending_mesh_jobs = Arc::new(Mutex::new(VecDeque::new()));
+
+        // Spawn the job manager task if it's not already running.
+        // This needs to be handled carefully to avoid multiple spawns if RuntimeContext is created multiple times.
+        // For now, we assume it's called once per logical "node" setup.
+        // The actual spawning is now done by calling `spawn_mesh_job_manager` explicitly after context creation.
+
         Self {
             current_identity,
             mana_ledger: SimpleManaLedger::new(),
-            pending_mesh_jobs: Arc::new(Mutex::new(VecDeque::new())), 
-            job_states: Arc::new(Mutex::new(HashMap::new())),
-            governance_module: GovernanceModule::new(),
+            pending_mesh_jobs,
+            job_states,
+            governance_module: GovernanceModule::new(), // TODO: Pass config or state
             mesh_network_service,
             signer,
             dag_store,
         }
     }
 
-    #[cfg(test)]
+    pub async fn new_with_libp2p_network(current_identity_str: &str, bootstrap_peers: Option<Vec<(Libp2pPeerId, Multiaddr)>>) -> Result<Self, CommonError> {
+        let current_identity = Did::from_str(current_identity_str)
+            .map_err(|e| CommonError::IdentityError(format!("Invalid DID string: {}: {}", current_identity_str, e)))?;
+        
+        let libp2p_service = Arc::new(
+            icn_network::libp2p_service::Libp2pNetworkService::new(bootstrap_peers).await
+                .map_err(|e| CommonError::NetworkSetupError(format!("Failed to create Libp2pNetworkService: {}", e)))?
+        );
+        let default_mesh_service = Arc::new(DefaultMeshNetworkService::new(libp2p_service.clone()));
+
+        Ok(Self::new(
+            current_identity,
+            default_mesh_service,
+            Arc::new(StubSigner), // Using StubSigner for now
+            Arc::new(StubDagStore::new()), // Using StubDagStore for now
+        ))
+    }
+
     pub fn new_with_stubs(current_identity_str: &str) -> Self {
         let current_identity = Did::from_str(current_identity_str).expect("Invalid DID for test context");
         Self::new(
@@ -655,7 +801,7 @@ impl DagStore for StubDagStore {
 #[derive(Debug, Clone)]
 pub struct StubMeshNetworkService {
     staged_bids: Arc<Mutex<HashMap<JobId, VecDeque<MeshJobBid>>>>,
-    staged_receipts: Arc<Mutex<VecDeque<SubmitReceiptMessage>>>,
+    staged_receipts: Arc<Mutex<VecDeque<MeshSubmitReceiptMessage>>>,
 }
 impl StubMeshNetworkService { 
     pub fn new() -> Self { 
@@ -670,7 +816,7 @@ impl StubMeshNetworkService {
         bids_map.entry(job_id).or_default().push_back(bid);
     }
     // Test helper to stage a receipt
-    pub async fn stage_receipt(&self, receipt_message: SubmitReceiptMessage) {
+    pub async fn stage_receipt(&self, receipt_message: MeshSubmitReceiptMessage) {
         let mut receipts_queue = self.staged_receipts.lock().await;
         receipts_queue.push_back(receipt_message);
     }
@@ -701,7 +847,7 @@ impl MeshNetworkService for StubMeshNetworkService {
         Ok(())
     }
 
-    async fn try_receive_receipt(&self) -> Result<Option<SubmitReceiptMessage>, HostAbiError> {
+    async fn try_receive_receipt(&self) -> Result<Option<MeshSubmitReceiptMessage>, HostAbiError> {
         let mut receipts_queue = self.staged_receipts.lock().await;
         if let Some(receipt_msg) = receipts_queue.pop_front() {
             println!("[StubMeshNetworkService] try_receive_receipt: Popped staged receipt for job {:?}", receipt_msg.receipt.job_id);

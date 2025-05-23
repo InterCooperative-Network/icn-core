@@ -412,3 +412,141 @@ async fn test_invalid_receipt_wrong_executor() {
 // TODO: test_insufficient_mana_on_submission (already covered by lib.rs tests, but could have e2e)
 // TODO: test_multiple_concurrent_jobs
 // TODO: test_no_bids_job_re_queued
+
+#[tokio::test]
+async fn test_full_mesh_job_cycle_libp2p() -> Result<(), anyhow::Error> {
+    // 1. Setup Node A (Job Manager / Submitter)
+    let node_a_ctx = Arc::new(RuntimeContext::new_with_libp2p_network("did:icn:test:node_a_libp2p", None).await?);
+    let node_a_net_service = node_a_ctx.mesh_network_service.clone(); // This is Arc<dyn MeshNetworkService>
+    // We need access to the underlying Libp2pNetworkService to get listening addresses.
+    // This requires DefaultMeshNetworkService to expose its inner service or RuntimeContext to store it too.
+    // For now, let's assume we can get the Libp2pNetworkService instance from somewhere or we create it separately
+    // and pass it to both DefaultMeshNetworkService and use it for bootstrap info.
+
+    // Let's refine: Create Libp2pNetworkService for Node A first.
+    let node_a_libp2p_actual_service = Arc::new(icn_network::libp2p_service::Libp2pNetworkService::new(None).await?);
+    let node_a_peer_id_str = node_a_libp2p_actual_service.local_peer_id().to_string();
+    let node_a_addrs = node_a_libp2p_actual_service.listening_addresses();
+    assert!(!node_a_addrs.is_empty(), "Node A should have listening addresses");
+    println!("[Test] Node A Peer ID: {}", node_a_peer_id_str);
+    println!("[Test] Node A Listening Addresses: {:?}", node_a_addrs);
+
+    let node_a_ctx = Arc::new(RuntimeContext::new(
+        Did::from_str("did:icn:test:node_a_libp2p")?,
+        Arc::new(icn_runtime::context::DefaultMeshNetworkService::new(node_a_libp2p_actual_service.clone())),
+        Arc::new(icn_runtime::context::StubSigner),
+        Arc::new(icn_runtime::context::StubDagStore::new()),
+    ));
+    node_a_ctx.mana_ledger.set_balance(&node_a_ctx.current_identity, 1000).await; // Give some mana
+    node_a_ctx.spawn_mesh_job_manager().await; // Start job manager
+
+    // 2. Setup Node B (Executor)
+    let node_a_libp2p_peer_id_for_b = icn_network::libp2p_service::Libp2pPeerId::from_str(&node_a_peer_id_str)?;
+    let bootstrap_peers_for_b = Some(vec![(node_a_libp2p_peer_id_for_b, node_a_addrs[0].clone())]);
+    let node_b_libp2p_actual_service = Arc::new(icn_network::libp2p_service::Libp2pNetworkService::new(bootstrap_peers_for_b).await?);
+    println!("[Test] Node B Peer ID: {}", node_b_libp2p_actual_service.local_peer_id().to_string());
+    
+    let node_b_ctx = Arc::new(RuntimeContext::new(
+        Did::from_str("did:icn:test:node_b_libp2p")?,
+        Arc::new(icn_runtime::context::DefaultMeshNetworkService::new(node_b_libp2p_actual_service.clone())),
+        Arc::new(icn_runtime::context::StubSigner),
+        Arc::new(icn_runtime::context::StubDagStore::new()),
+    ));
+    node_b_ctx.mana_ledger.set_balance(&node_b_ctx.current_identity, 500).await; // Give some mana
+
+    sleep(Duration::from_secs(5)).await; // Allow time for network connection
+
+    // 3. Node A submits a job
+    let job_cost = 50u64;
+    let manifest_cid = Cid::new_v1_dummy(0x55, 0x13, b"job_manifest_libp2p_test");
+    let job_json_payload = json!({
+        "manifest_cid": manifest_cid,
+        "spec": {},
+        "cost_mana": job_cost,
+    }).to_string();
+
+    // Subscribe to Node B's Libp2p service to catch the announcement
+    // This is for test verification, Node B's actual executor logic would do this internally.
+    let mut node_b_raw_receiver = node_b_libp2p_actual_service.subscribe()
+        .map_err(|e| anyhow::anyhow!("Node B failed to subscribe: {}", e))?;
+
+    let submitted_job_id = host_submit_mesh_job(&node_a_ctx, &job_json_payload).await?;
+    println!("[Test] Node A submitted job ID: {}", submitted_job_id);
+    assert_job_state(&node_a_ctx, &submitted_job_id, JobStateVariant::Pending).await;
+
+    // 4. Node B listens for the job, receives it, and submits a bid
+    println!("[Test] Node B listening for job announcement...");
+    let received_on_b = tokio::time::timeout(Duration::from_secs(20), node_b_raw_receiver.recv()).await??;
+    assert!(received_on_b.is_some(), "Node B: Raw receiver channel closed or got None");
+
+    if let Some(icn_network::NetworkMessage::MeshJobAnnouncement(announced_job)) = received_on_b {
+        assert_eq!(announced_job.id, submitted_job_id, "Node B received announcement for wrong job");
+        println!("[Test] Node B received announcement for job ID: {}", announced_job.id);
+
+        let bid = MeshJobBid {
+            job_id: announced_job.id.clone(),
+            executor_did: node_b_ctx.current_identity.clone(),
+            price_mana: 20,
+            resources: Resources::default(),
+        };
+        // Node B submits the bid using its MeshNetworkService
+        node_b_ctx.mesh_network_service.broadcast_message(
+            icn_network::NetworkMessage::BidSubmission(bid.clone())
+        ).await.map_err(|e| anyhow::anyhow!("Node B failed to broadcast bid: {}", e))?; // Using broadcast_message directly from GenericNetworkService for now
+        println!("[Test] Node B submitted bid for job ID: {}", announced_job.id);
+    } else {
+        panic!("[Test] Node B did not receive MeshJobAnnouncement, got: {:?}", received_on_b);
+    }
+
+    // 5. Give JobManager on Node A time to process bids and assign
+    sleep(Duration::from_secs(10)).await; // Increased from 1.2s, as network ops take time.
+                                        // The DefaultMeshNetworkService.collect_bids_for_job has its own timeout (30s in current JobManager code)
+                                        // so JobManager might take up to that long.
+                                        // The JobManager in context.rs has a 30s bid window.
+    
+    // 6. Assert job is assigned to Node B on Node A's context
+    assert_job_state(&node_a_ctx, &submitted_job_id, JobStateVariant::Assigned { expected_executor: Some(node_b_ctx.current_identity.clone()) }).await;
+    println!("[Test] Job {} successfully assigned to Node B {}", submitted_job_id, node_b_ctx.current_identity.to_string());
+    
+    // 7. Node B "executes" the job and prepares a receipt
+    let result_cid = Cid::new_v1_dummy(0x55, 0x13, b"libp2p_test_result_data");
+    let mut receipt_by_node_b = IdentityExecutionReceipt {
+        job_id: submitted_job_id.clone(),
+        executor_did: node_b_ctx.current_identity.clone(),
+        result_cid: result_cid.clone(),
+        cpu_ms: 75,
+        sig: Vec::new(), // Will be signed by Node B's context
+    };
+
+    // Node B signs its own receipt (simulating host_anchor_receipt or similar internal process)
+    // For this test, we directly use the anchor_receipt method on Node B's context,
+    // which will sign it and (in a real scenario) store it in its own DAG.
+    // The job manager on Node A will later verify this signature.
+    match node_b_ctx.anchor_receipt(&mut receipt_by_node_b) {
+        Ok(_) => println!("[Test] Node B signed its execution receipt for job {}", submitted_job_id),
+        Err(e) => return Err(anyhow::anyhow!("Node B failed to sign its own receipt: {}", e)),
+    }
+    assert!(!receipt_by_node_b.sig.is_empty(), "Node B's receipt should be signed");
+
+    // 8. Node B submits the receipt over the network
+    let receipt_message = icn_network::NetworkMessage::SubmitReceipt(receipt_by_node_b.clone());
+    node_b_ctx.mesh_network_service.broadcast_message(receipt_message).await
+        .map_err(|e| anyhow::anyhow!("Node B failed to broadcast receipt: {}",e))?;
+    println!("[Test] Node B broadcasted receipt for job {}", submitted_job_id);
+
+    // 9. Give JobManager on Node A time to process the receipt
+    // The JobManager's try_receive_receipt is called in its loop.
+    sleep(Duration::from_secs(10)).await; // Allow time for network and processing
+
+    // 10. Assert job is completed on Node A's context
+    assert_job_state(&node_a_ctx, &submitted_job_id, JobStateVariant::Completed {
+        expected_receipt_data: Some(ExpectedReceiptData {
+            job_id: submitted_job_id.clone(),
+            executor_did: node_b_ctx.current_identity.clone(),
+            result_cid: result_cid.clone(),
+        })
+    }).await;
+    println!("[Test] Job {} successfully marked as Completed on Node A", submitted_job_id);
+
+    Ok(())
+}

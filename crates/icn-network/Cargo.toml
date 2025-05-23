@@ -11,23 +11,26 @@ license.workspace = true
 icn-common = { path = "../icn-common" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", optional = true }
-tokio = { version = "1.0", features = ["full"], optional = true }
+tokio = { version = "1", features = ["full"] }
 bs58 = { version = "0.5.0", optional = true }
+icn-mesh = { path = "../icn-mesh" }
+icn-identity = { path = "../icn-identity" }
 
 libp2p = { version = "0.53", optional = true, features = [
-    "gossipsub",
-    "kad",
-    "macros",
-    "tokio",
+    "tokio", 
+    "gossipsub", 
+    "kad", 
+    "ping", 
+    "noise", 
+    "yamux", 
     "tcp",
     "dns",
-    "yamux",
-    "noise",
-    "identify",
-    "ping",
-    "json"
+    "macros"
 ]}
+
+[dev-dependencies]
+# ... existing dev-dependencies ...
 
 [features]
 default = []
-experimental-libp2p = ["dep:libp2p", "dep:tokio", "dep:bs58", "dep:serde_json"]
+experimental-libp2p = ["dep:libp2p", "dep:serde_json", "dep:bs58"]

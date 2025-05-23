@@ -6,7 +6,14 @@
 //! message routing, and federation synchronization.
 
 use icn_common::{NodeInfo, CommonError, DagBlock, Cid, Did};
+use icn_mesh::{ActualMeshJob as Job, MeshJobBid as Bid, JobId};
+use icn_identity::ExecutionReceipt;
 use serde::{Serialize, Deserialize};
+use tokio::sync::mpsc::Receiver;
+use std::sync::{Arc, Mutex};
+use std::collections::HashMap;
+use std::str::FromStr;
+use libp2p::kad::{Key, Record, QueryId, Quorum, GetRecordOk, PutRecordOk};
 
 // --- Peer and Message Scaffolding ---
 
@@ -20,6 +27,10 @@ pub enum NetworkMessage {
     GossipSub(String, Vec<u8>), // topic, data
     FederationSyncRequest(Did), // Request sync from a federation representative DID
     // TODO: Add more message types as protocols develop
+    MeshJobAnnouncement(Job),
+    BidSubmission(Bid),
+    JobAssignmentNotification(JobId, Did),
+    SubmitReceipt(ExecutionReceipt),
 }
 
 /// Placeholder for a network service trait.
@@ -30,6 +41,7 @@ pub trait NetworkService {
     async fn broadcast_message(&self, message: NetworkMessage) -> Result<(), CommonError>;
     // fn subscribe_to_topic(&self, topic: &str) -> Result<(), CommonError>;
     // fn publish_to_topic(&self, topic: &str, data: Vec<u8>) -> Result<(), CommonError>;
+    fn subscribe(&self) -> Result<Receiver<NetworkMessage>, CommonError>;
 }
 
 /// Stub implementation for NetworkService.
@@ -67,6 +79,12 @@ impl NetworkService for StubNetworkService {
             }
         }
         Ok(())
+    }
+
+    fn subscribe(&self) -> Result<Receiver<NetworkMessage>, CommonError> {
+        println!("[StubNetworkService] Subscribing to messages... returning an empty channel.");
+        let (_tx, rx) = tokio::sync::mpsc::channel(1); // Create a dummy channel
+        Ok(rx)
     }
 }
 
@@ -166,8 +184,8 @@ pub mod libp2p_service {
     use std::sync::{Arc, Mutex};
     use std::collections::HashMap;
     use std::str::FromStr;
-    use libp2p::kad::record::{Key, Record};
-    use libp2p::kad::{QueryId, Quorum, GetRecordOk, PutRecordOk};
+    use libp2p::kad::record::Key as KademliaKey;
+    use libp2p::kad::{Record as KademliaRecord, QueryId, Quorum, GetRecordOk, PutRecordOk};
 
     /* ---------- Public façade ------------------------------------------------ */
 
@@ -176,6 +194,8 @@ pub mod libp2p_service {
         cmd_tx: mpsc::Sender<Command>,
         local_peer_id: Libp2pPeerId,
         listening_addresses: Arc<Mutex<Vec<Multiaddr>>>,
+        // We don't store the message_rx here directly.
+        // Instead, the Swarm task will manage senders to subscribers.
     }
 
     impl Libp2pNetworkService {
@@ -255,7 +275,10 @@ pub mod libp2p_service {
             // Kademlia query tracking
             let mut pending_kad_queries = HashMap::<kad::QueryId, oneshot::Sender<Result<Vec<super::PeerId>, CommonError>>>::new();
             let mut pending_put_kad_queries = HashMap::<QueryId, oneshot::Sender<Result<(), CommonError>>>::new();
-            let mut pending_get_kad_records = HashMap::<QueryId, oneshot::Sender<Result<Option<Record>, CommonError>>>::new();
+            let mut pending_get_kad_records = HashMap::<QueryId, oneshot::Sender<Result<Option<KademliaRecord>, CommonError>>>::new();
+            
+            // List of senders to subscribers
+            let mut subscriber_senders = Vec::<mpsc::Sender<super::NetworkMessage>>::new();
 
             task::spawn(async move {
                 let topic = gossipsub::IdentTopic::new("icn-default");
@@ -271,6 +294,23 @@ pub mod libp2p_service {
                                 Some(SwarmEvent::Behaviour(Event::Gossipsub(e))) => {
                                     if let gossipsub::Event::Message{message, ..} = e {
                                         println!("[libp2p] Got gossip message: {:?}", message.data);
+                                        match serde_json::from_slice::<super::NetworkMessage>(&message.data) {
+                                            Ok(network_msg) => {
+                                                // Send to all subscribers
+                                                let mut retain_senders = Vec::new();
+                                                for sender in subscriber_senders.iter() {
+                                                    if sender.send(network_msg.clone()).await.is_ok() {
+                                                        retain_senders.push(sender.clone());
+                                                    } else {
+                                                        eprintln!("[libp2p] Failed to send message to a subscriber. Removing subscriber.");
+                                                    }
+                                                }
+                                                subscriber_senders = retain_senders;
+                                            }
+                                            Err(err) => {
+                                                eprintln!("[libp2p] Failed to deserialize gossip message: {}", err);
+                                            }
+                                        }
                                     }
                                 }
                                 Some(SwarmEvent::Behaviour(Event::Ping(event))) => {
@@ -342,7 +382,7 @@ pub mod libp2p_service {
                                                         println!("[libp2p] Kademlia GetRecord query_id={:?} (FoundRecord data) had no sender or already handled.", id);
                                                     }
                                                 }
-                                                kad::QueryResult::GetRecord(Ok(GetRecordOk::FinishedWithNoAdditionalRecord)) => {
+                                                kad::QueryResult::GetRecord(Ok(GetRecordOk::FinishedWithNoAdditionalRecord{..})) => {
                                                     if let Some(sender) = pending_get_kad_records.remove(&id) {
                                                         println!("[libp2p] Kademlia GetRecord FinishedWithNoAdditionalRecord for query_id={:?}", id);
                                                         if sender.send(Ok(None)).is_err() {
@@ -524,6 +564,10 @@ pub mod libp2p_service {
                                         eprintln!("[libp2p] Failed to publish to topic {}: {:?}", topic, e);
                                     }
                                 }
+                                Command::AddSubscriber { rsp_tx } => {
+                                    subscriber_senders.push(rsp_tx);
+                                    println!("[libp2p] Added new subscriber. Total subscribers: {}", subscriber_senders.len());
+                                }
                             }
                         }
                         else => break, 
@@ -565,7 +609,7 @@ pub mod libp2p_service {
             rx.await.map_err(|e| CommonError::NetworkSetupError(format!("trigger_kad_bootstrap response dropped: {}", e.to_string())))?
         }
 
-        pub async fn put_kad_record(&self, key: Key, value: Vec<u8>) -> Result<(), CommonError> {
+        pub async fn put_kad_record(&self, key: KademliaKey, value: Vec<u8>) -> Result<(), CommonError> {
             let (tx, rx) = oneshot::channel();
             self.cmd_tx
                 .send(Command::PutKadRecord { key, value, rsp: tx })
@@ -574,7 +618,7 @@ pub mod libp2p_service {
             rx.await.map_err(|e| CommonError::NetworkSetupError(format!("put_kad_record response dropped: {}", e)))?
         }
 
-        pub async fn get_kad_record(&self, key: Key) -> Result<Option<Record>, CommonError> {
+        pub async fn get_kad_record(&self, key: KademliaKey) -> Result<Option<KademliaRecord>, CommonError> {
             let (tx, rx) = oneshot::channel();
             self.cmd_tx
                 .send(Command::GetKadRecord { key, rsp: tx })
@@ -603,15 +647,16 @@ pub mod libp2p_service {
             rsp: oneshot::Sender<Result<(), CommonError>>
         },
         PutKadRecord {
-            key: Key,
+            key: KademliaKey,
             value: Vec<u8>,
             rsp: oneshot::Sender<Result<(), CommonError>>,
         },
         GetKadRecord {
-            key: Key,
-            rsp: oneshot::Sender<Result<Option<Record>, CommonError>>,
+            key: KademliaKey,
+            rsp: oneshot::Sender<Result<Option<KademliaRecord>, CommonError>>,
         },
         Broadcast { data: Vec<u8> },
+        AddSubscriber { rsp_tx: mpsc::Sender<super::NetworkMessage> },
     }
 
     /* ---------- hook into crate-level trait -------------------------------- */
@@ -656,6 +701,19 @@ pub mod libp2p_service {
             self.cmd_tx
                 .send(Command::Broadcast { data }).await
                 .map_err(|e| CommonError::MessageSendError(format!("broadcast_message cmd send error: {}", e.to_string())))
+        }
+
+        fn subscribe(&self) -> Result<mpsc::Receiver<super::NetworkMessage>, CommonError> {
+            let (msg_tx, msg_rx) = mpsc::channel(128); // Channel for this subscriber
+            
+            // Send the sender half to the Swarm task
+            // We use try_send here because we are in a sync method.
+            // A better approach would be to make `subscribe` async or use a blocking send.
+            // For simplicity now, if the command channel is full, this will fail.
+            self.cmd_tx.try_send(Command::AddSubscriber { rsp_tx: msg_tx })
+                .map_err(|e| CommonError::NetworkSetupError(format!("Failed to send AddSubscriber command: {}", e)))?;
+            
+            Ok(msg_rx)
         }
     }
 } // end mod

@@ -13,6 +13,7 @@ icn-mesh = { path = "../icn-mesh" }
 icn-governance = { path = "../icn-governance" }
 icn-identity = { path = "../icn-identity" }
 icn-economics = { path = "../icn-economics" }
+icn-network = { path = "../icn-network", features = ["experimental-libp2p"] }
 
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
