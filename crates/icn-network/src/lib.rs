@@ -14,6 +14,11 @@ use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
 use std::str::FromStr;
 use libp2p::kad::{Key, Record, QueryId, Quorum, GetRecordOk, PutRecordOk};
+// TODO: Confirm import path for Kademlia Key when libp2p build is fixed.
+// The path libp2p::kad::record::Key as KademliaKey; or similar is expected.
+// See: https://docs.rs/libp2p/0.53.2/libp2p/kad/record/struct.Key.html (adjust version as needed)
+use libp2p::kad::record::Key as KademliaKey; // Current attempt, may fail due to env issues
+use libp2p::kad::{Record as KademliaRecord, QueryId, Quorum, GetRecordOk, PutRecordOk};
 
 // --- Peer and Message Scaffolding ---
 
