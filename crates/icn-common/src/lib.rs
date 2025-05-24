@@ -33,6 +33,11 @@ impl fmt::Display for CommonError {
     }
 }
 
+impl std::error::Error for CommonError {
+    // TODO [error_handling]: Implement `source()` if any variants wrap other errors directly.
+    // For now, most are String-based, so no deeper source.
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub enum CommonError {
     PlaceholderError(String),

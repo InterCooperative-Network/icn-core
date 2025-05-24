@@ -14,10 +14,14 @@ use tokio::time::{sleep, Duration, Instant as TokioInstant}; // For timeouts and
 use std::sync::Arc; // For shared state
 use async_trait::async_trait; // For async traits
 use downcast_rs::{impl_downcast, DowncastSync};
+use log::error; // Added for structured error logging
 
 // Import network service from icn-network
 use icn_network::libp2p_service::{Libp2pNetworkService, Libp2pPeerId, Multiaddr}; // Corrected path & added types
-use icn_network::{NetworkMessage, NetworkService as GenericNetworkService, PeerId as GenericPeerId};
+use icn_network::{NetworkMessage, NetworkService as GenericNetworkService, PeerId as GenericPeerId, MeshNetworkError}; // Added MeshNetworkError
+
+// Import this crate's error types
+use crate::error::MeshJobError;
 
 // Counter for generating unique (within this runtime instance) job IDs for stubs
 pub static NEXT_JOB_ID: AtomicU32 = AtomicU32::new(1);
@@ -412,7 +416,17 @@ impl RuntimeContext {
                         cost_mana: job_to_assign.cost_mana,
                     };
                     if let Err(e) = network_service_clone.announce_job(announcement).await {
-                        eprintln!("[JobManager] Error broadcasting job announcement for id={:?}: {:?}. Re-queuing job.", job_to_assign.id, e);
+                        let job_error = match e {
+                            HostAbiError::NetworkError(msg) => MeshJobError::Network(MeshNetworkError::SendFailure(msg)),
+                            other_abi_error => MeshJobError::ProcessingFailure { 
+                                job_id: job_to_assign.id.clone(), 
+                                reason: format!("Failed to announce job during JobManager processing: {:?}", other_abi_error) 
+                            },
+                        };
+                        error!(
+                            "[JobManager] Failed to announce job id={:?}: {}. Re-queuing job.",
+                            job_to_assign.id, job_error
+                        );
                         pending_jobs_queue_clone.lock().await.push_back(job_to_assign);
                         sleep(Duration::from_secs(5)).await; 
                         continue;

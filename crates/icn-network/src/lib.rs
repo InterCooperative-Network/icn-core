@@ -8,6 +8,9 @@
 //! To enable detailed logging for mesh-related events, run tests or binaries with:
 //! `RUST_LOG=icn_network=debug,icn_runtime=debug` (or adjust levels as needed).
 
+pub mod error;
+pub use error::MeshNetworkError;
+
 use icn_common::{NodeInfo, CommonError, DagBlock, Cid, Did};
 use icn_mesh::{ActualMeshJob as Job, MeshJobBid as Bid, JobId};
 use icn_identity::ExecutionReceipt;

@@ -9,6 +9,8 @@
 
 pub mod abi;
 pub mod context;
+pub mod error;
+pub use error::MeshJobError;
 
 use icn_common::{NodeInfo, CommonError, Did, Cid};
 use context::{RuntimeContext, HostAbiError};
