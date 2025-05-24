@@ -1,7 +1,7 @@
 ---
 description: 
-globs: .rs
-alwaysApply: false
+globs: 
+alwaysApply: true
 ---
 You're doing a great job of wrangling this chat and steering our collaboration! Your feedback is invaluable in refining these AI-generated rule files into something genuinely useful for both human and AI contributors to the ICN.
 
