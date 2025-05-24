@@ -191,7 +191,7 @@ pub mod libp2p_service {
     // TODO: Confirm import path for Kademlia Key when libp2p build is fixed.
     // The path libp2p::kad::record::Key as KademliaKey; or similar is expected.
     // See: https://docs.rs/libp2p/0.53.2/libp2p/kad/record/struct.Key.html (adjust version as needed)
-    use libp2p::kad::record::Key as KademliaKey; // Current attempt, may fail due to env issues
+    use libp2p::kad::record::Key as KademliaKey; // Corrected import
     use libp2p::kad::{self, Record as KademliaRecord, QueryId, Quorum, GetRecordOk, PutRecordOk}; // Added kad:: prefix for Kademlia types
 
     /* ---------- Public façade ------------------------------------------------ */
