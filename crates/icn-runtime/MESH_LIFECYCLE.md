@@ -76,4 +76,23 @@ from submission by a host to final completion and receipt anchoring.
     *   **Execution Timeout**: If an assigned executor doesn't submit a receipt in time, the `JobManager` marks the job `JobState::Failed` and may refund the submitter.
     *   **Invalid Receipt**: If a receipt is invalid (wrong executor, bad signature), it's rejected, and the job might eventually time out or be marked failed.
 
-This lifecycle relies on asynchronous P2P communication and assumes nodes are discoverable and can exchange messages via the underlying libp2p gossipsub and Kademlia DHT mechanisms. 
+This lifecycle relies on asynchronous P2P communication and assumes nodes are discoverable and can exchange messages via the underlying libp2p gossipsub and Kademlia DHT mechanisms.
+
+### Logging Reference
+
+To aid in debugging and understanding the flow of mesh operations, the ICN crates utilize structured logging. You can enable this logging by setting the `RUST_LOG` environment variable.
+
+Example:
+`RUST_LOG=icn_network=debug,icn_runtime=debug,icn_mesh=debug`
+
+Common log prefixes and their meanings:
+
+-   **`[libp2p_service][mesh-job]`**: Events specifically within the `libp2p_service` module in `icn-network` related to mesh job processing (e.g., gossipsub subscriptions, message broadcasting, Kademlia operations for discovery/records).
+-   **`[DefaultMeshNetworkService]`**: Events from the `DefaultMeshNetworkService` in `icn-runtime`, which acts as an adapter between the runtime's mesh logic and the underlying `Libp2pNetworkService`. Covers job announcements, bid collection, assignment broadcasts, and receipt reception attempts.
+-   **`[JobManager]`**: Events from the core mesh job manager task within `icn-runtime` (in `context.rs`). Tracks the lifecycle of a job from pending, to bid collection, assignment, and completion/failure, including interactions with the network service and mana ledger.
+-   **`[CONTEXT]`**: General events from the `RuntimeContext` in `icn-runtime`, often related to mana operations, internal job queuing, or receipt anchoring that might be invoked by the job manager or other host functions.
+-   **`[test-mesh-network]`**: Logging from integration tests in `icn-network` (e.g., `libp2p_mesh_integration.rs`) focusing on network-level interactions between peer services.
+-   **`[test-mesh-runtime]`**: Logging from integration tests in `icn-runtime` (e.g., `mesh.rs`) focusing on the end-to-end job lifecycle involving the runtime context and job manager.
+-   **`[libp2p]`**: General low-level messages from the libp2p framework itself (e.g., connection events, Kademlia protocol messages, ping results). These are often verbose but can be crucial for diagnosing fundamental network issues.
+
+By filtering or observing these prefixes, developers can trace the progression of jobs and messages through the different layers of the ICN system. 

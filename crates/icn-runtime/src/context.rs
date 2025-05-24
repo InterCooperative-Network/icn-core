@@ -697,18 +697,22 @@ impl RuntimeContext {
     }
 
     pub fn create_governance_proposal(&mut self, _payload: CreateProposalPayload) -> Result<String, HostAbiError> {
+        // TODO [governance]: Implement mapping for CreateProposalPayload and call governance_module.submit_proposal
         todo!("Implement mapping for CreateProposalPayload and call governance_module.submit_proposal");
     }
 
     pub fn cast_governance_vote(&mut self, _payload: CastVotePayload) -> Result<(), HostAbiError> {
+        // TODO [governance]: Implement mapping for CastVotePayload and call governance_module.cast_vote
         todo!("Implement mapping for CastVotePayload and call governance_module.cast_vote");
     }
 
     pub fn close_governance_proposal_voting(&mut self, _proposal_id_str: &str) -> Result<String, HostAbiError> {
+        // TODO [governance]: Integrate with GovernanceModule proposal closing/tallying logic
         todo!("Integrate with GovernanceModule proposal closing/tallying logic");
     }
 
     pub fn execute_governance_proposal(&mut self, _proposal_id_str: &str) -> Result<(), HostAbiError> {
+        // TODO [governance]: Implement full governance proposal execution logic
         todo!("Implement full governance proposal execution logic");
     }
 }
@@ -728,13 +732,16 @@ impl ConcreteHostEnvironment {
 impl Default for ConcreteHostEnvironment { fn default() -> Self { Self::new() } }
 
 impl HostEnvironment for ConcreteHostEnvironment {
-    fn env_submit_mesh_job(&self, _ctx: &mut RuntimeContext, _job_data_ptr: u32, _job_data_len: u32) -> Result<u32, HostAbiError> {
+    fn env_submit_mesh_job(&self, _ctx: &mut RuntimeContext, _job_data_ptr: u32, _job_data_len: u32) -> Result<u32, HostAbiError> { 
+        // TODO [host_abi]: Implement ConcreteHostEnvironment::env_submit_mesh_job
         todo!("ConcreteHostEnvironment::env_submit_mesh_job");
     }
     fn env_account_get_mana(&self, _ctx: &RuntimeContext, _account_did_ptr: u32, _account_did_len: u32) -> Result<u64, HostAbiError> {
+        // TODO [host_abi]: Implement ConcreteHostEnvironment::env_account_get_mana
         todo!("ConcreteHostEnvironment::env_account_get_mana");
     }
     fn env_account_spend_mana(&self, _ctx: &mut RuntimeContext, _account_did_ptr: u32, _account_did_len: u32, _amount: u64) -> Result<(), HostAbiError> {
+        // TODO [host_abi]: Implement ConcreteHostEnvironment::env_account_spend_mana
         todo!("ConcreteHostEnvironment::env_account_spend_mana");
     }
 } 

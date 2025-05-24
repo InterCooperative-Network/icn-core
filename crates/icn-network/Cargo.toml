@@ -15,6 +15,7 @@ tokio = { version = "1", features = ["full"] }
 bs58 = { version = "0.5.0", optional = true }
 icn-mesh = { path = "../icn-mesh" }
 icn-identity = { path = "../icn-identity" }
+log = "0.4"
 
 libp2p = { version = "0.53", optional = true, features = [
     "tokio", 

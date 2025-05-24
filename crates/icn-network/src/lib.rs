@@ -4,6 +4,9 @@
 //! This crate manages peer-to-peer (P2P) networking aspects for the InterCooperative Network (ICN),
 //! likely using libp2p. It covers P2P communication, transport protocols, peer discovery,
 //! message routing, and federation synchronization.
+//!
+//! To enable detailed logging for mesh-related events, run tests or binaries with:
+//! `RUST_LOG=icn_network=debug,icn_runtime=debug` (or adjust levels as needed).
 
 use icn_common::{NodeInfo, CommonError, DagBlock, Cid, Did};
 use icn_mesh::{ActualMeshJob as Job, MeshJobBid as Bid, JobId};
@@ -175,7 +178,6 @@ pub mod libp2p_service {
         core::upgrade,
         gossipsub,
         identity,
-        kad,
         noise,
         ping,
         swarm::{NetworkBehaviour, Swarm, SwarmEvent, Config as SwarmConfig},
@@ -189,8 +191,11 @@ pub mod libp2p_service {
     use std::sync::{Arc, Mutex};
     use std::collections::HashMap;
     use std::str::FromStr;
-    use libp2p::kad::record::Key as KademliaKey;
-    use libp2p::kad::{Record as KademliaRecord, QueryId, Quorum, GetRecordOk, PutRecordOk};
+    // TODO: Confirm import path for Kademlia Key when libp2p build is fixed.
+    // The path libp2p::kad::record::Key as KademliaKey; or similar is expected.
+    // See: https://docs.rs/libp2p/0.53.2/libp2p/kad/record/struct.Key.html (adjust version as needed)
+    use libp2p::kad::record::Key as KademliaKey; // Current attempt, may fail due to env issues
+    use libp2p::kad::{self, Record as KademliaRecord, QueryId, Quorum, GetRecordOk, PutRecordOk}; // Added kad:: prefix for Kademlia types
 
     /* ---------- Public façade ------------------------------------------------ */
 
@@ -288,9 +293,10 @@ pub mod libp2p_service {
             task::spawn(async move {
                 let topic = gossipsub::IdentTopic::new("icn-default");
                 if let Err(e) = swarm.behaviour_mut().gossipsub.subscribe(&topic) {
-                    eprintln!("[libp2p] Failed to subscribe to topic {}: {:?}", topic, e);
+                    log::error!("[libp2p_service][mesh-job] Failed to subscribe to topic {}: {:?}", topic, e);
                     return; 
                 }
+                log::info!("[libp2p_service][mesh-job] Subscribed to Gossipsub topic: {}", topic);
 
                 loop {
                     tokio::select! {
@@ -298,9 +304,10 @@ pub mod libp2p_service {
                             match swarm_event {
                                 Some(SwarmEvent::Behaviour(Event::Gossipsub(e))) => {
                                     if let gossipsub::Event::Message{message, ..} = e {
-                                        println!("[libp2p] Got gossip message: {:?}", message.data);
+                                        log::debug!("[libp2p_service][mesh-job] Received Gossipsub message from {:?}, topic: {:?}, data_len: {}", message.source, message.topic, message.data.len());
                                         match serde_json::from_slice::<super::NetworkMessage>(&message.data) {
                                             Ok(network_msg) => {
+                                                log::debug!("[libp2p_service][mesh-job] Deserialized NetworkMessage: {:?}", network_msg);
                                                 // Send to all subscribers
                                                 let mut retain_senders = Vec::new();
                                                 for sender in subscriber_senders.iter() {
@@ -332,7 +339,8 @@ pub mod libp2p_service {
                                     match event {
                                         kad::Event::OutboundQueryProgressed { id, result, .. } => {
                                             println!("[libp2p] Kademlia OutboundQueryProgressed: query_id={:?}, result={:?}", id, result);
-                                            
+                                            // TODO [libp2p_kad]: Handle all Kademlia QueryResult variants robustly,
+                                            // especially errors and scenarios affecting job/peer discovery.
                                             match result {
                                                 kad::QueryResult::GetClosestPeers(Ok(data)) => {
                                                     if let Some(sender) = pending_kad_queries.remove(&id) {
@@ -429,18 +437,23 @@ pub mod libp2p_service {
                                                 "[libp2p] Kademlia RoutingUpdated: peer={}, is_new_peer={}, addresses={:?}, bucket_range={:?}, old_peer={:?}",
                                                 peer, is_new_peer, addresses, bucket_range, old_peer
                                             );
+                                            // TODO [libp2p_kad]: Potentially update local peer lists or trigger discovery based on routing updates.
                                         }
                                         kad::Event::UnroutablePeer { peer } => {
                                             println!("[libp2p] Kademlia UnroutablePeer: peer={}", peer);
+                                            // TODO [libp2p_kad]: Handle unroutable peers, e.g., remove from active peer lists or attempt re-discovery.
                                         }
                                         kad::Event::RoutablePeer { peer, address } => {
                                             println!("[libp2p] Kademlia RoutablePeer: peer={}, address={}", peer, address);
+                                            // TODO [libp2p_kad]: Add routable peers to a list of known good peers for direct interaction if needed.
                                         }
                                         kad::Event::PendingRoutablePeer { peer, address } => {
                                             println!("[libp2p] Kademlia PendingRoutablePeer: peer={}, address={}", peer, address);
+                                            // TODO [libp2p_kad]: Monitor pending routable peers.
                                         }
                                         other_kad_event => {
                                             println!("[libp2p] Kademlia other event: {:?}", other_kad_event);
+                                            // TODO [libp2p_kad]: Investigate and handle other Kademlia events as necessary.
                                         }
                                     }
                                 }
@@ -563,22 +576,23 @@ pub mod libp2p_service {
                                     // So, `let query_id = swarm.behaviour_mut().kademlia.get_record(key);` is correct.
                                 }
                                 Command::Broadcast { data } => {
+                                    log::debug!("[libp2p_service][mesh-job] Broadcasting message (data_len: {}) to topic: {}", data.len(), topic);
                                     if let Err(e) = swarm.behaviour_mut()
                                         .gossipsub
                                         .publish(topic.clone(), data) {
-                                        eprintln!("[libp2p] Failed to publish to topic {}: {:?}", topic, e);
+                                        log::error!("[libp2p_service][mesh-job] Failed to publish to topic {}: {:?}", topic, e);
                                     }
                                 }
                                 Command::AddSubscriber { rsp_tx } => {
                                     subscriber_senders.push(rsp_tx);
-                                    println!("[libp2p] Added new subscriber. Total subscribers: {}", subscriber_senders.len());
+                                    log::info!("[libp2p_service][mesh-job] Added new NetworkMessage subscriber. Total subscribers: {}", subscriber_senders.len());
                                 }
                             }
                         }
                         else => break, 
                     }
                 }
-                println!("[libp2p] Swarm task ended.");
+                log::info!("[libp2p_service][mesh-job] Swarm task ended.");
             });
 
             Ok(Self { cmd_tx, local_peer_id, listening_addresses })
@@ -671,6 +685,7 @@ pub mod libp2p_service {
             &self,
             target_peer_id_str: Option<String>,
         ) -> Result<Vec<super::PeerId>, CommonError> {
+            log::debug!("[libp2p_service][mesh-job] Discovering peers, target: {:?}", target_peer_id_str);
             let target_libp2p_id = match target_peer_id_str {
                 Some(id_str) => {
                     match Libp2pPeerId::from_str(&id_str) {
@@ -693,6 +708,7 @@ pub mod libp2p_service {
             _peer: &super::PeerId, 
             msg: super::NetworkMessage, 
         ) -> Result<(), CommonError> {
+            log::debug!("[libp2p_service][mesh-job] send_message (currently broadcasts) called with: {:?}", msg);
             let data = serde_json::to_vec(&msg)
                 .map_err(|e| CommonError::SerializationError(e.to_string()))?;
             self.cmd_tx
@@ -701,6 +717,7 @@ pub mod libp2p_service {
         }
         
         async fn broadcast_message(&self, message: super::NetworkMessage) -> Result<(), CommonError> {
+            log::debug!("[libp2p_service][mesh-job] broadcast_message called with: {:?}", message);
             let data = serde_json::to_vec(&message)
                 .map_err(|e| CommonError::SerializationError(e.to_string()))?;
             self.cmd_tx
