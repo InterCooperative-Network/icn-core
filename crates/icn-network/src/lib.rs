@@ -18,7 +18,7 @@ use serde::{Serialize, Deserialize};
 use tokio::sync::mpsc::Receiver;
 
 // Consolidated Kademlia imports (excluding KademliaKey at this top level)
-use libp2p::kad::{Record, Record as KademliaRecord, QueryId, Quorum, GetRecordOk, PutRecordOk};
+// use libp2p::kad::{Record, Record as KademliaRecord, QueryId, Quorum, GetRecordOk, PutRecordOk}; // Commented out due to unused warnings
 
 // --- Peer and Message Scaffolding ---
 
@@ -188,11 +188,10 @@ pub mod libp2p_service {
     use std::sync::{Arc, Mutex};
     use std::collections::HashMap;
     use std::str::FromStr;
-    // TODO: Confirm import path for Kademlia Key when libp2p build is fixed.
-    // The path libp2p::kad::record::Key as KademliaKey; or similar is expected.
-    // See: https://docs.rs/libp2p/0.53.2/libp2p/kad/record/struct.Key.html (adjust version as needed)
-    use libp2p::kad::record::Key as KademliaKey; // Reverted to original import
-    use libp2p::kad::{self, Record as KademliaRecord, QueryId, Quorum, GetRecordOk, PutRecordOk}; // Added kad:: prefix for Kademlia types
+
+    // Reverting Kademlia specific imports to the previous state
+    use libp2p::kad::record::Key as KademliaKey;
+    use libp2p::kad::{self, Record as KademliaRecord, QueryId, Quorum, GetRecordOk, PutRecordOk, store::MemoryStore, Behaviour as KademliaBehaviour, Config as KademliaConfig, Event as KademliaEvent, QueryResult as KademliaQueryResult};
 
     /* ---------- Public façade ------------------------------------------------ */
 
@@ -228,17 +227,17 @@ pub mod libp2p_service {
 
             let ping = ping::Behaviour::new(ping::Config::new().with_interval(Duration::from_secs(15)));
 
-            let store = kad::store::MemoryStore::new(local_peer_id);
-            let mut kademlia_config = kad::Config::default();
+            let store = MemoryStore::new(local_peer_id);
+            let mut kademlia_config = KademliaConfig::default();
             kademlia_config.disjoint_query_paths(true);
-            let kademlia = kad::Behaviour::with_config(local_peer_id, store, kademlia_config);
+            let kademlia = KademliaBehaviour::with_config(local_peer_id, store, kademlia_config);
 
             #[derive(NetworkBehaviour)]
             #[behaviour(out_event = "Event")]
             struct Behaviour {
                 gossipsub: gossipsub::Behaviour,
                 ping: ping::Behaviour,
-                kademlia: kad::Behaviour<kad::store::MemoryStore>,
+                kademlia: KademliaBehaviour<MemoryStore>,
             }
 
             #[allow(clippy::large_enum_variant)]
@@ -246,7 +245,7 @@ pub mod libp2p_service {
             enum Event {
                 Gossipsub(gossipsub::Event),
                 Ping(ping::Event),
-                Kademlia(kad::Event),
+                Kademlia(KademliaEvent),
             }
 
             impl From<gossipsub::Event> for Event {
@@ -255,8 +254,8 @@ pub mod libp2p_service {
             impl From<ping::Event> for Event {
                 fn from(e: ping::Event) -> Self { Event::Ping(e) }
             }
-            impl From<kad::Event> for Event {
-                fn from(e: kad::Event) -> Self { Event::Kademlia(e) }
+            impl From<KademliaEvent> for Event {
+                fn from(e: KademliaEvent) -> Self { Event::Kademlia(e) }
             }
 
             let behaviour = Behaviour { gossipsub, ping, kademlia };
@@ -280,7 +279,7 @@ pub mod libp2p_service {
             let listening_addresses_clone = listening_addresses.clone();
 
             // Kademlia query tracking
-            let mut pending_kad_queries = HashMap::<kad::QueryId, oneshot::Sender<Result<Vec<super::PeerId>, CommonError>>>::new();
+            let mut pending_kad_queries = HashMap::<QueryId, oneshot::Sender<Result<Vec<super::PeerId>, CommonError>>>::new();
             let mut pending_put_kad_queries = HashMap::<QueryId, oneshot::Sender<Result<(), CommonError>>>::new();
             let mut pending_get_kad_records = HashMap::<QueryId, oneshot::Sender<Result<Option<KademliaRecord>, CommonError>>>::new();
             
@@ -334,12 +333,12 @@ pub mod libp2p_service {
                                 }
                                 Some(SwarmEvent::Behaviour(Event::Kademlia(event))) => {
                                     match event {
-                                        kad::Event::OutboundQueryProgressed { id, result, .. } => {
+                                        KademliaEvent::OutboundQueryProgressed { id, result, .. } => {
                                             println!("[libp2p] Kademlia OutboundQueryProgressed: query_id={:?}, result={:?}", id, result);
                                             // TODO [libp2p_kad]: Handle all Kademlia QueryResult variants robustly,
                                             // especially errors and scenarios affecting job/peer discovery.
                                             match result {
-                                                kad::QueryResult::GetClosestPeers(Ok(data)) => {
+                                                KademliaQueryResult::GetClosestPeers(Ok(data)) => {
                                                     if let Some(sender) = pending_kad_queries.remove(&id) {
                                                         println!("[libp2p] Found sender for query_id={:?}. Sending Ok(peers_count={}).", id, data.peers.len());
                                                         let peers = data.peers.into_iter().map(|p| super::PeerId(p.to_string())).collect();
@@ -350,7 +349,7 @@ pub mod libp2p_service {
                                                         println!("[libp2p] Kademlia GetClosestPeers query_id={:?} (Ok data) had no sender or already handled.", id);
                                                     }
                                                 }
-                                                kad::QueryResult::GetClosestPeers(Err(err)) => {
+                                                KademliaQueryResult::GetClosestPeers(Err(err)) => {
                                                     if let Some(sender) = pending_kad_queries.remove(&id) {
                                                         println!("[libp2p] Found sender for query_id={:?}. Sending Err({:?}).", id, err);
                                                         let common_err = CommonError::NetworkSetupError(format!("Kademlia GetClosestPeers query_id={:?} failed: {:?}", id, err));
@@ -361,7 +360,7 @@ pub mod libp2p_service {
                                                          println!("[libp2p] Kademlia GetClosestPeers query_id={:?} (Err data) had no sender or already handled.", id);
                                                     }
                                                 }
-                                                kad::QueryResult::PutRecord(Ok(PutRecordOk { key: _key })) => {
+                                                KademliaQueryResult::PutRecord(Ok(PutRecordOk { key: _key })) => {
                                                     if let Some(sender) = pending_put_kad_queries.remove(&id) {
                                                         println!("[libp2p] Kademlia PutRecord successful for query_id={:?}", id);
                                                         if sender.send(Ok(())).is_err() {
@@ -371,7 +370,7 @@ pub mod libp2p_service {
                                                         println!("[libp2p] Kademlia PutRecord query_id={:?} (Ok data) had no sender or already handled.", id);
                                                     }
                                                 }
-                                                kad::QueryResult::PutRecord(Err(err)) => {
+                                                KademliaQueryResult::PutRecord(Err(err)) => {
                                                     if let Some(sender) = pending_put_kad_queries.remove(&id) {
                                                         println!("[libp2p] Kademlia PutRecord failed for query_id={:?}: {:?}", id, err);
                                                         let common_err = CommonError::NetworkSetupError(format!("Kademlia PutRecord query_id={:?} failed: {:?}", id, err));
@@ -382,7 +381,7 @@ pub mod libp2p_service {
                                                         println!("[libp2p] Kademlia PutRecord query_id={:?} (Err data) had no sender or already handled.", id);
                                                     }
                                                 }
-                                                kad::QueryResult::GetRecord(Ok(GetRecordOk::FoundRecord(peer_record))) => {
+                                                KademliaQueryResult::GetRecord(Ok(GetRecordOk::FoundRecord(peer_record))) => {
                                                     if let Some(sender) = pending_get_kad_records.remove(&id) {
                                                         println!("[libp2p] Kademlia GetRecord FoundRecord for query_id={:?}", id);
                                                         if sender.send(Ok(Some(peer_record.record))).is_err() {
@@ -392,7 +391,7 @@ pub mod libp2p_service {
                                                         println!("[libp2p] Kademlia GetRecord query_id={:?} (FoundRecord data) had no sender or already handled.", id);
                                                     }
                                                 }
-                                                kad::QueryResult::GetRecord(Ok(GetRecordOk::FinishedWithNoAdditionalRecord{..})) => {
+                                                KademliaQueryResult::GetRecord(Ok(GetRecordOk::FinishedWithNoAdditionalRecord{..})) => {
                                                     if let Some(sender) = pending_get_kad_records.remove(&id) {
                                                         println!("[libp2p] Kademlia GetRecord FinishedWithNoAdditionalRecord for query_id={:?}", id);
                                                         if sender.send(Ok(None)).is_err() {
@@ -402,7 +401,7 @@ pub mod libp2p_service {
                                                         println!("[libp2p] Kademlia GetRecord query_id={:?} (FinishedWithNoAdditionalRecord data) had no sender or already handled.", id);
                                                     }
                                                 }
-                                                kad::QueryResult::GetRecord(Err(err)) => {
+                                                KademliaQueryResult::GetRecord(Err(err)) => {
                                                     if let Some(sender) = pending_get_kad_records.remove(&id) {
                                                         println!("[libp2p] Kademlia GetRecord failed for query_id={:?}: {:?}", id, err);
                                                         let common_err = CommonError::NetworkSetupError(format!("Kademlia GetRecord query_id={:?} failed: {:?}", id, err));
@@ -429,22 +428,22 @@ pub mod libp2p_service {
                                                 }
                                             }
                                         }
-                                        kad::Event::RoutingUpdated { peer, is_new_peer, addresses, bucket_range, old_peer } => {
+                                        KademliaEvent::RoutingUpdated { peer, is_new_peer, addresses, bucket_range, old_peer } => {
                                             println!(
                                                 "[libp2p] Kademlia RoutingUpdated: peer={}, is_new_peer={}, addresses={:?}, bucket_range={:?}, old_peer={:?}",
                                                 peer, is_new_peer, addresses, bucket_range, old_peer
                                             );
                                             // TODO [libp2p_kad]: Potentially update local peer lists or trigger discovery based on routing updates.
                                         }
-                                        kad::Event::UnroutablePeer { peer } => {
+                                        KademliaEvent::UnroutablePeer { peer } => {
                                             println!("[libp2p] Kademlia UnroutablePeer: peer={}", peer);
                                             // TODO [libp2p_kad]: Handle unroutable peers, e.g., remove from active peer lists or attempt re-discovery.
                                         }
-                                        kad::Event::RoutablePeer { peer, address } => {
+                                        KademliaEvent::RoutablePeer { peer, address } => {
                                             println!("[libp2p] Kademlia RoutablePeer: peer={}, address={}", peer, address);
                                             // TODO [libp2p_kad]: Add routable peers to a list of known good peers for direct interaction if needed.
                                         }
-                                        kad::Event::PendingRoutablePeer { peer, address } => {
+                                        KademliaEvent::PendingRoutablePeer { peer, address } => {
                                             println!("[libp2p] Kademlia PendingRoutablePeer: peer={}, address={}", peer, address);
                                             // TODO [libp2p_kad]: Monitor pending routable peers.
                                         }
@@ -537,7 +536,7 @@ pub mod libp2p_service {
                                     }
                                 }
                                 Command::PutKadRecord { key, value, rsp } => {
-                                    let record = Record {
+                                    let record = KademliaRecord {
                                         key,
                                         value,
                                         publisher: None, // Libp2p fills this

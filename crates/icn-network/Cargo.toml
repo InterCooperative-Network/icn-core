@@ -31,8 +31,12 @@ libp2p = { version = "0.53", optional = true, features = [
 ]}
 
 [dev-dependencies]
-# ... existing dev-dependencies ...
+# No specific dev-dependencies here yet, but could add things like criterion for benchmarks
 
 [features]
 default = []
-experimental-libp2p = ["dep:libp2p", "dep:serde_json", "dep:bs58"]
+experimental-libp2p = [
+    "dep:libp2p", 
+    "dep:serde_json", 
+    "dep:bs58"
+]
