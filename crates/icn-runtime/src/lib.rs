@@ -23,7 +23,7 @@ use serde_json;
 use std::str::FromStr;
 use icn_identity;
 use futures;
-use log::{info, warn, error, debug};
+use log::{info, debug};
 
 /// Placeholder function demonstrating use of common types for runtime operations.
 /// This function is not directly part of the Host ABI layer discussed below but serves as an example.

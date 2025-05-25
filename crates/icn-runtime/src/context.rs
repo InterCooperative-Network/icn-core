@@ -12,8 +12,9 @@ use downcast_rs::{DowncastSync, impl_downcast};
 
 use log::{info, warn, error, debug};
 use std::collections::{HashMap, VecDeque};
-use std::sync::{Arc, atomic::{AtomicU32}};
-use tokio::sync::{Mutex, mpsc};
+use std::sync::{Arc, Mutex as StdMutex, RwLock};
+use std::time::{Duration as StdDuration, Instant as TokioInstant};
+use tokio::sync::{Mutex as TokioMutex, oneshot, watch, broadcast, Barrier};
 
 use async_trait::async_trait;
 
@@ -23,7 +24,7 @@ use std::str::FromStr;
 use libp2p::{Multiaddr, PeerId as Libp2pPeerId};
 
 use crate::error::MeshJobError;
-use tokio::time::{Instant as TokioInstant, Duration, sleep};
+use tokio::time::{Duration, sleep};
 
 // Counter for generating unique (within this runtime instance) job IDs for stubs
 pub static NEXT_JOB_ID: AtomicU32 = AtomicU32::new(1);

@@ -5,11 +5,7 @@
 //! It manages token models, ledger interactions, transaction logic, and incentive mechanisms,
 //! aiming for security, accuracy, and interoperability.
 
-use icn_common::{NodeInfo, CommonError, Did};
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
-use thiserror::Error;
-use icn_common::ICN_CORE_VERSION;
+use icn_common::{NodeInfo, CommonError, Did, ICN_CORE_VERSION};
 
 // Placeholder for EconError enum
 #[derive(Debug)]

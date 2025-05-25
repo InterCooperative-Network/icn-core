@@ -8,8 +8,6 @@
 use icn_common::{NodeInfo, CommonError, Cid, Did, ICN_CORE_VERSION};
 use icn_identity::ExecutionReceipt;
 use serde::{Serialize, Deserialize};
-use std::collections::HashMap;
-use std::sync::atomic::{AtomicU32, Ordering};
 
 /// Errors that can occur within the ICN Mesh subsystem.
 #[derive(Debug, Clone, PartialEq, Eq)]

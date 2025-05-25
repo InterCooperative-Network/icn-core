@@ -166,7 +166,8 @@ mod kademlia_three_node_tests {
             }
         })
         .await
-        .unwrap_or_else(|err| panic!("{}'s routing table did not converge: {}. Expected: {:?}", node_name, err, expected_peers.iter().map(|p|&p.0).collect::<Vec<_>>())));
+        .unwrap_or_else(|err| panic!("{}'s routing table did not converge: {}. Expected: {:?}", node_name, err, expected_peers.iter().map(|p|&p.0).collect::<Vec<_>>())
+        );
         println!("{}'s Kademlia routing table converged and contains all expected peers.", node_name);
     }
 
