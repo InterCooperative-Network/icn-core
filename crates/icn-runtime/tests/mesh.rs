@@ -2,10 +2,10 @@
 
 use icn_common::{Did, Cid};
 use icn_identity::ExecutionReceipt as IdentityExecutionReceipt;
-use icn_runtime::context::{RuntimeContext, HostAbiError, StubMeshNetworkService, StubDagStore, DagStore};
+use icn_runtime::context::{RuntimeContext, HostAbiError, StubMeshNetworkService, StubDagStore, DagStore, DefaultMeshNetworkService};
 use icn_runtime::host_submit_mesh_job;
 use icn_mesh::{JobId, ActualMeshJob, MeshJobBid, JobState, SubmitReceiptMessage, JobSpec, Resources};
-use icn_network::NetworkService;
+use icn_network::{NetworkService, libp2p_service::Libp2pNetworkService};
 use libp2p::PeerId as Libp2pPeerId;
 use anyhow::Result;
 use serde_json::json;
@@ -431,7 +431,7 @@ async fn test_full_mesh_job_cycle_libp2p() -> Result<(), anyhow::Error> {
 
     let node_a_ctx = Arc::new(RuntimeContext::new(
         Did::from_str("did:icn:test:node_a_libp2p")?,
-        Arc::new(icn_runtime::context::DefaultMeshNetworkService::new(node_a_libp2p_actual_service.clone())),
+        Arc::new(DefaultMeshNetworkService::new(node_a_libp2p_actual_service.clone())),
         Arc::new(icn_runtime::context::StubSigner),
         Arc::new(icn_runtime::context::StubDagStore::new()),
     ));
@@ -441,19 +441,28 @@ async fn test_full_mesh_job_cycle_libp2p() -> Result<(), anyhow::Error> {
 
     // 2. Setup Node B (Executor)
     println!("[test-mesh-runtime] Setting up Node B (Executor), bootstrapping with Node A.");
-    let node_a_libp2p_peer_id_for_b = icn_network::libp2p_service::Libp2pPeerId::from_str(&node_a_peer_id_str)?;
+    let node_a_libp2p_peer_id_for_b = Libp2pPeerId::from_str(&node_a_peer_id_str)?;
     let bootstrap_peers_for_b = Some(vec![(node_a_libp2p_peer_id_for_b, node_a_addrs[0].clone())]);
-    let node_b_libp2p_actual_service = Arc::new(icn_network::libp2p_service::Libp2pNetworkService::new(bootstrap_peers_for_b).await?);
-    println!("[test-mesh-runtime] Node B Peer ID: {}", node_b_libp2p_actual_service.local_peer_id().to_string());
+    let node_b_libp2p_actual_service_for_setup = Arc::new(icn_network::libp2p_service::Libp2pNetworkService::new(bootstrap_peers_for_b).await?);
+    println!("[test-mesh-runtime] Node B Peer ID: {}", node_b_libp2p_actual_service_for_setup.local_peer_id().to_string());
     
     let node_b_ctx = Arc::new(RuntimeContext::new(
         Did::from_str("did:icn:test:node_b_libp2p")?,
-        Arc::new(icn_runtime::context::DefaultMeshNetworkService::new(node_b_libp2p_actual_service.clone())),
+        Arc::new(DefaultMeshNetworkService::new(node_b_libp2p_actual_service_for_setup.clone())),
         Arc::new(icn_runtime::context::StubSigner),
         Arc::new(icn_runtime::context::StubDagStore::new()),
     ));
     node_b_ctx.mana_ledger.set_balance(&node_b_ctx.current_identity, 500).await;
     println!("[test-mesh-runtime] Node B context created, mana set.");
+
+    // Get the underlying Libp2pNetworkService for Node B to broadcast messages
+    let node_b_mesh_service_trait_obj = node_b_ctx.mesh_network_service.clone();
+    let node_b_default_mesh_service = node_b_mesh_service_trait_obj
+        .as_any()
+        .downcast_ref::<DefaultMeshNetworkService>()
+        .expect("Node B mesh_network_service is not DefaultMeshNetworkService");
+    
+    let node_b_underlying_broadcast_service = node_b_default_mesh_service.get_underlying_broadcast_service()?;
 
     println!("[test-mesh-runtime] Allowing 5s for network connection.");
     sleep(Duration::from_secs(5)).await;
@@ -468,7 +477,7 @@ async fn test_full_mesh_job_cycle_libp2p() -> Result<(), anyhow::Error> {
     }).to_string();
 
     println!("[test-mesh-runtime] Node B (executor) subscribing to its Libp2p service to listen for announcements.");
-    let mut node_b_raw_receiver = node_b_libp2p_actual_service.as_ref().subscribe()
+    let mut node_b_raw_receiver = node_b_libp2p_actual_service_for_setup.as_ref().subscribe()
         .map_err(|e| anyhow::anyhow!("Node B failed to subscribe: {e}"))?;
 
     let submitted_job_id = host_submit_mesh_job(&node_a_ctx, &job_json_payload).await?;
@@ -477,10 +486,13 @@ async fn test_full_mesh_job_cycle_libp2p() -> Result<(), anyhow::Error> {
 
     // 4. Node B listens for the job, receives it, and submits a bid
     println!("[test-mesh-runtime] Node B listening for job announcement (timeout 20s).");
-    let received_on_b = tokio::time::timeout(Duration::from_secs(20), node_b_raw_receiver.recv()).await??;
-    assert!(received_on_b.is_some(), "Node B: Raw receiver channel closed or got None");
+    
+    let received_on_b_opt = tokio::time::timeout(Duration::from_secs(20), node_b_raw_receiver.recv()).await
+        .map_err(|e| anyhow::anyhow!("Timeout waiting for job announcement: {e}"))?;
+    
+    let received_on_b = received_on_b_opt.ok_or_else(|| anyhow::anyhow!("Node B: Receiver channel closed or got None before job announcement"))?;
 
-    if let Some(icn_network::NetworkMessage::MeshJobAnnouncement(announced_job)) = received_on_b {
+    if let icn_network::NetworkMessage::MeshJobAnnouncement(announced_job) = received_on_b { 
         assert_eq!(announced_job.id, submitted_job_id, "Node B received announcement for wrong job");
         println!("[test-mesh-runtime] Node B received announcement for job ID: {}. Submitting bid.", announced_job.id);
 
@@ -490,7 +502,7 @@ async fn test_full_mesh_job_cycle_libp2p() -> Result<(), anyhow::Error> {
             price_mana: 20,
             resources: Resources::default(),
         };
-        node_b_ctx.mesh_network_service.as_ref().broadcast_message(
+        node_b_underlying_broadcast_service.broadcast_message(
             icn_network::NetworkMessage::BidSubmission(bid.clone())
         ).await.map_err(|e| anyhow::anyhow!("Node B failed to broadcast bid: {e}"))?;
         println!("[test-mesh-runtime] Node B submitted bid for job ID: {}", announced_job.id);
@@ -518,13 +530,13 @@ async fn test_full_mesh_job_cycle_libp2p() -> Result<(), anyhow::Error> {
     println!("[test-mesh-runtime] Node B signing its execution receipt for job {}.", submitted_job_id);
     match node_b_ctx.anchor_receipt(&mut receipt_by_node_b) {
         Ok(_) => println!("[test-mesh-runtime] Node B signed its execution receipt for job {}", submitted_job_id),
-        Err(e) => return Err(anyhow::anyhow!("Node B failed to sign its own receipt: {}", e)),
+        Err(e) => return Err(anyhow::anyhow!("Node B failed to sign its own receipt: {e}")),
     }
     assert!(!receipt_by_node_b.sig.is_empty(), "Node B's receipt should be signed");
 
     println!("[test-mesh-runtime] Node B broadcasting receipt for job {}.", submitted_job_id);
-    let receipt_message = icn_network::NetworkMessage::SubmitReceipt(receipt_by_node_b.clone());
-    node_b_ctx.mesh_network_service.as_ref().broadcast_message(receipt_message).await
+    let receipt_message = icn_network::NetworkMessage::SubmitReceipt(receipt_by_node_b.clone()); 
+    node_b_underlying_broadcast_service.broadcast_message(receipt_message).await
         .map_err(|e| anyhow::anyhow!("Node B failed to broadcast receipt: {e}"))?;
     println!("[test-mesh-runtime] Node B broadcasted receipt for job {}. Waiting 10s for JobManager processing.", submitted_job_id);
 

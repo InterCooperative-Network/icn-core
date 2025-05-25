@@ -16,14 +16,28 @@ use icn_mesh::{ActualMeshJob as Job, MeshJobBid as Bid, JobId};
 use icn_identity::ExecutionReceipt;
 use serde::{Serialize, Deserialize};
 use tokio::sync::mpsc::Receiver;
+use std::fmt::Debug;
+use async_trait::async_trait;
+use downcast_rs::{impl_downcast, DowncastSync};
+use std::any::Any;
+use std::sync::Arc;
 
 // Consolidated Kademlia imports (excluding KademliaKey at this top level)
 // use libp2p::kad::{Record, Record as KademliaRecord, QueryId, Quorum, GetRecordOk, PutRecordOk}; // Commented out due to unused warnings
 
 // --- Peer and Message Scaffolding ---
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct PeerId(pub String); // Placeholder, typically a libp2p PeerId
+
+impl PeerId {
+    pub fn from_string(s: String) -> Self {
+        PeerId(s)
+    }
+    pub fn to_string(&self) -> String {
+        self.0.clone()
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum NetworkMessage {
@@ -38,25 +52,26 @@ pub enum NetworkMessage {
     SubmitReceipt(ExecutionReceipt),
 }
 
-/// Placeholder for a network service trait.
-/// TODO: Define methods for sending messages, discovering peers, subscribing to topics.
-pub trait NetworkService {
+/// Network service trait definition.
+#[async_trait]
+pub trait NetworkService: Send + Sync + Debug + DowncastSync + 'static {
     async fn discover_peers(&self, target_peer_id_str: Option<String>) -> Result<Vec<PeerId>, CommonError>;
     async fn send_message(&self, peer: &PeerId, message: NetworkMessage) -> Result<(), CommonError>;
     async fn broadcast_message(&self, message: NetworkMessage) -> Result<(), CommonError>;
-    // fn subscribe_to_topic(&self, topic: &str) -> Result<(), CommonError>;
-    // fn publish_to_topic(&self, topic: &str, data: Vec<u8>) -> Result<(), CommonError>;
     fn subscribe(&self) -> Result<Receiver<NetworkMessage>, CommonError>;
+    fn as_any(&self) -> &dyn Any;
 }
+impl_downcast!(sync NetworkService);
 
 /// Stub implementation for NetworkService.
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct StubNetworkService;
 
 // TODO (#issue_url_for_libp2p_integration): Implement `Libp2pNetworkService` that uses a real libp2p stack.
 // This service should be conditionally compiled when the `with-libp2p` feature is enabled.
 // It will involve managing Swarm, Behaviours (e.g., Kademlia, Gossipsub), and transport configurations.
 
+#[async_trait]
 impl NetworkService for StubNetworkService {
     async fn discover_peers(&self, target_peer_id_str: Option<String>) -> Result<Vec<PeerId>, CommonError> {
         println!("[StubNetworkService] Discovering peers (target: {:?})... returning mock peers.", target_peer_id_str);
@@ -90,6 +105,10 @@ impl NetworkService for StubNetworkService {
         println!("[StubNetworkService] Subscribing to messages... returning an empty channel.");
         let (_tx, rx) = tokio::sync::mpsc::channel(1); // Create a dummy channel
         Ok(rx)
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
@@ -675,6 +694,7 @@ pub mod libp2p_service {
 
     /* ---------- hook into crate-level trait -------------------------------- */
 
+    #[async_trait]
     impl super::NetworkService for Libp2pNetworkService {
         async fn discover_peers(
             &self,
@@ -731,6 +751,10 @@ pub mod libp2p_service {
                 .map_err(|e| CommonError::NetworkSetupError(format!("Failed to send AddSubscriber command: {}", e)))?;
             
             Ok(msg_rx)
+        }
+
+        fn as_any(&self) -> &dyn Any {
+            self
         }
     }
 } // end mod

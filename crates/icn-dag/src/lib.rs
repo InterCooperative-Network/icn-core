@@ -89,26 +89,22 @@ impl FileDagStore {
     pub fn new(storage_path: PathBuf) -> Result<Self, CommonError> {
         if !storage_path.exists() {
             std::fs::create_dir_all(&storage_path)
-                .map_err(|e| CommonError::StorageError(format!("Failed to create storage directory {storage_path:?}: {e}")))?;
+                .map_err(|e| CommonError::IoError(format!("Failed to create storage directory {:?}: {}", storage_path, e)))?;
         }
         if !storage_path.is_dir() {
-            return Err(CommonError::StorageError(format!("Storage path {storage_path:?} is not a directory")));
+            return Err(CommonError::IoError(format!("Storage path {:?} is not a directory", storage_path)));
         }
         Ok(FileDagStore { storage_path })
     }
 
-    // Helper to get the file path for a given CID
-    fn get_block_path(&self, cid: &Cid) -> PathBuf {
-        // Using the string representation of CID as filename.
-        // Ensure CID string representation is filesystem-safe.
+    // Renamed from get_block_path in apply model changes, reverting to original name for clarity
+    fn block_path(&self, cid: &Cid) -> PathBuf {
         // Consider sharding directories if many blocks are expected (e.g., /ab/cd/efgh...).
         self.storage_path.join(cid.to_string())
     }
-}
 
-impl StorageService<DagBlock> for FileDagStore {
-    fn put(&mut self, block: &DagBlock) -> Result<(), CommonError> {
-        let file_path = self.get_block_path(&block.cid);
+    fn put_block_to_file(&self, block: &DagBlock) -> Result<(), CommonError> {
+        let file_path = self.block_path(&block.cid);
         let serialized_block = serde_json::to_string(block)
             .map_err(|e| CommonError::SerializationError(format!("Failed to serialize block {}: {}", block.cid, e)))?;
         
@@ -117,46 +113,60 @@ impl StorageService<DagBlock> for FileDagStore {
             .create(true)
             .truncate(true) // Overwrite if exists
             .open(&file_path)
-            .map_err(|e| CommonError::StorageError(format!("Failed to open/create file {file_path:?} for writing: {e}")))?;
+            .map_err(|e| CommonError::IoError(format!("Failed to open/create file {:?} for writing: {}", file_path, e)))?;
         
         file.write_all(serialized_block.as_bytes())
-            .map_err(|e| CommonError::StorageError(format!("Failed to write block {} to file {:?}: {}", block.cid, file_path, e)))?;
+            .map_err(|e| CommonError::IoError(format!("Failed to write block {} to file {:?}: {}", block.cid, file_path, e)))?;
         Ok(())
     }
 
-    fn get(&self, cid: &Cid) -> Result<Option<DagBlock>, CommonError> {
-        let file_path = self.get_block_path(cid);
+    fn get_block_from_file(&self, cid: &Cid) -> Result<Option<DagBlock>, CommonError> {
+        let file_path = self.block_path(cid);
         if !file_path.exists() {
             return Ok(None);
         }
 
         let mut file = File::open(&file_path)
-            .map_err(|e| CommonError::StorageError(format!("Failed to open file {file_path:?} for reading: {e}")))?;
+            .map_err(|e| CommonError::IoError(format!("Failed to open file {:?} for reading: {}", file_path, e)))?;
         
         let mut contents = String::new();
         file.read_to_string(&mut contents)
-            .map_err(|e| CommonError::StorageError(format!("Failed to read block {cid} from file {file_path:?}: {e}")))?;
+            .map_err(|e| CommonError::IoError(format!("Failed to read block {} from file {:?}: {}", cid, file_path, e)))?;
         
         let block_data: DagBlock = serde_json::from_str(&contents)
-            .map_err(|e| CommonError::DeserializationError(format!("Failed to deserialize block {cid} from file {file_path:?}: {e}")))?;
+            .map_err(|e| CommonError::DeserializationError(format!("Failed to deserialize block {} from file {:?}: {}", cid, file_path, e)))?;
         
         if &block_data.cid != cid {
-            return Err(CommonError::DagValidationError(format!("CID mismatch for block read from file {file_path:?}. Expected CID {expected_cid}, got {actual_cid}.", expected_cid = cid, actual_cid = block_data.cid)));
+            return Err(CommonError::InvalidInputError(format!("CID mismatch for block read from file {:?}. Expected CID {}, got {}.", file_path, cid, block_data.cid)));
         }
         Ok(Some(block_data))
     }
 
-    fn delete(&mut self, cid: &Cid) -> Result<(), CommonError> {
-        let file_path = self.get_block_path(cid);
+    fn delete_block_file(&self, cid: &Cid) -> Result<(), CommonError> {
+        let file_path = self.block_path(cid);
         if file_path.exists() {
             std::fs::remove_file(&file_path)
-                .map_err(|e| CommonError::StorageError(format!("Failed to delete file {file_path:?}: {e}")))?;
+                .map_err(|e| CommonError::IoError(format!("Failed to delete file {:?}: {}", file_path, e)))?;
         }
         Ok(())
     }
+}
+
+impl StorageService<DagBlock> for FileDagStore {
+    fn put(&mut self, block: &DagBlock) -> Result<(), CommonError> {
+        self.put_block_to_file(block)
+    }
+
+    fn get(&self, cid: &Cid) -> Result<Option<DagBlock>, CommonError> {
+        self.get_block_from_file(cid)
+    }
+
+    fn delete(&mut self, cid: &Cid) -> Result<(), CommonError> {
+        self.delete_block_file(cid)
+    }
 
     fn contains(&self, cid: &Cid) -> Result<bool, CommonError> {
-        let path = self.get_block_path(cid);
+        let path = self.block_path(cid);
         Ok(path.exists())
     }
 }
@@ -179,7 +189,7 @@ lazy_static::lazy_static! {
 /// DEPRECATED: Use a `StorageService` instance directly.
 pub fn put_block(block: &DagBlock) -> Result<(), CommonError> {
     let mut store = DEFAULT_IN_MEMORY_STORE.lock()
-        .map_err(|e| CommonError::StorageError(format!("Failed to acquire lock on default DAG store: {e}")))?;
+        .map_err(|e| CommonError::InternalError(format!("Failed to acquire lock on default DAG store: {e}")))?;
     store.put(block)
 }
 
@@ -187,7 +197,7 @@ pub fn put_block(block: &DagBlock) -> Result<(), CommonError> {
 /// DEPRECATED: Use a `StorageService` instance directly.
 pub fn get_block(cid: &Cid) -> Result<Option<DagBlock>, CommonError> {
     let store = DEFAULT_IN_MEMORY_STORE.lock()
-        .map_err(|e| CommonError::StorageError(format!("Failed to acquire lock on default DAG store: {e}")))?;
+        .map_err(|e| CommonError::InternalError(format!("Failed to acquire lock on default DAG store: {e}")))?;
     store.get(cid)
 }
 
@@ -196,7 +206,7 @@ pub fn process_dag_related_data(info: &NodeInfo) -> Result<String, CommonError> 
     if info.version == ICN_CORE_VERSION {
         Ok(format!("Processing DAG data for node: {} (version {})", info.name, info.version))
     } else {
-        Err(CommonError::PlaceholderError("Version mismatch".to_string()))
+        Err(CommonError::ConfigError(format!("Version mismatch: Expected {}, got {}. Node: {}", ICN_CORE_VERSION, info.version, info.name)))
     }
 }
 
@@ -303,7 +313,7 @@ mod tests {
         // Test error case: CID mismatch on read
         let block_x = create_test_block("block_x_corruption");
         store2.put(&block_x).unwrap();
-        let block_x_path = store2.get_block_path(&block_x.cid);
+        let block_x_path = store2.block_path(&block_x.cid);
         
         // Manually corrupt the stored block's CID (simulate corruption)
         let mut file_contents = std::fs::read_to_string(&block_x_path).unwrap();
@@ -313,12 +323,12 @@ mod tests {
         std::fs::write(&block_x_path, file_contents).unwrap();
 
         match store2.get(&block_x.cid) { // Try to get with original CID
-            Err(CommonError::DagValidationError(msg)) => {
+            Err(CommonError::InvalidInputError(msg)) => {
                 assert!(msg.contains("CID mismatch"));
             }
             Ok(Some(_)) => panic!("Should have failed with CID mismatch"),
             Ok(None) => panic!("Block should exist but be corrupted (CID mismatch), not None"),
-            Err(e) => panic!("Expected DagValidationError, got other error: {e:?}"),
+            Err(e) => panic!("Expected InvalidInputError for CID mismatch, got other error: {e:?}"),
         }
     }
 

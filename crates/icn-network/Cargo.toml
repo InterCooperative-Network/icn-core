@@ -1,32 +1,26 @@
 [package]
 name = "icn-network"
-version.workspace = true
-edition.workspace = true
-authors.workspace = true
-license.workspace = true
+version = "0.1.0"
+edition = "2021"
+authors = ["ICN Contributors"]
+description = "Networking crate for ICN, managing P2P communication using libp2p."
+license = "Apache-2.0"
+readme = "README.md"
 
 [dependencies]
 icn-common = { path = "../icn-common" }
+icn-mesh = { path = "../icn-mesh" }
+icn-identity = { path = "../icn-identity" }
+
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tokio = { version = "1", features = ["full"] }
-bs58 = { version = "0.5.0", optional = true }
-icn-mesh = { path = "../icn-mesh" }
-icn-identity = { path = "../icn-identity" }
+libp2p = { version = "0.53.2", features = ["tokio", "gossipsub", "mdns", "kad", "macros", "ping", "yamux", "noise", "tcp", "dns"], optional = true }
+futures = "0.3"
 log = "0.4"
 thiserror = "1.0"
-
-libp2p = { version = "0.53", optional = true, features = [
-    "tokio", 
-    "gossipsub", 
-    "kad", 
-    "ping", 
-    "noise", 
-    "yamux", 
-    "tcp",
-    "dns",
-    "macros"
-]}
+async-trait = "0.1.77"
+downcast-rs = "1.2.0"
 
 [dev-dependencies]
 # No specific dev-dependencies here yet, but could add things like criterion for benchmarks
@@ -35,7 +29,4 @@ libp2p = { version = "0.53", features = ["tokio", "tcp", "dns", "kad", "gossipsu
 
 [features]
 default = []
-experimental-libp2p = [
-    "dep:libp2p",
-    "dep:bs58"
-]
+experimental-libp2p = ["dep:libp2p"]

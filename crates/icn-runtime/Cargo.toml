@@ -1,33 +1,35 @@
 [package]
 name = "icn-runtime"
-version.workspace = true
-edition.workspace = true
-authors.workspace = true
-license.workspace = true
+version = "0.1.0"
+edition = "2021"
+authors = ["ICN Contributors"]
+description = "Core runtime logic for ICN nodes, including Host ABI and job management."
+license = "Apache-2.0"
+readme = "README.md"
 
 [dependencies]
 icn-common = { path = "../icn-common" }
-icn-mesh = { path = "../icn-mesh" }
-icn-governance = { path = "../icn-governance" }
 icn-identity = { path = "../icn-identity" }
 icn-economics = { path = "../icn-economics" }
+icn-mesh = { path = "../icn-mesh" }
 icn-network = { path = "../icn-network", features = ["experimental-libp2p"] }
+icn-dag = { path = "../icn-dag" }
 
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-tokio = { version = "1", features = ["full", "test-util"] }
-async-trait = "0.1"
-futures = "0.3"
-downcast-rs = "1.2.0"
+tokio = { version = "1", features = ["full"] }
+async-trait = "0.1.77"
 log = "0.4"
 thiserror = "1.0"
-libp2p = { version = "0.53", features = ["tokio", "gossipsub", "kad", "ping", "noise", "yamux", "tcp", "dns", "macros"] }
+libp2p = { version = "0.53.2", optional = true }
+downcast-rs = "1.2.0"
+futures = "0.3"
 
 [dev-dependencies]
-# No specific dev-dependencies here yet, but could add things like criterion for benchmarks
-anyhow = "1.0"
-libp2p = { version = "0.53", features = ["tokio", "tcp", "dns", "kad", "gossipsub", "noise", "yamux", "macros"] }
+anyhow = "1.0.75"
+# temp-dir = "0.1"
 
 [features]
 default = []
-# TODO: Add features like "test-utils" if you export specific test helpers from this crate
+# TODO: Define features if needed, e.g., for different execution environments or optional components.
+enable-libp2p = ["dep:libp2p"]
