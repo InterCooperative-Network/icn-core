@@ -1,5 +1,3 @@
-cargo-features = ["edition2024"]
-
 [package]
 name = "icn-runtime"
 version.workspace = true
@@ -17,12 +15,13 @@ icn-network = { path = "../icn-network", features = ["experimental-libp2p"] }
 
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-tokio = { version = "1", features = ["full", "test-util"] }
+tokio = { version = "1", features = ["full"] }
 async-trait = "0.1"
 futures = "0.3"
-downcast-rs = "1.2.1"
+downcast-rs = "1.2.0"
 log = "0.4"
 thiserror = "1.0"
+libp2p = { version = "0.53", features = ["tokio", "gossipsub", "kad", "ping", "noise", "yamux", "tcp", "dns", "macros"] }
 
 [dev-dependencies]
 # No specific dev-dependencies here yet, but could add things like criterion for benchmarks

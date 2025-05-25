@@ -13,6 +13,7 @@ members = [
     "crates/icn-cli",
     "crates/icn-node",
 ]
+resolver = "3"
 
 # Optional: centralize workspace-wide settings
 [workspace.package]

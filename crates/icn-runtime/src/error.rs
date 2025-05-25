@@ -3,6 +3,7 @@
 use thiserror::Error;
 use icn_common::{Cid, Did};
 use icn_network::MeshNetworkError; // Assuming MeshNetworkError is accessible
+use crate::context::HostAbiError; // Add this import
 
 /// Errors that can occur during mesh job processing within the `icn-runtime` crate.
 #[derive(Debug, Error)]
@@ -57,6 +58,8 @@ impl From<icn_common::CommonError> for MeshJobError {
     }
 }
 
+// Remove this conflicting implementation
+/*
 impl From<HostAbiError> for MeshJobError {
     fn from(e: HostAbiError) -> Self {
         match e {
@@ -72,4 +75,5 @@ impl From<HostAbiError> for MeshJobError {
             _ => MeshJobError::HostAbi(e), // Fallback to wrapping the HostAbiError directly
         }
     }
-} 
+}
+*/ 

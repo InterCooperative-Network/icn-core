@@ -1,24 +1,24 @@
 //! Defines the `RuntimeContext`, `HostEnvironment`, and related types for the ICN runtime.
 
-use icn_common::{Did, Cid, CommonError}; // Removed JobId as CommonJobId
-use std::collections::{HashMap, VecDeque}; // Added HashMap for ManaLedger
-use std::str::FromStr; // For Did::from_str in new_with_dummy_mana
-use std::sync::atomic::AtomicU32; // Modified import for Ordering
-use icn_governance::GovernanceModule; // Assuming this can be imported
-pub use icn_mesh::JobState; // Import from icn-mesh
-use icn_mesh::{ActualMeshJob, MeshJobBid, MeshJobAnnounce, select_executor, SelectionPolicy, JobId, JobAssignmentNotice, SubmitReceiptMessage as MeshSubmitReceiptMessage}; // Import from icn-mesh
-use icn_economics::{charge_mana, EconError}; // For mana charging
-use icn_identity::ExecutionReceipt as IdentityExecutionReceipt; // Import and alias ExecutionReceipt
-use tokio::sync::Mutex; // For channel-based communication if needed and Mutex for shared state
-use tokio::time::{sleep, Duration, Instant as TokioInstant}; // For timeouts and Tokio Instant
-use std::sync::Arc; // For shared state
-use async_trait::async_trait; // For async traits
+use icn_common::{Did, Cid, CommonError, NodeInfo};
+use std::collections::{HashMap, VecDeque};
+use std::str::FromStr;
+use std::sync::atomic::AtomicU32;
+use icn_governance::GovernanceModule;
+use icn_mesh::{ActualMeshJob, MeshJobBid, JobState, JobAssignmentNotice, MeshJobAnnounce, SubmitReceiptMessage as MeshSubmitReceiptMessage, JobId, JobSpec, select_executor, SelectionPolicy};
+use icn_economics::{charge_mana, EconError};
+use icn_identity::ExecutionReceipt as IdentityExecutionReceipt;
+use tokio::sync::Mutex;
+use tokio::time::{sleep, Duration, Instant as TokioInstant};
+use std::sync::Arc;
+use async_trait::async_trait;
 use downcast_rs::{impl_downcast, DowncastSync};
-use log::error; // Added for structured error logging
+use log::error;
 
 // Import network service from icn-network
-use icn_network::libp2p_service::{Libp2pNetworkService, Libp2pPeerId, Multiaddr}; // Corrected path & added types
-use icn_network::{NetworkMessage, NetworkService as GenericNetworkService, PeerId as GenericPeerId, MeshNetworkError}; // Added MeshNetworkError
+use icn_network::libp2p_service::Libp2pNetworkService;
+use libp2p::{Multiaddr, PeerId as Libp2pPeerId}; // Corrected import for PeerId and Multiaddr
+use icn_network::{MeshNetworkError, NetworkMessage, NetworkService as GenericNetworkService}; // Adjusted imports
 
 // Import this crate's error types
 use crate::error::MeshJobError;
@@ -130,7 +130,7 @@ impl MeshNetworkService for DefaultMeshNetworkService {
 
         loop {
             match tokio::time::timeout_at(end_time, receiver.recv()).await {
-                Ok(Some(Some(message))) => { // Outer Some for timeout, inner Some for channel message
+                Ok(Some(message)) => { // Outer Ok for timeout, inner Some for channel message
                     if let NetworkMessage::BidSubmission(bid) = message {
                         if bid.job_id == job_id {
                             println!("[DefaultMeshNetworkService] Received bid for job {:?}: {:?}", job_id, bid);
@@ -138,11 +138,8 @@ impl MeshNetworkService for DefaultMeshNetworkService {
                         }
                     }
                 }
-                Ok(Some(None)) => { // Channel closed
+                Ok(None) => { // Channel closed before timeout
                     eprintln!("[DefaultMeshNetworkService] Bid collection channel closed for job {:?}", job_id);
-                    break;
-                }
-                Ok(None) => { // Should not happen with mpsc receiver.recv()
                     break;
                 }
                 Err(_) => { // Timeout

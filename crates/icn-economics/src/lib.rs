@@ -5,7 +5,7 @@
 //! It manages token models, ledger interactions, transaction logic, and incentive mechanisms,
 //! aiming for security, accuracy, and interoperability.
 
-use icn_common::{NodeInfo, CommonError, ICN_CORE_VERSION, Did};
+use icn_common::{NodeInfo, CommonError, Did};
 
 // Placeholder for EconError enum
 #[derive(Debug)]

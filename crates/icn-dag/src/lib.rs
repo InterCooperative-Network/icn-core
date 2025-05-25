@@ -298,7 +298,7 @@ mod tests {
         // Test CID mismatch on read
         let block_cid_mismatch = create_test_block("cid_mismatch_block");
         let another_cid = Cid::new_v1_dummy(0x71, 0x12, b"another_cid_for_file");
-        let mut store_for_mismatch = FileDagStore::new(store_path.clone()).expect("Failed to create FileDagStore");
+        let store_for_mismatch = FileDagStore::new(store_path.clone()).expect("Failed to create FileDagStore");
         
         // Manually create a file with mismatched CID
         let file_path_mismatch = store_for_mismatch.get_block_path(&another_cid);
