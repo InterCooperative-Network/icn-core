@@ -1,6 +1,8 @@
 #[cfg(all(test, feature = "experimental-libp2p"))]
 mod libp2p_mesh_integration {
-    use icn_network::libp2p_service::{Libp2pNetworkService, Libp2pPeerId, Multiaddr};
+    use icn_network::libp2p_service::{Libp2pNetworkService};
+    use libp2p::{PeerId as Libp2pPeerId, Multiaddr};
+    use anyhow::Result;
     use icn_network::{NetworkService, NetworkMessage};
     use icn_common::{Cid, Did, CommonError};
     use icn_mesh::{ActualMeshJob as Job, MeshJobBid as Bid, JobId, JobSpec, Resources};
@@ -63,31 +65,47 @@ mod libp2p_mesh_integration {
         node_a_service.broadcast_message(job_announcement_msg).await?;
 
         println!("[test-mesh-network] Node B awaiting job announcement (timeout 10s).");
-        let received_on_b = timeout(Duration::from_secs(10), node_b_receiver.recv()).await??;
-        assert!(received_on_b.is_some(), "Node B receiver channel closed unexpectedly or got None");
-        
-        if let Some(NetworkMessage::MeshJobAnnouncement(received_job)) = received_on_b {
-            assert_eq!(received_job.id, job_to_announce.id, "Node B received incorrect job ID");
-            println!("[test-mesh-network] Node B received job announcement for job ID: {}. Submitting bid.", received_job.id);
+        let received_on_b_res = timeout(Duration::from_secs(10), node_b_receiver.recv()).await;
+        match received_on_b_res {
+            Ok(Some(network_message_b)) => {
+                if let NetworkMessage::MeshJobAnnouncement(received_job) = network_message_b {
+                    assert_eq!(received_job.id, job_to_announce.id, "Node B received incorrect job ID");
+                    println!("[test-mesh-network] Node B received job announcement for job ID: {}. Submitting bid.", received_job.id);
 
-            let bid_to_submit = generate_dummy_bid(&received_job.id, "did:key:z6MkjchhcVbWZkAbNGRsM4ac3gR3eNnYtD9tYtFv9T9xL4xH");
-            let bid_submission_msg = NetworkMessage::BidSubmission(bid_to_submit.clone());
-            node_b_service.broadcast_message(bid_submission_msg).await?;
-            println!("[test-mesh-network] Node B broadcasted bid for job ID: {}", received_job.id);
+                    let bid_to_submit = generate_dummy_bid(&received_job.id, "did:key:z6MkjchhcVbWZkAbNGRsM4ac3gR3eNnYtD9tYtFv9T9xL4xH");
+                    let bid_submission_msg = NetworkMessage::BidSubmission(bid_to_submit.clone());
+                    node_b_service.broadcast_message(bid_submission_msg).await?;
+                    println!("[test-mesh-network] Node B broadcasted bid for job ID: {}", received_job.id);
 
-            println!("[test-mesh-network] Node A awaiting bid submission (timeout 10s).");
-            let received_on_a = timeout(Duration::from_secs(10), node_a_receiver.recv()).await??;
-            assert!(received_on_a.is_some(), "Node A receiver channel closed unexpectedly or got None");
-
-            if let Some(NetworkMessage::BidSubmission(received_bid)) = received_on_a {
-                assert_eq!(received_bid.job_id, job_to_announce.id, "Node A received bid for incorrect job ID");
-                assert_eq!(received_bid.executor_did, bid_to_submit.executor_did, "Node A received bid from incorrect executor");
-                println!("[test-mesh-network] Node A received bid for job ID: {} from executor: {}. Test successful.", received_bid.job_id, received_bid.executor_did.to_string());
-            } else {
-                panic!("[test-mesh-network] Node A did not receive a BidSubmission, but: {:?}", received_on_a);
+                    println!("[test-mesh-network] Node A awaiting bid submission (timeout 10s).");
+                    let received_on_a_res = timeout(Duration::from_secs(10), node_a_receiver.recv()).await;
+                    match received_on_a_res {
+                        Ok(Some(network_message_a)) => {
+                            if let NetworkMessage::BidSubmission(received_bid) = network_message_a {
+                                assert_eq!(received_bid.job_id, job_to_announce.id, "Node A received bid for incorrect job ID");
+                                assert_eq!(received_bid.executor_did, bid_to_submit.executor_did, "Node A received bid from incorrect executor");
+                                println!("[test-mesh-network] Node A received bid for job ID: {} from executor: {}. Test successful.", received_bid.job_id, received_bid.executor_did.to_string());
+                            } else {
+                                panic!("[test-mesh-network] Node A did not receive a BidSubmission, but: {:?}", network_message_a);
+                            }
+                        }
+                        Ok(None) => {
+                            panic!("[test-mesh-network] Node A receiver channel closed unexpectedly.");
+                        }
+                        Err(_) => {
+                            panic!("[test-mesh-network] Node A timed out waiting for bid submission.");
+                        }
+                    }
+                } else {
+                    panic!("[test-mesh-network] Node B did not receive a MeshJobAnnouncement, but: {:?}", network_message_b);
+                }
             }
-        } else {
-            panic!("[test-mesh-network] Node B did not receive a MeshJobAnnouncement, but: {:?}", received_on_b);
+            Ok(None) => {
+                panic!("[test-mesh-network] Node B receiver channel closed unexpectedly.");
+            }
+            Err(_) => {
+                panic!("[test-mesh-network] Node B timed out waiting for job announcement.");
+            }
         }
 
         Ok(())

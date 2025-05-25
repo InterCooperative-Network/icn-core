@@ -1,11 +1,11 @@
 //! Defines the `RuntimeContext`, `HostEnvironment`, and related types for the ICN runtime.
 
-use icn_common::{Did, Cid, CommonError, NodeInfo};
+use icn_common::{Did, Cid, CommonError};
 use std::collections::{HashMap, VecDeque};
 use std::str::FromStr;
 use std::sync::atomic::AtomicU32;
 use icn_governance::GovernanceModule;
-use icn_mesh::{ActualMeshJob, MeshJobBid, JobState, JobAssignmentNotice, MeshJobAnnounce, SubmitReceiptMessage as MeshSubmitReceiptMessage, JobId, JobSpec, select_executor, SelectionPolicy};
+use icn_mesh::{ActualMeshJob, MeshJobBid, JobState, JobAssignmentNotice, MeshJobAnnounce, SubmitReceiptMessage as MeshSubmitReceiptMessage, JobId, select_executor, SelectionPolicy};
 use icn_economics::{charge_mana, EconError};
 use icn_identity::ExecutionReceipt as IdentityExecutionReceipt;
 use tokio::sync::Mutex;

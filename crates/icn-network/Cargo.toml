@@ -30,6 +30,8 @@ libp2p = { version = "0.53", optional = true, features = [
 
 [dev-dependencies]
 # No specific dev-dependencies here yet, but could add things like criterion for benchmarks
+anyhow = "1.0"
+libp2p = { version = "0.53", features = ["tokio", "tcp", "dns", "kad", "gossipsub", "noise", "yamux", "macros"] }
 
 [features]
 default = []

@@ -3,7 +3,7 @@
 use thiserror::Error;
 use icn_common::{Cid, Did};
 use icn_network::MeshNetworkError; // Assuming MeshNetworkError is accessible
-use crate::context::HostAbiError; // Add this import
+ // Add this import
 
 /// Errors that can occur during mesh job processing within the `icn-runtime` crate.
 #[derive(Debug, Error)]
