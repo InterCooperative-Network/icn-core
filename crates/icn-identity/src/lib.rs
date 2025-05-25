@@ -7,7 +7,6 @@
 
 use icn_common::{Did, CommonError, ICN_CORE_VERSION, NodeInfo, Cid};
 use rand::RngCore;
-use bs58;
 use serde::{Serialize, Deserialize};
 
 // --- Key Management Placeholder Structs ---
@@ -49,7 +48,6 @@ pub fn did_key_from_public_key(public_key: &PublicKey) -> Did {
 /// Planned: Resolve a DID string to its corresponding DID Document.
 /// For `did:key`, this involves constructing the document from the key itself.
 // pub fn resolve_did(did_string: &str) -> Result<icn_common::DidDocument, CommonError> { todo!(); }
-
 /// Represents a digital signature.
 /// TODO: Replace with a proper signature type from a crypto library.
 pub type Signature = Vec<u8>;
@@ -75,13 +73,12 @@ pub struct ExecutionReceipt {
 /// TODO: Implement Verifiable Credential verification logic.
 /// TODO: Define DidDocument, ServiceEndpoint, VerificationMethod structs in icn-common or here.
 /// TODO: Define VerifiableCredential and Proof structs.
-
 /// Placeholder function demonstrating use of common types for identity.
 pub fn register_identity(info: &NodeInfo, did_method: &str) -> Result<String, CommonError> {
     if did_method == "key" {
         let kp = generate_key_pair()?;
         let did = did_key_from_public_key(&kp.public_key);
-        Ok(format!("Registered {} for node: {} (v{}). DID: {}", did_method, info.name, info.version, did.to_string()))
+        Ok(format!("Registered {} for node: {} (v{}). DID: {}", did_method, info.name, info.version, did))
     } else {
         Ok(format!("Registered {} identity for node: {} (v{})", did_method, info.name, info.version))
     }
@@ -106,7 +103,7 @@ mod tests {
         let did = did_key_from_public_key(&public_key);
         assert_eq!(did.method, "key");
         assert!(!did.id_string.is_empty());
-        println!("Generated placeholder did:key: {}", did.to_string());
+        println!("Generated placeholder did:key: {}", did);
     }
 
     #[test]

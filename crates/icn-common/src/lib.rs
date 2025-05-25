@@ -7,7 +7,6 @@
 
 use serde::{Serialize, Deserialize};
 use std::fmt;
-use bs58;
 
 pub const ICN_CORE_VERSION: &str = "0.1.0-dev-functional";
 
@@ -29,7 +28,7 @@ pub struct NodeStatus {
 
 impl fmt::Display for CommonError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", self) // Simple Display implementation using Debug
+        write!(f, "{self:?}")
     }
 }
 
@@ -101,8 +100,11 @@ impl Did {
     pub fn new(method: &str, id_string: &str) -> Self {
         Did { method: method.to_string(), id_string: id_string.to_string() }
     }
-    pub fn to_string(&self) -> String {
-        format!("did:{}:{}", self.method, self.id_string)
+}
+
+impl fmt::Display for Did {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "did:{}:{}", self.method, self.id_string)
     }
 }
 
@@ -113,7 +115,7 @@ impl std::str::FromStr for Did {
         if parts.len() == 3 && parts[0] == "did" && !parts[1].is_empty() && !parts[2].is_empty() {
             Ok(Did { method: parts[1].to_string(), id_string: parts[2].to_string() })
         } else {
-            Err(CommonError::InvalidInputError(format!("Invalid DID string format: {}. Expected 'did:method:id' with non-empty method and id.", s)))
+            Err(CommonError::InvalidInputError(format!("Invalid DID string format: {s}. Expected 'did:method:id' with non-empty method and id.")))
         }
     }
 }
@@ -194,7 +196,6 @@ mod tests {
 
     #[test]
     fn version_is_set() {
-        assert!(!ICN_CORE_VERSION.is_empty());
         assert!(ICN_CORE_VERSION.contains("functional"));
     }
 
