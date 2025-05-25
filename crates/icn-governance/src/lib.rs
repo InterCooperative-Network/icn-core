@@ -6,6 +6,7 @@
 //! focusing on transparency, fairness, and flexibility.
 
 use icn_common::{NodeInfo, CommonError, Did};
+#[cfg(feature = "federation")]
 use icn_network::PeerId;
 use std::collections::HashMap;
 #[cfg(feature = "persist-sled")]
@@ -291,16 +292,15 @@ impl GovernanceModule {
     // TODO: Add logic for quorum and threshold checks.
 }
 
-// --- Stubbed Federation Sync API ---
-
-/// Simulates a request to sync governance state (proposals, votes) with another federation member.
+/// Placeholder function for demonstrating federation sync request.
+#[cfg(feature = "federation")]
 pub fn request_federation_sync(target_peer: &PeerId, since_timestamp: Option<u64>) -> Result<String, CommonError> {
-    // In a real scenario, this would involve network communication.
-    // For now, it's a placeholder.
-    Ok(format!("Requested sync from peer {:?} since {:?}", target_peer, since_timestamp))
+    // TODO: Implement actual network call to the target_peer
+    // This would involve using the NetworkService from icn-network if it were integrated here.
+    Ok(format!("Requested federation sync from peer {:?} since {:?}", target_peer, since_timestamp))
 }
 
-/// Placeholder function demonstrating use of common types for governance.
+/// Placeholder function demonstrating use of common types for governance operations.
 pub fn submit_governance_proposal(info: &NodeInfo, proposal_id: u32) -> Result<String, CommonError> {
     Ok(format!("Node {} submitted governance proposal {}", info.name, proposal_id))
 }
