@@ -190,8 +190,8 @@ pub mod libp2p_service {
     use std::str::FromStr;
 
     // Reverting Kademlia specific imports to the previous state
-    use libp2p::kad::record::Key as KademliaKey;
-    use libp2p::kad::{self, Record as KademliaRecord, QueryId, Quorum, GetRecordOk, PutRecordOk, store::MemoryStore, Behaviour as KademliaBehaviour, Config as KademliaConfig, Event as KademliaEvent, QueryResult as KademliaQueryResult};
+    use libp2p::kad::Key as KademliaKey;
+    use libp2p::kad::{Record as KademliaRecord, QueryId, Quorum, GetRecordOk, PutRecordOk, store::MemoryStore, Behaviour as KademliaBehaviour, Config as KademliaConfig, Event as KademliaEvent, QueryResult as KademliaQueryResult};
 
     /* ---------- Public façade ------------------------------------------------ */
 
