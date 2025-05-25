@@ -1,9 +1,19 @@
 [package]
 name = "icn-protocol"
-version.workspace = true
-edition.workspace = true
-authors.workspace = true
-license.workspace = true
+version = "0.1.0"
+edition = "2021"
+authors = ["ICN Contributors"]
+description = "Core message formats and protocol definitions for ICN."
+license = "Apache-2.0"
+readme = "README.md"
 
 [dependencies]
 icn-common = { path = "../icn-common" }
+serde = { version = "1.0", features = ["derive"] }
+
+[dev-dependencies]
+# Add any test-specific dependencies here
+
+[features]
+default = []
+# Example: enable-ccl-parsing = []

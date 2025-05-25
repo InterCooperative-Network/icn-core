@@ -5,9 +5,11 @@
 //! InterCooperative Network (ICN) mesh network. It handles job definition, resource discovery,
 //! scheduling, execution management, and fault tolerance.
 
-use icn_common::{NodeInfo, CommonError, ICN_CORE_VERSION, Cid, Did};
+use icn_common::{NodeInfo, CommonError, Cid, Did, ICN_CORE_VERSION};
 use icn_identity::ExecutionReceipt;
 use serde::{Serialize, Deserialize};
+use std::collections::HashMap;
+use std::sync::atomic::{AtomicU32, Ordering};
 
 /// Errors that can occur within the ICN Mesh subsystem.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -123,18 +125,18 @@ impl ReputationExecutorSelector {
 /// executor reputation alongside other bid parameters like price and resource availability.
 /// 
 /// # Arguments
+/// * `job_id` - The ID of the job for which an executor is being selected.
 /// * `bids` - A vector of `Bid` structs received for a specific job.
 /// * `policy` - The `SelectionPolicy` to apply for choosing the best executor.
 /// 
 /// # Returns
 /// * `Some(Did)` of the selected executor if a suitable one is found.
 /// * `None` if no suitable executor could be selected based on the bids and policy.
-pub fn select_executor(bids: Vec<MeshJobBid>, policy: SelectionPolicy) -> Option<Did> {
-    // Use the scoring logic directly or via ReputationExecutorSelector
-    // let selector = ReputationExecutorSelector; 
-    // selector.select(&bids, &policy)
+pub fn select_executor(job_id: &JobId, bids: Vec<MeshJobBid>, _policy: &SelectionPolicy) -> Option<Did> {
+    // TODO: Implement actual selection logic based on policy (reputation, price, resources, etc.)
+    // For now, simplistic: return the DID of the first valid bidder if any.
+    println!("[Mesh] Selecting executor for job {:?}. Received {} bids.", job_id, bids.len());
 
-    // Direct implementation for clarity for now:
     if bids.is_empty() {
         return None;
     }
@@ -143,7 +145,7 @@ pub fn select_executor(bids: Vec<MeshJobBid>, policy: SelectionPolicy) -> Option
     let mut highest_score = 0u64;
 
     for bid in &bids {
-        let current_score = score_bid(bid, &policy);
+        let current_score = score_bid(bid, _policy);
         if best_bid.is_none() || current_score > highest_score {
             highest_score = current_score;
             best_bid = Some(bid);

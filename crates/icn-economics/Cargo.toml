@@ -1,9 +1,21 @@
 [package]
 name = "icn-economics"
-version.workspace = true
-edition.workspace = true
-authors.workspace = true
-license.workspace = true
+version = "0.1.0"
+edition = "2021"
+authors = ["ICN Contributors"]
+description = "ICN economics module, managing mana, resource policies, and potentially token accounting."
+license = "Apache-2.0"
+readme = "README.md"
 
 [dependencies]
 icn-common = { path = "../icn-common" }
+serde = { version = "1.0", features = ["derive"] }
+tokio = { version = "1", features = ["sync"] } # For Mutex, RwLock if needed async
+thiserror = "1.0" # Added thiserror
+
+[dev-dependencies]
+# Add test-specific dependencies here
+
+[features]
+default = []
+# Example feature: enable-advanced-accounting = []

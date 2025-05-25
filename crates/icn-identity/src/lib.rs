@@ -1,13 +1,13 @@
 #![doc = include_str!("../README.md")]
 
 //! # ICN Identity Crate
-//! This crate manages decentralized identities (DIDs), verifiable credentials (VCs),
-//! and cryptographic operations for the InterCooperative Network (ICN).
-//! It focuses on security, interoperability with DID/VC standards, and usability.
+//! This crate handles decentralized identity management for the InterCooperative Network (ICN),
+//! including DID generation, resolution, credential verification, and cryptographic operations.
 
-use icn_common::{Did, CommonError, ICN_CORE_VERSION, NodeInfo, Cid};
+use icn_common::{NodeInfo, CommonError, Did, ICN_CORE_VERSION};
 use rand::RngCore;
 use serde::{Serialize, Deserialize};
+use std::str::FromStr;
 
 // --- Key Management Placeholder Structs ---
 #[derive(Debug, Clone)]

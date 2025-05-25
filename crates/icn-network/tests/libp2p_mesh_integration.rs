@@ -8,7 +8,6 @@ mod libp2p_mesh_integration {
     use icn_mesh::{ActualMeshJob as Job, MeshJobBid as Bid, JobId, JobSpec, Resources};
     use std::str::FromStr;
     use tokio::time::{sleep, Duration, timeout};
-    use kriyativa::prelude::*;
     use icn_network::{PeerId as IcnPeerId};
 
     fn generate_dummy_job(id_str: &str) -> Job {

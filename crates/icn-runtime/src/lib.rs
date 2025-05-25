@@ -4,6 +4,10 @@
 //! This crate defines the execution environment for ICN host and guest modules,
 //! including the `RuntimeContext`, `HostEnvironment`, mesh job management, and related services.
 //!
+//! ## Features
+//! - `enable-libp2p`: Enables the libp2p-based network services and related functionalities.
+//!                    When disabled, only stubbed network services are available.
+//!
 //! To enable detailed logging for mesh-related events, run tests or binaries with:
 //! `RUST_LOG=icn_runtime=debug,icn_network=debug` (or adjust levels as needed).
 
