@@ -19,6 +19,7 @@ use serde_json;
 use std::str::FromStr;
 use icn_identity;
 use futures;
+use log::{info, warn, error, debug};
 
 /// Placeholder function demonstrating use of common types for runtime operations.
 /// This function is not directly part of the Host ABI layer discussed below but serves as an example.
@@ -200,30 +201,20 @@ impl ReputationUpdater {
 /// The `receipt_json` is expected to be a JSON string serializing `icn_identity::ExecutionReceipt`.
 ///
 /// TODO: WASM bindings will need to handle memory marshalling for `receipt_json` and returned `Cid`.
-pub fn host_anchor_receipt(ctx: &RuntimeContext, receipt_json: &str, reputation_updater: &ReputationUpdater) -> Result<Cid, HostAbiError> {
-    // TODO: record metric `icn_runtime_abi_call_total{method="host_anchor_receipt"}`
-    println!("[RUNTIME_ABI] host_anchor_receipt called with receipt_json: {}", receipt_json);
-
-    if receipt_json.is_empty() {
-        return Err(HostAbiError::InvalidParameters("Receipt JSON cannot be empty".to_string()));
-    }
-
-    // 1. Deserialize ExecutionReceipt
+pub async fn host_anchor_receipt(ctx: &RuntimeContext, receipt_json: &str, reputation_updater: &ReputationUpdater) -> Result<Cid, HostAbiError> {
+    debug!("[host_anchor_receipt] Received receipt JSON: {}", receipt_json);
     let mut receipt: icn_identity::ExecutionReceipt = serde_json::from_str(receipt_json)
-        .map_err(|e| HostAbiError::InvalidParameters(format!("Failed to deserialize icn_identity::ExecutionReceipt: {}. Input: {}", e, receipt_json)))?;
+        .map_err(|e| HostAbiError::InvalidParameters(format!("Failed to deserialize receipt JSON: {}", e)))?;
 
-    if ctx.current_identity != receipt.executor_did {
-        println!("[RUNTIME_ABI_WARN] host_anchor_receipt called by {:?} for a receipt from executor {:?}. Ensure this is intended.", 
-                 ctx.current_identity, receipt.executor_did);
-    }
+    // The original code in the job manager calls signer.verify and dag_store.put which are async.
+    // RuntimeContext::anchor_receipt was made async to accommodate this.
+    // Therefore, this host function, if it directly calls it, must also be async and awaited.
+    let anchored_cid = ctx.anchor_receipt(&mut receipt).await?; // Now awaiting the async call
 
-    // 2. Call ctx.anchor_receipt (which handles internal signing and DAG storage)
-    let anchored_cid = ctx.anchor_receipt(&mut receipt)?; // anchor_receipt is sync again
-    println!("[RUNTIME_ABI] Receipt for job_id {:?} anchored with CID: {:?}", receipt.job_id, anchored_cid);
-
-    // 3. Submit to reputation updater
-    reputation_updater.submit(&receipt);
-
+    info!("[host_anchor_receipt] Receipt for job {:?} (executor {:?}) anchored with CID: {:?}. CPU cost: {}ms", 
+          receipt.job_id, receipt.executor_did, anchored_cid, receipt.cpu_ms);
+    
+    reputation_updater.submit(&receipt); // This is a stub for now
     Ok(anchored_cid)
 }
 

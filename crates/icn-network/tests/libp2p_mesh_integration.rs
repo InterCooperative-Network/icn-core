@@ -1,13 +1,15 @@
 #[cfg(all(test, feature = "experimental-libp2p"))]
 mod libp2p_mesh_integration {
     use icn_network::libp2p_service::{Libp2pNetworkService};
-    use libp2p::{PeerId as Libp2pPeerId, Multiaddr};
+    use libp2p::{PeerId as Libp2pPeerId};
     use anyhow::Result;
     use icn_network::{NetworkService, NetworkMessage};
-    use icn_common::{Cid, Did, CommonError};
+    use icn_common::{Cid, Did};
     use icn_mesh::{ActualMeshJob as Job, MeshJobBid as Bid, JobId, JobSpec, Resources};
     use std::str::FromStr;
     use tokio::time::{sleep, Duration, timeout};
+    use kriyativa::prelude::*;
+    use icn_network::{PeerId as IcnPeerId};
 
     fn generate_dummy_job(id_str: &str) -> Job {
         let job_id = Cid::new_v1_dummy(0x55, 0x13, id_str.as_bytes());

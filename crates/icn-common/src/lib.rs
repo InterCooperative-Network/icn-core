@@ -86,6 +86,18 @@ pub enum CommonError {
 
     #[error("Database error: {0}")]
     DatabaseError(String),
+
+    #[error("Storage error: {0}")]
+    StorageError(String),
+
+    #[error("DAG validation error: {0}")]
+    DagValidationError(String),
+
+    #[error("API error: {0}")]
+    ApiError(String),
+
+    #[error("Node offline: {0}")]
+    NodeOffline(String),
     
     #[error("Unknown error: {0}")]
     UnknownError(String),

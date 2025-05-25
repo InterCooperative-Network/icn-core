@@ -22,9 +22,6 @@ use downcast_rs::{impl_downcast, DowncastSync};
 use std::any::Any;
 use std::sync::Arc;
 
-// Consolidated Kademlia imports (excluding KademliaKey at this top level)
-// use libp2p::kad::{Record, Record as KademliaRecord, QueryId, Quorum, GetRecordOk, PutRecordOk}; // Commented out due to unused warnings
-
 // --- Peer and Message Scaffolding ---
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]

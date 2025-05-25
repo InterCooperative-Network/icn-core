@@ -1,23 +1,22 @@
 //! Defines the `RuntimeContext`, `HostEnvironment`, and related types for the ICN runtime.
 
-use icn_common::{Did, Cid, CommonError, DagBlock};
-use icn_identity::{ExecutionReceipt as IdentityExecutionReceipt, Signature}; 
-use icn_economics::{EconError, ResourcePolicyEnforcer, ManaRepositoryAdapter}; 
-use icn_mesh::{JobId, ActualMeshJob, MeshJobBid, JobState, SubmitReceiptMessage, JobSpec};
+use icn_common::{Did, Cid, CommonError};
+use icn_identity::{ExecutionReceipt as IdentityExecutionReceipt}; 
+use icn_economics::{EconError};
+use icn_mesh::{JobId, ActualMeshJob, MeshJobBid, JobState};
 
-use icn_network::{NetworkService as ActualNetworkService, NetworkMessage, PeerId as NetworkPeerId};
+use icn_network::{NetworkService as ActualNetworkService, NetworkMessage};
 #[cfg(feature = "enable-libp2p")]
-use icn_network::libp2p_service::Libp2pNetworkService as ActualLibp2pNetworkService; // Renamed to avoid conflict with local trait
-use downcast_rs::DowncastSync;
+use icn_network::libp2p_service::Libp2pNetworkService as ActualLibp2pNetworkService; 
+use downcast_rs::{DowncastSync, impl_downcast}; 
 
 use log::{info, warn, error, debug};
-use std::collections::{HashMap, VecDeque, HashSet};
-use std::sync::{Arc, Mutex as StdMutex, atomic::{AtomicU32, Ordering}}; 
-use tokio::sync::{Mutex, RwLock, mpsc::{self, Sender, Receiver}};
-use tokio::task::JoinHandle;
+use std::collections::{HashMap, VecDeque};
+use std::sync::{Arc, atomic::{AtomicU32}};
+use tokio::sync::{Mutex, mpsc};
+
 use async_trait::async_trait;
-use downcast_rs::impl_downcast; 
-use std::any::Any;
+
 use std::str::FromStr; 
 
 #[cfg(feature = "enable-libp2p")]
@@ -430,7 +429,6 @@ impl RuntimeContext {
         let network_service_clone = Arc::clone(&self.mesh_network_service);
         let signer_clone = Arc::clone(&self.signer);
         let dag_store_clone = Arc::clone(&self.dag_store);
-        let current_identity_clone = self.current_identity.clone();
         let mana_ledger_for_refunds = self.mana_ledger.clone(); 
 
         let mut assigned_jobs: HashMap<JobId, (ActualMeshJob, Did, TokioInstant)> = HashMap::new();
@@ -565,7 +563,7 @@ impl RuntimeContext {
                 if let Some((job_id_from_receipt, receipt)) = receipt_to_process_option {
                     if let Some((_original_job, assigned_executor_did_map, _assignment_time)) = assigned_jobs.get(&job_id_from_receipt) {
                         if &receipt.executor_did == assigned_executor_did_map {
-                            let mut receipt_to_anchor = receipt.clone(); 
+                            let receipt_to_anchor = receipt.clone(); // No longer mutable
                             // The anchor_receipt in RuntimeContext is sync, but its internal calls to Signer and StorageService are async.
                             // It uses futures::executor::block_on which is not ideal for a running async executor like the job manager.
                             // This should be refactored. For now, to compile, we'll assume anchor_receipt can be called.
