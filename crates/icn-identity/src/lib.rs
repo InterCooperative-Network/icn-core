@@ -6,10 +6,10 @@
 // use icn_common::{NodeInfo, CommonError, Did, ICN_CORE_VERSION, Cid};
 // use serde::{Serialize, Deserialize};
 
-use icn_common::{Cid, CommonError, Did, ICN_CORE_VERSION, NodeInfo}; // Adjusted imports
+use icn_common::{Cid, CommonError, Did, NodeInfo, ICN_CORE_VERSION}; // Adjusted imports (re-added ICN_CORE_VERSION)
 use serde::{Deserialize, Serialize}; // Keep serde for ExecutionReceipt
 
-use ed25519_dalek::{Signature as EdSignature, Signer, SigningKey, Verifier, VerifyingKey, SIGNATURE_LENGTH};
+use ed25519_dalek::{Signature as EdSignature, Signer, SigningKey, VerifyingKey, SIGNATURE_LENGTH}; // Removed unused Verifier
 use multibase::{encode as multibase_encode, Base};
 use rand_core::OsRng;
 use unsigned_varint::encode as varint_encode;
@@ -77,8 +77,10 @@ impl SignatureBytes {
             .try_into()
             .map_err(|_| CommonError::InternalError("Invalid signature length".into()))?;
 
-        ed25519_dalek::Signature::from_bytes(&bytes_array)
-            .map_err(|e| CommonError::InternalError(format!("Signature decode error: {:?}", e)))
+        // Assuming ed25519_dalek::Signature::from_bytes returns ed25519_dalek::Signature directly
+        // based on persistent compiler errors. This implies errors from it would panic.
+        let sig = ed25519_dalek::Signature::from_bytes(&bytes_array);
+        Ok(sig)
     }
 }
 
@@ -109,9 +111,9 @@ impl ExecutionReceipt {
         // would be better for interoperability and to prevent canonicalization attacks.
         // For now, this is kept simple.
         let mut bytes = Vec::new();
-        bytes.extend_from_slice(&self.job_id.to_bytes()); // Using .to_bytes()
+        bytes.extend_from_slice(self.job_id.to_string().as_bytes()); // Using .to_string().as_bytes()
         bytes.extend_from_slice(self.executor_did.to_string().as_bytes()); // DID as string
-        bytes.extend_from_slice(&self.result_cid.to_bytes()); // Using .to_bytes()
+        bytes.extend_from_slice(self.result_cid.to_string().as_bytes()); // Using .to_string().as_bytes()
         bytes.extend_from_slice(&self.cpu_ms.to_le_bytes());
         Ok(bytes)
     }
@@ -169,15 +171,11 @@ mod tests {
     use std::str::FromStr; // Ensure FromStr is in scope for Did::from_str
     use icn_common::Cid; // Make sure Cid is in scope
 
-    // Helper to create a dummy Cid for tests when generate_cid is unavailable
+    // Helper to create a dummy Cid for tests
     fn dummy_cid_for_test(s: &str) -> Cid {
-        Cid::from_str(s).unwrap_or_else(|_| {
-            // Fallback if from_str fails or not implemented for this dummy string format
-            // This is a very basic placeholder if proper CID creation fails.
-            // A real dummy CID might involve creating a minimal valid CID structure.
-            // For now, let's use a known valid V1 CID string if from_str is problematic for arbitrary strings.
-            Cid::from_str("bafybeigdyrzt7dpbrm3kmhgtr5mk6yzqq3wj7owxsbs2hlkzbfio4ilv5e").expect("Failed to create fallback dummy CID")
-        })
+        // Using raw codec (0x55) and SHA2-256 (multihash code 0x12) as example parameters for new_v1_dummy.
+        // These values might need adjustment based on specific requirements for dummy CIDs in ICN.
+        icn_common::Cid::new_v1_dummy(0x55, 0x12, s.as_bytes())
     }
 
     #[test]
