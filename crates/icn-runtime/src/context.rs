@@ -25,17 +25,23 @@ use libp2p::{Multiaddr, PeerId as Libp2pPeerId};
 
 use crate::error::MeshJobError;
 use tokio::time::{Duration, sleep};
+use icn_identity::{generate_ed25519_keypair, did_key_from_verifying_key, SigningKey, VerifyingKey, sign_message, verify_signature as identity_verify_signature, SignatureBytes as IdentitySignatureBytes};
+use ed25519_dalek::Signature as EdSignature; // For converting to/from bytes
 
 // Counter for generating unique (within this runtime instance) job IDs for stubs
 pub static NEXT_JOB_ID: AtomicU32 = AtomicU32::new(1);
 
 // --- Placeholder Local Stubs / Forward Declarations ---
 
-// Placeholder for icn-identity::Signer (assuming it should be async)
-#[async_trait]
+// Updated Signer trait to be synchronous and match new crypto capabilities
+// #[async_trait] // No longer async
 pub trait Signer: Send + Sync + std::fmt::Debug {
-    async fn sign(&self, did: &Did, data: &[u8]) -> Result<Vec<u8>, HostAbiError>;
-    async fn verify(&self, did: &Did, data: &[u8], signature: &[u8]) -> Result<bool, HostAbiError>;
+    // async fn sign(&self, did: &Did, data: &[u8]) -> Result<Vec<u8>, HostAbiError>; // Old async version
+    // async fn verify(&self, did: &Did, data: &[u8], signature: &[u8]) -> Result<bool, HostAbiError>; // Old async version
+    fn sign(&self, payload: &[u8]) -> Result<Vec<u8>, HostAbiError>;
+    fn verify(&self, payload: &[u8], signature: &[u8], public_key_bytes: &[u8]) -> Result<bool, HostAbiError>; // Added pk_bytes
+    fn public_key_bytes(&self) -> Vec<u8>;
+    fn did(&self) -> Did;
 }
 
 // Placeholder for icn-dag::StorageService (assuming it should be async)
@@ -388,7 +394,7 @@ impl RuntimeContext {
         Ok(Self::new(
             current_identity,
             default_mesh_service,
-            Arc::new(StubSigner), 
+            Arc::new(StubSigner::new()), 
             Arc::new(StubDagStore::new()), 
         ))
     }
@@ -398,7 +404,7 @@ impl RuntimeContext {
         Self::new(
             current_identity, 
             Arc::new(StubMeshNetworkService::new()),
-            Arc::new(StubSigner),
+            Arc::new(StubSigner::new()),
             Arc::new(StubDagStore::new())
         )
     }
@@ -408,7 +414,7 @@ impl RuntimeContext {
         let ctx = Self::new(
             current_identity.clone(), 
             Arc::new(StubMeshNetworkService::new()),
-            Arc::new(StubSigner),
+            Arc::new(StubSigner::new()),
             Arc::new(StubDagStore::new())
         );
         futures::executor::block_on(ctx.mana_ledger.set_balance(&current_identity, initial_mana));
@@ -425,237 +431,178 @@ impl RuntimeContext {
     }
 
     pub async fn spawn_mesh_job_manager(&self) {
-        let pending_jobs_queue_clone = Arc::clone(&self.pending_mesh_jobs);
-        let job_states_clone = Arc::clone(&self.job_states);
-        let network_service_clone = Arc::clone(&self.mesh_network_service);
-        let signer_clone = Arc::clone(&self.signer);
-        let dag_store_clone = Arc::clone(&self.dag_store);
-        let mana_ledger_for_refunds = self.mana_ledger.clone(); 
-
-        let mut assigned_jobs: HashMap<JobId, (ActualMeshJob, Did, TokioInstant)> = HashMap::new();
-        const JOB_EXECUTION_TIMEOUT: Duration = Duration::from_secs(5 * 60);
-        let reputation_updater = ReputationUpdater::new(); // Using placeholder
+        info!("[JobManager] Starting background mesh job manager task...");
+        let self_clone = self.clone(); // Clone Arc for the new task
 
         tokio::spawn(async move {
+            let mut interval = tokio::time::interval(StdDuration::from_secs(5)); // Check every 5 seconds
             loop {
-                let mut job_to_assign_option: Option<ActualMeshJob> = None;
-                {
-                    let mut queue = pending_jobs_queue_clone.lock().await;
-                    if let Some(job) = queue.pop_front() {
-                        let states_guard = job_states_clone.lock().await; // Renamed to avoid conflict
-                        if let Some(JobState::Pending) = states_guard.get(&job.id) {
-                            job_to_assign_option = Some(job);
-                        } else {
-                            println!("[JobManager] Job {:?} from queue is no longer Pending. Skipping.", job.id);
-                        }
-                    }
-                }
+                interval.tick().await;
+                debug!("[JobManager] Checking for pending jobs and processing...");
 
-                if let Some(job_to_assign) = job_to_assign_option {
-                    println!("[JobManager] Attempting to assign job: id={:?}", job_to_assign.id);
-                    if let Err(e) = network_service_clone.announce_job(&job_to_assign).await {
-                        let job_error = match e {
-                            HostAbiError::NetworkError(msg) => MeshJobError::Network(icn_network::error::MeshNetworkError::SendFailure(msg)), // Assuming MeshNetworkError path
-                            other_abi_error => MeshJobError::ProcessingFailure { 
-                                job_id: job_to_assign.id.clone(), 
-                                reason: format!("Failed to announce job during JobManager processing: {:?}", other_abi_error) 
-                            },
-                        };
-                        error!(
-                            "[JobManager] Failed to announce job id={:?}: {}. Re-queuing job.",
-                            job_to_assign.id, job_error
-                        );
-                        pending_jobs_queue_clone.lock().await.push_back(job_to_assign);
-                        sleep(Duration::from_secs(5)).await; 
-                        continue;
-                    }
-                    
-                    let bid_window = Duration::from_secs(30); 
-                    println!("[JobManager] Collecting bids for {} seconds for job id={:?}...", bid_window.as_secs(), job_to_assign.id);
-                    
-                    let received_bids = match network_service_clone.collect_bids_for_job(&job_to_assign.id, bid_window).await {
-                        Ok(bids) => bids,
-                        Err(e) => {
-                            eprintln!("[JobManager] Error collecting bids for job id={:?}: {:?}. Re-queuing job.", job_to_assign.id, e);
-                            pending_jobs_queue_clone.lock().await.push_back(job_to_assign);
-                            sleep(Duration::from_secs(5)).await;
-                            continue;
-                        }
-                    };
-                     println!("[JobManager] Collected {} bids for job id={:?}", received_bids.len(), job_to_assign.id);
-                    
-                    let mut valid_bids: Vec<MeshJobBid> = Vec::new();
-                    for bid in received_bids { 
-                        match charge_mana(&bid.executor_did, 5) { 
-                            Ok(_) => {
-                                println!("[JobManager] Executor {:?} has sufficient mana reserve for bid on job id={:?}.", bid.executor_did, job_to_assign.id);
-                                let reputation: u64 = 20; 
-                                if reputation >= 10 {
-                                    println!("[JobManager] Executor {:?} meets reputation threshold for bid on job id={:?}.", bid.executor_did, job_to_assign.id);
-                                    valid_bids.push(bid);
-                                } else {
-                                    println!("[JobManager] Executor {:?} REJECTED (reputation {} < {}) for bid on job id={:?}", 
-                                             bid.executor_did, reputation, 10, job_to_assign.id);
-                                }
-                            }
-                            Err(EconError::InsufficientBalance(_)) => {
-                                println!("[JobManager] Executor {:?} REJECTED (insufficient mana for reserve) for bid on job id={:?}", 
-                                         bid.executor_did, job_to_assign.id);
-                            }
-                            Err(e) => {
-                                eprintln!("[JobManager] Error checking mana for executor {:?} for bid on job id={:?}: {:?}", 
-                                         bid.executor_did, job_to_assign.id, e);
-                            }
-                        }
-                    }
-                     println!("[JobManager] {} valid bids after filtering for job id={:?}", valid_bids.len(), job_to_assign.id);
+                let mut jobs_to_requeue = VecDeque::new();
+                let mut jobs_processed_in_cycle = 0;
 
-                    let selection_policy = SelectionPolicy::default(); 
-                    if let Some(selected_executor_did) = select_executor(valid_bids, selection_policy) {
-                        match charge_mana(&selected_executor_did, 5) { 
-                            Ok(_) => {
-                                println!("[JobManager] Selected executor {:?} for job id={:?}. Mana re-confirmed/assigned.", 
-                                         selected_executor_did, job_to_assign.id);
-                                
-                                {
-                                    let mut states_guard = job_states_clone.lock().await;
-                                    states_guard.insert(job_to_assign.id.clone(), JobState::Assigned { executor: selected_executor_did.clone() });
-                                    println!("[JobManager] Job id={:?} state changed to Assigned to executor {:?}", job_to_assign.id, selected_executor_did);
-                                }
-                                assigned_jobs.insert(job_to_assign.id.clone(), (job_to_assign.clone(), selected_executor_did.clone(), TokioInstant::now()));
-                                let notice = JobAssignmentNotice {
-                                    job_id: job_to_assign.id.clone(),
-                                    executor_did: selected_executor_did.clone(),
-                                };
-                                if let Err(e) = network_service_clone.notify_executor_of_assignment(&notice).await {
-                                    eprintln!("[JobManager] Error broadcasting job assignment for id={:?}: {:?}. Job remains Assigned.", job_to_assign.id, e);
-                                }
-                            }
-                            Err(EconError::InsufficientBalance(_)) => {
-                                println!("[JobManager] Selected executor {:?} for job id={:?} now has INSUFFICIENT MANA. Trying next bid.", 
-                                         selected_executor_did, job_to_assign.id);
-                            }
-                            Err(e) => {
-                                eprintln!("[JobManager] Error confirming mana for selected executor {:?} for job id={:?}: {:?}",
-                                         selected_executor_did, job_to_assign.id, e);
-                            }
-                        }
-                    } else {
-                        println!("[JobManager] No suitable executor found for job id={:?}. Re-queuing with potential backoff.", job_to_assign.id);
-                        pending_jobs_queue_clone.lock().await.push_back(job_to_assign);
-                        sleep(Duration::from_secs(10)).await;
-                    }
-                }
+                // Drain pending jobs
+                while let Some(mut job) = {
+                    let mut pending_jobs_guard = self_clone.pending_mesh_jobs.lock().await;
+                    pending_jobs_guard.pop_front()
+                } {
+                    jobs_processed_in_cycle += 1;
+                    info!("[JobManager] Processing job: {:?}, current state: {:?}", job.id, job.state);
 
-                // --- Receipt Processing Section --- Needs careful implementation
-                // This section should be more robust. For now, trying to check one assigned job.
-                let mut receipt_to_process_option: Option<(JobId, IdentityExecutionReceipt)> = None;
-                if let Some((job_id_checking, (_job, assigned_executor, _time))) = assigned_jobs.iter().next() { // Iterate to get a job to check
-                    match network_service_clone.try_receive_receipt(job_id_checking, assigned_executor, Duration::from_millis(100)).await {
-                        Ok(Some(receipt)) => {
-                            info!("[JobManager] Received receipt for job: {:?}", receipt.job_id);
-                            receipt_to_process_option = Some((job_id_checking.clone(), receipt));
-                        }
-                        Ok(None) => { /* No receipt yet for this job */ }
-                        Err(e) => { error!("[JobManager] Error trying to receive receipt for job {:?}: {:?}", job_id_checking, e); }
-                    }
-                }
+                    match job.state {
+                        JobState::Pending => {
+                            info!("[JobManager] Job {:?} is Pending. Attempting to announce and find executor.", job.id);
+                            // Announce job
+                            if let Err(e) = self_clone.mesh_network_service.announce_job(&job).await {
+                                error!("[JobManager] Failed to announce job {:?}: {}. Re-queuing.", job.id, e);
+                                jobs_to_requeue.push_back(job);
+                                continue;
+                            }
 
-                if let Some((job_id_from_receipt, receipt)) = receipt_to_process_option {
-                    if let Some((_original_job, assigned_executor_did_map, _assignment_time)) = assigned_jobs.get(&job_id_from_receipt) {
-                        if &receipt.executor_did == assigned_executor_did_map {
-                            let receipt_to_anchor = receipt.clone(); // No longer mutable
-                            // The anchor_receipt in RuntimeContext is sync, but its internal calls to Signer and StorageService are async.
-                            // It uses futures::executor::block_on which is not ideal for a running async executor like the job manager.
-                            // This should be refactored. For now, to compile, we'll assume anchor_receipt can be called.
-                            // A better approach: anchor_receipt itself becomes async.
+                            // Collect bids (simplified timeout)
+                            // TODO: Use job.max_bid_wait_ms or a configurable default
+                            let bid_collection_duration = Duration::from_secs(10);
+                            match self_clone.mesh_network_service.collect_bids_for_job(&job.id, bid_collection_duration).await {
+                                Ok(bids) => {
+                                    if bids.is_empty() {
+                                        warn!("[JobManager] No bids received for job {:?}. Marking as Failed (NoBids).", job.id);
+                                        job.state = JobState::Failed { reason: "No bids received".to_string() };
+                                        let mut states_guard = self_clone.job_states.lock().await;
+                                        states_guard.insert(job.id.clone(), job.state.clone());
+                                        // TODO: Refund mana to submitter if applicable
+                                    } else {
+                                        info!("[JobManager] Received {} bids for job {:?}. Selecting executor.", bids.len(), job.id);
+                                        // Select executor (simplified: first bidder)
+                                        // TODO: Use actual icn_mesh::select_executor with a real SelectionPolicy
+                                        if let Some(selected_bid) = bids.into_iter().next() { // Simplistic selection
+                                            job.state = JobState::Assigned { executor: selected_bid.executor_did.clone() };
+                                            info!("[JobManager] Job {:?} assigned to executor {:?}. Notifying executor.", job.id, selected_bid.executor_did);
+                                            let mut states_guard = self_clone.job_states.lock().await;
+                                            states_guard.insert(job.id.clone(), job.state.clone());
 
-                                // --- Simulated Anchoring --- 
-                                let mut successful_anchor = false;
-                                let mut anchored_cid_opt: Option<Cid> = None;
-                                let receipt_data_to_verify = serde_json::to_vec(&(
-                                    &receipt_to_anchor.job_id, 
-                                    &receipt_to_anchor.executor_did, 
-                                    &receipt_to_anchor.result_cid, 
-                                    receipt_to_anchor.cpu_ms
-                                )).map_err(|e| HostAbiError::InternalError(format!("Failed to serialize receipt for sig verify: {}", e)));
-                                
-                                if let Ok(data_to_verify) = receipt_data_to_verify {
-                                    match signer_clone.verify(&receipt_to_anchor.executor_did, &data_to_verify, &receipt_to_anchor.sig).await {
-                                        Ok(true) => {
-                                            let final_receipt_bytes = serde_json::to_vec(&receipt_to_anchor)
-                                                .map_err(|e| HostAbiError::InternalError(format!("Failed to serialize final receipt for DAG: {}", e)));
-                                            if let Ok(bytes_to_store) = final_receipt_bytes {
-                                                match dag_store_clone.put(&bytes_to_store).await {
-                                                    Ok(cid) => {
-                                                        successful_anchor = true;
-                                                        anchored_cid_opt = Some(cid);
+                                            let notice = JobAssignmentNotice {
+                                                job_id: job.id.clone(),
+                                                executor_did: selected_bid.executor_did.clone(),
+                                            };
+                                            if let Err(e) = self_clone.mesh_network_service.notify_executor_of_assignment(&notice).await {
+                                                error!("[JobManager] Failed to notify executor for job {:?}: {}. Reverting to Pending.", job.id, e);
+                                                job.state = JobState::Pending; // Revert state
+                                                jobs_to_requeue.push_back(job);
+                                            } else {
+                                                // Successfully assigned, wait for receipt
+                                                info!("[JobManager] Job {:?} successfully assigned. Waiting for receipt.", job.id);
+                                                // The job remains in Assigned state, executor will submit receipt.
+                                                // We will handle receipt submission in another part of the runtime context or API.
+                                                // For now, we just move to next job processing cycle.
+                                                // To complete the loop here for testing, we might need to call try_receive_receipt
+                                                let assigned_executor_did = selected_bid.executor_did.clone();
+                                                let job_id_clone = job.id.clone();
+                                                let self_clone_for_receipt = self_clone.clone();
+                                                let _job_clone_for_receipt = job.clone(); // job is moved if we don't clone
+
+                                                // Spawn a task to wait for the receipt for this specific job
+                                                tokio::spawn(async move {
+                                                    // TODO: Use job.max_execution_wait_ms or a configurable default
+                                                    let receipt_timeout = Duration::from_secs(60); 
+                                                    match self_clone_for_receipt.mesh_network_service.try_receive_receipt(&job_id_clone, &assigned_executor_did, receipt_timeout).await {
+                                                        Ok(Some(receipt)) => {
+                                                            info!("[JobManager] Received receipt for job {:?}: {:?}", job_id_clone, receipt);
+                                                            // Verify signature of the receipt
+                                                            // This part needs the public key of the executor.
+                                                            // For StubSigner, we assume it's verifying a receipt from itself or knows the key.
+                                                            // In a real system, this would involve DID resolution.
+                                                            let executor_pk_bytes = self_clone_for_receipt.signer.public_key_bytes(); // Assuming signer is the executor for now.
+                                                            // THIS IS A SIMPLIFICATION: We need the actual executor's public key.
+                                                            // If the signer of the context is NOT the executor, this will fail unless the executor IS the context's signer.
+                                                            let temp_verifying_key = VerifyingKey::from_bytes(&executor_pk_bytes).expect("JobManager: Failed to create VK from signer bytes");
+
+                                                            match receipt.verify_against_key(&temp_verifying_key) {
+                                                                Ok(_) => {
+                                                                    info!("[JobManager] Receipt signature VERIFIED for job {:?}", job_id_clone);
+                                                                    // Anchor the receipt
+                                                                    match self_clone_for_receipt.anchor_receipt(&receipt).await {
+                                                                        Ok(receipt_cid) => {
+                                                                            info!("[JobManager] Receipt for job {:?} anchored successfully: {:?}", job_id_clone, receipt_cid);
+                                                                            let mut states_guard = self_clone_for_receipt.job_states.lock().await;
+                                                                            states_guard.insert(job_id_clone.clone(), JobState::Completed { receipt: receipt.clone() });
+                                                                            // TODO: Credit mana to executor, update reputation, etc.
+                                                                        }
+                                                                        Err(e) => {
+                                                                            error!("[JobManager] Failed to anchor receipt for job {:?}: {}. Marking as Failed (AnchorFailed).", job_id_clone, e);
+                                                                            let mut states_guard = self_clone_for_receipt.job_states.lock().await;
+                                                                            states_guard.insert(job_id_clone.clone(), JobState::Failed { reason: format!("Failed to anchor receipt: {}", e) });
+                                                                        }
+                                                                    }
+                                                                }
+                                                                Err(e) => {
+                                                                    error!("[JobManager] Receipt signature VERIFICATION FAILED for job {:?}: {}. Marking as Failed (InvalidSignature).", job_id_clone, e);
+                                                                    let mut states_guard = self_clone_for_receipt.job_states.lock().await;
+                                                                    states_guard.insert(job_id_clone.clone(), JobState::Failed { reason: format!("Invalid receipt signature: {}", e) });
+                                                                }
+                                                            }
+                                                        }
+                                                        Ok(None) => {
+                                                            warn!("[JobManager] No receipt received for job {:?} within timeout. Marking as Failed (NoReceipt).", job_id_clone);
+                                                            let mut states_guard = self_clone_for_receipt.job_states.lock().await;
+                                                            states_guard.insert(job_id_clone.clone(), JobState::Failed { reason: "No receipt received within timeout".to_string() });
+                                                        }
+                                                        Err(e) => {
+                                                            error!("[JobManager] Error while trying to receive receipt for job {:?}: {}. Marking as Failed (ReceiptError).", job_id_clone, e);
+                                                            let mut states_guard = self_clone_for_receipt.job_states.lock().await;
+                                                            states_guard.insert(job_id_clone.clone(), JobState::Failed { reason: format!("Error receiving receipt: {}", e) });
+                                                        }
                                                     }
-                                                    Err(e) => { error!("[JobManager] DAG put failed for receipt {:?}: {:?}", receipt_to_anchor.job_id, e);}
-                                                }
-                                            } else if let Err(e) = final_receipt_bytes {
-                                                 error!("[JobManager] Failed to serialize final receipt for DAG for job {:?}: {:?}", receipt_to_anchor.job_id, e);
+                                                });
                                             }
+                                        } else {
+                                            warn!("[JobManager] Executor selection failed for job {:?} despite having bids. Re-queuing.", job.id);
+                                            job.state = JobState::Pending; // Revert state
+                                            jobs_to_requeue.push_back(job);
                                         }
-                                        Ok(false) => { error!("[JobManager] Receipt signature verification failed for job {:?}", receipt_to_anchor.job_id); }
-                                        Err(e) => { error!("[JobManager] Error during receipt signature verification for job {:?}: {:?}", receipt_to_anchor.job_id, e);}
                                     }
-                                } else if let Err(e) = receipt_data_to_verify {
-                                    error!("[JobManager] Failed to serialize receipt for signature verification for job {:?}: {:?}", receipt_to_anchor.job_id, e);
                                 }
-                                // --- End Simulated Anchoring ---
-
-                                if successful_anchor {
-                                    if let Some(anchored_cid) = anchored_cid_opt {
-                                        println!("[JobManager] Receipt for job {:?} anchored successfully with CID: {:?}", job_id_from_receipt, anchored_cid);
-                                        reputation_updater.submit(&receipt_to_anchor);
-                                        let mut states_guard = job_states_clone.lock().await;
-                                        states_guard.insert(job_id_from_receipt.clone(), JobState::Completed { receipt: receipt_to_anchor });
-                                        assigned_jobs.remove(&job_id_from_receipt);
-                                        println!("[JobManager] Job {:?} state changed to Completed.", job_id_from_receipt);
-                                    }
-                                } else {
-                                    eprintln!("[JobManager] Failed to anchor receipt for job {:?}. Reason: Simulated anchor failure.", job_id_from_receipt);
-                                    let mut states_guard = job_states_clone.lock().await;
-                                    states_guard.insert(job_id_from_receipt.clone(), JobState::Failed { reason: format!("Anchor failed: Simulated anchor failure.") });
-                                    assigned_jobs.remove(&job_id_from_receipt);
+                                Err(e) => {
+                                    error!("[JobManager] Failed to collect bids for job {:?}: {}. Re-queuing.", job.id, e);
+                                    jobs_to_requeue.push_back(job);
+                                    continue;
                                 }
-                            // Original anchor_receipt call (problematic):
-                            // match current_identity_clone.anchor_receipt(&mut receipt_to_anchor) { ... }
-                        } else {
-                            eprintln!("[JobManager] Received receipt for job {:?} from unexpected executor {:?}. Expected {:?}. Discarding.", 
-                                     job_id_from_receipt, receipt.executor_did, assigned_executor_did_map);
+                            }
                         }
-                    } else {
-                        println!("[JobManager] Received receipt for unknown or already processed job_id: {:?}. Discarding.", job_id_from_receipt);
-                    }
-                }
-                // --- End Receipt Processing --- 
-
-                let mut timed_out_job_ids = Vec::new();
-                for (job_id, (_original_job, _executor_did, assignment_time)) in &assigned_jobs {
-                    if assignment_time.elapsed() > JOB_EXECUTION_TIMEOUT {
-                        timed_out_job_ids.push(job_id.clone());
-                    }
-                }
-                for job_id in timed_out_job_ids {
-                     println!("[JobManager] Job {:?} timed out.", job_id);
-                    if let Some((timed_out_job, timed_out_executor_did, _)) = assigned_jobs.remove(&job_id) { 
-                        let mut states_guard = job_states_clone.lock().await;
-                        states_guard.insert(job_id.clone(), JobState::Failed { reason: format!("Execution timed out by executor {:?}", timed_out_executor_did) });
-                        
-                        match mana_ledger_for_refunds.credit(&timed_out_job.creator_did, timed_out_job.cost_mana).await {
-                            Ok(_) => println!("[JobManager] Refunded {} mana to submitter {:?} for timed out job {:?}. Mana ledger shared.", 
-                                            timed_out_job.cost_mana, timed_out_job.creator_did, job_id),
-                            Err(e) => eprintln!("[JobManager] Error refunding mana for job {:?}: {:?}. Submitter: {:?}, Amount: {}", 
-                                            job_id, e, timed_out_job.creator_did, timed_out_job.cost_mana),
+                        JobState::Assigned { executor } => {
+                            // This state means we are waiting for the executor to provide a receipt.
+                            // The spawned task from the Pending -> Assigned transition handles receipt listening.
+                            // If that task fails or times out, it updates the job state directly.
+                            // We could add a timeout here to ensure jobs don't stay Assigned indefinitely
+                            // if the spawned task itself fails to update the state.
+                            debug!("[JobManager] Job {:?} is already Assigned to {:?}. Receipt handling is in a separate task.", job.id, executor);
+                            // For now, we don't re-queue it from here unless a master timeout is hit.
+                            // It will be re-processed in the next cycle if still in this state without progress.
+                            // To prevent busy loop on assigned jobs, we can put them into a different temporary list.
+                            // For simplicity, we'll let it be checked again. Consider adding a timestamp to JobState::Assigned.
+                            jobs_to_requeue.push_back(job); // Put it back to check later
+                        }
+                        JobState::Completed { .. } | JobState::Failed { .. } => {
+                            info!("[JobManager] Job {:?} is already in a terminal state ({:?}). No further action.", job.id, job.state);
+                            // No action needed for completed or failed jobs in this loop
                         }
                     }
                 }
-                sleep(Duration::from_millis(500)).await;
+
+                // Re-queue jobs that need it
+                if !jobs_to_requeue.is_empty() {
+                    let mut pending_jobs_guard = self_clone.pending_mesh_jobs.lock().await;
+                    for job_to_requeue in jobs_to_requeue {
+                        pending_jobs_guard.push_back(job_to_requeue); // Add to the back for reprocessing
+                    }
+                }
+
+                if jobs_processed_in_cycle == 0 && self_clone.pending_mesh_jobs.lock().await.is_empty() {
+                    debug!("[JobManager] No jobs processed and no pending jobs. Manager is idle.");
+                }
             }
         });
-        println!("[RuntimeContext] Mesh job manager spawned.");
     }
 
     pub async fn get_mana(&self, account: &Did) -> Result<u64, HostAbiError> {
@@ -682,81 +629,29 @@ impl RuntimeContext {
     // The current implementation uses futures::executor::block_on, which is not good practice in async contexts.
     // For now, I will make it async and remove block_on.
     pub async fn anchor_receipt(&self, receipt: &IdentityExecutionReceipt) -> Result<Cid, HostAbiError> { 
-        println!("[CONTEXT] anchor_receipt called by context {:?} for job_id: {:?}, claimed executor: {:?}", 
-                 self.current_identity, receipt.job_id, receipt.executor_did);
+        info!("[CONTEXT] Attempting to anchor receipt for job {:?} from executor {:?}", receipt.job_id, receipt.executor_did);
 
-        let job_id = &receipt.job_id;
-        let assigned_executor_did = { 
-            let job_states_guard = self.job_states.lock().await;
-            match job_states_guard.get(job_id) {
-                Some(JobState::Assigned { executor }) => {
-                    if executor != &receipt.executor_did {
-                        return Err(HostAbiError::InvalidParameters(format!(
-                            "Receipt for job {:?} submitted by unauthorized executor {:?}. Expected assigned executor {:?}.",
-                            job_id, receipt.executor_did, executor
-                        )));
-                    }
-                    executor.clone()
-                }
-                Some(JobState::Pending) => {
-                    return Err(HostAbiError::InvalidParameters(format!(
-                        "Job {:?} is still Pending, cannot anchor receipt.", job_id
-                    )));
-                }
-                Some(JobState::Completed { .. }) => {
-                    return Err(HostAbiError::InvalidParameters(format!(
-                        "Job {:?} is already Completed. Cannot re-anchor receipt.", job_id
-                    )));
-                }
-                Some(JobState::Failed { .. }) => {
-                    return Err(HostAbiError::InvalidParameters(format!(
-                        "Job {:?} is Failed. Cannot anchor receipt.", job_id
-                    )));
-                }
-                None => {
-                    return Err(HostAbiError::InvalidParameters(format!(
-                        "Job {:?} not found. Cannot anchor receipt.", job_id
-                    )));
-                }
-            }
-        };
-        
-        if assigned_executor_did != receipt.executor_did {
-            return Err(HostAbiError::InternalError(format!(
-                "Mismatch after assigned executor check. Assigned: {:?}, Receipt: {:?}. This is a bug.",
-                assigned_executor_did, receipt.executor_did
-            )));
-        }
+        // Step 1: Verify the signature on the receipt.
+        // For now, we assume the receipt should be verifiable by this node's own identity/signer.
+        // In a real system, we would look up the public key for receipt.executor_did.
+        let signer_pk_bytes = self.signer.public_key_bytes();
+        let verifying_key = VerifyingKey::from_bytes(&signer_pk_bytes)
+            .map_err(|e| HostAbiError::CryptoError(format!("Failed to construct VerifyingKey for self: {}", e)))?;
 
-        if receipt.sig.is_empty() {
-            return Err(HostAbiError::SignatureError("Receipt signature is missing.".to_string()));
-        }
-
-        let receipt_data_to_verify = serde_json::to_vec(&(
-            &receipt.job_id, 
-            &receipt.executor_did, 
-            &receipt.result_cid, 
-            receipt.cpu_ms
-        )).map_err(|e| HostAbiError::InternalError(format!("Failed to serialize receipt for signature verification: {}", e)))?;
-        
-        match self.signer.verify(&receipt.executor_did, &receipt_data_to_verify, &receipt.sig).await {
-            Ok(true) => {
-                println!("[CONTEXT] Signature verified for receipt from executor {:?}", receipt.executor_did);
-            }
-            Ok(false) => {
-                return Err(HostAbiError::SignatureError(format!(
-                    "Invalid signature on receipt for job {:?} from executor {:?}.",
-                    job_id, receipt.executor_did
-                )));
+        match receipt.verify_against_key(&verifying_key) {
+            Ok(_) => {
+                info!("[CONTEXT] Receipt signature verified for job {:?}", receipt.job_id);
             }
             Err(e) => {
-                return Err(HostAbiError::SignatureError(format!(
-                    "Error during signature verification for job {:?}, executor {:?}: {:?}",
-                    job_id, receipt.executor_did, e
-                )));
+                error!("[CONTEXT] Receipt signature verification failed for job {:?}: {}", receipt.job_id, e);
+                return Err(HostAbiError::SignatureError(format!("Receipt signature verification failed: {}", e)));
             }
         }
 
+        // Step 2: Check for sufficient mana (already done by JobManager prior to this typically, but can double check or log)
+        // For now, this is simplified.
+
+        // Step 3: Store the receipt in DAG storage
         let final_receipt_bytes = serde_json::to_vec(receipt)
             .map_err(|e| HostAbiError::InternalError(format!("Failed to serialize final receipt for DAG: {}", e)))?;
         
@@ -766,10 +661,10 @@ impl RuntimeContext {
         
         { 
             let mut job_states_guard = self.job_states.lock().await;
-            job_states_guard.insert(job_id.clone(), JobState::Completed { receipt: receipt.clone() });
-            println!("[CONTEXT] Job {:?} state updated to Completed.", job_id);
+            job_states_guard.insert(receipt.job_id.clone(), JobState::Completed { receipt: receipt.clone() });
+            println!("[CONTEXT] Job {:?} state updated to Completed.", receipt.job_id);
         }
-        println!("[CONTEXT] Placeholder: Reputation update needed for executor {:?} for job {:?}.", receipt.executor_did, job_id);
+        println!("[CONTEXT] Placeholder: Reputation update needed for executor {:?} for job {:?}.", receipt.executor_did, receipt.job_id);
         Ok(cid)
     }
 
@@ -816,30 +711,48 @@ impl HostEnvironment for ConcreteHostEnvironment {
     }
 } 
 
-#[derive(Debug, Clone)]
-pub struct StubSigner;
-#[async_trait]
-impl Signer for StubSigner { // Implements the local async Signer trait
-    async fn sign(&self, did: &Did, data: &[u8]) -> Result<Vec<u8>, HostAbiError> {
-        println!("[StubSigner] Signing data for DID {:?}: (data_len={})", did, data.len());
-        let mut sig_content = b"signed:".to_vec();
-        sig_content.extend_from_slice(did.id_string.as_bytes());
-        sig_content.extend_from_slice(b":");
-        sig_content.extend_from_slice(&data[..std::cmp::min(data.len(), 8)]);
-        Ok(sig_content)
+// StubSigner → real signer
+#[derive(Debug)]
+pub struct StubSigner {
+    sk: SigningKey,
+    pk: VerifyingKey,
+    did_string: String, // Store the DID string for efficiency
+}
+
+impl StubSigner {
+    pub fn new() -> Self {
+        let (sk, pk) = generate_ed25519_keypair();
+        let did_string = did_key_from_verifying_key(&pk);
+        Self { sk, pk, did_string }
     }
-    async fn verify(&self, did: &Did, data: &[u8], signature: &[u8]) -> Result<bool, HostAbiError> {
-        println!("[StubSigner] Verifying signature for DID {:?}: (data_len={}, sig_len={})", did, data.len(), signature.len());
-        let expected_sig_prefix = format!("signed:{}:", did.id_string);
-        let expected_data_prefix = &data[..std::cmp::min(data.len(), 8)];
-        
-        let sig_str = String::from_utf8_lossy(signature);
-        if sig_str.starts_with(&expected_sig_prefix) {
-            let data_part_in_sig = sig_str.trim_start_matches(&expected_sig_prefix);
-            Ok(data_part_in_sig.as_bytes() == expected_data_prefix)
-        } else {
-            Ok(false)
-        }
+
+    pub fn new_with_keys(sk: SigningKey, pk: VerifyingKey) -> Self {
+        let did_string = did_key_from_verifying_key(&pk);
+        Self { sk, pk, did_string }
+    }
+}
+
+// #[async_trait] // No longer async
+impl Signer for StubSigner {
+    fn sign(&self, payload: &[u8]) -> Result<Vec<u8>, HostAbiError> {
+        Ok(sign_message(&self.sk, payload).to_bytes().to_vec())
+    }
+
+    fn verify(&self, payload: &[u8], signature_bytes: &[u8], public_key_bytes: &[u8]) -> Result<bool, HostAbiError> {
+        let signature = EdSignature::from_bytes(signature_bytes)
+            .map_err(|e| HostAbiError::CryptoError(format!("Invalid signature format for verify: {}", e)))?;
+        let pk = VerifyingKey::from_bytes(public_key_bytes)
+            .map_err(|e| HostAbiError::CryptoError(format!("Invalid public key for verify: {}", e)))?;
+        Ok(identity_verify_signature(&pk, payload, &signature))
+    }
+
+    fn public_key_bytes(&self) -> Vec<u8> {
+        self.pk.as_bytes().to_vec()
+    }
+
+    fn did(&self) -> Did {
+        // This assumes Did::from_string can parse the full did string. Adjust if needed.
+        Did::from_string(&self.did_string).expect("Failed to parse internally generated DID string")
     }
 }
 

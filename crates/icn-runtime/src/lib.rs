@@ -14,6 +14,7 @@
 pub mod abi;
 pub mod context;
 pub mod error;
+pub mod executor;
 pub use error::MeshJobError;
 
 use icn_common::{NodeInfo, CommonError, Did, Cid};

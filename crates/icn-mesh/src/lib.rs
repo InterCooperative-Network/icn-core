@@ -6,7 +6,7 @@
 //! scheduling, execution management, and fault tolerance.
 
 use icn_common::{NodeInfo, CommonError, Cid, Did, ICN_CORE_VERSION};
-use icn_identity::ExecutionReceipt;
+use icn_identity::{ExecutionReceipt, SignatureBytes, VerifyingKey as IdentityVerifyingKey, SigningKey as IdentitySigningKey, sign_message as identity_sign_message, verify_signature as identity_verify_signature};
 use serde::{Serialize, Deserialize};
 
 /// Errors that can occur within the ICN Mesh subsystem.
@@ -53,7 +53,7 @@ pub struct Resources;
 /// Represents a job submitted to the ICN mesh computing network.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ActualMeshJob {
-    /// Unique identifier for this job instance.
+    /// Unique identifier for this job instance (typically a CID of core job details).
     pub id: JobId,
     /// Content Identifier (CID) of the job's core executable or primary data package.
     pub manifest_cid: Cid,
@@ -63,6 +63,51 @@ pub struct ActualMeshJob {
     pub creator_did: Did,
     /// The amount of mana allocated by the submitter for this job's execution.
     pub cost_mana: u64,
+    /// Signature from the creator_did over the (id, manifest_cid, spec_hash (if spec is large), creator_did, cost_mana)
+    pub signature: SignatureBytes,
+}
+
+impl ActualMeshJob {
+    /// Creates the canonical message bytes for signing the job.
+    /// The fields must be serialized in a deterministic way.
+    fn to_signable_bytes(&self) -> Result<Vec<u8>, CommonError> {
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&self.id.to_bytes());
+        bytes.extend_from_slice(&self.manifest_cid.to_bytes());
+        // For JobSpec, if it's complex, consider hashing it and signing the hash.
+        // For simplicity, serializing it directly if it's not too large or has a canonical form.
+        // Assuming JobSpec is Serialize. A proper canonical serialization is important here.
+        let spec_bytes = serde_json::to_vec(&self.spec).map_err(|e| CommonError::SerializationError(format!("Failed to serialize JobSpec: {}", e)))?;
+        bytes.extend_from_slice(&spec_bytes);
+        bytes.extend_from_slice(self.creator_did.to_string().as_bytes());
+        bytes.extend_from_slice(&self.cost_mana.to_le_bytes());
+        Ok(bytes)
+    }
+
+    /// Signs this job with the provided Ed25519 SigningKey.
+    pub fn sign(mut self, signing_key: &IdentitySigningKey) -> Result<Self, CommonError> {
+        // Ensure the job_id is set before signing, as it's part of the signable bytes.
+        // Typically, id would be a CID of some core content, generated before this step.
+        if self.id.to_string().is_empty() || self.id.to_bytes().len() < 4 { // Basic check
+             return Err(CommonError::InvalidParameters("Job ID must be set before signing".to_string()));
+        }
+        let message = self.to_signable_bytes()?;
+        let ed_signature = identity_sign_message(signing_key, &message);
+        self.signature = SignatureBytes(ed_signature.to_bytes().to_vec());
+        Ok(self)
+    }
+
+    /// Verifies the signature of this job against the provided Ed25519 VerifyingKey.
+    pub fn verify_signature(&self, verifying_key: &IdentityVerifyingKey) -> Result<(), CommonError> {
+        let message = self.to_signable_bytes()?;
+        let ed_signature = self.signature.to_ed_signature()?;
+
+        if identity_verify_signature(verifying_key, &message, &ed_signature) {
+            Ok(())
+        } else {
+            Err(CommonError::CryptographyError("ActualMeshJob signature verification failed".to_string()))
+        }
+    }
 }
 
 /// Detailed specification for a mesh job.
@@ -247,6 +292,8 @@ pub struct SubmitReceiptMessage {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use icn_identity::{generate_ed25519_keypair, did_key_from_verifying_key};
+    use icn_common::utils::generate_cid; // For creating JobId (Cid)
 
     #[test]
     fn test_schedule_mesh_job() {
@@ -258,5 +305,41 @@ mod tests {
         let result = schedule_mesh_job(&node_info, "job-123");
         assert!(result.is_ok());
         assert!(result.unwrap().contains("job-123"));
+    }
+
+    #[test]
+    fn test_mesh_job_signing_and_verification() {
+        let (signing_key, verifying_key) = generate_ed25519_keypair();
+        let creator_did_string = did_key_from_verifying_key(&verifying_key);
+        let creator_did = Did::from_string(&creator_did_string).unwrap();
+
+        let job_id_data = b"unique job content for id";
+        let job_id = generate_cid(job_id_data).unwrap();
+        let manifest_cid_data = b"job manifest data";
+        let manifest_cid = generate_cid(manifest_cid_data).unwrap();
+
+        let job_unsigned = ActualMeshJob {
+            id: job_id.clone(),
+            manifest_cid: manifest_cid.clone(),
+            spec: JobSpec { /* fields if any */ },
+            creator_did: creator_did.clone(),
+            cost_mana: 100,
+            signature: SignatureBytes(vec![]), // Placeholder
+        };
+
+        let signed_job = job_unsigned.clone().sign(&signing_key).unwrap();
+        assert_ne!(signed_job.signature.0, Vec::<u8>::new());
+
+        // Verification should pass with the correct public key
+        assert!(signed_job.verify_signature(&verifying_key).is_ok());
+
+        // Verification should fail with a different public key
+        let (_other_sk, other_pk) = generate_ed25519_keypair();
+        assert!(signed_job.verify_signature(&other_pk).is_err());
+
+        // Verification should fail if the job data is tampered with
+        let mut tampered_job = signed_job.clone();
+        tampered_job.cost_mana = 200;
+        assert!(tampered_job.verify_signature(&verifying_key).is_err());
     }
 }

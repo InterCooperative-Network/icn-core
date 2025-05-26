@@ -10,10 +10,22 @@ anyhow = "1.0"
 thiserror = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 icn-common = { path = "../icn-common" }
-ed25519-dalek = { version = "2.0", features = ["serde"] }
-rand = "0.8"
-bs58 = "0.5"
-multihash = { version = "0.19", features = ["multihash-codetable"] }
-# TODO: Add actual crypto libraries like ed25519-dalek, x25519-dalek, k256 etc. later
+
+# --- crypto ---
+ed25519-dalek = { version = "2.0.0-pre.3", features = ["rand_core"] }
+rand_core      = "0.6"          # used by dalek's OsRng
+# --- DID:key helpers ---
+multibase      = "0.9"          # base-58btc ("z...") encoder/decoder
+# tiny crate that just exposes the unsigned-varint impl used by multicodec
+unsigned-varint = { version = "0.7", default-features = false } 
+serde_bytes = "0.11" # For SignatureBytes serialization
+
+# Ensure old ones are removed if they conflict or are replaced
+# ed25519-dalek = { version = "2.0", features = ["serde"] } # Old, replaced by specific version
+# rand = "0.8" # Old, replaced by rand_core for dalek
+# bs58 = "0.5" # Old, replaced by multibase for did:key
+# multihash = { version = "0.19", features = ["multihash-codetable"] } # Old, direct varint used now
 
 [dev-dependencies]
+# rand is still useful for general tests if needed, but OsRng from rand_core is for dalek
+rand = "0.8" 
