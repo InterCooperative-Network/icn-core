@@ -306,7 +306,8 @@ pub struct SubmitReceiptMessage {
 mod tests {
     use super::*;
     use icn_identity::{generate_ed25519_keypair, did_key_from_verifying_key};
-    use icn_common::utils::generate_cid; // For creating JobId (Cid)
+    use icn_common::generate_cid; // For creating JobId (Cid)
+    use std::str::FromStr; // For Did::from_str in tests
 
     #[test]
     fn test_schedule_mesh_job() {

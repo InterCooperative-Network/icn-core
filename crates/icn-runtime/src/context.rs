@@ -124,7 +124,13 @@ pub struct LocalMeshSubmitReceiptMessage { // Renamed to avoid conflict
 // Placeholder for GovernanceModule
 #[derive(Debug, Clone)]
 pub struct GovernanceModule { /* ... fields ... */ }
-impl GovernanceModule { pub fn new() -> Self { Self {} } } 
+impl GovernanceModule { pub fn new() -> Self { Self {} } }
+
+impl Default for GovernanceModule {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 // Placeholder for charge_mana function (used in Job Manager)
 // This would typically belong to the icn-economics crate or a related module.
@@ -349,9 +355,9 @@ impl From<CommonError> for HostAbiError {
 pub struct RuntimeContext {
     pub current_identity: Did,
     pub mana_ledger: SimpleManaLedger, 
-    pub pending_mesh_jobs: Arc<Mutex<VecDeque<ActualMeshJob>>>, 
-    pub job_states: Arc<Mutex<HashMap<JobId, JobState>>>,
-    pub governance_module: GovernanceModule,
+    pub pending_mesh_jobs: Arc<TokioMutex<VecDeque<ActualMeshJob>>>,
+    pub job_states: Arc<TokioMutex<HashMap<JobId, JobState>>>,
+    pub governance_module: Arc<TokioMutex<GovernanceModule>>,
     pub mesh_network_service: Arc<dyn MeshNetworkService>, // Uses local MeshNetworkService trait
     pub signer: Arc<dyn Signer>, 
     pub dag_store: Arc<dyn StorageService>, // Uses local StorageService trait
@@ -362,17 +368,17 @@ impl RuntimeContext {
         current_identity: Did, 
         mesh_network_service: Arc<dyn MeshNetworkService>,
         signer: Arc<dyn Signer>,
-        dag_store: Arc<dyn StorageService> // Changed from DagStore
+        dag_store: Arc<dyn StorageService>
     ) -> Self {
-        let job_states = Arc::new(Mutex::new(HashMap::new()));
-        let pending_mesh_jobs = Arc::new(Mutex::new(VecDeque::new()));
+        let job_states = Arc::new(TokioMutex::new(HashMap::new()));
+        let pending_mesh_jobs = Arc::new(TokioMutex::new(VecDeque::new()));
 
         Self {
             current_identity,
             mana_ledger: SimpleManaLedger::new(),
             pending_mesh_jobs,
             job_states,
-            governance_module: GovernanceModule::new(),
+            governance_module: Arc::new(TokioMutex::new(GovernanceModule::new())),
             mesh_network_service,
             signer,
             dag_store,
@@ -686,7 +692,7 @@ impl RuntimeContext {
         let job_states = Arc::new(TokioMutex::new(HashMap::new())); 
         let pending_mesh_jobs = Arc::new(TokioMutex::new(VecDeque::new())); 
         let mana_ledger = SimpleManaLedger::new();
-        let governance_module = GovernanceModule::new(); 
+        let governance_module = Arc::new(TokioMutex::new(GovernanceModule::default()));
 
         Self {
             current_identity,

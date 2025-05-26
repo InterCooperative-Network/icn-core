@@ -103,9 +103,10 @@ impl JobExecutor for SimpleExecutor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use icn_common::utils::generate_cid as gen_cid_util; // For test CIDs
+    use icn_common::generate_cid; // For test CIDs
     use icn_identity::generate_ed25519_keypair;
     use icn_mesh::JobSpec; // Assuming JobSpec is Default or simple to construct
+    use std::str::FromStr; // For Did::from_str
 
     #[tokio::test]
     async fn test_simple_executor_echo_job() {
@@ -115,8 +116,8 @@ mod tests {
 
         let executor = SimpleExecutor::new(node_did.clone(), signing_key);
 
-        let job_id = gen_cid_util(b"test_echo_job_id").unwrap();
-        let manifest_cid = gen_cid_util(b"test_echo_manifest").unwrap();
+        let job_id = generate_cid(b"test_echo_job_id").unwrap();
+        let manifest_cid = generate_cid(b"test_echo_manifest").unwrap();
         
         // Create a ActualMeshJob. For an echo, spec might be simple or define input.
         // For now, assuming JobSpec is Default-able and SimpleExecutor doesn't rely on specific fields yet.
