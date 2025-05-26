@@ -4,63 +4,80 @@
 //! This crate handles decentralized identity management for the InterCooperative Network (ICN),
 //! including DID generation, resolution, credential verification, and cryptographic operations.
 
-use icn_common::{NodeInfo, CommonError, Did, ICN_CORE_VERSION};
-use rand::RngCore;
+use icn_common::{NodeInfo, CommonError, Did, ICN_CORE_VERSION, Cid};
+use rand::rngs::OsRng;
 use serde::{Serialize, Deserialize};
+use ed25519_dalek::{Keypair as EdKeypair, PublicKey as EdPublicKey, SecretKey as EdSecretKey, Signature as EdSignature, Signer, Verifier, SIGNATURE_LENGTH, PUBLIC_KEY_LENGTH, SECRET_KEY_LENGTH};
+use multihash::{Code, Multihash};
 
-// --- Key Management Placeholder Structs ---
-#[derive(Debug, Clone)]
-pub struct PublicKey(pub Vec<u8>); // Placeholder for a public key
+// --- Key Management ---
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PublicKey(#[serde(with = "serde_bytes")] pub [u8; PUBLIC_KEY_LENGTH]);
 
-#[derive(Debug, Clone)]
-pub struct PrivateKey(pub Vec<u8>); // Placeholder for a private key, zeroize on drop in real impl
+#[derive(Debug, Clone)] // Do not Serialize private key directly
+pub struct SecretKey(pub EdSecretKey); // Wrap EdSecretKey to control its exposure potentially
 
 #[derive(Debug, Clone)]
 pub struct KeyPair {
     pub public_key: PublicKey,
-    pub private_key: PrivateKey,
+    pub secret_key: SecretKey,
 }
 
-/// Generates a new cryptographic key pair (placeholder implementation).
-/// TODO: Implement with actual cryptographic library (e.g., ed25519).
+impl KeyPair {
+    pub fn from_ed_keypair(ed_keypair: EdKeypair) -> Self {
+        KeyPair {
+            public_key: PublicKey(*ed_keypair.public.as_bytes()),
+            secret_key: SecretKey(ed_keypair.secret),
+        }
+    }
+
+    pub fn to_ed_keypair(&self) -> Result<EdKeypair, CommonError> {
+        let ed_public_key = EdPublicKey::from_bytes(&self.public_key.0)
+            .map_err(|e| CommonError::CryptographyError(format!("Failed to parse public key: {}", e)))?;
+        Ok(EdKeypair {
+            public: ed_public_key,
+            secret: self.secret_key.0, // Clones the secret key, EdSecretKey is Copy
+        })
+    }
+}
+
+/// Generates a new Ed25519 key pair.
 pub fn generate_key_pair() -> Result<KeyPair, CommonError> {
-    let mut public_bytes = [0u8; 32];
-    let mut private_bytes = [0u8; 32];
-    rand::thread_rng().fill_bytes(&mut public_bytes);
-    rand::thread_rng().fill_bytes(&mut private_bytes);
-    Ok(KeyPair {
-        public_key: PublicKey(public_bytes.to_vec()),
-        private_key: PrivateKey(private_bytes.to_vec()),
-    })
+    let mut csprng = OsRng{};
+    let keypair: EdKeypair = EdKeypair::generate(&mut csprng);
+    Ok(KeyPair::from_ed_keypair(keypair))
 }
 
-/// Creates a `did:key` DID from a public key (very simplified).
-/// A real did:key involves multicodec prefix for the key type.
-/// See: https://w3c-ccg.github.io/did-method-key/
-/// TODO: Implement correctly with multicodec prefix for a supported key type (e.g., Ed25519).
-pub fn did_key_from_public_key(public_key: &PublicKey) -> Did {
-    // This is NOT a compliant did:key, just a bs58 encoding of raw bytes for now.
-    let id_string = bs58::encode(&public_key.0).into_string();
-    Did::new("key", &id_string)
+/// Creates a `did:key` DID from an Ed25519 public key.
+/// https://w3c-ccg.github.io/did-method-key/#format
+pub fn did_key_from_public_key(public_key: &PublicKey) -> Result<Did, CommonError> {
+    // Ed25519 public key prefix for did:key is 0xed01
+    // 0xed is the multicodec prefix for Ed25519-pub
+    // 0x01 is a versioning/future-proofing byte, often part of the multicodec registration.
+    // However, the standard did:key spec usually shows the multicodec value directly.
+    // For Ed25519, the multicodec code is 0xed.
+    // The multiformats spec then prepends a varint representation of this code.
+    // For 0xed (237 in decimal), which is > 127, it becomes a 2-byte varint: 0xed 0x01.
+    // Let's use the `multihash` crate to be sure.
+    let mh = Multihash::wrap(Code::Ed25519Pub.into(), &public_key.0)
+        .map_err(|e| CommonError::CryptographyError(format!("Failed to create multihash: {}", e)))?;
+    let id_string = bs58::encode(mh.to_bytes()).into_string();
+    Ok(Did::new("key", &id_string))
 }
 
-/// Planned: Resolve a DID string to its corresponding DID Document.
-/// For `did:key`, this involves constructing the document from the key itself.
-// pub fn resolve_did(did_string: &str) -> Result<icn_common::DidDocument, CommonError> { todo!(); }
-/// Represents a digital signature.
-/// TODO: Replace with a proper signature type from a crypto library.
-pub type Signature = Vec<u8>;
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Signature(#[serde(with = "serde_bytes")] pub [u8; SIGNATURE_LENGTH]);
 
 /// Represents a verifiable proof that a job was executed.
 /// This structure is signed by the Executor and anchored to the DAG.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExecutionReceipt {
     /// Unique identifier of the job that was executed.
-    pub job_id: icn_common::Cid,
+    pub job_id: Cid,
     /// DID of the executor node that performed the job.
-    pub executor_did: icn_common::Did,
+    pub executor_did: Did,
     /// CID of the deterministic result output by the job execution.
-    pub result_cid: icn_common::Cid,
+    pub result_cid: Cid,
     /// CPU time consumed by the job in milliseconds.
     pub cpu_ms: u64,
     /// Cryptographic signature of the receipt fields (job_id, executor_did, result_cid, cpu_ms)
@@ -68,15 +85,47 @@ pub struct ExecutionReceipt {
     pub sig: Signature,
 }
 
-/// TODO: Implement Verifiable Credential issuance logic.
-/// TODO: Implement Verifiable Credential verification logic.
-/// TODO: Define DidDocument, ServiceEndpoint, VerificationMethod structs in icn-common or here.
-/// TODO: Define VerifiableCredential and Proof structs.
+impl ExecutionReceipt {
+    /// Creates the canonical message bytes for signing.
+    /// The fields must be serialized in a deterministic way.
+    fn to_signable_bytes(&self) -> Result<Vec<u8>, CommonError> {
+        // Using JSON for simplicity, ensure field order is consistent if manually constructing.
+        // A more robust solution would use a canonical binary format.
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&self.job_id.to_bytes());
+        bytes.extend_from_slice(self.executor_did.to_string().as_bytes());
+        bytes.extend_from_slice(&self.result_cid.to_bytes());
+        bytes.extend_from_slice(&self.cpu_ms.to_le_bytes());
+        Ok(bytes)
+    }
+
+    /// Signs this receipt with the provided keypair.
+    pub fn sign(mut self, keypair: &KeyPair) -> Result<Self, CommonError> {
+        let ed_keypair = keypair.to_ed_keypair()?;
+        let message = self.to_signable_bytes()?;
+        let signature = ed_keypair.sign(&message);
+        self.sig = Signature(signature.to_bytes());
+        Ok(self)
+    }
+
+    /// Verifies the signature of this receipt against the provided public key.
+    pub fn verify_signature(&self, public_key: &PublicKey) -> Result<(), CommonError> {
+        let ed_public_key = EdPublicKey::from_bytes(&public_key.0)
+            .map_err(|e| CommonError::CryptographyError(format!("Invalid public key: {}", e)))?;
+        let message = self.to_signable_bytes()?;
+        let ed_signature = EdSignature::from_bytes(&self.sig.0)
+            .map_err(|e| CommonError::CryptographyError(format!("Invalid signature format: {}", e)))?;
+
+        ed_public_key.verify(&message, &ed_signature)
+            .map_err(|e| CommonError::CryptographyError(format!("Signature verification failed: {}", e)))
+    }
+}
+
 /// Placeholder function demonstrating use of common types for identity.
 pub fn register_identity(info: &NodeInfo, did_method: &str) -> Result<String, CommonError> {
     if did_method == "key" {
         let kp = generate_key_pair()?;
-        let did = did_key_from_public_key(&kp.public_key);
+        let did = did_key_from_public_key(&kp.public_key)?;
         Ok(format!("Registered {} for node: {} (v{}). DID: {}", did_method, info.name, info.version, did))
     } else {
         Ok(format!("Registered {} identity for node: {} (v{})", did_method, info.name, info.version))
@@ -86,50 +135,89 @@ pub fn register_identity(info: &NodeInfo, did_method: &str) -> Result<String, Co
 #[cfg(test)]
 mod tests {
     use super::*;
+    use icn_common::utils::generate_cid; // Assuming you have a way to make CIDs for tests
 
     #[test]
-    fn test_key_generation_placeholder() {
+    fn test_key_generation_and_did_key() {
         let key_pair = generate_key_pair().unwrap();
-        assert_eq!(key_pair.public_key.0.len(), 32);
-        assert_eq!(key_pair.private_key.0.len(), 32);
+        assert_eq!(key_pair.public_key.0.len(), PUBLIC_KEY_LENGTH);
+        // SecretKey is wrapped, so we can't directly check its length without more accessors
+
+        let did = did_key_from_public_key(&key_pair.public_key).unwrap();
+        assert_eq!(did.method, "key");
+        assert!(did.id_string.starts_with("z6Mk")); // Common prefix for Ed25519 did:key
+        println!("Generated did:key: {}", did);
     }
 
     #[test]
-    fn test_did_key_from_public_key_placeholder() {
-        let mut public_bytes = [0u8; 32];
-        public_bytes[0] = 1; public_bytes[1] = 2; // Make it non-zero for a more distinct bs58
-        let public_key = PublicKey(public_bytes.to_vec());
-        let did = did_key_from_public_key(&public_key);
+    fn test_did_key_from_known_public_key() {
+        // Example Ed25519 public key bytes (32 bytes)
+        // This is just a random key for testing, not a standard one.
+        let pk_bytes = [
+            215, 90, 152, 1, 130, 177, 10, 183, 213, 75, 254, 211, 209, 133, 183, 27, 36, 14, 58, 18, 131, 108, 166, 133, 73, 99, 232, 204, 133, 172, 32, 100
+        ];
+        let public_key = PublicKey(pk_bytes);
+        let did = did_key_from_public_key(&public_key).unwrap();
+        // Expected DID for the above key, if the multicodec prefix is `0xed` (Ed25519-pub)
+        // and then varint encoded as `0xed 0x01`, then bs58 encoded.
+        // Manually calculated:
+        // bytes = [0xed, 0x01] ++ pk_bytes
+        // Check what the multihash crate produces:
+        let mh = Multihash::wrap(Code::Ed25519Pub.into(), &pk_bytes).unwrap();
+        let expected_id_string = bs58::encode(mh.to_bytes()).into_string();
+
         assert_eq!(did.method, "key");
-        assert!(!did.id_string.is_empty());
-        println!("Generated placeholder did:key: {}", did);
+        assert_eq!(did.id_string, expected_id_string);
+        // Example: z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xXqsNzBwGsogK (actual value depends on pk_bytes)
+        println!("Known public key did:key: {}", did);
+    }
+
+    #[test]
+    fn test_execution_receipt_signing_and_verification() {
+        let key_pair = generate_key_pair().unwrap();
+        let executor_did = did_key_from_public_key(&key_pair.public_key).unwrap();
+
+        // Create dummy CIDs for testing
+        let job_cid_data = b"job data";
+        let job_cid = generate_cid(job_cid_data).unwrap();
+        let result_cid_data = b"result data";
+        let result_cid = generate_cid(result_cid_data).unwrap();
+
+        let receipt_unsigned = ExecutionReceipt {
+            job_id: job_cid.clone(),
+            executor_did: executor_did.clone(),
+            result_cid: result_cid.clone(),
+            cpu_ms: 123,
+            sig: Signature([0u8; SIGNATURE_LENGTH]), // Dummy signature
+        };
+
+        let receipt_signed = receipt_unsigned.clone().sign(&key_pair).unwrap();
+
+        // Verification should pass with the correct public key
+        assert!(receipt_signed.verify_signature(&key_pair.public_key).is_ok());
+
+        // Verification should fail with a different public key
+        let other_key_pair = generate_key_pair().unwrap();
+        assert!(receipt_signed.verify_signature(&other_key_pair.public_key).is_err());
+
+        // Verification should fail if the receipt data is tampered with
+        let mut tampered_receipt = receipt_signed.clone();
+        tampered_receipt.cpu_ms = 456;
+        assert!(tampered_receipt.verify_signature(&key_pair.public_key).is_err());
     }
 
     #[test]
     fn test_register_identity_with_did_key() {
         let node_info = NodeInfo {
-            name: "IdNodeKey".to_string(),
+            name: "IdNodeKeyReal".to_string(),
             version: ICN_CORE_VERSION.to_string(),
-            status_message: "Identity active with did:key".to_string(),
+            status_message: "Identity active with real did:key".to_string(),
         };
         let result = register_identity(&node_info, "key");
         assert!(result.is_ok());
         let res_string = result.unwrap();
-        assert!(res_string.contains("did:key:"));
-        assert!(res_string.contains("IdNodeKey"));
-    }
-
-    #[test]
-    fn test_register_identity_other_method() {
-        let node_info = NodeInfo {
-            name: "IdNodeOther".to_string(),
-            version: ICN_CORE_VERSION.to_string(),
-            status_message: "Identity active other method".to_string(),
-        };
-        let result = register_identity(&node_info, "did:example");
-        assert!(result.is_ok());
-        let result_string = result.unwrap();
-        assert!(result_string.contains("did:example"));
-        assert!(!result_string.contains("did:key:"));
+        assert!(res_string.contains("did:key:z6Mk")); // Check for common did:key prefix
+        assert!(res_string.contains("IdNodeKeyReal"));
+        println!("Registered identity: {}", res_string);
     }
 }

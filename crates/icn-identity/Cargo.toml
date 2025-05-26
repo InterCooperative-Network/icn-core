@@ -6,8 +6,14 @@ authors.workspace = true
 license.workspace = true
 
 [dependencies]
+anyhow = "1.0"
+thiserror = "1.0"
+serde = { version = "1.0", features = ["derive"] }
 icn-common = { path = "../icn-common" }
+ed25519-dalek = { version = "2.0", features = ["serde"] }
 rand = "0.8"
 bs58 = "0.5"
-serde = { version = "1.0", features = ["derive"] }
+multihash = { version = "0.19", features = ["multihash-codetable"] }
 # TODO: Add actual crypto libraries like ed25519-dalek, x25519-dalek, k256 etc. later
+
+[dev-dependencies]
