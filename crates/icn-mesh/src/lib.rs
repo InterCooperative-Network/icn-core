@@ -112,8 +112,21 @@ impl ActualMeshJob {
 
 /// Detailed specification for a mesh job.
 /// TODO: Define fields for inputs, outputs, resource requirements, timeouts, etc.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct JobSpec {}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum JobSpec {
+    Echo { payload: String },
+    // Add other variants as needed, e.g.:
+    // Generic { command: String, args: Vec<String> },
+    // Wasm { module_cid: Cid, entry_function: String, params: Vec<Value> },
+    #[default] // If you want a default variant when deserializing, though not strictly needed if all jobs specify a type.
+    GenericPlaceholder, // Placeholder until more types are defined
+}
+
+impl Default for JobSpec { // Provide a default for tests or when spec is not critical
+    fn default() -> Self {
+        JobSpec::GenericPlaceholder
+    }
+}
 
 /// Represents a bid submitted by an executor node for a specific mesh job.
 #[derive(Debug, Clone, Serialize, Deserialize)] // Added Serialize, Deserialize
@@ -321,7 +334,7 @@ mod tests {
         let job_unsigned = ActualMeshJob {
             id: job_id.clone(),
             manifest_cid: manifest_cid.clone(),
-            spec: JobSpec { /* fields if any */ },
+            spec: JobSpec::GenericPlaceholder,
             creator_did: creator_did.clone(),
             cost_mana: 100,
             signature: SignatureBytes(vec![]), // Placeholder

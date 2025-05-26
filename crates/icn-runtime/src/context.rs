@@ -15,6 +15,7 @@ use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex as StdMutex, RwLock};
 use std::time::{Duration as StdDuration, Instant as TokioInstant};
 use tokio::sync::{Mutex as TokioMutex, oneshot, watch, broadcast, Barrier};
+use std::sync::atomic::AtomicU32;
 
 use async_trait::async_trait;
 
@@ -528,18 +529,11 @@ impl RuntimeContext {
                                                                             let mut states_guard = self_clone_for_receipt.job_states.lock().await;
                                                                             states_guard.insert(job_id_clone.clone(), JobState::Completed { receipt: receipt.clone() });
                                                                             // TODO: Credit mana to executor, update reputation, etc.
-                                                                        }
-                                                                        Err(e) => {
-                                                                            error!("[JobManager] Failed to anchor receipt for job {:?}: {}. Marking as Failed (AnchorFailed).", job_id_clone, e);
-                                                                            let mut states_guard = self_clone_for_receipt.job_states.lock().await;
-                                                                            states_guard.insert(job_id_clone.clone(), JobState::Failed { reason: format!("Failed to anchor receipt: {}", e) });
-                                                                        }
-                                                                    }
                                                                 }
                                                                 Err(e) => {
-                                                                    error!("[JobManager] Receipt signature VERIFICATION FAILED for job {:?}: {}. Marking as Failed (InvalidSignature).", job_id_clone, e);
+                                                                    error!("[JobManager] Failed to anchor receipt for job {:?}: {}. Marking as Failed (AnchorFailed).", job_id_clone, e);
                                                                     let mut states_guard = self_clone_for_receipt.job_states.lock().await;
-                                                                    states_guard.insert(job_id_clone.clone(), JobState::Failed { reason: format!("Invalid receipt signature: {}", e) });
+                                                                    states_guard.insert(job_id_clone.clone(), JobState::Failed { reason: format!("Failed to anchor receipt: {}", e) });
                                                                 }
                                                             }
                                                         }
@@ -556,10 +550,6 @@ impl RuntimeContext {
                                                     }
                                                 });
                                             }
-                                        } else {
-                                            warn!("[JobManager] Executor selection failed for job {:?} despite having bids. Re-queuing.", job.id);
-                                            job.state = JobState::Pending; // Revert state
-                                            jobs_to_requeue.push_back(job);
                                         }
                                     }
                                 }
@@ -680,10 +670,37 @@ impl RuntimeContext {
         todo!("Integrate with GovernanceModule proposal closing/tallying logic");
     }
 
-    pub fn execute_governance_proposal(&mut self, _proposal_id_str: &str) -> Result<(), HostAbiError> {
+    pub async fn execute_governance_proposal(&mut self, _proposal_id_str: &str) -> Result<(), HostAbiError> {
         todo!("Implement full governance proposal execution logic");
     }
 }
+
+// --- Supporting: RuntimeContext::new_for_test ---
+impl RuntimeContext {
+    pub fn new_for_test(
+        current_identity: Did,
+        signer: StubSigner, 
+        mesh_network_service: Arc<StubMeshNetworkService>,
+        dag_store: Arc<RuntimeStubDagStore>,
+    ) -> Self {
+        let job_states = Arc::new(TokioMutex::new(HashMap::new())); 
+        let pending_mesh_jobs = Arc::new(TokioMutex::new(VecDeque::new())); 
+        let mana_ledger = SimpleManaLedger::new();
+        let governance_module = GovernanceModule::new(); 
+
+        Self {
+            current_identity,
+            mana_ledger,
+            pending_mesh_jobs,
+            job_states,
+            governance_module,
+            mesh_network_service, 
+            signer: Arc::new(signer), 
+            dag_store, 
+        }
+    }
+}
+// --- End Supporting: RuntimeContext::new_for_test ---
 
 pub trait HostEnvironment: Send + Sync + std::fmt::Debug {
     fn env_submit_mesh_job(&self, ctx: &mut RuntimeContext, job_data_ptr: u32, job_data_len: u32) -> Result<u32, HostAbiError>; 
@@ -758,13 +775,24 @@ impl Signer for StubSigner {
 
 #[derive(Debug, Clone)]
 pub struct StubDagStore { // Renamed from StubStorageService for consistency if tests use this name
-    store: Arc<Mutex<HashMap<Cid, Vec<u8>>>>,
+    store: Arc<TokioMutex<HashMap<Cid, Vec<u8>>>>,
 }
 impl StubDagStore {
     pub fn new() -> Self {
-        Self { store: Arc::new(Mutex::new(HashMap::new())) }
+        Self { store: Arc::new(TokioMutex::new(HashMap::new())) }
+    }
+    pub async fn all(&self) -> Result<HashMap<Cid, Vec<u8>>, HostAbiError> {
+        let store_lock = self.store.lock().await;
+        Ok(store_lock.clone())
     }
 }
+
+impl Default for StubDagStore {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[async_trait]
 impl StorageService for StubDagStore { // Implements the local async StorageService trait
     async fn put(&self, data: &[u8]) -> Result<Cid, HostAbiError> {
@@ -792,14 +820,14 @@ impl StorageService for StubDagStore { // Implements the local async StorageServ
 
 #[derive(Debug, Clone)]
 pub struct StubMeshNetworkService {
-    staged_bids: Arc<Mutex<HashMap<JobId, VecDeque<MeshJobBid>>>>,
-    staged_receipts: Arc<Mutex<VecDeque<LocalMeshSubmitReceiptMessage>>>, // Using local placeholder
+    staged_bids: Arc<TokioMutex<HashMap<JobId, VecDeque<MeshJobBid>>>>,
+    staged_receipts: Arc<TokioMutex<VecDeque<LocalMeshSubmitReceiptMessage>>>, // Using local placeholder & TokioMutex
 }
 impl StubMeshNetworkService { 
     pub fn new() -> Self { 
         Self {
-            staged_bids: Arc::new(Mutex::new(HashMap::new())),
-            staged_receipts: Arc::new(Mutex::new(VecDeque::new())),
+            staged_bids: Arc::new(TokioMutex::new(HashMap::new())),
+            staged_receipts: Arc::new(TokioMutex::new(VecDeque::new())),
         }
     }
     pub async fn stage_bid(&self, job_id: JobId, bid: MeshJobBid) {
@@ -809,6 +837,12 @@ impl StubMeshNetworkService {
     pub async fn stage_receipt(&self, receipt_message: LocalMeshSubmitReceiptMessage) {
         let mut receipts_queue = self.staged_receipts.lock().await;
         receipts_queue.push_back(receipt_message);
+    }
+}
+
+impl Default for StubMeshNetworkService {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

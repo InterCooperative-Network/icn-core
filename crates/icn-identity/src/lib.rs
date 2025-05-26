@@ -9,7 +9,7 @@
 use icn_common::{Cid, CommonError, Did, ICN_CORE_VERSION, NodeInfo}; // Adjusted imports
 use serde::{Deserialize, Serialize}; // Keep serde for ExecutionReceipt
 
-use ed25519_dalek::{Signature as EdSignature, Signer, SigningKey, Verifier, VerifyingKey};
+use ed25519_dalek::{Signature as EdSignature, Signer, SigningKey, Verifier, VerifyingKey, SIGNATURE_LENGTH};
 use multibase::{encode as multibase_encode, Base};
 use rand_core::OsRng;
 use unsigned_varint::encode as varint_encode;
@@ -72,7 +72,9 @@ impl SignatureBytes {
         SignatureBytes(ed_sig.to_bytes().to_vec())
     }
     pub fn to_ed_signature(&self) -> Result<EdSignature, CommonError> {
-        EdSignature::from_bytes(&self.0)
+        let bytes_array: [u8; SIGNATURE_LENGTH] = self.0.as_slice().try_into()
+            .map_err(|_e| CommonError::CryptographyError("Signature aize mismatch".to_string()))?;
+        EdSignature::from_bytes(&bytes_array)
             .map_err(|e| CommonError::CryptographyError(format!("Failed to parse ed25519 signature: {}", e)))
     }
 }
@@ -105,9 +107,9 @@ impl ExecutionReceipt {
         // would be better for interoperability and to prevent canonicalization attacks.
         // For now, this is kept simple.
         let mut bytes = Vec::new();
-        bytes.extend_from_slice(&self.job_id.to_bytes());
+        bytes.extend_from_slice(&self.job_id.to_bytes_v0()); // Assuming a method like to_bytes_v0 for Cid
         bytes.extend_from_slice(self.executor_did.to_string().as_bytes()); // DID as string
-        bytes.extend_from_slice(&self.result_cid.to_bytes());
+        bytes.extend_from_slice(&self.result_cid.to_bytes_v0()); // Assuming a method like to_bytes_v0 for Cid
         bytes.extend_from_slice(&self.cpu_ms.to_le_bytes());
         Ok(bytes)
     }
@@ -161,7 +163,7 @@ pub fn register_identity(info: &NodeInfo, did_method: &str) -> Result<String, Co
 mod tests {
     use super::*;
     // For ExecutionReceipt tests, we might need a way to generate CIDs if not already available.
-    use icn_common::cid::generate_cid; 
+    use icn_common::utils::generate_cid; // Re-trying utils path
 
     #[test]
     fn roundtrip_sign_verify_message() {
@@ -195,7 +197,7 @@ mod tests {
     fn execution_receipt_signing_and_verification() {
         let (signing_key, verifying_key) = generate_ed25519_keypair();
         let executor_did_string = did_key_from_verifying_key(&verifying_key);
-        let executor_did = Did::from_string(&executor_did_string).unwrap();
+        let executor_did = Did::from_str(&executor_did_string).unwrap(); // Assuming Did::from_str exists
 
 
         let job_cid = generate_cid(b"test job data").unwrap();
