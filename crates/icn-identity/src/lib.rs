@@ -72,15 +72,12 @@ impl SignatureBytes {
         SignatureBytes(ed_sig.to_bytes().to_vec())
     }
     pub fn to_ed_signature(&self) -> Result<EdSignature, CommonError> {
-        let bytes_array: [u8; SIGNATURE_LENGTH] = self.0.as_slice().try_into()
-            .map_err(|_e| CommonError::InternalError("Signature size mismatch".to_string()))?;
-        
-        let parsing_result = EdSignature::from_bytes(&bytes_array);
-        
-        match parsing_result {
-            Ok(sig) => Ok(sig),
-            Err(e) => Err(CommonError::InternalError(format!("Failed to parse ed25519 signature: {}", e))),
-        }
+        let bytes_array: [u8; SIGNATURE_LENGTH] = self.0
+            .clone()
+            .try_into()
+            .map_err(|_| CommonError::InternalError("Invalid sig length".into()))?;
+        EdSignature::from_bytes(&bytes_array)
+            .map_err(|e: ed25519_dalek::SignatureError| CommonError::InternalError(format!("Signature decode error: {}", e)))
     }
 }
 
@@ -170,6 +167,18 @@ mod tests {
     // For ExecutionReceipt tests, we might need a way to generate CIDs if not already available.
     // use icn_common::generate_cid; // Temporarily commented out due to unresolved import
     use std::str::FromStr; // Ensure FromStr is in scope for Did::from_str
+    use icn_common::Cid; // Make sure Cid is in scope
+
+    // Helper to create a dummy Cid for tests when generate_cid is unavailable
+    fn dummy_cid_for_test(s: &str) -> Cid {
+        Cid::from_str(s).unwrap_or_else(|_| {
+            // Fallback if from_str fails or not implemented for this dummy string format
+            // This is a very basic placeholder if proper CID creation fails.
+            // A real dummy CID might involve creating a minimal valid CID structure.
+            // For now, let's use a known valid V1 CID string if from_str is problematic for arbitrary strings.
+            Cid::from_str("bafybeigdyrzt7dpbrm3kmhgtr5mk6yzqq3wj7owxsbs2hlkzbfio4ilv5e").expect("Failed to create fallback dummy CID")
+        })
+    }
 
     #[test]
     fn roundtrip_sign_verify_message() {
@@ -205,10 +214,8 @@ mod tests {
         let executor_did_string = did_key_from_verifying_key(&verifying_key);
         let executor_did = Did::from_str(&executor_did_string).expect("Failed to parse DID from string for executor_did");
 
-        // let job_cid = generate_cid(b"test job data").unwrap(); // Temporarily commented out
-        // let result_cid = generate_cid(b"test result data").unwrap(); // Temporarily commented out
-        let job_cid = Cid::default(); // Placeholder
-        let result_cid = Cid::default(); // Placeholder
+        let job_cid = dummy_cid_for_test("test_job_data_for_cid"); 
+        let result_cid = dummy_cid_for_test("test_result_data_for_cid");
 
         let unsigned_receipt = ExecutionReceipt {
             job_id: job_cid.clone(),
