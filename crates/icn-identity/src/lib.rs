@@ -68,19 +68,23 @@ pub fn verify_signature(pk: &VerifyingKey, msg: &[u8], sig: &EdSignature) -> boo
 pub struct SignatureBytes(#[serde(with = "serde_bytes")] pub Vec<u8>);
 
 impl SignatureBytes {
-    pub fn from_ed_signature(ed_sig: EdSignature) -> Self {
+    pub fn from_ed_signature(ed_sig: ed25519_dalek::Signature) -> Self {
         SignatureBytes(ed_sig.to_bytes().to_vec())
     }
-    pub fn to_ed_signature(&self) -> Result<EdSignature, CommonError> {
+    pub fn to_ed_signature(&self) -> Result<ed25519_dalek::Signature, CommonError> {
         let bytes_array: [u8; SIGNATURE_LENGTH] = self.0
             .clone()
             .try_into()
-            .map_err(|_| CommonError::InternalError("Invalid sig length".into()))?;
-        EdSignature::from_bytes(&bytes_array)
-            .map_err(|_| CommonError::InternalError("Signature decode error".into()))
+            .map_err(|_| CommonError::InternalError("Invalid signature length".into()))?;
+
+        let inner_sig_result = ed25519_dalek::Signature::from_bytes(&bytes_array);
+        
+        match inner_sig_result {
+            Ok(sig) => Ok(sig),
+            Err(e) => Err(CommonError::InternalError(format!("Signature decode error: {:?}", e))),
+        }
     }
 }
-
 
 /// Represents a verifiable proof that a job was executed.
 /// This structure is signed by the Executor and anchored to the DAG.
