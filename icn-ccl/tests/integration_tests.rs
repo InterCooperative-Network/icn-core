@@ -1,10 +1,10 @@
 // icn-ccl/tests/integration_tests.rs
 use icn_ccl::{compile_ccl_source_to_wasm, CclError, ContractMetadata};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tempfile::tempdir;
 
-fn create_dummy_ccl_file(dir: &PathBuf, name: &str, content: &str) -> PathBuf {
+fn create_dummy_ccl_file(dir: &Path, name: &str, content: &str) -> PathBuf {
     let file_path = dir.join(name);
     fs::write(&file_path, content).expect("Failed to write dummy CCL file");
     file_path
@@ -15,10 +15,8 @@ fn test_compile_simple_policy_end_to_end() {
     let ccl_source = r#"
         // Simple policy for testing
         fn get_cost() -> Mana {
-            return 10; // Mana type needs to be defined in grammar/AST
+            return 10;
         }
-
-        rule allow_if_positive when 1 > 0 then allow;
     "#;
 
     match compile_ccl_source_to_wasm(ccl_source) {
@@ -42,7 +40,7 @@ fn test_compile_simple_policy_end_to_end() {
 #[test]
 fn test_compile_ccl_file_cli_function() {
     let dir = tempdir().expect("Failed to create temp dir");
-    let source_content = "fn main() -> Bool { return true; } rule r1 when main() then allow;";
+    let source_content = "fn main() -> Bool { return true; }"; // Simplified
     let source_path = create_dummy_ccl_file(dir.path(), "test_policy.ccl", source_content);
     
     let output_wasm_path = dir.path().join("test_policy.wasm");

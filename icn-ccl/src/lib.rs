@@ -2,7 +2,7 @@
 
 pub mod ast;
 pub mod error;
-pub mod grammar; // If ccl.pest is directly included or re-exported
+// pub mod grammar; // If ccl.pest is directly included or re-exported - REMOVING THIS
 pub mod parser;
 pub mod semantic_analyzer;
 pub mod optimizer;

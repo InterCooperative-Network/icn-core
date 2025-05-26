@@ -17,7 +17,7 @@ hex = "0.4" # Added for placeholder CID/hash generation in cli.rs
 # wasm-tools = "1.208"  # Example, for WASM manipulation/validation
 
 # Dependency for icn-common if metadata uses Did, Cid etc.
-icn-common = { path = "../icn-common" } # Adjust path as necessary
+icn-common = { path = "../crates/icn-common" } # Adjust path as necessary
 
 [dev-dependencies]
 tempfile = "3.10"

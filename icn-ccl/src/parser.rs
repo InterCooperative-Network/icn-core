@@ -1,6 +1,7 @@
 // icn-ccl/src/parser.rs
 use pest::iterators::Pair;
 use pest::Parser;
+use pest_derive::Parser;
 use crate::ast::{AstNode, BlockNode, ExpressionNode, PolicyStatementNode, StatementNode, TypeAnnotationNode};
 use crate::error::CclError;
 
@@ -8,61 +9,129 @@ use crate::error::CclError;
 #[grammar = "grammar/ccl.pest"] // Path to your Pest grammar file
 pub struct CclParser;
 
-fn parse_expression(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
+// New helper function to handle the leaf nodes of an expression
+fn parse_literal_expression(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
     match pair.as_rule() {
         Rule::integer_literal => {
             let value = pair.as_str().parse::<i64>()
                 .map_err(|e| CclError::ParsingError(format!("Invalid integer: {}", e)))?;
             Ok(ExpressionNode::IntegerLiteral(value))
         }
-        // TODO: Add other expression types as grammar expands
-        _ => Err(CclError::ParsingError(format!("Unsupported expression type: {:?}", pair.as_rule()))),
+        Rule::boolean_literal => {
+            match pair.as_str() {
+                "true" => Ok(ExpressionNode::BooleanLiteral(true)),
+                "false" => Ok(ExpressionNode::BooleanLiteral(false)),
+                _ => Err(CclError::ParsingError("Invalid boolean literal".to_string())),
+            }
+        }
+        Rule::string_literal => {
+            // Need to strip quotes from string_literal if they are part of the pair's string value
+            let s = pair.as_str();
+            if s.starts_with('"') && s.ends_with('"') && s.len() >= 2 {
+                Ok(ExpressionNode::StringLiteral(s[1..s.len()-1].to_string()))
+            } else {
+                // This case should ideally not be hit if Pest grammar for string_literal is correct e.g. `"\"" ~ inner_chars ~ "\""`
+                // If `string_literal = @{ "\"" ~ inner ~ "\"" }` then `as_str()` includes quotes.
+                Ok(ExpressionNode::StringLiteral(s.to_string())) // Fallback, or error
+            }
+        }
+        Rule::identifier => {
+            Ok(ExpressionNode::Identifier(pair.as_str().to_string()))
+        }
+        // TODO: Rule::function_call, Rule::parenthesized_expression, etc.
+        _ => Err(CclError::ParsingError(format!("Unsupported literal/factor expression type: {:?}", pair.as_rule()))),
+    }
+}
+
+fn parse_expression(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
+    // expression = { term ~ (binary_operator ~ term)* }
+    // term       = { factor ~ (multiplicative_operator ~ factor)* }
+    // factor     = { primary_expression | unary_operator ~ primary_expression }
+    // primary_expression = { literal | identifier | parenthesized_expression | function_call }
+    // literal    = { integer_literal | boolean_literal | string_literal }
+
+    match pair.as_rule() {
+        Rule::expression => {
+            // For this minimal implementation, we assume the expression is just a single literal without operators.
+            // expression -> term -> factor -> literal_pair
+            let mut inner_rules = pair.into_inner(); // consumes the expression pair
+            let term_pair = inner_rules.next()
+                .ok_or_else(|| CclError::ParsingError("Expression missing term".to_string()))?;
+            
+            // TODO: Handle binary operators if inner_rules.next() is not None here
+
+            // Now parse the term_pair
+            // term = { factor ~ (("*" | "/") ~ factor)* }
+            let mut term_inner_rules = term_pair.into_inner();
+            let factor_pair = term_inner_rules.next()
+                .ok_or_else(|| CclError::ParsingError("Term missing factor".to_string()))?;
+
+            // TODO: Handle multiplicative operators if term_inner_rules.next() is not None here
+
+            // Now parse the factor_pair
+            // factor = { integer_literal | boolean_literal | string_literal | identifier | "(" ~ expression ~ ")" | function_call }
+            // For the simple case `return 42;`, factor_pair directly contains integer_literal.
+            let literal_or_primary_pair = factor_pair.into_inner().next()
+                 .ok_or_else(|| CclError::ParsingError("Factor missing primary expression".to_string()))?;
+
+            parse_literal_expression(literal_or_primary_pair)
+        }
+        // This case allows calling parse_expression with a rule that is already a literal (e.g. from other parser functions if needed)
+        // However, the main call from `parse_block` will pass `Rule::expression`.
+        Rule::integer_literal | Rule::boolean_literal | Rule::string_literal | Rule::identifier => {
+            parse_literal_expression(pair)
+        }
+        _ => Err(CclError::ParsingError(format!("Unsupported top-level rule for expression parsing: {:?}", pair.as_rule()))),
     }
 }
 
 fn parse_block(pair: Pair<Rule>) -> Result<BlockNode, CclError> {
     let mut statements = vec![];
     // block = { "{" ~ statement* ~ "}" }
-    // statement = { let_statement | expression_statement | return_statement }
-    // return_statement = { "return" ~ expression ~ ";" }
-    // We expect the block's inner rules to be statements.
-    for statement_pair in pair.into_inner() { // Iterates over rules inside the block
-        match statement_pair.as_rule() {
-            Rule::return_statement => {
-                // return_statement has 'return', expression, and ';' as inner rules.
-                // We need the expression part.
-                let expression_pair = statement_pair.into_inner().next() // Skips "return" token if it's explicit
-                    .ok_or_else(|| CclError::ParsingError("Return statement missing expression".to_string()))?;
-                 // If Pest grammar for return_statement is ` { "return" ~ expression ~ ";" } `
-                 // then `statement_pair.into_inner()` would yield `expression` then `;`.
-                 // If Pest grammar captures `expression` directly under `return_statement` like `return_statement = { "return" ~ ^expression ~ ";" }`
-                 // then the .next() might not be needed or might point to the expression directly.
-                 // Assuming grammar `return_statement = { "return" ~ expression ~ ";" }`, and expression is the first meaningful inner rule.
-                 // Let's refine this based on how `return_statement` is structured.
-                 // If `return_statement` itself *is* the rule passed, and its inner is the expression:
-                 let mut inner_return = statement_pair.into_inner();
-                 let expr_candidate = inner_return.next().ok_or_else(||CclError::ParsingError("Malformed return statement, expected expression".to_string()))?;
+    // We expect the block's inner rules to be `statement` rules.
+    for statement_rule_pair in pair.into_inner() { // This `pair` is the `block`
+        if statement_rule_pair.as_rule() == Rule::statement {
+            // A `statement` rule can be `let_statement | expression_statement | return_statement`
+            // We take the first (and only, for now) inner rule of the `statement`.
+            let actual_statement_pair = statement_rule_pair.into_inner().next()
+                .ok_or_else(|| CclError::ParsingError("Empty statement rule".to_string()))?;
 
-
-                statements.push(StatementNode::Return(parse_expression(expr_candidate)?));
+            match actual_statement_pair.as_rule() {
+                Rule::return_statement => {
+                    let mut inner_return_rules = actual_statement_pair.into_inner();
+                    let expression_rule = inner_return_rules.next()
+                        .ok_or_else(|| CclError::ParsingError("Return statement missing expression".to_string()))?;
+                    statements.push(StatementNode::Return(parse_expression(expression_rule)?));
+                }
+                // TODO: Add Rule::let_statement, Rule::expression_statement
+                _ => return Err(CclError::ParsingError(format!("Unsupported statement type: {:?}", actual_statement_pair.as_rule()))),
             }
-            // TODO: Add other statement types as grammar expands (let_statement, expression_statement)
-            _ => return Err(CclError::ParsingError(format!("Unexpected statement type in block: {:?}", statement_pair.as_rule()))),
+        } else {
+            return Err(CclError::ParsingError(format!("Unexpected rule directly in block: {:?}, expected a statement", statement_rule_pair.as_rule())));
         }
     }
     Ok(BlockNode { statements })
 }
 
 fn parse_type_annotation(pair: Pair<Rule>) -> Result<TypeAnnotationNode, CclError> {
-    // Assuming type_annotation rule directly matches one of the types
-    // type_annotation = { "Mana" | "Bool" | "DID" | "String" | "Integer" }
-    match pair.as_str() { // The matched string itself
+    // `type_annotation` rule in Pest is now `{ identifier }`.
+    // So, the `pair` passed here should have `pair.as_rule() == Rule::identifier` if Pest rule `type_annotation = { identifier }` was used directly in `function_definition`.
+    // However, the `function_definition` rule is `... ~ type_annotation ~ ...`
+    // So the `pair` here *is* the `type_annotation` rule itself. Its inner rule should be `identifier`.
+    let type_identifier_pair = pair.into_inner().next()
+        .ok_or_else(|| CclError::ParsingError("Type annotation missing identifier".to_string()))?;
+    
+    if type_identifier_pair.as_rule() != Rule::identifier {
+        return Err(CclError::ParsingError(format!("Expected identifier for type annotation, got {:?}", type_identifier_pair.as_rule())));
+    }
+
+    match type_identifier_pair.as_str() { // The matched identifier string
         "Integer" => Ok(TypeAnnotationNode::Integer),
         "Bool" => Ok(TypeAnnotationNode::Bool),
         "String" => Ok(TypeAnnotationNode::String),
         "Mana" => Ok(TypeAnnotationNode::Mana),
         "DID" => Ok(TypeAnnotationNode::Did),
-        other => Err(CclError::TypeError(format!("Unknown type: {}", other))),
+        other => Err(CclError::TypeError(format!("Unknown type: {}", other))), // This error should now be correctly triggered
     }
 }
 
@@ -73,32 +142,6 @@ fn parse_function_definition(pair: Pair<Rule>) -> Result<AstNode, CclError> {
     let name_token = inner_rules.next().ok_or_else(|| CclError::ParsingError("Function definition missing name".to_string()))?;
     assert_eq!(name_token.as_rule(), Rule::identifier);
     let name = name_token.as_str().to_string();
-
-    // Parameters are optional and not handled in this minimal version, so we skip to return type
-    // This needs to be more robust if parameters are present.
-    // For now, assume no parameters as per the simple example.
-    // "fn" -> name -> "(" -> ")" -> "->" -> type_annotation -> block
-    // If parameters were `(parameter ~ ("," ~ parameter)*)?`, this part is tricky.
-    // Let's assume for the minimal example, the grammar for no params is just `()`
-    // and the parser skips these tokens or the grammar is simplified.
-    // Example `fn get_value() -> Integer { return 42; }`
-    // `inner_rules` items: `identifier` (`get_value`), `type_annotation` (`Integer`), `block`
-    // This assumes the `(`, `)`, `->` tokens are not captured as separate `Pair<Rule>` items if not explicitly named or captured in Pest.
-    // If they are, they need to be skipped. Let's check Pest behavior.
-    // Typically, literals like "(" are consumed.
-    
-    // If Pest grammar has `identifier ~ "(" ~ parameters_list? ~ ")" ~ "->" ~ type_annotation ~ block`
-    // We'd do:
-    // name = inner_rules.next().unwrap().as_str().to_string(); // identifier
-    // _open_paren = inner_rules.next().unwrap(); // (
-    // parameters_list_or_close_paren = inner_rules.next().unwrap();
-    // if parameters_list_or_close_paren.as_rule() == Rule::parameters_list { ... } else { /* it's ) */ }
-    // ... and so on. This is complex.
-
-    // For the given minimal grammar:
-    // function_definition = { "fn" ~ identifier ~ "(" ~ ")" ~ "->" ~ type_annotation ~ block }
-    // inner_rules will give: identifier, type_annotation, block
-    // Because "fn", "(", ")", "->" are silent (not captured by a rule name).
     
     let return_type_pair = inner_rules.next().ok_or_else(|| CclError::ParsingError("Function definition missing return type".to_string()))?;
     let return_type = parse_type_annotation(return_type_pair)?;
@@ -115,30 +158,24 @@ fn parse_function_definition(pair: Pair<Rule>) -> Result<AstNode, CclError> {
 }
 
 pub fn parse_ccl_source(source: &str) -> Result<AstNode, CclError> {
-    // Try to parse the source as a single function_definition first for this minimal case
-    // Or, parse as `policy` and expect it to contain one function_definition
     match CclParser::parse(Rule::policy, source) {
         Ok(mut pairs) => {
             let policy_content = pairs.next().ok_or_else(|| CclError::ParsingError("Empty policy source".to_string()))?;
             
             let mut ast_nodes_for_policy = vec![];
 
-            // `policy` rule is `SOI ~ (function_definition | policy_statement)* ~ EOI`
-            // So `policy_content.into_inner()` will give us the sequence of function_definition or policy_statement
             for pair_in_policy in policy_content.into_inner() {
                 match pair_in_policy.as_rule() {
                     Rule::function_definition => {
                         ast_nodes_for_policy.push(PolicyStatementNode::FunctionDef(parse_function_definition(pair_in_policy)?));
                     }
-                    // Rule::policy_statement => { ... } // For later expansion
-                    Rule::EOI => (), // End Of Input, ignore
+                    Rule::EOI => (), 
                     _ => return Err(CclError::ParsingError(format!("Unexpected rule in policy: {:?}", pair_in_policy.as_rule()))),
                 }
             }
             if ast_nodes_for_policy.is_empty() {
                  return Err(CclError::ParsingError("No function definitions found in policy".to_string()));
             }
-            // For this minimal phase, we expect one function, so we construct a Policy node
             Ok(AstNode::Policy(ast_nodes_for_policy))
 
         }
@@ -186,10 +223,8 @@ mod tests {
 
     #[test]
     fn test_parse_invalid_syntax() {
-        let source = "fn broken { return 1 }"; // Invalid syntax according to full grammar
+        let source = "fn broken { return 1 }"; 
         let result = parse_ccl_source(source);
-        // This will fail if the grammar rule `policy` doesn't match at all.
-        // The error might be about not matching `policy` or an inner rule.
         assert!(matches!(result, Err(CclError::ParsingError(_))));
     }
 
@@ -208,13 +243,9 @@ mod tests {
     fn test_parse_block_missing_return_expression() {
          let source = r#"
             fn test_func() -> Integer {
-                return ; // Missing expression
+                return ; 
             }
         "#;
-        // This depends on how robust `parse_expression` and `parse_block` are.
-        // The current Pest grammar for `return_statement` requires an `expression`.
-        // So Pest itself would likely fail to parse `return ;` under `return_statement`.
-        // The error would be a Pest parsing error.
         let result = parse_ccl_source(source);
         assert!(matches!(result, Err(CclError::ParsingError(_))));
     }

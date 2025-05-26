@@ -12,6 +12,7 @@ members = [
     "crates/icn-api",
     "crates/icn-cli",
     "crates/icn-node",
+    "icn-ccl",
 ]
 resolver = "3"
 
