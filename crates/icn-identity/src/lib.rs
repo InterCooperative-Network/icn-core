@@ -77,12 +77,8 @@ impl SignatureBytes {
             .try_into()
             .map_err(|_| CommonError::InternalError("Invalid signature length".into()))?;
 
-        let inner_sig_result = ed25519_dalek::Signature::from_bytes(&bytes_array);
-        
-        match inner_sig_result {
-            Ok(sig) => Ok(sig),
-            Err(e) => Err(CommonError::InternalError(format!("Signature decode error: {:?}", e))),
-        }
+        ed25519_dalek::Signature::from_bytes(&bytes_array)
+            .map_err(|e| CommonError::InternalError(format!("Signature decode error: {:?}", e)))
     }
 }
 
