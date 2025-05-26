@@ -8,6 +8,7 @@
 use icn_common::{NodeInfo, CommonError, Cid, Did, ICN_CORE_VERSION};
 use icn_identity::{ExecutionReceipt, SignatureBytes, VerifyingKey as IdentityVerifyingKey, SigningKey as IdentitySigningKey, sign_message as identity_sign_message, verify_signature as identity_verify_signature};
 use serde::{Serialize, Deserialize};
+use std::collections::HashMap;
 
 /// Errors that can occur within the ICN Mesh subsystem.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -72,11 +73,8 @@ impl ActualMeshJob {
     /// The fields must be serialized in a deterministic way.
     fn to_signable_bytes(&self) -> Result<Vec<u8>, CommonError> {
         let mut bytes = Vec::new();
-        bytes.extend_from_slice(&self.id.to_bytes());
-        bytes.extend_from_slice(&self.manifest_cid.to_bytes());
-        // For JobSpec, if it's complex, consider hashing it and signing the hash.
-        // For simplicity, serializing it directly if it's not too large or has a canonical form.
-        // Assuming JobSpec is Serialize. A proper canonical serialization is important here.
+        bytes.extend_from_slice(self.id.to_string().as_bytes());
+        bytes.extend_from_slice(self.manifest_cid.to_string().as_bytes());
         let spec_bytes = serde_json::to_vec(&self.spec).map_err(|e| CommonError::SerializationError(format!("Failed to serialize JobSpec: {}", e)))?;
         bytes.extend_from_slice(&spec_bytes);
         bytes.extend_from_slice(self.creator_did.to_string().as_bytes());
@@ -88,8 +86,8 @@ impl ActualMeshJob {
     pub fn sign(mut self, signing_key: &IdentitySigningKey) -> Result<Self, CommonError> {
         // Ensure the job_id is set before signing, as it's part of the signable bytes.
         // Typically, id would be a CID of some core content, generated before this step.
-        if self.id.to_string().is_empty() || self.id.to_bytes().len() < 4 { // Basic check
-             return Err(CommonError::InvalidParameters("Job ID must be set before signing".to_string()));
+        if self.id.to_string().is_empty() || self.id.to_string().as_bytes().len() < 4 { // Basic check, using to_string().as_bytes()
+             return Err(CommonError::InternalError("Job ID must be set before signing".to_string())); // Was InvalidParameters
         }
         let message = self.to_signable_bytes()?;
         let ed_signature = identity_sign_message(signing_key, &message);
@@ -105,20 +103,20 @@ impl ActualMeshJob {
         if identity_verify_signature(verifying_key, &message, &ed_signature) {
             Ok(())
         } else {
-            Err(CommonError::CryptographyError("ActualMeshJob signature verification failed".to_string()))
+            Err(CommonError::InternalError("ActualMeshJob signature verification failed".to_string())) // Was CryptographyError
         }
     }
 }
 
 /// Detailed specification for a mesh job.
 /// TODO: Define fields for inputs, outputs, resource requirements, timeouts, etc.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub enum JobSpec {
     Echo { payload: String },
     // Add other variants as needed, e.g.:
     // Generic { command: String, args: Vec<String> },
     // Wasm { module_cid: Cid, entry_function: String, params: Vec<Value> },
-    #[default] // If you want a default variant when deserializing, though not strictly needed if all jobs specify a type.
+    #[default]
     GenericPlaceholder, // Placeholder until more types are defined
 }
 
@@ -306,14 +304,14 @@ pub struct SubmitReceiptMessage {
 mod tests {
     use super::*;
     use icn_identity::{generate_ed25519_keypair, did_key_from_verifying_key};
-    use icn_common::generate_cid; // For creating JobId (Cid)
-    use std::str::FromStr; // For Did::from_str in tests
+    use icn_common::Cid; // Explicitly import Cid for new_v1_dummy
+    use std::str::FromStr; // For Did::from_str
 
     #[test]
     fn test_schedule_mesh_job() {
         let node_info = NodeInfo {
             name: "MeshNode".to_string(),
-            version: ICN_CORE_VERSION.to_string(),
+            version: ICN_CORE_VERSION.to_string(), // Restored ICN_CORE_VERSION
             status_message: "Mesh active".to_string(),
         };
         let result = schedule_mesh_job(&node_info, "job-123");
@@ -322,15 +320,13 @@ mod tests {
     }
 
     #[test]
-    fn test_mesh_job_signing_and_verification() {
-        let (signing_key, verifying_key) = generate_ed25519_keypair();
-        let creator_did_string = did_key_from_verifying_key(&verifying_key);
-        let creator_did = Did::from_string(&creator_did_string).unwrap();
+    fn test_actual_mesh_job_signing_and_verification() {
+        let (signing_key, verifying_key) = icn_identity::generate_ed25519_keypair();
+        let creator_did_string = icn_identity::did_key_from_verifying_key(&verifying_key);
+        let creator_did = Did::from_str(&creator_did_string).unwrap();
 
-        let job_id_data = b"unique job content for id";
-        let job_id = generate_cid(job_id_data).unwrap();
-        let manifest_cid_data = b"job manifest data";
-        let manifest_cid = generate_cid(manifest_cid_data).unwrap();
+        let job_id = dummy_cid("test_job_data_for_cid_signing"); // Use dummy_cid helper
+        let manifest_cid = dummy_cid("test_manifest_data_for_cid_signing"); // Use dummy_cid helper
 
         let job_unsigned = ActualMeshJob {
             id: job_id.clone(),
@@ -348,12 +344,17 @@ mod tests {
         assert!(signed_job.verify_signature(&verifying_key).is_ok());
 
         // Verification should fail with a different public key
-        let (_other_sk, other_pk) = generate_ed25519_keypair();
+        let (_other_sk, other_pk) = icn_identity::generate_ed25519_keypair();
         assert!(signed_job.verify_signature(&other_pk).is_err());
 
         // Verification should fail if the job data is tampered with
         let mut tampered_job = signed_job.clone();
         tampered_job.cost_mana = 200;
         assert!(tampered_job.verify_signature(&verifying_key).is_err());
+    }
+
+    // Helper to create a dummy Cid for tests
+    fn dummy_cid(s: &str) -> Cid {
+        Cid::new_v1_dummy(0x55, 0x12, s.as_bytes())
     }
 }
