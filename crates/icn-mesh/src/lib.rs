@@ -8,7 +8,6 @@
 use icn_common::{NodeInfo, CommonError, Cid, Did, ICN_CORE_VERSION};
 use icn_identity::{ExecutionReceipt, SignatureBytes, VerifyingKey as IdentityVerifyingKey, SigningKey as IdentitySigningKey, sign_message as identity_sign_message, verify_signature as identity_verify_signature};
 use serde::{Serialize, Deserialize};
-use std::collections::HashMap;
 
 /// Errors that can occur within the ICN Mesh subsystem.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -75,8 +74,6 @@ impl ActualMeshJob {
         let mut bytes = Vec::new();
         bytes.extend_from_slice(self.id.to_string().as_bytes());
         bytes.extend_from_slice(self.manifest_cid.to_string().as_bytes());
-        let spec_bytes = serde_json::to_vec(&self.spec).map_err(|e| CommonError::SerializationError(format!("Failed to serialize JobSpec: {}", e)))?;
-        bytes.extend_from_slice(&spec_bytes);
         bytes.extend_from_slice(self.creator_did.to_string().as_bytes());
         bytes.extend_from_slice(&self.cost_mana.to_le_bytes());
         Ok(bytes)
@@ -118,12 +115,6 @@ pub enum JobSpec {
     // Wasm { module_cid: Cid, entry_function: String, params: Vec<Value> },
     #[default]
     GenericPlaceholder, // Placeholder until more types are defined
-}
-
-impl Default for JobSpec { // Provide a default for tests or when spec is not critical
-    fn default() -> Self {
-        JobSpec::GenericPlaceholder
-    }
 }
 
 /// Represents a bid submitted by an executor node for a specific mesh job.
@@ -221,7 +212,7 @@ pub fn select_executor(job_id: &JobId, bids: Vec<MeshJobBid>, _policy: &Selectio
 /// 
 /// # Returns
 /// * A `u64` representing the calculated score for the bid. Higher is generally better.
-pub fn score_bid(bid: &MeshJobBid, policy: &SelectionPolicy) -> u64 {
+pub fn score_bid(bid: &MeshJobBid, _policy: &SelectionPolicy) -> u64 {
     // TODO: Implement actual scoring logic based on price, mana, reputation, advertised_perf
     // TODO: Weights (w_price, w_rep, w_perf) should come from policy or config.
     // TODO: Reputation needs to be fetched for bid.executor_did.
