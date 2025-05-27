@@ -101,6 +101,15 @@ pub enum CommonError {
     
     #[error("Unknown error: {0}")]
     UnknownError(String),
+
+    #[error("Deserialization error: {0}")]
+    DeserError(String),
+
+    #[error("Serialization error: {0}")]
+    SerError(String),
+
+    #[error("Not implemented: {0}")]
+    NotImplemented(String),
 }
 
 // TODO: Define struct for DIDs (e.g., pub struct Did { method: String, id_string: String, ... })
@@ -110,7 +119,7 @@ pub enum CommonError {
 // --- Real Protocol Data Models ---
 
 /// Represents a Decentralized Identifier (DID).
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 pub struct Did {
     pub method: String,         // e.g., "key", "web", "ion"
     pub id_string: String,      // The method-specific identifier string

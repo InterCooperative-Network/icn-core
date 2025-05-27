@@ -6,7 +6,7 @@
 // use icn_common::{NodeInfo, CommonError, Did, ICN_CORE_VERSION, Cid};
 // use serde::{Serialize, Deserialize};
 
-use icn_common::{Cid, CommonError, Did, NodeInfo, ICN_CORE_VERSION}; // Re-added ICN_CORE_VERSION
+use icn_common::{Cid, CommonError, Did, NodeInfo};
 use serde::{Deserialize, Serialize}; // Keep serde for ExecutionReceipt
 
 pub use ed25519_dalek::{Signature as EdSignature, Signer, SigningKey, VerifyingKey, SIGNATURE_LENGTH}; // Made pub, removed unused Verifier initially, then re-added Keys
@@ -166,6 +166,7 @@ pub fn register_identity(info: &NodeInfo, did_method: &str) -> Result<String, Co
 #[cfg(test)]
 mod tests {
     use super::*;
+    use icn_common::ICN_CORE_VERSION; // Moved import here
     // For ExecutionReceipt tests, we might need a way to generate CIDs if not already available.
     // use icn_common::generate_cid; // Temporarily commented out due to unresolved import
     use std::str::FromStr; // Ensure FromStr is in scope for Did::from_str

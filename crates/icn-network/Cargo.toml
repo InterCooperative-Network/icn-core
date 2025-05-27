@@ -26,6 +26,11 @@ downcast-rs = "1.2.0"
 # No specific dev-dependencies here yet, but could add things like criterion for benchmarks
 anyhow = "1.0"
 libp2p = { version = "0.53", features = ["tokio", "tcp", "dns", "kad", "gossipsub", "noise", "yamux", "macros"] }
+rand = "0.8"
+icn-common = { path = "../icn-common" }
+icn-mesh = { path = "../icn-mesh" }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["fmt"] }
 
 [features]
 default = []

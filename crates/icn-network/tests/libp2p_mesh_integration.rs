@@ -10,15 +10,18 @@ mod libp2p_mesh_integration {
     use tokio::time::{sleep, Duration, timeout};
 
     fn generate_dummy_job(id_str: &str) -> Job {
-        let job_id = Cid::new_v1_dummy(0x55, 0x13, id_str.as_bytes());
+        let job_id_cid = Cid::new_v1_dummy(0x55, 0x13, id_str.as_bytes());
+        let job_id = JobId::from(job_id_cid);
         let creator_did = Did::from_str("did:key:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuias7ux1jEZ6KATp8").unwrap();
         let manifest_cid = Cid::new_v1_dummy(0x71, 0x12, b"dummy_manifest_data");
+        let job_spec = JobSpec::Echo { payload: "hello world".to_string() };
         Job {
             id: job_id,
-            manifest_cid,
-            spec: JobSpec::default(),
             creator_did,
+            manifest_cid,
+            spec: job_spec,
             cost_mana: 100,
+            signature: SignatureBytes(vec![]),
         }
     }
 

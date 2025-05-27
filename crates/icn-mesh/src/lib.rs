@@ -5,7 +5,7 @@
 //! InterCooperative Network (ICN) mesh network. It handles job definition, resource discovery,
 //! scheduling, execution management, and fault tolerance.
 
-use icn_common::{NodeInfo, CommonError, Cid, Did, ICN_CORE_VERSION};
+use icn_common::{NodeInfo, CommonError, Cid, Did};
 use icn_identity::{ExecutionReceipt, SignatureBytes, VerifyingKey as IdentityVerifyingKey, SigningKey as IdentitySigningKey, sign_message as identity_sign_message, verify_signature as identity_verify_signature};
 use serde::{Serialize, Deserialize};
 
@@ -294,6 +294,7 @@ pub struct SubmitReceiptMessage {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use icn_common::ICN_CORE_VERSION;
     use icn_identity::{generate_ed25519_keypair, did_key_from_verifying_key};
     use icn_common::Cid; // Explicitly import Cid for new_v1_dummy
     use std::str::FromStr; // For Did::from_str

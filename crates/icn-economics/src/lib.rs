@@ -5,7 +5,7 @@
 //! It manages token models, ledger interactions, transaction logic, and incentive mechanisms,
 //! aiming for security, accuracy, and interoperability.
 
-use icn_common::{NodeInfo, CommonError, Did, ICN_CORE_VERSION};
+use icn_common::{NodeInfo, CommonError, Did};
 
 // Placeholder for EconError enum
 #[derive(Debug)]
@@ -76,6 +76,7 @@ pub fn process_economic_event(info: &NodeInfo, event_details: &str) -> Result<St
 #[cfg(test)]
 mod tests {
     use super::*;
+    use icn_common::ICN_CORE_VERSION;
 
     #[test]
     fn test_process_economic_event() {

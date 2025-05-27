@@ -17,7 +17,7 @@ pub mod error;
 pub mod executor;
 pub use error::MeshJobError;
 
-use icn_common::{NodeInfo, CommonError, Did, Cid};
+use icn_common::{Did, NodeInfo, Cid, CommonError};
 use context::{RuntimeContext, HostAbiError};
 use icn_mesh::ActualMeshJob;
 use serde_json;
@@ -25,6 +25,8 @@ use std::str::FromStr;
 use icn_identity;
 use futures;
 use log::{info, debug};
+use std::sync::Arc;
+use icn_mesh::JobId;
 
 /// Placeholder function demonstrating use of common types for runtime operations.
 /// This function is not directly part of the Host ABI layer discussed below but serves as an example.
@@ -230,7 +232,6 @@ mod tests {
     use super::context::{RuntimeContext, HostAbiError, StubMeshNetworkService, StubSigner, StubDagStore};
     use icn_common::{Did, ICN_CORE_VERSION};
     use std::str::FromStr;
-    use std::sync::Arc;
 
     const TEST_IDENTITY_DID_STR: &str = "did:icn:test:dummy_executor";
     const OTHER_IDENTITY_DID_STR: &str = "did:icn:test:other_account";
@@ -240,7 +241,7 @@ mod tests {
         RuntimeContext::new(
             test_did, 
             Arc::new(StubMeshNetworkService::new()),
-            Arc::new(StubSigner),
+            Arc::new(StubSigner::new()),
             Arc::new(StubDagStore::new())
         )
     }
