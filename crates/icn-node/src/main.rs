@@ -5,37 +5,35 @@
 //! It integrates various core components to operate a functional ICN node, handling initialization,
 //! lifecycle, configuration, service hosting, and persistence.
 
-use icn_common::{Cid, DagBlock, NodeInfo, NodeStatus, ICN_CORE_VERSION, Did};
-use icn_dag::{StorageService, InMemoryDagStore, FileDagStore};
-use icn_governance::{GovernanceModule, ProposalId, VoteOption};
-use icn_api::governance_trait::{SubmitProposalRequest as ApiSubmitProposalRequest, CastVoteRequest as ApiCastVoteRequest};
-
-// ICN Runtime imports
-use icn_runtime::context::{
-    RuntimeContext,
-    StubSigner, 
-    StubDagStore as RuntimeStubDagStore, // Alias to avoid conflict with icn_dag::StubDagStore if any
-    StubMeshNetworkService,
-};
+use icn_common::{NodeInfo, Did, Cid, ICN_CORE_VERSION, CommonError};
+use icn_identity::{generate_ed25519_keypair, did_key_from_verifying_key, SigningKey, VerifyingKey, SignatureBytes, EdSignature, ExecutionReceipt as IdentityExecutionReceipt, VerifyError};
+use icn_runtime::context::{RuntimeContext, HostAbiError, StubSigner as RuntimeStubSigner, StubMeshNetworkService, StubDagStore as RuntimeStubDagStore, MeshNetworkService, Signer as RuntimeSigner};
 use icn_runtime::{
+MiscAbiError, // Assuming this is your error enum from runtime
     host_submit_mesh_job,
-    // We might need more ABI functions later, e.g. for submitting receipts if done via HTTP endpoint
+    host_anchor_receipt,
+    ReputationUpdater,
 };
-use icn_identity::{generate_ed25519_keypair, did_key_from_verifying_key, SignatureBytes};
-use icn_mesh::ActualMeshJob; // For the submit endpoint
+use icn_mesh::{ActualMeshJob};
+use icn_governance::{ProposalId, VoteOption};
+use icn_api::governance_trait::{self as governance_api, ProposalInputType as ApiProposalInputType, CastVoteRequest as ApiCastVoteRequest, SubmitProposalRequest as ApiSubmitProposalRequest, ProposalOutput as ApiProposalOutput};
+use icn_api::dag_api::{DagBlock, Cid as ApiCid}; // Using an alias if Cid type differs
 
+use std::sync::Arc;
+use tokio::sync::Mutex;
+use std::net::SocketAddr;
+use std::path::PathBuf;
+use serde::{Deserialize, Serialize};
 use axum::{
-    extract::{State, Path as AxumPath},
+    extract::{Path as AxumPath, State},
     http::StatusCode,
     response::IntoResponse,
     routing::{get, post},
     Json, Router,
 };
 use clap::Parser;
-use log::{info, error, warn, debug}; // Added log macros
-use serde::{Serialize, Deserialize}; // Added Deserialize
-use std::{net::SocketAddr, path::PathBuf, sync::Arc, str::FromStr};
-use tower::ServiceExt; // Added for oneshot
+use env_logger;
+use log::{info, warn, error, debug};
 
 // --- CLI Arguments --- 
 
@@ -80,7 +78,7 @@ pub async fn app_router() -> Router { // Renamed to app_router and made async fo
     let node_did = Did::from_str(&node_did_string).expect("Failed to create test node DID");
     info!("Test/Embedded Node DID: {}", node_did);
 
-    let signer = Arc::new(StubSigner::new_with_keys(sk, pk)); // Use the generated keys
+    let signer = Arc::new(RuntimeStubSigner::new_with_keys(sk, pk)); // Use the generated keys
     let dag_store_for_rt = Arc::new(RuntimeStubDagStore::new());
     let mesh_network_service = Arc::new(StubMeshNetworkService::new());
     // Note: GovernanceModule is initialized inside RuntimeContext::new_with_stubs or similar
@@ -95,7 +93,7 @@ pub async fn app_router() -> Router { // Renamed to app_router and made async fo
     rt_ctx.spawn_mesh_job_manager().await; // Start the job manager
 
     let app_state = AppState {
-        runtime_context: Arc::new(rt_ctx),
+        runtime_context: rt_ctx.clone(),
         node_name: "ICN Test/Embedded Node".to_string(), 
         node_version: ICN_CORE_VERSION.to_string(),
     };
@@ -128,7 +126,7 @@ async fn main() {
     // In a real scenario, you might load sk from cli.node_private_key_bs58
 
     // --- Initialize RuntimeContext Components ---
-    let signer = Arc::new(StubSigner::new_with_keys(node_sk, node_pk));
+    let signer = Arc::new(RuntimeStubSigner::new_with_keys(node_sk, node_pk));
     
     let dag_store_for_rt: Arc<dyn icn_runtime::context::StorageService + Send + Sync> = match cli.storage_backend {
         StorageBackendType::Memory => Arc::new(RuntimeStubDagStore::new()), // Use RT's stub for now
@@ -161,7 +159,7 @@ async fn main() {
 
     // --- Create AppState for Axum ---
     let app_state = AppState {
-        runtime_context: Arc::new(rt_ctx),
+        runtime_context: rt_ctx.clone(),
         node_name: "ICN Node".to_string(), // This could be configurable
         node_version: ICN_CORE_VERSION.to_string(),
     };
@@ -305,7 +303,7 @@ async fn gov_submit_handler(
         }
     };
 
-    match gov_mod.submit_proposal(
+    match (*gov_mod).submit_proposal(
         proposer_did, // Proposer is from the request
         proposal_type,
         request.description,
@@ -342,7 +340,7 @@ async fn gov_vote_handler(
         _ => return map_rust_error_to_json_response("Invalid vote option", StatusCode::BAD_REQUEST).into_response(),
     };
 
-    match gov_mod.cast_vote(voter_did, proposal_id, vote_option) {
+    match (*gov_mod).cast_vote(voter_did, proposal_id, vote_option) {
         Ok(_) => (StatusCode::OK, Json("Vote cast successfully")).into_response(),
         Err(e) => map_rust_error_to_json_response(format!("Governance vote error: {}",e), StatusCode::BAD_REQUEST).into_response(),
     }
@@ -354,7 +352,7 @@ async fn gov_list_proposals_handler(
 ) -> impl IntoResponse {
     debug!("Received /governance/proposals request");
     let gov_mod = state.runtime_context.governance_module.lock().await;
-    let proposals = gov_mod.get_all_proposals(); // Assuming this returns Vec<ProposalOutput> or similar
+    let proposals = (*gov_mod).get_all_proposals(); // Assuming this returns Vec<ProposalOutput> or similar
     (StatusCode::OK, Json(proposals))
 }
 
@@ -366,7 +364,7 @@ async fn gov_get_proposal_handler(
     debug!("Received /governance/proposal/{} request", proposal_id_str);
     let gov_mod = state.runtime_context.governance_module.lock().await;
     let proposal_id = ProposalId(proposal_id_str);
-    match gov_mod.get_proposal(&proposal_id) {
+    match (*gov_mod).get_proposal(&proposal_id) {
         Some(proposal) => (StatusCode::OK, Json(proposal)).into_response(),
         None => map_rust_error_to_json_response("Proposal not found", StatusCode::NOT_FOUND).into_response(),
     }

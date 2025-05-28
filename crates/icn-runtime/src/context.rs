@@ -132,11 +132,11 @@ impl Default for GovernanceModule {
 
 // Placeholder for charge_mana function (used in Job Manager)
 // This would typically belong to the icn-economics crate or a related module.
-fn charge_mana(_executor_did: &Did, _amount: u64) -> Result<(), EconError> {
-    // In a real implementation, this would interact with the ManaRepository.
-    // For now, always succeed for testing purposes.
-    Ok(())
-}
+// fn charge_mana(_executor_did: &Did, _amount: u64) -> Result<(), EconError> {
+// In a real implementation, this would interact with the ManaRepository.
+// For now, always succeed for testing purposes.
+// Ok(())
+// }
 
 // Placeholder for SelectionPolicy (used in Job Manager)
 // This would typically belong to the icn-mesh crate or a related module.
@@ -145,10 +145,10 @@ pub struct SelectionPolicy { /* ... fields ... */ }
 
 // Placeholder for select_executor function (used in Job Manager)
 // This would typically belong to the icn-mesh crate or a related module.
-fn select_executor(bids: Vec<MeshJobBid>, _policy: SelectionPolicy) -> Option<Did> {
-    // Simplistic: return the DID of the first bidder if any
-    bids.first().map(|bid| bid.executor_did.clone())
-}
+// fn select_executor(bids: Vec<MeshJobBid>, _policy: SelectionPolicy) -> Option<Did> {
+// Simplistic: return the DID of the first bidder if any
+// bids.first().map(|bid| bid.executor_did.clone())
+// }
 // --- End Placeholder Local Stubs ---
 
 
@@ -473,29 +473,29 @@ impl RuntimeContext {
                 match self.anchor_receipt(&receipt).await {
                     Ok(receipt_cid) => {
                         info!("[JobManagerDetail] Receipt for job {:?} anchored successfully: {:?}", job.id, receipt_cid);
-                        let mut states_guard = self.job_states.lock().await;
-                        states_guard.insert(job.id.clone(), JobState::Completed { receipt: receipt.clone() });
+                        let job_states_guard = self.job_states.lock().await;
+                        job_states_guard.insert(job.id.clone(), JobState::Completed { receipt: receipt.clone() });
                         // TODO: Credit mana to executor, update reputation, etc.
                         Ok(())
                     }
                     Err(e) => {
                         error!("[JobManagerDetail] Failed to anchor receipt for job {:?}: {}. Marking as Failed (AnchorFailed).", job.id, e);
-                        let mut states_guard = self.job_states.lock().await;
-                        states_guard.insert(job.id.clone(), JobState::Failed { reason: format!("Failed to anchor receipt: {}", e) });
+                        let job_states_guard = self.job_states.lock().await;
+                        job_states_guard.insert(job.id.clone(), JobState::Failed { reason: format!("Failed to anchor receipt: {}", e) });
                         Err(HostAbiError::DagOperationFailed(format!("Failed to anchor receipt: {}",e)))
                     }
                 }
             }
             Ok(None) => {
                 warn!("[JobManagerDetail] No receipt received for job {:?} within timeout. Marking as Failed (NoReceipt).", job.id);
-                let mut states_guard = self.job_states.lock().await;
-                states_guard.insert(job.id.clone(), JobState::Failed { reason: "No receipt received within timeout".to_string() });
+                let job_states_guard = self.job_states.lock().await;
+                job_states_guard.insert(job.id.clone(), JobState::Failed { reason: "No receipt received within timeout".to_string() });
                 Err(HostAbiError::NetworkError("No receipt received within timeout".to_string()))
             }
             Err(e) => {
                 error!("[JobManagerDetail] Error while trying to receive receipt for job {:?}: {}. Marking as Failed (ReceiptError).", job.id, e);
-                let mut states_guard = self.job_states.lock().await;
-                states_guard.insert(job.id.clone(), JobState::Failed { reason: format!("Error receiving receipt: {}", e) });
+                let job_states_guard = self.job_states.lock().await;
+                job_states_guard.insert(job.id.clone(), JobState::Failed { reason: format!("Error receiving receipt: {}", e) });
                 Err(e)
             }
         }
@@ -557,9 +557,9 @@ impl RuntimeContext {
 
                             if bids.is_empty() {
                                 warn!("[JobManagerLoop] No bids received for job {:?}. Marking as Failed (NoBids).", current_job_id);
-                                let mut states_guard = self_clone.job_states.lock().await;
-                                states_guard.insert(current_job_id.clone(), JobState::Failed { reason: "No bids received".to_string() });
-                                drop(states_guard);
+                                let job_states_guard = self_clone.job_states.lock().await;
+                                job_states_guard.insert(current_job_id.clone(), JobState::Failed { reason: "No bids received".to_string() });
+                                drop(job_states_guard);
                                 // TODO: Refund mana to submitter if applicable
                                 continue;
                             }
@@ -569,9 +569,9 @@ impl RuntimeContext {
                                 let new_state = JobState::Assigned { executor: selected_bid.executor_did.clone() };
                                 info!("[JobManagerLoop] Job {:?} assigned to executor {:?}. Notifying...", current_job_id, selected_bid.executor_did);
                                 
-                                let mut states_guard = self_clone.job_states.lock().await;
-                                states_guard.insert(current_job_id.clone(), new_state);
-                                drop(states_guard);
+                                let job_states_guard = self_clone.job_states.lock().await;
+                                job_states_guard.insert(current_job_id.clone(), new_state);
+                                drop(job_states_guard);
         
                                 let notice = JobAssignmentNotice {
                                     job_id: current_job_id.clone(),
@@ -580,9 +580,9 @@ impl RuntimeContext {
 
                                 if let Err(e) = self_clone.mesh_network_service.notify_executor_of_assignment(&notice).await {
                                     error!("[JobManagerLoop] Failed to notify executor for job {:?}: {}. Reverting to Pending.", current_job_id, e);
-                                    let mut states_guard = self_clone.job_states.lock().await;
-                                    states_guard.insert(current_job_id.clone(), JobState::Pending); // Revert state in map
-                                    drop(states_guard);
+                                    let job_states_guard = self_clone.job_states.lock().await;
+                                    job_states_guard.insert(current_job_id.clone(), JobState::Pending); // Revert state in map
+                                    drop(job_states_guard);
                                     jobs_to_requeue.push_back(job); // Re-queue the ActualMeshJob
                                     continue;
                                 }
@@ -709,7 +709,7 @@ impl RuntimeContext {
                  receipt.job_id, cid, receipt.executor_did, receipt.cpu_ms);
         
         { 
-            let mut job_states_guard = self.job_states.lock().await;
+            let job_states_guard = self.job_states.lock().await;
             job_states_guard.insert(receipt.job_id.clone(), JobState::Completed { receipt: receipt.clone() });
             println!("[CONTEXT] Job {:?} state updated to Completed.", receipt.job_id);
         }

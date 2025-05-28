@@ -27,40 +27,6 @@ impl SimpleExecutor {
     pub fn new(node_did: Did, signing_key: SigningKey) -> Self {
         Self { node_did, signing_key }
     }
-
-    fn handle_echo_job(&self, _job_spec: &JobSpec, job_id: &Cid, input_payload: Option<&Value>) -> Result<Value, CommonError> {
-        info!("[SimpleExecutor] Executing echo job: {:?}", job_id);
-        let output = input_payload.cloned().unwrap_or_else(|| Value::String("Echo successful!".to_string()));
-        Ok(output)
-    }
-
-    fn handle_hash_job(&self, _job_spec: &JobSpec, job_id: &Cid, input_payload: Option<&Value>) -> Result<Value, CommonError> {
-        info!("[SimpleExecutor] Executing hash job: {:?}", job_id);
-        let data_to_hash = input_payload
-            .and_then(|v| v.as_str())
-            .unwrap_or_else(|| "default_string_to_hash");
-        
-        // In a real scenario, you'd use a proper hash function and likely return bytes or a CID directly.
-        // For this placeholder, we return a string representation of a dummy CID.
-        let dummy_cid = Cid::new_v1_dummy(0x55, 0x12, data_to_hash.as_bytes());
-        Ok(Value::String(dummy_cid.to_string()))
-    }
-
-    async fn execute_job_logic(&self, job_id: &JobId, job: &ActualMeshJob) -> Result<Vec<u8>, CommonError> {
-        match &job.spec {
-            JobSpec::Echo { payload } => {
-                info!("[SimpleExecutor] Executing echo job: {:?}", job_id);
-                let output_data = format!("Echo: {}", payload);
-                Ok(output_data.into_bytes())
-            }
-            JobSpec::GenericPlaceholder => {
-                info!("[SimpleExecutor] Executing hash job (placeholder): {:?}", job_id);
-                let timestamp = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_millis();
-                let data_to_hash = format!("job_id:{:?}-manifest:{:?}-timestamp:{}", job.id, job.manifest_cid, timestamp);
-                Ok(data_to_hash.into_bytes())
-            }
-        }
-    }
 }
 
 #[async_trait::async_trait]
@@ -135,7 +101,6 @@ mod tests {
 
         assert_eq!(receipt.job_id, job_id);
         assert_eq!(receipt.executor_did, node_did);
-        assert!(receipt.cpu_ms >= 0);
         assert!(!receipt.sig.0.is_empty());
         assert!(receipt.verify_against_key(&verifying_key).is_ok());
         info!("Echo job receipt (test_simple_executor_echo_job): {:?}", receipt);
@@ -164,7 +129,6 @@ mod tests {
 
         assert_eq!(receipt.job_id, job.id);
         assert_eq!(receipt.executor_did, node_did);
-        assert!(receipt.cpu_ms >= 0);
         assert!(!receipt.sig.0.is_empty());
         assert!(receipt.verify_against_key(&node_pk).is_ok());
         info!("Echo job receipt (test_execute_job_echo_success): {:?}", receipt);

@@ -459,17 +459,6 @@ mod tests {
         }
     }
 
-    async fn create_runtime_with_stubs_and_run_job_manager(node_did_str: String) -> Arc<RuntimeContext> { // Return Arc
-        // This will now return Arc<RuntimeContext>
-        let runtime_context_arc = RuntimeContext::new_with_stubs(&node_did_str);
-        
-        // Clone the Arc to pass ownership to spawn_mesh_job_manager, which consumes it.
-        // The original Arc (runtime_context_arc) is returned for the test to use.
-        runtime_context_arc.clone().spawn_mesh_job_manager().await;
-        
-        runtime_context_arc // Return the original Arc for the test
-    }
-
     #[tokio::test]
     async fn test_runtime_context_new_with_stubs() {
         let node_did_str = "did:key:z6MkjL4FwS3np2p2NLiqH57sX99pZtG9x3Fy9bYh3xHqs14z";

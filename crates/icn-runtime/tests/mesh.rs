@@ -2,11 +2,9 @@
 
 use icn_common::{Did, Cid};
 use icn_identity::{ExecutionReceipt as IdentityExecutionReceipt, SignatureBytes};
-use icn_runtime::context::{RuntimeContext, HostAbiError, StubMeshNetworkService, StubDagStore, DefaultMeshNetworkService, StubSigner};
+use icn_runtime::context::{RuntimeContext, HostAbiError, StubMeshNetworkService, StubDagStore};
 use icn_runtime::host_submit_mesh_job;
-use icn_mesh::{JobId, ActualMeshJob, MeshJobBid, JobState, SubmitReceiptMessage, JobSpec, Resources};
-use icn_network::{NetworkService, libp2p_service::Libp2pNetworkService};
-use anyhow::Result;
+use icn_mesh::{JobId, ActualMeshJob, MeshJobBid, JobState, JobSpec, Resources};
 use serde_json::json;
 use std::str::FromStr;
 use std::sync::Arc;
