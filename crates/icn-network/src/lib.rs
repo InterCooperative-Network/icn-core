@@ -20,6 +20,16 @@ use std::fmt::Debug;
 use async_trait::async_trait;
 use downcast_rs::{impl_downcast, DowncastSync};
 use std::any::Any;
+use std::sync::{Arc, Mutex, RwLock};
+use std::collections::{HashMap, HashSet};
+use std::str::FromStr;
+use std::time::SystemTime;
+
+use libp2p::kad::RecordKey as KademliaKey;
+use libp2p::kad::{Record as KademliaRecord, QueryId, Quorum, GetRecordOk, PutRecordOk, store::MemoryStore, Behaviour as KademliaBehaviour, Config as KademliaConfig, Event as KademliaEvent, QueryResult as KademliaQueryResult};
+use libp2p_request_response::{Behaviour as RequestResponseBehaviour, Codec as RequestResponseCodec, ProtocolSupport, RequestId, OutboundRequestId, Event as RequestResponseEvent, Message as RequestResponseMessage};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use bincode;
 
 // --- Peer and Message Scaffolding ---
 
@@ -199,27 +209,130 @@ pub mod libp2p_service {
     };
     use std::time::Duration;
     use tokio::{sync::{mpsc, oneshot}, task};
-    use serde_json;
-    use std::sync::{Arc, Mutex};
-    use std::collections::HashMap;
+    use std::sync::{Arc, Mutex, RwLock};
+    use std::collections::{HashMap, HashSet};
     use std::str::FromStr;
+    use std::time::SystemTime;
 
     use libp2p::kad::RecordKey as KademliaKey;
-    use libp2p::kad::{Record as KademliaRecord, QueryId, Quorum, GetRecordOk, PutRecordOk, store::MemoryStore, Behaviour as KademliaBehaviour, Config as KademliaConfig, Event as KademliaEvent, QueryResult as KademliaQueryResult};
+    use bincode;
 
     /* ---------- Public façade ------------------------------------------------ */
 
     #[derive(Clone, Debug)]
     pub struct Libp2pNetworkService {
-        cmd_tx: mpsc::Sender<Command>,
         local_peer_id: Libp2pPeerId,
         listening_addresses: Arc<Mutex<Vec<Multiaddr>>>,
-        // We don't store the message_rx here directly.
-        // Instead, the Swarm task will manage senders to subscribers.
+        peer_manager: Arc<PeerManager>,
+        message_router: Arc<MessageRouter>,
+        cmd_tx: mpsc::Sender<Command>,
+    }
+
+    #[derive(Debug)]
+    pub struct PeerManager {
+        connected_peers: Arc<RwLock<HashMap<Libp2pPeerId, PeerInfo>>>,
+        blacklisted_peers: Arc<RwLock<HashSet<Libp2pPeerId>>>,
+    }
+
+    #[derive(Debug)]
+    pub struct PeerInfo {
+        pub peer_id: Libp2pPeerId,
+        pub addresses: Vec<Multiaddr>,
+        pub connection_time: SystemTime,
+        pub last_seen: SystemTime,
+        pub connection_state: ConnectionState,
+    }
+
+    #[derive(Debug, Clone)]
+    pub enum ConnectionState {
+        Connecting,
+        Connected,
+        Disconnecting,
+        Failed { reason: String, retry_after: SystemTime },
+    }
+
+    #[derive(Debug)]
+    pub struct MessageRouter {
+        gossipsub: Arc<Mutex<gossipsub::Behaviour>>,
+        request_response: Arc<Mutex<RequestResponseBehaviour<MessageCodec>>>,
+        topics: Arc<RwLock<HashMap<String, gossipsub::IdentTopic>>>,
+        pending_requests: Arc<Mutex<HashMap<RequestId, oneshot::Sender<super::NetworkMessage>>>>,
+    }
+
+    #[derive(Debug, Clone)]
+    pub struct MessageCodec;
+
+    #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+    pub struct MessageProtocol();
+
+    impl FromStr for MessageProtocol {
+        type Err = std::io::Error;
+
+        fn from_str(s: &str) -> Result<Self, Self::Err> {
+            if s == "/icn/message/1.0.0" {
+                Ok(MessageProtocol())
+            }
+            else {
+                Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "Invalid protocol string"))
+            }
+        }
+    }
+
+    impl AsRef<str> for MessageProtocol {
+        fn as_ref(&self) -> &str {
+            "/icn/message/1.0.0"
+        }
+    }
+
+    #[async_trait]
+    impl RequestResponseCodec for MessageCodec {
+        type Protocol = MessageProtocol;
+        type Request = super::NetworkMessage;
+        type Response = super::NetworkMessage;
+    
+        async fn read_request<T>(&mut self, _: &Self::Protocol, io: &mut T) -> std::io::Result<Self::Request>
+        where
+            T: libp2p::futures::AsyncRead + Unpin + Send,
+        {
+            let mut buf = Vec::new();
+            io.read_to_end(&mut buf).await?;
+            bincode::deserialize(&buf)
+                .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
+        }
+
+        async fn read_response<T>(&mut self, _: &Self::Protocol, io: &mut T) -> std::io::Result<Self::Response>
+        where
+            T: libp2p::futures::AsyncRead + Unpin + Send,
+        {
+            let mut buf = Vec::new();
+            io.read_to_end(&mut buf).await?;
+            bincode::deserialize(&buf)
+                .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
+        }
+    
+        async fn write_request<T>(&mut self, _: &Self::Protocol, io: &mut T, req: Self::Request) -> std::io::Result<()>
+        where
+            T: libp2p::futures::AsyncWrite + Unpin + Send,
+        {
+            let data = bincode::serialize(&req)
+                .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+            io.write_all(&data).await?;
+            io.close().await
+        }
+
+        async fn write_response<T>(&mut self, _: &Self::Protocol, io: &mut T, res: Self::Response) -> std::io::Result<()>
+        where
+            T: libp2p::futures::AsyncWrite + Unpin + Send,
+        {
+            let data = bincode::serialize(&res)
+                .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+            io.write_all(&data).await?;
+            io.close().await
+        }
     }
 
     impl Libp2pNetworkService {
-        pub async fn new(bootstrap_peers: Option<Vec<(Libp2pPeerId, Multiaddr)>>) -> Result<Self, CommonError> {
+        pub async fn new(bootstrap_peers_opt: Option<Vec<(Libp2pPeerId, Multiaddr)>>) -> Result<Self, CommonError> {
             let local_key = identity::Keypair::generate_ed25519();
             let local_peer_id = Libp2pPeerId::from(local_key.public());
 
@@ -233,11 +346,12 @@ pub mod libp2p_service {
             .timeout(std::time::Duration::from_secs(20))
             .boxed();
 
-            let gossipsub = {
-                let cfg = gossipsub::Config::default();
-                gossipsub::Behaviour::new(gossipsub::MessageAuthenticity::Signed(local_key.clone()), cfg)
-                    .map_err(|s| CommonError::NetworkSetupError(format!("Gossipsub setup error: {}",s)))?
-            };
+            let gossipsub_config = gossipsub::Config::default();
+            let gossipsub = gossipsub::Behaviour::new(
+                gossipsub::MessageAuthenticity::Signed(local_key.clone()),
+                gossipsub_config
+            )
+            .map_err(|s| CommonError::NetworkSetupError(format!("Gossipsub setup error: {}",s)))?;
 
             let ping = ping::Behaviour::new(ping::Config::new().with_interval(Duration::from_secs(15)));
 
@@ -245,349 +359,280 @@ pub mod libp2p_service {
             let mut kademlia_config = KademliaConfig::default();
             kademlia_config.disjoint_query_paths(true);
             let kademlia = KademliaBehaviour::with_config(local_peer_id, store, kademlia_config);
+            
+            let request_response_protocols = std::iter::once((MessageProtocol(), ProtocolSupport::Full));
+            let request_response_config = libp2p_request_response::Config::default();
+            let request_response = RequestResponseBehaviour::with_codec(
+                MessageCodec,
+                request_response_protocols,
+                request_response_config,
+            );
 
             #[derive(NetworkBehaviour)]
-            #[behaviour(out_event = "Event")]
-            struct Behaviour {
+            #[behaviour(out_event = "CombinedEvent")]
+            struct CombinedBehaviour {
                 gossipsub: gossipsub::Behaviour,
                 ping: ping::Behaviour,
                 kademlia: KademliaBehaviour<MemoryStore>,
+                request_response: RequestResponseBehaviour<MessageCodec>,
             }
 
             #[allow(clippy::large_enum_variant)]
-            #[derive(Debug)]
-            enum Event {
+            enum CombinedEvent {
                 Gossipsub(gossipsub::Event),
                 Ping(ping::Event),
                 Kademlia(KademliaEvent),
+                RequestResponse(RequestResponseEvent<super::NetworkMessage, super::NetworkMessage>),
             }
 
-            impl From<gossipsub::Event> for Event {
-                fn from(e: gossipsub::Event) -> Self { Event::Gossipsub(e) }
+            impl From<gossipsub::Event> for CombinedEvent {
+                fn from(e: gossipsub::Event) -> Self { CombinedEvent::Gossipsub(e) }
             }
-            impl From<ping::Event> for Event {
-                fn from(e: ping::Event) -> Self { Event::Ping(e) }
+            impl From<ping::Event> for CombinedEvent {
+                fn from(e: ping::Event) -> Self { CombinedEvent::Ping(e) }
             }
-            impl From<KademliaEvent> for Event {
-                fn from(e: KademliaEvent) -> Self { Event::Kademlia(e) }
+            impl From<KademliaEvent> for CombinedEvent {
+                fn from(e: KademliaEvent) -> Self { CombinedEvent::Kademlia(e) }
+            }
+             impl From<RequestResponseEvent<super::NetworkMessage, super::NetworkMessage>> for CombinedEvent {
+                fn from(e: RequestResponseEvent<super::NetworkMessage, super::NetworkMessage>) -> Self { CombinedEvent::RequestResponse(e) }
             }
 
-            let behaviour = Behaviour { gossipsub, ping, kademlia };
-            
-            let swarm_config = SwarmConfig::with_tokio_executor();
-            let mut swarm = Swarm::new(transport, behaviour, local_peer_id, swarm_config);
 
-            if let Some(peers) = bootstrap_peers {
-                for (peer_id, addr) in peers {
+            let behaviour = CombinedBehaviour { gossipsub, ping, kademlia, request_response };
+            let mut swarm = Swarm::new(transport, behaviour, local_peer_id, SwarmConfig::with_tokio_executor());
+
+            swarm.listen_on("/ip4/0.0.0.0/tcp/0".parse().unwrap())
+                 .map_err(|e| CommonError::NetworkSetupError(format!("Listen on error: {}",e)))?;
+
+            if let Some(bootstrap_peers) = bootstrap_peers_opt {
+                for (peer_id, addr) in bootstrap_peers {
+                    log::info!("[libp2p_service][mesh-job] Adding bootstrap peer: {peer_id} at {addr}");
                     swarm.behaviour_mut().kademlia.add_address(&peer_id, addr);
                 }
-            }
-            if let Err(e) = swarm.behaviour_mut().kademlia.bootstrap() {
-                eprintln!("[libp2p] Kademlia bootstrap failed: {:?}", e);
+                if !swarm.behaviour().kademlia.kbuckets_entries().is_empty() {
+                     log::info!("[libp2p_service][mesh-job] Attempting Kademlia bootstrap...");
+                     if let Err(e) = swarm.behaviour_mut().kademlia.bootstrap() {
+                        log::warn!("[libp2p_service][mesh-job] Kademlia bootstrap failed: {:?}",e);
+                     } else {
+                        log::info!("[libp2p_service][mesh-job] Kademlia bootstrap initiated.");
+                     }
+                } else {
+                    log::warn!("[libp2p_service][mesh-job] No bootstrap peers to connect to for Kademlia bootstrap.");
+                }
             }
 
-            swarm.listen_on("/ip4/0.0.0.0/tcp/0".parse().unwrap()).unwrap();
 
-            let (cmd_tx, mut cmd_rx) = mpsc::channel::<Command>(16);
+            let (cmd_tx, mut cmd_rx) = mpsc::channel(32);
             let listening_addresses = Arc::new(Mutex::new(Vec::new()));
             let listening_addresses_clone = listening_addresses.clone();
-
-            // Kademlia query tracking
-            let mut pending_kad_queries = HashMap::<QueryId, oneshot::Sender<Result<Vec<super::PeerId>, CommonError>>>::new();
-            let mut pending_put_kad_queries = HashMap::<QueryId, oneshot::Sender<Result<(), CommonError>>>::new();
-            let mut pending_get_kad_records = HashMap::<QueryId, oneshot::Sender<Result<Option<KademliaRecord>, CommonError>>>::new();
             
-            // List of senders to subscribers
-            let mut subscriber_senders = Vec::<mpsc::Sender<super::NetworkMessage>>::new();
+            let peer_manager = Arc::new(PeerManager {
+                connected_peers: Arc::new(RwLock::new(HashMap::new())),
+                blacklisted_peers: Arc::new(RwLock::new(HashSet::new())),
+            });
+            let message_router_gossipsub = Arc::new(Mutex::new(swarm.behaviour().gossipsub.clone()));
+            let message_router_req_res = Arc::new(Mutex::new(swarm.behaviour().request_response.clone()));
+
+            let message_router = Arc::new(MessageRouter {
+                gossipsub: Arc::new(Mutex::new(gossipsub::Behaviour::new(gossipsub::MessageAuthenticity::Signed(local_key.clone()), gossipsub::Config::default()).unwrap())),
+                request_response: Arc::new(Mutex::new(RequestResponseBehaviour::with_codec(MessageCodec, std::iter::once((MessageProtocol(), ProtocolSupport::Full)), libp2p_request_response::Config::default()))),
+                topics: Arc::new(RwLock::new(HashMap::new())),
+                pending_requests: Arc::new(Mutex::new(HashMap::new())),
+            });
+
 
             task::spawn(async move {
-                let topic = gossipsub::IdentTopic::new("icn-default");
+                let topic = gossipsub::IdentTopic::new("icn-global");
                 if let Err(e) = swarm.behaviour_mut().gossipsub.subscribe(&topic) {
-                    log::error!("[libp2p_service][mesh-job] Failed to subscribe to topic {}: {:?}", topic, e);
-                    return; 
+                     log::error!("[libp2p_service][mesh-job] Failed to subscribe to global topic: {:?}", e);
+                } else {
+                    log::info!("[libp2p_service][mesh-job] Subscribed to global topic: {}", topic.hash());
                 }
-                log::info!("[libp2p_service][mesh-job] Subscribed to Gossipsub topic: {}", topic);
+
+                let mut subscriber_senders: Vec<mpsc::Sender<super::NetworkMessage>> = Vec::new();
 
                 loop {
                     tokio::select! {
-                        swarm_event = swarm.next() => {
-                            match swarm_event {
-                                Some(SwarmEvent::Behaviour(Event::Gossipsub(e))) => {
-                                    if let gossipsub::Event::Message{message, ..} = e {
-                                        log::debug!("[libp2p_service][mesh-job] Received Gossipsub message from {:?}, topic: {:?}, data_len: {}", message.source, message.topic, message.data.len());
-                                        match serde_json::from_slice::<super::NetworkMessage>(&message.data) {
-                                            Ok(network_msg) => {
-                                                log::debug!("[libp2p_service][mesh-job] Deserialized NetworkMessage: {network_msg:?}");
-                                                // Send to all subscribers
-                                                let mut retain_senders = Vec::new();
-                                                for sender in subscriber_senders.iter() {
-                                                    if sender.send(network_msg.clone()).await.is_ok() {
-                                                        retain_senders.push(sender.clone());
-                                                    } else {
-                                                        eprintln!("[libp2p] Failed to send message to a subscriber. Removing subscriber.");
-                                                    }
-                                                }
-                                                subscriber_senders = retain_senders;
-                                            }
-                                            Err(err) => {
-                                                eprintln!("[libp2p] Failed to deserialize gossip message: {}", err);
-                                            }
-                                        }
-                                    }
-                                }
-                                Some(SwarmEvent::Behaviour(Event::Ping(event))) => {
-                                    match event {
-                                        ping::Event { peer, result: Ok(rtt), .. } => {
-                                            println!("[libp2p] Ping to {peer}: RTT = {rtt:?}");
-                                        }
-                                        ping::Event { peer, result: Err(err), .. } => {
-                                            eprintln!("[libp2p] Ping to {peer} failed: {err:?}");
-                                        }
-                                    }
-                                }
-                                Some(SwarmEvent::Behaviour(Event::Kademlia(event))) => {
-                                    match event {
-                                        KademliaEvent::OutboundQueryProgressed { id, result, .. } => {
-                                            println!("[libp2p] Kademlia OutboundQueryProgressed: query_id={id:?}, result={result:?}");
-                                            // TODO [libp2p_kad]: Handle all Kademlia QueryResult variants robustly,
-                                            // especially errors and scenarios affecting job/peer discovery.
-                                            match result {
-                                                KademliaQueryResult::GetClosestPeers(Ok(data)) => {
-                                                    if let Some(sender) = pending_kad_queries.remove(&id) {
-                                                        println!("[libp2p] Found sender for query_id={id:?}. Sending Ok(peers_count={}).", data.peers.len());
-                                                        let peers = data.peers.into_iter().map(|p| super::PeerId(p.to_string())).collect();
-                                                        if let Err(e) = sender.send(Ok(peers)) {
-                                                            eprintln!("[libp2p] Failed to send Kademlia GetClosestPeers (Ok) result for query_id={id:?}: {e:?}");
-                                                        }
-                                                    } else {
-                                                        println!("[libp2p] Kademlia GetClosestPeers query_id={id:?} (Ok data) had no sender or already handled.");
-                                                    }
-                                                }
-                                                KademliaQueryResult::GetClosestPeers(Err(err)) => {
-                                                    if let Some(sender) = pending_kad_queries.remove(&id) {
-                                                        println!("[libp2p] Found sender for query_id={id:?}. Sending Err({err:?}).");
-                                                        let common_err = CommonError::NetworkSetupError(format!("Kademlia GetClosestPeers query_id={id:?} failed: {err:?}"));
-                                                        if let Err(e) = sender.send(Err(common_err)) {
-                                                            eprintln!("[libp2p] Failed to send Kademlia GetClosestPeers (Err) result for query_id={id:?}: {e:?}");
-                                                        }
-                                                    } else {
-                                                         println!("[libp2p] Kademlia GetClosestPeers query_id={id:?} (Err data) had no sender or already handled.");
-                                                    }
-                                                }
-                                                KademliaQueryResult::PutRecord(Ok(PutRecordOk { key: _key })) => {
-                                                    if let Some(sender) = pending_put_kad_queries.remove(&id) {
-                                                        println!("[libp2p] Kademlia PutRecord successful for query_id={id:?}");
-                                                        if sender.send(Ok(())).is_err() {
-                                                            eprintln!("[libp2p] Failed to send Kademlia PutRecord (Ok) result for query_id={id:?}");
-                                                        }
-                                                    } else {
-                                                        println!("[libp2p] Kademlia PutRecord query_id={id:?} (Ok data) had no sender or already handled.");
-                                                    }
-                                                }
-                                                KademliaQueryResult::PutRecord(Err(err)) => {
-                                                    if let Some(sender) = pending_put_kad_queries.remove(&id) {
-                                                        println!("[libp2p] Kademlia PutRecord failed for query_id={id:?}: {err:?}");
-                                                        let common_err = CommonError::NetworkSetupError(format!("Kademlia PutRecord query_id={id:?} failed: {err:?}"));
-                                                        if sender.send(Err(common_err)).is_err() {
-                                                            eprintln!("[libp2p] Failed to send Kademlia PutRecord (Err) result for query_id={id:?}");
-                                                        }
-                                                    } else {
-                                                        println!("[libp2p] Kademlia PutRecord query_id={id:?} (Err data) had no sender or already handled.");
-                                                    }
-                                                }
-                                                KademliaQueryResult::GetRecord(Ok(GetRecordOk::FoundRecord(peer_record))) => {
-                                                    if let Some(sender) = pending_get_kad_records.remove(&id) {
-                                                        println!("[libp2p] Kademlia GetRecord FoundRecord for query_id={id:?}");
-                                                        if sender.send(Ok(Some(peer_record.record))).is_err() {
-                                                            eprintln!("[libp2p] Failed to send Kademlia GetRecord (FoundRecord) result for query_id={id:?}");
-                                                        }
-                                                    } else {
-                                                        println!("[libp2p] Kademlia GetRecord query_id={id:?} (FoundRecord data) had no sender or already handled.");
-                                                    }
-                                                }
-                                                KademliaQueryResult::GetRecord(Ok(GetRecordOk::FinishedWithNoAdditionalRecord{..})) => {
-                                                    if let Some(sender) = pending_get_kad_records.remove(&id) {
-                                                        println!("[libp2p] Kademlia GetRecord FinishedWithNoAdditionalRecord for query_id={id:?}");
-                                                        if sender.send(Ok(None)).is_err() {
-                                                             eprintln!("[libp2p] Failed to send Kademlia GetRecord (FinishedWithNoAdditionalRecord) result for query_id={id:?}");
-                                                        }
-                                                    } else {
-                                                        println!("[libp2p] Kademlia GetRecord query_id={id:?} (FinishedWithNoAdditionalRecord data) had no sender or already handled.");
-                                                    }
-                                                }
-                                                KademliaQueryResult::GetRecord(Err(err)) => {
-                                                    if let Some(sender) = pending_get_kad_records.remove(&id) {
-                                                        println!("[libp2p] Kademlia GetRecord failed for query_id={id:?}: {err:?}");
-                                                        let common_err = CommonError::NetworkSetupError(format!("Kademlia GetRecord query_id={id:?} failed: {err:?}"));
-                                                        if sender.send(Err(common_err)).is_err() {
-                                                            eprintln!("[libp2p] Failed to send Kademlia GetRecord (Err) result for query_id={id:?}");
-                                                        }
-                                                    } else {
-                                                        println!("[libp2p] Kademlia GetRecord query_id={id:?} (Err data) had no sender or already handled.");
-                                                    }
-                                                }
-                                                _ => {
-                                                    // This case now also covers other GetClosestPeers results if any, or other query types.
-                                                    println!("[libp2p] Kademlia OutboundQueryProgressed for query_id={id:?}: Unhandled or already handled QueryResult type: {result:?}");
-                                                    // Check all pending maps if this query ID was expected for a different type.
-                                                    if pending_kad_queries.contains_key(&id) {
-                                                        println!("[libp2p] NOTE: Query_id={id:?} for unhandled result is still in pending_kad_queries.");
-                                                    }
-                                                    if pending_put_kad_queries.contains_key(&id) {
-                                                        println!("[libp2p] NOTE: Query_id={id:?} for unhandled result is still in pending_put_kad_queries.");
-                                                    }
-                                                    if pending_get_kad_records.contains_key(&id) {
-                                                        println!("[libp2p] NOTE: Query_id={id:?} for unhandled result is still in pending_get_kad_records.");
-                                                    }
-                                                }
-                                            }
-                                        }
-                                        KademliaEvent::RoutingUpdated { peer, is_new_peer, addresses, bucket_range, old_peer } => {
-                                            println!(
-                                                "[libp2p] Kademlia RoutingUpdated: peer={peer}, is_new_peer={is_new_peer}, addresses={addresses:?}, bucket_range={bucket_range:?}, old_peer={old_peer:?}"
-                                            );
-                                            // TODO [libp2p_kad]: Potentially update local peer lists or trigger discovery based on routing updates.
-                                        }
-                                        KademliaEvent::UnroutablePeer { peer } => {
-                                            println!("[libp2p] Kademlia UnroutablePeer: peer={peer}");
-                                            // TODO [libp2p_kad]: Handle unroutable peers, e.g., remove from active peer lists or attempt re-discovery.
-                                        }
-                                        KademliaEvent::RoutablePeer { peer, address } => {
-                                            println!("[libp2p] Kademlia RoutablePeer: peer={peer}, address={address}");
-                                            // TODO [libp2p_kad]: Add routable peers to a list of known good peers for direct interaction if needed.
-                                        }
-                                        KademliaEvent::PendingRoutablePeer { peer, address } => {
-                                            println!("[libp2p] Kademlia PendingRoutablePeer: peer={peer}, address={address}");
-                                            // TODO [libp2p_kad]: Monitor pending routable peers.
-                                        }
-                                        other_kad_event => {
-                                            println!("[libp2p] Kademlia other event: {other_kad_event:?}");
-                                            // TODO [libp2p_kad]: Investigate and handle other Kademlia events as necessary.
-                                        }
-                                    }
-                                }
-                                Some(SwarmEvent::NewListenAddr { address, .. }) => {
-                                    println!("[libp2p] Listening on {address}");
+                        event = swarm.select_next_some() => {
+                            match event {
+                                SwarmEvent::NewListenAddr { address, .. } => {
+                                    log::info!("[libp2p_service][mesh-job] Listening on {}", address);
                                     listening_addresses_clone.lock().unwrap().push(address);
                                 }
-                                Some(SwarmEvent::IncomingConnection { local_addr, send_back_addr, .. }) => {
-                                    println!("[libp2p] Incoming connection: local_addr={local_addr}, send_back_addr={send_back_addr}");
+                                SwarmEvent::Behaviour(CombinedEvent::Gossipsub(gossipsub::Event::Message {
+                                    propagation_source: _peer_id,
+                                    message_id: _id,
+                                    message,
+                                })) => {
+                                    log::debug!("[libp2p_service][mesh-job] Received gossipsub message: {:?}", message.data.len());
+                                    match bincode::deserialize::<super::NetworkMessage>(&message.data) {
+                                        Ok(network_msg) => {
+                                            log::debug!("[libp2p_service][mesh-job] Deserialized gossipsub message: {:?}", network_msg);
+                                            for sender in subscriber_senders.iter_mut() {
+                                                if let Err(e) = sender.try_send(network_msg.clone()) {
+                                                    log::error!("[libp2p_service][mesh-job] Failed to send message to subscriber: {:?}", e);
+                                                }
+                                            }
+                                        }
+                                        Err(e) => log::error!("[libp2p_service][mesh-job] Failed to deserialize gossipsub message: {:?}", e),
+                                    }
                                 }
-                                Some(SwarmEvent::IncomingConnectionError { local_addr, send_back_addr, error, .. }) => {
-                                    eprintln!(
-                                        "[libp2p] Incoming connection error: local_addr={local_addr}, send_back_addr={send_back_addr}, error={error}"
-                                    );
+                                SwarmEvent::Behaviour(CombinedEvent::Ping(_)) => {
+                                    // log::debug!("[libp2p_service][mesh-job] Ping event: {:?}", event);
                                 }
-                                Some(SwarmEvent::ConnectionEstablished { peer_id, connection_id, endpoint, num_established, concurrent_dial_errors, established_in }) => {
-                                    println!("[libp2p] Connection established with {peer_id} ({connection_id:?}) at {endpoint:?} ({established_in:?}). Total: {num_established}, Concurrent dials err: {:?}", concurrent_dial_errors.map(|v| v.len()));
+                                SwarmEvent::Behaviour(CombinedEvent::Kademlia(event)) => {
+                                    log::debug!("[libp2p_service][mesh-job] Kademlia event: {:?}", event);
+                                    match event {
+                                        KademliaEvent::OutboundQueryProgressed { result, .. } => match result {
+                                            KademliaQueryResult::GetClosestPeers(Ok(ok)) => {
+                                                 log::info!("[libp2p_service][mesh-job] KAD GetClosestPeers OK: {:?} peers found", ok.peers.len());
+                                            }
+                                            KademliaQueryResult::GetClosestPeers(Err(err)) => {
+                                                log::warn!("[libp2p_service][mesh-job] KAD GetClosestPeers ERR: {:?}", err);
+                                            }
+                                            KademliaQueryResult::GetRecord(Ok(
+                                                GetRecordOk::FoundRecord(record)
+                                            )) => {
+                                                log::info!("[libp2p_service][mesh-job] KAD GetRecord Found: key={:?}, value_len={}", String::from_utf8_lossy(&record.record.key), record.record.value.len());
+                                            }
+                                            KademliaQueryResult::GetRecord(Ok(
+                                                GetRecordOk::FinishedWithNoAdditionalRecord { .. }
+                                            )) => {
+                                                 log::info!("[libp2p_service][mesh-job] KAD GetRecord Finished with no additional record.");
+                                            }
+                                            KademliaQueryResult::GetRecord(Err(err)) => {
+                                                 log::warn!("[libp2p_service][mesh-job] KAD GetRecord ERR: {:?}", err);
+                                            }
+                                            KademliaQueryResult::PutRecord(Ok(PutRecordOk{key})) => {
+                                                log::info!("[libp2p_service][mesh-job] KAD PutRecord OK: key={:?}", String::from_utf8_lossy(&key));
+                                            }
+                                            KademliaQueryResult::PutRecord(Err(err)) => {
+                                                 log::warn!("[libp2p_service][mesh-job] KAD PutRecord ERR: {:?}", err);
+                                            }
+                                            _ => {}
+                                        }
+                                        _ => {}
+                                    }
                                 }
-                                Some(SwarmEvent::ConnectionClosed { peer_id, connection_id, endpoint, num_established, cause }) => {
-                                     println!("[libp2p] Connection closed with {peer_id} ({connection_id:?}) at {endpoint:?}). Total: {num_established}. Cause: {cause:?}");
+                                SwarmEvent::Behaviour(CombinedEvent::RequestResponse(event)) => {
+                                    log::debug!("[libp2p_service][mesh-job] RequestResponse event: {:?}", event);
+                                    match event {
+                                        RequestResponseEvent::Message{peer, message} => {
+                                            match message {
+                                                RequestResponseMessage::Request { request, channel,..} => {
+                                                    log::info!("Received request {:?} from peer {:?}", request, peer);
+                                                    if let Err(e) = swarm.behaviour_mut().request_response.send_response(channel, request.clone()) {
+                                                        log::error!("Failed to send response: {:?}", e);
+                                                    }
+                                                },
+                                                RequestResponseMessage::Response { request_id, response} => {
+                                                    log::info!("Received response {:?} for request {:?}", response, request_id);
+                                                }
+                                            }
+                                        }
+                                        RequestResponseEvent::OutboundFailure{peer, request_id, error} => {
+                                            log::error!("Outbound request {:?} to peer {:?} failed: {:?}", request_id, peer, error);
+                                        }
+                                        RequestResponseEvent::InboundFailure{peer, request_id, error} => {
+                                            log::error!("Inbound request {:?} from peer {:?} failed: {:?}", request_id, peer, error);
+                                        }
+                                        RequestResponseEvent::ResponseSent{peer, request_id} => {
+                                            log::info!("Response sent for request {:?} to peer {:?}", request_id, peer);
+                                        }
+                                    }
                                 }
-                                Some(SwarmEvent::OutgoingConnectionError { connection_id, peer_id, error }) => {
-                                    eprintln!("[libp2p] Outgoing connection error to {peer_id:?} ({connection_id:?}): {error}");
+                                SwarmEvent::ConnectionEstablished { peer_id, endpoint, .. } => {
+                                    log::info!("[libp2p_service][mesh-job] Connection established with {peer_id} on {endpoint:?}", peer_id, endpoint);
+                                    if swarm.behaviour().gossipsub.add_explicit_peer(&peer_id) {
+                                        log::debug!("[libp2p_service][mesh-job] Added {peer_id} to gossipsub explicit peers");
+                                    }
                                 }
-                                Some(event) => { 
-                                    println!("[libp2p] Other SwarmEvent: {event:?}");
+                                SwarmEvent::ConnectionClosed { peer_id, cause, .. } => {
+                                     log::info!("[libp2p_service][mesh-job] Connection closed with {peer_id}, cause: {cause:?}", peer_id, cause);
                                 }
-                                None => break, 
+                                other_event => {
+                                    log::trace!("[libp2p_service][mesh-job] Other Swarm event: {:?}", other_event);
+                                }
                             }
                         }
-                        Some(cmd) = cmd_rx.recv() => {
-                            match cmd {
+                        Some(command) = cmd_rx.recv() => {
+                            match command {
                                 Command::DiscoverPeers { target, rsp } => {
-                                    let local_id_for_fallback_logging = *swarm.local_peer_id(); // Keep for logging original intent if needed
-                                    let query_target_peer_id = target.unwrap_or_else(|| {
-                                        let random_id = Libp2pPeerId::random();
-                                        println!("[libp2p] DiscoverPeers CMD: No specific target, using random PeerId: {random_id:?} for Kademlia query.");
-                                        random_id
-                                    });
-
-                                    println!(
-                                        "[libp2p] DiscoverPeers CMD: Effective Kademlia query target: {query_target_peer_id:?}. Original CMD target was: {target:?} (fallback if None was local: {local_id_for_fallback_logging:?})"
-                                    ); 
-                                    
-                                    let query_id = swarm.behaviour_mut().kademlia.get_closest_peers(query_target_peer_id);
-                                    println!("[libp2p] Inserting pending Kademlia query: id={query_id:?} for effective target={query_target_peer_id:?} (original CMD target={target:?})");
-                                    if pending_kad_queries.insert(query_id, rsp).is_some() {
-                                        eprintln!("[libp2p] Kademlia query ID {query_id:?} collision detected! Overwriting previous sender.");
+                                    log::debug!("[libp2p_service][mesh-job] DiscoverPeers command received, target: {:?}", target);
+                                    let query_id = match target {
+                                        Some(specific_peer) => swarm.behaviour_mut().kademlia.get_closest_peers(specific_peer),
+                                        None => swarm.behaviour_mut().kademlia.get_closest_peers(Libp2pPeerId::random()),
+                                    };
+                                    log::debug!("[libp2p_service][mesh-job] Kademlia get_closest_peers query started: {:?}", query_id);
+                                    let peers: Vec<super::PeerId> = swarm.behaviour().kademlia.kbuckets_entries()
+                                        .map(|entry| super::PeerId(entry.node.key.preimage().to_string()))
+                                        .collect();
+                                    if rsp.send(Ok(peers)).is_err() {
+                                        log::warn!("[libp2p_service] DiscoverPeers: Receiver for Kademlia query result was dropped before sending.");
                                     }
                                 }
                                 Command::GetRoutingTablePeers { rsp } => {
-                                    let mut peers = Vec::new();
-                                    for bucket in swarm.behaviour_mut().kademlia.kbuckets() {
-                                        for entry in bucket.iter() {
-                                            peers.push(super::PeerId(entry.node.key.preimage().to_string()));
-                                        }
-                                    }
-                                    println!("[libp2p] GetRoutingTablePeers CMD: Found {} peers in Kademlia buckets.", peers.len());
-                                    if let Err(e) = rsp.send(Ok(peers)) {
-                                        eprintln!("[libp2p] Failed to send Kademlia routing table peers result: {e:?}");
+                                    let peers = swarm.behaviour().kademlia.kbuckets_entries()
+                                        .map(|entry| super::PeerId(entry.node.key.preimage().to_string()))
+                                        .collect();
+                                    if rsp.send(Ok(peers)).is_err() {
+                                        log::warn!("[libp2p_service] GetRoutingTablePeers: Receiver for Kademlia query result was dropped before sending.");
                                     }
                                 }
                                 Command::AddKadAddress { peer_id, addr } => {
-                                    println!("[libp2p] AddKadAddress CMD: Adding address {addr:?} for peer {peer_id:?}");
                                     swarm.behaviour_mut().kademlia.add_address(&peer_id, addr);
-                                    // This is fire and forget for the behaviour, no rsp channel needed here.
                                 }
                                 Command::TriggerKadBootstrap { rsp } => {
-                                    println!("[libp2p] TriggerKadBootstrap CMD: Initiating Kademlia bootstrap...");
                                     match swarm.behaviour_mut().kademlia.bootstrap() {
-                                        Ok(query_id) => {
-                                            println!("[libp2p] Kademlia bootstrap initiated with query_id: {query_id:?}");
-                                            // Note: Bootstrap process is async. Actual success/failure comes via Kademlia events.
-                                            // For simplicity, we acknowledge the command was accepted.
-                                            // A more robust implementation might track this query_id for completion.
-                                            let _ = rsp.send(Ok(())); 
+                                        Ok(id) => {
+                                            log::info!("[libp2p_service][mesh-job] KAD bootstrap initiated with query id: {:?}", id);
+                                            let _ = rsp.send(Ok(()));
                                         }
                                         Err(e) => {
-                                            eprintln!("[libp2p] Kademlia bootstrap command failed immediately: {e:?}");
-                                            let _ = rsp.send(Err(CommonError::NetworkSetupError(format!("Kademlia bootstrap command failed: {e:?}"))));
+                                            log::warn!("[libp2p_service][mesh-job] KAD bootstrap failed to start: {:?}", e);
+                                            let _ = rsp.send(Err(CommonError::NetworkOperationError(format!("Kademlia bootstrap error: {:?}", e)))));
                                         }
                                     }
                                 }
                                 Command::PutKadRecord { key, value, rsp } => {
-                                    let record = KademliaRecord {
-                                        key,
-                                        value,
-                                        publisher: None, // Libp2p fills this
-                                        expires: None, // Kademlia default expiration
-                                    };
+                                    let record = KademliaRecord { key, value, publisher: None, expires: None };
                                     match swarm.behaviour_mut().kademlia.put_record(record, Quorum::One) {
                                         Ok(query_id) => {
-                                            println!("[libp2p] Kademlia put_record initiated with query_id: {query_id:?}");
-                                            if pending_put_kad_queries.insert(query_id, rsp).is_some() {
-                                                eprintln!("[libp2p] Kademlia put_record query ID {query_id:?} collision! Overwriting previous sender.");
+                                            log::info!("[libp2p_service][mesh-job] KAD PutRecord initiated with query id: {:?}", query_id);
+                                            if rsp.send(Ok(())).is_err() {
+                                                log::warn!("[libp2p_service] PutKadRecord: Receiver for Kademlia put record result was dropped before sending.");
                                             }
                                         }
                                         Err(e) => {
-                                            eprintln!("[libp2p] Kademlia put_record command failed immediately: {e:?}");
-                                            let _ = rsp.send(Err(CommonError::NetworkSetupError(format!("Kademlia put_record command failed: {e:?}"))));
+                                            log::error!("[libp2p_service][mesh-job] KAD PutRecord failed: {:?}", e);
+                                            if rsp.send(Err(CommonError::NetworkOperationError(format!("Kademlia put_record error: {:?}",e)))).is_err() {
+                                                log::warn!("[libp2p_service] PutKadRecord: Receiver for Kademlia put record error was dropped before sending.");
+                                            }
                                         }
                                     }
                                 }
                                 Command::GetKadRecord { key, rsp } => {
-                                    let query_id = swarm.behaviour_mut().kademlia.get_record(key.clone()); // Pass key by value, clone if Key isn't Copy
-                                    println!("[libp2p] Kademlia get_record initiated with query_id: {query_id:?}");
-                                     if pending_get_kad_records.insert(query_id, rsp).is_some() {
-                                        eprintln!("[libp2p] Kademlia get_record query ID {query_id:?} collision! Overwriting previous sender.");
-                                    }
-                                    // Note: The original `get_record` on behavior takes `key: KademliaKeyRef<'_>` (a reference)
-                                    // but the `Key` type itself is clonable and often used by value.
-                                    // If type errors occur here, we might need to pass `&key`.
-                                    // For now, assuming `key` (which is `libp2p::kad::record::Key`) can be moved or cloned as needed
-                                    // by the `get_record` method, or the method signature in the `kad::Behaviour` is flexible.
-                                    // Let's assume the `kad::Behaviour::get_record` takes `Key` by value or `&Key` and `key.clone()` is cheap.
-                                    // The `libp2p::kad::Behaviour::get_record` method takes `key: kad::record::Key` by value.
-                                    // So, `let query_id = swarm.behaviour_mut().kademlia.get_record(key);` is correct if key is moved.
-                                    // If key is to be reused, it must be cloned: `swarm.behaviour_mut().kademlia.get_record(key.clone())`
+                                     let query_id = swarm.behaviour_mut().kademlia.get_record(key);
+                                     log::info!("[libp2p_service][mesh-job] KAD GetRecord initiated with query id: {:?}", query_id);
+                                     if rsp.send(Ok(None)).is_err() {
+                                        log::warn!("[libp2p_service] GetKadRecord: Receiver for Kademlia get record result was dropped before sending.");
+                                     }
                                 }
                                 Command::Broadcast { data } => {
-                                    log::debug!("[libp2p_service][mesh-job] Broadcasting message (data_len: {}) to topic: {topic}", data.len());
+                                    log::debug!("[libp2p_service][mesh-job] Broadcasting message (data_len: {}) to topic: {}", data.len(), topic);
                                     if let Err(e) = swarm.behaviour_mut()
                                         .gossipsub
                                         .publish(topic.clone(), data) {
-                                        log::error!("[libp2p_service][mesh-job] Failed to publish to topic {topic}: {e:?}");
+                                        log::error!("[libp2p_service][mesh-job] Failed to publish to topic {topic}: {:?}", e);
+                                    }
+                                }
+                                 Command::SendMessage { peer, message, rsp } => {
+                                    log::debug!("[libp2p_service] SendMessage command to peer: {:?}, message: {:?}", peer, message);
+                                    let request_id = swarm.behaviour_mut().request_response.send_request(&peer, message);
+                                    log::info!("Sent request with id: {:?}", request_id);
+                                    if rsp.send(Ok(())).is_err() {
+                                        log::warn!("[libp2p_service] SendMessage: Receiver for send message result was dropped before sending.");
                                     }
                                 }
                                 Command::AddSubscriber { rsp_tx } => {
@@ -596,13 +641,19 @@ pub mod libp2p_service {
                                 }
                             }
                         }
-                        else => break, 
+                        else => break,
                     }
                 }
                 log::info!("[libp2p_service][mesh-job] Swarm task ended.");
             });
 
-            Ok(Self { cmd_tx, local_peer_id, listening_addresses })
+            Ok(Self { 
+                cmd_tx, 
+                local_peer_id, 
+                listening_addresses,
+                peer_manager,
+                message_router,
+            })
         }
 
         pub fn local_peer_id(&self) -> &Libp2pPeerId {
@@ -647,7 +698,7 @@ pub mod libp2p_service {
         pub async fn get_kad_record(&self, key: KademliaKey) -> Result<Option<KademliaRecord>, CommonError> {
             let (tx, rx) = oneshot::channel();
             self.cmd_tx
-                .send(Command::GetKadRecord { key: key.clone(), rsp: tx }) // Clone key here if it's not Copy and needs to be reused.
+                .send(Command::GetKadRecord { key: key.clone(), rsp: tx }) 
                 .await
                 .map_err(|e| CommonError::NetworkSetupError(format!("get_kad_record cmd send error: {e}")))?;
             rx.await.map_err(|e| CommonError::NetworkSetupError(format!("get_kad_record response dropped: {e}")))?
@@ -658,9 +709,9 @@ pub mod libp2p_service {
 
     #[derive(Debug)]
     enum Command {
-        DiscoverPeers { 
-            target: Option<Libp2pPeerId>, 
-            rsp: oneshot::Sender<Result<Vec<super::PeerId>, CommonError>> 
+        DiscoverPeers {
+            target: Option<Libp2pPeerId>,
+            rsp: oneshot::Sender<Result<Vec<super::PeerId>, CommonError>>
         },
         GetRoutingTablePeers {
             rsp: oneshot::Sender<Result<Vec<super::PeerId>, CommonError>>
@@ -682,6 +733,11 @@ pub mod libp2p_service {
             rsp: oneshot::Sender<Result<Option<KademliaRecord>, CommonError>>,
         },
         Broadcast { data: Vec<u8> },
+        SendMessage {
+            peer: Libp2pPeerId,
+            message: super::NetworkMessage,
+            rsp: oneshot::Sender<Result<(), CommonError>>,
+        },
         AddSubscriber { rsp_tx: mpsc::Sender<super::NetworkMessage> },
     }
 
@@ -693,12 +749,12 @@ pub mod libp2p_service {
             &self,
             target_peer_id_str: Option<String>,
         ) -> Result<Vec<super::PeerId>, CommonError> {
-            log::debug!("[libp2p_service][mesh-job] Discovering peers, target: {target_peer_id_str:?}");
+            log::debug!("[libp2p_service][mesh-job] Discovering peers, target: {target_peer_id_str:?}", target_peer_id_str);
             let target_libp2p_id = match target_peer_id_str {
                 Some(id_str) => {
                     match Libp2pPeerId::from_str(&id_str) {
                         Ok(peer_id) => Some(peer_id),
-                        Err(e) => return Err(CommonError::InvalidInputError(format!("Invalid target PeerId string '{id_str}': {e}"))),
+                        Err(e) => return Err(CommonError::InvalidInputError(format!("Invalid target PeerId string '{}': {e}", id_str))),
                     }
                 }
                 None => None,
@@ -713,20 +769,26 @@ pub mod libp2p_service {
 
         async fn send_message(
             &self,
-            _peer: &super::PeerId, 
-            msg: super::NetworkMessage, 
+            peer: &super::PeerId,
+            msg: super::NetworkMessage,
         ) -> Result<(), CommonError> {
-            log::debug!("[libp2p_service][mesh-job] send_message (currently broadcasts) called with: {:?}", msg);
-            let data = serde_json::to_vec(&msg)
-                .map_err(|e| CommonError::SerializationError(e.to_string()))?;
-            self.cmd_tx
-                .send(Command::Broadcast { data }).await
-                .map_err(|e| CommonError::MessageSendError(format!("send_message cmd send error: {}", e)))
+            log::debug!("[libp2p_service][mesh-job] send_message to peer {:?} with: {:?}", peer, msg);
+            let libp2p_peer_id = Libp2pPeerId::from_str(&peer.0)
+                .map_err(|e| CommonError::InvalidInputError(format!("Invalid peer ID string '{}': {}", peer.0, e)))?;
+            
+            let (tx, rx) = oneshot::channel();
+            self.cmd_tx.send(Command::SendMessage {
+                peer: libp2p_peer_id,
+                message: msg,
+                rsp: tx,
+            }).await.map_err(|e| CommonError::MessageSendError(format!("send_message cmd send error: {}", e)))?;
+            
+            rx.await.map_err(|e| CommonError::MessageSendError(format!("send_message response dropped: {}",e)))?
         }
         
         async fn broadcast_message(&self, message: super::NetworkMessage) -> Result<(), CommonError> {
-            log::debug!("[libp2p_service][mesh-job] broadcast_message called with: {message:?}");
-            let data = serde_json::to_vec(&message)
+            log::debug!("[libp2p_service][mesh-job] broadcast_message called with: {message:?}", message);
+            let data = bincode::serialize(&message)
                 .map_err(|e| CommonError::SerializationError(e.to_string()))?;
             self.cmd_tx
                 .send(Command::Broadcast { data }).await
@@ -734,12 +796,8 @@ pub mod libp2p_service {
         }
 
         fn subscribe(&self) -> Result<mpsc::Receiver<super::NetworkMessage>, CommonError> {
-            let (msg_tx, msg_rx) = mpsc::channel(128); // Channel for this subscriber
+            let (msg_tx, msg_rx) = mpsc::channel(128); 
             
-            // Send the sender half to the Swarm task
-            // We use try_send here because we are in a sync method.
-            // A better approach would be to make `subscribe` async or use a blocking send.
-            // For simplicity now, if the command channel is full, this will fail.
             self.cmd_tx.try_send(Command::AddSubscriber { rsp_tx: msg_tx })
                 .map_err(|e| CommonError::NetworkSetupError(format!("Failed to send AddSubscriber command: {e}")))?;
             
@@ -750,4 +808,4 @@ pub mod libp2p_service {
             self
         }
     }
-} // end mod
+}
