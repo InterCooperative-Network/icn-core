@@ -6,6 +6,7 @@ mod libp2p_mesh_integration {
     use icn_network::{NetworkService, NetworkMessage};
     use icn_common::{Cid, Did};
     use icn_mesh::{ActualMeshJob as Job, MeshJobBid as Bid, JobId, JobSpec, Resources};
+    use icn_identity::SignatureBytes;
     use std::str::FromStr;
     use tokio::time::{sleep, Duration, timeout};
 

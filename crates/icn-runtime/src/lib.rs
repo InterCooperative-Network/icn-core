@@ -25,8 +25,8 @@ use std::str::FromStr;
 use icn_identity;
 use futures;
 use log::{info, debug};
-use std::sync::Arc;
 use icn_mesh::JobId;
+use std::sync::Arc;
 
 /// Placeholder function demonstrating use of common types for runtime operations.
 /// This function is not directly part of the Host ABI layer discussed below but serves as an example.
@@ -236,9 +236,11 @@ mod tests {
     const TEST_IDENTITY_DID_STR: &str = "did:icn:test:dummy_executor";
     const OTHER_IDENTITY_DID_STR: &str = "did:icn:test:other_account";
 
-    fn create_test_context() -> RuntimeContext {
+    // Helper function to create a RuntimeContext with stubbed services for testing.
+    // This function is NOT async because new_with_stubs is not async.
+    fn create_test_context() -> Arc<RuntimeContext> { // Changed return type to Arc<RuntimeContext>
         let test_did = Did::from_str(TEST_IDENTITY_DID_STR).expect("Failed to create test DID");
-        RuntimeContext::new(
+        RuntimeContext::new( // RuntimeContext::new now returns Arc<RuntimeContext>
             test_did, 
             Arc::new(StubMeshNetworkService::new()),
             Arc::new(StubSigner::new()),
@@ -246,7 +248,7 @@ mod tests {
         )
     }
 
-    fn create_test_context_with_mana(initial_mana: u64) -> RuntimeContext {
+    fn create_test_context_with_mana(initial_mana: u64) -> Arc<RuntimeContext> {
         let ctx = create_test_context();
         let test_did = Did::from_str(TEST_IDENTITY_DID_STR).unwrap();
         // Block on the future for test setup
@@ -455,5 +457,34 @@ mod tests {
             }
             e => panic!("Expected InvalidParameters error due to policy, got {:?}", e),
         }
+    }
+
+    async fn create_runtime_with_stubs_and_run_job_manager(node_did_str: String) -> Arc<RuntimeContext> { // Return Arc
+        // This will now return Arc<RuntimeContext>
+        let runtime_context_arc = RuntimeContext::new_with_stubs(&node_did_str);
+        
+        // Clone the Arc to pass ownership to spawn_mesh_job_manager, which consumes it.
+        // The original Arc (runtime_context_arc) is returned for the test to use.
+        runtime_context_arc.clone().spawn_mesh_job_manager().await;
+        
+        runtime_context_arc // Return the original Arc for the test
+    }
+
+    #[tokio::test]
+    async fn test_runtime_context_new_with_stubs() {
+        let node_did_str = "did:key:z6MkjL4FwS3np2p2NLiqH57sX99pZtG9x3Fy9bYh3xHqs14z";
+        let ctx = RuntimeContext::new_with_stubs(node_did_str);
+        assert_eq!(ctx.current_identity.to_string(), node_did_str);
+        // Further checks can be added here if needed
+    }
+
+    #[tokio::test]
+    async fn test_runtime_context_new_with_stubs_and_mana() {
+        let node_did_str = "did:key:zTestManaDid";
+        let initial_mana = 1000u64;
+        let ctx = RuntimeContext::new_with_stubs_and_mana(node_did_str, initial_mana);
+        assert_eq!(ctx.current_identity.to_string(), node_did_str);
+        let balance = ctx.get_mana(&ctx.current_identity).await.unwrap();
+        assert_eq!(balance, initial_mana);
     }
 }

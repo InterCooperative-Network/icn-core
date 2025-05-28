@@ -367,11 +367,11 @@ impl RuntimeContext {
         mesh_network_service: Arc<dyn MeshNetworkService>,
         signer: Arc<dyn Signer>,
         dag_store: Arc<dyn StorageService>
-    ) -> Self {
+    ) -> Arc<Self> {
         let job_states = Arc::new(TokioMutex::new(HashMap::new()));
         let pending_mesh_jobs = Arc::new(TokioMutex::new(VecDeque::new()));
 
-        Self {
+        Arc::new(Self {
             current_identity,
             mana_ledger: SimpleManaLedger::new(),
             pending_mesh_jobs,
@@ -380,11 +380,11 @@ impl RuntimeContext {
             mesh_network_service,
             signer,
             dag_store,
-        }
+        })
     }
 
     #[cfg(feature = "enable-libp2p")]
-    pub async fn new_with_libp2p_network(current_identity_str: &str, bootstrap_peers: Option<Vec<(Libp2pPeerId, Multiaddr)>>) -> Result<Self, CommonError> {
+    pub async fn new_with_libp2p_network(current_identity_str: &str, bootstrap_peers: Option<Vec<(Libp2pPeerId, Multiaddr)>>) -> Result<Arc<Self>, CommonError> {
         let current_identity = Did::from_str(current_identity_str)
             .map_err(|e| CommonError::IdentityError(format!("Invalid DID string for new_with_libp2p_network: {}: {}", current_identity_str, e)))?;
         
@@ -399,12 +399,12 @@ impl RuntimeContext {
         Ok(Self::new(
             current_identity,
             default_mesh_service,
-            Arc::new(StubSigner::new()), 
-            Arc::new(StubDagStore::new()), 
+            Arc::new(StubSigner::new()),
+            Arc::new(StubDagStore::new()),
         ))
     }
 
-    pub fn new_with_stubs(current_identity_str: &str) -> Self {
+    pub fn new_with_stubs(current_identity_str: &str) -> Arc<Self> {
         let current_identity = Did::from_str(current_identity_str).expect("Invalid DID for test context in new_with_stubs");
         Self::new(
             current_identity, 
@@ -414,7 +414,7 @@ impl RuntimeContext {
         )
     }
 
-    pub fn new_with_stubs_and_mana(current_identity_str: &str, initial_mana: u64) -> Self {
+    pub fn new_with_stubs_and_mana(current_identity_str: &str, initial_mana: u64) -> Arc<Self> {
         let current_identity = Did::from_str(current_identity_str).expect("Invalid DID for test context in new_with_stubs_and_mana");
         let ctx = Self::new(
             current_identity.clone(), 
@@ -501,7 +501,7 @@ impl RuntimeContext {
         }
     }
 
-    pub async fn spawn_mesh_job_manager(&self) {
+    pub async fn spawn_mesh_job_manager(self: Arc<Self>) {
         info!("[JobManager] Starting background mesh job manager task...");
         let self_clone = self.clone();
 
@@ -588,10 +588,9 @@ impl RuntimeContext {
                                 }
                                 
                                 info!("[JobManagerLoop] Job {:?} successfully assigned. Spawning receipt monitor.", current_job_id);
-                                let self_clone_for_receipt_task = self_clone.clone();
-                                let task_ctx = self_clone_for_receipt_task.clone(); // Explicitly clone Arc for the new task
+                                // self_clone is Arc<RuntimeContext> here
+                                let task_ctx = self_clone.clone(); // Clone the Arc for the new task
                                 tokio::spawn(async move {
-                                    // Pass the cloned Arc<RuntimeContext> (task_ctx) to the method
                                     if let Err(e) = task_ctx.wait_for_and_process_receipt(job, selected_bid.executor_did).await {
                                         error!("[JobManagerDetail] Error in wait_for_and_process_receipt for job {:?}: {:?}", current_job_id, e);
                                     }
@@ -742,13 +741,13 @@ impl RuntimeContext {
         signer: StubSigner, 
         mesh_network_service: Arc<StubMeshNetworkService>,
         dag_store: Arc<StubDagStore>,
-    ) -> Self {
+    ) -> Arc<Self> {
         let job_states = Arc::new(TokioMutex::new(HashMap::new())); 
         let pending_mesh_jobs = Arc::new(TokioMutex::new(VecDeque::new())); 
         let mana_ledger = SimpleManaLedger::new();
         let governance_module = Arc::new(TokioMutex::new(GovernanceModule::default()));
 
-        Self {
+        Arc::new(Self {
             current_identity,
             mana_ledger,
             pending_mesh_jobs,
@@ -757,7 +756,7 @@ impl RuntimeContext {
             mesh_network_service, 
             signer: Arc::new(signer), 
             dag_store, 
-        }
+        })
     }
 }
 // --- End Supporting: RuntimeContext::new_for_test ---

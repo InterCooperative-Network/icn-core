@@ -1,12 +1,11 @@
 // crates/icn-runtime/tests/mesh.rs
 
 use icn_common::{Did, Cid};
-use icn_identity::ExecutionReceipt as IdentityExecutionReceipt;
-use icn_runtime::context::{RuntimeContext, HostAbiError, StubMeshNetworkService, StubDagStore, DagStore, DefaultMeshNetworkService};
+use icn_identity::{ExecutionReceipt as IdentityExecutionReceipt, SignatureBytes};
+use icn_runtime::context::{RuntimeContext, HostAbiError, StubMeshNetworkService, StubDagStore, DefaultMeshNetworkService, StubSigner};
 use icn_runtime::host_submit_mesh_job;
 use icn_mesh::{JobId, ActualMeshJob, MeshJobBid, JobState, SubmitReceiptMessage, JobSpec, Resources};
 use icn_network::{NetworkService, libp2p_service::Libp2pNetworkService};
-use libp2p::PeerId as Libp2pPeerId;
 use anyhow::Result;
 use serde_json::json;
 use std::str::FromStr;
@@ -20,7 +19,8 @@ use log::{info, debug}; // Added for potential future use, using println! for no
 // Helper to create a RuntimeContext with a specific DID and initial mana.
 // The Stub services are now part of RuntimeContext::new_with_stubs_and_mana
 fn create_test_context(identity_did_str: &str, initial_mana: u64) -> Arc<RuntimeContext> {
-    Arc::new(RuntimeContext::new_with_stubs_and_mana(identity_did_str, initial_mana))
+    // new_with_stubs_and_mana now returns Arc<RuntimeContext> directly
+    RuntimeContext::new_with_stubs_and_mana(identity_did_str, initial_mana)
 }
 
 // Helper to assert the state of a job
@@ -96,7 +96,7 @@ async fn test_mesh_job_full_lifecycle_happy_path() {
     // Context for the Job Manager node
     let arc_ctx_job_manager = create_test_context("did:icn:test:job_manager_node_happy", 0); 
 
-    arc_ctx_job_manager.spawn_mesh_job_manager().await;
+    arc_ctx_job_manager.clone().spawn_mesh_job_manager().await;
     
     let job_manager_network_stub = get_stub_network_service(&arc_ctx_job_manager);
     let job_manager_dag_store_stub = get_stub_dag_store(&arc_ctx_job_manager);
@@ -124,6 +124,7 @@ async fn test_mesh_job_full_lifecycle_happy_path() {
         spec: JobSpec::default(), // Ensure this matches what host_submit_mesh_job would create
         creator_did: submitter_did.clone(),
         cost_mana: job_cost,
+        signature: SignatureBytes(Vec::new()),
     };
     arc_ctx_job_manager.internal_queue_mesh_job(submitted_job_details.clone()).await.unwrap();
     assert_job_state(&arc_ctx_job_manager, &submitted_job_id, JobStateVariant::Pending).await;
@@ -144,23 +145,19 @@ async fn test_mesh_job_full_lifecycle_happy_path() {
 
     // 3. EXECUTION & ANCHORING (RECEIPT SUBMISSION)
     let result_cid = Cid::new_v1_dummy(0x55, 0x13, b"result_happy");
-    let mut receipt_to_submit = IdentityExecutionReceipt { // Mut so anchor_receipt can fill sig
+    let mut receipt_to_submit = IdentityExecutionReceipt {
         job_id: submitted_job_id.clone(),
         executor_did: executor_did.clone(), 
         result_cid: result_cid.clone(),
         cpu_ms: 100,
-        sig: Vec::new(), // Signature will be filled by anchor_receipt
+        sig: SignatureBytes(Vec::new()), // Signature will be filled by anchor_receipt
     };
     
     // Simulate the executor's context anchoring its own receipt before sending
-    // This is a bit simplified; in reality, the executor calls host_anchor_receipt.
-    // For the job manager to receive a valid receipt, it must already be signed.
-    // The job_manager_node itself (current_identity of arc_ctx_job_manager) cannot sign for executor_did.
-    // Let's create a temporary context for the executor to sign.
     let ctx_executor_for_signing = create_test_context(executor_did_str, 0); // Mana not important here
-    ctx_executor_for_signing.anchor_receipt(&mut receipt_to_submit).expect("Executor failed to co-sign its own receipt for testing");
+    ctx_executor_for_signing.anchor_receipt(&mut receipt_to_submit).await.expect("Executor failed to co-sign its own receipt for testing");
 
-    let receipt_msg = SubmitReceiptMessage { receipt: receipt_to_submit.clone() }; // now signed
+    let receipt_msg = icn_runtime::context::LocalMeshSubmitReceiptMessage { receipt: receipt_to_submit.clone() }; // now signed
     job_manager_network_stub.stage_receipt(receipt_msg).await;
 
     sleep(Duration::from_millis(1200)).await; 
@@ -181,8 +178,11 @@ async fn test_mesh_job_full_lifecycle_happy_path() {
     // StubDagStore uses a fixed codec and hash_alg for dummy CIDs
     let expected_cid = Cid::new_v1_dummy(0x70, 0x12, &hash_val.to_ne_bytes());
     
-    let stored_data = job_manager_dag_store_stub.get(&expected_cid).expect("DAG get failed").expect("Receipt not found in DAG store by expected CID");
-    assert_eq!(stored_data, final_receipt_bytes, "Stored DAG data does not match original receipt");
+    {
+        use icn_runtime::context::StorageService; // Bring trait into scope for .get()
+        let stored_data = job_manager_dag_store_stub.get(&expected_cid).await.expect("DAG get failed").expect("Receipt not found in DAG store by expected CID");
+        assert_eq!(stored_data, final_receipt_bytes, "Stored DAG data does not match original receipt");
+    }
 
     // Reputation updater is called internally by job manager, stub just prints.
     println!("Happy path test completed and DAG anchoring verified.");
@@ -197,7 +197,7 @@ async fn test_mesh_job_timeout_and_refund() {
     let job_cost = 30u64;
 
     let arc_ctx_job_manager = create_test_context("did:icn:test:job_manager_node_timeout", 0);
-    arc_ctx_job_manager.spawn_mesh_job_manager().await;
+    arc_ctx_job_manager.clone().spawn_mesh_job_manager().await;
 
     let ctx_submitter = create_test_context(submitter_did_str, initial_mana); // Submitter has their own context and ledger Arc
     
@@ -220,6 +220,7 @@ async fn test_mesh_job_timeout_and_refund() {
         spec: JobSpec::default(),
         creator_did: submitter_did.clone(),
         cost_mana: job_cost,
+        signature: SignatureBytes(Vec::new()),
     };
     arc_ctx_job_manager.internal_queue_mesh_job(submitted_job_details.clone()).await.unwrap();
     assert_job_state(&arc_ctx_job_manager, &submitted_job_id, JobStateVariant::Pending).await;
@@ -306,21 +307,18 @@ async fn assign_job_to_executor_directly(job_manager_ctx: &Arc<RuntimeContext>, 
 }
 
 
-// Placeholder for forge_execution_receipt
-// Creates an IdentityExecutionReceipt, signed by the forging_executor_ctx.
-// IMPORTANT: The actual `anchor_receipt` on the `job_manager_ctx` is what validates.
-// This helper just creates a receipt structure and has the forger sign it.
-fn forge_execution_receipt(job_id: &Cid, result_cid_val: &[u8], forging_executor_ctx: &Arc<RuntimeContext>) -> IdentityExecutionReceipt {
-    // TODO: Implement this helper function
+// Helper to create a plausible (but potentially invalidly signed) ExecutionReceipt for testing.
+// The `forging_executor_ctx` is the context whose signer will actually sign this receipt.
+async fn forge_execution_receipt(job_id: &Cid, result_cid_val: &[u8], forging_executor_ctx: &Arc<RuntimeContext>) -> IdentityExecutionReceipt {
     let mut receipt = IdentityExecutionReceipt {
         job_id: job_id.clone(), // JobId is a Cid
-        executor_did: forging_executor_ctx.current_identity.clone(), // Forged: signed by this DID
+        executor_did: forging_executor_ctx.current_identity.clone(), // Forger's DID
         result_cid: Cid::new_v1_dummy(0x55, 0x13, result_cid_val),
-        cpu_ms: 50,
-        sig: Vec::new(), // Will be filled by the forger's context
+        cpu_ms: 50, 
+        sig: SignatureBytes(Vec::new()), // Will be filled by the forger's context
     };
     // The forging_executor_ctx signs the receipt using its own identity and signer.
-    forging_executor_ctx.anchor_receipt(&mut receipt).expect("Forger failed to sign its own receipt for forging");
+    forging_executor_ctx.anchor_receipt(&mut receipt).await.expect("Forger failed to sign its own receipt for forging");
     receipt // Returns the signed receipt
 }
 
@@ -330,7 +328,7 @@ async fn test_invalid_receipt_wrong_executor() {
     // Setup:
     // Job Manager context - this will manage the job states and process bids/receipts.
     let job_manager_ctx = create_test_context("did:icn:test:job_manager_for_invalid_receipt_test", 0);
-    job_manager_ctx.spawn_mesh_job_manager().await; // Start the job manager task
+    job_manager_ctx.clone().spawn_mesh_job_manager().await; // Start the job manager task
 
     // Actors
     let submitter_ctx = create_test_context("did:icn:test:submitter_for_invalid_receipt", 100);
@@ -351,6 +349,7 @@ async fn test_invalid_receipt_wrong_executor() {
         spec: serde_json::from_str::<serde_json::Value>(&job_payload).unwrap()["spec"].as_object().cloned().map_or_else(JobSpec::default, |_| JobSpec::default()), // Simplified spec
         creator_did: submitter_ctx.current_identity.clone(),
         cost_mana: job_cost,
+        signature: SignatureBytes(Vec::new()),
     };
     job_manager_ctx.internal_queue_mesh_job(job_details_for_manager).await.expect("Failed to queue job in job manager");
     assert_job_state(&job_manager_ctx, &submitted_job_id, JobStateVariant::Pending).await;
@@ -367,42 +366,29 @@ async fn test_invalid_receipt_wrong_executor() {
 
     // 3. Executor 2 (the *wrong* one) forges an execution receipt.
     // The receipt is for the submitted_job_id, but signed by executor2_ctx.
-    let forged_receipt = forge_execution_receipt(&submitted_job_id, b"forged_result_data", &executor2_ctx);
+    let forged_receipt = forge_execution_receipt(&submitted_job_id, b"forged_result_data", &executor2_ctx).await; // Added .await
     
     // Sanity check: the forged_receipt should have executor2's DID
     assert_eq!(forged_receipt.executor_did, executor2_ctx.current_identity);
     // And it should have a signature (filled by forge_execution_receipt helper)
-    assert!(!forged_receipt.sig.is_empty(), "Forged receipt should have a signature");
+    assert!(!forged_receipt.sig.0.is_empty(), "Forged receipt should have a signature");
 
 
     // 4. Submit the forged receipt to the job manager. This should fail.
     // The job_manager_ctx.anchor_receipt method is synchronous.
-    let result = job_manager_ctx.anchor_receipt(&mut forged_receipt.clone()); // Clone as anchor_receipt might mutate for its own signing if it were the executor
+    let result = job_manager_ctx.anchor_receipt(&mut forged_receipt.clone()).await; // Clone as anchor_receipt might mutate for its own signing if it were the executor. Added .await
 
     // 5. Assertions
     assert!(result.is_err(), "Anchoring a forged receipt by the wrong executor should fail. Result: {:?}", result);
     
-    let err = result.err().unwrap();
-    println!("Anchor receipt failed with error: {:?}", err); // For debugging
-
-    match err {
-        HostAbiError::InvalidParameters(msg) => {
-            println!("Correctly failed with InvalidParameters: {}", msg);
-            // Optionally, assert that msg contains something about executor mismatch if the implementation provides that.
-            // e.g., assert!(msg.to_lowercase().contains("executor"));
-        }
-        HostAbiError::SignatureError(msg) => {
-            println!("Failed with SignatureError: {}. This might be secondary if executor check is first.", msg);
-            // This could happen if the signature is invalid for *any* reason, not just wrong DID.
-        }
-        HostAbiError::InternalError(msg) => {
-            println!("Failed with InternalError: {}. Check internal logic.", msg);
-        }
-        HostAbiError::NotImplemented(msg) => {
-             panic!("Test failed due to 'NotImplemented': {}. Anchor receipt logic for executor validation needs to be implemented.", msg);
-        }
-        other_error => {
-            panic!("Expected InvalidParameters, SignatureError, or InternalError related to executor mismatch, but got: {:?}", other_error);
+    if result.is_err() {
+        let err = result.err().unwrap(); // This is fine since we asserted is_err()
+        println!("Correctly failed to anchor forged receipt by wrong executor: {:?}", err);
+        match err {
+            HostAbiError::SignatureError(_) => { /* Expected */ }
+            // Allow InternalError if the DID check fails before signature check due to internal logic of anchor_receipt
+            HostAbiError::InternalError(s) if s.contains("signature verification failed") || s.contains("DID mismatch") => { /* Also acceptable */ }
+            _ => panic!("Anchoring forged receipt failed with unexpected error type: {:?}", err),
         }
     }
 
@@ -417,6 +403,7 @@ async fn test_invalid_receipt_wrong_executor() {
 // TODO: test_multiple_concurrent_jobs
 // TODO: test_no_bids_job_re_queued
 
+#[cfg(feature = "enable-libp2p")]
 #[tokio::test]
 #[ignore = "Blocked on environment/macro/import issues, particularly with libp2p Kademlia types and tokio/serde macros in dependent crates."]
 async fn test_full_mesh_job_cycle_libp2p() -> Result<(), anyhow::Error> {
@@ -432,12 +419,12 @@ async fn test_full_mesh_job_cycle_libp2p() -> Result<(), anyhow::Error> {
     let node_a_ctx = Arc::new(RuntimeContext::new(
         Did::from_str("did:icn:test:node_a_libp2p")?,
         Arc::new(DefaultMeshNetworkService::new(node_a_libp2p_actual_service.clone())),
-        Arc::new(icn_runtime::context::StubSigner),
-        Arc::new(icn_runtime::context::StubDagStore::new()),
+        Arc::new(StubSigner::new()),
+        Arc::new(StubDagStore::new()),
     ));
     node_a_ctx.mana_ledger.set_balance(&node_a_ctx.current_identity, 1000).await; 
     println!("[test-mesh-runtime] Node A context created, mana set. Spawning Job Manager.");
-    node_a_ctx.spawn_mesh_job_manager().await;
+    node_a_ctx.clone().spawn_mesh_job_manager().await;
 
     // 2. Setup Node B (Executor)
     println!("[test-mesh-runtime] Setting up Node B (Executor), bootstrapping with Node A.");
@@ -449,8 +436,8 @@ async fn test_full_mesh_job_cycle_libp2p() -> Result<(), anyhow::Error> {
     let node_b_ctx = Arc::new(RuntimeContext::new(
         Did::from_str("did:icn:test:node_b_libp2p")?,
         Arc::new(DefaultMeshNetworkService::new(node_b_libp2p_actual_service_for_setup.clone())),
-        Arc::new(icn_runtime::context::StubSigner),
-        Arc::new(icn_runtime::context::StubDagStore::new()),
+        Arc::new(StubSigner::new()),
+        Arc::new(StubDagStore::new()),
     ));
     node_b_ctx.mana_ledger.set_balance(&node_b_ctx.current_identity, 500).await;
     println!("[test-mesh-runtime] Node B context created, mana set.");
@@ -524,7 +511,7 @@ async fn test_full_mesh_job_cycle_libp2p() -> Result<(), anyhow::Error> {
         executor_did: node_b_ctx.current_identity.clone(),
         result_cid: result_cid.clone(),
         cpu_ms: 75,
-        sig: Vec::new(),
+        sig: SignatureBytes(Vec::new()),
     };
 
     println!("[test-mesh-runtime] Node B signing its execution receipt for job {}.", submitted_job_id);

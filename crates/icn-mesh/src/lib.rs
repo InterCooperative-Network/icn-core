@@ -294,10 +294,8 @@ pub struct SubmitReceiptMessage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use icn_common::ICN_CORE_VERSION;
-    use icn_identity::{generate_ed25519_keypair, did_key_from_verifying_key};
-    use icn_common::Cid; // Explicitly import Cid for new_v1_dummy
-    use std::str::FromStr; // For Did::from_str
+    use icn_common::{ICN_CORE_VERSION, NodeInfo, Cid, Did}; // Kept ICN_CORE_VERSION as it's often for tests
+    use std::str::FromStr;
 
     #[test]
     fn test_schedule_mesh_job() {

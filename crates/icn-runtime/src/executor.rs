@@ -1,7 +1,7 @@
 #![doc = "Defines a simple job executor for the ICN runtime."]
 
 use icn_common::{Did, Cid, CommonError};
-use icn_identity::{ExecutionReceipt as IdentityExecutionReceipt, SigningKey, /*VerifyingKey,*/ SignatureBytes, /*did_key_from_verifying_key,*/ generate_ed25519_keypair};
+use icn_identity::{ExecutionReceipt as IdentityExecutionReceipt, SigningKey, SignatureBytes /* Removed , generate_ed25519_keypair */};
 use icn_mesh::{JobId, ActualMeshJob, JobSpec, /* ... other mesh types ... */};
 use log::{info}; // Removed error
 use std::time::SystemTime;
