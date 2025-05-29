@@ -27,7 +27,7 @@ use std::time::SystemTime;
 
 use libp2p::kad::RecordKey as KademliaKey;
 use libp2p::kad::{Record as KademliaRecord, QueryId, Quorum, GetRecordOk, PutRecordOk, store::MemoryStore, Behaviour as KademliaBehaviour, Config as KademliaConfig, Event as KademliaEvent, QueryResult as KademliaQueryResult};
-use libp2p_request_response::{Behaviour as RequestResponseBehaviour, Codec as RequestResponseCodec, Config as RequestResponseConfig, Event as RequestResponseEvent, Message as RequestResponseMessage, RequestId, OutboundRequestId, ProtocolSupport};
+use ::libp2p_request_response::{Behaviour as RequestResponseBehaviour, Codec as RequestResponseCodec, Config as RequestResponseConfig, Event as RequestResponseEvent, Message as RequestResponseMessage, RequestId, OutboundRequestId, ProtocolSupport};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use bincode;
 
@@ -216,6 +216,9 @@ pub mod libp2p_service {
 
     use libp2p::kad::RecordKey as KademliaKey;
     use bincode;
+
+    #[cfg(feature = "experimental-libp2p")] // Technically redundant due to module cfg, but explicit.
+    const _FORCE_RESOLVE: Option<libp2p_request_response::RequestId> = None;
 
     /* ---------- Public façade ------------------------------------------------ */
 
