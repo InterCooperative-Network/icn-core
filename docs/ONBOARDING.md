@@ -271,7 +271,7 @@ This makes the system more predictable and easier to debug.
 6.  **Format & Lint:** Run `cargo fmt --all` and `cargo clippy --all -- -D warnings`.
 7.  **Commit Changes:** Use conventional commit messages.
 8.  **Push to Your Fork/Branch.**
-9.  **Create a Pull Request:** Target the `main` branch of the upstream repository. Clearly describe your changes and link the relevant issue.
+9.  **Create a Pull Request:** Target the `develop` branch of the upstream repository. Rebase your feature branch onto `develop` before opening the PR and clearly describe your changes with links to any relevant issues.
 
 ## 7. Next Steps for the Project (and areas for contribution)
 
