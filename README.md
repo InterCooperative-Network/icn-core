@@ -66,6 +66,7 @@ This workspace is organized into several crates, each with a specific focus:
 
 *   `icn-api`: Provides the primary API endpoints for interacting with ICN nodes, likely via JSON-RPC or gRPC.
 *   `icn-cli`: A command-line interface for users and administrators to manage and interact with ICN nodes and the network.
+*   [`icn-ccl`](icn-ccl/README.md): Implements the Cooperative Contract Language compiler, producing WASM modules for the runtime.
 *   `icn-common`: Contains common data structures, types, utilities, and error definitions shared across multiple ICN crates.
 *   `icn-dag`: Implements or defines interfaces for content-addressed Directed Acyclic Graph (DAG) storage and manipulation, crucial for ICN's data model.
 *   `icn-economics`: Handles the economic protocols of the ICN, including token models (e.g., Mana), ledger management, and transaction logic.
