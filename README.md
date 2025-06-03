@@ -21,8 +21,19 @@ The project has achieved a significant milestone, delivering an MVP with a funct
 *   **Stubbed Networking Layer:** `icn-network` defines a `NetworkService` trait, `NetworkMessage` enum (now serializable), and a `StubNetworkService` for simulated P2P interactions.
 *   **Refined Error Handling:** Comprehensive error handling is implemented across all layers. Functions return `Result<T, CommonError>`, using specific error variants defined in `icn-common`. The CLI and Node applications now handle these errors more gracefully, providing better user feedback and exiting with appropriate status codes.
 *   **Repository Hygiene:** Includes `LICENSE` (Apache 2.0), `CODE_OF_CONDUCT.md`, `CONTRIBUTING.md`, `SECURITY.md`, `.editorconfig`, `rust-toolchain.toml`, issue templates, and a `CHANGELOG.md`.
+
 *   **CI & Dependabot:** Basic CI pipeline (`ci.yml`) for formatting, linting, testing, and docs. Dependabot is set up for Cargo dependency updates.
 *   **Basic Documentation:** READMEs for each crate, module-level documentation, and an initial `docs/ONBOARDING.md`.
+
+### Rust Toolchain
+
+This repository is pinned to the nightly Rust toolchain via `rust-toolchain.toml`.
+Install it with:
+
+```bash
+rustup toolchain install nightly
+rustup override set nightly
+```
 
 ## Getting Started
 
