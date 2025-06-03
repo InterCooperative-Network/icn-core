@@ -23,8 +23,8 @@ jobs:
           fetch-depth: 0 # Fetch all history for cargo-release
           token: ${{ secrets.GITHUB_TOKEN }} # Use GITHUB_TOKEN for pushing commits/tags
 
-      - name: Install Rust toolchain (stable)
-        uses: dtolnay/rust-toolchain@stable
+      - name: Install Rust toolchain (nightly)
+        uses: dtolnay/rust-toolchain@nightly
 
       - name: Install cargo-release
         run: cargo install cargo-release
