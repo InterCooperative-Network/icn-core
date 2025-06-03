@@ -11,7 +11,7 @@ The InterCooperative Network is envisioned as a decentralized network fostering 
 
 The project has achieved a significant milestone, delivering an MVP with a functional, albeit stubbed, protocol stack. Key features include:
 
-*   **Modular Crate Structure:** Well-defined crates for common types (`icn-common`), API definitions (`icn-api`), DAG L1 logic (`icn-dag`), identity placeholders (`icn-identity`), networking abstractions (`icn-network`), a node runner (`icn-node`), and a CLI (`icn-cli`).
+*   **Modular Crate Structure:** Well-defined crates for common types (`icn-common`), API definitions (`icn-api`), DAG L1 logic (`icn-dag`), identity placeholders (`icn-identity`), networking abstractions (`icn-network`), a node runner (`icn-node`), a CLI (`icn-cli`), and the Cooperative Contract Language compiler (`icn-ccl`, located at the repository root outside `crates/`).
 *   **Real Protocol Data Models:** Core data types like DIDs, CIDs, DagBlocks, Transactions, and NodeStatus are defined in `icn-common` and utilize `serde` for serialization.
 *   **In-Memory DAG Store:** `icn-dag` provides a basic in-memory L1 DAG block store (`put_block`, `get_block`).
 *   **API Layer:** `icn-api` exposes functions for node interaction (info, status) and DAG operations (submit, retrieve blocks).
