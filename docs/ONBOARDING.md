@@ -4,9 +4,10 @@ Welcome to the InterCooperative Network (ICN) Core project! This guide will help
 
 ## 1. Prerequisites
 
-*   **Rust:** Install the latest stable Rust toolchain. You can get it from [rustup.rs](https://rustup.rs/).
-    *   Run `rustup update stable` to ensure you have the most recent version.
-    *   The project uses the `stable` channel, as defined in `rust-toolchain.toml`.
+*   **Rust:** Install the nightly Rust toolchain using [rustup.rs](https://rustup.rs/).
+    *   Run `rustup toolchain install nightly` if you don't already have it.
+    *   Set the override for this repository with `rustup override set nightly`.
+    *   The project requires the `nightly` channel, as defined in `rust-toolchain.toml`.
 *   **Git:** For version control.
 *   **EditorConfig Plugin:** (Recommended) For your IDE/editor to maintain consistent coding styles across the project (uses `.editorconfig`).
 *   **Basic Familiarity:** With Rust programming, `cargo`, and decentralized systems concepts (DIDs, CIDs, P2P) will be helpful.
@@ -270,7 +271,7 @@ This makes the system more predictable and easier to debug.
 6.  **Format & Lint:** Run `cargo fmt --all` and `cargo clippy --all -- -D warnings`.
 7.  **Commit Changes:** Use conventional commit messages.
 8.  **Push to Your Fork/Branch.**
-9.  **Create a Pull Request:** Target the `main` branch of the upstream repository. Clearly describe your changes and link the relevant issue.
+9.  **Create a Pull Request:** Target the `develop` branch of the upstream repository. Rebase your feature branch onto `develop` before opening the PR and clearly describe your changes with links to any relevant issues.
 
 ## 7. Next Steps for the Project (and areas for contribution)
 
