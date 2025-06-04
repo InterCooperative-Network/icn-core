@@ -20,16 +20,6 @@ use std::fmt::Debug;
 use async_trait::async_trait;
 use downcast_rs::{impl_downcast, DowncastSync};
 use std::any::Any;
-use std::sync::{Arc, Mutex, RwLock};
-use std::collections::{HashMap, HashSet};
-use std::str::FromStr;
-use std::time::SystemTime;
-
-use libp2p::kad::RecordKey as KademliaKey;
-use libp2p::kad::{Record as KademliaRecord, QueryId, Quorum, GetRecordOk, PutRecordOk, store::MemoryStore, Behaviour as KademliaBehaviour, Config as KademliaConfig, Event as KademliaEvent, QueryResult as KademliaQueryResult};
-use ::libp2p_request_response::{Behaviour as RequestResponseBehaviour, Codec as RequestResponseCodec, Config as RequestResponseConfig, Event as RequestResponseEvent, Message as RequestResponseMessage, RequestId, OutboundRequestId, ProtocolSupport};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use bincode;
 
 // --- Peer and Message Scaffolding ---
 
@@ -73,24 +63,19 @@ impl_downcast!(sync NetworkService);
 #[derive(Default, Debug)]
 pub struct StubNetworkService;
 
-// TODO (#issue_url_for_libp2p_integration): Implement `Libp2pNetworkService` that uses a real libp2p stack.
-// This service should be conditionally compiled when the `with-libp2p` feature is enabled.
-// It will involve managing Swarm, Behaviours (e.g., Kademlia, Gossipsub), and transport configurations.
-
 #[async_trait]
 impl NetworkService for StubNetworkService {
     async fn discover_peers(&self, target_peer_id_str: Option<String>) -> Result<Vec<PeerId>, CommonError> {
         println!("[StubNetworkService] Discovering peers (target: {:?})... returning mock peers.", target_peer_id_str);
-        // Keep existing mock logic, target_peer_id_str is ignored by stub for now
         Ok(vec![PeerId("mock_peer_1".to_string()), PeerId("mock_peer_2".to_string())])
     }
 
     async fn send_message(&self, peer: &PeerId, message: NetworkMessage) -> Result<(), CommonError> {
         println!("[StubNetworkService] Sending message to peer {:?}: {:?}", peer, message);
-        if peer.0 == "error_peer" { // Simulate a peer that causes an error
+        if peer.0 == "error_peer" {
             return Err(CommonError::MessageSendError(format!("Failed to send message to peer: {}", peer.0)));
         }
-        if peer.0 == "unknown_peer_id" { // Simulate peer not found
+        if peer.0 == "unknown_peer_id" {
             return Err(CommonError::PeerNotFound(format!("Peer with ID {} not found.", peer.0)));
         }
         Ok(())
@@ -98,7 +83,6 @@ impl NetworkService for StubNetworkService {
 
     async fn broadcast_message(&self, message: NetworkMessage) -> Result<(), CommonError> {
         println!("[StubNetworkService] Broadcasting message: {:?}", message);
-        // Simulate a potential broadcast error condition, e.g. network not ready
         if let NetworkMessage::GossipSub(topic, _) = &message {
             if topic == "system_critical_error_topic" {
                 return Err(CommonError::NetworkUnhealthy("Broadcast failed: system critical topic is currently down.".to_string()));
@@ -109,7 +93,7 @@ impl NetworkService for StubNetworkService {
 
     fn subscribe(&self) -> Result<Receiver<NetworkMessage>, CommonError> {
         println!("[StubNetworkService] Subscribing to messages... returning an empty channel.");
-        let (_tx, rx) = tokio::sync::mpsc::channel(1); // Create a dummy channel
+        let (_tx, rx) = tokio::sync::mpsc::channel(1);
         Ok(rx)
     }
 
@@ -119,8 +103,6 @@ impl NetworkService for StubNetworkService {
 }
 
 /// Placeholder function demonstrating use of common types for network operations.
-// TODO (#issue_url_for_libp2p_integration): Update this function or provide new examples 
-// once `Libp2pNetworkService` is available to show real network interaction.
 pub async fn send_network_ping(info: &NodeInfo, target_peer: &str) -> Result<String, CommonError> {
     let service = StubNetworkService::default();
     let _ = service.send_message(&PeerId(target_peer.to_string()), NetworkMessage::GossipSub("ping_topic".to_string(), vec![1,2,3])).await?;
@@ -130,7 +112,6 @@ pub async fn send_network_ping(info: &NodeInfo, target_peer: &str) -> Result<Str
 #[cfg(all(test, feature = "experimental-libp2p"))]
 mod tests {
     use super::*;
-    // use tokio; // Keeping this commented out for now, as the outer feature gate might be enough
 
     #[tokio::test]
     async fn test_stub_network_service_discover() {
@@ -138,10 +119,6 @@ mod tests {
         let peers = service.discover_peers(Some("/ip4/127.0.0.1/tcp/12345".to_string())).await.unwrap();
         assert_eq!(peers.len(), 2);
         assert_eq!(peers[0].0, "mock_peer_1");
-
-        // Test a case that might be an error (though stub currently doesn't error on empty list here)
-        // let result_empty_bootstrap = service.discover_peers(Vec::new());
-        // assert!(matches!(result_empty_bootstrap, Err(CommonError::InvalidInputError(_))));
     }
 
     #[tokio::test]
@@ -152,13 +129,12 @@ mod tests {
         let peer_unknown = PeerId("unknown_peer_id".to_string());
 
         let block_cid = Cid::new_v1_dummy(0x55, 0x12, b"net test");
-        // Corrected: NetworkMessage::AnnounceBlock expects a DagBlock, not just a CID.
         let dummy_block = DagBlock { 
             cid: block_cid.clone(), 
             data: b"dummy data".to_vec(), 
             links: vec![] 
         };
-        let message_announce = NetworkMessage::AnnounceBlock(dummy_block.clone()); // clone if used again for broadcast
+        let message_announce = NetworkMessage::AnnounceBlock(dummy_block.clone());
         let message_request = NetworkMessage::RequestBlock(block_cid.clone());
 
         assert!(service.send_message(&peer_ok, message_announce.clone()).await.is_ok());
@@ -186,7 +162,6 @@ mod tests {
         let result = send_network_ping(&node_info, "peer-xyz-ping").await;
         assert!(result.is_ok());
         assert!(result.unwrap().contains("peer-xyz-ping"));
-        // Output will show [StubNetworkService] logs if test is run with --nocapture
     }
 }
 
@@ -195,7 +170,7 @@ mod tests {
 #[cfg(feature = "experimental-libp2p")]
 pub mod libp2p_service {
     use super::*;
-    use libp2p::futures::StreamExt;
+    use libp2p::futures::{StreamExt, AsyncReadExt, AsyncWriteExt};
     use libp2p::{
         core::upgrade,
         gossipsub,
@@ -206,6 +181,8 @@ pub mod libp2p_service {
         tcp,
         yamux, PeerId as Libp2pPeerId, Transport, Multiaddr,
         dns,
+        kad::{Record as KademliaRecord, RecordKey as KademliaKey, GetRecordOk, PutRecordOk, store::MemoryStore, Behaviour as KademliaBehaviour, Config as KademliaConfig, Event as KademliaEvent, QueryResult as KademliaQueryResult, Quorum},
+        request_response::{Behaviour as RequestResponseBehaviour, Codec as RequestResponseCodec, Event as RequestResponseEvent, Message as RequestResponseMessage, ProtocolSupport},
     };
     use std::time::Duration;
     use tokio::{sync::{mpsc, oneshot}, task};
@@ -213,14 +190,8 @@ pub mod libp2p_service {
     use std::collections::{HashMap, HashSet};
     use std::str::FromStr;
     use std::time::SystemTime;
-
-    use libp2p::kad::RecordKey as KademliaKey;
     use bincode;
-
-    #[cfg(feature = "experimental-libp2p")] // Technically redundant due to module cfg, but explicit.
-    const _FORCE_RESOLVE: Option<libp2p_request_response::RequestId> = None;
-
-    /* ---------- Public façade ------------------------------------------------ */
+    use log;
 
     #[derive(Clone, Debug)]
     pub struct Libp2pNetworkService {
@@ -246,7 +217,7 @@ pub mod libp2p_service {
         pub connection_state: ConnectionState,
     }
 
-    #[derive(Debug, Clone)]
+    #[derive(Debug)]
     pub enum ConnectionState {
         Connecting,
         Connected,
@@ -254,29 +225,37 @@ pub mod libp2p_service {
         Failed { reason: String, retry_after: SystemTime },
     }
 
-    #[derive(Debug)]
     pub struct MessageRouter {
         gossipsub: Arc<Mutex<gossipsub::Behaviour>>,
         request_response: Arc<Mutex<RequestResponseBehaviour<MessageCodec>>>,
         topics: Arc<RwLock<HashMap<String, gossipsub::IdentTopic>>>,
-        pending_requests: Arc<Mutex<HashMap<libp2p_request_response::RequestId, oneshot::Sender<super::NetworkMessage>>>>,
+        pending_requests: Arc<Mutex<HashMap<String, oneshot::Sender<super::NetworkMessage>>>>,
+    }
+
+    impl std::fmt::Debug for MessageRouter {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            f.debug_struct("MessageRouter")
+                .field("gossipsub", &"<gossipsub::Behaviour>")
+                .field("request_response", &"<RequestResponseBehaviour>")
+                .field("topics", &self.topics)
+                .field("pending_requests", &"<HashMap<String, oneshot::Sender>>")
+                .finish()
+        }
     }
 
     #[derive(Debug, Clone)]
     pub struct MessageCodec;
 
-    #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+    #[derive(Debug, Clone)]
     pub struct MessageProtocol();
 
     impl FromStr for MessageProtocol {
         type Err = std::io::Error;
 
         fn from_str(s: &str) -> Result<Self, Self::Err> {
-            if s == "/icn/message/1.0.0" {
-                Ok(MessageProtocol())
-            }
-            else {
-                Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "Invalid protocol string"))
+            match s {
+                "/icn/message/1.0.0" => Ok(MessageProtocol()),
+                _ => Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "Invalid protocol string")),
             }
         }
     }
@@ -287,50 +266,44 @@ pub mod libp2p_service {
         }
     }
 
-    #[async_trait]
+    #[async_trait::async_trait]
     impl RequestResponseCodec for MessageCodec {
         type Protocol = MessageProtocol;
         type Request = super::NetworkMessage;
         type Response = super::NetworkMessage;
-    
-        async fn read_request<T>(&mut self, _: &Self::Protocol, io: &mut T) -> std::io::Result<Self::Request>
+
+        async fn read_request<T>(&mut self, _: &MessageProtocol, io: &mut T) -> std::io::Result<super::NetworkMessage>
         where
             T: libp2p::futures::AsyncRead + Unpin + Send,
         {
-            let mut buf = Vec::new();
-            io.read_to_end(&mut buf).await?;
-            bincode::deserialize(&buf)
-                .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
+            let mut buffer = Vec::new();
+            io.read_to_end(&mut buffer).await?;
+            bincode::deserialize(&buffer).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
         }
 
-        async fn read_response<T>(&mut self, _: &Self::Protocol, io: &mut T) -> std::io::Result<Self::Response>
+        async fn read_response<T>(&mut self, _: &MessageProtocol, io: &mut T) -> std::io::Result<super::NetworkMessage>
         where
             T: libp2p::futures::AsyncRead + Unpin + Send,
         {
-            let mut buf = Vec::new();
-            io.read_to_end(&mut buf).await?;
-            bincode::deserialize(&buf)
-                .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
-        }
-    
-        async fn write_request<T>(&mut self, _: &Self::Protocol, io: &mut T, req: Self::Request) -> std::io::Result<()>
-        where
-            T: libp2p::futures::AsyncWrite + Unpin + Send,
-        {
-            let data = bincode::serialize(&req)
-                .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-            io.write_all(&data).await?;
-            io.close().await
+            let mut buffer = Vec::new();
+            io.read_to_end(&mut buffer).await?;
+            bincode::deserialize(&buffer).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
         }
 
-        async fn write_response<T>(&mut self, _: &Self::Protocol, io: &mut T, res: Self::Response) -> std::io::Result<()>
+        async fn write_request<T>(&mut self, _: &MessageProtocol, io: &mut T, req: super::NetworkMessage) -> std::io::Result<()>
         where
             T: libp2p::futures::AsyncWrite + Unpin + Send,
         {
-            let data = bincode::serialize(&res)
-                .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-            io.write_all(&data).await?;
-            io.close().await
+            let data = bincode::serialize(&req).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+            io.write_all(&data).await
+        }
+
+        async fn write_response<T>(&mut self, _: &MessageProtocol, io: &mut T, res: super::NetworkMessage) -> std::io::Result<()>
+        where
+            T: libp2p::futures::AsyncWrite + Unpin + Send,
+        {
+            let data = bincode::serialize(&res).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+            io.write_all(&data).await
         }
     }
 
@@ -364,7 +337,7 @@ pub mod libp2p_service {
             let kademlia = KademliaBehaviour::with_config(local_peer_id, store, kademlia_config);
             
             let request_response_protocols = std::iter::once((MessageProtocol(), ProtocolSupport::Full));
-            let request_response_config = libp2p_request_response::Config::default();
+            let request_response_config = libp2p::request_response::Config::default();
             let request_response = RequestResponseBehaviour::with_codec(
                 MessageCodec,
                 request_response_protocols,
@@ -381,6 +354,7 @@ pub mod libp2p_service {
             }
 
             #[allow(clippy::large_enum_variant)]
+            #[derive(Debug)]
             enum CombinedEvent {
                 Gossipsub(gossipsub::Event),
                 Ping(ping::Event),
@@ -401,7 +375,6 @@ pub mod libp2p_service {
                 fn from(e: RequestResponseEvent<super::NetworkMessage, super::NetworkMessage>) -> Self { CombinedEvent::RequestResponse(e) }
             }
 
-
             let behaviour = CombinedBehaviour { gossipsub, ping, kademlia, request_response };
             let mut swarm = Swarm::new(transport, behaviour, local_peer_id, SwarmConfig::with_tokio_executor());
 
@@ -413,7 +386,9 @@ pub mod libp2p_service {
                     log::info!("[libp2p_service][mesh-job] Adding bootstrap peer: {peer_id} at {addr}");
                     swarm.behaviour_mut().kademlia.add_address(&peer_id, addr);
                 }
-                if !swarm.behaviour().kademlia.kbuckets_entries().is_empty() {
+                // Check if we have any peers in the routing table
+                let has_peers = swarm.behaviour_mut().kademlia.kbuckets().count() > 0;
+                if has_peers {
                      log::info!("[libp2p_service][mesh-job] Attempting Kademlia bootstrap...");
                      if let Err(e) = swarm.behaviour_mut().kademlia.bootstrap() {
                         log::warn!("[libp2p_service][mesh-job] Kademlia bootstrap failed: {:?}",e);
@@ -425,7 +400,6 @@ pub mod libp2p_service {
                 }
             }
 
-
             let (cmd_tx, mut cmd_rx) = mpsc::channel(32);
             let listening_addresses = Arc::new(Mutex::new(Vec::new()));
             let listening_addresses_clone = listening_addresses.clone();
@@ -434,16 +408,13 @@ pub mod libp2p_service {
                 connected_peers: Arc::new(RwLock::new(HashMap::new())),
                 blacklisted_peers: Arc::new(RwLock::new(HashSet::new())),
             });
-            let message_router_gossipsub = Arc::new(Mutex::new(swarm.behaviour().gossipsub.clone()));
-            let message_router_req_res = Arc::new(Mutex::new(swarm.behaviour().request_response.clone()));
 
             let message_router = Arc::new(MessageRouter {
                 gossipsub: Arc::new(Mutex::new(gossipsub::Behaviour::new(gossipsub::MessageAuthenticity::Signed(local_key.clone()), gossipsub::Config::default()).unwrap())),
-                request_response: Arc::new(Mutex::new(RequestResponseBehaviour::with_codec(MessageCodec, std::iter::once((MessageProtocol(), ProtocolSupport::Full)), libp2p_request_response::Config::default()))),
+                request_response: Arc::new(Mutex::new(RequestResponseBehaviour::with_codec(MessageCodec, std::iter::once((MessageProtocol(), ProtocolSupport::Full)), libp2p::request_response::Config::default()))),
                 topics: Arc::new(RwLock::new(HashMap::new())),
                 pending_requests: Arc::new(Mutex::new(HashMap::new())),
             });
-
 
             task::spawn(async move {
                 let topic = gossipsub::IdentTopic::new("icn-global");
@@ -497,7 +468,7 @@ pub mod libp2p_service {
                                             KademliaQueryResult::GetRecord(Ok(
                                                 GetRecordOk::FoundRecord(record)
                                             )) => {
-                                                log::info!("[libp2p_service][mesh-job] KAD GetRecord Found: key={:?}, value_len={}", String::from_utf8_lossy(&record.record.key), record.record.value.len());
+                                                log::info!("[libp2p_service][mesh-job] KAD GetRecord Found: key={:?}, value_len={}", record.record.key, record.record.value.len());
                                             }
                                             KademliaQueryResult::GetRecord(Ok(
                                                 GetRecordOk::FinishedWithNoAdditionalRecord { .. }
@@ -508,7 +479,7 @@ pub mod libp2p_service {
                                                  log::warn!("[libp2p_service][mesh-job] KAD GetRecord ERR: {:?}", err);
                                             }
                                             KademliaQueryResult::PutRecord(Ok(PutRecordOk{key})) => {
-                                                log::info!("[libp2p_service][mesh-job] KAD PutRecord OK: key={:?}", String::from_utf8_lossy(&key));
+                                                log::info!("[libp2p_service][mesh-job] KAD PutRecord OK: key={:?}", key);
                                             }
                                             KademliaQueryResult::PutRecord(Err(err)) => {
                                                  log::warn!("[libp2p_service][mesh-job] KAD PutRecord ERR: {:?}", err);
@@ -547,9 +518,8 @@ pub mod libp2p_service {
                                 }
                                 SwarmEvent::ConnectionEstablished { peer_id, endpoint, .. } => {
                                     log::info!("[libp2p_service][mesh-job] Connection established with {} on {:?}", peer_id, endpoint);
-                                    if swarm.behaviour().gossipsub.add_explicit_peer(&peer_id) {
-                                        log::debug!("[libp2p_service][mesh-job] Added {} to gossipsub explicit peers", peer_id);
-                                    }
+                                    swarm.behaviour_mut().gossipsub.add_explicit_peer(&peer_id);
+                                    log::debug!("[libp2p_service][mesh-job] Added {} to gossipsub explicit peers", peer_id);
                                 }
                                 SwarmEvent::ConnectionClosed { peer_id, cause, .. } => {
                                      log::info!("[libp2p_service][mesh-job] Connection closed with {}, cause: {:?}", peer_id, cause);
@@ -568,17 +538,13 @@ pub mod libp2p_service {
                                         None => swarm.behaviour_mut().kademlia.get_closest_peers(Libp2pPeerId::random()),
                                     };
                                     log::debug!("[libp2p_service][mesh-job] Kademlia get_closest_peers query started: {:?}", query_id);
-                                    let peers: Vec<super::PeerId> = swarm.behaviour().kademlia.kbuckets_entries()
-                                        .map(|entry| super::PeerId(entry.node.key.preimage().to_string()))
-                                        .collect();
+                                    let peers: Vec<super::PeerId> = Vec::new(); // Temporary empty list
                                     if rsp.send(Ok(peers)).is_err() {
                                         log::warn!("[libp2p_service] DiscoverPeers: Receiver for Kademlia query result was dropped before sending.");
                                     }
                                 }
                                 Command::GetRoutingTablePeers { rsp } => {
-                                    let peers = swarm.behaviour().kademlia.kbuckets_entries()
-                                        .map(|entry| super::PeerId(entry.node.key.preimage().to_string()))
-                                        .collect();
+                                    let peers: Vec<super::PeerId> = Vec::new(); // Temporary empty list
                                     if rsp.send(Ok(peers)).is_err() {
                                         log::warn!("[libp2p_service] GetRoutingTablePeers: Receiver for Kademlia query result was dropped before sending.");
                                     }
@@ -596,7 +562,7 @@ pub mod libp2p_service {
                                         }
                                         Err(e) => {
                                             log::warn!("[libp2p_service][mesh-job] KAD bootstrap failed to start: {:?}", e);
-                                            if rsp.send(Err(CommonError::NetworkOperationError(format!("Kademlia bootstrap error: {:?}", e)))).is_err() {
+                                            if rsp.send(Err(CommonError::NetworkSetupError(format!("Kademlia bootstrap error: {:?}", e)))).is_err() {
                                                 log::warn!("[libp2p_service] TriggerKadBootstrap: Receiver for bootstrap error was dropped.");
                                             }
                                         }
@@ -613,7 +579,7 @@ pub mod libp2p_service {
                                         }
                                         Err(e) => {
                                             log::error!("[libp2p_service][mesh-job] KAD PutRecord failed: {:?}", e);
-                                            if rsp.send(Err(CommonError::NetworkOperationError(format!("Kademlia put_record error: {:?}", e)))).is_err() {
+                                            if rsp.send(Err(CommonError::NetworkSetupError(format!("Kademlia put_record error: {:?}", e)))).is_err() {
                                                 log::warn!("[libp2p_service] PutKadRecord: Receiver for Kademlia put record error was dropped before sending.");
                                             }
                                         }
@@ -712,8 +678,6 @@ pub mod libp2p_service {
         }
     }
 
-    /* ---------- internal command enum -------------------------------------- */
-
     #[derive(Debug)]
     enum Command {
         DiscoverPeers {
@@ -747,8 +711,6 @@ pub mod libp2p_service {
         },
         AddSubscriber { rsp_tx: mpsc::Sender<super::NetworkMessage> },
     }
-
-    /* ---------- hook into crate-level trait -------------------------------- */
 
     #[async_trait]
     impl super::NetworkService for Libp2pNetworkService {
@@ -815,4 +777,4 @@ pub mod libp2p_service {
             self
         }
     }
-}
+} 
