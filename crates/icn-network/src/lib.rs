@@ -454,6 +454,7 @@ pub mod libp2p_service {
                 }
 
                 let mut subscriber_senders: Vec<mpsc::Sender<super::NetworkMessage>> = Vec::new();
+                let mut pending_get_record_queries: HashMap<QueryId, oneshot::Sender<Result<Option<KademliaRecord>, CommonError>>> = HashMap::new();
 
                 loop {
                     tokio::select! {
@@ -487,7 +488,30 @@ pub mod libp2p_service {
                                 SwarmEvent::Behaviour(CombinedEvent::Kademlia(event)) => {
                                     log::debug!("[libp2p_service][mesh-job] Kademlia event: {:?}", event);
                                     match event {
-                                        KademliaEvent::OutboundQueryProgressed { result, .. } => match result {
+                                        KademliaEvent::OutboundQueryProgressed { id, result, step, .. } => {
+                                            if let Some(tx) = pending_get_record_queries.get(&id) {
+                                                match &result {
+                                                    KademliaQueryResult::GetRecord(Ok(GetRecordOk::FoundRecord(rec))) => {
+                                                        let _ = tx.send(Ok(Some(rec.record.clone())));
+                                                        pending_get_record_queries.remove(&id);
+                                                    }
+                                                    KademliaQueryResult::GetRecord(Ok(GetRecordOk::FinishedWithNoAdditionalRecord { .. })) => {
+                                                        let _ = tx.send(Ok(None));
+                                                        pending_get_record_queries.remove(&id);
+                                                    }
+                                                    KademliaQueryResult::GetRecord(Err(err)) => {
+                                                        let _ = tx.send(Err(CommonError::NetworkOperationError(format!("Kademlia get_record error: {:?}", err))));
+                                                        pending_get_record_queries.remove(&id);
+                                                    }
+                                                    _ => {
+                                                        if step.last {
+                                                            let _ = tx.send(Ok(None));
+                                                            pending_get_record_queries.remove(&id);
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            match result {
                                             KademliaQueryResult::GetClosestPeers(Ok(ok)) => {
                                                  log::info!("[libp2p_service][mesh-job] KAD GetClosestPeers OK: {:?} peers found", ok.peers.len());
                                             }
@@ -622,10 +646,8 @@ pub mod libp2p_service {
                                 Command::GetKadRecord { key, rsp } => {
                                      let query_id = swarm.behaviour_mut().kademlia.get_record(key);
                                      log::info!("[libp2p_service][mesh-job] KAD GetRecord initiated with query id: {:?}", query_id);
-                                     if rsp.send(Ok(None)).is_err() {
-                                        log::warn!("[libp2p_service] GetKadRecord: Receiver for Kademlia get record result was dropped before sending.");
-                                     }
-                                }
+                                     pending_get_record_queries.insert(query_id, rsp);
+                               }
                                 Command::Broadcast { data } => {
                                     log::debug!("[libp2p_service][mesh-job] Broadcasting message (data_len: {}) to topic: {}", data.len(), topic);
                                     if let Err(e) = swarm.behaviour_mut()
