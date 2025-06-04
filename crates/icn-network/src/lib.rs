@@ -80,7 +80,7 @@ impl_downcast!(sync NetworkService);
 pub struct StubNetworkService;
 
 // TODO (#issue_url_for_libp2p_integration): Implement `Libp2pNetworkService` that uses a real libp2p stack.
-// This service should be conditionally compiled when the `with-libp2p` feature is enabled.
+// This service should be conditionally compiled when the `experimental-libp2p` feature is enabled.
 // It will involve managing Swarm, Behaviours (e.g., Kademlia, Gossipsub), and transport configurations.
 
 #[async_trait]
