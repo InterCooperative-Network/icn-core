@@ -25,9 +25,32 @@ use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 use std::time::SystemTime;
 
+#[cfg(feature = "experimental-libp2p")]
 use libp2p::kad::RecordKey as KademliaKey;
-use libp2p::kad::{Record as KademliaRecord, QueryId, Quorum, GetRecordOk, PutRecordOk, store::MemoryStore, Behaviour as KademliaBehaviour, Config as KademliaConfig, Event as KademliaEvent, QueryResult as KademliaQueryResult};
-use ::libp2p_request_response::{Behaviour as RequestResponseBehaviour, Codec as RequestResponseCodec, Config as RequestResponseConfig, Event as RequestResponseEvent, Message as RequestResponseMessage, RequestId, OutboundRequestId, ProtocolSupport};
+#[cfg(feature = "experimental-libp2p")]
+use libp2p::kad::{
+    Record as KademliaRecord,
+    QueryId,
+    Quorum,
+    GetRecordOk,
+    PutRecordOk,
+    store::MemoryStore,
+    Behaviour as KademliaBehaviour,
+    Config as KademliaConfig,
+    Event as KademliaEvent,
+    QueryResult as KademliaQueryResult,
+};
+#[cfg(feature = "experimental-libp2p")]
+use ::libp2p_request_response::{
+    Behaviour as RequestResponseBehaviour,
+    Codec as RequestResponseCodec,
+    Config as RequestResponseConfig,
+    Event as RequestResponseEvent,
+    Message as RequestResponseMessage,
+    RequestId,
+    OutboundRequestId,
+    ProtocolSupport,
+};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use bincode;
 
@@ -56,6 +79,14 @@ pub enum NetworkMessage {
     BidSubmission(Bid),
     JobAssignmentNotification(JobId, Did),
     SubmitReceipt(ExecutionReceipt),
+}
+
+/// Basic runtime network statistics.
+#[derive(Debug, Default, Clone)]
+pub struct NetworkStats {
+    pub peer_count: usize,
+    pub bytes_sent: u64,
+    pub bytes_received: u64,
 }
 
 /// Network service trait definition.
@@ -228,6 +259,7 @@ pub mod libp2p_service {
         listening_addresses: Arc<Mutex<Vec<Multiaddr>>>,
         peer_manager: Arc<PeerManager>,
         message_router: Arc<MessageRouter>,
+        stats: Arc<Mutex<NetworkStatsInternal>>,
         cmd_tx: mpsc::Sender<Command>,
     }
 
@@ -260,6 +292,12 @@ pub mod libp2p_service {
         request_response: Arc<Mutex<RequestResponseBehaviour<MessageCodec>>>,
         topics: Arc<RwLock<HashMap<String, gossipsub::IdentTopic>>>,
         pending_requests: Arc<Mutex<HashMap<libp2p_request_response::RequestId, oneshot::Sender<super::NetworkMessage>>>>,
+    }
+
+    #[derive(Default, Debug, Clone)]
+    struct NetworkStatsInternal {
+        bytes_sent: u64,
+        bytes_received: u64,
     }
 
     #[derive(Debug, Clone)]
@@ -365,11 +403,8 @@ pub mod libp2p_service {
             
             let request_response_protocols = std::iter::once((MessageProtocol(), ProtocolSupport::Full));
             let request_response_config = libp2p_request_response::Config::default();
-            let request_response = RequestResponseBehaviour::with_codec(
-                MessageCodec,
-                request_response_protocols,
-                request_response_config,
-            );
+            let request_response =
+                RequestResponseBehaviour::new(MessageCodec, request_response_protocols, request_response_config);
 
             #[derive(NetworkBehaviour)]
             #[behaviour(out_event = "CombinedEvent")]
@@ -429,6 +464,8 @@ pub mod libp2p_service {
             let (cmd_tx, mut cmd_rx) = mpsc::channel(32);
             let listening_addresses = Arc::new(Mutex::new(Vec::new()));
             let listening_addresses_clone = listening_addresses.clone();
+            let stats = Arc::new(Mutex::new(NetworkStatsInternal::default()));
+            let stats_clone = stats.clone();
             
             let peer_manager = Arc::new(PeerManager {
                 connected_peers: Arc::new(RwLock::new(HashMap::new())),
@@ -439,13 +476,18 @@ pub mod libp2p_service {
 
             let message_router = Arc::new(MessageRouter {
                 gossipsub: Arc::new(Mutex::new(gossipsub::Behaviour::new(gossipsub::MessageAuthenticity::Signed(local_key.clone()), gossipsub::Config::default()).unwrap())),
-                request_response: Arc::new(Mutex::new(RequestResponseBehaviour::with_codec(MessageCodec, std::iter::once((MessageProtocol(), ProtocolSupport::Full)), libp2p_request_response::Config::default()))),
+                request_response: Arc::new(Mutex::new(RequestResponseBehaviour::new(
+                    MessageCodec,
+                    std::iter::once((MessageProtocol(), ProtocolSupport::Full)),
+                    libp2p_request_response::Config::default(),
+                ))),
                 topics: Arc::new(RwLock::new(HashMap::new())),
                 pending_requests: Arc::new(Mutex::new(HashMap::new())),
             });
 
 
             task::spawn(async move {
+                let stats = stats_clone;
                 let topic = gossipsub::IdentTopic::new("icn-global");
                 if let Err(e) = swarm.behaviour_mut().gossipsub.subscribe(&topic) {
                      log::error!("[libp2p_service][mesh-job] Failed to subscribe to global topic: {:?}", e);
@@ -469,6 +511,7 @@ pub mod libp2p_service {
                                     message,
                                 })) => {
                                     log::debug!("[libp2p_service][mesh-job] Received gossipsub message: {:?}", message.data.len());
+                                    stats.lock().unwrap().bytes_received += message.data.len() as u64;
                                     match bincode::deserialize::<super::NetworkMessage>(&message.data) {
                                         Ok(network_msg) => {
                                             log::debug!("[libp2p_service][mesh-job] Deserialized gossipsub message: {:?}", network_msg);
@@ -525,12 +568,18 @@ pub mod libp2p_service {
                                             match message {
                                                 RequestResponseMessage::Request { request, channel, .. } => {
                                                     log::info!("Received request {:?} from peer {:?}", request, peer);
+                                                    if let Ok(sz) = bincode::serialize(&request).map(|b| b.len()) {
+                                                        stats.lock().unwrap().bytes_received += sz as u64;
+                                                    }
                                                     if let Err(e) = swarm.behaviour_mut().request_response.send_response(channel, request.clone()) {
                                                         log::error!("Failed to send response: {:?}", e);
                                                     }
                                                 },
                                                 RequestResponseMessage::Response { request_id, response } => {
                                                     log::info!("Received response {:?} for request {:?}", response, request_id);
+                                                    if let Ok(sz) = bincode::serialize(&response).map(|b| b.len()) {
+                                                        stats.lock().unwrap().bytes_received += sz as u64;
+                                                    }
                                                 }
                                             }
                                         }
@@ -626,25 +675,39 @@ pub mod libp2p_service {
                                         log::warn!("[libp2p_service] GetKadRecord: Receiver for Kademlia get record result was dropped before sending.");
                                      }
                                 }
-                                Command::Broadcast { data } => {
-                                    log::debug!("[libp2p_service][mesh-job] Broadcasting message (data_len: {}) to topic: {}", data.len(), topic);
-                                    if let Err(e) = swarm.behaviour_mut()
-                                        .gossipsub
-                                        .publish(topic.clone(), data) {
-                                        log::error!("[libp2p_service][mesh-job] Failed to publish to topic {topic}: {:?}", e);
+                               Command::Broadcast { data } => {
+                                   log::debug!("[libp2p_service][mesh-job] Broadcasting message (data_len: {}) to topic: {}", data.len(), topic);
+                                    stats.lock().unwrap().bytes_sent += data.len() as u64;
+                                   if let Err(e) = swarm.behaviour_mut()
+                                       .gossipsub
+                                       .publish(topic.clone(), data) {
+                                       log::error!("[libp2p_service][mesh-job] Failed to publish to topic {topic}: {:?}", e);
+                                   }
+                               }
+                                Command::SendMessage { peer, message, rsp } => {
+                                   log::debug!("[libp2p_service] SendMessage command to peer: {:?}, message: {:?}", peer, message);
+                                    if let Ok(sz) = bincode::serialize(&message).map(|b| b.len()) {
+                                        stats.lock().unwrap().bytes_sent += sz as u64;
                                     }
-                                }
-                                 Command::SendMessage { peer, message, rsp } => {
-                                    log::debug!("[libp2p_service] SendMessage command to peer: {:?}, message: {:?}", peer, message);
                                     let request_id = swarm.behaviour_mut().request_response.send_request(&peer, message);
-                                    log::info!("Sent request with id: {:?}", request_id);
-                                    if rsp.send(Ok(())).is_err() {
-                                        log::warn!("[libp2p_service] SendMessage: Receiver for send message result was dropped before sending.");
-                                    }
-                                }
-                                Command::AddSubscriber { rsp_tx } => {
-                                    subscriber_senders.push(rsp_tx);
-                                    log::info!("[libp2p_service][mesh-job] Added new NetworkMessage subscriber. Total subscribers: {}", subscriber_senders.len());
+                                   log::info!("Sent request with id: {:?}", request_id);
+                                   if rsp.send(Ok(())).is_err() {
+                                       log::warn!("[libp2p_service] SendMessage: Receiver for send message result was dropped before sending.");
+                                   }
+                               }
+                               Command::AddSubscriber { rsp_tx } => {
+                                   subscriber_senders.push(rsp_tx);
+                                   log::info!("[libp2p_service][mesh-job] Added new NetworkMessage subscriber. Total subscribers: {}", subscriber_senders.len());
+                               }
+                               Command::GetStats { rsp } => {
+                                    let info = swarm.network_info();
+                                    let stats_snapshot = stats.lock().unwrap().clone();
+                                    let result = super::NetworkStats {
+                                        peer_count: info.num_peers(),
+                                        bytes_sent: stats_snapshot.bytes_sent,
+                                        bytes_received: stats_snapshot.bytes_received,
+                                    };
+                                    let _ = rsp.send(Ok(result));
                                 }
                             }
                         }
@@ -654,12 +717,13 @@ pub mod libp2p_service {
                 log::info!("[libp2p_service][mesh-job] Swarm task ended.");
             });
 
-            Ok(Self { 
-                cmd_tx, 
-                local_peer_id, 
+            Ok(Self {
+                cmd_tx,
+                local_peer_id,
                 listening_addresses,
                 peer_manager,
                 message_router,
+                stats,
             })
         }
 
@@ -705,10 +769,19 @@ pub mod libp2p_service {
         pub async fn get_kad_record(&self, key: KademliaKey) -> Result<Option<KademliaRecord>, CommonError> {
             let (tx, rx) = oneshot::channel();
             self.cmd_tx
-                .send(Command::GetKadRecord { key: key.clone(), rsp: tx }) 
+                .send(Command::GetKadRecord { key: key.clone(), rsp: tx })
                 .await
                 .map_err(|e| CommonError::NetworkSetupError(format!("get_kad_record cmd send error: {e}")))?;
             rx.await.map_err(|e| CommonError::NetworkSetupError(format!("get_kad_record response dropped: {e}")))?
+        }
+
+        pub async fn get_network_stats(&self) -> Result<NetworkStats, CommonError> {
+            let (tx, rx) = oneshot::channel();
+            self.cmd_tx
+                .send(Command::GetStats { rsp: tx })
+                .await
+                .map_err(|e| CommonError::NetworkSetupError(format!("get_stats cmd send error: {e}")))?;
+            rx.await.map_err(|e| CommonError::NetworkSetupError(format!("get_stats response dropped: {e}")))?
         }
     }
 
@@ -746,6 +819,7 @@ pub mod libp2p_service {
             rsp: oneshot::Sender<Result<(), CommonError>>,
         },
         AddSubscriber { rsp_tx: mpsc::Sender<super::NetworkMessage> },
+        GetStats { rsp: oneshot::Sender<Result<super::NetworkStats, CommonError>> },
     }
 
     /* ---------- hook into crate-level trait -------------------------------- */
@@ -782,7 +856,11 @@ pub mod libp2p_service {
             log::debug!("[libp2p_service][mesh-job] send_message to peer {:?} with: {:?}", peer, msg);
             let libp2p_peer_id = Libp2pPeerId::from_str(&peer.0)
                 .map_err(|e| CommonError::InvalidInputError(format!("Invalid peer ID string '{}': {}", peer.0, e)))?;
-            
+
+            if let Ok(sz) = bincode::serialize(&msg).map(|b| b.len()) {
+                self.stats.lock().unwrap().bytes_sent += sz as u64;
+            }
+
             let (tx, rx) = oneshot::channel();
             self.cmd_tx.send(Command::SendMessage {
                 peer: libp2p_peer_id,
@@ -797,6 +875,7 @@ pub mod libp2p_service {
             log::debug!("[libp2p_service][mesh-job] broadcast_message called with: {:?}", message);
             let data = bincode::serialize(&message)
                 .map_err(|e| CommonError::SerializationError(e.to_string()))?;
+            self.stats.lock().unwrap().bytes_sent += data.len() as u64;
             self.cmd_tx
                 .send(Command::Broadcast { data }).await
                 .map_err(|e| CommonError::MessageSendError(format!("broadcast_message cmd send error: {}", e)))
