@@ -22,6 +22,8 @@ use std::str::FromStr;
 
 #[cfg(feature = "enable-libp2p")]
 use libp2p::{Multiaddr, PeerId as Libp2pPeerId};
+#[cfg(feature = "enable-libp2p")]
+use icn_network::libp2p_service::NetworkConfig;
 
 use icn_identity::{generate_ed25519_keypair, did_key_from_verifying_key, SigningKey, VerifyingKey, sign_message, verify_signature as identity_verify_signature, EdSignature, SIGNATURE_LENGTH};
 
@@ -387,8 +389,13 @@ impl RuntimeContext {
         let current_identity = Did::from_str(current_identity_str)
             .map_err(|e| CommonError::IdentityError(format!("Invalid DID string for new_with_libp2p_network: {}: {}", current_identity_str, e)))?;
         
+        let mut config = NetworkConfig::default();
+        if let Some(peers) = bootstrap_peers {
+            config.bootstrap_peers = peers;
+        }
+        
         let libp2p_service_concrete = Arc::new(
-            ActualLibp2pNetworkService::new(bootstrap_peers).await
+            ActualLibp2pNetworkService::new(config).await
                 .map_err(|e| CommonError::NetworkSetupError(format!("Failed to create Libp2pNetworkService: {}", e)))?
         );
         let libp2p_service_dyn: Arc<dyn ActualNetworkService> = libp2p_service_concrete;
@@ -729,6 +736,70 @@ impl RuntimeContext {
 
     pub async fn execute_governance_proposal(&mut self, _proposal_id_str: &str) -> Result<(), HostAbiError> {
         todo!("Implement full governance proposal execution logic");
+    }
+
+    /// Create a new RuntimeContext with real libp2p networking
+    #[cfg(feature = "enable-libp2p")]
+    pub async fn new_with_real_libp2p(
+        identity_str: &str,
+        bootstrap_peers: Option<Vec<(Libp2pPeerId, Multiaddr)>>
+    ) -> Result<Arc<Self>, CommonError> {
+        info!("Initializing RuntimeContext with real libp2p networking");
+        
+        // Parse the identity
+        let identity = Did::from_str(identity_str)
+            .map_err(|e| CommonError::InvalidInputError(format!("Invalid DID: {}", e)))?;
+        
+        // Generate keys for this node
+        let (sk, pk) = generate_ed25519_keypair();
+        let signer = Arc::new(StubSigner::new_with_keys(sk, pk));
+        
+        // Create real libp2p network service with proper config
+        let mut config = NetworkConfig::default();
+        if let Some(peers) = bootstrap_peers {
+            info!("Bootstrap peers provided: {} peers", peers.len());
+            config.bootstrap_peers = peers;
+        }
+        
+        let libp2p_service = Arc::new(
+            ActualLibp2pNetworkService::new(config).await
+                .map_err(|e| CommonError::NetworkError(format!("Failed to create libp2p service: {}", e)))?
+        );
+        
+        info!("Libp2p service created with PeerID: {}", libp2p_service.local_peer_id());
+        
+        // Wrap in DefaultMeshNetworkService 
+        let mesh_service = Arc::new(DefaultMeshNetworkService::new(
+            libp2p_service.clone() as Arc<dyn ActualNetworkService>
+        ));
+        
+        // Create stub DAG store for now (can be enhanced later)
+        let dag_store = Arc::new(StubDagStore::new());
+        
+        // Create RuntimeContext with real networking - this returns Arc<Self>
+        let ctx = Self::new(
+            identity,
+            mesh_service,
+            signer,
+            dag_store
+        );
+        
+        info!("RuntimeContext with real libp2p networking created successfully");
+        Ok(ctx)
+    }
+
+    /// Get the underlying libp2p service for peer info access
+    #[cfg(feature = "enable-libp2p")]
+    pub fn get_libp2p_service(&self) -> Result<Arc<ActualLibp2pNetworkService>, CommonError> {
+        if let Some(default_mesh) = MeshNetworkService::as_any(self.mesh_network_service.as_ref())
+            .downcast_ref::<DefaultMeshNetworkService>() 
+        {
+            default_mesh.get_underlying_broadcast_service()
+        } else {
+            Err(CommonError::NetworkError(
+                "RuntimeContext is not using DefaultMeshNetworkService with libp2p".to_string()
+            ))
+        }
     }
 }
 

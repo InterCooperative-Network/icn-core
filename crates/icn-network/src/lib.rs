@@ -18,6 +18,10 @@ use downcast_rs::{impl_downcast, DowncastSync};
 use std::any::Any;
 use std::time::{Duration, Instant};
 use std::collections::HashMap;
+use bincode;
+use log::{info, warn, error, debug};
+use std::str::FromStr;
+use std::num::NonZero;
 
 // --- Core Types ---
 
@@ -184,14 +188,12 @@ pub mod libp2p_service {
               Event as KademliaEvent, QueryResult as KademliaQueryResult, Quorum, QueryId},
         request_response::{Behaviour as RequestResponseBehaviour, Codec as RequestResponseCodec, 
                           Event as RequestResponseEvent, ProtocolSupport},
+        Multiaddr,
     };
     use tokio::{sync::{mpsc, oneshot}, task};
     use std::sync::{Arc, Mutex};
-    use std::collections::HashMap;
     use std::str::FromStr;
     use std::num::NonZero;
-    use bincode;
-    use log;
 
     // --- Enhanced Statistics and Configuration ---
     
@@ -205,6 +207,7 @@ pub mod libp2p_service {
         pub bootstrap_interval: Duration,
         pub enable_mdns: bool,
         pub kademlia_replication_factor: usize,
+        pub bootstrap_peers: Vec<(Libp2pPeerId, Multiaddr)>,
     }
 
     impl Default for NetworkConfig {
@@ -218,6 +221,7 @@ pub mod libp2p_service {
                 bootstrap_interval: Duration::from_secs(300),
                 enable_mdns: false,
                 kademlia_replication_factor: 20,
+                bootstrap_peers: Vec::new(),
             }
         }
     }
@@ -424,9 +428,23 @@ pub mod libp2p_service {
             swarm.listen_on("/ip4/0.0.0.0/tcp/0".parse().unwrap())
                 .map_err(|e| CommonError::NetworkSetupError(format!("Listen error: {}", e)))?;
 
+            // Connect to bootstrap peers
+            for (peer_id, addr) in &config.bootstrap_peers {
+                info!("Attempting to dial bootstrap peer: {} at {}", peer_id, addr);
+                if let Err(e) = swarm.dial(addr.clone()) {
+                    warn!("Failed to dial bootstrap peer {}: {}", peer_id, e);
+                } else {
+                    // Add to Kademlia bootstrap list
+                    swarm.behaviour_mut().kademlia.add_address(peer_id, addr.clone());
+                }
+            }
+
             let (cmd_tx, mut cmd_rx) = mpsc::channel(256);
             let stats = Arc::new(Mutex::new(EnhancedNetworkStats::new()));
             let stats_clone = stats.clone();
+            
+            // Clone bootstrap_peers for use in the async task
+            let has_bootstrap_peers = !config.bootstrap_peers.is_empty();
 
             // Spawn the network event loop
             task::spawn(async move {
@@ -435,6 +453,12 @@ pub mod libp2p_service {
                     log::error!("Failed to subscribe to global topic: {:?}", e);
                 } else {
                     log::info!("Subscribed to global topic: {}", topic.hash());
+                }
+
+                // Trigger Kademlia bootstrap if we have bootstrap peers
+                if has_bootstrap_peers {
+                    let _query_id = swarm.behaviour_mut().kademlia.bootstrap();
+                    log::info!("Triggered Kademlia bootstrap");
                 }
 
                 let mut subscribers: Vec<mpsc::Sender<super::NetworkMessage>> = Vec::new();
