@@ -1,5 +1,6 @@
-#![doc = "Defines a simple job executor for the ICN runtime."]
+//! This module provides executor-side functionality for running mesh jobs.
 
+use std::collections::HashMap;
 use icn_common::{Did, Cid, CommonError};
 use icn_identity::{ExecutionReceipt as IdentityExecutionReceipt, SigningKey, SignatureBytes /* Removed , generate_ed25519_keypair */};
 use icn_mesh::{JobId, ActualMeshJob, JobSpec, /* ... other mesh types ... */};

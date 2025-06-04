@@ -2,7 +2,6 @@
 
 use icn_common::{Did, Cid, CommonError};
 use icn_identity::{ExecutionReceipt as IdentityExecutionReceipt}; 
-use icn_economics::{EconError};
 use icn_mesh::{JobId, ActualMeshJob, MeshJobBid, JobState};
 
 use icn_network::{NetworkService as ActualNetworkService, NetworkMessage};
@@ -473,14 +472,14 @@ impl RuntimeContext {
                 match self.anchor_receipt(&receipt).await {
                     Ok(receipt_cid) => {
                         info!("[JobManagerDetail] Receipt for job {:?} anchored successfully: {:?}", job.id, receipt_cid);
-                        let job_states_guard = self.job_states.lock().await;
+                        let mut job_states_guard = self.job_states.lock().await;
                         job_states_guard.insert(job.id.clone(), JobState::Completed { receipt: receipt.clone() });
                         // TODO: Credit mana to executor, update reputation, etc.
                         Ok(())
                     }
                     Err(e) => {
                         error!("[JobManagerDetail] Failed to anchor receipt for job {:?}: {}. Marking as Failed (AnchorFailed).", job.id, e);
-                        let job_states_guard = self.job_states.lock().await;
+                        let mut job_states_guard = self.job_states.lock().await;
                         job_states_guard.insert(job.id.clone(), JobState::Failed { reason: format!("Failed to anchor receipt: {}", e) });
                         Err(HostAbiError::DagOperationFailed(format!("Failed to anchor receipt: {}",e)))
                     }
@@ -488,13 +487,13 @@ impl RuntimeContext {
             }
             Ok(None) => {
                 warn!("[JobManagerDetail] No receipt received for job {:?} within timeout. Marking as Failed (NoReceipt).", job.id);
-                let job_states_guard = self.job_states.lock().await;
+                let mut job_states_guard = self.job_states.lock().await;
                 job_states_guard.insert(job.id.clone(), JobState::Failed { reason: "No receipt received within timeout".to_string() });
                 Err(HostAbiError::NetworkError("No receipt received within timeout".to_string()))
             }
             Err(e) => {
                 error!("[JobManagerDetail] Error while trying to receive receipt for job {:?}: {}. Marking as Failed (ReceiptError).", job.id, e);
-                let job_states_guard = self.job_states.lock().await;
+                let mut job_states_guard = self.job_states.lock().await;
                 job_states_guard.insert(job.id.clone(), JobState::Failed { reason: format!("Error receiving receipt: {}", e) });
                 Err(e)
             }
@@ -557,7 +556,7 @@ impl RuntimeContext {
 
                             if bids.is_empty() {
                                 warn!("[JobManagerLoop] No bids received for job {:?}. Marking as Failed (NoBids).", current_job_id);
-                                let job_states_guard = self_clone.job_states.lock().await;
+                                let mut job_states_guard = self_clone.job_states.lock().await;
                                 job_states_guard.insert(current_job_id.clone(), JobState::Failed { reason: "No bids received".to_string() });
                                 drop(job_states_guard);
                                 // TODO: Refund mana to submitter if applicable
@@ -569,7 +568,7 @@ impl RuntimeContext {
                                 let new_state = JobState::Assigned { executor: selected_bid.executor_did.clone() };
                                 info!("[JobManagerLoop] Job {:?} assigned to executor {:?}. Notifying...", current_job_id, selected_bid.executor_did);
                                 
-                                let job_states_guard = self_clone.job_states.lock().await;
+                                let mut job_states_guard = self_clone.job_states.lock().await;
                                 job_states_guard.insert(current_job_id.clone(), new_state);
                                 drop(job_states_guard);
         
@@ -580,7 +579,7 @@ impl RuntimeContext {
 
                                 if let Err(e) = self_clone.mesh_network_service.notify_executor_of_assignment(&notice).await {
                                     error!("[JobManagerLoop] Failed to notify executor for job {:?}: {}. Reverting to Pending.", current_job_id, e);
-                                    let job_states_guard = self_clone.job_states.lock().await;
+                                    let mut job_states_guard = self_clone.job_states.lock().await;
                                     job_states_guard.insert(current_job_id.clone(), JobState::Pending); // Revert state in map
                                     drop(job_states_guard);
                                     jobs_to_requeue.push_back(job); // Re-queue the ActualMeshJob
@@ -665,9 +664,8 @@ impl RuntimeContext {
         self.mana_ledger.credit(account, amount).await
     }
 
-    // anchor_receipt should ideally be async if its operations (signer.verify, dag_store.put) are async.
-    // The current implementation uses futures::executor::block_on, which is not good practice in async contexts.
-    // For now, I will make it async and remove block_on.
+    /// Anchors an execution receipt to the DAG store and returns the content identifier (CID).
+    /// This method is called by the Host ABI function `host_anchor_receipt`.
     pub async fn anchor_receipt(&self, receipt: &IdentityExecutionReceipt) -> Result<Cid, HostAbiError> { 
         info!("[CONTEXT] Attempting to anchor receipt for job {:?} from executor {:?}", receipt.job_id, receipt.executor_did);
 
@@ -709,7 +707,7 @@ impl RuntimeContext {
                  receipt.job_id, cid, receipt.executor_did, receipt.cpu_ms);
         
         { 
-            let job_states_guard = self.job_states.lock().await;
+            let mut job_states_guard = self.job_states.lock().await;
             job_states_guard.insert(receipt.job_id.clone(), JobState::Completed { receipt: receipt.clone() });
             println!("[CONTEXT] Job {:?} state updated to Completed.", receipt.job_id);
         }

@@ -16,6 +16,8 @@ use std::fmt::Debug;
 use async_trait::async_trait;
 use downcast_rs::{impl_downcast, DowncastSync};
 use std::any::Any;
+use std::time::{Duration, Instant};
+use std::collections::HashMap;
 
 // --- Core Types ---
 
@@ -183,7 +185,6 @@ pub mod libp2p_service {
         request_response::{Behaviour as RequestResponseBehaviour, Codec as RequestResponseCodec, 
                           Event as RequestResponseEvent, ProtocolSupport},
     };
-    use std::time::{Duration, Instant};
     use tokio::{sync::{mpsc, oneshot}, task};
     use std::sync::{Arc, Mutex};
     use std::collections::HashMap;
@@ -232,6 +233,19 @@ pub mod libp2p_service {
         message_counts: HashMap<String, MessageTypeStats>,
         last_bootstrap: Option<Instant>,
         kademlia_peers: usize,
+    }
+
+    impl EnhancedNetworkStats {
+        fn new() -> Self {
+            Self {
+                last_bootstrap: Some(Instant::now()),
+                ..Default::default()
+            }
+        }
+        
+        fn update_kademlia_peers(&mut self, count: usize) {
+            self.kademlia_peers = count;
+        }
     }
 
     #[derive(Debug, Default, Clone)]
@@ -411,7 +425,7 @@ pub mod libp2p_service {
                 .map_err(|e| CommonError::NetworkSetupError(format!("Listen error: {}", e)))?;
 
             let (cmd_tx, mut cmd_rx) = mpsc::channel(256);
-            let stats = Arc::new(Mutex::new(EnhancedNetworkStats::default()));
+            let stats = Arc::new(Mutex::new(EnhancedNetworkStats::new()));
             let stats_clone = stats.clone();
 
             // Spawn the network event loop
@@ -457,6 +471,14 @@ pub mod libp2p_service {
                                         let mut stats_guard = stats_clone.lock().unwrap();
                                         stats_guard.bytes_sent += data.len() as u64;
                                         stats_guard.messages_sent += 1;
+                                        
+                                        // Update message type statistics for broadcasts
+                                        if let Ok(network_msg) = bincode::deserialize::<super::NetworkMessage>(&data) {
+                                            let msg_type = network_msg.message_type().to_string();
+                                            let type_stats = stats_guard.message_counts.entry(msg_type).or_default();
+                                            type_stats.sent += 1;
+                                            type_stats.bytes_sent += data.len() as u64;
+                                        }
                                     }
                                 }
                                 Command::Subscribe { rsp } => {
@@ -466,10 +488,20 @@ pub mod libp2p_service {
                                 }
                                 Command::GetStats { rsp } => {
                                     let network_info = swarm.network_info();
-                                    let stats_guard = stats_clone.lock().unwrap();
+                                    let mut stats_guard = stats_clone.lock().unwrap();
                                     
-                                    // Count Kademlia peers - simplified for now
-                                    let kademlia_peer_count = 0;
+                                    // Count Kademlia peers by inspecting the routing table
+                                    // Use the actual method available on Kademlia behaviour
+                                    let kademlia_peer_count = {
+                                        let mut count = 0;
+                                        for bucket in swarm.behaviour_mut().kademlia.kbuckets() {
+                                            count += bucket.num_entries();
+                                        }
+                                        count
+                                    };
+                                    
+                                    // Update the kademlia peers count in our enhanced stats
+                                    stats_guard.update_kademlia_peers(kademlia_peer_count);
                                     
                                     let network_stats = super::NetworkStats {
                                         peer_count: network_info.num_peers(),
@@ -478,8 +510,8 @@ pub mod libp2p_service {
                                         messages_sent: stats_guard.messages_sent,
                                         messages_received: stats_guard.messages_received,
                                         failed_connections: stats_guard.failed_connections,
-                                        avg_latency_ms: None,
-                                        kademlia_peers: kademlia_peer_count,
+                                        avg_latency_ms: None, // TODO: Implement latency tracking
+                                        kademlia_peers: stats_guard.kademlia_peers,
                                     };
                                     let _ = rsp.send(network_stats);
                                 }
