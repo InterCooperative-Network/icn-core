@@ -58,6 +58,11 @@ pub enum NetworkMessage {
     SubmitReceipt(ExecutionReceipt),
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct NetworkStats {
+    pub peer_count: usize,
+}
+
 /// Network service trait definition.
 #[async_trait]
 pub trait NetworkService: Send + Sync + Debug + DowncastSync + 'static {
@@ -65,6 +70,7 @@ pub trait NetworkService: Send + Sync + Debug + DowncastSync + 'static {
     async fn send_message(&self, peer: &PeerId, message: NetworkMessage) -> Result<(), CommonError>;
     async fn broadcast_message(&self, message: NetworkMessage) -> Result<(), CommonError>;
     fn subscribe(&self) -> Result<Receiver<NetworkMessage>, CommonError>;
+    fn get_network_stats(&self) -> Result<NetworkStats, CommonError>;
     fn as_any(&self) -> &dyn Any;
 }
 impl_downcast!(sync NetworkService);
@@ -111,6 +117,10 @@ impl NetworkService for StubNetworkService {
         println!("[StubNetworkService] Subscribing to messages... returning an empty channel.");
         let (_tx, rx) = tokio::sync::mpsc::channel(1); // Create a dummy channel
         Ok(rx)
+    }
+
+    fn get_network_stats(&self) -> Result<NetworkStats, CommonError> {
+        Ok(NetworkStats { peer_count: 0 })
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -825,12 +835,17 @@ pub mod libp2p_service {
         }
 
         fn subscribe(&self) -> Result<mpsc::Receiver<super::NetworkMessage>, CommonError> {
-            let (msg_tx, msg_rx) = mpsc::channel(128); 
-            
+            let (msg_tx, msg_rx) = mpsc::channel(128);
+
             self.cmd_tx.try_send(Command::AddSubscriber { rsp_tx: msg_tx })
                 .map_err(|e| CommonError::NetworkSetupError(format!("Failed to send AddSubscriber command: {e}")))?;
-            
+
             Ok(msg_rx)
+        }
+
+        fn get_network_stats(&self) -> Result<super::NetworkStats, CommonError> {
+            let guard = self.peer_manager.connected_peers.read().map_err(|_| CommonError::NetworkError("Peer manager lock poisoned".to_string()))?;
+            Ok(super::NetworkStats { peer_count: guard.len() })
         }
 
         fn as_any(&self) -> &dyn Any {
