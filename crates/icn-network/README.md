@@ -30,9 +30,9 @@ Functions and methods within this crate return `Result<T, CommonError>`, utilizi
 
 The `StubNetworkService` also simulates these errors to help test error handling in dependent crates.
 
-## `with-libp2p` Feature
+## `experimental-libp2p` Feature
 
-This crate includes an optional `with-libp2p` feature. When enabled, it will pull in `libp2p` as a dependency, allowing for the implementation of a `NetworkService` backed by a real libp2p stack.
+This crate includes an optional `experimental-libp2p` feature. Enabling it pulls in the optional `libp2p` and `libp2p-request-response` dependencies, allowing for the implementation of a `NetworkService` backed by a real libp2p stack.
 
 ## Public API Style
 
@@ -48,7 +48,7 @@ The API aims for modularity, allowing different P2P backends to be integrated by
 Please refer to the main `CONTRIBUTING.md` in the root of the `icn-core` repository.
 
 Key areas for future contributions:
-*   Implementing a `Libp2pNetworkService` that utilizes the `libp2p` stack (under the `with-libp2p` feature).
+*   Implementing a `Libp2pNetworkService` that utilizes the `libp2p` stack (under the `experimental-libp2p` feature).
 *   Defining and implementing robust peer discovery mechanisms.
 *   Implementing secure and efficient message serialization and transport.
 *   Adding support for various transport protocols.
