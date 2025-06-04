@@ -429,7 +429,7 @@ pub mod libp2p_service {
                 loop {
                     tokio::select! {
                         event = swarm.select_next_some() => {
-                            Self::handle_swarm_event(event, &mut stats_clone.lock().unwrap(), &mut subscribers, &mut pending_kad_queries).await;
+                            Self::handle_swarm_event(event, &stats_clone, &mut subscribers, &mut pending_kad_queries).await;
                         }
                         Some(command) = cmd_rx.recv() => {
                             match command {
