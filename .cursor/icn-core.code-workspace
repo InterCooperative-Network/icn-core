@@ -1,0 +1,14 @@
+{
+	"folders": [
+		{
+			"path": ".."
+		},
+		{
+			"path": "../../icn-docs"
+		},
+		{
+			"path": "../../icn-devnet"
+		}
+	],
+	"settings": {}
+}

@@ -177,27 +177,34 @@ impl ReputationExecutorSelector {
 /// # Returns
 /// * `Some(Did)` of the selected executor if a suitable one is found.
 /// * `None` if no suitable executor could be selected based on the bids and policy.
-pub fn select_executor(job_id: &JobId, bids: Vec<MeshJobBid>, _policy: &SelectionPolicy) -> Option<Did> {
-    // TODO: Implement actual selection logic based on policy (reputation, price, resources, etc.)
-    // For now, simplistic: return the DID of the first valid bidder if any.
+pub fn select_executor(job_id: &JobId, bids: Vec<MeshJobBid>, policy: &SelectionPolicy) -> Option<Did> {
     println!("[Mesh] Selecting executor for job {:?}. Received {} bids.", job_id, bids.len());
 
     if bids.is_empty() {
+        println!("[Mesh] No bids available for job {:?}", job_id);
         return None;
     }
 
-    let mut best_bid: Option<&MeshJobBid> = None;
-    let mut highest_score = 0u64;
+    // Find the bid with the highest score
+    let best_bid = bids.iter()
+        .max_by_key(|bid| {
+            let score = score_bid(bid, policy);
+            println!("[Mesh] Bid from {:?} scored {} (price: {} mana)", 
+                     bid.executor_did, score, bid.price_mana);
+            score
+        });
 
-    for bid in &bids {
-        let current_score = score_bid(bid, _policy);
-        if best_bid.is_none() || current_score > highest_score {
-            highest_score = current_score;
-            best_bid = Some(bid);
+    match best_bid {
+        Some(bid) => {
+            println!("[Mesh] Selected executor {:?} for job {:?} (price: {} mana)", 
+                     bid.executor_did, job_id, bid.price_mana);
+            Some(bid.executor_did.clone())
+        }
+        None => {
+            println!("[Mesh] No suitable executor found for job {:?}", job_id);
+            None
         }
     }
-
-    best_bid.map(|b| b.executor_did.clone())
 }
 
 /// Scores a single bid based on a selection policy.
@@ -213,32 +220,23 @@ pub fn select_executor(job_id: &JobId, bids: Vec<MeshJobBid>, _policy: &Selectio
 /// # Returns
 /// * A `u64` representing the calculated score for the bid. Higher is generally better.
 pub fn score_bid(bid: &MeshJobBid, _policy: &SelectionPolicy) -> u64 {
-    // TODO: Implement actual scoring logic based on price, mana, reputation, advertised_perf
-    // TODO: Weights (w_price, w_rep, w_perf) should come from policy or config.
-    // TODO: Reputation needs to be fetched for bid.executor_did.
-    // TODO: Advertised performance should be part of the bid (e.g., in bid.resources).
-
-    let w_price = 1.0; // Placeholder weight
-    let w_rep = 0.0;   // Placeholder weight, disabling reputation for now
-    let w_perf = 0.0;  // Placeholder weight, disabling performance for now
-
-    // Price score: higher for lower price. Avoid division by zero.
+    // Improved scoring logic that prioritizes lower prices with reasonable bounds
+    
+    // Price score: Lower prices get higher scores
+    // Use 1000 / price to give good scores for reasonable prices (10-100 mana)
     let price_score = if bid.price_mana > 0 {
-        (1.0 / bid.price_mana as f64) * 1000.0 // Scale factor to make it a reasonable integer part
+        1000 / bid.price_mana
     } else {
-        0.0 // Or a very low score if 0 price is disallowed/undesirable
+        0 // Zero price bids get zero score (suspicious)
     };
 
-    let reputation_score = 0.0; // Placeholder
-    let performance_score = 0.0; // Placeholder
-
-    let total_score = w_price * price_score 
-                    + w_rep * reputation_score 
-                    + w_perf * performance_score;
-
-    // Return as u64. Ensure it doesn't overflow or underflow if scores can be negative.
-    // For now, assuming positive scores and simple truncation.
-    total_score.max(0.0) as u64
+    // Add a small deterministic factor based on executor DID to break ties consistently
+    // This ensures deterministic selection in test scenarios
+    let tie_breaker = bid.executor_did.to_string().len() as u64;
+    
+    // For now, just use price score + tie breaker
+    // TODO: Add reputation and resource scoring when those systems are implemented
+    price_score * 100 + tie_breaker
 }
 
 /// Placeholder function demonstrating use of common types for mesh operations.

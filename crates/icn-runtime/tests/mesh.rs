@@ -2,9 +2,10 @@
 
 use icn_common::{Did, Cid};
 use icn_identity::{ExecutionReceipt as IdentityExecutionReceipt, SignatureBytes};
-use icn_runtime::context::{RuntimeContext, StubMeshNetworkService, StubDagStore, JobAssignmentNotice, LocalMeshSubmitReceiptMessage, HostAbiError, MeshNetworkService, StorageService};
+use icn_runtime::context::{RuntimeContext, StubMeshNetworkService, StubDagStore, JobAssignmentNotice, LocalMeshSubmitReceiptMessage, HostAbiError, MeshNetworkService, StorageService, DefaultMeshNetworkService, StubSigner};
 use icn_runtime::host_submit_mesh_job;
 use icn_mesh::{JobId, ActualMeshJob, MeshJobBid, JobState, JobSpec, Resources};
+use anyhow;
 use serde_json::json;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -554,5 +555,245 @@ async fn test_full_mesh_job_cycle_libp2p() -> Result<(), anyhow::Error> {
     }).await;
     println!("[test-mesh-runtime] Job {} successfully marked as Completed on Node A. Test finished.", submitted_job_id);
 
+    Ok(())
+}
+
+#[tokio::test]
+#[ignore = "Requires libp2p networking, run explicitly"]
+async fn test_multi_node_mesh_job_bidding_and_execution() -> Result<(), anyhow::Error> {
+    use icn_network::{NetworkService, NetworkMessage};
+    use std::time::Duration;
+    use tokio::time::{sleep, timeout};
+    
+    println!("🚀 [test-mesh-runtime] Starting multi-node mesh job bidding and execution test");
+    
+    // 1. Create Node A (job submitter/manager) with libp2p
+    #[cfg(feature = "enable-libp2p")]
+    {
+        let node_a_ctx = RuntimeContext::new_with_real_libp2p("did:key:z6MkNodeA123", None).await?;
+        
+        // Give Node A some mana to submit jobs
+        node_a_ctx.credit_mana(&node_a_ctx.current_identity, 1000).await?;
+        
+        // Start Node A's services
+        node_a_ctx.clone().spawn_mesh_job_manager().await;
+        node_a_ctx.clone().spawn_executor_bidder().await;
+        node_a_ctx.clone().spawn_job_assignment_listener().await;
+        
+        // Get Node A's network info for bootstrap
+        let node_a_libp2p = node_a_ctx.get_libp2p_service()?;
+        let node_a_peer_id = node_a_libp2p.local_peer_id().clone();
+        let node_a_addrs = node_a_libp2p.listening_addresses();
+        assert!(!node_a_addrs.is_empty(), "Node A should have listening addresses");
+        
+        println!("✅ Node A created - Peer ID: {}, Addr: {}", node_a_peer_id, node_a_addrs[0]);
+        
+        // 2. Create Node B (executor) with bootstrap to Node A
+        sleep(Duration::from_secs(2)).await; // Let Node A establish listeners
+        
+        let bootstrap_peers = vec![(node_a_peer_id, node_a_addrs[0].clone())];
+        let node_b_ctx = RuntimeContext::new_with_real_libp2p("did:key:z6MkNodeB456", Some(bootstrap_peers)).await?;
+        
+        // Give Node B some mana for bidding
+        node_b_ctx.credit_mana(&node_b_ctx.current_identity, 500).await?;
+        
+        // Start Node B's services (executor-focused)
+        node_b_ctx.clone().spawn_executor_bidder().await;
+        node_b_ctx.clone().spawn_job_assignment_listener().await;
+        
+        let node_b_libp2p = node_b_ctx.get_libp2p_service()?;
+        println!("✅ Node B created - Peer ID: {}", node_b_libp2p.local_peer_id());
+        
+        // 3. Wait for network convergence
+        println!("⏳ Waiting for P2P network convergence...");
+        sleep(Duration::from_secs(8)).await;
+        
+        // 4. Submit a job on Node A
+        let test_job = ActualMeshJob {
+            id: Cid::new_v1_dummy(0x55, 0x13, b"multi_node_test_job"),
+            manifest_cid: Cid::new_v1_dummy(0x55, 0x14, b"test_manifest"),
+            spec: JobSpec::Echo { payload: "Multi-node test".to_string() },
+            creator_did: node_a_ctx.current_identity.clone(),
+            cost_mana: 100,
+            signature: SignatureBytes(vec![]),
+        };
+        
+        let job_json = serde_json::to_string(&test_job)?;
+        let submitted_job_id = host_submit_mesh_job(&node_a_ctx, &job_json).await?;
+        
+        println!("📝 Job submitted on Node A: {}", submitted_job_id);
+        
+        // 5. Wait for the full job lifecycle
+        println!("⏳ Waiting for job announcement, bidding, assignment, and execution...");
+        
+        let mut attempts = 0;
+        let max_attempts = 30; // 30 seconds total
+        
+        loop {
+            sleep(Duration::from_secs(1)).await;
+            attempts += 1;
+            
+            // Check job state on Node A
+            let job_states = node_a_ctx.job_states.lock().await;
+            if let Some(job_state) = job_states.get(&submitted_job_id) {
+                match job_state {
+                    JobState::Completed { receipt } => {
+                        println!("✅ Job completed! Receipt from: {}", receipt.executor_did);
+                        println!("   Result CID: {}", receipt.result_cid);
+                        println!("   CPU time: {} ms", receipt.cpu_ms);
+                        
+                        // Verify the receipt is from Node B
+                        assert_eq!(receipt.executor_did, node_b_ctx.current_identity);
+                        drop(job_states);
+                        break;
+                    }
+                    JobState::Assigned { executor } => {
+                        println!("🔄 Job assigned to: {}", executor);
+                        drop(job_states);
+                    }
+                    JobState::Pending => {
+                        println!("⏳ Job still pending...");
+                        drop(job_states);
+                    }
+                    JobState::Failed { reason } => {
+                        drop(job_states);
+                        return Err(anyhow::anyhow!("Job failed: {}", reason));
+                    }
+                }
+            } else {
+                println!("⚠️  Job not found in states map");
+            }
+            
+            if attempts >= max_attempts {
+                return Err(anyhow::anyhow!("Job lifecycle did not complete within {} seconds", max_attempts));
+            }
+        }
+        
+        println!("🎉 Multi-node mesh job bidding and execution test completed successfully!");
+        Ok(())
+    }
+    
+    #[cfg(not(feature = "enable-libp2p"))]
+    {
+        println!("⚠️  Test skipped - libp2p feature not enabled");
+        Ok(())
+    }
+}
+
+#[tokio::test]
+#[cfg(feature = "enable-libp2p")]
+async fn test_live_multi_node_mesh_job_pipeline() -> Result<(), anyhow::Error> {
+    use icn_network::libp2p_service::{Libp2pNetworkService, NetworkConfig};
+    use icn_network::NetworkService;
+    use std::time::Duration;
+    use libp2p::{PeerId as Libp2pPeerId, Multiaddr};
+    use std::str::FromStr;
+    
+    println!("🔧 [TEST] Starting live multi-node mesh job pipeline test");
+    
+    // Node A: Job submitter (bootstrap node)
+    let config_a = NetworkConfig::default();
+    let network_service_a = Arc::new(Libp2pNetworkService::new(config_a).await?);
+    let mesh_service_a = Arc::new(DefaultMeshNetworkService::new(network_service_a.clone()));
+    
+    let submitter_did = Did::from_str("did:key:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuias7ux1jEZ6KATp8")?;
+    let signer_a = Arc::new(StubSigner::new());
+    let dag_store_a = Arc::new(StubDagStore::new());
+    
+    let ctx_a = RuntimeContext::new(
+        submitter_did.clone(),
+        mesh_service_a,
+        signer_a,
+        dag_store_a,
+    );
+    ctx_a.credit_mana(&submitter_did, 200).await?;
+    
+    // Get Node A's listening address
+    tokio::time::sleep(Duration::from_secs(2)).await;
+    let node_a_addrs = network_service_a.listening_addresses();
+    assert!(!node_a_addrs.is_empty(), "Node A should have listening addresses");
+    
+    // Node B: Executor node
+    let mut config_b = NetworkConfig::default();
+    config_b.bootstrap_peers = vec![(
+        network_service_a.local_peer_id().clone(),
+        node_a_addrs[0].clone()
+    )];
+    
+    let network_service_b = Arc::new(Libp2pNetworkService::new(config_b).await?);
+    let mesh_service_b = Arc::new(DefaultMeshNetworkService::new(network_service_b.clone()));
+    
+    let executor_did = Did::from_str("did:key:z6MkrJVnaZjsXaHdNBKAZBmMfhVKYY6BQp3RfAuRgBCVq1234")?;
+    let signer_b = Arc::new(StubSigner::new());
+    let dag_store_b = Arc::new(StubDagStore::new());
+    
+    let ctx_b = RuntimeContext::new(
+        executor_did.clone(),
+        mesh_service_b,
+        signer_b,
+        dag_store_b,
+    );
+    ctx_b.credit_mana(&executor_did, 100).await?;
+    
+    // Start background services
+    println!("🔧 [TEST] Starting background services");
+    ctx_a.clone().spawn_mesh_job_manager().await;
+    ctx_b.clone().spawn_executor_bidder().await;
+    ctx_b.clone().spawn_job_assignment_listener().await;
+    
+    // Allow time for peer discovery and service startup
+    tokio::time::sleep(Duration::from_secs(5)).await;
+    
+    // Create and submit a test job
+    println!("🔧 [TEST] Creating test job");
+    let manifest_cid = Cid::new_v1_dummy(0x55, 0x13, b"test_job_manifest");
+    let job_cost = 50u64;
+    let test_job = create_test_mesh_job(manifest_cid.clone(), job_cost, submitter_did.clone());
+    
+    // Submit the job via the runtime context
+    println!("🔧 [TEST] Submitting job to mesh network");
+    ctx_a.internal_queue_mesh_job(test_job.clone()).await?;
+    
+    // Wait for the complete lifecycle to execute
+    println!("🔧 [TEST] Waiting for job lifecycle completion (30 seconds max)");
+    let mut completed = false;
+    let start_time = tokio::time::Instant::now();
+    let timeout = Duration::from_secs(30);
+    
+    while start_time.elapsed() < timeout {
+        let job_states = ctx_a.job_states.lock().await;
+        if let Some(job_state) = job_states.get(&test_job.id) {
+            match job_state {
+                JobState::Completed { receipt } => {
+                    println!("✅ [TEST] Job completed! Receipt: executor={:?}, result_cid={:?}", 
+                            receipt.executor_did, receipt.result_cid);
+                    assert_eq!(receipt.executor_did, executor_did);
+                    completed = true;
+                    break;
+                }
+                JobState::Failed { reason } => {
+                    drop(job_states);
+                    return Err(anyhow::anyhow!("Job failed: {}", reason));
+                }
+                other_state => {
+                    println!("🔧 [TEST] Job state: {:?}", other_state);
+                }
+            }
+        }
+        drop(job_states);
+        tokio::time::sleep(Duration::from_millis(500)).await;
+    }
+    
+    if !completed {
+        let job_states = ctx_a.job_states.lock().await;
+        let final_state = job_states.get(&test_job.id);
+        return Err(anyhow::anyhow!("Job did not complete within timeout. Final state: {:?}", final_state));
+    }
+    
+    // Verify mana was properly charged/refunded
+    let final_submitter_mana = ctx_a.get_mana(&submitter_did).await?;
+    assert_eq!(final_submitter_mana, 200 - job_cost, "Submitter mana should be reduced by job cost");
+    
+    println!("✅ [TEST] Live multi-node mesh job pipeline test completed successfully!");
     Ok(())
 }

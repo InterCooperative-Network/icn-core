@@ -125,6 +125,7 @@ pub async fn app_router() -> Router { // Renamed to app_router and made async fo
     info!("✅ Test node initialized with 1000 mana");
     
     rt_ctx.clone().spawn_mesh_job_manager().await; // Start the job manager
+    // Test nodes use stub networking, so no bidder/assignment listener needed
 
     let app_state = AppState {
         runtime_context: rt_ctx.clone(),
@@ -238,9 +239,22 @@ async fn main() {
         )
     };
 
-    // Start the job manager
+    // Initialize the node with some mana for operations
+    rt_ctx.credit_mana(&node_did, 1000).await.expect("Failed to initialize node with mana");
+    info!("✅ Node initialized with 1000 mana");
+    
+    // Start the job manager for handling job lifecycle
     rt_ctx.clone().spawn_mesh_job_manager().await;
-    info!("ICN RuntimeContext initialized and JobManager spawned.");
+    
+    // If P2P is enabled, also start executor components
+    if cli.enable_p2p {
+        info!("🚀 Starting executor components for P2P mesh job participation...");
+        rt_ctx.clone().spawn_executor_bidder().await;
+        rt_ctx.clone().spawn_job_assignment_listener().await;
+        info!("✅ Executor components started successfully");
+    } else {
+        info!("ℹ️  P2P disabled, node will not participate in mesh job bidding/execution");
+    }
 
     // --- Create AppState for Axum ---
     let app_state = AppState {
