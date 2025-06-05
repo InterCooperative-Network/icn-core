@@ -100,14 +100,26 @@ mod cross_node_tests {
         let node_a_libp2p = node_a.get_libp2p_service()?;
         let node_a_peer_id = node_a_libp2p.local_peer_id().clone();
         
-        // Give Node A time to start listening
-        sleep(Duration::from_millis(500)).await;
-        
         info!("Node A (Bootstrap) Peer ID: {}", node_a_peer_id);
         
-        // Create Node B (Worker) bootstrapped to Node A
-        let bootstrap_addr = "/ip4/127.0.0.1/tcp/0".parse::<Multiaddr>()?;
-        let bootstrap_peers = vec![(node_a_peer_id, bootstrap_addr)];
+        // Wait for Node A to start listening with retry logic
+        let mut node_a_addrs = Vec::new();
+        for attempt in 1..=10 {
+            sleep(Duration::from_millis(500)).await;
+            node_a_addrs = node_a_libp2p.listening_addresses();
+            if !node_a_addrs.is_empty() {
+                info!("Node A listening addresses found on attempt {}: {:?}", attempt, node_a_addrs);
+                break;
+            }
+            info!("Attempt {}: Node A not listening yet, retrying...", attempt);
+        }
+        
+        if node_a_addrs.is_empty() {
+            return Err(anyhow::anyhow!("Node A has no listening addresses after 5 seconds"));
+        }
+        
+        // Create Node B (Worker) bootstrapped to Node A using actual address
+        let bootstrap_peers = vec![(node_a_peer_id, node_a_addrs[0].clone())];
         let node_b = create_libp2p_runtime_context("NodeB456", Some(bootstrap_peers), 0).await?;
         let node_b_libp2p = node_b.get_libp2p_service()?;
         
@@ -172,8 +184,13 @@ mod cross_node_tests {
         
         sleep(Duration::from_millis(500)).await;
         
-        let bootstrap_addr = "/ip4/127.0.0.1/tcp/0".parse::<Multiaddr>()?;
-        let bootstrap_peers = vec![(node_a_peer_id, bootstrap_addr)];
+        // Get Node A's actual listening addresses
+        let node_a_addrs = node_a_libp2p.listening_addresses();
+        if node_a_addrs.is_empty() {
+            return Err(anyhow::anyhow!("Node A has no listening addresses"));
+        }
+        
+        let bootstrap_peers = vec![(node_a_peer_id, node_a_addrs[0].clone())];
         let node_b = create_libp2p_runtime_context("BidNodeB", Some(bootstrap_peers), 0).await?;
         let node_b_libp2p = node_b.get_libp2p_service()?;
         
@@ -245,8 +262,13 @@ mod cross_node_tests {
         
         sleep(Duration::from_millis(500)).await;
         
-        let bootstrap_addr = "/ip4/127.0.0.1/tcp/0".parse::<Multiaddr>()?;
-        let bootstrap_peers = vec![(node_a_peer_id, bootstrap_addr)];
+        // Get Node A's actual listening addresses
+        let node_a_addrs = node_a_libp2p.listening_addresses();
+        if node_a_addrs.is_empty() {
+            return Err(anyhow::anyhow!("Node A has no listening addresses"));
+        }
+        
+        let bootstrap_peers = vec![(node_a_peer_id, node_a_addrs[0].clone())];
         let node_b = create_libp2p_runtime_context("AssignNodeB", Some(bootstrap_peers), 0).await?;
         let node_b_libp2p = node_b.get_libp2p_service()?;
         
@@ -323,8 +345,13 @@ mod cross_node_tests {
         
         sleep(Duration::from_millis(500)).await;
         
-        let bootstrap_addr = "/ip4/127.0.0.1/tcp/0".parse::<Multiaddr>()?;
-        let bootstrap_peers = vec![(node_a_peer_id, bootstrap_addr)];
+        // Get Node A's actual listening addresses
+        let node_a_addrs = node_a_libp2p.listening_addresses();
+        if node_a_addrs.is_empty() {
+            return Err(anyhow::anyhow!("Node A has no listening addresses"));
+        }
+        
+        let bootstrap_peers = vec![(node_a_peer_id, node_a_addrs[0].clone())];
         let node_b = create_libp2p_runtime_context("ReceiptNodeB", Some(bootstrap_peers), 0).await?;
         let node_b_libp2p = node_b.get_libp2p_service()?;
         
@@ -396,8 +423,13 @@ mod cross_node_tests {
         
         sleep(Duration::from_millis(500)).await;
         
-        let bootstrap_addr = "/ip4/127.0.0.1/tcp/0".parse::<Multiaddr>()?;
-        let bootstrap_peers = vec![(node_a_peer_id, bootstrap_addr)];
+        // Get Node A's actual listening addresses
+        let node_a_addrs = node_a_libp2p.listening_addresses();
+        if node_a_addrs.is_empty() {
+            return Err(anyhow::anyhow!("Node A has no listening addresses"));
+        }
+        
+        let bootstrap_peers = vec![(node_a_peer_id, node_a_addrs[0].clone())];
         let node_b = create_libp2p_runtime_context("E2ENodeB", Some(bootstrap_peers), 100).await?;
         let node_b_libp2p = node_b.get_libp2p_service()?;
         
@@ -556,6 +588,107 @@ mod cross_node_tests {
         info!("   ✓ Job executed on Node B with signed receipt");
         info!("   ✓ Receipt transmitted back to Node A and verified");
         
+        Ok(())
+    }
+
+    /// Test 0.5: Debug libp2p service initialization
+    #[tokio::test]
+    async fn test_debug_libp2p_service() -> Result<(), anyhow::Error> {
+        info!("=== DEBUG: libp2p Service Initialization ===");
+
+        // Create libp2p service directly
+        use icn_network::libp2p_service::{Libp2pNetworkService, NetworkConfig};
+        
+        let config = NetworkConfig::default();
+        let service = Libp2pNetworkService::new(config).await?;
+        
+        info!("Service created with Peer ID: {}", service.local_peer_id());
+        
+        // Check listening addresses immediately
+        let addrs_immediate = service.listening_addresses();
+        info!("Immediate listening addresses: {:?}", addrs_immediate);
+        
+        // Wait and check again
+        for i in 1..=5 {
+            sleep(Duration::from_millis(1000)).await;
+            let addrs = service.listening_addresses();
+            info!("Attempt {}: Listening addresses: {:?}", i, addrs);
+            if !addrs.is_empty() {
+                info!("✓ Found listening addresses on attempt {}", i);
+                break;
+            }
+        }
+        
+        // Test basic functionality
+        let stats = service.get_network_stats().await?;
+        info!("Network stats: {:?}", stats);
+        
+        info!("✓ Debug test completed");
+        Ok(())
+    }
+
+    /// Test 0.6: Debug RuntimeContext with libp2p
+    #[tokio::test]
+    async fn test_debug_runtime_context_libp2p() -> Result<(), anyhow::Error> {
+        info!("=== DEBUG: RuntimeContext with libp2p ===");
+
+        // Test the create_libp2p_runtime_context function directly
+        info!("Creating RuntimeContext with libp2p...");
+        let ctx = create_libp2p_runtime_context("DebugTest", None, 100).await?;
+        info!("✓ RuntimeContext created successfully");
+        
+        // Test getting the libp2p service
+        info!("Getting libp2p service...");
+        let libp2p_service = ctx.get_libp2p_service()?;
+        info!("✓ Got libp2p service with Peer ID: {}", libp2p_service.local_peer_id());
+        
+        // Test listening addresses
+        info!("Checking listening addresses...");
+        for i in 1..=3 {
+            sleep(Duration::from_millis(1000)).await;
+            let addrs = libp2p_service.listening_addresses();
+            info!("Attempt {}: Listening addresses: {:?}", i, addrs);
+            if !addrs.is_empty() {
+                info!("✓ Found listening addresses on attempt {}", i);
+                break;
+            }
+        }
+        
+        info!("✓ Debug RuntimeContext test completed");
+        Ok(())
+    }
+
+    /// Test 0.7: Simplified job announcement test
+    #[tokio::test]
+    async fn test_simplified_job_announcement() -> Result<(), anyhow::Error> {
+        info!("=== SIMPLIFIED: Job Announcement Test ===");
+
+        // Create Node A
+        let node_a = create_libp2p_runtime_context("SimpleA", None, 1000).await?;
+        let node_a_libp2p = node_a.get_libp2p_service()?;
+        
+        // Wait for listening addresses
+        sleep(Duration::from_secs(2)).await;
+        let node_a_addrs = node_a_libp2p.listening_addresses();
+        if node_a_addrs.is_empty() {
+            return Err(anyhow::anyhow!("Node A has no listening addresses"));
+        }
+        info!("Node A listening on: {:?}", node_a_addrs);
+        
+        // Create Node B
+        let bootstrap_peers = vec![(node_a_libp2p.local_peer_id().clone(), node_a_addrs[0].clone())];
+        let node_b = create_libp2p_runtime_context("SimpleB", Some(bootstrap_peers), 0).await?;
+        let node_b_libp2p = node_b.get_libp2p_service()?;
+        
+        // Give nodes time to connect
+        sleep(Duration::from_secs(3)).await;
+        
+        // Test basic message broadcasting
+        info!("Testing basic message broadcast...");
+        let test_message = NetworkMessage::GossipSub("test".to_string(), b"hello".to_vec());
+        node_a_libp2p.broadcast_message(test_message).await?;
+        
+        info!("✓ Simplified test completed successfully");
         Ok(())
     }
 }

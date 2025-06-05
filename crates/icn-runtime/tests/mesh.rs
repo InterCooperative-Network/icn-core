@@ -479,7 +479,7 @@ async fn test_full_mesh_job_cycle_libp2p() -> Result<(), anyhow::Error> {
     }).to_string();
 
     println!("[test-mesh-runtime] Node B (executor) subscribing to its Libp2p service to listen for announcements.");
-    let mut node_b_raw_receiver = node_b_libp2p_actual_service_for_setup.as_ref().subscribe()
+    let mut node_b_raw_receiver = node_b_libp2p_actual_service_for_setup.as_ref().subscribe().await
         .map_err(|e| anyhow::anyhow!("Node B failed to subscribe: {e}"))?;
 
     let submitted_job_id = host_submit_mesh_job(&node_a_ctx, &job_json_payload).await?;

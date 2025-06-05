@@ -59,9 +59,9 @@ mod libp2p_mesh_integration {
         sleep(Duration::from_secs(5)).await;
 
         println!("[test-mesh-network] Node A subscribing to messages.");
-        let mut node_a_receiver = node_a_service.subscribe()?;
+        let mut node_a_receiver = node_a_service.subscribe().await?;
         println!("[test-mesh-network] Node B subscribing to messages.");
-        let mut node_b_receiver = node_b_service.subscribe()?;
+        let mut node_b_receiver = node_b_service.subscribe().await?;
 
         let job_to_announce = generate_dummy_job("test_job_01");
         let job_announcement_msg = NetworkMessage::MeshJobAnnouncement(job_to_announce.clone());

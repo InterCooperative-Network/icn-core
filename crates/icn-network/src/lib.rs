@@ -22,6 +22,8 @@ use bincode;
 use log::{info, warn, error, debug};
 use std::str::FromStr;
 use std::num::NonZero;
+use std::sync::{Arc, Mutex};
+use libp2p::{PeerId as Libp2pPeerId, Multiaddr};
 
 // --- Core Types ---
 
@@ -265,6 +267,7 @@ pub mod libp2p_service {
         local_peer_id: Libp2pPeerId,
         cmd_tx: mpsc::Sender<Command>,
         config: NetworkConfig,
+        listening_addresses: Arc<Mutex<Vec<Multiaddr>>>,
     }
 
     #[derive(Debug)]
@@ -446,6 +449,10 @@ pub mod libp2p_service {
             // Clone bootstrap_peers for use in the async task
             let has_bootstrap_peers = !config.bootstrap_peers.is_empty();
 
+            // Store the listening addresses for the service
+            let listening_addresses = Arc::new(Mutex::new(Vec::new()));
+            let listening_addresses_clone = listening_addresses.clone();
+
             // Spawn the network event loop
             task::spawn(async move {
                 let topic = gossipsub::IdentTopic::new("icn-global");
@@ -467,6 +474,11 @@ pub mod libp2p_service {
                 loop {
                     tokio::select! {
                         event = swarm.select_next_some() => {
+                            // Update listening addresses when a new one is discovered
+                            if let SwarmEvent::NewListenAddr { address, .. } = &event {
+                                log::info!("Listening on {}", address);
+                                listening_addresses_clone.lock().unwrap().push(address.clone());
+                            }
                             Self::handle_swarm_event(event, &stats_clone, &mut subscribers, &mut pending_kad_queries).await;
                         }
                         Some(command) = cmd_rx.recv() => {
@@ -562,6 +574,7 @@ pub mod libp2p_service {
                 local_peer_id,
                 cmd_tx,
                 config,
+                listening_addresses,
             })
         }
 
@@ -645,6 +658,11 @@ pub mod libp2p_service {
 
         pub fn local_peer_id(&self) -> &Libp2pPeerId {
             &self.local_peer_id
+        }
+
+        /// Get the current listening addresses for this node
+        pub fn listening_addresses(&self) -> Vec<Multiaddr> {
+            self.listening_addresses.lock().unwrap().clone()
         }
     }
 
