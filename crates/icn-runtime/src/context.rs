@@ -215,7 +215,7 @@ impl MeshNetworkService for DefaultMeshNetworkService {
     async fn collect_bids_for_job(&self, job_id: &JobId, duration: StdDuration) -> Result<Vec<MeshJobBid>, HostAbiError> {
         debug!("[DefaultMeshNetworkService] Collecting bids for job {:?} for {:?}", job_id, duration);
         let mut bids = Vec::new();
-        let mut receiver = self.inner.subscribe()
+        let mut receiver = self.inner.subscribe().await
             .map_err(|e| HostAbiError::NetworkError(format!("Failed to subscribe for bids: {}", e)))?;
         
         let end_time = StdInstant::now() + duration;
@@ -258,10 +258,10 @@ impl MeshNetworkService for DefaultMeshNetworkService {
     }
 
     async fn try_receive_receipt(&self, job_id: &JobId, expected_executor: &Did, timeout_duration: StdDuration) -> Result<Option<IdentityExecutionReceipt>, HostAbiError> {
-        debug!("[DefaultMeshNetworkService] Trying to receive receipt for job {:?} from {:?} for {:?}", job_id, expected_executor, timeout_duration);
-        let mut receiver = self.inner.subscribe()
+        debug!("[DefaultMeshNetworkService] Waiting for receipt for job {:?} from executor {:?} for {:?}", job_id, expected_executor, timeout_duration);
+        let mut receiver = self.inner.subscribe().await
             .map_err(|e| HostAbiError::NetworkError(format!("Failed to subscribe for receipts: {}", e)))?;
-
+        
         let end_time = StdInstant::now() + timeout_duration;
 
         loop {
@@ -270,27 +270,28 @@ impl MeshNetworkService for DefaultMeshNetworkService {
                     match result {
                         Some(NetworkMessage::SubmitReceipt(receipt)) => {
                             if &receipt.job_id == job_id && &receipt.executor_did == expected_executor {
-                                debug!("Received matching receipt: {:?}", receipt);
+                                debug!("Received relevant receipt: {:?}", receipt);
                                 return Ok(Some(receipt));
                             } else {
-                                debug!("Received receipt for different job/executor: {:?}", receipt);
+                                debug!("Received receipt for different job/executor: job_id={:?}, executor={:?}", receipt.job_id, receipt.executor_did);
                             }
                         }
                         Some(other_message) => {
-                            debug!("Received other network message while waiting for receipt: {:?}", other_message);
+                            debug!("Received other network message during receipt collection: {:?}", other_message);
                         }
-                        None => { 
+                        None => { // Channel closed
                             warn!("Network channel closed while waiting for receipt for job {:?}", job_id);
-                            return Ok(None); 
+                            break;
                         }
                     }
                 }
-                Err(_timeout_error) => { 
-                    debug!("Timeout waiting for receipt for job {:?}", job_id);
-                    return Ok(None);
+                Err(_timeout_error) => { // Timeout
+                    debug!("Receipt wait timeout for job {:?}", job_id);
+                    break;
                 }
             }
         }
+        Ok(None)
     }
 }
 

@@ -98,7 +98,7 @@ pub trait NetworkService: Send + Sync + Debug + DowncastSync + 'static {
     async fn discover_peers(&self, target_peer_id_str: Option<String>) -> Result<Vec<PeerId>, CommonError>;
     async fn send_message(&self, peer: &PeerId, message: NetworkMessage) -> Result<(), CommonError>;
     async fn broadcast_message(&self, message: NetworkMessage) -> Result<(), CommonError>;
-    fn subscribe(&self) -> Result<Receiver<NetworkMessage>, CommonError>;
+    async fn subscribe(&self) -> Result<Receiver<NetworkMessage>, CommonError>;
     async fn get_network_stats(&self) -> Result<NetworkStats, CommonError>;
     fn as_any(&self) -> &dyn Any;
 }
@@ -136,7 +136,7 @@ impl NetworkService for StubNetworkService {
         Ok(())
     }
 
-    fn subscribe(&self) -> Result<Receiver<NetworkMessage>, CommonError> {
+    async fn subscribe(&self) -> Result<Receiver<NetworkMessage>, CommonError> {
         println!("[StubNetworkService] Subscribing to messages... returning an empty channel.");
         let (_tx, rx) = tokio::sync::mpsc::channel(1);
         Ok(rx)
@@ -681,17 +681,12 @@ pub mod libp2p_service {
                 .map_err(|e| CommonError::MessageSendError(format!("Broadcast failed: {}", e)))
         }
 
-        fn subscribe(&self) -> Result<Receiver<super::NetworkMessage>, CommonError> {
+        async fn subscribe(&self) -> Result<Receiver<super::NetworkMessage>, CommonError> {
             let (tx, rx) = oneshot::channel();
-            self.cmd_tx.try_send(Command::Subscribe { rsp: tx })
+            self.cmd_tx.send(Command::Subscribe { rsp: tx }).await
                 .map_err(|e| CommonError::NetworkError(format!("Subscribe failed: {}", e)))?;
             
-            // This is a blocking operation but should be quick
-            tokio::task::block_in_place(|| {
-                tokio::runtime::Handle::current().block_on(async {
-                    rx.await.map_err(|e| CommonError::NetworkError(format!("Subscribe response failed: {}", e)))
-                })
-            })
+            rx.await.map_err(|e| CommonError::NetworkError(format!("Subscribe response failed: {}", e)))
         }
 
         async fn get_network_stats(&self) -> Result<super::NetworkStats, CommonError> {
