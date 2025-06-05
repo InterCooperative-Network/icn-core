@@ -25,13 +25,13 @@ bincode = "1.3"
 oneshot = "0.1"
 
 # libp2p dependencies with consistent versions
-libp2p = { version = "0.53.2", features = ["tokio", "gossipsub", "mdns", "kad", "macros", "ping", "yamux", "noise", "tcp", "dns", "request-response"], optional = true }
+libp2p = { version = "0.55.0", features = ["tokio", "gossipsub", "mdns", "kad", "macros", "ping", "yamux", "noise", "tcp", "dns", "request-response"], optional = true }
 
 [dev-dependencies]
 # No specific dev-dependencies here yet, but could add things like criterion for benchmarks
 anyhow = "1.0"
 env_logger = "0.10"
-libp2p = { version = "0.53.2", features = ["tokio", "tcp", "dns", "kad", "gossipsub", "noise", "yamux", "macros", "request-response"] }
+libp2p = { version = "0.55.0", features = ["tokio", "tcp", "dns", "kad", "gossipsub", "noise", "yamux", "macros", "request-response"] }
 rand = "0.8"
 icn-common = { path = "../icn-common" }
 icn-mesh = { path = "../icn-mesh" }
