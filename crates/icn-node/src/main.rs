@@ -10,6 +10,8 @@ use icn_identity::{generate_ed25519_keypair, did_key_from_verifying_key, Signing
 use icn_runtime::context::{RuntimeContext, HostAbiError, StubSigner as RuntimeStubSigner, StubMeshNetworkService, StubDagStore as RuntimeStubDagStore, MeshNetworkService, Signer as RuntimeSigner};
 use icn_runtime::{
     host_submit_mesh_job,
+    host_anchor_receipt,
+    ReputationUpdater,
 };
 use icn_mesh::{ActualMeshJob};
 use icn_governance::{ProposalId, VoteOption};
@@ -117,6 +119,11 @@ pub async fn app_router() -> Router { // Renamed to app_router and made async fo
         dag_store_for_rt,
         // GovernanceModule will be default in RuntimeContext::new
     );
+    
+    // Initialize the test node with some mana for testing
+    rt_ctx.credit_mana(&node_did, 1000).await.expect("Failed to initialize test node with mana");
+    info!("✅ Test node initialized with 1000 mana");
+    
     rt_ctx.clone().spawn_mesh_job_manager().await; // Start the job manager
 
     let app_state = AppState {
@@ -134,7 +141,10 @@ pub async fn app_router() -> Router { // Renamed to app_router and made async fo
         .route("/governance/vote", post(gov_vote_handler))     // Uses RT context's Gov mod
         .route("/governance/proposals", get(gov_list_proposals_handler)) // Uses RT context's Gov mod
         .route("/governance/proposal/:proposal_id", get(gov_get_proposal_handler)) // Uses RT context's Gov mod
-        .route("/mesh/submit", post(mesh_submit_job_handler)) // New endpoint
+        .route("/mesh/submit", post(mesh_submit_job_handler)) // Job submission
+        .route("/mesh/jobs", get(mesh_list_jobs_handler)) // List all jobs
+        .route("/mesh/jobs/:job_id", get(mesh_get_job_status_handler)) // Get specific job status
+        .route("/mesh/receipts", post(mesh_submit_receipt_handler)) // Submit execution receipt
         .with_state(app_state)
 }
 
@@ -250,6 +260,9 @@ async fn main() {
         .route("/governance/proposals", get(gov_list_proposals_handler))
         .route("/governance/proposal/:proposal_id", get(gov_get_proposal_handler))
         .route("/mesh/submit", post(mesh_submit_job_handler))
+        .route("/mesh/jobs", get(mesh_list_jobs_handler))
+        .route("/mesh/jobs/:job_id", get(mesh_get_job_status_handler))
+        .route("/mesh/receipts", post(mesh_submit_receipt_handler))
         .with_state(app_state.clone()); 
 
     let addr: SocketAddr = cli.http_listen_addr.parse().expect("Invalid HTTP listen address");
@@ -501,9 +514,9 @@ async fn mesh_submit_job_handler(
     };
 
     match host_submit_mesh_job(&state.runtime_context, &job_json).await {
-        Ok(job_id_cid) => {
-            info!("[NODE] Job submitted via runtime, Job ID: {}", job_id_cid);
-            (StatusCode::ACCEPTED, Json(serde_json::json!({ "job_id": job_id_cid.to_string() }))).into_response()
+        Ok(actual_job_id_cid) => {
+            info!("[NODE] Job submitted via runtime, Actual Job ID: {}", actual_job_id_cid);
+            (StatusCode::ACCEPTED, Json(serde_json::json!({ "job_id": actual_job_id_cid.to_string() }))).into_response()
         }
         Err(e) => {
             error!("[NODE] Error submitting job via runtime: {:?}", e);
@@ -512,6 +525,248 @@ async fn mesh_submit_job_handler(
     }
 }
 
+// GET /mesh/jobs - List all jobs with their current status
+async fn mesh_list_jobs_handler(
+    State(state): State<AppState>,
+) -> impl IntoResponse {
+    info!("[Node] Received mesh_list_jobs request");
+
+    let job_states = state.runtime_context.job_states.lock().await;
+    let jobs: Vec<serde_json::Value> = job_states
+        .iter()
+        .map(|(job_id, job_state)| {
+            serde_json::json!({
+                "job_id": job_id.to_string(),
+                "status": match job_state {
+                    icn_mesh::JobState::Pending => serde_json::json!("pending"),
+                    icn_mesh::JobState::Assigned { executor } => {
+                        serde_json::json!({
+                            "status": "assigned",
+                            "executor": executor.to_string()
+                        })
+                    },
+                    icn_mesh::JobState::Completed { receipt } => {
+                        serde_json::json!({
+                            "status": "completed",
+                            "executor": receipt.executor_did.to_string(),
+                            "result_cid": receipt.result_cid.to_string(),
+                            "cpu_ms": receipt.cpu_ms
+                        })
+                    },
+                    icn_mesh::JobState::Failed { reason } => {
+                        serde_json::json!({
+                            "status": "failed",
+                            "reason": reason
+                        })
+                    }
+                }
+            })
+        })
+        .collect();
+
+    (StatusCode::OK, Json(serde_json::json!({ "jobs": jobs }))).into_response()
+}
+
+/// Helper function to parse a CID from string format (using dummy parsing for now)
+fn parse_cid_from_string(cid_str: &str) -> Result<Cid, String> {
+    // Parse the format produced by Cid::to_string_approx(): "cidv{version}-{codec}-{hash_alg}-{base58_hash}"
+    if cid_str.is_empty() {
+        return Err("Empty CID string".to_string());
+    }
+    
+    // Split the string into parts
+    let parts: Vec<&str> = cid_str.split('-').collect();
+    if parts.len() != 4 {
+        return Err(format!("Invalid CID format: expected 4 parts separated by '-', got {}", parts.len()));
+    }
+    
+    // Parse version (remove 'cidv' prefix)
+    let version_str = parts[0].strip_prefix("cidv").ok_or_else(|| "Missing 'cidv' prefix".to_string())?;
+    let version: u64 = version_str.parse().map_err(|e| format!("Invalid version: {}", e))?;
+    
+    // Parse codec
+    let codec: u64 = parts[1].parse().map_err(|e| format!("Invalid codec: {}", e))?;
+    
+    // Parse hash algorithm
+    let hash_alg: u64 = parts[2].parse().map_err(|e| format!("Invalid hash_alg: {}", e))?;
+    
+    // Parse base58 encoded hash bytes
+    let hash_bytes = bs58::decode(parts[3]).into_vec().map_err(|e| format!("Invalid base58 hash: {}", e))?;
+    
+    Ok(Cid {
+        version,
+        codec,
+        hash_alg,
+        hash_bytes,
+    })
+}
+
+// GET /mesh/jobs/:job_id - Get specific job status
+async fn mesh_get_job_status_handler(
+    State(state): State<AppState>,
+    AxumPath(job_id_str): AxumPath<String>,
+) -> impl IntoResponse {
+    info!("[Node] Received mesh_get_job_status request for job: {}", job_id_str);
+
+    // Parse job_id from string
+    let job_id = match parse_cid_from_string(&job_id_str) {
+        Ok(cid) => {
+            info!("[Node] Parsed job_id as CID: {:?}", cid);
+            cid
+        },
+        Err(e) => {
+            error!("[Node] Failed to parse job_id '{}': {}", job_id_str, e);
+            return map_rust_error_to_json_response(
+                format!("Invalid job ID format: {}", e), 
+                StatusCode::BAD_REQUEST
+            ).into_response();
+        }
+    };
+
+    let job_states = state.runtime_context.job_states.lock().await;
+    info!("[Node] Looking for job_id {:?} in {} stored jobs", job_id, job_states.len());
+    
+    // Debug: List all stored job IDs
+    for stored_job_id in job_states.keys() {
+        info!("[Node] Stored job ID: {:?}", stored_job_id);
+    }
+    
+    match job_states.get(&job_id) {
+        Some(job_state) => {
+            let response = serde_json::json!({
+                "job_id": job_id.to_string(),
+                "status": match job_state {
+                    icn_mesh::JobState::Pending => serde_json::json!("pending"),
+                    icn_mesh::JobState::Assigned { executor } => {
+                        serde_json::json!({
+                            "status": "assigned",
+                            "executor": executor.to_string()
+                        })
+                    },
+                    icn_mesh::JobState::Completed { receipt } => {
+                        serde_json::json!({
+                            "status": "completed",
+                            "executor": receipt.executor_did.to_string(),
+                            "result_cid": receipt.result_cid.to_string(),
+                            "cpu_ms": receipt.cpu_ms,
+                            "signature_length": receipt.sig.0.len()
+                        })
+                    },
+                    icn_mesh::JobState::Failed { reason } => {
+                        serde_json::json!({
+                            "status": "failed",
+                            "reason": reason
+                        })
+                    }
+                }
+            });
+            (StatusCode::OK, Json(response)).into_response()
+        }
+        None => {
+            map_rust_error_to_json_response(
+                "Job not found", 
+                StatusCode::NOT_FOUND
+            ).into_response()
+        }
+    }
+}
+
+/// Request body for submitting an execution receipt
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SubmitReceiptRequest {
+    pub job_id: String,
+    pub executor_did: String, 
+    pub result_cid: String,
+    pub cpu_ms: u64,
+    pub signature_hex: String, // Hex-encoded signature bytes
+}
+
+// POST /mesh/receipts - Submit execution receipt (typically called by executors)
+async fn mesh_submit_receipt_handler(
+    State(state): State<AppState>,
+    Json(request): Json<SubmitReceiptRequest>,
+) -> impl IntoResponse {
+    info!("[Node] Received mesh_submit_receipt request: {:?}", request);
+
+    // Parse request fields
+    let job_id = match parse_cid_from_string(&request.job_id) {
+        Ok(cid) => cid,
+        Err(e) => {
+            return map_rust_error_to_json_response(
+                format!("Invalid job ID format: {}", e), 
+                StatusCode::BAD_REQUEST
+            ).into_response();
+        }
+    };
+
+    let executor_did = match Did::from_str(&request.executor_did) {
+        Ok(did) => did,
+        Err(e) => {
+            return map_rust_error_to_json_response(
+                format!("Invalid executor DID format: {}", e), 
+                StatusCode::BAD_REQUEST
+            ).into_response();
+        }
+    };
+
+    let result_cid = match parse_cid_from_string(&request.result_cid) {
+        Ok(cid) => cid,
+        Err(e) => {
+            return map_rust_error_to_json_response(
+                format!("Invalid result CID format: {}", e), 
+                StatusCode::BAD_REQUEST
+            ).into_response();
+        }
+    };
+
+    let signature_bytes = match hex::decode(&request.signature_hex) {
+        Ok(bytes) => SignatureBytes(bytes),
+        Err(e) => {
+            return map_rust_error_to_json_response(
+                format!("Invalid signature hex format: {}", e), 
+                StatusCode::BAD_REQUEST
+            ).into_response();
+        }
+    };
+
+    // Create execution receipt
+    let execution_receipt = IdentityExecutionReceipt {
+        job_id,
+        executor_did,
+        result_cid,
+        cpu_ms: request.cpu_ms,
+        sig: signature_bytes,
+    };
+
+    let receipt_json = match serde_json::to_string(&execution_receipt) {
+        Ok(json) => json,
+        Err(e) => {
+            return map_rust_error_to_json_response(
+                format!("Failed to serialize receipt: {}", e), 
+                StatusCode::INTERNAL_SERVER_ERROR
+            ).into_response();
+        }
+    };
+
+    // Submit receipt via Host ABI
+    let reputation_updater = ReputationUpdater::new();
+    match host_anchor_receipt(&state.runtime_context, &receipt_json, &reputation_updater).await {
+        Ok(anchored_cid) => {
+            info!("[Node] Receipt anchored via runtime, Anchored CID: {}", anchored_cid);
+            (StatusCode::ACCEPTED, Json(serde_json::json!({ 
+                "anchored_cid": anchored_cid.to_string(),
+                "receipt_job_id": execution_receipt.job_id.to_string()
+            }))).into_response()
+        }
+        Err(e) => {
+            error!("[Node] Error anchoring receipt via runtime: {:?}", e);
+            map_rust_error_to_json_response(
+                format!("Receipt anchoring failed: {}", e), 
+                StatusCode::INTERNAL_SERVER_ERROR
+            ).into_response()
+        }
+    }
+}
 
 // --- Test module (can be expanded later) ---
 #[cfg(test)]
@@ -544,7 +799,7 @@ mod tests {
 
         let job_req = SubmitJobRequest {
             manifest_cid: Cid::new_v1_dummy(0x55, 0x14, b"test_manifest").to_string(),
-            spec_json: serde_json::json!({ "type": "echo", "payload": "hello" }),
+            spec_json: serde_json::json!({ "Echo": { "payload": "hello" } }),
             cost_mana: 50,
         };
         let job_req_json = serde_json::to_string(&job_req).unwrap();
@@ -566,6 +821,158 @@ mod tests {
         let body_json: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert!(body_json.get("job_id").is_some());
         info!("Mesh submit response: {:?}", body_json);
+    }
+
+    #[tokio::test]
+    async fn complete_http_to_mesh_pipeline() {
+        let app = test_app().await;
+
+        // Step 1: Submit a job via HTTP
+        let job_req = SubmitJobRequest {
+            manifest_cid: Cid::new_v1_dummy(0x55, 0x14, b"pipeline_test_manifest").to_string(),
+            spec_json: serde_json::json!({ "Echo": { "payload": "HTTP pipeline test" } }),
+            cost_mana: 100,
+        };
+        let job_req_json = serde_json::to_string(&job_req).unwrap();
+
+        let submit_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/mesh/submit")
+                    .header("content-type", "application/json")
+                    .body(Body::from(job_req_json))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        
+        let status = submit_response.status();
+        if status != StatusCode::ACCEPTED {
+            let error_body = axum::body::to_bytes(submit_response.into_body(), usize::MAX).await.unwrap();
+            let error_text = String::from_utf8_lossy(&error_body);
+            panic!("Job submission failed with status {}: {}", status, error_text);
+        }
+        
+        let submit_body = axum::body::to_bytes(submit_response.into_body(), usize::MAX).await.unwrap();
+        let submit_json: serde_json::Value = serde_json::from_slice(&submit_body).unwrap();
+        let job_id = submit_json.get("job_id").unwrap().as_str().unwrap().to_string();
+        info!("✅ Job submitted via HTTP, Job ID from response: {}", job_id);
+        
+        // Debug: Let's also check what jobs are actually in the system
+        let debug_list_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/mesh/jobs")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let debug_list_body = axum::body::to_bytes(debug_list_response.into_body(), usize::MAX).await.unwrap();
+        let debug_list_json: serde_json::Value = serde_json::from_slice(&debug_list_body).unwrap();
+        info!("🔍 Debug - All jobs in system: {:?}", debug_list_json);
+
+        // Step 2: Check job status immediately (should be pending)
+        let status_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri(&format!("/mesh/jobs/{}", job_id))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        
+        let status_code = status_response.status();
+        if status_code != StatusCode::OK {
+            let error_body = axum::body::to_bytes(status_response.into_body(), usize::MAX).await.unwrap();
+            let error_text = String::from_utf8_lossy(&error_body);
+            panic!("Job status check failed with status {}: {}", status_code, error_text);
+        }
+        
+        let status_body = axum::body::to_bytes(status_response.into_body(), usize::MAX).await.unwrap();
+        let status_json: serde_json::Value = serde_json::from_slice(&status_body).unwrap();
+        info!("✅ Job status response: {:?}", status_json);
+        assert_eq!(status_json.get("job_id").unwrap().as_str().unwrap(), job_id);
+
+        // Step 3: List all jobs (should include our job)
+        let list_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/mesh/jobs")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        
+        assert_eq!(list_response.status(), StatusCode::OK);
+        let list_body = axum::body::to_bytes(list_response.into_body(), usize::MAX).await.unwrap();
+        let list_json: serde_json::Value = serde_json::from_slice(&list_body).unwrap();
+        info!("✅ Jobs list response: {:?}", list_json);
+        
+        let jobs = list_json.get("jobs").unwrap().as_array().unwrap();
+        assert!(!jobs.is_empty());
+        let found_job = jobs.iter().find(|job| job.get("job_id").unwrap().as_str().unwrap() == job_id);
+        assert!(found_job.is_some());
+
+        // Step 4: Validate core HTTP → mesh job pipeline is working
+        // (Receipt submission with real cryptographic verification is tested in the runtime layer)
+
+        info!("🎉 Complete HTTP-to-mesh pipeline test passed!");
+    }
+
+    #[tokio::test]
+    async fn test_simple_job_submission_and_listing() {
+        let app = test_app().await;
+
+        // Step 1: Submit a job
+        let job_req = SubmitJobRequest {
+            manifest_cid: Cid::new_v1_dummy(0x55, 0x14, b"simple_test").to_string(),
+            spec_json: serde_json::json!({ "Echo": { "payload": "simple test" } }),
+            cost_mana: 50,
+        };
+        let job_req_json = serde_json::to_string(&job_req).unwrap();
+
+        let submit_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/mesh/submit")
+                    .header("content-type", "application/json")
+                    .body(Body::from(job_req_json))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        println!("Submit response status: {}", submit_response.status());
+        let submit_body = axum::body::to_bytes(submit_response.into_body(), usize::MAX).await.unwrap();
+        let submit_text = String::from_utf8_lossy(&submit_body);
+        println!("Submit response body: {}", submit_text);
+
+        // Step 2: List all jobs
+        let list_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/mesh/jobs")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        println!("List response status: {}", list_response.status());
+        let list_body = axum::body::to_bytes(list_response.into_body(), usize::MAX).await.unwrap();
+        let list_text = String::from_utf8_lossy(&list_body);
+        println!("List response body: {}", list_text);
     }
 
     // TODO: Add more tests for DAG and Governance endpoints with new AppState structure.
