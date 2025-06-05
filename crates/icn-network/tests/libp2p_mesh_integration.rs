@@ -9,6 +9,15 @@ mod libp2p_mesh_integration {
     use icn_identity::SignatureBytes;
     use std::str::FromStr;
     use tokio::time::{sleep, Duration, timeout};
+    use std::sync::Once;
+
+    static INIT_LOGGER: Once = Once::new();
+
+    fn init_test_logger() {
+        INIT_LOGGER.call_once(|| {
+            env_logger::init();
+        });
+    }
 
     fn generate_dummy_job(id_str: &str) -> Job {
         let job_id_cid = Cid::new_v1_dummy(0x55, 0x13, id_str.as_bytes());
@@ -39,8 +48,8 @@ mod libp2p_mesh_integration {
     #[tokio::test]
     #[ignore = "Testing libp2p event loop debugging with comprehensive logging"]
     async fn test_minimal_gossipsub_connectivity() -> Result<(), anyhow::Error> {
-        // Initialize logging
-        env_logger::init();
+        // Initialize logging (safe for multiple test calls)
+        init_test_logger();
         
         println!("🔧 [DEBUG] Starting minimal gossipsub connectivity test");
         
@@ -185,96 +194,154 @@ mod libp2p_mesh_integration {
     }
 
     #[tokio::test]
-    #[ignore = "Original job announcement test with fixed API calls"]
+    #[ignore = "Enhanced job announcement test with proper network readiness checks"]
     async fn test_job_announcement_and_bid_submission() -> Result<(), anyhow::Error> {
-        println!("[test-mesh-network] Setting up Node A (Job Originator).");
+        init_test_logger();
+        println!("🔧 [test-mesh-network] Setting up Node A (Job Originator).");
         
-        // 1. Create Node A (Job Originator) with proper NetworkConfig
+        // 1. Create Node A (Job Originator) with comprehensive setup
         let config_a = NetworkConfig::default();
+        println!("🔧 [test-mesh-network] Creating Node A with config: {:?}", config_a);
+        
         let node_a_service = Libp2pNetworkService::new(config_a).await?;
         let node_a_peer_id_str = node_a_service.local_peer_id().to_string();
+        println!("✅ [test-mesh-network] Node A created - Peer ID: {}", node_a_peer_id_str);
         
-        // Wait for Node A to establish listeners
-        sleep(Duration::from_secs(2)).await;
-        let node_a_addrs = node_a_service.listening_addresses();
-        assert!(!node_a_addrs.is_empty(), "Node A should have listening addresses");
-        println!("[test-mesh-network] Node A Peer ID: {}, Listening Addresses: {:?}", node_a_peer_id_str, node_a_addrs);
+        // Wait for Node A to establish listeners with retries
+        println!("🔧 [test-mesh-network] Waiting for Node A to establish listeners...");
+        let mut node_a_addrs = Vec::new();
+        for attempt in 1..=5 {
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            node_a_addrs = node_a_service.listening_addresses();
+            println!("🔧 [test-mesh-network] Attempt {}/5: Node A has {} listening addresses", attempt, node_a_addrs.len());
+            if !node_a_addrs.is_empty() {
+                break;
+            }
+        }
+        assert!(!node_a_addrs.is_empty(), "Node A should have listening addresses after 5 attempts");
+        println!("✅ [test-mesh-network] Node A listening addresses: {:?}", node_a_addrs);
 
-        println!("[test-mesh-network] Setting up Node B (Executor), bootstrapping with Node A.");
+        println!("🔧 [test-mesh-network] Setting up Node B (Executor), bootstrapping with Node A.");
         
         // 2. Create Node B (Executor) with proper NetworkConfig
         let node_a_libp2p_peer_id = Libp2pPeerId::from_str(&node_a_peer_id_str)?;
         let mut config_b = NetworkConfig::default();
         config_b.bootstrap_peers = vec![(node_a_libp2p_peer_id, node_a_addrs[0].clone())];
+        println!("🔧 [test-mesh-network] Node B config bootstrap peers: {:?}", config_b.bootstrap_peers);
         
         let node_b_service = Libp2pNetworkService::new(config_b).await?;
         let node_b_peer_id_str = node_b_service.local_peer_id().to_string();
-        println!("[test-mesh-network] Node B Peer ID: {}", node_b_peer_id_str);
+        println!("✅ [test-mesh-network] Node B created - Peer ID: {}", node_b_peer_id_str);
 
-        println!("[test-mesh-network] Allowing 5s for peer discovery and connection.");
-        sleep(Duration::from_secs(5)).await;
+        // 3. Allow extended time for peer discovery and connection
+        println!("🔧 [test-mesh-network] Allowing 8s for peer discovery and connection...");
+        tokio::time::sleep(Duration::from_secs(8)).await;
 
-        println!("[test-mesh-network] Node A subscribing to messages.");
-        let mut node_a_receiver = node_a_service.subscribe().await?;
-        println!("[test-mesh-network] Node B subscribing to messages.");
-        let mut node_b_receiver = node_b_service.subscribe().await?;
+        // 4. Check network connectivity before proceeding
+        println!("🔧 [test-mesh-network] Checking Node A network stats...");
+        let node_a_stats = node_a_service.get_network_stats().await?;
+        println!("✅ [test-mesh-network] Node A stats: {:?}", node_a_stats);
+        
+        println!("🔧 [test-mesh-network] Checking Node B network stats...");
+        let node_b_stats = node_b_service.get_network_stats().await?;
+        println!("✅ [test-mesh-network] Node B stats: {:?}", node_b_stats);
 
+        // 5. Set up message subscriptions with timeout protection
+        println!("🔧 [test-mesh-network] Node A subscribing to messages...");
+        let node_a_subscribe_result = timeout(Duration::from_secs(5), node_a_service.subscribe()).await;
+        let mut node_a_receiver = match node_a_subscribe_result {
+            Ok(Ok(receiver)) => {
+                println!("✅ [test-mesh-network] Node A subscription successful");
+                receiver
+            }
+            Ok(Err(e)) => return Err(anyhow::anyhow!("Node A subscription failed: {}", e)),
+            Err(_) => return Err(anyhow::anyhow!("Node A subscription timed out")),
+        };
+        
+        println!("🔧 [test-mesh-network] Node B subscribing to messages...");
+        let node_b_subscribe_result = timeout(Duration::from_secs(5), node_b_service.subscribe()).await;
+        let mut node_b_receiver = match node_b_subscribe_result {
+            Ok(Ok(receiver)) => {
+                println!("✅ [test-mesh-network] Node B subscription successful");
+                receiver
+            }
+            Ok(Err(e)) => return Err(anyhow::anyhow!("Node B subscription failed: {}", e)),
+            Err(_) => return Err(anyhow::anyhow!("Node B subscription timed out")),
+        };
+
+        // 6. Give subscriptions time to propagate
+        println!("🔧 [test-mesh-network] Allowing 2s for gossipsub subscriptions to propagate...");
+        tokio::time::sleep(Duration::from_secs(2)).await;
+
+        // 7. Test mesh job announcement flow
         let job_to_announce = generate_dummy_job("test_job_01");
         let job_announcement_msg = NetworkMessage::MeshJobAnnouncement(job_to_announce.clone());
-        println!("[test-mesh-network] Node A broadcasting job announcement for job ID: {}", job_to_announce.id);
-        node_a_service.broadcast_message(job_announcement_msg).await?;
+        println!("🔧 [test-mesh-network] Node A broadcasting job announcement for job ID: {}", job_to_announce.id);
+        
+        let broadcast_result = timeout(Duration::from_secs(5), node_a_service.broadcast_message(job_announcement_msg)).await;
+        match broadcast_result {
+            Ok(Ok(())) => println!("✅ [test-mesh-network] Node A job announcement broadcast successful"),
+            Ok(Err(e)) => return Err(anyhow::anyhow!("Node A broadcast failed: {}", e)),
+            Err(_) => return Err(anyhow::anyhow!("Node A broadcast timed out")),
+        }
 
-        println!("[test-mesh-network] Node B awaiting job announcement (timeout 10s).");
-        let received_on_b_res = timeout(Duration::from_secs(10), node_b_receiver.recv()).await;
+        println!("🔧 [test-mesh-network] Node B awaiting job announcement (timeout 15s).");
+        let received_on_b_res = timeout(Duration::from_secs(15), node_b_receiver.recv()).await;
         match received_on_b_res {
             Ok(Some(network_message_b)) => {
                 if let NetworkMessage::MeshJobAnnouncement(received_job) = network_message_b {
                     assert_eq!(received_job.id, job_to_announce.id, "Node B received incorrect job ID");
-                    println!("[test-mesh-network] Node B received job announcement for job ID: {}. Submitting bid.", received_job.id);
+                    println!("✅ [test-mesh-network] Node B received job announcement for job ID: {}. Submitting bid.", received_job.id);
 
                     let bid_to_submit = generate_dummy_bid(&received_job.id, "did:key:z6MkjchhcVbWZkAbNGRsM4ac3gR3eNnYtD9tYtFv9T9xL4xH");
                     let bid_submission_msg = NetworkMessage::BidSubmission(bid_to_submit.clone());
-                    node_b_service.broadcast_message(bid_submission_msg).await?;
-                    println!("[test-mesh-network] Node B broadcasted bid for job ID: {}", received_job.id);
+                    
+                    let bid_broadcast_result = timeout(Duration::from_secs(5), node_b_service.broadcast_message(bid_submission_msg)).await;
+                    match bid_broadcast_result {
+                        Ok(Ok(())) => println!("✅ [test-mesh-network] Node B bid broadcast successful"),
+                        Ok(Err(e)) => return Err(anyhow::anyhow!("Node B bid broadcast failed: {}", e)),
+                        Err(_) => return Err(anyhow::anyhow!("Node B bid broadcast timed out")),
+                    }
 
-                    println!("[test-mesh-network] Node A awaiting bid submission (timeout 10s).");
-                    let received_on_a_res = timeout(Duration::from_secs(10), node_a_receiver.recv()).await;
+                    println!("🔧 [test-mesh-network] Node A awaiting bid submission (timeout 15s).");
+                    let received_on_a_res = timeout(Duration::from_secs(15), node_a_receiver.recv()).await;
                     match received_on_a_res {
                         Ok(Some(network_message_a)) => {
                             if let NetworkMessage::BidSubmission(received_bid) = network_message_a {
                                 assert_eq!(received_bid.job_id, job_to_announce.id, "Node A received bid for incorrect job ID");
                                 assert_eq!(received_bid.executor_did, bid_to_submit.executor_did, "Node A received bid from incorrect executor");
-                                println!("[test-mesh-network] Node A received bid for job ID: {} from executor: {}. Test successful.", received_bid.job_id, received_bid.executor_did.to_string());
+                                println!("✅ [test-mesh-network] Node A received bid for job ID: {} from executor: {}. Test successful.", received_bid.job_id, received_bid.executor_did.to_string());
                             } else {
-                                panic!("[test-mesh-network] Node A did not receive a BidSubmission, but: {:?}", network_message_a);
+                                return Err(anyhow::anyhow!("Node A did not receive a BidSubmission, but: {:?}", network_message_a));
                             }
                         }
                         Ok(None) => {
-                            panic!("[test-mesh-network] Node A receiver channel closed unexpectedly.");
+                            return Err(anyhow::anyhow!("Node A receiver channel closed unexpectedly."));
                         }
                         Err(_) => {
-                            panic!("[test-mesh-network] Node A timed out waiting for bid submission.");
+                            return Err(anyhow::anyhow!("Node A timed out waiting for bid submission."));
                         }
                     }
                 } else {
-                    panic!("[test-mesh-network] Node B did not receive a MeshJobAnnouncement, but: {:?}", network_message_b);
+                    return Err(anyhow::anyhow!("Node B did not receive a MeshJobAnnouncement, but: {:?}", network_message_b));
                 }
             }
             Ok(None) => {
-                panic!("[test-mesh-network] Node B receiver channel closed unexpectedly.");
+                return Err(anyhow::anyhow!("Node B receiver channel closed unexpectedly."));
             }
             Err(_) => {
-                panic!("[test-mesh-network] Node B timed out waiting for job announcement.");
+                return Err(anyhow::anyhow!("Node B timed out waiting for job announcement."));
             }
         }
 
+        println!("🎉 [test-mesh-network] Complete job announcement and bidding flow test successful!");
         Ok(())
     }
 
     #[tokio::test]
     #[ignore = "Minimal event loop test to isolate hang issue"]
     async fn test_single_node_event_loop_startup() -> Result<(), anyhow::Error> {
-        env_logger::init();
+        init_test_logger();
         
         println!("🔧 [DEBUG] Testing single node event loop startup...");
         
@@ -306,7 +373,7 @@ mod libp2p_mesh_integration {
     #[tokio::test]
     #[ignore = "Test without Kademlia to isolate bootstrap hang"]
     async fn test_without_kademlia_bootstrap() -> Result<(), anyhow::Error> {
-        env_logger::init();
+        init_test_logger();
         
         println!("🔧 [DEBUG] Testing service creation without Kademlia bootstrap...");
         

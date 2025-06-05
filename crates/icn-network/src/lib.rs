@@ -484,7 +484,7 @@ pub mod libp2p_service {
                 loop {
                     log::debug!("🔧 [LIBP2P] Event loop iteration starting - waiting for events...");
                     
-f                    // Use timeout to prevent infinite hanging and ensure the swarm is driven
+                    // Use timeout to prevent infinite hanging and ensure the swarm is driven
                     let timeout_duration = Duration::from_millis(100);
                     
                     tokio::select! {
