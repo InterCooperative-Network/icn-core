@@ -35,6 +35,7 @@ libp2p = { version = "0.53.2", features = ["tokio", "tcp", "dns", "kad", "gossip
 rand = "0.8"
 icn-common = { path = "../icn-common" }
 icn-mesh = { path = "../icn-mesh" }
+icn-runtime = { path = "../icn-runtime" }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt"] }
 
