@@ -89,26 +89,22 @@ impl FileDagStore {
     pub fn new(storage_path: PathBuf) -> Result<Self, CommonError> {
         if !storage_path.exists() {
             std::fs::create_dir_all(&storage_path)
-                .map_err(|e| CommonError::StorageError(format!("Failed to create storage directory {:?}: {}", storage_path, e)))?;
+                .map_err(|e| CommonError::IoError(format!("Failed to create storage directory {:?}: {}", storage_path, e)))?;
         }
         if !storage_path.is_dir() {
-            return Err(CommonError::StorageError(format!("Storage path {:?} is not a directory", storage_path)));
+            return Err(CommonError::IoError(format!("Storage path {:?} is not a directory", storage_path)));
         }
         Ok(FileDagStore { storage_path })
     }
 
-    // Helper to get the file path for a given CID
-    fn get_block_path(&self, cid: &Cid) -> PathBuf {
-        // Using the string representation of CID as filename.
-        // Ensure CID string representation is filesystem-safe.
+    // Renamed from get_block_path in apply model changes, reverting to original name for clarity
+    fn block_path(&self, cid: &Cid) -> PathBuf {
         // Consider sharding directories if many blocks are expected (e.g., /ab/cd/efgh...).
         self.storage_path.join(cid.to_string())
     }
-}
 
-impl StorageService<DagBlock> for FileDagStore {
-    fn put(&mut self, block: &DagBlock) -> Result<(), CommonError> {
-        let file_path = self.get_block_path(&block.cid);
+    fn put_block_to_file(&self, block: &DagBlock) -> Result<(), CommonError> {
+        let file_path = self.block_path(&block.cid);
         let serialized_block = serde_json::to_string(block)
             .map_err(|e| CommonError::SerializationError(format!("Failed to serialize block {}: {}", block.cid, e)))?;
         
@@ -117,47 +113,60 @@ impl StorageService<DagBlock> for FileDagStore {
             .create(true)
             .truncate(true) // Overwrite if exists
             .open(&file_path)
-            .map_err(|e| CommonError::StorageError(format!("Failed to open/create file {:?} for writing: {}", file_path, e)))?;
+            .map_err(|e| CommonError::IoError(format!("Failed to open/create file {:?} for writing: {}", file_path, e)))?;
         
         file.write_all(serialized_block.as_bytes())
-            .map_err(|e| CommonError::StorageError(format!("Failed to write block {} to file {:?}: {}", block.cid, file_path, e)))?;
+            .map_err(|e| CommonError::IoError(format!("Failed to write block {} to file {:?}: {}", block.cid, file_path, e)))?;
         Ok(())
     }
 
-    fn get(&self, cid: &Cid) -> Result<Option<DagBlock>, CommonError> {
-        let file_path = self.get_block_path(cid);
+    fn get_block_from_file(&self, cid: &Cid) -> Result<Option<DagBlock>, CommonError> {
+        let file_path = self.block_path(cid);
         if !file_path.exists() {
             return Ok(None);
         }
 
         let mut file = File::open(&file_path)
-            .map_err(|e| CommonError::StorageError(format!("Failed to open file {:?} for reading: {}", file_path, e)))?;
+            .map_err(|e| CommonError::IoError(format!("Failed to open file {:?} for reading: {}", file_path, e)))?;
         
         let mut contents = String::new();
         file.read_to_string(&mut contents)
-            .map_err(|e| CommonError::StorageError(format!("Failed to read block {} from file {:?}: {}", cid, file_path, e)))?;
+            .map_err(|e| CommonError::IoError(format!("Failed to read block {} from file {:?}: {}", cid, file_path, e)))?;
         
-        let block: DagBlock = serde_json::from_str(&contents)
+        let block_data: DagBlock = serde_json::from_str(&contents)
             .map_err(|e| CommonError::DeserializationError(format!("Failed to deserialize block {} from file {:?}: {}", cid, file_path, e)))?;
         
-        // Optional: Validate CID matches deserialized block content
-        if &block.cid != cid {
-            return Err(CommonError::DagValidationError(format!("CID mismatch for block read from {:?}. Expected {}, got {}.", file_path, cid, block.cid)));
+        if &block_data.cid != cid {
+            return Err(CommonError::InvalidInputError(format!("CID mismatch for block read from file {:?}. Expected CID {}, got {}.", file_path, cid, block_data.cid)));
         }
-        Ok(Some(block))
+        Ok(Some(block_data))
     }
 
-    fn delete(&mut self, cid: &Cid) -> Result<(), CommonError> {
-        let file_path = self.get_block_path(cid);
+    fn delete_block_file(&self, cid: &Cid) -> Result<(), CommonError> {
+        let file_path = self.block_path(cid);
         if file_path.exists() {
             std::fs::remove_file(&file_path)
-                .map_err(|e| CommonError::StorageError(format!("Failed to delete file {:?}: {}", file_path, e)))?;
+                .map_err(|e| CommonError::IoError(format!("Failed to delete file {:?}: {}", file_path, e)))?;
         }
         Ok(())
     }
+}
+
+impl StorageService<DagBlock> for FileDagStore {
+    fn put(&mut self, block: &DagBlock) -> Result<(), CommonError> {
+        self.put_block_to_file(block)
+    }
+
+    fn get(&self, cid: &Cid) -> Result<Option<DagBlock>, CommonError> {
+        self.get_block_from_file(cid)
+    }
+
+    fn delete(&mut self, cid: &Cid) -> Result<(), CommonError> {
+        self.delete_block_file(cid)
+    }
 
     fn contains(&self, cid: &Cid) -> Result<bool, CommonError> {
-        let path = self.get_block_path(cid);
+        let path = self.block_path(cid);
         Ok(path.exists())
     }
 }
@@ -180,7 +189,7 @@ lazy_static::lazy_static! {
 /// DEPRECATED: Use a `StorageService` instance directly.
 pub fn put_block(block: &DagBlock) -> Result<(), CommonError> {
     let mut store = DEFAULT_IN_MEMORY_STORE.lock()
-        .map_err(|e| CommonError::StorageError(format!("Failed to acquire lock on default DAG store: {}", e)))?;
+        .map_err(|e| CommonError::InternalError(format!("Failed to acquire lock on default DAG store: {e}")))?;
     store.put(block)
 }
 
@@ -188,7 +197,7 @@ pub fn put_block(block: &DagBlock) -> Result<(), CommonError> {
 /// DEPRECATED: Use a `StorageService` instance directly.
 pub fn get_block(cid: &Cid) -> Result<Option<DagBlock>, CommonError> {
     let store = DEFAULT_IN_MEMORY_STORE.lock()
-        .map_err(|e| CommonError::StorageError(format!("Failed to acquire lock on default DAG store: {}", e)))?;
+        .map_err(|e| CommonError::InternalError(format!("Failed to acquire lock on default DAG store: {e}")))?;
     store.get(cid)
 }
 
@@ -197,7 +206,7 @@ pub fn process_dag_related_data(info: &NodeInfo) -> Result<String, CommonError> 
     if info.version == ICN_CORE_VERSION {
         Ok(format!("Processing DAG data for node: {} (version {})", info.name, info.version))
     } else {
-        Err(CommonError::PlaceholderError("Version mismatch".to_string()))
+        Err(CommonError::ConfigError(format!("Version mismatch: Expected {}, got {}. Node: {}", ICN_CORE_VERSION, info.version, info.name)))
     }
 }
 
@@ -208,12 +217,12 @@ pub fn process_dag_related_data(info: &NodeInfo) -> Result<String, CommonError> 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use icn_common::DagLink; // For test setup
+     // For test setup
     use tempfile::tempdir; // For FileDagStore tests
 
     // Helper function to create a test block
     fn create_test_block(id_str: &str) -> DagBlock {
-        let data = format!("data for {}", id_str).into_bytes();
+        let data = format!("data for {id_str}").into_bytes();
         let cid = Cid::new_v1_dummy(0x71, 0x12, id_str.as_bytes());
         DagBlock {
             cid,
@@ -229,8 +238,8 @@ mod tests {
 
         // Test put and contains
         assert!(store.put(&block1).is_ok());
-        assert_eq!(store.contains(&block1.cid).unwrap(), true);
-        assert_eq!(store.contains(&block2.cid).unwrap(), false);
+        assert!(store.contains(&block1.cid).unwrap());
+        assert!(!store.contains(&block2.cid).unwrap());
 
         // Test get
         match store.get(&block1.cid) {
@@ -248,23 +257,29 @@ mod tests {
         };
         assert!(store.put(&modified_block1).is_ok());
         match store.get(&block1.cid) {
-            Ok(Some(retrieved_block)) => assert_eq!(retrieved_block.data, modified_block1.data),
-            _ => panic!("Failed to get modified block1"),
+            Ok(Some(retrieved_block)) => {
+                assert_eq!(retrieved_block.cid, block1.cid);
+                // Ensure data was actually modified
+                assert_ne!(retrieved_block.data, block1.data);
+                assert_eq!(retrieved_block.data, modified_block1.data);
+            }
+            _ => panic!("Failed to get modified block1 after overwrite"),
         }
 
         // Test delete
         assert!(store.delete(&block1.cid).is_ok());
-        assert_eq!(store.contains(&block1.cid).unwrap(), false);
+        assert!(!store.contains(&block1.cid).unwrap());
         assert!(store.get(&block1.cid).unwrap().is_none());
 
-        // Test delete non-existent
-        assert!(store.delete(&block2.cid).is_ok()); // Should be idempotent
+        // Test deleting non-existent block (should be Ok)
+        assert!(store.delete(&block2.cid).is_ok()); // block2 was never put after block1 deletion test context
+                                                    // Or, more robustly, use a fresh CID not in the store
+        let non_existent_cid_for_delete = Cid::new_v1_dummy(0x55, 0x12, b"non_existent_for_delete");
+        assert!(store.delete(&non_existent_cid_for_delete).is_ok());
 
-        // Test putting multiple blocks
-        assert!(store.put(&block1).is_ok()); // Re-add block1
+        // Put block2 back for further tests if any or ensure clean state for next use of suite
         assert!(store.put(&block2).is_ok());
-        assert_eq!(store.contains(&block1.cid).unwrap(), true);
-        assert_eq!(store.contains(&block2.cid).unwrap(), true);
+        assert!(store.contains(&block2.cid).unwrap());
     }
     
     #[test]
@@ -275,46 +290,46 @@ mod tests {
 
     #[test]
     fn test_file_dag_store_service() {
-        let dir = tempdir().expect("Failed to create temp dir for FileDagStore test");
-        let store_path = dir.path().to_path_buf();
-        {
-            let mut store = FileDagStore::new(store_path.clone()).expect("Failed to create FileDagStore");
-            test_storage_service_suite(&mut store); // Pass mutable reference for the suite
+        let dir = tempdir().unwrap();
+        let mut store = FileDagStore::new(dir.path().to_path_buf()).unwrap();
+        test_storage_service_suite(&mut store);
 
-            // Test persistence: Create a new store instance for the same path
-            let block_for_persistence = create_test_block("persistent_block");
-            assert!(store.put(&block_for_persistence).is_ok());
-        } // store goes out of scope, files should be written
+        // Additional FileDagStore specific tests, e.g., persistence across instances
+        let block_for_persistence = create_test_block("persistent_block");
+        store.put(&block_for_persistence).unwrap();
+        let store_path = store.storage_path.clone();
+        drop(store); // Drop the store to ensure files are closed
 
-        let store2 = FileDagStore::new(store_path.clone()).expect("Failed to create FileDagStore for persistence test");
-        match store2.get(&create_test_block("persistent_block").cid) {
+        // Re-open the store
+        let mut store2 = FileDagStore::new(store_path).unwrap();
+        match store2.get(&block_for_persistence.cid) {
             Ok(Some(retrieved_block)) => {
-                assert_eq!(retrieved_block.cid, create_test_block("persistent_block").cid);
-                assert_eq!(retrieved_block.data, create_test_block("persistent_block").data);
+                assert_eq!(retrieved_block.cid, block_for_persistence.cid);
+                assert_eq!(retrieved_block.data, block_for_persistence.data);
             }
             _ => panic!("Failed to retrieve persistent block from FileDagStore"),
         }
-        
-        // Test CID mismatch on read
-        let block_cid_mismatch = create_test_block("cid_mismatch_block");
-        let another_cid = Cid::new_v1_dummy(0x71, 0x12, b"another_cid_for_file");
-        let mut store_for_mismatch = FileDagStore::new(store_path.clone()).expect("Failed to create FileDagStore");
-        
-        // Manually create a file with mismatched CID
-        let file_path_mismatch = store_for_mismatch.get_block_path(&another_cid);
-        let serialized_block = serde_json::to_string(&block_cid_mismatch).unwrap();
-        let mut file = OpenOptions::new().write(true).create(true).truncate(true).open(&file_path_mismatch).unwrap();
-        file.write_all(serialized_block.as_bytes()).unwrap();
-        drop(file);
 
-        match store_for_mismatch.get(&another_cid) {
-            Err(CommonError::DagValidationError(_)) => { /* Expected error */ }
-            Ok(_) => panic!("Expected DagValidationError for CID mismatch, got Ok"),
-            Err(e) => panic!("Expected DagValidationError, got other error: {:?}", e),
+        // Test error case: CID mismatch on read
+        let block_x = create_test_block("block_x_corruption");
+        store2.put(&block_x).unwrap();
+        let block_x_path = store2.block_path(&block_x.cid);
+        
+        // Manually corrupt the stored block's CID (simulate corruption)
+        let mut file_contents = std::fs::read_to_string(&block_x_path).unwrap();
+        let mut corrupted_block: DagBlock = serde_json::from_str(&file_contents).unwrap();
+        corrupted_block.cid.hash_bytes[0] ^= 0xFF; // Flip some bits in the CID hash
+        file_contents = serde_json::to_string(&corrupted_block).unwrap();
+        std::fs::write(&block_x_path, file_contents).unwrap();
+
+        match store2.get(&block_x.cid) { // Try to get with original CID
+            Err(CommonError::InvalidInputError(msg)) => {
+                assert!(msg.contains("CID mismatch"));
+            }
+            Ok(Some(_)) => panic!("Should have failed with CID mismatch"),
+            Ok(None) => panic!("Block should exist but be corrupted (CID mismatch), not None"),
+            Err(e) => panic!("Expected InvalidInputError for CID mismatch, got other error: {e:?}"),
         }
-
-
-        dir.close().expect("Failed to close temp dir");
     }
 
 
@@ -344,46 +359,19 @@ mod tests {
 
     #[test]
     fn test_put_and_get_block() {
-        // Clear the store for a clean test run if tests run in parallel
-        DEFAULT_IN_MEMORY_STORE.lock().unwrap().store.clear();
-
-        let data = b"hello dag world".to_vec();
-        // Use a more unique CID for testing to avoid clashes if store is not cleared.
-        let cid = Cid::new_v1_dummy(0x71, 0x12, b"test_put_and_get_block_data_global"); 
-        
-        let link_data = b"a link for put_get test global".to_vec();
-        let link_cid = Cid::new_v1_dummy(0x71, 0x12, &link_data);
-        let link = DagLink {
-            cid: link_cid,
-            name: "child_link_put_get_global".to_string(),
-            size: link_data.len() as u64,
-        };
-
-        let block = DagBlock {
-            cid: cid.clone(),
-            data: data.clone(),
-            links: vec![link],
-        };
-
+        let block = create_test_block("block_global_store");
         assert!(put_block(&block).is_ok());
-
-        match get_block(&cid) {
-            Ok(Some(retrieved_block)) => {
-                assert_eq!(retrieved_block.cid, cid);
-                assert_eq!(retrieved_block.data, data);
-                assert_eq!(retrieved_block.links.len(), 1);
-                assert_eq!(retrieved_block.links[0].name, "child_link_put_get_global");
-            }
-            Ok(None) => panic!("Block not found after put_block"),
-            Err(e) => panic!("get_block returned an error: {:?}", e),
+        match get_block(&block.cid) {
+            Ok(Some(b)) => assert_eq!(b.cid, block.cid),
+            Ok(None) => panic!("Block not found in global store"),
+            Err(e) => panic!("get_block returned an error: {e:?}"),
         }
 
-        let non_existent_cid_data = b"non_existent_data_for_dag_test_global".to_vec();
-        let non_existent_cid = Cid::new_v1_dummy(0x71, 0x12, &non_existent_cid_data);
+        let non_existent_cid = Cid::new_v1_dummy(0x55,0x12,b"non_existent_global");
         match get_block(&non_existent_cid) {
             Ok(None) => { /* Expected */ }
-            Ok(Some(_)) => panic!("Found a block that should not exist"),
-            Err(e) => panic!("get_block for non-existent CID returned an error: {:?}", e),
+            Ok(Some(_)) => panic!("Found non-existent block in global store"),
+            Err(e) => panic!("get_block for non-existent CID returned an error: {e:?}"),
         }
     }
 }

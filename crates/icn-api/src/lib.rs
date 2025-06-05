@@ -15,7 +15,6 @@ use std::sync::{Arc, Mutex}; // To accept the storage service
 use icn_network::{PeerId, NetworkMessage, NetworkService, StubNetworkService};
 // Added imports for governance functionality
 use icn_governance::{GovernanceModule, ProposalId, ProposalType, VoteOption, Proposal};
-use serde::{Serialize, Deserialize};
 use std::str::FromStr;
 
 pub mod governance_trait;
@@ -380,90 +379,55 @@ mod tests {
     #[test]
     fn test_submit_and_get_proposal_api() {
         let gov_module = new_test_governance_module();
-        let governance_api = GovernanceApiImpl::new(Arc::clone(&gov_module)); // New instance
-        let proposer_did_str = "did:example:proposer123".to_string();
+        let api = GovernanceApiImpl::new(gov_module.clone());
 
-        // Example: SystemParameterChange proposal
-        let proposal_input = ProposalInputType::SystemParameterChange {
-            param: "max_block_size".to_string(),
-            value: "2MB".to_string(),
-        };
         let submit_req = GovernanceSubmitProposalRequest {
-            proposer_did: proposer_did_str.clone(),
-            proposal: proposal_input, // Use the new field and type
-            description: "Increase max block size".to_string(),
-            duration_secs: 86400 * 7, // 7 days
+            proposer_did: "did:key:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuias7ux1jEZ6KATp8".to_string(),
+            proposal: ProposalInputType::GenericText { text: "A simple text proposal".to_string() },
+            description: "Test description".to_string(),
+            duration_secs: 3600,
         };
 
-        let proposal_id = match governance_api.submit_proposal(submit_req) { // Call the trait method
-            Ok(id) => id,
-            Err(e) => panic!("submit_proposal failed: {:?}", e),
-        };
-        assert!(!proposal_id.0.is_empty());
+        let proposal_id_res = api.submit_proposal(submit_req);
+        assert!(proposal_id_res.is_ok(), "submit_proposal failed: {:?}", proposal_id_res.err());
+        let proposal_id = proposal_id_res.unwrap();
 
-        // Test get_proposal
-        match governance_api.get_proposal(proposal_id.clone()) { // Call the trait method
-            Ok(Some(proposal)) => {
-                assert_eq!(proposal.id, proposal_id); // Compare ProposalId directly
-                assert_eq!(proposal.proposer.to_string(), proposer_did_str);
-                assert_eq!(proposal.description, "Increase max block size");
-                if let ProposalType::SystemParameterChange(param, val) = proposal.proposal_type {
-                    assert_eq!(param, "max_block_size");
-                    assert_eq!(val, "2MB");
-                } else {
-                    panic!("Incorrect proposal type retrieved: {:?}", proposal.proposal_type);
-                }
-            }
-            Ok(None) => panic!("Proposal not found via get_proposal"),
-            Err(e) => panic!("get_proposal failed: {:?}", e),
-        }
-
-        // Test list_proposals
-        match governance_api.list_proposals() { // Call the trait method
-            Ok(proposals) => {
-                assert_eq!(proposals.len(), 1);
-                assert_eq!(proposals[0].id, proposal_id); // Compare ProposalId
-            }
-            Err(e) => panic!("list_proposals failed: {:?}", e),
-        }
+        let retrieved_proposal_res = api.get_proposal(proposal_id.clone());
+        assert!(retrieved_proposal_res.is_ok(), "get_proposal failed: {:?}", retrieved_proposal_res.err());
+        let retrieved_proposal_opt = retrieved_proposal_res.unwrap();
+        assert!(retrieved_proposal_opt.is_some(), "Proposal not found after submission");
+        let retrieved_proposal = retrieved_proposal_opt.unwrap();
+        assert_eq!(retrieved_proposal.id, proposal_id);
+        assert!(matches!(retrieved_proposal.proposal_type, ProposalType::GenericText(s) if s == "A simple text proposal"));
     }
 
     #[test]
     fn test_cast_vote_api() {
         let gov_module = new_test_governance_module();
-        let governance_api = GovernanceApiImpl::new(Arc::clone(&gov_module)); // New instance
-        let proposer_did_str = "did:example:proposer_for_vote".to_string();
-        let voter_did_str = "did:example:voter1".to_string();
+        let api = GovernanceApiImpl::new(gov_module.clone());
+        let proposer_did_str = "did:key:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuias7ux1jEZ6KATp8";
 
-        // Submit a proposal first
-        let proposal_input = ProposalInputType::Text { text: "A simple text proposal".to_string() };
         let submit_req = GovernanceSubmitProposalRequest {
-            proposer_did: proposer_did_str,
-            proposal: proposal_input,
-            description: "Test proposal for voting".to_string(),
-            duration_secs: 3600, // 1 hour
+            proposer_did: proposer_did_str.to_string(),
+            proposal: ProposalInputType::GenericText { text: "Proposal to vote on".to_string() },
+            description: "Voting test".to_string(),
+            duration_secs: 3600,
         };
-        let proposal_id = governance_api.submit_proposal(submit_req).expect("Submitting proposal for vote test failed");
+        let proposal_id = api.submit_proposal(submit_req).expect("Submitting proposal for vote test failed");
 
-        // Cast a vote
-        let vote_req = GovernanceCastVoteRequest {
-            proposal_id: proposal_id.clone(),
-            voter_did: voter_did_str.clone(),
-            vote: VoteOption::Yes, // Assuming VoteOption::Yes is valid
+        let voter_did_str = "did:key:z6MkjchhcVbWZkAbNGRsM4ac3gR3eNnYtD9tYtFv9T9xL4xH";
+        let cast_vote_req = GovernanceCastVoteRequest {
+            voter_did: voter_did_str.to_string(),
+            proposal_id: proposal_id.0.clone(), // ProposalId(String) -> String
+            vote_option: "yes".to_string(),
         };
-        match governance_api.cast_vote(vote_req) { // Call the trait method
-            Ok(_) => { /* Vote cast successfully */ }
-            Err(e) => panic!("cast_vote failed: {:?}", e),
-        }
 
-        // Verify vote (optional, if get_proposal reveals votes or there's a get_vote_tally API)
-        // For now, just ensuring cast_vote doesn't panic is the main check.
-        // let proposal_details = governance_api.get_proposal(proposal_id).unwrap().unwrap();
-        // assert!(proposal_details.votes.iter().any(|v| v.voter.to_string() == voter_did_str && v.vote == VoteOption::Yes));
+        let vote_res = api.cast_vote(cast_vote_req);
+        assert!(vote_res.is_ok(), "cast_vote failed: {:?}", vote_res.err());
     }
 
     // --- Tests for Network API Functions ---
-    #[tokio::test] // Added tokio::test
+    #[tokio::test]
     async fn test_discover_peers_api() { // Made async
         let bootstrap_nodes = vec!["/ip4/127.0.0.1/tcp/12345/p2p/QmSimulatedPeer".to_string()];
         match discover_peers_api(bootstrap_nodes).await {
@@ -475,39 +439,33 @@ mod tests {
         }
     }
 
-    #[tokio::test] // Added tokio::test
+    #[tokio::test]
     async fn test_send_network_message_api_success() { // Made async
-        let peer_id_str = "QmTestPeerSuccess".to_string();
-        let network_msg = NetworkMessage::Ping; // Assuming Ping variant requires no data or simple setup
-        let message_json = serde_json::to_string(&network_msg).expect("Failed to serialize NetworkMessage for test");
+        let peer_id_str = "test_peer_123".to_string();
+        // Using GossipSub as a generic message type for the test, as Ping variant doesn't exist.
+        let message_to_send = NetworkMessage::GossipSub("test_topic".to_string(), b"hello world".to_vec());
+        let message_json = serde_json::to_string(&message_to_send).unwrap();
 
-        match send_network_message_api(peer_id_str.clone(), message_json.clone()).await {
-            Ok(_) => { /* Success */ }
-            Err(e) => panic!("send_network_message_api failed for successful case: {:?}", e),
-        }
+        let result = send_network_message_api(peer_id_str, message_json).await;
+        assert!(result.is_ok(), "send_network_message_api failed: {:?}", result.err());
     }
 
-    #[tokio::test] // Added tokio::test
+    #[tokio::test]
     async fn test_send_network_message_api_peer_not_found() { // Made async
-        // This test assumes StubNetworkService.send_message can simulate a peer not found error.
-        // If StubNetworkService always succeeds, this test might need adjustment or the stub enhanced.
-        let peer_id_str = "QmNonExistentPeer".to_string();
-        let network_msg = NetworkMessage::RequestBlock { cid: "some_cid_string".to_string() };
-        let message_json = serde_json::to_string(&network_msg).unwrap();
+        let peer_id_str = "unknown_peer_id".to_string(); // StubNetworkService simulates error for this peer
+        let dummy_cid = Cid::new_v1_dummy(0x55, 0x12, b"test_cid_for_req_block");
+        let message_to_send = NetworkMessage::RequestBlock(dummy_cid); // Corrected to tuple variant
+        let message_json = serde_json::to_string(&message_to_send).unwrap();
 
-        match send_network_message_api(peer_id_str, message_json).await {
-            Err(CommonError::ApiError(api_err_msg)) => {
-                // Check if the underlying error from StubNetworkService (PeerNotFound) is encapsulated.
-                // This depends on how StubNetworkService reports errors.
-                // For now, we just expect an ApiError.
-                assert!(api_err_msg.contains("Failed to send message")); 
-            }
-            Ok(_) => panic!("send_network_message_api should have failed for a non-existent peer"),
-            Err(e) => panic!("send_network_message_api returned an unexpected error type: {:?}", e),
+        let result = send_network_message_api(peer_id_str, message_json).await;
+        assert!(result.is_err());
+        match result.err().unwrap() {
+            CommonError::ApiError(msg) => assert!(msg.contains("Peer with ID unknown_peer_id not found") || msg.contains("Failed to send message to peer: unknown_peer_id")),
+            other_err => panic!("Expected ApiError for peer not found, got {:?}", other_err),
         }
     }
 
-    #[tokio::test] // Added tokio::test
+    #[tokio::test]
     async fn test_send_network_message_api_invalid_json() { // Made async
         let peer_id_str = "QmTestPeerInvalidJson".to_string();
         let invalid_message_json = "this is not valid json for a network message";

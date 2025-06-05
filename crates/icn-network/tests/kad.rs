@@ -116,7 +116,7 @@ mod kademlia_three_node_tests {
     use icn_network::NetworkService; 
     use std::time::Duration;
     use tokio::time::sleep;
-    use libp2p::kad::record::Key as Libp2pKadKey; // Renamed for clarity, using as Libp2pKadKey
+    use libp2p::kad::RecordKey as Libp2pKadKey; // Renamed for clarity, using as Libp2pKadKey
     use futures::Future; // Required for Pin<Box<dyn Future>>
 
     // Helper function for retrying an async operation until a deadline
@@ -166,16 +166,19 @@ mod kademlia_three_node_tests {
             }
         })
         .await
-        .unwrap_or_else(|err| panic!("{}'s routing table did not converge: {}. Expected: {:?}", node_name, err, expected_peers.iter().map(|p|&p.0).collect::<Vec<_>>())));
+        .unwrap_or_else(|err| panic!("{}'s routing table did not converge: {}. Expected: {:?}", node_name, err, expected_peers.iter().map(|p|&p.0).collect::<Vec<_>>())
+        );
         println!("{}'s Kademlia routing table converged and contains all expected peers.", node_name);
+    }
+
+    fn setup_tracing_for_test() {
+        // Simplified basic tracing setup for ignored test
+        let _ = tracing_subscriber::fmt().with_test_writer().try_init();
     }
 
     #[tokio::test]
     async fn test_kademlia_three_node_peer_discovery() {
-        let _ = tracing_subscriber::fmt()
-            .with_test_writer()
-            .with_env_filter("debug,libp2p=info") // Adjusted for potentially verbose libp2p
-            .try_init();
+        setup_tracing_for_test(); // Call the setup function
 
         println!("Starting Kademlia three_node_peer_discovery test...");
 

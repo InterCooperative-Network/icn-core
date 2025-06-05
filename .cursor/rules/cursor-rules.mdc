@@ -1,0 +1,133 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+---
+description: ICN Global – Shared Principles, Rules & Cross-Repo Coordination
+alwaysApply: true
+---
+
+# InterCooperative Network (ICN) – Shared Contributor & Agent Rules
+
+> **Attention Contributor (Human or AI):** This file defines foundational rules, architectural principles, and coordination expectations applicable to **every official ICN repository** listed below. Adherence is mandatory; CI and review processes will enforce these guidelines. Specific repositories may have an additional `context.md` file with repo-local rules.
+
+---
+
+## 1 · ICN System Philosophy & Ambition
+
+ICN is a **federated compute, resource, and governance protocol** designed for cooperatives, communities, and federations.
+
+It is **not a blockchain**, and **not a centralized cloud provider** in the traditional sense. Instead, ICN is a **distributed trust, execution, and governance fabric.**
+
+ICN aims to support and eventually supersede the functionality typically provided by centralized cloud platforms, including:
+* API exposure, composition, and hosting.
+* Dynamic, policy-driven compute scheduling and execution.
+* Multi-tenant identity, resource management, and access control.
+* Comprehensive observability, auditing, and usage-based accounting.
+* Self-service policy enforcement and lifecycle controls for all network functions.
+
+ICN achieves these capabilities via:
+* **Scoped Identity**: Decentralized Identifiers (DIDs) for individuals, cooperatives, communities, and federations.
+* **Deterministic Execution & Verifiable Receipts**: All significant actions are intended to be deterministic where possible, producing signed receipts that are anchored in a Content-Addressable DAG.
+* **Governance-Bound Behavior**: Network operations, resource access, and protocol evolution are controlled by explicit, versioned policies (e.g., defined in CCL and compiled to WASM).
+* **Dual Economic System**:
+    * **`Mana`**: A regenerating capacity credit for compute metering, network participation, rate-limiting, and Sybil resistance. Its regeneration can be influenced by reputation and policy.
+    * **Tokenized Assets**: Support for distinct, potentially fungible or non-fungible tokens representing goods, services, or other forms of value, enabling a richer economy beyond compute access.
+* **Reputation-Driven Trust**: Trust and access are dynamically shaped by verifiable behavior and contributions, rather than relying solely on static ACLs or centralized identity providers.
+
+> **In essence: ICN is a programmable, governable, and resilient digital commons, providing the infrastructure for a cooperative digital economy.**
+
+---
+
+## 2 · Official Repository Roles and Boundaries
+
+Each official ICN repository has a distinct responsibility. Agents and contributors must operate strictly within the defined scope of the repository they are working on.
+
+| Repo             | Primary Responsibility                                      | Key Interactions & Boundaries                                  |
+| ---------------- | ----------------------------------------------------------- | -------------------------------------------------------------- |
+| `icn-core`       | Rust monorepo: Core deterministic logic (runtime, identity, economics, DAG, governance, mesh, CCL, network abstractions, API traits, CLI logic). | Produces libraries for `icn-node`. The `icn-api` and `icn-cli` *logic* originates here but their deployment/packaging might differ. |
+| `icn-docs`       | Canonical source for all specifications, RFCs, architectural guides, API references, and contributor onboarding. | Consumes information from all repos. Serves documentation website. |
+| `icn-website`    | Public-facing informational website for ICN (Astro-based). | Presents high-level information, may draw from `icn-docs`. |
+| `icn.zone`       | _(Private, to become public)_ Developer-facing portal and contributor hub (Astro-based). | Technical content, links to `icn-docs`, GitHub, community tools. |
+| `icn-node`       | _(Implied, if `icn-core` doesn't produce the final binary)_ Runnable ICN node server (e.g., Axum-based). | Implements `icn-api` traits from `icn-core`. Uses libraries from `icn-core`. |
+| `icn-community`  | Community engagement, governance discussions, support channels. (Purpose to be further detailed). | Facilitates community interaction. |
+| `icn-web-ui`     | Federation/Cooperative/Community management dashboard UI. | Interacts with `icn-node` via APIs defined in `icn-core`'s API module. |
+| `icn-explorer`   | DAG viewer, job/receipt browser, network activity visualizer. | Interacts with `icn-node` (or dedicated query services) via APIs. |
+| `icn-wallet`     | Web-based DID key management, credential handling, and signing interface (PWA). | Securely manages user keys. Interacts with `icn-node` for on-network actions. |
+| `icn-agoranet`   | Frontend for governance deliberation, proposal drafting, and real-time collaborative editing. | Interacts with governance modules of `icn-node` via APIs. |
+| `icn-devnet`     | Tools and configurations for bootstrapping local multi-node development networks (e.g., Docker/K8s). | Uses `icn-node` binaries (from `icn-core` or dedicated `icn-node` repo). |
+| `icn-infra`      | Production/Staging deployment configurations (e.g., Terraform/Helm/Ansible) and observability stack (Prometheus, Grafana). | Deploys `icn-node` and related services. |
+
+> **Agent Mandate:** If a requested feature or change clearly belongs in a different repository, document this requirement (e.g., create an issue in the target repo or a linking comment in the current PR) and await guidance or an update from that repository. Do **not** implement out-of-scope logic. **Legacy repositories (`icn-v2`, `icn-v3`, `icn-covm`, `icn-covm-v3`) are for historical reference only and their code should not be directly imported.**
+
+---
+
+## 3 · Language, Terminology & Ethos
+
+Adherence to ICN's specific terminology and development ethos is crucial for clarity and consistency.
+
+* **Terminology**:
+    * Use **"ICN"** (InterCooperative Network), not "ICN Network" (the "Network" is redundant).
+    * Use **"mesh job"** for computational tasks, not "task," "workload," or "job offer."
+    * Use **"execution receipt"** (or simply "receipt") for verifiable proof of action, not "proof," "log," or "transaction log."
+    * Use **`mana`** when referring to the regenerating compute and participation capacity credit. Distinguish this from **`tokens`** or **`digital assets`** which are used for the exchange of specific goods, services, or other economic value within the ICN. Avoid generic terms like "gas" or "credits" without specifying if you mean `mana` or another token type.
+    * Use **"DAG"** (Directed Acyclic Graph) for content-addressed storage, not "blockchain."
+    * Use **"governance policy"** or **"CCL policy/contract"** for executable rules, not "smart contract" in the generic blockchain sense, to emphasize their specific role and language.
+* **Development Ethos**:
+    * **No Direct Legacy Code Imports**: Legacy repositories are for conceptual reference *only*. All code in official repositories must be fresh, modern, idiomatic Rust (or relevant frontend languages), and aligned with current best practices.
+    * **Modularity & Decoupling**: Strive for loosely coupled components with well-defined interfaces (traits, DTOs defined in `icn-core`'s API module).
+    * **Testability**: Design for testability from the outset.
+    * **Determinism (for core logic)**: Core runtime, economic, and governance logic in `icn-core` must be deterministic. Avoid introducing sources of non-determinism like direct wall-clock time access, unseeded randomness, or unabstracted I/O in these critical paths.
+
+> **Mental Model**: ICN is not a derivative of existing blockchain or Web3 paradigms, though it shares some goals like decentralization. It has its own first principles. Approach design and implementation from this unique perspective.
+
+---
+
+## 4 · Inter-Repository Coordination & Communication
+
+Effective coordination between repositories is managed through well-defined interfaces and documentation, as direct inter-agent communication is not assumed.
+
+* **Shared Types & API Contracts (`icn-core`'s API module)**: The API module within `icn-core` (e.g., `crates/icn-api`) is the **single source of truth** for Data Transfer Objects (DTOs) and public service API trait definitions. Consuming repositories (`icn-node` (if separate), `icn-cli` (if separate), frontends) *must* use these types and traits, potentially via published versions of the `icn-api` crate.
+* **Canonical Documentation (`icn-docs`)**: The `icn-docs` repository is the canonical source for all architectural specifications, RFCs, API references (generated or manually written), and onboarding guides. Link to relevant pages in `icn-docs` (e.g., `https://intercooperative.network/docs/...`) from code comments, READMEs, and PR descriptions where appropriate.
+* **Change Propagation Protocol**:
+    1.  If a change in `icn-core` impacts a public API or a data structure intended for external use, the API module within `icn-core` must be updated first.
+    2.  The `icn-docs` repository must then be updated to reflect these API changes.
+    3.  Only then should the consuming repositories be updated to use the new/modified API.
+* **Issue Tracking & Cross-References**: Use GitHub issues for tracking work. If a task in one repo depends on a change in another, create linked issues or clearly reference the dependency in PR descriptions.
+
+---
+
+## 5 · General Coding, Testing & Tooling Expectations
+
+These apply to all repositories, adapted by language where necessary.
+
+* **Primary Language**: Rust for `icn-core` and any derived node/CLI binaries. JavaScript/TypeScript with Astro (or other chosen frameworks) for `icn-website`, `icn.zone`, and other frontend UIs.
+* **Minimum Supported Rust Version (MSRV)**: Defined in `icn-core`'s `rust-toolchain.toml` (currently nightly). Other Rust-based repos should align or specify their own.
+* **Mandatory Testing**:
+    * Unit tests for all critical logic paths, branches, and edge cases.
+    * Integration tests for interactions between components/modules within a repository.
+    * End-to-end tests (e.g., in `icn-devnet` for cluster behavior) are highly encouraged.
+* **Automated Tooling**:
+    * **`justfile`**: Every repository should adopt a `justfile` for common commands (`build`, `test`, `lint`, `format`, `docs`).
+    * **Pre-commit Hooks** (`.pre-commit-config.yaml`): Enforce formatting and basic linting before code is committed.
+    * **CI (GitHub Actions)**: Every repository must have CI workflows that run linting, formatting checks, build, and tests on every PR and push to main branches. CI should fail if any checks do not pass. (Inspired by `icn-core/.github/workflows/ci.yml`).
+    * **Linters**: `cargo clippy --all-targets --all-features -- -D warnings` for Rust. Standard linters (ESLint, Stylelint) for frontend code.
+
+---
+
+## 6 · ICN Design Commitments (Reiteration)
+
+All contributions must align with these core ICN design commitments:
+
+* **Scoped Trust**: All actions and resources are contextualized by DIDs representing individuals, communities, cooperatives, or federations.
+* **Explicit & Verifiable Policy**: Rules governing network behavior are defined explicitly (e.g., via CCL), versioned, transparent, and compiled to verifiable formats (e.g., WASM).
+* **Dual Economic Model**:
+    * **Regenerative `Mana`**: The `mana` system ensures access to computation and network participation based on a regenerating capacity, influenced by reputation and policy, to prevent spam and ensure fair use.
+    * **Tokenized Value Exchange**: The ICN supports a distinct layer for tokenized assets, facilitating the exchange of goods, services, and other forms of economic value between participants.
+* **No Implicit Authority**: Governance is participatory and accountable.
+* **Execution Must Be Verifiable**: Every significant action emits a signed receipt and/or DAG block.
+
+---
+
+> **By contributing to any ICN repository, you agree to uphold these rules and principles.** Failure to do so may result in PRs being rejected or requiring significant rework. If any rule is unclear or seems to conflict with a specific task, please raise it for discussion.

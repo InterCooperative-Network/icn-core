@@ -12,7 +12,9 @@ members = [
     "crates/icn-api",
     "crates/icn-cli",
     "crates/icn-node",
+    # "icn-ccl", # TODO: Add back when implementing CCL crate
 ]
+resolver = "3"
 
 # Optional: centralize workspace-wide settings
 [workspace.package]
@@ -20,3 +22,9 @@ edition = "2024"
 version = "0.1.0"
 authors = ["InterCooperative Network <dev@intercooperative.network>"]
 license = "Apache-2.0"
+
+# Dependencies for integration tests
+[workspace.dependencies]
+reqwest = { version = "0.11", features = ["json"] }
+serde_json = "1.0"
+tokio = { version = "1.0", features = ["full"] }

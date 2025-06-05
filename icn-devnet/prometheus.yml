@@ -1,0 +1,23 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'icn-federation'
+    static_configs:
+      - targets: 
+          - 'icn-node-a:7845'
+          - 'icn-node-b:7845'
+          - 'icn-node-c:7845'
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+    scrape_timeout: 5s
+    
+  - job_name: 'icn-node-info'
+    static_configs:
+      - targets:
+          - 'icn-node-a:7845'
+          - 'icn-node-b:7845'
+          - 'icn-node-c:7845'
+    metrics_path: '/info'
+    scrape_interval: 30s 

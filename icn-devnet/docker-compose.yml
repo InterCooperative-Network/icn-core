@@ -1,0 +1,139 @@
+version: '3.8'
+
+services:
+  # Node A - Bootstrap node and primary HTTP gateway
+  icn-node-a:
+    build:
+      context: ..
+      dockerfile: icn-devnet/Dockerfile
+    container_name: icn-node-a
+    hostname: icn-node-a
+    environment:
+      - ICN_NODE_NAME=Federation-Node-A
+      - ICN_HTTP_LISTEN_ADDR=0.0.0.0:7845
+      - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
+      - ICN_ENABLE_P2P=true
+      - ICN_STORAGE_BACKEND=memory
+      - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
+    ports:
+      - "5001:7845"  # HTTP API
+      - "4001:4001"  # P2P networking
+    networks:
+      - icn-federation
+    volumes:
+      - node-a-data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7845/info"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Node B - Worker node
+  icn-node-b:
+    build:
+      context: ..
+      dockerfile: icn-devnet/Dockerfile
+    container_name: icn-node-b
+    hostname: icn-node-b
+    environment:
+      - ICN_NODE_NAME=Federation-Node-B
+      - ICN_HTTP_LISTEN_ADDR=0.0.0.0:7845
+      - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
+      - ICN_ENABLE_P2P=true
+      - ICN_BOOTSTRAP_PEERS=/ip4/172.20.0.2/tcp/4001/p2p/12D3KooWMihHnheYawaboC67SA9ZTG71DPfTiC8BphXz8PcojDdz
+      - ICN_STORAGE_BACKEND=memory
+      - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
+    ports:
+      - "5002:7845"  # HTTP API
+      - "4002:4001"  # P2P networking
+    networks:
+      - icn-federation
+    volumes:
+      - node-b-data:/app/data
+    depends_on:
+      - icn-node-a
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7845/info"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Node C - Worker node
+  icn-node-c:
+    build:
+      context: ..
+      dockerfile: icn-devnet/Dockerfile
+    container_name: icn-node-c
+    hostname: icn-node-c
+    environment:
+      - ICN_NODE_NAME=Federation-Node-C
+      - ICN_HTTP_LISTEN_ADDR=0.0.0.0:7845
+      - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
+      - ICN_ENABLE_P2P=true
+      - ICN_BOOTSTRAP_PEERS=/ip4/172.20.0.2/tcp/4001/p2p/12D3KooWMihHnheYawaboC67SA9ZTG71DPfTiC8BphXz8PcojDdz
+      - ICN_STORAGE_BACKEND=memory
+      - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
+    ports:
+      - "5003:7845"  # HTTP API
+      - "4003:4001"  # P2P networking
+    networks:
+      - icn-federation
+    volumes:
+      - node-c-data:/app/data
+    depends_on:
+      - icn-node-a
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7845/info"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Optional: Prometheus for metrics monitoring
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: icn-prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    ports:
+      - "9090:9090"
+    networks:
+      - icn-federation
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    profiles:
+      - monitoring
+
+  # Optional: Grafana for dashboard visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: icn-grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=icnfederation
+    ports:
+      - "3000:3000"
+    networks:
+      - icn-federation
+    volumes:
+      - grafana-data:/var/lib/grafana
+    profiles:
+      - monitoring
+
+networks:
+  icn-federation:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  node-a-data:
+  node-b-data:
+  node-c-data:
+  grafana-data: 

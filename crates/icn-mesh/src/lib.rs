@@ -5,8 +5,8 @@
 //! InterCooperative Network (ICN) mesh network. It handles job definition, resource discovery,
 //! scheduling, execution management, and fault tolerance.
 
-use icn_common::{NodeInfo, CommonError, ICN_CORE_VERSION, Cid, Did};
-use icn_identity::ExecutionReceipt;
+use icn_common::{NodeInfo, CommonError, Cid, Did};
+use icn_identity::{ExecutionReceipt, SignatureBytes, VerifyingKey as IdentityVerifyingKey, SigningKey as IdentitySigningKey, sign_message as identity_sign_message, verify_signature as identity_verify_signature};
 use serde::{Serialize, Deserialize};
 
 /// Errors that can occur within the ICN Mesh subsystem.
@@ -53,7 +53,7 @@ pub struct Resources;
 /// Represents a job submitted to the ICN mesh computing network.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ActualMeshJob {
-    /// Unique identifier for this job instance.
+    /// Unique identifier for this job instance (typically a CID of core job details).
     pub id: JobId,
     /// Content Identifier (CID) of the job's core executable or primary data package.
     pub manifest_cid: Cid,
@@ -63,12 +63,59 @@ pub struct ActualMeshJob {
     pub creator_did: Did,
     /// The amount of mana allocated by the submitter for this job's execution.
     pub cost_mana: u64,
+    /// Signature from the creator_did over the (id, manifest_cid, spec_hash (if spec is large), creator_did, cost_mana)
+    pub signature: SignatureBytes,
+}
+
+impl ActualMeshJob {
+    /// Creates the canonical message bytes for signing the job.
+    /// The fields must be serialized in a deterministic way.
+    fn to_signable_bytes(&self) -> Result<Vec<u8>, CommonError> {
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(self.id.to_string().as_bytes());
+        bytes.extend_from_slice(self.manifest_cid.to_string().as_bytes());
+        bytes.extend_from_slice(self.creator_did.to_string().as_bytes());
+        bytes.extend_from_slice(&self.cost_mana.to_le_bytes());
+        Ok(bytes)
+    }
+
+    /// Signs this job with the provided Ed25519 SigningKey.
+    pub fn sign(mut self, signing_key: &IdentitySigningKey) -> Result<Self, CommonError> {
+        // Ensure the job_id is set before signing, as it's part of the signable bytes.
+        // Typically, id would be a CID of some core content, generated before this step.
+        if self.id.to_string().is_empty() || self.id.to_string().as_bytes().len() < 4 { // Basic check, using to_string().as_bytes()
+             return Err(CommonError::InternalError("Job ID must be set before signing".to_string())); // Was InvalidParameters
+        }
+        let message = self.to_signable_bytes()?;
+        let ed_signature = identity_sign_message(signing_key, &message);
+        self.signature = SignatureBytes(ed_signature.to_bytes().to_vec());
+        Ok(self)
+    }
+
+    /// Verifies the signature of this job against the provided Ed25519 VerifyingKey.
+    pub fn verify_signature(&self, verifying_key: &IdentityVerifyingKey) -> Result<(), CommonError> {
+        let message = self.to_signable_bytes()?;
+        let ed_signature = self.signature.to_ed_signature()?;
+
+        if identity_verify_signature(verifying_key, &message, &ed_signature) {
+            Ok(())
+        } else {
+            Err(CommonError::InternalError("ActualMeshJob signature verification failed".to_string())) // Was CryptographyError
+        }
+    }
 }
 
 /// Detailed specification for a mesh job.
 /// TODO: Define fields for inputs, outputs, resource requirements, timeouts, etc.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct JobSpec {}
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub enum JobSpec {
+    Echo { payload: String },
+    // Add other variants as needed, e.g.:
+    // Generic { command: String, args: Vec<String> },
+    // Wasm { module_cid: Cid, entry_function: String, params: Vec<Value> },
+    #[default]
+    GenericPlaceholder, // Placeholder until more types are defined
+}
 
 /// Represents a bid submitted by an executor node for a specific mesh job.
 #[derive(Debug, Clone, Serialize, Deserialize)] // Added Serialize, Deserialize
@@ -123,18 +170,18 @@ impl ReputationExecutorSelector {
 /// executor reputation alongside other bid parameters like price and resource availability.
 /// 
 /// # Arguments
+/// * `job_id` - The ID of the job for which an executor is being selected.
 /// * `bids` - A vector of `Bid` structs received for a specific job.
 /// * `policy` - The `SelectionPolicy` to apply for choosing the best executor.
 /// 
 /// # Returns
 /// * `Some(Did)` of the selected executor if a suitable one is found.
 /// * `None` if no suitable executor could be selected based on the bids and policy.
-pub fn select_executor(bids: Vec<MeshJobBid>, policy: SelectionPolicy) -> Option<Did> {
-    // Use the scoring logic directly or via ReputationExecutorSelector
-    // let selector = ReputationExecutorSelector; 
-    // selector.select(&bids, &policy)
+pub fn select_executor(job_id: &JobId, bids: Vec<MeshJobBid>, _policy: &SelectionPolicy) -> Option<Did> {
+    // TODO: Implement actual selection logic based on policy (reputation, price, resources, etc.)
+    // For now, simplistic: return the DID of the first valid bidder if any.
+    println!("[Mesh] Selecting executor for job {:?}. Received {} bids.", job_id, bids.len());
 
-    // Direct implementation for clarity for now:
     if bids.is_empty() {
         return None;
     }
@@ -143,7 +190,7 @@ pub fn select_executor(bids: Vec<MeshJobBid>, policy: SelectionPolicy) -> Option
     let mut highest_score = 0u64;
 
     for bid in &bids {
-        let current_score = score_bid(bid, &policy);
+        let current_score = score_bid(bid, _policy);
         if best_bid.is_none() || current_score > highest_score {
             highest_score = current_score;
             best_bid = Some(bid);
@@ -165,7 +212,7 @@ pub fn select_executor(bids: Vec<MeshJobBid>, policy: SelectionPolicy) -> Option
 /// 
 /// # Returns
 /// * A `u64` representing the calculated score for the bid. Higher is generally better.
-pub fn score_bid(bid: &MeshJobBid, policy: &SelectionPolicy) -> u64 {
+pub fn score_bid(bid: &MeshJobBid, _policy: &SelectionPolicy) -> u64 {
     // TODO: Implement actual scoring logic based on price, mana, reputation, advertised_perf
     // TODO: Weights (w_price, w_rep, w_perf) should come from policy or config.
     // TODO: Reputation needs to be fetched for bid.executor_did.
@@ -247,16 +294,57 @@ pub struct SubmitReceiptMessage {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use icn_common::{ICN_CORE_VERSION, NodeInfo, Cid, Did}; // Kept ICN_CORE_VERSION as it's often for tests
+    use std::str::FromStr;
 
     #[test]
     fn test_schedule_mesh_job() {
         let node_info = NodeInfo {
             name: "MeshNode".to_string(),
-            version: ICN_CORE_VERSION.to_string(),
+            version: ICN_CORE_VERSION.to_string(), // Restored ICN_CORE_VERSION
             status_message: "Mesh active".to_string(),
         };
         let result = schedule_mesh_job(&node_info, "job-123");
         assert!(result.is_ok());
         assert!(result.unwrap().contains("job-123"));
+    }
+
+    #[test]
+    fn test_actual_mesh_job_signing_and_verification() {
+        let (signing_key, verifying_key) = icn_identity::generate_ed25519_keypair();
+        let creator_did_string = icn_identity::did_key_from_verifying_key(&verifying_key);
+        let creator_did = Did::from_str(&creator_did_string).unwrap();
+
+        let job_id = dummy_cid("test_job_data_for_cid_signing"); // Use dummy_cid helper
+        let manifest_cid = dummy_cid("test_manifest_data_for_cid_signing"); // Use dummy_cid helper
+
+        let job_unsigned = ActualMeshJob {
+            id: job_id.clone(),
+            manifest_cid: manifest_cid.clone(),
+            spec: JobSpec::GenericPlaceholder,
+            creator_did: creator_did.clone(),
+            cost_mana: 100,
+            signature: SignatureBytes(vec![]), // Placeholder
+        };
+
+        let signed_job = job_unsigned.clone().sign(&signing_key).unwrap();
+        assert_ne!(signed_job.signature.0, Vec::<u8>::new());
+
+        // Verification should pass with the correct public key
+        assert!(signed_job.verify_signature(&verifying_key).is_ok());
+
+        // Verification should fail with a different public key
+        let (_other_sk, other_pk) = icn_identity::generate_ed25519_keypair();
+        assert!(signed_job.verify_signature(&other_pk).is_err());
+
+        // Verification should fail if the job data is tampered with
+        let mut tampered_job = signed_job.clone();
+        tampered_job.cost_mana = 200;
+        assert!(tampered_job.verify_signature(&verifying_key).is_err());
+    }
+
+    // Helper to create a dummy Cid for tests
+    fn dummy_cid(s: &str) -> Cid {
+        Cid::new_v1_dummy(0x55, 0x12, s.as_bytes())
     }
 }

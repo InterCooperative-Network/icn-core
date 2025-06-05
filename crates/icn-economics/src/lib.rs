@@ -5,7 +5,7 @@
 //! It manages token models, ledger interactions, transaction logic, and incentive mechanisms,
 //! aiming for security, accuracy, and interoperability.
 
-use icn_common::{NodeInfo, CommonError, ICN_CORE_VERSION, Did};
+use icn_common::{NodeInfo, CommonError, Did};
 
 // Placeholder for EconError enum
 #[derive(Debug)]
@@ -27,8 +27,14 @@ impl ManaRepositoryAdapter {
         // if amount > 1000 { // Arbitrary condition for placeholder
         //     return Err(EconError::InsufficientBalance(format!("Mock insufficient balance for DID {:?}", did)));
         // }
-        println!("[ManaRepositoryAdapter STUB] Spending {} mana for DID {:?}", _amount, _did);
+        println!("[ManaRepositoryAdapter STUB] Spending {_amount} mana for DID {_did:?}");
         Ok(())
+    }
+}
+
+impl Default for ManaRepositoryAdapter {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -44,7 +50,7 @@ impl ResourcePolicyEnforcer {
     }
 
     pub fn spend_mana(&self, did: &Did, amount: u64) -> Result<(), EconError> {
-        println!("[ResourcePolicyEnforcer STUB] Enforcing spend_mana for DID {:?}, amount {}", did, amount);
+        println!("[ResourcePolicyEnforcer STUB] Enforcing spend_mana for DID {did:?}, amount {amount}");
         // TODO: Add actual policy logic here if needed before calling adapter
         self.adapter.spend_mana(did, amount)
     }
@@ -58,7 +64,7 @@ pub fn charge_mana(did: &Did, amount: u64) -> Result<(), EconError> {
     let mana_adapter = ManaRepositoryAdapter::new();
     let policy_enforcer = ResourcePolicyEnforcer::new(mana_adapter);
     
-    println!("[icn-economics] charge_mana called for DID {:?}, amount {}", did, amount);
+    println!("[icn-economics] charge_mana called for DID {did:?}, amount {amount}");
     policy_enforcer.spend_mana(did, amount)
 }
 
@@ -70,6 +76,7 @@ pub fn process_economic_event(info: &NodeInfo, event_details: &str) -> Result<St
 #[cfg(test)]
 mod tests {
     use super::*;
+    use icn_common::ICN_CORE_VERSION;
 
     #[test]
     fn test_process_economic_event() {

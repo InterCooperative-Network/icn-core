@@ -7,7 +7,7 @@
 
 use serde::{Serialize, Deserialize};
 use std::fmt;
-use bs58;
+use thiserror::Error;
 
 pub const ICN_CORE_VERSION: &str = "0.1.0-dev-functional";
 
@@ -27,55 +27,89 @@ pub struct NodeStatus {
     pub version: String,
 }
 
-impl fmt::Display for CommonError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", self) // Simple Display implementation using Debug
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
+/// Represents a generic error that can occur within the ICN network.
+#[derive(Debug, Error, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub enum CommonError {
-    PlaceholderError(String),
-    ApiError(String),               // General API error
-    NodeOffline(String),            // Node is offline
-    NetworkUnhealthy(String),       // Network is generally unhealthy
-    SerializationError(String),     // Error during serialization
-    DeserializationError(String),   // Error during deserialization
-    NotFoundError(String),          // Generic not found
-    InvalidInputError(String),      // Input validation failed
-    StorageError(String),           // General storage error
+    #[error("Invalid input: {0}")]
+    InvalidInputError(String),
 
-    // Network specific errors
-    NetworkConnectionError(String), // e.g. Cannot connect to peer
-    PeerNotFound(String),           // Specific peer not found
-    MessageSendError(String),       // Failed to send a message
-    MessageReceiveError(String),    // Failed to receive/parse a message
+    #[error("Serialization error: {0}")]
+    SerializationError(String),
 
-    // Storage specific errors
-    BlockNotFound(String),      // Specific to DAG block not found
-    DatabaseError(String),      // For underlying database issues if not general StorageError
+    #[error("Deserialization error: {0}")]
+    DeserializationError(String),
 
-    // Identity specific errors
-    IdentityError(String),              // General identity error
-    KeyPairGenerationError(String),
-    SignatureError(String),             // For signing or verification failures
-    DidResolutionError(String),
-    CredentialError(String),            // For Verifiable Credential issues
+    #[error("Cryptography error: {0}")]
+    CryptoError(String),
 
-    // DAG specific errors
-    DagValidationError(String),     // e.g. CID mismatch, invalid link
-    BlockTooLargeError(String),
+    #[error("Resource not found: {0}")]
+    ResourceNotFound(String),
 
-    // Governance specific errors
-    ProposalExists(String),
-    ProposalNotFound(String),
-    VotingClosed(String),
-    AlreadyVoted(String),
-    InvalidVoteOption(String),
-    NotEligibleToVote(String),
-    NetworkSetupError(String), // For errors during network service initialization (e.g. libp2p setup)
+    #[error("Permission denied: {0}")]
+    PermissionDenied(String),
 
-    // TODO: Add more specific error variants as needed
+    #[error("Network setup error: {0}")]
+    NetworkSetupError(String),
+
+    #[error("Network error: {0}")]
+    NetworkError(String),
+
+    #[error("Message send error: {0}")]
+    MessageSendError(String),
+
+    #[error("Peer not found: {0}")]
+    PeerNotFound(String),
+
+    #[error("Network unhealthy: {0}")]
+    NetworkUnhealthy(String),
+    
+    #[error("Identity error: {0}")]
+    IdentityError(String),
+
+    #[error("Configuration error: {0}")]
+    ConfigError(String),
+
+    #[error("I/O error: {0}")]
+    IoError(String),
+
+    #[error("Timeout error: {0}")]
+    TimeoutError(String),
+
+    #[error("Operation cancelled: {0}")]
+    CancelledError(String),
+
+    #[error("Internal error: {0}")]
+    InternalError(String),
+
+    #[error("Feature not implemented: {0}")]
+    NotImplementedError(String),
+
+    #[error("Database error: {0}")]
+    DatabaseError(String),
+
+    #[error("Storage error: {0}")]
+    StorageError(String),
+
+    #[error("DAG validation error: {0}")]
+    DagValidationError(String),
+
+    #[error("API error: {0}")]
+    ApiError(String),
+
+    #[error("Node offline: {0}")]
+    NodeOffline(String),
+    
+    #[error("Unknown error: {0}")]
+    UnknownError(String),
+
+    #[error("Deserialization error: {0}")]
+    DeserError(String),
+
+    #[error("Serialization error: {0}")]
+    SerError(String),
+
+    #[error("Not implemented: {0}")]
+    NotImplemented(String),
 }
 
 // TODO: Define struct for DIDs (e.g., pub struct Did { method: String, id_string: String, ... })
@@ -85,7 +119,7 @@ pub enum CommonError {
 // --- Real Protocol Data Models ---
 
 /// Represents a Decentralized Identifier (DID).
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 pub struct Did {
     pub method: String,         // e.g., "key", "web", "ion"
     pub id_string: String,      // The method-specific identifier string
@@ -96,8 +130,11 @@ impl Did {
     pub fn new(method: &str, id_string: &str) -> Self {
         Did { method: method.to_string(), id_string: id_string.to_string() }
     }
-    pub fn to_string(&self) -> String {
-        format!("did:{}:{}", self.method, self.id_string)
+}
+
+impl fmt::Display for Did {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "did:{}:{}", self.method, self.id_string)
     }
 }
 
@@ -108,7 +145,7 @@ impl std::str::FromStr for Did {
         if parts.len() == 3 && parts[0] == "did" && !parts[1].is_empty() && !parts[2].is_empty() {
             Ok(Did { method: parts[1].to_string(), id_string: parts[2].to_string() })
         } else {
-            Err(CommonError::InvalidInputError(format!("Invalid DID string format: {}. Expected 'did:method:id' with non-empty method and id.", s)))
+            Err(CommonError::InvalidInputError(format!("Invalid DID string format: {s}. Expected 'did:method:id' with non-empty method and id.")))
         }
     }
 }
@@ -189,7 +226,6 @@ mod tests {
 
     #[test]
     fn version_is_set() {
-        assert!(!ICN_CORE_VERSION.is_empty());
         assert!(ICN_CORE_VERSION.contains("functional"));
     }
 

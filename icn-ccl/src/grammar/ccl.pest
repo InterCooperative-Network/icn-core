@@ -1,0 +1,43 @@
+// icn-ccl/src/grammar/ccl.pest
+
+// Define whitespace and comments (parsed but ignored by default)
+WHITESPACE = _{ " " | "\t" | NEWLINE }
+COMMENT = _{ "//" ~ (!NEWLINE ~ ANY)* }
+
+// Basic building blocks
+identifier = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
+integer_literal = @{ ASCII_DIGIT+ }
+string_literal = @{ "\"" ~ (ASCII_ALPHANUMERIC | " ")* ~ "\"" } // Simplified
+
+// Top-level: A CCL policy is a sequence of statements or definitions
+policy = { SOI ~ (function_definition | policy_statement)* ~ EOI }
+
+// Example: Function Definition
+function_definition = { "fn" ~ identifier ~ "(" ~ (parameter ~ ("," ~ parameter)*)? ~ ")" ~ "->" ~ type_annotation ~ block }
+parameter = { identifier ~ ":" ~ type_annotation }
+type_annotation = { identifier } // NEW - type will be validated in Rust code
+
+// Example: Policy Statement (e.g., a rule)
+policy_statement = { rule_definition | import_statement }
+rule_definition = { "rule" ~ identifier ~ "when" ~ expression ~ "then" ~ action }
+import_statement = { "import" ~ string_literal ~ "as" ~ identifier ~ ";" }
+
+// Example: Block of statements
+block = { "{" ~ statement* ~ "}" }
+statement = { let_statement | expression_statement | return_statement }
+let_statement = { "let" ~ identifier ~ "=" ~ expression ~ ";" }
+expression_statement = { expression ~ ";" }
+return_statement = { "return" ~ expression ~ ";" }
+
+// Example: Expressions (highly simplified)
+expression = { term ~ (("==" | "!=" | "<" | ">" | "+" | "-") ~ term)* }
+term = { factor ~ (("*" | "/") ~ factor)* }
+factor = { integer_literal | boolean_literal | string_literal | identifier | "(" ~ expression ~ ")" | function_call }
+boolean_literal = { "true" | "false" }
+function_call = { identifier ~ "(" ~ (expression ~ ("," ~ expression)*)? ~ ")" }
+
+// Example: Actions (specific to policy rules)
+action = { "allow" | "deny" | "charge" ~ expression }
+
+// Catch-all for errors or further development
+// UNEXPECTED = _{ ANY } // Uncomment for debugging grammar issues 
