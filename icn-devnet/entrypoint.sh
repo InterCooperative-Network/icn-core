@@ -34,11 +34,11 @@ if [ "${ICN_ENABLE_P2P}" = "true" ]; then
     ARGS+=(--enable-p2p)
     
     # Add bootstrap peers if provided
-    if [ -n "${ICN_BOOTSTRAP_PEERS}" ] && [ "${ICN_BOOTSTRAP_PEERS}" != "" ]; then
+    if [ -n "${ICN_BOOTSTRAP_PEERS}" ] && [ "${ICN_BOOTSTRAP_PEERS}" != "" ] && [ "${ICN_BOOTSTRAP_PEERS}" != "\"\"" ]; then
         # Split comma-separated bootstrap peers
         IFS=',' read -ra PEERS <<< "${ICN_BOOTSTRAP_PEERS}"
         for peer in "${PEERS[@]}"; do
-            if [ -n "$peer" ]; then
+            if [ -n "$peer" ] && [ "$peer" != "\"\"" ]; then
                 ARGS+=(--bootstrap-peers "$peer")
             fi
         done

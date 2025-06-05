@@ -13,7 +13,6 @@ services:
       - ICN_HTTP_LISTEN_ADDR=0.0.0.0:7845
       - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
       - ICN_ENABLE_P2P=true
-      - ICN_BOOTSTRAP_PEERS=""  # Bootstrap node doesn't need peers
       - ICN_STORAGE_BACKEND=memory
       - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
     ports:
@@ -42,7 +41,7 @@ services:
       - ICN_HTTP_LISTEN_ADDR=0.0.0.0:7845
       - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
       - ICN_ENABLE_P2P=true
-      - ICN_BOOTSTRAP_PEERS=""  # Will be set dynamically in entrypoint
+      - ICN_BOOTSTRAP_PEERS=/ip4/172.20.0.2/tcp/4001/p2p/12D3KooWMihHnheYawaboC67SA9ZTG71DPfTiC8BphXz8PcojDdz
       - ICN_STORAGE_BACKEND=memory
       - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
     ports:
@@ -73,7 +72,7 @@ services:
       - ICN_HTTP_LISTEN_ADDR=0.0.0.0:7845
       - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
       - ICN_ENABLE_P2P=true
-      - ICN_BOOTSTRAP_PEERS=""  # Will be set dynamically in entrypoint
+      - ICN_BOOTSTRAP_PEERS=/ip4/172.20.0.2/tcp/4001/p2p/12D3KooWMihHnheYawaboC67SA9ZTG71DPfTiC8BphXz8PcojDdz
       - ICN_STORAGE_BACKEND=memory
       - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
     ports:

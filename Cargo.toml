@@ -12,7 +12,7 @@ members = [
     "crates/icn-api",
     "crates/icn-cli",
     "crates/icn-node",
-    "icn-ccl",
+    # "icn-ccl", # TODO: Add back when implementing CCL crate
 ]
 resolver = "3"
 
