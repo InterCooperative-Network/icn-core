@@ -1,0 +1,13 @@
+[package]
+name = "icn-integration-tests"
+version.workspace = true
+edition.workspace = true
+
+[[test]]
+name = "federation"
+path = "integration/federation.rs"
+
+[dependencies]
+reqwest.workspace = true
+serde_json.workspace = true
+tokio.workspace = true 
