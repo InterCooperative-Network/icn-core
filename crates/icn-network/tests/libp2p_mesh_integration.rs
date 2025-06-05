@@ -1,5 +1,6 @@
 #[cfg(all(test, feature = "experimental-libp2p"))]
 mod libp2p_mesh_integration {
+    mod utils;
     use icn_network::libp2p_service::{Libp2pNetworkService, NetworkConfig};
     use libp2p::{PeerId as Libp2pPeerId};
     use anyhow::Result;
@@ -11,6 +12,8 @@ mod libp2p_mesh_integration {
     use std::str::FromStr;
     use tokio::time::{sleep, Duration, timeout};
     use std::sync::Once;
+    use log::info;
+    use utils::*;
 
     static INIT_LOGGER: Once = Once::new();
 
@@ -428,172 +431,216 @@ mod libp2p_mesh_integration {
     }
 
     #[tokio::test]
-    #[ignore = "Complete cross-node job execution pipeline test"]
-    async fn test_full_job_execution_pipeline() -> Result<(), anyhow::Error> {
+    #[ignore = "Complete cross-node job execution pipeline test - REFACTORED"]
+    async fn test_full_job_execution_pipeline_refactored() -> Result<()> {
         init_test_logger();
-        println!("🚀 [PIPELINE] Starting complete cross-node job execution pipeline test");
+        info!("🚀 [PIPELINE-REFACTORED] Starting complete cross-node job execution pipeline test (using utilities)");
         
-        // === Phase 1: Node Setup and Connection ===
-        println!("🔧 [PIPELINE] Phase 1: Setting up nodes and establishing connection...");
+        // === Phase 1: Setup Connected Nodes ===
+        info!("🔧 [PIPELINE-REFACTORED] Phase 1: Setting up connected nodes...");
+        let (mut node_a, mut node_b) = setup_connected_nodes().await?;
+        info!("✅ [PIPELINE-REFACTORED] Connected nodes established");
         
-        let config_a = NetworkConfig::default();
-        let node_a_service = Libp2pNetworkService::new(config_a).await?;
-        let node_a_peer_id = node_a_service.local_peer_id().to_string();
-        println!("✅ [PIPELINE] Node A created - Peer ID: {}", node_a_peer_id);
+        // === Phase 2: Job Announcement & Bidding ===
+        info!("🔧 [PIPELINE-REFACTORED] Phase 2: Job announcement and bidding...");
         
-        // Wait for Node A to establish listeners
-        let mut node_a_addrs = Vec::new();
-        for attempt in 1..=5 {
-            tokio::time::sleep(Duration::from_secs(1)).await;
-            node_a_addrs = node_a_service.listening_addresses();
-            if !node_a_addrs.is_empty() {
-                break;
+        let job_config = TestJobConfig::default();
+        let test_job = create_test_job(&job_config);
+        let job_id = test_job.id.clone();
+        
+        // Node A announces job
+        let announcement_msg = NetworkMessage::MeshJobAnnouncement(test_job.clone());
+        node_a.service.broadcast_message(announcement_msg).await?;
+        info!("📢 [PIPELINE-REFACTORED] Job announced: {}", job_id);
+        
+        // Node B receives job announcement
+        let received_job = wait_for_message(&mut node_b.receiver, 10, |msg| {
+            match msg {
+                NetworkMessage::MeshJobAnnouncement(job) => Some(job.clone()),
+                _ => None,
             }
-        }
-        assert!(!node_a_addrs.is_empty(), "Node A should have listening addresses");
-        println!("✅ [PIPELINE] Node A listening on: {:?}", node_a_addrs[0]);
+        }).await?;
+        info!("✅ [PIPELINE-REFACTORED] Job announcement received on Node B");
         
-        let node_a_libp2p_peer_id = Libp2pPeerId::from_str(&node_a_peer_id)?;
-        let mut config_b = NetworkConfig::default();
-        config_b.bootstrap_peers = vec![(node_a_libp2p_peer_id, node_a_addrs[0].clone())];
-        
-        let node_b_service = Libp2pNetworkService::new(config_b).await?;
-        let node_b_peer_id = node_b_service.local_peer_id().to_string();
-        println!("✅ [PIPELINE] Node B created - Peer ID: {}", node_b_peer_id);
-        
-        // Allow time for peer discovery
-        println!("🔧 [PIPELINE] Allowing 8s for peer discovery...");
-        tokio::time::sleep(Duration::from_secs(8)).await;
-        
-        let node_a_stats = node_a_service.get_network_stats().await?;
-        let node_b_stats = node_b_service.get_network_stats().await?;
-        println!("✅ [PIPELINE] Node A peers: {}, Node B peers: {}", node_a_stats.peer_count, node_b_stats.peer_count);
-        
-        let mut node_a_receiver = node_a_service.subscribe().await?;
-        let mut node_b_receiver = node_b_service.subscribe().await?;
-        println!("✅ [PIPELINE] Both nodes subscribed to network messages");
-        
-        // === Phase 2: Job Announcement and Bidding ===
-        println!("🔧 [PIPELINE] Phase 2: Job announcement and bidding...");
-        
-        let job_to_execute = generate_dummy_job("pipeline_job_01");
-        let job_id = job_to_execute.id.clone();
-        let job_announcement_msg = NetworkMessage::MeshJobAnnouncement(job_to_execute.clone());
-        
-        println!("📢 [PIPELINE] Node A announcing job: {}", job_id);
-        node_a_service.broadcast_message(job_announcement_msg).await?;
-        
-        // Node B receives job and submits bid
-        println!("🔧 [PIPELINE] Node B waiting for job announcement...");
-        let received_job = match timeout(Duration::from_secs(10), node_b_receiver.recv()).await {
-            Ok(Some(NetworkMessage::MeshJobAnnouncement(job))) => {
-                assert_eq!(job.id, job_id, "Node B received correct job ID");
-                println!("✅ [PIPELINE] Node B received job: {}", job.id);
-                job
-            }
-            Ok(Some(other)) => return Err(anyhow::anyhow!("Node B received unexpected message: {:?}", other)),
-            Ok(None) => return Err(anyhow::anyhow!("Node B receiver channel closed")),
-            Err(_) => return Err(anyhow::anyhow!("Node B timed out waiting for job")),
-        };
-        
-        let executor_did = Did::from_str("did:key:z6MkjchhcVbWZkAbNGRsM4ac3gR3eNnYtD9tYtFv9T9xL4xH")?;
-        let bid_to_submit = generate_dummy_bid(&job_id, "did:key:z6MkjchhcVbWZkAbNGRsM4ac3gR3eNnYtD9tYtFv9T9xL4xH");
-        let bid_submission_msg = NetworkMessage::BidSubmission(bid_to_submit.clone());
-        
-        println!("💰 [PIPELINE] Node B submitting bid for job: {}", job_id);
-        node_b_service.broadcast_message(bid_submission_msg).await?;
+        // Node B submits bid
+        let executor_did = &job_config.creator_did; // For simplicity, using same DID
+        let bid = create_test_bid(&job_id, executor_did, 80);
+        let bid_msg = NetworkMessage::BidSubmission(bid.clone());
+        node_b.service.broadcast_message(bid_msg).await?;
+        info!("💰 [PIPELINE-REFACTORED] Bid submitted by Node B");
         
         // Node A receives bid
-        println!("🔧 [PIPELINE] Node A waiting for bid...");
-        let received_bid = match timeout(Duration::from_secs(10), node_a_receiver.recv()).await {
-            Ok(Some(NetworkMessage::BidSubmission(bid))) => {
-                assert_eq!(bid.job_id, job_id, "Node A received bid for correct job");
-                println!("✅ [PIPELINE] Node A received bid from: {}", bid.executor_did);
-                bid
+        let received_bid = wait_for_message(&mut node_a.receiver, 10, |msg| {
+            match msg {
+                NetworkMessage::BidSubmission(bid) => {
+                    if bid.job_id == job_id {
+                        Some(bid.clone())
+                    } else {
+                        None
+                    }
+                },
+                _ => None,
             }
-            Ok(Some(other)) => return Err(anyhow::anyhow!("Node A received unexpected message: {:?}", other)),
-            Ok(None) => return Err(anyhow::anyhow!("Node A receiver channel closed")),
-            Err(_) => return Err(anyhow::anyhow!("Node A timed out waiting for bid")),
-        };
+        }).await?;
+        info!("✅ [PIPELINE-REFACTORED] Bid received on Node A from: {}", received_bid.executor_did);
         
         // === Phase 3: Job Assignment ===
-        println!("🔧 [PIPELINE] Phase 3: Job assignment...");
+        info!("🔧 [PIPELINE-REFACTORED] Phase 3: Job assignment...");
         
-        let selected_executor_did = received_bid.executor_did.clone();
-        let assignment_msg = NetworkMessage::JobAssignmentNotification(job_id.clone(), selected_executor_did.clone());
-        
-        println!("📋 [PIPELINE] Node A assigning job {} to executor: {}", job_id, selected_executor_did);
-        node_a_service.broadcast_message(assignment_msg).await?;
+        let assignment_msg = NetworkMessage::JobAssignmentNotification(job_id.clone(), executor_did.clone());
+        node_a.service.broadcast_message(assignment_msg).await?;
+        info!("📋 [PIPELINE-REFACTORED] Job assignment notification sent");
         
         // Node B receives assignment
-        println!("🔧 [PIPELINE] Node B waiting for job assignment...");
-        let (assigned_job_id, assigned_executor) = match timeout(Duration::from_secs(10), node_b_receiver.recv()).await {
-            Ok(Some(NetworkMessage::JobAssignmentNotification(job_id, executor_did))) => {
-                assert_eq!(job_id, job_id, "Node B received assignment for correct job");
-                assert_eq!(executor_did, selected_executor_did, "Node B assigned to correct executor");
-                println!("✅ [PIPELINE] Node B received job assignment: {}", job_id);
-                (job_id, executor_did)
+        let (assigned_job_id, assigned_executor) = wait_for_message(&mut node_b.receiver, 10, |msg| {
+            match msg {
+                NetworkMessage::JobAssignmentNotification(job_id, executor_did) => {
+                    Some((job_id.clone(), executor_did.clone()))
+                },
+                _ => None,
             }
-            Ok(Some(other)) => return Err(anyhow::anyhow!("Node B received unexpected message: {:?}", other)),
-            Ok(None) => return Err(anyhow::anyhow!("Node B receiver channel closed")),
-            Err(_) => return Err(anyhow::anyhow!("Node B timed out waiting for assignment")),
-        };
+        }).await?;
+        info!("✅ [PIPELINE-REFACTORED] Assignment received: Job {} assigned to {}", assigned_job_id, assigned_executor);
         
         // === Phase 4: Job Execution ===
-        println!("🔧 [PIPELINE] Phase 4: Job execution...");
+        info!("🔧 [PIPELINE-REFACTORED] Phase 4: Job execution with SimpleExecutor...");
         
-        // Create signing key for the executor
-        let (executor_signing_key, _executor_verifying_key) = icn_identity::generate_ed25519_keypair();
-        let executor = SimpleExecutor::new(selected_executor_did.clone(), executor_signing_key);
-        println!("🏃 [PIPELINE] Node B executing job: {}", assigned_job_id);
+        let execution_result = execute_job_with_simple_executor(&received_job, &assigned_executor).await?;
+        info!("✅ [PIPELINE-REFACTORED] Job execution completed - Result CID: {}", execution_result.result_cid);
         
-        // Execute the job using SimpleExecutor
-        let execution_result = executor.execute_job(&received_job).await
-            .map_err(|e| anyhow::anyhow!("Job execution failed: {}", e))?;
-        println!("✅ [PIPELINE] Job execution completed. Result CID: {}", execution_result.result_cid);
-        
-        // === Phase 5: Receipt Creation and Submission ===
-        println!("🔧 [PIPELINE] Phase 5: Receipt creation and submission...");
-        
-        // The execution_result is already a signed ExecutionReceipt from SimpleExecutor
-        println!("📤 [PIPELINE] Node B submitting execution receipt for job: {}", assigned_job_id);
+        // === Phase 5: Receipt Submission & Verification ===
+        info!("🔧 [PIPELINE-REFACTORED] Phase 5: Receipt submission and verification...");
         
         let receipt_msg = NetworkMessage::SubmitReceipt(execution_result.clone());
-        node_b_service.broadcast_message(receipt_msg).await?;
+        node_b.service.broadcast_message(receipt_msg).await?;
+        info!("📤 [PIPELINE-REFACTORED] Receipt submitted");
         
-        // === Phase 6: Receipt Verification and Anchoring ===
-        println!("🔧 [PIPELINE] Phase 6: Receipt verification and anchoring...");
-        
-        println!("🔧 [PIPELINE] Node A waiting for execution receipt...");
-        let verified_receipt = match timeout(Duration::from_secs(10), node_a_receiver.recv()).await {
-            Ok(Some(NetworkMessage::SubmitReceipt(receipt))) => {
-                assert_eq!(receipt.job_id, job_id, "Node A received receipt for correct job");
-                assert_eq!(receipt.executor_did, selected_executor_did, "Receipt from correct executor");
-                
-                // Verify that we have a real signature (binary format)
-                assert!(!receipt.sig.0.is_empty(), "Receipt should have a signature");
-                assert!(receipt.sig.0.len() > 32, "Receipt signature should be substantial (Ed25519 signature)");
-                
-                println!("✅ [PIPELINE] Node A received and verified receipt from: {}", receipt.executor_did);
-                receipt
+        // Node A receives and verifies receipt
+        let verified_receipt = wait_for_message(&mut node_a.receiver, 10, |msg| {
+            match msg {
+                NetworkMessage::SubmitReceipt(receipt) => {
+                    if receipt.job_id == job_id && receipt.executor_did == assigned_executor {
+                        Some(receipt.clone())
+                    } else {
+                        None
+                    }
+                },
+                _ => None,
             }
-            Ok(Some(other)) => return Err(anyhow::anyhow!("Node A received unexpected message: {:?}", other)),
-            Ok(None) => return Err(anyhow::anyhow!("Node A receiver channel closed")),
-            Err(_) => return Err(anyhow::anyhow!("Node A timed out waiting for receipt")),
-        };
+        }).await?;
+        info!("✅ [PIPELINE-REFACTORED] Receipt received and verified");
         
-        // Anchor receipt to DAG (mock)
+        // Verify receipt signature format
+        verify_receipt_signature_format(&verified_receipt)?;
+        info!("✅ [PIPELINE-REFACTORED] Receipt signature verification passed");
+        
+        // Mock DAG anchoring
         let anchored_cid = mock_anchor_receipt_to_dag(&verified_receipt)?;
-        println!("⚓ [PIPELINE] Receipt anchored to DAG with CID: {}", anchored_cid);
+        info!("✅ [PIPELINE-REFACTORED] Receipt anchored to DAG: {}", anchored_cid);
         
-        // === Phase 7: Pipeline Completion ===
-        println!("🎉 [PIPELINE] Complete cross-node job execution pipeline successful!");
-        println!("📊 [PIPELINE] Summary:");
-        println!("   • Job ID: {}", job_id);
-        println!("   • Executor: {}", selected_executor_did);
-        println!("   • Result CID: {}", verified_receipt.result_cid);
-        println!("   • CPU Time: {}ms", verified_receipt.cpu_ms);
-        println!("   • Receipt CID: {}", anchored_cid);
+        // === Success Summary ===
+        info!("🎉 [PIPELINE-REFACTORED] Complete cross-node job execution pipeline successful!");
+        info!("📊 [PIPELINE-REFACTORED] Test Summary:");
+        info!("   ✅ Node setup and P2P connection");
+        info!("   ✅ Job announcement and bidding");
+        info!("   ✅ Job assignment notification");
+        info!("   ✅ Job execution with SimpleExecutor");
+        info!("   ✅ Receipt submission and verification");
+        info!("   ✅ DAG anchoring simulation");
+        info!("   • Final Job ID: {}", job_id);
+        info!("   • Final Executor: {}", assigned_executor);
+        info!("   • Final Result CID: {}", verified_receipt.result_cid);
+        info!("   • Final CPU Time: {}ms", verified_receipt.cpu_ms);
+        info!("   • Final Anchored CID: {}", anchored_cid);
+        
+        Ok(())
+    }
+
+    #[tokio::test]
+    #[ignore = "Individual phase test: job announcement and bidding"]
+    async fn test_job_announcement_and_bidding() -> Result<()> {
+        init_test_logger();
+        info!("🔧 [PHASE-TEST] Testing job announcement and bidding phase");
+        
+        let (mut node_a, mut node_b) = setup_connected_nodes().await?;
+        
+        let job_config = TestJobConfig {
+            id_suffix: "phase_test".to_string(),
+            payload: "Phase Test Job".to_string(),
+            ..Default::default()
+        };
+        let test_job = create_test_job(&job_config);
+        let job_id = test_job.id.clone();
+        
+        // Announce job
+        let announcement_msg = NetworkMessage::MeshJobAnnouncement(test_job.clone());
+        node_a.service.broadcast_message(announcement_msg).await?;
+        
+        // Verify reception
+        let received_job = wait_for_message(&mut node_b.receiver, 5, |msg| {
+            match msg {
+                NetworkMessage::MeshJobAnnouncement(job) => Some(job.clone()),
+                _ => None,
+            }
+        }).await?;
+        
+        assert_eq!(received_job.id, job_id);
+        assert_eq!(received_job.creator_did, job_config.creator_did);
+        
+        // Submit bid
+        let bid = create_test_bid(&job_id, &job_config.creator_did, 75);
+        let bid_msg = NetworkMessage::BidSubmission(bid.clone());
+        node_b.service.broadcast_message(bid_msg).await?;
+        
+        // Verify bid reception
+        let received_bid = wait_for_message(&mut node_a.receiver, 5, |msg| {
+            match msg {
+                NetworkMessage::BidSubmission(bid) => {
+                    if bid.job_id == job_id {
+                        Some(bid.clone())
+                    } else {
+                        None
+                    }
+                },
+                _ => None,
+            }
+        }).await?;
+        
+        assert_eq!(received_bid.job_id, job_id);
+        assert_eq!(received_bid.executor_did, job_config.creator_did);
+        assert_eq!(received_bid.price_mana, 75);
+        
+        info!("✅ [PHASE-TEST] Job announcement and bidding phase test passed");
+        Ok(())
+    }
+
+    #[tokio::test]
+    #[ignore = "Individual phase test: job execution with SimpleExecutor"]
+    async fn test_job_execution_with_simple_executor() -> Result<()> {
+        init_test_logger();
+        info!("🔧 [PHASE-TEST] Testing job execution with SimpleExecutor");
+        
+        let job_config = TestJobConfig {
+            id_suffix: "executor_test".to_string(),
+            payload: "SimpleExecutor Test Job".to_string(),
+            ..Default::default()
+        };
+        let test_job = create_test_job(&job_config);
+        let executor_did = &job_config.creator_did;
+        
+        let execution_result = execute_job_with_simple_executor(&test_job, executor_did).await?;
+        
+        assert_eq!(execution_result.job_id, test_job.id);
+        assert_eq!(execution_result.executor_did, *executor_did);
+        assert!(execution_result.cpu_ms >= 0, "Should have valid CPU time recorded");
+        
+        // Verify signature
+        verify_receipt_signature_format(&execution_result)?;
+        
+        info!("✅ [PHASE-TEST] Job execution with SimpleExecutor test passed");
+        info!("   • Result CID: {}", execution_result.result_cid);
+        info!("   • CPU Time: {}ms", execution_result.cpu_ms);
+        info!("   • Signature Length: {} bytes", execution_result.sig.0.len());
         
         Ok(())
     }

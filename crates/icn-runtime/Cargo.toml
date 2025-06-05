@@ -37,5 +37,5 @@ enable-libp2p = ["dep:libp2p"]
 # Integration tests for cross-node functionality
 [[test]]
 name = "cross_node_job_execution"
-path = "tests/integration/cross_node_job_execution.rs"
+path = "tests/cross_node_job_execution.rs"
 required-features = ["enable-libp2p"]
