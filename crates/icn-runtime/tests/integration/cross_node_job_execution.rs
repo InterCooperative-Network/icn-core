@@ -691,6 +691,37 @@ mod cross_node_tests {
         info!("✓ Simplified test completed successfully");
         Ok(())
     }
+
+    /// Test 0.8: Simple non-bootstrap test
+    #[tokio::test]
+    async fn test_simple_no_bootstrap() -> Result<(), anyhow::Error> {
+        info!("=== SIMPLE: No Bootstrap Test ===");
+
+        // Create Node A without bootstrap peers
+        let node_a = create_libp2p_runtime_context("NoBootA", None, 1000).await?;
+        let node_a_libp2p = node_a.get_libp2p_service()?;
+        
+        info!("Node A created with Peer ID: {}", node_a_libp2p.local_peer_id());
+        
+        // Create Node B without bootstrap peers
+        let node_b = create_libp2p_runtime_context("NoBootB", None, 0).await?;
+        let node_b_libp2p = node_b.get_libp2p_service()?;
+        
+        info!("Node B created with Peer ID: {}", node_b_libp2p.local_peer_id());
+        
+        // Wait a bit
+        sleep(Duration::from_secs(2)).await;
+        
+        // Test basic functionality without any cross-node communication
+        let stats_a = node_a_libp2p.get_network_stats().await?;
+        let stats_b = node_b_libp2p.get_network_stats().await?;
+        
+        info!("Node A stats: {:?}", stats_a);
+        info!("Node B stats: {:?}", stats_b);
+        
+        info!("✓ Simple no-bootstrap test completed successfully");
+        Ok(())
+    }
 }
 
 #[cfg(not(feature = "enable-libp2p"))]

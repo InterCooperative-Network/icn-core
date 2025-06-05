@@ -431,14 +431,19 @@ pub mod libp2p_service {
             swarm.listen_on("/ip4/0.0.0.0/tcp/0".parse().unwrap())
                 .map_err(|e| CommonError::NetworkSetupError(format!("Listen error: {}", e)))?;
 
-            // Connect to bootstrap peers
+            // Connect to bootstrap peers with improved error handling
             for (peer_id, addr) in &config.bootstrap_peers {
                 info!("Attempting to dial bootstrap peer: {} at {}", peer_id, addr);
-                if let Err(e) = swarm.dial(addr.clone()) {
-                    warn!("Failed to dial bootstrap peer {}: {}", peer_id, e);
-                } else {
-                    // Add to Kademlia bootstrap list
-                    swarm.behaviour_mut().kademlia.add_address(peer_id, addr.clone());
+                match swarm.dial(addr.clone()) {
+                    Ok(_) => {
+                        info!("Successfully initiated dial to bootstrap peer: {}", peer_id);
+                        // Add to Kademlia bootstrap list only on successful dial initiation
+                        swarm.behaviour_mut().kademlia.add_address(peer_id, addr.clone());
+                    }
+                    Err(e) => {
+                        warn!("Failed to dial bootstrap peer {}: {}", peer_id, e);
+                        // Continue trying other bootstrap peers instead of stopping
+                    }
                 }
             }
 
@@ -464,8 +469,10 @@ pub mod libp2p_service {
 
                 // Trigger Kademlia bootstrap if we have bootstrap peers
                 if has_bootstrap_peers {
-                    let _query_id = swarm.behaviour_mut().kademlia.bootstrap();
-                    log::info!("Triggered Kademlia bootstrap");
+                    // Add delay to allow initial connections to establish
+                    tokio::time::sleep(Duration::from_millis(1000)).await;
+                    let query_id = swarm.behaviour_mut().kademlia.bootstrap();
+                    log::info!("Triggered Kademlia bootstrap with query ID: {:?}", query_id);
                 }
 
                 let mut subscribers: Vec<mpsc::Sender<super::NetworkMessage>> = Vec::new();
