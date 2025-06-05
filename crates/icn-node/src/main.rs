@@ -6,18 +6,14 @@
 //! lifecycle, configuration, service hosting, and persistence.
 
 use icn_common::{NodeInfo, Did, Cid, ICN_CORE_VERSION, CommonError};
-use icn_identity::{generate_ed25519_keypair, did_key_from_verifying_key, SigningKey, VerifyingKey, SignatureBytes, EdSignature, ExecutionReceipt as IdentityExecutionReceipt, VerifyError};
+use icn_identity::{generate_ed25519_keypair, did_key_from_verifying_key, SigningKey, VerifyingKey, SignatureBytes, EdSignature, ExecutionReceipt as IdentityExecutionReceipt};
 use icn_runtime::context::{RuntimeContext, HostAbiError, StubSigner as RuntimeStubSigner, StubMeshNetworkService, StubDagStore as RuntimeStubDagStore, MeshNetworkService, Signer as RuntimeSigner};
 use icn_runtime::{
-MiscAbiError, // Assuming this is your error enum from runtime
     host_submit_mesh_job,
-    host_anchor_receipt,
-    ReputationUpdater,
 };
 use icn_mesh::{ActualMeshJob};
 use icn_governance::{ProposalId, VoteOption};
-use icn_api::governance_trait::{self as governance_api, ProposalInputType as ApiProposalInputType, CastVoteRequest as ApiCastVoteRequest, SubmitProposalRequest as ApiSubmitProposalRequest, ProposalOutput as ApiProposalOutput};
-use icn_api::dag_api::{DagBlock, Cid as ApiCid}; // Using an alias if Cid type differs
+use icn_api::governance_trait::{self as governance_api, ProposalInputType as ApiProposalInputType, CastVoteRequest as ApiCastVoteRequest, SubmitProposalRequest as ApiSubmitProposalRequest};
 
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -34,6 +30,10 @@ use axum::{
 use clap::Parser;
 use env_logger;
 use log::{info, warn, error, debug};
+use std::str::FromStr;
+
+#[cfg(feature = "enable-libp2p")]
+use libp2p::{Multiaddr, PeerId as Libp2pPeerId};
 
 // --- CLI Arguments --- 
 
@@ -47,19 +47,46 @@ struct Cli {
     storage_path: PathBuf,
 
     #[clap(long, default_value = "127.0.0.1:7845", help = "Listen address for the HTTP server")]
-    listen_addr: String,
+    http_listen_addr: String,
 
     #[clap(long, help = "Optional fixed DID for the node (e.g., did:key:zExample...)")]
     node_did: Option<String>,
 
     #[clap(long, help = "Optional fixed Ed25519 private key (bs58 encoded string) for the node DID. If not provided and node_did is, it implies did:key or resolvable DID. If neither, a new key is generated.")]
     node_private_key_bs58: Option<String>,
+
+    #[clap(long, help = "Human-readable name for this node (for logging and identification)")]
+    node_name: Option<String>,
+
+    #[clap(long, default_value = "/ip4/0.0.0.0/tcp/0", help = "Libp2p listen address for P2P networking")]
+    p2p_listen_addr: String,
+
+    #[clap(long, help = "Bootstrap peer multiaddrs for P2P discovery (format: /ip4/1.2.3.4/tcp/port/p2p/PeerID)", value_delimiter = ',')]
+    bootstrap_peers: Option<Vec<String>>,
+
+    #[clap(long, action, help = "Enable real libp2p networking (requires with-libp2p feature)")]
+    enable_p2p: bool,
 }
 
 #[derive(clap::ValueEnum, Clone, Debug)]
 enum StorageBackendType {
     Memory,
     File,
+}
+
+// --- Supporting Types ---
+
+#[derive(Serialize)]
+struct NodeStatus {
+    is_online: bool,
+    peer_count: u32,
+    current_block_height: u64,
+    version: String,
+}
+
+#[derive(Deserialize)]
+struct DagBlock {
+    data: Vec<u8>,
 }
 
 // --- Application State ---
@@ -90,7 +117,7 @@ pub async fn app_router() -> Router { // Renamed to app_router and made async fo
         dag_store_for_rt,
         // GovernanceModule will be default in RuntimeContext::new
     );
-    rt_ctx.spawn_mesh_job_manager().await; // Start the job manager
+    rt_ctx.clone().spawn_mesh_job_manager().await; // Start the job manager
 
     let app_state = AppState {
         runtime_context: rt_ctx.clone(),
@@ -118,49 +145,97 @@ async fn main() {
     let cli = Cli::parse();
 
     // --- Initialize Node Identity ---
-    // TODO: Proper key loading/generation, potentially from a wallet file or KMS
     let (node_sk, node_pk) = generate_ed25519_keypair(); // Generate fresh for now
     let node_did_string = did_key_from_verifying_key(&node_pk);
     let node_did = Did::from_str(&node_did_string).expect("Failed to create node DID");
-    info!("Node Operator DID: {}", node_did);
-    // In a real scenario, you might load sk from cli.node_private_key_bs58
-
-    // --- Initialize RuntimeContext Components ---
-    let signer = Arc::new(RuntimeStubSigner::new_with_keys(node_sk, node_pk));
     
-    let dag_store_for_rt: Arc<dyn icn_runtime::context::StorageService + Send + Sync> = match cli.storage_backend {
-        StorageBackendType::Memory => Arc::new(RuntimeStubDagStore::new()), // Use RT's stub for now
-        StorageBackendType::File => {
-            // If FileDagStore is to be used with RT, it needs to impl runtime's StorageService trait
-            // For now, let's stick to RuntimeStubDagStore for simplicity or implement the trait for FileDagStore.
-            // This example uses a distinct DagStore for the main app vs the RuntimeContext for now.
-            warn!("FileDagStore for RuntimeContext not fully implemented yet, using RuntimeStubDagStore.");
-            Arc::new(RuntimeStubDagStore::new())
+    let node_name = cli.node_name.clone().unwrap_or_else(|| "ICN Node".to_string());
+    info!("Starting {} with DID: {}", node_name, node_did);
+
+    // --- Create RuntimeContext with Networking ---
+    let rt_ctx = if cli.enable_p2p {
+        #[cfg(feature = "enable-libp2p")]
+        {
+            info!("Enabling libp2p networking with P2P listen address: {}", cli.p2p_listen_addr);
+            
+            // Parse bootstrap peers if provided
+            let bootstrap_peers = if let Some(peer_strings) = &cli.bootstrap_peers {
+                let mut parsed_peers = Vec::new();
+                for peer_str in peer_strings {
+                    match peer_str.parse::<Multiaddr>() {
+                        Ok(multiaddr) => {
+                            // Extract PeerID from multiaddr if present
+                            if let Some(libp2p::core::multiaddr::Protocol::P2p(peer_id)) = multiaddr.iter().last() {
+                                if let Ok(peer_id) = peer_id.try_into() {
+                                    parsed_peers.push((peer_id, multiaddr));
+                                    info!("Added bootstrap peer: {}", peer_str);
+                                } else {
+                                    warn!("Failed to parse PeerID from multiaddr: {}", peer_str);
+                                }
+                            } else {
+                                warn!("Multiaddr missing PeerID component: {}", peer_str);
+                            }
+                        }
+                        Err(e) => {
+                            error!("Failed to parse bootstrap peer multiaddr '{}': {}", peer_str, e);
+                            std::process::exit(1);
+                        }
+                    }
+                }
+                if parsed_peers.is_empty() {
+                    None
+                } else {
+                    Some(parsed_peers)
+                }
+            } else {
+                None
+            };
+
+            match RuntimeContext::new_with_real_libp2p(&node_did_string, bootstrap_peers).await {
+                Ok(ctx) => {
+                    info!("✅ RuntimeContext created with real libp2p networking");
+                    
+                    // Get libp2p service info for logging
+                    if let Ok(libp2p_service) = ctx.get_libp2p_service() {
+                        info!("📟 Local Peer ID: {}", libp2p_service.local_peer_id());
+                    }
+                    
+                    ctx
+                }
+                Err(e) => {
+                    error!("Failed to create RuntimeContext with libp2p: {}", e);
+                    std::process::exit(1);
+                }
+            }
         }
+        #[cfg(not(feature = "enable-libp2p"))]
+        {
+            error!("--enable-p2p flag requires the 'with-libp2p' feature to be compiled");
+            error!("Please recompile with: cargo build --features with-libp2p");
+            std::process::exit(1);
+        }
+    } else {
+        info!("Using stub networking (P2P disabled)");
+        let signer = Arc::new(RuntimeStubSigner::new_with_keys(node_sk, node_pk));
+        let dag_store_for_rt = Arc::new(RuntimeStubDagStore::new());
+        let mesh_network_service = Arc::new(StubMeshNetworkService::new());
+        
+        RuntimeContext::new(
+            node_did.clone(),
+            mesh_network_service,
+            signer,
+            dag_store_for_rt,
+        )
     };
 
-    // TODO: Initialize real NetworkService based on CLI args (e.g., libp2p with bootstrap peers)
-    let mesh_network_service = Arc::new(StubMeshNetworkService::new()); 
-    info!("Using StubMeshNetworkService. P2P features for mesh are not enabled.");
-
-    // Initialize GovernanceModule (it's internal to RuntimeContext now)
-    // let governance_module = Arc::new(Mutex::new(GovernanceModule::new()));
-
-    // --- Create RuntimeContext ---
-    let rt_ctx = RuntimeContext::new(
-        node_did.clone(), 
-        mesh_network_service, 
-        signer, 
-        dag_store_for_rt,
-        // GovernanceModule::new() // RuntimeContext::new handles its own GovernanceModule
-    );
-    rt_ctx.spawn_mesh_job_manager().await; // Start the job manager task
+    // Start the job manager
+    rt_ctx.clone().spawn_mesh_job_manager().await;
     info!("ICN RuntimeContext initialized and JobManager spawned.");
 
     // --- Create AppState for Axum ---
     let app_state = AppState {
         runtime_context: rt_ctx.clone(),
-        node_name: "ICN Node".to_string(), // This could be configurable
+        node_name: node_name.clone(),
         node_version: ICN_CORE_VERSION.to_string(),
     };
 
@@ -174,11 +249,11 @@ async fn main() {
         .route("/governance/vote", post(gov_vote_handler))
         .route("/governance/proposals", get(gov_list_proposals_handler))
         .route("/governance/proposal/:proposal_id", get(gov_get_proposal_handler))
-        .route("/mesh/submit", post(mesh_submit_job_handler)) // New endpoint
+        .route("/mesh/submit", post(mesh_submit_job_handler))
         .with_state(app_state.clone()); 
 
-    let addr: SocketAddr = cli.listen_addr.parse().expect("Invalid listen address");
-    info!("ICN Node HTTP server listening on {}", addr);
+    let addr: SocketAddr = cli.http_listen_addr.parse().expect("Invalid HTTP listen address");
+    info!("🌐 {} HTTP server listening on {}", node_name, addr);
     
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, router.into_make_service()).await.unwrap();
@@ -266,23 +341,19 @@ async fn gov_submit_handler(
     Json(request): Json<ApiSubmitProposalRequest>,
 ) -> impl IntoResponse {
     debug!("Received /governance/submit request: {:?}", request);
-    // Governance operations are now via RuntimeContext methods if they exist,
-    // or directly via its governance_module.
-    // RuntimeContext has `create_governance_proposal` which is synchronous.
-    // For Axum, it's okay if the handler awaits on async RT calls, but sync calls inside RT are fine.
+    // TODO: Governance operations need to be implemented in RuntimeContext
+    map_rust_error_to_json_response("Governance operations not yet implemented", StatusCode::NOT_IMPLEMENTED).into_response()
     
-    // Temporary direct access, ideally RuntimeContext provides async wrappers or methods.
-    let mut gov_mod = state.runtime_context.governance_module.lock().await; // Assuming Tokio Mutex in RT
+    /* TODO: Uncomment when governance methods are implemented
+    let mut gov_mod = state.runtime_context.governance_module.lock().await;
 
     let proposer_did: Did = match request.proposer_did.parse() {
         Ok(did) => did,
         Err(e) => return map_rust_error_to_json_response(e, StatusCode::BAD_REQUEST).into_response(),
     };
 
-    // TODO: Ensure proposer_did matches state.runtime_context.current_identity or has permission
     if proposer_did != state.runtime_context.current_identity {
         warn!("Gov submit by {} but context identity is {}. Allowing for now.", proposer_did, state.runtime_context.current_identity);
-        // return map_rust_error_to_json_response("Proposer DID does not match node identity", StatusCode::FORBIDDEN).into_response();
     }
 
     let proposal_type: icn_governance::ProposalType = match request.proposal {
@@ -304,7 +375,7 @@ async fn gov_submit_handler(
     };
 
     match (*gov_mod).submit_proposal(
-        proposer_did, // Proposer is from the request
+        proposer_did,
         proposal_type,
         request.description,
         request.duration_secs,
@@ -312,6 +383,7 @@ async fn gov_submit_handler(
         Ok(proposal_id) => (StatusCode::CREATED, Json(proposal_id)).into_response(),
         Err(e) => map_rust_error_to_json_response(format!("Governance submit error: {}", e), StatusCode::BAD_REQUEST).into_response(),
     }
+    */
 }
 
 // POST /governance/vote – Cast a vote. (Body: CastVoteRequest JSON)
@@ -320,16 +392,19 @@ async fn gov_vote_handler(
     Json(request): Json<ApiCastVoteRequest>,
 ) -> impl IntoResponse {
     debug!("Received /governance/vote request: {:?}", request);
+    // TODO: Governance operations need to be implemented in RuntimeContext
+    map_rust_error_to_json_response("Governance operations not yet implemented", StatusCode::NOT_IMPLEMENTED).into_response()
+
+    /* TODO: Uncomment when governance methods are implemented
     let mut gov_mod = state.runtime_context.governance_module.lock().await;
 
     let voter_did: Did = match request.voter_did.parse() {
         Ok(did) => did,
         Err(e) => return map_rust_error_to_json_response(e, StatusCode::BAD_REQUEST).into_response(),
     };
-     // TODO: Ensure voter_did matches state.runtime_context.current_identity or has permission
+    
     if voter_did != state.runtime_context.current_identity {
         warn!("Gov vote by {} but context identity is {}. Allowing for now.", voter_did, state.runtime_context.current_identity);
-        // return map_rust_error_to_json_response("Voter DID does not match node identity", StatusCode::FORBIDDEN).into_response();
     }
 
     let proposal_id = ProposalId(request.proposal_id.clone());
@@ -344,6 +419,7 @@ async fn gov_vote_handler(
         Ok(_) => (StatusCode::OK, Json("Vote cast successfully")).into_response(),
         Err(e) => map_rust_error_to_json_response(format!("Governance vote error: {}",e), StatusCode::BAD_REQUEST).into_response(),
     }
+    */
 }
 
 // GET /governance/proposals
@@ -351,9 +427,14 @@ async fn gov_list_proposals_handler(
     State(state): State<AppState>,
 ) -> impl IntoResponse {
     debug!("Received /governance/proposals request");
+    // TODO: Governance operations need to be implemented in RuntimeContext
+    map_rust_error_to_json_response("Governance operations not yet implemented", StatusCode::NOT_IMPLEMENTED).into_response()
+    
+    /* TODO: Uncomment when governance methods are implemented
     let gov_mod = state.runtime_context.governance_module.lock().await;
-    let proposals = (*gov_mod).get_all_proposals(); // Assuming this returns Vec<ProposalOutput> or similar
+    let proposals = (*gov_mod).get_all_proposals();
     (StatusCode::OK, Json(proposals))
+    */
 }
 
 // GET /governance/proposal/:proposal_id
@@ -362,12 +443,17 @@ async fn gov_get_proposal_handler(
     AxumPath(proposal_id_str): AxumPath<String>,
 ) -> impl IntoResponse {
     debug!("Received /governance/proposal/{} request", proposal_id_str);
+    // TODO: Governance operations need to be implemented in RuntimeContext
+    map_rust_error_to_json_response("Governance operations not yet implemented", StatusCode::NOT_IMPLEMENTED).into_response()
+    
+    /* TODO: Uncomment when governance methods are implemented
     let gov_mod = state.runtime_context.governance_module.lock().await;
     let proposal_id = ProposalId(proposal_id_str);
     match (*gov_mod).get_proposal(&proposal_id) {
         Some(proposal) => (StatusCode::OK, Json(proposal)).into_response(),
         None => map_rust_error_to_json_response("Proposal not found", StatusCode::NOT_FOUND).into_response(),
     }
+    */
 }
 
 // --- Mesh Job Endpoints ---
