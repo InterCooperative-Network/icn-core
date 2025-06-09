@@ -5,7 +5,7 @@
 //! It integrates various core components to operate a functional ICN node, handling initialization,
 //! lifecycle, configuration, service hosting, and persistence.
 
-use icn_common::{NodeInfo, Did, Cid, ICN_CORE_VERSION, CommonError};
+use icn_common::{NodeInfo, Did, Cid, ICN_CORE_VERSION, CommonError, parse_cid_from_string};
 use icn_identity::{generate_ed25519_keypair, did_key_from_verifying_key, SigningKey, VerifyingKey, SignatureBytes, EdSignature, ExecutionReceipt as IdentityExecutionReceipt};
 use icn_runtime::context::{RuntimeContext, HostAbiError, StubSigner as RuntimeStubSigner, StubMeshNetworkService, StubDagStore as RuntimeStubDagStore, MeshNetworkService, Signer as RuntimeSigner};
 use icn_runtime::{
@@ -567,39 +567,6 @@ async fn mesh_list_jobs_handler(
     (StatusCode::OK, Json(serde_json::json!({ "jobs": jobs }))).into_response()
 }
 
-/// Helper function to parse a CID from string format (using dummy parsing for now)
-fn parse_cid_from_string(cid_str: &str) -> Result<Cid, String> {
-    // Parse the format produced by Cid::to_string_approx(): "cidv{version}-{codec}-{hash_alg}-{base58_hash}"
-    if cid_str.is_empty() {
-        return Err("Empty CID string".to_string());
-    }
-    
-    // Split the string into parts
-    let parts: Vec<&str> = cid_str.split('-').collect();
-    if parts.len() != 4 {
-        return Err(format!("Invalid CID format: expected 4 parts separated by '-', got {}", parts.len()));
-    }
-    
-    // Parse version (remove 'cidv' prefix)
-    let version_str = parts[0].strip_prefix("cidv").ok_or_else(|| "Missing 'cidv' prefix".to_string())?;
-    let version: u64 = version_str.parse().map_err(|e| format!("Invalid version: {}", e))?;
-    
-    // Parse codec
-    let codec: u64 = parts[1].parse().map_err(|e| format!("Invalid codec: {}", e))?;
-    
-    // Parse hash algorithm
-    let hash_alg: u64 = parts[2].parse().map_err(|e| format!("Invalid hash_alg: {}", e))?;
-    
-    // Parse base58 encoded hash bytes
-    let hash_bytes = bs58::decode(parts[3]).into_vec().map_err(|e| format!("Invalid base58 hash: {}", e))?;
-    
-    Ok(Cid {
-        version,
-        codec,
-        hash_alg,
-        hash_bytes,
-    })
-}
 
 // GET /mesh/jobs/:job_id - Get specific job status
 async fn mesh_get_job_status_handler(
