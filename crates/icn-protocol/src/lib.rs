@@ -16,6 +16,7 @@ pub fn serialize_protocol_message(info: &NodeInfo, message_type: u16) -> Result<
 mod tests {
     use super::*;
 
+    use icn_common::ICN_CORE_VERSION;
     #[test]
     fn test_serialize_protocol_message() {
         let node_info = NodeInfo {

@@ -1,13 +1,14 @@
 #[cfg(feature = "experimental-libp2p")]
 mod network_stats {
-    use icn_network::libp2p_service::Libp2pNetworkService;
+    use icn_network::libp2p_service::{Libp2pNetworkService, NetworkConfig};
     use icn_network::{NetworkMessage, NetworkService};
     use std::time::Duration;
     use tokio::time::sleep;
 
     #[tokio::test]
     async fn test_network_stats_basic() {
-        let node1 = Libp2pNetworkService::new(None)
+        let config1 = NetworkConfig::default();
+        let node1 = Libp2pNetworkService::new(config1)
             .await
             .expect("node1 start");
         let node1_peer = node1.local_peer_id().clone();
@@ -18,7 +19,9 @@ mod network_stats {
             .next()
             .expect("node1 addr");
 
-        let node2 = Libp2pNetworkService::new(Some(vec![(node1_peer, addr)]))
+        let mut config2 = NetworkConfig::default();
+        config2.bootstrap_peers = vec![(node1_peer, addr)];
+        let node2 = Libp2pNetworkService::new(config2)
             .await
             .expect("node2 start");
 
