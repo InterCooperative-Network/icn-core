@@ -180,6 +180,49 @@ impl Cid {
     }
 }
 
+/// Parse a CID previously produced by [`Cid::to_string_approx`].
+///
+/// This expects the format `cidv{{version}}-{{codec}}-{{hash_alg}}-{{base58_hash}}`.
+pub fn parse_cid_from_string(cid_str: &str) -> Result<Cid, CommonError> {
+    if cid_str.is_empty() {
+        return Err(CommonError::InvalidInputError("Empty CID string".to_string()));
+    }
+
+    let parts: Vec<&str> = cid_str.split('-').collect();
+    if parts.len() != 4 {
+        return Err(CommonError::InvalidInputError(format!(
+            "Invalid CID format: expected 4 parts separated by '-', got {}",
+            parts.len()
+        )));
+    }
+
+    let version_str = parts[0]
+        .strip_prefix("cidv")
+        .ok_or_else(|| CommonError::InvalidInputError("Missing 'cidv' prefix".to_string()))?;
+    let version: u64 = version_str
+        .parse()
+        .map_err(|e| CommonError::InvalidInputError(format!("Invalid version: {}", e)))?;
+
+    let codec: u64 = parts[1]
+        .parse()
+        .map_err(|e| CommonError::InvalidInputError(format!("Invalid codec: {}", e)))?;
+
+    let hash_alg: u64 = parts[2]
+        .parse()
+        .map_err(|e| CommonError::InvalidInputError(format!("Invalid hash_alg: {}", e)))?;
+
+    let hash_bytes = bs58::decode(parts[3])
+        .into_vec()
+        .map_err(|e| CommonError::InvalidInputError(format!("Invalid base58 hash: {}", e)))?;
+
+    Ok(Cid {
+        version,
+        codec,
+        hash_alg,
+        hash_bytes,
+    })
+}
+
 impl fmt::Display for Cid {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // Using the more unique approximate string representation.
@@ -294,7 +337,8 @@ mod tests {
         assert_eq!(block.cid, block_cid);
         assert_eq!(block.links[0].cid, link_cid);
         let serialized = serde_json::to_string(&block).unwrap();
-        assert!(serialized.contains("main data"));
+        let deserialized: DagBlock = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(deserialized.data, b"main data".to_vec());
     }
 
     #[test]
@@ -312,5 +356,13 @@ mod tests {
         assert_eq!(transaction.sender_did, sender);
         let serialized = serde_json::to_string(&transaction).unwrap();
         assert!(serialized.contains("tx123"));
+    }
+
+    #[test]
+    fn cid_round_trip_parse_and_to_string() {
+        let cid = Cid::new_v1_dummy(0x71, 0x12, b"round trip test");
+        let cid_str = cid.to_string_approx();
+        let parsed = parse_cid_from_string(&cid_str).expect("failed to parse cid");
+        assert_eq!(cid, parsed);
     }
 }
