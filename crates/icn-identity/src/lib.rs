@@ -9,7 +9,9 @@
 use icn_common::{Cid, CommonError, Did, NodeInfo};
 use serde::{Deserialize, Serialize}; // Keep serde for ExecutionReceipt
 
-pub use ed25519_dalek::{Signature as EdSignature, Signer, SigningKey, VerifyingKey, SIGNATURE_LENGTH}; // Made pub, removed unused Verifier initially, then re-added Keys
+pub use ed25519_dalek::{
+    Signature as EdSignature, Signer, SigningKey, VerifyingKey, SIGNATURE_LENGTH,
+}; // Made pub, removed unused Verifier initially, then re-added Keys
 use multibase::{encode as multibase_encode, Base};
 use rand_core::OsRng;
 use unsigned_varint::encode as varint_encode;
@@ -46,6 +48,40 @@ pub fn did_key_from_verifying_key(pk: &VerifyingKey) -> String {
     format!("did:key:{mb}")
 }
 
+/// Parse a `did:key` DID into the associated verifying key.
+pub fn verifying_key_from_did_key(did: &Did) -> Result<VerifyingKey, CommonError> {
+    if did.method != "key" {
+        return Err(CommonError::IdentityError(format!(
+            "Unsupported DID method: {}",
+            did.method
+        )));
+    }
+
+    use multibase::Base;
+    use unsigned_varint::decode as varint_decode;
+
+    let (base, data) = multibase::decode(&did.id_string)
+        .map_err(|e| CommonError::IdentityError(format!("Failed to decode did:key: {e}")))?;
+    if base != Base::Base58Btc {
+        return Err(CommonError::IdentityError(format!(
+            "Unsupported multibase prefix: {base:?}"
+        )));
+    }
+    let (codec, rest) = varint_decode::u16(&data).map_err(|e| {
+        CommonError::IdentityError(format!("Failed to decode multicodec prefix: {e}"))
+    })?;
+    if codec != 0xed {
+        return Err(CommonError::IdentityError(format!(
+            "Unsupported multicodec code: {codec}"
+        )));
+    }
+    let pk_bytes: [u8; 32] = rest
+        .try_into()
+        .map_err(|_| CommonError::IdentityError("Invalid Ed25519 key length in did:key".into()))?;
+    VerifyingKey::from_bytes(&pk_bytes)
+        .map_err(|e| CommonError::IdentityError(format!("Invalid verifying key bytes: {e}")))
+}
+
 /// Convenience wrapper around signing raw bytes with an Ed25519 SigningKey.
 pub fn sign_message(sk: &SigningKey, msg: &[u8]) -> EdSignature {
     sk.sign(msg)
@@ -72,7 +108,8 @@ impl SignatureBytes {
         SignatureBytes(ed_sig.to_bytes().to_vec())
     }
     pub fn to_ed_signature(&self) -> Result<ed25519_dalek::Signature, CommonError> {
-        let bytes_array: [u8; SIGNATURE_LENGTH] = self.0
+        let bytes_array: [u8; SIGNATURE_LENGTH] = self
+            .0
             .clone()
             .try_into()
             .map_err(|_| CommonError::InternalError("Invalid signature length".into()))?;
@@ -136,8 +173,19 @@ impl ExecutionReceipt {
         if verify_signature(verifying_key, &message, &ed_signature) {
             Ok(())
         } else {
-            Err(CommonError::InternalError("ExecutionReceipt signature verification failed".to_string()))
+            Err(CommonError::InternalError(
+                "ExecutionReceipt signature verification failed".to_string(),
+            ))
         }
+    }
+
+    /// Verifies the receipt signature against the public key encoded in the provided DID.
+    pub fn verify_against_did(&self, did: &Did) -> Result<(), CommonError> {
+        if &self.executor_did != did {
+            return Err(CommonError::IdentityError("Executor DID mismatch".into()));
+        }
+        let vk = verifying_key_from_did_key(did)?;
+        self.verify_against_key(&vk)
     }
 }
 
@@ -162,15 +210,14 @@ pub fn register_identity(info: &NodeInfo, did_method: &str) -> Result<String, Co
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use icn_common::ICN_CORE_VERSION; // Moved import here
-    // For ExecutionReceipt tests, we might need a way to generate CIDs if not already available.
-    // use icn_common::generate_cid; // Temporarily commented out due to unresolved import
-    use std::str::FromStr; // Ensure FromStr is in scope for Did::from_str
-    use icn_common::Cid; // Make sure Cid is in scope
+                                      // For ExecutionReceipt tests, we might need a way to generate CIDs if not already available.
+                                      // use icn_common::generate_cid; // Temporarily commented out due to unresolved import
+    use icn_common::Cid;
+    use std::str::FromStr; // Ensure FromStr is in scope for Did::from_str // Make sure Cid is in scope
 
     // Helper to create a dummy Cid for tests
     fn dummy_cid_for_test(s: &str) -> Cid {
@@ -194,11 +241,15 @@ mod tests {
         let (_sk, pk) = generate_ed25519_keypair();
         let did = did_key_from_verifying_key(&pk);
         assert!(did.starts_with("did:key:z")); // base58btc multibase prefix for 'z'
-        // A full Ed25519 public key (32 bytes) + multicodec prefix (0xed01, 2 bytes) = 34 bytes.
-        // Base58 encoding of 34 bytes should be around 45-48 characters.
-        // "did:key:z" is 10 chars. So total length ~55-58.
-        assert!(did.len() > 50 && did.len() < 60, "DID length unexpected: {}", did.len());
-        println!("Generated did:key: {}", did);
+                                               // A full Ed25519 public key (32 bytes) + multicodec prefix (0xed01, 2 bytes) = 34 bytes.
+                                               // Base58 encoding of 34 bytes should be around 45-48 characters.
+                                               // "did:key:z" is 10 chars. So total length ~55-58.
+        assert!(
+            did.len() > 50 && did.len() < 60,
+            "DID length unexpected: {}",
+            did.len()
+        );
+        println!("Generated did:key: {did}");
 
         // Example from spec (or known value) for cross-checking if available
         // let known_pk_bytes = hex::decode("F132C182A30937309A71732A3A97D353A63DA8B1C60E8FC8A19D8A8308D599DD").unwrap();
@@ -211,9 +262,10 @@ mod tests {
     fn execution_receipt_signing_and_verification() {
         let (signing_key, verifying_key) = generate_ed25519_keypair();
         let executor_did_string = did_key_from_verifying_key(&verifying_key);
-        let executor_did = Did::from_str(&executor_did_string).expect("Failed to parse DID from string for executor_did");
+        let executor_did = Did::from_str(&executor_did_string)
+            .expect("Failed to parse DID from string for executor_did");
 
-        let job_cid = dummy_cid_for_test("test_job_data_for_cid"); 
+        let job_cid = dummy_cid_for_test("test_job_data_for_cid");
         let result_cid = dummy_cid_for_test("test_result_data_for_cid");
 
         let unsigned_receipt = ExecutionReceipt {
@@ -224,7 +276,10 @@ mod tests {
             sig: SignatureBytes(vec![]), // Placeholder
         };
 
-        let signed_receipt = unsigned_receipt.clone().sign_with_key(&signing_key).unwrap();
+        let signed_receipt = unsigned_receipt
+            .clone()
+            .sign_with_key(&signing_key)
+            .unwrap();
         assert_ne!(signed_receipt.sig.0, Vec::<u8>::new());
 
         // Verification should pass with the correct public key
@@ -244,7 +299,7 @@ mod tests {
         bad_sig_receipt.sig.0[0] = bad_sig_receipt.sig.0[0].wrapping_add(1); // Flip a bit
         assert!(bad_sig_receipt.verify_against_key(&verifying_key).is_err());
     }
-    
+
     // Test for the register_identity function to ensure it uses the new mechanisms
     #[test]
     fn test_register_identity_with_new_did_key() {
@@ -256,6 +311,35 @@ mod tests {
         let result = register_identity(&node_info, "key").unwrap();
         assert!(result.contains("did:key:z"));
         assert!(result.contains("TestNodeCrypto"));
-        println!("Registered identity with new crypto: {}", result);
+        println!("Registered identity with new crypto: {result}");
+    }
+
+    #[test]
+    fn did_key_roundtrip() {
+        let (_sk, pk) = generate_ed25519_keypair();
+        let did_str = did_key_from_verifying_key(&pk);
+        let did = Did::from_str(&did_str).unwrap();
+        let recovered = verifying_key_from_did_key(&did).unwrap();
+        assert_eq!(pk.as_bytes(), recovered.as_bytes());
+    }
+
+    #[test]
+    fn receipt_verify_against_did() {
+        let (sk, pk) = generate_ed25519_keypair();
+        let did_str = did_key_from_verifying_key(&pk);
+        let did = Did::from_str(&did_str).unwrap();
+        let job_cid = dummy_cid_for_test("did_verify_job");
+        let result_cid = dummy_cid_for_test("did_verify_res");
+
+        let receipt = ExecutionReceipt {
+            job_id: job_cid,
+            executor_did: did.clone(),
+            result_cid,
+            cpu_ms: 1,
+            sig: SignatureBytes(vec![]),
+        };
+
+        let signed = receipt.sign_with_key(&sk).unwrap();
+        assert!(signed.verify_against_did(&did).is_ok());
     }
 }
