@@ -5,7 +5,7 @@
 //! It integrates various core components to operate a functional ICN node, handling initialization,
 //! lifecycle, configuration, service hosting, and persistence.
 
-use icn_common::{NodeInfo, Did, Cid, ICN_CORE_VERSION, CommonError, parse_cid_from_string};
+use icn_common::{NodeInfo, NodeStatus, Did, Cid, ICN_CORE_VERSION, CommonError, parse_cid_from_string};
 use icn_identity::{generate_ed25519_keypair, did_key_from_verifying_key, SigningKey, VerifyingKey, SignatureBytes, EdSignature, ExecutionReceipt as IdentityExecutionReceipt};
 use icn_runtime::context::{RuntimeContext, HostAbiError, StubSigner as RuntimeStubSigner, StubMeshNetworkService, StubDagStore as RuntimeStubDagStore, MeshNetworkService, Signer as RuntimeSigner};
 use icn_runtime::{
@@ -78,13 +78,6 @@ enum StorageBackendType {
 
 // --- Supporting Types ---
 
-#[derive(Serialize)]
-struct NodeStatus {
-    is_online: bool,
-    peer_count: u32,
-    current_block_height: u64,
-    version: String,
-}
 
 #[derive(Deserialize)]
 struct DagBlock {
