@@ -1,12 +1,10 @@
 //! This module provides executor-side functionality for running mesh jobs.
 
-use std::collections::HashMap;
 use icn_common::{Did, Cid, CommonError};
 use icn_identity::{ExecutionReceipt as IdentityExecutionReceipt, SigningKey, SignatureBytes /* Removed , generate_ed25519_keypair */};
-use icn_mesh::{JobId, ActualMeshJob, JobSpec, /* ... other mesh types ... */};
+use icn_mesh::{ActualMeshJob, JobSpec /* ... other mesh types ... */};
 use log::{info}; // Removed error
 use std::time::SystemTime;
-use serde_json::Value; // Added for handle_*_job functions
 
 /// Trait for a job executor.
 #[async_trait::async_trait]

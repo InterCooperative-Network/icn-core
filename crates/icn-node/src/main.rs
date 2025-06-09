@@ -5,20 +5,18 @@
 //! It integrates various core components to operate a functional ICN node, handling initialization,
 //! lifecycle, configuration, service hosting, and persistence.
 
-use icn_common::{NodeInfo, NodeStatus, Did, Cid, ICN_CORE_VERSION, CommonError, parse_cid_from_string};
-use icn_identity::{generate_ed25519_keypair, did_key_from_verifying_key, SigningKey, VerifyingKey, SignatureBytes, EdSignature, ExecutionReceipt as IdentityExecutionReceipt};
-use icn_runtime::context::{RuntimeContext, HostAbiError, StubSigner as RuntimeStubSigner, StubMeshNetworkService, StubDagStore as RuntimeStubDagStore, MeshNetworkService, Signer as RuntimeSigner};
+use icn_common::{NodeInfo, NodeStatus, Did, Cid, ICN_CORE_VERSION, parse_cid_from_string};
+use icn_identity::{generate_ed25519_keypair, did_key_from_verifying_key, SignatureBytes, ExecutionReceipt as IdentityExecutionReceipt};
+use icn_runtime::context::{RuntimeContext, StubSigner as RuntimeStubSigner, StubMeshNetworkService, StubDagStore as RuntimeStubDagStore};
 use icn_runtime::{
     host_submit_mesh_job,
     host_anchor_receipt,
     ReputationUpdater,
 };
-use icn_mesh::{ActualMeshJob};
-use icn_governance::{ProposalId, VoteOption};
-use icn_api::governance_trait::{self as governance_api, ProposalInputType as ApiProposalInputType, CastVoteRequest as ApiCastVoteRequest, SubmitProposalRequest as ApiSubmitProposalRequest};
+use icn_mesh::ActualMeshJob;
+use icn_api::governance_trait::{CastVoteRequest as ApiCastVoteRequest, SubmitProposalRequest as ApiSubmitProposalRequest};
 
 use std::sync::Arc;
-use tokio::sync::Mutex;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
@@ -31,7 +29,9 @@ use axum::{
 };
 use clap::Parser;
 use env_logger;
-use log::{info, warn, error, debug};
+use log::{info, error, debug};
+#[cfg(feature = "enable-libp2p")]
+use log::warn;
 use std::str::FromStr;
 
 #[cfg(feature = "enable-libp2p")]
@@ -143,6 +143,7 @@ pub async fn app_router() -> Router { // Renamed to app_router and made async fo
 
 // --- Main Application Logic ---
 #[tokio::main]
+#[allow(dead_code)]
 async fn main() {
     env_logger::init(); // Initialize logger
     let cli = Cli::parse();
@@ -343,7 +344,7 @@ struct CidRequest { cid: String }
 
 // POST /governance/submit – Submit a proposal. (Body: SubmitProposalRequest JSON)
 async fn gov_submit_handler(
-    State(state): State<AppState>,
+    State(_state): State<AppState>,
     Json(request): Json<ApiSubmitProposalRequest>,
 ) -> impl IntoResponse {
     debug!("Received /governance/submit request: {:?}", request);
@@ -394,7 +395,7 @@ async fn gov_submit_handler(
 
 // POST /governance/vote – Cast a vote. (Body: CastVoteRequest JSON)
 async fn gov_vote_handler(
-    State(state): State<AppState>,
+    State(_state): State<AppState>,
     Json(request): Json<ApiCastVoteRequest>,
 ) -> impl IntoResponse {
     debug!("Received /governance/vote request: {:?}", request);
@@ -430,7 +431,7 @@ async fn gov_vote_handler(
 
 // GET /governance/proposals
 async fn gov_list_proposals_handler(
-    State(state): State<AppState>,
+    State(_state): State<AppState>,
 ) -> impl IntoResponse {
     debug!("Received /governance/proposals request");
     // TODO: Governance operations need to be implemented in RuntimeContext
@@ -445,7 +446,7 @@ async fn gov_list_proposals_handler(
 
 // GET /governance/proposal/:proposal_id
 async fn gov_get_proposal_handler(
-    State(state): State<AppState>,
+    State(_state): State<AppState>,
     AxumPath(proposal_id_str): AxumPath<String>,
 ) -> impl IntoResponse {
     debug!("Received /governance/proposal/{} request", proposal_id_str);
@@ -735,7 +736,6 @@ mod tests {
     use axum::body::Body;
     use axum::http::{Request, StatusCode};
     use tower::ServiceExt; // for `oneshot` and `ready`
-    use icn_mesh::{JobSpec}; // Assuming JobSpec can be created
 
     // Helper to create a test router with a fresh RuntimeContext
     async fn test_app() -> Router {

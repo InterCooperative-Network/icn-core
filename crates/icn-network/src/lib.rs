@@ -16,12 +16,11 @@ use std::fmt::Debug;
 use async_trait::async_trait;
 use downcast_rs::{impl_downcast, DowncastSync};
 use std::any::Any;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use std::collections::HashMap;
 use bincode;
 use log::{info, warn};
 // Removed unused imports for testing Kademlia disabled build
-use libp2p::{PeerId as Libp2pPeerId, Multiaddr};
 
 // --- Core Types ---
 
@@ -183,17 +182,14 @@ pub mod libp2p_service {
         core::upgrade, gossipsub, identity, noise, ping,
         swarm::{NetworkBehaviour, Swarm, SwarmEvent, Config as SwarmConfig},
         tcp, yamux, PeerId as Libp2pPeerId, Transport, dns,
-        kad::{Record as KademliaRecord, RecordKey as KademliaKey, GetRecordOk, 
-              store::MemoryStore, Behaviour as KademliaBehaviour, Config as KademliaConfig, 
-              Event as KademliaEvent, QueryResult as KademliaQueryResult, Quorum, QueryId},
-        request_response::{Behaviour as RequestResponseBehaviour, Codec as RequestResponseCodec, 
-                          Event as RequestResponseEvent, ProtocolSupport},
+        kad::{Record as KademliaRecord, RecordKey as KademliaKey},
+        request_response::{Behaviour as RequestResponseBehaviour, Codec as RequestResponseCodec, ProtocolSupport},
         Multiaddr,
     };
     use tokio::{sync::{mpsc, oneshot}, task};
     use std::sync::{Arc, Mutex};
     use std::str::FromStr;
-    use std::num::NonZero;
+    
 
     // --- Enhanced Statistics and Configuration ---
     
@@ -235,14 +231,12 @@ pub mod libp2p_service {
         messages_received: u64,
         failed_connections: u64,
         message_counts: HashMap<String, MessageTypeStats>,
-        last_bootstrap: Option<Instant>,
         kademlia_peers: usize,
     }
 
     impl EnhancedNetworkStats {
         fn new() -> Self {
             Self {
-                last_bootstrap: Some(Instant::now()),
                 ..Default::default()
             }
         }
@@ -284,6 +278,7 @@ pub mod libp2p_service {
     }
 
     #[derive(Debug)]
+    #[allow(dead_code)]
     enum Command {
         DiscoverPeers {
             target: Option<Libp2pPeerId>,
@@ -502,7 +497,7 @@ pub mod libp2p_service {
                         Some(command) = cmd_rx.recv() => {
                             log::debug!("🔧 [LIBP2P] Received command: {:?}", std::mem::discriminant(&command));
                             match command {
-                                Command::DiscoverPeers { target, rsp } => {
+                                Command::DiscoverPeers { target: _target, rsp } => {
                                     log::debug!("Peer discovery disabled (Kademlia disabled for testing)");
                                     // Return empty peer list since Kademlia is disabled
                                     let peers: Vec<super::PeerId> = Vec::new();
