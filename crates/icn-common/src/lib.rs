@@ -201,19 +201,19 @@ pub fn parse_cid_from_string(cid_str: &str) -> Result<Cid, CommonError> {
         .ok_or_else(|| CommonError::InvalidInputError("Missing 'cidv' prefix".to_string()))?;
     let version: u64 = version_str
         .parse()
-        .map_err(|e| CommonError::InvalidInputError(format!("Invalid version: {}", e)))?;
+        .map_err(|e| CommonError::InvalidInputError(format!("Invalid version: {e}")))?;
 
     let codec: u64 = parts[1]
         .parse()
-        .map_err(|e| CommonError::InvalidInputError(format!("Invalid codec: {}", e)))?;
+        .map_err(|e| CommonError::InvalidInputError(format!("Invalid codec: {e}")))?;
 
     let hash_alg: u64 = parts[2]
         .parse()
-        .map_err(|e| CommonError::InvalidInputError(format!("Invalid hash_alg: {}", e)))?;
+        .map_err(|e| CommonError::InvalidInputError(format!("Invalid hash_alg: {e}")))?;
 
     let hash_bytes = bs58::decode(parts[3])
         .into_vec()
-        .map_err(|e| CommonError::InvalidInputError(format!("Invalid base58 hash: {}", e)))?;
+        .map_err(|e| CommonError::InvalidInputError(format!("Invalid base58 hash: {e}")))?;
 
     Ok(Cid {
         version,

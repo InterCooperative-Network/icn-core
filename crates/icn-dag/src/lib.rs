@@ -13,6 +13,9 @@ use std::fs::{File, OpenOptions}; // For FileDagStore
 use std::io::{Read, Write}; // Removed Seek, SeekFrom
 use serde::{Serialize, Deserialize}; // For FileDagStore block serialization
 
+#[cfg(feature = "persist-sled")]
+pub mod sled_store;
+
 // --- Storage Service Trait ---
 
 /// Defines the interface for a DAG block storage backend.
@@ -330,6 +333,21 @@ mod tests {
             Ok(None) => panic!("Block should exist but be corrupted (CID mismatch), not None"),
             Err(e) => panic!("Expected InvalidInputError for CID mismatch, got other error: {e:?}"),
         }
+    }
+
+    #[cfg(feature = "persist-sled")]
+    #[test]
+    fn test_sled_dag_store_service() {
+        let dir = tempdir().unwrap();
+        let mut store = sled_store::SledDagStore::new(dir.path().to_path_buf()).unwrap();
+        test_storage_service_suite(&mut store);
+
+        let block_persist = create_test_block("persistent_block_sled");
+        store.put(&block_persist).unwrap();
+        drop(store);
+
+        let mut store2 = sled_store::SledDagStore::new(dir.path().to_path_buf()).unwrap();
+        assert!(store2.get(&block_persist.cid).unwrap().is_some());
     }
 
 

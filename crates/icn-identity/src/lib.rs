@@ -43,7 +43,7 @@ pub fn did_key_from_verifying_key(pk: &VerifyingKey) -> String {
     let mb = multibase_encode(Base::Base58Btc, prefixed_pk_bytes);
 
     // 4. final did string
-    format!("did:key:{}", mb)
+    format!("did:key:{mb}")
 }
 
 /// Convenience wrapper around signing raw bytes with an Ed25519 SigningKey.
