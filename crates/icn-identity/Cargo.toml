@@ -13,7 +13,7 @@ icn-common = { path = "../icn-common" }
 
 # --- crypto ---
 ed25519-dalek = { version = "2.0.0-pre.3", features = ["rand_core"] }
-rand_core      = "0.6"          # used by dalek's OsRng
+rand_core      = { version = "0.6", features = ["getrandom"] } # used by dalek's OsRng
 # --- DID:key helpers ---
 multibase      = "0.9"          # base-58btc ("z...") encoder/decoder
 # tiny crate that just exposes the unsigned-varint impl used by multicodec

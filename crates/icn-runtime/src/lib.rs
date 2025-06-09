@@ -21,10 +21,9 @@ use icn_common::{Did, NodeInfo, Cid, CommonError};
 use icn_identity;
 use futures;
 use log::{info, debug};
+#[cfg(test)]
 use std::sync::Arc;
 use std::str::FromStr;
-use icn_mesh::ActualMeshJob;
-use context::StubMeshNetworkService;
 
 /// Placeholder function demonstrating use of common types for runtime operations.
 /// This function is not directly part of the Host ABI layer discussed below but serves as an example.
@@ -327,8 +326,8 @@ mod tests {
         let job_json1 = serde_json::to_string(&test_job1).unwrap();
         let job_json2 = serde_json::to_string(&test_job2).unwrap();
 
-        let job_id1 = host_submit_mesh_job(&ctx, &job_json1).await.unwrap();
-        let job_id2 = host_submit_mesh_job(&ctx, &job_json2).await.unwrap();
+        let _job_id1 = host_submit_mesh_job(&ctx, &job_json1).await.unwrap();
+        let _job_id2 = host_submit_mesh_job(&ctx, &job_json2).await.unwrap();
 
         let pending_jobs = host_get_pending_mesh_jobs(&ctx).unwrap();
         assert_eq!(pending_jobs.len(), 2);

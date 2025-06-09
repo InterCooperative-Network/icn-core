@@ -532,7 +532,7 @@ impl RuntimeContext {
                     let current_job_id = job.id.clone(); // Clone for use in logs and map keys
 
                     // Get current state from the central job_states map
-                    let mut job_states_guard = self_clone.job_states.lock().await;
+                    let job_states_guard = self_clone.job_states.lock().await;
                     let current_job_state = job_states_guard.get(&current_job_id).cloned();
                     drop(job_states_guard); // Release lock quickly
 
