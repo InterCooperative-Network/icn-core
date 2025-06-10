@@ -26,6 +26,8 @@ use libp2p::{Multiaddr, PeerId as Libp2pPeerId};
 use icn_network::libp2p_service::NetworkConfig;
 
 use icn_identity::{generate_ed25519_keypair, did_key_from_verifying_key, SigningKey, VerifyingKey, sign_message, verify_signature as identity_verify_signature, EdSignature, SIGNATURE_LENGTH};
+use icn_governance::{GovernanceModule, ProposalType, VoteOption, ProposalId};
+use serde::{Serialize, Deserialize};
 
 // Counter for generating unique (within this runtime instance) job IDs for stubs
 pub static NEXT_JOB_ID: AtomicU32 = AtomicU32::new(1);
@@ -120,16 +122,7 @@ pub struct LocalMeshSubmitReceiptMessage { // Renamed to avoid conflict
     pub receipt: IdentityExecutionReceipt,
 }
 
-// Placeholder for GovernanceModule
-#[derive(Debug, Clone)]
-pub struct GovernanceModule { /* ... fields ... */ }
-impl GovernanceModule { pub fn new() -> Self { Self {} } }
-
-impl Default for GovernanceModule {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+// GovernanceModule is provided by the icn-governance crate
 
 // Placeholder for charge_mana function (used in Job Manager)
 // This would typically belong to the icn-economics crate or a related module.
@@ -153,7 +146,7 @@ pub struct SelectionPolicy { /* ... fields ... */ }
 // --- End Placeholder Local Stubs ---
 
 
-#[derive(Debug, Clone)] 
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateProposalPayload {
     pub proposal_type_str: String,
     pub type_specific_payload: Vec<u8>, 
@@ -161,7 +154,7 @@ pub struct CreateProposalPayload {
     pub duration_secs: u64,
 }
 
-#[derive(Debug, Clone)] 
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CastVotePayload {
     pub proposal_id_str: String,
     pub vote_option_str: String, 
@@ -373,12 +366,20 @@ impl RuntimeContext {
         let job_states = Arc::new(TokioMutex::new(HashMap::new()));
         let pending_mesh_jobs = Arc::new(TokioMutex::new(VecDeque::new()));
 
+        #[cfg(feature = "persist-sled")]
+        let governance_module = Arc::new(TokioMutex::new(
+            GovernanceModule::new_sled(std::path::PathBuf::from("./governance_db"))
+                .unwrap_or_else(|_| GovernanceModule::new()),
+        ));
+        #[cfg(not(feature = "persist-sled"))]
+        let governance_module = Arc::new(TokioMutex::new(GovernanceModule::new()));
+
         Arc::new(Self {
             current_identity,
             mana_ledger: SimpleManaLedger::new(),
             pending_mesh_jobs,
             job_states,
-            governance_module: Arc::new(TokioMutex::new(GovernanceModule::new())),
+            governance_module,
             mesh_network_service,
             signer,
             dag_store,
@@ -723,20 +724,60 @@ impl RuntimeContext {
         Ok(cid)
     }
 
-    pub fn create_governance_proposal(&mut self, _payload: CreateProposalPayload) -> Result<String, HostAbiError> {
-        todo!("Implement mapping for CreateProposalPayload and call governance_module.submit_proposal");
+    pub async fn create_governance_proposal(&self, payload: CreateProposalPayload) -> Result<String, HostAbiError> {
+        let proposal_type = match payload.proposal_type_str.to_lowercase().as_str() {
+            "systemparameterchange" | "system_parameter_change" => {
+                let tup: (String, String) = serde_json::from_slice(&payload.type_specific_payload)
+                    .map_err(|e| HostAbiError::InvalidParameters(format!("Failed to parse system parameter payload: {}", e)))?;
+                ProposalType::SystemParameterChange(tup.0, tup.1)
+            }
+            "memberadmission" | "newmemberinvitation" | "member_invitation" => {
+                let did_str = String::from_utf8(payload.type_specific_payload)
+                    .map_err(|e| HostAbiError::InvalidParameters(format!("Failed to parse member DID: {}", e)))?;
+                let did = Did::from_str(&did_str)
+                    .map_err(|e| HostAbiError::InvalidParameters(format!("Invalid DID: {}", e)))?;
+                ProposalType::NewMemberInvitation(did)
+            }
+            "softwareupgrade" | "software_upgrade" => {
+                let version = String::from_utf8(payload.type_specific_payload)
+                    .map_err(|e| HostAbiError::InvalidParameters(format!("Failed to parse version: {}", e)))?;
+                ProposalType::SoftwareUpgrade(version)
+            }
+            "generictext" | "generic_text" => {
+                let text = String::from_utf8(payload.type_specific_payload)
+                    .map_err(|e| HostAbiError::InvalidParameters(format!("Failed to parse text: {}", e)))?;
+                ProposalType::GenericText(text)
+            }
+            other => return Err(HostAbiError::InvalidParameters(format!("Unknown proposal type: {}", other))),
+        };
+
+        let mut gov = self.governance_module.lock().await;
+        let pid = gov
+            .submit_proposal(self.current_identity.clone(), proposal_type, payload.description, payload.duration_secs)
+            .map_err(HostAbiError::Common)?;
+        Ok(pid.0)
     }
 
-    pub fn cast_governance_vote(&mut self, _payload: CastVotePayload) -> Result<(), HostAbiError> {
-        todo!("Implement mapping for CastVotePayload and call governance_module.cast_vote");
+    pub async fn cast_governance_vote(&self, payload: CastVotePayload) -> Result<(), HostAbiError> {
+        let proposal_id = ProposalId::from_str(&payload.proposal_id_str)
+            .map_err(|e| HostAbiError::InvalidParameters(format!("Invalid proposal id: {}", e)))?;
+        let vote_option = match payload.vote_option_str.to_lowercase().as_str() {
+            "yes" => VoteOption::Yes,
+            "no" => VoteOption::No,
+            "abstain" => VoteOption::Abstain,
+            other => return Err(HostAbiError::InvalidParameters(format!("Unknown vote option: {}", other))),
+        };
+        let mut gov = self.governance_module.lock().await;
+        gov.cast_vote(self.current_identity.clone(), &proposal_id, vote_option)
+            .map_err(HostAbiError::Common)
     }
 
-    pub fn close_governance_proposal_voting(&mut self, _proposal_id_str: &str) -> Result<String, HostAbiError> {
-        todo!("Integrate with GovernanceModule proposal closing/tallying logic");
+    pub async fn close_governance_proposal_voting(&self, _proposal_id_str: &str) -> Result<String, HostAbiError> {
+        Err(HostAbiError::NotImplemented("close_governance_proposal_voting".into()))
     }
 
-    pub async fn execute_governance_proposal(&mut self, _proposal_id_str: &str) -> Result<(), HostAbiError> {
-        todo!("Implement full governance proposal execution logic");
+    pub async fn execute_governance_proposal(&self, _proposal_id_str: &str) -> Result<(), HostAbiError> {
+        Err(HostAbiError::NotImplemented("execute_governance_proposal".into()))
     }
 
     /// Create a new RuntimeContext with real libp2p networking
@@ -815,7 +856,13 @@ impl RuntimeContext {
         let job_states = Arc::new(TokioMutex::new(HashMap::new())); 
         let pending_mesh_jobs = Arc::new(TokioMutex::new(VecDeque::new())); 
         let mana_ledger = SimpleManaLedger::new();
-        let governance_module = Arc::new(TokioMutex::new(GovernanceModule::default()));
+        #[cfg(feature = "persist-sled")]
+        let governance_module = Arc::new(TokioMutex::new(
+            GovernanceModule::new_sled(std::path::PathBuf::from("./governance_db_test"))
+                .unwrap_or_else(|_| GovernanceModule::new()),
+        ));
+        #[cfg(not(feature = "persist-sled"))]
+        let governance_module = Arc::new(TokioMutex::new(GovernanceModule::new()));
 
         Arc::new(Self {
             current_identity,
