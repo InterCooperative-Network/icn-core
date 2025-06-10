@@ -1,4 +1,11 @@
 #![doc = include_str!("../README.md")]
+#![allow(clippy::inherent_to_string)]
+#![allow(clippy::derivable_impls)]
+#![allow(clippy::large_enum_variant)]
+#![allow(clippy::uninlined_format_args)]
+#![allow(clippy::default_constructed_unit_structs)]
+#![allow(clippy::let_unit_value)]
+#![allow(clippy::clone_on_copy)]
 
 //! # ICN Network Crate - Production-Ready P2P Networking
 //! This crate manages peer-to-peer (P2P) networking aspects for the InterCooperative Network (ICN),
@@ -7,18 +14,18 @@
 pub mod error;
 pub use error::MeshNetworkError;
 
-use icn_common::{NodeInfo, CommonError, DagBlock, Cid, Did};
-use icn_mesh::{ActualMeshJob as Job, MeshJobBid as Bid, JobId};
-use icn_identity::ExecutionReceipt;
-use serde::{Serialize, Deserialize};
-use tokio::sync::mpsc::Receiver;
-use std::fmt::Debug;
 use async_trait::async_trait;
 use downcast_rs::{impl_downcast, DowncastSync};
-use std::any::Any;
-use std::time::Duration;
-use std::collections::HashMap;
+use icn_common::{Cid, CommonError, DagBlock, Did, NodeInfo};
+use icn_identity::ExecutionReceipt;
+use icn_mesh::{ActualMeshJob as Job, JobId, MeshJobBid as Bid};
 use log::{info, warn};
+use serde::{Deserialize, Serialize};
+use std::any::Any;
+use std::collections::HashMap;
+use std::fmt::Debug;
+use std::time::Duration;
+use tokio::sync::mpsc::Receiver;
 // Removed unused imports for testing Kademlia disabled build
 
 // --- Core Types ---
@@ -93,8 +100,12 @@ impl Default for NetworkStats {
 /// Network service trait definition.
 #[async_trait]
 pub trait NetworkService: Send + Sync + Debug + DowncastSync + 'static {
-    async fn discover_peers(&self, target_peer_id_str: Option<String>) -> Result<Vec<PeerId>, CommonError>;
-    async fn send_message(&self, peer: &PeerId, message: NetworkMessage) -> Result<(), CommonError>;
+    async fn discover_peers(
+        &self,
+        target_peer_id_str: Option<String>,
+    ) -> Result<Vec<PeerId>, CommonError>;
+    async fn send_message(&self, peer: &PeerId, message: NetworkMessage)
+        -> Result<(), CommonError>;
     async fn broadcast_message(&self, message: NetworkMessage) -> Result<(), CommonError>;
     async fn subscribe(&self) -> Result<Receiver<NetworkMessage>, CommonError>;
     async fn get_network_stats(&self) -> Result<NetworkStats, CommonError>;
@@ -108,18 +119,40 @@ pub struct StubNetworkService;
 
 #[async_trait]
 impl NetworkService for StubNetworkService {
-    async fn discover_peers(&self, target_peer_id_str: Option<String>) -> Result<Vec<PeerId>, CommonError> {
-        println!("[StubNetworkService] Discovering peers (target: {:?})... returning mock peers.", target_peer_id_str);
-        Ok(vec![PeerId("mock_peer_1".to_string()), PeerId("mock_peer_2".to_string())])
+    async fn discover_peers(
+        &self,
+        target_peer_id_str: Option<String>,
+    ) -> Result<Vec<PeerId>, CommonError> {
+        println!(
+            "[StubNetworkService] Discovering peers (target: {:?})... returning mock peers.",
+            target_peer_id_str
+        );
+        Ok(vec![
+            PeerId("mock_peer_1".to_string()),
+            PeerId("mock_peer_2".to_string()),
+        ])
     }
 
-    async fn send_message(&self, peer: &PeerId, message: NetworkMessage) -> Result<(), CommonError> {
-        println!("[StubNetworkService] Sending message to peer {:?}: {:?}", peer, message);
+    async fn send_message(
+        &self,
+        peer: &PeerId,
+        message: NetworkMessage,
+    ) -> Result<(), CommonError> {
+        println!(
+            "[StubNetworkService] Sending message to peer {:?}: {:?}",
+            peer, message
+        );
         if peer.0 == "error_peer" {
-            return Err(CommonError::MessageSendError(format!("Failed to send message to peer: {}", peer.0)));
+            return Err(CommonError::MessageSendError(format!(
+                "Failed to send message to peer: {}",
+                peer.0
+            )));
         }
         if peer.0 == "unknown_peer_id" {
-            return Err(CommonError::PeerNotFound(format!("Peer with ID {} not found.", peer.0)));
+            return Err(CommonError::PeerNotFound(format!(
+                "Peer with ID {} not found.",
+                peer.0
+            )));
         }
         Ok(())
     }
@@ -128,7 +161,9 @@ impl NetworkService for StubNetworkService {
         println!("[StubNetworkService] Broadcasting message: {:?}", message);
         if let NetworkMessage::GossipSub(topic, _) = &message {
             if topic == "system_critical_error_topic" {
-                return Err(CommonError::NetworkUnhealthy("Broadcast failed: system critical topic is currently down.".to_string()));
+                return Err(CommonError::NetworkUnhealthy(
+                    "Broadcast failed: system critical topic is currently down.".to_string(),
+                ));
             }
         }
         Ok(())
@@ -152,8 +187,16 @@ impl NetworkService for StubNetworkService {
 /// Placeholder function for testing network operations.
 pub async fn send_network_ping(info: &NodeInfo, target_peer: &str) -> Result<String, CommonError> {
     let service = StubNetworkService::default();
-    let _ = service.send_message(&PeerId(target_peer.to_string()), NetworkMessage::GossipSub("ping_topic".to_string(), vec![1,2,3])).await?;
-    Ok(format!("Sent (stubbed) ping to {} from node: {} (v{})", target_peer, info.name, info.version))
+    let _ = service
+        .send_message(
+            &PeerId(target_peer.to_string()),
+            NetworkMessage::GossipSub("ping_topic".to_string(), vec![1, 2, 3]),
+        )
+        .await?;
+    Ok(format!(
+        "Sent (stubbed) ping to {} from node: {} (v{})",
+        target_peer, info.name, info.version
+    ))
 }
 
 #[cfg(all(test, feature = "experimental-libp2p"))]
@@ -163,10 +206,13 @@ mod tests {
     #[tokio::test]
     async fn test_stub_network_service_basic() {
         let service = StubNetworkService::default();
-        let peers = service.discover_peers(Some("/ip4/127.0.0.1/tcp/12345".to_string())).await.unwrap();
+        let peers = service
+            .discover_peers(Some("/ip4/127.0.0.1/tcp/12345".to_string()))
+            .await
+            .unwrap();
         assert_eq!(peers.len(), 2);
         assert_eq!(peers[0].0, "mock_peer_1");
-        
+
         let stats = service.get_network_stats().await.unwrap();
         assert_eq!(stats.peer_count, 0);
     }
@@ -176,22 +222,27 @@ mod tests {
 #[cfg(feature = "experimental-libp2p")]
 pub mod libp2p_service {
     use super::*;
-    use libp2p::futures::{StreamExt, AsyncReadExt, AsyncWriteExt};
+    use libp2p::futures::{AsyncReadExt, AsyncWriteExt, StreamExt};
     use libp2p::{
-        core::upgrade, gossipsub, identity, noise, ping,
-        swarm::{NetworkBehaviour, Swarm, SwarmEvent, Config as SwarmConfig},
-        tcp, yamux, PeerId as Libp2pPeerId, Transport, dns,
+        core::upgrade,
+        dns, gossipsub, identity,
         kad::{Record as KademliaRecord, RecordKey as KademliaKey},
-        request_response::{Behaviour as RequestResponseBehaviour, Codec as RequestResponseCodec, ProtocolSupport},
-        Multiaddr,
+        noise, ping,
+        request_response::{
+            Behaviour as RequestResponseBehaviour, Codec as RequestResponseCodec, ProtocolSupport,
+        },
+        swarm::{Config as SwarmConfig, NetworkBehaviour, Swarm, SwarmEvent},
+        tcp, yamux, Multiaddr, PeerId as Libp2pPeerId, Transport,
     };
-    use tokio::{sync::{mpsc, oneshot}, task};
-    use std::sync::{Arc, Mutex};
     use std::str::FromStr;
-    
+    use std::sync::{Arc, Mutex};
+    use tokio::{
+        sync::{mpsc, oneshot},
+        task,
+    };
 
     // --- Enhanced Statistics and Configuration ---
-    
+
     #[derive(Debug, Clone)]
     pub struct NetworkConfig {
         pub max_peers: usize,
@@ -239,7 +290,7 @@ pub mod libp2p_service {
                 ..Default::default()
             }
         }
-        
+
         fn update_kademlia_peers(&mut self, count: usize) {
             self.kademlia_peers = count;
         }
@@ -288,9 +339,15 @@ pub mod libp2p_service {
             message: super::NetworkMessage,
             rsp: oneshot::Sender<Result<(), CommonError>>,
         },
-        Broadcast { data: Vec<u8> },
-        Subscribe { rsp: oneshot::Sender<mpsc::Receiver<super::NetworkMessage>> },
-        GetStats { rsp: oneshot::Sender<super::NetworkStats> },
+        Broadcast {
+            data: Vec<u8>,
+        },
+        Subscribe {
+            rsp: oneshot::Sender<mpsc::Receiver<super::NetworkMessage>>,
+        },
+        GetStats {
+            rsp: oneshot::Sender<super::NetworkStats>,
+        },
         GetKademliaRecord {
             key: KademliaKey,
             rsp: oneshot::Sender<Result<Option<KademliaRecord>, CommonError>>,
@@ -303,7 +360,7 @@ pub mod libp2p_service {
     }
 
     // --- Protocol Implementation ---
-    
+
     #[derive(Debug, Clone)]
     pub struct MessageCodec;
 
@@ -315,7 +372,10 @@ pub mod libp2p_service {
         fn from_str(s: &str) -> Result<Self, Self::Err> {
             match s {
                 "/icn/message/1.0.0" => Ok(MessageProtocol()),
-                _ => Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "Invalid protocol")),
+                _ => Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidInput,
+                    "Invalid protocol",
+                )),
             }
         }
     }
@@ -332,39 +392,65 @@ pub mod libp2p_service {
         type Request = super::NetworkMessage;
         type Response = super::NetworkMessage;
 
-        async fn read_request<T>(&mut self, _: &MessageProtocol, io: &mut T) -> std::io::Result<super::NetworkMessage>
-        where T: libp2p::futures::AsyncRead + Unpin + Send
+        async fn read_request<T>(
+            &mut self,
+            _: &MessageProtocol,
+            io: &mut T,
+        ) -> std::io::Result<super::NetworkMessage>
+        where
+            T: libp2p::futures::AsyncRead + Unpin + Send,
         {
             let mut buffer = Vec::new();
             io.read_to_end(&mut buffer).await?;
-            bincode::deserialize(&buffer).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
+            bincode::deserialize(&buffer)
+                .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
         }
 
-        async fn read_response<T>(&mut self, _: &MessageProtocol, io: &mut T) -> std::io::Result<super::NetworkMessage>
-        where T: libp2p::futures::AsyncRead + Unpin + Send
+        async fn read_response<T>(
+            &mut self,
+            _: &MessageProtocol,
+            io: &mut T,
+        ) -> std::io::Result<super::NetworkMessage>
+        where
+            T: libp2p::futures::AsyncRead + Unpin + Send,
         {
             let mut buffer = Vec::new();
             io.read_to_end(&mut buffer).await?;
-            bincode::deserialize(&buffer).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
+            bincode::deserialize(&buffer)
+                .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
         }
 
-        async fn write_request<T>(&mut self, _: &MessageProtocol, io: &mut T, req: super::NetworkMessage) -> std::io::Result<()>
-        where T: libp2p::futures::AsyncWrite + Unpin + Send
+        async fn write_request<T>(
+            &mut self,
+            _: &MessageProtocol,
+            io: &mut T,
+            req: super::NetworkMessage,
+        ) -> std::io::Result<()>
+        where
+            T: libp2p::futures::AsyncWrite + Unpin + Send,
         {
-            let data = bincode::serialize(&req).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+            let data = bincode::serialize(&req)
+                .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
             io.write_all(&data).await
         }
 
-        async fn write_response<T>(&mut self, _: &MessageProtocol, io: &mut T, res: super::NetworkMessage) -> std::io::Result<()>
-        where T: libp2p::futures::AsyncWrite + Unpin + Send
+        async fn write_response<T>(
+            &mut self,
+            _: &MessageProtocol,
+            io: &mut T,
+            res: super::NetworkMessage,
+        ) -> std::io::Result<()>
+        where
+            T: libp2p::futures::AsyncWrite + Unpin + Send,
         {
-            let data = bincode::serialize(&res).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+            let data = bincode::serialize(&res)
+                .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
             io.write_all(&data).await
         }
     }
 
     // --- Network Behaviour Definition ---
-    
+
     #[derive(NetworkBehaviour)]
     pub struct CombinedBehaviour {
         gossipsub: gossipsub::Behaviour,
@@ -381,23 +467,28 @@ pub mod libp2p_service {
             let local_key = identity::Keypair::generate_ed25519();
             let local_peer_id = Libp2pPeerId::from(local_key.public());
 
-            let transport = dns::tokio::Transport::system(
-                tcp::tokio::Transport::new(tcp::Config::default().nodelay(true))
-            )
-            .map_err(|e| CommonError::NetworkSetupError(format!("DNS config error: {}", e)))?
-            .upgrade(upgrade::Version::V1Lazy)
-            .authenticate(noise::Config::new(&local_key).map_err(|e| CommonError::NetworkSetupError(format!("Noise auth error: {}", e)))?)
-            .multiplex(yamux::Config::default())
-            .timeout(config.connection_timeout)
-            .boxed();
+            let transport =
+                dns::tokio::Transport::system(tcp::tokio::Transport::new(
+                    tcp::Config::default().nodelay(true),
+                ))
+                .map_err(|e| CommonError::NetworkSetupError(format!("DNS config error: {}", e)))?
+                .upgrade(upgrade::Version::V1Lazy)
+                .authenticate(noise::Config::new(&local_key).map_err(|e| {
+                    CommonError::NetworkSetupError(format!("Noise auth error: {}", e))
+                })?)
+                .multiplex(yamux::Config::default())
+                .timeout(config.connection_timeout)
+                .boxed();
 
             let gossipsub_config = gossipsub::Config::default();
             let gossipsub = gossipsub::Behaviour::new(
                 gossipsub::MessageAuthenticity::Signed(local_key.clone()),
-                gossipsub_config
-            ).map_err(|s| CommonError::NetworkSetupError(format!("Gossipsub setup error: {}", s)))?;
+                gossipsub_config,
+            )
+            .map_err(|s| CommonError::NetworkSetupError(format!("Gossipsub setup error: {}", s)))?;
 
-            let ping = ping::Behaviour::new(ping::Config::new().with_interval(config.heartbeat_interval));
+            let ping =
+                ping::Behaviour::new(ping::Config::new().with_interval(config.heartbeat_interval));
 
             // Temporarily disable Kademlia to test if it's causing the hang
             // let store = MemoryStore::new(local_peer_id);
@@ -414,10 +505,20 @@ pub mod libp2p_service {
                 libp2p::request_response::Config::default(),
             );
 
-            let behaviour = CombinedBehaviour { gossipsub, ping, request_response };
-            let mut swarm = Swarm::new(transport, behaviour, local_peer_id, SwarmConfig::with_tokio_executor());
+            let behaviour = CombinedBehaviour {
+                gossipsub,
+                ping,
+                request_response,
+            };
+            let mut swarm = Swarm::new(
+                transport,
+                behaviour,
+                local_peer_id,
+                SwarmConfig::with_tokio_executor(),
+            );
 
-            swarm.listen_on("/ip4/0.0.0.0/tcp/0".parse().unwrap())
+            swarm
+                .listen_on("/ip4/0.0.0.0/tcp/0".parse().unwrap())
                 .map_err(|e| CommonError::NetworkSetupError(format!("Listen error: {}", e)))?;
 
             // Connect to bootstrap peers with improved error handling (Kademlia disabled for testing)
@@ -438,7 +539,7 @@ pub mod libp2p_service {
             let (cmd_tx, mut cmd_rx) = mpsc::channel(256);
             let stats = Arc::new(Mutex::new(EnhancedNetworkStats::new()));
             let stats_clone = stats.clone();
-            
+
             // Clone bootstrap_peers for use in the async task
             let has_bootstrap_peers = !config.bootstrap_peers.is_empty();
 
@@ -453,10 +554,10 @@ pub mod libp2p_service {
             // Spawn the network event loop and hold the JoinHandle
             let event_loop_handle = task::spawn(async move {
                 log::debug!("🔧 [LIBP2P] Starting libp2p event loop task");
-                
+
                 let topic = gossipsub::IdentTopic::new("icn-global");
                 log::debug!("🔧 [LIBP2P] Created gossipsub topic: {}", topic.hash());
-                
+
                 if let Err(e) = swarm.behaviour_mut().gossipsub.subscribe(&topic) {
                     log::error!("❌ [LIBP2P] Failed to subscribe to global topic: {:?}", e);
                 } else {
@@ -465,7 +566,9 @@ pub mod libp2p_service {
 
                 // Kademlia bootstrap disabled for testing
                 if has_bootstrap_peers {
-                    log::debug!("🔧 [LIBP2P] Has bootstrap peers, but Kademlia disabled for testing");
+                    log::debug!(
+                        "🔧 [LIBP2P] Has bootstrap peers, but Kademlia disabled for testing"
+                    );
                 } else {
                     log::debug!("🔧 [LIBP2P] No bootstrap peers configured");
                 }
@@ -476,15 +579,17 @@ pub mod libp2p_service {
 
                 log::debug!("🔧 [LIBP2P] Entering main event loop...");
                 loop {
-                    log::debug!("🔧 [LIBP2P] Event loop iteration starting - waiting for events...");
-                    
+                    log::debug!(
+                        "🔧 [LIBP2P] Event loop iteration starting - waiting for events..."
+                    );
+
                     // Use timeout to prevent infinite hanging and ensure the swarm is driven
                     let timeout_duration = Duration::from_millis(100);
-                    
+
                     tokio::select! {
                         event = swarm.select_next_some() => {
                             log::debug!("🔧 [LIBP2P] Received swarm event: {:?}", std::mem::discriminant(&event));
-                            
+
                             // Update listening addresses when a new one is discovered
                             if let SwarmEvent::NewListenAddr { address, .. } = &event {
                                 log::info!("✅ [LIBP2P] Listening on {}", address);
@@ -517,7 +622,7 @@ pub mod libp2p_service {
                                         let mut stats_guard = stats_clone.lock().unwrap();
                                         stats_guard.bytes_sent += data.len() as u64;
                                         stats_guard.messages_sent += 1;
-                                        
+
                                         // Update message type statistics for broadcasts
                                         if let Ok(network_msg) = bincode::deserialize::<super::NetworkMessage>(&data) {
                                             let msg_type = network_msg.message_type().to_string();
@@ -537,11 +642,11 @@ pub mod libp2p_service {
                                 Command::GetStats { rsp } => {
                                     let network_info = swarm.network_info();
                                     let mut stats_guard = stats_clone.lock().unwrap();
-                                    
+
                                     // Kademlia disabled for testing, so no Kademlia peers
                                     let kademlia_peer_count = 0;
                                     stats_guard.update_kademlia_peers(kademlia_peer_count);
-                                    
+
                                     let network_stats = super::NetworkStats {
                                         peer_count: network_info.num_peers(),
                                         bytes_sent: stats_guard.bytes_sent,
@@ -597,28 +702,34 @@ pub mod libp2p_service {
                 SwarmEvent::NewListenAddr { address, .. } => {
                     log::info!("Listening on {}", address);
                 }
-                SwarmEvent::Behaviour(CombinedBehaviourEvent::Gossipsub(gossipsub::Event::Message {
-                    message, ..
-                })) => {
+                SwarmEvent::Behaviour(CombinedBehaviourEvent::Gossipsub(
+                    gossipsub::Event::Message { message, .. },
+                )) => {
                     let message_size = message.data.len() as u64;
                     {
                         let mut stats_guard = stats.lock().unwrap();
                         stats_guard.bytes_received += message_size;
                         stats_guard.messages_received += 1;
                     }
-                    
-                    if let Ok(network_msg) = bincode::deserialize::<super::NetworkMessage>(&message.data) {
-                        log::debug!("Received gossipsub message: {:?}", network_msg.message_type());
-                        
+
+                    if let Ok(network_msg) =
+                        bincode::deserialize::<super::NetworkMessage>(&message.data)
+                    {
+                        log::debug!(
+                            "Received gossipsub message: {:?}",
+                            network_msg.message_type()
+                        );
+
                         // Update message type statistics
                         let msg_type = network_msg.message_type().to_string();
                         {
                             let mut stats_guard = stats.lock().unwrap();
-                            let type_stats = stats_guard.message_counts.entry(msg_type).or_default();
+                            let type_stats =
+                                stats_guard.message_counts.entry(msg_type).or_default();
                             type_stats.received += 1;
                             type_stats.bytes_received += message_size;
                         }
-                        
+
                         // Distribute to subscribers
                         subscribers.retain_mut(|subscriber| {
                             subscriber.try_send(network_msg.clone()).is_ok()
@@ -661,54 +772,85 @@ pub mod libp2p_service {
 
     #[async_trait]
     impl super::NetworkService for Libp2pNetworkService {
-        async fn discover_peers(&self, target_peer_id_str: Option<String>) -> Result<Vec<super::PeerId>, CommonError> {
+        async fn discover_peers(
+            &self,
+            target_peer_id_str: Option<String>,
+        ) -> Result<Vec<super::PeerId>, CommonError> {
             let target = match target_peer_id_str {
-                Some(id_str) => Some(Libp2pPeerId::from_str(&id_str)
-                    .map_err(|e| CommonError::InvalidInputError(format!("Invalid peer ID: {}", e)))?),
+                Some(id_str) => Some(Libp2pPeerId::from_str(&id_str).map_err(|e| {
+                    CommonError::InvalidInputError(format!("Invalid peer ID: {}", e))
+                })?),
                 None => None,
             };
 
             let (tx, rx) = oneshot::channel();
-            self.cmd_tx.send(Command::DiscoverPeers { target, rsp: tx }).await
+            self.cmd_tx
+                .send(Command::DiscoverPeers { target, rsp: tx })
+                .await
                 .map_err(|e| CommonError::NetworkError(format!("Command send failed: {}", e)))?;
-            rx.await.map_err(|e| CommonError::NetworkError(format!("Response dropped: {}", e)))?
+            rx.await
+                .map_err(|e| CommonError::NetworkError(format!("Response dropped: {}", e)))?
         }
 
-        async fn send_message(&self, peer: &super::PeerId, message: super::NetworkMessage) -> Result<(), CommonError> {
+        async fn send_message(
+            &self,
+            peer: &super::PeerId,
+            message: super::NetworkMessage,
+        ) -> Result<(), CommonError> {
             let libp2p_peer = Libp2pPeerId::from_str(&peer.0)
                 .map_err(|e| CommonError::InvalidInputError(format!("Invalid peer ID: {}", e)))?;
 
             let (tx, rx) = oneshot::channel();
-            self.cmd_tx.send(Command::SendMessage { peer: libp2p_peer, message, rsp: tx }).await
-                .map_err(|e| CommonError::MessageSendError(format!("Command send failed: {}", e)))?;
-            rx.await.map_err(|e| CommonError::MessageSendError(format!("Response dropped: {}", e)))?
+            self.cmd_tx
+                .send(Command::SendMessage {
+                    peer: libp2p_peer,
+                    message,
+                    rsp: tx,
+                })
+                .await
+                .map_err(|e| {
+                    CommonError::MessageSendError(format!("Command send failed: {}", e))
+                })?;
+            rx.await
+                .map_err(|e| CommonError::MessageSendError(format!("Response dropped: {}", e)))?
         }
 
-        async fn broadcast_message(&self, message: super::NetworkMessage) -> Result<(), CommonError> {
+        async fn broadcast_message(
+            &self,
+            message: super::NetworkMessage,
+        ) -> Result<(), CommonError> {
             let data = bincode::serialize(&message)
                 .map_err(|e| CommonError::SerializationError(e.to_string()))?;
-            
-            self.cmd_tx.send(Command::Broadcast { data }).await
+
+            self.cmd_tx
+                .send(Command::Broadcast { data })
+                .await
                 .map_err(|e| CommonError::MessageSendError(format!("Broadcast failed: {}", e)))
         }
 
         async fn subscribe(&self) -> Result<Receiver<super::NetworkMessage>, CommonError> {
             let (tx, rx) = oneshot::channel();
-            self.cmd_tx.send(Command::Subscribe { rsp: tx }).await
+            self.cmd_tx
+                .send(Command::Subscribe { rsp: tx })
+                .await
                 .map_err(|e| CommonError::NetworkError(format!("Subscribe failed: {}", e)))?;
-            
-            rx.await.map_err(|e| CommonError::NetworkError(format!("Subscribe response failed: {}", e)))
+
+            rx.await
+                .map_err(|e| CommonError::NetworkError(format!("Subscribe response failed: {}", e)))
         }
 
         async fn get_network_stats(&self) -> Result<super::NetworkStats, CommonError> {
             let (tx, rx) = oneshot::channel();
-            self.cmd_tx.send(Command::GetStats { rsp: tx }).await
+            self.cmd_tx
+                .send(Command::GetStats { rsp: tx })
+                .await
                 .map_err(|e| CommonError::NetworkError(format!("Get stats failed: {}", e)))?;
-            rx.await.map_err(|e| CommonError::NetworkError(format!("Stats response failed: {}", e)))
+            rx.await
+                .map_err(|e| CommonError::NetworkError(format!("Stats response failed: {}", e)))
         }
 
         fn as_any(&self) -> &dyn Any {
             self
         }
     }
-} 
+}

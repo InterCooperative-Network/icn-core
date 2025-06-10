@@ -1,17 +1,18 @@
 #![doc = include_str!("../README.md")]
+#![allow(clippy::uninlined_format_args)]
 
 //! # ICN DAG Crate
 //! This crate implements or defines interfaces for content-addressed Directed Acyclic Graph (DAG)
 //! storage and manipulation, crucial for the InterCooperative Network (ICN) data model.
 //! It handles DAG primitives, content addressing, storage abstraction, and serialization formats.
 
-use icn_common::{NodeInfo, DagBlock, Cid, CommonError, ICN_CORE_VERSION};
+use icn_common::{Cid, CommonError, DagBlock, NodeInfo, ICN_CORE_VERSION};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::sync::Mutex; // For basic interior mutability for the global store
-use std::path::PathBuf; // For FileDagStore
 use std::fs::{File, OpenOptions}; // For FileDagStore
 use std::io::{Read, Write}; // Removed Seek, SeekFrom
-use serde::{Serialize, Deserialize}; // For FileDagStore block serialization
+use std::path::PathBuf; // For FileDagStore
+use std::sync::Mutex; // For basic interior mutability for the global store // For FileDagStore block serialization
 
 #[cfg(feature = "persist-sled")]
 pub mod sled_store;
@@ -39,7 +40,6 @@ pub trait StorageService<B: Clone + Serialize + for<'de> Deserialize<'de>> {
     /// Returns `Ok(true)` if it exists, `Ok(false)` if not, or `Err` on storage failure.
     fn contains(&self, cid: &Cid) -> Result<bool, CommonError>;
 }
-
 
 // --- In-Memory DAG Store ---
 
@@ -78,7 +78,6 @@ impl StorageService<DagBlock> for InMemoryDagStore {
     }
 }
 
-
 // --- File-based DAG Store (Placeholder) ---
 
 #[derive(Debug)]
@@ -91,11 +90,18 @@ pub struct FileDagStore {
 impl FileDagStore {
     pub fn new(storage_path: PathBuf) -> Result<Self, CommonError> {
         if !storage_path.exists() {
-            std::fs::create_dir_all(&storage_path)
-                .map_err(|e| CommonError::IoError(format!("Failed to create storage directory {:?}: {}", storage_path, e)))?;
+            std::fs::create_dir_all(&storage_path).map_err(|e| {
+                CommonError::IoError(format!(
+                    "Failed to create storage directory {:?}: {}",
+                    storage_path, e
+                ))
+            })?;
         }
         if !storage_path.is_dir() {
-            return Err(CommonError::IoError(format!("Storage path {:?} is not a directory", storage_path)));
+            return Err(CommonError::IoError(format!(
+                "Storage path {:?} is not a directory",
+                storage_path
+            )));
         }
         Ok(FileDagStore { storage_path })
     }
@@ -108,18 +114,31 @@ impl FileDagStore {
 
     fn put_block_to_file(&self, block: &DagBlock) -> Result<(), CommonError> {
         let file_path = self.block_path(&block.cid);
-        let serialized_block = serde_json::to_string(block)
-            .map_err(|e| CommonError::SerializationError(format!("Failed to serialize block {}: {}", block.cid, e)))?;
-        
+        let serialized_block = serde_json::to_string(block).map_err(|e| {
+            CommonError::SerializationError(format!(
+                "Failed to serialize block {}: {}",
+                block.cid, e
+            ))
+        })?;
+
         let mut file = OpenOptions::new()
             .write(true)
             .create(true)
             .truncate(true) // Overwrite if exists
             .open(&file_path)
-            .map_err(|e| CommonError::IoError(format!("Failed to open/create file {:?} for writing: {}", file_path, e)))?;
-        
-        file.write_all(serialized_block.as_bytes())
-            .map_err(|e| CommonError::IoError(format!("Failed to write block {} to file {:?}: {}", block.cid, file_path, e)))?;
+            .map_err(|e| {
+                CommonError::IoError(format!(
+                    "Failed to open/create file {:?} for writing: {}",
+                    file_path, e
+                ))
+            })?;
+
+        file.write_all(serialized_block.as_bytes()).map_err(|e| {
+            CommonError::IoError(format!(
+                "Failed to write block {} to file {:?}: {}",
+                block.cid, file_path, e
+            ))
+        })?;
         Ok(())
     }
 
@@ -129,18 +148,33 @@ impl FileDagStore {
             return Ok(None);
         }
 
-        let mut file = File::open(&file_path)
-            .map_err(|e| CommonError::IoError(format!("Failed to open file {:?} for reading: {}", file_path, e)))?;
-        
+        let mut file = File::open(&file_path).map_err(|e| {
+            CommonError::IoError(format!(
+                "Failed to open file {:?} for reading: {}",
+                file_path, e
+            ))
+        })?;
+
         let mut contents = String::new();
-        file.read_to_string(&mut contents)
-            .map_err(|e| CommonError::IoError(format!("Failed to read block {} from file {:?}: {}", cid, file_path, e)))?;
-        
-        let block_data: DagBlock = serde_json::from_str(&contents)
-            .map_err(|e| CommonError::DeserializationError(format!("Failed to deserialize block {} from file {:?}: {}", cid, file_path, e)))?;
-        
+        file.read_to_string(&mut contents).map_err(|e| {
+            CommonError::IoError(format!(
+                "Failed to read block {} from file {:?}: {}",
+                cid, file_path, e
+            ))
+        })?;
+
+        let block_data: DagBlock = serde_json::from_str(&contents).map_err(|e| {
+            CommonError::DeserializationError(format!(
+                "Failed to deserialize block {} from file {:?}: {}",
+                cid, file_path, e
+            ))
+        })?;
+
         if &block_data.cid != cid {
-            return Err(CommonError::InvalidInputError(format!("CID mismatch for block read from file {:?}. Expected CID {}, got {}.", file_path, cid, block_data.cid)));
+            return Err(CommonError::InvalidInputError(format!(
+                "CID mismatch for block read from file {:?}. Expected CID {}, got {}.",
+                file_path, cid, block_data.cid
+            )));
         }
         Ok(Some(block_data))
     }
@@ -148,8 +182,9 @@ impl FileDagStore {
     fn delete_block_file(&self, cid: &Cid) -> Result<(), CommonError> {
         let file_path = self.block_path(cid);
         if file_path.exists() {
-            std::fs::remove_file(&file_path)
-                .map_err(|e| CommonError::IoError(format!("Failed to delete file {:?}: {}", file_path, e)))?;
+            std::fs::remove_file(&file_path).map_err(|e| {
+                CommonError::IoError(format!("Failed to delete file {:?}: {}", file_path, e))
+            })?;
         }
         Ok(())
     }
@@ -174,7 +209,6 @@ impl StorageService<DagBlock> for FileDagStore {
     }
 }
 
-
 // --- Global Store Access (Legacy - To be refactored/removed) ---
 // The following functions `put_block` and `get_block` use a global static store.
 // This pattern should be replaced by passing `StorageService` instances.
@@ -191,25 +225,33 @@ lazy_static::lazy_static! {
 /// If a block with the same CID already exists, it will be overwritten.
 /// DEPRECATED: Use a `StorageService` instance directly.
 pub fn put_block(block: &DagBlock) -> Result<(), CommonError> {
-    let mut store = DEFAULT_IN_MEMORY_STORE.lock()
-        .map_err(|e| CommonError::InternalError(format!("Failed to acquire lock on default DAG store: {e}")))?;
+    let mut store = DEFAULT_IN_MEMORY_STORE.lock().map_err(|e| {
+        CommonError::InternalError(format!("Failed to acquire lock on default DAG store: {e}"))
+    })?;
     store.put(block)
 }
 
 /// Retrieves a DagBlock from the default in-memory store by its CID.
 /// DEPRECATED: Use a `StorageService` instance directly.
 pub fn get_block(cid: &Cid) -> Result<Option<DagBlock>, CommonError> {
-    let store = DEFAULT_IN_MEMORY_STORE.lock()
-        .map_err(|e| CommonError::InternalError(format!("Failed to acquire lock on default DAG store: {e}")))?;
+    let store = DEFAULT_IN_MEMORY_STORE.lock().map_err(|e| {
+        CommonError::InternalError(format!("Failed to acquire lock on default DAG store: {e}"))
+    })?;
     store.get(cid)
 }
 
 /// Placeholder function demonstrating use of common types.
 pub fn process_dag_related_data(info: &NodeInfo) -> Result<String, CommonError> {
     if info.version == ICN_CORE_VERSION {
-        Ok(format!("Processing DAG data for node: {} (version {})", info.name, info.version))
+        Ok(format!(
+            "Processing DAG data for node: {} (version {})",
+            info.name, info.version
+        ))
     } else {
-        Err(CommonError::ConfigError(format!("Version mismatch: Expected {}, got {}. Node: {}", ICN_CORE_VERSION, info.version, info.name)))
+        Err(CommonError::ConfigError(format!(
+            "Version mismatch: Expected {}, got {}. Node: {}",
+            ICN_CORE_VERSION, info.version, info.name
+        )))
     }
 }
 
@@ -220,7 +262,7 @@ pub fn process_dag_related_data(info: &NodeInfo) -> Result<String, CommonError> 
 #[cfg(test)]
 mod tests {
     use super::*;
-     // For test setup
+    // For test setup
     use tempfile::tempdir; // For FileDagStore tests
 
     // Helper function to create a test block
@@ -252,7 +294,8 @@ mod tests {
         assert!(store.get(&block2.cid).unwrap().is_none());
 
         // Test put overwrite (assuming implementations overwrite)
-        let modified_block1_data = format!("modified data for {}", "block1_service_test").into_bytes();
+        let modified_block1_data =
+            format!("modified data for {}", "block1_service_test").into_bytes();
         let modified_block1 = DagBlock {
             cid: block1.cid.clone(),
             data: modified_block1_data,
@@ -284,7 +327,7 @@ mod tests {
         assert!(store.put(&block2).is_ok());
         assert!(store.contains(&block2.cid).unwrap());
     }
-    
+
     #[test]
     fn test_in_memory_dag_store_service() {
         let mut store = InMemoryDagStore::new(); // Make store mutable
@@ -317,7 +360,7 @@ mod tests {
         let block_x = create_test_block("block_x_corruption");
         store2.put(&block_x).unwrap();
         let block_x_path = store2.block_path(&block_x.cid);
-        
+
         // Manually corrupt the stored block's CID (simulate corruption)
         let mut file_contents = std::fs::read_to_string(&block_x_path).unwrap();
         let mut corrupted_block: DagBlock = serde_json::from_str(&file_contents).unwrap();
@@ -325,7 +368,8 @@ mod tests {
         file_contents = serde_json::to_string(&corrupted_block).unwrap();
         std::fs::write(&block_x_path, file_contents).unwrap();
 
-        match store2.get(&block_x.cid) { // Try to get with original CID
+        match store2.get(&block_x.cid) {
+            // Try to get with original CID
             Err(CommonError::InvalidInputError(msg)) => {
                 assert!(msg.contains("CID mismatch"));
             }
@@ -349,7 +393,6 @@ mod tests {
         let mut store2 = sled_store::SledDagStore::new(dir.path().to_path_buf()).unwrap();
         assert!(store2.get(&block_persist.cid).unwrap().is_some());
     }
-
 
     // The old tests for global put_block/get_block might need adjustment
     // or can be removed if we fully deprecate the global store access.
@@ -385,7 +428,7 @@ mod tests {
             Err(e) => panic!("get_block returned an error: {e:?}"),
         }
 
-        let non_existent_cid = Cid::new_v1_dummy(0x55,0x12,b"non_existent_global");
+        let non_existent_cid = Cid::new_v1_dummy(0x55, 0x12, b"non_existent_global");
         match get_block(&non_existent_cid) {
             Ok(None) => { /* Expected */ }
             Ok(Some(_)) => panic!("Found non-existent block in global store"),
