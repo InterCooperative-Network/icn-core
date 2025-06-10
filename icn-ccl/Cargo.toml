@@ -2,8 +2,8 @@
 name = "icn-ccl"
 version = "0.1.0"
 edition = "2021" # Assuming 2021 edition, adjust if needed
-authors.workspace = true
-license.workspace = true
+authors = ["InterCooperative Network <dev@intercooperative.network>"]
+license = "Apache-2.0"
 # description = "Compiler for the Cooperative Contract Language (CCL) to WASM"
 
 [dependencies]
@@ -22,3 +22,5 @@ icn-common = { path = "../crates/icn-common" } # Adjust path as necessary
 [dev-dependencies]
 tempfile = "3.10"
 # Add test dependencies 
+[workspace]
+
