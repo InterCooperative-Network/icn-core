@@ -18,7 +18,6 @@ use downcast_rs::{impl_downcast, DowncastSync};
 use std::any::Any;
 use std::time::Duration;
 use std::collections::HashMap;
-use bincode;
 use log::{info, warn};
 // Removed unused imports for testing Kademlia disabled build
 
