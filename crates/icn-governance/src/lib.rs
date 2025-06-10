@@ -11,7 +11,7 @@
 use icn_common::{CommonError, Did, NodeInfo};
 #[cfg(feature = "federation")]
 use icn_network::PeerId;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 #[cfg(feature = "persist-sled")]
 use std::path::PathBuf;
 
@@ -110,7 +110,9 @@ enum Backend {
 #[derive(Debug)] // Removed Default, as `new` is now more explicit
 pub struct GovernanceModule {
     backend: Backend,
-    // TODO: Add member list, voting rules (quorum, threshold), etc.
+    members: HashSet<Did>,
+    quorum: usize,
+    threshold: f32,
 }
 
 impl GovernanceModule {
@@ -120,6 +122,9 @@ impl GovernanceModule {
             backend: Backend::InMemory {
                 proposals: HashMap::new(),
             },
+            members: HashSet::new(),
+            quorum: 1,
+            threshold: 0.5,
         }
     }
 
@@ -138,6 +143,9 @@ impl GovernanceModule {
                 db,
                 proposals_tree_name,
             },
+            members: HashSet::new(),
+            quorum: 1,
+            threshold: 0.5,
         })
     }
 
@@ -404,8 +412,238 @@ impl GovernanceModule {
         }
     }
 
-    // TODO: Implement tally_votes, close_voting_period, execute_proposal methods
-    // TODO: Add logic for quorum and threshold checks.
+    /// Adds a new member eligible to vote.
+    pub fn add_member(&mut self, member: Did) {
+        self.members.insert(member);
+    }
+
+    /// Returns a reference to the current member set.
+    pub fn members(&self) -> &HashSet<Did> {
+        &self.members
+    }
+
+    /// Sets the minimum number of votes required for a proposal to be valid.
+    pub fn set_quorum(&mut self, quorum: usize) {
+        self.quorum = quorum;
+    }
+
+    /// Sets the fraction of `Yes` votes required for acceptance.
+    pub fn set_threshold(&mut self, threshold: f32) {
+        self.threshold = threshold;
+    }
+
+    /// Counts yes/no/abstain votes for a proposal, considering only current members.
+    pub fn tally_votes(&self, proposal: &Proposal) -> (usize, usize, usize) {
+        let mut yes = 0;
+        let mut no = 0;
+        let mut abstain = 0;
+        for (did, vote) in &proposal.votes {
+            if !self.members.contains(did) {
+                continue;
+            }
+            match vote.option {
+                VoteOption::Yes => yes += 1,
+                VoteOption::No => no += 1,
+                VoteOption::Abstain => abstain += 1,
+            }
+        }
+        (yes, no, abstain)
+    }
+
+    /// Finalizes voting on a proposal and updates its status based on quorum and threshold.
+    pub fn close_voting_period(
+        &mut self,
+        proposal_id: &ProposalId,
+    ) -> Result<ProposalStatus, CommonError> {
+        match &mut self.backend {
+            Backend::InMemory { proposals } => {
+                let proposal = proposals.get_mut(proposal_id).ok_or_else(|| {
+                    CommonError::ResourceNotFound(format!(
+                        "Proposal with ID {} not found for closing",
+                        proposal_id.0
+                    ))
+                })?;
+                let (yes, no, abstain) = {
+                    let mut yes = 0;
+                    let mut no = 0;
+                    let mut abstain = 0;
+                    for (did, vote) in &proposal.votes {
+                        if !self.members.contains(did) {
+                            continue;
+                        }
+                        match vote.option {
+                            VoteOption::Yes => yes += 1,
+                            VoteOption::No => no += 1,
+                            VoteOption::Abstain => abstain += 1,
+                        }
+                    }
+                    (yes, no, abstain)
+                };
+                let total = yes + no + abstain;
+                if total < self.quorum {
+                    proposal.status = ProposalStatus::Rejected;
+                } else if (yes as f32) >= (total as f32 * self.threshold) {
+                    proposal.status = ProposalStatus::Accepted;
+                } else {
+                    proposal.status = ProposalStatus::Rejected;
+                }
+                Ok(proposal.status.clone())
+            }
+            #[cfg(feature = "persist-sled")]
+            Backend::Sled {
+                db,
+                proposals_tree_name,
+            } => {
+                let tree = db.open_tree(proposals_tree_name).map_err(|e| {
+                    CommonError::DatabaseError(format!(
+                        "Failed to open proposals tree for close_voting_period: {}",
+                        e
+                    ))
+                })?;
+                let key = proposal_id.0.as_bytes();
+                let proposal_bytes = tree
+                    .get(key)
+                    .map_err(|e| {
+                        CommonError::DatabaseError(format!(
+                            "Failed to get proposal {} from sled: {}",
+                            proposal_id.0, e
+                        ))
+                    })?
+                    .ok_or_else(|| {
+                        CommonError::ResourceNotFound(format!(
+                            "Proposal with ID {} not found for closing",
+                            proposal_id.0
+                        ))
+                    })?;
+                let mut proposal: Proposal =
+                    bincode::deserialize(&proposal_bytes).map_err(|e| {
+                        CommonError::DeserializationError(format!(
+                            "Failed to deserialize proposal {}: {}",
+                            proposal_id.0, e
+                        ))
+                    })?;
+                let (yes, no, abstain) = {
+                    let mut yes = 0;
+                    let mut no = 0;
+                    let mut abstain = 0;
+                    for (did, vote) in &proposal.votes {
+                        if !self.members.contains(did) {
+                            continue;
+                        }
+                        match vote.option {
+                            VoteOption::Yes => yes += 1,
+                            VoteOption::No => no += 1,
+                            VoteOption::Abstain => abstain += 1,
+                        }
+                    }
+                    (yes, no, abstain)
+                };
+                let total = yes + no + abstain;
+                if total < self.quorum {
+                    proposal.status = ProposalStatus::Rejected;
+                } else if (yes as f32) >= (total as f32 * self.threshold) {
+                    proposal.status = ProposalStatus::Accepted;
+                } else {
+                    proposal.status = ProposalStatus::Rejected;
+                }
+                let encoded = bincode::serialize(&proposal).map_err(|e| {
+                    CommonError::SerializationError(format!(
+                        "Failed to serialize updated proposal {}: {}",
+                        proposal_id.0, e
+                    ))
+                })?;
+                tree.insert(key, encoded).map_err(|e| {
+                    CommonError::DatabaseError(format!(
+                        "Failed to persist updated proposal {}: {}",
+                        proposal_id.0, e
+                    ))
+                })?;
+                Ok(proposal.status)
+            }
+        }
+    }
+
+    /// Executes an accepted proposal. New members are added when executed.
+    pub fn execute_proposal(&mut self, proposal_id: &ProposalId) -> Result<(), CommonError> {
+        match &mut self.backend {
+            Backend::InMemory { proposals } => {
+                let proposal = proposals.get_mut(proposal_id).ok_or_else(|| {
+                    CommonError::ResourceNotFound(format!(
+                        "Proposal with ID {} not found for execution",
+                        proposal_id.0
+                    ))
+                })?;
+                if proposal.status != ProposalStatus::Accepted {
+                    return Err(CommonError::InvalidInputError(format!(
+                        "Proposal {} not accepted",
+                        proposal_id.0
+                    )));
+                }
+                if let ProposalType::NewMemberInvitation(did) = &proposal.proposal_type {
+                    self.members.insert(did.clone());
+                }
+                proposal.status = ProposalStatus::Executed;
+                Ok(())
+            }
+            #[cfg(feature = "persist-sled")]
+            Backend::Sled {
+                db,
+                proposals_tree_name,
+            } => {
+                let tree = db.open_tree(proposals_tree_name).map_err(|e| {
+                    CommonError::DatabaseError(format!(
+                        "Failed to open proposals tree for execute_proposal: {}",
+                        e
+                    ))
+                })?;
+                let key = proposal_id.0.as_bytes();
+                let proposal_bytes = tree
+                    .get(key)
+                    .map_err(|e| {
+                        CommonError::DatabaseError(format!(
+                            "Failed to get proposal {} from sled: {}",
+                            proposal_id.0, e
+                        ))
+                    })?
+                    .ok_or_else(|| {
+                        CommonError::ResourceNotFound(format!(
+                            "Proposal with ID {} not found for execution",
+                            proposal_id.0
+                        ))
+                    })?;
+                let mut proposal: Proposal =
+                    bincode::deserialize(&proposal_bytes).map_err(|e| {
+                        CommonError::DeserializationError(format!(
+                            "Failed to deserialize proposal {}: {}",
+                            proposal_id.0, e
+                        ))
+                    })?;
+                if proposal.status != ProposalStatus::Accepted {
+                    return Err(CommonError::InvalidInputError(format!(
+                        "Proposal {} not accepted",
+                        proposal_id.0
+                    )));
+                }
+                if let ProposalType::NewMemberInvitation(did) = &proposal.proposal_type {
+                    self.members.insert(did.clone());
+                }
+                proposal.status = ProposalStatus::Executed;
+                let encoded = bincode::serialize(&proposal).map_err(|e| {
+                    CommonError::SerializationError(format!(
+                        "Failed to serialize executed proposal {}: {}",
+                        proposal_id.0, e
+                    ))
+                })?;
+                tree.insert(key, encoded).map_err(|e| {
+                    CommonError::DatabaseError(format!(
+                        "Failed to persist executed proposal {}: {}",
+                        proposal_id.0, e
+                    ))
+                })?;
+                Ok(())
+            }
+        }
+    }
 }
 
 /// Placeholder function for demonstrating federation sync request.
