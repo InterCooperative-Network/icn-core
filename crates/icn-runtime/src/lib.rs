@@ -22,9 +22,7 @@ pub use context::{HostAbiError, RuntimeContext, Signer, StorageService};
 // Re-export ABI constants
 pub use abi::*;
 
-use futures;
 use icn_common::{Cid, CommonError, Did, NodeInfo};
-use icn_identity;
 use log::{debug, info};
 use std::str::FromStr;
 #[cfg(test)]

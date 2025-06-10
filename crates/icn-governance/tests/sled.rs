@@ -1,7 +1,7 @@
 #[cfg(feature = "persist-sled")]
 mod tests {
-    use icn_governance::{GovernanceModule, ProposalType, VoteOption};
     use icn_common::Did;
+    use icn_governance::{GovernanceModule, ProposalStatus, ProposalType, VoteOption};
     use std::str::FromStr;
     use tempfile::tempdir;
 
@@ -34,8 +34,39 @@ mod tests {
         let gov2 = GovernanceModule::new_sled(dir.path().to_path_buf()).unwrap(); // Pass PathBuf
 
         let prop_opt = gov2.get_proposal(&pid).unwrap();
-        let prop = prop_opt.as_ref().expect("Proposal should exist after reload");
+        let prop = prop_opt
+            .as_ref()
+            .expect("Proposal should exist after reload");
         assert_eq!(prop.id, pid);
         assert_eq!(prop.votes.len(), 1);
     }
-} 
+
+    #[tokio::test]
+    async fn sled_execute_persist() {
+        let dir = tempdir().unwrap();
+        let mut gov = GovernanceModule::new_sled(dir.path().to_path_buf()).unwrap();
+        gov.add_member(Did::from_str("did:example:alice").unwrap());
+        gov.add_member(Did::from_str("did:example:bob").unwrap());
+        gov.set_quorum(2);
+        let pid = gov
+            .submit_proposal(
+                Did::from_str("did:example:alice").unwrap(),
+                ProposalType::GenericText("hi".into()),
+                "desc".into(),
+                60,
+            )
+            .unwrap();
+        gov.cast_vote(
+            Did::from_str("did:example:bob").unwrap(),
+            &pid,
+            VoteOption::Yes,
+        )
+        .unwrap();
+        let _ = gov.close_voting_period(&pid).unwrap();
+        gov.execute_proposal(&pid).unwrap();
+        drop(gov);
+        let gov2 = GovernanceModule::new_sled(dir.path().to_path_buf()).unwrap();
+        let prop = gov2.get_proposal(&pid).unwrap().unwrap();
+        assert_eq!(prop.status, ProposalStatus::Executed);
+    }
+}
