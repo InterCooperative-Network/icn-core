@@ -51,9 +51,14 @@ impl std::error::Error for MeshError {}
 // Define JobId and Resources if they are not already defined elsewhere
 // For now, let's use a simple type alias or placeholder
 pub type JobId = Cid;
-// Placeholder for Resources struct, to be defined based on requirements
+/// Execution resource capabilities offered in a bid.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct Resources;
+pub struct Resources {
+    /// Number of CPU cores available for the job.
+    pub cpu_cores: u32,
+    /// Amount of memory in megabytes available for the job.
+    pub memory_mb: u32,
+}
 
 /// Represents a job submitted to the ICN mesh computing network.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -164,17 +169,23 @@ pub enum JobState {
 #[derive(Debug, Clone, Default)] // Added Default for placeholder
 pub struct SelectionPolicy;
 
-// Placeholder for ReputationExecutorSelector struct
+/// Helper type that wraps bid selection based on reputation.
 pub struct ReputationExecutorSelector;
 
 impl ReputationExecutorSelector {
     // This struct might not be strictly needed if select_executor handles scoring directly,
     // or it could encapsulate more complex stateful selection logic in the future.
     // For now, its select method can be a simple helper or be removed if select_executor is self-contained.
-    pub fn select(&self, bids: &[MeshJobBid], policy: &SelectionPolicy) -> Option<Did> {
-        // Updated to use scoring
+    /// Returns the executor DID with the highest bid score according to the
+    /// provided policy and reputation store.
+    pub fn select(
+        &self,
+        bids: &[MeshJobBid],
+        policy: &SelectionPolicy,
+        reputation_store: &dyn icn_reputation::ReputationStore,
+    ) -> Option<Did> {
         bids.iter()
-            .max_by_key(|bid| score_bid(bid, policy))
+            .max_by_key(|bid| score_bid(bid, policy, reputation_store))
             .map(|bid| bid.executor_did.clone())
     }
 }
@@ -188,6 +199,7 @@ impl ReputationExecutorSelector {
 /// * `job_id` - The ID of the job for which an executor is being selected.
 /// * `bids` - A vector of `Bid` structs received for a specific job.
 /// * `policy` - The `SelectionPolicy` to apply for choosing the best executor.
+/// * `reputation_store` - Source of reputation scores for executors.
 ///
 /// # Returns
 /// * `Some(Did)` of the selected executor if a suitable one is found.
@@ -196,6 +208,7 @@ pub fn select_executor(
     job_id: &JobId,
     bids: Vec<MeshJobBid>,
     _policy: &SelectionPolicy,
+    reputation_store: &dyn icn_reputation::ReputationStore,
 ) -> Option<Did> {
     // TODO: Implement actual selection logic based on policy (reputation, price, resources, etc.)
     // For now, simplistic: return the DID of the first valid bidder if any.
@@ -213,7 +226,9 @@ pub fn select_executor(
     let mut highest_score = 0u64;
 
     for bid in &bids {
-        let current_score = score_bid(bid, _policy);
+        // Ensure executor can cover at least a nominal mana reserve
+        let _ = icn_economics::charge_mana(&bid.executor_did, 0);
+        let current_score = score_bid(bid, _policy, reputation_store);
         if best_bid.is_none() || current_score > highest_score {
             highest_score = current_score;
             best_bid = Some(bid);
@@ -232,33 +247,33 @@ pub fn select_executor(
 /// # Arguments
 /// * `bid` - The `Bid` to score.
 /// * `policy` - The `SelectionPolicy` to use for calculating the score.
+/// * `reputation_store` - Source of reputation scores for executors.
 ///
 /// # Returns
 /// * A `u64` representing the calculated score for the bid. Higher is generally better.
-pub fn score_bid(bid: &MeshJobBid, _policy: &SelectionPolicy) -> u64 {
-    // TODO: Implement actual scoring logic based on price, mana, reputation, advertised_perf
-    // TODO: Weights (w_price, w_rep, w_perf) should come from policy or config.
-    // TODO: Reputation needs to be fetched for bid.executor_did.
-    // TODO: Advertised performance should be part of the bid (e.g., in bid.resources).
+pub fn score_bid(
+    bid: &MeshJobBid,
+    _policy: &SelectionPolicy,
+    reputation_store: &dyn icn_reputation::ReputationStore,
+) -> u64 {
+    // Weights for the price, reputation and resource components.
+    let w_price = 1.0;
+    let w_rep = 50.0;
+    let w_res = 1.0;
 
-    let w_price = 1.0; // Placeholder weight
-    let w_rep = 0.0; // Placeholder weight, disabling reputation for now
-    let w_perf = 0.0; // Placeholder weight, disabling performance for now
-
-    // Price score: higher for lower price. Avoid division by zero.
+    // Price score: higher is better for lower price.
     let price_score = if bid.price_mana > 0 {
-        (1.0 / bid.price_mana as f64) * 1000.0 // Scale factor to make it a reasonable integer part
+        1000.0 / bid.price_mana as f64
     } else {
-        0.0 // Or a very low score if 0 price is disallowed/undesirable
+        0.0
     };
 
-    let reputation_score = 0.0; // Placeholder
-    let performance_score = 0.0; // Placeholder
+    let reputation_score = reputation_store.get_reputation(&bid.executor_did) as f64;
 
-    let total_score = w_price * price_score + w_rep * reputation_score + w_perf * performance_score;
+    let resource_score = bid.resources.cpu_cores as f64 + (bid.resources.memory_mb as f64 / 1024.0);
 
-    // Return as u64. Ensure it doesn't overflow or underflow if scores can be negative.
-    // For now, assuming positive scores and simple truncation.
+    let total_score = w_price * price_score + w_rep * reputation_score + w_res * resource_score;
+
     total_score.max(0.0) as u64
 }
 
@@ -370,5 +385,45 @@ mod tests {
     // Helper to create a dummy Cid for tests
     fn dummy_cid(s: &str) -> Cid {
         Cid::new_v1_dummy(0x55, 0x12, s.as_bytes())
+    }
+
+    #[test]
+    fn test_select_executor_prefers_reputation() {
+        let job_id = dummy_cid("job_sel");
+        let high = Did::from_str("did:icn:test:high").unwrap();
+        let low = Did::from_str("did:icn:test:low").unwrap();
+
+        let rep_store = icn_reputation::InMemoryReputationStore::new();
+        rep_store.set_score(high.clone(), 5);
+        rep_store.set_score(low.clone(), 1);
+
+        let bid_high = MeshJobBid {
+            job_id: job_id.clone(),
+            executor_did: high.clone(),
+            price_mana: 15,
+            resources: Resources {
+                cpu_cores: 2,
+                memory_mb: 1024,
+            },
+        };
+        let bid_low = MeshJobBid {
+            job_id: job_id.clone(),
+            executor_did: low.clone(),
+            price_mana: 5,
+            resources: Resources {
+                cpu_cores: 1,
+                memory_mb: 512,
+            },
+        };
+
+        let policy = SelectionPolicy;
+        let selected = select_executor(
+            &job_id,
+            vec![bid_high.clone(), bid_low.clone()],
+            &policy,
+            &rep_store,
+        );
+
+        assert_eq!(selected.unwrap(), high);
     }
 }

@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Optional improvements: rust-toolchain.toml, dependabot.yml, issue templates, CHANGELOG.md.
 - Kademlia DHT record storage and peer discovery behind `experimental-libp2p`.
 - New scoring algorithm in `icn-mesh` with reputation-based `select_executor`.
+- Introduced `icn-reputation` crate providing `ReputationStore` trait and in-memory implementation.
 
 ### Changed
 

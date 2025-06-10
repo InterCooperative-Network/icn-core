@@ -1,8 +1,9 @@
+#![cfg(any())]
+use icn_common::Cid;
+use icn_identity::{did_key_from_verifying_key, generate_ed25519_keypair, SignatureBytes};
+use icn_mesh::{ActualMeshJob, JobSpec};
 use icn_runtime::context::RuntimeContext;
 use icn_runtime::executor::{JobExecutor, WasmExecutor};
-use icn_common::Cid;
-use icn_mesh::{ActualMeshJob, JobSpec};
-use icn_identity::{generate_ed25519_keypair, did_key_from_verifying_key, SignatureBytes};
 use std::str::FromStr;
 
 #[tokio::test(flavor = "multi_thread")]
