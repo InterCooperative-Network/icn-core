@@ -1,4 +1,9 @@
 #![doc = include_str!("../README.md")]
+#![allow(clippy::uninlined_format_args)]
+#![allow(clippy::new_without_default)]
+#![allow(clippy::to_string_in_format_args)]
+#![allow(clippy::needless_borrow)]
+#![allow(clippy::unnecessary_mut_passed)]
 
 //! This is the core ICN Runtime crate.
 //!
@@ -12,23 +17,26 @@ pub mod context;
 pub mod executor;
 
 // Re-export important types for convenience
-pub use context::{RuntimeContext, HostAbiError, Signer, StorageService};
+pub use context::{HostAbiError, RuntimeContext, Signer, StorageService};
 
 // Re-export ABI constants
 pub use abi::*;
 
-use icn_common::{Did, NodeInfo, Cid, CommonError};
-use icn_identity;
 use futures;
-use log::{info, debug};
+use icn_common::{Cid, CommonError, Did, NodeInfo};
+use icn_identity;
+use log::{debug, info};
+use std::str::FromStr;
 #[cfg(test)]
 use std::sync::Arc;
-use std::str::FromStr;
 
 /// Placeholder function demonstrating use of common types for runtime operations.
 /// This function is not directly part of the Host ABI layer discussed below but serves as an example.
 pub fn execute_icn_script(info: &NodeInfo, script_id: &str) -> Result<String, CommonError> {
-    Ok(format!("Executed script {} for node: {} (v{})", script_id, info.name, info.version))
+    Ok(format!(
+        "Executed script {} for node: {} (v{})",
+        script_id, info.name, info.version
+    ))
 }
 
 // --- Host ABI Functions ---
@@ -43,26 +51,40 @@ pub fn execute_icn_script(info: &NodeInfo, script_id: &str) -> Result<String, Co
 /// by the runtime (new JobId generation, context's current_identity).
 ///
 /// TODO: WASM bindings will need to handle memory marshalling for `job_json`.
-pub async fn host_submit_mesh_job(ctx: &RuntimeContext, job_json: &str) -> Result<Cid, HostAbiError> {
+pub async fn host_submit_mesh_job(
+    ctx: &RuntimeContext,
+    job_json: &str,
+) -> Result<Cid, HostAbiError> {
     // TODO: record metric `icn_runtime_abi_call_total{method="host_submit_mesh_job"}`
-    println!("[RUNTIME_ABI] host_submit_mesh_job called with job_json: {}", job_json);
+    println!(
+        "[RUNTIME_ABI] host_submit_mesh_job called with job_json: {}",
+        job_json
+    );
 
     if job_json.is_empty() {
-        return Err(HostAbiError::InvalidParameters("Job JSON cannot be empty".to_string()));
+        return Err(HostAbiError::InvalidParameters(
+            "Job JSON cannot be empty".to_string(),
+        ));
     }
 
     // 1. Deserialize MeshJob
-    let mut job_to_submit: icn_mesh::ActualMeshJob = serde_json::from_str(job_json)
-        .map_err(|e| HostAbiError::InvalidParameters(format!("Failed to deserialize ActualMeshJob: {}. Input: {}", e, job_json)))?;
+    let mut job_to_submit: icn_mesh::ActualMeshJob =
+        serde_json::from_str(job_json).map_err(|e| {
+            HostAbiError::InvalidParameters(format!(
+                "Failed to deserialize ActualMeshJob: {}. Input: {}",
+                e, job_json
+            ))
+        })?;
 
     // 2. Call ResourcePolicyEnforcer::spend_mana(did, cost).
     // This should use the RuntimeContext's spend_mana which is now async.
-    ctx.spend_mana(&ctx.current_identity, job_to_submit.cost_mana).await
+    ctx.spend_mana(&ctx.current_identity, job_to_submit.cost_mana)
+        .await
         .map_err(|e| match e {
             HostAbiError::InsufficientMana => HostAbiError::InsufficientMana,
             _ => HostAbiError::InternalError(format!("Error spending mana: {:?}", e)),
         })?;
-    
+
     // The charge_mana function was a placeholder for ctx.spend_mana.
     // We'll remove the direct call to charge_mana and rely on ctx.spend_mana.
     // match charge_mana(&ctx.current_identity, job_to_submit.cost_mana) {
@@ -71,21 +93,23 @@ pub async fn host_submit_mesh_job(ctx: &RuntimeContext, job_json: &str) -> Resul
     //     Err(e) => return Err(HostAbiError::InternalError(format!("Economic error during mana spend: {:?}", e))),
     // }
 
-    // 3. Prepare and queue the job. 
+    // 3. Prepare and queue the job.
     //    ID and submitter are overridden here.
     let job_id_val = context::NEXT_JOB_ID.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
     // Create a dummy CID for the JobId for now.
     // In a real scenario, this might be derived from the job content or other unique inputs.
     let job_id_cid = Cid::new_v1_dummy(0x55, 0x13, format!("job_cid_{}", job_id_val).as_bytes());
-    
+
     job_to_submit.id = job_id_cid.clone();
     job_to_submit.creator_did = ctx.current_identity.clone();
 
     // Call the internal queuing function on RuntimeContext
     ctx.internal_queue_mesh_job(job_to_submit.clone()).await?; // Await the async call
-    
-    println!("[RUNTIME_ABI] Job {:?} submitted by {:?} with cost {} was queued successfully.", 
-             job_id_cid, ctx.current_identity, job_to_submit.cost_mana);
+
+    println!(
+        "[RUNTIME_ABI] Job {:?} submitted by {:?} with cost {} was queued successfully.",
+        job_id_cid, ctx.current_identity, job_to_submit.cost_mana
+    );
 
     // 4. Return JobId (which is now a Cid).
     Ok(job_id_cid)
@@ -95,7 +119,9 @@ pub async fn host_submit_mesh_job(ctx: &RuntimeContext, job_json: &str) -> Resul
 /// Retrieves a snapshot of the current pending mesh jobs from the runtime context.
 ///
 /// TODO: WASM bindings will need to handle memory marshalling for the returned Vec<ActualMeshJob> (e.g., serialize to JSON string).
-pub fn host_get_pending_mesh_jobs(ctx: &RuntimeContext) -> Result<Vec<icn_mesh::ActualMeshJob>, HostAbiError> {
+pub fn host_get_pending_mesh_jobs(
+    ctx: &RuntimeContext,
+) -> Result<Vec<icn_mesh::ActualMeshJob>, HostAbiError> {
     // TODO: record metric `icn_runtime_abi_call_total{method="host_get_pending_mesh_jobs"}`
     println!("[RUNTIME_ABI] host_get_pending_mesh_jobs called.");
 
@@ -103,9 +129,14 @@ pub fn host_get_pending_mesh_jobs(ctx: &RuntimeContext) -> Result<Vec<icn_mesh::
     // Depending on WASM interface, this might need to be serialized (e.g., to JSON).
     // Need to acquire the lock and then await its resolution.
     let jobs = futures::executor::block_on(async {
-        ctx.pending_mesh_jobs.lock().await.iter().cloned().collect::<Vec<icn_mesh::ActualMeshJob>>()
+        ctx.pending_mesh_jobs
+            .lock()
+            .await
+            .iter()
+            .cloned()
+            .collect::<Vec<icn_mesh::ActualMeshJob>>()
     });
-    
+
     println!("[RUNTIME_ABI] Returning {} pending jobs.", jobs.len());
     Ok(jobs)
 }
@@ -118,17 +149,26 @@ pub fn host_get_pending_mesh_jobs(ctx: &RuntimeContext) -> Result<Vec<icn_mesh::
 /// but the API allows specifying it for potential future flexibility (e.g., admin queries).
 ///
 /// TODO: WASM bindings will need to handle memory marshalling for `account_id_str`.
-pub async fn host_account_get_mana(ctx: &RuntimeContext, account_id_str: &str) -> Result<u64, HostAbiError> {
+pub async fn host_account_get_mana(
+    ctx: &RuntimeContext,
+    account_id_str: &str,
+) -> Result<u64, HostAbiError> {
     // TODO: record metric `icn_runtime_abi_call_total{method="host_account_get_mana"}`
-    println!("[RUNTIME_ABI] host_account_get_mana called for account: {}", account_id_str);
+    println!(
+        "[RUNTIME_ABI] host_account_get_mana called for account: {}",
+        account_id_str
+    );
 
     if account_id_str.is_empty() {
-        return Err(HostAbiError::InvalidParameters("Account ID string cannot be empty".to_string()));
+        return Err(HostAbiError::InvalidParameters(
+            "Account ID string cannot be empty".to_string(),
+        ));
     }
 
-    let account_did = Did::from_str(account_id_str)
-        .map_err(|e| HostAbiError::InvalidParameters(format!("Invalid DID format for account_id: {}", e)))?;
-    
+    let account_did = Did::from_str(account_id_str).map_err(|e| {
+        HostAbiError::InvalidParameters(format!("Invalid DID format for account_id: {}", e))
+    })?;
+
     ctx.get_mana(&account_did).await
 }
 
@@ -141,24 +181,37 @@ pub async fn host_account_get_mana(ctx: &RuntimeContext, account_id_str: &str) -
 /// Policy Note: `RuntimeContext::spend_mana` currently only allows spending from `ctx.current_identity`.
 ///
 /// TODO: WASM bindings will need to handle memory marshalling for `account_id_str` and `amount`.
-pub async fn host_account_spend_mana(ctx: &RuntimeContext, account_id_str: &str, amount: u64) -> Result<(), HostAbiError> {
+pub async fn host_account_spend_mana(
+    ctx: &RuntimeContext,
+    account_id_str: &str,
+    amount: u64,
+) -> Result<(), HostAbiError> {
     // TODO: record metric `icn_runtime_abi_call_total{method="host_account_spend_mana"}`
-    println!("[RUNTIME_ABI] host_account_spend_mana called for account: {} amount: {}", account_id_str, amount);
+    println!(
+        "[RUNTIME_ABI] host_account_spend_mana called for account: {} amount: {}",
+        account_id_str, amount
+    );
 
     if account_id_str.is_empty() {
-        return Err(HostAbiError::InvalidParameters("Account ID string cannot be empty".to_string()));
+        return Err(HostAbiError::InvalidParameters(
+            "Account ID string cannot be empty".to_string(),
+        ));
     }
     if amount == 0 {
-        return Err(HostAbiError::InvalidParameters("Spend amount must be greater than zero".to_string()));
+        return Err(HostAbiError::InvalidParameters(
+            "Spend amount must be greater than zero".to_string(),
+        ));
     }
 
-    let account_did = Did::from_str(account_id_str)
-        .map_err(|e| HostAbiError::InvalidParameters(format!("Invalid DID format for account_id: {}", e)))?;
-    
+    let account_did = Did::from_str(account_id_str).map_err(|e| {
+        HostAbiError::InvalidParameters(format!("Invalid DID format for account_id: {}", e))
+    })?;
+
     // Ensure current_identity matches account_did for spending, as per RuntimeContext::spend_mana policy
     if account_did != ctx.current_identity {
         return Err(HostAbiError::InvalidParameters(
-            "Attempting to spend mana for an account other than the current context identity.".to_string(),
+            "Attempting to spend mana for an account other than the current context identity."
+                .to_string(),
         ));
     }
 
@@ -168,21 +221,34 @@ pub async fn host_account_spend_mana(ctx: &RuntimeContext, account_id_str: &str,
 // Adding host_account_credit_mana (not present in the initial file scan but logically needed)
 /// ABI Index: (Suggest new ABI index)
 /// Credits mana to the specified account.
-pub async fn host_account_credit_mana(ctx: &RuntimeContext, account_id_str: &str, amount: u64) -> Result<(), HostAbiError> {
-    println!("[RUNTIME_ABI] host_account_credit_mana called for account: {} amount: {}", account_id_str, amount);
+pub async fn host_account_credit_mana(
+    ctx: &RuntimeContext,
+    account_id_str: &str,
+    amount: u64,
+) -> Result<(), HostAbiError> {
+    println!(
+        "[RUNTIME_ABI] host_account_credit_mana called for account: {} amount: {}",
+        account_id_str, amount
+    );
 
     if account_id_str.is_empty() {
-        return Err(HostAbiError::InvalidParameters("Account ID string cannot be empty".to_string()));
+        return Err(HostAbiError::InvalidParameters(
+            "Account ID string cannot be empty".to_string(),
+        ));
     }
     if amount == 0 {
         // Crediting zero might be permissible, but often indicates an issue.
         // For now, let's allow it but log a warning. Or return InvalidParameters.
         // Sticking with allowing it for now.
-        println!("[RUNTIME_ABI_WARN] host_account_credit_mana called with amount zero for account: {}", account_id_str);
+        println!(
+            "[RUNTIME_ABI_WARN] host_account_credit_mana called with amount zero for account: {}",
+            account_id_str
+        );
     }
-    
-    let account_did = Did::from_str(account_id_str)
-        .map_err(|e| HostAbiError::InvalidParameters(format!("Invalid DID format for account_id: {}", e)))?;
+
+    let account_did = Did::from_str(account_id_str).map_err(|e| {
+        HostAbiError::InvalidParameters(format!("Invalid DID format for account_id: {}", e))
+    })?;
 
     ctx.credit_mana(&account_did, amount).await
 }
@@ -191,11 +257,15 @@ pub async fn host_account_credit_mana(ctx: &RuntimeContext, account_id_str: &str
 pub struct ReputationUpdater;
 
 impl ReputationUpdater {
-    pub fn new() -> Self { ReputationUpdater }
+    pub fn new() -> Self {
+        ReputationUpdater
+    }
     pub fn submit(&self, receipt: &icn_identity::ExecutionReceipt) {
         // TODO: Implement actual reputation update logic
-        println!("[ReputationUpdater STUB] Submitted receipt for job_id: {:?}, executor: {:?}", 
-                 receipt.job_id, receipt.executor_did);
+        println!(
+            "[ReputationUpdater STUB] Submitted receipt for job_id: {:?}, executor: {:?}",
+            receipt.job_id, receipt.executor_did
+        );
     }
 }
 
@@ -205,10 +275,19 @@ impl ReputationUpdater {
 /// The `receipt_json` is expected to be a JSON string serializing `icn_identity::ExecutionReceipt`.
 ///
 /// TODO: WASM bindings will need to handle memory marshalling for `receipt_json` and returned `Cid`.
-pub async fn host_anchor_receipt(ctx: &RuntimeContext, receipt_json: &str, reputation_updater: &ReputationUpdater) -> Result<Cid, HostAbiError> {
-    debug!("[host_anchor_receipt] Received receipt JSON: {}", receipt_json);
-    let mut receipt: icn_identity::ExecutionReceipt = serde_json::from_str(receipt_json)
-        .map_err(|e| HostAbiError::InvalidParameters(format!("Failed to deserialize receipt JSON: {}", e)))?;
+pub async fn host_anchor_receipt(
+    ctx: &RuntimeContext,
+    receipt_json: &str,
+    reputation_updater: &ReputationUpdater,
+) -> Result<Cid, HostAbiError> {
+    debug!(
+        "[host_anchor_receipt] Received receipt JSON: {}",
+        receipt_json
+    );
+    let mut receipt: icn_identity::ExecutionReceipt =
+        serde_json::from_str(receipt_json).map_err(|e| {
+            HostAbiError::InvalidParameters(format!("Failed to deserialize receipt JSON: {}", e))
+        })?;
 
     // The original code in the job manager calls signer.verify and dag_store.put which are async.
     // RuntimeContext::anchor_receipt was made async to accommodate this.
@@ -217,7 +296,7 @@ pub async fn host_anchor_receipt(ctx: &RuntimeContext, receipt_json: &str, reput
 
     info!("[host_anchor_receipt] Receipt for job {:?} (executor {:?}) anchored with CID: {:?}. CPU cost: {}ms", 
           receipt.job_id, receipt.executor_did, anchored_cid, receipt.cpu_ms);
-    
+
     reputation_updater.submit(&receipt); // This is a stub for now
     Ok(anchored_cid)
 }
@@ -225,11 +304,13 @@ pub async fn host_anchor_receipt(ctx: &RuntimeContext, receipt_json: &str, reput
 #[cfg(test)]
 mod tests {
     use super::*;
-    
-    use super::context::{RuntimeContext, HostAbiError, StubMeshNetworkService, StubSigner, StubDagStore};
-    use icn_common::{Did, ICN_CORE_VERSION, Cid};
-    use icn_mesh::{ActualMeshJob, JobSpec};
+
+    use super::context::{
+        HostAbiError, RuntimeContext, StubDagStore, StubMeshNetworkService, StubSigner,
+    };
+    use icn_common::{Cid, Did, ICN_CORE_VERSION};
     use icn_identity::SignatureBytes;
+    use icn_mesh::{ActualMeshJob, JobSpec};
     use std::str::FromStr;
 
     const TEST_IDENTITY_DID_STR: &str = "did:icn:test:dummy_executor";
@@ -252,10 +333,10 @@ mod tests {
     fn create_test_context() -> Arc<RuntimeContext> {
         let test_did = Did::from_str(TEST_IDENTITY_DID_STR).expect("Failed to create test DID");
         RuntimeContext::new(
-            test_did, 
+            test_did,
             Arc::new(StubMeshNetworkService::new()),
             Arc::new(StubSigner::new()),
-            Arc::new(StubDagStore::new())
+            Arc::new(StubDagStore::new()),
         )
     }
 
@@ -286,7 +367,11 @@ mod tests {
         let test_job = create_test_mesh_job(10);
         let job_json = serde_json::to_string(&test_job).unwrap();
         let job_id = host_submit_mesh_job(&ctx, &job_json).await;
-        assert!(job_id.is_ok(), "host_submit_mesh_job failed: {:?}", job_id.err());
+        assert!(
+            job_id.is_ok(),
+            "host_submit_mesh_job failed: {:?}",
+            job_id.err()
+        );
 
         // Verify mana was spent
         let mana_after = ctx.get_mana(&ctx.current_identity).await.unwrap();
@@ -304,7 +389,11 @@ mod tests {
         let test_job = create_test_mesh_job(10);
         let job_json = serde_json::to_string(&test_job).unwrap();
         let job_id = host_submit_mesh_job(&ctx, &job_json).await;
-        assert!(job_id.is_ok(), "host_submit_mesh_job with empty spec failed: {:?}", job_id.err());
+        assert!(
+            job_id.is_ok(),
+            "host_submit_mesh_job with empty spec failed: {:?}",
+            job_id.err()
+        );
         let mana_after = ctx.get_mana(&ctx.current_identity).await.unwrap();
         assert_eq!(mana_after, 90);
     }
@@ -315,7 +404,11 @@ mod tests {
         let test_job = create_test_mesh_job(10);
         let job_json = serde_json::to_string(&test_job).unwrap();
         let result = host_submit_mesh_job(&ctx, &job_json).await;
-        assert!(matches!(result, Err(HostAbiError::InsufficientMana)), "Expected InsufficientMana, got {:?}", result);
+        assert!(
+            matches!(result, Err(HostAbiError::InsufficientMana)),
+            "Expected InsufficientMana, got {:?}",
+            result
+        );
     }
 
     #[tokio::test]
@@ -376,7 +469,10 @@ mod tests {
             HostAbiError::InvalidParameters(msg) => {
                 assert!(msg.contains("Invalid DID format for account_id"));
             }
-            e => panic!("Expected InvalidParameters error for DID format, got {:?}", e),
+            e => panic!(
+                "Expected InvalidParameters error for DID format, got {:?}",
+                e
+            ),
         }
     }
 
@@ -393,7 +489,11 @@ mod tests {
     async fn test_host_account_spend_mana_insufficient_funds() {
         let ctx = create_test_context_with_mana(5);
         let result = host_account_spend_mana(&ctx, TEST_IDENTITY_DID_STR, 10).await;
-        assert!(matches!(result, Err(HostAbiError::InsufficientMana)), "Expected InsufficientMana, got {:?}", result);
+        assert!(
+            matches!(result, Err(HostAbiError::InsufficientMana)),
+            "Expected InsufficientMana, got {:?}",
+            result
+        );
     }
 
     #[tokio::test]
@@ -407,7 +507,10 @@ mod tests {
             HostAbiError::InvalidParameters(msg) => {
                 assert!(msg.contains("Attempting to spend mana for an account other than the current context identity."));
             }
-            e => panic!("Expected InvalidParameters (policy) or AccountNotFound, got {:?}", e),
+            e => panic!(
+                "Expected InvalidParameters (policy) or AccountNotFound, got {:?}",
+                e
+            ),
         }
     }
 
@@ -437,7 +540,10 @@ mod tests {
             HostAbiError::InvalidParameters(msg) => {
                 assert_eq!(msg, "Account ID string cannot be empty");
             }
-            e => panic!("Expected InvalidParameters for empty account ID, got {:?}", e),
+            e => panic!(
+                "Expected InvalidParameters for empty account ID, got {:?}",
+                e
+            ),
         }
     }
 
@@ -460,7 +566,7 @@ mod tests {
     async fn test_host_account_spend_mana_for_other_account_fails_policy() {
         let mut ctx = create_test_context_with_mana(100);
         let other_account_id = OTHER_IDENTITY_DID_STR;
-        
+
         let other_did = Did::from_str(other_account_id).unwrap();
         futures::executor::block_on(ctx.mana_ledger.set_balance(&other_did, 50));
 
@@ -471,7 +577,10 @@ mod tests {
             HostAbiError::InvalidParameters(msg) => {
                 assert!(msg.contains("Attempting to spend mana for an account other than the current context identity."));
             }
-            e => panic!("Expected InvalidParameters error due to policy, got {:?}", e),
+            e => panic!(
+                "Expected InvalidParameters error due to policy, got {:?}",
+                e
+            ),
         }
     }
 

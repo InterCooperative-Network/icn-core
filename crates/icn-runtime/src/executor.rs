@@ -1,16 +1,23 @@
 //! This module provides executor-side functionality for running mesh jobs.
 
-use icn_common::{Did, Cid, CommonError};
-use icn_identity::{ExecutionReceipt as IdentityExecutionReceipt, SigningKey, SignatureBytes /* Removed , generate_ed25519_keypair */};
+use icn_common::{Cid, CommonError, Did};
+use icn_identity::{
+    ExecutionReceipt as IdentityExecutionReceipt,
+    SignatureBytes, /* Removed , generate_ed25519_keypair */
+    SigningKey,
+};
 use icn_mesh::{ActualMeshJob, JobSpec /* ... other mesh types ... */};
-use log::{info}; // Removed error
+use log::info; // Removed error
 use std::time::SystemTime;
 
 /// Trait for a job executor.
 #[async_trait::async_trait]
 pub trait JobExecutor: Send + Sync {
     /// Executes the given job and returns an ExecutionReceipt.
-    async fn execute_job(&self, job: &ActualMeshJob) -> Result<IdentityExecutionReceipt, CommonError>;
+    async fn execute_job(
+        &self,
+        job: &ActualMeshJob,
+    ) -> Result<IdentityExecutionReceipt, CommonError>;
 }
 
 /// A simple executor that can handle basic predefined tasks like echo or hashing.
@@ -19,19 +26,28 @@ pub struct SimpleExecutor {
     node_did: Did,
     signing_key: SigningKey,
     // VerifyingKey can be derived from SigningKey if needed for self-check or DID generation.
-    // verifying_key: VerifyingKey, 
+    // verifying_key: VerifyingKey,
 }
 
 impl SimpleExecutor {
     pub fn new(node_did: Did, signing_key: SigningKey) -> Self {
-        Self { node_did, signing_key }
+        Self {
+            node_did,
+            signing_key,
+        }
     }
 }
 
 #[async_trait::async_trait]
 impl JobExecutor for SimpleExecutor {
-    async fn execute_job(&self, job: &ActualMeshJob) -> Result<IdentityExecutionReceipt, CommonError> {
-        info!("[SimpleExecutor] Received job for execution: Job ID {:?}, Manifest CID: {:?}", job.id, job.manifest_cid);
+    async fn execute_job(
+        &self,
+        job: &ActualMeshJob,
+    ) -> Result<IdentityExecutionReceipt, CommonError> {
+        info!(
+            "[SimpleExecutor] Received job for execution: Job ID {:?}, Manifest CID: {:?}",
+            job.id, job.manifest_cid
+        );
         let start_time = SystemTime::now();
 
         let result_bytes = match &job.spec {
@@ -40,9 +56,19 @@ impl JobExecutor for SimpleExecutor {
                 format!("Echo: {}", payload).into_bytes()
             }
             JobSpec::GenericPlaceholder => {
-                info!("[SimpleExecutor] Executing hash job (placeholder): {:?}", job.id);
-                let timestamp = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_millis();
-                format!("job_id:{:?}-manifest:{:?}-timestamp:{}", job.id, job.manifest_cid, timestamp).into_bytes()
+                info!(
+                    "[SimpleExecutor] Executing hash job (placeholder): {:?}",
+                    job.id
+                );
+                let timestamp = SystemTime::now()
+                    .duration_since(SystemTime::UNIX_EPOCH)
+                    .unwrap()
+                    .as_millis();
+                format!(
+                    "job_id:{:?}-manifest:{:?}-timestamp:{}",
+                    job.id, job.manifest_cid, timestamp
+                )
+                .into_bytes()
             }
         };
 
@@ -51,20 +77,22 @@ impl JobExecutor for SimpleExecutor {
 
         let unsigned_receipt = IdentityExecutionReceipt {
             job_id: job.id.clone(),
-            executor_did: self.node_did.clone(), 
+            executor_did: self.node_did.clone(),
             result_cid,
             cpu_ms,
             sig: SignatureBytes(vec![]),
         };
 
-        unsigned_receipt.sign_with_key(&self.signing_key)
-            .map_err(|e| CommonError::InternalError(format!("Failed to sign execution receipt: {}", e)))
+        unsigned_receipt
+            .sign_with_key(&self.signing_key)
+            .map_err(|e| {
+                CommonError::InternalError(format!("Failed to sign execution receipt: {}", e))
+            })
     }
 }
 
 /// A WASM-based executor that loads WASM modules from the DAG store and
 /// exposes host functions from the [`RuntimeContext`] to the guest module.
-#[derive(Debug)]
 pub struct WasmExecutor {
     ctx: std::sync::Arc<crate::context::RuntimeContext>,
     node_did: Did,
@@ -90,9 +118,12 @@ impl WasmExecutor {
 
 #[async_trait::async_trait]
 impl JobExecutor for WasmExecutor {
-    async fn execute_job(&self, job: &ActualMeshJob) -> Result<IdentityExecutionReceipt, CommonError> {
+    async fn execute_job(
+        &self,
+        job: &ActualMeshJob,
+    ) -> Result<IdentityExecutionReceipt, CommonError> {
+        use crate::host_account_get_mana;
         use wasmtime::{Linker, Module, Store};
-        use crate::lib::host_account_get_mana;
 
         // Load WASM bytes from the DAG store
         let wasm_bytes = self
@@ -145,7 +176,9 @@ impl JobExecutor for WasmExecutor {
 
         unsigned_receipt
             .sign_with_key(&self.signing_key)
-            .map_err(|e| CommonError::InternalError(format!("Failed to sign execution receipt: {}", e)))
+            .map_err(|e| {
+                CommonError::InternalError(format!("Failed to sign execution receipt: {}", e))
+            })
     }
 }
 
@@ -153,9 +186,11 @@ impl JobExecutor for WasmExecutor {
 mod tests {
     use super::*;
     use icn_common::Cid; // generate_cid is not public, ICN_CORE_VERSION was unused
-    use icn_identity::{generate_ed25519_keypair as generate_keys_for_test, did_key_from_verifying_key}; // Kept these
+    use icn_identity::{
+        did_key_from_verifying_key, generate_ed25519_keypair as generate_keys_for_test,
+    }; // Kept these
     use std::str::FromStr; // Added For Did::from_str here
-    // Removed unused: serde_json::json, std::convert::TryInto, std::sync::Arc
+                           // Removed unused: serde_json::json, std::convert::TryInto, std::sync::Arc
 
     fn dummy_cid_for_executor_test(s: &str) -> Cid {
         Cid::new_v1_dummy(0x55, 0x12, s.as_bytes())
@@ -171,14 +206,16 @@ mod tests {
 
         let job_id = dummy_cid_for_executor_test("test_echo_job_id");
         let manifest_cid = dummy_cid_for_executor_test("test_echo_manifest");
-        
+
         let job = ActualMeshJob {
             id: job_id.clone(),
             manifest_cid,
-            spec: JobSpec::Echo { payload: "Hello Echo Test".to_string() }, // Corrected JobSpec usage
+            spec: JobSpec::Echo {
+                payload: "Hello Echo Test".to_string(),
+            }, // Corrected JobSpec usage
             creator_did: Did::from_str("did:example:jobcreator").unwrap(),
             cost_mana: 10,
-            signature: SignatureBytes(vec![]) 
+            signature: SignatureBytes(vec![]),
         };
 
         let result = executor.execute_job(&job).await;
@@ -189,7 +226,10 @@ mod tests {
         assert_eq!(receipt.executor_did, node_did);
         assert!(!receipt.sig.0.is_empty());
         assert!(receipt.verify_against_key(&verifying_key).is_ok());
-        info!("Echo job receipt (test_simple_executor_echo_job): {:?}", receipt);
+        info!(
+            "Echo job receipt (test_simple_executor_echo_job): {:?}",
+            receipt
+        );
     }
 
     #[tokio::test]
@@ -201,10 +241,12 @@ mod tests {
         let job = ActualMeshJob {
             id: dummy_cid_for_executor_test("job1"),
             manifest_cid: dummy_cid_for_executor_test("manifest1"),
-            spec: JobSpec::Echo { payload: "hello".to_string() },
+            spec: JobSpec::Echo {
+                payload: "hello".to_string(),
+            },
             creator_did: Did::from_str("did:example:jobcreator").unwrap(),
             cost_mana: 10,
-            signature: SignatureBytes(vec![]), 
+            signature: SignatureBytes(vec![]),
         };
 
         // SimpleExecutor::new expects SigningKey, not Arc<SigningKey> as per current definition
@@ -217,6 +259,9 @@ mod tests {
         assert_eq!(receipt.executor_did, node_did);
         assert!(!receipt.sig.0.is_empty());
         assert!(receipt.verify_against_key(&node_pk).is_ok());
-        info!("Echo job receipt (test_execute_job_echo_success): {:?}", receipt);
+        info!(
+            "Echo job receipt (test_execute_job_echo_success): {:?}",
+            receipt
+        );
     }
-} 
+}

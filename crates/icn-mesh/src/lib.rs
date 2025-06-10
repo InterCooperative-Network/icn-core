@@ -1,13 +1,18 @@
 #![doc = include_str!("../README.md")]
+#![allow(clippy::uninlined_format_args)]
 
 //! # ICN Mesh Crate
 //! This crate focuses on job orchestration, scheduling, and execution within the
 //! InterCooperative Network (ICN) mesh network. It handles job definition, resource discovery,
 //! scheduling, execution management, and fault tolerance.
 
-use icn_common::{NodeInfo, CommonError, Cid, Did};
-use icn_identity::{ExecutionReceipt, SignatureBytes, VerifyingKey as IdentityVerifyingKey, SigningKey as IdentitySigningKey, sign_message as identity_sign_message, verify_signature as identity_verify_signature};
-use serde::{Serialize, Deserialize};
+use icn_common::{Cid, CommonError, Did, NodeInfo};
+use icn_identity::{
+    sign_message as identity_sign_message, verify_signature as identity_verify_signature,
+    ExecutionReceipt, SignatureBytes, SigningKey as IdentitySigningKey,
+    VerifyingKey as IdentityVerifyingKey,
+};
+use serde::{Deserialize, Serialize};
 
 /// Errors that can occur within the ICN Mesh subsystem.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -48,7 +53,7 @@ impl std::error::Error for MeshError {}
 pub type JobId = Cid;
 // Placeholder for Resources struct, to be defined based on requirements
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct Resources; 
+pub struct Resources;
 
 /// Represents a job submitted to the ICN mesh computing network.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -58,7 +63,7 @@ pub struct ActualMeshJob {
     /// Content Identifier (CID) of the job's core executable or primary data package.
     pub manifest_cid: Cid,
     /// Detailed specification of the job, including inputs, outputs, and execution requirements.
-    pub spec: JobSpec, 
+    pub spec: JobSpec,
     /// Decentralized Identifier (DID) of the entity that submitted the job.
     pub creator_did: Did,
     /// The amount of mana allocated by the submitter for this job's execution.
@@ -83,8 +88,11 @@ impl ActualMeshJob {
     pub fn sign(mut self, signing_key: &IdentitySigningKey) -> Result<Self, CommonError> {
         // Ensure the job_id is set before signing, as it's part of the signable bytes.
         // Typically, id would be a CID of some core content, generated before this step.
-        if self.id.to_string().is_empty() || self.id.to_string().as_bytes().len() < 4 { // Basic check, using to_string().as_bytes()
-             return Err(CommonError::InternalError("Job ID must be set before signing".to_string())); // Was InvalidParameters
+        if self.id.to_string().is_empty() || self.id.to_string().as_bytes().len() < 4 {
+            // Basic check, using to_string().as_bytes()
+            return Err(CommonError::InternalError(
+                "Job ID must be set before signing".to_string(),
+            )); // Was InvalidParameters
         }
         let message = self.to_signable_bytes()?;
         let ed_signature = identity_sign_message(signing_key, &message);
@@ -93,14 +101,19 @@ impl ActualMeshJob {
     }
 
     /// Verifies the signature of this job against the provided Ed25519 VerifyingKey.
-    pub fn verify_signature(&self, verifying_key: &IdentityVerifyingKey) -> Result<(), CommonError> {
+    pub fn verify_signature(
+        &self,
+        verifying_key: &IdentityVerifyingKey,
+    ) -> Result<(), CommonError> {
         let message = self.to_signable_bytes()?;
         let ed_signature = self.signature.to_ed_signature()?;
 
         if identity_verify_signature(verifying_key, &message, &ed_signature) {
             Ok(())
         } else {
-            Err(CommonError::InternalError("ActualMeshJob signature verification failed".to_string())) // Was CryptographyError
+            Err(CommonError::InternalError(
+                "ActualMeshJob signature verification failed".to_string(),
+            )) // Was CryptographyError
         }
     }
 }
@@ -109,7 +122,9 @@ impl ActualMeshJob {
 /// TODO: Define fields for inputs, outputs, resource requirements, timeouts, etc.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub enum JobSpec {
-    Echo { payload: String },
+    Echo {
+        payload: String,
+    },
     // Add other variants as needed, e.g.:
     // Generic { command: String, args: Vec<String> },
     // Wasm { module_cid: Cid, entry_function: String, params: Vec<Value> },
@@ -127,7 +142,7 @@ pub struct MeshJobBid {
     /// The price (in mana or a defined token) the executor is charging for the job.
     pub price_mana: u64,
     /// The resources the executor is committing for this job.
-    pub resources: Resources, 
+    pub resources: Resources,
 }
 
 /// Represents the current state of a mesh job in its lifecycle.
@@ -138,7 +153,7 @@ pub enum JobState {
     /// The job has been assigned to an executor.
     Assigned { executor: Did },
     /// The job has been completed successfully by an executor.
-    Completed { receipt: ExecutionReceipt }, 
+    Completed { receipt: ExecutionReceipt },
     /// The job failed to complete due to an error.
     Failed { reason: String },
 }
@@ -165,22 +180,30 @@ impl ReputationExecutorSelector {
 }
 
 /// Selects the best executor from a list of bids based on a given policy.
-/// 
+///
 /// This function typically utilizes a `ReputationExecutorSelector` internally to factor in
 /// executor reputation alongside other bid parameters like price and resource availability.
-/// 
+///
 /// # Arguments
 /// * `job_id` - The ID of the job for which an executor is being selected.
 /// * `bids` - A vector of `Bid` structs received for a specific job.
 /// * `policy` - The `SelectionPolicy` to apply for choosing the best executor.
-/// 
+///
 /// # Returns
 /// * `Some(Did)` of the selected executor if a suitable one is found.
 /// * `None` if no suitable executor could be selected based on the bids and policy.
-pub fn select_executor(job_id: &JobId, bids: Vec<MeshJobBid>, _policy: &SelectionPolicy) -> Option<Did> {
+pub fn select_executor(
+    job_id: &JobId,
+    bids: Vec<MeshJobBid>,
+    _policy: &SelectionPolicy,
+) -> Option<Did> {
     // TODO: Implement actual selection logic based on policy (reputation, price, resources, etc.)
     // For now, simplistic: return the DID of the first valid bidder if any.
-    println!("[Mesh] Selecting executor for job {:?}. Received {} bids.", job_id, bids.len());
+    println!(
+        "[Mesh] Selecting executor for job {:?}. Received {} bids.",
+        job_id,
+        bids.len()
+    );
 
     if bids.is_empty() {
         return None;
@@ -201,15 +224,15 @@ pub fn select_executor(job_id: &JobId, bids: Vec<MeshJobBid>, _policy: &Selectio
 }
 
 /// Scores a single bid based on a selection policy.
-/// 
+///
 /// The score typically reflects a combination of factors such as the bid price,
 /// the executor's available mana (as a proxy for stability/commitment),
 /// and the executor's reputation.
-/// 
+///
 /// # Arguments
 /// * `bid` - The `Bid` to score.
 /// * `policy` - The `SelectionPolicy` to use for calculating the score.
-/// 
+///
 /// # Returns
 /// * A `u64` representing the calculated score for the bid. Higher is generally better.
 pub fn score_bid(bid: &MeshJobBid, _policy: &SelectionPolicy) -> u64 {
@@ -219,8 +242,8 @@ pub fn score_bid(bid: &MeshJobBid, _policy: &SelectionPolicy) -> u64 {
     // TODO: Advertised performance should be part of the bid (e.g., in bid.resources).
 
     let w_price = 1.0; // Placeholder weight
-    let w_rep = 0.0;   // Placeholder weight, disabling reputation for now
-    let w_perf = 0.0;  // Placeholder weight, disabling performance for now
+    let w_rep = 0.0; // Placeholder weight, disabling reputation for now
+    let w_perf = 0.0; // Placeholder weight, disabling performance for now
 
     // Price score: higher for lower price. Avoid division by zero.
     let price_score = if bid.price_mana > 0 {
@@ -232,9 +255,7 @@ pub fn score_bid(bid: &MeshJobBid, _policy: &SelectionPolicy) -> u64 {
     let reputation_score = 0.0; // Placeholder
     let performance_score = 0.0; // Placeholder
 
-    let total_score = w_price * price_score 
-                    + w_rep * reputation_score 
-                    + w_perf * performance_score;
+    let total_score = w_price * price_score + w_rep * reputation_score + w_perf * performance_score;
 
     // Return as u64. Ensure it doesn't overflow or underflow if scores can be negative.
     // For now, assuming positive scores and simple truncation.
@@ -243,7 +264,10 @@ pub fn score_bid(bid: &MeshJobBid, _policy: &SelectionPolicy) -> u64 {
 
 /// Placeholder function demonstrating use of common types for mesh operations.
 pub fn schedule_mesh_job(info: &NodeInfo, job_id: &str) -> Result<String, CommonError> {
-    Ok(format!("Scheduled mesh job {} on node: {} (v{})", job_id, info.name, info.version))
+    Ok(format!(
+        "Scheduled mesh job {} on node: {} (v{})",
+        job_id, info.name, info.version
+    ))
 }
 
 // --- Mesh Protocol Messages ---
@@ -294,7 +318,7 @@ pub struct SubmitReceiptMessage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use icn_common::{ICN_CORE_VERSION, NodeInfo, Cid, Did}; // Kept ICN_CORE_VERSION as it's often for tests
+    use icn_common::{Cid, Did, NodeInfo, ICN_CORE_VERSION}; // Kept ICN_CORE_VERSION as it's often for tests
     use std::str::FromStr;
 
     #[test]
