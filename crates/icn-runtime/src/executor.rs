@@ -62,6 +62,93 @@ impl JobExecutor for SimpleExecutor {
     }
 }
 
+/// A WASM-based executor that loads WASM modules from the DAG store and
+/// exposes host functions from the [`RuntimeContext`] to the guest module.
+#[derive(Debug)]
+pub struct WasmExecutor {
+    ctx: std::sync::Arc<crate::context::RuntimeContext>,
+    node_did: Did,
+    signing_key: SigningKey,
+    engine: wasmtime::Engine,
+}
+
+impl WasmExecutor {
+    /// Creates a new [`WasmExecutor`] bound to the given runtime context.
+    pub fn new(
+        ctx: std::sync::Arc<crate::context::RuntimeContext>,
+        node_did: Did,
+        signing_key: SigningKey,
+    ) -> Self {
+        Self {
+            ctx,
+            node_did,
+            signing_key,
+            engine: wasmtime::Engine::default(),
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl JobExecutor for WasmExecutor {
+    async fn execute_job(&self, job: &ActualMeshJob) -> Result<IdentityExecutionReceipt, CommonError> {
+        use wasmtime::{Linker, Module, Store};
+        use crate::lib::host_account_get_mana;
+
+        // Load WASM bytes from the DAG store
+        let wasm_bytes = self
+            .ctx
+            .dag_store
+            .get(&job.manifest_cid)
+            .await
+            .map_err(|e| CommonError::StorageError(format!("{e}")))?
+            .ok_or_else(|| CommonError::ResourceNotFound("WASM module not found".into()))?;
+
+        let mut store = Store::new(&self.engine, ());
+        let mut linker = Linker::new(&self.engine);
+
+        let ctx_clone = self.ctx.clone();
+        linker
+            .func_wrap("icn", "host_account_get_mana", move || -> i64 {
+                let handle = tokio::runtime::Handle::current();
+                let account = ctx_clone.current_identity.to_string();
+                handle
+                    .block_on(async { host_account_get_mana(&ctx_clone, &account).await })
+                    .unwrap_or(0) as i64
+            })
+            .map_err(|e| CommonError::InternalError(e.to_string()))?;
+
+        let module = Module::new(&self.engine, &wasm_bytes)
+            .map_err(|e| CommonError::DeserError(e.to_string()))?;
+        let instance = linker
+            .instantiate(&mut store, &module)
+            .map_err(|e| CommonError::InternalError(e.to_string()))?;
+        let func = instance
+            .get_typed_func::<(), i64>(&mut store, "run")
+            .map_err(|e| CommonError::InternalError(e.to_string()))?;
+
+        let start_time = SystemTime::now();
+        let result = func
+            .call(&mut store, ())
+            .map_err(|e| CommonError::InternalError(e.to_string()))?;
+        let cpu_ms = start_time.elapsed().unwrap_or_default().as_millis() as u64;
+
+        let result_bytes = result.to_le_bytes();
+        let result_cid = Cid::new_v1_dummy(0x55, 0x12, &result_bytes);
+
+        let unsigned_receipt = IdentityExecutionReceipt {
+            job_id: job.id.clone(),
+            executor_did: self.node_did.clone(),
+            result_cid,
+            cpu_ms,
+            sig: SignatureBytes(vec![]),
+        };
+
+        unsigned_receipt
+            .sign_with_key(&self.signing_key)
+            .map_err(|e| CommonError::InternalError(format!("Failed to sign execution receipt: {}", e)))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -24,9 +24,11 @@ thiserror = "1.0"
 libp2p = { version = "0.53.2", optional = true }
 downcast-rs = "1.2.0"
 futures = "0.3"
+wasmtime = { version = "15", features = ["async"] }
 
 [dev-dependencies]
 anyhow = "1.0.75"
+wat = "1.0"
 # temp-dir = "0.1"
 
 [features]
