@@ -58,6 +58,7 @@ This crate provides:
 *   Data structures (`PeerId`, `NetworkMessage`).
 *   A core trait (`NetworkService`) for P2P interactions.
 *   A concrete stub implementation (`StubNetworkService`) for testing and initial development.
+*   With the `experimental-libp2p` feature enabled, DHT record APIs (`get_kademlia_record` and `put_kademlia_record`) for storing service advertisements and DID documents.
 
 The API aims for modularity, allowing different P2P backends to be integrated by implementing the `NetworkService` trait.
 

@@ -28,6 +28,21 @@ use std::time::Duration;
 use tokio::sync::mpsc::Receiver;
 // Removed unused imports for testing Kademlia disabled build
 
+/// Prefix for service advertisement records stored in the DHT.
+///
+/// Keys are constructed as `format!("{SERVICE_AD_PREFIX}{did}")` where `did`
+/// is the DID of the advertising node. For example, a node with the DID
+/// `did:web:example.com` should advertise under the key
+/// `/icn/service/did:web:example.com`.
+pub const SERVICE_AD_PREFIX: &str = "/icn/service/";
+
+/// Prefix for DID document records stored in the DHT.
+///
+/// Keys are constructed as `format!("{DID_DOC_PREFIX}{did}")`. A DID
+/// document for `did:web:example.com` would therefore be stored under
+/// `/icn/did/did:web:example.com`.
+pub const DID_DOC_PREFIX: &str = "/icn/did/";
+
 // --- Core Types ---
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
