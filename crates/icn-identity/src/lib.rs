@@ -6,8 +6,11 @@
 // use icn_common::{NodeInfo, CommonError, Did, ICN_CORE_VERSION, Cid};
 // use serde::{Serialize, Deserialize};
 
+use async_trait::async_trait;
 use icn_common::{Cid, CommonError, Did, NodeInfo};
 use serde::{Deserialize, Serialize}; // Keep serde for ExecutionReceipt
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 
 pub use ed25519_dalek::{
     Signature as EdSignature, Signer, SigningKey, VerifyingKey, SIGNATURE_LENGTH,
@@ -90,6 +93,42 @@ pub fn sign_message(sk: &SigningKey, msg: &[u8]) -> EdSignature {
 /// Verify a message/signature pair with an Ed25519 VerifyingKey.
 pub fn verify_signature(pk: &VerifyingKey, msg: &[u8], sig: &EdSignature) -> bool {
     pk.verify_strict(msg, sig).is_ok()
+}
+
+/// Trait for resolving a [`Did`] to its associated [`VerifyingKey`].
+#[async_trait]
+pub trait DidResolver: Send + Sync + std::fmt::Debug {
+    /// Resolve the given DID to a verifying key.
+    async fn resolve(&self, did: &Did) -> Result<VerifyingKey, CommonError>;
+}
+
+/// Simple in-memory implementation of [`DidResolver`].
+#[derive(Debug, Clone, Default)]
+pub struct InMemoryDidResolver {
+    entries: Arc<Mutex<HashMap<Did, VerifyingKey>>>,
+}
+
+impl InMemoryDidResolver {
+    /// Create a new empty resolver.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Register a DID/verifying key mapping.
+    pub fn register(&self, did: Did, key: VerifyingKey) {
+        let mut map = self.entries.lock().unwrap();
+        map.insert(did, key);
+    }
+}
+
+#[async_trait]
+impl DidResolver for InMemoryDidResolver {
+    async fn resolve(&self, did: &Did) -> Result<VerifyingKey, CommonError> {
+        let map = self.entries.lock().unwrap();
+        map.get(did)
+            .cloned()
+            .ok_or_else(|| CommonError::IdentityError(format!("DID not found: {did}")))
+    }
 }
 
 // --- Structs for ICN System (Keypair, ExecutionReceipt) ---

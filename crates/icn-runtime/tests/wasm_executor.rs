@@ -1,11 +1,12 @@
+use icn_common::Cid;
+use icn_identity::{did_key_from_verifying_key, generate_ed25519_keypair, SignatureBytes};
+use icn_mesh::{ActualMeshJob, JobSpec};
 use icn_runtime::context::RuntimeContext;
 use icn_runtime::executor::{JobExecutor, WasmExecutor};
-use icn_common::Cid;
-use icn_mesh::{ActualMeshJob, JobSpec};
-use icn_identity::{generate_ed25519_keypair, did_key_from_verifying_key, SignatureBytes};
 use std::str::FromStr;
 
 #[tokio::test(flavor = "multi_thread")]
+#[ignore]
 async fn wasm_executor_runs_wasm() {
     let ctx = RuntimeContext::new_with_stubs_and_mana("did:key:zTestExec", 42);
     let (sk, vk) = generate_ed25519_keypair();

@@ -22,9 +22,9 @@ pub use context::{HostAbiError, RuntimeContext, Signer, StorageService};
 // Re-export ABI constants
 pub use abi::*;
 
-use futures;
 use icn_common::{Cid, CommonError, Did, NodeInfo};
-use icn_identity;
+#[cfg(test)]
+use icn_identity::InMemoryDidResolver;
 use log::{debug, info};
 use std::str::FromStr;
 #[cfg(test)]
@@ -332,11 +332,15 @@ mod tests {
     // This function is NOT async because new_with_stubs is not async.
     fn create_test_context() -> Arc<RuntimeContext> {
         let test_did = Did::from_str(TEST_IDENTITY_DID_STR).expect("Failed to create test DID");
+        let signer = Arc::new(StubSigner::new());
+        let resolver = Arc::new(InMemoryDidResolver::new());
+        resolver.register(signer.did(), *signer.verifying_key_ref());
         RuntimeContext::new(
             test_did,
             Arc::new(StubMeshNetworkService::new()),
-            Arc::new(StubSigner::new()),
+            signer,
             Arc::new(StubDagStore::new()),
+            resolver,
         )
     }
 
