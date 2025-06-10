@@ -11,7 +11,6 @@ use std::sync::Arc;
 use tokio::time::{sleep, Duration};
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
-use log::{info, debug}; // Added for potential future use, using println! for now
 
 // Helper to create a test ActualMeshJob with all required fields
 fn create_test_mesh_job(manifest_cid: Cid, cost_mana: u64, creator_did: Did) -> ActualMeshJob {

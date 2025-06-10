@@ -143,7 +143,6 @@ pub async fn app_router() -> Router { // Renamed to app_router and made async fo
 
 // --- Main Application Logic ---
 #[tokio::main]
-#[allow(dead_code)]
 async fn main() {
     env_logger::init(); // Initialize logger
     let cli = Cli::parse();
