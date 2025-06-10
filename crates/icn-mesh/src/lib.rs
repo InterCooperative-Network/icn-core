@@ -88,7 +88,7 @@ impl ActualMeshJob {
     pub fn sign(mut self, signing_key: &IdentitySigningKey) -> Result<Self, CommonError> {
         // Ensure the job_id is set before signing, as it's part of the signable bytes.
         // Typically, id would be a CID of some core content, generated before this step.
-        if self.id.to_string().is_empty() || self.id.to_string().as_bytes().len() < 4 {
+        if self.id.to_string().is_empty() || self.id.to_string().len() < 4 {
             // Basic check, using to_string().as_bytes()
             return Err(CommonError::InternalError(
                 "Job ID must be set before signing".to_string(),

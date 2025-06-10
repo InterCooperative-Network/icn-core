@@ -1,3 +1,10 @@
+#![allow(
+    unused_imports,
+    clippy::clone_on_copy,
+    clippy::uninlined_format_args,
+    clippy::field_reassign_with_default
+)]
+
 #[cfg(feature = "experimental-libp2p")]
 mod network_stats {
     use icn_network::libp2p_service::{Libp2pNetworkService, NetworkConfig};

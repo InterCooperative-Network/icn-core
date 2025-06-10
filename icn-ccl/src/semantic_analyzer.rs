@@ -127,10 +127,19 @@ impl SemanticAnalyzer {
             crate::ast::PolicyStatementNode::FunctionDef(func_def_node) => self.visit_node(func_def_node),
             crate::ast::PolicyStatementNode::RuleDef(rule_def_node) => self.visit_node(rule_def_node),
             crate::ast::PolicyStatementNode::Import { path, alias } => {
-                 println!("[SemanticAnalyzer STUB] Visiting import: {} as {}", path, alias);
-                 // TODO: Handle import logic, potentially load symbols from other CCL modules/metadata
-                 Ok(())
+                // For now, simply record the alias as a custom type symbol so later references
+                // to the imported name pass basic semantic checks. A full implementation would
+                // load and analyze the referenced module.
+                self.insert_symbol(
+                    alias.clone(),
+                    Symbol::Variable {
+                        type_ann: TypeAnnotationNode::Custom(format!("import<{path}>",)),
+                    },
+                )?
             }
+        }
+        Ok(())
+    }
         }
     }
 
