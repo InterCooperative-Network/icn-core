@@ -1,5 +1,5 @@
 [package]
-name = "icn-mesh"
+name = "icn-reputation"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -9,5 +9,3 @@ license.workspace = true
 icn-common = { path = "../icn-common" }
 icn-identity = { path = "../icn-identity" }
 serde = { version = "1.0", features = ["derive"] }
-icn-reputation = { path = "../icn-reputation" }
-icn-economics = { path = "../icn-economics" }

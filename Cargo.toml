@@ -8,6 +8,7 @@ members = [
     "crates/icn-protocol",
     "crates/icn-governance",
     "crates/icn-economics",
+    "crates/icn-reputation",
     "crates/icn-network",
     "crates/icn-api",
     "crates/icn-cli",
