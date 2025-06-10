@@ -8,6 +8,7 @@ COMMENT = _{ "//" ~ (!NEWLINE ~ ANY)* }
 identifier = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
 integer_literal = @{ ASCII_DIGIT+ }
 string_literal = @{ "\"" ~ (ASCII_ALPHANUMERIC | " ")* ~ "\"" } // Simplified
+boolean_literal = { "true" | "false" }
 
 // Top-level: A CCL policy is a sequence of statements or definitions
 policy = { SOI ~ (function_definition | policy_statement)* ~ EOI }
@@ -24,20 +25,41 @@ import_statement = { "import" ~ string_literal ~ "as" ~ identifier ~ ";" }
 
 // Example: Block of statements
 block = { "{" ~ statement* ~ "}" }
-statement = { let_statement | expression_statement | return_statement }
+statement = { let_statement | expression_statement | return_statement | if_statement }
 let_statement = { "let" ~ identifier ~ "=" ~ expression ~ ";" }
 expression_statement = { expression ~ ";" }
 return_statement = { "return" ~ expression ~ ";" }
+if_statement = { "if" ~ expression ~ block ~ ("else" ~ block)? }
 
 // Example: Expressions (highly simplified)
-expression = { term ~ (("==" | "!=" | "<" | ">" | "+" | "-") ~ term)* }
-term = { factor ~ (("*" | "/") ~ factor)* }
-factor = { integer_literal | boolean_literal | string_literal | identifier | "(" ~ expression ~ ")" | function_call }
-boolean_literal = { "true" | "false" }
+expression = { logical_or }
+logical_or = { logical_and ~ (OR_OP ~ logical_and)* }
+logical_and = { equality ~ (AND_OP ~ equality)* }
+equality = { comparison ~ ((EQ_OP | NEQ_OP) ~ comparison)* }
+comparison = { addition ~ ((LT_OP | LTE_OP | GT_OP | GTE_OP) ~ addition)* }
+addition = { multiplication ~ ((ADD_OP | SUB_OP) ~ multiplication)* }
+multiplication = { primary ~ ((MUL_OP | DIV_OP) ~ primary)* }
+primary = { integer_literal | boolean_literal | string_literal | function_call | identifier | "(" ~ expression ~ ")" }
 function_call = { identifier ~ "(" ~ (expression ~ ("," ~ expression)*)? ~ ")" }
 
+ADD_OP = { "+" }
+SUB_OP = { "-" }
+MUL_OP = { "*" }
+DIV_OP = { "/" }
+EQ_OP  = { "==" }
+NEQ_OP = { "!=" }
+LT_OP  = { "<" }
+LTE_OP = { "<=" }
+GT_OP  = { ">" }
+GTE_OP = { ">=" }
+AND_OP = { "&&" }
+OR_OP  = { "||" }
+
 // Example: Actions (specific to policy rules)
-action = { "allow" | "deny" | "charge" ~ expression }
+action = { ALLOW | DENY | CHARGE ~ expression }
+ALLOW = { "allow" }
+DENY = { "deny" }
+CHARGE = { "charge" }
 
 // Catch-all for errors or further development
 // UNEXPECTED = _{ ANY } // Uncomment for debugging grammar issues 

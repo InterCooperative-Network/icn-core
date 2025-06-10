@@ -1,5 +1,5 @@
 // icn-ccl/src/ast.rs
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 // Potentially use types from icn_common like Did if they appear in AST
 // use icn_common::Did;
 
@@ -56,7 +56,12 @@ pub enum StatementNode {
     },
     ExpressionStatement(ExpressionNode),
     Return(ExpressionNode),
-    // ... other statement types (if, loop, etc.)
+    If {
+        condition: ExpressionNode,
+        then_block: BlockNode,
+        else_block: Option<BlockNode>,
+    },
+    // ... other statement types (loop, etc.)
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -79,9 +84,18 @@ pub enum ExpressionNode {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum BinaryOperator {
-    Add, Sub, Mul, Div,
-    Eq, Neq, Lt, Gt, Lte, Gte,
-    And, Or,
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Eq,
+    Neq,
+    Lt,
+    Gt,
+    Lte,
+    Gte,
+    And,
+    Or,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -89,7 +103,7 @@ pub enum ActionNode {
     Allow,
     Deny,
     Charge(ExpressionNode), // e.g., charge actor.mana(amount_expr)
-    // ... other policy-specific actions
+                            // ... other policy-specific actions
 }
 
 // Helper function to convert Pest pairs to AST (simplified example)
@@ -98,4 +112,4 @@ pub enum ActionNode {
 //         // ... conversion logic ...
 //         _ => unimplemented!("Rule not implemented in AST conversion: {:?}", pair.as_rule()),
 //     }
-// } 
+// }
