@@ -1,5 +1,7 @@
 // icn-ccl/src/wasm_backend.rs
-use crate::ast::{AstNode, PolicyStatementNode, TypeAnnotationNode};
+use crate::ast::{
+    AstNode, BinaryOperator, ExpressionNode, PolicyStatementNode, StatementNode, TypeAnnotationNode,
+};
 use crate::error::CclError;
 use crate::metadata::ContractMetadata;
 use std::cmp::min;
@@ -35,6 +37,7 @@ impl WasmBackend {
             if let PolicyStatementNode::FunctionDef(AstNode::FunctionDefinition {
                 name,
                 return_type,
+                body,
                 ..
             }) = item
             {
@@ -44,15 +47,22 @@ impl WasmBackend {
                 functions.add(type_index as u32);
 
                 let mut func = Function::new(Vec::new());
-                match ret_ty {
-                    ValType::I32 => {
-                        func.instruction(&Instruction::I32Const(0));
+
+                // Expect a single return statement for now
+                if let Some(StatementNode::Return(expr)) = body.statements.first() {
+                    let expr_ty = self.emit_expression(expr, &mut func)?;
+                    let expected = map_val_type(return_type)?;
+                    if expr_ty != expected {
+                        return Err(CclError::WasmGenerationError(
+                            "Return type mismatch during codegen".to_string(),
+                        ));
                     }
-                    ValType::I64 => {
-                        func.instruction(&Instruction::I64Const(0));
-                    }
-                    _ => {}
+                } else {
+                    return Err(CclError::WasmGenerationError(
+                        "Only simple return-only functions supported".to_string(),
+                    ));
                 }
+
                 func.instruction(&Instruction::End);
                 codes.add(&func);
 
@@ -90,6 +100,87 @@ impl WasmBackend {
         };
 
         Ok((wasm_bytes, metadata))
+    }
+
+    fn emit_expression(&self, expr: &ExpressionNode, func: &mut Function) -> Result<ValType, CclError> {
+        match expr {
+            ExpressionNode::IntegerLiteral(i) => {
+                func.instruction(&Instruction::I64Const(*i));
+                Ok(ValType::I64)
+            }
+            ExpressionNode::BooleanLiteral(b) => {
+                func.instruction(&Instruction::I32Const(if *b { 1 } else { 0 }));
+                Ok(ValType::I32)
+            }
+            ExpressionNode::BinaryOp { left, operator, right } => {
+                let l_ty = self.emit_expression(left, func)?;
+                let r_ty = self.emit_expression(right, func)?;
+                match (l_ty, r_ty, operator) {
+                    (ValType::I64, ValType::I64, BinaryOperator::Add) => {
+                        func.instruction(&Instruction::I64Add);
+                        Ok(ValType::I64)
+                    }
+                    (ValType::I64, ValType::I64, BinaryOperator::Sub) => {
+                        func.instruction(&Instruction::I64Sub);
+                        Ok(ValType::I64)
+                    }
+                    (ValType::I64, ValType::I64, BinaryOperator::Mul) => {
+                        func.instruction(&Instruction::I64Mul);
+                        Ok(ValType::I64)
+                    }
+                    (ValType::I64, ValType::I64, BinaryOperator::Div) => {
+                        func.instruction(&Instruction::I64DivS);
+                        Ok(ValType::I64)
+                    }
+                    (ValType::I64, ValType::I64, BinaryOperator::Eq) => {
+                        func.instruction(&Instruction::I64Eq);
+                        Ok(ValType::I32)
+                    }
+                    (ValType::I64, ValType::I64, BinaryOperator::Neq) => {
+                        func.instruction(&Instruction::I64Ne);
+                        Ok(ValType::I32)
+                    }
+                    (ValType::I64, ValType::I64, BinaryOperator::Lt) => {
+                        func.instruction(&Instruction::I64LtS);
+                        Ok(ValType::I32)
+                    }
+                    (ValType::I64, ValType::I64, BinaryOperator::Lte) => {
+                        func.instruction(&Instruction::I64LeS);
+                        Ok(ValType::I32)
+                    }
+                    (ValType::I64, ValType::I64, BinaryOperator::Gt) => {
+                        func.instruction(&Instruction::I64GtS);
+                        Ok(ValType::I32)
+                    }
+                    (ValType::I64, ValType::I64, BinaryOperator::Gte) => {
+                        func.instruction(&Instruction::I64GeS);
+                        Ok(ValType::I32)
+                    }
+                    (ValType::I32, ValType::I32, BinaryOperator::And) => {
+                        func.instruction(&Instruction::I32And);
+                        Ok(ValType::I32)
+                    }
+                    (ValType::I32, ValType::I32, BinaryOperator::Or) => {
+                        func.instruction(&Instruction::I32Or);
+                        Ok(ValType::I32)
+                    }
+                    (ValType::I32, ValType::I32, BinaryOperator::Eq) => {
+                        func.instruction(&Instruction::I32Eq);
+                        Ok(ValType::I32)
+                    }
+                    (ValType::I32, ValType::I32, BinaryOperator::Neq) => {
+                        func.instruction(&Instruction::I32Ne);
+                        Ok(ValType::I32)
+                    }
+                    _ => Err(CclError::WasmGenerationError(
+                        "Unsupported binary operation".to_string(),
+                    )),
+                }
+            }
+            _ => Err(CclError::WasmGenerationError(
+                "Unsupported expression type".to_string(),
+            )),
+        }
     }
 }
 

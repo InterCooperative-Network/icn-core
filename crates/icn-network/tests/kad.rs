@@ -1,8 +1,15 @@
+#![allow(
+    unused_imports,
+    clippy::clone_on_copy,
+    clippy::uninlined_format_args,
+    clippy::field_reassign_with_default
+)]
+
 #[cfg(feature = "experimental-libp2p")]
 mod kademlia_peer_discovery_tests {
     use icn_network::libp2p_service::{Libp2pNetworkService, NetworkConfig};
-    use icn_network::PeerId as IcnPeerId; // Renamed to avoid confusion
     use icn_network::NetworkService; // Import the trait
+    use icn_network::PeerId as IcnPeerId; // Renamed to avoid confusion
     use std::time::Duration;
     use tokio::time::sleep;
 
@@ -22,13 +29,22 @@ mod kademlia_peer_discovery_tests {
         sleep(Duration::from_secs(2)).await; // Increased slightly for stability
         let node1_addrs = node1_service.listening_addresses();
         assert!(!node1_addrs.is_empty(), "Node 1 has no listening addresses");
-        
+
         let node1_listen_addr_for_kad = node1_addrs
             .iter()
-            .find(|addr| addr.to_string().contains("127.0.0.1") || addr.to_string().contains("/::1/")) // Prefer loopback
-            .unwrap_or_else(|| node1_addrs.first().expect("Node 1 has no listen addresses at all"))
+            .find(|addr| {
+                addr.to_string().contains("127.0.0.1") || addr.to_string().contains("/::1/")
+            }) // Prefer loopback
+            .unwrap_or_else(|| {
+                node1_addrs
+                    .first()
+                    .expect("Node 1 has no listen addresses at all")
+            })
             .clone();
-        println!("Node 1 chosen listen address for Kademlia bootstrap: {}", node1_listen_addr_for_kad);
+        println!(
+            "Node 1 chosen listen address for Kademlia bootstrap: {}",
+            node1_listen_addr_for_kad
+        );
 
         // Node 2 Setup
         let mut config2 = NetworkConfig::default();
@@ -38,10 +54,10 @@ mod kademlia_peer_discovery_tests {
             .expect("Node 2 failed to start");
         let node2_libp2p_peer_id = node2_service.local_peer_id().clone();
         println!("Node 2 Libp2p Peer ID: {}", node2_libp2p_peer_id);
-        
+
         // Allow time for Node 2 to establish listeners and connect to Node 1
         println!("Allowing Node 2 to initialize and connect (5 seconds)...");
-        sleep(Duration::from_secs(5)).await; 
+        sleep(Duration::from_secs(5)).await;
 
         // Allow time for connections to establish
         println!("Allowing time for connection (5 seconds)...");
@@ -60,8 +76,8 @@ mod kademlia_peer_discovery_tests {
 #[cfg(feature = "experimental-libp2p")]
 mod kademlia_three_node_tests {
     use icn_network::libp2p_service::{Libp2pNetworkService, NetworkConfig};
-    use std::time::Duration;
     use icn_network::NetworkService;
+    use std::time::Duration;
     use tokio::time::sleep;
 
     #[tokio::test]

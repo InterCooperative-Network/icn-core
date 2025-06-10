@@ -390,7 +390,7 @@ mod tests {
         store.put(&block_persist).unwrap();
         drop(store);
 
-        let mut store2 = sled_store::SledDagStore::new(dir.path().to_path_buf()).unwrap();
+        let store2 = sled_store::SledDagStore::new(dir.path().to_path_buf()).unwrap();
         assert!(store2.get(&block_persist.cid).unwrap().is_some());
     }
 
