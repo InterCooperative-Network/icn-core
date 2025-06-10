@@ -23,6 +23,18 @@ The API style emphasizes:
 *   **Efficiency:** Optimal use of network resources for job execution.
 *   **Extensibility:** Allowing different types of jobs and scheduling algorithms to be supported.
 
+## Scoring Algorithm & Reputation
+
+Job bids are evaluated by `select_executor`, which calls `score_bid` for each
+bid. The score is a weighted combination of the bid price, the executor's
+advertised performance, and a reputation value supplied by the reputation
+module. The bid with the highest score is chosen as the executor.
+
+The reputation module monitors execution receipts and updates each executor's
+score over time. `select_executor` queries this module (via the
+`ReputationExecutorSelector` helper) so that nodes with proven reliability are
+favored in future selections.
+
 ## Contributing
 
 Contributions are welcome! Please see the main [CONTRIBUTING.md](../../CONTRIBUTING.md) in the root of the `icn-core` repository for guidelines.

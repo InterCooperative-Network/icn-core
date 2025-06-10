@@ -34,6 +34,24 @@ The `StubNetworkService` also simulates these errors to help test error handling
 
 This crate includes an optional `experimental-libp2p` feature. Enabling it pulls in the optional `libp2p` and `libp2p-request-response` dependencies, allowing for the implementation of a `NetworkService` backed by a real libp2p stack.
 
+## Kademlia DHT
+
+When compiled with the `experimental-libp2p` feature, the network layer exposes
+basic Kademlia distributed hash table (DHT) functionality. This allows nodes to
+store small records in the DHT and to discover peers through the standard
+libp2p Kademlia protocol.
+
+Kademlia commands are disabled in the stub service and only become available in
+the `Libp2pNetworkService` when the feature flag is enabled. Be sure to compile
+with:
+
+```bash
+cargo build --features experimental-libp2p
+```
+
+to use the `get_kademlia_record` and `put_kademlia_record` APIs as well as peer
+discovery via the DHT.
+
 ## Public API Style
 
 This crate provides: 
