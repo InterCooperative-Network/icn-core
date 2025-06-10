@@ -14,6 +14,7 @@ icn-economics = { path = "../icn-economics" }
 icn-mesh = { path = "../icn-mesh" }
 icn-network = { path = "../icn-network", features = ["experimental-libp2p"] }
 icn-dag = { path = "../icn-dag" }
+icn-governance = { path = "../icn-governance", default-features = false }
 
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -35,6 +36,7 @@ wat = "1.0"
 default = []
 # TODO: Define features if needed, e.g., for different execution environments or optional components.
 enable-libp2p = ["dep:libp2p"]
+persist-sled = ["icn-governance/persist-sled"]
 
 # Integration tests for cross-node functionality
 [[test]]

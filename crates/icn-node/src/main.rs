@@ -427,137 +427,105 @@ struct CidRequest {
 
 // POST /governance/submit – Submit a proposal. (Body: SubmitProposalRequest JSON)
 async fn gov_submit_handler(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Json(request): Json<ApiSubmitProposalRequest>,
 ) -> impl IntoResponse {
     debug!("Received /governance/submit request: {:?}", request);
-    // TODO: Governance operations need to be implemented in RuntimeContext
-    map_rust_error_to_json_response(
-        "Governance operations not yet implemented",
-        StatusCode::NOT_IMPLEMENTED,
-    )
-    .into_response()
 
-    /* TODO: Uncomment when governance methods are implemented
-    let mut gov_mod = state.runtime_context.governance_module.lock().await;
-
-    let proposer_did: Did = match request.proposer_did.parse() {
-        Ok(did) => did,
-        Err(e) => return map_rust_error_to_json_response(e, StatusCode::BAD_REQUEST).into_response(),
-    };
-
-    if proposer_did != state.runtime_context.current_identity {
-        warn!("Gov submit by {} but context identity is {}. Allowing for now.", proposer_did, state.runtime_context.current_identity);
-    }
-
-    let proposal_type: icn_governance::ProposalType = match request.proposal {
+    let (ptype_str, payload_bytes) = match request.proposal.clone() {
         icn_api::governance_trait::ProposalInputType::SystemParameterChange { param, value } => {
-            icn_governance::ProposalType::SystemParameterChange(param, value)
+            ("SystemParameterChange".to_string(), serde_json::to_vec(&(param, value)).unwrap())
         }
         icn_api::governance_trait::ProposalInputType::MemberAdmission { did } => {
-            match Did::from_str(&did) {
-                Ok(parsed_did) => icn_governance::ProposalType::NewMemberInvitation(parsed_did),
-                Err(e) => return map_rust_error_to_json_response(format!("Failed to parse MemberAdmission DID: {}", e), StatusCode::BAD_REQUEST).into_response(),
-            }
+            ("MemberAdmission".to_string(), did.into_bytes())
         }
         icn_api::governance_trait::ProposalInputType::SoftwareUpgrade { version } => {
-            icn_governance::ProposalType::SoftwareUpgrade(version)
+            ("SoftwareUpgrade".to_string(), version.into_bytes())
         }
         icn_api::governance_trait::ProposalInputType::GenericText { text } => {
-            icn_governance::ProposalType::GenericText(text)
+            ("GenericText".to_string(), text.into_bytes())
         }
     };
 
-    match (*gov_mod).submit_proposal(
-        proposer_did,
-        proposal_type,
-        request.description,
-        request.duration_secs,
-    ) {
-        Ok(proposal_id) => (StatusCode::CREATED, Json(proposal_id)).into_response(),
+    let payload = icn_runtime::context::CreateProposalPayload {
+        proposal_type_str: ptype_str,
+        type_specific_payload: payload_bytes,
+        description: request.description,
+        duration_secs: request.duration_secs,
+    };
+
+    let payload_json = match serde_json::to_string(&payload) {
+        Ok(j) => j,
+        Err(e) => {
+            return map_rust_error_to_json_response(
+                format!("Failed to serialize proposal payload: {}", e),
+                StatusCode::BAD_REQUEST,
+            )
+            .into_response();
+        }
+    };
+
+    match icn_runtime::host_create_governance_proposal(&state.runtime_context, &payload_json).await {
+        Ok(id_str) => {
+            (StatusCode::CREATED, Json(icn_governance::ProposalId(id_str))).into_response()
+        }
         Err(e) => map_rust_error_to_json_response(format!("Governance submit error: {}", e), StatusCode::BAD_REQUEST).into_response(),
     }
-    */
 }
+
 
 // POST /governance/vote – Cast a vote. (Body: CastVoteRequest JSON)
 async fn gov_vote_handler(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Json(request): Json<ApiCastVoteRequest>,
 ) -> impl IntoResponse {
     debug!("Received /governance/vote request: {:?}", request);
-    // TODO: Governance operations need to be implemented in RuntimeContext
-    map_rust_error_to_json_response(
-        "Governance operations not yet implemented",
-        StatusCode::NOT_IMPLEMENTED,
-    )
-    .into_response()
 
-    /* TODO: Uncomment when governance methods are implemented
-    let mut gov_mod = state.runtime_context.governance_module.lock().await;
-
-    let voter_did: Did = match request.voter_did.parse() {
-        Ok(did) => did,
-        Err(e) => return map_rust_error_to_json_response(e, StatusCode::BAD_REQUEST).into_response(),
+    let payload = icn_runtime::context::CastVotePayload {
+        proposal_id_str: request.proposal_id,
+        vote_option_str: request.vote_option,
     };
 
-    if voter_did != state.runtime_context.current_identity {
-        warn!("Gov vote by {} but context identity is {}. Allowing for now.", voter_did, state.runtime_context.current_identity);
-    }
-
-    let proposal_id = ProposalId(request.proposal_id.clone());
-    let vote_option = match request.vote_option.to_lowercase().as_str() {
-        "yes" => VoteOption::Yes,
-        "no" => VoteOption::No,
-        "abstain" => VoteOption::Abstain,
-        _ => return map_rust_error_to_json_response("Invalid vote option", StatusCode::BAD_REQUEST).into_response(),
+    let payload_json = match serde_json::to_string(&payload) {
+        Ok(j) => j,
+        Err(e) => {
+            return map_rust_error_to_json_response(
+                format!("Failed to serialize vote payload: {}", e),
+                StatusCode::BAD_REQUEST,
+            )
+            .into_response();
+        }
     };
 
-    match (*gov_mod).cast_vote(voter_did, proposal_id, vote_option) {
-        Ok(_) => (StatusCode::OK, Json("Vote cast successfully")).into_response(),
-        Err(e) => map_rust_error_to_json_response(format!("Governance vote error: {}",e), StatusCode::BAD_REQUEST).into_response(),
+    match icn_runtime::host_cast_governance_vote(&state.runtime_context, &payload_json).await {
+        Ok(_) => (StatusCode::OK, Json("Vote cast successfully".to_string())).into_response(),
+        Err(e) => map_rust_error_to_json_response(format!("Governance vote error: {}", e), StatusCode::BAD_REQUEST).into_response(),
     }
-    */
 }
 
 // GET /governance/proposals
-async fn gov_list_proposals_handler(State(_state): State<AppState>) -> impl IntoResponse {
+async fn gov_list_proposals_handler(State(state): State<AppState>) -> impl IntoResponse {
     debug!("Received /governance/proposals request");
-    // TODO: Governance operations need to be implemented in RuntimeContext
-    map_rust_error_to_json_response(
-        "Governance operations not yet implemented",
-        StatusCode::NOT_IMPLEMENTED,
-    )
-    .into_response()
-
-    /* TODO: Uncomment when governance methods are implemented
     let gov_mod = state.runtime_context.governance_module.lock().await;
-    let proposals = (*gov_mod).get_all_proposals();
-    (StatusCode::OK, Json(proposals))
-    */
+    match gov_mod.list_proposals() {
+        Ok(props) => (StatusCode::OK, Json(props)).into_response(),
+        Err(e) => map_rust_error_to_json_response(format!("Governance list error: {}", e), StatusCode::BAD_REQUEST).into_response(),
+    }
 }
 
 // GET /governance/proposal/:proposal_id
 async fn gov_get_proposal_handler(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     AxumPath(proposal_id_str): AxumPath<String>,
 ) -> impl IntoResponse {
     debug!("Received /governance/proposal/{} request", proposal_id_str);
-    // TODO: Governance operations need to be implemented in RuntimeContext
-    map_rust_error_to_json_response(
-        "Governance operations not yet implemented",
-        StatusCode::NOT_IMPLEMENTED,
-    )
-    .into_response()
-
-    /* TODO: Uncomment when governance methods are implemented
     let gov_mod = state.runtime_context.governance_module.lock().await;
-    let proposal_id = ProposalId(proposal_id_str);
-    match (*gov_mod).get_proposal(&proposal_id) {
-        Some(proposal) => (StatusCode::OK, Json(proposal)).into_response(),
-        None => map_rust_error_to_json_response("Proposal not found", StatusCode::NOT_FOUND).into_response(),
+    let pid = icn_governance::ProposalId(proposal_id_str);
+    match gov_mod.get_proposal(&pid) {
+        Ok(Some(prop)) => (StatusCode::OK, Json(prop)).into_response(),
+        Ok(None) => map_rust_error_to_json_response("Proposal not found", StatusCode::NOT_FOUND).into_response(),
+        Err(e) => map_rust_error_to_json_response(format!("Governance get error: {}", e), StatusCode::BAD_REQUEST).into_response(),
     }
-    */
 }
 
 // --- Mesh Job Endpoints ---

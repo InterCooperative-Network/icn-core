@@ -299,6 +299,30 @@ pub async fn host_anchor_receipt(
     Ok(anchored_cid)
 }
 
+/// Creates a governance proposal using the runtime context.
+pub async fn host_create_governance_proposal(ctx: &RuntimeContext, payload_json: &str) -> Result<String, HostAbiError> {
+    let payload: context::CreateProposalPayload = serde_json::from_str(payload_json)
+        .map_err(|e| HostAbiError::InvalidParameters(format!("Failed to parse CreateProposalPayload JSON: {}", e)))?;
+    ctx.create_governance_proposal(payload).await
+}
+
+/// Casts a governance vote using the runtime context.
+pub async fn host_cast_governance_vote(ctx: &RuntimeContext, payload_json: &str) -> Result<(), HostAbiError> {
+    let payload: context::CastVotePayload = serde_json::from_str(payload_json)
+        .map_err(|e| HostAbiError::InvalidParameters(format!("Failed to parse CastVotePayload JSON: {}", e)))?;
+    ctx.cast_governance_vote(payload).await
+}
+
+/// Closes voting on a governance proposal. Currently not implemented.
+pub async fn host_close_governance_proposal_voting(ctx: &RuntimeContext, proposal_id: &str) -> Result<String, HostAbiError> {
+    ctx.close_governance_proposal_voting(proposal_id).await
+}
+
+/// Executes an accepted governance proposal. Currently not implemented.
+pub async fn host_execute_governance_proposal(ctx: &RuntimeContext, proposal_id: &str) -> Result<(), HostAbiError> {
+    ctx.execute_governance_proposal(proposal_id).await
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
