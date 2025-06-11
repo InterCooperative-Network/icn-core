@@ -68,6 +68,7 @@ pub enum NetworkMessage {
     JobAssignmentNotification(JobId, Did),
     SubmitReceipt(ExecutionReceipt),
     ProposalAnnouncement(Vec<u8>),
+    VoteAnnouncement(Vec<u8>),
 }
 
 impl NetworkMessage {
@@ -82,6 +83,7 @@ impl NetworkMessage {
             NetworkMessage::JobAssignmentNotification(_, _) => "JobAssignmentNotification",
             NetworkMessage::SubmitReceipt(_) => "SubmitReceipt",
             NetworkMessage::ProposalAnnouncement(_) => "ProposalAnnouncement",
+            NetworkMessage::VoteAnnouncement(_) => "VoteAnnouncement",
         }
     }
 }

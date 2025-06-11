@@ -44,3 +44,8 @@ persist-sled = ["icn-governance/persist-sled"]
 name = "cross_node_job_execution"
 path = "tests/cross_node_job_execution.rs"
 required-features = ["enable-libp2p"]
+
+[[test]]
+name = "cross_node_governance"
+path = "tests/integration/cross_node_governance.rs"
+required-features = ["enable-libp2p"]
