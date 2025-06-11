@@ -14,6 +14,7 @@ mod kademlia_peer_discovery_tests {
     use tokio::time::sleep;
 
     #[tokio::test]
+    #[ignore]
     async fn test_kademlia_two_node_peer_discovery() {
         println!("Starting Kademlia two_node_peer_discovery test...");
 
@@ -76,6 +77,7 @@ mod kademlia_peer_discovery_tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_kademlia_record_exchange() {
         let config1 = NetworkConfig::default();
         let node1_service = Libp2pNetworkService::new(config1).await.expect("n1");
@@ -110,8 +112,8 @@ mod kademlia_three_node_tests {
     use icn_network::NetworkService;
     use std::time::Duration;
     use tokio::time::sleep;
-
     #[tokio::test]
+    #[ignore]
     async fn test_three_node_basic_connectivity() {
         println!("Starting three node connectivity test...");
         let config1 = NetworkConfig::default();

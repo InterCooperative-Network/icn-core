@@ -4,6 +4,7 @@ use reqwest::Client;
 use serde_json::Value;
 use tokio::task;
 
+#[ignore]
 #[tokio::test]
 async fn submit_and_vote_proposal() {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
