@@ -9,16 +9,16 @@ The InterCooperative Network is envisioned as a decentralized network fostering 
 
 ## Current Project Status (MVP - Functional Protocol Stack)
 
-The project has achieved a significant milestone, delivering an MVP with a functional, albeit stubbed, protocol stack. Key features include:
+The project has achieved a significant milestone, delivering an MVP with a functional protocol stack powered by a real libp2p mesh. Key features include:
 
 *   **Modular Crate Structure:** Well-defined crates for common types (`icn-common`), API definitions (`icn-api`), DAG L1 logic (`icn-dag`), identity placeholders (`icn-identity`), networking abstractions (`icn-network`), a node runner (`icn-node`), a CLI (`icn-cli`), and the Cooperative Contract Language compiler (`icn-ccl`, located at the repository root outside `crates/`).
 *   **Real Protocol Data Models:** Core data types like DIDs, CIDs, DagBlocks, Transactions, and NodeStatus are defined in `icn-common` and utilize `serde` for serialization.
 *   **In-Memory DAG Store:** `icn-dag` provides a basic in-memory L1 DAG block store (`put_block`, `get_block`).
 *   **API Layer:** `icn-api` exposes functions for node interaction (info, status) and DAG operations (submit, retrieve blocks).
 *   **Node & CLI Prototypes:**
-    *   `icn-node`: A binary that demonstrates the integration of API, DAG, and network components. It shows how to get node status, submit/retrieve DAG blocks, and perform stubbed network operations like peer discovery and message broadcasting/sending.
-    *   `icn-cli`: A command-line tool to interact with the node via the API. It supports commands for node info/status, DAG put/get, and now includes **stubbed network operations** (`network discover-peers`, `network send-message`).
-*   **Stubbed Networking Layer:** `icn-network` defines a `NetworkService` trait, `NetworkMessage` enum (now serializable), and a `StubNetworkService` for simulated P2P interactions.
+    *   `icn-node`: A binary that demonstrates the integration of API, DAG, and networking components. When compiled with `with-libp2p` and started with `--enable-p2p`, it joins the libp2p mesh, discovers peers, and exchanges messages via gossipsub.
+    *   `icn-cli`: A command-line tool to interact with the node via the API for DAG and governance operations.
+*   **P2P Mesh Networking:** `icn-network` integrates libp2p with Kademlia peer discovery and Gossipsub for reliable message propagation.
 *   **Refined Error Handling:** Comprehensive error handling is implemented across all layers. Functions return `Result<T, CommonError>`, using specific error variants defined in `icn-common`. The CLI and Node applications now handle these errors more gracefully, providing better user feedback and exiting with appropriate status codes.
 *   **Repository Hygiene:** Includes `LICENSE` (Apache 2.0), `CODE_OF_CONDUCT.md`, `CONTRIBUTING.md`, `SECURITY.md`, `.editorconfig`, `rust-toolchain.toml`, issue templates, and a `CHANGELOG.md`.
 
@@ -42,22 +42,36 @@ Refer to `docs/ONBOARDING.md` for detailed instructions on prerequisites, setup,
 ### Quick CLI Examples:
 
 ```bash
-# Build all crates (from the icn-core workspace root)
-cargo build
+# Build with libp2p support (from the workspace root)
+cargo build --features with-libp2p
 
-# Run the CLI (examples)
+# Start a node with persistent storage and P2P enabled
+./target/debug/icn-node \
+  --enable-p2p \
+  --p2p-listen-addr /ip4/0.0.0.0/tcp/4001 \
+  --storage-backend sqlite \
+  --storage-path ./icn_data/node1.sqlite
+
+# In a second terminal start another node connecting to the first
+./target/debug/icn-node \
+  --enable-p2p \
+  --p2p-listen-addr /ip4/0.0.0.0/tcp/4002 \
+  --bootstrap-peers /ip4/127.0.0.1/tcp/4001/p2p/<PEER_ID> \
+  --storage-backend sqlite \
+  --storage-path ./icn_data/node2.sqlite
+
+# Interact with a node via the CLI
 ./target/debug/icn-cli info
 ./target/debug/icn-cli status
-./target/debug/icn-cli status offline # Test error path
-
-# DAG operations (requires valid JSON for DagBlock and Cid)
-./target/debug/icn-cli dag put '{"cid":{"version":1,"codec":113,"hash_alg":18,"hash_bytes":[...]},"data":[...],"links":[]}'
-./target/debug/icn-cli dag get '{"version":1,"codec":113,"hash_alg":18,"hash_bytes":[...]}'
-
-# Network operations (stubbed)
-./target/debug/icn-cli network discover-peers
-./target/debug/icn-cli network send-message mock_peer_1 '{"RequestBlock":{"version":1,"codec":112,"hash_alg":18,"hash_bytes":[100,97,116,97]}}'
 ```
+
+### Enabling Peer Discovery and Persistent Storage
+
+1. **Compile with libp2p support** using `cargo build --features with-libp2p`.
+2. Start each node with `--enable-p2p` and a unique `--p2p-listen-addr`.
+3. Provide known peers via `--bootstrap-peers` to join an existing mesh.
+4. Use `--storage-backend sqlite` or `file` with a dedicated `--storage-path` to
+   persist DAG blocks and governance state across restarts.
 
 ## Error Handling Philosophy
 
