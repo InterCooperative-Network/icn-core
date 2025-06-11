@@ -29,16 +29,20 @@ impl FileManaLedger {
             file.read_to_string(&mut contents).map_err(|e| {
                 CommonError::IoError(format!("Failed to read mana ledger file {path:?}: {e}"))
             })?;
-            let ledger: LedgerFileFormat = serde_json::from_str(&contents).map_err(|e| {
-                CommonError::DeserializationError(format!(
-                    "Failed to parse mana ledger {path:?}: {e}"
-                ))
-            })?;
-            ledger
-                .balances
-                .into_iter()
-                .filter_map(|(k, v)| Did::from_str(&k).ok().map(|did| (did, v)))
-                .collect()
+            if contents.trim().is_empty() {
+                HashMap::new()
+            } else {
+                let ledger: LedgerFileFormat = serde_json::from_str(&contents).map_err(|e| {
+                    CommonError::DeserializationError(format!(
+                        "Failed to parse mana ledger {path:?}: {e}"
+                    ))
+                })?;
+                ledger
+                    .balances
+                    .into_iter()
+                    .filter_map(|(k, v)| Did::from_str(&k).ok().map(|did| (did, v)))
+                    .collect()
+            }
         } else {
             HashMap::new()
         };
@@ -108,5 +112,23 @@ impl FileManaLedger {
         drop(balances);
         self.persist()
             .map_err(|e| EconError::AdapterError(format!("{e}")))
+    }
+}
+
+impl crate::ManaLedger for FileManaLedger {
+    fn get_balance(&self, did: &Did) -> u64 {
+        FileManaLedger::get_balance(self, did)
+    }
+
+    fn set_balance(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
+        FileManaLedger::set_balance(self, did, amount)
+    }
+
+    fn spend(&self, did: &Did, amount: u64) -> Result<(), EconError> {
+        FileManaLedger::spend(self, did, amount)
+    }
+
+    fn credit(&self, did: &Did, amount: u64) -> Result<(), EconError> {
+        FileManaLedger::credit(self, did, amount)
     }
 }

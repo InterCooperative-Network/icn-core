@@ -49,7 +49,10 @@ mod cross_node_tests {
         
         // Set initial mana for the identity
         let identity = Did::from_str(&identity_str)?;
-        ctx.mana_ledger.set_balance(&identity, initial_mana).await;
+        ctx
+            .mana_ledger
+            .set_balance(&identity, initial_mana)
+            .expect("init mana");
         
         Ok(ctx)
     }

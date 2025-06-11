@@ -11,8 +11,9 @@ This guide explains how to set up and run a local multi-node InterCooperative Ne
     cargo build --package icn-node --features with-libp2p
     ```
 2.  **Understanding CLI Arguments**: Familiarize yourself with the `icn-node` CLI arguments. Key arguments for multi-node setups include:
-    *   `--storage-backend file`: To ensure each node has persistent, independent storage.
-    *   `--storage-path <PATH>`: Unique path for each node's data (e.g., `./node1_data`, `./node2_data`).
+    *   `--storage-backend file`: Store DAG blocks on disk using simple files.
+    *   `--storage-backend sqlite`: Persist DAG blocks in a SQLite database (requires the `persist-sqlite` feature).
+    *   `--storage-path <PATH>`: Unique path for each node's data (e.g., `./node1_data`, `./node2_data`). The mana ledger file `mana_ledger.json` will be stored here.
     *   `--network-backend libp2p`: Essential for actual P2P communication.
     *   `--listen-address <MULTIADDR>` (Future): Will specify the network address each node listens on (e.g., `/ip4/127.0.0.1/tcp/6001`).
     *   `--bootstrap-peers <MULTIADDR_LIST>` (Future): Comma-separated list of multiaddresses of other peers to connect to for discovery.

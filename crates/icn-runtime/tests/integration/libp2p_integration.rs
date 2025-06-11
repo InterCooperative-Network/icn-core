@@ -34,7 +34,10 @@ mod libp2p_integration_tests {
         
         // Test basic mana operations still work
         let identity = Did::from_str(node_identity).unwrap();
-        ctx.mana_ledger.set_balance(&identity, 1000).await;
+        ctx
+            .mana_ledger
+            .set_balance(&identity, 1000)
+            .expect("init mana");
         
         let balance = ctx.get_mana(&identity).await;
         assert!(balance.is_ok(), "Failed to get mana balance: {:?}", balance.err());

@@ -9,11 +9,15 @@ use downcast_rs::{impl_downcast, DowncastSync};
 use icn_network::libp2p_service::Libp2pNetworkService as ActualLibp2pNetworkService;
 use icn_network::{NetworkMessage, NetworkService as ActualNetworkService};
 
+use icn_economics::{EconError, FileManaLedger};
 use log::{debug, error, info, warn};
 use std::collections::{HashMap, VecDeque};
+use std::path::PathBuf;
 use std::sync::atomic::AtomicU32;
 use std::sync::Arc;
 use std::time::{Duration as StdDuration, Instant as StdInstant};
+#[cfg(test)]
+use tempfile;
 use tokio::sync::Mutex as TokioMutex;
 
 use async_trait::async_trait;
@@ -73,42 +77,45 @@ pub trait ManaRepository: Send + Sync + std::fmt::Debug {
     // async fn credit_mana(&self, account: &Did, amount: u64) -> Result<(), EconError>;
 }
 
-// Placeholder for icn_economics::SimpleManaLedger
+/// Simple wrapper around [`FileManaLedger`] for use inside the runtime.
 #[derive(Debug, Clone)]
 pub struct SimpleManaLedger {
-    balances: Arc<TokioMutex<HashMap<Did, u64>>>,
+    ledger: Arc<FileManaLedger>,
 }
 
 impl SimpleManaLedger {
-    pub fn new() -> Self {
+    /// Create a new ledger at the given path. Panics if the ledger cannot be
+    /// initialized.
+    pub fn new(path: PathBuf) -> Self {
+        let ledger = FileManaLedger::new(path)
+            .unwrap_or_else(|e| panic!("Failed to create mana ledger: {e}"));
         Self {
-            balances: Arc::new(TokioMutex::new(HashMap::new())),
+            ledger: Arc::new(ledger),
         }
     }
-    pub async fn get_balance(&self, account: &Did) -> Option<u64> {
-        let balances = self.balances.lock().await;
-        balances.get(account).cloned()
+
+    pub fn get_balance(&self, account: &Did) -> u64 {
+        self.ledger.get_balance(account)
     }
-    pub async fn set_balance(&self, account: &Did, amount: u64) {
-        let mut balances = self.balances.lock().await;
-        balances.insert(account.clone(), amount);
+
+    pub fn set_balance(&self, account: &Did, amount: u64) -> Result<(), HostAbiError> {
+        self.ledger
+            .set_balance(account, amount)
+            .map_err(HostAbiError::Common)
     }
-    pub async fn spend(&self, account: &Did, amount: u64) -> Result<(), HostAbiError> {
-        let mut balances = self.balances.lock().await;
-        let balance = balances
-            .get_mut(account)
-            .ok_or_else(|| HostAbiError::AccountNotFound(account.clone()))?;
-        if *balance < amount {
-            return Err(HostAbiError::InsufficientMana);
+
+    pub fn spend(&self, account: &Did, amount: u64) -> Result<(), HostAbiError> {
+        match self.ledger.spend(account, amount) {
+            Ok(()) => Ok(()),
+            Err(EconError::InsufficientBalance(_)) => Err(HostAbiError::InsufficientMana),
+            Err(e) => Err(HostAbiError::InternalError(format!("{e:?}"))),
         }
-        *balance -= amount;
-        Ok(())
     }
-    pub async fn credit(&self, account: &Did, amount: u64) -> Result<(), HostAbiError> {
-        let mut balances = self.balances.lock().await;
-        let balance = balances.entry(account.clone()).or_insert(0);
-        *balance += amount;
-        Ok(())
+
+    pub fn credit(&self, account: &Did, amount: u64) -> Result<(), HostAbiError> {
+        self.ledger
+            .credit(account, amount)
+            .map_err(|e| HostAbiError::InternalError(format!("{e:?}")))
     }
 }
 
@@ -469,7 +476,7 @@ impl RuntimeContext {
 
         Arc::new(Self {
             current_identity,
-            mana_ledger: SimpleManaLedger::new(),
+            mana_ledger: SimpleManaLedger::new(PathBuf::from("./mana_ledger.json")),
             pending_mesh_jobs,
             job_states,
             governance_module,
@@ -536,7 +543,9 @@ impl RuntimeContext {
             Arc::new(StubSigner::new()),
             Arc::new(StubDagStore::new()),
         );
-        futures::executor::block_on(ctx.mana_ledger.set_balance(&current_identity, initial_mana));
+        ctx.mana_ledger
+            .set_balance(&current_identity, initial_mana)
+            .expect("set initial mana");
         ctx
     }
 
@@ -845,10 +854,7 @@ impl RuntimeContext {
 
     pub async fn get_mana(&self, account: &Did) -> Result<u64, HostAbiError> {
         println!("[CONTEXT] get_mana called for account: {:?}", account);
-        self.mana_ledger
-            .get_balance(account)
-            .await
-            .ok_or_else(|| HostAbiError::AccountNotFound(account.clone()))
+        Ok(self.mana_ledger.get_balance(account))
     }
 
     pub async fn spend_mana(&self, account: &Did, amount: u64) -> Result<(), HostAbiError> {
@@ -862,7 +868,7 @@ impl RuntimeContext {
                     .to_string(),
             ));
         }
-        self.mana_ledger.spend(account, amount).await
+        self.mana_ledger.spend(account, amount)
     }
 
     pub async fn credit_mana(&self, account: &Did, amount: u64) -> Result<(), HostAbiError> {
@@ -870,7 +876,7 @@ impl RuntimeContext {
             "[CONTEXT] credit_mana called for account: {:?} amount: {}",
             account, amount
         );
-        self.mana_ledger.credit(account, amount).await
+        self.mana_ledger.credit(account, amount)
     }
 
     /// Anchors an execution receipt to the DAG store and returns the content identifier (CID).
@@ -1153,6 +1159,7 @@ impl RuntimeContext {
 }
 
 // --- Supporting: RuntimeContext::new_for_test ---
+#[cfg(test)]
 impl RuntimeContext {
     pub fn new_for_test(
         current_identity: Did,
@@ -1162,7 +1169,8 @@ impl RuntimeContext {
     ) -> Arc<Self> {
         let job_states = Arc::new(TokioMutex::new(HashMap::new()));
         let pending_mesh_jobs = Arc::new(TokioMutex::new(VecDeque::new()));
-        let mana_ledger = SimpleManaLedger::new();
+        let temp_dir = tempfile::tempdir().expect("temp dir for mana ledger");
+        let mana_ledger = SimpleManaLedger::new(temp_dir.path().join("mana.json"));
         #[cfg(feature = "persist-sled")]
         let governance_module = Arc::new(TokioMutex::new(
             GovernanceModule::new_sled(std::path::PathBuf::from("./governance_db_test"))

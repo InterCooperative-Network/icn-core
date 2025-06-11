@@ -300,26 +300,44 @@ pub async fn host_anchor_receipt(
 }
 
 /// Creates a governance proposal using the runtime context.
-pub async fn host_create_governance_proposal(ctx: &RuntimeContext, payload_json: &str) -> Result<String, HostAbiError> {
-    let payload: context::CreateProposalPayload = serde_json::from_str(payload_json)
-        .map_err(|e| HostAbiError::InvalidParameters(format!("Failed to parse CreateProposalPayload JSON: {}", e)))?;
+pub async fn host_create_governance_proposal(
+    ctx: &RuntimeContext,
+    payload_json: &str,
+) -> Result<String, HostAbiError> {
+    let payload: context::CreateProposalPayload =
+        serde_json::from_str(payload_json).map_err(|e| {
+            HostAbiError::InvalidParameters(format!(
+                "Failed to parse CreateProposalPayload JSON: {}",
+                e
+            ))
+        })?;
     ctx.create_governance_proposal(payload).await
 }
 
 /// Casts a governance vote using the runtime context.
-pub async fn host_cast_governance_vote(ctx: &RuntimeContext, payload_json: &str) -> Result<(), HostAbiError> {
-    let payload: context::CastVotePayload = serde_json::from_str(payload_json)
-        .map_err(|e| HostAbiError::InvalidParameters(format!("Failed to parse CastVotePayload JSON: {}", e)))?;
+pub async fn host_cast_governance_vote(
+    ctx: &RuntimeContext,
+    payload_json: &str,
+) -> Result<(), HostAbiError> {
+    let payload: context::CastVotePayload = serde_json::from_str(payload_json).map_err(|e| {
+        HostAbiError::InvalidParameters(format!("Failed to parse CastVotePayload JSON: {}", e))
+    })?;
     ctx.cast_governance_vote(payload).await
 }
 
 /// Closes voting on a governance proposal. Currently not implemented.
-pub async fn host_close_governance_proposal_voting(ctx: &RuntimeContext, proposal_id: &str) -> Result<String, HostAbiError> {
+pub async fn host_close_governance_proposal_voting(
+    ctx: &RuntimeContext,
+    proposal_id: &str,
+) -> Result<String, HostAbiError> {
     ctx.close_governance_proposal_voting(proposal_id).await
 }
 
 /// Executes an accepted governance proposal. Currently not implemented.
-pub async fn host_execute_governance_proposal(ctx: &RuntimeContext, proposal_id: &str) -> Result<(), HostAbiError> {
+pub async fn host_execute_governance_proposal(
+    ctx: &RuntimeContext,
+    proposal_id: &str,
+) -> Result<(), HostAbiError> {
     ctx.execute_governance_proposal(proposal_id).await
 }
 
@@ -365,9 +383,9 @@ mod tests {
     fn create_test_context_with_mana(initial_mana: u64) -> Arc<RuntimeContext> {
         let ctx = create_test_context();
         let test_did = Did::from_str(TEST_IDENTITY_DID_STR).unwrap();
-        futures::executor::block_on(async {
-            ctx.mana_ledger.set_balance(&test_did, initial_mana).await;
-        });
+        ctx.mana_ledger
+            .set_balance(&test_did, initial_mana)
+            .expect("set initial mana");
         ctx
     }
 
@@ -590,7 +608,9 @@ mod tests {
         let other_account_id = OTHER_IDENTITY_DID_STR;
 
         let other_did = Did::from_str(other_account_id).unwrap();
-        futures::executor::block_on(ctx.mana_ledger.set_balance(&other_did, 50));
+        ctx.mana_ledger
+            .set_balance(&other_did, 50)
+            .expect("set mana for other did");
 
         let spend_amount = 10u64;
         let result = host_account_spend_mana(&mut ctx, other_account_id, spend_amount).await;
