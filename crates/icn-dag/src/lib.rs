@@ -16,6 +16,8 @@ use std::sync::Mutex; // For basic interior mutability for the global store // F
 
 #[cfg(feature = "persist-sled")]
 pub mod sled_store;
+#[cfg(feature = "persist-sqlite")]
+pub mod sqlite_store;
 
 // --- Storage Service Trait ---
 
@@ -391,6 +393,22 @@ mod tests {
         drop(store);
 
         let store2 = sled_store::SledDagStore::new(dir.path().to_path_buf()).unwrap();
+        assert!(store2.get(&block_persist.cid).unwrap().is_some());
+    }
+
+    #[cfg(feature = "persist-sqlite")]
+    #[test]
+    fn test_sqlite_dag_store_service() {
+        let dir = tempdir().unwrap();
+        let db_path = dir.path().join("dag.sqlite");
+        let mut store = sqlite_store::SqliteDagStore::new(db_path.clone()).unwrap();
+        test_storage_service_suite(&mut store);
+
+        let block_persist = create_test_block("persistent_block_sqlite");
+        store.put(&block_persist).unwrap();
+        drop(store);
+
+        let store2 = sqlite_store::SqliteDagStore::new(db_path).unwrap();
         assert!(store2.get(&block_persist.cid).unwrap().is_some());
     }
 

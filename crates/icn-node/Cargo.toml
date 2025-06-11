@@ -25,6 +25,7 @@ tower = { version = "0.4", features = ["full"] }
 hex = "0.4"
 bs58 = "0.5"
 libp2p = { version = "0.53.2", optional = true }
+async-trait = "0.1"
 
 [features]
 default = ["icn-network/default"]

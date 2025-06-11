@@ -18,7 +18,10 @@
 use icn_api::governance_trait::{
     CastVoteRequest as ApiCastVoteRequest, SubmitProposalRequest as ApiSubmitProposalRequest,
 };
+use icn_common::DagBlock as CoreDagBlock;
 use icn_common::{parse_cid_from_string, Cid, Did, NodeInfo, NodeStatus, ICN_CORE_VERSION};
+use icn_dag::sqlite_store::SqliteDagStore;
+use icn_dag::{self, FileDagStore, InMemoryDagStore};
 use icn_identity::{
     did_key_from_verifying_key, generate_ed25519_keypair,
     ExecutionReceipt as IdentityExecutionReceipt, SignatureBytes,
@@ -30,6 +33,7 @@ use icn_runtime::context::{
 };
 use icn_runtime::{host_anchor_receipt, host_submit_mesh_job, ReputationUpdater};
 
+use async_trait::async_trait;
 use axum::{
     extract::{Path as AxumPath, State},
     http::StatusCode,
@@ -45,7 +49,7 @@ use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::str::FromStr;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 #[cfg(feature = "enable-libp2p")]
 use libp2p::{Multiaddr, PeerId as Libp2pPeerId};
@@ -121,12 +125,56 @@ struct Cli {
 enum StorageBackendType {
     Memory,
     File,
+    Sqlite,
+}
+
+#[derive(Debug)]
+struct DagStoreAdapter<S: icn_dag::StorageService<CoreDagBlock> + Send + std::fmt::Debug> {
+    inner: Mutex<S>,
+}
+
+impl<S: icn_dag::StorageService<CoreDagBlock> + Send + std::fmt::Debug> DagStoreAdapter<S> {
+    fn new(inner: S) -> Self {
+        Self {
+            inner: Mutex::new(inner),
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl<S> icn_runtime::context::StorageService for DagStoreAdapter<S>
+where
+    S: icn_dag::StorageService<CoreDagBlock> + Send + 'static + std::fmt::Debug,
+{
+    async fn put(&self, data: &[u8]) -> Result<Cid, icn_runtime::context::HostAbiError> {
+        let block = CoreDagBlock {
+            cid: Cid::new_v1_dummy(0x71, 0x12, data),
+            data: data.to_vec(),
+            links: vec![],
+        };
+        let mut store = self.inner.lock().unwrap();
+        store
+            .put(&block)
+            .map_err(icn_runtime::context::HostAbiError::Common)?;
+        Ok(block.cid)
+    }
+
+    async fn get(&self, cid: &Cid) -> Result<Option<Vec<u8>>, icn_runtime::context::HostAbiError> {
+        let store = self.inner.lock().unwrap();
+        match store
+            .get(cid)
+            .map_err(icn_runtime::context::HostAbiError::Common)?
+        {
+            Some(block) => Ok(Some(block.data)),
+            None => Ok(None),
+        }
+    }
 }
 
 // --- Supporting Types ---
 
 #[derive(Deserialize)]
-struct DagBlock {
+struct DagBlockPayload {
     data: Vec<u8>,
 }
 
@@ -296,7 +344,20 @@ async fn main() {
     } else {
         info!("Using stub networking (P2P disabled)");
         let signer = Arc::new(RuntimeStubSigner::new_with_keys(node_sk, node_pk));
-        let dag_store_for_rt = Arc::new(RuntimeStubDagStore::new());
+        let dag_store_for_rt: Arc<dyn icn_runtime::context::StorageService> =
+            match cli.storage_backend {
+                StorageBackendType::Memory => Arc::new(RuntimeStubDagStore::new()),
+                StorageBackendType::File => {
+                    let store = FileDagStore::new(cli.storage_path.clone())
+                        .expect("Failed to init file store");
+                    Arc::new(DagStoreAdapter::new(store))
+                }
+                StorageBackendType::Sqlite => {
+                    let store = SqliteDagStore::new(cli.storage_path.clone())
+                        .expect("Failed to init sqlite store");
+                    Arc::new(DagStoreAdapter::new(store))
+                }
+            };
         let mesh_network_service = Arc::new(StubMeshNetworkService::new());
 
         RuntimeContext::new(
@@ -407,7 +468,7 @@ async fn status_handler(State(state): State<AppState>) -> impl IntoResponse {
 // POST /dag/put – Store a DAG block. (Body: block JSON)
 async fn dag_put_handler(
     State(state): State<AppState>,
-    Json(block): Json<DagBlock>,
+    Json(block): Json<DagBlockPayload>,
 ) -> impl IntoResponse {
     // Use RuntimeContext's dag_store now
     match state.runtime_context.dag_store.put(&block.data).await {
