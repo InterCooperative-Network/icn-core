@@ -26,7 +26,6 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::time::Duration;
 use tokio::sync::mpsc::Receiver;
-// Removed unused imports for testing Kademlia disabled build
 
 // --- Core Types ---
 
@@ -226,7 +225,12 @@ pub mod libp2p_service {
     use libp2p::{
         core::upgrade,
         dns, gossipsub, identity,
-        kad::{Record as KademliaRecord, RecordKey as KademliaKey},
+        kad::{
+            store::MemoryStore, Behaviour as KademliaBehaviour, Config as KademliaConfig,
+            Event as KademliaEvent, GetRecordOk, PutRecordOk, QueryId,
+            QueryResult as KademliaQueryResult, Quorum, Record as KademliaRecord,
+            RecordKey as KademliaKey,
+        },
         noise, ping,
         request_response::{
             Behaviour as RequestResponseBehaviour, Codec as RequestResponseCodec, ProtocolSupport,
@@ -234,6 +238,7 @@ pub mod libp2p_service {
         swarm::{Config as SwarmConfig, NetworkBehaviour, Swarm, SwarmEvent},
         tcp, yamux, Multiaddr, PeerId as Libp2pPeerId, Transport,
     };
+    use std::num::NonZeroUsize;
     use std::str::FromStr;
     use std::sync::{Arc, Mutex};
     use tokio::{
@@ -355,7 +360,7 @@ pub mod libp2p_service {
         PutKademliaRecord {
             key: KademliaKey,
             value: Vec<u8>,
-            rsp: oneshot::Sender<Result<(), CommonError>>,
+            rsp: oneshot::Sender<Result<Option<KademliaRecord>, CommonError>>,
         },
     }
 
@@ -455,8 +460,7 @@ pub mod libp2p_service {
     pub struct CombinedBehaviour {
         gossipsub: gossipsub::Behaviour,
         ping: ping::Behaviour,
-        // Temporarily disable Kademlia to test if it's causing the hang
-        // kademlia: KademliaBehaviour<MemoryStore>,
+        kademlia: KademliaBehaviour<MemoryStore>,
         request_response: RequestResponseBehaviour<MessageCodec>,
     }
 
@@ -490,14 +494,14 @@ pub mod libp2p_service {
             let ping =
                 ping::Behaviour::new(ping::Config::new().with_interval(config.heartbeat_interval));
 
-            // Temporarily disable Kademlia to test if it's causing the hang
-            // let store = MemoryStore::new(local_peer_id);
-            // let mut kademlia_config = KademliaConfig::default();
-            // kademlia_config.disjoint_query_paths(true);
-            // if let Some(replication_factor) = NonZero::new(config.kademlia_replication_factor) {
-            //     kademlia_config.set_replication_factor(replication_factor);
-            // }
-            // let kademlia = KademliaBehaviour::with_config(local_peer_id, store, kademlia_config);
+            let store = MemoryStore::new(local_peer_id);
+            let mut kademlia_config = KademliaConfig::default();
+            kademlia_config.disjoint_query_paths(true);
+            if let Some(replication_factor) = NonZeroUsize::new(config.kademlia_replication_factor)
+            {
+                kademlia_config.set_replication_factor(replication_factor);
+            }
+            let kademlia = KademliaBehaviour::with_config(local_peer_id, store, kademlia_config);
 
             let request_response = RequestResponseBehaviour::with_codec(
                 MessageCodec,
@@ -508,6 +512,7 @@ pub mod libp2p_service {
             let behaviour = CombinedBehaviour {
                 gossipsub,
                 ping,
+                kademlia,
                 request_response,
             };
             let mut swarm = Swarm::new(
@@ -521,13 +526,16 @@ pub mod libp2p_service {
                 .listen_on("/ip4/0.0.0.0/tcp/0".parse().unwrap())
                 .map_err(|e| CommonError::NetworkSetupError(format!("Listen error: {}", e)))?;
 
-            // Connect to bootstrap peers with improved error handling (Kademlia disabled for testing)
+            // Connect to bootstrap peers with improved error handling
             for (peer_id, addr) in &config.bootstrap_peers {
                 info!("Attempting to dial bootstrap peer: {} at {}", peer_id, addr);
                 match swarm.dial(addr.clone()) {
                     Ok(_) => {
                         info!("Successfully initiated dial to bootstrap peer: {}", peer_id);
-                        // Kademlia disabled: swarm.behaviour_mut().kademlia.add_address(peer_id, addr.clone());
+                        swarm
+                            .behaviour_mut()
+                            .kademlia
+                            .add_address(peer_id, addr.clone());
                     }
                     Err(e) => {
                         warn!("Failed to dial bootstrap peer {}: {}", peer_id, e);
@@ -564,18 +572,20 @@ pub mod libp2p_service {
                     log::info!("✅ [LIBP2P] Subscribed to global topic: {}", topic.hash());
                 }
 
-                // Kademlia bootstrap disabled for testing
                 if has_bootstrap_peers {
                     log::debug!(
-                        "🔧 [LIBP2P] Has bootstrap peers, but Kademlia disabled for testing"
+                        "🔧 [LIBP2P] Bootstrap peers configured, starting Kademlia bootstrap"
                     );
+                    let _ = swarm.behaviour_mut().kademlia.bootstrap();
                 } else {
                     log::debug!("🔧 [LIBP2P] No bootstrap peers configured");
                 }
 
                 let mut subscribers: Vec<mpsc::Sender<super::NetworkMessage>> = Vec::new();
-                // Kademlia queries disabled for testing
-                // let mut pending_kad_queries: HashMap<QueryId, oneshot::Sender<Result<Option<KademliaRecord>, CommonError>>> = HashMap::new();
+                let mut pending_kad_queries: HashMap<
+                    QueryId,
+                    oneshot::Sender<Result<Option<KademliaRecord>, CommonError>>,
+                > = HashMap::new();
 
                 log::debug!("🔧 [LIBP2P] Entering main event loop...");
                 loop {
@@ -595,7 +605,7 @@ pub mod libp2p_service {
                                 log::info!("✅ [LIBP2P] Listening on {}", address);
                                 listening_addresses_clone.lock().unwrap().push(address.clone());
                             }
-                            Self::handle_swarm_event(event, &stats_clone, &mut subscribers).await;
+                            Self::handle_swarm_event(event, &stats_clone, &mut subscribers, &mut pending_kad_queries).await;
                             log::debug!("🔧 [LIBP2P] Finished handling swarm event");
                         }
                         Some(command) = cmd_rx.recv() => {
@@ -643,8 +653,12 @@ pub mod libp2p_service {
                                     let network_info = swarm.network_info();
                                     let mut stats_guard = stats_clone.lock().unwrap();
 
-                                    // Kademlia disabled for testing, so no Kademlia peers
-                                    let kademlia_peer_count = 0;
+                                    let kademlia_peer_count: usize = swarm
+                                        .behaviour_mut()
+                                        .kademlia
+                                        .kbuckets()
+                                        .map(|b| b.num_entries())
+                                        .sum();
                                     stats_guard.update_kademlia_peers(kademlia_peer_count);
 
                                     let network_stats = super::NetworkStats {
@@ -659,13 +673,25 @@ pub mod libp2p_service {
                                     };
                                     let _ = rsp.send(network_stats);
                                 }
-                                Command::GetKademliaRecord { key: _, rsp } => {
-                                    log::debug!("Kademlia get record disabled for testing");
-                                    let _ = rsp.send(Err(CommonError::NetworkError("Kademlia disabled for testing".to_string())));
+                                Command::GetKademliaRecord { key, rsp } => {
+                                    let query_id = swarm.behaviour_mut().kademlia.get_record(key);
+                                    pending_kad_queries.insert(query_id, rsp);
                                 }
-                                Command::PutKademliaRecord { key: _, value: _, rsp } => {
-                                    log::debug!("Kademlia put record disabled for testing");
-                                    let _ = rsp.send(Err(CommonError::NetworkError("Kademlia disabled for testing".to_string())));
+                                Command::PutKademliaRecord { key, value, rsp } => {
+                                    let record = KademliaRecord {
+                                        key,
+                                        value,
+                                        publisher: None,
+                                        expires: None,
+                                    };
+                                    match swarm.behaviour_mut().kademlia.put_record(record, Quorum::One) {
+                                        Ok(query_id) => {
+                                            pending_kad_queries.insert(query_id, rsp);
+                                        }
+                                        Err(e) => {
+                                            let _ = rsp.send(Err(CommonError::NetworkError(format!("Failed to put record: {}", e))));
+                                        }
+                                    }
                                 }
                             }
                             log::debug!("🔧 [LIBP2P] Finished handling command");
@@ -697,6 +723,10 @@ pub mod libp2p_service {
             event: SwarmEvent<CombinedBehaviourEvent>,
             stats: &Arc<Mutex<EnhancedNetworkStats>>,
             subscribers: &mut Vec<mpsc::Sender<super::NetworkMessage>>,
+            pending_kad_queries: &mut HashMap<
+                QueryId,
+                oneshot::Sender<Result<Option<KademliaRecord>, CommonError>>,
+            >,
         ) {
             match event {
                 SwarmEvent::NewListenAddr { address, .. } => {
@@ -736,8 +766,45 @@ pub mod libp2p_service {
                         });
                     }
                 }
-                // Kademlia events disabled for testing
-                // SwarmEvent::Behaviour(CombinedEvent::Kademlia(...)) => { ... }
+                SwarmEvent::Behaviour(CombinedBehaviourEvent::Kademlia(
+                    KademliaEvent::OutboundQueryProgressed { id, result, .. },
+                )) => match result {
+                    KademliaQueryResult::GetRecord(Ok(GetRecordOk::FoundRecord(peer_record))) => {
+                        if let Some(tx) = pending_kad_queries.remove(&id) {
+                            let _ = tx.send(Ok(Some(peer_record.record)));
+                        }
+                    }
+                    KademliaQueryResult::GetRecord(Ok(
+                        GetRecordOk::FinishedWithNoAdditionalRecord { .. },
+                    )) => {
+                        if let Some(tx) = pending_kad_queries.remove(&id) {
+                            let _ = tx.send(Ok(None));
+                        }
+                    }
+                    KademliaQueryResult::GetRecord(Err(e)) => {
+                        if let Some(tx) = pending_kad_queries.remove(&id) {
+                            let _ = tx.send(Err(CommonError::NetworkError(format!(
+                                "GetRecord error: {:?}",
+                                e
+                            ))));
+                        }
+                    }
+                    KademliaQueryResult::PutRecord(Ok(PutRecordOk { .. })) => {
+                        if let Some(tx) = pending_kad_queries.remove(&id) {
+                            let _ = tx.send(Ok(None));
+                        }
+                    }
+                    KademliaQueryResult::PutRecord(Err(e)) => {
+                        if let Some(tx) = pending_kad_queries.remove(&id) {
+                            let _ = tx.send(Err(CommonError::NetworkError(format!(
+                                "PutRecord error: {:?}",
+                                e
+                            ))));
+                        }
+                    }
+                    _ => {}
+                },
+                SwarmEvent::Behaviour(CombinedBehaviourEvent::Kademlia(_)) => {}
                 SwarmEvent::ConnectionEstablished { peer_id, .. } => {
                     {
                         let mut stats_guard = stats.lock().unwrap();
