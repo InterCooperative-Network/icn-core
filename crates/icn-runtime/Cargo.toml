@@ -12,7 +12,7 @@ icn-common = { path = "../icn-common" }
 icn-identity = { path = "../icn-identity" }
 icn-economics = { path = "../icn-economics" }
 icn-mesh = { path = "../icn-mesh" }
-icn-network = { path = "../icn-network", features = ["experimental-libp2p"] }
+icn-network = { path = "../icn-network", features = ["libp2p"] }
 icn-dag = { path = "../icn-dag" }
 icn-governance = { path = "../icn-governance", default-features = false }
 

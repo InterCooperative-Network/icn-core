@@ -258,7 +258,19 @@ async fn main() {
                 None
             };
 
-            match RuntimeContext::new_with_real_libp2p(&node_did_string, bootstrap_peers).await {
+            let listen_addr = cli
+                .p2p_listen_addr
+                .parse::<Multiaddr>()
+                .expect("Invalid p2p listen multiaddr");
+            let listen_addrs = vec![listen_addr];
+
+            match RuntimeContext::new_with_real_libp2p(
+                &node_did_string,
+                listen_addrs,
+                bootstrap_peers,
+            )
+            .await
+            {
                 Ok(ctx) => {
                     info!("✅ RuntimeContext created with real libp2p networking");
 
@@ -335,6 +347,15 @@ async fn main() {
     axum::serve(listener, router.into_make_service())
         .await
         .unwrap();
+
+    if cli.enable_p2p {
+        #[cfg(feature = "enable-libp2p")]
+        {
+            if let Err(e) = rt_ctx.shutdown_network().await {
+                error!("Network shutdown failed: {}", e);
+            }
+        }
+    }
 }
 
 // --- Utility Functions for HTTP Responses ---
