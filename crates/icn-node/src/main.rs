@@ -6,6 +6,7 @@
     unused_imports,
     clippy::useless_conversion,
     clippy::needless_borrows_for_generic_args,
+    clippy::single_component_path_imports,
     dead_code,
     irrefutable_let_patterns
 )]
@@ -433,9 +434,10 @@ async fn gov_submit_handler(
     debug!("Received /governance/submit request: {:?}", request);
 
     let (ptype_str, payload_bytes) = match request.proposal.clone() {
-        icn_api::governance_trait::ProposalInputType::SystemParameterChange { param, value } => {
-            ("SystemParameterChange".to_string(), serde_json::to_vec(&(param, value)).unwrap())
-        }
+        icn_api::governance_trait::ProposalInputType::SystemParameterChange { param, value } => (
+            "SystemParameterChange".to_string(),
+            serde_json::to_vec(&(param, value)).unwrap(),
+        ),
         icn_api::governance_trait::ProposalInputType::MemberAdmission { did } => {
             ("MemberAdmission".to_string(), did.into_bytes())
         }
@@ -465,14 +467,20 @@ async fn gov_submit_handler(
         }
     };
 
-    match icn_runtime::host_create_governance_proposal(&state.runtime_context, &payload_json).await {
-        Ok(id_str) => {
-            (StatusCode::CREATED, Json(icn_governance::ProposalId(id_str))).into_response()
-        }
-        Err(e) => map_rust_error_to_json_response(format!("Governance submit error: {}", e), StatusCode::BAD_REQUEST).into_response(),
+    match icn_runtime::host_create_governance_proposal(&state.runtime_context, &payload_json).await
+    {
+        Ok(id_str) => (
+            StatusCode::CREATED,
+            Json(icn_governance::ProposalId(id_str)),
+        )
+            .into_response(),
+        Err(e) => map_rust_error_to_json_response(
+            format!("Governance submit error: {}", e),
+            StatusCode::BAD_REQUEST,
+        )
+        .into_response(),
     }
 }
-
 
 // POST /governance/vote – Cast a vote. (Body: CastVoteRequest JSON)
 async fn gov_vote_handler(
@@ -499,7 +507,11 @@ async fn gov_vote_handler(
 
     match icn_runtime::host_cast_governance_vote(&state.runtime_context, &payload_json).await {
         Ok(_) => (StatusCode::OK, Json("Vote cast successfully".to_string())).into_response(),
-        Err(e) => map_rust_error_to_json_response(format!("Governance vote error: {}", e), StatusCode::BAD_REQUEST).into_response(),
+        Err(e) => map_rust_error_to_json_response(
+            format!("Governance vote error: {}", e),
+            StatusCode::BAD_REQUEST,
+        )
+        .into_response(),
     }
 }
 
@@ -509,7 +521,11 @@ async fn gov_list_proposals_handler(State(state): State<AppState>) -> impl IntoR
     let gov_mod = state.runtime_context.governance_module.lock().await;
     match gov_mod.list_proposals() {
         Ok(props) => (StatusCode::OK, Json(props)).into_response(),
-        Err(e) => map_rust_error_to_json_response(format!("Governance list error: {}", e), StatusCode::BAD_REQUEST).into_response(),
+        Err(e) => map_rust_error_to_json_response(
+            format!("Governance list error: {}", e),
+            StatusCode::BAD_REQUEST,
+        )
+        .into_response(),
     }
 }
 
@@ -523,8 +539,13 @@ async fn gov_get_proposal_handler(
     let pid = icn_governance::ProposalId(proposal_id_str);
     match gov_mod.get_proposal(&pid) {
         Ok(Some(prop)) => (StatusCode::OK, Json(prop)).into_response(),
-        Ok(None) => map_rust_error_to_json_response("Proposal not found", StatusCode::NOT_FOUND).into_response(),
-        Err(e) => map_rust_error_to_json_response(format!("Governance get error: {}", e), StatusCode::BAD_REQUEST).into_response(),
+        Ok(None) => map_rust_error_to_json_response("Proposal not found", StatusCode::NOT_FOUND)
+            .into_response(),
+        Err(e) => map_rust_error_to_json_response(
+            format!("Governance get error: {}", e),
+            StatusCode::BAD_REQUEST,
+        )
+        .into_response(),
     }
 }
 

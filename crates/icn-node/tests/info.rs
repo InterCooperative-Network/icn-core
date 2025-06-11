@@ -1,7 +1,8 @@
-use icn_node::app_router;             // expose a fn that builds the Router<State>
-use tokio::task;
+#![allow(clippy::uninlined_format_args)]
+use icn_node::app_router; // expose a fn that builds the Router<State>
 use reqwest::Client;
 use serde_json::Value;
+use tokio::task;
 
 #[tokio::test]
 async fn info_endpoint_returns_expected_json() {
@@ -13,10 +14,17 @@ async fn info_endpoint_returns_expected_json() {
     });
 
     let url = format!("http://{}/info", addr);
-    let json: Value = Client::new().get(&url).send().await.unwrap().json().await.unwrap();
+    let json: Value = Client::new()
+        .get(&url)
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
 
     assert!(json["name"].as_str().unwrap().contains("ICN"));
     assert!(json["version"].as_str().unwrap().contains("0.1.0"));
 
     server.abort(); // shut the axum task down
-} 
+}

@@ -69,6 +69,18 @@ mod kademlia_peer_discovery_tests {
         assert!(stats1.peer_count >= 1, "Node1 should see at least one peer");
         assert!(stats2.peer_count >= 1, "Node2 should see at least one peer");
 
+        // Test basic record roundtrip
+        node1_service
+            .put_kademlia_record(b"test_key".to_vec(), b"test_val".to_vec())
+            .await
+            .expect("put record");
+        sleep(Duration::from_secs(2)).await;
+        let record = node2_service
+            .get_kademlia_record(b"test_key".to_vec())
+            .await
+            .expect("get record");
+        assert_eq!(record.unwrap(), b"test_val".to_vec());
+
         println!("Two node connectivity test finished successfully.");
     }
 }

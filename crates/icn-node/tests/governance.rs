@@ -1,8 +1,12 @@
+#![allow(
+    clippy::uninlined_format_args,
+    clippy::needless_borrows_for_generic_args
+)]
+use icn_api::governance_trait::{CastVoteRequest, ProposalInputType, SubmitProposalRequest};
 use icn_node::app_router;
-use tokio::task;
 use reqwest::Client;
-use icn_api::governance_trait::{SubmitProposalRequest, ProposalInputType, CastVoteRequest};
 use serde_json::Value;
+use tokio::task;
 
 #[tokio::test]
 async fn submit_and_vote_proposal() {
@@ -28,7 +32,10 @@ async fn submit_and_vote_proposal() {
         .json()
         .await
         .unwrap();
-    let pid = resp["0"].as_str().unwrap_or_else(|| resp["id"].as_str().unwrap()).to_string();
+    let pid = resp["0"]
+        .as_str()
+        .unwrap_or_else(|| resp["id"].as_str().unwrap())
+        .to_string();
 
     let vote_req = CastVoteRequest {
         voter_did: "did:example:bob".to_string(),
