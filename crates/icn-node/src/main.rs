@@ -33,7 +33,6 @@ use icn_runtime::context::{
 };
 use icn_runtime::{host_anchor_receipt, host_submit_mesh_job, ReputationUpdater};
 
-use async_trait::async_trait;
 use axum::{
     extract::{Path as AxumPath, State},
     http::StatusCode,
@@ -50,9 +49,9 @@ use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::str::FromStr;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::Mutex as AsyncMutex;
+use tokio::sync::{Mutex as AsyncMutex, Mutex as TokioMutex};
 
 #[cfg(feature = "enable-libp2p")]
 use libp2p::{Multiaddr, PeerId as Libp2pPeerId};
@@ -103,11 +102,12 @@ struct Cli {
     node_name: Option<String>,
 
     #[clap(
-        long,
+        long = "listen-address",
+        alias = "p2p-listen-addr",
         default_value = "/ip4/0.0.0.0/tcp/0",
         help = "Libp2p listen address for P2P networking"
     )]
-    p2p_listen_addr: String,
+    listen_address: String,
 
     #[clap(
         long,
@@ -142,49 +142,6 @@ enum StorageBackendType {
     Memory,
     File,
     Sqlite,
-}
-
-#[derive(Debug)]
-struct DagStoreAdapter<S: icn_dag::StorageService<CoreDagBlock> + Send + std::fmt::Debug> {
-    inner: Mutex<S>,
-}
-
-impl<S: icn_dag::StorageService<CoreDagBlock> + Send + std::fmt::Debug> DagStoreAdapter<S> {
-    fn new(inner: S) -> Self {
-        Self {
-            inner: Mutex::new(inner),
-        }
-    }
-}
-
-#[async_trait::async_trait]
-impl<S> icn_runtime::context::StorageService for DagStoreAdapter<S>
-where
-    S: icn_dag::StorageService<CoreDagBlock> + Send + 'static + std::fmt::Debug,
-{
-    async fn put(&self, data: &[u8]) -> Result<Cid, icn_runtime::context::HostAbiError> {
-        let block = CoreDagBlock {
-            cid: Cid::new_v1_dummy(0x71, 0x12, data),
-            data: data.to_vec(),
-            links: vec![],
-        };
-        let mut store = self.inner.lock().unwrap();
-        store
-            .put(&block)
-            .map_err(icn_runtime::context::HostAbiError::Common)?;
-        Ok(block.cid)
-    }
-
-    async fn get(&self, cid: &Cid) -> Result<Option<Vec<u8>>, icn_runtime::context::HostAbiError> {
-        let store = self.inner.lock().unwrap();
-        match store
-            .get(cid)
-            .map_err(icn_runtime::context::HostAbiError::Common)?
-        {
-            Some(block) => Ok(Some(block.data)),
-            None => Ok(None),
-        }
-    }
 }
 
 // --- Supporting Types ---
@@ -271,7 +228,7 @@ pub async fn app_router_with_options(api_key: Option<String>, rate_limit: Option
     info!("Test/Embedded Node DID: {}", node_did);
 
     let signer = Arc::new(RuntimeStubSigner::new_with_keys(sk, pk));
-    let dag_store_for_rt = Arc::new(RuntimeStubDagStore::new());
+    let dag_store_for_rt = Arc::new(TokioMutex::new(RuntimeStubDagStore::new()));
     let mesh_network_service = Arc::new(StubMeshNetworkService::new());
     // GovernanceModule is initialized inside RuntimeContext::new
 
@@ -358,7 +315,7 @@ async fn main() {
         {
             info!(
                 "Enabling libp2p networking with P2P listen address: {}",
-                cli.p2p_listen_addr
+                cli.listen_address
             );
 
             // Parse bootstrap peers if provided
@@ -400,7 +357,7 @@ async fn main() {
             };
 
             let listen_addr = cli
-                .p2p_listen_addr
+                .listen_address
                 .parse::<Multiaddr>()
                 .expect("Invalid p2p listen multiaddr");
             let listen_addrs = vec![listen_addr];
@@ -437,18 +394,18 @@ async fn main() {
     } else {
         info!("Using stub networking (P2P disabled)");
         let signer = Arc::new(RuntimeStubSigner::new_with_keys(node_sk, node_pk));
-        let dag_store_for_rt: Arc<dyn icn_runtime::context::StorageService> =
+        let dag_store_for_rt: Arc<TokioMutex<dyn icn_dag::StorageService<CoreDagBlock> + Send>> =
             match cli.storage_backend {
-                StorageBackendType::Memory => Arc::new(RuntimeStubDagStore::new()),
+                StorageBackendType::Memory => Arc::new(TokioMutex::new(RuntimeStubDagStore::new())),
                 StorageBackendType::File => {
                     let store = FileDagStore::new(cli.storage_path.clone())
                         .expect("Failed to init file store");
-                    Arc::new(DagStoreAdapter::new(store))
+                    Arc::new(TokioMutex::new(store))
                 }
                 StorageBackendType::Sqlite => {
                     let store = SqliteDagStore::new(cli.storage_path.clone())
                         .expect("Failed to init sqlite store");
-                    Arc::new(DagStoreAdapter::new(store))
+                    Arc::new(TokioMutex::new(store))
                 }
             };
         let mesh_network_service = Arc::new(StubMeshNetworkService::new());
@@ -584,9 +541,14 @@ async fn dag_put_handler(
     Json(block): Json<DagBlockPayload>,
 ) -> impl IntoResponse {
     // Use RuntimeContext's dag_store now
-    match state.runtime_context.dag_store.put(&block.data).await {
-        // Assuming block.data is Vec<u8>
-        Ok(cid) => (StatusCode::CREATED, Json(cid)).into_response(),
+    let dag_block = CoreDagBlock {
+        cid: Cid::new_v1_dummy(0x71, 0x12, &block.data),
+        data: block.data,
+        links: vec![],
+    };
+    let mut store = state.runtime_context.dag_store.lock().await;
+    match store.put(&dag_block) {
+        Ok(()) => (StatusCode::CREATED, Json(dag_block.cid)).into_response(),
         Err(e) => map_rust_error_to_json_response(
             format!("DAG put error: {}", e),
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -602,8 +564,9 @@ async fn dag_get_handler(
 ) -> impl IntoResponse {
     // TODO: Parse cid_request.cid into a real Cid. For now, using a placeholder.
     let cid_to_get = Cid::new_v1_dummy(0, 0, cid_request.cid.as_bytes()); // Placeholder for Cid::from_str
-    match state.runtime_context.dag_store.get(&cid_to_get).await {
-        Ok(Some(data)) => (StatusCode::OK, Json(data)).into_response(), // Assuming data is Vec<u8>
+    let store = state.runtime_context.dag_store.lock().await;
+    match store.get(&cid_to_get) {
+        Ok(Some(block)) => (StatusCode::OK, Json(block.data)).into_response(),
         Ok(None) => map_rust_error_to_json_response("Block not found", StatusCode::NOT_FOUND)
             .into_response(),
         Err(e) => map_rust_error_to_json_response(

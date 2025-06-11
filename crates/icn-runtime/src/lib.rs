@@ -17,7 +17,8 @@ pub mod context;
 pub mod executor;
 
 // Re-export important types for convenience
-pub use context::{HostAbiError, RuntimeContext, Signer, StorageService};
+pub use context::{HostAbiError, RuntimeContext, Signer};
+pub use icn_dag::StorageService;
 
 // Re-export ABI constants
 pub use abi::*;
@@ -376,7 +377,7 @@ mod tests {
             test_did,
             Arc::new(StubMeshNetworkService::new()),
             Arc::new(StubSigner::new()),
-            Arc::new(StubDagStore::new()),
+            Arc::new(tokio::sync::Mutex::new(StubDagStore::new())),
         )
     }
 

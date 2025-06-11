@@ -1,6 +1,6 @@
 //! Defines the `RuntimeContext`, `HostEnvironment`, and related types for the ICN runtime.
 
-use icn_common::{Cid, CommonError, Did};
+use icn_common::{Cid, CommonError, DagBlock, Did};
 use icn_identity::ExecutionReceipt as IdentityExecutionReceipt;
 use icn_mesh::{ActualMeshJob, JobId, JobState, MeshJobBid};
 
@@ -60,14 +60,7 @@ pub trait Signer: Send + Sync + std::fmt::Debug {
     fn verifying_key_ref(&self) -> &VerifyingKey;
 }
 
-// Placeholder for icn-dag::StorageService (assuming it should be async)
-// Renamed from DagStore to avoid confusion if DagStore is a concrete type elsewhere.
-#[async_trait]
-pub trait StorageService: Send + Sync + std::fmt::Debug + DowncastSync {
-    async fn put(&self, data: &[u8]) -> Result<Cid, HostAbiError>;
-    async fn get(&self, cid: &Cid) -> Result<Option<Vec<u8>>, HostAbiError>;
-}
-impl_downcast!(sync StorageService);
+use icn_dag::StorageService as DagStorageService;
 
 // Placeholder for icn_economics::ManaRepository
 pub trait ManaRepository: Send + Sync + std::fmt::Debug {
@@ -444,7 +437,6 @@ impl From<CommonError> for HostAbiError {
 }
 
 // --- Runtime Context ---
-#[derive(Debug)]
 pub struct RuntimeContext {
     pub current_identity: Did,
     pub mana_ledger: SimpleManaLedger,
@@ -453,7 +445,7 @@ pub struct RuntimeContext {
     pub governance_module: Arc<TokioMutex<GovernanceModule>>,
     pub mesh_network_service: Arc<dyn MeshNetworkService>, // Uses local MeshNetworkService trait
     pub signer: Arc<dyn Signer>,
-    pub dag_store: Arc<dyn StorageService>, // Uses local StorageService trait
+    pub dag_store: Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>, // Uses icn_dag::StorageService
 }
 
 impl RuntimeContext {
@@ -461,7 +453,7 @@ impl RuntimeContext {
         current_identity: Did,
         mesh_network_service: Arc<dyn MeshNetworkService>,
         signer: Arc<dyn Signer>,
-        dag_store: Arc<dyn StorageService>,
+        dag_store: Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>,
     ) -> Arc<Self> {
         let job_states = Arc::new(TokioMutex::new(HashMap::new()));
         let pending_mesh_jobs = Arc::new(TokioMutex::new(VecDeque::new()));
@@ -519,7 +511,7 @@ impl RuntimeContext {
             current_identity,
             default_mesh_service,
             Arc::new(StubSigner::new()),
-            Arc::new(StubDagStore::new()),
+            Arc::new(TokioMutex::new(StubDagStore::new())),
         ))
     }
 
@@ -530,7 +522,7 @@ impl RuntimeContext {
             current_identity,
             Arc::new(StubMeshNetworkService::new()),
             Arc::new(StubSigner::new()),
-            Arc::new(StubDagStore::new()),
+            Arc::new(TokioMutex::new(StubDagStore::new())),
         )
     }
 
@@ -541,7 +533,7 @@ impl RuntimeContext {
             current_identity.clone(),
             Arc::new(StubMeshNetworkService::new()),
             Arc::new(StubSigner::new()),
-            Arc::new(StubDagStore::new()),
+            Arc::new(TokioMutex::new(StubDagStore::new())),
         );
         ctx.mana_ledger
             .set_balance(&current_identity, initial_mana)
@@ -930,7 +922,14 @@ impl RuntimeContext {
             HostAbiError::InternalError(format!("Failed to serialize final receipt for DAG: {}", e))
         })?;
 
-        let cid = self.dag_store.put(&final_receipt_bytes).await?;
+        let block = DagBlock {
+            cid: Cid::new_v1_dummy(0x71, 0x12, &final_receipt_bytes),
+            data: final_receipt_bytes,
+            links: vec![],
+        };
+        let mut store = self.dag_store.lock().await;
+        store.put(&block).map_err(HostAbiError::Common)?;
+        let cid = block.cid.clone();
         println!("[CONTEXT] Anchored receipt for job_id {:?} with CID: {:?}. Executor: {:?}. Receipt cost {}ms.", 
                  receipt.job_id, cid, receipt.executor_did, receipt.cpu_ms);
 
@@ -1121,7 +1120,7 @@ impl RuntimeContext {
         ));
 
         // Create stub DAG store for now (can be enhanced later)
-        let dag_store = Arc::new(StubDagStore::new());
+        let dag_store = Arc::new(TokioMutex::new(StubDagStore::new()));
 
         // Create RuntimeContext with real networking - this returns Arc<Self>
         let ctx = Self::new(identity, mesh_service, signer, dag_store);
@@ -1165,7 +1164,7 @@ impl RuntimeContext {
         current_identity: Did,
         signer: StubSigner,
         mesh_network_service: Arc<StubMeshNetworkService>,
-        dag_store: Arc<StubDagStore>,
+        dag_store: Arc<TokioMutex<StubDagStore>>,
     ) -> Arc<Self> {
         let job_states = Arc::new(TokioMutex::new(HashMap::new()));
         let pending_mesh_jobs = Arc::new(TokioMutex::new(VecDeque::new()));
@@ -1334,18 +1333,16 @@ impl Signer for StubSigner {
 
 #[derive(Debug, Clone)]
 pub struct StubDagStore {
-    // Renamed from StubStorageService for consistency if tests use this name
-    store: Arc<TokioMutex<HashMap<Cid, Vec<u8>>>>,
+    store: HashMap<Cid, DagBlock>,
 }
 impl StubDagStore {
     pub fn new() -> Self {
         Self {
-            store: Arc::new(TokioMutex::new(HashMap::new())),
+            store: HashMap::new(),
         }
     }
-    pub async fn all(&self) -> Result<HashMap<Cid, Vec<u8>>, HostAbiError> {
-        let store_lock = self.store.lock().await;
-        Ok(store_lock.clone())
+    pub fn all(&self) -> HashMap<Cid, DagBlock> {
+        self.store.clone()
     }
 }
 
@@ -1356,29 +1353,23 @@ impl Default for StubDagStore {
 }
 
 pub type RuntimeStubDagStore = StubDagStore;
-#[async_trait]
-impl StorageService for StubDagStore {
-    // Implements the local async StorageService trait
-    async fn put(&self, data: &[u8]) -> Result<Cid, HostAbiError> {
-        let mut hasher = std::collections::hash_map::DefaultHasher::new();
-        std::hash::Hash::hash_slice(data, &mut hasher);
-        let hash_val = std::hash::Hasher::finish(&hasher);
-        let cid = Cid::new_v1_dummy(0x70, 0x12, &hash_val.to_ne_bytes());
-
-        let mut store_lock = self.store.lock().await;
-        store_lock.insert(cid.clone(), data.to_vec());
-        println!("[StubDagStore] Stored data with CID: {:?}", cid);
-        Ok(cid)
+impl DagStorageService<DagBlock> for StubDagStore {
+    fn put(&mut self, block: &DagBlock) -> Result<(), CommonError> {
+        self.store.insert(block.cid.clone(), block.clone());
+        Ok(())
     }
-    async fn get(&self, cid: &Cid) -> Result<Option<Vec<u8>>, HostAbiError> {
-        let store_lock = self.store.lock().await;
-        let data = store_lock.get(cid).cloned();
-        if data.is_some() {
-            println!("[StubDagStore] Retrieved data for CID: {:?}", cid);
-        } else {
-            println!("[StubDagStore] No data found for CID: {:?}", cid);
-        }
-        Ok(data)
+
+    fn get(&self, cid: &Cid) -> Result<Option<DagBlock>, CommonError> {
+        Ok(self.store.get(cid).cloned())
+    }
+
+    fn delete(&mut self, cid: &Cid) -> Result<(), CommonError> {
+        self.store.remove(cid);
+        Ok(())
+    }
+
+    fn contains(&self, cid: &Cid) -> Result<bool, CommonError> {
+        Ok(self.store.contains_key(cid))
     }
 }
 

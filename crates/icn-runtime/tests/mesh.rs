@@ -8,11 +8,12 @@
 // crates/icn-runtime/tests/mesh.rs
 
 use icn_common::{Cid, Did};
+use icn_dag::StorageService;
 use icn_identity::{ExecutionReceipt as IdentityExecutionReceipt, SignatureBytes};
 use icn_mesh::{ActualMeshJob, JobId, JobSpec, JobState, MeshJobBid, Resources};
 use icn_runtime::context::{
     HostAbiError, JobAssignmentNotice, LocalMeshSubmitReceiptMessage, MeshNetworkService,
-    RuntimeContext, StorageService, StubDagStore, StubMeshNetworkService,
+    RuntimeContext, StubDagStore, StubMeshNetworkService,
 };
 use icn_runtime::host_submit_mesh_job;
 use serde_json::json;
