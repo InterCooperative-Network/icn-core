@@ -226,8 +226,7 @@ pub fn select_executor(
     let mut highest_score = 0u64;
 
     for bid in &bids {
-        // Ensure executor can cover at least a nominal mana reserve
-        let _ = icn_economics::charge_mana(&bid.executor_did, 0);
+        // TODO: integrate mana checks with persistent ledger
         let current_score = score_bid(bid, _policy, reputation_store);
         if best_bid.is_none() || current_score > highest_score {
             highest_score = current_score;
