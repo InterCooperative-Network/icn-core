@@ -28,7 +28,7 @@ libp2p = { version = "0.53.2", optional = true }
 
 [features]
 default = ["icn-network/default"]
-with-libp2p = ["icn-network/experimental-libp2p", "icn-runtime/enable-libp2p", "enable-libp2p", "dep:libp2p"]
+with-libp2p = ["icn-network/libp2p", "icn-runtime/enable-libp2p", "enable-libp2p", "dep:libp2p"]
 enable-libp2p = []
 
 [dev-dependencies]

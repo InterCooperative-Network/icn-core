@@ -242,7 +242,7 @@ pub async fn send_network_ping(info: &NodeInfo, target_peer: &str) -> Result<Str
     ))
 }
 
-#[cfg(all(test, feature = "experimental-libp2p"))]
+#[cfg(all(test, feature = "libp2p"))]
 mod tests {
     use super::*;
 
@@ -262,7 +262,7 @@ mod tests {
 }
 
 // --- Production libp2p Implementation ---
-#[cfg(feature = "experimental-libp2p")]
+#[cfg(feature = "libp2p")]
 pub mod libp2p_service {
     use super::*;
     use libp2p::futures::{AsyncReadExt, AsyncWriteExt, StreamExt};
@@ -292,6 +292,7 @@ pub mod libp2p_service {
 
     #[derive(Debug, Clone)]
     pub struct NetworkConfig {
+        pub listen_addresses: Vec<Multiaddr>,
         pub max_peers: usize,
         pub max_peers_per_ip: usize,
         pub connection_timeout: Duration,
@@ -306,6 +307,7 @@ pub mod libp2p_service {
     impl Default for NetworkConfig {
         fn default() -> Self {
             Self {
+                listen_addresses: vec!["/ip4/0.0.0.0/tcp/0".parse().unwrap()],
                 max_peers: 1000,
                 max_peers_per_ip: 5,
                 connection_timeout: Duration::from_secs(30),
@@ -357,7 +359,7 @@ pub mod libp2p_service {
         cmd_tx: mpsc::Sender<Command>,
         config: NetworkConfig,
         listening_addresses: Arc<Mutex<Vec<Multiaddr>>>,
-        _event_loop_handle: task::JoinHandle<()>, // Hold the handle to prevent task cancellation
+        event_loop_handle: task::JoinHandle<()>, // Hold the handle to prevent task cancellation
     }
 
     impl Clone for Libp2pNetworkService {
@@ -369,7 +371,7 @@ pub mod libp2p_service {
                 cmd_tx: self.cmd_tx.clone(),
                 config: self.config.clone(),
                 listening_addresses: self.listening_addresses.clone(),
-                _event_loop_handle: task::spawn(async {}), // Dummy handle for clones
+                event_loop_handle: task::spawn(async {}), // Dummy handle for clones
             }
         }
     }
@@ -404,6 +406,7 @@ pub mod libp2p_service {
             value: Vec<u8>,
             rsp: oneshot::Sender<Result<(), CommonError>>,
         },
+        Shutdown,
     }
 
     #[derive(Debug)]
@@ -573,9 +576,11 @@ pub mod libp2p_service {
                 SwarmConfig::with_tokio_executor(),
             );
 
-            swarm
-                .listen_on("/ip4/0.0.0.0/tcp/0".parse().unwrap())
-                .map_err(|e| CommonError::NetworkSetupError(format!("Listen error: {}", e)))?;
+            for addr in &config.listen_addresses {
+                swarm
+                    .listen_on(addr.clone())
+                    .map_err(|e| CommonError::NetworkSetupError(format!("Listen error: {}", e)))?;
+            }
 
             // Connect to bootstrap peers with improved error handling
             for (peer_id, addr) in &config.bootstrap_peers {
@@ -736,6 +741,10 @@ pub mod libp2p_service {
                                         }
                                     }
                                 }
+                                Command::Shutdown => {
+                                    log::info!("🔧 [LIBP2P] Shutdown command received");
+                                    break;
+                                }
                             }
                             log::debug!("🔧 [LIBP2P] Finished handling command");
                         }
@@ -763,7 +772,7 @@ pub mod libp2p_service {
                 cmd_tx,
                 config,
                 listening_addresses,
-                _event_loop_handle: event_loop_handle,
+                event_loop_handle,
             })
         }
 
@@ -897,6 +906,19 @@ pub mod libp2p_service {
         /// Get the current listening addresses for this node
         pub fn listening_addresses(&self) -> Vec<Multiaddr> {
             self.listening_addresses.lock().unwrap().clone()
+        }
+
+        /// Gracefully shut down the networking task
+        pub async fn shutdown(self) -> Result<(), CommonError> {
+            if let Err(e) = self.cmd_tx.send(Command::Shutdown).await {
+                return Err(CommonError::NetworkError(format!(
+                    "shutdown send failed: {}",
+                    e
+                )));
+            }
+            self.event_loop_handle
+                .await
+                .map_err(|e| CommonError::NetworkError(format!("task join error: {}", e)))
         }
 
         /// Retrieve a record from the DHT

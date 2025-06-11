@@ -24,6 +24,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let runtime_ctx = RuntimeContext::new_with_real_libp2p(
         node_identity,
+        vec!["/ip4/0.0.0.0/tcp/0".parse().unwrap()],
         None, // No bootstrap peers for this demo
     )
     .await?;

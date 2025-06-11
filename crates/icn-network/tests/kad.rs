@@ -5,7 +5,7 @@
     clippy::field_reassign_with_default
 )]
 
-#[cfg(feature = "experimental-libp2p")]
+#[cfg(feature = "libp2p")]
 mod kademlia_peer_discovery_tests {
     use icn_network::libp2p_service::{Libp2pNetworkService, NetworkConfig};
     use icn_network::NetworkService; // Import the trait
@@ -106,7 +106,7 @@ mod kademlia_peer_discovery_tests {
     }
 }
 
-#[cfg(feature = "experimental-libp2p")]
+#[cfg(feature = "libp2p")]
 mod kademlia_three_node_tests {
     use icn_network::libp2p_service::{Libp2pNetworkService, NetworkConfig};
     use icn_network::NetworkService;

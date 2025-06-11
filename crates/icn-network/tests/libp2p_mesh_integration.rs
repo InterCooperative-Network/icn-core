@@ -1,4 +1,4 @@
-#[cfg(all(test, feature = "experimental-libp2p"))]
+#[cfg(all(test, feature = "libp2p"))]
 #[cfg(any())]
 mod libp2p_mesh_integration {
     #![allow(

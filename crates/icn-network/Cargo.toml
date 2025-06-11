@@ -41,4 +41,4 @@ tracing-subscriber = { version = "0.3", features = ["fmt"] }
 
 [features]
 default = []
-experimental-libp2p = ["dep:libp2p"]
+libp2p = ["dep:libp2p"]

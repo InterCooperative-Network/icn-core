@@ -1034,6 +1034,7 @@ impl RuntimeContext {
     #[cfg(feature = "enable-libp2p")]
     pub async fn new_with_real_libp2p(
         identity_str: &str,
+        listen_addresses: Vec<Multiaddr>,
         bootstrap_peers: Option<Vec<(Libp2pPeerId, Multiaddr)>>,
     ) -> Result<Arc<Self>, CommonError> {
         info!("Initializing RuntimeContext with real libp2p networking");
@@ -1047,7 +1048,10 @@ impl RuntimeContext {
         let signer = Arc::new(StubSigner::new_with_keys(sk, pk));
 
         // Create real libp2p network service with proper config
-        let mut config = NetworkConfig::default();
+        let mut config = NetworkConfig {
+            listen_addresses,
+            ..NetworkConfig::default()
+        };
         if let Some(peers) = bootstrap_peers {
             info!("Bootstrap peers provided: {} peers", peers.len());
             config.bootstrap_peers = peers;
@@ -1089,6 +1093,19 @@ impl RuntimeContext {
             Err(CommonError::NetworkError(
                 "RuntimeContext is not using DefaultMeshNetworkService with libp2p".to_string(),
             ))
+        }
+    }
+
+    /// Shut down the underlying libp2p service if present
+    #[cfg(feature = "enable-libp2p")]
+    pub async fn shutdown_network(&self) -> Result<(), CommonError> {
+        if let Some(default_mesh) = MeshNetworkService::as_any(self.mesh_network_service.as_ref())
+            .downcast_ref::<DefaultMeshNetworkService>()
+        {
+            let service = default_mesh.get_underlying_broadcast_service()?;
+            service.as_ref().clone().shutdown().await
+        } else {
+            Ok(())
         }
     }
 }

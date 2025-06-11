@@ -30,13 +30,13 @@ Functions and methods within this crate return `Result<T, CommonError>`, utilizi
 
 The `StubNetworkService` also simulates these errors to help test error handling in dependent crates.
 
-## `experimental-libp2p` Feature
+## `libp2p` Feature
 
-This crate includes an optional `experimental-libp2p` feature. Enabling it pulls in the optional `libp2p` and `libp2p-request-response` dependencies, allowing for the implementation of a `NetworkService` backed by a real libp2p stack.
+This crate exposes an optional `libp2p` feature. When enabled it pulls in the `libp2p` and `libp2p-request-response` dependencies, providing a production ready `NetworkService` backed by the libp2p stack.
 
 ## Kademlia DHT
 
-When compiled with the `experimental-libp2p` feature, the network layer exposes
+When compiled with the `libp2p` feature, the network layer exposes
 basic Kademlia distributed hash table (DHT) functionality. This allows nodes to
 store small records in the DHT and to discover peers through the standard
 libp2p Kademlia protocol.
@@ -46,7 +46,7 @@ the `Libp2pNetworkService` when the feature flag is enabled. Be sure to compile
 with:
 
 ```bash
-cargo build --features experimental-libp2p
+cargo build --features libp2p
 ```
 
 to use the `get_kademlia_record` and `put_kademlia_record` APIs as well as peer
@@ -58,7 +58,7 @@ This crate provides:
 *   Data structures (`PeerId`, `NetworkMessage`).
 *   A core trait (`NetworkService`) for P2P interactions.
 *   A concrete stub implementation (`StubNetworkService`) for testing and initial development.
-*   With the `experimental-libp2p` feature enabled, DHT record APIs (`get_kademlia_record` and `put_kademlia_record`) for storing service advertisements and DID documents.
+*   With the `libp2p` feature enabled, DHT record APIs (`get_kademlia_record` and `put_kademlia_record`) for storing service advertisements and DID documents.
 
 The API aims for modularity, allowing different P2P backends to be integrated by implementing the `NetworkService` trait.
 
@@ -67,7 +67,7 @@ The API aims for modularity, allowing different P2P backends to be integrated by
 Please refer to the main `CONTRIBUTING.md` in the root of the `icn-core` repository.
 
 Key areas for future contributions:
-*   Implementing a `Libp2pNetworkService` that utilizes the `libp2p` stack (under the `experimental-libp2p` feature).
+*   Implementing a `Libp2pNetworkService` that utilizes the `libp2p` stack (under the `libp2p` feature).
 *   Defining and implementing robust peer discovery mechanisms.
 *   Implementing secure and efficient message serialization and transport.
 *   Adding support for various transport protocols.
