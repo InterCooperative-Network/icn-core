@@ -109,13 +109,30 @@ pub trait NetworkService: Send + Sync + Debug + DowncastSync + 'static {
     async fn broadcast_message(&self, message: NetworkMessage) -> Result<(), CommonError>;
     async fn subscribe(&self) -> Result<Receiver<NetworkMessage>, CommonError>;
     async fn get_network_stats(&self) -> Result<NetworkStats, CommonError>;
+    /// Store a record in the network DHT. Keys should take the form
+    /// `/icn/service/<id>` to avoid collisions between components.
+    async fn store_record(&self, key: String, value: Vec<u8>) -> Result<(), CommonError>;
+
+    /// Retrieve a record previously stored via [`store_record`].
+    /// Keys use the `/icn/service/<id>` format.
+    async fn get_record(&self, key: String) -> Result<Option<Vec<u8>>, CommonError>;
     fn as_any(&self) -> &dyn Any;
 }
 impl_downcast!(sync NetworkService);
 
 /// Stub implementation for testing.
-#[derive(Default, Debug)]
-pub struct StubNetworkService;
+#[derive(Debug)]
+pub struct StubNetworkService {
+    records: std::sync::Arc<tokio::sync::Mutex<HashMap<String, Vec<u8>>>>,
+}
+
+impl Default for StubNetworkService {
+    fn default() -> Self {
+        Self {
+            records: std::sync::Arc::new(tokio::sync::Mutex::new(HashMap::new())),
+        }
+    }
+}
 
 #[async_trait]
 impl NetworkService for StubNetworkService {
@@ -177,6 +194,17 @@ impl NetworkService for StubNetworkService {
 
     async fn get_network_stats(&self) -> Result<NetworkStats, CommonError> {
         Ok(NetworkStats::default())
+    }
+
+    async fn store_record(&self, key: String, value: Vec<u8>) -> Result<(), CommonError> {
+        let mut map = self.records.lock().await;
+        map.insert(key, value);
+        Ok(())
+    }
+
+    async fn get_record(&self, key: String) -> Result<Option<Vec<u8>>, CommonError> {
+        let map = self.records.lock().await;
+        Ok(map.get(&key).cloned())
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -847,6 +875,39 @@ pub mod libp2p_service {
                 .map_err(|e| CommonError::NetworkError(format!("Get stats failed: {}", e)))?;
             rx.await
                 .map_err(|e| CommonError::NetworkError(format!("Stats response failed: {}", e)))
+        }
+
+        async fn store_record(&self, key: String, value: Vec<u8>) -> Result<(), CommonError> {
+            let (tx, rx) = oneshot::channel();
+            let record_key = KademliaKey::new(&key.into_bytes());
+            self.cmd_tx
+                .send(Command::PutKademliaRecord {
+                    key: record_key,
+                    value,
+                    rsp: tx,
+                })
+                .await
+                .map_err(|e| CommonError::NetworkError(format!("Put record failed: {}", e)))?;
+            let _ = rx.await.map_err(|e| {
+                CommonError::NetworkError(format!("Put record response failed: {}", e))
+            })?;
+            Ok(())
+        }
+
+        async fn get_record(&self, key: String) -> Result<Option<Vec<u8>>, CommonError> {
+            let (tx, rx) = oneshot::channel();
+            let record_key = KademliaKey::new(&key.into_bytes());
+            self.cmd_tx
+                .send(Command::GetKademliaRecord {
+                    key: record_key,
+                    rsp: tx,
+                })
+                .await
+                .map_err(|e| CommonError::NetworkError(format!("Get record failed: {}", e)))?;
+            let record_opt = rx.await.map_err(|e| {
+                CommonError::NetworkError(format!("Get record response failed: {}", e))
+            })??;
+            Ok(record_opt.map(|rec| rec.value))
         }
 
         fn as_any(&self) -> &dyn Any {
