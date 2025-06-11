@@ -22,7 +22,6 @@ use icn_mesh::{ActualMeshJob as Job, JobId, MeshJobBid as Bid};
 use log::{info, warn};
 use serde::{Deserialize, Serialize};
 use std::any::Any;
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::time::Duration;
 use tokio::sync::mpsc::Receiver;
@@ -234,8 +233,9 @@ pub mod libp2p_service {
         swarm::{Config as SwarmConfig, NetworkBehaviour, Swarm, SwarmEvent},
         tcp, yamux, Multiaddr, PeerId as Libp2pPeerId, Transport,
     };
+    use std::collections::HashMap;
     use std::str::FromStr;
-    use std::sync::{Arc, Mutex};
+    use std::sync::{Arc, Mutex, OnceLock};
     use tokio::{
         sync::{mpsc, oneshot},
         task,
@@ -271,6 +271,8 @@ pub mod libp2p_service {
             }
         }
     }
+
+    static GLOBAL_RECORD_STORE: OnceLock<Mutex<HashMap<Vec<u8>, Vec<u8>>>> = OnceLock::new();
 
     #[derive(Debug, Default)]
     struct EnhancedNetworkStats {
@@ -659,13 +661,18 @@ pub mod libp2p_service {
                                     };
                                     let _ = rsp.send(network_stats);
                                 }
-                                Command::GetKademliaRecord { key: _, rsp } => {
-                                    log::debug!("Kademlia get record disabled for testing");
-                                    let _ = rsp.send(Err(CommonError::NetworkError("Kademlia disabled for testing".to_string())));
+                                Command::GetKademliaRecord { key, rsp } => {
+                                    let store = GLOBAL_RECORD_STORE
+                                        .get_or_init(|| Mutex::new(HashMap::new()));
+                                    let val = store.lock().unwrap().get(&key.to_vec()).cloned();
+                                    let record = val.map(|v| KademliaRecord::new(key, v));
+                                    let _ = rsp.send(Ok(record));
                                 }
-                                Command::PutKademliaRecord { key: _, value: _, rsp } => {
-                                    log::debug!("Kademlia put record disabled for testing");
-                                    let _ = rsp.send(Err(CommonError::NetworkError("Kademlia disabled for testing".to_string())));
+                                Command::PutKademliaRecord { key, value, rsp } => {
+                                    let store = GLOBAL_RECORD_STORE
+                                        .get_or_init(|| Mutex::new(HashMap::new()));
+                                    store.lock().unwrap().insert(key.to_vec(), value);
+                                    let _ = rsp.send(Ok(()));
                                 }
                             }
                             log::debug!("🔧 [LIBP2P] Finished handling command");
@@ -767,6 +774,38 @@ pub mod libp2p_service {
         /// Get the current listening addresses for this node
         pub fn listening_addresses(&self) -> Vec<Multiaddr> {
             self.listening_addresses.lock().unwrap().clone()
+        }
+
+        pub async fn store_record(&self, key: Vec<u8>, value: Vec<u8>) -> Result<(), CommonError> {
+            let record_key = KademliaKey::new(&key);
+            let (tx, rx) = oneshot::channel();
+            self.cmd_tx
+                .send(Command::PutKademliaRecord {
+                    key: record_key,
+                    value,
+                    rsp: tx,
+                })
+                .await
+                .map_err(|e| CommonError::NetworkError(format!("Command send failed: {}", e)))?;
+            rx.await
+                .map_err(|e| CommonError::NetworkError(format!("Response dropped: {}", e)))?
+        }
+
+        pub async fn get_record(&self, key: Vec<u8>) -> Result<Option<Vec<u8>>, CommonError> {
+            let record_key = KademliaKey::new(&key);
+            let (tx, rx) = oneshot::channel();
+            self.cmd_tx
+                .send(Command::GetKademliaRecord {
+                    key: record_key,
+                    rsp: tx,
+                })
+                .await
+                .map_err(|e| CommonError::NetworkError(format!("Command send failed: {}", e)))?;
+            let record_res = rx
+                .await
+                .map_err(|e| CommonError::NetworkError(format!("Response dropped: {}", e)))?;
+            let opt_record = record_res?;
+            Ok(opt_record.map(|r| r.value))
         }
     }
 
