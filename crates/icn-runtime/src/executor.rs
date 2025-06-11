@@ -126,13 +126,14 @@ impl JobExecutor for WasmExecutor {
         use wasmtime::{Linker, Module, Store};
 
         // Load WASM bytes from the DAG store
-        let wasm_bytes = self
-            .ctx
-            .dag_store
-            .get(&job.manifest_cid)
-            .await
-            .map_err(|e| CommonError::StorageError(format!("{e}")))?
-            .ok_or_else(|| CommonError::ResourceNotFound("WASM module not found".into()))?;
+        let wasm_bytes = {
+            let store = self.ctx.dag_store.lock().await;
+            store
+                .get(&job.manifest_cid)
+                .map_err(|e| CommonError::StorageError(format!("{e}")))?
+        }
+        .ok_or_else(|| CommonError::ResourceNotFound("WASM module not found".into()))?
+        .data;
 
         let mut store = Store::new(&self.engine, ());
         let mut linker = Linker::new(&self.engine);

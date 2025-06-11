@@ -10,6 +10,7 @@ use icn_runtime::{
 use icn_mesh::{JobSpec, JobState}; // Added JobState
 use serde_json::json;
 use tokio::time::sleep;
+use tokio::sync::Mutex;
 use icn_common::Did; // Added Did
 use std::str::FromStr; // For Did::from_str
 
@@ -22,7 +23,7 @@ async fn end_to_end_mesh_job_execution() {
 
     let signer = StubSigner::new_with_keys(sk, pk);
     let net = Arc::new(StubMeshNetworkService::default()); // Assumes Default trait
-    let dag = Arc::new(RuntimeStubDagStore::default());   // Assumes Default trait
+    let dag = Arc::new(tokio::sync::Mutex::new(RuntimeStubDagStore::default()));   // Assumes Default trait
     
     // Using a simplified constructor or assuming one exists that takes these components.
     // The user provided `new_for_test` which I will add.
@@ -50,7 +51,7 @@ async fn end_to_end_mesh_job_execution() {
     sleep(Duration::from_secs(5)).await; 
 
     // 4. Check for anchored receipt in stub DAG
-    let all_dag_items = dag.all().await.expect("dag.all() failed"); // Assumes all() method
+    let all_dag_items = dag.lock().await.all();
     
     // We need to find the specific receipt for our job_id or verify its presence.
     // A generic check for !all_dag_items.is_empty() is a good start.
