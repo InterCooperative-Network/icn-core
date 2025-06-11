@@ -38,7 +38,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Test basic runtime functionality still works
     let identity = icn_common::Did::from_str(node_identity)?;
-    runtime_ctx.mana_ledger.set_balance(&identity, 1000).await;
+    runtime_ctx
+        .mana_ledger
+        .set_balance(&identity, 1000)
+        .expect("init mana");
 
     let balance = runtime_ctx.get_mana(&identity).await?;
     println!("✅ Mana operations working: balance = {balance}");

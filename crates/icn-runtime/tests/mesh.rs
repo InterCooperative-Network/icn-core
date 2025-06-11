@@ -582,7 +582,7 @@ async fn test_full_mesh_job_cycle_libp2p() -> Result<(), anyhow::Error> {
     node_a_ctx
         .mana_ledger
         .set_balance(&node_a_ctx.current_identity, 1000)
-        .await;
+        .expect("set mana for node A");
     println!("[test-mesh-runtime] Node A context created, mana set. Spawning Job Manager.");
     node_a_ctx.clone().spawn_mesh_job_manager().await;
 
@@ -611,7 +611,7 @@ async fn test_full_mesh_job_cycle_libp2p() -> Result<(), anyhow::Error> {
     node_b_ctx
         .mana_ledger
         .set_balance(&node_b_ctx.current_identity, 500)
-        .await;
+        .expect("set mana for node B");
     println!("[test-mesh-runtime] Node B context created, mana set.");
 
     // Get the underlying Libp2pNetworkService for Node B to broadcast messages

@@ -44,7 +44,7 @@ mod runtime_host_abi_tests {
         runtime_ctx
             .mana_ledger
             .set_balance(&identity_did, initial_mana)
-            .await;
+            .expect("init mana");
 
         Ok(runtime_ctx)
     }

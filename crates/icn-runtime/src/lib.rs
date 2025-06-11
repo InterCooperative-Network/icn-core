@@ -384,9 +384,9 @@ mod tests {
     fn create_test_context_with_mana(initial_mana: u64) -> Arc<RuntimeContext> {
         let ctx = create_test_context();
         let test_did = Did::from_str(TEST_IDENTITY_DID_STR).unwrap();
-        futures::executor::block_on(async {
-            ctx.mana_ledger.set_balance(&test_did, initial_mana).await;
-        });
+        ctx.mana_ledger
+            .set_balance(&test_did, initial_mana)
+            .expect("set initial mana");
         ctx
     }
 
@@ -609,7 +609,9 @@ mod tests {
         let other_account_id = OTHER_IDENTITY_DID_STR;
 
         let other_did = Did::from_str(other_account_id).unwrap();
-        futures::executor::block_on(ctx.mana_ledger.set_balance(&other_did, 50));
+        ctx.mana_ledger
+            .set_balance(&other_did, 50)
+            .expect("set mana for other did");
 
         let spend_amount = 10u64;
         let result = host_account_spend_mana(&mut ctx, other_account_id, spend_amount).await;
