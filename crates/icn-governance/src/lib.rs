@@ -482,6 +482,68 @@ impl GovernanceModule {
         }
     }
 
+    /// Inserts a vote that originated from another node.
+    pub fn insert_external_vote(&mut self, vote: Vote) -> Result<(), CommonError> {
+        match &mut self.backend {
+            Backend::InMemory { proposals } => {
+                if let Some(prop) = proposals.get_mut(&vote.proposal_id) {
+                    prop.votes.insert(vote.voter.clone(), vote);
+                    Ok(())
+                } else {
+                    Err(CommonError::ResourceNotFound(format!(
+                        "Proposal with ID {} not found for external vote",
+                        vote.proposal_id.0
+                    )))
+                }
+            }
+            #[cfg(feature = "persist-sled")]
+            Backend::Sled {
+                db,
+                proposals_tree_name,
+            } => {
+                let tree = db.open_tree(proposals_tree_name).map_err(|e| {
+                    CommonError::DatabaseError(format!("Failed to open proposals tree: {}", e))
+                })?;
+                let key = vote.proposal_id.0.as_bytes();
+                let proposal_bytes = tree
+                    .get(key)
+                    .map_err(|e| {
+                        CommonError::DatabaseError(format!(
+                            "Failed to get proposal {}: {}",
+                            vote.proposal_id.0, e
+                        ))
+                    })?
+                    .ok_or_else(|| {
+                        CommonError::ResourceNotFound(format!(
+                            "Proposal with ID {} not found for external vote",
+                            vote.proposal_id.0
+                        ))
+                    })?;
+                let mut proposal: Proposal =
+                    bincode::deserialize(&proposal_bytes).map_err(|e| {
+                        CommonError::DeserializationError(format!(
+                            "Failed to deserialize proposal {}: {}",
+                            vote.proposal_id.0, e
+                        ))
+                    })?;
+                proposal.votes.insert(vote.voter.clone(), vote.clone());
+                let encoded = bincode::serialize(&proposal).map_err(|e| {
+                    CommonError::SerializationError(format!(
+                        "Failed to serialize proposal {}: {}",
+                        proposal.id.0, e
+                    ))
+                })?;
+                tree.insert(key, encoded).map_err(|e| {
+                    CommonError::DatabaseError(format!(
+                        "Failed to persist proposal {}: {}",
+                        proposal.id.0, e
+                    ))
+                })?;
+                Ok(())
+            }
+        }
+    }
+
     /// Counts yes/no/abstain votes for a proposal, considering only current members.
     pub fn tally_votes(&self, proposal: &Proposal) -> (usize, usize, usize) {
         let mut yes = 0;

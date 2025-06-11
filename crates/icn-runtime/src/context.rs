@@ -178,6 +178,7 @@ pub struct CastVotePayload {
 pub trait MeshNetworkService: Send + Sync + std::fmt::Debug + DowncastSync {
     async fn announce_job(&self, job: &ActualMeshJob) -> Result<(), HostAbiError>;
     async fn announce_proposal(&self, proposal_bytes: Vec<u8>) -> Result<(), HostAbiError>;
+    async fn announce_vote(&self, vote_bytes: Vec<u8>) -> Result<(), HostAbiError>;
     async fn collect_bids_for_job(
         &self,
         job_id: &JobId,
@@ -240,6 +241,14 @@ impl MeshNetworkService for DefaultMeshNetworkService {
             .broadcast_message(msg)
             .await
             .map_err(|e| HostAbiError::NetworkError(format!("Failed to announce proposal: {}", e)))
+    }
+
+    async fn announce_vote(&self, vote_bytes: Vec<u8>) -> Result<(), HostAbiError> {
+        let msg = NetworkMessage::VoteAnnouncement(vote_bytes);
+        self.inner
+            .broadcast_message(msg)
+            .await
+            .map_err(|e| HostAbiError::NetworkError(format!("Failed to announce vote: {}", e)))
     }
 
     async fn collect_bids_for_job(
@@ -1033,9 +1042,26 @@ impl RuntimeContext {
                 )))
             }
         };
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
         let mut gov = self.governance_module.lock().await;
         gov.cast_vote(self.current_identity.clone(), &proposal_id, vote_option)
-            .map_err(HostAbiError::Common)
+            .map_err(HostAbiError::Common)?;
+        let vote = icn_governance::Vote {
+            voter: self.current_identity.clone(),
+            proposal_id: proposal_id.clone(),
+            option: vote_option,
+            voted_at: now,
+        };
+        drop(gov);
+        let encoded = bincode::serialize(&vote)
+            .map_err(|e| HostAbiError::InternalError(format!("Failed to serialize vote: {}", e)))?;
+        if let Err(e) = self.mesh_network_service.announce_vote(encoded).await {
+            warn!("Failed to broadcast vote for {:?}: {}", proposal_id, e);
+        }
+        Ok(())
     }
 
     pub async fn close_governance_proposal_voting(
@@ -1075,6 +1101,21 @@ impl RuntimeContext {
         }
         gov.insert_external_proposal(proposal)
             .map_err(HostAbiError::Common)
+    }
+
+    /// Inserts a vote received from the network into the local GovernanceModule.
+    pub async fn ingest_external_vote(&self, vote_bytes: &[u8]) -> Result<(), HostAbiError> {
+        let vote: icn_governance::Vote = bincode::deserialize(vote_bytes)
+            .map_err(|e| HostAbiError::InternalError(format!("Failed to decode vote: {}", e)))?;
+        let mut gov = self.governance_module.lock().await;
+        if gov
+            .get_proposal(&vote.proposal_id)
+            .map_err(HostAbiError::Common)?
+            .is_none()
+        {
+            return Ok(());
+        }
+        gov.insert_external_vote(vote).map_err(HostAbiError::Common)
     }
 
     /// Create a new RuntimeContext with real libp2p networking
@@ -1415,6 +1456,11 @@ impl MeshNetworkService for StubMeshNetworkService {
 
     async fn announce_proposal(&self, _proposal_bytes: Vec<u8>) -> Result<(), HostAbiError> {
         println!("[StubMeshNetworkService] Announced proposal (stub)");
+        Ok(())
+    }
+
+    async fn announce_vote(&self, _vote_bytes: Vec<u8>) -> Result<(), HostAbiError> {
+        println!("[StubMeshNetworkService] Announced vote (stub)");
         Ok(())
     }
 
