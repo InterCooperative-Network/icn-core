@@ -37,6 +37,7 @@ use async_trait::async_trait;
 use axum::{
     extract::{Path as AxumPath, State},
     http::StatusCode,
+    middleware::{self, Next},
     response::IntoResponse,
     routing::{get, post},
     Json, Router,
@@ -50,6 +51,8 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
+use tokio::sync::Mutex as AsyncMutex;
 
 #[cfg(feature = "enable-libp2p")]
 use libp2p::{Multiaddr, PeerId as Libp2pPeerId};
@@ -119,6 +122,19 @@ struct Cli {
         help = "Enable real libp2p networking (requires with-libp2p feature)"
     )]
     enable_p2p: bool,
+
+    #[clap(
+        long,
+        help = "API key required for HTTP requests. If not set, authentication is disabled"
+    )]
+    api_key: Option<String>,
+
+    #[clap(
+        long,
+        default_value_t = 60,
+        help = "Max requests per minute when no API key is set (0 disables)"
+    )]
+    open_rate_limit: u64,
 }
 
 #[derive(clap::ValueEnum, Clone, Debug)]
@@ -184,21 +200,80 @@ struct AppState {
     runtime_context: Arc<RuntimeContext>,
     node_name: String,
     node_version: String,
+    api_key: Option<String>,
+    rate_limiter: Option<Arc<AsyncMutex<RateLimitData>>>,
+}
+
+struct RateLimitData {
+    last: Instant,
+    count: u64,
+    limit: u64,
+}
+
+async fn require_api_key(
+    State(state): State<AppState>,
+    req: axum::http::Request<axum::body::Body>,
+    next: Next,
+) -> impl IntoResponse {
+    if let Some(ref expected) = state.api_key {
+        match req.headers().get("x-api-key").and_then(|v| v.to_str().ok()) {
+            Some(provided) if provided == expected => next.run(req).await,
+            _ => (
+                StatusCode::UNAUTHORIZED,
+                Json(JsonErrorResponse {
+                    error: "unauthorized".to_string(),
+                }),
+            )
+                .into_response(),
+        }
+    } else {
+        next.run(req).await
+    }
+}
+
+async fn rate_limit_middleware(
+    State(state): State<AppState>,
+    req: axum::http::Request<axum::body::Body>,
+    next: Next,
+) -> impl IntoResponse {
+    if let Some(ref limiter) = state.rate_limiter {
+        let mut data = limiter.lock().await;
+        let now = Instant::now();
+        if now.duration_since(data.last) > Duration::from_secs(60) {
+            data.last = now;
+            data.count = 0;
+        }
+        if data.count >= data.limit {
+            return (
+                StatusCode::TOO_MANY_REQUESTS,
+                Json(JsonErrorResponse {
+                    error: "rate limit exceeded".to_string(),
+                }),
+            )
+                .into_response();
+        }
+        data.count += 1;
+    }
+    next.run(req).await
 }
 
 // --- Public App Constructor (for tests or embedding) ---
 pub async fn app_router() -> Router {
-    // Renamed to app_router and made async for RT init
+    app_router_with_options(None, None).await
+}
+
+/// Construct a router for tests or embedding with optional API key and rate limit.
+pub async fn app_router_with_options(api_key: Option<String>, rate_limit: Option<u64>) -> Router {
     // Generate a new identity for this test/embedded instance
     let (sk, pk) = generate_ed25519_keypair();
     let node_did_string = did_key_from_verifying_key(&pk);
     let node_did = Did::from_str(&node_did_string).expect("Failed to create test node DID");
     info!("Test/Embedded Node DID: {}", node_did);
 
-    let signer = Arc::new(RuntimeStubSigner::new_with_keys(sk, pk)); // Use the generated keys
+    let signer = Arc::new(RuntimeStubSigner::new_with_keys(sk, pk));
     let dag_store_for_rt = Arc::new(RuntimeStubDagStore::new());
     let mesh_network_service = Arc::new(StubMeshNetworkService::new());
-    // Note: GovernanceModule is initialized inside RuntimeContext::new_with_stubs or similar
+    // GovernanceModule is initialized inside RuntimeContext::new
 
     let rt_ctx = RuntimeContext::new(
         node_did.clone(),
@@ -217,10 +292,20 @@ pub async fn app_router() -> Router {
 
     rt_ctx.clone().spawn_mesh_job_manager().await; // Start the job manager
 
+    let rate_limiter = rate_limit.filter(|l| *l > 0).map(|limit| {
+        Arc::new(AsyncMutex::new(RateLimitData {
+            last: Instant::now(),
+            count: 0,
+            limit,
+        }))
+    });
+
     let app_state = AppState {
         runtime_context: rt_ctx.clone(),
         node_name: "ICN Test/Embedded Node".to_string(),
         node_version: ICN_CORE_VERSION.to_string(),
+        api_key,
+        rate_limiter: rate_limiter.clone(),
     };
 
     Router::new()
@@ -239,7 +324,15 @@ pub async fn app_router() -> Router {
         .route("/mesh/jobs", get(mesh_list_jobs_handler)) // List all jobs
         .route("/mesh/jobs/:job_id", get(mesh_get_job_status_handler)) // Get specific job status
         .route("/mesh/receipts", post(mesh_submit_receipt_handler)) // Submit execution receipt
-        .with_state(app_state)
+        .with_state(app_state.clone())
+        .layer(middleware::from_fn_with_state(
+            app_state.clone(),
+            require_api_key,
+        ))
+        .layer(middleware::from_fn_with_state(
+            app_state.clone(),
+            rate_limit_middleware,
+        ))
 }
 
 // --- Main Application Logic ---
@@ -373,10 +466,22 @@ async fn main() {
     info!("ICN RuntimeContext initialized and JobManager spawned.");
 
     // --- Create AppState for Axum ---
+    let rate_limiter = if cli.api_key.is_none() && cli.open_rate_limit > 0 {
+        Some(Arc::new(AsyncMutex::new(RateLimitData {
+            last: Instant::now(),
+            count: 0,
+            limit: cli.open_rate_limit,
+        })))
+    } else {
+        None
+    };
+
     let app_state = AppState {
         runtime_context: rt_ctx.clone(),
         node_name: node_name.clone(),
         node_version: ICN_CORE_VERSION.to_string(),
+        api_key: cli.api_key.clone(),
+        rate_limiter: rate_limiter.clone(),
     };
 
     // --- Define HTTP Routes ---
@@ -396,7 +501,15 @@ async fn main() {
         .route("/mesh/jobs", get(mesh_list_jobs_handler))
         .route("/mesh/jobs/:job_id", get(mesh_get_job_status_handler))
         .route("/mesh/receipts", post(mesh_submit_receipt_handler))
-        .with_state(app_state.clone());
+        .with_state(app_state.clone())
+        .layer(middleware::from_fn_with_state(
+            app_state.clone(),
+            require_api_key,
+        ))
+        .layer(middleware::from_fn_with_state(
+            app_state.clone(),
+            rate_limit_middleware,
+        ));
 
     let addr: SocketAddr = cli
         .http_listen_addr

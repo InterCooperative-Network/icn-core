@@ -1,0 +1,7 @@
+# Example node configuration for a small federation
+http_listen_addr = "0.0.0.0:7845"
+storage_backend = "sqlite"
+storage_path = "./icn_data/node1.sqlite"
+bootstrap_peers = ["/ip4/1.2.3.4/tcp/7000/p2p/QmPeer"]
+api_key = "node1secret"
+open_rate_limit = 0
