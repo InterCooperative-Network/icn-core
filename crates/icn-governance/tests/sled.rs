@@ -57,6 +57,12 @@ mod tests {
             )
             .unwrap();
         gov.cast_vote(
+            Did::from_str("did:example:alice").unwrap(),
+            &pid,
+            VoteOption::Yes,
+        )
+        .unwrap();
+        gov.cast_vote(
             Did::from_str("did:example:bob").unwrap(),
             &pid,
             VoteOption::Yes,
