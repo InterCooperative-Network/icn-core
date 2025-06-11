@@ -1,8 +1,8 @@
+use icn_api::governance_trait::{CastVoteRequest, ProposalInputType, SubmitProposalRequest};
 use icn_node::app_router;
-use tokio::task;
 use reqwest::Client;
-use icn_api::governance_trait::{SubmitProposalRequest, ProposalInputType, CastVoteRequest};
 use serde_json::Value;
+use tokio::task;
 
 #[tokio::test]
 async fn submit_and_vote_proposal() {
@@ -20,7 +20,7 @@ async fn submit_and_vote_proposal() {
         duration_secs: 60,
     };
     let resp: Value = client
-        .post(&format!("http://{}/governance/submit", addr))
+        .post(format!("http://{addr}/governance/submit"))
         .json(&submit_req)
         .send()
         .await
@@ -28,7 +28,10 @@ async fn submit_and_vote_proposal() {
         .json()
         .await
         .unwrap();
-    let pid = resp["0"].as_str().unwrap_or_else(|| resp["id"].as_str().unwrap()).to_string();
+    let pid = resp["0"]
+        .as_str()
+        .unwrap_or_else(|| resp["id"].as_str().unwrap())
+        .to_string();
 
     let vote_req = CastVoteRequest {
         voter_did: "did:example:bob".to_string(),
@@ -36,7 +39,7 @@ async fn submit_and_vote_proposal() {
         vote_option: "yes".to_string(),
     };
     let vote_resp = client
-        .post(&format!("http://{}/governance/vote", addr))
+        .post(format!("http://{addr}/governance/vote"))
         .json(&vote_req)
         .send()
         .await
@@ -44,7 +47,7 @@ async fn submit_and_vote_proposal() {
     assert_eq!(vote_resp.status(), 200);
 
     let proposal: Value = client
-        .get(&format!("http://{}/governance/proposal/{}", addr, pid))
+        .get(format!("http://{addr}/governance/proposal/{pid}"))
         .send()
         .await
         .unwrap()

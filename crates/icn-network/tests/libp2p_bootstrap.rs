@@ -8,8 +8,8 @@
 #[cfg(feature = "experimental-libp2p")]
 mod libp2p_bootstrap_tests {
     use icn_network::libp2p_service::{Libp2pNetworkService, NetworkConfig};
-    use libp2p::{Multiaddr, PeerId as Libp2pPeerId};
-    use std::str::FromStr;
+    use icn_network::NetworkService;
+    use libp2p::PeerId as Libp2pPeerId;
     use std::time::Duration;
     use tokio::time::sleep;
 
@@ -24,29 +24,23 @@ mod libp2p_bootstrap_tests {
         let node1_peer_id = node1_service.local_peer_id().clone();
         println!("Node 1 Peer ID: {}", node1_peer_id);
 
-        sleep(Duration::from_secs(1)).await;
+        sleep(Duration::from_secs(2)).await;
 
-        // For now, we'll use a mock listen address since listening_addresses method doesn't exist yet
-        let mock_listen_addr = "/ip4/127.0.0.1/tcp/0"
-            .parse::<Multiaddr>()
-            .expect("Invalid multiaddr");
+        let addr = node1_service.listening_addresses()[0].clone();
 
-        println!(
-            "Node 1 Peer ID: {}, using mock listen address: {}",
-            node1_peer_id, mock_listen_addr
-        );
-
-        let bootstrap_info_for_node2 = vec![(node1_peer_id, mock_listen_addr)];
+        let bootstrap_info_for_node2 = vec![(node1_peer_id, addr.clone())];
         let mut config2 = NetworkConfig::default();
         config2.bootstrap_peers = bootstrap_info_for_node2;
-
-        let _node2_service = Libp2pNetworkService::new(config2)
+        let node2_service = Libp2pNetworkService::new(config2)
             .await
             .expect("Node 2 failed to start");
 
-        println!("Nodes started. Allowing time for discovery (e.g., 15 seconds). Check logs for Kademlia events...");
-        sleep(Duration::from_secs(15)).await;
+        sleep(Duration::from_secs(5)).await;
 
-        println!("Test finished. Inspect logs for Kademlia discovery events involving both nodes.");
+        let discovered = node2_service
+            .discover_peers(Some(node1_peer_id.to_string()))
+            .await
+            .expect("discover");
+        assert!(discovered.iter().any(|p| p.0 == node1_peer_id.to_string()));
     }
 }
