@@ -25,6 +25,7 @@ use icn_network::libp2p_service::NetworkConfig;
 #[cfg(feature = "enable-libp2p")]
 use libp2p::{Multiaddr, PeerId as Libp2pPeerId};
 
+use bincode;
 use icn_governance::{GovernanceModule, ProposalId, ProposalType, VoteOption};
 use icn_identity::{
     did_key_from_verifying_key, generate_ed25519_keypair, sign_message,
@@ -176,6 +177,7 @@ pub struct CastVotePayload {
 #[async_trait]
 pub trait MeshNetworkService: Send + Sync + std::fmt::Debug + DowncastSync {
     async fn announce_job(&self, job: &ActualMeshJob) -> Result<(), HostAbiError>;
+    async fn announce_proposal(&self, proposal_bytes: Vec<u8>) -> Result<(), HostAbiError>;
     async fn collect_bids_for_job(
         &self,
         job_id: &JobId,
@@ -230,6 +232,14 @@ impl MeshNetworkService for DefaultMeshNetworkService {
             .broadcast_message(job_message)
             .await
             .map_err(|e| HostAbiError::NetworkError(format!("Failed to announce job: {}", e)))
+    }
+
+    async fn announce_proposal(&self, proposal_bytes: Vec<u8>) -> Result<(), HostAbiError> {
+        let msg = NetworkMessage::ProposalAnnouncement(proposal_bytes);
+        self.inner
+            .broadcast_message(msg)
+            .await
+            .map_err(|e| HostAbiError::NetworkError(format!("Failed to announce proposal: {}", e)))
     }
 
     async fn collect_bids_for_job(
@@ -990,6 +1000,17 @@ impl RuntimeContext {
                 payload.duration_secs,
             )
             .map_err(HostAbiError::Common)?;
+        let proposal = gov
+            .get_proposal(&pid)
+            .map_err(HostAbiError::Common)?
+            .expect("Proposal just inserted should exist");
+        drop(gov);
+        let encoded = bincode::serialize(&proposal).map_err(|e| {
+            HostAbiError::InternalError(format!("Failed to serialize proposal: {}", e))
+        })?;
+        if let Err(e) = self.mesh_network_service.announce_proposal(encoded).await {
+            warn!("Failed to broadcast proposal {:?}: {}", pid, e);
+        }
         Ok(pid.0)
     }
 
@@ -1028,6 +1049,27 @@ impl RuntimeContext {
         Err(HostAbiError::NotImplemented(
             "execute_governance_proposal".into(),
         ))
+    }
+
+    /// Inserts a proposal received from the network into the local GovernanceModule.
+    pub async fn ingest_external_proposal(
+        &self,
+        proposal_bytes: &[u8],
+    ) -> Result<(), HostAbiError> {
+        let proposal: icn_governance::Proposal =
+            bincode::deserialize(proposal_bytes).map_err(|e| {
+                HostAbiError::InternalError(format!("Failed to decode proposal: {}", e))
+            })?;
+        let mut gov = self.governance_module.lock().await;
+        if gov
+            .get_proposal(&proposal.id)
+            .map_err(HostAbiError::Common)?
+            .is_some()
+        {
+            return Ok(());
+        }
+        gov.insert_external_proposal(proposal)
+            .map_err(HostAbiError::Common)
     }
 
     /// Create a new RuntimeContext with real libp2p networking
@@ -1369,6 +1411,11 @@ impl MeshNetworkService for StubMeshNetworkService {
 
     async fn announce_job(&self, job: &ActualMeshJob) -> Result<(), HostAbiError> {
         println!("[StubMeshNetworkService] Announced job: {:?}", job.id);
+        Ok(())
+    }
+
+    async fn announce_proposal(&self, _proposal_bytes: Vec<u8>) -> Result<(), HostAbiError> {
+        println!("[StubMeshNetworkService] Announced proposal (stub)");
         Ok(())
     }
 
