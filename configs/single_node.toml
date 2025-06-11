@@ -1,0 +1,5 @@
+# Example single node configuration
+http_listen_addr = "127.0.0.1:7845"
+storage_backend = "memory"
+api_key = "CHANGE_ME"
+open_rate_limit = 60
