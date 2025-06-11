@@ -432,6 +432,56 @@ impl GovernanceModule {
         self.threshold = threshold;
     }
 
+    /// Inserts a proposal that originated from another node into the governance module.
+    pub fn insert_external_proposal(&mut self, proposal: Proposal) -> Result<(), CommonError> {
+        match &mut self.backend {
+            Backend::InMemory { proposals } => {
+                if proposals.contains_key(&proposal.id) {
+                    return Err(CommonError::InvalidInputError(format!(
+                        "Proposal with ID {} already exists",
+                        proposal.id.0
+                    )));
+                }
+                proposals.insert(proposal.id.clone(), proposal);
+                Ok(())
+            }
+            #[cfg(feature = "persist-sled")]
+            Backend::Sled {
+                db,
+                proposals_tree_name,
+            } => {
+                let tree = db.open_tree(proposals_tree_name).map_err(|e| {
+                    CommonError::DatabaseError(format!("Failed to open proposals tree: {}", e))
+                })?;
+                let key = proposal.id.0.as_bytes();
+                if tree.contains_key(key).map_err(|e| {
+                    CommonError::DatabaseError(format!(
+                        "Failed to check key existence in proposals tree: {}",
+                        e
+                    ))
+                })? {
+                    return Err(CommonError::InvalidInputError(format!(
+                        "Proposal with ID {} already exists",
+                        proposal.id.0
+                    )));
+                }
+                let encoded_proposal = bincode::serialize(&proposal).map_err(|e| {
+                    CommonError::SerializationError(format!(
+                        "Failed to serialize proposal {}: {}",
+                        proposal.id.0, e
+                    ))
+                })?;
+                tree.insert(key, encoded_proposal).map_err(|e| {
+                    CommonError::DatabaseError(format!(
+                        "Failed to insert proposal {} into sled: {}",
+                        proposal.id.0, e
+                    ))
+                })?;
+                Ok(())
+            }
+        }
+    }
+
     /// Counts yes/no/abstain votes for a proposal, considering only current members.
     pub fn tally_votes(&self, proposal: &Proposal) -> (usize, usize, usize) {
         let mut yes = 0;
