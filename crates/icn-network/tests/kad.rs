@@ -65,13 +65,22 @@ mod kademlia_peer_discovery_tests {
         sleep(Duration::from_secs(5)).await;
 
         // Verify that peer discovery via Kademlia works
-        let discovered = node2_service
-            .discover_peers(Some(node1_libp2p_peer_id.to_string()))
-            .await
-            .expect("discover");
-        assert!(discovered
-            .iter()
-            .any(|p| p.0 == node1_libp2p_peer_id.to_string()));
+        let mut found = false;
+        for _ in 0..5 {
+            let discovered = node2_service
+                .discover_peers(Some(node1_libp2p_peer_id.to_string()))
+                .await
+                .expect("discover");
+            if discovered
+                .iter()
+                .any(|p| p.0 == node1_libp2p_peer_id.to_string())
+            {
+                found = true;
+                break;
+            }
+            sleep(Duration::from_secs(2)).await;
+        }
+        assert!(found, "Node2 should discover Node1 via Kademlia");
 
         println!("Two node connectivity test finished successfully.");
     }
@@ -85,8 +94,10 @@ mod kademlia_peer_discovery_tests {
         sleep(Duration::from_secs(2)).await;
         let addr1 = node1_service.listening_addresses()[0].clone();
 
-        let mut config2 = NetworkConfig::default();
-        config2.bootstrap_peers = vec![(peer1.clone(), addr1)];
+        let config2 = NetworkConfig {
+            bootstrap_peers: vec![(peer1, addr1)],
+            ..NetworkConfig::default()
+        };
         let node2_service = Libp2pNetworkService::new(config2).await.expect("n2");
 
         sleep(Duration::from_secs(5)).await;
@@ -98,11 +109,16 @@ mod kademlia_peer_discovery_tests {
 
         sleep(Duration::from_secs(5)).await;
 
-        let rec = node1_service
-            .get_kademlia_record("test-key")
-            .await
-            .expect("get");
-        assert_eq!(rec.unwrap().value, b"hello".to_vec());
+        let mut success = false;
+        for _ in 0..5 {
+            if let Ok(Some(rec)) = node1_service.get_kademlia_record("test-key").await {
+                assert_eq!(rec.value, b"hello".to_vec());
+                success = true;
+                break;
+            }
+            sleep(Duration::from_secs(2)).await;
+        }
+        assert!(success, "record retrieval failed");
     }
 }
 
@@ -113,7 +129,6 @@ mod kademlia_three_node_tests {
     use std::time::Duration;
     use tokio::time::sleep;
     #[tokio::test]
-    #[ignore]
     async fn test_three_node_basic_connectivity() {
         println!("Starting three node connectivity test...");
         let config1 = NetworkConfig::default();

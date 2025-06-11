@@ -102,11 +102,12 @@ struct Cli {
     node_name: Option<String>,
 
     #[clap(
-        long,
+        long = "listen-address",
+        alias = "p2p-listen-addr",
         default_value = "/ip4/0.0.0.0/tcp/0",
         help = "Libp2p listen address for P2P networking"
     )]
-    p2p_listen_addr: String,
+    listen_address: String,
 
     #[clap(
         long,
@@ -314,7 +315,7 @@ async fn main() {
         {
             info!(
                 "Enabling libp2p networking with P2P listen address: {}",
-                cli.p2p_listen_addr
+                cli.listen_address
             );
 
             // Parse bootstrap peers if provided
@@ -356,7 +357,7 @@ async fn main() {
             };
 
             let listen_addr = cli
-                .p2p_listen_addr
+                .listen_address
                 .parse::<Multiaddr>()
                 .expect("Invalid p2p listen multiaddr");
             let listen_addrs = vec![listen_addr];
