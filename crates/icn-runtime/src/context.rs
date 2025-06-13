@@ -1276,7 +1276,7 @@ impl HostEnvironment for ConcreteHostEnvironment {
         _job_data_ptr: u32,
         _job_data_len: u32,
     ) -> Result<u32, HostAbiError> {
-        todo!("ConcreteHostEnvironment::env_submit_mesh_job");
+        Err(HostAbiError::NotImplemented("env_submit_mesh_job".into()))
     }
     fn env_account_get_mana(
         &self,
@@ -1284,7 +1284,7 @@ impl HostEnvironment for ConcreteHostEnvironment {
         _account_did_ptr: u32,
         _account_did_len: u32,
     ) -> Result<u64, HostAbiError> {
-        todo!("ConcreteHostEnvironment::env_account_get_mana");
+        Err(HostAbiError::NotImplemented("env_account_get_mana".into()))
     }
     fn env_account_spend_mana(
         &self,
@@ -1293,7 +1293,9 @@ impl HostEnvironment for ConcreteHostEnvironment {
         _account_did_len: u32,
         _amount: u64,
     ) -> Result<(), HostAbiError> {
-        todo!("ConcreteHostEnvironment::env_account_spend_mana");
+        Err(HostAbiError::NotImplemented(
+            "env_account_spend_mana".into(),
+        ))
     }
 }
 
@@ -1539,3 +1541,63 @@ impl MeshNetworkService for StubMeshNetworkService {
 //     }
 // }
 // }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Arc;
+
+    #[test]
+    fn test_env_submit_mesh_job_not_implemented() {
+        let env = ConcreteHostEnvironment::new();
+        let ctx_arc = RuntimeContext::new_for_test(
+            Did::from_str("did:icn:test:notimpl").unwrap(),
+            StubSigner::new(),
+            Arc::new(StubMeshNetworkService::new()),
+            Arc::new(TokioMutex::new(StubDagStore::new())),
+        );
+        let mut ctx = match Arc::try_unwrap(ctx_arc) {
+            Ok(c) => c,
+            Err(_) => panic!("Arc had multiple references"),
+        };
+
+        let result = env.env_submit_mesh_job(&mut ctx, 0, 0);
+        assert!(matches!(result, Err(HostAbiError::NotImplemented(_))));
+    }
+
+    #[test]
+    fn test_env_account_get_mana_not_implemented() {
+        let env = ConcreteHostEnvironment::new();
+        let ctx_arc = RuntimeContext::new_for_test(
+            Did::from_str("did:icn:test:notimpl").unwrap(),
+            StubSigner::new(),
+            Arc::new(StubMeshNetworkService::new()),
+            Arc::new(TokioMutex::new(StubDagStore::new())),
+        );
+        let ctx = match Arc::try_unwrap(ctx_arc) {
+            Ok(c) => c,
+            Err(_) => panic!("Arc had multiple references"),
+        };
+
+        let result = env.env_account_get_mana(&ctx, 0, 0);
+        assert!(matches!(result, Err(HostAbiError::NotImplemented(_))));
+    }
+
+    #[test]
+    fn test_env_account_spend_mana_not_implemented() {
+        let env = ConcreteHostEnvironment::new();
+        let ctx_arc = RuntimeContext::new_for_test(
+            Did::from_str("did:icn:test:notimpl").unwrap(),
+            StubSigner::new(),
+            Arc::new(StubMeshNetworkService::new()),
+            Arc::new(TokioMutex::new(StubDagStore::new())),
+        );
+        let mut ctx = match Arc::try_unwrap(ctx_arc) {
+            Ok(c) => c,
+            Err(_) => panic!("Arc had multiple references"),
+        };
+
+        let result = env.env_account_spend_mana(&mut ctx, 0, 0, 10);
+        assert!(matches!(result, Err(HostAbiError::NotImplemented(_))));
+    }
+}
