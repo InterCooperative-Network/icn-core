@@ -26,6 +26,9 @@ jobs:
           toolchain: ${{ matrix.rust }}
           components: rustfmt, clippy
 
+      - name: Install clippy component
+        run: rustup component add clippy
+
       - name: Cache dependencies
         uses: Swatinem/rust-cache@v2
         with:
