@@ -11,7 +11,6 @@
 //! path for Phase 3.
 
 #[cfg(feature = "enable-libp2p")]
-#[cfg(any())]
 mod runtime_host_abi_tests {
     use anyhow::Result;
     use icn_common::{Cid, Did};
@@ -92,7 +91,7 @@ mod runtime_host_abi_tests {
         let submitter_libp2p = submitter_node
             .get_libp2p_service()
             .map_err(|e| anyhow::anyhow!("Failed to get submitter libp2p service: {}", e))?;
-        let submitter_peer_id = submitter_libp2p.local_peer_id().clone();
+        let submitter_peer_id = *submitter_libp2p.local_peer_id();
         let submitter_addrs = submitter_libp2p.listening_addresses();
 
         if submitter_addrs.is_empty() {
@@ -229,7 +228,6 @@ mod runtime_host_abi_tests {
             "Receipt executor matches executor node"
         );
         assert!(!receipt.sig.0.is_empty(), "Receipt has signature");
-        assert!(receipt.cpu_ms >= 0, "Receipt has valid CPU time");
 
         info!("✅ [RUNTIME-INTEGRATION] Receipt verification successful:");
         info!("   • Job ID: {}", receipt.job_id);
@@ -244,14 +242,10 @@ mod runtime_host_abi_tests {
         // Check mana balances
         let submitter_balance = submitter_node
             .mana_ledger
-            .get_balance(&submitter_did)
-            .await
-            .unwrap_or(0);
+            .get_balance(&submitter_did);
         let executor_balance = executor_node
             .mana_ledger
-            .get_balance(&executor_did)
-            .await
-            .unwrap_or(0);
+            .get_balance(&executor_did);
 
         info!(
             "💰 [RUNTIME-INTEGRATION] Final mana balances - Submitter: {}, Executor: {}",
@@ -311,9 +305,7 @@ mod runtime_host_abi_tests {
         // Verify mana was deducted
         let balance = runtime_ctx
             .mana_ledger
-            .get_balance(&creator_did)
-            .await
-            .unwrap_or(0);
+            .get_balance(&creator_did);
         assert_eq!(
             balance, 450,
             "Mana should be deducted for job cost (500 - 50 = 450)"
