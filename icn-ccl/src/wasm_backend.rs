@@ -43,8 +43,8 @@ impl WasmBackend {
             {
                 let ret_ty = map_val_type(return_type)?;
                 let type_index = types.len();
-                types.function(Vec::<ValType>::new(), vec![ret_ty.clone()]);
-                functions.add(type_index as u32);
+                types.ty().function(Vec::<ValType>::new(), vec![ret_ty]);
+                functions.function(type_index as u32);
 
                 let mut func = Function::new(Vec::new());
 
@@ -64,7 +64,7 @@ impl WasmBackend {
                 }
 
                 func.instruction(&Instruction::End);
-                codes.add(&func);
+                codes.function(&func);
 
                 let func_index = (functions.len() - 1) as u32;
                 exports.export(name, ExportKind::Func, func_index);
@@ -102,7 +102,11 @@ impl WasmBackend {
         Ok((wasm_bytes, metadata))
     }
 
-    fn emit_expression(&self, expr: &ExpressionNode, func: &mut Function) -> Result<ValType, CclError> {
+    fn emit_expression(
+        &self,
+        expr: &ExpressionNode,
+        func: &mut Function,
+    ) -> Result<ValType, CclError> {
         match expr {
             ExpressionNode::IntegerLiteral(i) => {
                 func.instruction(&Instruction::I64Const(*i));
@@ -112,7 +116,11 @@ impl WasmBackend {
                 func.instruction(&Instruction::I32Const(if *b { 1 } else { 0 }));
                 Ok(ValType::I32)
             }
-            ExpressionNode::BinaryOp { left, operator, right } => {
+            ExpressionNode::BinaryOp {
+                left,
+                operator,
+                right,
+            } => {
                 let l_ty = self.emit_expression(left, func)?;
                 let r_ty = self.emit_expression(right, func)?;
                 match (l_ty, r_ty, operator) {

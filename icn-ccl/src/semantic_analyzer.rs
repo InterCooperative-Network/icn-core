@@ -9,8 +9,13 @@ use std::collections::HashMap;
 // Example symbol table entry
 #[derive(Debug, Clone)]
 pub enum Symbol {
-    Variable { type_ann: crate::ast::TypeAnnotationNode },
-    Function { params: Vec<crate::ast::TypeAnnotationNode>, return_type: crate::ast::TypeAnnotationNode },
+    Variable {
+        type_ann: crate::ast::TypeAnnotationNode,
+    },
+    Function {
+        params: Vec<crate::ast::TypeAnnotationNode>,
+        return_type: crate::ast::TypeAnnotationNode,
+    },
     // ... other symbol types
 }
 
@@ -108,7 +113,11 @@ impl SemanticAnalyzer {
                 self.pop_scope();
                 self.current_return_type = prev_return;
             }
-            AstNode::RuleDefinition { name, condition, action } => {
+            AstNode::RuleDefinition {
+                name,
+                condition,
+                action,
+            } => {
                 let cond_ty = self.evaluate_expression(condition)?;
                 if cond_ty != TypeAnnotationNode::Bool {
                     return Err(CclError::TypeError(format!(
@@ -122,10 +131,17 @@ impl SemanticAnalyzer {
         Ok(())
     }
 
-    fn visit_policy_statement(&mut self, stmt: &crate::ast::PolicyStatementNode) -> Result<(), CclError> {
+    fn visit_policy_statement(
+        &mut self,
+        stmt: &crate::ast::PolicyStatementNode,
+    ) -> Result<(), CclError> {
         match stmt {
-            crate::ast::PolicyStatementNode::FunctionDef(func_def_node) => self.visit_node(func_def_node),
-            crate::ast::PolicyStatementNode::RuleDef(rule_def_node) => self.visit_node(rule_def_node),
+            crate::ast::PolicyStatementNode::FunctionDef(func_def_node) => {
+                self.visit_node(func_def_node)?;
+            }
+            crate::ast::PolicyStatementNode::RuleDef(rule_def_node) => {
+                self.visit_node(rule_def_node)?;
+            }
             crate::ast::PolicyStatementNode::Import { path, alias } => {
                 // For now, simply record the alias as a custom type symbol so later references
                 // to the imported name pass basic semantic checks. A full implementation would
@@ -140,8 +156,6 @@ impl SemanticAnalyzer {
         }
         Ok(())
     }
-        }
-    }
 
     fn visit_block(&mut self, block: &BlockNode, found_return: &mut bool) -> Result<(), CclError> {
         self.push_scope();
@@ -152,7 +166,11 @@ impl SemanticAnalyzer {
         Ok(())
     }
 
-    fn visit_statement(&mut self, stmt: &StatementNode, found_return: &mut bool) -> Result<(), CclError> {
+    fn visit_statement(
+        &mut self,
+        stmt: &StatementNode,
+        found_return: &mut bool,
+    ) -> Result<(), CclError> {
         match stmt {
             StatementNode::Let { name, value } => {
                 let ty = self.evaluate_expression(value)?;
@@ -163,10 +181,9 @@ impl SemanticAnalyzer {
             }
             StatementNode::Return(expr) => {
                 let expr_ty = self.evaluate_expression(expr)?;
-                let expected = self
-                    .current_return_type
-                    .clone()
-                    .ok_or_else(|| CclError::InternalCompilerError("Return outside function".to_string()))?;
+                let expected = self.current_return_type.clone().ok_or_else(|| {
+                    CclError::InternalCompilerError("Return outside function".to_string())
+                })?;
                 if expr_ty != expected {
                     return Err(CclError::TypeError(format!(
                         "Return type mismatch: expected {:?}, got {:?}",
@@ -199,14 +216,19 @@ impl SemanticAnalyzer {
             ActionNode::Charge(expr) => {
                 let ty = self.evaluate_expression(expr)?;
                 if ty != TypeAnnotationNode::Integer && ty != TypeAnnotationNode::Mana {
-                    return Err(CclError::TypeError("Charge amount must be Integer or Mana".to_string()));
+                    return Err(CclError::TypeError(
+                        "Charge amount must be Integer or Mana".to_string(),
+                    ));
                 }
                 Ok(())
             }
         }
     }
 
-    fn evaluate_expression(&mut self, expr: &ExpressionNode) -> Result<TypeAnnotationNode, CclError> {
+    fn evaluate_expression(
+        &mut self,
+        expr: &ExpressionNode,
+    ) -> Result<TypeAnnotationNode, CclError> {
         match expr {
             ExpressionNode::IntegerLiteral(_) => Ok(TypeAnnotationNode::Integer),
             ExpressionNode::BooleanLiteral(_) => Ok(TypeAnnotationNode::Bool),
@@ -225,7 +247,10 @@ impl SemanticAnalyzer {
             ExpressionNode::FunctionCall { name, arguments } => {
                 let symbol = self.lookup_symbol(name).cloned();
                 match symbol {
-                    Some(Symbol::Function { params, return_type }) => {
+                    Some(Symbol::Function {
+                        params,
+                        return_type,
+                    }) => {
                         if params.len() != arguments.len() {
                             return Err(CclError::TypeError(format!(
                                 "Function `{}` expects {} arguments, got {}",
@@ -239,9 +264,7 @@ impl SemanticAnalyzer {
                             if &arg_ty != param_ty {
                                 return Err(CclError::TypeError(format!(
                                     "Argument type mismatch for `{}`: expected {:?}, got {:?}",
-                                    name,
-                                    param_ty,
-                                    arg_ty
+                                    name, param_ty, arg_ty
                                 )));
                             }
                         }
@@ -257,25 +280,39 @@ impl SemanticAnalyzer {
                     ))),
                 }
             }
-            ExpressionNode::BinaryOp { left, operator, right } => {
+            ExpressionNode::BinaryOp {
+                left,
+                operator,
+                right,
+            } => {
                 let l = self.evaluate_expression(left)?;
                 let r = self.evaluate_expression(right)?;
                 match operator {
-                    BinaryOperator::Add | BinaryOperator::Sub | BinaryOperator::Mul | BinaryOperator::Div => {
+                    BinaryOperator::Add
+                    | BinaryOperator::Sub
+                    | BinaryOperator::Mul
+                    | BinaryOperator::Div => {
                         if l == TypeAnnotationNode::Integer && r == TypeAnnotationNode::Integer {
                             Ok(TypeAnnotationNode::Integer)
                         } else {
-                            Err(CclError::TypeError("Arithmetic operations require Integer operands".to_string()))
+                            Err(CclError::TypeError(
+                                "Arithmetic operations require Integer operands".to_string(),
+                            ))
                         }
                     }
                     BinaryOperator::Eq | BinaryOperator::Neq => {
                         if l == r {
                             Ok(TypeAnnotationNode::Bool)
                         } else {
-                            Err(CclError::TypeError("Equality operands must be of same type".to_string()))
+                            Err(CclError::TypeError(
+                                "Equality operands must be of same type".to_string(),
+                            ))
                         }
                     }
-                    BinaryOperator::Lt | BinaryOperator::Gt | BinaryOperator::Lte | BinaryOperator::Gte => {
+                    BinaryOperator::Lt
+                    | BinaryOperator::Gt
+                    | BinaryOperator::Lte
+                    | BinaryOperator::Gte => {
                         if l == TypeAnnotationNode::Integer && r == TypeAnnotationNode::Integer {
                             Ok(TypeAnnotationNode::Bool)
                         } else {
