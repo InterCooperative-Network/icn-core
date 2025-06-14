@@ -20,6 +20,7 @@ use icn_api::governance_trait::{
 };
 use icn_common::DagBlock as CoreDagBlock;
 use icn_common::{parse_cid_from_string, Cid, Did, NodeInfo, NodeStatus, ICN_CORE_VERSION};
+#[cfg(feature = "persist-sqlite")]
 use icn_dag::sqlite_store::SqliteDagStore;
 use icn_dag::{self, FileDagStore, InMemoryDagStore};
 use icn_identity::{
@@ -403,9 +404,19 @@ async fn main() {
                     Arc::new(TokioMutex::new(store))
                 }
                 StorageBackendType::Sqlite => {
-                    let store = SqliteDagStore::new(cli.storage_path.clone())
-                        .expect("Failed to init sqlite store");
-                    Arc::new(TokioMutex::new(store))
+                    #[cfg(feature = "persist-sqlite")]
+                    {
+                        let store = SqliteDagStore::new(cli.storage_path.clone())
+                            .expect("Failed to init sqlite store");
+                        Arc::new(TokioMutex::new(store))
+                    }
+                    #[cfg(not(feature = "persist-sqlite"))]
+                    {
+                        error!(
+                            "SQLite backend selected but the 'persist-sqlite' feature is not enabled"
+                        );
+                        std::process::exit(1);
+                    }
                 }
             };
         let mesh_network_service = Arc::new(StubMeshNetworkService::new());
