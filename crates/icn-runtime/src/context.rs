@@ -527,22 +527,36 @@ impl RuntimeContext {
     pub fn new_with_stubs(current_identity_str: &str) -> Arc<Self> {
         let current_identity = Did::from_str(current_identity_str)
             .expect("Invalid DID for test context in new_with_stubs");
+        #[cfg(feature = "persist-sqlite")]
+        let dag_store = Arc::new(TokioMutex::new(
+            icn_dag::sqlite_store::SqliteDagStore::new(PathBuf::from("./dag.sqlite")).unwrap(),
+        ));
+        #[cfg(not(feature = "persist-sqlite"))]
+        let dag_store = Arc::new(TokioMutex::new(StubDagStore::new()));
+
         Self::new(
             current_identity,
             Arc::new(StubMeshNetworkService::new()),
             Arc::new(StubSigner::new()),
-            Arc::new(TokioMutex::new(StubDagStore::new())),
+            dag_store,
         )
     }
 
     pub fn new_with_stubs_and_mana(current_identity_str: &str, initial_mana: u64) -> Arc<Self> {
         let current_identity = Did::from_str(current_identity_str)
             .expect("Invalid DID for test context in new_with_stubs_and_mana");
+        #[cfg(feature = "persist-sqlite")]
+        let dag_store = Arc::new(TokioMutex::new(
+            icn_dag::sqlite_store::SqliteDagStore::new(PathBuf::from("./dag.sqlite")).unwrap(),
+        ));
+        #[cfg(not(feature = "persist-sqlite"))]
+        let dag_store = Arc::new(TokioMutex::new(StubDagStore::new()));
+
         let ctx = Self::new(
             current_identity.clone(),
             Arc::new(StubMeshNetworkService::new()),
             Arc::new(StubSigner::new()),
-            Arc::new(TokioMutex::new(StubDagStore::new())),
+            dag_store,
         );
         ctx.mana_ledger
             .set_balance(&current_identity, initial_mana)

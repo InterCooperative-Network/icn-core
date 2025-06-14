@@ -5,7 +5,7 @@
 //! shared across multiple InterCooperative Network (ICN) core crates. It aims to
 //! reduce code duplication, ensure consistency, and simplify dependencies.
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use std::fmt;
 use thiserror::Error;
 
@@ -62,7 +62,7 @@ pub enum CommonError {
 
     #[error("Network unhealthy: {0}")]
     NetworkUnhealthy(String),
-    
+
     #[error("Identity error: {0}")]
     IdentityError(String),
 
@@ -98,7 +98,7 @@ pub enum CommonError {
 
     #[error("Node offline: {0}")]
     NodeOffline(String),
-    
+
     #[error("Unknown error: {0}")]
     UnknownError(String),
 
@@ -121,14 +121,17 @@ pub enum CommonError {
 /// Represents a Decentralized Identifier (DID).
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 pub struct Did {
-    pub method: String,         // e.g., "key", "web", "ion"
-    pub id_string: String,      // The method-specific identifier string
-    // TODO: Potentially add DID URL parsing elements like path, query, fragment later.
+    pub method: String, // e.g., "key", "web", "ion"
+    pub id_string: String, // The method-specific identifier string
+                        // TODO: Potentially add DID URL parsing elements like path, query, fragment later.
 }
 
 impl Did {
     pub fn new(method: &str, id_string: &str) -> Self {
-        Did { method: method.to_string(), id_string: id_string.to_string() }
+        Did {
+            method: method.to_string(),
+            id_string: id_string.to_string(),
+        }
     }
 }
 
@@ -143,7 +146,10 @@ impl std::str::FromStr for Did {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let parts: Vec<_> = s.splitn(3, ':').collect();
         if parts.len() == 3 && parts[0] == "did" && !parts[1].is_empty() && !parts[2].is_empty() {
-            Ok(Did { method: parts[1].to_string(), id_string: parts[2].to_string() })
+            Ok(Did {
+                method: parts[1].to_string(),
+                id_string: parts[2].to_string(),
+            })
         } else {
             Err(CommonError::InvalidInputError(format!("Invalid DID string format: {s}. Expected 'did:method:id' with non-empty method and id.")))
         }
@@ -153,10 +159,10 @@ impl std::str::FromStr for Did {
 /// Represents a Content Identifier (CID).
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)] // Hash is important for CIDs as keys
 pub struct Cid {
-    pub version: u64,           // CIDv0 or CIDv1
-    pub codec: u64,             // Multicodec for the content type (e.g., dag-pb, dag-cbor)
-    pub hash_alg: u64,          // Multicodec for the hash algorithm (e.g., sha2-256)
-    pub hash_bytes: Vec<u8>,    // The raw hash bytes
+    pub version: u64,        // CIDv0 or CIDv1
+    pub codec: u64,          // Multicodec for the content type (e.g., dag-pb, dag-cbor)
+    pub hash_alg: u64,       // Multicodec for the hash algorithm (e.g., sha2-256)
+    pub hash_bytes: Vec<u8>, // The raw hash bytes
 }
 
 impl Cid {
@@ -165,7 +171,7 @@ impl Cid {
     pub fn new_v1_dummy(codec: u64, hash_alg: u64, data: &[u8]) -> Self {
         // In a real scenario, you'd hash the data using the specified hash_alg
         // For now, let's just use a slice of the data as a mock hash
-        let hash_bytes = data.iter().take(32).cloned().collect(); 
+        let hash_bytes = data.iter().take(32).cloned().collect();
         Cid {
             version: 1,
             codec,
@@ -173,10 +179,28 @@ impl Cid {
             hash_bytes,
         }
     }
+
+    /// Create a CID using SHA-256 of the provided data bytes.
+    pub fn new_v1_sha256(codec: u64, data: &[u8]) -> Self {
+        use sha2::{Digest, Sha256};
+        let hash_bytes = Sha256::digest(data).to_vec();
+        Cid {
+            version: 1,
+            codec,
+            hash_alg: 0x12,
+            hash_bytes,
+        }
+    }
     pub fn to_string_approx(&self) -> String {
         // This is a highly simplified string representation, not a real Base58BTC or Base32 CID string.
         // Using bs58 encoding of the hash bytes to make it more unique for filenames.
-        format!("cidv{}-{}-{}-{}", self.version, self.codec, self.hash_alg, bs58::encode(&self.hash_bytes).into_string())
+        format!(
+            "cidv{}-{}-{}-{}",
+            self.version,
+            self.codec,
+            self.hash_alg,
+            bs58::encode(&self.hash_bytes).into_string()
+        )
     }
 }
 
@@ -185,7 +209,9 @@ impl Cid {
 /// This expects the format `cidv{{version}}-{{codec}}-{{hash_alg}}-{{base58_hash}}`.
 pub fn parse_cid_from_string(cid_str: &str) -> Result<Cid, CommonError> {
     if cid_str.is_empty() {
-        return Err(CommonError::InvalidInputError("Empty CID string".to_string()));
+        return Err(CommonError::InvalidInputError(
+            "Empty CID string".to_string(),
+        ));
     }
 
     let parts: Vec<&str> = cid_str.split('-').collect();
@@ -233,31 +259,60 @@ impl fmt::Display for Cid {
 /// Represents a generic block in a Content-Addressed DAG.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DagBlock {
-    pub cid: Cid,                   // The CID of this block (calculated from data + links)
-    pub data: Vec<u8>,              // The opaque data payload of the block
-    pub links: Vec<DagLink>,        // Links to other DagBlocks
-    // TODO: Consider adding metadata like timestamp, author DID, signature
+    pub cid: Cid,      // The CID of this block (calculated from data + links)
+    pub data: Vec<u8>, // The opaque data payload of the block
+    pub links: Vec<DagLink>, // Links to other DagBlocks
+                       // TODO: Consider adding metadata like timestamp, author DID, signature
 }
 
 /// Represents a link within a DagBlock, pointing to another DagBlock.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DagLink {
-    pub cid: Cid,       // CID of the linked block
-    pub name: String,   // Optional name for the link (e.g., field name in a CBOR object)
-    pub size: u64,      // Total size of the linked block (useful for traversals)
+    pub cid: Cid,     // CID of the linked block
+    pub name: String, // Optional name for the link (e.g., field name in a CBOR object)
+    pub size: u64,    // Total size of the linked block (useful for traversals)
+}
+
+/// Compute a Merkle-style CID for a block using SHA-256 of its data and link CIDs.
+pub fn compute_merkle_cid(codec: u64, data: &[u8], links: &[DagLink]) -> Cid {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(data);
+    let mut link_strings: Vec<String> = links.iter().map(|l| l.cid.to_string()).collect();
+    link_strings.sort();
+    for s in link_strings {
+        hasher.update(s.as_bytes());
+    }
+    let hash_bytes = hasher.finalize().to_vec();
+    Cid {
+        version: 1,
+        codec,
+        hash_alg: 0x12,
+        hash_bytes,
+    }
+}
+
+/// Verify that a block's CID matches the Merkle hash of its contents and links.
+pub fn verify_block_integrity(block: &DagBlock) -> Result<(), CommonError> {
+    let expected = compute_merkle_cid(block.cid.codec, &block.data, &block.links);
+    if expected == block.cid {
+        Ok(())
+    } else {
+        Err(CommonError::DagValidationError("CID mismatch".to_string()))
+    }
 }
 
 /// Represents a generic transaction within the ICN.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Transaction {
-    pub id: String, // Transaction ID (e.g., hash of its content)
-    pub timestamp: u64, // Unix timestamp
-    pub sender_did: Did, // DID of the sender
+    pub id: String,                 // Transaction ID (e.g., hash of its content)
+    pub timestamp: u64,             // Unix timestamp
+    pub sender_did: Did,            // DID of the sender
     pub recipient_did: Option<Did>, // Optional recipient DID
     pub payload_type: String, // Describes the type of data in payload (e.g., "transfer", "governance_vote")
-    pub payload: Vec<u8>, // Serialized transaction-specific data
+    pub payload: Vec<u8>,     // Serialized transaction-specific data
     pub signature: Option<String>, // Optional signature of the transaction content
-    // TODO: Add fields like nonce, gas_limit, gas_price if relevant to economic model
+                              // TODO: Add fields like nonce, gas_limit, gas_price if relevant to economic model
 }
 
 // TODO: Define `DidDocument` struct for DID resolution.
@@ -302,7 +357,10 @@ mod tests {
     fn did_creation_and_to_string() {
         let did = Did::new("key", "z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuias7ux1jEZ6KATp8");
         assert_eq!(did.method, "key");
-        assert_eq!(did.to_string(), "did:key:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuias7ux1jEZ6KATp8");
+        assert_eq!(
+            did.to_string(),
+            "did:key:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuias7ux1jEZ6KATp8"
+        );
         let serialized = serde_json::to_string(&did).unwrap();
         assert!(serialized.contains("z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuias7ux1jEZ6KATp8"));
     }
@@ -346,7 +404,10 @@ mod tests {
         let sender = Did::new("key", "sender_did_string");
         let transaction = Transaction {
             id: "tx123".to_string(),
-            timestamp: std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs(),
+            timestamp: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
             sender_did: sender.clone(),
             recipient_did: None,
             payload_type: "test_payload".to_string(),
@@ -364,5 +425,23 @@ mod tests {
         let cid_str = cid.to_string_approx();
         let parsed = parse_cid_from_string(&cid_str).expect("failed to parse cid");
         assert_eq!(cid, parsed);
+    }
+
+    #[test]
+    fn merkle_cid_and_verify() {
+        let child_cid = Cid::new_v1_sha256(0x71, b"child data");
+        let link = DagLink {
+            cid: child_cid,
+            name: "child".to_string(),
+            size: 9,
+        };
+        let data = b"parent".to_vec();
+        let cid = compute_merkle_cid(0x71, &data, std::slice::from_ref(&link));
+        let block = DagBlock {
+            cid: cid.clone(),
+            data,
+            links: vec![link],
+        };
+        assert!(verify_block_integrity(&block).is_ok());
     }
 }
