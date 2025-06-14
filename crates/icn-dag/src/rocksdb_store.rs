@@ -1,5 +1,4 @@
 use crate::{Cid, CommonError, DagBlock, StorageService};
-use icn_common::verify_block_integrity;
 use rocksdb::{Options, DB};
 use std::path::PathBuf;
 
