@@ -425,4 +425,33 @@ mod tests {
 
         assert_eq!(selected.unwrap(), high);
     }
+
+    #[test]
+    fn test_select_executor_uses_price_when_reputation_equal() {
+        let job_id = dummy_cid("job_price");
+        let a = Did::from_str("did:icn:test:a").unwrap();
+        let b = Did::from_str("did:icn:test:b").unwrap();
+
+        let rep_store = icn_reputation::InMemoryReputationStore::new();
+        rep_store.set_score(a.clone(), 3);
+        rep_store.set_score(b.clone(), 3);
+
+        let bid_a = MeshJobBid {
+            job_id: job_id.clone(),
+            executor_did: a.clone(),
+            price_mana: 20,
+            resources: Resources::default(),
+        };
+        let bid_b = MeshJobBid {
+            job_id: job_id.clone(),
+            executor_did: b.clone(),
+            price_mana: 5,
+            resources: Resources::default(),
+        };
+
+        let policy = SelectionPolicy;
+        let selected = select_executor(&job_id, vec![bid_a, bid_b.clone()], &policy, &rep_store);
+
+        assert_eq!(selected.unwrap(), b);
+    }
 }
