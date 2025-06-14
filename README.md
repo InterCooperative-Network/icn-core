@@ -42,8 +42,11 @@ Refer to `docs/ONBOARDING.md` for detailed instructions on prerequisites, setup,
 ### Quick CLI Examples:
 
 ```bash
-# Build with libp2p support (from the workspace root)
+# Build with libp2p support and the default `sled` persistence backend
 cargo build --features with-libp2p
+
+# Build using the SQLite backend
+cargo build --no-default-features --features "with-libp2p persist-sqlite"
 
 # Start a node with persistent storage and P2P enabled
 ./target/debug/icn-node \
@@ -68,6 +71,8 @@ cargo build --features with-libp2p
 ### Enabling Peer Discovery and Persistent Storage
 
 1. **Compile with libp2p support** using `cargo build --features with-libp2p`.
+   For the SQLite backend add `--features persist-sqlite` (optionally with
+   `--no-default-features`).
 2. Start each node with `--enable-p2p` and a unique `--p2p-listen-addr`.
 3. Provide known peers via `--bootstrap-peers` to join an existing mesh.
 4. Use `--storage-backend sqlite` or `file` with a dedicated `--storage-path` to
