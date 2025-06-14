@@ -15,6 +15,7 @@ icn-mesh = { path = "../icn-mesh" }
 icn-network = { path = "../icn-network", features = ["libp2p"] }
 icn-dag = { path = "../icn-dag" }
 icn-governance = { path = "../icn-governance", default-features = false, features = ["serde"] }
+icn-reputation = { path = "../icn-reputation" }
 
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
