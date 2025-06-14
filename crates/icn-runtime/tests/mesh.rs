@@ -477,9 +477,10 @@ async fn test_invalid_receipt_wrong_executor() {
     println!("Invalid receipt test completed - forged receipt verification tested");
 }
 
-// Placeholder for new_mesh_test_context_with_two_executors
-// This helper needs to be properly implemented or use existing ones if available.
-// For now, it uses the existing single context creator.
+/// Creates a set of `RuntimeContext`s representing a submitter and two executors.
+///
+/// All contexts share a single `StubMeshNetworkService` and DAG store so that
+/// bids and receipts can be exchanged between them within the tests.
 #[allow(clippy::type_complexity)]
 fn new_mesh_test_context_with_two_executors() -> (
     Arc<RuntimeContext>,
@@ -487,32 +488,61 @@ fn new_mesh_test_context_with_two_executors() -> (
     Arc<RuntimeContext>,
     Arc<TokioMutex<dyn StorageService<DagBlock> + Send>>,
 ) {
-    // TODO: This is a simplified stub. Properly implement context creation for multiple distinct DIDs.
-    // The main issue is that create_test_context initializes SimpleManaLedger anew each time.
-    // For a multi-actor test, they might need to share a ManaLedger or have distinct pre-funded DIDs.
-    // For now, we create separate contexts. The DAG store can be from any of them if it's a shared stub.
-    let submitter_ctx = create_test_context("did:icn:test:submitter_multi_exec", 200);
-    let executor1_ctx = create_test_context("did:icn:test:executor1_multi_exec", 100);
-    let executor2_ctx = create_test_context("did:icn:test:executor2_multi_exec", 100);
-    let dag_store = get_dag_store(&submitter_ctx); // Shared DAG store
+    let network_service: Arc<StubMeshNetworkService> = Arc::new(StubMeshNetworkService::new());
+    let dag_store: Arc<TokioMutex<dyn StorageService<DagBlock> + Send>> =
+        Arc::new(TokioMutex::new(StubDagStore::new()));
+
+    let submitter_did = Did::from_str("did:icn:test:submitter_multi_exec").unwrap();
+    let executor1_did = Did::from_str("did:icn:test:executor1_multi_exec").unwrap();
+    let executor2_did = Did::from_str("did:icn:test:executor2_multi_exec").unwrap();
+
+    let submitter_ctx = RuntimeContext::new(
+        submitter_did.clone(),
+        network_service.clone(),
+        Arc::new(StubSigner::new()),
+        dag_store.clone(),
+    );
+    submitter_ctx
+        .mana_ledger
+        .set_balance(&submitter_did, 200)
+        .expect("set initial mana");
+
+    let executor1_ctx = RuntimeContext::new(
+        executor1_did.clone(),
+        network_service.clone(),
+        Arc::new(StubSigner::new()),
+        dag_store.clone(),
+    );
+    executor1_ctx
+        .mana_ledger
+        .set_balance(&executor1_did, 100)
+        .expect("set initial mana");
+
+    let executor2_ctx = RuntimeContext::new(
+        executor2_did.clone(),
+        network_service.clone(),
+        Arc::new(StubSigner::new()),
+        dag_store.clone(),
+    );
+    executor2_ctx
+        .mana_ledger
+        .set_balance(&executor2_did, 100)
+        .expect("set initial mana");
+
     (submitter_ctx, executor1_ctx, executor2_ctx, dag_store)
 }
 
-// Placeholder for create_test_job
-// Returns a JSON string payload for host_submit_mesh_job, and the expected cost
-fn create_test_job_payload_and_cost() -> (String, u64) {
-    let manifest_cid = Cid::new_v1_dummy(0x55, 0x13, b"test_job_manifest_for_invalid_receipt");
-    let job_cost = 20u64;
-    let submitter_did = Did::from_str("did:icn:test:submitter_for_invalid_receipt").unwrap();
-    let test_job = create_test_mesh_job(manifest_cid, job_cost, submitter_did);
+/// Convenience helper to create a simple test job JSON payload with a given
+/// cost and submitter.
+fn create_test_job_payload_and_cost(submitter: &Did, job_cost: u64) -> (String, u64) {
+    let manifest_cid = Cid::new_v1_dummy(0x55, 0x13, b"test_job_manifest");
+    let test_job = create_test_mesh_job(manifest_cid, job_cost, submitter.clone());
     let job_json_payload = serde_json::to_string(&test_job).unwrap();
     (job_json_payload, job_cost)
 }
 
-// Placeholder for create_test_bid
-// Returns a MeshJobBid
+/// Creates a `MeshJobBid` for the provided job using the executor context.
 fn create_test_bid(job_id: &Cid, executor_ctx: &Arc<RuntimeContext>, price: u64) -> MeshJobBid {
-    // TODO: Implement this helper function
     MeshJobBid {
         job_id: job_id.clone(), // JobId is a Cid here
         executor_did: executor_ctx.current_identity.clone(),
@@ -521,15 +551,11 @@ fn create_test_bid(job_id: &Cid, executor_ctx: &Arc<RuntimeContext>, price: u64)
     }
 }
 
-// Placeholder for assign_job_to_executor (simulated)
-// In a real test, this would involve the job manager's logic.
-// Here, we directly update the job_manager_ctx's state for simplicity.
 async fn assign_job_to_executor_directly(
     job_manager_ctx: &Arc<RuntimeContext>,
     job_id: Cid,
     assigned_executor_did: &Did,
 ) {
-    // TODO: This is a test utility to bypass full job manager loop for specific assignment tests.
     println!(
         "Test util: Directly assigning job {:?} to executor {:?}",
         job_id, assigned_executor_did
@@ -540,6 +566,91 @@ async fn assign_job_to_executor_directly(
         JobState::Assigned {
             executor: assigned_executor_did.clone(),
         },
+    );
+}
+
+#[tokio::test]
+async fn test_job_assignment_with_two_executors() {
+    let (submitter_ctx, executor1_ctx, executor2_ctx, _) =
+        new_mesh_test_context_with_two_executors();
+
+    let submitter_did = submitter_ctx.current_identity.clone();
+
+    // Submit a job
+    let (job_json, job_cost) = create_test_job_payload_and_cost(&submitter_did, 10);
+    let job_id = host_submit_mesh_job(&submitter_ctx, &job_json)
+        .await
+        .expect("Job submission failed");
+
+    assert_eq!(
+        submitter_ctx.get_mana(&submitter_did).await.unwrap(),
+        200 - job_cost
+    );
+
+    // Stage bids from two executors with different prices
+    let network = get_stub_network_service(&submitter_ctx);
+    let bid1 = create_test_bid(&job_id, &executor1_ctx, 15);
+    let bid2 = create_test_bid(&job_id, &executor2_ctx, 5);
+    network.stage_bid(job_id.clone(), bid1).await;
+    network.stage_bid(job_id.clone(), bid2).await;
+
+    // Collect bids and choose the cheapest
+    let bids = network
+        .collect_bids_for_job(&job_id, Duration::from_millis(50))
+        .await
+        .expect("Bid collection failed");
+    assert_eq!(bids.len(), 2);
+
+    let selected = bids
+        .iter()
+        .min_by_key(|b| b.price_mana)
+        .unwrap()
+        .executor_did
+        .clone();
+
+    assign_job_to_executor_directly(&submitter_ctx, job_id.clone(), &selected).await;
+
+    assert_job_state(
+        &submitter_ctx,
+        &job_id,
+        JobStateVariant::Assigned {
+            expected_executor: Some(selected.clone()),
+        },
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn test_job_timeout_and_refund_with_helpers() {
+    let (submitter_ctx, _exec1, _exec2, _) = new_mesh_test_context_with_two_executors();
+    let submitter_did = submitter_ctx.current_identity.clone();
+    let initial_mana = submitter_ctx.get_mana(&submitter_did).await.unwrap();
+
+    let (job_json, job_cost) = create_test_job_payload_and_cost(&submitter_did, 30);
+    let job_id = host_submit_mesh_job(&submitter_ctx, &job_json)
+        .await
+        .expect("Job submission failed");
+
+    assert_eq!(
+        submitter_ctx.get_mana(&submitter_did).await.unwrap(),
+        initial_mana - job_cost
+    );
+
+    let network = get_stub_network_service(&submitter_ctx);
+    let bids = network
+        .collect_bids_for_job(&job_id, Duration::from_millis(50))
+        .await
+        .expect("Bid collection failed");
+    assert!(bids.is_empty());
+
+    submitter_ctx
+        .credit_mana(&submitter_did, job_cost)
+        .await
+        .expect("refund mana");
+
+    assert_eq!(
+        submitter_ctx.get_mana(&submitter_did).await.unwrap(),
+        initial_mana
     );
 }
 
