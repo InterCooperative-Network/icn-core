@@ -22,6 +22,7 @@ impl SqliteDagStore {
 
 impl StorageService<DagBlock> for SqliteDagStore {
     fn put(&mut self, block: &DagBlock) -> Result<(), CommonError> {
+        icn_common::verify_block_integrity(block)?;
         let encoded = serde_json::to_vec(block).map_err(|e| {
             CommonError::SerializationError(format!(
                 "Failed to serialize block {}: {}",

@@ -6,7 +6,10 @@
 //! storage and manipulation, crucial for the InterCooperative Network (ICN) data model.
 //! It handles DAG primitives, content addressing, storage abstraction, and serialization formats.
 
-use icn_common::{Cid, CommonError, DagBlock, NodeInfo, ICN_CORE_VERSION};
+use icn_common::{
+    compute_merkle_cid, verify_block_integrity, Cid, CommonError, DagBlock, DagLink, NodeInfo,
+    ICN_CORE_VERSION,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs::{File, OpenOptions}; // For FileDagStore
@@ -14,6 +17,9 @@ use std::io::{Read, Write}; // Removed Seek, SeekFrom
 use std::path::PathBuf; // For FileDagStore
 use std::sync::Mutex; // For basic interior mutability for the global store // For FileDagStore block serialization
 
+pub mod index;
+#[cfg(feature = "persist-rocksdb")]
+pub mod rocksdb_store;
 #[cfg(feature = "persist-sled")]
 pub mod sled_store;
 #[cfg(feature = "persist-sqlite")]
@@ -60,8 +66,7 @@ impl InMemoryDagStore {
 
 impl StorageService<DagBlock> for InMemoryDagStore {
     fn put(&mut self, block: &DagBlock) -> Result<(), CommonError> {
-        // TODO: Add validation: recalculate block.cid and check it matches content + links.
-        // If validation fails, return Err(CommonError::DagValidationError("CID mismatch or invalid block structure".to_string()))
+        icn_common::verify_block_integrity(block)?;
         self.store.insert(block.cid.clone(), block.clone());
         Ok(())
     }
@@ -115,6 +120,7 @@ impl FileDagStore {
     }
 
     fn put_block_to_file(&self, block: &DagBlock) -> Result<(), CommonError> {
+        icn_common::verify_block_integrity(block)?;
         let file_path = self.block_path(&block.cid);
         let serialized_block = serde_json::to_string(block).map_err(|e| {
             CommonError::SerializationError(format!(
@@ -412,6 +418,22 @@ mod tests {
         assert!(store2.get(&block_persist.cid).unwrap().is_some());
     }
 
+    #[cfg(feature = "persist-rocksdb")]
+    #[test]
+    fn test_rocks_dag_store_service() {
+        let dir = tempdir().unwrap();
+        let db_path = dir.path().join("rocks");
+        let mut store = rocksdb_store::RocksDagStore::new(db_path.clone()).unwrap();
+        test_storage_service_suite(&mut store);
+
+        let block_persist = create_test_block("persistent_block_rocks");
+        store.put(&block_persist).unwrap();
+        drop(store);
+
+        let store2 = rocksdb_store::RocksDagStore::new(db_path).unwrap();
+        assert!(store2.get(&block_persist.cid).unwrap().is_some());
+    }
+
     // The old tests for global put_block/get_block might need adjustment
     // or can be removed if we fully deprecate the global store access.
     // For now, let's ensure they still work with the refactored DEFAULT_IN_MEMORY_STORE.
@@ -452,5 +474,29 @@ mod tests {
             Ok(Some(_)) => panic!("Found non-existent block in global store"),
             Err(e) => panic!("get_block for non-existent CID returned an error: {e:?}"),
         }
+    }
+
+    #[test]
+    fn test_traversal_index() {
+        use crate::index::DagTraversalIndex;
+        let mut index = DagTraversalIndex::new();
+        let child = create_test_block("child");
+        let link = DagLink {
+            cid: child.cid.clone(),
+            name: "child".into(),
+            size: 0,
+        };
+        let parent_cid = compute_merkle_cid(0x71, b"parent", std::slice::from_ref(&link));
+        let parent = DagBlock {
+            cid: parent_cid.clone(),
+            data: b"parent".to_vec(),
+            links: vec![link],
+        };
+        index.index_block(&child);
+        index.index_block(&parent);
+        let order = index.traverse(&parent_cid);
+        assert_eq!(order.len(), 2);
+        assert_eq!(order[0], parent_cid);
+        assert!(order.contains(&child.cid));
     }
 }
