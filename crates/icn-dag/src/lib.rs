@@ -6,10 +6,11 @@
 //! storage and manipulation, crucial for the InterCooperative Network (ICN) data model.
 //! It handles DAG primitives, content addressing, storage abstraction, and serialization formats.
 
-use icn_common::{
-    compute_merkle_cid, verify_block_integrity, Cid, CommonError, DagBlock, DagLink, NodeInfo,
-    ICN_CORE_VERSION,
-};
+#[cfg(test)]
+use icn_common::compute_merkle_cid;
+#[cfg(test)]
+use icn_common::DagLink;
+use icn_common::{Cid, CommonError, DagBlock, NodeInfo, ICN_CORE_VERSION};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs::{File, OpenOptions}; // For FileDagStore

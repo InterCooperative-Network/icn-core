@@ -527,11 +527,11 @@ impl RuntimeContext {
     pub fn new_with_stubs(current_identity_str: &str) -> Arc<Self> {
         let current_identity = Did::from_str(current_identity_str)
             .expect("Invalid DID for test context in new_with_stubs");
-        #[cfg(feature = "persist-sqlite")]
+        #[cfg(feature = "persist-sled")]
         let dag_store = Arc::new(TokioMutex::new(
-            icn_dag::sqlite_store::SqliteDagStore::new(PathBuf::from("./dag.sqlite")).unwrap(),
+            icn_dag::sled_store::SledDagStore::new(PathBuf::from("./dag.sled")).unwrap(),
         ));
-        #[cfg(not(feature = "persist-sqlite"))]
+        #[cfg(not(feature = "persist-sled"))]
         let dag_store = Arc::new(TokioMutex::new(StubDagStore::new()));
 
         Self::new(
@@ -545,11 +545,11 @@ impl RuntimeContext {
     pub fn new_with_stubs_and_mana(current_identity_str: &str, initial_mana: u64) -> Arc<Self> {
         let current_identity = Did::from_str(current_identity_str)
             .expect("Invalid DID for test context in new_with_stubs_and_mana");
-        #[cfg(feature = "persist-sqlite")]
+        #[cfg(feature = "persist-sled")]
         let dag_store = Arc::new(TokioMutex::new(
-            icn_dag::sqlite_store::SqliteDagStore::new(PathBuf::from("./dag.sqlite")).unwrap(),
+            icn_dag::sled_store::SledDagStore::new(PathBuf::from("./dag.sled")).unwrap(),
         ));
-        #[cfg(not(feature = "persist-sqlite"))]
+        #[cfg(not(feature = "persist-sled"))]
         let dag_store = Arc::new(TokioMutex::new(StubDagStore::new()));
 
         let ctx = Self::new(
@@ -1297,15 +1297,31 @@ impl HostEnvironment for ConcreteHostEnvironment {
                 "Job data out of bounds".into(),
             ));
         }
+
         let job_slice = &self.memory[job_data_ptr as usize..end];
         let job_json = std::str::from_utf8(job_slice).map_err(|e| {
             HostAbiError::InvalidParameters(format!("Invalid UTF-8 job data: {}", e))
         })?;
+
+        let mut job: ActualMeshJob = serde_json::from_str(job_json).map_err(|e| {
+            HostAbiError::InvalidParameters(format!("Failed to deserialize mesh job JSON: {}", e))
+        })?;
+
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
             .map_err(|e| HostAbiError::InternalError(format!("Runtime build failed: {e}")))?;
-        let cid = rt.block_on(crate::host_submit_mesh_job(ctx, job_json))?;
+
+        let cid = rt.block_on(async {
+            ctx.spend_mana(&ctx.current_identity, job.cost_mana).await?;
+            let job_id_val = NEXT_JOB_ID.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            let cid = Cid::new_v1_dummy(0x55, 0x13, format!("job_cid_{job_id_val}").as_bytes());
+            job.id = cid.clone();
+            job.creator_did = ctx.current_identity.clone();
+            ctx.internal_queue_mesh_job(job).await?;
+            Ok::<Cid, HostAbiError>(cid)
+        })?;
+
         let mut id_bytes = [0u8; 4];
         if cid.hash_bytes.len() >= 4 {
             id_bytes.copy_from_slice(&cid.hash_bytes[..4]);
@@ -1328,11 +1344,16 @@ impl HostEnvironment for ConcreteHostEnvironment {
         let did_str = std::str::from_utf8(did_slice).map_err(|e| {
             HostAbiError::InvalidParameters(format!("Invalid UTF-8 account DID: {}", e))
         })?;
+
+        let account_did = Did::from_str(did_str)
+            .map_err(|e| HostAbiError::InvalidParameters(format!("Invalid DID format: {}", e)))?;
+
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
             .map_err(|e| HostAbiError::InternalError(format!("Runtime build failed: {e}")))?;
-        rt.block_on(crate::host_account_get_mana(ctx, did_str))
+
+        rt.block_on(ctx.get_mana(&account_did))
     }
     fn env_account_spend_mana(
         &self,
@@ -1351,11 +1372,16 @@ impl HostEnvironment for ConcreteHostEnvironment {
         let did_str = std::str::from_utf8(did_slice).map_err(|e| {
             HostAbiError::InvalidParameters(format!("Invalid UTF-8 account DID: {}", e))
         })?;
+
+        let account_did = Did::from_str(did_str)
+            .map_err(|e| HostAbiError::InvalidParameters(format!("Invalid DID format: {}", e)))?;
+
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
             .map_err(|e| HostAbiError::InternalError(format!("Runtime build failed: {e}")))?;
-        rt.block_on(crate::host_account_spend_mana(ctx, did_str, amount))
+
+        rt.block_on(ctx.spend_mana(&account_did, amount))
     }
 }
 
@@ -1675,5 +1701,48 @@ mod tests {
         assert!(result.is_ok());
         let mana = futures::executor::block_on(ctx.get_mana(&ctx.current_identity)).unwrap();
         assert_eq!(mana, 10);
+    }
+
+    #[test]
+    fn test_env_submit_mesh_job_invalid_utf8() {
+        let mut env = ConcreteHostEnvironment::new();
+        let ctx_arc = RuntimeContext::new_with_stubs_and_mana("did:icn:test:env_submit_utf8", 100);
+        let mut ctx = Arc::try_unwrap(ctx_arc)
+            .ok()
+            .expect("Arc had multiple references");
+
+        // Invalid UTF-8 bytes
+        env.set_memory(vec![0xff, 0xfe, 0xfd]);
+        let err = env.env_submit_mesh_job(&mut ctx, 0, 3).unwrap_err();
+        assert!(matches!(err, HostAbiError::InvalidParameters(_)));
+    }
+
+    #[test]
+    fn test_env_account_get_mana_invalid_did() {
+        let mut env = ConcreteHostEnvironment::new();
+        let ctx_arc = RuntimeContext::new_with_stubs_and_mana("did:icn:test:env_get_invalid", 10);
+        let ctx = Arc::try_unwrap(ctx_arc)
+            .ok()
+            .expect("Arc had multiple references");
+
+        env.set_memory(b"not_a_did".to_vec());
+        let res = env.env_account_get_mana(&ctx, 0, 9);
+        assert!(matches!(res, Err(HostAbiError::InvalidParameters(_))));
+    }
+
+    #[test]
+    fn test_env_account_spend_mana_insufficient() {
+        let mut env = ConcreteHostEnvironment::new();
+        let ctx_arc = RuntimeContext::new_with_stubs_and_mana("did:icn:test:env_spend_fail", 5);
+        let mut ctx = Arc::try_unwrap(ctx_arc)
+            .ok()
+            .expect("Arc had multiple references");
+
+        let did_bytes = ctx.current_identity.to_string().into_bytes();
+        env.set_memory(did_bytes.clone());
+        let err = env
+            .env_account_spend_mana(&mut ctx, 0, did_bytes.len() as u32, 10)
+            .unwrap_err();
+        assert!(matches!(err, HostAbiError::InsufficientMana));
     }
 }
