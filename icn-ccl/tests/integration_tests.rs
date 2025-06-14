@@ -1,6 +1,7 @@
 // icn-ccl/tests/integration_tests.rs
 #![allow(clippy::uninlined_format_args)]
 use icn_ccl::{compile_ccl_source_to_wasm, CclError, ContractMetadata};
+use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::{Path, PathBuf};
 use tempfile::tempdir;
@@ -47,6 +48,13 @@ fn test_compile_ccl_file_cli_function() {
             let meta_content = fs::read_to_string(&output_meta_path).unwrap();
             let parsed_meta: ContractMetadata = serde_json::from_str(&meta_content).unwrap();
             assert_eq!(parsed_meta.cid, metadata.cid); // Check consistency
+
+            let expected_hash = {
+                let digest = Sha256::digest(source_content.as_bytes());
+                format!("sha256:{:x}", digest)
+            };
+            assert_eq!(metadata.source_hash, expected_hash);
+            assert_eq!(parsed_meta.source_hash, expected_hash);
 
             println!(
                 "CLI compile_ccl_file test successful. Metadata: {:?}",
