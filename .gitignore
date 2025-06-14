@@ -15,3 +15,4 @@ Cargo.lock
 # Logs and temporary
 *.log
 tmp/
+icn-ccl/governance_db/
