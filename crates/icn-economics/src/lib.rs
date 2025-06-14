@@ -37,6 +37,10 @@ impl<L: ManaLedger> ManaRepositoryAdapter<L> {
     pub fn spend_mana(&self, did: &Did, amount: u64) -> Result<(), EconError> {
         self.ledger.spend(did, amount)
     }
+
+    pub fn get_balance(&self, did: &Did) -> u64 {
+        self.ledger.get_balance(did)
+    }
 }
 
 // Placeholder for ResourcePolicyEnforcer struct
@@ -46,15 +50,37 @@ pub struct ResourcePolicyEnforcer<L: ManaLedger> {
 }
 
 impl<L: ManaLedger> ResourcePolicyEnforcer<L> {
+    /// Maximum mana spend allowed per single operation.
+    pub const MAX_SPEND_LIMIT: u64 = 1000;
+
     pub fn new(adapter: ManaRepositoryAdapter<L>) -> Self {
         ResourcePolicyEnforcer { adapter }
     }
 
     pub fn spend_mana(&self, did: &Did, amount: u64) -> Result<(), EconError> {
         println!(
-            "[ResourcePolicyEnforcer STUB] Enforcing spend_mana for DID {did:?}, amount {amount}"
+            "[ResourcePolicyEnforcer] Enforcing spend_mana for DID {did:?}, amount {amount}"
         );
-        // TODO: Add actual policy logic here if needed before calling adapter
+
+        if amount == 0 {
+            return Err(EconError::PolicyViolation(
+                "Spend amount must be greater than zero".into(),
+            ));
+        }
+
+        let available = self.adapter.get_balance(did);
+        if available < amount {
+            return Err(EconError::InsufficientBalance(format!(
+                "Insufficient mana for DID {did}")));
+        }
+
+        if amount > Self::MAX_SPEND_LIMIT {
+            return Err(EconError::PolicyViolation(format!(
+                "Spend amount {amount} exceeds limit {limit}",
+                limit = Self::MAX_SPEND_LIMIT
+            )));
+        }
+
         self.adapter.spend_mana(did, amount)
     }
 }
@@ -109,5 +135,51 @@ mod tests {
 
         let ledger2 = FileManaLedger::new(ledger_path).unwrap();
         assert_eq!(ledger2.get_balance(&did), 40);
+    }
+
+    #[test]
+    fn test_resource_policy_enforcer_spend_success() {
+        let dir = tempdir().unwrap();
+        let ledger_path = dir.path().join("mana.json");
+        let ledger = FileManaLedger::new(ledger_path.clone()).unwrap();
+        let did = Did::from_str("did:example:alice").unwrap();
+        ledger.set_balance(&did, 150).unwrap();
+
+        let adapter = ManaRepositoryAdapter::new(ledger);
+        let enforcer = ResourcePolicyEnforcer::new(adapter);
+        let result = enforcer.spend_mana(&did, 100);
+        assert!(result.is_ok());
+
+        let ledger_check = FileManaLedger::new(ledger_path).unwrap();
+        assert_eq!(ledger_check.get_balance(&did), 50);
+    }
+
+    #[test]
+    fn test_resource_policy_enforcer_insufficient_balance() {
+        let dir = tempdir().unwrap();
+        let ledger_path = dir.path().join("mana.json");
+        let ledger = FileManaLedger::new(ledger_path).unwrap();
+        let did = Did::from_str("did:example:bob").unwrap();
+        ledger.set_balance(&did, 20).unwrap();
+
+        let adapter = ManaRepositoryAdapter::new(ledger);
+        let enforcer = ResourcePolicyEnforcer::new(adapter);
+        let result = enforcer.spend_mana(&did, 30);
+        assert!(matches!(result, Err(EconError::InsufficientBalance(_))));
+    }
+
+    #[test]
+    fn test_resource_policy_enforcer_exceeds_limit() {
+        let dir = tempdir().unwrap();
+        let ledger_path = dir.path().join("mana.json");
+        let ledger = FileManaLedger::new(ledger_path).unwrap();
+        let did = Did::from_str("did:example:carol").unwrap();
+        ledger.set_balance(&did, 5000).unwrap();
+
+        let adapter = ManaRepositoryAdapter::new(ledger);
+        let enforcer = ResourcePolicyEnforcer::new(adapter);
+        let over_limit = ResourcePolicyEnforcer::<FileManaLedger>::MAX_SPEND_LIMIT + 1;
+        let result = enforcer.spend_mana(&did, over_limit);
+        assert!(matches!(result, Err(EconError::PolicyViolation(_))));
     }
 }
