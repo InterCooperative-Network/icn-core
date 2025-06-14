@@ -455,6 +455,7 @@ pub struct RuntimeContext {
     pub mesh_network_service: Arc<dyn MeshNetworkService>, // Uses local MeshNetworkService trait
     pub signer: Arc<dyn Signer>,
     pub dag_store: Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>, // Uses icn_dag::StorageService
+    pub reputation_store: Arc<dyn icn_reputation::ReputationStore>,
 }
 
 impl RuntimeContext {
@@ -475,6 +476,9 @@ impl RuntimeContext {
         #[cfg(not(feature = "persist-sled"))]
         let governance_module = Arc::new(TokioMutex::new(GovernanceModule::new()));
 
+        let reputation_store: Arc<dyn icn_reputation::ReputationStore> =
+            Arc::new(icn_reputation::InMemoryReputationStore::new());
+
         Arc::new(Self {
             current_identity,
             mana_ledger: SimpleManaLedger::new(PathBuf::from("./mana_ledger.json")),
@@ -484,6 +488,7 @@ impl RuntimeContext {
             mesh_network_service,
             signer,
             dag_store,
+            reputation_store,
         })
     }
 
@@ -639,7 +644,9 @@ impl RuntimeContext {
                                 receipt: receipt.clone(),
                             },
                         );
-                        // TODO: Credit mana to executor, update reputation, etc.
+                        self.credit_mana(&receipt.executor_did, job.cost_mana)
+                            .await?;
+                        self.reputation_store.record_receipt(&receipt);
                         Ok(())
                     }
                     Err(e) => {
@@ -764,7 +771,15 @@ impl RuntimeContext {
                                     },
                                 );
                                 drop(job_states_guard);
-                                // TODO: Refund mana to submitter if applicable
+                                if let Err(e) = self_clone
+                                    .credit_mana(&job.creator_did, job.cost_mana)
+                                    .await
+                                {
+                                    error!(
+                                        "[JobManagerLoop] Failed to refund mana to {:?}: {}",
+                                        job.creator_did, e
+                                    );
+                                }
                                 continue;
                             }
 
@@ -1233,6 +1248,9 @@ impl RuntimeContext {
         #[cfg(not(feature = "persist-sled"))]
         let governance_module = Arc::new(TokioMutex::new(GovernanceModule::new()));
 
+        let reputation_store: Arc<dyn icn_reputation::ReputationStore> =
+            Arc::new(icn_reputation::InMemoryReputationStore::new());
+
         Arc::new(Self {
             current_identity,
             mana_ledger,
@@ -1242,6 +1260,7 @@ impl RuntimeContext {
             mesh_network_service,
             signer: Arc::new(signer),
             dag_store,
+            reputation_store,
         })
     }
 }
@@ -1744,5 +1763,60 @@ mod tests {
             .env_account_spend_mana(&mut ctx, 0, did_bytes.len() as u32, 10)
             .unwrap_err();
         assert!(matches!(err, HostAbiError::InsufficientMana));
+    }
+
+    #[tokio::test]
+    async fn test_wait_for_and_process_receipt_updates_mana_and_reputation() {
+        let ctx = RuntimeContext::new_with_stubs_and_mana("did:icn:test:manager", 0);
+
+        let stub_net = ctx
+            .mesh_network_service
+            .clone()
+            .downcast_arc::<StubMeshNetworkService>()
+            .expect("stub network");
+
+        let job = ActualMeshJob {
+            id: Cid::new_v1_dummy(0x55, 0x13, b"job_update"),
+            manifest_cid: Cid::new_v1_dummy(0x55, 0x12, b"man"),
+            spec: icn_mesh::JobSpec::default(),
+            creator_did: Did::from_str("did:icn:test:creator").unwrap(),
+            cost_mana: 5,
+            signature: icn_identity::SignatureBytes(Vec::new()),
+        };
+
+        let receipt = IdentityExecutionReceipt {
+            job_id: job.id.clone(),
+            executor_did: ctx.current_identity.clone(),
+            result_cid: Cid::new_v1_dummy(0x55, 0x13, b"res"),
+            cpu_ms: 1,
+            sig: icn_identity::SignatureBytes(Vec::new()),
+        };
+
+        // Manually sign the receipt using the context signer
+        let mut msg = Vec::new();
+        msg.extend_from_slice(receipt.job_id.to_string().as_bytes());
+        msg.extend_from_slice(ctx.current_identity.to_string().as_bytes());
+        msg.extend_from_slice(receipt.result_cid.to_string().as_bytes());
+        msg.extend_from_slice(&receipt.cpu_ms.to_le_bytes());
+        let sig_bytes = ctx.signer.sign(&msg).expect("sign");
+        let mut signed_receipt = receipt.clone();
+        signed_receipt.sig = icn_identity::SignatureBytes(sig_bytes);
+
+        stub_net
+            .stage_receipt(LocalMeshSubmitReceiptMessage {
+                receipt: signed_receipt.clone(),
+            })
+            .await;
+
+        ctx.clone()
+            .wait_for_and_process_receipt(job, ctx.current_identity.clone())
+            .await
+            .expect("process receipt");
+
+        assert_eq!(ctx.get_mana(&ctx.current_identity).await.unwrap(), 5);
+        assert_eq!(
+            ctx.reputation_store.get_reputation(&ctx.current_identity),
+            1
+        );
     }
 }
