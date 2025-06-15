@@ -33,8 +33,8 @@ use bincode;
 use icn_governance::{GovernanceModule, ProposalId, ProposalType, VoteOption};
 use icn_identity::{
     did_key_from_verifying_key, generate_ed25519_keypair, sign_message,
-    verify_signature as identity_verify_signature, EdSignature, SigningKey, VerifyingKey,
-    SIGNATURE_LENGTH,
+    verify_signature as identity_verify_signature, DidResolver, EdSignature, KeyDidResolver,
+    SigningKey, VerifyingKey, SIGNATURE_LENGTH,
 };
 use serde::{Deserialize, Serialize};
 
@@ -456,6 +456,7 @@ pub struct RuntimeContext {
     pub signer: Arc<dyn Signer>,
     pub dag_store: Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>, // Uses icn_dag::StorageService
     pub reputation_store: Arc<dyn icn_reputation::ReputationStore>,
+    pub did_resolver: Arc<dyn icn_identity::DidResolver>,
 }
 
 impl RuntimeContext {
@@ -481,6 +482,9 @@ impl RuntimeContext {
         let reputation_store: Arc<dyn icn_reputation::ReputationStore> =
             Arc::new(icn_reputation::InMemoryReputationStore::new());
 
+        let did_resolver: Arc<dyn icn_identity::DidResolver> =
+            Arc::new(icn_identity::KeyDidResolver::default());
+
         Arc::new(Self {
             current_identity,
             mana_ledger: SimpleManaLedger::new(mana_ledger_path),
@@ -491,6 +495,7 @@ impl RuntimeContext {
             signer,
             dag_store,
             reputation_store,
+            did_resolver,
         })
     }
 
@@ -621,34 +626,26 @@ impl RuntimeContext {
                     job.id, receipt
                 );
 
-                // Verify signature of the receipt - this needs the public key of the *actual* executor.
-                // This is a critical part that needs a DID resolution mechanism or a way to get the executor's VK.
-                // For now, the existing logic used the RuntimeContext's signer, which is INCORRECT unless the node is executing its own job.
-                // Placeholder: We need a way to resolve assigned_executor_did to its VerifyingKey.
-                // This is a simplification and potential security issue if not handled correctly.
-                // We assume the receipt's signature has been verified by the executor submitting it,
-                // and the network layer provides some authenticity. A full verification here would be better.
-                // Let's proceed with anchoring and assume signature is valid for now to simplify the JobManager flow.
-                // A more robust system would:
-                // 1. Fetch VerifyingKey for receipt.executor_did (e.g., from a DID document or a trusted registry)
-                // 2. Call receipt.verify_against_key(&retrieved_verifying_key)
-
-                // Simplified: Log if verification fails but proceed to anchor for testing pipeline flow.
-                // In production, an invalid signature should prevent anchoring and fail the job.
-                let temp_vk_did_string =
-                    did_key_from_verifying_key(&self.signer.verifying_key_ref()); // Assuming signer has verifying_key_ref()
-                if Did::from_str(&temp_vk_did_string).unwrap_or_default() == receipt.executor_did {
-                    if let Err(e) = receipt.verify_against_key(&self.signer.verifying_key_ref()) {
-                        error!("[JobManagerDetail] Receipt signature VERIFICATION FAILED for job {:?}: {}. Proceeding to anchor for stub testing only.", job.id, e);
-                        // In a real system: return Err(HostAbiError::SignatureError(...));
-                    } else {
-                        info!(
-                            "[JobManagerDetail] Receipt signature VERIFIED for job {:?}",
-                            job.id
-                        );
+                match self.did_resolver.resolve(&receipt.executor_did) {
+                    Ok(vk) => {
+                        if let Err(e) = receipt.verify_against_key(&vk) {
+                            error!("[JobManagerDetail] Receipt signature verification failed for job {:?}: {}", job.id, e);
+                            return Err(HostAbiError::SignatureError(format!(
+                                "Invalid receipt signature: {}",
+                                e
+                            )));
+                        }
                     }
-                } else {
-                    warn!("[JobManagerDetail] Executor DID {:?} on receipt does not match context signer DID {:?}. Cannot verify signature with context signer. Assuming valid for stub testing.", receipt.executor_did, temp_vk_did_string);
+                    Err(e) => {
+                        error!(
+                            "[JobManagerDetail] Failed to resolve DID {:?}: {}",
+                            receipt.executor_did, e
+                        );
+                        return Err(HostAbiError::SignatureError(format!(
+                            "Unknown executor DID: {}",
+                            e
+                        )));
+                    }
                 }
 
                 match self.anchor_receipt(&receipt).await {
@@ -940,40 +937,18 @@ impl RuntimeContext {
             receipt.job_id, receipt.executor_did
         );
 
-        // Verify the receipt signature against the signer's public key
-        // This assumes the signer in the context is the one whose keys should verify all receipts.
-        // This might be too simplistic; a real system might need to fetch the specific executor's VK.
-        let signer_pk_bytes = self.signer.public_key_bytes();
-        let verifying_key_bytes_array: [u8; 32] =
-            signer_pk_bytes.as_slice().try_into().map_err(|_| {
-                HostAbiError::CryptoError("Signer public key is not 32 bytes".to_string())
-            })?;
-        let verifying_key = VerifyingKey::from_bytes(&verifying_key_bytes_array).map_err(|e| {
-            HostAbiError::CryptoError(format!("Failed to create verifying key from signer: {}", e))
-        })?;
+        // Resolve the executor's verifying key and verify the signature
+        let verifying_key = self
+            .did_resolver
+            .resolve(&receipt.executor_did)
+            .map_err(|e| HostAbiError::SignatureError(format!("Failed to resolve DID: {}", e)))?;
 
-        // Check if the DID derived from the signer's public key matches the receipt's executor_did
-        let temp_vk_did_string = did_key_from_verifying_key(&verifying_key);
-        // TODO: This equality check might be too strict if DIDs can have different representations
-        // that are semantically equivalent. For did:key this should be fine if canonical.
-        if Did::from_str(&temp_vk_did_string).unwrap_or_default() == receipt.executor_did {
-            if let Err(e) = receipt.verify_against_key(&self.signer.verifying_key_ref()) {
-                return Err(HostAbiError::SignatureError(format!(
-                    "Receipt signature verification failed for job {:?}, executor {:?}: {}",
-                    receipt.job_id, receipt.executor_did, e
-                )));
-            }
-        } else {
-            // This case is tricky: if the context's signer is NOT the executor, how do we verify?
-            // For now, we assume the context's signer *is* the one who should verify, or this is an error.
-            // A more robust system would fetch the executor_did's public key from a DID document or cache.
-            warn!("Receipt executor DID {:?} does not match current signer DID {:?}. Verification might be incorrect if signer is not the executor.", receipt.executor_did, temp_vk_did_string);
-            // Attempt verification anyway with the context's signer; this branch implies a mismatch.
-            // If the context signer IS the executor, this is redundant. If not, this will likely fail.
-            if let Err(e) = receipt.verify_against_key(&verifying_key) {
-                return Err(HostAbiError::SignatureError(format!("Receipt signature verification failed (DID mismatch) for job {:?}, executor {:?}: {}", receipt.job_id, receipt.executor_did, e)));
-            }
-        }
+        receipt.verify_against_key(&verifying_key).map_err(|e| {
+            HostAbiError::SignatureError(format!(
+                "Receipt signature verification failed for job {:?}, executor {:?}: {}",
+                receipt.job_id, receipt.executor_did, e
+            ))
+        })?;
 
         // If signature is valid, store the receipt in DAG
         let final_receipt_bytes = serde_json::to_vec(receipt).map_err(|e| {
@@ -1271,6 +1246,8 @@ impl RuntimeContext {
 
         let reputation_store: Arc<dyn icn_reputation::ReputationStore> =
             Arc::new(icn_reputation::InMemoryReputationStore::new());
+        let did_resolver: Arc<dyn icn_identity::DidResolver> =
+            Arc::new(icn_identity::KeyDidResolver::default());
 
         Arc::new(Self {
             current_identity,
@@ -1282,6 +1259,7 @@ impl RuntimeContext {
             signer: Arc::new(signer),
             dag_store,
             reputation_store,
+            did_resolver,
         })
     }
 }
