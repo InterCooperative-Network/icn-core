@@ -15,6 +15,7 @@
 pub mod abi;
 pub mod context;
 pub mod executor;
+pub mod metrics;
 
 // Re-export important types for convenience
 pub use context::{HostAbiError, RuntimeContext, Signer};
@@ -54,7 +55,7 @@ pub async fn host_submit_mesh_job(
     ctx: &RuntimeContext,
     job_json: &str,
 ) -> Result<Cid, HostAbiError> {
-    // TODO: record metric `icn_runtime_abi_call_total{method="host_submit_mesh_job"}`
+    metrics::HOST_SUBMIT_MESH_JOB_CALLS.inc();
     println!(
         "[RUNTIME_ABI] host_submit_mesh_job called with job_json: {}",
         job_json
@@ -121,7 +122,7 @@ pub async fn host_submit_mesh_job(
 pub fn host_get_pending_mesh_jobs(
     ctx: &RuntimeContext,
 ) -> Result<Vec<icn_mesh::ActualMeshJob>, HostAbiError> {
-    // TODO: record metric `icn_runtime_abi_call_total{method="host_get_pending_mesh_jobs"}`
+    metrics::HOST_GET_PENDING_MESH_JOBS_CALLS.inc();
     println!("[RUNTIME_ABI] host_get_pending_mesh_jobs called.");
 
     // Directly clone the jobs from the queue. This provides a snapshot.
@@ -152,7 +153,7 @@ pub async fn host_account_get_mana(
     ctx: &RuntimeContext,
     account_id_str: &str,
 ) -> Result<u64, HostAbiError> {
-    // TODO: record metric `icn_runtime_abi_call_total{method="host_account_get_mana"}`
+    metrics::HOST_ACCOUNT_GET_MANA_CALLS.inc();
     println!(
         "[RUNTIME_ABI] host_account_get_mana called for account: {}",
         account_id_str
@@ -185,7 +186,7 @@ pub async fn host_account_spend_mana(
     account_id_str: &str,
     amount: u64,
 ) -> Result<(), HostAbiError> {
-    // TODO: record metric `icn_runtime_abi_call_total{method="host_account_spend_mana"}`
+    metrics::HOST_ACCOUNT_SPEND_MANA_CALLS.inc();
     println!(
         "[RUNTIME_ABI] host_account_spend_mana called for account: {} amount: {}",
         account_id_str, amount
@@ -651,5 +652,51 @@ mod tests {
         assert_eq!(ctx.current_identity.to_string(), node_did_str);
         let balance = ctx.get_mana(&ctx.current_identity).await.unwrap();
         assert_eq!(balance, initial_mana);
+    }
+
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn test_metrics_increment_on_host_submit_mesh_job() {
+        use crate::metrics::HOST_SUBMIT_MESH_JOB_CALLS;
+        let ctx = create_test_context_with_mana(50);
+        let job = create_test_mesh_job(10);
+        let job_json = serde_json::to_string(&job).unwrap();
+        let before = HOST_SUBMIT_MESH_JOB_CALLS.get();
+        host_submit_mesh_job(&ctx, &job_json).await.unwrap();
+        assert!(HOST_SUBMIT_MESH_JOB_CALLS.get() > before);
+    }
+
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn test_metrics_increment_on_host_get_pending_mesh_jobs() {
+        use crate::metrics::HOST_GET_PENDING_MESH_JOBS_CALLS;
+        let ctx = create_test_context();
+        let before = HOST_GET_PENDING_MESH_JOBS_CALLS.get();
+        host_get_pending_mesh_jobs(&ctx).unwrap();
+        assert!(HOST_GET_PENDING_MESH_JOBS_CALLS.get() > before);
+    }
+
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn test_metrics_increment_on_host_account_get_mana() {
+        use crate::metrics::HOST_ACCOUNT_GET_MANA_CALLS;
+        let ctx = create_test_context_with_mana(20);
+        let before = HOST_ACCOUNT_GET_MANA_CALLS.get();
+        host_account_get_mana(&ctx, TEST_IDENTITY_DID_STR)
+            .await
+            .unwrap();
+        assert!(HOST_ACCOUNT_GET_MANA_CALLS.get() > before);
+    }
+
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn test_metrics_increment_on_host_account_spend_mana() {
+        use crate::metrics::HOST_ACCOUNT_SPEND_MANA_CALLS;
+        let ctx = create_test_context_with_mana(20);
+        let before = HOST_ACCOUNT_SPEND_MANA_CALLS.get();
+        host_account_spend_mana(&ctx, TEST_IDENTITY_DID_STR, 5)
+            .await
+            .unwrap();
+        assert!(HOST_ACCOUNT_SPEND_MANA_CALLS.get() > before);
     }
 }
