@@ -24,3 +24,5 @@ predicates = "3.1"
 axum = { version = "0.7", features = ["json"] }
 icn-node = { path = "../icn-node" }
 icn-dag = { path = "../icn-dag", features = ["persist-sqlite"] }
+tempfile = "3"
+serial_test = { version = "3", features = ["async"] }
