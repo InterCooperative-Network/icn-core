@@ -9,7 +9,7 @@ The ICN RFC flow uses regular GitHub issues and pull requests. Follow these step
 to submit, review, and accept an RFC:
 
 1. **Open an issue** – Create an issue in this repository using the RFC template
-   (`.github/ISSUE_TEMPLATE/rfc.md`). Describe your proposal and gather initial
+   (`../../.github/ISSUE_TEMPLATE/rfc.md`). Describe your proposal and gather initial
    feedback.
 2. **Draft the RFC** – Once the idea is ready for formal review, open a pull
    request that adds a new file in this directory. Name the file
@@ -31,4 +31,4 @@ numbers are allocated sequentially as pull requests are merged.
 
 ### Other Categories (Examples)
 
-*   [TODO: Add other RFCs as they are created] 
+
