@@ -262,7 +262,16 @@ impl ReputationUpdater {
         ReputationUpdater
     }
     pub fn submit(&self, store: &dyn ReputationStore, receipt: &icn_identity::ExecutionReceipt) {
+        let before = store.get_reputation(&receipt.executor_did);
         store.record_receipt(receipt);
+        let after = store.get_reputation(&receipt.executor_did);
+        log::debug!(
+            "[ReputationUpdater] Executor {:?} reputation {} -> {} via receipt {:?}",
+            receipt.executor_did,
+            before,
+            after,
+            receipt.job_id
+        );
     }
 }
 
