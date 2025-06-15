@@ -386,6 +386,7 @@ mod tests {
             test_did,
             Arc::new(StubMeshNetworkService::new()),
             Arc::new(StubSigner::new()),
+            Arc::new(icn_identity::KeyDidResolver::default()),
             Arc::new(tokio::sync::Mutex::new(StubDagStore::new())),
         )
     }

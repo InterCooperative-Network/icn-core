@@ -82,6 +82,22 @@ pub fn verifying_key_from_did_key(did: &Did) -> Result<VerifyingKey, CommonError
         .map_err(|e| CommonError::IdentityError(format!("Invalid verifying key bytes: {e}")))
 }
 
+/// Trait for resolving a [`Did`] to the verifying key used for signature verification.
+pub trait DidResolver: Send + Sync {
+    /// Resolve the given DID to an Ed25519 verifying key.
+    fn resolve(&self, did: &Did) -> Result<VerifyingKey, CommonError>;
+}
+
+/// Simple resolver that understands the `did:key` method.
+#[derive(Debug, Clone, Default)]
+pub struct KeyDidResolver;
+
+impl DidResolver for KeyDidResolver {
+    fn resolve(&self, did: &Did) -> Result<VerifyingKey, CommonError> {
+        verifying_key_from_did_key(did)
+    }
+}
+
 /// Convenience wrapper around signing raw bytes with an Ed25519 SigningKey.
 pub fn sign_message(sk: &SigningKey, msg: &[u8]) -> EdSignature {
     sk.sign(msg)
