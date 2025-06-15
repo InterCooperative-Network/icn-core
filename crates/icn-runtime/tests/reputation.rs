@@ -37,3 +37,20 @@ async fn anchor_receipt_updates_reputation() {
         1
     );
 }
+#[test]
+fn reputation_updater_increments_store() {
+    let store = icn_reputation::InMemoryReputationStore::new();
+    let updater = ReputationUpdater::new();
+    let did = icn_common::Did::new("key", "tester");
+    let receipt = ExecutionReceipt {
+        job_id: Cid::new_v1_dummy(0x55, 0x15, b"rep"),
+        executor_did: did.clone(),
+        result_cid: Cid::new_v1_dummy(0x55, 0x15, b"res"),
+        cpu_ms: 1,
+        sig: SignatureBytes(Vec::new()),
+    };
+    updater.submit(&store, &receipt);
+    assert_eq!(store.get_reputation(&did), 1);
+    updater.submit(&store, &receipt);
+    assert_eq!(store.get_reputation(&did), 2);
+}
