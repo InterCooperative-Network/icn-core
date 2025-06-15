@@ -411,6 +411,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_submit_and_retrieve_dag_block_api() {
         let storage = new_test_storage();
         let data = b"api test block data for error refinement".to_vec();

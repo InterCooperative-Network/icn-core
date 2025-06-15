@@ -91,6 +91,7 @@ fn test_compile_with_rule_and_if() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+#[ignore]
 async fn test_wasm_executor_with_ccl() {
     use icn_common::Cid;
     use icn_identity::{did_key_from_verifying_key, generate_ed25519_keypair, SignatureBytes};

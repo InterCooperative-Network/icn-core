@@ -4,7 +4,6 @@ use std::process::Command;
 use tokio::task;
 
 #[tokio::test]
-#[ignore]
 async fn submit_governance_proposal() {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
@@ -17,17 +16,21 @@ async fn submit_governance_proposal() {
 
     let submit_json = serde_json::json!({
         "proposer_did": "did:example:alice",
-        "proposal": { "GenericText": { "text": "hi" } },
+        "proposal": { "type": "GenericText", "data": { "text": "hi" } },
         "description": "test",
         "duration_secs": 60
     })
     .to_string();
 
-    Command::new(bin)
-        .args(["--api-url", &base, "governance", "submit", &submit_json])
-        .assert()
-        .success()
-        .stdout(predicates::str::contains("Successfully submitted proposal"));
+    tokio::task::spawn_blocking(move || {
+        Command::new(bin)
+            .args(["--api-url", &base, "governance", "submit", &submit_json])
+            .assert()
+            .success()
+            .stdout(predicates::str::contains("Successfully submitted proposal"));
+    })
+    .await
+    .unwrap();
 
     server.abort();
 }
