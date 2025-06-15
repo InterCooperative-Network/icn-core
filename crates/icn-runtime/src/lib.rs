@@ -253,18 +253,16 @@ pub async fn host_account_credit_mana(
 }
 
 // Placeholder for a reputation updater service/struct
+use icn_reputation::ReputationStore;
+
 pub struct ReputationUpdater;
 
 impl ReputationUpdater {
     pub fn new() -> Self {
         ReputationUpdater
     }
-    pub fn submit(&self, receipt: &icn_identity::ExecutionReceipt) {
-        // TODO: Implement actual reputation update logic
-        println!(
-            "[ReputationUpdater STUB] Submitted receipt for job_id: {:?}, executor: {:?}",
-            receipt.job_id, receipt.executor_did
-        );
+    pub fn submit(&self, store: &dyn ReputationStore, receipt: &icn_identity::ExecutionReceipt) {
+        store.record_receipt(receipt);
     }
 }
 
@@ -296,7 +294,7 @@ pub async fn host_anchor_receipt(
     info!("[host_anchor_receipt] Receipt for job {:?} (executor {:?}) anchored with CID: {:?}. CPU cost: {}ms", 
           receipt.job_id, receipt.executor_did, anchored_cid, receipt.cpu_ms);
 
-    reputation_updater.submit(&receipt); // This is a stub for now
+    reputation_updater.submit(ctx.reputation_store.as_ref(), &receipt);
     Ok(anchored_cid)
 }
 
