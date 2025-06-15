@@ -73,6 +73,10 @@ pub struct ActualMeshJob {
     pub creator_did: Did,
     /// The amount of mana allocated by the submitter for this job's execution.
     pub cost_mana: u64,
+    /// Maximum time in milliseconds the submitter is willing to wait for a receipt.
+    /// If `None`, the runtime will use its configured default timeout.
+    #[serde(default)]
+    pub max_execution_wait_ms: Option<u64>,
     /// Signature from the creator_did over the (id, manifest_cid, spec_hash (if spec is large), creator_did, cost_mana)
     pub signature: SignatureBytes,
 }
@@ -362,6 +366,7 @@ mod tests {
             spec: JobSpec::GenericPlaceholder,
             creator_did: creator_did.clone(),
             cost_mana: 100,
+            max_execution_wait_ms: None,
             signature: SignatureBytes(vec![]), // Placeholder
         };
 

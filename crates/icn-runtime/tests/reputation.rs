@@ -1,6 +1,7 @@
 use icn_common::Cid;
 use icn_identity::{ExecutionReceipt, SignatureBytes};
 use icn_runtime::{context::RuntimeContext, host_anchor_receipt, ReputationUpdater};
+use icn_reputation::ReputationStore;
 
 #[tokio::test]
 async fn anchor_receipt_updates_reputation() {

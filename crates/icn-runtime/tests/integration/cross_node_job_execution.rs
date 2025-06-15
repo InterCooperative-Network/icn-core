@@ -34,6 +34,7 @@ mod cross_node_tests {
             spec: JobSpec::Echo { payload: format!("Cross-node test job {}", job_id_suffix) },
             creator_did: creator_did.clone(),
             cost_mana,
+            max_execution_wait_ms: None,
             signature: SignatureBytes(vec![0u8; 64]), // Dummy signature for tests
         }
     }

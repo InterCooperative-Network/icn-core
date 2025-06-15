@@ -127,6 +127,7 @@ async fn test_wasm_executor_with_ccl() {
         spec: JobSpec::GenericPlaceholder,
         creator_did: node_did.clone(),
         cost_mana: 0,
+        max_execution_wait_ms: None,
         signature: SignatureBytes(vec![]),
     };
 

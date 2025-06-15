@@ -372,6 +372,7 @@ mod tests {
             spec: JobSpec::default(),
             creator_did: Did::from_str(TEST_IDENTITY_DID_STR).unwrap(),
             cost_mana,
+            max_execution_wait_ms: None,
             signature: SignatureBytes(vec![0u8; 64]), // Dummy signature for tests
         }
     }

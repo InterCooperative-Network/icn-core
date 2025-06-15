@@ -3,10 +3,14 @@ mod libp2p_mesh_integration {
     #![allow(
         unused_imports,
         unused_variables,
+        dead_code,
         clippy::uninlined_format_args,
         clippy::field_reassign_with_default,
         clippy::clone_on_copy,
-        clippy::absurd_extreme_comparisons
+        clippy::absurd_extreme_comparisons,
+        clippy::to_string_in_format_args,
+        unused_comparisons,
+        unused_mut
     )]
     mod utils;
     use anyhow::Result;
@@ -46,6 +50,7 @@ mod libp2p_mesh_integration {
             manifest_cid,
             spec: job_spec,
             cost_mana: 100,
+            max_execution_wait_ms: None,
             signature: SignatureBytes(vec![]),
         }
     }
@@ -130,7 +135,7 @@ mod libp2p_mesh_integration {
         let node_a_subscribe_result =
             timeout(Duration::from_secs(5), node_a_service.subscribe()).await;
         match node_a_subscribe_result {
-            Ok(Ok(mut node_a_receiver)) => {
+            Ok(Ok(node_a_receiver)) => {
                 println!("✅ [DEBUG] Node A subscription successful");
 
                 println!("🔧 [DEBUG] Node B subscribing to messages...");
@@ -250,8 +255,8 @@ mod libp2p_mesh_integration {
 
         sleep(Duration::from_secs(3)).await;
 
-        let mut node_a_receiver = node_a_service.subscribe().await?;
-        let mut node_b_receiver = node_b_service.subscribe().await?;
+        let node_a_receiver = node_a_service.subscribe().await?;
+        let node_b_receiver = node_b_service.subscribe().await?;
         println!("✅ [DEBUG] Both nodes subscribed in single-threaded runtime");
 
         println!("✅ [DEBUG] Single-threaded runtime test completed without hanging!");

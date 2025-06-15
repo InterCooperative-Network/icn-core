@@ -16,7 +16,7 @@ use icn_runtime::context::{
     DefaultMeshNetworkService, HostAbiError, JobAssignmentNotice, LocalMeshSubmitReceiptMessage,
     MeshNetworkService, RuntimeContext, StubDagStore, StubMeshNetworkService, StubSigner,
 };
-use icn_runtime::host_submit_mesh_job;
+use icn_runtime::{host_get_pending_mesh_jobs, host_submit_mesh_job};
 #[cfg(feature = "enable-libp2p")]
 use libp2p::{Multiaddr, PeerId as Libp2pPeerId};
 use serde_json::json;
@@ -35,6 +35,7 @@ fn create_test_mesh_job(manifest_cid: Cid, cost_mana: u64, creator_did: Did) -> 
         spec: JobSpec::default(),
         creator_did,
         cost_mana,
+        max_execution_wait_ms: None,
         signature: SignatureBytes(vec![0u8; 64]), // Dummy signature for tests
     }
 }
@@ -178,6 +179,7 @@ async fn test_mesh_job_full_lifecycle_happy_path() {
         spec: JobSpec::default(),
         creator_did: submitter_did.clone(),
         cost_mana: job_cost,
+        max_execution_wait_ms: None,
         signature: SignatureBytes(Vec::new()),
     };
     arc_ctx_job_manager
@@ -340,6 +342,7 @@ async fn test_mesh_job_timeout_and_refund() {
         spec: JobSpec::default(),
         creator_did: submitter_did.clone(),
         cost_mana: job_cost,
+        max_execution_wait_ms: None,
         signature: SignatureBytes(Vec::new()),
     };
 
@@ -650,6 +653,25 @@ async fn test_job_timeout_and_refund_with_helpers() {
         submitter_ctx.get_mana(&submitter_did).await.unwrap(),
         initial_mana
     );
+}
+
+#[tokio::test]
+async fn test_submit_mesh_job_with_custom_timeout() {
+    let ctx = create_test_context("did:icn:test:timeout_custom", 50);
+    let submitter_did = ctx.current_identity.clone();
+
+    let manifest_cid = Cid::new_v1_dummy(0x55, 0x13, b"manifest_timeout_field");
+    let mut job = create_test_mesh_job(manifest_cid, 10, submitter_did.clone());
+    job.max_execution_wait_ms = Some(1234);
+    let job_json = serde_json::to_string(&job).unwrap();
+
+    let _job_id = host_submit_mesh_job(&ctx, &job_json)
+        .await
+        .expect("Job submission failed");
+
+    let pending_jobs = host_get_pending_mesh_jobs(&ctx).unwrap();
+    assert_eq!(pending_jobs.len(), 1);
+    assert_eq!(pending_jobs[0].max_execution_wait_ms, Some(1234));
 }
 
 // Helper to create a plausible (but potentially invalidly signed) ExecutionReceipt for testing.

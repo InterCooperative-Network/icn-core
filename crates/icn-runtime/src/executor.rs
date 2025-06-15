@@ -216,6 +216,7 @@ mod tests {
             }, // Corrected JobSpec usage
             creator_did: Did::from_str("did:example:jobcreator").unwrap(),
             cost_mana: 10,
+            max_execution_wait_ms: None,
             signature: SignatureBytes(vec![]),
         };
 
@@ -247,6 +248,7 @@ mod tests {
             },
             creator_did: Did::from_str("did:example:jobcreator").unwrap(),
             cost_mana: 10,
+            max_execution_wait_ms: None,
             signature: SignatureBytes(vec![]),
         };
 

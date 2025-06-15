@@ -68,6 +68,7 @@ mod runtime_host_abi_tests {
             },
             creator_did: creator_did.clone(),
             cost_mana,
+            max_execution_wait_ms: None,
             signature: icn_identity::SignatureBytes(vec![0u8; 64]), // Dummy signature
         };
 
