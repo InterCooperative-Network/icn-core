@@ -459,11 +459,13 @@ pub struct RuntimeContext {
 }
 
 impl RuntimeContext {
-    pub fn new(
+    /// Create a new context using a mana ledger stored at `mana_ledger_path`.
+    pub fn new_with_ledger_path(
         current_identity: Did,
         mesh_network_service: Arc<dyn MeshNetworkService>,
         signer: Arc<dyn Signer>,
         dag_store: Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>,
+        mana_ledger_path: PathBuf,
     ) -> Arc<Self> {
         let job_states = Arc::new(TokioMutex::new(HashMap::new()));
         let pending_mesh_jobs = Arc::new(TokioMutex::new(VecDeque::new()));
@@ -481,7 +483,7 @@ impl RuntimeContext {
 
         Arc::new(Self {
             current_identity,
-            mana_ledger: SimpleManaLedger::new(PathBuf::from("./mana_ledger.sled")),
+            mana_ledger: SimpleManaLedger::new(mana_ledger_path),
             pending_mesh_jobs,
             job_states,
             governance_module,
@@ -490,6 +492,22 @@ impl RuntimeContext {
             dag_store,
             reputation_store,
         })
+    }
+
+    /// Create a new context using the default mana ledger path (`./mana_ledger.sled`).
+    pub fn new(
+        current_identity: Did,
+        mesh_network_service: Arc<dyn MeshNetworkService>,
+        signer: Arc<dyn Signer>,
+        dag_store: Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>,
+    ) -> Arc<Self> {
+        Self::new_with_ledger_path(
+            current_identity,
+            mesh_network_service,
+            signer,
+            dag_store,
+            PathBuf::from("./mana_ledger.sled"),
+        )
     }
 
     #[cfg(feature = "enable-libp2p")]
@@ -539,11 +557,12 @@ impl RuntimeContext {
         #[cfg(not(feature = "persist-sled"))]
         let dag_store = Arc::new(TokioMutex::new(StubDagStore::new()));
 
-        Self::new(
+        Self::new_with_ledger_path(
             current_identity,
             Arc::new(StubMeshNetworkService::new()),
             Arc::new(StubSigner::new()),
             dag_store,
+            PathBuf::from("./mana_ledger.sled"),
         )
     }
 
@@ -557,11 +576,12 @@ impl RuntimeContext {
         #[cfg(not(feature = "persist-sled"))]
         let dag_store = Arc::new(TokioMutex::new(StubDagStore::new()));
 
-        let ctx = Self::new(
+        let ctx = Self::new_with_ledger_path(
             current_identity.clone(),
             Arc::new(StubMeshNetworkService::new()),
             Arc::new(StubSigner::new()),
             dag_store,
+            PathBuf::from("./mana_ledger.sled"),
         );
         ctx.mana_ledger
             .set_balance(&current_identity, initial_mana)
@@ -1239,7 +1259,8 @@ impl RuntimeContext {
         let job_states = Arc::new(TokioMutex::new(HashMap::new()));
         let pending_mesh_jobs = Arc::new(TokioMutex::new(VecDeque::new()));
         let temp_dir = tempfile::tempdir().expect("temp dir for mana ledger");
-        let mana_ledger = SimpleManaLedger::new(temp_dir.path().join("mana.sled"));
+        let mana_ledger_path = temp_dir.path().join("mana.sled");
+        let mana_ledger = SimpleManaLedger::new(mana_ledger_path);
         #[cfg(feature = "persist-sled")]
         let governance_module = Arc::new(TokioMutex::new(
             GovernanceModule::new_sled(std::path::PathBuf::from("./governance_db_test"))
