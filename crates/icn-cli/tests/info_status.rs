@@ -4,12 +4,17 @@ use std::process::Command;
 use tokio::task;
 
 #[tokio::test]
+#[serial_test::serial]
 async fn info_command_displays_node_info() {
+    let _ = std::fs::remove_dir_all("./mana_ledger.sled");
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let server = task::spawn(async move {
         axum::serve(listener, app_router().await).await.unwrap();
     });
+
+    // Give the server a moment to start listening
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
     let bin = env!("CARGO_BIN_EXE_icn-cli");
     let base = format!("http://{addr}");
@@ -28,12 +33,15 @@ async fn info_command_displays_node_info() {
 }
 
 #[tokio::test]
+#[serial_test::serial]
 async fn status_command_reports_node_status() {
+    let _ = std::fs::remove_dir_all("./mana_ledger.sled");
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let server = task::spawn(async move {
         axum::serve(listener, app_router().await).await.unwrap();
     });
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
     let bin = env!("CARGO_BIN_EXE_icn-cli");
     let base = format!("http://{addr}");
