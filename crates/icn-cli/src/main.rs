@@ -312,4 +312,4 @@ async fn handle_gov_get_proposal(
     Ok(())
 }
 
-// TODO: Add tests for CLI commands, possibly using a mock HTTP server or by running the actual icn-node.
+// CLI command behavior is tested in `crates/icn-cli/tests`.
