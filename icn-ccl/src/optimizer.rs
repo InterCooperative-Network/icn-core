@@ -19,7 +19,10 @@ impl Optimizer {
     fn fold_ast(&self, ast: AstNode) -> AstNode {
         match ast {
             AstNode::Policy(items) => AstNode::Policy(
-                items.into_iter().map(|p| self.fold_policy_statement(p)).collect(),
+                items
+                    .into_iter()
+                    .map(|p| self.fold_policy_statement(p))
+                    .collect(),
             ),
             AstNode::FunctionDefinition {
                 name,
@@ -50,7 +53,9 @@ impl Optimizer {
                 PolicyStatementNode::FunctionDef(self.fold_ast(f))
             }
             PolicyStatementNode::RuleDef(r) => PolicyStatementNode::RuleDef(self.fold_ast(r)),
-            PolicyStatementNode::Import { path, alias } => PolicyStatementNode::Import { path, alias },
+            PolicyStatementNode::Import { path, alias } => {
+                PolicyStatementNode::Import { path, alias }
+            }
         }
     }
 
@@ -95,10 +100,16 @@ impl Optimizer {
 
     fn fold_expr(&self, expr: ExpressionNode) -> ExpressionNode {
         match expr {
-            ExpressionNode::BinaryOp { left, operator, right } => {
+            ExpressionNode::BinaryOp {
+                left,
+                operator,
+                right,
+            } => {
                 let l = self.fold_expr(*left);
                 let r = self.fold_expr(*right);
-                if let (ExpressionNode::IntegerLiteral(li), ExpressionNode::IntegerLiteral(ri)) = (&l, &r) {
+                if let (ExpressionNode::IntegerLiteral(li), ExpressionNode::IntegerLiteral(ri)) =
+                    (&l, &r)
+                {
                     return match operator {
                         BinaryOperator::Add => ExpressionNode::IntegerLiteral(li + ri),
                         BinaryOperator::Sub => ExpressionNode::IntegerLiteral(li - ri),
@@ -117,7 +128,9 @@ impl Optimizer {
                         },
                     };
                 }
-                if let (ExpressionNode::BooleanLiteral(lb), ExpressionNode::BooleanLiteral(rb)) = (&l, &r) {
+                if let (ExpressionNode::BooleanLiteral(lb), ExpressionNode::BooleanLiteral(rb)) =
+                    (&l, &r)
+                {
                     return match operator {
                         BinaryOperator::And => ExpressionNode::BooleanLiteral(*lb && *rb),
                         BinaryOperator::Or => ExpressionNode::BooleanLiteral(*lb || *rb),
@@ -138,10 +151,7 @@ impl Optimizer {
             }
             ExpressionNode::FunctionCall { name, arguments } => ExpressionNode::FunctionCall {
                 name,
-                arguments: arguments
-                    .into_iter()
-                    .map(|a| self.fold_expr(a))
-                    .collect(),
+                arguments: arguments.into_iter().map(|a| self.fold_expr(a)).collect(),
             },
             e => e,
         }

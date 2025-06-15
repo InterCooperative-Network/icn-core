@@ -34,6 +34,5 @@ pub enum MeshNetworkError {
         query_id: Option<String>, // Changed from libp2p::kad::QueryId to String for broader use
         reason: String,
     },
-
     // TODO [error_handling]: Add more specific error variants as needed
-} 
+}

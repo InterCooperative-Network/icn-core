@@ -4,11 +4,17 @@
 //! This crate defines core message formats and protocol definitions for the ICN,
 //! ensuring interoperability between different components and nodes.
 
-use icn_common::{NodeInfo, CommonError};
+use icn_common::{CommonError, NodeInfo};
 
 /// Placeholder function demonstrating use of common types for protocol messages.
-pub fn serialize_protocol_message(info: &NodeInfo, message_type: u16) -> Result<Vec<u8>, CommonError> {
-    let msg_string = format!("Msg type {} from node: {} (v{})", message_type, info.name, info.version);
+pub fn serialize_protocol_message(
+    info: &NodeInfo,
+    message_type: u16,
+) -> Result<Vec<u8>, CommonError> {
+    let msg_string = format!(
+        "Msg type {} from node: {} (v{})",
+        message_type, info.name, info.version
+    );
     Ok(msg_string.into_bytes())
 }
 

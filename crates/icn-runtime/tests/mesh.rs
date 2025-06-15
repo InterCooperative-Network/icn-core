@@ -8,23 +8,23 @@
 
 use icn_common::{Cid, Did};
 use icn_dag::StorageService;
-use tokio::sync::Mutex as TokioMutex;
 use icn_identity::{ExecutionReceipt as IdentityExecutionReceipt, SignatureBytes};
 use icn_mesh::{ActualMeshJob, JobId, JobSpec, JobState, MeshJobBid, Resources};
-use icn_runtime::context::{
-    HostAbiError, JobAssignmentNotice, LocalMeshSubmitReceiptMessage, MeshNetworkService,
-    RuntimeContext, StubDagStore, StubMeshNetworkService, DefaultMeshNetworkService, StubSigner,
-};
-use icn_network::NetworkService;
-use icn_runtime::host_submit_mesh_job;
-use serde_json::json;
 use icn_network::libp2p_service::NetworkConfig;
+use icn_network::NetworkService;
+use icn_runtime::context::{
+    DefaultMeshNetworkService, HostAbiError, JobAssignmentNotice, LocalMeshSubmitReceiptMessage,
+    MeshNetworkService, RuntimeContext, StubDagStore, StubMeshNetworkService, StubSigner,
+};
+use icn_runtime::host_submit_mesh_job;
 #[cfg(feature = "enable-libp2p")]
 use libp2p::{Multiaddr, PeerId as Libp2pPeerId};
+use serde_json::json;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::str::FromStr;
 use std::sync::Arc;
+use tokio::sync::Mutex as TokioMutex;
 use tokio::time::{sleep, Duration};
 
 // Helper to create a test ActualMeshJob with all required fields
@@ -298,9 +298,7 @@ async fn test_mesh_job_full_lifecycle_happy_path() {
     };
     {
         let mut store = dag_store.lock().await;
-        store
-            .put(&block)
-            .expect("Failed to store receipt in DAG");
+        store.put(&block).expect("Failed to store receipt in DAG");
     }
     let stored_cid = block.cid.clone();
 

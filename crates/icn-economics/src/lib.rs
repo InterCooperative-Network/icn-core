@@ -58,9 +58,7 @@ impl<L: ManaLedger> ResourcePolicyEnforcer<L> {
     }
 
     pub fn spend_mana(&self, did: &Did, amount: u64) -> Result<(), EconError> {
-        println!(
-            "[ResourcePolicyEnforcer] Enforcing spend_mana for DID {did:?}, amount {amount}"
-        );
+        println!("[ResourcePolicyEnforcer] Enforcing spend_mana for DID {did:?}, amount {amount}");
 
         if amount == 0 {
             return Err(EconError::PolicyViolation(
@@ -71,7 +69,8 @@ impl<L: ManaLedger> ResourcePolicyEnforcer<L> {
         let available = self.adapter.get_balance(did);
         if available < amount {
             return Err(EconError::InsufficientBalance(format!(
-                "Insufficient mana for DID {did}")));
+                "Insufficient mana for DID {did}"
+            )));
         }
 
         if amount > Self::MAX_SPEND_LIMIT {
