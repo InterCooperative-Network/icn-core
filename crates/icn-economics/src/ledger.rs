@@ -132,3 +132,80 @@ impl crate::ManaLedger for FileManaLedger {
         FileManaLedger::credit(self, did, amount)
     }
 }
+
+// --- Persistent Sled-based Mana Ledger ---
+
+#[derive(Debug)]
+pub struct SledManaLedger {
+    tree: sled::Tree,
+}
+
+impl SledManaLedger {
+    pub fn new(path: PathBuf) -> Result<Self, CommonError> {
+        let db = sled::open(path)
+            .map_err(|e| CommonError::DatabaseError(format!("Failed to open sled DB: {e}")))?;
+        let tree = db
+            .open_tree("mana_balances")
+            .map_err(|e| CommonError::DatabaseError(format!("Failed to open tree: {e}")))?;
+        Ok(Self { tree })
+    }
+
+    fn write_balance(&self, account: &Did, amount: u64) -> Result<(), CommonError> {
+        let encoded = bincode::serialize(&amount).map_err(|e| {
+            CommonError::SerializationError(format!("Failed to serialize balance: {e}"))
+        })?;
+        self.tree
+            .insert(account.to_string(), encoded)
+            .map_err(|e| CommonError::DatabaseError(format!("Failed to store balance: {e}")))?;
+        self.tree
+            .flush()
+            .map_err(|e| CommonError::DatabaseError(format!("Failed to flush ledger: {e}")))?;
+        Ok(())
+    }
+
+    fn read_balance(&self, account: &Did) -> Result<u64, CommonError> {
+        if let Some(val) = self
+            .tree
+            .get(account.to_string())
+            .map_err(|e| CommonError::DatabaseError(format!("Failed to read balance: {e}")))?
+        {
+            let amt: u64 = bincode::deserialize(&val).map_err(|e| {
+                CommonError::DeserializationError(format!("Failed to deserialize balance: {e}"))
+            })?;
+            Ok(amt)
+        } else {
+            Ok(0)
+        }
+    }
+}
+
+impl crate::ManaLedger for SledManaLedger {
+    fn get_balance(&self, did: &Did) -> u64 {
+        self.read_balance(did).unwrap_or(0)
+    }
+
+    fn set_balance(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
+        self.write_balance(did, amount)
+    }
+
+    fn spend(&self, did: &Did, amount: u64) -> Result<(), EconError> {
+        let current = self
+            .read_balance(did)
+            .map_err(|e| EconError::AdapterError(format!("{e}")))?;
+        if current < amount {
+            return Err(EconError::InsufficientBalance(format!(
+                "Insufficient mana for DID {did}"
+            )));
+        }
+        self.write_balance(did, current - amount)
+            .map_err(|e| EconError::AdapterError(format!("{e}")))
+    }
+
+    fn credit(&self, did: &Did, amount: u64) -> Result<(), EconError> {
+        let current = self
+            .read_balance(did)
+            .map_err(|e| EconError::AdapterError(format!("{e}")))?;
+        self.write_balance(did, current + amount)
+            .map_err(|e| EconError::AdapterError(format!("{e}")))
+    }
+}
