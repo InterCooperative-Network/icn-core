@@ -4,7 +4,6 @@ use std::process::Command;
 use tokio::task;
 
 #[tokio::test]
-#[ignore]
 async fn info_command_displays_node_info() {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
@@ -15,17 +14,20 @@ async fn info_command_displays_node_info() {
     let bin = env!("CARGO_BIN_EXE_icn-cli");
     let base = format!("http://{addr}");
 
-    Command::new(bin)
-        .args(["--api-url", &base, "info"])
-        .assert()
-        .success()
-        .stdout(predicates::str::contains("Node Information"));
+    tokio::task::spawn_blocking(move || {
+        Command::new(bin)
+            .args(["--api-url", &base, "info"])
+            .assert()
+            .success()
+            .stdout(predicates::str::contains("Node Information"));
+    })
+    .await
+    .unwrap();
 
     server.abort();
 }
 
 #[tokio::test]
-#[ignore]
 async fn status_command_reports_node_status() {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
@@ -36,11 +38,15 @@ async fn status_command_reports_node_status() {
     let bin = env!("CARGO_BIN_EXE_icn-cli");
     let base = format!("http://{addr}");
 
-    Command::new(bin)
-        .args(["--api-url", &base, "status"])
-        .assert()
-        .success()
-        .stdout(predicates::str::contains("Node Status"));
+    tokio::task::spawn_blocking(move || {
+        Command::new(bin)
+            .args(["--api-url", &base, "status"])
+            .assert()
+            .success()
+            .stdout(predicates::str::contains("Node Status"));
+    })
+    .await
+    .unwrap();
 
     server.abort();
 }
