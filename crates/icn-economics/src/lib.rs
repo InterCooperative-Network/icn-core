@@ -7,7 +7,7 @@
 
 use icn_common::{CommonError, Did, NodeInfo};
 mod ledger;
-pub use ledger::FileManaLedger;
+pub use ledger::{FileManaLedger, SledManaLedger};
 
 // Placeholder for EconError enum
 #[derive(Debug)]
@@ -121,10 +121,10 @@ mod tests {
     }
 
     #[test]
-    fn test_file_mana_ledger_persistence() {
+    fn test_sled_mana_ledger_persistence() {
         let dir = tempdir().unwrap();
-        let ledger_path = dir.path().join("mana.json");
-        let ledger = FileManaLedger::new(ledger_path.clone()).unwrap();
+        let ledger_path = dir.path().join("mana.sled");
+        let ledger = SledManaLedger::new(ledger_path.clone()).unwrap();
         let did = Did::from_str("did:example:alice").unwrap();
         ledger.set_balance(&did, 50).unwrap();
         ledger.credit(&did, 20).unwrap();
@@ -132,15 +132,15 @@ mod tests {
         assert_eq!(ledger.get_balance(&did), 40);
         drop(ledger);
 
-        let ledger2 = FileManaLedger::new(ledger_path).unwrap();
+        let ledger2 = SledManaLedger::new(ledger_path).unwrap();
         assert_eq!(ledger2.get_balance(&did), 40);
     }
 
     #[test]
     fn test_resource_policy_enforcer_spend_success() {
         let dir = tempdir().unwrap();
-        let ledger_path = dir.path().join("mana.json");
-        let ledger = FileManaLedger::new(ledger_path.clone()).unwrap();
+        let ledger_path = dir.path().join("mana.sled");
+        let ledger = SledManaLedger::new(ledger_path.clone()).unwrap();
         let did = Did::from_str("did:example:alice").unwrap();
         ledger.set_balance(&did, 150).unwrap();
 
@@ -149,15 +149,15 @@ mod tests {
         let result = enforcer.spend_mana(&did, 100);
         assert!(result.is_ok());
 
-        let ledger_check = FileManaLedger::new(ledger_path).unwrap();
+        let ledger_check = SledManaLedger::new(ledger_path).unwrap();
         assert_eq!(ledger_check.get_balance(&did), 50);
     }
 
     #[test]
     fn test_resource_policy_enforcer_insufficient_balance() {
         let dir = tempdir().unwrap();
-        let ledger_path = dir.path().join("mana.json");
-        let ledger = FileManaLedger::new(ledger_path).unwrap();
+        let ledger_path = dir.path().join("mana.sled");
+        let ledger = SledManaLedger::new(ledger_path).unwrap();
         let did = Did::from_str("did:example:bob").unwrap();
         ledger.set_balance(&did, 20).unwrap();
 
@@ -170,14 +170,14 @@ mod tests {
     #[test]
     fn test_resource_policy_enforcer_exceeds_limit() {
         let dir = tempdir().unwrap();
-        let ledger_path = dir.path().join("mana.json");
-        let ledger = FileManaLedger::new(ledger_path).unwrap();
+        let ledger_path = dir.path().join("mana.sled");
+        let ledger = SledManaLedger::new(ledger_path).unwrap();
         let did = Did::from_str("did:example:carol").unwrap();
         ledger.set_balance(&did, 5000).unwrap();
 
         let adapter = ManaRepositoryAdapter::new(ledger);
         let enforcer = ResourcePolicyEnforcer::new(adapter);
-        let over_limit = ResourcePolicyEnforcer::<FileManaLedger>::MAX_SPEND_LIMIT + 1;
+        let over_limit = ResourcePolicyEnforcer::<SledManaLedger>::MAX_SPEND_LIMIT + 1;
         let result = enforcer.spend_mana(&did, over_limit);
         assert!(matches!(result, Err(EconError::PolicyViolation(_))));
     }

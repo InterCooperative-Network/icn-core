@@ -9,7 +9,7 @@ use downcast_rs::{impl_downcast, DowncastSync};
 use icn_network::libp2p_service::Libp2pNetworkService as ActualLibp2pNetworkService;
 use icn_network::{NetworkMessage, NetworkService as ActualNetworkService};
 
-use icn_economics::{EconError, FileManaLedger};
+use icn_economics::{EconError, ManaLedger, SledManaLedger};
 use log::{debug, error, info, warn};
 use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
@@ -70,17 +70,17 @@ pub trait ManaRepository: Send + Sync + std::fmt::Debug {
     // async fn credit_mana(&self, account: &Did, amount: u64) -> Result<(), EconError>;
 }
 
-/// Simple wrapper around [`FileManaLedger`] for use inside the runtime.
+/// Simple wrapper around [`SledManaLedger`] for use inside the runtime.
 #[derive(Debug, Clone)]
 pub struct SimpleManaLedger {
-    ledger: Arc<FileManaLedger>,
+    ledger: Arc<SledManaLedger>,
 }
 
 impl SimpleManaLedger {
     /// Create a new ledger at the given path. Panics if the ledger cannot be
     /// initialized.
     pub fn new(path: PathBuf) -> Self {
-        let ledger = FileManaLedger::new(path)
+        let ledger = SledManaLedger::new(path)
             .unwrap_or_else(|e| panic!("Failed to create mana ledger: {e}"));
         Self {
             ledger: Arc::new(ledger),
@@ -481,7 +481,7 @@ impl RuntimeContext {
 
         Arc::new(Self {
             current_identity,
-            mana_ledger: SimpleManaLedger::new(PathBuf::from("./mana_ledger.json")),
+            mana_ledger: SimpleManaLedger::new(PathBuf::from("./mana_ledger.sled")),
             pending_mesh_jobs,
             job_states,
             governance_module,
@@ -1239,7 +1239,7 @@ impl RuntimeContext {
         let job_states = Arc::new(TokioMutex::new(HashMap::new()));
         let pending_mesh_jobs = Arc::new(TokioMutex::new(VecDeque::new()));
         let temp_dir = tempfile::tempdir().expect("temp dir for mana ledger");
-        let mana_ledger = SimpleManaLedger::new(temp_dir.path().join("mana.json"));
+        let mana_ledger = SimpleManaLedger::new(temp_dir.path().join("mana.sled"));
         #[cfg(feature = "persist-sled")]
         let governance_module = Arc::new(TokioMutex::new(
             GovernanceModule::new_sled(std::path::PathBuf::from("./governance_db_test"))
@@ -1655,7 +1655,7 @@ mod tests {
     #[test]
     fn test_env_submit_mesh_job_success() {
         let mut env = ConcreteHostEnvironment::new();
-        let _ = std::fs::remove_file("./mana_ledger.json");
+        let _ = std::fs::remove_file("./mana_ledger.sled");
         let ctx_arc = RuntimeContext::new_with_stubs_and_mana("did:icn:test:env_submit", 100);
         let mut ctx = match Arc::try_unwrap(ctx_arc) {
             Ok(c) => c,
@@ -1687,7 +1687,7 @@ mod tests {
     #[test]
     fn test_env_account_get_mana_success() {
         let mut env = ConcreteHostEnvironment::new();
-        let _ = std::fs::remove_file("./mana_ledger.json");
+        let _ = std::fs::remove_file("./mana_ledger.sled");
         let ctx_arc = RuntimeContext::new_with_stubs_and_mana("did:icn:test:env_mana", 50);
         let ctx = match Arc::try_unwrap(ctx_arc) {
             Ok(c) => c,
@@ -1705,7 +1705,7 @@ mod tests {
     #[test]
     fn test_env_account_spend_mana_success() {
         let mut env = ConcreteHostEnvironment::new();
-        let _ = std::fs::remove_file("./mana_ledger.json");
+        let _ = std::fs::remove_file("./mana_ledger.sled");
         let ctx_arc = RuntimeContext::new_with_stubs_and_mana("did:icn:test:env_spend", 20);
         let mut ctx = match Arc::try_unwrap(ctx_arc) {
             Ok(c) => c,
