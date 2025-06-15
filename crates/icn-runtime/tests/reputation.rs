@@ -1,12 +1,35 @@
 use icn_common::Cid;
-use icn_identity::{ExecutionReceipt, SignatureBytes};
+use icn_identity::{
+    did_key_from_verifying_key, generate_ed25519_keypair, ExecutionReceipt, SignatureBytes,
+};
 use icn_reputation::ReputationStore;
-use icn_runtime::{context::RuntimeContext, host_anchor_receipt, ReputationUpdater};
-use icn_reputation::ReputationStore;
+use icn_runtime::{
+    context::{RuntimeContext, Signer, StubDagStore, StubMeshNetworkService, StubSigner},
+    host_anchor_receipt, ReputationUpdater,
+};
+use std::path::PathBuf;
+use std::sync::Arc;
+use tokio::sync::Mutex as TokioMutex;
 
 #[tokio::test]
 async fn anchor_receipt_updates_reputation() {
-    let ctx = RuntimeContext::new_with_stubs_and_mana("did:icn:test:rep", 0);
+    let (sk, vk) = generate_ed25519_keypair();
+    let did_str = did_key_from_verifying_key(&vk);
+    let did = icn_common::Did::from_str(&did_str).unwrap();
+
+    let ctx = RuntimeContext::new_with_ledger_path(
+        did.clone(),
+        Arc::new(icn_runtime::context::StubMeshNetworkService::new()),
+        Arc::new(icn_runtime::context::StubSigner::new_with_keys(
+            sk.clone(),
+            vk.clone(),
+        )),
+        Arc::new(icn_identity::KeyDidResolver::default()),
+        Arc::new(tokio::sync::Mutex::new(
+            icn_runtime::context::StubDagStore::new(),
+        )),
+        std::path::PathBuf::from("./mana_ledger.sled"),
+    );
     let job_id = Cid::new_v1_dummy(0x55, 0x13, b"rep_job");
     let result_cid = Cid::new_v1_dummy(0x55, 0x14, b"res");
 
@@ -20,7 +43,7 @@ async fn anchor_receipt_updates_reputation() {
 
     let mut msg = Vec::new();
     msg.extend_from_slice(receipt.job_id.to_string().as_bytes());
-    msg.extend_from_slice(ctx.current_identity.to_string().as_bytes());
+    msg.extend_from_slice(did.to_string().as_bytes());
     msg.extend_from_slice(receipt.result_cid.to_string().as_bytes());
     msg.extend_from_slice(&receipt.cpu_ms.to_le_bytes());
     let sig_bytes = ctx.signer.sign(&msg).expect("sign");
@@ -34,10 +57,7 @@ async fn anchor_receipt_updates_reputation() {
         .await
         .expect("anchor");
 
-    assert_eq!(
-        ctx.reputation_store.get_reputation(&ctx.current_identity),
-        1
-    );
+    assert_eq!(ctx.reputation_store.get_reputation(&did), 1);
 }
 #[test]
 fn reputation_updater_increments_store() {

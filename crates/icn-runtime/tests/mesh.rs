@@ -501,6 +501,7 @@ fn new_mesh_test_context_with_two_executors() -> (
         submitter_did.clone(),
         network_service.clone(),
         Arc::new(StubSigner::new()),
+        Arc::new(icn_identity::KeyDidResolver::default()),
         dag_store.clone(),
     );
     submitter_ctx
@@ -512,6 +513,7 @@ fn new_mesh_test_context_with_two_executors() -> (
         executor1_did.clone(),
         network_service.clone(),
         Arc::new(StubSigner::new()),
+        Arc::new(icn_identity::KeyDidResolver::default()),
         dag_store.clone(),
     );
     executor1_ctx
@@ -523,6 +525,7 @@ fn new_mesh_test_context_with_two_executors() -> (
         executor2_did.clone(),
         network_service.clone(),
         Arc::new(StubSigner::new()),
+        Arc::new(icn_identity::KeyDidResolver::default()),
         dag_store.clone(),
     );
     executor2_ctx

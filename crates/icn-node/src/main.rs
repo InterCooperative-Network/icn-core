@@ -237,6 +237,7 @@ pub async fn app_router_with_options(api_key: Option<String>, rate_limit: Option
         node_did.clone(),
         mesh_network_service,
         signer,
+        Arc::new(icn_identity::KeyDidResolver::default()),
         dag_store_for_rt,
         // GovernanceModule will be default in RuntimeContext::new
     );
@@ -425,6 +426,7 @@ async fn main() {
             node_did.clone(),
             mesh_network_service,
             signer,
+            Arc::new(icn_identity::KeyDidResolver::default()),
             dag_store_for_rt,
         )
     };
