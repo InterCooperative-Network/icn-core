@@ -1,4 +1,4 @@
-use icn_common::{Cid, DagBlock, DagLink};
+use icn_common::{Cid, DagBlock};
 use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Default)]
