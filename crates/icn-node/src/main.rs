@@ -1260,49 +1260,4 @@ mod tests {
         let list_text = String::from_utf8_lossy(&list_body);
         println!("List response body: {}", list_text);
     }
-
-    // TODO: Add more tests for DAG and Governance endpoints with new AppState structure.
-    // Example for dag_put, assuming DagBlock can be easily created.
-    // #[tokio::test]
-    // async fn dag_put_get_cycle() {
-    //     let app = test_app().await;
-    //     let test_data = b"hello dag world";
-    //     let block_cid = icn_common::cid::generate_cid(test_data).unwrap();
-    //     let dag_block = DagBlock { cid: block_cid.clone(), data: test_data.to_vec(), links: vec![] };
-    //     let dag_block_json = serde_json::to_string(&dag_block).unwrap();
-
-    //     // PUT
-    //     let response_put = app.clone()
-    //         .oneshot(
-    //             Request::builder()
-    //                 .method("POST")
-    //                 .uri("/dag/put")
-    //                 .header("content-type", "application/json")
-    //                 .body(Body::from(dag_block_json))
-    //                 .unwrap(),
-    //         )
-    //         .await
-    //         .unwrap();
-    //     assert_eq!(response_put.status(), StatusCode::CREATED);
-
-    //     // GET
-    //     let cid_req = CidRequest { cid: block_cid.to_string() };
-    //     let cid_req_json = serde_json::to_string(&cid_req).unwrap();
-    //     let response_get = app
-    //         .oneshot(
-    //             Request::builder()
-    //                 .method("POST")
-    //                 .uri("/dag/get")
-    //                 .header("content-type", "application/json")
-    //                 .body(Body::from(cid_req_json))
-    //                 .unwrap(),
-    //         )
-    //         .await
-    //         .unwrap();
-    //     assert_eq!(response_get.status(), StatusCode::OK);
-    //     let body_get = axum::body::to_bytes(response_get.into_body(), usize::MAX).await.unwrap();
-    //     let fetched_block: DagBlock = serde_json::from_slice(&body_get).unwrap();
-    //     assert_eq!(fetched_block.cid, block_cid);
-    //     assert_eq!(fetched_block.data, test_data.to_vec());
-    // }
 }
