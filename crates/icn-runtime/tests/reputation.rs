@@ -1,5 +1,6 @@
 use icn_common::Cid;
 use icn_identity::{ExecutionReceipt, SignatureBytes};
+use icn_reputation::ReputationStore;
 use icn_runtime::{context::RuntimeContext, host_anchor_receipt, ReputationUpdater};
 
 #[tokio::test]
