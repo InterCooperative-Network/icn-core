@@ -456,6 +456,8 @@ pub struct RuntimeContext {
     pub signer: Arc<dyn Signer>,
     pub dag_store: Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>, // Uses icn_dag::StorageService
     pub reputation_store: Arc<dyn icn_reputation::ReputationStore>,
+    /// Default timeout in milliseconds when waiting for job execution receipts.
+    pub default_receipt_wait_ms: u64,
 }
 
 impl RuntimeContext {
@@ -491,6 +493,7 @@ impl RuntimeContext {
             signer,
             dag_store,
             reputation_store,
+            default_receipt_wait_ms: 60_000,
         })
     }
 
@@ -607,8 +610,11 @@ impl RuntimeContext {
             "[JobManagerDetail] Waiting for receipt for job {:?} from executor {:?}",
             job.id, assigned_executor_did
         );
-        // TODO: Use job.max_execution_wait_ms or a configurable default from job spec or runtime config
-        let receipt_timeout = StdDuration::from_secs(60);
+        // Determine how long to wait for the execution receipt.
+        let timeout_ms = job
+            .max_execution_wait_ms
+            .unwrap_or(self.default_receipt_wait_ms);
+        let receipt_timeout = StdDuration::from_millis(timeout_ms);
 
         match self
             .mesh_network_service
@@ -1282,6 +1288,7 @@ impl RuntimeContext {
             signer: Arc::new(signer),
             dag_store,
             reputation_store,
+            default_receipt_wait_ms: 60_000,
         })
     }
 }
@@ -1689,6 +1696,7 @@ mod tests {
             spec: icn_mesh::JobSpec::default(),
             creator_did: ctx.current_identity.clone(),
             cost_mana: 10,
+            max_execution_wait_ms: None,
             signature: icn_identity::SignatureBytes(vec![0u8; 64]),
         };
         let job_json = serde_json::to_vec(&job).unwrap();
@@ -1802,6 +1810,7 @@ mod tests {
             spec: icn_mesh::JobSpec::default(),
             creator_did: Did::from_str("did:icn:test:creator").unwrap(),
             cost_mana: 5,
+            max_execution_wait_ms: None,
             signature: icn_identity::SignatureBytes(Vec::new()),
         };
 

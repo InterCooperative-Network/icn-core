@@ -759,6 +759,7 @@ async fn mesh_submit_job_handler(
         spec: job_spec,
         creator_did: state.runtime_context.current_identity.clone(), // Use node's DID as creator
         cost_mana: request.cost_mana,
+        max_execution_wait_ms: None,
         signature: SignatureBytes(vec![]), // Will be ignored and re-signed if host_submit_mesh_job handles it, or added before.
     };
 

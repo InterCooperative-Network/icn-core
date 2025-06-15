@@ -3,7 +3,8 @@
     unused_variables,
     clippy::uninlined_format_args,
     clippy::field_reassign_with_default,
-    clippy::clone_on_copy
+    clippy::clone_on_copy,
+    dead_code
 )]
 use anyhow::Result;
 use icn_common::{Cid, Did};
@@ -130,6 +131,7 @@ pub fn create_test_job(config: &TestJobConfig) -> Job {
         manifest_cid,
         spec: job_spec,
         cost_mana: config.cost_mana,
+        max_execution_wait_ms: None,
         signature: SignatureBytes(vec![]),
     }
 }

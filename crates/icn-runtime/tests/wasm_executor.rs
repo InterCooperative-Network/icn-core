@@ -40,6 +40,7 @@ async fn wasm_executor_runs_wasm() {
         spec: JobSpec::GenericPlaceholder,
         creator_did: node_did.clone(),
         cost_mana: 0,
+        max_execution_wait_ms: None,
         signature: SignatureBytes(vec![]),
     };
 
