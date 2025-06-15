@@ -5,9 +5,7 @@ use tokio::task;
 
 #[tokio::test]
 async fn info_status_basic() {
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
-        .await
-        .unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let server = task::spawn(async move {
         axum::serve(listener, app_router().await).await.unwrap();
@@ -34,9 +32,7 @@ async fn info_status_basic() {
 #[tokio::test]
 #[ignore]
 async fn governance_endpoints() {
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
-        .await
-        .unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let server = task::spawn(async move {
         axum::serve(listener, app_router().await).await.unwrap();

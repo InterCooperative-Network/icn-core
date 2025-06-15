@@ -240,12 +240,8 @@ mod runtime_host_abi_tests {
         info!("🔧 [RUNTIME-INTEGRATION] Phase 6: Verifying final runtime state...");
 
         // Check mana balances
-        let submitter_balance = submitter_node
-            .mana_ledger
-            .get_balance(&submitter_did);
-        let executor_balance = executor_node
-            .mana_ledger
-            .get_balance(&executor_did);
+        let submitter_balance = submitter_node.mana_ledger.get_balance(&submitter_did);
+        let executor_balance = executor_node.mana_ledger.get_balance(&executor_did);
 
         info!(
             "💰 [RUNTIME-INTEGRATION] Final mana balances - Submitter: {}, Executor: {}",
@@ -303,9 +299,7 @@ mod runtime_host_abi_tests {
         }
 
         // Verify mana was deducted
-        let balance = runtime_ctx
-            .mana_ledger
-            .get_balance(&creator_did);
+        let balance = runtime_ctx.mana_ledger.get_balance(&creator_did);
         assert_eq!(
             balance, 450,
             "Mana should be deducted for job cost (500 - 50 = 450)"
