@@ -312,4 +312,4 @@ async fn handle_gov_get_proposal(
     Ok(())
 }
 
-// CLI command behavior is tested in `crates/icn-cli/tests`.
+// CLI command behavior is covered by tests in `crates/icn-cli/tests`.
