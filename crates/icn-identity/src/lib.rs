@@ -14,6 +14,8 @@ pub use ed25519_dalek::{
 }; // Made pub, removed unused Verifier initially, then re-added Keys
 use multibase::{encode as multibase_encode, Base};
 use rand_core::OsRng;
+use std::collections::HashMap;
+use std::str::FromStr;
 use unsigned_varint::encode as varint_encode;
 
 // --- Core Cryptographic Operations & DID:key generation ---
@@ -80,6 +82,119 @@ pub fn verifying_key_from_did_key(did: &Did) -> Result<VerifyingKey, CommonError
         .map_err(|_| CommonError::IdentityError("Invalid Ed25519 key length in did:key".into()))?;
     VerifyingKey::from_bytes(&pk_bytes)
         .map_err(|e| CommonError::IdentityError(format!("Invalid verifying key bytes: {e}")))
+}
+
+/// Construct a `did:web` identifier from a domain and optional path segments.
+pub fn did_web_from_parts(domain: &str, path: &[&str]) -> String {
+    let mut id = domain.replace(':', "%3A");
+    for segment in path {
+        id.push(':');
+        id.push_str(segment);
+    }
+    format!("did:web:{id}")
+}
+
+/// Parse a `did:web` DID into its domain and path segments.
+pub fn parse_did_web(did: &Did) -> Result<(String, Vec<String>), CommonError> {
+    if did.method != "web" {
+        return Err(CommonError::IdentityError(format!(
+            "Unsupported DID method: {}",
+            did.method
+        )));
+    }
+    let mut parts: Vec<String> = did
+        .id_string
+        .split(':')
+        .map(|s| s.replace("%3A", ":"))
+        .collect();
+    if parts.is_empty() {
+        return Err(CommonError::IdentityError(
+            "did:web identifier missing domain".into(),
+        ));
+    }
+    let domain = parts.remove(0);
+    Ok((domain, parts))
+}
+
+/// Trait representing storage for signing keys associated with DIDs.
+pub trait KeyStorage: Send + Sync {
+    /// Retrieve the signing key for the given DID, if available.
+    fn get_signing_key(&self, did: &Did) -> Option<&SigningKey>;
+    /// Store the signing key for the given DID.
+    fn store_signing_key(&mut self, did: Did, key: SigningKey);
+}
+
+/// Trait for rotating signing keys.
+pub trait KeyRotation: Send + Sync {
+    /// Generate a new key for the DID and return the updated DID string.
+    fn rotate_ed25519(&mut self, did: &Did) -> Result<Did, CommonError>;
+}
+
+/// Simple in-memory implementation of [`KeyStorage`] and [`KeyRotation`].
+#[derive(Default)]
+pub struct InMemoryKeyStore {
+    keys: HashMap<Did, SigningKey>,
+}
+
+impl KeyStorage for InMemoryKeyStore {
+    fn get_signing_key(&self, did: &Did) -> Option<&SigningKey> {
+        self.keys.get(did)
+    }
+
+    fn store_signing_key(&mut self, did: Did, key: SigningKey) {
+        self.keys.insert(did, key);
+    }
+}
+
+impl KeyRotation for InMemoryKeyStore {
+    fn rotate_ed25519(&mut self, did: &Did) -> Result<Did, CommonError> {
+        let (sk, pk) = generate_ed25519_keypair();
+        let new_did_str = did_key_from_verifying_key(&pk);
+        let new_did = Did::from_str(&new_did_str)?;
+        self.keys.insert(new_did.clone(), sk);
+        self.keys.remove(did);
+        Ok(new_did)
+    }
+}
+
+/// Resolve verifying keys for `did:web` identifiers using a provided key map.
+pub struct WebDidResolver {
+    keys: HashMap<String, VerifyingKey>,
+}
+
+impl WebDidResolver {
+    /// Create a new resolver with an empty key map.
+    pub fn new() -> Self {
+        Self {
+            keys: HashMap::new(),
+        }
+    }
+
+    /// Insert a verifying key for the given `did:web` string.
+    pub fn insert(&mut self, did: String, key: VerifyingKey) {
+        self.keys.insert(did, key);
+    }
+}
+
+impl Default for WebDidResolver {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl DidResolver for WebDidResolver {
+    fn resolve(&self, did: &Did) -> Result<VerifyingKey, CommonError> {
+        if did.method != "web" {
+            return Err(CommonError::IdentityError(format!(
+                "Unsupported DID method: {}",
+                did.method
+            )));
+        }
+        self.keys
+            .get(&did.to_string())
+            .cloned()
+            .ok_or_else(|| CommonError::IdentityError("Unknown did:web".into()))
+    }
 }
 
 /// Trait for resolving a [`Did`] to the verifying key used for signature verification.
@@ -204,6 +319,12 @@ impl ExecutionReceipt {
             return Err(CommonError::IdentityError("Executor DID mismatch".into()));
         }
         let vk = verifying_key_from_did_key(did)?;
+        self.verify_against_key(&vk)
+    }
+
+    /// Verify the receipt using a custom [`DidResolver`].
+    pub fn verify_with_resolver(&self, resolver: &dyn DidResolver) -> Result<(), CommonError> {
+        let vk = resolver.resolve(&self.executor_did)?;
         self.verify_against_key(&vk)
     }
 }
@@ -386,5 +507,53 @@ mod tests {
         // Toggle the success field after signing; verification should fail
         signed.success = false;
         assert!(signed.verify_against_did(&did).is_err());
+    }
+
+    #[test]
+    fn did_web_generation_and_parse() {
+        let did_str = did_web_from_parts("example.com", &["user", "alice"]);
+        assert_eq!(did_str, "did:web:example.com:user:alice");
+        let did = Did::from_str(&did_str).unwrap();
+        let (domain, path) = parse_did_web(&did).unwrap();
+        assert_eq!(domain, "example.com");
+        assert_eq!(path, vec!["user".to_string(), "alice".to_string()]);
+    }
+
+    #[test]
+    fn verify_with_web_did_resolver() {
+        let (sk, pk) = generate_ed25519_keypair();
+        let did_str = did_web_from_parts("example.com", &[]);
+        let did = Did::from_str(&did_str).unwrap();
+
+        let job_cid = dummy_cid_for_test("web_job");
+        let result_cid = dummy_cid_for_test("web_res");
+
+        let receipt = ExecutionReceipt {
+            job_id: job_cid,
+            executor_did: did.clone(),
+            result_cid,
+            cpu_ms: 1,
+            success: true,
+            sig: SignatureBytes(vec![]),
+        };
+
+        let mut resolver = WebDidResolver::new();
+        resolver.insert(did_str.clone(), pk);
+
+        let signed = receipt.sign_with_key(&sk).unwrap();
+        assert!(signed.verify_with_resolver(&resolver).is_ok());
+    }
+
+    #[test]
+    fn key_rotation_updates_store() {
+        let (sk, pk) = generate_ed25519_keypair();
+        let did_str = did_key_from_verifying_key(&pk);
+        let did = Did::from_str(&did_str).unwrap();
+        let mut store = InMemoryKeyStore::default();
+        store.store_signing_key(did.clone(), sk);
+        let new_did = store.rotate_ed25519(&did).unwrap();
+        assert_ne!(did, new_did);
+        assert!(store.get_signing_key(&new_did).is_some());
+        assert!(store.get_signing_key(&did).is_none());
     }
 }
