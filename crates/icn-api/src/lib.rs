@@ -10,7 +10,9 @@
 //! The API aims for clarity, modularity, and extensibility, typically using JSON-RPC or gRPC.
 
 // Depending on icn_common crate
-use icn_common::{Cid, CommonError, DagBlock, Did, NodeInfo, NodeStatus, ICN_CORE_VERSION};
+use icn_common::{
+    compute_merkle_cid, Cid, CommonError, DagBlock, Did, NodeInfo, NodeStatus, ICN_CORE_VERSION,
+};
 // Remove direct use of icn_dag::put_block and icn_dag::get_block which use global store
 // use icn_dag::{put_block as dag_put_block, get_block as dag_get_block};
 use icn_dag::StorageService; // Import the trait
@@ -79,9 +81,10 @@ pub fn submit_dag_block(
         ))
     })?;
 
-    // TODO: Validate the block. Especially, recalculate its CID based on data and links
-    // and ensure it matches block.cid. If not, return CommonError::DagValidationError.
-    // For now, we trust the provided CID.
+    let expected_cid = compute_merkle_cid(block.cid.codec, &block.data, &block.links);
+    if expected_cid != block.cid {
+        return Err(CommonError::DagValidationError("CID mismatch".to_string()));
+    }
 
     let mut store = storage.lock().map_err(|_e| {
         CommonError::StorageError("API: Failed to acquire lock on storage for put.".to_string())
@@ -407,6 +410,52 @@ mod tests {
                 assert!(msg.contains("simulated offline"));
             }
             Err(e) => panic!("get_node_status returned an unexpected error type: {:?}", e),
+        }
+    }
+
+    #[test]
+    fn submit_dag_block_valid_cid() {
+        let storage = new_test_storage();
+        let child_cid = Cid::new_v1_sha256(0x71, b"child data");
+        let link = DagLink {
+            cid: child_cid,
+            name: "child".to_string(),
+            size: 9,
+        };
+        let data = b"parent".to_vec();
+        let cid = super::compute_merkle_cid(0x71, &data, std::slice::from_ref(&link));
+        let block = DagBlock {
+            cid: cid.clone(),
+            data: data.clone(),
+            links: vec![link],
+        };
+        let block_json = serde_json::to_string(&block).unwrap();
+        let result = submit_dag_block(storage, block_json);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), cid);
+    }
+
+    #[test]
+    fn submit_dag_block_invalid_cid() {
+        let storage = new_test_storage();
+        let child_cid = Cid::new_v1_sha256(0x71, b"child data");
+        let link = DagLink {
+            cid: child_cid,
+            name: "child".to_string(),
+            size: 9,
+        };
+        let data = b"parent".to_vec();
+        let wrong_cid = Cid::new_v1_sha256(0x71, b"wrong");
+        let block = DagBlock {
+            cid: wrong_cid,
+            data,
+            links: vec![link],
+        };
+        let block_json = serde_json::to_string(&block).unwrap();
+        let result = submit_dag_block(storage, block_json);
+        match result {
+            Err(CommonError::DagValidationError(_)) => {}
+            other => panic!("expected DagValidationError, got {:?}", other),
         }
     }
 
