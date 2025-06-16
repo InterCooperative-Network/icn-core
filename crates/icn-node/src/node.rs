@@ -18,8 +18,11 @@
 use icn_api::governance_trait::{
     CastVoteRequest as ApiCastVoteRequest, SubmitProposalRequest as ApiSubmitProposalRequest,
 };
+use icn_api::{query_data, submit_transaction};
 use icn_common::DagBlock as CoreDagBlock;
-use icn_common::{parse_cid_from_string, Cid, Did, NodeInfo, NodeStatus, ICN_CORE_VERSION};
+use icn_common::{
+    parse_cid_from_string, Cid, Did, NodeInfo, NodeStatus, Transaction, ICN_CORE_VERSION,
+};
 #[cfg(feature = "persist-sqlite")]
 use icn_dag::sqlite_store::SqliteDagStore;
 use icn_dag::{self, FileDagStore, InMemoryDagStore};
@@ -251,6 +254,8 @@ pub async fn app_router_with_options(
             .route("/status", get(status_handler))
             .route("/dag/put", post(dag_put_handler)) // These will use RT context's DAG store
             .route("/dag/get", post(dag_get_handler)) // These will use RT context's DAG store
+            .route("/transaction/submit", post(tx_submit_handler))
+            .route("/data/query", post(data_query_handler))
             .route("/governance/submit", post(gov_submit_handler)) // Uses RT context's Gov mod
             .route("/governance/vote", post(gov_vote_handler)) // Uses RT context's Gov mod
             .route("/governance/proposals", get(gov_list_proposals_handler)) // Uses RT context's Gov mod
@@ -456,6 +461,8 @@ async fn main() {
         .route("/status", get(status_handler))
         .route("/dag/put", post(dag_put_handler))
         .route("/dag/get", post(dag_get_handler))
+        .route("/transaction/submit", post(tx_submit_handler))
+        .route("/data/query", post(data_query_handler))
         .route("/governance/submit", post(gov_submit_handler))
         .route("/governance/vote", post(gov_vote_handler))
         .route("/governance/proposals", get(gov_list_proposals_handler))
@@ -615,6 +622,63 @@ async fn dag_get_handler(
 #[derive(Deserialize)]
 struct CidRequest {
     cid: String,
+}
+
+// POST /transaction/submit – Submit a transaction
+async fn tx_submit_handler(
+    State(_state): State<AppState>,
+    Json(tx): Json<Transaction>,
+) -> impl IntoResponse {
+    let tx_json = match serde_json::to_string(&tx) {
+        Ok(j) => j,
+        Err(e) => {
+            return map_rust_error_to_json_response(
+                format!("Failed to serialize transaction: {}", e),
+                StatusCode::BAD_REQUEST,
+            )
+            .into_response();
+        }
+    };
+
+    match submit_transaction(tx_json) {
+        Ok(id) => (
+            StatusCode::ACCEPTED,
+            Json(serde_json::json!({ "tx_id": id })),
+        )
+            .into_response(),
+        Err(e) => map_rust_error_to_json_response(
+            format!("Transaction submit error: {}", e),
+            StatusCode::BAD_REQUEST,
+        )
+        .into_response(),
+    }
+}
+
+// POST /data/query – Retrieve a DAG block via API query_data
+async fn data_query_handler(
+    State(state): State<AppState>,
+    Json(req): Json<CidRequest>,
+) -> impl IntoResponse {
+    let cid_json = match serde_json::to_string(&req.cid) {
+        Ok(j) => j,
+        Err(e) => {
+            return map_rust_error_to_json_response(
+                format!("Failed to serialize CID: {}", e),
+                StatusCode::BAD_REQUEST,
+            )
+            .into_response();
+        }
+    };
+
+    match query_data(state.runtime_context.dag_store.clone(), cid_json).await {
+        Ok(Some(block)) => (StatusCode::OK, Json(block)).into_response(),
+        Ok(None) => map_rust_error_to_json_response("Block not found", StatusCode::NOT_FOUND)
+            .into_response(),
+        Err(e) => {
+            map_rust_error_to_json_response(format!("Query error: {}", e), StatusCode::BAD_REQUEST)
+                .into_response()
+        }
+    }
 }
 
 // POST /governance/submit – Submit a proposal. (Body: SubmitProposalRequest JSON)

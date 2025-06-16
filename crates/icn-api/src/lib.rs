@@ -37,7 +37,51 @@ use crate::governance_trait::{
 //    async fn get_node_status(&self) -> Result<NodeStatus, CommonError>;
 //    async fn submit_dag_block(&self, block: DagBlock) -> Result<Cid, CommonError>;
 //    async fn retrieve_dag_block(&self, cid: Cid) -> Result<Option<DagBlock>, CommonError>;
-// TODO: Add other API methods: submit_transaction, query_data, etc.
+/// Submits a generic [`Transaction`] to the network.
+///
+/// At this early stage the function simply validates that the JSON
+/// represents a well formed `Transaction` and returns its ID.
+/// A real implementation would persist the transaction and broadcast it
+/// across the network.
+pub fn submit_transaction(tx_json: String) -> Result<String, CommonError> {
+    let tx: icn_common::Transaction = serde_json::from_str(&tx_json).map_err(|e| {
+        CommonError::DeserializationError(format!(
+            "Failed to parse Transaction JSON: {} (Input: '{}')",
+            e, tx_json
+        ))
+    })?;
+
+    if tx.id.is_empty() {
+        return Err(CommonError::InvalidInputError(
+            "Transaction id cannot be empty".to_string(),
+        ));
+    }
+
+    Ok(tx.id)
+}
+
+/// Queries data from the provided DAG store by CID.
+///
+/// Returns the [`DagBlock`] if found, or `Ok(None)` if the block does not exist.
+pub async fn query_data(
+    storage: Arc<tokio::sync::Mutex<dyn StorageService<DagBlock> + Send>>,
+    cid_json: String,
+) -> Result<Option<DagBlock>, CommonError> {
+    let cid: Cid = serde_json::from_str(&cid_json).map_err(|e| {
+        CommonError::DeserializationError(format!(
+            "Failed to parse CID JSON for query: {} (Input: '{}')",
+            e, cid_json
+        ))
+    })?;
+
+    let store_guard = storage.lock().await;
+    store_guard.get(&cid).map_err(|e| match e {
+        CommonError::StorageError(msg) => {
+            CommonError::StorageError(format!("API: Failed to query DagBlock: {}", msg))
+        }
+        other => CommonError::ApiError(format!("API: Unexpected error: {:?}", other)),
+    })
+}
 // }
 
 /// Retrieves basic information about the ICN node.
@@ -662,5 +706,44 @@ mod tests {
                 e
             ),
         }
+    }
+
+    #[test]
+    fn test_submit_transaction() {
+        let tx = icn_common::Transaction {
+            id: "tx1".to_string(),
+            timestamp: 1,
+            sender_did: Did::new("key", "alice"),
+            recipient_did: None,
+            payload_type: "test".to_string(),
+            payload: b"hello".to_vec(),
+            signature: None,
+        };
+        let tx_json = serde_json::to_string(&tx).unwrap();
+        let res = submit_transaction(tx_json);
+        assert_eq!(res.unwrap(), "tx1".to_string());
+    }
+
+    #[tokio::test]
+    async fn test_query_data() {
+        use icn_dag::InMemoryDagStore;
+
+        let store: Arc<tokio::sync::Mutex<dyn StorageService<DagBlock> + Send>> =
+            Arc::new(tokio::sync::Mutex::new(InMemoryDagStore::new()));
+        let data = b"query block".to_vec();
+        let cid = Cid::new_v1_sha256(0x71, &data);
+        let block = DagBlock {
+            cid: cid.clone(),
+            data: data.clone(),
+            links: vec![],
+        };
+        {
+            let mut guard = store.lock().await;
+            guard.put(&block).unwrap();
+        }
+
+        let cid_json = serde_json::to_string(&cid).unwrap();
+        let res = query_data(store, cid_json).await.unwrap().unwrap();
+        assert_eq!(res.data, data);
     }
 }
