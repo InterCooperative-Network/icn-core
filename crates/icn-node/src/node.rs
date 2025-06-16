@@ -19,7 +19,9 @@ use icn_api::governance_trait::{
     CastVoteRequest as ApiCastVoteRequest, SubmitProposalRequest as ApiSubmitProposalRequest,
 };
 use icn_common::DagBlock as CoreDagBlock;
-use icn_common::{parse_cid_from_string, Cid, Did, NodeInfo, NodeStatus, ICN_CORE_VERSION};
+use icn_common::{
+    parse_cid_from_string, Cid, Did, NodeInfo, NodeStatus, Transaction, ICN_CORE_VERSION,
+};
 #[cfg(feature = "persist-sqlite")]
 use icn_dag::sqlite_store::SqliteDagStore;
 use icn_dag::{self, FileDagStore, InMemoryDagStore};
@@ -258,6 +260,8 @@ pub async fn app_router_with_options(
                 "/governance/proposal/:proposal_id",
                 get(gov_get_proposal_handler),
             ) // Uses RT context's Gov mod
+            .route("/transaction/submit", post(tx_submit_handler))
+            .route("/data/query", post(query_data_handler))
             .route("/mesh/submit", post(mesh_submit_job_handler)) // Job submission
             .route("/mesh/jobs", get(mesh_list_jobs_handler)) // List all jobs
             .route("/mesh/jobs/:job_id", get(mesh_get_job_status_handler)) // Get specific job status
@@ -734,6 +738,33 @@ async fn gov_get_proposal_handler(
             .into_response(),
         Err(e) => map_rust_error_to_json_response(
             format!("Governance get error: {}", e),
+            StatusCode::BAD_REQUEST,
+        )
+        .into_response(),
+    }
+}
+
+#[derive(Deserialize)]
+struct QueryRequest {
+    query: String,
+}
+
+async fn tx_submit_handler(Json(tx): Json<icn_common::Transaction>) -> impl IntoResponse {
+    match icn_api::submit_transaction(serde_json::to_string(&tx).unwrap()) {
+        Ok(id) => (StatusCode::OK, Json(id)).into_response(),
+        Err(e) => map_rust_error_to_json_response(
+            format!("Transaction submit error: {}", e),
+            StatusCode::BAD_REQUEST,
+        )
+        .into_response(),
+    }
+}
+
+async fn query_data_handler(Json(req): Json<QueryRequest>) -> impl IntoResponse {
+    match icn_api::query_data(req.query) {
+        Ok(res) => (StatusCode::OK, Json(res)).into_response(),
+        Err(e) => map_rust_error_to_json_response(
+            format!("Query data error: {}", e),
             StatusCode::BAD_REQUEST,
         )
         .into_response(),

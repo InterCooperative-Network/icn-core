@@ -40,6 +40,30 @@ use crate::governance_trait::{
 // TODO: Add other API methods: submit_transaction, query_data, etc.
 // }
 
+/// Submits a transaction to the node.
+///
+/// This stub implementation simply parses the provided JSON into a
+/// [`Transaction`] and returns its `id`. In a real implementation the
+/// transaction would be validated and persisted.
+pub fn submit_transaction(tx_json: String) -> Result<String, CommonError> {
+    let tx: icn_common::Transaction = serde_json::from_str(&tx_json).map_err(|e| {
+        CommonError::DeserializationError(format!(
+            "Failed to parse Transaction JSON: {} (Input: '{}')",
+            e, tx_json
+        ))
+    })?;
+    Ok(tx.id.clone())
+}
+
+/// Queries data from the node.
+///
+/// Currently this function is a placeholder that simply echoes the query
+/// string back to the caller. It demonstrates the API shape for future
+/// data access capabilities.
+pub fn query_data(query: String) -> Result<String, CommonError> {
+    Ok(format!("Query result for: {}", query))
+}
+
 /// Retrieves basic information about the ICN node.
 /// This function would typically be part of an RPC service.
 pub fn get_node_info() -> Result<NodeInfo, CommonError> {
