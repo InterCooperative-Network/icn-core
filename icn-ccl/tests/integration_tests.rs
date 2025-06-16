@@ -151,3 +151,34 @@ async fn test_wasm_executor_with_ccl() {
 // - Test CLI check function
 // - Test CLI format function (once implemented)
 // - Test CLI explain function (once implemented)
+
+#[test]
+fn test_cli_format_ccl_file() {
+    let dir = tempdir().expect("Failed to create temp dir");
+    let src = "fn main()->Bool{return true;}";
+    let path = create_dummy_ccl_file(dir.path(), "fmt.ccl", src);
+
+    let formatted = icn_ccl::cli::format_ccl_file(&path, false).expect("format");
+    assert!(formatted.contains("fn main() -> Bool"));
+    assert!(formatted.contains("return true;"));
+
+    let inplace = icn_ccl::cli::format_ccl_file(&path, true).expect("format inplace");
+    let updated = fs::read_to_string(&path).unwrap();
+    assert_eq!(inplace, updated);
+}
+
+#[test]
+fn test_cli_explain_ccl_policy() {
+    let dir = tempdir().expect("Failed to create temp dir");
+    let src = "fn main() -> Bool { return true; } rule r when true then allow";
+    let path = create_dummy_ccl_file(dir.path(), "explain.ccl", src);
+
+    let explanation = icn_ccl::cli::explain_ccl_policy(&path, None).expect("explain");
+    assert!(explanation.contains("Function `main`"));
+    assert!(explanation.contains("Rule `r`"));
+
+    let only =
+        icn_ccl::cli::explain_ccl_policy(&path, Some("main".to_string())).expect("explain target");
+    assert!(only.contains("Function `main`"));
+    assert!(!only.contains("Rule `r`"));
+}

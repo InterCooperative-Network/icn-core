@@ -1,4 +1,8 @@
 // icn-ccl/src/cli.rs
+use crate::ast::{
+    ActionNode, AstNode, BlockNode, ExpressionNode, PolicyStatementNode, StatementNode,
+    TypeAnnotationNode,
+};
 use crate::error::CclError;
 use crate::metadata::ContractMetadata;
 use crate::optimizer::Optimizer;
@@ -95,14 +99,23 @@ pub fn check_ccl_file(source_path: &PathBuf) -> Result<(), CclError> {
 // This function would be called by `icn-cli ccl fmt ...`
 pub fn format_ccl_file(source_path: &PathBuf, _inplace: bool) -> Result<String, CclError> {
     println!(
-        "[CCL CLI Lib] Formatting {} (Inplace: {}) (Formatting logic pending)",
+        "[CCL CLI Lib] Formatting {} (Inplace: {})",
         source_path.display(),
         _inplace
     );
     let source_code = fs::read_to_string(source_path)?;
-    // TODO: Implement actual CCL auto-formatter using the Pest grammar and AST
-    // For now, just return the original source
-    Ok(source_code)
+    let ast = parse_ccl_source(&source_code)?;
+    let formatted = ast_to_string(&ast, 0);
+    if _inplace {
+        fs::write(source_path, &formatted).map_err(|e| {
+            CclError::IoError(format!(
+                "Failed to write formatted file {}: {}",
+                source_path.display(),
+                e
+            ))
+        })?;
+    }
+    Ok(formatted)
 }
 
 // This function would be called by `icn-cli ccl explain ...`
@@ -111,13 +124,222 @@ pub fn explain_ccl_policy(
     _target_construct: Option<String>,
 ) -> Result<String, CclError> {
     println!(
-        "[CCL CLI Lib] Explaining {} (Target: {:?}) (Explanation logic pending)",
+        "[CCL CLI Lib] Explaining {} (Target: {:?})",
         source_path.display(),
         _target_construct
     );
-    // TODO: Implement logic to analyze a CCL policy and explain its behavior,
-    // potentially focusing on a specific rule or function.
-    Ok(format!("Explanation for {} (stub):\nThis policy is designed to govern resources based on CCL principles.", source_path.display()))
+    let source_code = fs::read_to_string(source_path)?;
+    let ast = parse_ccl_source(&source_code)?;
+    let target = _target_construct.as_deref();
+    let explanation = explain_ast(&ast, target);
+    Ok(explanation)
+}
+
+fn ast_to_string(ast: &AstNode, indent: usize) -> String {
+    match ast {
+        AstNode::Policy(items) => items
+            .iter()
+            .map(|i| policy_stmt_to_string(i, indent))
+            .collect::<Vec<_>>()
+            .join("\n"),
+        AstNode::FunctionDefinition {
+            name,
+            return_type,
+            body,
+            ..
+        } => {
+            let mut s = String::new();
+            s.push_str(&format!(
+                "fn {}() -> {} ",
+                name,
+                type_to_string(return_type)
+            ));
+            s.push_str(&block_to_string(body, indent));
+            s
+        }
+        AstNode::RuleDefinition {
+            name,
+            condition,
+            action,
+        } => {
+            format!(
+                "rule {} when {} then {}",
+                name,
+                expr_to_string(condition),
+                action_to_string(action)
+            )
+        }
+    }
+}
+
+fn policy_stmt_to_string(stmt: &PolicyStatementNode, indent: usize) -> String {
+    match stmt {
+        PolicyStatementNode::FunctionDef(n) | PolicyStatementNode::RuleDef(n) => {
+            ast_to_string(n, indent)
+        }
+        PolicyStatementNode::Import { path, alias } => {
+            format!("import \"{}\" as {};", path, alias)
+        }
+    }
+}
+
+fn block_to_string(block: &BlockNode, indent: usize) -> String {
+    let mut s = String::from("{\n");
+    for st in &block.statements {
+        s.push_str(&format!(
+            "{}{}\n",
+            " ".repeat(indent + 4),
+            stmt_to_string(st, indent + 4)
+        ));
+    }
+    s.push_str(&format!("{}{}", " ".repeat(indent), "}"));
+    s
+}
+
+fn stmt_to_string(stmt: &StatementNode, indent: usize) -> String {
+    match stmt {
+        StatementNode::Let { name, value } => {
+            format!("let {} = {};", name, expr_to_string(value))
+        }
+        StatementNode::ExpressionStatement(e) => {
+            format!("{};", expr_to_string(e))
+        }
+        StatementNode::Return(e) => {
+            format!("return {};", expr_to_string(e))
+        }
+        StatementNode::If {
+            condition,
+            then_block,
+            else_block,
+        } => {
+            let mut s = String::new();
+            s.push_str(&format!("if {} ", expr_to_string(condition)));
+            s.push_str(&block_to_string(then_block, indent));
+            if let Some(b) = else_block {
+                s.push_str(" else ");
+                s.push_str(&block_to_string(b, indent));
+            }
+            s
+        }
+    }
+}
+
+fn expr_to_string(expr: &ExpressionNode) -> String {
+    match expr {
+        ExpressionNode::IntegerLiteral(i) => i.to_string(),
+        ExpressionNode::BooleanLiteral(b) => b.to_string(),
+        ExpressionNode::StringLiteral(s) => format!("\"{}\"", s),
+        ExpressionNode::Identifier(s) => s.clone(),
+        ExpressionNode::FunctionCall { name, arguments } => {
+            let args = arguments
+                .iter()
+                .map(expr_to_string)
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("{}({})", name, args)
+        }
+        ExpressionNode::BinaryOp {
+            left,
+            operator,
+            right,
+        } => {
+            let op = match operator {
+                crate::ast::BinaryOperator::Add => "+",
+                crate::ast::BinaryOperator::Sub => "-",
+                crate::ast::BinaryOperator::Mul => "*",
+                crate::ast::BinaryOperator::Div => "/",
+                crate::ast::BinaryOperator::Eq => "==",
+                crate::ast::BinaryOperator::Neq => "!=",
+                crate::ast::BinaryOperator::Lt => "<",
+                crate::ast::BinaryOperator::Gt => ">",
+                crate::ast::BinaryOperator::Lte => "<=",
+                crate::ast::BinaryOperator::Gte => ">=",
+                crate::ast::BinaryOperator::And => "&&",
+                crate::ast::BinaryOperator::Or => "||",
+            };
+            format!(
+                "({} {} {})",
+                expr_to_string(left),
+                op,
+                expr_to_string(right)
+            )
+        }
+    }
+}
+
+fn type_to_string(ty: &TypeAnnotationNode) -> String {
+    match ty {
+        TypeAnnotationNode::Mana => "Mana".to_string(),
+        TypeAnnotationNode::Bool => "Bool".to_string(),
+        TypeAnnotationNode::Did => "DID".to_string(),
+        TypeAnnotationNode::String => "String".to_string(),
+        TypeAnnotationNode::Integer => "Integer".to_string(),
+        TypeAnnotationNode::Custom(s) => s.clone(),
+    }
+}
+
+fn action_to_string(action: &ActionNode) -> String {
+    match action {
+        ActionNode::Allow => "allow".to_string(),
+        ActionNode::Deny => "deny".to_string(),
+        ActionNode::Charge(e) => format!("charge {}", expr_to_string(e)),
+    }
+}
+
+fn explain_ast(ast: &AstNode, target: Option<&str>) -> String {
+    match ast {
+        AstNode::Policy(items) => {
+            let mut lines = Vec::new();
+            for item in items {
+                match item {
+                    PolicyStatementNode::FunctionDef(inner) => {
+                        if let AstNode::FunctionDefinition {
+                            name, return_type, ..
+                        } = inner
+                        {
+                            if target.is_none() || target == Some(name) {
+                                lines.push(format!(
+                                    "Function `{}` returns `{}`.",
+                                    name,
+                                    type_to_string(return_type)
+                                ));
+                            }
+                        }
+                    }
+                    PolicyStatementNode::RuleDef(inner) => {
+                        if let AstNode::RuleDefinition {
+                            name,
+                            condition,
+                            action,
+                        } = inner
+                        {
+                            if target.is_none() || target == Some(name) {
+                                lines.push(format!(
+                                    "Rule `{}` when {} then {}.",
+                                    name,
+                                    expr_to_string(condition),
+                                    action_to_string(action)
+                                ));
+                            }
+                        }
+                    }
+                    PolicyStatementNode::Import { path, alias } => {
+                        if target.is_none() {
+                            lines.push(format!("Imports `{}` as `{}`.", path, alias));
+                        }
+                    }
+                }
+            }
+            lines.join("\n")
+        }
+        node => {
+            if target.is_none() {
+                ast_to_string(node, 0)
+            } else {
+                String::new()
+            }
+        }
+    }
 }
 
 // Helper for min, replace with std::cmp::min
