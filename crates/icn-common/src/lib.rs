@@ -112,7 +112,50 @@ pub enum CommonError {
     NotImplemented(String),
 }
 
-// TODO: Define common traits e.g. pub trait Signable { fn sign(&self, key: &Key) -> Signature; fn verify(&self, signature: &Signature, public_key: &PublicKey) -> bool; }
+/// Trait for types that can produce a canonical byte representation for
+/// cryptographic signing and provide helper methods for Ed25519 signatures.
+pub trait Signable {
+    /// Return the bytes that should be signed.
+    fn to_signable_bytes(&self) -> Result<Vec<u8>, CommonError>;
+
+    /// Sign `self` with the provided Ed25519 [`SigningKey`].
+    fn sign(&self, key: &ed25519_dalek::SigningKey) -> Result<SignatureBytes, CommonError> {
+        use ed25519_dalek::Signer;
+        let bytes = self.to_signable_bytes()?;
+        let sig = key.sign(&bytes);
+        Ok(SignatureBytes(sig.to_bytes().to_vec()))
+    }
+
+    /// Verify a signature against `self` using the provided [`VerifyingKey`].
+    fn verify(
+        &self,
+        signature: &SignatureBytes,
+        key: &ed25519_dalek::VerifyingKey,
+    ) -> Result<(), CommonError> {
+        use ed25519_dalek::Signature;
+        let bytes = self.to_signable_bytes()?;
+        let sig: Signature = signature.try_into()?;
+        key.verify_strict(&bytes, &sig)
+            .map_err(|_| CommonError::CryptoError("Signature verification failed".into()))
+    }
+}
+
+/// Wrapper for raw Ed25519 signature bytes used by [`Signable`] implementors.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SignatureBytes(#[serde(with = "serde_bytes")] pub Vec<u8>);
+
+impl TryFrom<&SignatureBytes> for ed25519_dalek::Signature {
+    type Error = CommonError;
+
+    fn try_from(value: &SignatureBytes) -> Result<Self, Self::Error> {
+        let arr: [u8; ed25519_dalek::SIGNATURE_LENGTH] = value
+            .0
+            .clone()
+            .try_into()
+            .map_err(|_| CommonError::CryptoError("Invalid signature length".into()))?;
+        Ok(ed25519_dalek::Signature::from_bytes(&arr))
+    }
+}
 
 // --- Real Protocol Data Models ---
 
@@ -303,17 +346,68 @@ pub fn verify_block_integrity(block: &DagBlock) -> Result<(), CommonError> {
 /// Represents a generic transaction within the ICN.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Transaction {
-    pub id: String,                 // Transaction ID (e.g., hash of its content)
-    pub timestamp: u64,             // Unix timestamp
-    pub sender_did: Did,            // DID of the sender
-    pub recipient_did: Option<Did>, // Optional recipient DID
-    pub payload_type: String, // Describes the type of data in payload (e.g., "transfer", "governance_vote")
-    pub payload: Vec<u8>,     // Serialized transaction-specific data
-    pub signature: Option<String>, // Optional signature of the transaction content
-                              // TODO: Add fields like nonce, gas_limit, gas_price if relevant to economic model
+    /// Transaction ID (e.g. hash of the contents).
+    pub id: String,
+    /// Unix timestamp when the transaction was created.
+    pub timestamp: u64,
+    /// DID of the sender.
+    pub sender_did: Did,
+    /// Optional recipient DID.
+    pub recipient_did: Option<Did>,
+    /// Describes the type of data in [`payload`].
+    pub payload_type: String,
+    /// Serialized transaction-specific data.
+    pub payload: Vec<u8>,
+    /// Optional Ed25519 signature of the transaction content.
+    pub signature: Option<SignatureBytes>,
+    // TODO: Add fields like nonce, gas_limit, gas_price if relevant to economic model
 }
 
-// TODO: Define `DidDocument` struct for DID resolution.
+/// Minimal DID document containing the public verifying key for a [`Did`].
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DidDocument {
+    /// The identifier this document describes.
+    pub id: Did,
+    /// Raw public key bytes associated with the DID.
+    #[serde(with = "serde_bytes")]
+    pub public_key: Vec<u8>,
+}
+
+impl Signable for DagBlock {
+    fn to_signable_bytes(&self) -> Result<Vec<u8>, CommonError> {
+        let mut bytes = self.cid.to_string().into_bytes();
+        bytes.extend_from_slice(&self.data);
+        let mut links: Vec<String> = self.links.iter().map(|l| l.cid.to_string()).collect();
+        links.sort();
+        for l in links {
+            bytes.extend_from_slice(l.as_bytes());
+        }
+        Ok(bytes)
+    }
+}
+
+impl Signable for Transaction {
+    fn to_signable_bytes(&self) -> Result<Vec<u8>, CommonError> {
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(self.id.as_bytes());
+        bytes.extend_from_slice(&self.timestamp.to_le_bytes());
+        bytes.extend_from_slice(self.sender_did.to_string().as_bytes());
+        if let Some(ref r) = self.recipient_did {
+            bytes.extend_from_slice(r.to_string().as_bytes());
+        }
+        bytes.extend_from_slice(self.payload_type.as_bytes());
+        bytes.extend_from_slice(&self.payload);
+        Ok(bytes)
+    }
+}
+
+impl Signable for DidDocument {
+    fn to_signable_bytes(&self) -> Result<Vec<u8>, CommonError> {
+        let mut bytes = self.id.to_string().into_bytes();
+        bytes.extend_from_slice(&self.public_key);
+        Ok(bytes)
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -409,7 +503,7 @@ mod tests {
             recipient_did: None,
             payload_type: "test_payload".to_string(),
             payload: b"some test data".to_vec(),
-            signature: Some("dummy_signature".to_string()),
+            signature: Some(SignatureBytes(vec![0u8; ed25519_dalek::SIGNATURE_LENGTH])),
         };
         assert_eq!(transaction.sender_did, sender);
         let serialized = serde_json::to_string(&transaction).unwrap();
