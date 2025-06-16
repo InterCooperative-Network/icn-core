@@ -39,6 +39,17 @@ As a daemon, `icn-node`'s primary external API will be through network protocols
 
 The current `main()` function is for demonstration and testing the library integrations, not for long-running service yet.
 
+## CLI Usage
+
+When running the `icn-node` binary you can specify a custom path for the mana ledger using `--mana-ledger-path`.
+This allows mana balances to persist between restarts.
+
+```bash
+./target/debug/icn-node --mana-ledger-path ./icn_data/mana.sled
+```
+
+Restarting the node with the same path will retain previously stored balances.
+
 ## Contributing
 
 Please refer to the main `CONTRIBUTING.md` in the root of the `icn-core` repository.

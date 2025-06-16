@@ -3,4 +3,4 @@
 
 #![allow(special_module_name)]
 pub mod main;
-pub use main::app_router;
+pub use main::{app_router, app_router_with_options};

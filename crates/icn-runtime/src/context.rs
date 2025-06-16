@@ -1158,6 +1158,7 @@ impl RuntimeContext {
         identity_str: &str,
         listen_addresses: Vec<Multiaddr>,
         bootstrap_peers: Option<Vec<(Libp2pPeerId, Multiaddr)>>,
+        mana_ledger_path: PathBuf,
     ) -> Result<Arc<Self>, CommonError> {
         info!("Initializing RuntimeContext with real libp2p networking");
 
@@ -1198,7 +1199,14 @@ impl RuntimeContext {
         let dag_store = Arc::new(TokioMutex::new(StubDagStore::new()));
 
         // Create RuntimeContext with real networking - this returns Arc<Self>
-        let ctx = Self::new(identity, mesh_service, signer, dag_store);
+        let ctx = Self::new_with_ledger_path(
+            identity,
+            mesh_service,
+            signer,
+            Arc::new(KeyDidResolver::default()),
+            dag_store,
+            mana_ledger_path,
+        );
 
         info!("RuntimeContext with real libp2p networking created successfully");
         Ok(ctx)
