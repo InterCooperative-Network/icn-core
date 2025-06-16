@@ -13,6 +13,7 @@
 
 pub mod error;
 pub use error::MeshNetworkError;
+pub mod metrics;
 
 use async_trait::async_trait;
 use downcast_rs::{impl_downcast, DowncastSync};
@@ -118,6 +119,12 @@ pub struct NetworkStats {
     pub messages_received: u64,
     pub failed_connections: u64,
     pub avg_latency_ms: Option<u64>,
+    /// Minimum observed round-trip latency in milliseconds.
+    pub min_latency_ms: Option<u64>,
+    /// Maximum observed round-trip latency in milliseconds.
+    pub max_latency_ms: Option<u64>,
+    /// Last measured round-trip latency in milliseconds.
+    pub last_latency_ms: Option<u64>,
     pub kademlia_peers: usize,
 }
 
@@ -131,6 +138,9 @@ impl Default for NetworkStats {
             messages_received: 0,
             failed_connections: 0,
             avg_latency_ms: None,
+            min_latency_ms: None,
+            max_latency_ms: None,
+            last_latency_ms: None,
             kademlia_peers: 0,
         }
     }
@@ -355,6 +365,11 @@ pub mod libp2p_service {
         failed_connections: u64,
         message_counts: HashMap<String, MessageTypeStats>,
         kademlia_peers: usize,
+        last_latency_ms: Option<u64>,
+        min_latency_ms: Option<u64>,
+        max_latency_ms: Option<u64>,
+        total_latency_ms: u64,
+        ping_count: u64,
     }
 
     impl EnhancedNetworkStats {
@@ -366,6 +381,40 @@ pub mod libp2p_service {
 
         fn update_kademlia_peers(&mut self, count: usize) {
             self.kademlia_peers = count;
+        }
+
+        fn record_latency(&mut self, rtt: std::time::Duration) {
+            let ms = rtt.as_millis() as u64;
+            self.last_latency_ms = Some(ms);
+            self.min_latency_ms = Some(self.min_latency_ms.map_or(ms, |m| m.min(ms)));
+            self.max_latency_ms = Some(self.max_latency_ms.map_or(ms, |m| m.max(ms)));
+            self.total_latency_ms += ms;
+            self.ping_count += 1;
+
+            #[allow(unused_variables)]
+            {
+                use crate::metrics::{
+                    PING_AVG_RTT_MS, PING_LAST_RTT_MS, PING_MAX_RTT_MS, PING_MIN_RTT_MS,
+                };
+                PING_LAST_RTT_MS.set(ms as f64);
+                if let Some(min) = self.min_latency_ms {
+                    PING_MIN_RTT_MS.set(min as f64);
+                }
+                if let Some(max) = self.max_latency_ms {
+                    PING_MAX_RTT_MS.set(max as f64);
+                }
+                if let Some(avg) = self.avg_latency() {
+                    PING_AVG_RTT_MS.set(avg as f64);
+                }
+            }
+        }
+
+        fn avg_latency(&self) -> Option<u64> {
+            if self.ping_count > 0 {
+                Some(self.total_latency_ms / self.ping_count)
+            } else {
+                None
+            }
         }
     }
 
@@ -745,7 +794,10 @@ pub mod libp2p_service {
                                         messages_sent: stats_guard.messages_sent,
                                         messages_received: stats_guard.messages_received,
                                         failed_connections: stats_guard.failed_connections,
-                                        avg_latency_ms: None, // TODO: Implement latency tracking
+                                        avg_latency_ms: stats_guard.avg_latency(),
+                                        min_latency_ms: stats_guard.min_latency_ms,
+                                        max_latency_ms: stats_guard.max_latency_ms,
+                                        last_latency_ms: stats_guard.last_latency_ms,
                                         kademlia_peers: stats_guard.kademlia_peers,
                                     };
                                     let _ = rsp.send(network_stats);
@@ -844,6 +896,13 @@ pub mod libp2p_service {
                             subscriber.try_send(network_msg.clone()).is_ok()
                         });
                     }
+                }
+                SwarmEvent::Behaviour(CombinedBehaviourEvent::Ping(ping::Event {
+                    result: Ok(rtt),
+                    ..
+                })) => {
+                    let mut stats_guard = stats.lock().unwrap();
+                    stats_guard.record_latency(rtt);
                 }
                 SwarmEvent::Behaviour(CombinedBehaviourEvent::Kademlia(ev)) => match ev {
                     KademliaEvent::OutboundQueryProgressed { id, result, .. } => {
