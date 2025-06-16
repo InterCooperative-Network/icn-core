@@ -51,3 +51,8 @@ Specific contributions to `icn-cli` could include:
 ## License
 
 This crate is licensed under the Apache 2.0 license, as is the entire `icn-core` repository.
+
+## New Commands
+
+- `icn-cli tx <JSON>` – submit a transaction to the node. Use `-` to read JSON from STDIN.
+- `icn-cli query <KEY>` – fetch data for a given key.

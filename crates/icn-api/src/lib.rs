@@ -10,7 +10,10 @@
 //! The API aims for clarity, modularity, and extensibility, typically using JSON-RPC or gRPC.
 
 // Depending on icn_common crate
-use icn_common::{Cid, CommonError, DagBlock, Did, NodeInfo, NodeStatus, ICN_CORE_VERSION};
+use icn_common::{
+    Cid, CommonError, DagBlock, DataQueryRequest, DataQueryResponse, Did, NodeInfo, NodeStatus,
+    SubmitTransactionRequest, SubmitTransactionResponse, Transaction, ICN_CORE_VERSION,
+};
 // Remove direct use of icn_dag::put_block and icn_dag::get_block which use global store
 // use icn_dag::{put_block as dag_put_block, get_block as dag_get_block};
 use icn_dag::StorageService; // Import the trait
@@ -358,6 +361,25 @@ pub async fn send_network_message_api(
         })
 }
 
+/// API endpoint to submit a [`Transaction`].
+pub fn submit_transaction_api(
+    request: SubmitTransactionRequest,
+) -> Result<SubmitTransactionResponse, CommonError> {
+    // In a real implementation this would forward the transaction to the runtime
+    // or ledger service. For now we simply echo the ID back.
+    Ok(SubmitTransactionResponse {
+        transaction_id: request.transaction.id,
+    })
+}
+
+/// API endpoint to retrieve data for a given key.
+pub fn query_data_api(request: DataQueryRequest) -> Result<DataQueryResponse, CommonError> {
+    // Placeholder implementation returns the key bytes as the value
+    Ok(DataQueryResponse {
+        value: Some(request.key.into_bytes()),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -613,5 +635,32 @@ mod tests {
                 e
             ),
         }
+    }
+
+    #[test]
+    fn test_submit_transaction_api() {
+        let tx = Transaction {
+            id: "tx1".to_string(),
+            timestamp: 0,
+            sender_did: Did::new("key", "alice"),
+            recipient_did: None,
+            payload_type: "test".to_string(),
+            payload: vec![],
+            signature: None,
+        };
+        let req = SubmitTransactionRequest {
+            transaction: tx.clone(),
+        };
+        let res = submit_transaction_api(req).expect("submit tx");
+        assert_eq!(res.transaction_id, tx.id);
+    }
+
+    #[test]
+    fn test_query_data_api() {
+        let req = DataQueryRequest {
+            key: "hello".into(),
+        };
+        let res = query_data_api(req).expect("query");
+        assert_eq!(res.value, Some(b"hello".to_vec()));
     }
 }

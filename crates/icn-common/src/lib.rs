@@ -313,6 +313,34 @@ pub struct Transaction {
                               // TODO: Add fields like nonce, gas_limit, gas_price if relevant to economic model
 }
 
+/// Request to submit a transaction to an ICN node.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SubmitTransactionRequest {
+    /// Transaction to be stored or executed by the node.
+    pub transaction: Transaction,
+}
+
+/// Response returned after a transaction is accepted.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SubmitTransactionResponse {
+    /// Identifier assigned to the stored transaction.
+    pub transaction_id: String,
+}
+
+/// Request to query arbitrary data by key.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DataQueryRequest {
+    /// Opaque key or handle understood by the receiving node.
+    pub key: String,
+}
+
+/// Response to a data query.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DataQueryResponse {
+    /// Optional raw bytes returned for the provided key.
+    pub value: Option<Vec<u8>>,
+}
+
 // TODO: Define `DidDocument` struct for DID resolution.
 
 #[cfg(test)]

@@ -63,4 +63,11 @@ Future contributions to `icn-node` will focus on:
 
 ## License
 
-This crate is licensed under the Apache 2.0 license, as is the entire `icn-core` repository. 
+This crate is licensed under the Apache 2.0 license, as is the entire `icn-core` repository.
+
+## HTTP Endpoints
+
+Alongside governance and mesh job APIs, the node now exposes:
+
+- `POST /transaction/submit` – submit a serialized transaction.
+- `POST /data/query` – query arbitrary data by key.

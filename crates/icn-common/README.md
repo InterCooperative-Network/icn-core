@@ -41,4 +41,10 @@ Contributions are welcome! Please see the main [CONTRIBUTING.md](../../CONTRIBUT
 
 ## License
 
-Licensed under the Apache License, Version 2.0. See [LICENSE](../../LICENSE). 
+Licensed under the Apache License, Version 2.0. See [LICENSE](../../LICENSE).
+
+## Transaction and Query Types
+
+The crate exposes `SubmitTransactionRequest`, `SubmitTransactionResponse`,
+`DataQueryRequest`, and `DataQueryResponse` for use by higher level crates such
+as `icn-api`, `icn-node`, and `icn-cli`.

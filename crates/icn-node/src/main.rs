@@ -18,8 +18,12 @@
 use icn_api::governance_trait::{
     CastVoteRequest as ApiCastVoteRequest, SubmitProposalRequest as ApiSubmitProposalRequest,
 };
+use icn_api::{query_data_api, submit_transaction_api};
 use icn_common::DagBlock as CoreDagBlock;
-use icn_common::{parse_cid_from_string, Cid, Did, NodeInfo, NodeStatus, ICN_CORE_VERSION};
+use icn_common::{
+    parse_cid_from_string, Cid, DataQueryRequest, Did, NodeInfo, NodeStatus,
+    SubmitTransactionRequest, ICN_CORE_VERSION,
+};
 #[cfg(feature = "persist-sqlite")]
 use icn_dag::sqlite_store::SqliteDagStore;
 use icn_dag::{self, FileDagStore, InMemoryDagStore};
@@ -284,6 +288,8 @@ pub async fn app_router_with_options(
             .route("/status", get(status_handler))
             .route("/dag/put", post(dag_put_handler)) // These will use RT context's DAG store
             .route("/dag/get", post(dag_get_handler)) // These will use RT context's DAG store
+            .route("/transaction/submit", post(transaction_submit_handler))
+            .route("/data/query", post(data_query_handler))
             .route("/governance/submit", post(gov_submit_handler)) // Uses RT context's Gov mod
             .route("/governance/vote", post(gov_vote_handler)) // Uses RT context's Gov mod
             .route("/governance/proposals", get(gov_list_proposals_handler)) // Uses RT context's Gov mod
@@ -1038,6 +1044,28 @@ async fn mesh_submit_receipt_handler(
                 StatusCode::INTERNAL_SERVER_ERROR,
             )
             .into_response()
+        }
+    }
+}
+
+// POST /transaction/submit - Submit a transaction
+async fn transaction_submit_handler(
+    Json(request): Json<SubmitTransactionRequest>,
+) -> impl IntoResponse {
+    match submit_transaction_api(request) {
+        Ok(resp) => (StatusCode::ACCEPTED, Json(resp)).into_response(),
+        Err(e) => {
+            map_rust_error_to_json_response(e.to_string(), StatusCode::BAD_REQUEST).into_response()
+        }
+    }
+}
+
+// POST /data/query - Query arbitrary data
+async fn data_query_handler(Json(request): Json<DataQueryRequest>) -> impl IntoResponse {
+    match query_data_api(request) {
+        Ok(resp) => (StatusCode::OK, Json(resp)).into_response(),
+        Err(e) => {
+            map_rust_error_to_json_response(e.to_string(), StatusCode::BAD_REQUEST).into_response()
         }
     }
 }

@@ -22,4 +22,26 @@ Contributions are welcome! Please see the main [CONTRIBUTING.md](../../CONTRIBUT
 
 ## License
 
-Licensed under the Apache License, Version 2.0. See [LICENSE](../../LICENSE). 
+Licensed under the Apache License, Version 2.0. See [LICENSE](../../LICENSE).
+
+## Example Usage
+
+Submitting a transaction via the API:
+
+```rust
+use icn_api::submit_transaction_api;
+use icn_common::{SubmitTransactionRequest, Transaction, Did};
+
+let tx = Transaction {
+    id: "demo".into(),
+    timestamp: 0,
+    sender_did: Did::new("key", "alice"),
+    recipient_did: None,
+    payload_type: "demo".into(),
+    payload: vec![],
+    signature: None,
+};
+let req = SubmitTransactionRequest { transaction: tx };
+let resp = submit_transaction_api(req)?;
+println!("submitted {}", resp.transaction_id);
+```

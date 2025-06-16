@@ -13,7 +13,10 @@ use std::process::exit; // Added for reading from stdin
 
 // Types from our ICN crates that CLI will interact with (serialize/deserialize)
 // These types are expected to be sent to/received from the icn-node HTTP API.
-use icn_common::{Cid, DagBlock, NodeInfo, NodeStatus};
+use icn_common::{
+    Cid, DagBlock, DataQueryRequest, DataQueryResponse, NodeInfo, NodeStatus,
+    SubmitTransactionRequest, SubmitTransactionResponse,
+};
 // Using aliased request structs from icn-api for clarity, these are what the node expects
 use icn_api::governance_trait::{
     CastVoteRequest as ApiCastVoteRequest, SubmitProposalRequest as ApiSubmitProposalRequest,
@@ -52,6 +55,16 @@ enum Commands {
     Governance {
         #[clap(subcommand)]
         command: GovernanceCommands,
+    },
+    /// Submit a transaction
+    Tx {
+        #[clap(help = "Transaction JSON or '-' for stdin")]
+        tx_json_or_stdin: String,
+    },
+    /// Query arbitrary data by key
+    Query {
+        #[clap(help = "Query key string")]
+        key: String,
     },
 }
 
@@ -125,6 +138,10 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
             GovernanceCommands::Proposals => handle_gov_list_proposals(cli, client).await?,
             GovernanceCommands::Proposal { id } => handle_gov_get_proposal(cli, client, id).await?,
         },
+        Commands::Tx { tx_json_or_stdin } => {
+            handle_tx_submit(cli, client, tx_json_or_stdin).await?
+        }
+        Commands::Query { key } => handle_query(cli, client, key).await?,
     }
     Ok(())
 }
@@ -309,6 +326,34 @@ async fn handle_gov_get_proposal(
     println!("--- Proposal Details (ID: {}) ---", proposal_id);
     println!("{}", serde_json::to_string_pretty(&proposal)?);
     println!("-----------------------------------");
+    Ok(())
+}
+
+async fn handle_tx_submit(
+    cli: &Cli,
+    client: &Client,
+    tx_json_or_stdin: &str,
+) -> Result<(), anyhow::Error> {
+    let tx_content = if tx_json_or_stdin == "-" {
+        let mut buf = String::new();
+        io::stdin().read_to_string(&mut buf)?;
+        buf
+    } else {
+        tx_json_or_stdin.to_string()
+    };
+    let req: SubmitTransactionRequest = serde_json::from_str(&tx_content)?;
+    let resp: SubmitTransactionResponse =
+        post_request(&cli.api_url, client, "/transaction/submit", &req).await?;
+    println!("Transaction submitted: {}", resp.transaction_id);
+    Ok(())
+}
+
+async fn handle_query(cli: &Cli, client: &Client, key: &str) -> Result<(), anyhow::Error> {
+    let req = DataQueryRequest {
+        key: key.to_string(),
+    };
+    let resp: DataQueryResponse = post_request(&cli.api_url, client, "/data/query", &req).await?;
+    println!("Query result: {}", serde_json::to_string_pretty(&resp)?);
     Ok(())
 }
 
