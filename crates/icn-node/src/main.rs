@@ -79,6 +79,13 @@ struct Cli {
 
     #[clap(
         long,
+        default_value = "./mana_ledger.sled",
+        help = "Path for the mana ledger database"
+    )]
+    mana_ledger_path: PathBuf,
+
+    #[clap(
+        long,
         default_value = "127.0.0.1:7845",
         help = "Listen address for the HTTP server"
     )]
@@ -217,11 +224,15 @@ async fn rate_limit_middleware(
 
 // --- Public App Constructor (for tests or embedding) ---
 pub async fn app_router() -> Router {
-    app_router_with_options(None, None).await
+    app_router_with_options(None, None, None).await
 }
 
 /// Construct a router for tests or embedding with optional API key and rate limit.
-pub async fn app_router_with_options(api_key: Option<String>, rate_limit: Option<u64>) -> Router {
+pub async fn app_router_with_options(
+    api_key: Option<String>,
+    rate_limit: Option<u64>,
+    mana_ledger_path: Option<PathBuf>,
+) -> (Router, Arc<RuntimeContext>) {
     // Generate a new identity for this test/embedded instance
     let (sk, pk) = generate_ed25519_keypair();
     let node_did_string = did_key_from_verifying_key(&pk);
@@ -233,13 +244,13 @@ pub async fn app_router_with_options(api_key: Option<String>, rate_limit: Option
     let mesh_network_service = Arc::new(StubMeshNetworkService::new());
     // GovernanceModule is initialized inside RuntimeContext::new
 
-    let rt_ctx = RuntimeContext::new(
+    let rt_ctx = RuntimeContext::new_with_ledger_path(
         node_did.clone(),
         mesh_network_service,
         signer,
         Arc::new(icn_identity::KeyDidResolver::default()),
         dag_store_for_rt,
-        // GovernanceModule will be default in RuntimeContext::new
+        mana_ledger_path.unwrap_or_else(|| PathBuf::from("./mana_ledger.sled")),
     );
 
     // Initialize the test node with some mana for testing
@@ -267,31 +278,34 @@ pub async fn app_router_with_options(api_key: Option<String>, rate_limit: Option
         rate_limiter: rate_limiter.clone(),
     };
 
-    Router::new()
-        .route("/info", get(info_handler))
-        .route("/status", get(status_handler))
-        .route("/dag/put", post(dag_put_handler)) // These will use RT context's DAG store
-        .route("/dag/get", post(dag_get_handler)) // These will use RT context's DAG store
-        .route("/governance/submit", post(gov_submit_handler)) // Uses RT context's Gov mod
-        .route("/governance/vote", post(gov_vote_handler)) // Uses RT context's Gov mod
-        .route("/governance/proposals", get(gov_list_proposals_handler)) // Uses RT context's Gov mod
-        .route(
-            "/governance/proposal/:proposal_id",
-            get(gov_get_proposal_handler),
-        ) // Uses RT context's Gov mod
-        .route("/mesh/submit", post(mesh_submit_job_handler)) // Job submission
-        .route("/mesh/jobs", get(mesh_list_jobs_handler)) // List all jobs
-        .route("/mesh/jobs/:job_id", get(mesh_get_job_status_handler)) // Get specific job status
-        .route("/mesh/receipts", post(mesh_submit_receipt_handler)) // Submit execution receipt
-        .with_state(app_state.clone())
-        .layer(middleware::from_fn_with_state(
-            app_state.clone(),
-            require_api_key,
-        ))
-        .layer(middleware::from_fn_with_state(
-            app_state.clone(),
-            rate_limit_middleware,
-        ))
+    (
+        Router::new()
+            .route("/info", get(info_handler))
+            .route("/status", get(status_handler))
+            .route("/dag/put", post(dag_put_handler)) // These will use RT context's DAG store
+            .route("/dag/get", post(dag_get_handler)) // These will use RT context's DAG store
+            .route("/governance/submit", post(gov_submit_handler)) // Uses RT context's Gov mod
+            .route("/governance/vote", post(gov_vote_handler)) // Uses RT context's Gov mod
+            .route("/governance/proposals", get(gov_list_proposals_handler)) // Uses RT context's Gov mod
+            .route(
+                "/governance/proposal/:proposal_id",
+                get(gov_get_proposal_handler),
+            ) // Uses RT context's Gov mod
+            .route("/mesh/submit", post(mesh_submit_job_handler)) // Job submission
+            .route("/mesh/jobs", get(mesh_list_jobs_handler)) // List all jobs
+            .route("/mesh/jobs/:job_id", get(mesh_get_job_status_handler)) // Get specific job status
+            .route("/mesh/receipts", post(mesh_submit_receipt_handler)) // Submit execution receipt
+            .with_state(app_state.clone())
+            .layer(middleware::from_fn_with_state(
+                app_state.clone(),
+                require_api_key,
+            ))
+            .layer(middleware::from_fn_with_state(
+                app_state.clone(),
+                rate_limit_middleware,
+            )),
+        rt_ctx,
+    )
 }
 
 // --- Main Application Logic ---
@@ -368,6 +382,7 @@ async fn main() {
                 &node_did_string,
                 listen_addrs,
                 bootstrap_peers,
+                cli.mana_ledger_path.clone(),
             )
             .await
             {
@@ -422,12 +437,13 @@ async fn main() {
             };
         let mesh_network_service = Arc::new(StubMeshNetworkService::new());
 
-        RuntimeContext::new(
+        RuntimeContext::new_with_ledger_path(
             node_did.clone(),
             mesh_network_service,
             signer,
             Arc::new(icn_identity::KeyDidResolver::default()),
             dag_store_for_rt,
+            cli.mana_ledger_path.clone(),
         )
     };
 
