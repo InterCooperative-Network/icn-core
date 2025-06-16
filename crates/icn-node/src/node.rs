@@ -42,7 +42,7 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use clap::Parser;
+use clap::{ArgMatches, CommandFactory, FromArgMatches, Parser};
 #[cfg(feature = "enable-libp2p")]
 use log::warn;
 use log::{debug, error, info};
@@ -54,6 +54,8 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::{Mutex as AsyncMutex, Mutex as TokioMutex};
 
+use crate::config::{NodeConfig, StorageBackendType};
+
 #[cfg(feature = "enable-libp2p")]
 use libp2p::{Multiaddr, PeerId as Libp2pPeerId};
 
@@ -61,95 +63,59 @@ use libp2p::{Multiaddr, PeerId as Libp2pPeerId};
 
 #[derive(Parser, Debug)]
 #[clap(author, version = ICN_CORE_VERSION, about = "ICN Node HTTP Server", long_about = None)]
-struct Cli {
-    #[clap(
-        long,
-        value_enum,
-        default_value = "memory",
-        help = "Storage backend type"
-    )]
-    storage_backend: StorageBackendType,
+pub struct Cli {
+    /// Optional path to a configuration file (TOML or YAML)
+    #[clap(long, value_name = "PATH")]
+    pub config: Option<PathBuf>,
 
-    #[clap(
-        long,
-        default_value = "./icn_data/node_store",
-        help = "Path for file-based storage (if 'file' backend is chosen)"
-    )]
-    storage_path: PathBuf,
+    #[clap(long, value_enum)]
+    pub storage_backend: Option<StorageBackendType>,
 
-    #[clap(
-        long,
-        default_value = "./mana_ledger.sled",
-        help = "Path for the mana ledger database"
-    )]
-    mana_ledger_path: PathBuf,
+    #[clap(long)]
+    pub storage_path: Option<PathBuf>,
 
-    #[clap(
-        long,
-        default_value = "127.0.0.1:7845",
-        help = "Listen address for the HTTP server"
-    )]
-    http_listen_addr: String,
+    #[clap(long)]
+    pub mana_ledger_path: Option<PathBuf>,
+
+    #[clap(long)]
+    pub http_listen_addr: Option<String>,
 
     #[clap(
         long,
         help = "Optional fixed DID for the node (e.g., did:key:zExample...)"
     )]
-    node_did: Option<String>,
+    pub node_did: Option<String>,
 
     #[clap(
         long,
         help = "Optional fixed Ed25519 private key (bs58 encoded string) for the node DID. If not provided and node_did is, it implies did:key or resolvable DID. If neither, a new key is generated."
     )]
-    node_private_key_bs58: Option<String>,
+    pub node_private_key_bs58: Option<String>,
 
     #[clap(
         long,
         help = "Human-readable name for this node (for logging and identification)"
     )]
-    node_name: Option<String>,
+    pub node_name: Option<String>,
 
-    #[clap(
-        long = "listen-address",
-        alias = "p2p-listen-addr",
-        default_value = "/ip4/0.0.0.0/tcp/0",
-        help = "Libp2p listen address for P2P networking"
-    )]
-    listen_address: String,
+    #[clap(long = "listen-address", alias = "p2p-listen-addr")]
+    pub listen_address: Option<String>,
 
     #[clap(
         long,
         help = "Bootstrap peer multiaddrs for P2P discovery (format: /ip4/1.2.3.4/tcp/port/p2p/PeerID)",
         value_delimiter = ','
     )]
-    bootstrap_peers: Option<Vec<String>>,
+    pub bootstrap_peers: Option<Vec<String>>,
 
-    #[clap(
-        long,
-        action,
-        help = "Enable real libp2p networking (requires with-libp2p feature)"
-    )]
-    enable_p2p: bool,
+    #[clap(long, action)]
+    pub enable_p2p: bool,
 
-    #[clap(
-        long,
-        help = "API key required for HTTP requests. If not set, authentication is disabled"
-    )]
-    api_key: Option<String>,
+    #[clap(long)]
+    pub api_key: Option<String>,
 
-    #[clap(
-        long,
-        default_value_t = 60,
-        help = "Max requests per minute when no API key is set (0 disables)"
-    )]
-    open_rate_limit: u64,
-}
-
-#[derive(clap::ValueEnum, Clone, Debug)]
-enum StorageBackendType {
-    Memory,
-    File,
-    Sqlite,
+    #[clap(long)]
+    pub open_rate_limit: Option<u64>,
 }
 
 // --- Supporting Types ---
@@ -312,30 +278,43 @@ pub async fn app_router_with_options(
 #[tokio::main]
 async fn main() {
     env_logger::init(); // Initialize logger
-    let cli = Cli::parse();
+    let cmd = Cli::command();
+    let matches = cmd.get_matches();
+    let cli = Cli::from_arg_matches(&matches).expect("CLI parsing failed");
+
+    let config_path = cli.config.clone();
+    let mut config = if let Some(path) = config_path {
+        match NodeConfig::from_file(&path) {
+            Ok(cfg) => cfg,
+            Err(e) => {
+                error!("Failed to load config file {}: {}", path.display(), e);
+                NodeConfig::default()
+            }
+        }
+    } else {
+        NodeConfig::default()
+    };
+    config.apply_cli_overrides(&cli, &matches);
 
     // --- Initialize Node Identity ---
     let (node_sk, node_pk) = generate_ed25519_keypair(); // Generate fresh for now
     let node_did_string = did_key_from_verifying_key(&node_pk);
     let node_did = Did::from_str(&node_did_string).expect("Failed to create node DID");
 
-    let node_name = cli
-        .node_name
-        .clone()
-        .unwrap_or_else(|| "ICN Node".to_string());
+    let node_name = config.node_name.clone();
     info!("Starting {} with DID: {}", node_name, node_did);
 
     // --- Create RuntimeContext with Networking ---
-    let rt_ctx = if cli.enable_p2p {
+    let rt_ctx = if config.enable_p2p {
         #[cfg(feature = "enable-libp2p")]
         {
             info!(
                 "Enabling libp2p networking with P2P listen address: {}",
-                cli.listen_address
+                config.listen_address
             );
 
             // Parse bootstrap peers if provided
-            let bootstrap_peers = if let Some(peer_strings) = &cli.bootstrap_peers {
+            let bootstrap_peers = if let Some(peer_strings) = &config.bootstrap_peers {
                 let mut parsed_peers = Vec::new();
                 for peer_str in peer_strings {
                     match peer_str.parse::<Multiaddr>() {
@@ -372,7 +351,7 @@ async fn main() {
                 None
             };
 
-            let listen_addr = cli
+            let listen_addr = config
                 .listen_address
                 .parse::<Multiaddr>()
                 .expect("Invalid p2p listen multiaddr");
@@ -382,7 +361,7 @@ async fn main() {
                 &node_did_string,
                 listen_addrs,
                 bootstrap_peers,
-                cli.mana_ledger_path.clone(),
+                config.mana_ledger_path.clone(),
             )
             .await
             {
@@ -412,17 +391,17 @@ async fn main() {
         info!("Using stub networking (P2P disabled)");
         let signer = Arc::new(RuntimeStubSigner::new_with_keys(node_sk, node_pk));
         let dag_store_for_rt: Arc<TokioMutex<dyn icn_dag::StorageService<CoreDagBlock> + Send>> =
-            match cli.storage_backend {
+            match config.storage_backend {
                 StorageBackendType::Memory => Arc::new(TokioMutex::new(RuntimeStubDagStore::new())),
                 StorageBackendType::File => {
-                    let store = FileDagStore::new(cli.storage_path.clone())
+                    let store = FileDagStore::new(config.storage_path.clone())
                         .expect("Failed to init file store");
                     Arc::new(TokioMutex::new(store))
                 }
                 StorageBackendType::Sqlite => {
                     #[cfg(feature = "persist-sqlite")]
                     {
-                        let store = SqliteDagStore::new(cli.storage_path.clone())
+                        let store = SqliteDagStore::new(config.storage_path.clone())
                             .expect("Failed to init sqlite store");
                         Arc::new(TokioMutex::new(store))
                     }
@@ -443,7 +422,7 @@ async fn main() {
             signer,
             Arc::new(icn_identity::KeyDidResolver),
             dag_store_for_rt,
-            cli.mana_ledger_path.clone(),
+            config.mana_ledger_path.clone(),
         )
     };
 
@@ -452,11 +431,11 @@ async fn main() {
     info!("ICN RuntimeContext initialized and JobManager spawned.");
 
     // --- Create AppState for Axum ---
-    let rate_limiter = if cli.api_key.is_none() && cli.open_rate_limit > 0 {
+    let rate_limiter = if config.api_key.is_none() && config.open_rate_limit > 0 {
         Some(Arc::new(AsyncMutex::new(RateLimitData {
             last: Instant::now(),
             count: 0,
-            limit: cli.open_rate_limit,
+            limit: config.open_rate_limit,
         })))
     } else {
         None
@@ -466,7 +445,7 @@ async fn main() {
         runtime_context: rt_ctx.clone(),
         node_name: node_name.clone(),
         node_version: ICN_CORE_VERSION.to_string(),
-        api_key: cli.api_key.clone(),
+        api_key: config.api_key.clone(),
         rate_limiter: rate_limiter.clone(),
     };
 
@@ -497,7 +476,7 @@ async fn main() {
             rate_limit_middleware,
         ));
 
-    let addr: SocketAddr = cli
+    let addr: SocketAddr = config
         .http_listen_addr
         .parse()
         .expect("Invalid HTTP listen address");
@@ -508,7 +487,7 @@ async fn main() {
         .await
         .unwrap();
 
-    if cli.enable_p2p {
+    if config.enable_p2p {
         #[cfg(feature = "enable-libp2p")]
         {
             if let Err(e) = rt_ctx.shutdown_network().await {
