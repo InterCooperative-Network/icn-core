@@ -363,4 +363,28 @@ mod tests {
         let signed = receipt.sign_with_key(&sk).unwrap();
         assert!(signed.verify_against_did(&did).is_ok());
     }
+
+    #[test]
+    fn tampering_success_bit_fails_verification() {
+        let (sk, pk) = generate_ed25519_keypair();
+        let did_str = did_key_from_verifying_key(&pk);
+        let did = Did::from_str(&did_str).unwrap();
+
+        let job_cid = dummy_cid_for_test("toggle_success_job");
+        let result_cid = dummy_cid_for_test("toggle_success_result");
+
+        let receipt = ExecutionReceipt {
+            job_id: job_cid,
+            executor_did: did.clone(),
+            result_cid,
+            cpu_ms: 1,
+            success: true,
+            sig: SignatureBytes(vec![]),
+        };
+
+        let mut signed = receipt.sign_with_key(&sk).unwrap();
+        // Toggle the success field after signing; verification should fail
+        signed.success = false;
+        assert!(signed.verify_against_did(&did).is_err());
+    }
 }
