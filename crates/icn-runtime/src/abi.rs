@@ -9,7 +9,6 @@ pub const ABI_HOST_ACCOUNT_GET_MANA: u32 = 10;
 
 /// ABI Index for `host_account_spend_mana`.
 /// Attempts to spend mana from the current account/identity.
-/// TODO: Define this function and its parameters.
 pub const ABI_HOST_ACCOUNT_SPEND_MANA: u32 = 11; // Example, TBD
 
 /// ABI Index for `host_submit_mesh_job`.

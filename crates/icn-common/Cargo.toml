@@ -16,5 +16,3 @@ sha2 = "0.10"
 
 [dev-dependencies]
 # No specific dev-dependencies yet, but common ones like `pretty_assertions` could be added here.
-
-# TODO: Add other common utility crates like 'hex', 'log', 'thiserror' as needed.
