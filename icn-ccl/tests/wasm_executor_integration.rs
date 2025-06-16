@@ -12,7 +12,6 @@ use tokio::runtime::Runtime;
 use tokio::sync::Mutex as TokioMutex;
 
 fn ctx_with_temp_store(did: &str, mana: u64) -> Arc<RuntimeContext> {
-    use std::path::PathBuf;
     let temp = tempfile::tempdir().unwrap();
     let dag_store = Arc::new(TokioMutex::new(
         SledDagStore::new(temp.path().join("dag")).unwrap(),
@@ -23,7 +22,7 @@ fn ctx_with_temp_store(did: &str, mana: u64) -> Arc<RuntimeContext> {
         Arc::new(StubSigner::new()),
         Arc::new(icn_identity::KeyDidResolver),
         dag_store,
-        PathBuf::from(temp.path().join("mana")),
+        temp.path().join("mana"),
     );
     ctx.mana_ledger
         .set_balance(&icn_common::Did::from_str(did).unwrap(), mana)
