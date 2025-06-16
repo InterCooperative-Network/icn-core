@@ -1,5 +1,6 @@
 use icn_ccl::compile_ccl_source_to_wasm;
 use icn_common::{Cid, DagBlock};
+use icn_dag::sled_store::SledDagStore;
 use icn_identity::{did_key_from_verifying_key, generate_ed25519_keypair, SignatureBytes};
 use icn_mesh::{ActualMeshJob, JobSpec};
 use icn_runtime::context::{RuntimeContext, StubMeshNetworkService, StubSigner};
@@ -9,10 +10,8 @@ use std::sync::Arc;
 use std::thread;
 use tokio::runtime::Runtime;
 use tokio::sync::Mutex as TokioMutex;
-use icn_dag::sled_store::SledDagStore;
 
 fn ctx_with_temp_store(did: &str, mana: u64) -> Arc<RuntimeContext> {
-    use std::path::PathBuf;
     let temp = tempfile::tempdir().unwrap();
     let dag_store = Arc::new(TokioMutex::new(
         SledDagStore::new(temp.path().join("dag")).unwrap(),
@@ -23,7 +22,7 @@ fn ctx_with_temp_store(did: &str, mana: u64) -> Arc<RuntimeContext> {
         Arc::new(StubSigner::new()),
         Arc::new(icn_identity::KeyDidResolver),
         dag_store,
-        PathBuf::from(temp.path().join("mana")),
+        temp.path().join("mana"),
     );
     ctx.mana_ledger
         .set_balance(&icn_common::Did::from_str(did).unwrap(), mana)

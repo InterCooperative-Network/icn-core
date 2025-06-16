@@ -28,6 +28,7 @@ use icn_identity::{
     ExecutionReceipt as IdentityExecutionReceipt, SignatureBytes,
 };
 use icn_mesh::ActualMeshJob;
+use icn_network::NetworkService;
 use icn_runtime::context::{
     RuntimeContext, StubDagStore as RuntimeStubDagStore, StubMeshNetworkService,
     StubSigner as RuntimeStubSigner,
@@ -518,24 +519,42 @@ fn map_rust_error_to_json_response<E: std::fmt::Display>(
 
 // --- HTTP Handlers ---
 
-// GET /info – Node version, name, status message.
+// GET /info – Node version, name, status message pulled from RuntimeContext.
 async fn info_handler(State(state): State<AppState>) -> impl IntoResponse {
+    let mana_balance = state
+        .runtime_context
+        .mana_ledger
+        .get_balance(&state.runtime_context.current_identity);
+    let status_message = format!(
+        "Node DID: {}, Mana: {}",
+        state.runtime_context.current_identity, mana_balance
+    );
+
     let info = NodeInfo {
         name: state.node_name.clone(),
         version: state.node_version.clone(),
-        status_message: "ICN Node is operational".to_string(), // TODO: Get status from RuntimeContext?
+        status_message,
     };
     (StatusCode::OK, Json(info))
 }
 
-// GET /status – Node status.
+// GET /status – Node status derived from RuntimeContext.
 async fn status_handler(State(state): State<AppState>) -> impl IntoResponse {
-    // TODO: Fetch more dynamic status from RuntimeContext if available (e.g., peer count from NetworkService)
-    let peer_count = 0; // Placeholder
-                        // let current_block_height = state.runtime_context.dag_store.get_latest_block_height().await.unwrap_or(0); // Example
-    let current_block_height = 0; // Placeholder
+    #[cfg(feature = "enable-libp2p")]
+    let peer_count = match state.runtime_context.get_libp2p_service() {
+        Ok(service) => match service.get_network_stats().await {
+            Ok(stats) => stats.peer_count as u32,
+            Err(_) => 0,
+        },
+        Err(_) => 0,
+    };
+    #[cfg(not(feature = "enable-libp2p"))]
+    let peer_count = 0u32;
+
+    let current_block_height = 0u64; // Placeholder until DAG exposes height
+
     let status = NodeStatus {
-        is_online: true, // Basic check
+        is_online: true,
         peer_count,
         current_block_height,
         version: state.node_version.clone(),
@@ -570,8 +589,16 @@ async fn dag_get_handler(
     State(state): State<AppState>,
     Json(cid_request): Json<CidRequest>, // Assuming a struct for JSON like {"cid": "..."}
 ) -> impl IntoResponse {
-    // TODO: Parse cid_request.cid into a real Cid. For now, using a placeholder.
-    let cid_to_get = Cid::new_v1_dummy(0, 0, cid_request.cid.as_bytes()); // Placeholder for Cid::from_str
+    let cid_to_get = match parse_cid_from_string(&cid_request.cid) {
+        Ok(cid) => cid,
+        Err(e) => {
+            return map_rust_error_to_json_response(
+                format!("Invalid CID: {}", e),
+                StatusCode::BAD_REQUEST,
+            )
+            .into_response();
+        }
+    };
     let store = state.runtime_context.dag_store.lock().await;
     match store.get(&cid_to_get) {
         Ok(Some(block)) => (StatusCode::OK, Json(block.data)).into_response(),
