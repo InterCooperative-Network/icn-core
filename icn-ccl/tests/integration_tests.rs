@@ -26,6 +26,15 @@ fn test_compile_simple_policy_end_to_end() {
 }
 
 #[test]
+fn test_compile_valid_function() {
+    let src = "fn add() -> Integer { return 2 + 3; }";
+    let result = compile_ccl_source_to_wasm(src).expect("compile success");
+    let (wasm, meta) = result;
+    assert!(wasm.starts_with(b"\0asm"));
+    assert!(meta.exports.contains(&"add".to_string()));
+}
+
+#[test]
 fn test_compile_ccl_file_cli_function() {
     let dir = tempdir().expect("Failed to create temp dir");
     let source_content = "fn main() -> Bool { return true; }"; // Simplified
