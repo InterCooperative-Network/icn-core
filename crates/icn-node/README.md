@@ -41,14 +41,25 @@ The current `main()` function is for demonstration and testing the library integ
 
 ## CLI Usage
 
-When running the `icn-node` binary you can specify a custom path for the mana ledger using `--mana-ledger-path`.
-This allows mana balances to persist between restarts.
+The node accepts configuration via CLI flags or a TOML/YAML file. Provide the
+file path with `--config <path>`. CLI flags override values found in the file.
+Below is a minimal example in TOML (the same keys can be used in YAML):
 
-```bash
-./target/debug/icn-node --mana-ledger-path ./icn_data/mana.sled
+```toml
+node_name = "Local Node"
+http_listen_addr = "127.0.0.1:8080"
+storage_backend = "file"
+storage_path = "./icn_data/node_store"
+mana_ledger_path = "./mana_ledger.sled"
 ```
 
-Restarting the node with the same path will retain previously stored balances.
+To start the node using this configuration:
+
+```bash
+./target/debug/icn-node --config ./node_config.toml
+```
+
+Any CLI option provided will override the value from the file.
 
 ## Contributing
 
