@@ -38,6 +38,7 @@ async fn anchor_receipt_updates_reputation() {
         executor_did: ctx.current_identity.clone(),
         result_cid,
         cpu_ms: 1,
+        success: true,
         sig: SignatureBytes(Vec::new()),
     };
 
@@ -46,6 +47,7 @@ async fn anchor_receipt_updates_reputation() {
     msg.extend_from_slice(did.to_string().as_bytes());
     msg.extend_from_slice(receipt.result_cid.to_string().as_bytes());
     msg.extend_from_slice(&receipt.cpu_ms.to_le_bytes());
+    msg.push(receipt.success as u8);
     let sig_bytes = ctx.signer.sign(&msg).expect("sign");
     let mut signed_receipt = receipt.clone();
     signed_receipt.sig = SignatureBytes(sig_bytes);
@@ -58,6 +60,31 @@ async fn anchor_receipt_updates_reputation() {
         .expect("anchor");
 
     assert_eq!(ctx.reputation_store.get_reputation(&did), 1);
+
+    // second receipt with higher cpu cost
+    let result_cid2 = Cid::new_v1_dummy(0x55, 0x15, b"res2");
+    let mut receipt2 = ExecutionReceipt {
+        job_id: Cid::new_v1_dummy(0x55, 0x15, b"job2"),
+        executor_did: ctx.current_identity.clone(),
+        result_cid: result_cid2,
+        cpu_ms: 200,
+        success: true,
+        sig: SignatureBytes(Vec::new()),
+    };
+    let mut msg2 = Vec::new();
+    msg2.extend_from_slice(receipt2.job_id.to_string().as_bytes());
+    msg2.extend_from_slice(did.to_string().as_bytes());
+    msg2.extend_from_slice(receipt2.result_cid.to_string().as_bytes());
+    msg2.extend_from_slice(&receipt2.cpu_ms.to_le_bytes());
+    msg2.push(receipt2.success as u8);
+    let sig2 = ctx.signer.sign(&msg2).expect("sign");
+    receipt2.sig = SignatureBytes(sig2);
+    let json2 = serde_json::to_string(&receipt2).unwrap();
+    host_anchor_receipt(&ctx, &json2, &updater)
+        .await
+        .expect("anchor2");
+
+    assert_eq!(ctx.reputation_store.get_reputation(&did), 4);
 }
 #[test]
 fn reputation_updater_increments_store() {
@@ -69,6 +96,7 @@ fn reputation_updater_increments_store() {
         executor_did: did.clone(),
         result_cid: Cid::new_v1_dummy(0x55, 0x15, b"res"),
         cpu_ms: 1,
+        success: true,
         sig: SignatureBytes(Vec::new()),
     };
     updater.submit(&store, &receipt);

@@ -982,6 +982,7 @@ async fn mesh_submit_receipt_handler(
         executor_did,
         result_cid,
         cpu_ms: request.cpu_ms,
+        success: true,
         sig: signature_bytes,
     };
 

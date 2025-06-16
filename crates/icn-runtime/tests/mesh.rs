@@ -246,6 +246,7 @@ async fn test_mesh_job_full_lifecycle_happy_path() {
         executor_did: executor_did.clone(),
         result_cid: result_cid.clone(),
         cpu_ms: 100,
+        success: true,
         sig: SignatureBytes(Vec::new()),
     };
 
@@ -261,6 +262,7 @@ async fn test_mesh_job_full_lifecycle_happy_path() {
         executor_did: executor_did.clone(),
         result_cid: result_cid.clone(),
         cpu_ms: 100,
+        success: true,
         sig: SignatureBytes(signature_bytes),
     };
 
@@ -428,6 +430,7 @@ async fn test_invalid_receipt_wrong_executor() {
         executor_did: wrong_executor_did.clone(), // Wrong executor DID
         result_cid: Cid::new_v1_dummy(0x55, 0x13, b"result_invalid_executor"),
         cpu_ms: 50,
+        success: true,
         sig: SignatureBytes(signature_bytes),
     };
 
@@ -467,6 +470,7 @@ async fn test_invalid_receipt_wrong_executor() {
         executor_did: correct_executor_ctx.current_identity.clone(),
         result_cid: Cid::new_v1_dummy(0x55, 0x13, b"result_invalid_executor"),
         cpu_ms: 50,
+        success: true,
         sig: SignatureBytes(correct_signature_bytes),
     };
 
@@ -689,6 +693,7 @@ async fn forge_execution_receipt(
         executor_did: forging_executor_ctx.current_identity.clone(), // Forger's DID
         result_cid: Cid::new_v1_dummy(0x55, 0x13, result_cid_val),
         cpu_ms: 50,
+        success: true,
         sig: SignatureBytes(Vec::new()), // Will be filled by the forger's context
     };
     // The forging_executor_ctx signs the receipt using its own identity and signer.
