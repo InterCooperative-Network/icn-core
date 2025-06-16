@@ -14,7 +14,13 @@ mod cross_node_governance {
     ) -> anyhow::Result<Arc<RuntimeContext>> {
         let id = format!("did:key:z6Mkgov{id_suffix}");
         let listen: Vec<Multiaddr> = vec!["/ip4/0.0.0.0/tcp/0".parse().unwrap()];
-        let ctx = RuntimeContext::new_with_real_libp2p(&id, listen, bootstrap).await?;
+        let ctx = RuntimeContext::new_with_real_libp2p(
+            &id,
+            listen,
+            bootstrap,
+            std::path::PathBuf::from("./mana_ledger.sled"),
+        )
+        .await?;
         Ok(ctx)
     }
 

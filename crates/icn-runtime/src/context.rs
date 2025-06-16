@@ -33,8 +33,8 @@ use bincode;
 use icn_governance::{GovernanceModule, ProposalId, ProposalType, VoteOption};
 use icn_identity::{
     did_key_from_verifying_key, generate_ed25519_keypair, sign_message,
-    verify_signature as identity_verify_signature, DidResolver, EdSignature, KeyDidResolver,
-    SigningKey, VerifyingKey, SIGNATURE_LENGTH,
+    verify_signature as identity_verify_signature, EdSignature, KeyDidResolver, SigningKey,
+    VerifyingKey, SIGNATURE_LENGTH,
 };
 use serde::{Deserialize, Serialize};
 
@@ -484,17 +484,12 @@ impl RuntimeContext {
 
         #[cfg(feature = "persist-sled")]
         let reputation_store: Arc<dyn icn_reputation::ReputationStore> =
-            icn_reputation::SledReputationStore::new(std::path::PathBuf::from("./reputation.sled"))
-                .map(|s| Arc::new(s) as _)
-                .unwrap_or_else(|_| Arc::new(icn_reputation::InMemoryReputationStore::new()));
-        #[cfg(not(feature = "persist-sled"))]
-        #[cfg(feature = "persist-sled")]
-        let reputation_store: Arc<dyn icn_reputation::ReputationStore> =
-            icn_reputation::SledReputationStore::new(std::path::PathBuf::from(
-                "./reputation_test.sled",
-            ))
-            .map(|s| Arc::new(s) as _)
-            .unwrap_or_else(|_| Arc::new(icn_reputation::InMemoryReputationStore::new()));
+            match icn_reputation::SledReputationStore::new(std::path::PathBuf::from(
+                "./reputation.sled",
+            )) {
+                Ok(s) => Arc::new(s),
+                Err(_) => Arc::new(icn_reputation::InMemoryReputationStore::new()),
+            };
         #[cfg(not(feature = "persist-sled"))]
         let reputation_store: Arc<dyn icn_reputation::ReputationStore> =
             Arc::new(icn_reputation::InMemoryReputationStore::new());
@@ -565,7 +560,7 @@ impl RuntimeContext {
             current_identity,
             default_mesh_service,
             Arc::new(StubSigner::new()),
-            Arc::new(icn_identity::KeyDidResolver::default()),
+            Arc::new(icn_identity::KeyDidResolver),
             Arc::new(TokioMutex::new(StubDagStore::new())),
         ))
     }
@@ -584,7 +579,7 @@ impl RuntimeContext {
             current_identity,
             Arc::new(StubMeshNetworkService::new()),
             Arc::new(StubSigner::new()),
-            Arc::new(icn_identity::KeyDidResolver::default()),
+            Arc::new(icn_identity::KeyDidResolver),
             dag_store,
             PathBuf::from("./mana_ledger.sled"),
         )
@@ -604,7 +599,7 @@ impl RuntimeContext {
             current_identity.clone(),
             Arc::new(StubMeshNetworkService::new()),
             Arc::new(StubSigner::new()),
-            Arc::new(icn_identity::KeyDidResolver::default()),
+            Arc::new(icn_identity::KeyDidResolver),
             dag_store,
             PathBuf::from("./mana_ledger.sled"),
         );
@@ -687,7 +682,11 @@ impl RuntimeContext {
                         );
                         self.credit_mana(&receipt.executor_did, job.cost_mana)
                             .await?;
-                        self.reputation_store.record_receipt(&receipt);
+                        self.reputation_store.record_execution(
+                            &receipt.executor_did,
+                            receipt.success,
+                            receipt.cpu_ms,
+                        );
                         Ok(())
                     }
                     Err(e) => {
@@ -1217,7 +1216,7 @@ impl RuntimeContext {
             identity,
             mesh_service,
             signer,
-            Arc::new(KeyDidResolver::default()),
+            Arc::new(KeyDidResolver),
             dag_store,
             mana_ledger_path,
         );
@@ -1278,6 +1277,8 @@ impl RuntimeContext {
 
         let reputation_store: Arc<dyn icn_reputation::ReputationStore> =
             Arc::new(icn_reputation::InMemoryReputationStore::new());
+        let did_resolver: Arc<dyn icn_identity::DidResolver> =
+            Arc::new(icn_identity::KeyDidResolver);
 
         Arc::new(Self {
             current_identity,
@@ -1287,6 +1288,7 @@ impl RuntimeContext {
             governance_module,
             mesh_network_service,
             signer: Arc::new(signer),
+            did_resolver,
             dag_store,
             reputation_store,
             default_receipt_wait_ms: 60_000,

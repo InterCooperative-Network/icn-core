@@ -1,6 +1,7 @@
 #![doc = include_str!("../README.md")]
 
 use icn_common::Did;
+#[cfg(test)]
 use icn_identity::ExecutionReceipt;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -11,8 +12,8 @@ pub trait ReputationStore: Send + Sync {
     /// Returns the numeric reputation score for the given executor DID.
     fn get_reputation(&self, did: &Did) -> u64;
 
-    /// Updates reputation metrics using an execution receipt.
-    fn record_receipt(&self, receipt: &ExecutionReceipt);
+    /// Updates reputation metrics for an executor.
+    fn record_execution(&self, executor: &Did, success: bool, cpu_ms: u64);
 }
 
 /// Simple in-memory reputation tracker for tests.
@@ -40,15 +41,13 @@ impl ReputationStore for InMemoryReputationStore {
         *self.scores.lock().unwrap().get(did).unwrap_or(&0)
     }
 
-    fn record_receipt(&self, receipt: &ExecutionReceipt) {
+    fn record_execution(&self, executor: &Did, success: bool, cpu_ms: u64) {
         let mut map = self.scores.lock().unwrap();
-        let entry = map.entry(receipt.executor_did.clone()).or_insert(0);
-        let delta = 1 + receipt.cpu_ms / 1000;
-        if receipt.success {
-            *entry += delta;
-        } else {
-            *entry = entry.saturating_sub(delta);
-        }
+        let entry = map.entry(executor.clone()).or_insert(0);
+        let base: i64 = if success { 1 } else { -1 };
+        let delta: i64 = base + (cpu_ms / 1000) as i64;
+        let updated = (*entry as i64) + delta;
+        *entry = if updated < 0 { 0 } else { updated as u64 };
     }
 }
 
@@ -93,15 +92,13 @@ impl ReputationStore for SledReputationStore {
         self.read_score(did)
     }
 
-    fn record_receipt(&self, receipt: &ExecutionReceipt) {
-        let current = self.read_score(&receipt.executor_did);
-        let delta = 1 + receipt.cpu_ms / 1000;
-        let new_score = if receipt.success {
-            current + delta
-        } else {
-            current.saturating_sub(delta)
-        };
-        self.write_score(&receipt.executor_did, new_score);
+    fn record_execution(&self, executor: &Did, success: bool, cpu_ms: u64) {
+        let current = self.read_score(executor);
+        let base: i64 = if success { 1 } else { -1 };
+        let delta: i64 = base + (cpu_ms / 1000) as i64;
+        let updated = (current as i64) + delta;
+        let new_score = if updated < 0 { 0 } else { updated as u64 };
+        self.write_score(executor, new_score);
     }
 }
 
@@ -126,7 +123,7 @@ mod tests {
             success: true,
             sig: icn_identity::SignatureBytes(vec![]),
         };
-        store.record_receipt(&receipt);
+        store.record_execution(&receipt.executor_did, receipt.success, receipt.cpu_ms);
         assert_eq!(store.get_reputation(&did), 1);
     }
 
@@ -146,7 +143,7 @@ mod tests {
             success: true,
             sig: icn_identity::SignatureBytes(vec![]),
         };
-        store.record_receipt(&receipt);
+        store.record_execution(&receipt.executor_did, receipt.success, receipt.cpu_ms);
         assert_eq!(store.get_reputation(&did), 2);
         drop(store);
         let reopened = SledReputationStore::new(path).unwrap();

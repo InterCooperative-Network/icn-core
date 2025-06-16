@@ -264,7 +264,7 @@ impl ReputationUpdater {
     }
     pub fn submit(&self, store: &dyn ReputationStore, receipt: &icn_identity::ExecutionReceipt) {
         let before = store.get_reputation(&receipt.executor_did);
-        store.record_receipt(receipt);
+        store.record_execution(&receipt.executor_did, receipt.success, receipt.cpu_ms);
         let after = store.get_reputation(&receipt.executor_did);
         log::debug!(
             "[ReputationUpdater] Executor {:?} reputation {} -> {} via receipt {:?}",
@@ -386,7 +386,7 @@ mod tests {
             test_did,
             Arc::new(StubMeshNetworkService::new()),
             Arc::new(StubSigner::new()),
-            Arc::new(icn_identity::KeyDidResolver::default()),
+            Arc::new(icn_identity::KeyDidResolver),
             Arc::new(tokio::sync::Mutex::new(StubDagStore::new())),
         )
     }

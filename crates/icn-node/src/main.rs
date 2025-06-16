@@ -224,7 +224,7 @@ async fn rate_limit_middleware(
 
 // --- Public App Constructor (for tests or embedding) ---
 pub async fn app_router() -> Router {
-    app_router_with_options(None, None, None).await
+    app_router_with_options(None, None, None).await.0
 }
 
 /// Construct a router for tests or embedding with optional API key and rate limit.
@@ -248,7 +248,7 @@ pub async fn app_router_with_options(
         node_did.clone(),
         mesh_network_service,
         signer,
-        Arc::new(icn_identity::KeyDidResolver::default()),
+        Arc::new(icn_identity::KeyDidResolver),
         dag_store_for_rt,
         mana_ledger_path.unwrap_or_else(|| PathBuf::from("./mana_ledger.sled")),
     );
@@ -441,7 +441,7 @@ async fn main() {
             node_did.clone(),
             mesh_network_service,
             signer,
-            Arc::new(icn_identity::KeyDidResolver::default()),
+            Arc::new(icn_identity::KeyDidResolver),
             dag_store_for_rt,
             cli.mana_ledger_path.clone(),
         )
