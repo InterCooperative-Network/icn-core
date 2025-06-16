@@ -18,6 +18,43 @@ This guide explains how to set up and run a local multi-node InterCooperative Ne
    * `--storage-backend file|sqlite`: Persist node data across restarts.
    * `--storage-path <PATH>`: Unique path for each node's data directory or database.
 
+## Quick Devnet with Docker
+
+If you simply want to see a working federation without manually starting each node, use the containerized devnet.
+
+1. **Launch the devnet** from the repository root:
+   ```bash
+   cd icn-devnet
+   ./launch_federation.sh
+   ```
+   The script starts three nodes, waits for P2P convergence, and submits a sample job. You should see output similar to:
+   ```bash
+   🚀 ICN Federation Devnet Launch Starting...
+   ✅ Prerequisites checked
+   ✅ Node A is healthy
+   ✅ Node B is healthy
+   ✅ Node C is healthy
+   ✅ P2P network has converged
+   ✅ Job submitted with ID: cidv1-85-20-abc123...
+   🎉 ICN Federation is now running!
+   ```
+2. **Try a job yourself** once the nodes are up:
+   ```bash
+   curl -X POST http://localhost:5001/mesh/submit \
+     -H 'Content-Type: application/json' \
+     -d '{"manifest_cid":"example_manifest","spec_json":{"Echo":{"payload":"hello federation"}},"cost_mana":50}'
+   ```
+   Check the status from another node:
+   ```bash
+   curl http://localhost:5002/mesh/jobs/JOB_ID
+   ```
+   When completed, retrieve the receipt data:
+   ```bash
+   curl -X POST http://localhost:5003/dag/get \
+     -H 'Content-Type: application/json' \
+     -d '{"cid":"RESULT_CID"}'
+   ```
+
 ## Setting Up a Local Multi-Node Cluster
 
 This section describes how to run multiple `icn-node` instances on your local machine that can form a P2P network.
