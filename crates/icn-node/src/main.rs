@@ -47,6 +47,7 @@ use clap::Parser;
 use log::warn;
 use log::{debug, error, info};
 use serde::{Deserialize, Serialize};
+use std::fs;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -91,6 +92,9 @@ struct Cli {
     )]
     http_listen_addr: String,
 
+    #[clap(long, help = "Path to optional TOML config file")]
+    config: Option<PathBuf>,
+
     #[clap(
         long,
         help = "Optional fixed DID for the node (e.g., did:key:zExample...)"
@@ -127,6 +131,7 @@ struct Cli {
     #[clap(
         long,
         action,
+        default_value_t = cfg!(feature = "with-libp2p"),
         help = "Enable real libp2p networking (requires with-libp2p feature)"
     )]
     enable_p2p: bool,
@@ -314,6 +319,31 @@ async fn main() {
     env_logger::init(); // Initialize logger
     let cli = Cli::parse();
 
+    let config_bootstrap: Option<Vec<String>> = if let Some(path) = &cli.config {
+        if let Ok(contents) = std::fs::read_to_string(path) {
+            if let Ok(value) = toml::from_str::<toml::Value>(&contents) {
+                if let Some(arr) = value.get("bootstrap_peers").and_then(|v| v.as_array()) {
+                    Some(
+                        arr.iter()
+                            .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                            .collect(),
+                    )
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    let bootstrap_peers_cli = cli.bootstrap_peers.clone();
+    let final_bootstrap = bootstrap_peers_cli.or(config_bootstrap);
+
     // --- Initialize Node Identity ---
     let (node_sk, node_pk) = generate_ed25519_keypair(); // Generate fresh for now
     let node_did_string = did_key_from_verifying_key(&node_pk);
@@ -335,7 +365,7 @@ async fn main() {
             );
 
             // Parse bootstrap peers if provided
-            let bootstrap_peers = if let Some(peer_strings) = &cli.bootstrap_peers {
+            let bootstrap_peers = if let Some(peer_strings) = &final_bootstrap {
                 let mut parsed_peers = Vec::new();
                 for peer_str in peer_strings {
                     match peer_str.parse::<Multiaddr>() {

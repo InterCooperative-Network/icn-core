@@ -845,6 +845,29 @@ pub mod libp2p_service {
                         });
                     }
                 }
+                SwarmEvent::Behaviour(CombinedBehaviourEvent::RequestResponse(ev)) => match ev {
+                    libp2p::request_response::Event::Message { message, peer } => match message {
+                        libp2p::request_response::Message::Request {
+                            request, channel, ..
+                        } => {
+                            subscribers.retain_mut(|subscriber| {
+                                subscriber.try_send(request.clone()).is_ok()
+                            });
+                            let _ = swarm.behaviour_mut().request_response.send_response(
+                                channel,
+                                NetworkMessage::GossipSub("ack".into(), Vec::new()),
+                            );
+                            stats.lock().unwrap().messages_received += 1;
+                        }
+                        libp2p::request_response::Message::Response { response, .. } => {
+                            subscribers.retain_mut(|subscriber| {
+                                subscriber.try_send(response.clone()).is_ok()
+                            });
+                            stats.lock().unwrap().messages_received += 1;
+                        }
+                    },
+                    _ => {}
+                },
                 SwarmEvent::Behaviour(CombinedBehaviourEvent::Kademlia(ev)) => match ev {
                     KademliaEvent::OutboundQueryProgressed { id, result, .. } => {
                         if let Some(query) = pending_kad_queries.remove(&id) {
