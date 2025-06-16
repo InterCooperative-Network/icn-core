@@ -32,6 +32,15 @@ pub enum MeshJobError {
         reason: String,
     },
 
+    #[error("Serialization failure: {0}")]
+    Serialization(String),
+
+    #[error("Job specification invalid for {job_id:?}: {reason}")]
+    InvalidSpec { job_id: Option<Cid>, reason: String },
+
+    #[error("Permission denied for job {job_id:?}: {reason}")]
+    PermissionDenied { job_id: Cid, reason: String },
+
     #[error("Attempted to operate on job {job_id:?} in an invalid state ({current_state}) for the operation: {operation}")]
     InvalidJobState {
         job_id: Cid,
@@ -43,7 +52,7 @@ pub enum MeshJobError {
     Internal(String),
 
     #[error("Host ABI error occurred: {0}")]
-    HostAbi(#[from] crate::context::HostAbiError), // Assuming HostAbiError is in context module
+    HostAbi(crate::context::HostAbiError),
 
     #[error("Economic error related to mana or payments: {0}")]
     Economic(String), // Could also be `#[from] EconError` if that's defined
@@ -58,22 +67,31 @@ impl From<icn_common::CommonError> for MeshJobError {
     }
 }
 
-// Remove this conflicting implementation
-/*
 impl From<HostAbiError> for MeshJobError {
     fn from(e: HostAbiError) -> Self {
         match e {
-            HostAbiError::NetworkError(msg) => MeshJobError::Network(MeshNetworkError::SendFailure(msg)),
-            HostAbiError::Common(common_err) => MeshJobError::from(common_err), // Utilize existing From<CommonError>
-            // Map other HostAbiError variants to appropriate MeshJobError variants
-            // For example, InsufficientMana could map to Economic or a new variant
-            HostAbiError::InsufficientMana => MeshJobError::Economic("Insufficient mana for host operation".to_string()),
-            HostAbiError::AccountNotFound(did) => MeshJobError::UnknownJob { job_id_str: format!("Account (DID) not found for operation: {}", did) }, // Or a more general UserError?
-            HostAbiError::InvalidParameters(msg) => MeshJobError::Internal(format!("Invalid parameters in host ABI call: {}", msg)), // Or a specific variant if it makes sense
-            HostAbiError::JobSubmissionFailed(reason) => MeshJobError::ProcessingFailure{ job_id: Cid::default(), reason: format!("Job submission failed via host ABI: {}", reason) }, // job_id might be unavailable here
-            // Add more mappings as needed
-            _ => MeshJobError::HostAbi(e), // Fallback to wrapping the HostAbiError directly
+            HostAbiError::NetworkError(msg) => MeshJobError::Network(
+                MeshNetworkError::ConnectionFailed {
+                    peer_id: None,
+                    cause: msg,
+                },
+            ),
+            HostAbiError::Common(common_err) => MeshJobError::from(common_err),
+            HostAbiError::InsufficientMana => {
+                MeshJobError::Economic("Insufficient mana for host operation".to_string())
+            }
+            HostAbiError::AccountNotFound(did) => MeshJobError::UnknownJob {
+                job_id_str: format!("Account (DID) not found for operation: {}", did),
+            },
+            HostAbiError::InvalidParameters(msg) => MeshJobError::InvalidSpec {
+                job_id: None,
+                reason: msg,
+            },
+            HostAbiError::JobSubmissionFailed(reason) => MeshJobError::ProcessingFailure {
+                job_id: Cid::default(),
+                reason: format!("Job submission failed via host ABI: {}", reason),
+            },
+            other => MeshJobError::HostAbi(other),
         }
     }
 }
-*/ 

@@ -23,6 +23,18 @@ pub enum MeshNetworkError {
     #[error("Peer not found: {0}")]
     PeerNotFound(String),
 
+    #[error("Connection to peer {peer_id:?} failed: {cause}")]
+    ConnectionFailed {
+        peer_id: Option<crate::PeerId>,
+        cause: String,
+    },
+
+    #[error("Network channel unexpectedly closed")]
+    ChannelClosed,
+
+    #[error("Unexpected message type: {msg_type}")]
+    UnexpectedMessage { msg_type: String },
+
     #[error("Invalid input or parameters: {0}")]
     InvalidInput(String),
 
