@@ -14,10 +14,14 @@ mod libp2p_integration_tests {
         // Test creating a RuntimeContext with real libp2p
         let node_identity = "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK";
         
+        let listen: Vec<Multiaddr> = vec!["/ip4/0.0.0.0/tcp/0".parse().unwrap()];
         let result = RuntimeContext::new_with_real_libp2p(
             node_identity,
-            None  // No bootstrap peers for this simple test
-        ).await;
+            listen,
+            None,  // No bootstrap peers for this simple test
+            std::path::PathBuf::from("./mana_ledger.sled"),
+        )
+        .await;
         
         assert!(result.is_ok(), "Failed to create RuntimeContext with libp2p: {:?}", result.err());
         
@@ -64,10 +68,14 @@ mod libp2p_integration_tests {
         
         let node_identity = "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK";
         
+        let listen: Vec<Multiaddr> = vec!["/ip4/0.0.0.0/tcp/0".parse().unwrap()];
         let result = RuntimeContext::new_with_real_libp2p(
             node_identity,
-            Some(bootstrap_peers)
-        ).await;
+            listen,
+            Some(bootstrap_peers),
+            std::path::PathBuf::from("./mana_ledger.sled"),
+        )
+        .await;
         
         assert!(result.is_ok(), "Failed to create RuntimeContext with bootstrap peers: {:?}", result.err());
         

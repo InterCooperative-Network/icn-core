@@ -46,7 +46,14 @@ mod cross_node_tests {
         initial_mana: u64
     ) -> Result<Arc<RuntimeContext>, anyhow::Error> {
         let identity_str = format!("did:key:z6Mkv{}", identity_suffix);
-        let ctx = RuntimeContext::new_with_real_libp2p(&identity_str, bootstrap_peers).await?;
+        let listen: Vec<Multiaddr> = vec!["/ip4/0.0.0.0/tcp/0".parse().unwrap()];
+        let ctx = RuntimeContext::new_with_real_libp2p(
+            &identity_str,
+            listen,
+            bootstrap_peers,
+            std::path::PathBuf::from("./mana_ledger.sled"),
+        )
+        .await?;
         
         // Set initial mana for the identity
         let identity = Did::from_str(&identity_str)?;

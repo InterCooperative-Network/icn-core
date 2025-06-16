@@ -4,12 +4,11 @@ use icn_identity::{
 };
 use icn_reputation::ReputationStore;
 use icn_runtime::{
-    context::{RuntimeContext, Signer, StubDagStore, StubMeshNetworkService, StubSigner},
+    context::{RuntimeContext, StubDagStore, StubMeshNetworkService, StubSigner},
     host_anchor_receipt, ReputationUpdater,
 };
-use std::path::PathBuf;
+use std::str::FromStr;
 use std::sync::Arc;
-use tokio::sync::Mutex as TokioMutex;
 
 #[tokio::test]
 async fn anchor_receipt_updates_reputation() {
@@ -19,15 +18,10 @@ async fn anchor_receipt_updates_reputation() {
 
     let ctx = RuntimeContext::new_with_ledger_path(
         did.clone(),
-        Arc::new(icn_runtime::context::StubMeshNetworkService::new()),
-        Arc::new(icn_runtime::context::StubSigner::new_with_keys(
-            sk.clone(),
-            vk.clone(),
-        )),
-        Arc::new(icn_identity::KeyDidResolver::default()),
-        Arc::new(tokio::sync::Mutex::new(
-            icn_runtime::context::StubDagStore::new(),
-        )),
+        Arc::new(StubMeshNetworkService::new()),
+        Arc::new(StubSigner::new_with_keys(sk.clone(), vk)),
+        Arc::new(icn_identity::KeyDidResolver),
+        Arc::new(tokio::sync::Mutex::new(StubDagStore::new())),
         std::path::PathBuf::from("./mana_ledger.sled"),
     );
     let job_id = Cid::new_v1_dummy(0x55, 0x13, b"rep_job");
