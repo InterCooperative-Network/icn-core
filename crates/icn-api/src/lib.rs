@@ -24,11 +24,20 @@ use icn_governance::{GovernanceModule, Proposal, ProposalId, ProposalType, VoteO
 use std::str::FromStr;
 
 pub mod governance_trait;
+pub mod transaction;
 use crate::governance_trait::{
     CastVoteRequest as GovernanceCastVoteRequest, // Renamed to avoid conflict
     GovernanceApi,
     ProposalInputType,
     SubmitProposalRequest as GovernanceSubmitProposalRequest, // Renamed to avoid conflict
+};
+use crate::transaction::{
+    DataQueryRequest, DataQueryResponse, SubmitTransactionRequest, SubmitTransactionResponse,
+    TransactionApi,
+};
+pub use transaction::{
+    DataQueryRequest, DataQueryResponse, SubmitTransactionRequest, SubmitTransactionResponse,
+    TransactionApi,
 };
 
 /// Planned: Define a trait for the ICN API service for RPC implementation.

@@ -313,6 +313,36 @@ pub struct Transaction {
                               // TODO: Add fields like nonce, gas_limit, gas_price if relevant to economic model
 }
 
+/// Request payload for submitting a [`Transaction`] to an ICN node.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TransactionRequest {
+    /// The transaction to submit
+    pub transaction: Transaction,
+}
+
+/// Response returned after a transaction submission.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TransactionResponse {
+    /// Identifier assigned to the stored transaction
+    pub tx_id: String,
+    /// Whether the transaction was accepted
+    pub accepted: bool,
+}
+
+/// Request payload for querying data by [`Cid`].
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct DataQueryRequest {
+    /// CID of the requested DAG block
+    pub cid: Cid,
+}
+
+/// Response containing the result of a data query.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct DataQueryResponse {
+    /// Retrieved block, if found
+    pub block: Option<DagBlock>,
+}
+
 // TODO: Define `DidDocument` struct for DID resolution.
 
 #[cfg(test)]

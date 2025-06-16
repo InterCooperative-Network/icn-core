@@ -16,6 +16,22 @@ The API is designed to be accessible via common RPC mechanisms such as JSON-RPC 
 
 Refer to the `lib.rs` documentation for specific API function signatures and data types.
 
+### Example Usage
+
+The crate exposes request/response structures for common operations:
+
+```rust
+use icn_api::transaction::{SubmitTransactionRequest, DataQueryRequest};
+use icn_common::{Transaction, Cid};
+
+let tx = Transaction { /* ... */ };
+let submit = SubmitTransactionRequest { transaction: tx };
+// Send `submit` to an ICN node via HTTP
+
+let query = DataQueryRequest { cid: Cid::new_v1_dummy(0x71, 0x12, b"demo") };
+// Send `query` to retrieve a `DagBlock`
+```
+
 ## Contributing
 
 Contributions are welcome! Please see the main [CONTRIBUTING.md](../../CONTRIBUTING.md) in the root of the `icn-core` repository for guidelines.

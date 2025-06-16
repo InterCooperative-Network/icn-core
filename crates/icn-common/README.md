@@ -35,6 +35,24 @@ This crate will provide foundational types and utilities including:
 *   **Constants:** Widely used network constants (like `ICN_CORE_VERSION`).
 *   **Traits:** Common traits for extensibility in other crates (e.g., `Identifiable`, `Signable`).
 
+### Request/Response Types
+
+The crate now includes simple request and response structs used by the HTTP API:
+
+```rust
+use icn_common::{Transaction, Cid, DagBlock};
+
+// Submit a transaction
+pub struct TransactionRequest { pub transaction: Transaction }
+pub struct TransactionResponse { pub tx_id: String, pub accepted: bool }
+
+// Query data by CID
+pub struct DataQueryRequest { pub cid: Cid }
+pub struct DataQueryResponse { pub block: Option<DagBlock> }
+```
+
+These types are serialized with `serde` and shared across multiple crates.
+
 ## Contributing
 
 Contributions are welcome! Please see the main [CONTRIBUTING.md](../../CONTRIBUTING.md) in the root of the `icn-core` repository for guidelines.

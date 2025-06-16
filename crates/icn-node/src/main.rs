@@ -18,6 +18,11 @@
 use icn_api::governance_trait::{
     CastVoteRequest as ApiCastVoteRequest, SubmitProposalRequest as ApiSubmitProposalRequest,
 };
+use icn_api::transaction::{
+    DataQueryRequest as ApiDataQueryRequest, DataQueryResponse as ApiDataQueryResponse,
+    SubmitTransactionRequest as ApiSubmitTransactionRequest,
+    SubmitTransactionResponse as ApiSubmitTransactionResponse,
+};
 use icn_common::DagBlock as CoreDagBlock;
 use icn_common::{parse_cid_from_string, Cid, Did, NodeInfo, NodeStatus, ICN_CORE_VERSION};
 #[cfg(feature = "persist-sqlite")]
@@ -167,6 +172,7 @@ struct AppState {
     node_version: String,
     api_key: Option<String>,
     rate_limiter: Option<Arc<AsyncMutex<RateLimitData>>>,
+    transactions: Arc<AsyncMutex<Vec<icn_common::Transaction>>>,
 }
 
 struct RateLimitData {
@@ -276,6 +282,7 @@ pub async fn app_router_with_options(
         node_version: ICN_CORE_VERSION.to_string(),
         api_key,
         rate_limiter: rate_limiter.clone(),
+        transactions: Arc::new(AsyncMutex::new(Vec::new())),
     };
 
     (
@@ -295,6 +302,8 @@ pub async fn app_router_with_options(
             .route("/mesh/jobs", get(mesh_list_jobs_handler)) // List all jobs
             .route("/mesh/jobs/:job_id", get(mesh_get_job_status_handler)) // Get specific job status
             .route("/mesh/receipts", post(mesh_submit_receipt_handler)) // Submit execution receipt
+            .route("/transactions/submit", post(transaction_submit_handler))
+            .route("/data/query", post(data_query_handler))
             .with_state(app_state.clone())
             .layer(middleware::from_fn_with_state(
                 app_state.clone(),
@@ -468,6 +477,7 @@ async fn main() {
         node_version: ICN_CORE_VERSION.to_string(),
         api_key: cli.api_key.clone(),
         rate_limiter: rate_limiter.clone(),
+        transactions: Arc::new(AsyncMutex::new(Vec::new())),
     };
 
     // --- Define HTTP Routes ---
@@ -487,6 +497,8 @@ async fn main() {
         .route("/mesh/jobs", get(mesh_list_jobs_handler))
         .route("/mesh/jobs/:job_id", get(mesh_get_job_status_handler))
         .route("/mesh/receipts", post(mesh_submit_receipt_handler))
+        .route("/transactions/submit", post(transaction_submit_handler))
+        .route("/data/query", post(data_query_handler))
         .with_state(app_state.clone())
         .layer(middleware::from_fn_with_state(
             app_state.clone(),
@@ -1039,6 +1051,45 @@ async fn mesh_submit_receipt_handler(
             )
             .into_response()
         }
+    }
+}
+
+// POST /transactions/submit - Submit a transaction to the node
+async fn transaction_submit_handler(
+    State(state): State<AppState>,
+    Json(request): Json<ApiSubmitTransactionRequest>,
+) -> impl IntoResponse {
+    let tx_id = request.transaction.id.clone();
+    let mut txs = state.transactions.lock().await;
+    txs.push(request.transaction);
+
+    (
+        StatusCode::ACCEPTED,
+        Json(ApiSubmitTransactionResponse {
+            tx_id,
+            accepted: true,
+        }),
+    )
+        .into_response()
+}
+
+// POST /data/query - Retrieve a DAG block by CID
+async fn data_query_handler(
+    State(state): State<AppState>,
+    Json(request): Json<ApiDataQueryRequest>,
+) -> impl IntoResponse {
+    let store = state.runtime_context.dag_store.lock().await;
+    match store.get(&request.cid) {
+        Ok(block_opt) => (
+            StatusCode::OK,
+            Json(ApiDataQueryResponse { block: block_opt }),
+        )
+            .into_response(),
+        Err(e) => map_rust_error_to_json_response(
+            format!("Data query error: {}", e),
+            StatusCode::INTERNAL_SERVER_ERROR,
+        )
+        .into_response(),
     }
 }
 

@@ -18,6 +18,11 @@ use icn_common::{Cid, DagBlock, NodeInfo, NodeStatus};
 use icn_api::governance_trait::{
     CastVoteRequest as ApiCastVoteRequest, SubmitProposalRequest as ApiSubmitProposalRequest,
 };
+use icn_api::transaction::{
+    DataQueryRequest as ApiDataQueryRequest, DataQueryResponse as ApiDataQueryResponse,
+    SubmitTransactionRequest as ApiSubmitTransactionRequest,
+    SubmitTransactionResponse as ApiSubmitTransactionResponse,
+};
 use icn_governance::{Proposal, ProposalId};
 
 // --- CLI Argument Parsing ---
@@ -52,6 +57,16 @@ enum Commands {
     Governance {
         #[clap(subcommand)]
         command: GovernanceCommands,
+    },
+    /// Transaction operations
+    Transactions {
+        #[clap(subcommand)]
+        command: TransactionCommands,
+    },
+    /// Data query operations
+    Data {
+        #[clap(subcommand)]
+        command: DataCommands,
     },
 }
 
@@ -92,6 +107,24 @@ enum GovernanceCommands {
     },
 }
 
+#[derive(Subcommand, Debug)]
+enum TransactionCommands {
+    /// Submit a transaction (JSON string or '-' for stdin)
+    Submit {
+        #[clap(help = "Transaction submission request JSON, or '-' for stdin")]
+        tx_json_or_stdin: String,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum DataCommands {
+    /// Query data by CID (JSON string)
+    Query {
+        #[clap(help = "Data query request as JSON string")]
+        query_json: String,
+    },
+}
+
 // --- Main CLI Logic ---
 
 #[tokio::main]
@@ -124,6 +157,16 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
             }
             GovernanceCommands::Proposals => handle_gov_list_proposals(cli, client).await?,
             GovernanceCommands::Proposal { id } => handle_gov_get_proposal(cli, client, id).await?,
+        },
+        Commands::Transactions { command } => match command {
+            TransactionCommands::Submit { tx_json_or_stdin } => {
+                handle_tx_submit(cli, client, tx_json_or_stdin).await?
+            }
+        },
+        Commands::Data { command } => match command {
+            DataCommands::Query { query_json } => {
+                handle_data_query(cli, client, query_json).await?
+            }
         },
     }
     Ok(())
@@ -309,6 +352,40 @@ async fn handle_gov_get_proposal(
     println!("--- Proposal Details (ID: {}) ---", proposal_id);
     println!("{}", serde_json::to_string_pretty(&proposal)?);
     println!("-----------------------------------");
+    Ok(())
+}
+
+async fn handle_tx_submit(
+    cli: &Cli,
+    client: &Client,
+    tx_json_or_stdin: &str,
+) -> Result<(), anyhow::Error> {
+    let tx_json_content = if tx_json_or_stdin == "-" {
+        let mut buffer = String::new();
+        io::stdin().read_to_string(&mut buffer)?;
+        buffer
+    } else {
+        tx_json_or_stdin.to_string()
+    };
+
+    let request: ApiSubmitTransactionRequest = serde_json::from_str(&tx_json_content)
+        .map_err(|e| anyhow::anyhow!("Invalid SubmitTransactionRequest JSON: {}", e))?;
+    let resp: ApiSubmitTransactionResponse =
+        post_request(&cli.api_url, client, "/transactions/submit", &request).await?;
+    println!("Transaction accepted: {}", resp.tx_id);
+    Ok(())
+}
+
+async fn handle_data_query(
+    cli: &Cli,
+    client: &Client,
+    query_json: &str,
+) -> Result<(), anyhow::Error> {
+    let request: ApiDataQueryRequest = serde_json::from_str(query_json)
+        .map_err(|e| anyhow::anyhow!("Invalid DataQueryRequest JSON: {}", e))?;
+    let resp: ApiDataQueryResponse =
+        post_request(&cli.api_url, client, "/data/query", &request).await?;
+    println!("{}", serde_json::to_string_pretty(&resp)?);
     Ok(())
 }
 

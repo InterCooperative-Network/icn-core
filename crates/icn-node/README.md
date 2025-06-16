@@ -26,6 +26,8 @@ The `main.rs` in this crate currently serves as a demonstration of integrating a
     *   Simulates peer discovery by calling `discover_peers`.
     *   Simulates submitting another `DagBlock` and then broadcasting its announcement using `broadcast_message`.
     *   Demonstrates sending a direct `RequestBlock` message to a (discovered) stubbed peer using `send_message`.
+4.  **Transaction Handling:** Shows how to submit a `Transaction` via the `/transactions/submit` endpoint and store it in memory.
+5.  **Data Queries:** Provides a simple `/data/query` endpoint to fetch a `DagBlock` by CID.
 
 All operations show how results and errors from the API and underlying services are handled and printed to the console.
 
