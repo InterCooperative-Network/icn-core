@@ -218,8 +218,7 @@ pub async fn host_account_spend_mana(
     ctx.spend_mana(&account_did, amount).await
 }
 
-// Adding host_account_credit_mana (not present in the initial file scan but logically needed)
-/// ABI Index: (Suggest new ABI index)
+/// ABI Index: (defined in `abi::ABI_HOST_ACCOUNT_CREDIT_MANA`)
 /// Credits mana to the specified account.
 pub async fn host_account_credit_mana(
     ctx: &RuntimeContext,
@@ -276,7 +275,7 @@ impl ReputationUpdater {
     }
 }
 
-/// ABI Index: (Not yet defined, suggest reserving one, e.g., 23)
+/// ABI Index: (defined in `abi::ABI_HOST_ANCHOR_RECEIPT`)
 /// Anchors an execution receipt to the DAG and updates reputation.
 ///
 /// The `receipt_json` is expected to be a JSON string serializing `icn_identity::ExecutionReceipt`.
