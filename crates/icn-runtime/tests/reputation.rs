@@ -71,8 +71,8 @@ fn reputation_updater_increments_store() {
         cpu_ms: 1,
         sig: SignatureBytes(Vec::new()),
     };
-    updater.submit(&store, &receipt);
+    updater.submit(&store, &receipt, true);
     assert_eq!(store.get_reputation(&did), 1);
-    updater.submit(&store, &receipt);
+    updater.submit(&store, &receipt, true);
     assert_eq!(store.get_reputation(&did), 2);
 }

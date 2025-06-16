@@ -673,7 +673,7 @@ impl RuntimeContext {
                         );
                         self.credit_mana(&receipt.executor_did, job.cost_mana)
                             .await?;
-                        self.reputation_store.record_receipt(&receipt);
+                        self.reputation_store.record_receipt(&receipt, true);
                         Ok(())
                     }
                     Err(e) => {
@@ -685,6 +685,7 @@ impl RuntimeContext {
                                 reason: format!("Failed to anchor receipt: {}", e),
                             },
                         );
+                        self.reputation_store.record_receipt(&receipt, false);
                         Err(HostAbiError::DagOperationFailed(format!(
                             "Failed to anchor receipt: {}",
                             e

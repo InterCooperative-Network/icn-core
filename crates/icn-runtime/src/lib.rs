@@ -262,9 +262,14 @@ impl ReputationUpdater {
     pub fn new() -> Self {
         ReputationUpdater
     }
-    pub fn submit(&self, store: &dyn ReputationStore, receipt: &icn_identity::ExecutionReceipt) {
+    pub fn submit(
+        &self,
+        store: &dyn ReputationStore,
+        receipt: &icn_identity::ExecutionReceipt,
+        success: bool,
+    ) {
         let before = store.get_reputation(&receipt.executor_did);
-        store.record_receipt(receipt);
+        store.record_receipt(receipt, success);
         let after = store.get_reputation(&receipt.executor_did);
         log::debug!(
             "[ReputationUpdater] Executor {:?} reputation {} -> {} via receipt {:?}",
@@ -304,7 +309,7 @@ pub async fn host_anchor_receipt(
     info!("[host_anchor_receipt] Receipt for job {:?} (executor {:?}) anchored with CID: {:?}. CPU cost: {}ms", 
           receipt.job_id, receipt.executor_did, anchored_cid, receipt.cpu_ms);
 
-    reputation_updater.submit(ctx.reputation_store.as_ref(), &receipt);
+    reputation_updater.submit(ctx.reputation_store.as_ref(), &receipt, true);
     Ok(anchored_cid)
 }
 
