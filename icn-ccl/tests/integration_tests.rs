@@ -85,6 +85,30 @@ fn test_compile_invalid_ccl() {
 }
 
 #[test]
+fn test_compile_semantic_error_type_mismatch() {
+    let src = "fn wrong() -> Bool { return 1; }";
+    let res = compile_ccl_source_to_wasm(src);
+    assert!(matches!(res, Err(CclError::TypeError(_))));
+}
+
+#[test]
+fn test_compile_semantic_error_undefined_var() {
+    let src = "fn bad() -> Integer { return x; }";
+    let res = compile_ccl_source_to_wasm(src);
+    assert!(matches!(res, Err(CclError::SemanticError(_))));
+}
+
+#[test]
+fn test_compile_metadata_exports() {
+    let src = "fn run() -> Integer { return 42; } fn cost() -> Mana { return 1; }";
+    let (_wasm, meta) = compile_ccl_source_to_wasm(src).expect("compile");
+    assert!(meta.exports.contains(&"run".to_string()));
+    assert!(meta.exports.contains(&"cost".to_string()));
+    assert!(meta.inputs.is_empty());
+    assert!(!meta.cid.is_empty());
+}
+
+#[test]
 fn test_compile_with_rule_and_if() {
     let source = r#"
         fn main() -> Bool {
