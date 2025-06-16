@@ -89,4 +89,9 @@ impl StorageService<DagBlock> for SledDagStore {
         })?;
         Ok(exists)
     }
+
+    fn len(&self) -> Result<u64, CommonError> {
+        let tree = self.tree()?;
+        Ok(tree.len() as u64)
+    }
 }

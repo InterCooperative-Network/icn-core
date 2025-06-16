@@ -68,4 +68,9 @@ impl StorageService<DagBlock> for RocksDagStore {
         })?;
         Ok(result.is_some())
     }
+
+    fn len(&self) -> Result<u64, CommonError> {
+        use rocksdb::IteratorMode;
+        Ok(self.db.iterator(IteratorMode::Start).count() as u64)
+    }
 }

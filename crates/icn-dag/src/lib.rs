@@ -48,6 +48,9 @@ pub trait StorageService<B: Clone + Serialize + for<'de> Deserialize<'de>> {
     /// Checks if a block with the given CID exists in the store.
     /// Returns `Ok(true)` if it exists, `Ok(false)` if not, or `Err` on storage failure.
     fn contains(&self, cid: &Cid) -> Result<bool, CommonError>;
+
+    /// Returns the total number of blocks stored.
+    fn len(&self) -> Result<u64, CommonError>;
 }
 
 // --- In-Memory DAG Store ---
@@ -83,6 +86,10 @@ impl StorageService<DagBlock> for InMemoryDagStore {
 
     fn contains(&self, cid: &Cid) -> Result<bool, CommonError> {
         Ok(self.store.contains_key(cid))
+    }
+
+    fn len(&self) -> Result<u64, CommonError> {
+        Ok(self.store.len() as u64)
     }
 }
 
@@ -215,6 +222,16 @@ impl StorageService<DagBlock> for FileDagStore {
     fn contains(&self, cid: &Cid) -> Result<bool, CommonError> {
         let path = self.block_path(cid);
         Ok(path.exists())
+    }
+
+    fn len(&self) -> Result<u64, CommonError> {
+        let iter = std::fs::read_dir(&self.storage_path).map_err(|e| {
+            CommonError::IoError(format!(
+                "Failed to read storage dir {:?}: {}",
+                self.storage_path, e
+            ))
+        })?;
+        Ok(iter.count() as u64)
     }
 }
 

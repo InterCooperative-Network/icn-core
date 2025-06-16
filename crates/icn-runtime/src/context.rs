@@ -210,6 +210,14 @@ impl DefaultMeshNetworkService {
         Self { inner: service }
     }
 
+    /// Retrieve network statistics from the underlying [`NetworkService`].
+    pub async fn network_stats(&self) -> Result<icn_network::NetworkStats, CommonError> {
+        self.inner
+            .get_network_stats()
+            .await
+            .map_err(|e| CommonError::NetworkError(format!("Failed to get network stats: {}", e)))
+    }
+
     // This method allows getting the concrete Libp2pNetworkService if that's what `inner` holds.
     #[cfg(feature = "enable-libp2p")]
     pub fn get_underlying_broadcast_service(
@@ -1251,6 +1259,24 @@ impl RuntimeContext {
             Ok(())
         }
     }
+
+    /// Returns the current number of peers connected to the network.
+    pub async fn peer_count(&self) -> u32 {
+        if let Some(default_mesh) = MeshNetworkService::as_any(self.mesh_network_service.as_ref())
+            .downcast_ref::<DefaultMeshNetworkService>()
+        {
+            if let Ok(stats) = default_mesh.network_stats().await {
+                return stats.peer_count as u32;
+            }
+        }
+        0
+    }
+
+    /// Returns the current block height based on the DAG store contents.
+    pub async fn block_height(&self) -> u64 {
+        let mut store = self.dag_store.lock().await;
+        store.len().unwrap_or(0)
+    }
 }
 
 // --- Supporting: RuntimeContext::new_for_test ---
@@ -1549,6 +1575,10 @@ impl DagStorageService<DagBlock> for StubDagStore {
 
     fn contains(&self, cid: &Cid) -> Result<bool, CommonError> {
         Ok(self.store.contains_key(cid))
+    }
+
+    fn len(&self) -> Result<u64, CommonError> {
+        Ok(self.store.len() as u64)
     }
 }
 

@@ -98,4 +98,12 @@ impl StorageService<DagBlock> for SqliteDagStore {
             })?;
         Ok(count > 0)
     }
+
+    fn len(&self) -> Result<u64, CommonError> {
+        let count: u64 = self
+            .conn
+            .query_row("SELECT COUNT(1) FROM blocks", [], |row| row.get(0))
+            .map_err(|e| CommonError::DatabaseError(format!("Failed to count blocks: {}", e)))?;
+        Ok(count)
+    }
 }

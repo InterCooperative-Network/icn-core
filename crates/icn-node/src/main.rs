@@ -551,10 +551,8 @@ async fn info_handler(State(state): State<AppState>) -> impl IntoResponse {
 
 // GET /status – Node status.
 async fn status_handler(State(state): State<AppState>) -> impl IntoResponse {
-    // TODO: Fetch more dynamic status from RuntimeContext if available (e.g., peer count from NetworkService)
-    let peer_count = 0; // Placeholder
-                        // let current_block_height = state.runtime_context.dag_store.get_latest_block_height().await.unwrap_or(0); // Example
-    let current_block_height = 0; // Placeholder
+    let peer_count = state.runtime_context.peer_count().await;
+    let current_block_height = state.runtime_context.block_height().await;
     let status = NodeStatus {
         is_online: true, // Basic check
         peer_count,
