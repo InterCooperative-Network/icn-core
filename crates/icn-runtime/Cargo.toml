@@ -42,7 +42,6 @@ serial_test = { version = "3", features = ["async"] }
 
 [features]
 default = []
-# TODO: Define features if needed, e.g., for different execution environments or optional components.
 enable-libp2p = ["dep:libp2p"]
 persist-sled = ["icn-governance/persist-sled"]
 

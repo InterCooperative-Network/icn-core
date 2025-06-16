@@ -112,8 +112,6 @@ pub enum CommonError {
     NotImplemented(String),
 }
 
-// TODO: Define struct for DIDs (e.g., pub struct Did { method: String, id_string: String, ... })
-// TODO: Define struct for CIDs (e.g., pub struct Cid { version: u64, codec: u64, hash: Vec<u8> })
 // TODO: Define common traits e.g. pub trait Signable { fn sign(&self, key: &Key) -> Signature; fn verify(&self, signature: &Signature, public_key: &PublicKey) -> bool; }
 
 // --- Real Protocol Data Models ---
@@ -316,7 +314,6 @@ pub struct Transaction {
 }
 
 // TODO: Define `DidDocument` struct for DID resolution.
-// TODO: Define structs for cryptographic keys (`PublicKey`, `PrivateKey`, `KeyPair`) and signatures.
 
 #[cfg(test)]
 mod tests {
