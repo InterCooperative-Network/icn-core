@@ -5,6 +5,9 @@ use icn_identity::ExecutionReceipt;
 use std::collections::HashMap;
 use std::sync::Mutex;
 
+#[cfg(feature = "persist-sled")]
+pub mod sled_store;
+
 /// Store for retrieving and updating executor reputation scores.
 pub trait ReputationStore: Send + Sync {
     /// Returns the numeric reputation score for the given executor DID.
