@@ -482,6 +482,20 @@ impl RuntimeContext {
         #[cfg(not(feature = "persist-sled"))]
         let governance_module = Arc::new(TokioMutex::new(GovernanceModule::new()));
 
+        #[cfg(feature = "persist-sled")]
+        let reputation_store: Arc<dyn icn_reputation::ReputationStore> =
+            icn_reputation::SledReputationStore::new(std::path::PathBuf::from("./reputation.sled"))
+                .map(|s| Arc::new(s) as _)
+                .unwrap_or_else(|_| Arc::new(icn_reputation::InMemoryReputationStore::new()));
+        #[cfg(not(feature = "persist-sled"))]
+        #[cfg(feature = "persist-sled")]
+        let reputation_store: Arc<dyn icn_reputation::ReputationStore> =
+            icn_reputation::SledReputationStore::new(std::path::PathBuf::from(
+                "./reputation_test.sled",
+            ))
+            .map(|s| Arc::new(s) as _)
+            .unwrap_or_else(|_| Arc::new(icn_reputation::InMemoryReputationStore::new()));
+        #[cfg(not(feature = "persist-sled"))]
         let reputation_store: Arc<dyn icn_reputation::ReputationStore> =
             Arc::new(icn_reputation::InMemoryReputationStore::new());
 
@@ -1806,6 +1820,7 @@ mod tests {
             executor_did: ctx.current_identity.clone(),
             result_cid: Cid::new_v1_dummy(0x55, 0x13, b"res"),
             cpu_ms: 1,
+            success: true,
             sig: icn_identity::SignatureBytes(Vec::new()),
         };
 
@@ -1815,6 +1830,7 @@ mod tests {
         msg.extend_from_slice(ctx.current_identity.to_string().as_bytes());
         msg.extend_from_slice(receipt.result_cid.to_string().as_bytes());
         msg.extend_from_slice(&receipt.cpu_ms.to_le_bytes());
+        msg.push(receipt.success as u8);
         let sig_bytes = ctx.signer.sign(&msg).expect("sign");
         let mut signed_receipt = receipt.clone();
         signed_receipt.sig = icn_identity::SignatureBytes(sig_bytes);

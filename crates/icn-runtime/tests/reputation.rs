@@ -37,7 +37,8 @@ async fn anchor_receipt_updates_reputation() {
         job_id: job_id.clone(),
         executor_did: ctx.current_identity.clone(),
         result_cid,
-        cpu_ms: 1,
+        cpu_ms: 2000,
+        success: true,
         sig: SignatureBytes(Vec::new()),
     };
 
@@ -46,6 +47,7 @@ async fn anchor_receipt_updates_reputation() {
     msg.extend_from_slice(did.to_string().as_bytes());
     msg.extend_from_slice(receipt.result_cid.to_string().as_bytes());
     msg.extend_from_slice(&receipt.cpu_ms.to_le_bytes());
+    msg.push(receipt.success as u8);
     let sig_bytes = ctx.signer.sign(&msg).expect("sign");
     let mut signed_receipt = receipt.clone();
     signed_receipt.sig = SignatureBytes(sig_bytes);
@@ -57,7 +59,7 @@ async fn anchor_receipt_updates_reputation() {
         .await
         .expect("anchor");
 
-    assert_eq!(ctx.reputation_store.get_reputation(&did), 1);
+    assert_eq!(ctx.reputation_store.get_reputation(&did), 3);
 }
 #[test]
 fn reputation_updater_increments_store() {
@@ -68,11 +70,12 @@ fn reputation_updater_increments_store() {
         job_id: Cid::new_v1_dummy(0x55, 0x15, b"rep"),
         executor_did: did.clone(),
         result_cid: Cid::new_v1_dummy(0x55, 0x15, b"res"),
-        cpu_ms: 1,
+        cpu_ms: 1000,
+        success: true,
         sig: SignatureBytes(Vec::new()),
     };
     updater.submit(&store, &receipt);
-    assert_eq!(store.get_reputation(&did), 1);
-    updater.submit(&store, &receipt);
     assert_eq!(store.get_reputation(&did), 2);
+    updater.submit(&store, &receipt);
+    assert_eq!(store.get_reputation(&did), 4);
 }
