@@ -43,6 +43,9 @@ jobs:
       - name: Run tests
         run: cargo test --all-features --workspace
 
+      - name: Run icn-cli integration tests
+        run: cargo test --all-features -p icn-cli
+
       - name: Build release (nightly only, for early detection of issues)
         if: matrix.rust == 'nightly'
         run: cargo build --release --all-features --workspace
