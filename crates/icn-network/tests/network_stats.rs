@@ -52,4 +52,35 @@ mod network_stats {
         assert!(stats2.bytes_sent > 0, "node2 bytes sent");
         assert!(stats1.bytes_received > 0, "node1 bytes received");
     }
+
+    #[tokio::test]
+    async fn test_latency_updates_after_ping() {
+        let mut config1 = NetworkConfig::default();
+        config1.heartbeat_interval = Duration::from_secs(1);
+        let node1 = Libp2pNetworkService::new(config1)
+            .await
+            .expect("node1 start");
+        let peer_id = node1.local_peer_id().clone();
+        sleep(Duration::from_secs(1)).await;
+        let addr = node1
+            .listening_addresses()
+            .into_iter()
+            .next()
+            .expect("node1 addr");
+
+        let mut config2 = NetworkConfig::default();
+        config2.heartbeat_interval = Duration::from_secs(1);
+        config2.bootstrap_peers = vec![(peer_id, addr)];
+        let node2 = Libp2pNetworkService::new(config2)
+            .await
+            .expect("node2 start");
+
+        sleep(Duration::from_secs(4)).await;
+
+        let stats1 = node1.get_network_stats().await.expect("stats1");
+        let stats2 = node2.get_network_stats().await.expect("stats2");
+
+        assert!(stats1.avg_latency_ms.is_some(), "node1 latency");
+        assert!(stats2.avg_latency_ms.is_some(), "node2 latency");
+    }
 }
