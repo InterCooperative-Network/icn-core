@@ -937,6 +937,7 @@ pub struct SubmitReceiptRequest {
     pub executor_did: String,
     pub result_cid: String,
     pub cpu_ms: u64,
+    pub success: bool,
     pub signature_hex: String, // Hex-encoded signature bytes
 }
 
@@ -998,6 +999,7 @@ async fn mesh_submit_receipt_handler(
         executor_did,
         result_cid,
         cpu_ms: request.cpu_ms,
+        success: request.success,
         sig: signature_bytes,
     };
 

@@ -327,6 +327,7 @@ mod runtime_host_abi_tests {
             executor_did: executor_did.clone(),
             result_cid,
             cpu_ms: 150,
+            success: true,
             sig: icn_identity::SignatureBytes(vec![]), // Will be signed by anchor_receipt
         };
 
