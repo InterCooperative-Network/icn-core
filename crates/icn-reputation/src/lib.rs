@@ -63,6 +63,7 @@ mod tests {
             executor_did: did.clone(),
             result_cid: icn_common::Cid::new_v1_dummy(0x55, 0x12, b"r"),
             cpu_ms: 0,
+            success: true,
             sig: icn_identity::SignatureBytes(vec![]),
         };
         store.record_receipt(&receipt);

@@ -80,6 +80,7 @@ impl JobExecutor for SimpleExecutor {
             executor_did: self.node_did.clone(),
             result_cid,
             cpu_ms,
+            success: true,
             sig: SignatureBytes(vec![]),
         };
 
@@ -172,6 +173,7 @@ impl JobExecutor for WasmExecutor {
             executor_did: self.node_did.clone(),
             result_cid,
             cpu_ms,
+            success: true,
             sig: SignatureBytes(vec![]),
         };
 
