@@ -288,9 +288,48 @@ Look for `TODO:` comments in the code and open GitHub issues for good places to 
 
 (TODO: Add simple sequence diagrams for core flows like block storage and peer messaging once the APIs stabilize further.)
 
-// TODO (#issue_url_for_multinode_docs): Create a new document (e.g., `docs/MULTI_NODE_GUIDE.md`) detailing 
-// configuration, bootstrapping, and dev/test workflows for setting up and running multi-node local clusters 
-// once real networking and persistence are implemented.
+## 8. Running the Federation Devnet
+
+The repository includes a containerized devnet for quickly spinning up a three-node federation and testing Cooperative Contract Language (CCL) jobs.
+
+1. **Build the workspace binaries (optional if using Docker caches):**
+   ```bash
+   cargo build --release
+   ```
+2. **Launch the federation:**
+   ```bash
+   cd icn-devnet
+   ./launch_federation.sh
+   ```
+   The script checks prerequisites, starts Docker containers, waits for P2P convergence, and submits a test job. Typical output looks like:
+   ```bash
+   🚀 ICN Federation Devnet Launch Starting...
+   ✅ Prerequisites checked
+   ✅ Node A is healthy
+   ✅ Node B is healthy
+   ✅ Node C is healthy
+   ✅ P2P network has converged
+   ✅ Job submitted with ID: cidv1-85-20-abc123...
+   🎉 ICN Federation is now running!
+   ```
+3. **Submit your own job:**
+   ```bash
+   curl -X POST http://localhost:5001/mesh/submit \
+     -H 'Content-Type: application/json' \
+     -d '{"manifest_cid":"example_manifest","spec_json":{"Echo":{"payload":"hi"}},"cost_mana":50}'
+   ```
+   The response contains `job_id`. You can query any node for its status:
+   ```bash
+   curl http://localhost:5002/mesh/jobs/JOB_ID
+   ```
+4. **Collect the execution receipt:** when the job completes, the status response includes a `result_cid`. Retrieve the receipt data from any node via:
+   ```bash
+   curl -X POST http://localhost:5003/dag/get \
+     -H 'Content-Type: application/json' \
+     -d '{"cid":"RESULT_CID"}'
+   ```
+
+Refer to `MULTI_NODE_GUIDE.md` for more details on manual multi-node setups.
 
 --- 
 Thank you for your interest in contributing to ICN Core! 
