@@ -284,9 +284,30 @@ Immediate next steps from the original prompt include:
 *   **Identity Implementation:** Further flesh out DID methods and cryptographic primitives in `icn-identity`.
 *   **Testing:** Enhance test coverage, especially integration tests for the node-cli interaction and endpoint tests for `icn-node`.
 
+
 Look for `TODO:` comments in the code and open GitHub issues for good places to start contributing.
 
-(TODO: Add simple sequence diagrams for core flows like block storage and peer messaging once the APIs stabilize further.)
+### Core Sequence Diagrams
+
+Below are simplified sequence diagrams illustrating two fundamental flows in the system.
+
+#### Block Storage
+
+```text
+Node Runtime -> DagStorageService: put(block)
+DagStorageService -> StorageBackend: persist block
+StorageBackend --> DagStorageService: CID
+DagStorageService --> Node Runtime: CID
+```
+
+#### Peer Messaging
+
+```text
+Node A -> NetworkService: send_message(Node B, msg)
+NetworkService -> Node B: deliver msg
+Node B -> NetworkService: optional response
+NetworkService -> Node A: response
+```
 
 ## 8. Running the Federation Devnet
 
