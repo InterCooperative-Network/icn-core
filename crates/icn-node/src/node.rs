@@ -1133,7 +1133,16 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::OK);
-        // TODO: Deserialize and check content if needed
+
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let info: NodeInfo = serde_json::from_slice(&body).unwrap();
+
+        assert_eq!(info.name, "ICN Test/Embedded Node");
+        assert_eq!(info.version, ICN_CORE_VERSION);
+        assert!(info.status_message.contains("Mana: 1000"));
+        assert!(info.status_message.contains("Node DID:"));
     }
 
     #[tokio::test]
