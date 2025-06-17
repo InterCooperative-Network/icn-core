@@ -10,7 +10,7 @@
 
 use icn_common::{CommonError, Did, NodeInfo};
 #[cfg(feature = "federation")]
-use icn_network::PeerId;
+use icn_network::{MeshNetworkError, NetworkMessage, NetworkService, PeerId};
 use std::collections::{HashMap, HashSet};
 #[cfg(feature = "persist-sled")]
 use std::path::PathBuf;
@@ -758,18 +758,35 @@ impl GovernanceModule {
     }
 }
 
-/// Placeholder function for demonstrating federation sync request.
+/// Request federation data synchronization from a peer.
+///
+/// This uses the provided [`NetworkService`] to send a
+/// [`NetworkMessage::FederationSyncRequest`] to `target_peer`.
 #[cfg(feature = "federation")]
-pub fn request_federation_sync(
+pub async fn request_federation_sync(
+    service: &dyn NetworkService,
     target_peer: &PeerId,
     since_timestamp: Option<u64>,
-) -> Result<String, CommonError> {
-    // TODO: Implement actual network call to the target_peer
-    // This would involve using the NetworkService from icn-network if it were integrated here.
-    Ok(format!(
-        "Requested federation sync from peer {:?} since {:?}",
-        target_peer, since_timestamp
-    ))
+) -> Result<(), CommonError> {
+    let _ = since_timestamp; // currently unused
+    let msg = NetworkMessage::FederationSyncRequest(Did::default());
+    service
+        .send_message(target_peer, msg)
+        .await
+        .map_err(map_mesh_err)?;
+    Ok(())
+}
+
+#[cfg(feature = "federation")]
+fn map_mesh_err(err: MeshNetworkError) -> CommonError {
+    match err {
+        MeshNetworkError::PeerNotFound(e) => CommonError::PeerNotFound(e),
+        MeshNetworkError::SendFailure(e) => CommonError::MessageSendError(e),
+        MeshNetworkError::Timeout(e) => CommonError::TimeoutError(e),
+        MeshNetworkError::InvalidInput(e) => CommonError::InvalidInputError(e),
+        MeshNetworkError::Common(e) => e,
+        other => CommonError::NetworkError(other.to_string()),
+    }
 }
 
 /// Placeholder function demonstrating use of common types for governance operations.

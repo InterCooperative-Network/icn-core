@@ -23,6 +23,14 @@ The API style emphasizes:
 *   **Flexibility:** Allowing for different governance models or parameters to be configured.
 *   **Interoperability:** Providing clear interfaces for other crates (e.g., `icn-cli`, `icn-node`) to interact with governance functions.
 
+## Federation Sync
+
+When built with the `federation` feature, this crate exposes
+`request_federation_sync`, an async helper that uses a provided
+`NetworkService` to request state from another peer. It sends a
+`FederationSyncRequest` message via the network layer and returns a
+`CommonError` if the underlying send fails.
+
 ## Contributing
 
 Contributions are welcome! Please see the main [CONTRIBUTING.md](../../CONTRIBUTING.md) in the root of the `icn-core` repository for guidelines.
