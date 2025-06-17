@@ -1,9 +1,9 @@
 // crates/icn-runtime/src/error.rs
 
-use thiserror::Error;
+use crate::context::HostAbiError;
 use icn_common::{Cid, Did};
 use icn_network::MeshNetworkError; // Assuming MeshNetworkError is accessible
-use crate::context::HostAbiError;
+use thiserror::Error;
 
 /// Errors that can occur during mesh job processing within the `icn-runtime` crate.
 #[derive(Debug, Error)]
@@ -21,16 +21,10 @@ pub enum MeshJobError {
     UnknownJob { job_id_str: String },
 
     #[error("Job {job_id:?} execution timed out by executor {executor_did:?}")]
-    ExecutionTimeout {
-        job_id: Cid,
-        executor_did: Did,
-    },
+    ExecutionTimeout { job_id: Cid, executor_did: Did },
 
     #[error("Job {job_id:?} failed during processing: {reason}")]
-    ProcessingFailure {
-        job_id: Cid,
-        reason: String,
-    },
+    ProcessingFailure { job_id: Cid, reason: String },
 
     #[error("Serialization failure: {0}")]
     Serialization(String),
@@ -57,7 +51,26 @@ pub enum MeshJobError {
     #[error("Economic error related to mana or payments: {0}")]
     Economic(String), // Could also be `#[from] EconError` if that's defined
 
-    // TODO [error_handling]: Add more specific error variants as needed
+    #[error("Feature not implemented: {0}")]
+    NotImplemented(String),
+
+    #[error("DAG operation failed for job {job_id:?}: {reason}")]
+    DagOperationFailed { job_id: Option<Cid>, reason: String },
+
+    #[error("Signature error for job {job_id:?}: {reason}")]
+    SignatureError { job_id: Option<Cid>, reason: String },
+
+    #[error("Cryptography error: {reason}")]
+    CryptoError { reason: String },
+
+    #[error("WASM execution error: {reason}")]
+    WasmExecutionError { reason: String },
+
+    #[error("Resource limit exceeded: {reason}")]
+    ResourceLimitExceeded { reason: String },
+
+    #[error("Invalid system API call: {0}")]
+    InvalidSystemApiCall(String),
 }
 
 // Optional: If you want to convert from icn_common::CommonError directly
@@ -70,12 +83,12 @@ impl From<icn_common::CommonError> for MeshJobError {
 impl From<HostAbiError> for MeshJobError {
     fn from(e: HostAbiError) -> Self {
         match e {
-            HostAbiError::NetworkError(msg) => MeshJobError::Network(
-                MeshNetworkError::ConnectionFailed {
+            HostAbiError::NetworkError(msg) => {
+                MeshJobError::Network(MeshNetworkError::ConnectionFailed {
                     peer_id: None,
                     cause: msg,
-                },
-            ),
+                })
+            }
             HostAbiError::Common(common_err) => MeshJobError::from(common_err),
             HostAbiError::InsufficientMana => {
                 MeshJobError::Economic("Insufficient mana for host operation".to_string())
@@ -91,7 +104,24 @@ impl From<HostAbiError> for MeshJobError {
                 job_id: Cid::new_v1_dummy(0, 0, b"host_abi_failure"),
                 reason: format!("Job submission failed via host ABI: {}", reason),
             },
-            other => MeshJobError::HostAbi(other),
+            HostAbiError::DagOperationFailed(reason) => MeshJobError::DagOperationFailed {
+                job_id: None,
+                reason,
+            },
+            HostAbiError::SignatureError(reason) => MeshJobError::SignatureError {
+                job_id: None,
+                reason,
+            },
+            HostAbiError::CryptoError(reason) => MeshJobError::CryptoError { reason },
+            HostAbiError::WasmExecutionError(reason) => MeshJobError::WasmExecutionError { reason },
+            HostAbiError::ResourceLimitExceeded(reason) => {
+                MeshJobError::ResourceLimitExceeded { reason }
+            }
+            HostAbiError::InvalidSystemApiCall(reason) => {
+                MeshJobError::InvalidSystemApiCall(reason)
+            }
+            HostAbiError::NotImplemented(msg) => MeshJobError::NotImplemented(msg),
+            HostAbiError::InternalError(msg) => MeshJobError::Internal(msg),
         }
     }
 }
