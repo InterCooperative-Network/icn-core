@@ -1,6 +1,11 @@
 // icn-ccl/tests/integration_tests.rs
 #![allow(clippy::uninlined_format_args)]
-use icn_ccl::{compile_ccl_source_to_wasm, CclError, ContractMetadata};
+use icn_ccl::{
+    ast::{ActionNode, AstNode, ExpressionNode, PolicyStatementNode},
+    compile_ccl_source_to_wasm,
+    parser::parse_ccl_source,
+    CclError, ContractMetadata,
+};
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -101,6 +106,13 @@ fn test_compile_semantic_error_undefined_var() {
 }
 
 #[test]
+fn test_compile_semantic_error_binary_op() {
+    let src = "fn bad() -> Integer { let a = 1 + \"s\"; return 0; }";
+    let res = compile_ccl_source_to_wasm(src);
+    assert!(matches!(res, Err(CclError::TypeError(_))));
+}
+
+#[test]
 fn test_compile_metadata_exports() {
     let src = "fn run() -> Integer { return 42; } fn cost() -> Mana { return 1; }";
     let (_wasm, meta) = compile_ccl_source_to_wasm(src).expect("compile");
@@ -125,8 +137,21 @@ fn test_compile_with_rule_and_if() {
     assert!(res.is_err());
 }
 
+#[test]
+fn test_parse_rule_definition() {
+    let source = "rule allow_all when true then allow";
+    let ast = parse_ccl_source(source).expect("parse rule");
+    let expected = AstNode::Policy(vec![PolicyStatementNode::RuleDef(
+        AstNode::RuleDefinition {
+            name: "allow_all".to_string(),
+            condition: ExpressionNode::BooleanLiteral(true),
+            action: ActionNode::Allow,
+        },
+    )]);
+    assert_eq!(ast, expected);
+}
+
 #[tokio::test(flavor = "multi_thread")]
-#[ignore]
 async fn test_wasm_executor_with_ccl() {
     use icn_common::Cid;
     use icn_identity::{did_key_from_verifying_key, generate_ed25519_keypair, SignatureBytes};
@@ -170,13 +195,6 @@ async fn test_wasm_executor_with_ccl() {
     let receipt = exec.execute_job(&job).await.unwrap();
     assert_eq!(receipt.executor_did, node_did);
 }
-
-// TODO: Add more integration tests:
-// - Semantic errors (type mismatch, undefined variable)
-// - Correct metadata generation (exports, inputs based on CCL code)
-// - Test CLI check function
-// - Test CLI format function (once implemented)
-// - Test CLI explain function (once implemented)
 
 #[test]
 fn test_cli_format_ccl_file() {
