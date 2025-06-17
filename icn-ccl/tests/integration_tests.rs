@@ -184,7 +184,7 @@ async fn test_wasm_executor_with_ccl() {
     let job = ActualMeshJob {
         id: Cid::new_v1_sha256(0x55, b"job"),
         manifest_cid: cid,
-        spec: JobSpec::GenericPlaceholder,
+        spec: JobSpec::default(),
         creator_did: node_did.clone(),
         cost_mana: 0,
         max_execution_wait_ms: None,
