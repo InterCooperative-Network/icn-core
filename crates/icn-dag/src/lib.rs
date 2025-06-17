@@ -225,14 +225,17 @@ impl StorageService<DagBlock> for FileDagStore {
 // but they should be considered deprecated.
 
 lazy_static::lazy_static! {
-    // This global store is now effectively a default InMemoryDagStore instance.
-    // New code should prefer explicit store instances.
+    /// Global in-memory store used by the deprecated [`put_block`] and [`get_block`] helpers.
+    /// New code should create and pass explicit `StorageService` implementations instead.
     static ref DEFAULT_IN_MEMORY_STORE: Mutex<InMemoryDagStore> = Mutex::new(InMemoryDagStore::new());
 }
 
-/// Puts a DagBlock into the default in-memory store.
-/// If a block with the same CID already exists, it will be overwritten.
-/// DEPRECATED: Use a `StorageService` instance directly.
+/// Puts a [`DagBlock`] into [`DEFAULT_IN_MEMORY_STORE`].
+///
+/// # Deprecation
+/// This helper exists for legacy code paths. New callers should pass a
+/// concrete implementation of [`StorageService`] instead.
+#[deprecated(note = "Use an explicit StorageService instance instead")]
 pub fn put_block(block: &DagBlock) -> Result<(), CommonError> {
     let mut store = DEFAULT_IN_MEMORY_STORE.lock().map_err(|e| {
         CommonError::InternalError(format!("Failed to acquire lock on default DAG store: {e}"))
@@ -240,8 +243,12 @@ pub fn put_block(block: &DagBlock) -> Result<(), CommonError> {
     store.put(block)
 }
 
-/// Retrieves a DagBlock from the default in-memory store by its CID.
-/// DEPRECATED: Use a `StorageService` instance directly.
+/// Retrieves a [`DagBlock`] from [`DEFAULT_IN_MEMORY_STORE`] by CID.
+///
+/// # Deprecation
+/// This helper exists for legacy code paths. New callers should pass a
+/// concrete implementation of [`StorageService`] instead.
+#[deprecated(note = "Use an explicit StorageService instance instead")]
 pub fn get_block(cid: &Cid) -> Result<Option<DagBlock>, CommonError> {
     let store = DEFAULT_IN_MEMORY_STORE.lock().map_err(|e| {
         CommonError::InternalError(format!("Failed to acquire lock on default DAG store: {e}"))
@@ -461,19 +468,21 @@ mod tests {
 
     #[test]
     fn test_put_and_get_block() {
+        let mut store = InMemoryDagStore::new();
         let block = create_test_block("block_global_store");
-        assert!(put_block(&block).is_ok());
-        match get_block(&block.cid) {
+
+        assert!(store.put(&block).is_ok());
+        match store.get(&block.cid) {
             Ok(Some(b)) => assert_eq!(b.cid, block.cid),
-            Ok(None) => panic!("Block not found in global store"),
-            Err(e) => panic!("get_block returned an error: {e:?}"),
+            Ok(None) => panic!("Block not found in store"),
+            Err(e) => panic!("store.get returned an error: {e:?}"),
         }
 
         let non_existent_cid = Cid::new_v1_dummy(0x55, 0x12, b"non_existent_global");
-        match get_block(&non_existent_cid) {
+        match store.get(&non_existent_cid) {
             Ok(None) => { /* Expected */ }
-            Ok(Some(_)) => panic!("Found non-existent block in global store"),
-            Err(e) => panic!("get_block for non-existent CID returned an error: {e:?}"),
+            Ok(Some(_)) => panic!("Found non-existent block in store"),
+            Err(e) => panic!("store.get for non-existent CID returned an error: {e:?}"),
         }
     }
 

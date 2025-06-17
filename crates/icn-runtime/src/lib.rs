@@ -14,9 +14,9 @@
 
 pub mod abi;
 pub mod context;
+pub mod error;
 pub mod executor;
 pub mod metrics;
-pub mod error;
 
 // Re-export important types for convenience
 pub use context::{HostAbiError, RuntimeContext, Signer};

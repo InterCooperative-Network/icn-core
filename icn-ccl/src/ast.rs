@@ -50,9 +50,11 @@ impl TypeAnnotationNode {
     /// since they share the same underlying WASM representation.
     pub fn compatible_with(&self, other: &Self) -> bool {
         self == other
-            || matches!((self, other),
+            || matches!(
+                (self, other),
                 (TypeAnnotationNode::Mana, TypeAnnotationNode::Integer)
-                    | (TypeAnnotationNode::Integer, TypeAnnotationNode::Mana))
+                    | (TypeAnnotationNode::Integer, TypeAnnotationNode::Mana)
+            )
     }
 
     /// Returns true if this type behaves like an integer number.

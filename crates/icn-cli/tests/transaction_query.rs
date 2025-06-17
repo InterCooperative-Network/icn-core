@@ -1,6 +1,6 @@
-use reqwest::StatusCode;
 use icn_common::{Cid, DagBlock, Did, Transaction};
 use icn_node::app_router;
+use reqwest::StatusCode;
 use tokio::task;
 
 #[tokio::test]
