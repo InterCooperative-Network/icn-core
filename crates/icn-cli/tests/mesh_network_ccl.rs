@@ -1,6 +1,5 @@
 use assert_cmd::prelude::*;
 use icn_node::app_router;
-use reqwest::StatusCode;
 use std::process::Command;
 use tempfile::tempdir;
 use tokio::task;
@@ -17,22 +16,26 @@ async fn mesh_network_and_ccl_commands() {
 
     tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
-    // Submit a mesh job via HTTP so the CLI can query it
+    // Submit a mesh job via the CLI
     let job_req = serde_json::json!({
         "manifest_cid": "bafytestmanifest",
         "spec_json": { "Echo": { "payload": "hello" } },
         "cost_mana": 10
-    });
-    let client = reqwest::Client::new();
-    let submit_url = format!("http://{addr}/mesh/submit");
-    let res = client
-        .post(&submit_url)
-        .json(&job_req)
-        .send()
-        .await
-        .unwrap();
-    assert_eq!(res.status(), StatusCode::ACCEPTED);
-    let body: serde_json::Value = res.json().await.unwrap();
+    })
+    .to_string();
+    let bin = env!("CARGO_BIN_EXE_icn-cli");
+    let base = format!("http://{addr}");
+    let output = tokio::task::spawn_blocking(move || {
+        Command::new(bin)
+            .args(["--api-url", &base, "mesh", "submit", &job_req])
+            .output()
+            .unwrap()
+    })
+    .await
+    .unwrap();
+    assert!(output.status.success());
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let body: serde_json::Value = serde_json::from_str(&stdout).unwrap();
     let job_id = body["job_id"].as_str().unwrap().to_string();
 
     // mesh jobs command
@@ -72,6 +75,19 @@ async fn mesh_network_and_ccl_commands() {
             .assert()
             .success()
             .stdout(predicates::str::contains("peer_count"));
+    })
+    .await
+    .unwrap();
+
+    // network ping command
+    let bin = env!("CARGO_BIN_EXE_icn-cli");
+    let base = format!("http://{addr}");
+    tokio::task::spawn_blocking(move || {
+        Command::new(bin)
+            .args(["--api-url", &base, "network", "ping", "peer123"])
+            .assert()
+            .success()
+            .stdout(predicates::str::contains("peer123"));
     })
     .await
     .unwrap();
