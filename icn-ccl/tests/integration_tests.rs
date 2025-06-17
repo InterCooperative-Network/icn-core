@@ -256,3 +256,76 @@ fn test_cli_check_ccl_file_undefined_var() {
     let res = icn_ccl::cli::check_ccl_file(&path);
     assert!(matches!(res, Err(CclError::SemanticError(_))));
 }
+
+#[test]
+fn test_compile_semantic_error_missing_return() {
+    let src = "fn bad() -> Integer { let a = 1; }";
+    let res = compile_ccl_source_to_wasm(src);
+    assert!(matches!(res, Err(CclError::SemanticError(_))));
+}
+
+#[test]
+fn test_compile_rule_condition_must_be_bool() {
+    let src = "rule wrong when 1 then allow";
+    let res = compile_ccl_source_to_wasm(src);
+    assert!(matches!(res, Err(CclError::TypeError(_))));
+}
+
+#[test]
+fn test_parse_rule_with_charge() {
+    let source = "rule pay when true then charge 5";
+    let ast = parse_ccl_source(source).expect("parse rule");
+    let expected = AstNode::Policy(vec![PolicyStatementNode::RuleDef(
+        AstNode::RuleDefinition {
+            name: "pay".to_string(),
+            condition: ExpressionNode::BooleanLiteral(true),
+            action: ActionNode::Charge(ExpressionNode::IntegerLiteral(5)),
+        },
+    )]);
+    assert_eq!(ast, expected);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_wasm_executor_runs_addition() {
+    use icn_common::Cid;
+    use icn_identity::{did_key_from_verifying_key, generate_ed25519_keypair, SignatureBytes};
+    use icn_mesh::{ActualMeshJob, JobSpec};
+    use icn_runtime::context::RuntimeContext;
+    use icn_runtime::executor::{JobExecutor, WasmExecutor};
+    use std::str::FromStr;
+
+    let source = "fn run() -> Integer { return 40 + 2; }";
+    let (wasm, _) = compile_ccl_source_to_wasm(source).expect("compile ccl");
+
+    use icn_common::DagBlock;
+
+    let ctx = RuntimeContext::new_with_stubs_and_mana("did:key:zAddExecInt", 10);
+    let block = DagBlock {
+        cid: Cid::new_v1_dummy(0x71, 0x12, &wasm),
+        data: wasm.clone(),
+        links: vec![],
+    };
+    {
+        let mut store = ctx.dag_store.lock().await;
+        store.put(&block).unwrap();
+    }
+    let cid = block.cid.clone();
+
+    let (sk, vk) = generate_ed25519_keypair();
+    let node_did = did_key_from_verifying_key(&vk);
+    let node_did = icn_common::Did::from_str(&node_did).unwrap();
+
+    let job = ActualMeshJob {
+        id: Cid::new_v1_dummy(0x55, 0x12, b"jobadd"),
+        manifest_cid: cid,
+        spec: JobSpec::default(),
+        creator_did: node_did.clone(),
+        cost_mana: 0,
+        max_execution_wait_ms: None,
+        signature: SignatureBytes(vec![]),
+    };
+
+    let exec = WasmExecutor::new(ctx.clone(), node_did.clone(), sk);
+    let receipt = exec.execute_job(&job).await.unwrap();
+    assert_eq!(receipt.executor_did, node_did);
+}
