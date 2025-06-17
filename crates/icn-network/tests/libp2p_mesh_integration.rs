@@ -15,7 +15,7 @@ mod libp2p_mesh_integration {
     mod utils;
     use anyhow::Result;
     use icn_common::{Cid, Did};
-    use icn_identity::{ExecutionReceipt, SignatureBytes};
+    use icn_identity::{generate_ed25519_keypair, ExecutionReceipt, SignatureBytes};
     use icn_mesh::{ActualMeshJob as Job, JobId, JobSpec, MeshJobBid as Bid, Resources};
     use icn_network::libp2p_service::{Libp2pNetworkService, NetworkConfig};
     use icn_network::{NetworkMessage, NetworkService};
@@ -57,12 +57,16 @@ mod libp2p_mesh_integration {
 
     fn generate_dummy_bid(job_id: &JobId, executor_did_str: &str) -> Bid {
         let executor_did = Did::from_str(executor_did_str).unwrap();
+        let (sk, _pk) = generate_ed25519_keypair();
         Bid {
             job_id: job_id.clone(),
             executor_did,
             price_mana: 50,
             resources: Resources::default(),
+            signature: SignatureBytes(vec![]),
         }
+        .sign(&sk)
+        .unwrap()
     }
 
     fn test_sign_receipt_data(data: &str) -> Result<SignatureBytes, anyhow::Error> {
@@ -599,7 +603,8 @@ mod libp2p_mesh_integration {
 
         // Node B submits bid
         let executor_did = &job_config.creator_did; // For simplicity, using same DID
-        let bid = create_test_bid(&job_id, executor_did, 80);
+        let (sk, _pk) = generate_ed25519_keypair();
+        let bid = create_test_bid(&job_id, executor_did, 80, &sk);
         let bid_msg = NetworkMessage::BidSubmission(bid.clone());
         node_b.service.broadcast_message(bid_msg).await?;
         info!("💰 [PIPELINE-REFACTORED] Bid submitted by Node B");
@@ -734,7 +739,8 @@ mod libp2p_mesh_integration {
         assert_eq!(received_job.creator_did, job_config.creator_did);
 
         // Submit bid
-        let bid = create_test_bid(&job_id, &job_config.creator_did, 75);
+        let (sk, _pk) = generate_ed25519_keypair();
+        let bid = create_test_bid(&job_id, &job_config.creator_did, 75, &sk);
         let bid_msg = NetworkMessage::BidSubmission(bid.clone());
         node_b.service.broadcast_message(bid_msg).await?;
 

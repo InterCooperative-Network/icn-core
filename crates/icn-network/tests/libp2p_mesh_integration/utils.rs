@@ -8,7 +8,7 @@
 )]
 use anyhow::Result;
 use icn_common::{Cid, Did};
-use icn_identity::{generate_ed25519_keypair, ExecutionReceipt, SignatureBytes};
+use icn_identity::{generate_ed25519_keypair, ExecutionReceipt, SignatureBytes, SigningKey};
 use icn_mesh::{ActualMeshJob as Job, JobId, JobSpec, MeshJobBid as Bid, Resources};
 use icn_network::libp2p_service::{Libp2pNetworkService, NetworkConfig};
 use icn_network::{NetworkMessage, NetworkService};
@@ -137,13 +137,20 @@ pub fn create_test_job(config: &TestJobConfig) -> Job {
 }
 
 /// Creates a test bid for the given job
-pub fn create_test_bid(job_id: &JobId, executor_did: &Did, price_mana: u64) -> Bid {
-    Bid {
+pub fn create_test_bid(
+    job_id: &JobId,
+    executor_did: &Did,
+    price_mana: u64,
+    signing_key: &SigningKey,
+) -> Bid {
+    let bid = Bid {
         job_id: job_id.clone(),
         executor_did: executor_did.clone(),
         price_mana,
         resources: Resources::default(),
-    }
+        signature: SignatureBytes(vec![]),
+    };
+    bid.sign(signing_key).unwrap()
 }
 
 /// Executes a job using SimpleExecutor and returns a signed receipt
