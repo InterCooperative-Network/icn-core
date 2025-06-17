@@ -17,7 +17,7 @@ pub mod metrics;
 
 use async_trait::async_trait;
 use downcast_rs::{impl_downcast, DowncastSync};
-use icn_common::{Cid, CommonError, DagBlock, Did, NodeInfo};
+use icn_common::{Cid, DagBlock, Did, NodeInfo};
 use icn_identity::ExecutionReceipt;
 use icn_mesh::{ActualMeshJob as Job, JobId, MeshJobBid as Bid};
 #[cfg(feature = "libp2p")]
@@ -109,6 +109,14 @@ impl NetworkMessage {
     }
 }
 
+/// Decode a raw byte slice into a [`NetworkMessage`].
+///
+/// Returns [`MeshNetworkError::MessageDecodeFailed`] if the bytes cannot be
+/// deserialized using `bincode`.
+pub fn decode_network_message(data: &[u8]) -> Result<NetworkMessage, MeshNetworkError> {
+    bincode::deserialize(data).map_err(|e| MeshNetworkError::MessageDecodeFailed(e.to_string()))
+}
+
 /// Comprehensive network statistics for monitoring and observability.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NetworkStats {
@@ -152,19 +160,22 @@ pub trait NetworkService: Send + Sync + Debug + DowncastSync + 'static {
     async fn discover_peers(
         &self,
         target_peer_id_str: Option<String>,
-    ) -> Result<Vec<PeerId>, CommonError>;
-    async fn send_message(&self, peer: &PeerId, message: NetworkMessage)
-        -> Result<(), CommonError>;
-    async fn broadcast_message(&self, message: NetworkMessage) -> Result<(), CommonError>;
-    async fn subscribe(&self) -> Result<Receiver<NetworkMessage>, CommonError>;
-    async fn get_network_stats(&self) -> Result<NetworkStats, CommonError>;
+    ) -> Result<Vec<PeerId>, MeshNetworkError>;
+    async fn send_message(
+        &self,
+        peer: &PeerId,
+        message: NetworkMessage,
+    ) -> Result<(), MeshNetworkError>;
+    async fn broadcast_message(&self, message: NetworkMessage) -> Result<(), MeshNetworkError>;
+    async fn subscribe(&self) -> Result<Receiver<NetworkMessage>, MeshNetworkError>;
+    async fn get_network_stats(&self) -> Result<NetworkStats, MeshNetworkError>;
     /// Store a record in the network DHT. Keys should take the form
     /// `/icn/service/<id>` to avoid collisions between components.
-    async fn store_record(&self, key: String, value: Vec<u8>) -> Result<(), CommonError>;
+    async fn store_record(&self, key: String, value: Vec<u8>) -> Result<(), MeshNetworkError>;
 
     /// Retrieve a record previously stored via [`store_record`].
     /// Keys use the `/icn/service/<id>` format.
-    async fn get_record(&self, key: String) -> Result<Option<Vec<u8>>, CommonError>;
+    async fn get_record(&self, key: String) -> Result<Option<Vec<u8>>, MeshNetworkError>;
     fn as_any(&self) -> &dyn Any;
 }
 impl_downcast!(sync NetworkService);
@@ -188,7 +199,7 @@ impl NetworkService for StubNetworkService {
     async fn discover_peers(
         &self,
         target_peer_id_str: Option<String>,
-    ) -> Result<Vec<PeerId>, CommonError> {
+    ) -> Result<Vec<PeerId>, MeshNetworkError> {
         println!(
             "[StubNetworkService] Discovering peers (target: {:?})... returning mock peers.",
             target_peer_id_str
@@ -203,19 +214,19 @@ impl NetworkService for StubNetworkService {
         &self,
         peer: &PeerId,
         message: NetworkMessage,
-    ) -> Result<(), CommonError> {
+    ) -> Result<(), MeshNetworkError> {
         println!(
             "[StubNetworkService] Sending message to peer {:?}: {:?}",
             peer, message
         );
         if peer.0 == "error_peer" {
-            return Err(CommonError::MessageSendError(format!(
+            return Err(MeshNetworkError::SendFailure(format!(
                 "Failed to send message to peer: {}",
                 peer.0
             )));
         }
         if peer.0 == "unknown_peer_id" {
-            return Err(CommonError::PeerNotFound(format!(
+            return Err(MeshNetworkError::PeerNotFound(format!(
                 "Peer with ID {} not found.",
                 peer.0
             )));
@@ -223,11 +234,11 @@ impl NetworkService for StubNetworkService {
         Ok(())
     }
 
-    async fn broadcast_message(&self, message: NetworkMessage) -> Result<(), CommonError> {
+    async fn broadcast_message(&self, message: NetworkMessage) -> Result<(), MeshNetworkError> {
         println!("[StubNetworkService] Broadcasting message: {:?}", message);
         if let NetworkMessage::GossipSub(topic, _) = &message {
             if topic == "system_critical_error_topic" {
-                return Err(CommonError::NetworkUnhealthy(
+                return Err(MeshNetworkError::Libp2p(
                     "Broadcast failed: system critical topic is currently down.".to_string(),
                 ));
             }
@@ -235,23 +246,23 @@ impl NetworkService for StubNetworkService {
         Ok(())
     }
 
-    async fn subscribe(&self) -> Result<Receiver<NetworkMessage>, CommonError> {
+    async fn subscribe(&self) -> Result<Receiver<NetworkMessage>, MeshNetworkError> {
         println!("[StubNetworkService] Subscribing to messages... returning an empty channel.");
         let (_tx, rx) = tokio::sync::mpsc::channel(1);
         Ok(rx)
     }
 
-    async fn get_network_stats(&self) -> Result<NetworkStats, CommonError> {
+    async fn get_network_stats(&self) -> Result<NetworkStats, MeshNetworkError> {
         Ok(NetworkStats::default())
     }
 
-    async fn store_record(&self, key: String, value: Vec<u8>) -> Result<(), CommonError> {
+    async fn store_record(&self, key: String, value: Vec<u8>) -> Result<(), MeshNetworkError> {
         let mut map = self.records.lock().await;
         map.insert(key, value);
         Ok(())
     }
 
-    async fn get_record(&self, key: String) -> Result<Option<Vec<u8>>, CommonError> {
+    async fn get_record(&self, key: String) -> Result<Option<Vec<u8>>, MeshNetworkError> {
         let map = self.records.lock().await;
         Ok(map.get(&key).cloned())
     }
@@ -262,7 +273,10 @@ impl NetworkService for StubNetworkService {
 }
 
 /// Placeholder function for testing network operations.
-pub async fn send_network_ping(info: &NodeInfo, target_peer: &str) -> Result<String, CommonError> {
+pub async fn send_network_ping(
+    info: &NodeInfo,
+    target_peer: &str,
+) -> Result<String, MeshNetworkError> {
     let service = StubNetworkService::default();
     let _ = service
         .send_message(
@@ -454,12 +468,12 @@ pub mod libp2p_service {
     enum Command {
         DiscoverPeers {
             target: Option<Libp2pPeerId>,
-            rsp: oneshot::Sender<Result<Vec<super::PeerId>, CommonError>>,
+            rsp: oneshot::Sender<Result<Vec<super::PeerId>, MeshNetworkError>>,
         },
         SendMessage {
             peer: Libp2pPeerId,
             message: super::NetworkMessage,
-            rsp: oneshot::Sender<Result<(), CommonError>>,
+            rsp: oneshot::Sender<Result<(), MeshNetworkError>>,
         },
         Broadcast {
             data: Vec<u8>,
@@ -472,21 +486,21 @@ pub mod libp2p_service {
         },
         GetKademliaRecord {
             key: KademliaKey,
-            rsp: oneshot::Sender<Result<Option<KademliaRecord>, CommonError>>,
+            rsp: oneshot::Sender<Result<Option<KademliaRecord>, MeshNetworkError>>,
         },
         PutKademliaRecord {
             key: KademliaKey,
             value: Vec<u8>,
-            rsp: oneshot::Sender<Result<(), CommonError>>,
+            rsp: oneshot::Sender<Result<(), MeshNetworkError>>,
         },
         Shutdown,
     }
 
     #[derive(Debug)]
     enum PendingQuery {
-        GetRecord(oneshot::Sender<Result<Option<KademliaRecord>, CommonError>>),
-        PutRecord(oneshot::Sender<Result<(), CommonError>>),
-        GetPeers(oneshot::Sender<Result<Vec<super::PeerId>, CommonError>>),
+        GetRecord(oneshot::Sender<Result<Option<KademliaRecord>, MeshNetworkError>>),
+        PutRecord(oneshot::Sender<Result<(), MeshNetworkError>>),
+        GetPeers(oneshot::Sender<Result<Vec<super::PeerId>, MeshNetworkError>>),
     }
 
     // --- Protocol Implementation ---
@@ -592,29 +606,33 @@ pub mod libp2p_service {
     // CombinedEvent removed - using auto-generated CombinedBehaviourEvent instead
 
     impl Libp2pNetworkService {
-        pub async fn new(config: NetworkConfig) -> Result<Self, CommonError> {
+        pub async fn new(config: NetworkConfig) -> Result<Self, MeshNetworkError> {
+            if config.connection_timeout.is_zero() {
+                return Err(MeshNetworkError::HandshakeFailed(
+                    "connection_timeout must be greater than zero".into(),
+                ));
+            }
             let local_key = identity::Keypair::generate_ed25519();
             let local_peer_id = Libp2pPeerId::from(local_key.public());
 
-            let transport =
-                dns::tokio::Transport::system(tcp::tokio::Transport::new(
-                    tcp::Config::default().nodelay(true),
-                ))
-                .map_err(|e| CommonError::NetworkSetupError(format!("DNS config error: {}", e)))?
-                .upgrade(upgrade::Version::V1Lazy)
-                .authenticate(noise::Config::new(&local_key).map_err(|e| {
-                    CommonError::NetworkSetupError(format!("Noise auth error: {}", e))
-                })?)
-                .multiplex(yamux::Config::default())
-                .timeout(config.connection_timeout)
-                .boxed();
+            let transport = dns::tokio::Transport::system(tcp::tokio::Transport::new(
+                tcp::Config::default().nodelay(true),
+            ))
+            .map_err(|e| MeshNetworkError::SetupError(format!("DNS config error: {}", e)))?
+            .upgrade(upgrade::Version::V1Lazy)
+            .authenticate(noise::Config::new(&local_key).map_err(|e| {
+                MeshNetworkError::HandshakeFailed(format!("Noise auth error: {}", e))
+            })?)
+            .multiplex(yamux::Config::default())
+            .timeout(config.connection_timeout)
+            .boxed();
 
             let gossipsub_config = gossipsub::Config::default();
             let gossipsub = gossipsub::Behaviour::new(
                 gossipsub::MessageAuthenticity::Signed(local_key.clone()),
                 gossipsub_config,
             )
-            .map_err(|s| CommonError::NetworkSetupError(format!("Gossipsub setup error: {}", s)))?;
+            .map_err(|s| MeshNetworkError::SetupError(format!("Gossipsub setup error: {}", s)))?;
 
             let ping =
                 ping::Behaviour::new(ping::Config::new().with_interval(config.heartbeat_interval));
@@ -652,7 +670,7 @@ pub mod libp2p_service {
             for addr in &config.listen_addresses {
                 swarm
                     .listen_on(addr.clone())
-                    .map_err(|e| CommonError::NetworkSetupError(format!("Listen error: {}", e)))?;
+                    .map_err(|e| MeshNetworkError::SetupError(format!("Listen error: {}", e)))?;
             }
 
             // Connect to bootstrap peers with improved error handling
@@ -813,7 +831,7 @@ pub mod libp2p_service {
                                             pending_kad_queries.insert(query_id, PendingQuery::PutRecord(rsp));
                                         }
                                         Err(e) => {
-                                            let _ = rsp.send(Err(CommonError::NetworkError(format!("put_record error: {}", e))));
+                                            let _ = rsp.send(Err(MeshNetworkError::Libp2p(format!("put_record error: {}", e))));
                                         }
                                     }
                                 }
@@ -914,14 +932,14 @@ pub mod libp2p_service {
                                             Ok(Some(rec.record))
                                         }
                                         Ok(_) => Ok(None),
-                                        Err(e) => Err(CommonError::NetworkError(e.to_string())),
+                                        Err(e) => Err(MeshNetworkError::Libp2p(e.to_string())),
                                     };
                                     let _ = tx.send(send_res);
                                 }
                                 (PendingQuery::PutRecord(tx), kad::QueryResult::PutRecord(res)) => {
                                     let send_res = res
                                         .map(|_| ())
-                                        .map_err(|e| CommonError::NetworkError(e.to_string()));
+                                        .map_err(|e| MeshNetworkError::Libp2p(e.to_string()));
                                     let _ = tx.send(send_res);
                                 }
                                 (
@@ -935,9 +953,8 @@ pub mod libp2p_service {
                                             .map(|p| super::PeerId(p.to_string()))
                                             .collect(),
                                         Err(e) => {
-                                            let _ = tx.send(Err(CommonError::NetworkError(
-                                                e.to_string(),
-                                            )));
+                                            let _ = tx
+                                                .send(Err(MeshNetworkError::Libp2p(e.to_string())));
                                             return;
                                         }
                                     };
@@ -992,31 +1009,31 @@ pub mod libp2p_service {
         }
 
         /// Gracefully shut down the networking task
-        pub async fn shutdown(self) -> Result<(), CommonError> {
+        pub async fn shutdown(self) -> Result<(), MeshNetworkError> {
             if let Err(e) = self.cmd_tx.send(Command::Shutdown).await {
-                return Err(CommonError::NetworkError(format!(
+                return Err(MeshNetworkError::Libp2p(format!(
                     "shutdown send failed: {}",
                     e
                 )));
             }
             self.event_loop_handle
                 .await
-                .map_err(|e| CommonError::NetworkError(format!("task join error: {}", e)))
+                .map_err(|e| MeshNetworkError::Libp2p(format!("task join error: {}", e)))
         }
 
         /// Retrieve a record from the DHT
         pub async fn get_kademlia_record(
             &self,
             key: &str,
-        ) -> Result<Option<KademliaRecord>, CommonError> {
+        ) -> Result<Option<KademliaRecord>, MeshNetworkError> {
             let (tx, rx) = oneshot::channel();
             let key = KademliaKey::new(&key.as_bytes());
             self.cmd_tx
                 .send(Command::GetKademliaRecord { key, rsp: tx })
                 .await
-                .map_err(|e| CommonError::NetworkError(format!("command send failed: {}", e)))?;
+                .map_err(|e| MeshNetworkError::Libp2p(format!("command send failed: {}", e)))?;
             rx.await
-                .map_err(|e| CommonError::NetworkError(format!("response dropped: {}", e)))?
+                .map_err(|e| MeshNetworkError::Libp2p(format!("response dropped: {}", e)))?
         }
 
         /// Put a record into the DHT
@@ -1024,7 +1041,7 @@ pub mod libp2p_service {
             &self,
             key: &str,
             value: Vec<u8>,
-        ) -> Result<(), CommonError> {
+        ) -> Result<(), MeshNetworkError> {
             let (tx, rx) = oneshot::channel();
             let key = KademliaKey::new(&key.as_bytes());
             self.cmd_tx
@@ -1034,9 +1051,9 @@ pub mod libp2p_service {
                     rsp: tx,
                 })
                 .await
-                .map_err(|e| CommonError::NetworkError(format!("command send failed: {}", e)))?;
+                .map_err(|e| MeshNetworkError::Libp2p(format!("command send failed: {}", e)))?;
             rx.await
-                .map_err(|e| CommonError::NetworkError(format!("response dropped: {}", e)))?
+                .map_err(|e| MeshNetworkError::Libp2p(format!("response dropped: {}", e)))?
         }
     }
 
@@ -1045,10 +1062,10 @@ pub mod libp2p_service {
         async fn discover_peers(
             &self,
             target_peer_id_str: Option<String>,
-        ) -> Result<Vec<super::PeerId>, CommonError> {
+        ) -> Result<Vec<super::PeerId>, MeshNetworkError> {
             let target = match target_peer_id_str {
                 Some(id_str) => Some(Libp2pPeerId::from_str(&id_str).map_err(|e| {
-                    CommonError::InvalidInputError(format!("Invalid peer ID: {}", e))
+                    MeshNetworkError::InvalidInput(format!("Invalid peer ID: {}", e))
                 })?),
                 None => None,
             };
@@ -1057,18 +1074,18 @@ pub mod libp2p_service {
             self.cmd_tx
                 .send(Command::DiscoverPeers { target, rsp: tx })
                 .await
-                .map_err(|e| CommonError::NetworkError(format!("Command send failed: {}", e)))?;
+                .map_err(|e| MeshNetworkError::Libp2p(format!("Command send failed: {}", e)))?;
             rx.await
-                .map_err(|e| CommonError::NetworkError(format!("Response dropped: {}", e)))?
+                .map_err(|e| MeshNetworkError::Libp2p(format!("Response dropped: {}", e)))?
         }
 
         async fn send_message(
             &self,
             peer: &super::PeerId,
             message: super::NetworkMessage,
-        ) -> Result<(), CommonError> {
+        ) -> Result<(), MeshNetworkError> {
             let libp2p_peer = Libp2pPeerId::from_str(&peer.0)
-                .map_err(|e| CommonError::InvalidInputError(format!("Invalid peer ID: {}", e)))?;
+                .map_err(|e| MeshNetworkError::InvalidInput(format!("Invalid peer ID: {}", e)))?;
 
             let (tx, rx) = oneshot::channel();
             self.cmd_tx
@@ -1079,47 +1096,47 @@ pub mod libp2p_service {
                 })
                 .await
                 .map_err(|e| {
-                    CommonError::MessageSendError(format!("Command send failed: {}", e))
+                    MeshNetworkError::SendFailure(format!("Command send failed: {}", e))
                 })?;
             rx.await
-                .map_err(|e| CommonError::MessageSendError(format!("Response dropped: {}", e)))?
+                .map_err(|e| MeshNetworkError::SendFailure(format!("Response dropped: {}", e)))?
         }
 
         async fn broadcast_message(
             &self,
             message: super::NetworkMessage,
-        ) -> Result<(), CommonError> {
+        ) -> Result<(), MeshNetworkError> {
             let data = bincode::serialize(&message)
-                .map_err(|e| CommonError::SerializationError(e.to_string()))?;
+                .map_err(|e| MeshNetworkError::MessageDecodeFailed(e.to_string()))?;
 
             self.cmd_tx
                 .send(Command::Broadcast { data })
                 .await
-                .map_err(|e| CommonError::MessageSendError(format!("Broadcast failed: {}", e)))
+                .map_err(|e| MeshNetworkError::SendFailure(format!("Broadcast failed: {}", e)))
         }
 
-        async fn subscribe(&self) -> Result<Receiver<super::NetworkMessage>, CommonError> {
+        async fn subscribe(&self) -> Result<Receiver<super::NetworkMessage>, MeshNetworkError> {
             let (tx, rx) = oneshot::channel();
             self.cmd_tx
                 .send(Command::Subscribe { rsp: tx })
                 .await
-                .map_err(|e| CommonError::NetworkError(format!("Subscribe failed: {}", e)))?;
+                .map_err(|e| MeshNetworkError::Libp2p(format!("Subscribe failed: {}", e)))?;
 
             rx.await
-                .map_err(|e| CommonError::NetworkError(format!("Subscribe response failed: {}", e)))
+                .map_err(|e| MeshNetworkError::Libp2p(format!("Subscribe response failed: {}", e)))
         }
 
-        async fn get_network_stats(&self) -> Result<super::NetworkStats, CommonError> {
+        async fn get_network_stats(&self) -> Result<super::NetworkStats, MeshNetworkError> {
             let (tx, rx) = oneshot::channel();
             self.cmd_tx
                 .send(Command::GetStats { rsp: tx })
                 .await
-                .map_err(|e| CommonError::NetworkError(format!("Get stats failed: {}", e)))?;
+                .map_err(|e| MeshNetworkError::Libp2p(format!("Get stats failed: {}", e)))?;
             rx.await
-                .map_err(|e| CommonError::NetworkError(format!("Stats response failed: {}", e)))
+                .map_err(|e| MeshNetworkError::Libp2p(format!("Stats response failed: {}", e)))
         }
 
-        async fn store_record(&self, key: String, value: Vec<u8>) -> Result<(), CommonError> {
+        async fn store_record(&self, key: String, value: Vec<u8>) -> Result<(), MeshNetworkError> {
             let (tx, rx) = oneshot::channel();
             let record_key = KademliaKey::new(&key.into_bytes());
             self.cmd_tx
@@ -1129,14 +1146,14 @@ pub mod libp2p_service {
                     rsp: tx,
                 })
                 .await
-                .map_err(|e| CommonError::NetworkError(format!("Put record failed: {}", e)))?;
+                .map_err(|e| MeshNetworkError::Libp2p(format!("Put record failed: {}", e)))?;
             let _ = rx.await.map_err(|e| {
-                CommonError::NetworkError(format!("Put record response failed: {}", e))
+                MeshNetworkError::Libp2p(format!("Put record response failed: {}", e))
             })?;
             Ok(())
         }
 
-        async fn get_record(&self, key: String) -> Result<Option<Vec<u8>>, CommonError> {
+        async fn get_record(&self, key: String) -> Result<Option<Vec<u8>>, MeshNetworkError> {
             let (tx, rx) = oneshot::channel();
             let record_key = KademliaKey::new(&key.into_bytes());
             self.cmd_tx
@@ -1145,9 +1162,9 @@ pub mod libp2p_service {
                     rsp: tx,
                 })
                 .await
-                .map_err(|e| CommonError::NetworkError(format!("Get record failed: {}", e)))?;
+                .map_err(|e| MeshNetworkError::Libp2p(format!("Get record failed: {}", e)))?;
             let record_opt = rx.await.map_err(|e| {
-                CommonError::NetworkError(format!("Get record response failed: {}", e))
+                MeshNetworkError::Libp2p(format!("Get record response failed: {}", e))
             })??;
             Ok(record_opt.map(|rec| rec.value))
         }
