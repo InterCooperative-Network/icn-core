@@ -1113,20 +1113,56 @@ impl RuntimeContext {
 
     pub async fn close_governance_proposal_voting(
         &self,
-        _proposal_id_str: &str,
+        proposal_id_str: &str,
     ) -> Result<String, HostAbiError> {
-        Err(HostAbiError::NotImplemented(
-            "close_governance_proposal_voting".into(),
-        ))
+        let proposal_id = ProposalId::from_str(proposal_id_str).map_err(|e| {
+            HostAbiError::InvalidParameters(format!("Invalid proposal id: {e}"))
+        })?;
+
+        let mut gov = self.governance_module.lock().await;
+        let status = gov
+            .close_voting_period(&proposal_id)
+            .map_err(HostAbiError::Common)?;
+        let proposal = gov
+            .get_proposal(&proposal_id)
+            .map_err(HostAbiError::Common)?
+            .expect("Proposal should exist after closing");
+        drop(gov);
+
+        let encoded = bincode::serialize(&proposal).map_err(|e| {
+            HostAbiError::InternalError(format!("Failed to serialize proposal: {e}"))
+        })?;
+        if let Err(e) = self.mesh_network_service.announce_proposal(encoded).await {
+            warn!("Failed to broadcast proposal {:?}: {}", proposal_id, e);
+        }
+
+        Ok(format!("{:?}", status))
     }
 
     pub async fn execute_governance_proposal(
         &self,
-        _proposal_id_str: &str,
+        proposal_id_str: &str,
     ) -> Result<(), HostAbiError> {
-        Err(HostAbiError::NotImplemented(
-            "execute_governance_proposal".into(),
-        ))
+        let proposal_id = ProposalId::from_str(proposal_id_str).map_err(|e| {
+            HostAbiError::InvalidParameters(format!("Invalid proposal id: {e}"))
+        })?;
+
+        let mut gov = self.governance_module.lock().await;
+        gov.execute_proposal(&proposal_id)
+            .map_err(HostAbiError::Common)?;
+        let proposal = gov
+            .get_proposal(&proposal_id)
+            .map_err(HostAbiError::Common)?
+            .expect("Proposal should exist after execution");
+        drop(gov);
+
+        let encoded = bincode::serialize(&proposal).map_err(|e| {
+            HostAbiError::InternalError(format!("Failed to serialize proposal: {e}"))
+        })?;
+        if let Err(e) = self.mesh_network_service.announce_proposal(encoded).await {
+            warn!("Failed to broadcast proposal {:?}: {}", proposal_id, e);
+        }
+        Ok(())
     }
 
     /// Inserts a proposal received from the network into the local GovernanceModule.
