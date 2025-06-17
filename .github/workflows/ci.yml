@@ -41,10 +41,23 @@ jobs:
         run: cargo clippy --all-targets --all-features -- -D warnings
 
       - name: Run tests
-        run: cargo test --all-features --workspace
+        run: cargo test --all-features --workspace --exclude icn-integration-tests
 
       - name: Run icn-cli integration tests
         run: cargo test --all-features -p icn-cli
+
+      - name: Start devnet (nightly only)
+        if: matrix.rust == 'nightly'
+        run: |
+          ./icn-devnet/launch_federation.sh --start-only
+      - name: Run integration tests (nightly only)
+        if: matrix.rust == 'nightly'
+        env:
+          ICN_DEVNET_RUNNING: "true"
+        run: cargo test --all-features -p icn-integration-tests -- --nocapture
+      - name: Stop devnet (nightly only)
+        if: matrix.rust == 'nightly'
+        run: docker-compose -f icn-devnet/docker-compose.yml down --volumes --remove-orphans
 
       - name: Build release (nightly only, for early detection of issues)
         if: matrix.rust == 'nightly'
