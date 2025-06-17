@@ -25,11 +25,47 @@ Unsure where to begin contributing to ICN? You can start by looking through `goo
 
 ### Setting Up Your Development Environment (`icn-devnet`)
 
-[TODO: Add instructions for setting up the `icn-devnet` environment. Include any prerequisites, tools to install (Rust, Docker, etc.), and steps to get a local development instance running.]
+The quickest way to spin up a local federation is the **icn-devnet** Docker
+environment contained in this repository. You will need:
+
+1. **Docker** and **Docker Compose** installed and running.
+2. The **nightly Rust toolchain** if you intend to build the crates locally
+   (`rustup toolchain install nightly` and `rustup override set nightly`).
+
+Launch the federation from the repo root:
+
+```bash
+cd icn-devnet
+./launch_federation.sh
+```
+
+The script builds all images, starts three nodes and waits for them to join the
+mesh before submitting a test job. Once complete the nodes are accessible at
+`http://localhost:5001`, `http://localhost:5002` and `http://localhost:5003`.
+
+Configuration is driven by the Docker compose file. You can override values such
+as `ICN_NODE_NAME`, `ICN_HTTP_LISTEN_ADDR`, `ICN_P2P_LISTEN_ADDR`,
+`ICN_ENABLE_P2P`, `ICN_BOOTSTRAP_PEERS`, `ICN_STORAGE_BACKEND` or `RUST_LOG` to
+control logging verbosity. Stop the federation with `docker-compose down`.
 
 ### Running Tests and Linters
 
-[TODO: Add instructions on how to run tests and linters. Specify the commands for `cargo test`, `cargo clippy`, `cargo fmt`, etc. Mention any specific configurations or environments needed for testing.]
+Before submitting code, ensure the workspace passes formatting, linting and
+tests. From the repository root run:
+
+```bash
+# Check formatting (apply with `cargo fmt --all` if needed)
+cargo fmt --all -- --check
+
+# Lint
+cargo clippy --all-targets --all-features -- -D warnings
+
+# Tests
+cargo test --all-features --workspace
+```
+
+Setting `RUST_LOG=debug` can provide more verbose output while developing. These
+are the same checks executed by CI.
 
 ### How to Claim an Issue
 
