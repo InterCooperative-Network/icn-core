@@ -221,6 +221,12 @@ impl GovernanceModule {
                         proposal_id.0, e
                     ))
                 })?;
+                tree.flush().map_err(|e| {
+                    CommonError::DatabaseError(format!(
+                        "Failed to flush sled tree for proposal {}: {}",
+                        proposal_id.0, e
+                    ))
+                })?;
             }
         }
         Ok(proposal_id)
@@ -331,6 +337,12 @@ impl GovernanceModule {
                 tree.insert(key, encoded_proposal).map_err(|e| {
                     CommonError::DatabaseError(format!(
                         "Failed to insert updated proposal {} into sled: {}",
+                        proposal_id.0, e
+                    ))
+                })?;
+                tree.flush().map_err(|e| {
+                    CommonError::DatabaseError(format!(
+                        "Failed to flush sled tree for vote on {}: {}",
                         proposal_id.0, e
                     ))
                 })?;
@@ -477,6 +489,12 @@ impl GovernanceModule {
                         proposal.id.0, e
                     ))
                 })?;
+                tree.flush().map_err(|e| {
+                    CommonError::DatabaseError(format!(
+                        "Failed to flush sled tree for external proposal {}: {}",
+                        proposal.id.0, e
+                    ))
+                })?;
                 Ok(())
             }
         }
@@ -536,6 +554,12 @@ impl GovernanceModule {
                 tree.insert(key, encoded).map_err(|e| {
                     CommonError::DatabaseError(format!(
                         "Failed to persist proposal {}: {}",
+                        proposal.id.0, e
+                    ))
+                })?;
+                tree.flush().map_err(|e| {
+                    CommonError::DatabaseError(format!(
+                        "Failed to flush sled tree for external vote {}: {}",
                         proposal.id.0, e
                     ))
                 })?;
@@ -670,6 +694,12 @@ impl GovernanceModule {
                         proposal_id.0, e
                     ))
                 })?;
+                tree.flush().map_err(|e| {
+                    CommonError::DatabaseError(format!(
+                        "Failed to flush sled tree for proposal {} close: {}",
+                        proposal_id.0, e
+                    ))
+                })?;
                 Ok(proposal.status)
             }
         }
@@ -749,6 +779,12 @@ impl GovernanceModule {
                 tree.insert(key, encoded).map_err(|e| {
                     CommonError::DatabaseError(format!(
                         "Failed to persist executed proposal {}: {}",
+                        proposal_id.0, e
+                    ))
+                })?;
+                tree.flush().map_err(|e| {
+                    CommonError::DatabaseError(format!(
+                        "Failed to flush sled tree for executed proposal {}: {}",
                         proposal_id.0, e
                     ))
                 })?;
