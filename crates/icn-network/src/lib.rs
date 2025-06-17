@@ -595,12 +595,14 @@ pub mod libp2p_service {
 
     // --- Network Behaviour Definition ---
 
+    use libp2p::swarm::behaviour::toggle::Toggle;
     #[derive(NetworkBehaviour)]
     pub struct CombinedBehaviour {
         gossipsub: gossipsub::Behaviour,
         ping: ping::Behaviour,
         kademlia: KademliaBehaviour<MemoryStore>,
         request_response: RequestResponseBehaviour<MessageCodec>,
+        mdns: Toggle<libp2p::mdns::tokio::Behaviour>,
     }
 
     // CombinedEvent removed - using auto-generated CombinedBehaviourEvent instead
@@ -654,11 +656,24 @@ pub mod libp2p_service {
                 libp2p::request_response::Config::default(),
             );
 
+            let mdns_behaviour = if config.enable_mdns {
+                Some(
+                    libp2p::mdns::tokio::Behaviour::new(
+                        libp2p::mdns::Config::default(),
+                        local_peer_id,
+                    )
+                    .map_err(|e| MeshNetworkError::SetupError(format!("mDNS error: {}", e)))?,
+                )
+            } else {
+                None
+            };
+
             let behaviour = CombinedBehaviour {
                 gossipsub,
                 ping,
                 kademlia,
                 request_response,
+                mdns: mdns_behaviour.into(),
             };
             let mut swarm = Swarm::new(
                 transport,
@@ -763,8 +778,21 @@ pub mod libp2p_service {
                                     pending_kad_queries.insert(query_id, PendingQuery::GetPeers(rsp));
                                 }
                                 Command::SendMessage { peer, message, rsp } => {
-                                    let request_id = swarm.behaviour_mut().request_response.send_request(&peer, message.clone());
-                                    stats_clone.lock().unwrap().messages_sent += 1;
+                                    let request_id = swarm
+                                        .behaviour_mut()
+                                        .request_response
+                                        .send_request(&peer, message.clone());
+
+                                    let message_size =
+                                        bincode::serialize(&message).map(|d| d.len()).unwrap_or(0) as u64;
+                                    let mut stats_guard = stats_clone.lock().unwrap();
+                                    stats_guard.bytes_sent += message_size;
+                                    stats_guard.messages_sent += 1;
+                                    let msg_type = message.message_type().to_string();
+                                    let type_stats = stats_guard.message_counts.entry(msg_type).or_default();
+                                    type_stats.sent += 1;
+                                    type_stats.bytes_sent += message_size;
+
                                     log::debug!("Sent message request: {:?}", request_id);
                                     let _ = rsp.send(Ok(()));
                                 }
@@ -995,6 +1023,76 @@ pub mod libp2p_service {
                     let mut stats_guard = stats.lock().unwrap();
                     stats_guard.failed_connections += 1;
                 }
+                SwarmEvent::Behaviour(CombinedBehaviourEvent::RequestResponse(ev)) => {
+                    use libp2p::request_response::{Event as ReqEvent, Message};
+                    match ev {
+                        ReqEvent::Message { peer: _, message } => match message {
+                            Message::Request {
+                                request, channel, ..
+                            } => {
+                                let message_size =
+                                    bincode::serialize(&request).map(|d| d.len()).unwrap_or(0)
+                                        as u64;
+                                {
+                                    let mut stats_guard = stats.lock().unwrap();
+                                    stats_guard.bytes_received += message_size;
+                                    stats_guard.messages_received += 1;
+                                    let msg_type = request.message_type().to_string();
+                                    let type_stats =
+                                        stats_guard.message_counts.entry(msg_type).or_default();
+                                    type_stats.received += 1;
+                                    type_stats.bytes_received += message_size;
+                                }
+                                subscribers.retain_mut(|sub| sub.try_send(request.clone()).is_ok());
+                                if let Err(e) = swarm
+                                    .behaviour_mut()
+                                    .request_response
+                                    .send_response(channel, request)
+                                {
+                                    log::error!("Failed to send response: {:?}", e);
+                                }
+                            }
+                            Message::Response { response, .. } => {
+                                let message_size =
+                                    bincode::serialize(&response).map(|d| d.len()).unwrap_or(0)
+                                        as u64;
+                                {
+                                    let mut stats_guard = stats.lock().unwrap();
+                                    stats_guard.bytes_received += message_size;
+                                    stats_guard.messages_received += 1;
+                                    let msg_type = response.message_type().to_string();
+                                    let type_stats =
+                                        stats_guard.message_counts.entry(msg_type).or_default();
+                                    type_stats.received += 1;
+                                    type_stats.bytes_received += message_size;
+                                }
+                                subscribers
+                                    .retain_mut(|sub| sub.try_send(response.clone()).is_ok());
+                            }
+                        },
+                        ReqEvent::OutboundFailure { peer, error, .. } => {
+                            log::warn!("Outbound request to {} failed: {:?}", peer, error);
+                            stats.lock().unwrap().failed_connections += 1;
+                        }
+                        ReqEvent::InboundFailure { peer, error, .. } => {
+                            log::warn!("Inbound request from {} failed: {:?}", peer, error);
+                            stats.lock().unwrap().failed_connections += 1;
+                        }
+                        ReqEvent::ResponseSent { .. } => {}
+                    }
+                }
+                SwarmEvent::Behaviour(CombinedBehaviourEvent::Mdns(event)) => match event {
+                    libp2p::mdns::Event::Discovered(list) => {
+                        for (peer, addr) in list {
+                            swarm.behaviour_mut().kademlia.add_address(&peer, addr);
+                        }
+                    }
+                    libp2p::mdns::Event::Expired(list) => {
+                        for (peer, addr) in list {
+                            swarm.behaviour_mut().kademlia.remove_address(&peer, &addr);
+                        }
+                    }
+                },
                 _ => {}
             }
         }
