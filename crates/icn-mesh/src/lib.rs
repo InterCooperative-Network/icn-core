@@ -156,6 +156,9 @@ pub struct JobSpec {
     /// Minimum resources required for the job.
     #[serde(default)]
     pub required_resources: Resources,
+    /// Optional upper bound on job execution time in milliseconds.
+    #[serde(default)]
+    pub timeout_ms: Option<u64>,
 }
 
 impl Default for JobSpec {
@@ -165,6 +168,7 @@ impl Default for JobSpec {
             inputs: Vec::new(),
             outputs: Vec::new(),
             required_resources: Resources::default(),
+            timeout_ms: None,
         }
     }
 }

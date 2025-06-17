@@ -645,9 +645,13 @@ impl RuntimeContext {
             "[JobManagerDetail] Waiting for receipt for job {:?} from executor {:?}",
             job.id, assigned_executor_did
         );
-        // Determine how long to wait for the execution receipt.
+        // Determine how long to wait for the execution receipt. Precedence:
+        // 1. Explicit job-level override.
+        // 2. Timeout specified in the job spec.
+        // 3. Runtime default.
         let timeout_ms = job
             .max_execution_wait_ms
+            .or(job.spec.timeout_ms)
             .unwrap_or(self.default_receipt_wait_ms);
         let receipt_timeout = StdDuration::from_millis(timeout_ms);
 
