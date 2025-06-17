@@ -1,6 +1,12 @@
 #!/bin/bash
 set -e
 
+# Start-only mode for CI/integration tests
+START_ONLY=false
+if [ "$1" = "--start-only" ]; then
+    START_ONLY=true
+fi
+
 # ICN Federation Launch Script
 # Starts a 3-node federation and tests cross-node mesh job execution
 
@@ -226,13 +232,18 @@ main() {
     
     # Wait for network convergence
     wait_for_network_convergence
-    
+
+    if [ "$START_ONLY" = true ]; then
+        success "Federation started (start-only mode)"
+        return 0
+    fi
+
     # Test mesh job execution
     test_mesh_job_execution
-    
+
     # Show final status
     show_federation_status
-    
+
     success "🎉 ICN Federation is now running!"
     echo ""
     echo -e "${GREEN}Access points:${NC}"
@@ -258,7 +269,7 @@ cleanup() {
     fi
 }
 
-trap cleanup EXIT
+trap 'cleanup $?' EXIT
 
 # Run main function
 main "$@" 

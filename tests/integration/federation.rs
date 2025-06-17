@@ -1,5 +1,6 @@
-use std::time::Duration;
-use tokio::time::sleep;
+use std::{process::Command, time::Duration};
+use tokio::{sync::Mutex, time::sleep};
+use once_cell::sync::OnceCell;
 use serde_json::Value;
 
 // Integration test for ICN federation devnet
@@ -11,9 +12,41 @@ const NODE_C_URL: &str = "http://localhost:5003";
 const MAX_RETRIES: u32 = 20;
 const RETRY_DELAY: Duration = Duration::from_secs(3);
 
+static DEVNET_LOCK: OnceCell<Mutex<()>> = OnceCell::new();
+
+struct DevnetGuard {
+    _guard: tokio::sync::OwnedMutexGuard<()>,
+}
+
+impl Drop for DevnetGuard {
+    fn drop(&mut self) {
+        let _ = Command::new("docker-compose")
+            .args(&["-f", "icn-devnet/docker-compose.yml", "down", "--volumes", "--remove-orphans"])
+            .status();
+    }
+}
+
+async fn ensure_devnet() -> Option<DevnetGuard> {
+    if std::env::var("ICN_DEVNET_RUNNING").is_ok() {
+        wait_for_federation_ready().await.ok();
+        return None;
+    }
+    let lock = DEVNET_LOCK.get_or_init(|| Mutex::new(()));
+    let guard = lock.lock_owned().await;
+
+    Command::new("bash")
+        .arg("./icn-devnet/launch_federation.sh")
+        .arg("--start-only")
+        .status()
+        .expect("Failed to start devnet");
+
+    wait_for_federation_ready().await.expect("devnet not ready");
+    Some(DevnetGuard { _guard: guard })
+}
+
 #[tokio::test]
-#[ignore] // Run with --ignored since it requires running federation
 async fn test_federation_node_health() {
+    let _devnet = ensure_devnet().await;
     println!("🏥 Testing federation node health...");
     
     let client = reqwest::Client::new();
@@ -45,8 +78,8 @@ async fn test_federation_node_health() {
 }
 
 #[tokio::test]
-#[ignore] // Run with --ignored since it requires running federation
 async fn test_federation_p2p_convergence() {
+    let _devnet = ensure_devnet().await;
     println!("🌐 Testing P2P network convergence...");
     
     let client = reqwest::Client::new();
@@ -96,8 +129,8 @@ async fn test_federation_p2p_convergence() {
 }
 
 #[tokio::test]
-#[ignore] // Run with --ignored since it requires running federation
 async fn test_federation_mesh_job_lifecycle() {
+    let _devnet = ensure_devnet().await;
     println!("🚀 Testing mesh job lifecycle across federation...");
     
     let client = reqwest::Client::new();
@@ -184,8 +217,8 @@ async fn test_federation_mesh_job_lifecycle() {
 }
 
 #[tokio::test]
-#[ignore] // Run with --ignored since it requires running federation
 async fn test_federation_cross_node_api_consistency() {
+    let _devnet = ensure_devnet().await;
     println!("🔄 Testing API consistency across federation nodes...");
     
     let client = reqwest::Client::new();
@@ -226,8 +259,8 @@ async fn test_federation_cross_node_api_consistency() {
 }
 
 #[tokio::test]
-#[ignore] // Run with --ignored since it requires running federation
 async fn test_federation_complete_workflow() {
+    let _devnet = ensure_devnet().await;
     println!("🎯 Testing complete federation workflow...");
     
     // Run all tests in sequence to validate the complete workflow
