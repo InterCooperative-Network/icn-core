@@ -7,6 +7,26 @@ edition.workspace = true
 name = "federation"
 path = "integration/federation.rs"
 
+[[test]]
+name = "job_pipeline"
+path = "integration/job_pipeline.rs"
+
+[[test]]
+name = "multi_node_libp2p"
+path = "integration/multi_node_libp2p.rs"
+
+[[test]]
+name = "governance_sled_lifecycle"
+path = "integration/governance_sled_lifecycle.rs"
+
+[[test]]
+name = "job_submission_cli"
+path = "integration/job_submission_cli.rs"
+
+[[test]]
+name = "federation_sync_restart"
+path = "integration/federation_sync_restart.rs"
+
 [dependencies]
 reqwest.workspace = true
 serde_json.workspace = true

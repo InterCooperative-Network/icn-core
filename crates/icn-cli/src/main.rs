@@ -53,6 +53,11 @@ enum Commands {
         #[clap(subcommand)]
         command: GovernanceCommands,
     },
+    /// Mesh job operations
+    Mesh {
+        #[clap(subcommand)]
+        command: MeshCommands,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -92,6 +97,15 @@ enum GovernanceCommands {
     },
 }
 
+#[derive(Subcommand, Debug)]
+enum MeshCommands {
+    /// Submit a new mesh job (JSON string or '-' for stdin)
+    Submit {
+        #[clap(help = "Mesh job request JSON, or '-' to read from stdin")]
+        job_json_or_stdin: String,
+    },
+}
+
 // --- Main CLI Logic ---
 
 #[tokio::main]
@@ -124,6 +138,11 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
             }
             GovernanceCommands::Proposals => handle_gov_list_proposals(cli, client).await?,
             GovernanceCommands::Proposal { id } => handle_gov_get_proposal(cli, client, id).await?,
+        },
+        Commands::Mesh { command } => match command {
+            MeshCommands::Submit { job_json_or_stdin } => {
+                handle_mesh_submit(cli, client, job_json_or_stdin).await?
+            }
         },
     }
     Ok(())
@@ -309,6 +328,31 @@ async fn handle_gov_get_proposal(
     println!("--- Proposal Details (ID: {}) ---", proposal_id);
     println!("{}", serde_json::to_string_pretty(&proposal)?);
     println!("-----------------------------------");
+    Ok(())
+}
+
+async fn handle_mesh_submit(
+    cli: &Cli,
+    client: &Client,
+    job_json_or_stdin: &str,
+) -> Result<(), anyhow::Error> {
+    let job_content = if job_json_or_stdin == "-" {
+        let mut buffer = String::new();
+        io::stdin().read_to_string(&mut buffer)?;
+        buffer
+    } else {
+        job_json_or_stdin.to_string()
+    };
+
+    let job_value: serde_json::Value = serde_json::from_str(&job_content)
+        .map_err(|e| anyhow::anyhow!("Invalid job JSON provided. Error: {}", e))?;
+
+    let response: serde_json::Value =
+        post_request(&cli.api_url, client, "/mesh/submit", &job_value).await?;
+    println!(
+        "Successfully submitted job. Response: {}",
+        serde_json::to_string_pretty(&response)?
+    );
     Ok(())
 }
 
