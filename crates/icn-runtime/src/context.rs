@@ -9,7 +9,7 @@ use downcast_rs::{impl_downcast, DowncastSync};
 use icn_network::libp2p_service::Libp2pNetworkService as ActualLibp2pNetworkService;
 use icn_network::{NetworkMessage, NetworkService as ActualNetworkService};
 
-use icn_economics::{EconError, ManaLedger, SledManaLedger};
+use icn_economics::{EconError, ManaLedger, ManaRepositoryAdapter, SledManaLedger};
 use log::{debug, error, info, warn};
 use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
@@ -109,6 +109,24 @@ impl SimpleManaLedger {
         self.ledger
             .credit(account, amount)
             .map_err(|e| HostAbiError::InternalError(format!("{e:?}")))
+    }
+}
+
+impl icn_economics::ManaLedger for SimpleManaLedger {
+    fn get_balance(&self, did: &Did) -> u64 {
+        self.ledger.get_balance(did)
+    }
+
+    fn set_balance(&self, did: &Did, amount: u64) -> Result<(), icn_common::CommonError> {
+        self.ledger.set_balance(did, amount)
+    }
+
+    fn spend(&self, did: &Did, amount: u64) -> Result<(), icn_economics::EconError> {
+        self.ledger.spend(did, amount)
+    }
+
+    fn credit(&self, did: &Did, amount: u64) -> Result<(), icn_economics::EconError> {
+        self.ledger.credit(did, amount)
     }
 }
 
@@ -869,8 +887,24 @@ impl RuntimeContext {
                                     }
                                 });
                             } else {
-                                warn!("[JobManagerLoop] Executor selection failed for job {:?} despite having bids. Re-queuing (state remains Pending).", current_job_id);
-                                jobs_to_requeue.push_back(job); // Re-queue the ActualMeshJob, state is still Pending in map
+                                warn!("[JobManagerLoop] No valid bid selected for job {:?}. Marking as Failed.", current_job_id);
+                                let mut job_states_guard = self_clone.job_states.lock().await;
+                                job_states_guard.insert(
+                                    current_job_id.clone(),
+                                    JobState::Failed {
+                                        reason: "No valid bid selected".to_string(),
+                                    },
+                                );
+                                drop(job_states_guard);
+                                if let Err(e) = self_clone
+                                    .credit_mana(&job.creator_did, job.cost_mana)
+                                    .await
+                                {
+                                    error!(
+                                        "[JobManagerLoop] Failed to refund mana to {:?}: {}",
+                                        job.creator_did, e
+                                    );
+                                }
                                 continue;
                             }
                         }
@@ -946,7 +980,10 @@ impl RuntimeContext {
             "[CONTEXT] credit_mana called for account: {:?} amount: {}",
             account, amount
         );
-        self.mana_ledger.credit(account, amount)
+        let adapter = ManaRepositoryAdapter::new(self.mana_ledger.clone());
+        adapter
+            .credit_mana(account, amount)
+            .map_err(|e| HostAbiError::InternalError(format!("{e:?}")))
     }
 
     /// Anchors an execution receipt to the DAG store and returns the content identifier (CID).
