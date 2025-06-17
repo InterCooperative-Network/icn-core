@@ -3,7 +3,9 @@
 use icn_runtime::context::{RuntimeContext, JobId, ExecutionReceipt, HostAbiError};
 use icn_runtime::abi; // To use ABI consts if needed, though direct calls are more likely
 use icn_runtime::{host_submit_mesh_job, host_get_pending_mesh_jobs, host_anchor_receipt, ReputationUpdater};
-use icn_common::{Did, Cid, CommonError};
+use icn_common::{Did, Cid, CommonError, DagBlock};
+use icn_dag::StorageService;
+use icn_reputation::ReputationStore;
 use icn_mesh::{MeshJob as ActualMeshJob, Bid, JobSpec, Resources, SelectionPolicy, select_executor}; // Assuming Resources can be constructed simply
 use icn_economics::{charge_mana, EconError}; // For mana interactions
 use std::str::FromStr;
@@ -35,6 +37,28 @@ impl InMemoryDagStore {
     }
     fn get(&self, cid: &Cid) -> Result<Option<Vec<u8>>, CommonError> {
         Ok(self.store.lock().unwrap().get(cid).cloned())
+    }
+}
+
+// Failing DAG store used to simulate anchoring errors
+#[derive(Debug, Default)]
+struct FailingDagStore;
+
+impl StorageService<DagBlock> for FailingDagStore {
+    fn put(&mut self, _block: &DagBlock) -> Result<(), CommonError> {
+        Err(CommonError::StorageError("put failure".into()))
+    }
+
+    fn get(&self, _cid: &Cid) -> Result<Option<DagBlock>, CommonError> {
+        Ok(None)
+    }
+
+    fn delete(&mut self, _cid: &Cid) -> Result<(), CommonError> {
+        Ok(())
+    }
+
+    fn contains(&self, _cid: &Cid) -> Result<bool, CommonError> {
+        Ok(false)
     }
 }
 
@@ -71,6 +95,20 @@ impl MockReputationSystem {
 
     fn set_reputation_score(&self, did: &Did, score: u64) {
         self.scores.lock().unwrap().insert(did.clone(), score);
+    }
+}
+
+// Reputation store that fails when updating scores
+#[derive(Debug, Default)]
+struct FailingReputationStore;
+
+impl ReputationStore for FailingReputationStore {
+    fn get_reputation(&self, _did: &Did) -> u64 {
+        0
+    }
+
+    fn record_execution(&self, _executor: &Did, _success: bool, _cpu_ms: u64) {
+        panic!("record_execution failed")
     }
 }
 
@@ -302,4 +340,45 @@ async fn test_no_valid_bids_job_times_out_refund_mana() {
 // - Executor selected, but fails mana re-check during assignment.
 // - DAG anchoring fails.
 // - Reputation update fails.
-"" 
+
+#[tokio::test]
+async fn test_executor_selected_mana_recheck_failure() {
+    let submit_ctx = create_test_runtime_context("did:icn:test:recheck_submit", 100);
+    let mut exec_ctx = create_test_runtime_context("did:icn:test:recheck_exec", 5);
+
+    let job_json = dummy_job_json(10);
+    let _ = host_submit_mesh_job(&submit_ctx, &job_json).await.unwrap();
+
+    let result = exec_ctx
+        .spend_mana(&exec_ctx.current_identity, 10)
+        .await;
+    assert!(matches!(result, Err(HostAbiError::InsufficientMana)));
+}
+
+#[tokio::test]
+async fn test_anchor_receipt_dag_failure() {
+    let mut ctx = create_test_runtime_context("did:icn:test:dag_fail", 10);
+    ctx.dag_store = Arc::new(TokioMutex::new(FailingDagStore::default()));
+
+    let receipt_json = dummy_receipt_json("job1", &ctx.current_identity.to_string(), "res");
+    let result = host_anchor_receipt(&mut ctx, &receipt_json, &ReputationUpdater::new()).await;
+    assert!(matches!(result, Err(HostAbiError::DagOperationFailed(_))));
+}
+
+#[tokio::test]
+async fn test_reputation_update_failure() {
+    let mut ctx = create_test_runtime_context("did:icn:test:rep_fail", 10);
+    ctx.reputation_store = Arc::new(FailingReputationStore::default());
+
+    let receipt_json = dummy_receipt_json("job2", &ctx.current_identity.to_string(), "res");
+    let result = std::panic::AssertUnwindSafe(host_anchor_receipt(
+        &mut ctx,
+        &receipt_json,
+        &ReputationUpdater::new(),
+    ))
+    .catch_unwind()
+    .await;
+    assert!(result.is_err());
+}
+
+""
