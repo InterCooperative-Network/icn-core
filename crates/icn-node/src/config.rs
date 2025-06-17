@@ -21,6 +21,8 @@ pub struct NodeConfig {
     pub storage_backend: StorageBackendType,
     pub storage_path: std::path::PathBuf,
     pub mana_ledger_path: std::path::PathBuf,
+    /// Path where governance proposals and votes are persisted via sled.
+    pub governance_db_path: std::path::PathBuf,
     pub http_listen_addr: String,
     pub node_did: Option<String>,
     pub node_private_key_bs58: Option<String>,
@@ -42,6 +44,7 @@ impl Default for NodeConfig {
             storage_backend: StorageBackendType::Memory,
             storage_path: "./icn_data/node_store".into(),
             mana_ledger_path: "./mana_ledger.sled".into(),
+            governance_db_path: "./governance_db".into(),
             http_listen_addr: "127.0.0.1:7845".to_string(),
             node_did: None,
             node_private_key_bs58: None,
@@ -80,6 +83,9 @@ impl NodeConfig {
         }
         if let Some(v) = &cli.mana_ledger_path {
             self.mana_ledger_path = v.clone();
+        }
+        if let Some(v) = &cli.governance_db_path {
+            self.governance_db_path = v.clone();
         }
         if let Some(v) = &cli.http_listen_addr {
             self.http_listen_addr = v.clone();

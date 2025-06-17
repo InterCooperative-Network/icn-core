@@ -84,6 +84,9 @@ pub struct Cli {
     pub mana_ledger_path: Option<PathBuf>,
 
     #[clap(long)]
+    pub governance_db_path: Option<PathBuf>,
+
+    #[clap(long)]
     pub http_listen_addr: Option<String>,
 
     #[clap(
@@ -253,7 +256,7 @@ async fn rate_limit_middleware(
 
 // --- Public App Constructor (for tests or embedding) ---
 pub async fn app_router() -> Router {
-    app_router_with_options(None, None, None).await.0
+    app_router_with_options(None, None, None, None).await.0
 }
 
 /// Construct a router for tests or embedding with optional API key and rate limit.
@@ -261,6 +264,7 @@ pub async fn app_router_with_options(
     api_key: Option<String>,
     rate_limit: Option<u64>,
     mana_ledger_path: Option<PathBuf>,
+    governance_db_path: Option<PathBuf>,
 ) -> (Router, Arc<RuntimeContext>) {
     // Generate a new identity for this test/embedded instance
     let (sk, pk) = generate_ed25519_keypair();
@@ -281,6 +285,14 @@ pub async fn app_router_with_options(
         dag_store_for_rt,
         mana_ledger_path.unwrap_or_else(|| PathBuf::from("./mana_ledger.sled")),
     );
+
+    #[cfg(feature = "persist-sled")]
+    {
+        let gov_path = governance_db_path.unwrap_or_else(|| PathBuf::from("./governance_db"));
+        let gov_mod = icn_governance::GovernanceModule::new_sled(gov_path)
+            .unwrap_or_else(|_| icn_governance::GovernanceModule::new());
+        rt_ctx.governance_module = Arc::new(TokioMutex::new(gov_mod));
+    }
 
     // Initialize the test node with some mana for testing
     rt_ctx
@@ -490,6 +502,13 @@ async fn main() {
             config.mana_ledger_path.clone(),
         )
     };
+
+    #[cfg(feature = "persist-sled")]
+    {
+        let gov_mod = icn_governance::GovernanceModule::new_sled(config.governance_db_path.clone())
+            .unwrap_or_else(|_| icn_governance::GovernanceModule::new());
+        rt_ctx.governance_module = Arc::new(TokioMutex::new(gov_mod));
+    }
 
     // Start the job manager
     rt_ctx.clone().spawn_mesh_job_manager().await;
