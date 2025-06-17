@@ -114,8 +114,8 @@ pub fn get_node_status(is_simulated_online: bool) -> Result<NodeStatus, CommonEr
 
 /// Submits a DagBlock to the provided DAG store.
 /// Returns the CID of the stored block upon success.
-pub fn submit_dag_block(
-    storage: Arc<Mutex<dyn StorageService<DagBlock> + Send + Sync>>,
+pub async fn submit_dag_block(
+    storage: Arc<tokio::sync::Mutex<dyn StorageService<DagBlock> + Send>>,
     block_data_json: String,
 ) -> Result<Cid, CommonError> {
     let block: DagBlock = serde_json::from_str(&block_data_json).map_err(|e| {
@@ -130,9 +130,7 @@ pub fn submit_dag_block(
         return Err(CommonError::DagValidationError("CID mismatch".to_string()));
     }
 
-    let mut store = storage.lock().map_err(|_e| {
-        CommonError::StorageError("API: Failed to acquire lock on storage for put.".to_string())
-    })?;
+    let mut store = storage.lock().await;
 
     store.put(&block).map_err(|e| match e {
         CommonError::StorageError(msg) => {
@@ -155,8 +153,8 @@ pub fn submit_dag_block(
 
 /// Retrieves a DagBlock from the provided DAG store by its CID.
 /// The result is an Option<DagBlock> to indicate if the block was found.
-pub fn retrieve_dag_block(
-    storage: Arc<Mutex<dyn StorageService<DagBlock> + Send + Sync>>,
+pub async fn retrieve_dag_block(
+    storage: Arc<tokio::sync::Mutex<dyn StorageService<DagBlock> + Send>>,
     cid_json: String,
 ) -> Result<Option<DagBlock>, CommonError> {
     let cid: Cid = serde_json::from_str(&cid_json).map_err(|e| {
@@ -166,9 +164,7 @@ pub fn retrieve_dag_block(
         ))
     })?;
 
-    let store = storage.lock().map_err(|_e| {
-        CommonError::StorageError("API: Failed to acquire lock on storage for get.".to_string())
-    })?;
+    let store = storage.lock().await;
 
     store.get(&cid).map_err(|e| match e {
         CommonError::StorageError(msg) => {
@@ -413,8 +409,8 @@ mod tests {
     use icn_governance::GovernanceModule; // For governance tests
 
     // Helper to create a default in-memory store for tests
-    fn new_test_storage() -> Arc<Mutex<dyn StorageService<DagBlock> + Send + Sync>> {
-        Arc::new(Mutex::new(InMemoryDagStore::new()))
+    fn new_test_storage() -> Arc<tokio::sync::Mutex<dyn StorageService<DagBlock> + Send>> {
+        Arc::new(tokio::sync::Mutex::new(InMemoryDagStore::new()))
     }
 
     // Helper to create a default governance module for tests
@@ -457,8 +453,8 @@ mod tests {
         }
     }
 
-    #[test]
-    fn submit_dag_block_valid_cid() {
+    #[tokio::test]
+    async fn submit_dag_block_valid_cid() {
         let storage = new_test_storage();
         let child_cid = Cid::new_v1_sha256(0x71, b"child data");
         let link = DagLink {
@@ -474,13 +470,13 @@ mod tests {
             links: vec![link],
         };
         let block_json = serde_json::to_string(&block).unwrap();
-        let result = submit_dag_block(storage, block_json);
+        let result = submit_dag_block(storage, block_json).await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), cid);
     }
 
-    #[test]
-    fn submit_dag_block_invalid_cid() {
+    #[tokio::test]
+    async fn submit_dag_block_invalid_cid() {
         let storage = new_test_storage();
         let child_cid = Cid::new_v1_sha256(0x71, b"child data");
         let link = DagLink {
@@ -496,16 +492,16 @@ mod tests {
             links: vec![link],
         };
         let block_json = serde_json::to_string(&block).unwrap();
-        let result = submit_dag_block(storage, block_json);
+        let result = submit_dag_block(storage, block_json).await;
         match result {
             Err(CommonError::DagValidationError(_)) => {}
             other => panic!("expected DagValidationError, got {:?}", other),
         }
     }
 
-    #[test]
+    #[tokio::test]
     #[ignore]
-    fn test_submit_and_retrieve_dag_block_api() {
+    async fn test_submit_and_retrieve_dag_block_api() {
         let storage = new_test_storage();
         let data = b"api test block data for error refinement".to_vec();
         let cid = Cid::new_v1_dummy(0x71, 0x12, &data); // Use more specific data for test CID
@@ -522,14 +518,14 @@ mod tests {
         };
 
         let block_json = serde_json::to_string(&block).unwrap();
-        match submit_dag_block(Arc::clone(&storage), block_json.clone()) {
+        match submit_dag_block(Arc::clone(&storage), block_json.clone()).await {
             Ok(submitted_cid) => assert_eq!(submitted_cid, cid),
             Err(e) => panic!("submit_dag_block failed: {:?}", e),
         }
 
         // Test retrieval of existing block
         let cid_json = serde_json::to_string(&cid).unwrap();
-        match retrieve_dag_block(Arc::clone(&storage), cid_json.clone()) {
+        match retrieve_dag_block(Arc::clone(&storage), cid_json.clone()).await {
             Ok(Some(retrieved_block)) => {
                 assert_eq!(retrieved_block.cid, cid);
                 assert_eq!(retrieved_block.data, data);
@@ -542,7 +538,7 @@ mod tests {
         let non_existent_data = b"non-existent-api-error-refine";
         let non_existent_cid = Cid::new_v1_dummy(0x71, 0x12, non_existent_data);
         let non_existent_cid_json = serde_json::to_string(&non_existent_cid).unwrap();
-        match retrieve_dag_block(Arc::clone(&storage), non_existent_cid_json) {
+        match retrieve_dag_block(Arc::clone(&storage), non_existent_cid_json).await {
             Ok(None) => { /* Expected: block not found, API returns Ok(None) */ }
             Ok(Some(_)) => panic!("Found a non-existent block via API (should be None)"),
             Err(e) => panic!("retrieve_dag_block for non-existent CID failed: {:?}", e),
@@ -550,7 +546,7 @@ mod tests {
 
         // Test invalid JSON for submit_dag_block
         let invalid_block_json = "this is not valid json";
-        match submit_dag_block(Arc::clone(&storage), invalid_block_json.to_string()) {
+        match submit_dag_block(Arc::clone(&storage), invalid_block_json.to_string()).await {
             Err(CommonError::DeserializationError(msg)) => {
                 assert!(msg.contains("Failed to parse DagBlock JSON"));
             }
@@ -559,7 +555,7 @@ mod tests {
 
         // Test invalid JSON for retrieve_dag_block
         let invalid_cid_json = "nor is this";
-        match retrieve_dag_block(Arc::clone(&storage), invalid_cid_json.to_string()) {
+        match retrieve_dag_block(Arc::clone(&storage), invalid_cid_json.to_string()).await {
             Err(CommonError::DeserializationError(msg)) => {
                 assert!(msg.contains("Failed to parse CID JSON"));
             }
