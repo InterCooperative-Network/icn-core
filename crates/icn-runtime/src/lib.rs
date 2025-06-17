@@ -105,8 +105,8 @@ pub async fn host_submit_mesh_job(
     job_to_submit.id = job_id_cid.clone();
     job_to_submit.creator_did = ctx.current_identity.clone();
 
-    // Call the internal queuing function on RuntimeContext
-    ctx.internal_queue_mesh_job(job_to_submit.clone()).await?; // Await the async call
+    // Queue the job via the RuntimeContext
+    ctx.queue_mesh_job(job_to_submit.clone()).await?;
 
     println!(
         "[RUNTIME_ABI] Job {:?} submitted by {:?} with cost {} was queued successfully.",
