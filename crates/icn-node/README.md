@@ -67,6 +67,17 @@ Useful CLI flags include:
 
 * `--node-did-path <PATH>` – location to read/write the node DID string
 * `--node-private-key-path <PATH>` – location to read/write the node private key
+* `--storage-backend <memory|file|sqlite>` – choose the DAG storage backend
+* `--storage-path <PATH>` – directory for the file or SQLite backends
+* `--mana-ledger-path <PATH>` – location of the mana ledger database
+* `--governance-db-path <PATH>` – location to persist governance proposals and votes
+* `--http-listen-addr <ADDR>` – HTTP server bind address (default `127.0.0.1:7845`)
+* `--node-name <NAME>` – human-readable node name for logs
+* `--listen-address <MULTIADDR>` – libp2p listen multiaddr (alias `--p2p-listen-addr`)
+* `--bootstrap-peers <LIST>` – comma-separated list of bootstrap peer multiaddrs
+* `--enable-p2p` – enable libp2p networking (requires `with-libp2p` feature)
+* `--api-key <KEY>` – require this key via the `x-api-key` header for all requests
+* `--open-rate-limit <N>` – allowed unauthenticated requests per minute when no API key is set
 
 When the node starts, it will attempt to load its DID and private key from the
 configured paths. If no key material exists, a new Ed25519 key pair is generated
