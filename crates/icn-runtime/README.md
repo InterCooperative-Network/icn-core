@@ -14,6 +14,52 @@ The `icn-runtime` crate is responsible for:
 
 This crate is key to enabling safe and extensible functionality within ICN nodes.
 
+## WASM Host Interaction
+
+User code compiled to WebAssembly communicates with the runtime through host
+functions exposed under the `icn` module. Each host call has a numeric constant
+in `src/abi.rs` and is linked to the `RuntimeContext` when the module is
+executed. A module imports the functions like so:
+
+```wat
+(import "icn" "host_submit_mesh_job" (func $submit (param i32 i32) (result i64)))
+```
+
+The guest allocates memory for the job JSON, then calls `$submit` with the
+pointer and length of that buffer. The runtime reads the bytes from the module's
+linear memory, deserializes the job, and returns the created job ID as a 64‑bit
+value. Other host calls follow the same pointer/length convention for string
+parameters.
+
+Binding helpers can reduce boilerplate when exposing host calls. One possible
+macro looks like this:
+
+```rust
+macro_rules! hostcall_str {
+    ($linker:expr, $name:literal, $func:ident) => {
+        $linker.func_wrap(
+            "icn",
+            $name,
+            move |mut caller: wasmtime::Caller<'_, std::sync::Arc<RuntimeContext>>, ptr: u32, len: u32| {
+                let memory = caller
+                    .get_export("memory")
+                    .unwrap()
+                    .into_memory()
+                    .unwrap();
+                let mut buf = vec![0u8; len as usize];
+                memory.read(&caller, ptr as usize, &mut buf).unwrap();
+                let arg = String::from_utf8(buf).unwrap();
+                let handle = tokio::runtime::Handle::current();
+                handle.block_on($func(caller.data(), &arg)).unwrap();
+            },
+        )
+    };
+}
+```
+
+This pattern ensures memory is safely copied from the guest and allows host
+functions like `host_submit_mesh_job` to remain concise.
+
 ## Public API Style
 
 The API style emphasizes:
