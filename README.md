@@ -68,6 +68,19 @@ cargo build --no-default-features --features "with-libp2p persist-sqlite"
 ./target/debug/icn-cli status
 ```
 
+### Justfile Commands
+
+Common development tasks are defined in a `justfile` at the repository root. Install [just](https://github.com/casey/just) and run:
+
+```bash
+just format   # check formatting
+just lint     # run clippy
+just test     # execute all tests
+just build    # build all crates
+just devnet   # launch the containerized federation devnet
+```
+
+
 ### Enabling Peer Discovery and Persistent Storage
 
 1. **Compile with libp2p support** using `cargo build --features with-libp2p`.
