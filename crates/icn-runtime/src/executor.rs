@@ -6,7 +6,8 @@ use icn_identity::{
     SignatureBytes, /* Removed , generate_ed25519_keypair */
     SigningKey,
 };
-use icn_mesh::{ActualMeshJob, JobSpec /* ... other mesh types ... */};
+use icn_mesh::{ActualMeshJob, JobKind, JobSpec /* ... other mesh types ... */};
+use crate::context::RuntimeContext;
 use log::info; // Removed error
 use std::time::SystemTime;
 
@@ -149,8 +150,8 @@ impl JobExecutor for WasmExecutor {
         .ok_or_else(|| CommonError::ResourceNotFound("WASM module not found".into()))?
         .data;
 
-        let mut store = Store::new(&self.engine, ());
-        let mut linker = Linker::new(&self.engine);
+        let mut store = Store::new(&self.engine, self.ctx.clone());
+        let mut linker = Linker::<std::sync::Arc<RuntimeContext>>::new(&self.engine);
 
         let ctx_clone = self.ctx.clone();
         linker
