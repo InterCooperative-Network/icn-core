@@ -63,8 +63,11 @@ mod runtime_host_abi_tests {
         let job = ActualMeshJob {
             id: job_id,
             manifest_cid,
-            spec: JobSpec::Echo {
-                payload: payload.to_string(),
+            spec: JobSpec {
+                kind: JobKind::Echo {
+                    payload: payload.to_string(),
+                },
+                ..Default::default()
             },
             creator_did: creator_did.clone(),
             cost_mana,

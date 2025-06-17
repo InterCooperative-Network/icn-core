@@ -50,12 +50,12 @@ impl JobExecutor for SimpleExecutor {
         );
         let start_time = SystemTime::now();
 
-        let result_bytes = match &job.spec {
-            JobSpec::Echo { payload } => {
+        let result_bytes = match &job.spec.kind {
+            JobKind::Echo { payload } => {
                 info!("[SimpleExecutor] Executing echo job: {:?}", job.id);
                 format!("Echo: {}", payload).into_bytes()
             }
-            JobSpec::GenericPlaceholder => {
+            JobKind::GenericPlaceholder => {
                 info!(
                     "[SimpleExecutor] Executing hash job (placeholder): {:?}",
                     job.id
