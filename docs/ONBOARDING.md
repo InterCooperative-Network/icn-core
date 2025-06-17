@@ -25,6 +25,17 @@ Welcome to the InterCooperative Network (ICN) Core project! This guide will help
     cargo test --all # Run tests for all crates in the workspace
     ```
     This will download all dependencies and compile the project. If all tests pass, your setup is correct.
+3.  **Install Toolchain Components:**
+    ```bash
+    rustup component add clippy rustfmt
+    ```
+    These components are required for linting and formatting checks that run in CI.
+4.  **Install `just` (optional but recommended):**
+    ```bash
+    cargo install just
+    just --list    # Show available development commands
+    ```
+    The `just` command runner provides shortcuts for formatting, linting, testing, and devnet tasks defined in the repository's `justfile`.
 
 ## 3. Building and Running Components
 
