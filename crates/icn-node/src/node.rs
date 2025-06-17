@@ -264,7 +264,7 @@ pub async fn app_router_with_options(
     api_key: Option<String>,
     rate_limit: Option<u64>,
     mana_ledger_path: Option<PathBuf>,
-    governance_db_path: Option<PathBuf>,
+    _governance_db_path: Option<PathBuf>,
 ) -> (Router, Arc<RuntimeContext>) {
     // Generate a new identity for this test/embedded instance
     let (sk, pk) = generate_ed25519_keypair();
@@ -285,14 +285,6 @@ pub async fn app_router_with_options(
         dag_store_for_rt,
         mana_ledger_path.unwrap_or_else(|| PathBuf::from("./mana_ledger.sled")),
     );
-
-    #[cfg(feature = "persist-sled")]
-    {
-        let gov_path = governance_db_path.unwrap_or_else(|| PathBuf::from("./governance_db"));
-        let gov_mod = icn_governance::GovernanceModule::new_sled(gov_path)
-            .unwrap_or_else(|_| icn_governance::GovernanceModule::new());
-        rt_ctx.governance_module = Arc::new(TokioMutex::new(gov_mod));
-    }
 
     // Initialize the test node with some mana for testing
     rt_ctx
@@ -503,11 +495,11 @@ async fn main() {
         )
     };
 
-    #[cfg(feature = "persist-sled")]
+    #[cfg(feature = "persist-sqlite")]
     {
-        let gov_mod = icn_governance::GovernanceModule::new_sled(config.governance_db_path.clone())
-            .unwrap_or_else(|_| icn_governance::GovernanceModule::new());
-        rt_ctx.governance_module = Arc::new(TokioMutex::new(gov_mod));
+        let _gov_mod =
+            icn_governance::GovernanceModule::new_sled(config.governance_db_path.clone())
+                .unwrap_or_else(|_| icn_governance::GovernanceModule::new());
     }
 
     // Start the job manager
@@ -654,7 +646,7 @@ async fn dag_put_handler(
 ) -> impl IntoResponse {
     // Use RuntimeContext's dag_store now
     let dag_block = CoreDagBlock {
-        cid: Cid::new_v1_dummy(0x71, 0x12, &block.data),
+        cid: Cid::new_v1_sha256(0x71, &block.data),
         data: block.data,
         links: vec![],
     };
@@ -902,7 +894,7 @@ async fn mesh_submit_job_handler(
 ) -> impl IntoResponse {
     info!("[Node] Received mesh_submit_job request: {:?}", request);
 
-    let manifest_cid = Cid::new_v1_dummy(0, 0, request.manifest_cid.as_bytes()); // Placeholder for Cid::from_str
+    let manifest_cid = Cid::new_v1_sha256(0, request.manifest_cid.as_bytes()); // Placeholder for Cid::from_str
 
     let job_spec = match serde_json::from_value::<icn_mesh::JobSpec>(request.spec_json.clone()) {
         Ok(spec) => spec,
@@ -920,7 +912,7 @@ async fn mesh_submit_job_handler(
     // other fields will be determined by the runtime.
     let temp_job_for_serialization = ActualMeshJob {
         // icn_mesh::ActualMeshJob
-        id: Cid::new_v1_dummy(0, 0, b"placeholder_default_cid"), // Will be replaced by host_submit_mesh_job
+        id: Cid::new_v1_sha256(0, b"placeholder_default_cid"), // Will be replaced by host_submit_mesh_job
         manifest_cid,
         spec: job_spec,
         creator_did: state.runtime_context.current_identity.clone(), // Use node's DID as creator
@@ -1228,7 +1220,7 @@ mod tests {
         let app = test_app().await;
 
         let job_req = SubmitJobRequest {
-            manifest_cid: Cid::new_v1_dummy(0x55, 0x14, b"test_manifest").to_string(),
+            manifest_cid: Cid::new_v1_sha256(0x55, b"test_manifest").to_string(),
             spec_json: serde_json::json!({ "Echo": { "payload": "hello" } }),
             cost_mana: 50,
         };
@@ -1261,7 +1253,7 @@ mod tests {
 
         // Step 1: Submit a job via HTTP
         let job_req = SubmitJobRequest {
-            manifest_cid: Cid::new_v1_dummy(0x55, 0x14, b"pipeline_test_manifest").to_string(),
+            manifest_cid: Cid::new_v1_sha256(0x55, b"pipeline_test_manifest").to_string(),
             spec_json: serde_json::json!({ "Echo": { "payload": "HTTP pipeline test" } }),
             cost_mana: 100,
         };
@@ -1393,7 +1385,7 @@ mod tests {
 
         // Step 1: Submit a job
         let job_req = SubmitJobRequest {
-            manifest_cid: Cid::new_v1_dummy(0x55, 0x14, b"simple_test").to_string(),
+            manifest_cid: Cid::new_v1_sha256(0x55, b"simple_test").to_string(),
             spec_json: serde_json::json!({ "Echo": { "payload": "simple test" } }),
             cost_mana: 50,
         };
@@ -1443,9 +1435,10 @@ mod tests {
     async fn wasm_contract_execution_via_http() {
         use icn_ccl::compile_ccl_source_to_wasm;
         use icn_identity::{did_key_from_verifying_key, generate_ed25519_keypair};
+        use icn_mesh::JobSpec;
         use icn_runtime::executor::WasmExecutor;
 
-        let (app, ctx) = app_router_with_options(None, None, None).await;
+        let (app, ctx) = app_router_with_options(None, None, None, None).await;
 
         // Compile a tiny CCL contract
         let (wasm, _) =

@@ -504,8 +504,8 @@ mod tests {
     async fn test_submit_and_retrieve_dag_block_api() {
         let storage = new_test_storage();
         let data = b"api test block data for error refinement".to_vec();
-        let cid = Cid::new_v1_dummy(0x71, 0x12, &data); // Use more specific data for test CID
-        let link_cid = Cid::new_v1_dummy(0x71, 0x12, b"api link for error refinement");
+        let cid = Cid::new_v1_sha256(0x71, &data); // Use more specific data for test CID
+        let link_cid = Cid::new_v1_sha256(0x71, b"api link for error refinement");
         let link = DagLink {
             cid: link_cid,
             name: "apilink_error_refine".to_string(),
@@ -536,7 +536,7 @@ mod tests {
 
         // Test retrieving non-existent block
         let non_existent_data = b"non-existent-api-error-refine";
-        let non_existent_cid = Cid::new_v1_dummy(0x71, 0x12, non_existent_data);
+        let non_existent_cid = Cid::new_v1_sha256(0x71, non_existent_data);
         let non_existent_cid_json = serde_json::to_string(&non_existent_cid).unwrap();
         match retrieve_dag_block(Arc::clone(&storage), non_existent_cid_json).await {
             Ok(None) => { /* Expected: block not found, API returns Ok(None) */ }
@@ -671,7 +671,7 @@ mod tests {
     async fn test_send_network_message_api_peer_not_found() {
         // Made async
         let peer_id_str = "unknown_peer_id".to_string(); // StubNetworkService simulates error for this peer
-        let dummy_cid = Cid::new_v1_dummy(0x55, 0x12, b"test_cid_for_req_block");
+        let dummy_cid = Cid::new_v1_sha256(0x55, b"test_cid_for_req_block");
         let message_to_send = NetworkMessage::RequestBlock(dummy_cid); // Corrected to tuple variant
         let message_json = serde_json::to_string(&message_to_send).unwrap();
 

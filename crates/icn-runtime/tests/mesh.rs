@@ -30,7 +30,7 @@ use tokio::time::{sleep, Duration};
 // Helper to create a test ActualMeshJob with all required fields
 fn create_test_mesh_job(manifest_cid: Cid, cost_mana: u64, creator_did: Did) -> ActualMeshJob {
     ActualMeshJob {
-        id: Cid::new_v1_dummy(0x55, 0x13, b"test_job_id"),
+        id: Cid::new_v1_sha256(0x55, b"test_job_id"),
         manifest_cid,
         spec: JobSpec::default(),
         creator_did,
@@ -157,7 +157,7 @@ async fn test_mesh_job_full_lifecycle_happy_path() {
     let job_manager_dag_store = get_dag_store(&arc_ctx_job_manager);
 
     // 1. SUBMISSION - Test the job submission flow
-    let manifest_cid = Cid::new_v1_dummy(0x55, 0x13, b"manifest_happy");
+    let manifest_cid = Cid::new_v1_sha256(0x55, b"manifest_happy");
     let job_cost = 20u64;
     let test_job = create_test_mesh_job(manifest_cid.clone(), job_cost, submitter_did.clone());
     let job_json_payload = serde_json::to_string(&test_job).unwrap();
@@ -246,7 +246,7 @@ async fn test_mesh_job_full_lifecycle_happy_path() {
     );
 
     // 4. Test receipt processing
-    let result_cid = Cid::new_v1_dummy(0x55, 0x13, b"result_happy");
+    let result_cid = Cid::new_v1_sha256(0x55, b"result_happy");
     let ctx_executor_for_signing = create_test_context(executor_did_str, 0);
 
     // Create the receipt and sign it using the public API
@@ -305,7 +305,7 @@ async fn test_mesh_job_full_lifecycle_happy_path() {
     let receipt_bytes =
         serde_json::to_vec(&retrieved_receipt).expect("Failed to serialize receipt");
     let block = DagBlock {
-        cid: Cid::new_v1_dummy(0x71, 0x12, &receipt_bytes),
+        cid: Cid::new_v1_sha256(0x71, &receipt_bytes),
         data: receipt_bytes,
         links: vec![],
     };
@@ -332,7 +332,7 @@ async fn test_mesh_job_timeout_and_refund() {
     let arc_ctx_job_manager = create_test_context("did:icn:test:job_manager_node_timeout", 0);
 
     // 1. Submit job
-    let manifest_cid = Cid::new_v1_dummy(0x55, 0x13, b"manifest_timeout");
+    let manifest_cid = Cid::new_v1_sha256(0x55, b"manifest_timeout");
     let test_job = create_test_mesh_job(manifest_cid.clone(), job_cost, submitter_did.clone());
     let job_json_payload = serde_json::to_string(&test_job).unwrap();
 
@@ -417,7 +417,7 @@ async fn test_invalid_receipt_wrong_executor() {
     let arc_ctx_job_manager = create_test_context("did:icn:test:job_manager_invalid_receipt", 0);
 
     // 1. Submit job
-    let manifest_cid = Cid::new_v1_dummy(0x55, 0x13, b"test_job_manifest_for_invalid_receipt");
+    let manifest_cid = Cid::new_v1_sha256(0x55, b"test_job_manifest_for_invalid_receipt");
     let test_job = create_test_mesh_job(manifest_cid.clone(), job_cost, submitter_did.clone());
     let job_json_payload = serde_json::to_string(&test_job).unwrap();
 
@@ -437,7 +437,7 @@ async fn test_invalid_receipt_wrong_executor() {
     let forged_receipt = IdentityExecutionReceipt {
         job_id: submitted_job_id.clone(),
         executor_did: wrong_executor_did.clone(), // Wrong executor DID
-        result_cid: Cid::new_v1_dummy(0x55, 0x13, b"result_invalid_executor"),
+        result_cid: Cid::new_v1_sha256(0x55, b"result_invalid_executor"),
         cpu_ms: 50,
         success: true,
         sig: SignatureBytes(signature_bytes),
@@ -477,7 +477,7 @@ async fn test_invalid_receipt_wrong_executor() {
     let correct_receipt = IdentityExecutionReceipt {
         job_id: submitted_job_id.clone(),
         executor_did: correct_executor_ctx.current_identity.clone(),
-        result_cid: Cid::new_v1_dummy(0x55, 0x13, b"result_invalid_executor"),
+        result_cid: Cid::new_v1_sha256(0x55, b"result_invalid_executor"),
         cpu_ms: 50,
         success: true,
         sig: SignatureBytes(correct_signature_bytes),
@@ -578,7 +578,7 @@ fn new_mesh_test_context_with_two_executors() -> (
 /// Convenience helper to create a simple test job JSON payload with a given
 /// cost and submitter.
 fn create_test_job_payload_and_cost(submitter: &Did, job_cost: u64) -> (String, u64) {
-    let manifest_cid = Cid::new_v1_dummy(0x55, 0x13, b"test_job_manifest");
+    let manifest_cid = Cid::new_v1_sha256(0x55, b"test_job_manifest");
     let test_job = create_test_mesh_job(manifest_cid, job_cost, submitter.clone());
     let job_json_payload = serde_json::to_string(&test_job).unwrap();
     (job_json_payload, job_cost)
@@ -711,7 +711,7 @@ async fn test_submit_mesh_job_with_custom_timeout() {
     let ctx = create_test_context("did:icn:test:timeout_custom", 50);
     let submitter_did = ctx.current_identity.clone();
 
-    let manifest_cid = Cid::new_v1_dummy(0x55, 0x13, b"manifest_timeout_field");
+    let manifest_cid = Cid::new_v1_sha256(0x55, b"manifest_timeout_field");
     let mut job = create_test_mesh_job(manifest_cid, 10, submitter_did.clone());
     job.max_execution_wait_ms = Some(1234);
     let job_json = serde_json::to_string(&job).unwrap();
@@ -735,7 +735,7 @@ async fn forge_execution_receipt(
     let receipt = IdentityExecutionReceipt {
         job_id: job_id.clone(),                                      // JobId is a Cid
         executor_did: forging_executor_ctx.current_identity.clone(), // Forger's DID
-        result_cid: Cid::new_v1_dummy(0x55, 0x13, result_cid_val),
+        result_cid: Cid::new_v1_sha256(0x55, result_cid_val),
         cpu_ms: 50,
         success: true,
         sig: SignatureBytes(Vec::new()), // Will be filled by the forger's context

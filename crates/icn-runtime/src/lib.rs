@@ -99,7 +99,7 @@ pub async fn host_submit_mesh_job(
     let job_id_val = context::NEXT_JOB_ID.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
     // Create a dummy CID for the JobId for now.
     // In a real scenario, this might be derived from the job content or other unique inputs.
-    let job_id_cid = Cid::new_v1_dummy(0x55, 0x13, format!("job_cid_{}", job_id_val).as_bytes());
+    let job_id_cid = Cid::new_v1_sha256(0x55, format!("job_cid_{}", job_id_val).as_bytes());
 
     job_to_submit.id = job_id_cid.clone();
     job_to_submit.creator_did = ctx.current_identity.clone();
@@ -368,8 +368,8 @@ mod tests {
     // Helper function to create a test ActualMeshJob with all required fields
     fn create_test_mesh_job(cost_mana: u64) -> ActualMeshJob {
         ActualMeshJob {
-            id: Cid::new_v1_dummy(0x55, 0x13, b"test_job_id"),
-            manifest_cid: Cid::new_v1_dummy(0x55, 0x12, b"test_manifest"),
+            id: Cid::new_v1_sha256(0x55, b"test_job_id"),
+            manifest_cid: Cid::new_v1_sha256(0x55, b"test_manifest"),
             spec: JobSpec::default(),
             creator_did: Did::from_str(TEST_IDENTITY_DID_STR).unwrap(),
             cost_mana,

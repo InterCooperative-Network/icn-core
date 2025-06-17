@@ -72,7 +72,7 @@ impl JobExecutor for SimpleExecutor {
             }
         };
 
-        let result_cid = Cid::new_v1_dummy(0x55, 0x12, &result_bytes);
+        let result_cid = Cid::new_v1_sha256(0x55, &result_bytes);
         let cpu_ms = start_time.elapsed().unwrap_or_default().as_millis() as u64;
 
         let unsigned_receipt = IdentityExecutionReceipt {
@@ -179,7 +179,7 @@ impl JobExecutor for WasmExecutor {
         let cpu_ms = start_time.elapsed().unwrap_or_default().as_millis() as u64;
 
         let result_bytes = result.to_le_bytes();
-        let result_cid = Cid::new_v1_dummy(0x55, 0x12, &result_bytes);
+        let result_cid = Cid::new_v1_sha256(0x55, &result_bytes);
 
         let unsigned_receipt = IdentityExecutionReceipt {
             job_id: job.id.clone(),
@@ -209,7 +209,7 @@ mod tests {
                            // Removed unused: serde_json::json, std::convert::TryInto, std::sync::Arc
 
     fn dummy_cid_for_executor_test(s: &str) -> Cid {
-        Cid::new_v1_dummy(0x55, 0x12, s.as_bytes())
+        Cid::new_v1_sha256(0x55, s.as_bytes())
     }
 
     #[tokio::test]

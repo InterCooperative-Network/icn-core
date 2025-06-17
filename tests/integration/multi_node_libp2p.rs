@@ -14,8 +14,8 @@ mod multi_node_libp2p {
     use log::info;
 
     fn create_test_job(job_id_suffix: &str, creator_did: &Did, cost_mana: u64) -> ActualMeshJob {
-        let job_id = Cid::new_v1_dummy(0x55, 0x13, format!("test_job_{}", job_id_suffix).as_bytes());
-        let manifest_cid = Cid::new_v1_dummy(0x55, 0x14, format!("manifest_{}", job_id_suffix).as_bytes());
+        let job_id = Cid::new_v1_sha256(0x55, format!("test_job_{}", job_id_suffix).as_bytes());
+        let manifest_cid = Cid::new_v1_sha256(0x55, format!("manifest_{}", job_id_suffix).as_bytes());
         ActualMeshJob {
             id: job_id,
             manifest_cid,

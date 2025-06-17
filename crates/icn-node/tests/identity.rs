@@ -1,6 +1,5 @@
 use icn_node::config::NodeConfig;
 use icn_node::node::load_or_generate_identity;
-use std::path::PathBuf;
 use tempfile::tempdir;
 
 #[tokio::test]

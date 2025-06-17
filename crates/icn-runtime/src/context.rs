@@ -1016,7 +1016,7 @@ impl RuntimeContext {
         })?;
 
         let block = DagBlock {
-            cid: Cid::new_v1_dummy(0x71, 0x12, &final_receipt_bytes),
+            cid: Cid::new_v1_sha256(0x71, &final_receipt_bytes),
             data: final_receipt_bytes,
             links: vec![],
         };
@@ -1441,7 +1441,7 @@ impl HostEnvironment for ConcreteHostEnvironment {
         let cid = rt.block_on(async {
             ctx.spend_mana(&ctx.current_identity, job.cost_mana).await?;
             let job_id_val = NEXT_JOB_ID.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-            let cid = Cid::new_v1_dummy(0x55, 0x13, format!("job_cid_{job_id_val}").as_bytes());
+            let cid = Cid::new_v1_sha256(0x55, format!("job_cid_{job_id_val}").as_bytes());
             job.id = cid.clone();
             job.creator_did = ctx.current_identity.clone();
             ctx.internal_queue_mesh_job(job).await?;
@@ -1770,8 +1770,8 @@ mod tests {
         };
 
         let job = ActualMeshJob {
-            id: Cid::new_v1_dummy(0x55, 0x13, b"job"),
-            manifest_cid: Cid::new_v1_dummy(0x55, 0x12, b"manifest"),
+            id: Cid::new_v1_sha256(0x55, b"job"),
+            manifest_cid: Cid::new_v1_sha256(0x55, b"manifest"),
             spec: icn_mesh::JobSpec::default(),
             creator_did: ctx.current_identity.clone(),
             cost_mana: 10,
@@ -1884,8 +1884,8 @@ mod tests {
             .expect("stub network");
 
         let job = ActualMeshJob {
-            id: Cid::new_v1_dummy(0x55, 0x13, b"job_update"),
-            manifest_cid: Cid::new_v1_dummy(0x55, 0x12, b"man"),
+            id: Cid::new_v1_sha256(0x55, b"job_update"),
+            manifest_cid: Cid::new_v1_sha256(0x55, b"man"),
             spec: icn_mesh::JobSpec::default(),
             creator_did: Did::from_str("did:icn:test:creator").unwrap(),
             cost_mana: 5,
@@ -1896,7 +1896,7 @@ mod tests {
         let receipt = IdentityExecutionReceipt {
             job_id: job.id.clone(),
             executor_did: ctx.current_identity.clone(),
-            result_cid: Cid::new_v1_dummy(0x55, 0x13, b"res"),
+            result_cid: Cid::new_v1_sha256(0x55, b"res"),
             cpu_ms: 1,
             success: true,
             sig: icn_identity::SignatureBytes(Vec::new()),

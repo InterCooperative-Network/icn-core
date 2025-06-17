@@ -207,20 +207,6 @@ pub struct Cid {
 }
 
 impl Cid {
-    // TODO: Implement proper CID creation from data, parsing from string, etc.
-    // This is a simplified constructor for now.
-    pub fn new_v1_dummy(codec: u64, hash_alg: u64, data: &[u8]) -> Self {
-        // In a real scenario, you'd hash the data using the specified hash_alg
-        // For now, let's just use a slice of the data as a mock hash
-        let hash_bytes = data.iter().take(32).cloned().collect();
-        Cid {
-            version: 1,
-            codec,
-            hash_alg,
-            hash_bytes,
-        }
-    }
-
     /// Create a CID using SHA-256 of the provided data bytes.
     pub fn new_v1_sha256(codec: u64, data: &[u8]) -> Self {
         use sha2::{Digest, Sha256};
@@ -232,68 +218,79 @@ impl Cid {
             hash_bytes,
         }
     }
-    pub fn to_string_approx(&self) -> String {
-        // This is a highly simplified string representation, not a real Base58BTC or Base32 CID string.
-        // Using bs58 encoding of the hash bytes to make it more unique for filenames.
-        format!(
-            "cidv{}-{}-{}-{}",
-            self.version,
-            self.codec,
-            self.hash_alg,
-            bs58::encode(&self.hash_bytes).into_string()
-        )
+
+    /// Create a [`Cid`] from varint-packed bytes.
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, CommonError> {
+        use unsigned_varint::decode as varint_decode;
+
+        let (version, rest) = varint_decode::u64(bytes).map_err(|e| {
+            CommonError::InvalidInputError(format!("Failed to decode version: {e}"))
+        })?;
+        let (codec, rest) = varint_decode::u64(rest)
+            .map_err(|e| CommonError::InvalidInputError(format!("Failed to decode codec: {e}")))?;
+
+        let (hash_alg, hash_bytes) = varint_decode::u64(rest).map_err(|e| {
+            CommonError::InvalidInputError(format!("Failed to decode hash_alg: {e}"))
+        })?;
+
+        // Validate codecs using `multicodec` table
+        multicodec::Codec::from_code(codec as u16)
+            .map_err(|e| CommonError::InvalidInputError(format!("Invalid codec: {e}")))?;
+        multicodec::Codec::from_code(hash_alg as u16)
+            .map_err(|e| CommonError::InvalidInputError(format!("Invalid hash code: {e}")))?;
+
+        Ok(Cid {
+            version,
+            codec,
+            hash_alg,
+            hash_bytes: hash_bytes.to_vec(),
+        })
+    }
+
+    /// Return the multibase-encoded string representation of this CID.
+    #[allow(clippy::inherent_to_string_shadow_display)]
+    pub fn to_string(&self) -> String {
+        use multibase::{encode as mb_encode, Base};
+        use unsigned_varint::encode as varint_encode;
+
+        let mut buf = Vec::new();
+        let mut tmp = varint_encode::u64_buffer();
+        buf.extend_from_slice(varint_encode::u64(self.version, &mut tmp));
+        buf.extend_from_slice(varint_encode::u64(self.codec, &mut tmp));
+
+        let codec_enum = multicodec::Codec::from_code(self.hash_alg as u16)
+            .unwrap_or(multicodec::Codec::Sha2_256);
+        let mc = multicodec::MultiCodec::new(codec_enum, &self.hash_bytes);
+        buf.extend(mc.pack());
+
+        mb_encode(Base::Base32Lower, buf)
     }
 }
 
-/// Parse a CID previously produced by [`Cid::to_string_approx`].
-///
-/// This expects the format `cidv{{version}}-{{codec}}-{{hash_alg}}-{{base58_hash}}`.
+/// Parse a CID previously produced by [`Cid::to_string`].
 pub fn parse_cid_from_string(cid_str: &str) -> Result<Cid, CommonError> {
+    use multibase::Base;
+
     if cid_str.is_empty() {
         return Err(CommonError::InvalidInputError(
             "Empty CID string".to_string(),
         ));
     }
 
-    let parts: Vec<&str> = cid_str.split('-').collect();
-    if parts.len() != 4 {
+    let (base, data) = multibase::decode(cid_str)
+        .map_err(|e| CommonError::InvalidInputError(format!("Invalid multibase CID: {e}")))?;
+    if base != Base::Base32Lower {
         return Err(CommonError::InvalidInputError(format!(
-            "Invalid CID format: expected 4 parts separated by '-', got {}",
-            parts.len()
+            "Unsupported base: {base:?}"
         )));
     }
 
-    let version_str = parts[0]
-        .strip_prefix("cidv")
-        .ok_or_else(|| CommonError::InvalidInputError("Missing 'cidv' prefix".to_string()))?;
-    let version: u64 = version_str
-        .parse()
-        .map_err(|e| CommonError::InvalidInputError(format!("Invalid version: {e}")))?;
-
-    let codec: u64 = parts[1]
-        .parse()
-        .map_err(|e| CommonError::InvalidInputError(format!("Invalid codec: {e}")))?;
-
-    let hash_alg: u64 = parts[2]
-        .parse()
-        .map_err(|e| CommonError::InvalidInputError(format!("Invalid hash_alg: {e}")))?;
-
-    let hash_bytes = bs58::decode(parts[3])
-        .into_vec()
-        .map_err(|e| CommonError::InvalidInputError(format!("Invalid base58 hash: {e}")))?;
-
-    Ok(Cid {
-        version,
-        codec,
-        hash_alg,
-        hash_bytes,
-    })
+    Cid::from_bytes(&data)
 }
 
 impl fmt::Display for Cid {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // Using the more unique approximate string representation.
-        write!(f, "{}", self.to_string_approx())
+        write!(f, "{}", self.to_string())
     }
 }
 
@@ -458,26 +455,26 @@ mod tests {
 
     #[test]
     fn cid_creation_and_to_string() {
-        let cid = Cid::new_v1_dummy(0x71, 0x12, b"hello world"); // 0x71 = dag-cbor, 0x12 = sha2-256
+        let cid = Cid::new_v1_sha256(0x71, b"hello world"); // 0x71 = dag-cbor, 0x12 = sha2-256
         assert_eq!(cid.version, 1);
         assert_eq!(cid.codec, 0x71);
         assert_eq!(cid.hash_alg, 0x12);
-        assert_eq!(cid.hash_bytes.len(), 11); // "hello world" is 11 bytes, it takes min(data.len(), 32)
-        println!("Dummy CID string: {}", cid.to_string_approx());
-        assert!(cid.to_string_approx().starts_with("cidv1-113-18-"));
+        assert_eq!(cid.hash_bytes.len(), 32);
+        println!("CID string: {}", cid.to_string());
+        assert!(cid.to_string().starts_with('b')); // base32 lower multibase prefix
         let serialized = serde_json::to_string(&cid).unwrap();
         assert!(serialized.contains("hash_bytes"));
     }
 
     #[test]
     fn dag_block_creation() {
-        let link_cid = Cid::new_v1_dummy(0x71, 0x12, b"linked data");
+        let link_cid = Cid::new_v1_sha256(0x71, b"linked data");
         let link = DagLink {
             cid: link_cid.clone(),
             name: "child".to_string(),
             size: 100, // Dummy size
         };
-        let block_cid = Cid::new_v1_dummy(0x71, 0x12, b"main data");
+        let block_cid = Cid::new_v1_sha256(0x71, b"main data");
         let block = DagBlock {
             cid: block_cid.clone(),
             data: b"main data".to_vec(),
@@ -512,8 +509,8 @@ mod tests {
 
     #[test]
     fn cid_round_trip_parse_and_to_string() {
-        let cid = Cid::new_v1_dummy(0x71, 0x12, b"round trip test");
-        let cid_str = cid.to_string_approx();
+        let cid = Cid::new_v1_sha256(0x71, b"round trip test");
+        let cid_str = cid.to_string();
         let parsed = parse_cid_from_string(&cid_str).expect("failed to parse cid");
         assert_eq!(cid, parsed);
     }

@@ -491,7 +491,7 @@ mod tests {
 
     // Helper to create a dummy Cid for tests
     fn dummy_cid(s: &str) -> Cid {
-        Cid::new_v1_dummy(0x55, 0x12, s.as_bytes())
+        Cid::new_v1_sha256(0x55, s.as_bytes())
     }
 
     #[test]

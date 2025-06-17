@@ -361,9 +361,9 @@ mod tests {
 
     // Helper to create a dummy Cid for tests
     fn dummy_cid_for_test(s: &str) -> Cid {
-        // Using raw codec (0x55) and SHA2-256 (multihash code 0x12) as example parameters for new_v1_dummy.
+        // Using raw codec (0x55) and SHA2-256 (multihash code 0x12) as example parameters for new_v1_sha256.
         // These values might need adjustment based on specific requirements for dummy CIDs in ICN.
-        icn_common::Cid::new_v1_dummy(0x55, 0x12, s.as_bytes())
+        icn_common::Cid::new_v1_sha256(0x55, s.as_bytes())
     }
 
     #[test]

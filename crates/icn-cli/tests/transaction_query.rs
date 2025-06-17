@@ -41,7 +41,7 @@ async fn submit_transaction_and_query_data() {
 
     // Put a DAG block then query it
     let block = DagBlock {
-        cid: Cid::new_v1_dummy(0x71, 0x12, b"data"),
+        cid: Cid::new_v1_sha256(0x71, b"data"),
         data: b"data".to_vec(),
         links: vec![],
     };
