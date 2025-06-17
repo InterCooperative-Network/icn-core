@@ -115,6 +115,19 @@ impl WasmExecutor {
             engine: wasmtime::Engine::default(),
         }
     }
+
+    /// Executes the given job using [`execute_job`] and immediately anchors the
+    /// resulting receipt via the associated [`RuntimeContext`].
+    pub async fn execute_and_anchor_job(
+        &self,
+        job: &ActualMeshJob,
+    ) -> Result<Cid, crate::context::HostAbiError> {
+        let receipt = self
+            .execute_job(job)
+            .await
+            .map_err(crate::context::HostAbiError::Common)?;
+        self.ctx.anchor_receipt(&receipt).await
+    }
 }
 
 #[async_trait::async_trait]

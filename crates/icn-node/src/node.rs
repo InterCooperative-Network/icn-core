@@ -1419,4 +1419,100 @@ mod tests {
         let list_text = String::from_utf8_lossy(&list_body);
         println!("List response body: {}", list_text);
     }
+
+    #[tokio::test]
+    async fn wasm_contract_execution_via_http() {
+        use icn_ccl::compile_ccl_source_to_wasm;
+        use icn_identity::{did_key_from_verifying_key, generate_ed25519_keypair};
+        use icn_runtime::executor::WasmExecutor;
+
+        let (app, ctx) = app_router_with_options(None, None, None).await;
+
+        // Compile a tiny CCL contract
+        let (wasm, _) =
+            compile_ccl_source_to_wasm("fn run() -> Integer { return 7; }").expect("compile ccl");
+
+        // Store WASM in DAG via HTTP
+        let put_req = Request::builder()
+            .method("POST")
+            .uri("/dag/put")
+            .header("content-type", "application/json")
+            .body(Body::from(
+                serde_json::to_vec(&serde_json::json!({ "data": wasm })).unwrap(),
+            ))
+            .unwrap();
+        let put_resp = app.clone().oneshot(put_req).await.unwrap();
+        assert_eq!(put_resp.status(), StatusCode::CREATED);
+        let cid_bytes = axum::body::to_bytes(put_resp.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let wasm_cid: Cid = serde_json::from_slice(&cid_bytes).unwrap();
+
+        // Submit job referencing the WASM CID
+        let job_req = SubmitJobRequest {
+            manifest_cid: wasm_cid.to_string(),
+            spec_json: serde_json::json!("GenericPlaceholder"),
+            cost_mana: 0,
+        };
+        let job_req_json = serde_json::to_string(&job_req).unwrap();
+        let submit_resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/mesh/submit")
+                    .header("content-type", "application/json")
+                    .body(Body::from(job_req_json))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(submit_resp.status(), StatusCode::ACCEPTED);
+        let body = axum::body::to_bytes(submit_resp.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let submit_json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        let job_id: Cid = serde_json::from_str(submit_json["job_id"].as_str().unwrap()).unwrap();
+
+        // Execute the job using WasmExecutor and anchor the receipt
+        let (sk, vk) = generate_ed25519_keypair();
+        let exec_did = did_key_from_verifying_key(&vk);
+        let exec_did = Did::from_str(&exec_did).unwrap();
+        let executor = WasmExecutor::new(ctx.clone(), exec_did.clone(), sk);
+        let job = ActualMeshJob {
+            id: job_id.clone(),
+            manifest_cid: wasm_cid.clone(),
+            spec: JobSpec::GenericPlaceholder,
+            creator_did: ctx.current_identity.clone(),
+            cost_mana: 0,
+            max_execution_wait_ms: None,
+            signature: SignatureBytes(vec![]),
+        };
+        let receipt_cid = executor
+            .execute_and_anchor_job(&job)
+            .await
+            .expect("exec and anchor");
+
+        // Fetch the anchored receipt via HTTP
+        let get_req = Request::builder()
+            .method("POST")
+            .uri("/dag/get")
+            .header("content-type", "application/json")
+            .body(Body::from(
+                serde_json::to_vec(&serde_json::json!({
+                    "cid": receipt_cid.to_string()
+                }))
+                .unwrap(),
+            ))
+            .unwrap();
+        let get_resp = app.clone().oneshot(get_req).await.unwrap();
+        assert_eq!(get_resp.status(), StatusCode::OK);
+        let receipt_bytes = axum::body::to_bytes(get_resp.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let receipt: icn_identity::ExecutionReceipt =
+            serde_json::from_slice(&receipt_bytes).unwrap();
+        assert_eq!(receipt.job_id, job_id);
+        assert_eq!(receipt.executor_did, exec_did);
+    }
 }
