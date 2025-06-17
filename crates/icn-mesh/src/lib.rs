@@ -621,12 +621,14 @@ mod tests {
             executor_did: high_rep.clone(),
             price_mana: 50,
             resources: Resources::default(),
+            signature: SignatureBytes(vec![]),
         };
         let bid_cheap = MeshJobBid {
             job_id: job_id.clone(),
             executor_did: cheap.clone(),
             price_mana: 5,
             resources: Resources::default(),
+            signature: SignatureBytes(vec![]),
         };
 
         let policy = SelectionPolicy {
@@ -665,12 +667,14 @@ mod tests {
             executor_did: a.clone(),
             price_mana: 10,
             resources: Resources::default(),
+            signature: SignatureBytes(vec![]),
         };
         let bid_b = MeshJobBid {
             job_id: job_id.clone(),
             executor_did: b.clone(),
             price_mana: 10,
             resources: Resources::default(),
+            signature: SignatureBytes(vec![]),
         };
 
         let policy = SelectionPolicy::default();
