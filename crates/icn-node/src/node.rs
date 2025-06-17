@@ -1501,7 +1501,7 @@ mod tests {
         let job = ActualMeshJob {
             id: job_id.clone(),
             manifest_cid: wasm_cid.clone(),
-            spec: JobSpec::GenericPlaceholder,
+            spec: JobSpec::default(),
             creator_did: ctx.current_identity.clone(),
             cost_mana: 0,
             max_execution_wait_ms: None,

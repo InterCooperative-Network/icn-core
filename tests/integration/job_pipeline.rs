@@ -7,7 +7,7 @@ use icn_runtime::{
     context::{RuntimeContext, StubSigner, StubMeshNetworkService, RuntimeStubDagStore}, // Corrected: RuntimeStubDagStore
     host_submit_mesh_job,
 };
-use icn_mesh::{JobSpec, JobState}; // Added JobState
+use icn_mesh::{JobKind, JobSpec, JobState}; // Added JobState
 use serde_json::json;
 use tokio::time::sleep;
 use tokio::sync::Mutex;
@@ -31,7 +31,10 @@ async fn end_to_end_mesh_job_execution() {
     ctx.spawn_mesh_job_manager().await;
 
     // 2. Submit a basic Echo job
-    let job_spec = JobSpec::Echo { payload: "hello world".to_owned() }; // Assumes JobSpec::Echo variant
+    let job_spec = JobSpec {
+        kind: JobKind::Echo { payload: "hello world".to_owned() },
+        ..Default::default()
+    };
     let manifest_cid = "bafybeigdyrzt7dpbrm3kmhgtr5mk6yzqq3wj7owxsbs2hlkzbfio4ilv5e"; // any CID string
     
     // Constructing the JSON payload for ActualMeshJob as expected by host_submit_mesh_job

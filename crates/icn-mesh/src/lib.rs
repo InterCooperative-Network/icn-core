@@ -52,7 +52,7 @@ impl std::error::Error for MeshError {}
 // For now, let's use a simple type alias or placeholder
 pub type JobId = Cid;
 /// Execution resource capabilities offered in a bid.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Resources {
     /// Number of CPU cores available for the job.
     pub cpu_cores: u32,
@@ -127,18 +127,30 @@ impl ActualMeshJob {
     }
 }
 
-/// Detailed specification for a mesh job.
-/// TODO: Define fields for inputs, outputs, resource requirements, timeouts, etc.
+/// Job types supported by the mesh.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
-pub enum JobSpec {
-    Echo {
-        payload: String,
-    },
-    // Add other variants as needed, e.g.:
-    // Generic { command: String, args: Vec<String> },
-    // Wasm { module_cid: Cid, entry_function: String, params: Vec<Value> },
+pub enum JobKind {
+    /// Simple echo job used in tests.
+    Echo { payload: String },
+    /// Placeholder variant until more job kinds are implemented.
     #[default]
-    GenericPlaceholder, // Placeholder until more types are defined
+    GenericPlaceholder,
+}
+
+/// Detailed specification for a mesh job.
+/// Includes the job kind, resource requirements, and an optional timeout in
+/// milliseconds for execution.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct JobSpec {
+    /// The logical type of job being requested.
+    pub kind: JobKind,
+    /// Minimum resources required to execute the job.
+    #[serde(default)]
+    pub resources: Resources,
+    /// Maximum runtime for the job in milliseconds. `None` means no explicit
+    /// limit beyond the executor's policy.
+    #[serde(default)]
+    pub timeout_ms: Option<u64>,
 }
 
 /// Represents a bid submitted by an executor node for a specific mesh job.
@@ -466,7 +478,7 @@ mod tests {
         let job_unsigned = ActualMeshJob {
             id: job_id.clone(),
             manifest_cid: manifest_cid.clone(),
-            spec: JobSpec::GenericPlaceholder,
+            spec: JobSpec::default(),
             creator_did: creator_did.clone(),
             cost_mana: 100,
             max_execution_wait_ms: None,

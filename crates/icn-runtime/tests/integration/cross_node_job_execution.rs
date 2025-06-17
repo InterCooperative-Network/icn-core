@@ -15,7 +15,7 @@ mod cross_node_tests {
     use icn_runtime::executor::{SimpleExecutor, JobExecutor};
     use icn_common::{Did, Cid};
     use icn_identity::{SignatureBytes, generate_ed25519_keypair};
-    use icn_mesh::{ActualMeshJob, MeshJobBid, JobSpec, Resources};
+    use icn_mesh::{ActualMeshJob, JobKind, MeshJobBid, JobSpec, Resources};
     use icn_network::{NetworkMessage, NetworkService};
     use std::str::FromStr;
     use std::sync::Arc;
@@ -31,7 +31,10 @@ mod cross_node_tests {
         ActualMeshJob {
             id: job_id,
             manifest_cid,
-            spec: JobSpec::Echo { payload: format!("Cross-node test job {}", job_id_suffix) },
+            spec: JobSpec {
+                kind: JobKind::Echo { payload: format!("Cross-node test job {}", job_id_suffix) },
+                ..Default::default()
+            },
             creator_did: creator_did.clone(),
             cost_mana,
             max_execution_wait_ms: None,

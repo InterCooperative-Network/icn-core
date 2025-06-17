@@ -6,7 +6,7 @@ use icn_identity::{
     SignatureBytes, /* Removed , generate_ed25519_keypair */
     SigningKey,
 };
-use icn_mesh::{ActualMeshJob, JobSpec /* ... other mesh types ... */};
+use icn_mesh::{ActualMeshJob, JobKind, JobSpec /* ... other mesh types ... */};
 use log::info; // Removed error
 use std::time::SystemTime;
 
@@ -50,12 +50,12 @@ impl JobExecutor for SimpleExecutor {
         );
         let start_time = SystemTime::now();
 
-        let result_bytes = match &job.spec {
-            JobSpec::Echo { payload } => {
+        let result_bytes = match &job.spec.kind {
+            JobKind::Echo { payload } => {
                 info!("[SimpleExecutor] Executing echo job: {:?}", job.id);
                 format!("Echo: {}", payload).into_bytes()
             }
-            JobSpec::GenericPlaceholder => {
+            JobKind::GenericPlaceholder => {
                 info!(
                     "[SimpleExecutor] Executing hash job (placeholder): {:?}",
                     job.id
@@ -226,9 +226,12 @@ mod tests {
         let job = ActualMeshJob {
             id: job_id.clone(),
             manifest_cid,
-            spec: JobSpec::Echo {
-                payload: "Hello Echo Test".to_string(),
-            }, // Corrected JobSpec usage
+            spec: JobSpec {
+                kind: JobKind::Echo {
+                    payload: "Hello Echo Test".to_string(),
+                },
+                ..Default::default()
+            },
             creator_did: Did::from_str("did:example:jobcreator").unwrap(),
             cost_mana: 10,
             max_execution_wait_ms: None,
@@ -258,8 +261,11 @@ mod tests {
         let job = ActualMeshJob {
             id: dummy_cid_for_executor_test("job1"),
             manifest_cid: dummy_cid_for_executor_test("manifest1"),
-            spec: JobSpec::Echo {
-                payload: "hello".to_string(),
+            spec: JobSpec {
+                kind: JobKind::Echo {
+                    payload: "hello".to_string(),
+                },
+                ..Default::default()
             },
             creator_did: Did::from_str("did:example:jobcreator").unwrap(),
             cost_mana: 10,
