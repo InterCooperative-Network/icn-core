@@ -184,7 +184,7 @@ impl SemanticAnalyzer {
                 let expected = self.current_return_type.clone().ok_or_else(|| {
                     CclError::InternalCompilerError("Return outside function".to_string())
                 })?;
-                if expr_ty != expected {
+                if !expr_ty.compatible_with(&expected) {
                     return Err(CclError::TypeError(format!(
                         "Return type mismatch: expected {:?}, got {:?}",
                         expected, expr_ty
@@ -261,7 +261,7 @@ impl SemanticAnalyzer {
                         }
                         for (arg_expr, param_ty) in arguments.iter().zip(params.iter()) {
                             let arg_ty = self.evaluate_expression(arg_expr)?;
-                            if &arg_ty != param_ty {
+                            if !arg_ty.compatible_with(param_ty) {
                                 return Err(CclError::TypeError(format!(
                                     "Argument type mismatch for `{}`: expected {:?}, got {:?}",
                                     name, param_ty, arg_ty
@@ -292,7 +292,7 @@ impl SemanticAnalyzer {
                     | BinaryOperator::Sub
                     | BinaryOperator::Mul
                     | BinaryOperator::Div => {
-                        if l == TypeAnnotationNode::Integer && r == TypeAnnotationNode::Integer {
+                        if l.is_numeric() && r.is_numeric() {
                             Ok(TypeAnnotationNode::Integer)
                         } else {
                             Err(CclError::TypeError(
@@ -301,7 +301,7 @@ impl SemanticAnalyzer {
                         }
                     }
                     BinaryOperator::Eq | BinaryOperator::Neq => {
-                        if l == r {
+                        if l.compatible_with(&r) {
                             Ok(TypeAnnotationNode::Bool)
                         } else {
                             Err(CclError::TypeError(
@@ -313,7 +313,7 @@ impl SemanticAnalyzer {
                     | BinaryOperator::Gt
                     | BinaryOperator::Lte
                     | BinaryOperator::Gte => {
-                        if l == TypeAnnotationNode::Integer && r == TypeAnnotationNode::Integer {
+                        if l.is_numeric() && r.is_numeric() {
                             Ok(TypeAnnotationNode::Bool)
                         } else {
                             Err(CclError::TypeError(
