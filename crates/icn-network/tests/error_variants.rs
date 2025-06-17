@@ -7,8 +7,10 @@ mod error_variants {
 
     #[tokio::test]
     async fn handshake_error_on_zero_timeout() {
-        let mut config = NetworkConfig::default();
-        config.connection_timeout = std::time::Duration::from_secs(0);
+        let config = NetworkConfig {
+            connection_timeout: std::time::Duration::from_secs(0),
+            ..Default::default()
+        };
         match Libp2pNetworkService::new(config).await {
             Err(MeshNetworkError::HandshakeFailed(_)) => {}
             other => panic!("unexpected result: {other:?}"),
