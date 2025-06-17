@@ -748,6 +748,100 @@ async fn forge_execution_receipt(
     receipt // Returns the signed receipt
 }
 
+#[tokio::test]
+async fn test_job_submission_to_completion_via_manager() {
+    let network: Arc<StubMeshNetworkService> = Arc::new(StubMeshNetworkService::new());
+    let dag_store: Arc<TokioMutex<dyn StorageService<DagBlock> + Send>> =
+        Arc::new(TokioMutex::new(StubDagStore::new()));
+
+    let submitter_ctx = RuntimeContext::new(
+        Did::from_str("did:icn:test:submitter_flow").unwrap(),
+        network.clone(),
+        Arc::new(StubSigner::new()),
+        Arc::new(icn_identity::KeyDidResolver),
+        dag_store.clone(),
+    );
+    submitter_ctx
+        .mana_ledger
+        .set_balance(&submitter_ctx.current_identity, 50)
+        .unwrap();
+
+    let executor_ctx = RuntimeContext::new(
+        Did::from_str("did:icn:test:executor_flow").unwrap(),
+        network.clone(),
+        Arc::new(StubSigner::new()),
+        Arc::new(icn_identity::KeyDidResolver),
+        dag_store.clone(),
+    );
+
+    let manager_ctx = RuntimeContext::new(
+        Did::from_str("did:icn:test:manager_flow").unwrap(),
+        network.clone(),
+        Arc::new(StubSigner::new()),
+        Arc::new(icn_identity::KeyDidResolver),
+        dag_store.clone(),
+    );
+
+    let manifest_cid = Cid::new_v1_sha256(0x55, b"manifest_flow");
+    let mut job = create_test_mesh_job(manifest_cid, 20, submitter_ctx.current_identity.clone());
+    let job_json = serde_json::to_string(&job).unwrap();
+    let job_id = host_submit_mesh_job(&submitter_ctx, &job_json)
+        .await
+        .unwrap();
+
+    job.id = job_id.clone();
+    manager_ctx.queue_mesh_job(job.clone()).await.unwrap();
+    manager_ctx.clone().spawn_mesh_job_manager().await;
+
+    let bid = create_test_bid(&job_id, &executor_ctx, 10);
+    network.stage_bid(job_id.clone(), bid).await;
+
+    for _ in 0..10 {
+        if let Some(JobState::Assigned { .. }) = manager_ctx.job_states.lock().await.get(&job_id) {
+            break;
+        }
+        sleep(Duration::from_millis(200)).await;
+    }
+
+    let unsigned_receipt = IdentityExecutionReceipt {
+        job_id: job_id.clone(),
+        executor_did: executor_ctx.current_identity.clone(),
+        result_cid: Cid::new_v1_sha256(0x55, b"result_flow"),
+        cpu_ms: 1,
+        success: true,
+        sig: SignatureBytes(Vec::new()),
+    };
+    let sig = executor_ctx
+        .signer
+        .sign(&unsigned_receipt.to_signable_bytes().unwrap())
+        .unwrap();
+    let receipt = IdentityExecutionReceipt {
+        sig: SignatureBytes(sig),
+        ..unsigned_receipt
+    };
+    network
+        .stage_receipt(LocalMeshSubmitReceiptMessage { receipt })
+        .await;
+
+    for _ in 0..20 {
+        if matches!(
+            manager_ctx.job_states.lock().await.get(&job_id),
+            Some(JobState::Completed { .. })
+        ) {
+            break;
+        }
+        sleep(Duration::from_millis(200)).await;
+    }
+
+    let states = manager_ctx.job_states.lock().await;
+    match states.get(&job_id) {
+        Some(JobState::Completed { receipt }) => {
+            assert_eq!(receipt.executor_did, executor_ctx.current_identity);
+        }
+        other => panic!("Job not completed: {:?}", other),
+    }
+}
+
 #[cfg(feature = "enable-libp2p")]
 #[tokio::test]
 #[ignore = "Blocked on environment/macro/import issues, particularly with libp2p Kademlia types and tokio/serde macros in dependent crates."]

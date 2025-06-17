@@ -636,6 +636,50 @@ impl RuntimeContext {
         Ok(())
     }
 
+    /// Public helper to queue a mesh job for processing.
+    /// This simply wraps [`internal_queue_mesh_job`] for external callers.
+    pub async fn queue_mesh_job(&self, job: ActualMeshJob) -> Result<(), HostAbiError> {
+        self.internal_queue_mesh_job(job).await
+    }
+
+    /// Assigns the given job to an executor and notifies via [`MeshNetworkService`].
+    pub async fn assign_job_to_executor(
+        &self,
+        job_id: JobId,
+        executor: Did,
+    ) -> Result<(), HostAbiError> {
+        {
+            let mut states = self.job_states.lock().await;
+            states.insert(
+                job_id.clone(),
+                JobState::Assigned {
+                    executor: executor.clone(),
+                },
+            );
+        }
+        let notice = JobAssignmentNotice {
+            job_id,
+            executor_did: executor,
+        };
+        self.mesh_network_service
+            .notify_executor_of_assignment(&notice)
+            .await
+    }
+
+    /// Verifies the signature of an [`ExecutionReceipt`] using the context's [`DidResolver`].
+    pub fn verify_receipt_signature(
+        &self,
+        receipt: &IdentityExecutionReceipt,
+    ) -> Result<(), HostAbiError> {
+        let vk = self
+            .did_resolver
+            .resolve(&receipt.executor_did)
+            .map_err(HostAbiError::Common)?;
+        receipt
+            .verify_against_key(&vk)
+            .map_err(|e| HostAbiError::SignatureError(format!("{e}")))
+    }
+
     async fn wait_for_and_process_receipt(
         self: Arc<Self>,
         job: ActualMeshJob,
@@ -662,27 +706,12 @@ impl RuntimeContext {
                     job.id, receipt
                 );
 
-                // Resolve executor verifying key and verify the receipt.
-                match self.did_resolver.resolve(&receipt.executor_did) {
-                    Ok(vk) => {
-                        if let Err(e) = receipt.verify_against_key(&vk) {
-                            error!(
-                                "[JobManagerDetail] Receipt signature VERIFICATION FAILED for job {:?}: {}",
-                                job.id, e
-                            );
-                            return Err(HostAbiError::SignatureError(format!(
-                                "Invalid receipt signature: {}",
-                                e
-                            )));
-                        }
-                    }
-                    Err(e) => {
-                        error!(
-                            "[JobManagerDetail] Failed to resolve DID {:?}: {}",
-                            receipt.executor_did, e
-                        );
-                        return Err(HostAbiError::Common(e));
-                    }
+                if let Err(e) = self.verify_receipt_signature(&receipt) {
+                    error!(
+                        "[JobManagerDetail] Receipt signature VERIFICATION FAILED for job {:?}: {}",
+                        job.id, e
+                    );
+                    return Err(e);
                 }
 
                 match self.anchor_receipt(&receipt).await {
@@ -997,18 +1026,8 @@ impl RuntimeContext {
             receipt.job_id, receipt.executor_did
         );
 
-        // Resolve the executor's verifying key via the provided DidResolver.
-        let verifying_key = self
-            .did_resolver
-            .resolve(&receipt.executor_did)
-            .map_err(HostAbiError::Common)?;
-
-        receipt.verify_against_key(&verifying_key).map_err(|e| {
-            HostAbiError::SignatureError(format!(
-                "Receipt signature verification failed for job {:?}, executor {:?}: {}",
-                receipt.job_id, receipt.executor_did, e
-            ))
-        })?;
+        // Verify the receipt signature using the context's resolver.
+        self.verify_receipt_signature(receipt)?;
 
         // If signature is valid, store the receipt in DAG
         let final_receipt_bytes = serde_json::to_vec(receipt).map_err(|e| {
