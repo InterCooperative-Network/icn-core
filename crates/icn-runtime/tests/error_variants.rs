@@ -31,3 +31,33 @@ fn host_abi_invalid_params_maps_to_invalid_spec() {
         _ => panic!("Unexpected mapping: {mesh_err:?}"),
     }
 }
+
+#[test]
+fn host_abi_signature_error_maps_to_signature_error() {
+    let err = HostAbiError::SignatureError("bad sig".to_string());
+    let mesh_err: MeshJobError = err.into();
+    match mesh_err {
+        MeshJobError::SignatureError {
+            job_id: None,
+            reason,
+        } => {
+            assert_eq!(reason, "bad sig");
+        }
+        _ => panic!("Unexpected mapping: {mesh_err:?}"),
+    }
+}
+
+#[test]
+fn host_abi_dag_error_maps_to_dag_operation_failed() {
+    let err = HostAbiError::DagOperationFailed("write failed".to_string());
+    let mesh_err: MeshJobError = err.into();
+    match mesh_err {
+        MeshJobError::DagOperationFailed {
+            job_id: None,
+            reason,
+        } => {
+            assert_eq!(reason, "write failed");
+        }
+        _ => panic!("Unexpected mapping: {mesh_err:?}"),
+    }
+}

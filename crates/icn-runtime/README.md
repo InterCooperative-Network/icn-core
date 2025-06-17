@@ -31,6 +31,32 @@ closed via `host_close_governance_proposal_voting`, returning the final
 `host_execute_governance_proposal`, which updates the stored proposal and member
 set.
 
+## Error Types
+
+`MeshJobError` enumerates failures that can occur while processing mesh jobs.
+All variants can be converted from `HostAbiError` or `MeshNetworkError`.
+
+* `Network` – issues communicating over the mesh network.
+* `NoSuitableExecutor` – no executor met the policy for a job.
+* `MissingOrInvalidReceipt` – receipt missing or failed validation.
+* `UnknownJob` – referenced job ID does not exist.
+* `ExecutionTimeout` – executor failed to produce a receipt in time.
+* `ProcessingFailure` – job failed during runtime processing.
+* `Serialization` – JSON or binary serialization failure.
+* `InvalidSpec` – job specification failed validation.
+* `PermissionDenied` – caller lacked permission for the operation.
+* `InvalidJobState` – operation not allowed in the job's current state.
+* `Internal` – generic internal runtime error.
+* `HostAbi` – catch-all for unmapped host errors.
+* `Economic` – insufficient mana or other economic constraint.
+* `NotImplemented` – feature is not yet implemented.
+* `DagOperationFailed` – failure while anchoring data to the DAG.
+* `SignatureError` – invalid or unverifiable signature.
+* `CryptoError` – general cryptography failure.
+* `WasmExecutionError` – error during WASM execution.
+* `ResourceLimitExceeded` – operation exceeded configured limits.
+* `InvalidSystemApiCall` – guest attempted an unsupported host call.
+
 ## Contributing
 
 Contributions are welcome! Please see the main [CONTRIBUTING.md](../../CONTRIBUTING.md) in the root of the `icn-core` repository for guidelines.
