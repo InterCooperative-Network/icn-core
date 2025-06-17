@@ -156,9 +156,6 @@ pub struct JobSpec {
     /// Minimum resources required for the job.
     #[serde(default)]
     pub required_resources: Resources,
-    /// Optional upper bound on job execution time in milliseconds.
-    #[serde(default)]
-    pub timeout_ms: Option<u64>,
 }
 
 impl Default for JobSpec {
@@ -168,7 +165,6 @@ impl Default for JobSpec {
             inputs: Vec::new(),
             outputs: Vec::new(),
             required_resources: Resources::default(),
-            timeout_ms: None,
         }
     }
 }
@@ -536,7 +532,7 @@ mod tests {
 
     // Helper to create a dummy Cid for tests
     fn dummy_cid(s: &str) -> Cid {
-        Cid::new_v1_dummy(0x55, 0x12, s.as_bytes())
+        Cid::new_v1_sha256(0x55, s.as_bytes())
     }
 
     #[test]

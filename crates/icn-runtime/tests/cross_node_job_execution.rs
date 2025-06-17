@@ -55,10 +55,8 @@ mod runtime_host_abi_tests {
         cost_mana: u64,
         payload: &str,
     ) -> String {
-        let job_id =
-            Cid::new_v1_dummy(0x55, 0x13, format!("runtime_job_{}", job_suffix).as_bytes());
-        let manifest_cid =
-            Cid::new_v1_dummy(0x55, 0x14, format!("manifest_{}", job_suffix).as_bytes());
+        let job_id = Cid::new_v1_sha256(0x55, format!("runtime_job_{}", job_suffix).as_bytes());
+        let manifest_cid = Cid::new_v1_sha256(0x55, format!("manifest_{}", job_suffix).as_bytes());
 
         let job = ActualMeshJob {
             id: job_id,
@@ -322,8 +320,8 @@ mod runtime_host_abi_tests {
         let executor_did = runtime_ctx.current_identity.clone();
 
         // Create a dummy job ID
-        let job_id = Cid::new_v1_dummy(0x55, 0x13, b"test_receipt_job");
-        let result_cid = Cid::new_v1_dummy(0x55, 0x14, b"test_result_data");
+        let job_id = Cid::new_v1_sha256(0x55, b"test_receipt_job");
+        let result_cid = Cid::new_v1_sha256(0x55, b"test_result_data");
 
         let receipt = ExecutionReceipt {
             job_id: job_id.clone(),

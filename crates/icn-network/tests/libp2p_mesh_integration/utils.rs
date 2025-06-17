@@ -118,9 +118,9 @@ pub async fn setup_connected_nodes() -> Result<(TestNode, TestNode)> {
 
 /// Creates a test job with the given configuration
 pub fn create_test_job(config: &TestJobConfig) -> Job {
-    let job_id_cid = Cid::new_v1_dummy(0x55, 0x13, config.id_suffix.as_bytes());
+    let job_id_cid = Cid::new_v1_sha256(0x55, config.id_suffix.as_bytes());
     let job_id = JobId::from(job_id_cid);
-    let manifest_cid = Cid::new_v1_dummy(0x71, 0x12, b"dummy_manifest_data");
+    let manifest_cid = Cid::new_v1_sha256(0x71, b"dummy_manifest_data");
     let job_spec = JobSpec::Echo {
         payload: config.payload.clone(),
     };
@@ -209,5 +209,5 @@ where
 /// Mock function to anchor receipt to DAG
 pub fn mock_anchor_receipt_to_dag(receipt: &ExecutionReceipt) -> Result<Cid> {
     let receipt_data = format!("receipt_for_job_{}", receipt.job_id);
-    Ok(Cid::new_v1_dummy(0x71, 0x12, receipt_data.as_bytes()))
+    Ok(Cid::new_v1_sha256(0x71, receipt_data.as_bytes()))
 }

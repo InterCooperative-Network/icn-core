@@ -24,8 +24,8 @@ async fn anchor_receipt_updates_reputation() {
         Arc::new(tokio::sync::Mutex::new(StubDagStore::new())),
         std::path::PathBuf::from("./mana_ledger.sled"),
     );
-    let job_id = Cid::new_v1_dummy(0x55, 0x13, b"rep_job");
-    let result_cid = Cid::new_v1_dummy(0x55, 0x14, b"res");
+    let job_id = Cid::new_v1_sha256(0x55, b"rep_job");
+    let result_cid = Cid::new_v1_sha256(0x55, b"res");
 
     let receipt = ExecutionReceipt {
         job_id: job_id.clone(),
@@ -61,9 +61,9 @@ fn reputation_updater_increments_store() {
     let updater = ReputationUpdater::new();
     let did = icn_common::Did::new("key", "tester");
     let receipt = ExecutionReceipt {
-        job_id: Cid::new_v1_dummy(0x55, 0x15, b"rep"),
+        job_id: Cid::new_v1_sha256(0x55, b"rep"),
         executor_did: did.clone(),
-        result_cid: Cid::new_v1_dummy(0x55, 0x15, b"res"),
+        result_cid: Cid::new_v1_sha256(0x55, b"res"),
         cpu_ms: 1000,
         success: true,
         sig: SignatureBytes(Vec::new()),

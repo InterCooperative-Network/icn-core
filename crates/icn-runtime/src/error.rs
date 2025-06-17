@@ -101,7 +101,7 @@ impl From<HostAbiError> for MeshJobError {
                 reason: msg,
             },
             HostAbiError::JobSubmissionFailed(reason) => MeshJobError::ProcessingFailure {
-                job_id: Cid::new_v1_dummy(0, 0, b"host_abi_failure"),
+                job_id: Cid::new_v1_sha256(0, b"host_abi_failure"),
                 reason: format!("Job submission failed via host ABI: {}", reason),
             },
             HostAbiError::DagOperationFailed(reason) => MeshJobError::DagOperationFailed {

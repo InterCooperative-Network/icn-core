@@ -167,7 +167,7 @@ async fn test_wasm_executor_with_ccl() {
 
     let ctx = RuntimeContext::new_with_stubs_and_mana("did:key:zTestExec", 10);
     let block = DagBlock {
-        cid: Cid::new_v1_dummy(0x71, 0x12, &wasm),
+        cid: Cid::new_v1_sha256(0x71, &wasm),
         data: wasm.clone(),
         links: vec![],
     };
@@ -182,9 +182,9 @@ async fn test_wasm_executor_with_ccl() {
     let node_did = icn_common::Did::from_str(&node_did).unwrap();
 
     let job = ActualMeshJob {
-        id: Cid::new_v1_dummy(0x55, 0x12, b"job"),
+        id: Cid::new_v1_sha256(0x55, b"job"),
         manifest_cid: cid,
-        spec: JobSpec::default(),
+        spec: JobSpec::GenericPlaceholder,
         creator_did: node_did.clone(),
         cost_mana: 0,
         max_execution_wait_ms: None,

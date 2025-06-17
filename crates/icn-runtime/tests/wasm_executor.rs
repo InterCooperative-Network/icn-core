@@ -21,7 +21,7 @@ async fn wasm_executor_runs_wasm() {
     )"#;
     let wasm_bytes = wat::parse_str(wasm).unwrap();
     let block = DagBlock {
-        cid: Cid::new_v1_dummy(0x71, 0x11, &wasm_bytes),
+        cid: Cid::new_v1_sha256(0x71, &wasm_bytes),
         data: wasm_bytes,
         links: vec![],
     };
@@ -32,7 +32,7 @@ async fn wasm_executor_runs_wasm() {
     let cid = block.cid.clone();
 
     let job = ActualMeshJob {
-        id: Cid::new_v1_dummy(0x55, 0x11, b"job"),
+        id: Cid::new_v1_sha256(0x55, b"job"),
         manifest_cid: cid,
         spec: JobSpec::default(),
         creator_did: node_did.clone(),

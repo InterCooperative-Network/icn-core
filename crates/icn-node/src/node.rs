@@ -654,7 +654,7 @@ async fn dag_put_handler(
 ) -> impl IntoResponse {
     // Use RuntimeContext's dag_store now
     let dag_block = CoreDagBlock {
-        cid: Cid::new_v1_dummy(0x71, 0x12, &block.data),
+        cid: Cid::new_v1_sha256(0x71, &block.data),
         data: block.data,
         links: vec![],
     };
@@ -1230,7 +1230,7 @@ mod tests {
         let app = test_app().await;
 
         let job_req = SubmitJobRequest {
-            manifest_cid: Cid::new_v1_dummy(0x55, 0x14, b"test_manifest").to_string(),
+            manifest_cid: Cid::new_v1_sha256(0x55, b"test_manifest").to_string(),
             spec_json: serde_json::to_value(&icn_mesh::JobSpec {
                 kind: icn_mesh::JobKind::Echo {
                     payload: "hello".into(),
@@ -1269,7 +1269,7 @@ mod tests {
 
         // Step 1: Submit a job via HTTP
         let job_req = SubmitJobRequest {
-            manifest_cid: Cid::new_v1_dummy(0x55, 0x14, b"pipeline_test_manifest").to_string(),
+            manifest_cid: Cid::new_v1_sha256(0x55, b"pipeline_test_manifest").to_string(),
             spec_json: serde_json::to_value(&icn_mesh::JobSpec {
                 kind: icn_mesh::JobKind::Echo {
                     payload: "HTTP pipeline test".into(),
@@ -1407,7 +1407,7 @@ mod tests {
 
         // Step 1: Submit a job
         let job_req = SubmitJobRequest {
-            manifest_cid: Cid::new_v1_dummy(0x55, 0x14, b"simple_test").to_string(),
+            manifest_cid: Cid::new_v1_sha256(0x55, b"simple_test").to_string(),
             spec_json: serde_json::to_value(&icn_mesh::JobSpec {
                 kind: icn_mesh::JobKind::Echo {
                     payload: "simple test".into(),

@@ -284,7 +284,7 @@ mod tests {
     // Helper function to create a test block
     fn create_test_block(id_str: &str) -> DagBlock {
         let data = format!("data for {id_str}").into_bytes();
-        let cid = Cid::new_v1_dummy(0x71, 0x12, id_str.as_bytes());
+        let cid = Cid::new_v1_sha256(0x71, id_str.as_bytes());
         DagBlock {
             cid,
             data,
@@ -336,7 +336,7 @@ mod tests {
         // Test deleting non-existent block (should be Ok)
         assert!(store.delete(&block2.cid).is_ok()); // block2 was never put after block1 deletion test context
                                                     // Or, more robustly, use a fresh CID not in the store
-        let non_existent_cid_for_delete = Cid::new_v1_dummy(0x55, 0x12, b"non_existent_for_delete");
+        let non_existent_cid_for_delete = Cid::new_v1_sha256(0x55, b"non_existent_for_delete");
         assert!(store.delete(&non_existent_cid_for_delete).is_ok());
 
         // Put block2 back for further tests if any or ensure clean state for next use of suite
@@ -478,7 +478,7 @@ mod tests {
             Err(e) => panic!("store.get returned an error: {e:?}"),
         }
 
-        let non_existent_cid = Cid::new_v1_dummy(0x55, 0x12, b"non_existent_global");
+        let non_existent_cid = Cid::new_v1_sha256(0x55, b"non_existent_global");
         match store.get(&non_existent_cid) {
             Ok(None) => { /* Expected */ }
             Ok(Some(_)) => panic!("Found non-existent block in store"),

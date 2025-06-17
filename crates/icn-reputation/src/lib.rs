@@ -68,9 +68,9 @@ mod tests {
         let did = Did::from_str(&did_key_from_verifying_key(&vk)).unwrap();
 
         let receipt = ExecutionReceipt {
-            job_id: icn_common::Cid::new_v1_dummy(0x55, 0x12, b"r"),
+            job_id: icn_common::Cid::new_v1_sha256(0x55, b"r"),
             executor_did: did.clone(),
-            result_cid: icn_common::Cid::new_v1_dummy(0x55, 0x12, b"r"),
+            result_cid: icn_common::Cid::new_v1_sha256(0x55, b"r"),
             cpu_ms: 0,
             success: true,
             sig: icn_identity::SignatureBytes(vec![]),

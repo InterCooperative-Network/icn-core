@@ -36,11 +36,11 @@ mod libp2p_mesh_integration {
     }
 
     fn generate_dummy_job(id_str: &str) -> Job {
-        let job_id_cid = Cid::new_v1_dummy(0x55, 0x13, id_str.as_bytes());
+        let job_id_cid = Cid::new_v1_sha256(0x55, id_str.as_bytes());
         let job_id = JobId::from(job_id_cid);
         let creator_did =
             Did::from_str("did:key:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuias7ux1jEZ6KATp8").unwrap();
-        let manifest_cid = Cid::new_v1_dummy(0x71, 0x12, b"dummy_manifest_data");
+        let manifest_cid = Cid::new_v1_sha256(0x71, b"dummy_manifest_data");
         let job_spec = JobSpec::Echo {
             payload: "hello world".to_string(),
         };
@@ -78,7 +78,7 @@ mod libp2p_mesh_integration {
     fn mock_anchor_receipt_to_dag(receipt: &ExecutionReceipt) -> Result<Cid, anyhow::Error> {
         // Create a mock CID for the anchored receipt
         let receipt_data = format!("receipt_for_job_{}", receipt.job_id);
-        Ok(Cid::new_v1_dummy(0x71, 0x12, receipt_data.as_bytes()))
+        Ok(Cid::new_v1_sha256(0x71, receipt_data.as_bytes()))
     }
 
     #[tokio::test]
