@@ -16,6 +16,7 @@ pub mod abi;
 pub mod context;
 pub mod error;
 pub mod executor;
+pub mod memory;
 pub mod metrics;
 
 // Re-export important types for convenience
@@ -306,6 +307,31 @@ pub async fn host_anchor_receipt(
 
     reputation_updater.submit(ctx.reputation_store.as_ref(), &receipt);
     Ok(anchored_cid)
+}
+
+/// WASM wrapper for [`host_submit_mesh_job`]. Reads the job JSON from guest memory.
+pub fn wasm_host_submit_mesh_job(
+    mut caller: wasmtime::Caller<'_, std::sync::Arc<RuntimeContext>>,
+    ptr: u32,
+    len: u32,
+) {
+    if let Ok(job_json) = memory::read_string(&mut caller, ptr, len) {
+        let handle = tokio::runtime::Handle::current();
+        let _ = handle.block_on(host_submit_mesh_job(caller.data(), &job_json));
+    }
+}
+
+/// WASM wrapper for [`host_anchor_receipt`]. Reads the receipt JSON from guest memory.
+pub fn wasm_host_anchor_receipt(
+    mut caller: wasmtime::Caller<'_, std::sync::Arc<RuntimeContext>>,
+    ptr: u32,
+    len: u32,
+) {
+    if let Ok(json) = memory::read_string(&mut caller, ptr, len) {
+        let handle = tokio::runtime::Handle::current();
+        let rep = ReputationUpdater::new();
+        let _ = handle.block_on(host_anchor_receipt(caller.data(), &json, &rep));
+    }
 }
 
 /// Creates a governance proposal using the runtime context.

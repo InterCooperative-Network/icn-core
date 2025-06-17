@@ -137,7 +137,7 @@ impl JobExecutor for WasmExecutor {
         job: &ActualMeshJob,
     ) -> Result<IdentityExecutionReceipt, CommonError> {
         use crate::host_account_get_mana;
-        use wasmtime::{Linker, Module, Store};
+        use wasmtime::{Caller, Linker, Module, Store};
 
         // Load WASM bytes from the DAG store
         let wasm_bytes = {
@@ -161,6 +161,26 @@ impl JobExecutor for WasmExecutor {
                     .block_on(async { host_account_get_mana(&ctx_clone, &account).await })
                     .unwrap_or(0) as i64
             })
+            .map_err(|e| CommonError::InternalError(e.to_string()))?;
+
+        linker
+            .func_wrap(
+                "icn",
+                "host_submit_mesh_job",
+                move |caller: Caller<'_, std::sync::Arc<RuntimeContext>>, ptr: u32, len: u32| {
+                    crate::wasm_host_submit_mesh_job(caller, ptr, len);
+                },
+            )
+            .map_err(|e| CommonError::InternalError(e.to_string()))?;
+
+        linker
+            .func_wrap(
+                "icn",
+                "host_anchor_receipt",
+                move |caller: Caller<'_, std::sync::Arc<RuntimeContext>>, ptr: u32, len: u32| {
+                    crate::wasm_host_anchor_receipt(caller, ptr, len);
+                },
+            )
             .map_err(|e| CommonError::InternalError(e.to_string()))?;
 
         let module = Module::new(&self.engine, &wasm_bytes)
