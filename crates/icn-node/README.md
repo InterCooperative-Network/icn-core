@@ -51,6 +51,8 @@ http_listen_addr = "127.0.0.1:8080"
 storage_backend = "file"
 storage_path = "./icn_data/node_store"
 mana_ledger_path = "./mana_ledger.sled"
+node_did_path = "./icn_data/node_did.txt"
+node_private_key_path = "./icn_data/node_sk.bs58"
 ```
 
 To start the node using this configuration:
@@ -60,6 +62,16 @@ To start the node using this configuration:
 ```
 
 Any CLI option provided will override the value from the file.
+
+Useful CLI flags include:
+
+* `--node-did-path <PATH>` – location to read/write the node DID string
+* `--node-private-key-path <PATH>` – location to read/write the node private key
+
+When the node starts, it will attempt to load its DID and private key from the
+configured paths. If no key material exists, a new Ed25519 key pair is generated
+and written to these files. Subsequent runs will reuse the persisted identity
+allowing consistent node identification across restarts.
 
 ## Contributing
 

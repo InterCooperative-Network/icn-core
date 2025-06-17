@@ -46,11 +46,13 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
+use bs58;
 use clap::{ArgMatches, CommandFactory, FromArgMatches, Parser};
 #[cfg(feature = "enable-libp2p")]
 use log::warn;
 use log::{debug, error, info};
 use serde::{Deserialize, Serialize};
+use std::fs;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -96,6 +98,14 @@ pub struct Cli {
     )]
     pub node_private_key_bs58: Option<String>,
 
+    /// Path to store or load the node DID string.
+    #[clap(long)]
+    pub node_did_path: Option<PathBuf>,
+
+    /// Path to store or load the node private key (bs58 encoded).
+    #[clap(long)]
+    pub node_private_key_path: Option<PathBuf>,
+
     #[clap(
         long,
         help = "Human-readable name for this node (for logging and identification)"
@@ -120,6 +130,55 @@ pub struct Cli {
 
     #[clap(long)]
     pub open_rate_limit: Option<u64>,
+}
+
+/// Load or generate the node identity based on the provided configuration.
+pub fn load_or_generate_identity(
+    config: &mut NodeConfig,
+) -> (icn_identity::SigningKey, icn_identity::VerifyingKey, String) {
+    if let (Some(did_str), Some(sk_bs58)) = (
+        config.node_did.clone(),
+        config.node_private_key_bs58.clone(),
+    ) {
+        let sk_bytes = bs58::decode(sk_bs58)
+            .into_vec()
+            .expect("Invalid base58 private key");
+        let sk_array: [u8; 32] = sk_bytes.try_into().expect("Invalid private key length");
+        let sk = icn_identity::SigningKey::from_bytes(&sk_array);
+        let pk = sk.verifying_key();
+        (sk, pk, did_str)
+    } else if config.node_did_path.exists() && config.node_private_key_path.exists() {
+        let did_str = fs::read_to_string(&config.node_did_path)
+            .expect("Failed to read DID file")
+            .trim()
+            .to_string();
+        let sk_bs58 = fs::read_to_string(&config.node_private_key_path)
+            .expect("Failed to read key file")
+            .trim()
+            .to_string();
+        let sk_bytes = bs58::decode(sk_bs58.clone())
+            .into_vec()
+            .expect("Invalid base58 private key");
+        let sk_array: [u8; 32] = sk_bytes.try_into().expect("Invalid private key length");
+        let sk = icn_identity::SigningKey::from_bytes(&sk_array);
+        let pk = sk.verifying_key();
+        config.node_did = Some(did_str.clone());
+        config.node_private_key_bs58 = Some(sk_bs58);
+        (sk, pk, did_str)
+    } else {
+        let (sk, pk) = generate_ed25519_keypair();
+        let did_str = did_key_from_verifying_key(&pk);
+        let sk_bs58 = bs58::encode(sk.to_bytes()).into_string();
+        if let Err(e) = fs::write(&config.node_did_path, &did_str) {
+            error!("Failed to write DID file: {}", e);
+        }
+        if let Err(e) = fs::write(&config.node_private_key_path, &sk_bs58) {
+            error!("Failed to write key file: {}", e);
+        }
+        config.node_did = Some(did_str.clone());
+        config.node_private_key_bs58 = Some(sk_bs58);
+        (sk, pk, did_str)
+    }
 }
 
 // --- Supporting Types ---
@@ -303,8 +362,8 @@ async fn main() {
     config.apply_cli_overrides(&cli, &matches);
 
     // --- Initialize Node Identity ---
-    let (node_sk, node_pk) = generate_ed25519_keypair(); // Generate fresh for now
-    let node_did_string = did_key_from_verifying_key(&node_pk);
+    let (node_sk, node_pk, node_did_string) = load_or_generate_identity(&mut config);
+
     let node_did = Did::from_str(&node_did_string).expect("Failed to create node DID");
 
     let node_name = config.node_name.clone();
