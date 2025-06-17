@@ -24,6 +24,10 @@ pub struct NodeConfig {
     pub http_listen_addr: String,
     pub node_did: Option<String>,
     pub node_private_key_bs58: Option<String>,
+    /// Path where the node DID string will be stored/loaded.
+    pub node_did_path: std::path::PathBuf,
+    /// Path where the node's private key will be stored/loaded (bs58 encoded).
+    pub node_private_key_path: std::path::PathBuf,
     pub node_name: String,
     pub listen_address: String,
     pub bootstrap_peers: Option<Vec<String>>,
@@ -41,6 +45,8 @@ impl Default for NodeConfig {
             http_listen_addr: "127.0.0.1:7845".to_string(),
             node_did: None,
             node_private_key_bs58: None,
+            node_did_path: "./icn_data/node_did.txt".into(),
+            node_private_key_path: "./icn_data/node_sk.bs58".into(),
             node_name: "ICN Node".to_string(),
             listen_address: "/ip4/0.0.0.0/tcp/0".to_string(),
             bootstrap_peers: None,
@@ -83,6 +89,12 @@ impl NodeConfig {
         }
         if let Some(v) = &cli.node_private_key_bs58 {
             self.node_private_key_bs58 = Some(v.clone());
+        }
+        if let Some(v) = &cli.node_did_path {
+            self.node_did_path = v.clone();
+        }
+        if let Some(v) = &cli.node_private_key_path {
+            self.node_private_key_path = v.clone();
         }
         if let Some(v) = &cli.node_name {
             self.node_name = v.clone();
