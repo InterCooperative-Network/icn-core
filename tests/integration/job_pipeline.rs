@@ -31,7 +31,12 @@ async fn end_to_end_mesh_job_execution() {
     ctx.spawn_mesh_job_manager().await;
 
     // 2. Submit a basic Echo job
-    let job_spec = JobSpec::Echo { payload: "hello world".to_owned() }; // Assumes JobSpec::Echo variant
+    let job_spec = JobSpec::Echo {
+        payload: "hello world".to_owned(),
+        input_cids: Vec::new(),
+        output_cids: Vec::new(),
+        required_resources: Resources::default(),
+    }; // Assumes JobSpec::Echo variant
     let manifest_cid = "bafybeigdyrzt7dpbrm3kmhgtr5mk6yzqq3wj7owxsbs2hlkzbfio4ilv5e"; // any CID string
     
     // Constructing the JSON payload for ActualMeshJob as expected by host_submit_mesh_job

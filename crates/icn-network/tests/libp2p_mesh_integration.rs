@@ -43,6 +43,9 @@ mod libp2p_mesh_integration {
         let manifest_cid = Cid::new_v1_dummy(0x71, 0x12, b"dummy_manifest_data");
         let job_spec = JobSpec::Echo {
             payload: "hello world".to_string(),
+            input_cids: Vec::new(),
+            output_cids: Vec::new(),
+            required_resources: Resources::default(),
         };
         Job {
             id: job_id,

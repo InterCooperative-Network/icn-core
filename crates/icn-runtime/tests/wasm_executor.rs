@@ -37,7 +37,7 @@ async fn wasm_executor_runs_wasm() {
     let job = ActualMeshJob {
         id: Cid::new_v1_dummy(0x55, 0x11, b"job"),
         manifest_cid: cid,
-        spec: JobSpec::GenericPlaceholder,
+        spec: JobSpec::default(),
         creator_did: node_did.clone(),
         cost_mana: 0,
         max_execution_wait_ms: None,

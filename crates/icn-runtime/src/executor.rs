@@ -51,11 +51,11 @@ impl JobExecutor for SimpleExecutor {
         let start_time = SystemTime::now();
 
         let result_bytes = match &job.spec {
-            JobSpec::Echo { payload } => {
+            JobSpec::Echo { payload, .. } => {
                 info!("[SimpleExecutor] Executing echo job: {:?}", job.id);
                 format!("Echo: {}", payload).into_bytes()
             }
-            JobSpec::GenericPlaceholder => {
+            JobSpec::GenericPlaceholder { .. } => {
                 info!(
                     "[SimpleExecutor] Executing hash job (placeholder): {:?}",
                     job.id
@@ -215,6 +215,9 @@ mod tests {
             manifest_cid,
             spec: JobSpec::Echo {
                 payload: "Hello Echo Test".to_string(),
+                input_cids: Vec::new(),
+                output_cids: Vec::new(),
+                required_resources: Resources::default(),
             }, // Corrected JobSpec usage
             creator_did: Did::from_str("did:example:jobcreator").unwrap(),
             cost_mana: 10,
@@ -247,6 +250,9 @@ mod tests {
             manifest_cid: dummy_cid_for_executor_test("manifest1"),
             spec: JobSpec::Echo {
                 payload: "hello".to_string(),
+                input_cids: Vec::new(),
+                output_cids: Vec::new(),
+                required_resources: Resources::default(),
             },
             creator_did: Did::from_str("did:example:jobcreator").unwrap(),
             cost_mana: 10,

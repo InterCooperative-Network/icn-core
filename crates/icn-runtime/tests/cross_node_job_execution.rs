@@ -65,6 +65,9 @@ mod runtime_host_abi_tests {
             manifest_cid,
             spec: JobSpec::Echo {
                 payload: payload.to_string(),
+                input_cids: Vec::new(),
+                output_cids: Vec::new(),
+                required_resources: Resources::default(),
             },
             creator_did: creator_did.clone(),
             cost_mana,
