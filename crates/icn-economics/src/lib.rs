@@ -41,6 +41,11 @@ impl<L: ManaLedger> ManaRepositoryAdapter<L> {
     pub fn get_balance(&self, did: &Did) -> u64 {
         self.ledger.get_balance(did)
     }
+
+    /// Credits the specified account with additional mana.
+    pub fn credit_mana(&self, did: &Did, amount: u64) -> Result<(), EconError> {
+        self.ledger.credit(did, amount)
+    }
 }
 
 // Placeholder for ResourcePolicyEnforcer struct

@@ -482,6 +482,32 @@ async fn test_invalid_receipt_wrong_executor() {
     println!("Invalid receipt test completed - forged receipt verification tested");
 }
 
+#[tokio::test]
+async fn test_job_manager_refunds_on_no_valid_bid() {
+    let ctx = create_test_context("did:icn:test:refund_mgr", 50);
+    let submitter_did = ctx.current_identity.clone();
+
+    let (job_json, job_cost) = create_test_job_payload_and_cost(&submitter_did, 25);
+    let job_id = host_submit_mesh_job(&ctx, &job_json)
+        .await
+        .expect("Job submission failed");
+
+    let ctx_clone = ctx.clone();
+    ctx_clone.spawn_mesh_job_manager().await;
+
+    sleep(Duration::from_secs(12)).await;
+
+    let mana_after = ctx.get_mana(&submitter_did).await.unwrap();
+    assert_eq!(mana_after, 50);
+
+    let states = ctx.job_states.lock().await;
+    let state = states.get(&job_id).expect("job state");
+    match state {
+        JobState::Failed { .. } => {}
+        other => panic!("Unexpected state {:?}", other),
+    }
+}
+
 /// Creates a set of `RuntimeContext`s representing a submitter and two executors.
 ///
 /// All contexts share a single `StubMeshNetworkService` and DAG store so that
