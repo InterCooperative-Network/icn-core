@@ -23,6 +23,10 @@ use icn_common::DagBlock as CoreDagBlock;
 use icn_common::{
     parse_cid_from_string, Cid, Did, NodeInfo, NodeStatus, Transaction, ICN_CORE_VERSION,
 };
+#[cfg(feature = "persist-rocksdb")]
+use icn_dag::rocksdb_store::RocksDagStore;
+#[cfg(feature = "persist-sled")]
+use icn_dag::sled_store::SledDagStore;
 #[cfg(feature = "persist-sqlite")]
 use icn_dag::sqlite_store::SqliteDagStore;
 use icn_dag::{self, FileDagStore, InMemoryDagStore};
@@ -486,6 +490,36 @@ async fn main() {
                     {
                         error!(
                             "SQLite backend selected but the 'persist-sqlite' feature is not enabled"
+                        );
+                        std::process::exit(1);
+                    }
+                }
+                StorageBackendType::Sled => {
+                    #[cfg(feature = "persist-sled")]
+                    {
+                        let store = SledDagStore::new(config.storage_path.clone())
+                            .expect("Failed to init sled store");
+                        Arc::new(TokioMutex::new(store))
+                    }
+                    #[cfg(not(feature = "persist-sled"))]
+                    {
+                        error!(
+                            "Sled backend selected but the 'persist-sled' feature is not enabled"
+                        );
+                        std::process::exit(1);
+                    }
+                }
+                StorageBackendType::Rocksdb => {
+                    #[cfg(feature = "persist-rocksdb")]
+                    {
+                        let store = RocksDagStore::new(config.storage_path.clone())
+                            .expect("Failed to init rocksdb store");
+                        Arc::new(TokioMutex::new(store))
+                    }
+                    #[cfg(not(feature = "persist-rocksdb"))]
+                    {
+                        error!(
+                            "RocksDB backend selected but the 'persist-rocksdb' feature is not enabled"
                         );
                         std::process::exit(1);
                     }

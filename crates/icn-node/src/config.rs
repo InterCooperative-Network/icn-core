@@ -12,6 +12,10 @@ pub enum StorageBackendType {
     File,
     /// SQLite database backend (requires `persist-sqlite` feature).
     Sqlite,
+    /// Sled database backend (requires `persist-sled` feature).
+    Sled,
+    /// RocksDB database backend (requires `persist-rocksdb` feature).
+    Rocksdb,
 }
 
 /// Configuration values for running an ICN node.
