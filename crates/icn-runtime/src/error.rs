@@ -57,6 +57,27 @@ pub enum MeshJobError {
     #[error("Economic error related to mana or payments: {0}")]
     Economic(String), // Could also be `#[from] EconError` if that's defined
 
+    #[error("Feature not implemented: {0}")]
+    NotImplemented(String),
+
+    #[error("DAG operation failed: {0}")]
+    DagOperationFailed(String),
+
+    #[error("Invalid signature for job {job_id:?}: {reason}")]
+    InvalidSignature { job_id: Option<Cid>, reason: String },
+
+    #[error("Cryptographic error: {0}")]
+    CryptoError(String),
+
+    #[error("WASM execution error: {0}")]
+    WasmExecutionError(String),
+
+    #[error("Resource limit exceeded: {0}")]
+    ResourceLimitExceeded(String),
+
+    #[error("Invalid system API call: {0}")]
+    InvalidSystemApiCall(String),
+
     // TODO [error_handling]: Add more specific error variants as needed
 }
 
@@ -91,6 +112,21 @@ impl From<HostAbiError> for MeshJobError {
                 job_id: Cid::default(),
                 reason: format!("Job submission failed via host ABI: {}", reason),
             },
+            HostAbiError::NotImplemented(msg) => MeshJobError::NotImplemented(msg),
+            HostAbiError::DagOperationFailed(msg) => MeshJobError::DagOperationFailed(msg),
+            HostAbiError::SignatureError(msg) => MeshJobError::InvalidSignature {
+                job_id: None,
+                reason: msg,
+            },
+            HostAbiError::CryptoError(msg) => MeshJobError::CryptoError(msg),
+            HostAbiError::WasmExecutionError(msg) => MeshJobError::WasmExecutionError(msg),
+            HostAbiError::ResourceLimitExceeded(msg) => {
+                MeshJobError::ResourceLimitExceeded(msg)
+            }
+            HostAbiError::InvalidSystemApiCall(msg) => {
+                MeshJobError::InvalidSystemApiCall(msg)
+            }
+            HostAbiError::InternalError(msg) => MeshJobError::Internal(msg),
             other => MeshJobError::HostAbi(other),
         }
     }
