@@ -902,7 +902,16 @@ async fn mesh_submit_job_handler(
 ) -> impl IntoResponse {
     info!("[Node] Received mesh_submit_job request: {:?}", request);
 
-    let manifest_cid = Cid::new_v1_dummy(0, 0, request.manifest_cid.as_bytes()); // Placeholder for Cid::from_str
+    let manifest_cid = match parse_cid_from_string(&request.manifest_cid) {
+        Ok(cid) => cid,
+        Err(e) => {
+            return map_rust_error_to_json_response(
+                format!("Invalid manifest CID: {}", e),
+                StatusCode::BAD_REQUEST,
+            )
+            .into_response()
+        }
+    };
 
     let job_spec = match serde_json::from_value::<icn_mesh::JobSpec>(request.spec_json.clone()) {
         Ok(spec) => spec,
@@ -915,21 +924,14 @@ async fn mesh_submit_job_handler(
         }
     };
 
-    // This temporary job is just to satisfy the current host_submit_mesh_job ABI,
-    // which expects a fully formed ActualMeshJob. The real job ID and potentially
-    // other fields will be determined by the runtime.
-    let temp_job_for_serialization = ActualMeshJob {
-        // icn_mesh::ActualMeshJob
-        id: Cid::new_v1_dummy(0, 0, b"placeholder_default_cid"), // Will be replaced by host_submit_mesh_job
-        manifest_cid,
-        spec: job_spec,
-        creator_did: state.runtime_context.current_identity.clone(), // Use node's DID as creator
-        cost_mana: request.cost_mana,
-        max_execution_wait_ms: None,
-        signature: SignatureBytes(vec![]), // Will be ignored and re-signed if host_submit_mesh_job handles it, or added before.
-    };
+    // Build minimal JSON; runtime fills in missing fields
+    let minimal_job_json = serde_json::json!({
+        "manifest_cid": manifest_cid,
+        "spec": job_spec,
+        "cost_mana": request.cost_mana,
+    });
 
-    let job_json = match serde_json::to_string(&temp_job_for_serialization) {
+    let job_json = match serde_json::to_string(&minimal_job_json) {
         Ok(json) => json,
         Err(e) => {
             return map_rust_error_to_json_response(
