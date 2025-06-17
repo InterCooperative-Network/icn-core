@@ -152,6 +152,45 @@ pub struct MeshJobBid {
     pub price_mana: u64,
     /// The resources the executor is committing for this job.
     pub resources: Resources,
+    /// Signature from the executor over the bid fields.
+    pub signature: SignatureBytes,
+}
+
+impl MeshJobBid {
+    /// Creates the canonical message bytes for signing the bid.
+    pub fn to_signable_bytes(&self) -> Result<Vec<u8>, CommonError> {
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(self.job_id.to_string().as_bytes());
+        bytes.extend_from_slice(self.executor_did.to_string().as_bytes());
+        bytes.extend_from_slice(&self.price_mana.to_le_bytes());
+        bytes.extend_from_slice(&self.resources.cpu_cores.to_le_bytes());
+        bytes.extend_from_slice(&self.resources.memory_mb.to_le_bytes());
+        Ok(bytes)
+    }
+
+    /// Sign the bid using the executor's signing key.
+    pub fn sign(mut self, signing_key: &IdentitySigningKey) -> Result<Self, CommonError> {
+        let message = self.to_signable_bytes()?;
+        let ed_sig = identity_sign_message(signing_key, &message);
+        self.signature = SignatureBytes(ed_sig.to_bytes().to_vec());
+        Ok(self)
+    }
+
+    /// Verify the bid signature against the executor's verifying key.
+    pub fn verify_signature(
+        &self,
+        verifying_key: &IdentityVerifyingKey,
+    ) -> Result<(), CommonError> {
+        let message = self.to_signable_bytes()?;
+        let ed_sig = self.signature.to_ed_signature()?;
+        if identity_verify_signature(verifying_key, &message, &ed_sig) {
+            Ok(())
+        } else {
+            Err(CommonError::InternalError(
+                "MeshJobBid signature verification failed".into(),
+            ))
+        }
+    }
 }
 
 /// Represents the current state of a mesh job in its lifecycle.
@@ -394,8 +433,10 @@ mod tests {
     #[test]
     fn test_select_executor_prefers_reputation() {
         let job_id = dummy_cid("job_sel");
-        let high = Did::from_str("did:icn:test:high").unwrap();
-        let low = Did::from_str("did:icn:test:low").unwrap();
+        let (sk_high, vk_high) = icn_identity::generate_ed25519_keypair();
+        let high = Did::from_str(&icn_identity::did_key_from_verifying_key(&vk_high)).unwrap();
+        let (sk_low, vk_low) = icn_identity::generate_ed25519_keypair();
+        let low = Did::from_str(&icn_identity::did_key_from_verifying_key(&vk_low)).unwrap();
 
         let rep_store = icn_reputation::InMemoryReputationStore::new();
         rep_store.set_score(high.clone(), 5);
@@ -409,7 +450,10 @@ mod tests {
                 cpu_cores: 2,
                 memory_mb: 1024,
             },
-        };
+            signature: SignatureBytes(vec![]),
+        }
+        .sign(&sk_high)
+        .unwrap();
         let bid_low = MeshJobBid {
             job_id: job_id.clone(),
             executor_did: low.clone(),
@@ -418,7 +462,10 @@ mod tests {
                 cpu_cores: 1,
                 memory_mb: 512,
             },
-        };
+            signature: SignatureBytes(vec![]),
+        }
+        .sign(&sk_low)
+        .unwrap();
 
         let policy = SelectionPolicy;
         let selected = select_executor(
@@ -434,8 +481,10 @@ mod tests {
     #[test]
     fn test_select_executor_uses_price_when_reputation_equal() {
         let job_id = dummy_cid("job_price");
-        let a = Did::from_str("did:icn:test:a").unwrap();
-        let b = Did::from_str("did:icn:test:b").unwrap();
+        let (sk_a, vk_a) = icn_identity::generate_ed25519_keypair();
+        let a = Did::from_str(&icn_identity::did_key_from_verifying_key(&vk_a)).unwrap();
+        let (sk_b, vk_b) = icn_identity::generate_ed25519_keypair();
+        let b = Did::from_str(&icn_identity::did_key_from_verifying_key(&vk_b)).unwrap();
 
         let rep_store = icn_reputation::InMemoryReputationStore::new();
         rep_store.set_score(a.clone(), 3);
@@ -446,13 +495,19 @@ mod tests {
             executor_did: a.clone(),
             price_mana: 20,
             resources: Resources::default(),
-        };
+            signature: SignatureBytes(vec![]),
+        }
+        .sign(&sk_a)
+        .unwrap();
         let bid_b = MeshJobBid {
             job_id: job_id.clone(),
             executor_did: b.clone(),
             price_mana: 5,
             resources: Resources::default(),
-        };
+            signature: SignatureBytes(vec![]),
+        }
+        .sign(&sk_b)
+        .unwrap();
 
         let policy = SelectionPolicy;
         let selected = select_executor(&job_id, vec![bid_a, bid_b.clone()], &policy, &rep_store);

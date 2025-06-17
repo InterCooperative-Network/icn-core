@@ -199,11 +199,20 @@ async fn test_mesh_job_full_lifecycle_happy_path() {
     );
 
     // Stage and collect bids
-    let bid = MeshJobBid {
+    let unsigned_bid = MeshJobBid {
         job_id: submitted_job_id.clone(),
         executor_did: executor_did.clone(),
         price_mana: 10,
         resources: Resources::default(),
+        signature: SignatureBytes(vec![]),
+    };
+    let sig = arc_ctx_job_manager
+        .signer
+        .sign(&unsigned_bid.to_signable_bytes().unwrap())
+        .unwrap();
+    let bid = MeshJobBid {
+        signature: SignatureBytes(sig),
+        ..unsigned_bid
     };
     job_manager_network_stub
         .stage_bid(submitted_job_id.clone(), bid)
@@ -551,11 +560,20 @@ fn create_test_job_payload_and_cost(submitter: &Did, job_cost: u64) -> (String, 
 
 /// Creates a `MeshJobBid` for the provided job using the executor context.
 fn create_test_bid(job_id: &Cid, executor_ctx: &Arc<RuntimeContext>, price: u64) -> MeshJobBid {
-    MeshJobBid {
+    let unsigned = MeshJobBid {
         job_id: job_id.clone(), // JobId is a Cid here
         executor_did: executor_ctx.current_identity.clone(),
         price_mana: price,
         resources: Resources::default(),
+        signature: SignatureBytes(vec![]),
+    };
+    let sig = executor_ctx
+        .signer
+        .sign(&unsigned.to_signable_bytes().unwrap())
+        .unwrap();
+    MeshJobBid {
+        signature: SignatureBytes(sig),
+        ..unsigned
     }
 }
 

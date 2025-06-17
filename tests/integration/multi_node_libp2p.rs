@@ -90,11 +90,18 @@ mod multi_node_libp2p {
         }).await?;
 
         // Send bid from Node B
-        let bid = MeshJobBid {
+        let unsigned_bid = MeshJobBid {
             job_id: job_id.clone(),
             executor_did: executor_did.clone(),
             price_mana: 30,
             resources: Resources::default(),
+            signature: SignatureBytes(vec![]),
+        };
+        let bid_bytes = unsigned_bid.to_signable_bytes().unwrap();
+        let sig = node_b.signer.sign(&bid_bytes).unwrap();
+        let bid = MeshJobBid {
+            signature: SignatureBytes(sig),
+            ..unsigned_bid
         };
         node_b_libp2p
             .broadcast_message(NetworkMessage::BidSubmission(bid))

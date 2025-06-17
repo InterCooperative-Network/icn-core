@@ -222,12 +222,16 @@ mod cross_node_tests {
         
         // Node B: Create and submit bid
         let executor_did = Did::from_str("did:key:z6MkvBidNodeB")?;
-        let bid = MeshJobBid {
+        let unsigned_bid = MeshJobBid {
             job_id: test_job.id.clone(),
             executor_did: executor_did.clone(),
             price_mana: 20,
             resources: Resources::default(),
+            signature: SignatureBytes(vec![]),
         };
+        let bid_bytes = unsigned_bid.to_signable_bytes().unwrap();
+        let sig = node_b.signer.sign(&bid_bytes).unwrap();
+        let bid = MeshJobBid { signature: SignatureBytes(sig), ..unsigned_bid };
         
         // Node B broadcasts bid
         let bid_message = NetworkMessage::BidSubmission(bid.clone());
@@ -496,11 +500,20 @@ mod cross_node_tests {
         // Phase 4: Bidding
         info!("Phase 4: Node B submits bid");
         
-        let bid = MeshJobBid {
+        let unsigned_bid = MeshJobBid {
             job_id: test_job.id.clone(),
-            executor_did: executor_did.clone(), 
+            executor_did: executor_did.clone(),
             price_mana: 40,
             resources: Resources::default(),
+            signature: SignatureBytes(vec![]),
+        };
+        let sig_bytes = node_b
+            .signer
+            .sign(&unsigned_bid.to_signable_bytes().unwrap())
+            .unwrap();
+        let bid = MeshJobBid {
+            signature: SignatureBytes(sig_bytes),
+            ..unsigned_bid
         };
         
         let bid_message = NetworkMessage::BidSubmission(bid.clone());
