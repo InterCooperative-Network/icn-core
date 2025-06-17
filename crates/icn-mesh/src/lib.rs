@@ -167,11 +167,29 @@ pub enum JobState {
     Failed { reason: String },
 }
 
-// Placeholder for SelectionPolicy enum/struct
-/// Defines the policy used for selecting an executor from a set of bids.
-/// TODO: Define variants or fields (e.g., prioritize_reputation, prioritize_cost, weighted_score).
-#[derive(Debug, Clone, Default)] // Added Default for placeholder
-pub struct SelectionPolicy;
+/// Policy configuration for executor selection.
+///
+/// The weights determine how much influence each component has in the
+/// final `score_bid` calculation.
+#[derive(Debug, Clone)]
+pub struct SelectionPolicy {
+    /// Weight applied to the bid price (inverse).
+    pub weight_price: f64,
+    /// Weight applied to the executor's reputation score.
+    pub weight_reputation: f64,
+    /// Weight applied to the offered resources.
+    pub weight_resources: f64,
+}
+
+impl Default for SelectionPolicy {
+    fn default() -> Self {
+        Self {
+            weight_price: 1.0,
+            weight_reputation: 50.0,
+            weight_resources: 1.0,
+        }
+    }
+}
 
 /// Helper type that wraps bid selection based on reputation.
 pub struct ReputationExecutorSelector;
@@ -187,9 +205,10 @@ impl ReputationExecutorSelector {
         bids: &[MeshJobBid],
         policy: &SelectionPolicy,
         reputation_store: &dyn icn_reputation::ReputationStore,
+        mana_ledger: &dyn icn_economics::ManaLedger,
     ) -> Option<Did> {
         bids.iter()
-            .max_by_key(|bid| score_bid(bid, policy, reputation_store))
+            .max_by_key(|bid| score_bid(bid, policy, reputation_store, mana_ledger))
             .map(|bid| bid.executor_did.clone())
     }
 }
@@ -211,8 +230,9 @@ impl ReputationExecutorSelector {
 pub fn select_executor(
     job_id: &JobId,
     bids: Vec<MeshJobBid>,
-    _policy: &SelectionPolicy,
+    policy: &SelectionPolicy,
     reputation_store: &dyn icn_reputation::ReputationStore,
+    mana_ledger: &dyn icn_economics::ManaLedger,
 ) -> Option<Did> {
     // TODO: Implement actual selection logic based on policy (reputation, price, resources, etc.)
     // For now, simplistic: return the DID of the first valid bidder if any.
@@ -230,8 +250,10 @@ pub fn select_executor(
     let mut highest_score = 0u64;
 
     for bid in &bids {
-        // TODO: integrate mana checks with persistent ledger
-        let current_score = score_bid(bid, _policy, reputation_store);
+        if mana_ledger.get_balance(&bid.executor_did) < bid.price_mana {
+            continue;
+        }
+        let current_score = score_bid(bid, policy, reputation_store, mana_ledger);
         if best_bid.is_none() || current_score > highest_score {
             highest_score = current_score;
             best_bid = Some(bid);
@@ -256,17 +278,17 @@ pub fn select_executor(
 /// * A `u64` representing the calculated score for the bid. Higher is generally better.
 pub fn score_bid(
     bid: &MeshJobBid,
-    _policy: &SelectionPolicy,
+    policy: &SelectionPolicy,
     reputation_store: &dyn icn_reputation::ReputationStore,
+    mana_ledger: &dyn icn_economics::ManaLedger,
 ) -> u64 {
-    // Weights for the price, reputation and resource components.
-    let w_price = 1.0;
-    let w_rep = 50.0;
-    let w_res = 1.0;
+    if mana_ledger.get_balance(&bid.executor_did) < bid.price_mana {
+        return 0;
+    }
 
-    // Price score: higher is better for lower price.
+    // Price score: higher score for lower price.
     let price_score = if bid.price_mana > 0 {
-        1000.0 / bid.price_mana as f64
+        1.0 / bid.price_mana as f64
     } else {
         0.0
     };
@@ -275,7 +297,9 @@ pub fn score_bid(
 
     let resource_score = bid.resources.cpu_cores as f64 + (bid.resources.memory_mb as f64 / 1024.0);
 
-    let total_score = w_price * price_score + w_rep * reputation_score + w_res * resource_score;
+    let total_score = policy.weight_price * price_score
+        + policy.weight_reputation * reputation_score
+        + policy.weight_resources * resource_score;
 
     total_score.max(0.0) as u64
 }
@@ -337,7 +361,55 @@ pub struct SubmitReceiptMessage {
 mod tests {
     use super::*;
     use icn_common::{Cid, Did, NodeInfo, ICN_CORE_VERSION}; // Kept ICN_CORE_VERSION as it's often for tests
+    use icn_economics::ManaLedger;
+    use std::collections::HashMap;
     use std::str::FromStr;
+    use std::sync::Mutex;
+
+    #[derive(Default)]
+    struct InMemoryLedger {
+        balances: Mutex<HashMap<Did, u64>>,
+    }
+
+    impl InMemoryLedger {
+        fn new() -> Self {
+            Self {
+                balances: Mutex::new(HashMap::new()),
+            }
+        }
+    }
+
+    impl icn_economics::ManaLedger for InMemoryLedger {
+        fn get_balance(&self, did: &Did) -> u64 {
+            *self.balances.lock().unwrap().get(did).unwrap_or(&0)
+        }
+
+        fn set_balance(&self, did: &Did, amount: u64) -> Result<(), icn_common::CommonError> {
+            self.balances.lock().unwrap().insert(did.clone(), amount);
+            Ok(())
+        }
+
+        fn spend(&self, did: &Did, amount: u64) -> Result<(), icn_economics::EconError> {
+            let mut map = self.balances.lock().unwrap();
+            let bal = map
+                .get_mut(did)
+                .ok_or_else(|| icn_economics::EconError::AdapterError("account".into()))?;
+            if *bal < amount {
+                return Err(icn_economics::EconError::InsufficientBalance(
+                    "insufficient".into(),
+                ));
+            }
+            *bal -= amount;
+            Ok(())
+        }
+
+        fn credit(&self, did: &Did, amount: u64) -> Result<(), icn_economics::EconError> {
+            let mut map = self.balances.lock().unwrap();
+            let entry = map.entry(did.clone()).or_insert(0);
+            *entry += amount;
+            Ok(())
+        }
+    }
 
     #[test]
     fn test_schedule_mesh_job() {
@@ -401,6 +473,10 @@ mod tests {
         rep_store.set_score(high.clone(), 5);
         rep_store.set_score(low.clone(), 1);
 
+        let ledger = InMemoryLedger::new();
+        ledger.set_balance(&high, 50).unwrap();
+        ledger.set_balance(&low, 50).unwrap();
+
         let bid_high = MeshJobBid {
             job_id: job_id.clone(),
             executor_did: high.clone(),
@@ -420,12 +496,13 @@ mod tests {
             },
         };
 
-        let policy = SelectionPolicy;
+        let policy = SelectionPolicy::default();
         let selected = select_executor(
             &job_id,
             vec![bid_high.clone(), bid_low.clone()],
             &policy,
             &rep_store,
+            &ledger,
         );
 
         assert_eq!(selected.unwrap(), high);
@@ -441,6 +518,10 @@ mod tests {
         rep_store.set_score(a.clone(), 3);
         rep_store.set_score(b.clone(), 3);
 
+        let ledger = InMemoryLedger::new();
+        ledger.set_balance(&a, 50).unwrap();
+        ledger.set_balance(&b, 50).unwrap();
+
         let bid_a = MeshJobBid {
             job_id: job_id.clone(),
             executor_did: a.clone(),
@@ -454,8 +535,97 @@ mod tests {
             resources: Resources::default(),
         };
 
-        let policy = SelectionPolicy;
-        let selected = select_executor(&job_id, vec![bid_a, bid_b.clone()], &policy, &rep_store);
+        let policy = SelectionPolicy::default();
+        let selected = select_executor(
+            &job_id,
+            vec![bid_a, bid_b.clone()],
+            &policy,
+            &rep_store,
+            &ledger,
+        );
+
+        assert_eq!(selected.unwrap(), b);
+    }
+
+    #[test]
+    fn test_policy_price_weight_overrides_reputation() {
+        let job_id = dummy_cid("job_weight");
+        let high_rep = Did::from_str("did:icn:test:highrep").unwrap();
+        let cheap = Did::from_str("did:icn:test:cheap").unwrap();
+
+        let rep_store = icn_reputation::InMemoryReputationStore::new();
+        rep_store.set_score(high_rep.clone(), 10);
+        rep_store.set_score(cheap.clone(), 1);
+
+        let ledger = InMemoryLedger::new();
+        ledger.set_balance(&high_rep, 100).unwrap();
+        ledger.set_balance(&cheap, 100).unwrap();
+
+        let bid_high_rep = MeshJobBid {
+            job_id: job_id.clone(),
+            executor_did: high_rep.clone(),
+            price_mana: 50,
+            resources: Resources::default(),
+        };
+        let bid_cheap = MeshJobBid {
+            job_id: job_id.clone(),
+            executor_did: cheap.clone(),
+            price_mana: 5,
+            resources: Resources::default(),
+        };
+
+        let policy = SelectionPolicy {
+            weight_price: 10.0,
+            weight_reputation: 1.0,
+            weight_resources: 1.0,
+        };
+
+        let selected = select_executor(
+            &job_id,
+            vec![bid_high_rep, bid_cheap.clone()],
+            &policy,
+            &rep_store,
+            &ledger,
+        );
+
+        assert_eq!(selected.unwrap(), cheap);
+    }
+
+    #[test]
+    fn test_bid_skipped_without_mana() {
+        let job_id = dummy_cid("job_mana");
+        let a = Did::from_str("did:icn:test:mana_a").unwrap();
+        let b = Did::from_str("did:icn:test:mana_b").unwrap();
+
+        let rep_store = icn_reputation::InMemoryReputationStore::new();
+        rep_store.set_score(a.clone(), 5);
+        rep_store.set_score(b.clone(), 3);
+
+        let ledger = InMemoryLedger::new();
+        ledger.set_balance(&a, 4).unwrap(); // less than price
+        ledger.set_balance(&b, 50).unwrap();
+
+        let bid_a = MeshJobBid {
+            job_id: job_id.clone(),
+            executor_did: a.clone(),
+            price_mana: 10,
+            resources: Resources::default(),
+        };
+        let bid_b = MeshJobBid {
+            job_id: job_id.clone(),
+            executor_did: b.clone(),
+            price_mana: 10,
+            resources: Resources::default(),
+        };
+
+        let policy = SelectionPolicy::default();
+        let selected = select_executor(
+            &job_id,
+            vec![bid_a, bid_b.clone()],
+            &policy,
+            &rep_store,
+            &ledger,
+        );
 
         assert_eq!(selected.unwrap(), b);
     }
