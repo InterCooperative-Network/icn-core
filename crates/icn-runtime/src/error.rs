@@ -3,7 +3,7 @@
 use thiserror::Error;
 use icn_common::{Cid, Did};
 use icn_network::MeshNetworkError; // Assuming MeshNetworkError is accessible
- // Add this import
+use crate::context::HostAbiError;
 
 /// Errors that can occur during mesh job processing within the `icn-runtime` crate.
 #[derive(Debug, Error)]
@@ -88,7 +88,7 @@ impl From<HostAbiError> for MeshJobError {
                 reason: msg,
             },
             HostAbiError::JobSubmissionFailed(reason) => MeshJobError::ProcessingFailure {
-                job_id: Cid::default(),
+                job_id: Cid::new_v1_dummy(0, 0, b"host_abi_failure"),
                 reason: format!("Job submission failed via host ABI: {}", reason),
             },
             other => MeshJobError::HostAbi(other),

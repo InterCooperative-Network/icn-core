@@ -1,4 +1,4 @@
-use axum::http::StatusCode;
+use reqwest::StatusCode;
 use icn_common::{Cid, DagBlock, Did, Transaction};
 use icn_node::app_router;
 use tokio::task;
@@ -27,7 +27,7 @@ async fn submit_transaction_and_query_data() {
     };
     let tx_json = serde_json::to_string(&tx).unwrap();
     let client = reqwest::Client::new();
-    let submit_url = format!("http://{}/transaction/submit", addr);
+    let submit_url = format!("http://{addr}/transaction/submit");
     let res = client
         .post(&submit_url)
         .body(tx_json)
@@ -45,12 +45,12 @@ async fn submit_transaction_and_query_data() {
         data: b"data".to_vec(),
         links: vec![],
     };
-    let put_url = format!("http://{}/dag/put", addr);
+    let put_url = format!("http://{addr}/dag/put");
     let res = client.post(&put_url).json(&block).send().await.unwrap();
     assert_eq!(res.status(), StatusCode::CREATED);
     let cid: Cid = res.json().await.unwrap();
 
-    let query_url = format!("http://{}/data/query", addr);
+    let query_url = format!("http://{addr}/data/query");
     let res = client
         .post(&query_url)
         .json(&serde_json::json!({"cid": cid.to_string()}))

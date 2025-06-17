@@ -23,6 +23,14 @@ The API style emphasizes:
 *   **Modularity:** Clear separation between the runtime environment and the code being executed.
 *   **Well-Defined Interface:** A stable and clear set of host functions for guest code.
 
+### Governance
+
+The runtime exposes host calls for managing on-chain proposals. Voting can be
+closed via `host_close_governance_proposal_voting`, returning the final
+`ProposalStatus` as a string. Accepted proposals may then be executed with
+`host_execute_governance_proposal`, which updates the stored proposal and member
+set.
+
 ## Contributing
 
 Contributions are welcome! Please see the main [CONTRIBUTING.md](../../CONTRIBUTING.md) in the root of the `icn-core` repository for guidelines.
