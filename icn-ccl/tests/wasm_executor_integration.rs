@@ -54,7 +54,7 @@ async fn wasm_executor_runs_compiled_ccl() {
     let job = ActualMeshJob {
         id: Cid::new_v1_dummy(0x55, 0x12, b"job"),
         manifest_cid: cid,
-        spec: JobSpec::GenericPlaceholder,
+        spec: JobSpec::default(),
         creator_did: node_did.clone(),
         cost_mana: 0,
         max_execution_wait_ms: None,
@@ -97,7 +97,7 @@ async fn wasm_executor_runs_compiled_addition() {
     let job = ActualMeshJob {
         id: Cid::new_v1_dummy(0x55, 0x12, b"jobadd"),
         manifest_cid: cid,
-        spec: JobSpec::GenericPlaceholder,
+        spec: JobSpec::default(),
         creator_did: node_did.clone(),
         cost_mana: 0,
         max_execution_wait_ms: None,
@@ -140,7 +140,7 @@ async fn wasm_executor_fails_without_run() {
     let job = ActualMeshJob {
         id: Cid::new_v1_dummy(0x55, 0x12, b"job2"),
         manifest_cid: cid,
-        spec: JobSpec::GenericPlaceholder,
+        spec: JobSpec::default(),
         creator_did: node_did.clone(),
         cost_mana: 0,
         max_execution_wait_ms: None,

@@ -123,6 +123,9 @@ pub fn create_test_job(config: &TestJobConfig) -> Job {
     let manifest_cid = Cid::new_v1_dummy(0x71, 0x12, b"dummy_manifest_data");
     let job_spec = JobSpec::Echo {
         payload: config.payload.clone(),
+        input_cids: Vec::new(),
+        output_cids: Vec::new(),
+        required_resources: Resources::default(),
     };
 
     Job {

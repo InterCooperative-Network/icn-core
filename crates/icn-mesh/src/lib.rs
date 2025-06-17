@@ -52,7 +52,7 @@ impl std::error::Error for MeshError {}
 // For now, let's use a simple type alias or placeholder
 pub type JobId = Cid;
 /// Execution resource capabilities offered in a bid.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Resources {
     /// Number of CPU cores available for the job.
     pub cpu_cores: u32,
@@ -127,18 +127,45 @@ impl ActualMeshJob {
     }
 }
 
-/// Detailed specification for a mesh job.
-/// TODO: Define fields for inputs, outputs, resource requirements, timeouts, etc.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+/// Detailed specification for a mesh job including I/O and resource requirements.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum JobSpec {
+    /// Simple echo job used for tests and examples.
     Echo {
+        /// Payload that should be echoed back by the executor.
         payload: String,
+        /// CIDs of input data required for the job.
+        #[serde(default)]
+        input_cids: Vec<Cid>,
+        /// Expected output CIDs (placeholders until execution is complete).
+        #[serde(default)]
+        output_cids: Vec<Cid>,
+        /// Resources required to execute the job.
+        #[serde(default)]
+        required_resources: Resources,
     },
-    // Add other variants as needed, e.g.:
-    // Generic { command: String, args: Vec<String> },
-    // Wasm { module_cid: Cid, entry_function: String, params: Vec<Value> },
-    #[default]
-    GenericPlaceholder, // Placeholder until more types are defined
+    /// Placeholder variant until more job types are defined.
+    GenericPlaceholder {
+        /// CIDs of input data required for the job.
+        #[serde(default)]
+        input_cids: Vec<Cid>,
+        /// Expected output CIDs.
+        #[serde(default)]
+        output_cids: Vec<Cid>,
+        /// Resources required to execute the job.
+        #[serde(default)]
+        required_resources: Resources,
+    },
+}
+
+impl Default for JobSpec {
+    fn default() -> Self {
+        JobSpec::GenericPlaceholder {
+            input_cids: Vec::new(),
+            output_cids: Vec::new(),
+            required_resources: Resources::default(),
+        }
+    }
 }
 
 /// Represents a bid submitted by an executor node for a specific mesh job.
@@ -247,8 +274,12 @@ impl ReputationExecutorSelector {
         mana_ledger: &dyn icn_economics::ManaLedger,
     ) -> Option<Did> {
         bids.iter()
-            .max_by_key(|bid| score_bid(bid, policy, reputation_store, mana_ledger))
-            .map(|bid| bid.executor_did.clone())
+            .filter_map(|bid| {
+                score_bid(bid, policy, reputation_store, mana_ledger)
+                    .map(|s| (bid.executor_did.clone(), s))
+            })
+            .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
+            .map(|(did, _)| did)
     }
 }
 
@@ -273,33 +304,19 @@ pub fn select_executor(
     reputation_store: &dyn icn_reputation::ReputationStore,
     mana_ledger: &dyn icn_economics::ManaLedger,
 ) -> Option<Did> {
-    // TODO: Implement actual selection logic based on policy (reputation, price, resources, etc.)
-    // For now, simplistic: return the DID of the first valid bidder if any.
     println!(
         "[Mesh] Selecting executor for job {:?}. Received {} bids.",
         job_id,
         bids.len()
     );
 
-    if bids.is_empty() {
-        return None;
-    }
-
-    let mut best_bid: Option<&MeshJobBid> = None;
-    let mut highest_score = 0u64;
-
-    for bid in &bids {
-        if mana_ledger.get_balance(&bid.executor_did) < bid.price_mana {
-            continue;
-        }
-        let current_score = score_bid(bid, policy, reputation_store, mana_ledger);
-        if best_bid.is_none() || current_score > highest_score {
-            highest_score = current_score;
-            best_bid = Some(bid);
-        }
-    }
-
-    best_bid.map(|b| b.executor_did.clone())
+    bids.iter()
+        .filter_map(|bid| {
+            score_bid(bid, policy, reputation_store, mana_ledger)
+                .map(|score| (bid.executor_did.clone(), score))
+        })
+        .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
+        .map(|(did, _)| did)
 }
 
 /// Scores a single bid based on a selection policy.
@@ -320,19 +337,20 @@ pub fn score_bid(
     policy: &SelectionPolicy,
     reputation_store: &dyn icn_reputation::ReputationStore,
     mana_ledger: &dyn icn_economics::ManaLedger,
-) -> u64 {
+) -> Option<f64> {
     if mana_ledger.get_balance(&bid.executor_did) < bid.price_mana {
-        return 0;
+        return None;
+    }
+
+    let reputation = reputation_store.get_reputation(&bid.executor_did);
+    if reputation == 0 {
+        return None;
     }
 
     // Price score: higher score for lower price.
-    let price_score = if bid.price_mana > 0 {
-        1.0 / bid.price_mana as f64
-    } else {
-        0.0
-    };
+    let price_score = 1.0 / (bid.price_mana as f64 + 1.0);
 
-    let reputation_score = reputation_store.get_reputation(&bid.executor_did) as f64;
+    let reputation_score = reputation as f64;
 
     let resource_score = bid.resources.cpu_cores as f64 + (bid.resources.memory_mb as f64 / 1024.0);
 
@@ -340,7 +358,7 @@ pub fn score_bid(
         + policy.weight_reputation * reputation_score
         + policy.weight_resources * resource_score;
 
-    total_score.max(0.0) as u64
+    Some(total_score.max(0.0))
 }
 
 /// Placeholder function demonstrating use of common types for mesh operations.
@@ -474,7 +492,7 @@ mod tests {
         let job_unsigned = ActualMeshJob {
             id: job_id.clone(),
             manifest_cid: manifest_cid.clone(),
-            spec: JobSpec::GenericPlaceholder,
+            spec: JobSpec::default(),
             creator_did: creator_did.clone(),
             cost_mana: 100,
             max_execution_wait_ms: None,
@@ -687,5 +705,51 @@ mod tests {
         );
 
         assert_eq!(selected.unwrap(), b);
+    }
+
+    #[test]
+    fn test_select_executor_no_bids() {
+        let job_id = dummy_cid("job_none");
+        let rep_store = icn_reputation::InMemoryReputationStore::new();
+        let ledger = InMemoryLedger::new();
+        let policy = SelectionPolicy::default();
+
+        let selected = select_executor(&job_id, vec![], &policy, &rep_store, &ledger);
+        assert!(selected.is_none());
+    }
+
+    #[test]
+    fn test_select_executor_all_bids_insufficient_mana() {
+        let job_id = dummy_cid("job_no_mana");
+        let did_a = Did::from_str("did:icn:test:a").unwrap();
+        let did_b = Did::from_str("did:icn:test:b").unwrap();
+
+        let rep_store = icn_reputation::InMemoryReputationStore::new();
+        rep_store.set_score(did_a.clone(), 5);
+        rep_store.set_score(did_b.clone(), 5);
+
+        let ledger = InMemoryLedger::new();
+        ledger.set_balance(&did_a, 1).unwrap();
+        ledger.set_balance(&did_b, 2).unwrap();
+
+        let bid_a = MeshJobBid {
+            job_id: job_id.clone(),
+            executor_did: did_a.clone(),
+            price_mana: 10,
+            resources: Resources::default(),
+            signature: SignatureBytes(vec![]),
+        };
+        let bid_b = MeshJobBid {
+            job_id: job_id.clone(),
+            executor_did: did_b.clone(),
+            price_mana: 10,
+            resources: Resources::default(),
+            signature: SignatureBytes(vec![]),
+        };
+
+        let policy = SelectionPolicy::default();
+        let selected = select_executor(&job_id, vec![bid_a, bid_b], &policy, &rep_store, &ledger);
+
+        assert!(selected.is_none());
     }
 }

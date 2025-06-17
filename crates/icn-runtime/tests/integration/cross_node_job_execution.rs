@@ -31,7 +31,12 @@ mod cross_node_tests {
         ActualMeshJob {
             id: job_id,
             manifest_cid,
-            spec: JobSpec::Echo { payload: format!("Cross-node test job {}", job_id_suffix) },
+            spec: JobSpec::Echo {
+                payload: format!("Cross-node test job {}", job_id_suffix),
+                input_cids: Vec::new(),
+                output_cids: Vec::new(),
+                required_resources: Resources::default(),
+            },
             creator_did: creator_did.clone(),
             cost_mana,
             max_execution_wait_ms: None,
