@@ -9,6 +9,7 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue; // For generic JSON data if needed
 use std::io::{self, Read};
+use std::path::PathBuf;
 use std::process::exit; // Added for reading from stdin
 
 // Types from our ICN crates that CLI will interact with (serialize/deserialize)
@@ -18,6 +19,7 @@ use icn_common::{Cid, DagBlock, NodeInfo, NodeStatus};
 use icn_api::governance_trait::{
     CastVoteRequest as ApiCastVoteRequest, SubmitProposalRequest as ApiSubmitProposalRequest,
 };
+use icn_ccl::compile_ccl_file;
 use icn_governance::{Proposal, ProposalId};
 
 // --- CLI Argument Parsing ---
@@ -52,6 +54,21 @@ enum Commands {
     Governance {
         #[clap(subcommand)]
         command: GovernanceCommands,
+    },
+    /// Mesh job operations
+    Mesh {
+        #[clap(subcommand)]
+        command: MeshCommands,
+    },
+    /// Network operations
+    Network {
+        #[clap(subcommand)]
+        command: NetworkCommands,
+    },
+    /// Cooperative Contract Language operations
+    Ccl {
+        #[clap(subcommand)]
+        command: CclCommands,
     },
 }
 
@@ -92,6 +109,32 @@ enum GovernanceCommands {
     },
 }
 
+#[derive(Subcommand, Debug)]
+enum MeshCommands {
+    /// List all mesh jobs
+    Jobs,
+    /// Get status for a specific job
+    Status {
+        #[clap(help = "Job ID (CID string)")]
+        job_id: String,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum NetworkCommands {
+    /// Display network statistics
+    Stats,
+}
+
+#[derive(Subcommand, Debug)]
+enum CclCommands {
+    /// Compile a CCL source file
+    Compile {
+        #[clap(help = "Path to the CCL source file")]
+        file: String,
+    },
+}
+
 // --- Main CLI Logic ---
 
 #[tokio::main]
@@ -124,6 +167,16 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
             }
             GovernanceCommands::Proposals => handle_gov_list_proposals(cli, client).await?,
             GovernanceCommands::Proposal { id } => handle_gov_get_proposal(cli, client, id).await?,
+        },
+        Commands::Mesh { command } => match command {
+            MeshCommands::Jobs => handle_mesh_jobs(cli, client).await?,
+            MeshCommands::Status { job_id } => handle_mesh_status(cli, client, job_id).await?,
+        },
+        Commands::Network { command } => match command {
+            NetworkCommands::Stats => handle_network_stats(cli, client).await?,
+        },
+        Commands::Ccl { command } => match command {
+            CclCommands::Compile { file } => handle_ccl_compile(file)?,
         },
     }
     Ok(())
@@ -309,6 +362,35 @@ async fn handle_gov_get_proposal(
     println!("--- Proposal Details (ID: {}) ---", proposal_id);
     println!("{}", serde_json::to_string_pretty(&proposal)?);
     println!("-----------------------------------");
+    Ok(())
+}
+
+async fn handle_mesh_jobs(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
+    let response: serde_json::Value = get_request(&cli.api_url, client, "/mesh/jobs").await?;
+    println!("{}", serde_json::to_string_pretty(&response)?);
+    Ok(())
+}
+
+async fn handle_mesh_status(cli: &Cli, client: &Client, job_id: &str) -> Result<(), anyhow::Error> {
+    let path = format!("/mesh/jobs/{}", job_id);
+    let response: serde_json::Value = get_request(&cli.api_url, client, &path).await?;
+    println!("{}", serde_json::to_string_pretty(&response)?);
+    Ok(())
+}
+
+async fn handle_network_stats(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
+    let status: NodeStatus = get_request(&cli.api_url, client, "/status").await?;
+    println!("{}", serde_json::to_string_pretty(&status)?);
+    Ok(())
+}
+
+fn handle_ccl_compile(file: &str) -> Result<(), anyhow::Error> {
+    let source_path = PathBuf::from(file);
+    let wasm_path = source_path.with_extension("wasm");
+    let meta_path = source_path.with_extension("json");
+    let meta =
+        compile_ccl_file(&source_path, &wasm_path, &meta_path).map_err(|e| anyhow::anyhow!(e))?;
+    println!("{}", serde_json::to_string_pretty(&meta)?);
     Ok(())
 }
 
