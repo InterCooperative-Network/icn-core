@@ -208,8 +208,9 @@ pub enum JobState {
 
 /// Policy configuration for executor selection.
 ///
-/// The weights determine how much influence each component has in the
-/// final `score_bid` calculation.
+/// Each weight defines how much influence a factor has when calculating a bid's
+/// score via [`score_bid`]. A higher value means the factor contributes more to
+/// the final score.
 #[derive(Debug, Clone)]
 pub struct SelectionPolicy {
     /// Weight applied to the bid price (inverse).
@@ -252,10 +253,11 @@ impl ReputationExecutorSelector {
     }
 }
 
-/// Selects the best executor from a list of bids based on a given policy.
+/// Selects the best executor from a list of bids.
 ///
-/// This function typically utilizes a `ReputationExecutorSelector` internally to factor in
-/// executor reputation alongside other bid parameters like price and resource availability.
+/// Each bid is scored via [`score_bid`] using the provided [`SelectionPolicy`].
+/// Bids from executors that lack sufficient mana are ignored. The executor with
+/// the highest resulting score is returned.
 ///
 /// # Arguments
 /// * `job_id` - The ID of the job for which an executor is being selected.
@@ -273,40 +275,28 @@ pub fn select_executor(
     reputation_store: &dyn icn_reputation::ReputationStore,
     mana_ledger: &dyn icn_economics::ManaLedger,
 ) -> Option<Did> {
-    // TODO: Implement actual selection logic based on policy (reputation, price, resources, etc.)
-    // For now, simplistic: return the DID of the first valid bidder if any.
+    // Iterate over bids and pick the executor with the highest score as
+    // determined by `score_bid`. Bids from executors without enough mana are
+    // ignored.
     println!(
         "[Mesh] Selecting executor for job {:?}. Received {} bids.",
         job_id,
         bids.len()
     );
 
-    if bids.is_empty() {
-        return None;
-    }
-
-    let mut best_bid: Option<&MeshJobBid> = None;
-    let mut highest_score = 0u64;
-
-    for bid in &bids {
-        if mana_ledger.get_balance(&bid.executor_did) < bid.price_mana {
-            continue;
-        }
-        let current_score = score_bid(bid, policy, reputation_store, mana_ledger);
-        if best_bid.is_none() || current_score > highest_score {
-            highest_score = current_score;
-            best_bid = Some(bid);
-        }
-    }
-
-    best_bid.map(|b| b.executor_did.clone())
+    bids.iter()
+        .filter(|bid| mana_ledger.get_balance(&bid.executor_did) >= bid.price_mana)
+        .max_by_key(|bid| score_bid(bid, policy, reputation_store, mana_ledger))
+        .map(|bid| bid.executor_did.clone())
 }
 
-/// Scores a single bid based on a selection policy.
+/// Scores a single bid according to a [`SelectionPolicy`].
 ///
-/// The score typically reflects a combination of factors such as the bid price,
-/// the executor's available mana (as a proxy for stability/commitment),
-/// and the executor's reputation.
+/// The resulting value combines three components:
+/// price (lower is better), executor reputation, and resources offered by the
+/// bid. Each component is multiplied by its weight from the policy and then
+/// summed. Bids from executors that cannot afford the `price_mana` return a
+/// score of zero.
 ///
 /// # Arguments
 /// * `bid` - The `Bid` to score.
@@ -325,7 +315,7 @@ pub fn score_bid(
         return 0;
     }
 
-    // Price score: higher score for lower price.
+    // Lower prices should rank higher, so use the inverse of the bid price.
     let price_score = if bid.price_mana > 0 {
         1.0 / bid.price_mana as f64
     } else {
@@ -334,13 +324,15 @@ pub fn score_bid(
 
     let reputation_score = reputation_store.get_reputation(&bid.executor_did) as f64;
 
+    // Approximate resource capacity: CPU cores plus memory (in GiB) to keep the
+    // units comparable.
     let resource_score = bid.resources.cpu_cores as f64 + (bid.resources.memory_mb as f64 / 1024.0);
 
-    let total_score = policy.weight_price * price_score
+    let weighted = policy.weight_price * price_score
         + policy.weight_reputation * reputation_score
         + policy.weight_resources * resource_score;
 
-    total_score.max(0.0) as u64
+    weighted.max(0.0) as u64
 }
 
 /// Placeholder function demonstrating use of common types for mesh operations.
@@ -687,5 +679,91 @@ mod tests {
         );
 
         assert_eq!(selected.unwrap(), b);
+    }
+
+    #[test]
+    fn test_resource_weight_influences_selection() {
+        let job_id = dummy_cid("job_resource");
+        let (sk_fast, vk_fast) = icn_identity::generate_ed25519_keypair();
+        let fast = Did::from_str(&icn_identity::did_key_from_verifying_key(&vk_fast)).unwrap();
+        let (sk_slow, vk_slow) = icn_identity::generate_ed25519_keypair();
+        let slow = Did::from_str(&icn_identity::did_key_from_verifying_key(&vk_slow)).unwrap();
+
+        let rep_store = icn_reputation::InMemoryReputationStore::new();
+        rep_store.set_score(fast.clone(), 1);
+        rep_store.set_score(slow.clone(), 1);
+
+        let ledger = InMemoryLedger::new();
+        ledger.set_balance(&fast, 100).unwrap();
+        ledger.set_balance(&slow, 100).unwrap();
+
+        let bid_fast = MeshJobBid {
+            job_id: job_id.clone(),
+            executor_did: fast.clone(),
+            price_mana: 10,
+            resources: Resources {
+                cpu_cores: 4,
+                memory_mb: 4096,
+            },
+            signature: SignatureBytes(vec![]),
+        }
+        .sign(&sk_fast)
+        .unwrap();
+
+        let bid_slow = MeshJobBid {
+            job_id: job_id.clone(),
+            executor_did: slow.clone(),
+            price_mana: 10,
+            resources: Resources {
+                cpu_cores: 1,
+                memory_mb: 512,
+            },
+            signature: SignatureBytes(vec![]),
+        }
+        .sign(&sk_slow)
+        .unwrap();
+
+        let policy = SelectionPolicy {
+            weight_price: 1.0,
+            weight_reputation: 0.0,
+            weight_resources: 10.0,
+        };
+
+        let selected = select_executor(
+            &job_id,
+            vec![bid_slow.clone(), bid_fast.clone()],
+            &policy,
+            &rep_store,
+            &ledger,
+        );
+
+        assert_eq!(selected.unwrap(), fast);
+    }
+
+    #[test]
+    fn test_score_bid_zero_without_mana() {
+        let job_id = dummy_cid("job_score_mana");
+        let bidder = Did::from_str("did:icn:test:score_mana").unwrap();
+
+        let rep_store = icn_reputation::InMemoryReputationStore::new();
+        rep_store.set_score(bidder.clone(), 5);
+
+        let ledger = InMemoryLedger::new();
+        ledger.set_balance(&bidder, 0).unwrap();
+
+        let bid = MeshJobBid {
+            job_id: job_id.clone(),
+            executor_did: bidder.clone(),
+            price_mana: 10,
+            resources: Resources {
+                cpu_cores: 2,
+                memory_mb: 1024,
+            },
+            signature: SignatureBytes(vec![]),
+        };
+
+        let policy = SelectionPolicy::default();
+        let score = score_bid(&bid, &policy, &rep_store, &ledger);
+        assert_eq!(score, 0);
     }
 }
