@@ -21,8 +21,10 @@ fn test_compile_simple_policy_end_to_end() {
         }
     "#;
 
-    let res = compile_ccl_source_to_wasm(ccl_source);
-    assert!(matches!(res, Err(CclError::TypeError(_))));
+    let res = compile_ccl_source_to_wasm(ccl_source).expect("compile success");
+    let (wasm, meta) = res;
+    assert!(wasm.starts_with(b"\0asm"));
+    assert!(meta.exports.contains(&"get_cost".to_string()));
 }
 
 #[test]

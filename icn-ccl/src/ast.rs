@@ -43,6 +43,24 @@ pub enum TypeAnnotationNode {
     Custom(String), // For user-defined types or imported ones
 }
 
+impl TypeAnnotationNode {
+    /// Returns true if two types are considered compatible.
+    ///
+    /// Currently `Mana` and `Integer` are treated as interchangeable
+    /// since they share the same underlying WASM representation.
+    pub fn compatible_with(&self, other: &Self) -> bool {
+        self == other
+            || matches!((self, other),
+                (TypeAnnotationNode::Mana, TypeAnnotationNode::Integer)
+                    | (TypeAnnotationNode::Integer, TypeAnnotationNode::Mana))
+    }
+
+    /// Returns true if this type behaves like an integer number.
+    pub fn is_numeric(&self) -> bool {
+        matches!(self, TypeAnnotationNode::Integer | TypeAnnotationNode::Mana)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BlockNode {
     pub statements: Vec<StatementNode>,

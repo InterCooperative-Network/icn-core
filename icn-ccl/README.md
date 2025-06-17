@@ -13,7 +13,14 @@ The `icn-ccl` crate is responsible for:
 
 ## Development Status
 
-Parsing, optimization, and WASM generation are **not** fully implemented yet. Numerous `TODO` comments in the source code outline the missing pieces.
+The compiler is functional and includes:
+
+* A parser built with [Pest](https://pest.rs)
+* A semantic analyzer with basic type checking
+* A simple optimizer for constant folding
+* A WASM backend built on `wasm-encoder`
+
+While minimal, these stages are enough to compile small example contracts.
 
 ## Basic Usage
 
@@ -24,6 +31,7 @@ use icn_ccl::compile_ccl_source_to_wasm;
 
 let source = "fn get_cost() -> Mana { return 10; }";
 let (wasm, meta) = compile_ccl_source_to_wasm(source)?;
+// `wasm` holds the compiled module and `meta` describes exports and other info
 ```
 
 CLI-oriented helpers live in the `cli` module for tools like `icn-cli` to compile `.ccl` files from disk.
@@ -36,7 +44,7 @@ CLI-oriented helpers live in the `cli` module for tools like `icn-cli` to compil
 
 ## Roadmap & Issues
 
-Future work includes fully implementing the parser, optimizer, and WASM backend. For specific tasks, check the [open issues](https://github.com/InterCooperative/icn-core/issues?q=label%3Accl).
+Future work focuses on expanding language features and improving optimization. For specific tasks, check the [open issues](https://github.com/InterCooperative/icn-core/issues?q=label%3Accl).
 
 ## Contributing
 
