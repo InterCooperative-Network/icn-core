@@ -1317,7 +1317,12 @@ impl RuntimeContext {
             .downcast_ref::<DefaultMeshNetworkService>()
         {
             let service = default_mesh.get_underlying_broadcast_service()?;
-            service.as_ref().clone().shutdown().await
+            service
+                .as_ref()
+                .clone()
+                .shutdown()
+                .await
+                .map_err(|e| CommonError::NetworkError(e.to_string()))
         } else {
             Ok(())
         }
