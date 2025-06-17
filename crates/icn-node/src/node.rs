@@ -1232,7 +1232,9 @@ mod tests {
         let job_req = SubmitJobRequest {
             manifest_cid: Cid::new_v1_dummy(0x55, 0x14, b"test_manifest").to_string(),
             spec_json: serde_json::to_value(&icn_mesh::JobSpec {
-                kind: icn_mesh::JobKind::Echo { payload: "hello".into() },
+                kind: icn_mesh::JobKind::Echo {
+                    payload: "hello".into(),
+                },
                 ..Default::default()
             })
             .unwrap(),
@@ -1269,7 +1271,9 @@ mod tests {
         let job_req = SubmitJobRequest {
             manifest_cid: Cid::new_v1_dummy(0x55, 0x14, b"pipeline_test_manifest").to_string(),
             spec_json: serde_json::to_value(&icn_mesh::JobSpec {
-                kind: icn_mesh::JobKind::Echo { payload: "HTTP pipeline test".into() },
+                kind: icn_mesh::JobKind::Echo {
+                    payload: "HTTP pipeline test".into(),
+                },
                 ..Default::default()
             })
             .unwrap(),
@@ -1405,7 +1409,9 @@ mod tests {
         let job_req = SubmitJobRequest {
             manifest_cid: Cid::new_v1_dummy(0x55, 0x14, b"simple_test").to_string(),
             spec_json: serde_json::to_value(&icn_mesh::JobSpec {
-                kind: icn_mesh::JobKind::Echo { payload: "simple test".into() },
+                kind: icn_mesh::JobKind::Echo {
+                    payload: "simple test".into(),
+                },
                 ..Default::default()
             })
             .unwrap(),

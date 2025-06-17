@@ -713,7 +713,7 @@ async fn test_submit_mesh_job_with_custom_timeout() {
 
     let manifest_cid = Cid::new_v1_dummy(0x55, 0x13, b"manifest_timeout_field");
     let mut job = create_test_mesh_job(manifest_cid, 10, submitter_did.clone());
-    job.max_execution_wait_ms = Some(1234);
+    job.spec.timeout_ms = Some(1234);
     let job_json = serde_json::to_string(&job).unwrap();
 
     let _job_id = host_submit_mesh_job(&ctx, &job_json)
@@ -722,7 +722,7 @@ async fn test_submit_mesh_job_with_custom_timeout() {
 
     let pending_jobs = host_get_pending_mesh_jobs(&ctx).unwrap();
     assert_eq!(pending_jobs.len(), 1);
-    assert_eq!(pending_jobs[0].max_execution_wait_ms, Some(1234));
+    assert_eq!(pending_jobs[0].spec.timeout_ms, Some(1234));
 }
 
 // Helper to create a plausible (but potentially invalidly signed) ExecutionReceipt for testing.
