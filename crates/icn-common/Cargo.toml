@@ -10,11 +10,13 @@ readme = "README.md"
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0" # For examples and potentially some utils
-bs58 = "0.5.0" # For CID string representation example
 thiserror = "1.0" # For idiomatic error definitions
 sha2 = "0.10"
 ed25519-dalek = { version = "2.0.0-pre.3", features = ["rand_core"] }
 serde_bytes = "0.11"
+multibase = "0.9"
+multicodec = "0.1"
+unsigned-varint = { version = "0.7", default-features = false }
 
 [dev-dependencies]
 rand_core = { version = "0.6", features = ["getrandom"] }

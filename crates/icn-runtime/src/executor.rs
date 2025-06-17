@@ -1,13 +1,12 @@
 //! This module provides executor-side functionality for running mesh jobs.
 
-use crate::context::RuntimeContext;
 use icn_common::{Cid, CommonError, Did};
 use icn_identity::{
     ExecutionReceipt as IdentityExecutionReceipt,
     SignatureBytes, /* Removed , generate_ed25519_keypair */
     SigningKey,
 };
-use icn_mesh::{ActualMeshJob, JobKind, JobSpec /* ... other mesh types ... */};
+use icn_mesh::{ActualMeshJob, JobSpec /* ... other mesh types ... */};
 use log::info; // Removed error
 use std::time::SystemTime;
 
@@ -73,7 +72,7 @@ impl JobExecutor for SimpleExecutor {
             }
         };
 
-        let result_cid = Cid::new_v1_dummy(0x55, 0x12, &result_bytes);
+        let result_cid = Cid::new_v1_sha256(0x55, &result_bytes);
         let cpu_ms = start_time.elapsed().unwrap_or_default().as_millis() as u64;
 
         let unsigned_receipt = IdentityExecutionReceipt {
@@ -200,7 +199,7 @@ impl JobExecutor for WasmExecutor {
         let cpu_ms = start_time.elapsed().unwrap_or_default().as_millis() as u64;
 
         let result_bytes = result.to_le_bytes();
-        let result_cid = Cid::new_v1_dummy(0x55, 0x12, &result_bytes);
+        let result_cid = Cid::new_v1_sha256(0x55, &result_bytes);
 
         let unsigned_receipt = IdentityExecutionReceipt {
             job_id: job.id.clone(),
@@ -230,7 +229,7 @@ mod tests {
                            // Removed unused: serde_json::json, std::convert::TryInto, std::sync::Arc
 
     fn dummy_cid_for_executor_test(s: &str) -> Cid {
-        Cid::new_v1_dummy(0x55, 0x12, s.as_bytes())
+        Cid::new_v1_sha256(0x55, s.as_bytes())
     }
 
     #[tokio::test]

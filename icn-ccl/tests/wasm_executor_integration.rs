@@ -52,9 +52,9 @@ async fn wasm_executor_runs_compiled_ccl() {
     let node_did = icn_common::Did::from_str(&did_key_from_verifying_key(&vk)).unwrap();
 
     let job = ActualMeshJob {
-        id: Cid::new_v1_dummy(0x55, 0x12, b"job"),
+        id: Cid::new_v1_sha256(0x55, b"job"),
         manifest_cid: cid,
-        spec: JobSpec::default(),
+        spec: JobSpec::GenericPlaceholder,
         creator_did: node_did.clone(),
         cost_mana: 0,
         max_execution_wait_ms: None,
@@ -69,7 +69,7 @@ async fn wasm_executor_runs_compiled_ccl() {
     });
     let receipt = handle.join().unwrap().unwrap();
     assert_eq!(receipt.executor_did, node_did);
-    let expected_cid = Cid::new_v1_dummy(0x55, 0x12, &6i64.to_le_bytes());
+    let expected_cid = Cid::new_v1_sha256(0x55, &6i64.to_le_bytes());
     assert_eq!(receipt.result_cid, expected_cid);
 }
 
@@ -95,9 +95,9 @@ async fn wasm_executor_runs_compiled_addition() {
     let node_did = icn_common::Did::from_str(&did_key_from_verifying_key(&vk)).unwrap();
 
     let job = ActualMeshJob {
-        id: Cid::new_v1_dummy(0x55, 0x12, b"jobadd"),
+        id: Cid::new_v1_sha256(0x55, b"jobadd"),
         manifest_cid: cid,
-        spec: JobSpec::default(),
+        spec: JobSpec::GenericPlaceholder,
         creator_did: node_did.clone(),
         cost_mana: 0,
         max_execution_wait_ms: None,
@@ -112,7 +112,7 @@ async fn wasm_executor_runs_compiled_addition() {
     });
     let receipt = handle.join().unwrap().unwrap();
     assert_eq!(receipt.executor_did, node_did);
-    let expected_cid = Cid::new_v1_dummy(0x55, 0x12, &42i64.to_le_bytes());
+    let expected_cid = Cid::new_v1_sha256(0x55, &42i64.to_le_bytes());
     assert_eq!(receipt.result_cid, expected_cid);
 }
 
@@ -138,9 +138,9 @@ async fn wasm_executor_fails_without_run() {
     let node_did = icn_common::Did::from_str(&did_key_from_verifying_key(&vk)).unwrap();
 
     let job = ActualMeshJob {
-        id: Cid::new_v1_dummy(0x55, 0x12, b"job2"),
+        id: Cid::new_v1_sha256(0x55, b"job2"),
         manifest_cid: cid,
-        spec: JobSpec::default(),
+        spec: JobSpec::GenericPlaceholder,
         creator_did: node_did.clone(),
         cost_mana: 0,
         max_execution_wait_ms: None,
