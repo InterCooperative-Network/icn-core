@@ -768,13 +768,15 @@ pub async fn request_federation_sync(
     target_peer: &PeerId,
     since_timestamp: Option<u64>,
 ) -> Result<(), CommonError> {
-    let _ = since_timestamp; // currently unused
-    let msg = NetworkMessage::FederationSyncRequest(Did::default());
+    let payload = since_timestamp
+        .map(|ts| Did::new("sync", &ts.to_string()))
+        .unwrap_or_default();
+
+    let msg = NetworkMessage::FederationSyncRequest(payload);
     service
         .send_message(target_peer, msg)
         .await
-        .map_err(map_mesh_err)?;
-    Ok(())
+        .map_err(map_mesh_err)
 }
 
 #[cfg(feature = "federation")]
