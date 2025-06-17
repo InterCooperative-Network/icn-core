@@ -46,5 +46,12 @@ pub enum MeshNetworkError {
         query_id: Option<String>, // Changed from libp2p::kad::QueryId to String for broader use
         reason: String,
     },
-    // TODO [error_handling]: Add more specific error variants as needed
+
+    /// Error occurred during the libp2p noise handshake phase
+    #[error("Handshake failed: {0}")]
+    HandshakeFailed(String),
+
+    /// Failure decoding a received network message
+    #[error("Message decode failed: {0}")]
+    MessageDecodeFailed(String),
 }
