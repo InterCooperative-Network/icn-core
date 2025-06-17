@@ -75,4 +75,73 @@ mod tests {
         let prop = gov2.get_proposal(&pid).unwrap().unwrap();
         assert_eq!(prop.status, ProposalStatus::Executed);
     }
+
+    #[tokio::test]
+    async fn sled_external_proposal_persists() {
+        use icn_governance::{Proposal, ProposalId};
+        use std::collections::HashMap;
+        use std::time::{SystemTime, UNIX_EPOCH};
+
+        let dir = tempdir().unwrap();
+        let mut gov = GovernanceModule::new_sled(dir.path().to_path_buf()).unwrap();
+
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let pid = ProposalId("ext-prop-1".to_string());
+        let proposal = Proposal {
+            id: pid.clone(),
+            proposer: Did::from_str("did:example:alice").unwrap(),
+            proposal_type: ProposalType::GenericText("external".into()),
+            description: "external".into(),
+            created_at: now,
+            voting_deadline: now + 60,
+            status: ProposalStatus::VotingOpen,
+            votes: HashMap::new(),
+        };
+
+        gov.insert_external_proposal(proposal.clone()).unwrap();
+        drop(gov);
+
+        let gov2 = GovernanceModule::new_sled(dir.path().to_path_buf()).unwrap();
+        let stored = gov2.get_proposal(&pid).unwrap().unwrap();
+        assert_eq!(stored.description, proposal.description);
+    }
+
+    #[tokio::test]
+    async fn sled_external_vote_persists() {
+        use icn_governance::Vote;
+        use std::time::{SystemTime, UNIX_EPOCH};
+
+        let dir = tempdir().unwrap();
+        let mut gov = GovernanceModule::new_sled(dir.path().to_path_buf()).unwrap();
+        let pid = gov
+            .submit_proposal(
+                Did::from_str("did:example:alice").unwrap(),
+                ProposalType::GenericText("vote".into()),
+                "desc".into(),
+                60,
+            )
+            .unwrap();
+        drop(gov);
+
+        let mut gov2 = GovernanceModule::new_sled(dir.path().to_path_buf()).unwrap();
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let vote = Vote {
+            voter: Did::from_str("did:example:bob").unwrap(),
+            proposal_id: pid.clone(),
+            option: VoteOption::Yes,
+            voted_at: now,
+        };
+        gov2.insert_external_vote(vote).unwrap();
+        drop(gov2);
+
+        let gov3 = GovernanceModule::new_sled(dir.path().to_path_buf()).unwrap();
+        let prop = gov3.get_proposal(&pid).unwrap().unwrap();
+        assert_eq!(prop.votes.len(), 1);
+    }
 }
