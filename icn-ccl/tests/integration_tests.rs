@@ -208,3 +208,33 @@ fn test_cli_explain_ccl_policy() {
     assert!(only.contains("Function `main`"));
     assert!(!only.contains("Rule `r`"));
 }
+
+#[test]
+fn test_cli_check_ccl_file_ok() {
+    let dir = tempdir().expect("Failed to create temp dir");
+    let src = "fn main() -> Bool { return true; }";
+    let path = create_dummy_ccl_file(dir.path(), "check_ok.ccl", src);
+
+    let res = icn_ccl::cli::check_ccl_file(&path);
+    assert!(res.is_ok());
+}
+
+#[test]
+fn test_cli_check_ccl_file_type_error() {
+    let dir = tempdir().expect("Failed to create temp dir");
+    let src = "fn wrong() -> Bool { return 1; }";
+    let path = create_dummy_ccl_file(dir.path(), "check_type_error.ccl", src);
+
+    let res = icn_ccl::cli::check_ccl_file(&path);
+    assert!(matches!(res, Err(CclError::TypeError(_))));
+}
+
+#[test]
+fn test_cli_check_ccl_file_undefined_var() {
+    let dir = tempdir().expect("Failed to create temp dir");
+    let src = "fn bad() -> Integer { return x; }";
+    let path = create_dummy_ccl_file(dir.path(), "check_undef.ccl", src);
+
+    let res = icn_ccl::cli::check_ccl_file(&path);
+    assert!(matches!(res, Err(CclError::SemanticError(_))));
+}
