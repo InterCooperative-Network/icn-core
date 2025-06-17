@@ -1115,9 +1115,8 @@ impl RuntimeContext {
         &self,
         proposal_id_str: &str,
     ) -> Result<String, HostAbiError> {
-        let proposal_id = ProposalId::from_str(proposal_id_str).map_err(|e| {
-            HostAbiError::InvalidParameters(format!("Invalid proposal id: {e}"))
-        })?;
+        let proposal_id = ProposalId::from_str(proposal_id_str)
+            .map_err(|e| HostAbiError::InvalidParameters(format!("Invalid proposal id: {e}")))?;
 
         let mut gov = self.governance_module.lock().await;
         let status = gov
@@ -1143,9 +1142,8 @@ impl RuntimeContext {
         &self,
         proposal_id_str: &str,
     ) -> Result<(), HostAbiError> {
-        let proposal_id = ProposalId::from_str(proposal_id_str).map_err(|e| {
-            HostAbiError::InvalidParameters(format!("Invalid proposal id: {e}"))
-        })?;
+        let proposal_id = ProposalId::from_str(proposal_id_str)
+            .map_err(|e| HostAbiError::InvalidParameters(format!("Invalid proposal id: {e}")))?;
 
         let mut gov = self.governance_module.lock().await;
         gov.execute_proposal(&proposal_id)

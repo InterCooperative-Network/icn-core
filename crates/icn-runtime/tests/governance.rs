@@ -1,10 +1,10 @@
+use icn_common::Did;
+use icn_governance::{ProposalId, ProposalStatus, VoteOption};
 use icn_runtime::context::RuntimeContext;
 use icn_runtime::{
     host_close_governance_proposal_voting, host_create_governance_proposal,
     host_execute_governance_proposal,
 };
-use icn_governance::{ProposalId, ProposalStatus, VoteOption};
-use icn_common::Did;
 use std::str::FromStr;
 
 #[tokio::test]
@@ -33,8 +33,18 @@ async fn proposal_can_be_closed_and_executed() {
     // cast votes directly using governance module
     {
         let mut gov = ctx.governance_module.lock().await;
-        gov.cast_vote(Did::from_str("did:icn:test:bob").unwrap(), &pid, VoteOption::Yes).unwrap();
-        gov.cast_vote(Did::from_str("did:icn:test:charlie").unwrap(), &pid, VoteOption::Yes).unwrap();
+        gov.cast_vote(
+            Did::from_str("did:icn:test:bob").unwrap(),
+            &pid,
+            VoteOption::Yes,
+        )
+        .unwrap();
+        gov.cast_vote(
+            Did::from_str("did:icn:test:charlie").unwrap(),
+            &pid,
+            VoteOption::Yes,
+        )
+        .unwrap();
     }
     // close voting
     let status = host_close_governance_proposal_voting(&ctx, &pid_str)
@@ -47,7 +57,9 @@ async fn proposal_can_be_closed_and_executed() {
         .expect("execute proposal");
     {
         let gov = ctx.governance_module.lock().await;
-        assert!(gov.members().contains(&Did::from_str("did:icn:test:dave").unwrap()));
+        assert!(gov
+            .members()
+            .contains(&Did::from_str("did:icn:test:dave").unwrap()));
         let prop = gov.get_proposal(&pid).unwrap().unwrap();
         assert_eq!(prop.status, ProposalStatus::Executed);
     }

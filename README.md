@@ -13,7 +13,7 @@ The project has achieved a significant milestone, delivering an MVP with a funct
 
 *   **Modular Crate Structure:** Well-defined crates for common types (`icn-common`), API definitions (`icn-api`), DAG L1 logic (`icn-dag`), identity placeholders (`icn-identity`), networking abstractions (`icn-network`), a node runner (`icn-node`), a CLI (`icn-cli`), and the Cooperative Contract Language compiler (`icn-ccl`, located at the repository root outside `crates/`).
 *   **Real Protocol Data Models:** Core data types like DIDs, CIDs, DagBlocks, Transactions, and NodeStatus are defined in `icn-common` and utilize `serde` for serialization.
-*   **In-Memory DAG Store:** `icn-dag` provides a basic in-memory L1 DAG block store (`put_block`, `get_block`).
+*   **In-Memory DAG Store:** `icn-dag` ships with an in-memory DAG store implementing the `StorageService` trait. Use this trait directly rather than the deprecated `put_block`/`get_block` helpers.
 *   **API Layer:** `icn-api` exposes functions for node interaction (info, status) and DAG operations (submit, retrieve blocks).
 *   **Node & CLI Prototypes:**
     *   `icn-node`: A binary that demonstrates the integration of API, DAG, and networking components. When compiled with `with-libp2p` and started with `--enable-p2p`, it joins the libp2p mesh, discovers peers, and exchanges messages via gossipsub.
