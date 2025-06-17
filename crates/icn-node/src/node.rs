@@ -1229,7 +1229,11 @@ mod tests {
 
         let job_req = SubmitJobRequest {
             manifest_cid: Cid::new_v1_dummy(0x55, 0x14, b"test_manifest").to_string(),
-            spec_json: serde_json::json!({ "Echo": { "payload": "hello" } }),
+            spec_json: serde_json::to_value(&icn_mesh::JobSpec {
+                kind: icn_mesh::JobKind::Echo { payload: "hello".into() },
+                ..Default::default()
+            })
+            .unwrap(),
             cost_mana: 50,
         };
         let job_req_json = serde_json::to_string(&job_req).unwrap();
@@ -1262,7 +1266,11 @@ mod tests {
         // Step 1: Submit a job via HTTP
         let job_req = SubmitJobRequest {
             manifest_cid: Cid::new_v1_dummy(0x55, 0x14, b"pipeline_test_manifest").to_string(),
-            spec_json: serde_json::json!({ "Echo": { "payload": "HTTP pipeline test" } }),
+            spec_json: serde_json::to_value(&icn_mesh::JobSpec {
+                kind: icn_mesh::JobKind::Echo { payload: "HTTP pipeline test".into() },
+                ..Default::default()
+            })
+            .unwrap(),
             cost_mana: 100,
         };
         let job_req_json = serde_json::to_string(&job_req).unwrap();
@@ -1394,7 +1402,11 @@ mod tests {
         // Step 1: Submit a job
         let job_req = SubmitJobRequest {
             manifest_cid: Cid::new_v1_dummy(0x55, 0x14, b"simple_test").to_string(),
-            spec_json: serde_json::json!({ "Echo": { "payload": "simple test" } }),
+            spec_json: serde_json::to_value(&icn_mesh::JobSpec {
+                kind: icn_mesh::JobKind::Echo { payload: "simple test".into() },
+                ..Default::default()
+            })
+            .unwrap(),
             cost_mana: 50,
         };
         let job_req_json = serde_json::to_string(&job_req).unwrap();
@@ -1470,7 +1482,7 @@ mod tests {
         // Submit job referencing the WASM CID
         let job_req = SubmitJobRequest {
             manifest_cid: wasm_cid.to_string(),
-            spec_json: serde_json::json!("GenericPlaceholder"),
+            spec_json: serde_json::to_value(&icn_mesh::JobSpec::default()).unwrap(),
             cost_mana: 0,
         };
         let job_req_json = serde_json::to_string(&job_req).unwrap();
@@ -1501,7 +1513,7 @@ mod tests {
         let job = ActualMeshJob {
             id: job_id.clone(),
             manifest_cid: wasm_cid.clone(),
-            spec: JobSpec::GenericPlaceholder,
+            spec: JobSpec::default(),
             creator_did: ctx.current_identity.clone(),
             cost_mana: 0,
             max_execution_wait_ms: None,
