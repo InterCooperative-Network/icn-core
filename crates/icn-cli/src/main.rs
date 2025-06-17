@@ -118,12 +118,22 @@ enum MeshCommands {
         #[clap(help = "Job ID (CID string)")]
         job_id: String,
     },
+    /// Submit a new mesh job
+    Submit {
+        #[clap(help = "Mesh job submission request as a JSON string, or '-' to read from stdin")]
+        job_request_json_or_stdin: String,
+    },
 }
 
 #[derive(Subcommand, Debug)]
 enum NetworkCommands {
     /// Display network statistics
     Stats,
+    /// Send a ping to a peer
+    Ping {
+        #[clap(help = "Target peer ID")]
+        peer_id: String,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -171,9 +181,13 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
         Commands::Mesh { command } => match command {
             MeshCommands::Jobs => handle_mesh_jobs(cli, client).await?,
             MeshCommands::Status { job_id } => handle_mesh_status(cli, client, job_id).await?,
+            MeshCommands::Submit {
+                job_request_json_or_stdin,
+            } => handle_mesh_submit(cli, client, job_request_json_or_stdin).await?,
         },
         Commands::Network { command } => match command {
             NetworkCommands::Stats => handle_network_stats(cli, client).await?,
+            NetworkCommands::Ping { peer_id } => handle_network_ping(cli, client, peer_id).await?,
         },
         Commands::Ccl { command } => match command {
             CclCommands::Compile { file } => handle_ccl_compile(file)?,
@@ -378,9 +392,43 @@ async fn handle_mesh_status(cli: &Cli, client: &Client, job_id: &str) -> Result<
     Ok(())
 }
 
+/// Submit a new mesh job to the node
+async fn handle_mesh_submit(
+    cli: &Cli,
+    client: &Client,
+    job_request_json_or_stdin: &str,
+) -> Result<(), anyhow::Error> {
+    let job_json_content = if job_request_json_or_stdin == "-" {
+        let mut buffer = String::new();
+        io::stdin().read_to_string(&mut buffer)?;
+        buffer
+    } else {
+        job_request_json_or_stdin.to_string()
+    };
+
+    let request_value: serde_json::Value = serde_json::from_str(&job_json_content)
+        .map_err(|e| anyhow::anyhow!("Invalid mesh job JSON: {}", e))?;
+    let response: serde_json::Value =
+        post_request(&cli.api_url, client, "/mesh/submit", &request_value).await?;
+    println!("{}", serde_json::to_string_pretty(&response)?);
+    Ok(())
+}
+
 async fn handle_network_stats(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
     let status: NodeStatus = get_request(&cli.api_url, client, "/status").await?;
     println!("{}", serde_json::to_string_pretty(&status)?);
+    Ok(())
+}
+
+/// Send a ping to the specified peer using the stubbed network service
+async fn handle_network_ping(
+    cli: &Cli,
+    client: &Client,
+    peer_id: &str,
+) -> Result<(), anyhow::Error> {
+    let info: NodeInfo = get_request(&cli.api_url, client, "/info").await?;
+    let result = icn_network::send_network_ping(&info, peer_id).await?;
+    println!("{}", result);
     Ok(())
 }
 

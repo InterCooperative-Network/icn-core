@@ -9,6 +9,8 @@ license.workspace = true
 icn-common = { path = "../icn-common" }
 icn-api = { path = "../icn-api" }
 icn-governance = { path = "../icn-governance" }
+icn-network = { path = "../icn-network" }
+icn-ccl = { path = "../../icn-ccl" }
 anyhow = "1.0"
 
 clap = { version = "4.0", features = ["derive"] }
