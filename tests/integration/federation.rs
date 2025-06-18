@@ -6,15 +6,15 @@ use serde_json::Value;
 // Integration test for ICN federation devnet
 // This test assumes the federation is running via docker-compose
 
-const NODE_A_URL: &str = "http://localhost:5001";
-const NODE_B_URL: &str = "http://localhost:5002"; 
-const NODE_C_URL: &str = "http://localhost:5003";
+pub const NODE_A_URL: &str = "http://localhost:5001";
+pub const NODE_B_URL: &str = "http://localhost:5002";
+pub const NODE_C_URL: &str = "http://localhost:5003";
 const MAX_RETRIES: u32 = 20;
 const RETRY_DELAY: Duration = Duration::from_secs(3);
 
 static DEVNET_LOCK: OnceCell<Mutex<()>> = OnceCell::new();
 
-struct DevnetGuard {
+pub struct DevnetGuard {
     _guard: tokio::sync::OwnedMutexGuard<()>,
 }
 
@@ -26,7 +26,7 @@ impl Drop for DevnetGuard {
     }
 }
 
-async fn ensure_devnet() -> Option<DevnetGuard> {
+pub async fn ensure_devnet() -> Option<DevnetGuard> {
     if std::env::var("ICN_DEVNET_RUNNING").is_ok() {
         wait_for_federation_ready().await.ok();
         return None;
