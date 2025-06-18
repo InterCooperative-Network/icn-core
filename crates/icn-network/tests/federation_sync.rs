@@ -6,7 +6,7 @@
     dead_code
 )]
 
-#[cfg(all(feature = "libp2p", feature = "federation"))]
+#[cfg(feature = "libp2p")]
 mod federation_sync {
     use icn_common::Did;
     use icn_governance::request_federation_sync;

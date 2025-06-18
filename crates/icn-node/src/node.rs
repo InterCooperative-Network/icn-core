@@ -34,7 +34,7 @@ use icn_identity::{
     did_key_from_verifying_key, generate_ed25519_keypair,
     ExecutionReceipt as IdentityExecutionReceipt, SignatureBytes,
 };
-use icn_mesh::ActualMeshJob;
+use icn_mesh::{ActualMeshJob, JobKind, JobSpec};
 use icn_network::NetworkService;
 use icn_runtime::context::{
     RuntimeContext, StubDagStore as RuntimeStubDagStore, StubMeshNetworkService,
@@ -292,10 +292,10 @@ pub async fn app_router_with_options(
 
     #[cfg(feature = "persist-sled")]
     {
-        let gov_path = governance_db_path.unwrap_or_else(|| PathBuf::from("./governance_db"));
-        let gov_mod = icn_governance::GovernanceModule::new_sled(gov_path)
+        let _gov_path = governance_db_path.unwrap_or_else(|| PathBuf::from("./governance_db"));
+        let _gov_mod = icn_governance::GovernanceModule::new_sled(_gov_path)
             .unwrap_or_else(|_| icn_governance::GovernanceModule::new());
-        rt_ctx.governance_module = Arc::new(TokioMutex::new(gov_mod));
+        // Governance module is initialized inside `new_with_ledger_path`; no reassignment needed.
     }
 
     // Initialize the test node with some mana for testing
@@ -539,9 +539,10 @@ async fn main() {
 
     #[cfg(feature = "persist-sled")]
     {
-        let gov_mod = icn_governance::GovernanceModule::new_sled(config.governance_db_path.clone())
-            .unwrap_or_else(|_| icn_governance::GovernanceModule::new());
-        rt_ctx.governance_module = Arc::new(TokioMutex::new(gov_mod));
+        let _gov_mod =
+            icn_governance::GovernanceModule::new_sled(config.governance_db_path.clone())
+                .unwrap_or_else(|_| icn_governance::GovernanceModule::new());
+        // Governance module is set during context creation.
     }
 
     // Start the job manager
@@ -1499,7 +1500,7 @@ mod tests {
         use icn_identity::{did_key_from_verifying_key, generate_ed25519_keypair};
         use icn_runtime::executor::WasmExecutor;
 
-        let (app, ctx) = app_router_with_options(None, None, None).await;
+        let (app, ctx) = app_router_with_options(None, None, None, None).await;
 
         // Compile a tiny CCL contract
         let (wasm, _) =

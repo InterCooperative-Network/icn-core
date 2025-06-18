@@ -19,6 +19,9 @@ The `icn-cli` is the primary tool for users to interact with an ICN node from th
 *   **Network Operations (Stubbed):**
     *   `icn-cli network discover-peers`: Simulates peer discovery through the connected node. (Currently uses a stubbed network service).
     *   `icn-cli network send-message <PEER_ID> <MESSAGE_JSON>`: Simulates sending a `NetworkMessage` to a specified peer. The peer ID is a string, and the message is a JSON representation of a `NetworkMessage` variant (e.g., `RequestBlock`, `AnnounceBlock`). (Currently uses a stubbed network service).
+*   **CCL Operations:**
+    *   `icn-cli ccl compile <FILE>`: Compile a Cooperative Contract Language file to WASM and metadata.
+    *   `icn-cli ccl run <FILE>`: Compile the CCL file, upload the resulting WASM to the connected node, and submit it as a mesh job.
 *   **Miscellaneous:**
     *   `icn-cli hello`: A simple command to check if the CLI is responsive.
     *   `icn-cli help` or `icn-cli --help`: Displays usage information.
@@ -36,7 +39,18 @@ As a CLI application, its "public API" is its command-line arguments, options, a
 
 *   Commands are structured hierarchically (e.g., `dag put`, `network discover-peers`).
 *   Input for complex data structures (like DagBlocks or NetworkMessages) is currently expected in JSON string format for simplicity in this development phase. Future versions may support file inputs or more structured argument parsing.
+
 *   Output is human-readable. Successful data retrieval is printed to `stdout`. Errors and verbose logging (if any) go to `stderr`.
+
+### Examples
+
+Compile and immediately run a CCL policy:
+
+```bash
+icn-cli ccl run ./policy.ccl
+```
+
+The command compiles `policy.ccl`, uploads the WASM, and submits it as a mesh job, printing the returned job ID.
 
 ## Contributing
 
