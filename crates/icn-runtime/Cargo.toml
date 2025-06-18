@@ -43,7 +43,7 @@ serial_test = { version = "3", features = ["async"] }
 [features]
 default = []
 enable-libp2p = ["dep:libp2p"]
-persist-sled = ["icn-governance/persist-sled"]
+persist-sled = ["icn-governance/persist-sled", "icn-reputation/persist-sled"]
 
 # Integration tests for cross-node functionality
 [[test]]

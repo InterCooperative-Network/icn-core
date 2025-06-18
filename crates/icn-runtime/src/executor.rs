@@ -7,9 +7,9 @@ use icn_identity::{
     SignatureBytes, /* Removed , generate_ed25519_keypair */
     SigningKey,
 };
-use icn_mesh::{ActualMeshJob, JobKind};
 #[cfg(test)]
 use icn_mesh::JobSpec; /* ... other mesh types ... */
+use icn_mesh::{ActualMeshJob, JobKind};
 use log::info; // Removed error
 use std::time::SystemTime;
 
