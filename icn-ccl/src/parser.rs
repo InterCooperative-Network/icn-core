@@ -1,7 +1,7 @@
 // icn-ccl/src/parser.rs
 use crate::ast::{
-    ActionNode, AstNode, BinaryOperator, BlockNode, ExpressionNode, PolicyStatementNode,
-    StatementNode, TypeAnnotationNode,
+    ActionNode, AstNode, BinaryOperator, BlockNode, ExpressionNode, ParameterNode,
+    PolicyStatementNode, StatementNode, TypeAnnotationNode,
 };
 use crate::error::CclError;
 use pest::iterators::Pair;
@@ -328,7 +328,7 @@ fn parse_type_annotation(pair: Pair<Rule>) -> Result<TypeAnnotationNode, CclErro
 
 fn parse_function_definition(pair: Pair<Rule>) -> Result<AstNode, CclError> {
     // function_definition = { "fn" ~ identifier ~ "(" ~ (parameter ~ ("," ~ parameter)*)? ~ ")" ~ "->" ~ type_annotation ~ block }
-    let mut inner_rules = pair.into_inner(); // Consumes the function_definition pair
+    let mut inner_rules = pair.into_inner();
 
     let name_token = inner_rules
         .next()
@@ -336,10 +336,34 @@ fn parse_function_definition(pair: Pair<Rule>) -> Result<AstNode, CclError> {
     assert_eq!(name_token.as_rule(), Rule::identifier);
     let name = name_token.as_str().to_string();
 
-    let return_type_pair = inner_rules.next().ok_or_else(|| {
-        CclError::ParsingError("Function definition missing return type".to_string())
-    })?;
-    let return_type = parse_type_annotation(return_type_pair)?;
+    let mut parameters = Vec::new();
+    // Collect all parameter rules until we encounter the return type
+    let mut next = inner_rules
+        .next()
+        .ok_or_else(|| CclError::ParsingError("Function definition truncated".to_string()))?;
+    while next.as_rule() == Rule::parameter {
+        let mut p_inner = next.into_inner();
+        let id_pair = p_inner
+            .next()
+            .ok_or_else(|| CclError::ParsingError("Parameter missing identifier".to_string()))?;
+        let ty_pair = p_inner
+            .next()
+            .ok_or_else(|| CclError::ParsingError("Parameter missing type".to_string()))?;
+        parameters.push(ParameterNode {
+            name: id_pair.as_str().to_string(),
+            type_ann: parse_type_annotation(ty_pair)?,
+        });
+
+        next = inner_rules.next().ok_or_else(|| {
+            CclError::ParsingError("Function definition missing return type".to_string())
+        })?;
+    }
+
+    // `next` now holds the return type rule
+    if next.as_rule() != Rule::type_annotation {
+        return Err(CclError::ParsingError("Expected return type".to_string()));
+    }
+    let return_type = parse_type_annotation(next)?;
 
     let block_pair = inner_rules
         .next()
@@ -348,7 +372,7 @@ fn parse_function_definition(pair: Pair<Rule>) -> Result<AstNode, CclError> {
 
     Ok(AstNode::FunctionDefinition {
         name,
-        parameters: vec![], // Minimal example has no parameters
+        parameters,
         return_type,
         body,
     })

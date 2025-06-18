@@ -33,3 +33,31 @@ fn test_valid_function() {
     let res = analyze_ok(src);
     assert!(res.is_ok());
 }
+
+#[test]
+fn test_function_with_params() {
+    let src = "fn add(a: Integer, b: Integer) -> Integer { return a + b; }";
+    let res = analyze_ok(src);
+    assert!(res.is_ok());
+}
+
+#[test]
+fn test_allow_rule() {
+    let src = "rule r when true then allow";
+    let res = analyze_ok(src);
+    assert!(res.is_ok());
+}
+
+#[test]
+fn test_deny_rule() {
+    let src = "rule r when true then deny";
+    let res = analyze_ok(src);
+    assert!(res.is_ok());
+}
+
+#[test]
+fn test_charge_rule() {
+    let src = "rule r when true then charge 5";
+    let res = analyze_ok(src);
+    assert!(res.is_ok());
+}

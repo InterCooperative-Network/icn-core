@@ -33,9 +33,11 @@ use bincode;
 use icn_governance::{GovernanceModule, ProposalId, ProposalType, VoteOption};
 use icn_identity::{
     did_key_from_verifying_key, generate_ed25519_keypair, sign_message,
-    verify_signature as identity_verify_signature, EdSignature, KeyDidResolver, SigningKey,
-    VerifyingKey, SIGNATURE_LENGTH,
+    verify_signature as identity_verify_signature, EdSignature, SigningKey, VerifyingKey,
+    SIGNATURE_LENGTH,
 };
+#[cfg(feature = "enable-libp2p")]
+use icn_identity::KeyDidResolver;
 use serde::{Deserialize, Serialize};
 
 // Counter for generating unique (within this runtime instance) job IDs for stubs
