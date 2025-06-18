@@ -1,17 +1,22 @@
-"""//! Integration tests for the ICN mesh job pipeline.
+//! Integration tests for the ICN mesh job pipeline.
 
-use icn_runtime::context::{RuntimeContext, JobId, ExecutionReceipt, HostAbiError};
-use icn_runtime::abi; // To use ABI consts if needed, though direct calls are more likely
-use icn_runtime::{host_submit_mesh_job, host_get_pending_mesh_jobs, host_anchor_receipt, ReputationUpdater};
-use icn_common::{Did, Cid, CommonError, DagBlock};
+use icn_common::{Cid, CommonError, DagBlock, Did};
 use icn_dag::StorageService;
-use icn_reputation::ReputationStore;
-use icn_mesh::{MeshJob as ActualMeshJob, Bid, JobSpec, Resources, SelectionPolicy, select_executor}; // Assuming Resources can be constructed simply
 use icn_economics::{charge_mana, EconError}; // For mana interactions
+use icn_mesh::{
+    select_executor, JobSpec, MeshJob as ActualMeshJob, MeshJobBid as Bid, Resources,
+    SelectionPolicy,
+};
+use icn_reputation::ReputationStore;
+use icn_runtime::abi; // To use ABI consts if needed, though direct calls are more likely
+use icn_runtime::context::{ExecutionReceipt, HostAbiError, JobId, RuntimeContext};
+use icn_runtime::{
+    host_anchor_receipt, host_get_pending_mesh_jobs, host_submit_mesh_job, ReputationUpdater,
+};
+use std::collections::VecDeque;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex as StdMutex}; // Standard Mutex for simple mocks if not async
 use tokio::sync::Mutex as TokioMutex; // Tokio Mutex for async operations
-use std::collections::VecDeque;
 
 // --- Mock/Stub Implementations ---
 
@@ -86,7 +91,10 @@ impl MockReputationSystem {
         let mut scores = self.scores.lock().unwrap();
         let score = scores.entry(receipt.executor_did.clone()).or_insert(0);
         *score += 1; // Simple increment
-        println!("[MockReputationSystem] Submitted receipt for executor {:?}, new score: {}", receipt.executor_did, *score);
+        println!(
+            "[MockReputationSystem] Submitted receipt for executor {:?}, new score: {}",
+            receipt.executor_did, *score
+        );
     }
 
     fn get_reputation_score(&self, did: &Did) -> u64 {
@@ -112,6 +120,39 @@ impl ReputationStore for FailingReputationStore {
     }
 }
 
+#[derive(Debug, Default)]
+struct InMemoryManaLedger {
+    balances: StdMutex<std::collections::HashMap<Did, u64>>,
+}
+
+impl icn_economics::ManaLedger for InMemoryManaLedger {
+    fn get_balance(&self, did: &Did) -> u64 {
+        *self.balances.lock().unwrap().get(did).unwrap_or(&0)
+    }
+
+    fn set_balance(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
+        self.balances.lock().unwrap().insert(did.clone(), amount);
+        Ok(())
+    }
+
+    fn spend(&self, did: &Did, amount: u64) -> Result<(), EconError> {
+        let mut map = self.balances.lock().unwrap();
+        let bal = map
+            .get_mut(did)
+            .ok_or_else(|| EconError::AdapterError("missing".into()))?;
+        if *bal < amount {
+            return Err(EconError::InsufficientBalance("insufficient".into()));
+        }
+        *bal -= amount;
+        Ok(())
+    }
+
+    fn credit(&self, did: &Did, amount: u64) -> Result<(), EconError> {
+        let mut map = self.balances.lock().unwrap();
+        *map.entry(did.clone()).or_insert(0) += amount;
+        Ok(())
+    }
+}
 
 // Helper to create a test RuntimeContext with mocked dependencies
 // This will need to be adapted based on how RuntimeContext eventually holds these.
@@ -141,21 +182,25 @@ fn dummy_receipt_json(job_id_str: &str, executor_did_str: &str, result_cid_str: 
     let executor_did = Did::from_str(executor_did_str).unwrap();
     // For Cid, we need a proper Cid structure for JSON.
     // This is a simplified Cid for the dummy receipt.
-    let result_cid = Cid { version: 1, codec: 0x71, hash_alg: 0x12, hash_bytes: result_cid_str.as_bytes().to_vec() };
+    let result_cid = Cid {
+        version: 1,
+        codec: 0x71,
+        hash_alg: 0x12,
+        hash_bytes: result_cid_str.as_bytes().to_vec(),
+    };
 
     let receipt = ExecutionReceipt {
         job_id,
         executor_did,
         result_cid, // This should be a proper Cid struct if host_anchor_receipt parses it.
         input_cids: vec![],
-        mana_used: 5, // example
+        mana_used: 5,           // example
         execution_timestamp: 0, // example
         federation_scope: None,
         signature: None, // Signature will be added by anchor_receipt or host_anchor_receipt
     };
     serde_json::to_string(&receipt).unwrap()
 }
-
 
 #[tokio::test]
 async fn end_to_end_mesh_job_flow() {
@@ -164,26 +209,38 @@ async fn end_to_end_mesh_job_flow() {
     let executor_low_rep_did_str = "did:icn:test:executor_low_rep";
 
     let mut submitter_ctx = create_test_runtime_context(submitter_did_str, 100);
-    let initial_submitter_mana = submitter_ctx.get_mana(&submitter_ctx.current_identity).unwrap();
+    let initial_submitter_mana = submitter_ctx
+        .get_mana(&submitter_ctx.current_identity)
+        .unwrap();
 
     // Mock reputation system (passed to host_anchor_receipt)
     let mock_reputation_updater = ReputationUpdater::new(); // Using the stub from lib.rs for now
-                                                             // A more complex mock might be needed if ReputationUpdater itself becomes complex.
-                                                             // Or, if ReputationUpdater is part of RuntimeContext.
+                                                            // A more complex mock might be needed if ReputationUpdater itself becomes complex.
+                                                            // Or, if ReputationUpdater is part of RuntimeContext.
 
     // Mock DAG Store (if host_anchor_receipt or ctx.anchor_receipt needs it directly)
-    // let _mock_dag_store = InMemoryDagStore::new(); 
+    // let _mock_dag_store = InMemoryDagStore::new();
     // If ctx.anchor_receipt uses a DagStore trait object inside RuntimeContext, it needs to be set up.
 
     // 1. Submit job (should spend mana)
     let job_cost = 20;
     let job_json = dummy_job_json(job_cost);
     let job_id_result = host_submit_mesh_job(&mut submitter_ctx, &job_json).await;
-    assert!(job_id_result.is_ok(), "Job submission failed: {:?}", job_id_result.err());
+    assert!(
+        job_id_result.is_ok(),
+        "Job submission failed: {:?}",
+        job_id_result.err()
+    );
     let job_id = job_id_result.unwrap();
 
-    let submitter_mana_after_submit = submitter_ctx.get_mana(&submitter_ctx.current_identity).unwrap();
-    assert_eq!(submitter_mana_after_submit, initial_submitter_mana - job_cost, "Submitter mana not spent correctly.");
+    let submitter_mana_after_submit = submitter_ctx
+        .get_mana(&submitter_ctx.current_identity)
+        .unwrap();
+    assert_eq!(
+        submitter_mana_after_submit,
+        initial_submitter_mana - job_cost,
+        "Submitter mana not spent correctly."
+    );
 
     // Retrieve job from queue to simulate job manager picking it up
     let pending_jobs = host_get_pending_mesh_jobs(&submitter_ctx).await.unwrap();
@@ -197,7 +254,7 @@ async fn end_to_end_mesh_job_flow() {
     // We need contexts for executors to check their mana.
     let mut exec_high_rep_ctx = create_test_runtime_context(executor_high_rep_did_str, 50);
     let mut exec_low_rep_ctx = create_test_runtime_context(executor_low_rep_did_str, 50);
-    
+
     // Set up mock reputations if ReputationUpdater above doesn't cover it for select_executor
     // For now, select_executor in icn-mesh is a stub. We'll assume ReputationExecutorSelector is used
     // and we need to prime its state or mock its behavior. This is complex without a real Reputation module.
@@ -213,8 +270,10 @@ async fn end_to_end_mesh_job_flow() {
         resources: Resources {},
     };
     // Check mana for bid1 - this would happen in spawn_mesh_job_manager
-    assert!(charge_mana(&bid1.executor, mana_reserve).is_ok(), "High rep executor should have mana for reserve.");
-
+    assert!(
+        charge_mana(&bid1.executor, mana_reserve).is_ok(),
+        "High rep executor should have mana for reserve."
+    );
 
     // Bid from low reputation executor
     let bid2 = Bid {
@@ -224,8 +283,11 @@ async fn end_to_end_mesh_job_flow() {
         resources: Resources {},
     };
     // Check mana for bid2
-    assert!(charge_mana(&bid2.executor, mana_reserve).is_ok(), "Low rep executor should have mana for reserve.");
-    
+    assert!(
+        charge_mana(&bid2.executor, mana_reserve).is_ok(),
+        "Low rep executor should have mana for reserve."
+    );
+
     // Simulate selection (assuming select_executor is adapted to use a reputation source)
     // For now, icn_mesh::select_executor is a stub. A real test would need ReputationExecutorSelector
     // to be configurable or mockable.
@@ -239,8 +301,10 @@ async fn end_to_end_mesh_job_flow() {
     // selected_executor_did = select_executor(bids, policy).expect("Executor should be selected");
     // For this test, let's manually decide based on the test's intent:
     selected_executor_did = bid1.executor.clone(); // Manually select high-rep for test flow
-    println!("[E2E_TEST] Manually selected executor: {:?}", selected_executor_did);
-
+    println!(
+        "[E2E_TEST] Manually selected executor: {:?}",
+        selected_executor_did
+    );
 
     // 3. Complete job, anchor receipt, reputation updated
     // The selected executor (conceptually) runs the job and produces a receipt.
@@ -252,13 +316,25 @@ async fn end_to_end_mesh_job_flow() {
         exec_low_rep_ctx
     };
 
-    let receipt_json_to_anchor = dummy_receipt_json(&job_id.0, &selected_executor_did.to_string(), result_data_str);
-    
+    let receipt_json_to_anchor = dummy_receipt_json(
+        &job_id.0,
+        &selected_executor_did.to_string(),
+        result_data_str,
+    );
+
     // Anchor receipt using the selected executor's context (or a node service context)
     // host_anchor_receipt takes a &mut RuntimeContext. If a node service anchors, it uses its own context.
     // If the executor anchors, it uses its own context. Let's use selected_executor_ctx.
-    let anchor_cid_result = host_anchor_receipt(&mut selected_executor_ctx, &receipt_json_to_anchor, &mock_reputation_updater);
-    assert!(anchor_cid_result.is_ok(), "Failed to anchor receipt: {:?}", anchor_cid_result.err());
+    let anchor_cid_result = host_anchor_receipt(
+        &mut selected_executor_ctx,
+        &receipt_json_to_anchor,
+        &mock_reputation_updater,
+    );
+    assert!(
+        anchor_cid_result.is_ok(),
+        "Failed to anchor receipt: {:?}",
+        anchor_cid_result.err()
+    );
     let _anchored_cid = anchor_cid_result.unwrap();
 
     // Verify reputation update (this depends on the mock_reputation_updater or a real one)
@@ -295,7 +371,10 @@ async fn test_executor_bid_insufficient_mana() {
     let mana_reserve_needed = 5; // Bid reserve needs 5
 
     // charge_mana is the key check.
-    let charge_result = charge_mana(&Did::from_str(executor_did_str).unwrap(), mana_reserve_needed);
+    let charge_result = charge_mana(
+        &Did::from_str(executor_did_str).unwrap(),
+        mana_reserve_needed,
+    );
     assert!(charge_result.is_err());
     match charge_result.err().unwrap() {
         EconError::InsufficientBalance(_) => { /* Expected */ }
@@ -310,23 +389,30 @@ async fn test_no_valid_bids_job_times_out_refund_mana() {
     // 1. Submitter submits a job, mana is spent.
     let submitter_did_str = "did:icn:test:submitter_job_timeout";
     let mut submitter_ctx = create_test_runtime_context(submitter_did_str, 100);
-    let initial_mana = submitter_ctx.get_mana(&submitter_ctx.current_identity).unwrap();
-    
+    let initial_mana = submitter_ctx
+        .get_mana(&submitter_ctx.current_identity)
+        .unwrap();
+
     let job_cost = 30;
     let job_json = dummy_job_json(job_cost);
     let job_id_result = host_submit_mesh_job(&mut submitter_ctx, &job_json).await;
     assert!(job_id_result.is_ok());
     let _job_id = job_id_result.unwrap();
-    assert_eq!(submitter_ctx.get_mana(&submitter_ctx.current_identity).unwrap(), initial_mana - job_cost);
+    assert_eq!(
+        submitter_ctx
+            .get_mana(&submitter_ctx.current_identity)
+            .unwrap(),
+        initial_mana - job_cost
+    );
 
     // 2. Simulate job manager: No bids arrive or all are invalid.
     // (This part of spawn_mesh_job_manager logic is not directly callable for isolated test)
-    
+
     // 3. Simulate job manager: Job times out, refund mana.
     // The refund logic needs to be implemented in spawn_mesh_job_manager.
     // It would call something like `icn_economics::credit_mana(&job.submitter, job.mana_cost)`.
     // For now, we assume this happens and check the conceptual outcome.
-    
+
     // To make this testable, `icn_economics` needs `credit_mana` and `RuntimeContext` (or its mana ledger)
     // needs to be updated. This is a TODO for spawn_mesh_job_manager and icn_economics.
     println!("[NO_VALID_BIDS_TEST] Conceptual: Job submitted. If timeout logic existed and triggered refund...");
@@ -342,6 +428,62 @@ async fn test_no_valid_bids_job_times_out_refund_mana() {
 // - Reputation update fails.
 
 #[tokio::test]
+async fn test_executor_selection_bidder_loses_mana() {
+    let rep_store = icn_reputation::InMemoryReputationStore::new();
+    let ledger = InMemoryManaLedger::default();
+
+    let exec_a = Did::from_str("did:icn:test:exec_a").unwrap();
+    let exec_b = Did::from_str("did:icn:test:exec_b").unwrap();
+    ledger.set_balance(&exec_a, 10).unwrap();
+    ledger.set_balance(&exec_b, 10).unwrap();
+    rep_store.set_score(exec_a.clone(), 5);
+    rep_store.set_score(exec_b.clone(), 4);
+
+    let job_id = JobId("job_mana_drop".into());
+    let bid_a = Bid {
+        job_id: job_id.clone(),
+        executor_did: exec_a.clone(),
+        price_mana: 8,
+        resources: Resources::default(),
+        signature: icn_identity::SignatureBytes(vec![]),
+    };
+    let bid_b = Bid {
+        job_id: job_id.clone(),
+        executor_did: exec_b.clone(),
+        price_mana: 9,
+        resources: Resources::default(),
+        signature: icn_identity::SignatureBytes(vec![]),
+    };
+
+    let selected = select_executor(
+        &job_id,
+        &JobSpec::default(),
+        vec![bid_a.clone(), bid_b],
+        &SelectionPolicy::default(),
+        &rep_store,
+        &ledger,
+    )
+    .expect("selection");
+    assert_eq!(selected, exec_a);
+
+    ledger.set_balance(&exec_a, 0).unwrap();
+    let spend = ledger.spend(&exec_a, bid_a.price_mana);
+    assert!(matches!(spend, Err(EconError::InsufficientBalance(_))));
+}
+
+#[tokio::test]
+async fn test_anchor_receipt_updates_reputation() {
+    let mut ctx = create_test_runtime_context("did:icn:test:rep_ok", 10);
+    let rep_store = Arc::new(icn_reputation::InMemoryReputationStore::new());
+    ctx.reputation_store = rep_store.clone();
+
+    let receipt_json = dummy_receipt_json("job3", &ctx.current_identity.to_string(), "res");
+    let result = host_anchor_receipt(&mut ctx, &receipt_json, &ReputationUpdater::new()).await;
+    assert!(result.is_ok());
+    assert_eq!(rep_store.get_reputation(&ctx.current_identity), 1);
+}
+
+#[tokio::test]
 async fn test_executor_selected_mana_recheck_failure() {
     let submit_ctx = create_test_runtime_context("did:icn:test:recheck_submit", 100);
     let mut exec_ctx = create_test_runtime_context("did:icn:test:recheck_exec", 5);
@@ -349,9 +491,7 @@ async fn test_executor_selected_mana_recheck_failure() {
     let job_json = dummy_job_json(10);
     let _ = host_submit_mesh_job(&submit_ctx, &job_json).await.unwrap();
 
-    let result = exec_ctx
-        .spend_mana(&exec_ctx.current_identity, 10)
-        .await;
+    let result = exec_ctx.spend_mana(&exec_ctx.current_identity, 10).await;
     assert!(matches!(result, Err(HostAbiError::InsufficientMana)));
 }
 
@@ -363,6 +503,19 @@ async fn test_anchor_receipt_dag_failure() {
     let receipt_json = dummy_receipt_json("job1", &ctx.current_identity.to_string(), "res");
     let result = host_anchor_receipt(&mut ctx, &receipt_json, &ReputationUpdater::new()).await;
     assert!(matches!(result, Err(HostAbiError::DagOperationFailed(_))));
+}
+
+#[tokio::test]
+async fn test_anchor_receipt_dag_failure_no_reputation_update() {
+    let mut ctx = create_test_runtime_context("did:icn:test:dag_fail_rep", 10);
+    let rep_store = Arc::new(icn_reputation::InMemoryReputationStore::new());
+    ctx.reputation_store = rep_store.clone();
+    ctx.dag_store = Arc::new(TokioMutex::new(FailingDagStore::default()));
+
+    let receipt_json = dummy_receipt_json("jobx", &ctx.current_identity.to_string(), "res");
+    let result = host_anchor_receipt(&mut ctx, &receipt_json, &ReputationUpdater::new()).await;
+    assert!(matches!(result, Err(HostAbiError::DagOperationFailed(_))));
+    assert_eq!(rep_store.get_reputation(&ctx.current_identity), 0);
 }
 
 #[tokio::test]
@@ -380,5 +533,3 @@ async fn test_reputation_update_failure() {
     .await;
     assert!(result.is_err());
 }
-
-""
