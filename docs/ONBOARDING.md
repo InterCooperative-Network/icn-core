@@ -228,6 +228,48 @@ This section provides examples for all major `icn-cli` commands. Ensure an `icn-
 
 (Note: The old network examples are removed as they were stubbed and not part of the core HTTP API requirements in the prompt.)
 
+### 3.6. Example `icn-node` Configuration with TLS and API Keys
+
+`icn-node` reads its settings from a TOML file or environment variables. Below is
+an example configuration that enables an API key, uses persistent storage, and
+expects traffic to be terminated via a TLS reverse proxy (such as Nginx or
+Caddy).
+
+```toml
+# node_config.toml
+node_name = "Federation Node"
+http_listen_addr = "0.0.0.0:7845"        # Behind a TLS proxy
+storage_backend = "sqlite"
+storage_path = "./icn_data/node.sqlite"
+api_key = "mysecretkey"
+open_rate_limit = 0
+```
+
+Start the node with:
+
+```bash
+./target/debug/icn-node --config node_config.toml
+```
+
+For TLS, run a reverse proxy on port `443` that forwards requests to
+`http://localhost:7845` while presenting your certificate. A minimal Nginx
+snippet looks like:
+
+```nginx
+server {
+    listen 443 ssl;
+    ssl_certificate     /path/to/fullchain.pem;
+    ssl_certificate_key /path/to/privkey.pem;
+    location / {
+        proxy_pass http://127.0.0.1:7845;
+        proxy_set_header x-api-key mysecretkey;
+    }
+}
+```
+
+This secures the HTTP API with TLS and passes the required `x-api-key` header to
+`icn-node`.
+
 ## 4. Understanding the Codebase
 
 *   **Workspace Root (`Cargo.toml`):** Defines the workspace members (all the crates).
@@ -344,7 +386,14 @@ The repository includes a containerized devnet for quickly spinning up a three-n
    ✅ Job submitted with ID: cidv1-85-20-abc123...
    🎉 ICN Federation is now running!
    ```
-3. **Submit your own job:**
+3. **Run with monitoring (Prometheus & Grafana):**
+   ```bash
+   cd icn-devnet
+   docker-compose --profile monitoring up -d
+   ```
+   Prometheus will be available at <http://localhost:9090> and Grafana at
+   <http://localhost:3000> (login `admin` / `icnfederation`).
+4. **Submit your own job:**
    ```bash
    curl -X POST http://localhost:5001/mesh/submit \
      -H 'Content-Type: application/json' \
@@ -354,7 +403,7 @@ The repository includes a containerized devnet for quickly spinning up a three-n
    ```bash
    curl http://localhost:5002/mesh/jobs/JOB_ID
    ```
-4. **Collect the execution receipt:** when the job completes, the status response includes a `result_cid`. Retrieve the receipt data from any node via:
+5. **Collect the execution receipt:** when the job completes, the status response includes a `result_cid`. Retrieve the receipt data from any node via:
    ```bash
    curl -X POST http://localhost:5003/dag/get \
      -H 'Content-Type: application/json' \

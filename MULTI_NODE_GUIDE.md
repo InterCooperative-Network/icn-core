@@ -38,6 +38,13 @@ If you simply want to see a working federation without manually starting each no
    ✅ Job submitted with ID: cidv1-85-20-abc123...
    🎉 ICN Federation is now running!
    ```
+2. **With monitoring enabled** (Prometheus & Grafana):
+   ```bash
+   cd icn-devnet
+   docker-compose --profile monitoring up -d
+   ```
+   Prometheus is at <http://localhost:9090> and Grafana at
+   <http://localhost:3000> (`admin` / `icnfederation`).
 2. **Try a job yourself** once the nodes are up:
    ```bash
    curl -X POST http://localhost:5001/mesh/submit \
@@ -66,6 +73,24 @@ For each node you want to run (e.g., Node 1, Node 2, Node 3), ensure:
 * **Unique Storage Path**
 * **Unique P2P Listen Address**
 * **Auto-generated Peer ID** at startup from a fresh Ed25519 keypair.
+
+#### Example Configuration File
+
+Create a TOML file per node. This example enables persistent storage and an API
+key. TLS is handled via an external reverse proxy.
+
+```toml
+# node1.toml
+node_name = "Local Node 1"
+http_listen_addr = "0.0.0.0:7845"      # behind TLS proxy
+storage_backend = "sqlite"
+storage_path = "./node1_data/node.sqlite"
+api_key = "node1secret"
+open_rate_limit = 0
+```
+
+Run the node with `./target/debug/icn-node --config node1.toml` and place a TLS
+proxy (e.g., Nginx) in front that forwards HTTPS traffic to `http://localhost:7845` while adding `x-api-key: node1secret`.
 
 ### 2. Running the Nodes
 
