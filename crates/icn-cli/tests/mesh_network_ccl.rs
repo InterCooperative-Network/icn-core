@@ -109,5 +109,21 @@ async fn mesh_network_and_ccl_commands() {
     .await
     .unwrap();
 
+    // ccl run command
+    let bin = env!("CARGO_BIN_EXE_icn-cli");
+    let base_run = format!("http://{addr}");
+    let file_run = file_path.to_str().unwrap().to_string();
+    let output = tokio::task::spawn_blocking(move || {
+        Command::new(bin)
+            .args(["--api-url", &base_run, "ccl", "run", &file_run])
+            .output()
+            .unwrap()
+    })
+    .await
+    .unwrap();
+    assert!(output.status.success());
+    let out = String::from_utf8(output.stdout).unwrap();
+    assert!(out.contains("job_id"));
+
     server.abort();
 }

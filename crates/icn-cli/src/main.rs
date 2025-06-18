@@ -143,6 +143,11 @@ enum CclCommands {
         #[clap(help = "Path to the CCL source file")]
         file: String,
     },
+    /// Compile and run a CCL file as a mesh job
+    Run {
+        #[clap(help = "Path to the CCL source file")]
+        file: String,
+    },
 }
 
 // --- Main CLI Logic ---
@@ -191,6 +196,7 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
         },
         Commands::Ccl { command } => match command {
             CclCommands::Compile { file } => handle_ccl_compile(file)?,
+            CclCommands::Run { file } => handle_ccl_run(cli, client, file).await?,
         },
     }
     Ok(())
@@ -439,6 +445,34 @@ fn handle_ccl_compile(file: &str) -> Result<(), anyhow::Error> {
     let meta =
         compile_ccl_file(&source_path, &wasm_path, &meta_path).map_err(|e| anyhow::anyhow!(e))?;
     println!("{}", serde_json::to_string_pretty(&meta)?);
+    Ok(())
+}
+
+async fn handle_ccl_run(cli: &Cli, client: &Client, file: &str) -> Result<(), anyhow::Error> {
+    let source_path = PathBuf::from(file);
+    let wasm_path = source_path.with_extension("wasm");
+    let meta_path = source_path.with_extension("json");
+    compile_ccl_file(&source_path, &wasm_path, &meta_path).map_err(|e| anyhow::anyhow!(e))?;
+
+    let wasm_bytes = std::fs::read(&wasm_path)?;
+    let cid = icn_common::compute_merkle_cid(0x71, &wasm_bytes, &[]);
+    let block = icn_common::DagBlock {
+        cid: cid.clone(),
+        data: wasm_bytes,
+        links: vec![],
+    };
+    let returned_cid: icn_common::Cid =
+        post_request(&cli.api_url, client, "/dag/put", &block).await?;
+
+    let job_request = serde_json::json!({
+        "manifest_cid": returned_cid,
+        "spec_json": {"kind": "GenericPlaceholder", "inputs": [], "outputs": [], "required_resources": {"cpu_cores": 0, "memory_mb": 0}},
+        "cost_mana": 0
+    });
+
+    let response: serde_json::Value =
+        post_request(&cli.api_url, client, "/mesh/submit", &job_request).await?;
+    println!("{}", serde_json::to_string_pretty(&response)?);
     Ok(())
 }
 

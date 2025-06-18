@@ -1,4 +1,5 @@
 #[cfg(feature = "libp2p")]
+#[allow(clippy::field_reassign_with_default, clippy::clone_on_copy)]
 mod libp2p_tests {
     use icn_common::Did;
     use icn_network::libp2p_service::{Libp2pNetworkService, NetworkConfig};
