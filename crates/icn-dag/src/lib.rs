@@ -52,12 +52,14 @@ pub trait StorageService<B: Clone + Serialize + for<'de> Deserialize<'de>> {
 
 // --- In-Memory DAG Store ---
 
+/// Simple in-memory implementation of [`StorageService`] for tests and examples.
 #[derive(Debug, Default)]
 pub struct InMemoryDagStore {
     store: HashMap<Cid, DagBlock>,
 }
 
 impl InMemoryDagStore {
+    /// Create a new empty store.
     pub fn new() -> Self {
         InMemoryDagStore {
             store: HashMap::new(),
@@ -88,6 +90,7 @@ impl StorageService<DagBlock> for InMemoryDagStore {
 
 // --- File-based DAG Store (Placeholder) ---
 
+/// Simple file-based [`StorageService`] storing one JSON file per block.
 #[derive(Debug)]
 pub struct FileDagStore {
     storage_path: PathBuf,
@@ -96,6 +99,7 @@ pub struct FileDagStore {
 }
 
 impl FileDagStore {
+    /// Create a new store rooted at `storage_path`, creating the directory if needed.
     pub fn new(storage_path: PathBuf) -> Result<Self, CommonError> {
         if !storage_path.exists() {
             std::fs::create_dir_all(&storage_path).map_err(|e| {

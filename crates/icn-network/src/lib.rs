@@ -50,13 +50,16 @@ pub const DID_DOC_PREFIX: &str = "/icn/did/";
 
 // --- Core Types ---
 
+/// Wrapper around a peer's stable identifier used within the network layer.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct PeerId(pub String);
 
 impl PeerId {
+    /// Construct from a raw string.
     pub fn from_string(s: String) -> Self {
         PeerId(s)
     }
+    /// Borrow the underlying string representation.
     pub fn to_string(&self) -> String {
         self.0.clone()
     }
@@ -338,6 +341,7 @@ pub mod libp2p_service {
 
     // --- Enhanced Statistics and Configuration ---
 
+    /// Configuration options for the libp2p networking backend.
     #[derive(Debug, Clone)]
     pub struct NetworkConfig {
         pub listen_addresses: Vec<Multiaddr>,
@@ -440,6 +444,7 @@ pub mod libp2p_service {
         bytes_received: u64,
     }
 
+    /// Production implementation of [`NetworkService`] backed by libp2p.
     #[derive(Debug)]
     pub struct Libp2pNetworkService {
         local_peer_id: Libp2pPeerId,
@@ -608,6 +613,7 @@ pub mod libp2p_service {
     // CombinedEvent removed - using auto-generated CombinedBehaviourEvent instead
 
     impl Libp2pNetworkService {
+        /// Spawn the networking service using the given configuration.
         pub async fn new(config: NetworkConfig) -> Result<Self, MeshNetworkError> {
             if config.connection_timeout.is_zero() {
                 return Err(MeshNetworkError::HandshakeFailed(
@@ -1097,6 +1103,7 @@ pub mod libp2p_service {
             }
         }
 
+        /// Return the local peer's identifier.
         pub fn local_peer_id(&self) -> &Libp2pPeerId {
             &self.local_peer_id
         }

@@ -16,14 +16,7 @@ mod libp2p_mesh_integration {
     use anyhow::Result;
     use icn_common::{Cid, Did};
     use icn_identity::{generate_ed25519_keypair, ExecutionReceipt, SignatureBytes};
-    use icn_mesh::{
-        ActualMeshJob as Job,
-        JobId,
-        JobKind,
-        JobSpec,
-        MeshJobBid as Bid,
-        Resources,
-    };
+    use icn_mesh::{ActualMeshJob as Job, JobId, JobKind, JobSpec, MeshJobBid as Bid, Resources};
     use icn_network::libp2p_service::{Libp2pNetworkService, NetworkConfig};
     use icn_network::{NetworkMessage, NetworkService};
     use icn_runtime::executor::{JobExecutor, SimpleExecutor};

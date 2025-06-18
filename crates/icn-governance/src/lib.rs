@@ -20,6 +20,7 @@ use serde::{Deserialize, Serialize};
 
 // --- Proposal System ---
 
+/// Unique identifier for a governance proposal.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ProposalId(pub String); // Could be a hash of the proposal content
@@ -39,6 +40,7 @@ impl std::str::FromStr for ProposalId {
     }
 }
 
+/// The type of action a proposal intends to perform.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ProposalType {
@@ -48,6 +50,7 @@ pub enum ProposalType {
     GenericText(String),                   // For general purpose proposals
 }
 
+/// Current lifecycle state of a proposal.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ProposalStatus {
@@ -59,6 +62,7 @@ pub enum ProposalStatus {
     Failed,     // Execution failed
 }
 
+/// Full proposal record stored in the governance module.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Proposal {
@@ -73,6 +77,7 @@ pub struct Proposal {
                                    // Potentially, threshold and quorum requirements could be part of the proposal type or global config
 }
 
+/// Possible voting options.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum VoteOption {
@@ -81,6 +86,7 @@ pub enum VoteOption {
     Abstain,
 }
 
+/// A single vote on a proposal.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Vote {
@@ -149,6 +155,7 @@ impl GovernanceModule {
         })
     }
 
+    /// Create and store a new proposal in the governance module.
     pub fn submit_proposal(
         &mut self,
         proposer: Did,
@@ -232,6 +239,7 @@ impl GovernanceModule {
         Ok(proposal_id)
     }
 
+    /// Record a vote for the specified proposal.
     pub fn cast_vote(
         &mut self,
         voter: Did,
@@ -351,6 +359,7 @@ impl GovernanceModule {
         Ok(())
     }
 
+    /// Fetch a proposal by ID if it exists.
     pub fn get_proposal(&self, proposal_id: &ProposalId) -> Result<Option<Proposal>, CommonError> {
         match &self.backend {
             Backend::InMemory { proposals } => Ok(proposals.get(proposal_id).cloned()),
@@ -387,6 +396,7 @@ impl GovernanceModule {
         }
     }
 
+    /// Return all currently stored proposals.
     pub fn list_proposals(&self) -> Result<Vec<Proposal>, CommonError> {
         match &self.backend {
             Backend::InMemory { proposals } => Ok(proposals.values().cloned().collect()),

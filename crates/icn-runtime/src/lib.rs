@@ -257,12 +257,15 @@ pub async fn host_account_credit_mana(
 // Placeholder for a reputation updater service/struct
 use icn_reputation::ReputationStore;
 
+/// Helper used by host functions to update executor reputation.
 pub struct ReputationUpdater;
 
 impl ReputationUpdater {
+    /// Create a new updater with no internal state.
     pub fn new() -> Self {
         ReputationUpdater
     }
+    /// Record a completed execution in the provided reputation store.
     pub fn submit(&self, store: &dyn ReputationStore, receipt: &icn_identity::ExecutionReceipt) {
         let before = store.get_reputation(&receipt.executor_did);
         store.record_execution(&receipt.executor_did, receipt.success, receipt.cpu_ms);

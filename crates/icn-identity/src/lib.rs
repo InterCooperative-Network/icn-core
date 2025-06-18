@@ -229,15 +229,16 @@ pub fn verify_signature(pk: &VerifyingKey, msg: &[u8], sig: &EdSignature) -> boo
 // PublicKey and SecretKey structs might be reintroduced if we need more abstraction
 // or to handle different key types in the future. For now, this simplifies.
 
-// Wrapper for ed25519_dalek::Signature to allow serde if needed directly on it
-// and to be distinct if we were to support multiple signature types.
+/// Wrapper for raw Ed25519 signature bytes with optional Serde support.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SignatureBytes(#[serde(with = "serde_bytes")] pub Vec<u8>);
 
 impl SignatureBytes {
+    /// Construct from an [`ed25519_dalek::Signature`].
     pub fn from_ed_signature(ed_sig: ed25519_dalek::Signature) -> Self {
         SignatureBytes(ed_sig.to_bytes().to_vec())
     }
+    /// Convert back into an [`ed25519_dalek::Signature`].
     pub fn to_ed_signature(&self) -> Result<ed25519_dalek::Signature, CommonError> {
         let bytes_array: [u8; SIGNATURE_LENGTH] = self
             .0
