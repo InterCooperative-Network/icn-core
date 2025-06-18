@@ -16,7 +16,14 @@ mod libp2p_mesh_integration {
     use anyhow::Result;
     use icn_common::{Cid, Did};
     use icn_identity::{generate_ed25519_keypair, ExecutionReceipt, SignatureBytes};
-    use icn_mesh::{ActualMeshJob as Job, JobId, JobSpec, MeshJobBid as Bid, Resources};
+    use icn_mesh::{
+        ActualMeshJob as Job,
+        JobId,
+        JobKind,
+        JobSpec,
+        MeshJobBid as Bid,
+        Resources,
+    };
     use icn_network::libp2p_service::{Libp2pNetworkService, NetworkConfig};
     use icn_network::{NetworkMessage, NetworkService};
     use icn_runtime::executor::{JobExecutor, SimpleExecutor};
@@ -41,8 +48,11 @@ mod libp2p_mesh_integration {
         let creator_did =
             Did::from_str("did:key:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuias7ux1jEZ6KATp8").unwrap();
         let manifest_cid = Cid::new_v1_sha256(0x71, b"dummy_manifest_data");
-        let job_spec = JobSpec::Echo {
-            payload: "hello world".to_string(),
+        let job_spec = JobSpec {
+            kind: JobKind::Echo {
+                payload: "hello world".to_string(),
+            },
+            ..Default::default()
         };
         Job {
             id: job_id,

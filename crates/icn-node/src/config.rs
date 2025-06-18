@@ -40,6 +40,10 @@ pub struct NodeConfig {
     pub enable_p2p: bool,
     pub api_key: Option<String>,
     pub open_rate_limit: u64,
+    /// TLS certificate path for HTTPS. Requires `tls_key_path` as well.
+    pub tls_cert_path: Option<std::path::PathBuf>,
+    /// TLS private key path for HTTPS. Requires `tls_cert_path` as well.
+    pub tls_key_path: Option<std::path::PathBuf>,
 }
 
 impl Default for NodeConfig {
@@ -60,6 +64,8 @@ impl Default for NodeConfig {
             enable_p2p: false,
             api_key: None,
             open_rate_limit: 60,
+            tls_cert_path: None,
+            tls_key_path: None,
         }
     }
 }
@@ -123,6 +129,12 @@ impl NodeConfig {
         }
         if let Some(v) = cli.open_rate_limit {
             self.open_rate_limit = v;
+        }
+        if let Some(v) = &cli.tls_cert_path {
+            self.tls_cert_path = Some(v.clone());
+        }
+        if let Some(v) = &cli.tls_key_path {
+            self.tls_key_path = Some(v.clone());
         }
     }
 }
