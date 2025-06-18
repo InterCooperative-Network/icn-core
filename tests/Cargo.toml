@@ -7,6 +7,10 @@ edition.workspace = true
 name = "federation"
 path = "integration/federation.rs"
 
+[[test]]
+name = "libp2p_job_pipeline"
+path = "integration/libp2p_job_pipeline.rs"
+
 [dependencies]
 reqwest.workspace = true
 serde_json.workspace = true
