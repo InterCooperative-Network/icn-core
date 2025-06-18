@@ -11,10 +11,14 @@ use thiserror::Error;
 
 pub const ICN_CORE_VERSION: &str = "0.1.0-dev-functional";
 
+/// Basic metadata about an ICN node used for diagnostics and handshakes.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NodeInfo {
+    /// Semantic version of the running software.
     pub version: String,
+    /// Human friendly name of the node.
     pub name: String,
+    /// Optional status or informational message.
     pub status_message: String,
 }
 
@@ -168,6 +172,9 @@ pub struct Did {
 }
 
 impl Did {
+    /// Construct a new [`Did`] from a method name and identifier string.
+    ///
+    /// This does not perform validation beyond storing the provided values.
     pub fn new(method: &str, id_string: &str) -> Self {
         Did {
             method: method.to_string(),
@@ -207,8 +214,10 @@ pub struct Cid {
 }
 
 impl Cid {
-    // TODO: Implement proper CID creation from data, parsing from string, etc.
-    // This is a simplified constructor for now.
+    /// Create a CID using a truncated hash of the provided data.
+    ///
+    /// This helper is only for testing and should not be used in production
+    /// where real multihash computation is required.
     pub fn new_v1_dummy(codec: u64, hash_alg: u64, data: &[u8]) -> Self {
         // In a real scenario, you'd hash the data using the specified hash_alg
         // For now, let's just use a slice of the data as a mock hash

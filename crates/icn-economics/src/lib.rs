@@ -9,7 +9,7 @@ use icn_common::{CommonError, Did, NodeInfo};
 mod ledger;
 pub use ledger::{FileManaLedger, SledManaLedger};
 
-// Placeholder for EconError enum
+/// Errors that can occur during mana accounting operations.
 #[derive(Debug)]
 pub enum EconError {
     InsufficientBalance(String),
@@ -17,27 +17,36 @@ pub enum EconError {
     PolicyViolation(String),
 }
 
+/// Abstraction over the persistence layer storing account balances.
 pub trait ManaLedger: Send + Sync {
+    /// Retrieve the mana balance for a DID.
     fn get_balance(&self, did: &Did) -> u64;
+    /// Persist a new balance for a DID.
     fn set_balance(&self, did: &Did, amount: u64) -> Result<(), CommonError>;
+    /// Spend mana from the account.
     fn spend(&self, did: &Did, amount: u64) -> Result<(), EconError>;
+    /// Credit mana to the account.
     fn credit(&self, did: &Did, amount: u64) -> Result<(), EconError>;
 }
 
+/// Thin wrapper exposing convenience methods over a [`ManaLedger`].
 #[derive(Debug)]
 pub struct ManaRepositoryAdapter<L: ManaLedger> {
     ledger: L,
 }
 
 impl<L: ManaLedger> ManaRepositoryAdapter<L> {
+    /// Construct a new adapter around the provided ledger implementation.
     pub fn new(ledger: L) -> Self {
         ManaRepositoryAdapter { ledger }
     }
 
+    /// Deduct mana from an account via the underlying ledger.
     pub fn spend_mana(&self, did: &Did, amount: u64) -> Result<(), EconError> {
         self.ledger.spend(did, amount)
     }
 
+    /// Retrieve the account balance.
     pub fn get_balance(&self, did: &Did) -> u64 {
         self.ledger.get_balance(did)
     }
@@ -48,7 +57,7 @@ impl<L: ManaLedger> ManaRepositoryAdapter<L> {
     }
 }
 
-// Placeholder for ResourcePolicyEnforcer struct
+/// Enforces spending limits and forwards to a [`ManaRepositoryAdapter`].
 #[derive(Debug)]
 pub struct ResourcePolicyEnforcer<L: ManaLedger> {
     adapter: ManaRepositoryAdapter<L>,
@@ -58,10 +67,12 @@ impl<L: ManaLedger> ResourcePolicyEnforcer<L> {
     /// Maximum mana spend allowed per single operation.
     pub const MAX_SPEND_LIMIT: u64 = 1000;
 
+    /// Create a new enforcer using the supplied adapter.
     pub fn new(adapter: ManaRepositoryAdapter<L>) -> Self {
         ResourcePolicyEnforcer { adapter }
     }
 
+    /// Spend mana after applying basic policy checks.
     pub fn spend_mana(&self, did: &Did, amount: u64) -> Result<(), EconError> {
         println!("[ResourcePolicyEnforcer] Enforcing spend_mana for DID {did:?}, amount {amount}");
 

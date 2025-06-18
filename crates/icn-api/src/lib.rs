@@ -191,6 +191,10 @@ pub struct GovernanceApiImpl {
 }
 
 impl GovernanceApiImpl {
+    /// Create a new [`GovernanceApiImpl`] wrapping the given [`GovernanceModule`].
+    ///
+    /// This helper is used by higher layers (e.g. RPC) to access governance
+    /// functionality through the [`GovernanceApi`] trait.
     pub fn new(gov_module: Arc<Mutex<GovernanceModule>>) -> Self {
         Self { gov_module }
     }
