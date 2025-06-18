@@ -78,6 +78,10 @@ Useful CLI flags include:
 * `--enable-p2p` – enable libp2p networking (requires `with-libp2p` feature)
 * `--api-key <KEY>` – require this key via the `x-api-key` header for all requests
 * `--open-rate-limit <N>` – allowed unauthenticated requests per minute when no API key is set
+* `--tls-cert-path <PATH>` – PEM certificate file to enable HTTPS
+* `--tls-key-path <PATH>` – PEM private key file to enable HTTPS
+
+Supplying both TLS options makes the server listen on HTTPS instead of HTTP.
 
 When the node starts, it will attempt to load its DID and private key from the
 configured paths. If no key material exists, a new Ed25519 key pair is generated

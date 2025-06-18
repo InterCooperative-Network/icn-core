@@ -50,6 +50,7 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
+use axum_server::tls_rustls::RustlsConfig;
 use bs58;
 use clap::{ArgMatches, CommandFactory, FromArgMatches, Parser};
 #[cfg(feature = "enable-libp2p")]
@@ -137,6 +138,12 @@ pub struct Cli {
 
     #[clap(long)]
     pub open_rate_limit: Option<u64>,
+
+    #[clap(long)]
+    pub tls_cert_path: Option<PathBuf>,
+
+    #[clap(long)]
+    pub tls_key_path: Option<PathBuf>,
 }
 
 /// Load or generate the node identity based on the provided configuration.
@@ -222,7 +229,7 @@ async fn require_api_key(
             _ => (
                 StatusCode::UNAUTHORIZED,
                 Json(JsonErrorResponse {
-                    error: "unauthorized".to_string(),
+                    error: "missing or invalid api key".to_string(),
                 }),
             )
                 .into_response(),
@@ -281,7 +288,7 @@ pub async fn app_router_with_options(
     let mesh_network_service = Arc::new(StubMeshNetworkService::new());
     // GovernanceModule is initialized inside RuntimeContext::new
 
-    let rt_ctx = RuntimeContext::new_with_ledger_path(
+    let mut rt_ctx = RuntimeContext::new_with_ledger_path(
         node_did.clone(),
         mesh_network_service,
         signer,
@@ -295,7 +302,9 @@ pub async fn app_router_with_options(
         let gov_path = governance_db_path.unwrap_or_else(|| PathBuf::from("./governance_db"));
         let gov_mod = icn_governance::GovernanceModule::new_sled(gov_path)
             .unwrap_or_else(|_| icn_governance::GovernanceModule::new());
-        rt_ctx.governance_module = Arc::new(TokioMutex::new(gov_mod));
+        if let Some(ctx) = Arc::get_mut(&mut rt_ctx) {
+            ctx.governance_module = Arc::new(TokioMutex::new(gov_mod));
+        }
     }
 
     // Initialize the test node with some mana for testing
@@ -386,7 +395,7 @@ async fn main() {
     info!("Starting {} with DID: {}", node_name, node_did);
 
     // --- Create RuntimeContext with Networking ---
-    let rt_ctx = if config.enable_p2p {
+    let mut rt_ctx = if config.enable_p2p {
         #[cfg(feature = "enable-libp2p")]
         {
             info!(
@@ -541,7 +550,9 @@ async fn main() {
     {
         let gov_mod = icn_governance::GovernanceModule::new_sled(config.governance_db_path.clone())
             .unwrap_or_else(|_| icn_governance::GovernanceModule::new());
-        rt_ctx.governance_module = Arc::new(TokioMutex::new(gov_mod));
+        if let Some(ctx) = Arc::get_mut(&mut rt_ctx) {
+            ctx.governance_module = Arc::new(TokioMutex::new(gov_mod));
+        }
     }
 
     // Start the job manager
@@ -602,10 +613,20 @@ async fn main() {
         .expect("Invalid HTTP listen address");
     info!("🌐 {} HTTP server listening on {}", node_name, addr);
 
-    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-    axum::serve(listener, router.into_make_service())
-        .await
-        .unwrap();
+    if let (Some(cert), Some(key)) = (&config.tls_cert_path, &config.tls_key_path) {
+        let tls_config = axum_server::tls_rustls::RustlsConfig::from_pem_file(cert, key)
+            .await
+            .expect("failed to load TLS certificate");
+        axum_server::bind_rustls(addr, tls_config)
+            .serve(router.into_make_service())
+            .await
+            .unwrap();
+    } else {
+        let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+        axum::serve(listener, router.into_make_service())
+            .await
+            .unwrap();
+    }
 
     if config.enable_p2p {
         #[cfg(feature = "enable-libp2p")]

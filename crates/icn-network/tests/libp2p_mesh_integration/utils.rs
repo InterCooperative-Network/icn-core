@@ -9,7 +9,14 @@
 use anyhow::Result;
 use icn_common::{Cid, Did};
 use icn_identity::{generate_ed25519_keypair, ExecutionReceipt, SignatureBytes, SigningKey};
-use icn_mesh::{ActualMeshJob as Job, JobId, JobSpec, MeshJobBid as Bid, Resources};
+use icn_mesh::{
+    ActualMeshJob as Job,
+    JobId,
+    JobKind,
+    JobSpec,
+    MeshJobBid as Bid,
+    Resources,
+};
 use icn_network::libp2p_service::{Libp2pNetworkService, NetworkConfig};
 use icn_network::{NetworkMessage, NetworkService};
 use icn_runtime::executor::{JobExecutor, SimpleExecutor};
@@ -121,8 +128,11 @@ pub fn create_test_job(config: &TestJobConfig) -> Job {
     let job_id_cid = Cid::new_v1_sha256(0x55, config.id_suffix.as_bytes());
     let job_id = JobId::from(job_id_cid);
     let manifest_cid = Cid::new_v1_sha256(0x71, b"dummy_manifest_data");
-    let job_spec = JobSpec::Echo {
-        payload: config.payload.clone(),
+    let job_spec = JobSpec {
+        kind: JobKind::Echo {
+            payload: config.payload.clone(),
+        },
+        ..Default::default()
     };
 
     Job {

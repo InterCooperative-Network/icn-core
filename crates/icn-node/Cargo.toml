@@ -23,6 +23,7 @@ serde_yaml = "0.9"
 clap = { version = "4.0", features = ["derive"] }
 tokio = { version = "1.0", features = ["full"] }
 axum = { version = "0.7", features = ["json"] }
+axum-server = { version = "0.7", features = ["tls-rustls"] }
 tower = { version = "0.4", features = ["full"] }
 hex = "0.4"
 bs58 = "0.5"
@@ -41,3 +42,4 @@ persist-rocksdb = ["icn-dag/persist-rocksdb"]
 reqwest = { version = "0.11", features = ["json"] }
 tokio = { version = "1", features = ["full"] }
 tempfile = "3"
+icn-ccl = { path = "../../icn-ccl" }
