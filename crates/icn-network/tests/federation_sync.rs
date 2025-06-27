@@ -3,7 +3,8 @@
     clippy::clone_on_copy,
     clippy::uninlined_format_args,
     clippy::field_reassign_with_default,
-    dead_code
+    dead_code,
+    unexpected_cfgs
 )]
 
 #[cfg(all(feature = "libp2p", feature = "federation"))]

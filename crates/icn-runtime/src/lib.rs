@@ -324,6 +324,33 @@ pub fn wasm_host_submit_mesh_job(
     }
 }
 
+/// WASM wrapper for [`host_get_pending_mesh_jobs`].
+/// Writes the serialized job list into guest memory at `ptr` and returns
+/// the number of bytes written. If serialization or memory write fails,
+/// `0` is returned.
+pub fn wasm_host_get_pending_mesh_jobs(
+    mut caller: wasmtime::Caller<'_, std::sync::Arc<RuntimeContext>>,
+    ptr: u32,
+    len: u32,
+) -> u32 {
+    let handle = tokio::runtime::Handle::current();
+    let jobs = match handle.block_on(async { host_get_pending_mesh_jobs(caller.data()) }) {
+        Ok(j) => j,
+        Err(_) => return 0,
+    };
+    let json = match serde_json::to_string(&jobs) {
+        Ok(j) => j,
+        Err(_) => return 0,
+    };
+    let bytes = json.as_bytes();
+    let copy_len = bytes.len().min(len as usize);
+    if memory::write_bytes(&mut caller, ptr, &bytes[..copy_len]).is_ok() {
+        copy_len as u32
+    } else {
+        0
+    }
+}
+
 /// WASM wrapper for [`host_anchor_receipt`]. Reads the receipt JSON from guest memory.
 pub fn wasm_host_anchor_receipt(
     mut caller: wasmtime::Caller<'_, std::sync::Arc<RuntimeContext>>,
@@ -334,6 +361,37 @@ pub fn wasm_host_anchor_receipt(
         let handle = tokio::runtime::Handle::current();
         let rep = ReputationUpdater::new();
         let _ = handle.block_on(host_anchor_receipt(caller.data(), &json, &rep));
+    }
+}
+
+/// WASM wrapper for [`host_account_get_mana`].
+/// Reads the account DID from guest memory and returns the mana balance.
+pub fn wasm_host_account_get_mana(
+    mut caller: wasmtime::Caller<'_, std::sync::Arc<RuntimeContext>>,
+    ptr: u32,
+    len: u32,
+) -> u64 {
+    if let Ok(did) = memory::read_string(&mut caller, ptr, len) {
+        let handle = tokio::runtime::Handle::current();
+        handle
+            .block_on(host_account_get_mana(caller.data(), &did))
+            .unwrap_or(0)
+    } else {
+        0
+    }
+}
+
+/// WASM wrapper for [`host_account_spend_mana`].
+/// Reads the account DID from guest memory and attempts to spend mana.
+pub fn wasm_host_account_spend_mana(
+    mut caller: wasmtime::Caller<'_, std::sync::Arc<RuntimeContext>>,
+    ptr: u32,
+    len: u32,
+    amount: u64,
+) {
+    if let Ok(did) = memory::read_string(&mut caller, ptr, len) {
+        let handle = tokio::runtime::Handle::current();
+        let _ = handle.block_on(host_account_spend_mana(caller.data(), &did, amount));
     }
 }
 
