@@ -15,7 +15,7 @@ mod runtime_host_abi_tests {
     use anyhow::Result;
     use icn_common::{Cid, Did};
     use icn_identity::{did_key_from_verifying_key, generate_ed25519_keypair, ExecutionReceipt};
-    use icn_mesh::{ActualMeshJob, JobSpec};
+    use icn_mesh::{ActualMeshJob, JobKind, JobSpec};
     use icn_network::{NetworkMessage, NetworkService};
     use icn_runtime::context::RuntimeContext;
     use icn_runtime::{host_anchor_receipt, host_submit_mesh_job, ReputationUpdater};

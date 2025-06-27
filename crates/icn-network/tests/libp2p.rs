@@ -19,7 +19,7 @@ mod libp2p_tests {
         let peer_a = node_a.local_peer_id();
 
         let config_b = NetworkConfig {
-            bootstrap_peers: vec![(peer_a, addr)],
+            bootstrap_peers: vec![(*peer_a, addr)],
             ..NetworkConfig::default()
         };
         let node_b = Libp2pNetworkService::new(config_b)
