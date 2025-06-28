@@ -20,7 +20,7 @@ The API style prioritizes:
 *   **Composability:** Allowing different DAG-based data structures to be built on top.
 *   **Performance:** Efficient handling of DAG operations, especially for large graphs.
 *   **Flexibility:** Supporting different codecs and storage backends where appropriate.
-*   **Pluggable Persistence:** Includes in-memory, file-based, and optional `sled` backends via the `persist-sled` feature.
+*   **Pluggable Persistence:** Includes in-memory, file-based, and optional `sled` backends via the `persist-sled` feature. When enabled, `SledDagStore` provides durable storage on disk.
 
 ## Contributing
 

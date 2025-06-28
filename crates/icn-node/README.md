@@ -68,6 +68,7 @@ Useful CLI flags include:
 * `--node-private-key-path <PATH>` – location to read/write the node private key
 * `--storage-backend <memory|file|sqlite|rocksdb>` – choose the DAG storage backend
 * `--storage-path <PATH>` – directory for the file or SQLite backends
+* `--mana-ledger-backend <file|sled|sqlite|rocksdb>` – choose ledger persistence
 * `--mana-ledger-path <PATH>` – location of the mana ledger database
 * `--governance-db-path <PATH>` – location to persist governance proposals and votes
 * `--http-listen-addr <ADDR>` – HTTP server bind address (default `127.0.0.1:7845`)

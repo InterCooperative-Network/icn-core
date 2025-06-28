@@ -11,7 +11,7 @@ icn-api = { path = "../icn-api", default-features = false, features = ["types-on
 icn-network = { path = "../icn-network", default-features = false }
 icn-dag = { path = "../icn-dag" }
 icn-governance = { path = "../icn-governance", features = ["serde"] }
-icn-runtime = { path = "../icn-runtime" }
+icn-runtime = { path = "../icn-runtime", features = ["cli"] }
 icn-identity = { path = "../icn-identity" }
 icn-mesh = { path = "../icn-mesh" }
 icn-reputation = { path = "../icn-reputation" }

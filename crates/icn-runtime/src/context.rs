@@ -46,6 +46,8 @@ use icn_network::libp2p_service::NetworkConfig;
 use libp2p::{Multiaddr, PeerId as Libp2pPeerId};
 
 use bincode;
+#[cfg(feature = "cli")]
+use clap::ValueEnum;
 use icn_governance::{GovernanceModule, ProposalId, ProposalType, VoteOption};
 #[cfg(feature = "enable-libp2p")]
 use icn_identity::KeyDidResolver;
@@ -58,6 +60,19 @@ use serde::{Deserialize, Serialize};
 
 // Counter for generating unique (within this runtime instance) job IDs for stubs
 pub static NEXT_JOB_ID: AtomicU32 = AtomicU32::new(1);
+
+/// Supported mana ledger persistence backends.
+#[cfg_attr(feature = "cli", derive(ValueEnum))]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub enum LedgerBackend {
+    File,
+    #[cfg(feature = "persist-sqlite")]
+    Sqlite,
+    #[cfg(feature = "persist-sled")]
+    Sled,
+    #[cfg(feature = "persist-rocksdb")]
+    Rocksdb,
+}
 
 // --- Placeholder Local Stubs / Forward Declarations ---
 
@@ -140,6 +155,37 @@ impl SimpleManaLedger {
             icn_economics::FileManaLedger::new(path)
                 .unwrap_or_else(|e| panic!("Failed to create mana ledger: {e}")),
         ) as Arc<dyn icn_economics::ManaLedger>;
+        Self { ledger }
+    }
+
+    /// Create a ledger using a specific backend.
+    pub fn new_with_backend(path: PathBuf, backend: LedgerBackend) -> Self {
+        let ledger: Arc<dyn icn_economics::ManaLedger> = match backend {
+            LedgerBackend::File => Arc::new(
+                icn_economics::FileManaLedger::new(path)
+                    .unwrap_or_else(|e| panic!("Failed to create mana ledger: {e}")),
+            ) as Arc<_>,
+            #[cfg(feature = "persist-sqlite")]
+            LedgerBackend::Sqlite => Arc::new(
+                icn_economics::SqliteManaLedger::new(path)
+                    .unwrap_or_else(|e| panic!("Failed to create mana ledger: {e}")),
+            ) as Arc<_>,
+            #[cfg(feature = "persist-sled")]
+            LedgerBackend::Sled => Arc::new(
+                SledManaLedger::new(path)
+                    .unwrap_or_else(|e| panic!("Failed to create mana ledger: {e}")),
+            ) as Arc<_>,
+            #[cfg(feature = "persist-rocksdb")]
+            LedgerBackend::Rocksdb => Arc::new(
+                icn_economics::RocksdbManaLedger::new(path)
+                    .unwrap_or_else(|e| panic!("Failed to create mana ledger: {e}")),
+            ) as Arc<_>,
+            #[allow(unreachable_patterns)]
+            _ => Arc::new(
+                icn_economics::FileManaLedger::new(path)
+                    .unwrap_or_else(|e| panic!("Failed to create mana ledger: {e}")),
+            ) as Arc<_>,
+        };
         Self { ledger }
     }
 
@@ -546,6 +592,27 @@ impl RuntimeContext {
         mana_ledger_path: PathBuf,
         reputation_store_path: PathBuf,
     ) -> Arc<Self> {
+        Self::new_with_mana_ledger(
+            current_identity,
+            mesh_network_service,
+            signer,
+            did_resolver,
+            dag_store,
+            SimpleManaLedger::new(mana_ledger_path),
+            reputation_store_path,
+        )
+    }
+
+    /// Create a new context with a preconstructed mana ledger.
+    pub fn new_with_mana_ledger(
+        current_identity: Did,
+        mesh_network_service: Arc<dyn MeshNetworkService>,
+        signer: Arc<dyn Signer>,
+        did_resolver: Arc<dyn icn_identity::DidResolver>,
+        dag_store: Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>,
+        mana_ledger: SimpleManaLedger,
+        reputation_store_path: PathBuf,
+    ) -> Arc<Self> {
         let job_states = Arc::new(TokioMutex::new(HashMap::new()));
         let pending_mesh_jobs = Arc::new(TokioMutex::new(VecDeque::new()));
 
@@ -589,7 +656,7 @@ impl RuntimeContext {
 
         Arc::new(Self {
             current_identity,
-            mana_ledger: SimpleManaLedger::new(mana_ledger_path),
+            mana_ledger,
             pending_mesh_jobs,
             job_states,
             governance_module,

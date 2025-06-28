@@ -100,7 +100,9 @@ The project uses `cargo fmt` for code formatting and `cargo clippy` for linting.
     ```
     You can specify the listen address and storage backend:
     ```bash
-    cargo run -p icn-node -- --listen-addr 0.0.0.0:8000 --storage-backend file --storage-path ./my_node_data
+    cargo run -p icn-node -- --listen-addr 0.0.0.0:8000 \
+        --storage-backend file --storage-path ./my_node_data \
+        --mana-ledger-backend sled --mana-ledger-path ./ledger.sled
     ```
     The server will print a message indicating it's listening and then run until stopped (e.g., with Ctrl+C).
 

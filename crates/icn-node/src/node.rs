@@ -86,6 +86,9 @@ pub struct Cli {
     #[clap(long)]
     pub storage_path: Option<PathBuf>,
 
+    #[clap(long, value_enum)]
+    pub mana_ledger_backend: Option<icn_runtime::context::LedgerBackend>,
+
     #[clap(long)]
     pub mana_ledger_path: Option<PathBuf>,
 
@@ -310,7 +313,7 @@ async fn rate_limit_middleware(
 
 // --- Public App Constructor (for tests or embedding) ---
 pub async fn app_router() -> Router {
-    app_router_with_options(None, None, None, None, None, None)
+    app_router_with_options(None, None, None, None, None, None, None)
         .await
         .0
 }
@@ -320,6 +323,7 @@ pub async fn app_router_with_options(
     api_key: Option<String>,
     auth_token: Option<String>,
     rate_limit: Option<u64>,
+    mana_ledger_backend: Option<icn_runtime::context::LedgerBackend>,
     mana_ledger_path: Option<PathBuf>,
     governance_db_path: Option<PathBuf>,
     reputation_db_path: Option<PathBuf>,
@@ -338,13 +342,19 @@ pub async fn app_router_with_options(
     let rep_path = reputation_db_path
         .clone()
         .unwrap_or_else(|| PathBuf::from("./reputation.sled"));
-    let mut rt_ctx = RuntimeContext::new_with_ledger_path(
+    let ledger_backend =
+        mana_ledger_backend.unwrap_or_else(|| super::config::default_ledger_backend());
+    let ledger = icn_runtime::context::SimpleManaLedger::new_with_backend(
+        mana_ledger_path.unwrap_or_else(|| PathBuf::from("./mana_ledger.sled")),
+        ledger_backend,
+    );
+    let mut rt_ctx = RuntimeContext::new_with_mana_ledger(
         node_did.clone(),
         mesh_network_service,
         signer,
         Arc::new(icn_identity::KeyDidResolver),
         dag_store_for_rt,
-        mana_ledger_path.unwrap_or_else(|| PathBuf::from("./mana_ledger.sled")),
+        ledger,
         rep_path.clone(),
     );
 
@@ -746,13 +756,17 @@ async fn main() {
             };
         let mesh_network_service = Arc::new(StubMeshNetworkService::new());
 
-        RuntimeContext::new_with_ledger_path(
+        let ledger = icn_runtime::context::SimpleManaLedger::new_with_backend(
+            config.mana_ledger_path.clone(),
+            config.mana_ledger_backend,
+        );
+        RuntimeContext::new_with_mana_ledger(
             node_did.clone(),
             mesh_network_service,
             signer,
             Arc::new(icn_identity::KeyDidResolver),
             dag_store_for_rt,
-            config.mana_ledger_path.clone(),
+            ledger,
             config.reputation_db_path.clone(),
         )
     };

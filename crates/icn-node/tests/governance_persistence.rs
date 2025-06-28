@@ -14,6 +14,7 @@ async fn governance_persists_between_restarts() {
         None,
         None,
         None,
+        None,
         Some(ledger_path.clone()),
         Some(gov_path.clone()),
         None,
@@ -45,6 +46,7 @@ async fn governance_persists_between_restarts() {
     drop(_router);
 
     let (_router2, ctx2) = app_router_with_options(
+        None,
         None,
         None,
         None,
