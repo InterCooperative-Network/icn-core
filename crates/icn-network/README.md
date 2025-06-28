@@ -10,13 +10,16 @@ The `icn-network` crate is responsible for:
 *   **P2P Communication:** Establishing and managing connections between ICN nodes.
 *   **Transport Protocols:** Abstracting underlying transport mechanisms (e.g., TCP, QUIC).
 *   **Peer Discovery:** Finding and connecting to other peers in the network.
+    The `Libp2pNetworkService` performs periodic discovery using Kademlia with
+    a configurable `peer_discovery_interval` and will retry dialing configured
+    bootstrap peers.
 *   **Message Definition & Routing:** Defining common network message types and handling their exchange between peers.
 *   **Federation Synchronization:** Potentially handling specific protocols for data synchronization between federated ICN clusters.
 
 ## Key Components
 
 *   **`PeerId`**: A struct representing a unique identifier for a network peer. Currently a simple string wrapper, but intended to be compatible with underlying P2P library IDs (e.g., libp2p `PeerId`).
-*   **`NetworkMessage`**: An enum defining the various types of messages that can be exchanged between ICN nodes. This includes messages for block announcements (`AnnounceBlock`), block requests (`RequestBlock`), generic gossip messages (`GossipSub`), and federation sync requests (`FederationSyncRequest`). This enum derives `Serialize` and `Deserialize` for network transmission.
+*   **`NetworkMessage`**: An enum defining the various types of messages that can be exchanged between ICN nodes. This includes messages for block announcements (`AnnounceBlock`), block requests (`RequestBlock`), generic gossip messages (`GossipSub`), federation sync requests (`FederationSyncRequest`), and federation join handshakes (`FederationJoinRequest`/`FederationJoinResponse`). This enum derives `Serialize` and `Deserialize` for network transmission.
 *   **`NetworkService` Trait**: An abstraction defining the core functionalities a network service provider must implement. This includes methods like `discover_peers`, `send_message`, and `broadcast_message`. Methods return `Result<_, CommonError>` using specific error variants like `PeerNotFound`, `MessageSendError`, etc.
 *   **`StubNetworkService`**: A default implementation of `NetworkService` that simulates network interactions by logging actions to the console and returning predefined data. It's used for development and testing of higher-level crates without requiring a live P2P network. It demonstrates returning specific `CommonError` variants for simulated network issues.
 

@@ -8,6 +8,7 @@ The `icn-protocol` crate is responsible for:
 
 *   **Message Serialization:** Defining the structure and serialization/deserialization (e.g., using Protobuf, Serde, CBOR) of messages exchanged between ICN nodes.
 *   **Protocol Definitions:** Specifying the state machines, interaction patterns, and rules for various ICN sub-protocols (e.g., for data synchronization, consensus, governance actions).
+*   **Federation Membership:** Structures like `FederationJoinRequest` and `FederationJoinResponse` enable handshake-style membership negotiation between nodes.
 *   **CCL Helpers (if applicable):** If ICN uses a Cooperative Contract Language, this crate might contain compiler utilities, AST definitions, or interpreter components for it.
 *   **Version Negotiation:** Handling different versions of protocols or message formats to ensure backward and forward compatibility.
 

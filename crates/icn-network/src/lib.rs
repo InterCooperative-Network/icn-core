@@ -87,6 +87,10 @@ pub enum NetworkMessage {
     RequestBlock(Cid),
     GossipSub(String, Vec<u8>),
     FederationSyncRequest(Did),
+    /// Request to join a federation
+    FederationJoinRequest(Did),
+    /// Response to a federation join request (true if accepted)
+    FederationJoinResponse(Did, bool),
     MeshJobAnnouncement(Job),
     BidSubmission(Bid),
     JobAssignmentNotification(JobId, Did),
@@ -102,6 +106,8 @@ impl NetworkMessage {
             NetworkMessage::RequestBlock(_) => "RequestBlock",
             NetworkMessage::GossipSub(_, _) => "GossipSub",
             NetworkMessage::FederationSyncRequest(_) => "FederationSyncRequest",
+            NetworkMessage::FederationJoinRequest(_) => "FederationJoinRequest",
+            NetworkMessage::FederationJoinResponse(_, _) => "FederationJoinResponse",
             NetworkMessage::MeshJobAnnouncement(_) => "MeshJobAnnouncement",
             NetworkMessage::BidSubmission(_) => "BidSubmission",
             NetworkMessage::JobAssignmentNotification(_, _) => "JobAssignmentNotification",
@@ -351,6 +357,8 @@ pub mod libp2p_service {
         pub request_timeout: Duration,
         pub heartbeat_interval: Duration,
         pub bootstrap_interval: Duration,
+        /// Interval for automatic peer discovery queries
+        pub peer_discovery_interval: Duration,
         pub enable_mdns: bool,
         pub kademlia_replication_factor: usize,
         pub bootstrap_peers: Vec<(Libp2pPeerId, Multiaddr)>,
@@ -366,6 +374,7 @@ pub mod libp2p_service {
                 request_timeout: Duration::from_secs(10),
                 heartbeat_interval: Duration::from_secs(15),
                 bootstrap_interval: Duration::from_secs(300),
+                peer_discovery_interval: Duration::from_secs(60),
                 enable_mdns: false,
                 kademlia_replication_factor: 20,
                 bootstrap_peers: Vec::new(),
@@ -717,7 +726,8 @@ pub mod libp2p_service {
             let stats_clone = stats.clone();
 
             // Clone bootstrap_peers for use in the async task
-            let has_bootstrap_peers = !config.bootstrap_peers.is_empty();
+            let bootstrap_peers_clone = config.bootstrap_peers.clone();
+            let has_bootstrap_peers = !bootstrap_peers_clone.is_empty();
 
             // Store the listening addresses for the service
             let listening_addresses = Arc::new(Mutex::new(Vec::new()));
@@ -753,6 +763,7 @@ pub mod libp2p_service {
                 let mut subscribers: Vec<mpsc::Sender<super::NetworkMessage>> = Vec::new();
                 let mut pending_kad_queries: HashMap<QueryId, PendingQuery> = HashMap::new();
                 let mut bootstrap_tick = tokio::time::interval(config.bootstrap_interval);
+                let mut discovery_tick = tokio::time::interval(config.peer_discovery_interval);
 
                 log::debug!("🔧 [LIBP2P] Entering main event loop...");
                 loop {
@@ -882,9 +893,19 @@ pub mod libp2p_service {
                             // This is important for proper swarm operation and prevents hanging
                         }
                         _ = bootstrap_tick.tick(), if has_bootstrap_peers => {
+                            for (peer, addr) in &bootstrap_peers_clone {
+                                if !swarm.is_connected(peer) {
+                                    if let Err(e) = swarm.dial(addr.clone()) {
+                                        log::warn!("Failed to redial bootstrap {}: {}", peer, e);
+                                    }
+                                }
+                            }
                             if let Err(e) = swarm.behaviour_mut().kademlia.bootstrap() {
                                 log::error!("❌ [LIBP2P] Periodic bootstrap error: {:?}", e);
                             }
+                        }
+                        _ = discovery_tick.tick() => {
+                            let _ = swarm.behaviour_mut().kademlia.get_closest_peers(local_peer_id_inner);
                         }
                         else => {
                             log::debug!("🔧 [LIBP2P] Event loop terminating - no more events");

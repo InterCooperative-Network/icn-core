@@ -23,6 +23,10 @@ path = "integration/persistence.rs"
 name = "icn_node_end_to_end"
 path = "integration/icn_node_end_to_end.rs"
 
+[[test]]
+name = "peer_discovery"
+path = "integration/peer_discovery.rs"
+
 [dependencies]
 reqwest.workspace = true
 serde_json.workspace = true
