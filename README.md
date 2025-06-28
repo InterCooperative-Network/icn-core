@@ -125,6 +125,18 @@ This workspace is organized into several crates, each with a specific focus:
 
 More detailed information can be found in the `README.md` file within each crate's directory.
 
+## Further Reading
+
+* [RFC Index](icn-docs/rfcs/README.md) – notably [RFC 0010: ICN Governance & Deliberation Core](icn-docs/rfcs/0010-governance-core.md)
+* Crate documentation:
+  * [icn-common](crates/icn-common/README.md)
+  * [icn-dag](crates/icn-dag/README.md)
+  * [icn-identity](crates/icn-identity/README.md)
+  * [icn-mesh](crates/icn-mesh/README.md)
+  * [icn-governance](crates/icn-governance/README.md)
+  * [icn-runtime](crates/icn-runtime/README.md)
+  * [icn-network](crates/icn-network/README.md)
+
 ## Contribution Guidelines
 
 We welcome contributions to the ICN Core project! Please see our [Contributing Guidelines](CONTRIBUTING.md) for more information on how to get started, our coding conventions, and the pull request process.

@@ -20,6 +20,7 @@ pub struct FileManaLedger {
 }
 
 impl FileManaLedger {
+    /// Create or load a ledger persisted on disk at `path`.
     pub fn new(path: PathBuf) -> Result<Self, CommonError> {
         let balances = if path.exists() {
             let mut file = File::open(&path).map_err(|e| {
@@ -77,11 +78,13 @@ impl FileManaLedger {
         Ok(())
     }
 
+    /// Return the current mana balance for `account`.
     pub fn get_balance(&self, account: &Did) -> u64 {
         let balances = self.balances.lock().unwrap();
         *balances.get(account).unwrap_or(&0)
     }
 
+    /// Persist a new balance for `account`.
     pub fn set_balance(&self, account: &Did, amount: u64) -> Result<(), CommonError> {
         let mut balances = self.balances.lock().unwrap();
         balances.insert(account.clone(), amount);
@@ -89,6 +92,7 @@ impl FileManaLedger {
         self.persist()
     }
 
+    /// Deduct `amount` of mana from the account, erroring if the balance is insufficient.
     pub fn spend(&self, account: &Did, amount: u64) -> Result<(), EconError> {
         let mut balances = self.balances.lock().unwrap();
         let balance = balances
@@ -105,6 +109,7 @@ impl FileManaLedger {
             .map_err(|e| EconError::AdapterError(format!("{e}")))
     }
 
+    /// Credit `amount` of mana to the account.
     pub fn credit(&self, account: &Did, amount: u64) -> Result<(), EconError> {
         let mut balances = self.balances.lock().unwrap();
         let entry = balances.entry(account.clone()).or_insert(0);
@@ -143,6 +148,7 @@ pub struct SledManaLedger {
 
 #[cfg(feature = "persist-sled")]
 impl SledManaLedger {
+    /// Open or create a sled database at `path` for mana accounting.
     pub fn new(path: PathBuf) -> Result<Self, CommonError> {
         let db = sled::open(path)
             .map_err(|e| CommonError::DatabaseError(format!("Failed to open sled DB: {e}")))?;

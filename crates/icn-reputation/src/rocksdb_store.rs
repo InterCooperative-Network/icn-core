@@ -12,6 +12,7 @@ pub struct RocksdbReputationStore {
 
 #[cfg(feature = "persist-rocksdb")]
 impl RocksdbReputationStore {
+    /// Open or create a RocksDB database at `path` to store reputation scores.
     pub fn new(path: PathBuf) -> Result<Self, CommonError> {
         let db = DB::open_default(path)
             .map_err(|e| CommonError::DatabaseError(format!("Failed to open rocksdb: {e}")))?;

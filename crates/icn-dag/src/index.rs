@@ -7,12 +7,16 @@ pub struct DagTraversalIndex {
 }
 
 impl DagTraversalIndex {
+    /// Create an empty traversal index.
+    ///
+    /// The index maps each [`Cid`] to the CIDs of its child blocks.
     pub fn new() -> Self {
         Self {
             adjacency: HashMap::new(),
         }
     }
 
+    /// Insert a block into the traversal index.
     pub fn index_block(&mut self, block: &DagBlock) {
         self.adjacency.insert(
             block.cid.clone(),
@@ -20,6 +24,7 @@ impl DagTraversalIndex {
         );
     }
 
+    /// Remove a block and all references to it from the index.
     pub fn remove_block(&mut self, cid: &Cid) {
         self.adjacency.remove(cid);
         for children in self.adjacency.values_mut() {
@@ -27,6 +32,9 @@ impl DagTraversalIndex {
         }
     }
 
+    /// Perform a depth‑first traversal starting from `start`.
+    ///
+    /// Returns the order of visited CIDs.
     pub fn traverse(&self, start: &Cid) -> Vec<Cid> {
         let mut visited = HashSet::new();
         let mut stack = vec![start.clone()];

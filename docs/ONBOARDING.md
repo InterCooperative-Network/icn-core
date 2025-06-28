@@ -36,6 +36,12 @@ Welcome to the InterCooperative Network (ICN) Core project! This guide will help
     just --list    # Show available development commands
     ```
     The `just` command runner provides shortcuts for formatting, linting, testing, and devnet tasks defined in the repository's `justfile`.
+5.  **Install WebAssembly tooling:**
+    ```bash
+    rustup target add wasm32-unknown-unknown
+    cargo install wasm-tools --locked
+    ```
+    ICN crates compile to WebAssembly for deterministic sandboxing. The `wasm32-unknown-unknown` target and `wasm-tools` utilities are required for building and running tests that involve the runtime or CCL compiler.
 
 ## 3. Building and Running Components
 

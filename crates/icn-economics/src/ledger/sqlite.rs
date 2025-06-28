@@ -9,6 +9,7 @@ pub struct SqliteManaLedger {
 }
 
 impl SqliteManaLedger {
+    /// Create a new SQLite based mana ledger stored at `path`.
     pub fn new(path: PathBuf) -> Result<Self, CommonError> {
         let conn = Connection::open(&path)
             .map_err(|e| CommonError::DatabaseError(format!("Failed to open sqlite DB: {e}")))?;

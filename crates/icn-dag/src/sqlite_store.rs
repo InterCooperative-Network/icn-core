@@ -8,6 +8,7 @@ pub struct SqliteDagStore {
 }
 
 impl SqliteDagStore {
+    /// Create a new SQLite backed DAG store.
     pub fn new(path: PathBuf) -> Result<Self, CommonError> {
         let conn = Connection::open(path)
             .map_err(|e| CommonError::DatabaseError(format!("Failed to open sqlite DB: {}", e)))?;

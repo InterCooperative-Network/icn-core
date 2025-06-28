@@ -8,6 +8,7 @@ pub struct RocksDagStore {
 }
 
 impl RocksDagStore {
+    /// Create a new RocksDB backed DAG store.
     pub fn new(path: PathBuf) -> Result<Self, CommonError> {
         let mut opts = Options::default();
         opts.create_if_missing(true);
