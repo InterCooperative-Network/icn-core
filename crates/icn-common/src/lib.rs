@@ -310,10 +310,18 @@ impl fmt::Display for Cid {
 /// Represents a generic block in a Content-Addressed DAG.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DagBlock {
-    pub cid: Cid,      // The CID of this block (calculated from data + links)
-    pub data: Vec<u8>, // The opaque data payload of the block
-    pub links: Vec<DagLink>, // Links to other DagBlocks
-                       // TODO: Consider adding metadata like timestamp, author DID, signature
+    /// The CID of this block (calculated from the data and metadata).
+    pub cid: Cid,
+    /// Opaque data payload of the block.
+    pub data: Vec<u8>,
+    /// Links to other [`DagBlock`]s.
+    pub links: Vec<DagLink>,
+    /// Unix timestamp when the block was created.
+    pub timestamp: u64,
+    /// DID of the block author.
+    pub author_did: Did,
+    /// Optional Ed25519 signature of the block contents.
+    pub signature: Option<SignatureBytes>,
 }
 
 /// Represents a link within a DagBlock, pointing to another DagBlock.
@@ -325,7 +333,14 @@ pub struct DagLink {
 }
 
 /// Compute a Merkle-style CID for a block using SHA-256 of its data and link CIDs.
-pub fn compute_merkle_cid(codec: u64, data: &[u8], links: &[DagLink]) -> Cid {
+pub fn compute_merkle_cid(
+    codec: u64,
+    data: &[u8],
+    links: &[DagLink],
+    timestamp: u64,
+    author_did: &Did,
+    signature: &Option<SignatureBytes>,
+) -> Cid {
     use sha2::{Digest, Sha256};
     let mut hasher = Sha256::new();
     hasher.update(data);
@@ -333,6 +348,11 @@ pub fn compute_merkle_cid(codec: u64, data: &[u8], links: &[DagLink]) -> Cid {
     link_strings.sort();
     for s in link_strings {
         hasher.update(s.as_bytes());
+    }
+    hasher.update(timestamp.to_le_bytes());
+    hasher.update(author_did.to_string().as_bytes());
+    if let Some(sig) = signature {
+        hasher.update(&sig.0);
     }
     let hash_bytes = hasher.finalize().to_vec();
     Cid {
@@ -345,7 +365,14 @@ pub fn compute_merkle_cid(codec: u64, data: &[u8], links: &[DagLink]) -> Cid {
 
 /// Verify that a block's CID matches the Merkle hash of its contents and links.
 pub fn verify_block_integrity(block: &DagBlock) -> Result<(), CommonError> {
-    let expected = compute_merkle_cid(block.cid.codec, &block.data, &block.links);
+    let expected = compute_merkle_cid(
+        block.cid.codec,
+        &block.data,
+        &block.links,
+        block.timestamp,
+        &block.author_did,
+        &block.signature,
+    );
     if expected == block.cid {
         Ok(())
     } else {
@@ -385,13 +412,15 @@ pub struct DidDocument {
 
 impl Signable for DagBlock {
     fn to_signable_bytes(&self) -> Result<Vec<u8>, CommonError> {
-        let mut bytes = self.cid.to_string().into_bytes();
+        let mut bytes = Vec::new();
         bytes.extend_from_slice(&self.data);
         let mut links: Vec<String> = self.links.iter().map(|l| l.cid.to_string()).collect();
         links.sort();
         for l in links {
             bytes.extend_from_slice(l.as_bytes());
         }
+        bytes.extend_from_slice(&self.timestamp.to_le_bytes());
+        bytes.extend_from_slice(self.author_did.to_string().as_bytes());
         Ok(bytes)
     }
 }
@@ -487,11 +516,24 @@ mod tests {
             name: "child".to_string(),
             size: 100, // Dummy size
         };
-        let block_cid = Cid::new_v1_sha256(0x71, b"main data");
+        let timestamp = 0u64;
+        let author = Did::new("key", "tester");
+        let sig = None;
+        let block_cid = compute_merkle_cid(
+            0x71,
+            b"main data",
+            std::slice::from_ref(&link),
+            timestamp,
+            &author,
+            &sig,
+        );
         let block = DagBlock {
             cid: block_cid.clone(),
             data: b"main data".to_vec(),
             links: vec![link],
+            timestamp,
+            author_did: author,
+            signature: sig,
         };
         assert_eq!(block.cid, block_cid);
         assert_eq!(block.links[0].cid, link_cid);
@@ -537,11 +579,24 @@ mod tests {
             size: 9,
         };
         let data = b"parent".to_vec();
-        let cid = compute_merkle_cid(0x71, &data, std::slice::from_ref(&link));
+        let timestamp = 0u64;
+        let author = Did::new("key", "tester");
+        let sig = None;
+        let cid = compute_merkle_cid(
+            0x71,
+            &data,
+            std::slice::from_ref(&link),
+            timestamp,
+            &author,
+            &sig,
+        );
         let block = DagBlock {
             cid: cid.clone(),
             data,
             links: vec![link],
+            timestamp,
+            author_did: author,
+            signature: sig,
         };
         assert!(verify_block_integrity(&block).is_ok());
     }

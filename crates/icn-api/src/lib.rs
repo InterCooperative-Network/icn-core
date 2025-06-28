@@ -125,7 +125,14 @@ pub async fn submit_dag_block(
         ))
     })?;
 
-    let expected_cid = compute_merkle_cid(block.cid.codec, &block.data, &block.links);
+    let expected_cid = compute_merkle_cid(
+        block.cid.codec,
+        &block.data,
+        &block.links,
+        block.timestamp,
+        &block.author_did,
+        &block.signature,
+    );
     if expected_cid != block.cid {
         return Err(CommonError::DagValidationError("CID mismatch".to_string()));
     }
@@ -467,11 +474,24 @@ mod tests {
             size: 9,
         };
         let data = b"parent".to_vec();
-        let cid = super::compute_merkle_cid(0x71, &data, std::slice::from_ref(&link));
+        let ts = 0u64;
+        let author = Did::new("key", "tester");
+        let sig_opt = None;
+        let cid = super::compute_merkle_cid(
+            0x71,
+            &data,
+            std::slice::from_ref(&link),
+            ts,
+            &author,
+            &sig_opt,
+        );
         let block = DagBlock {
             cid: cid.clone(),
             data: data.clone(),
             links: vec![link],
+            timestamp: ts,
+            author_did: author,
+            signature: sig_opt,
         };
         let block_json = serde_json::to_string(&block).unwrap();
         let result = submit_dag_block(storage, block_json).await;
@@ -494,6 +514,9 @@ mod tests {
             cid: wrong_cid,
             data,
             links: vec![link],
+            timestamp: 0,
+            author_did: Did::new("key", "tester"),
+            signature: None,
         };
         let block_json = serde_json::to_string(&block).unwrap();
         let result = submit_dag_block(storage, block_json).await;
@@ -515,10 +538,16 @@ mod tests {
             name: "apilink_error_refine".to_string(),
             size: 8,
         };
+        let ts = 0u64;
+        let author = Did::new("key", "tester");
+        let sig_opt = None;
         let block = DagBlock {
             cid: cid.clone(),
             data: data.clone(),
             links: vec![link],
+            timestamp: ts,
+            author_did: author,
+            signature: sig_opt,
         };
 
         let block_json = serde_json::to_string(&block).unwrap();
@@ -731,11 +760,17 @@ mod tests {
         let store: Arc<tokio::sync::Mutex<dyn StorageService<DagBlock> + Send>> =
             Arc::new(tokio::sync::Mutex::new(InMemoryDagStore::new()));
         let data = b"query block".to_vec();
-        let cid = Cid::new_v1_sha256(0x71, &data);
+        let ts = 0u64;
+        let author = Did::new("key", "tester");
+        let sig_opt = None;
+        let cid = compute_merkle_cid(0x71, &data, &[], ts, &author, &sig_opt);
         let block = DagBlock {
             cid: cid.clone(),
             data: data.clone(),
             links: vec![],
+            timestamp: ts,
+            author_did: author,
+            signature: sig_opt,
         };
         {
             let mut guard = store.lock().await;

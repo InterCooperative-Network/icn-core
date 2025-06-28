@@ -37,11 +37,17 @@ async fn wasm_executor_runs_compiled_ccl() {
     let (wasm, _) = compile_ccl_source_to_wasm(source).expect("compile ccl");
 
     let ctx = ctx_with_temp_store("did:key:zWasmExec", 10);
-    let cid = icn_common::compute_merkle_cid(0x71, &wasm, &[]);
+    let ts = 0u64;
+    let author = icn_common::Did::new("key", "tester");
+    let sig_opt = None;
+    let cid = icn_common::compute_merkle_cid(0x71, &wasm, &[], ts, &author, &sig_opt);
     let block = DagBlock {
         cid: cid.clone(),
         data: wasm.clone(),
         links: vec![],
+        timestamp: ts,
+        author_did: author,
+        signature: sig_opt,
     };
     {
         let mut store = ctx.dag_store.lock().await;
@@ -81,11 +87,17 @@ async fn wasm_executor_runs_compiled_addition() {
     let (wasm, _) = compile_ccl_source_to_wasm(source).expect("compile ccl");
 
     let ctx = ctx_with_temp_store("did:key:zAddExec", 10);
-    let cid = icn_common::compute_merkle_cid(0x71, &wasm, &[]);
+    let ts = 0u64;
+    let author = icn_common::Did::new("key", "tester");
+    let sig_opt = None;
+    let cid = icn_common::compute_merkle_cid(0x71, &wasm, &[], ts, &author, &sig_opt);
     let block = DagBlock {
         cid: cid.clone(),
         data: wasm.clone(),
         links: vec![],
+        timestamp: ts,
+        author_did: author,
+        signature: sig_opt,
     };
     {
         let mut store = ctx.dag_store.lock().await;
@@ -125,11 +137,17 @@ async fn wasm_executor_fails_without_run() {
     let (wasm, _) = compile_ccl_source_to_wasm(source).expect("compile ccl");
 
     let ctx = ctx_with_temp_store("did:key:zWasmFail", 10);
-    let cid_calc = icn_common::compute_merkle_cid(0x71, &wasm, &[]);
+    let ts = 0u64;
+    let author = icn_common::Did::new("key", "tester");
+    let sig_opt = None;
+    let cid_calc = icn_common::compute_merkle_cid(0x71, &wasm, &[], ts, &author, &sig_opt);
     let block = DagBlock {
         cid: cid_calc.clone(),
         data: wasm.clone(),
         links: vec![],
+        timestamp: ts,
+        author_did: author,
+        signature: sig_opt,
     };
     {
         let mut store = ctx.dag_store.lock().await;
@@ -168,11 +186,17 @@ async fn compile_and_execute_simple_contract() {
     assert!(meta.exports.contains(&"run".to_string()));
 
     let ctx = ctx_with_temp_store("did:key:zSimple", 5);
-    let cid = icn_common::compute_merkle_cid(0x71, &wasm, &[]);
+    let ts = 0u64;
+    let author = icn_common::Did::new("key", "tester");
+    let sig_opt = None;
+    let cid = icn_common::compute_merkle_cid(0x71, &wasm, &[], ts, &author, &sig_opt);
     let block = DagBlock {
         cid: cid.clone(),
         data: wasm.clone(),
         links: vec![],
+        timestamp: ts,
+        author_did: author,
+        signature: sig_opt,
     };
     {
         let mut store = ctx.dag_store.lock().await;

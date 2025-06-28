@@ -1104,10 +1104,27 @@ impl RuntimeContext {
             HostAbiError::InternalError(format!("Failed to serialize final receipt for DAG: {}", e))
         })?;
 
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        let author = self.current_identity.clone();
+        let signature = None;
+        let cid = icn_common::compute_merkle_cid(
+            0x71,
+            &final_receipt_bytes,
+            &[],
+            timestamp,
+            &author,
+            &signature,
+        );
         let block = DagBlock {
-            cid: Cid::new_v1_sha256(0x71, &final_receipt_bytes),
+            cid,
             data: final_receipt_bytes,
             links: vec![],
+            timestamp,
+            author_did: author,
+            signature,
         };
         let mut store = self.dag_store.lock().await;
         store.put(&block).map_err(HostAbiError::Common)?;

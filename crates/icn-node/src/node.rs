@@ -794,10 +794,17 @@ async fn dag_put_handler(
     Json(block): Json<DagBlockPayload>,
 ) -> impl IntoResponse {
     // Use RuntimeContext's dag_store now
+    let ts = 0u64;
+    let author = Did::new("key", "tester");
+    let sig_opt = None;
+    let cid = icn_common::compute_merkle_cid(0x71, &block.data, &[], ts, &author, &sig_opt);
     let dag_block = CoreDagBlock {
-        cid: Cid::new_v1_sha256(0x71, &block.data),
+        cid,
         data: block.data,
         links: vec![],
+        timestamp: ts,
+        author_did: author,
+        signature: sig_opt,
     };
     let mut store = state.runtime_context.dag_store.lock().await;
     match store.put(&dag_block) {
@@ -856,11 +863,17 @@ async fn contracts_post_handler(
         }
     };
 
-    let cid = icn_common::Cid::new_v1_sha256(0x71, &wasm);
+    let ts = 0u64;
+    let author = Did::new("key", "tester");
+    let sig_opt = None;
+    let cid = icn_common::compute_merkle_cid(0x71, &wasm, &[], ts, &author, &sig_opt);
     let block = CoreDagBlock {
         cid: cid.clone(),
         data: wasm,
         links: vec![],
+        timestamp: ts,
+        author_did: author,
+        signature: sig_opt,
     };
 
     let block_json = match serde_json::to_string(&block) {

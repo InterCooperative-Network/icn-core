@@ -22,10 +22,17 @@ async fn wasm_executor_runs_wasm() {
         )
     )"#;
     let wasm_bytes = wat::parse_str(wasm).unwrap();
+    let ts = 0u64;
+    let author = Did::new("key", "tester");
+    let sig_opt = None;
+    let cid = compute_merkle_cid(0x71, &wasm_bytes, &[], ts, &author, &sig_opt);
     let block = DagBlock {
-        cid: Cid::new_v1_sha256(0x71, &wasm_bytes),
+        cid: cid.clone(),
         data: wasm_bytes,
         links: vec![],
+        timestamp: ts,
+        author_did: author,
+        signature: sig_opt,
     };
     {
         let mut store = ctx.dag_store.lock().await;
@@ -57,10 +64,17 @@ async fn wasm_executor_runs_compiled_ccl_contract() {
 
     let source = "fn run() -> Integer { return 3 + 4; }";
     let (wasm, _) = icn_ccl::compile_ccl_source_to_wasm(source).unwrap();
+    let ts = 0u64;
+    let author = Did::new("key", "tester");
+    let sig_opt = None;
+    let cid_calc = compute_merkle_cid(0x71, &wasm, &[], ts, &author, &sig_opt);
     let block = DagBlock {
-        cid: Cid::new_v1_sha256(0x71, &wasm),
+        cid: cid_calc.clone(),
         data: wasm.clone(),
         links: vec![],
+        timestamp: ts,
+        author_did: author,
+        signature: sig_opt,
     };
     {
         let mut store = ctx.dag_store.lock().await;
@@ -124,10 +138,17 @@ async fn wasm_executor_host_submit_mesh_job_json() {
     );
 
     let wasm_bytes = wat::parse_str(&wasm).unwrap();
+    let ts = 0u64;
+    let author = Did::new("key", "tester");
+    let sig_opt = None;
+    let cid_calc = compute_merkle_cid(0x71, &wasm_bytes, &[], ts, &author, &sig_opt);
     let block = DagBlock {
-        cid: Cid::new_v1_sha256(0x71, &wasm_bytes),
+        cid: cid_calc.clone(),
         data: wasm_bytes,
         links: vec![],
+        timestamp: ts,
+        author_did: author,
+        signature: sig_opt,
     };
     {
         let mut store = ctx.dag_store.lock().await;
@@ -183,10 +204,17 @@ async fn wasm_executor_host_anchor_receipt_json() {
     );
 
     let wasm_bytes = wat::parse_str(&wasm).unwrap();
+    let ts = 0u64;
+    let author = Did::new("key", "tester");
+    let sig_opt = None;
+    let cid_calc = compute_merkle_cid(0x71, &wasm_bytes, &[], ts, &author, &sig_opt);
     let block = DagBlock {
-        cid: Cid::new_v1_sha256(0x71, &wasm_bytes),
+        cid: cid_calc.clone(),
         data: wasm_bytes,
         links: vec![],
+        timestamp: ts,
+        author_did: author,
+        signature: sig_opt,
     };
     {
         let mut store = ctx.dag_store.lock().await;
@@ -219,10 +247,17 @@ async fn submit_compiled_ccl_runs_via_executor() {
     let ctx = RuntimeContext::new_with_stubs_and_mana("did:key:zEndToEnd", 5);
     let source = "fn run() -> Integer { return 9; }";
     let (wasm, _) = icn_ccl::compile_ccl_source_to_wasm(source).unwrap();
+    let ts = 0u64;
+    let author = Did::new("key", "tester");
+    let sig_opt = None;
+    let cid_calc = compute_merkle_cid(0x71, &wasm, &[], ts, &author, &sig_opt);
     let block = DagBlock {
-        cid: Cid::new_v1_sha256(0x71, &wasm),
+        cid: cid_calc.clone(),
         data: wasm.clone(),
         links: vec![],
+        timestamp: ts,
+        author_did: author,
+        signature: sig_opt,
     };
     {
         let mut store = ctx.dag_store.lock().await;
@@ -255,10 +290,17 @@ async fn queued_compiled_ccl_executes() {
     let ctx = RuntimeContext::new_with_stubs_and_mana("did:key:zQueueExec", 5);
     let source = "fn run() -> Integer { return 4; }";
     let (wasm, _) = icn_ccl::compile_ccl_source_to_wasm(source).unwrap();
+    let ts = 0u64;
+    let author = Did::new("key", "tester");
+    let sig_opt = None;
+    let cid_calc = compute_merkle_cid(0x71, &wasm, &[], ts, &author, &sig_opt);
     let block = DagBlock {
-        cid: Cid::new_v1_sha256(0x71, &wasm),
+        cid: cid_calc.clone(),
         data: wasm.clone(),
         links: vec![],
+        timestamp: ts,
+        author_did: author,
+        signature: sig_opt,
     };
     {
         let mut store = ctx.dag_store.lock().await;
