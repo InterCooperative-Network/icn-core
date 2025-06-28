@@ -119,6 +119,7 @@ pub struct GovernanceModule {
     members: HashSet<Did>,
     quorum: usize,
     threshold: f32,
+    proposal_callback: Option<Box<dyn Fn(&Proposal) -> Result<(), CommonError> + Send + Sync>>,
 }
 
 impl GovernanceModule {
@@ -131,6 +132,7 @@ impl GovernanceModule {
             members: HashSet::new(),
             quorum: 1,
             threshold: 0.5,
+            proposal_callback: None,
         }
     }
 
@@ -152,6 +154,7 @@ impl GovernanceModule {
             members: HashSet::new(),
             quorum: 1,
             threshold: 0.5,
+            proposal_callback: None,
         })
     }
 
@@ -454,6 +457,14 @@ impl GovernanceModule {
         self.threshold = threshold;
     }
 
+    /// Register a callback executed when proposals are run via [`execute_proposal`].
+    pub fn set_callback<F>(&mut self, cb: F)
+    where
+        F: Fn(&Proposal) -> Result<(), CommonError> + Send + Sync + 'static,
+    {
+        self.proposal_callback = Some(Box::new(cb));
+    }
+
     /// Inserts a proposal that originated from another node into the governance module.
     pub fn insert_external_proposal(&mut self, proposal: Proposal) -> Result<(), CommonError> {
         match &mut self.backend {
@@ -734,6 +745,12 @@ impl GovernanceModule {
                 if let ProposalType::NewMemberInvitation(did) = &proposal.proposal_type {
                     self.members.insert(did.clone());
                 }
+                if let Some(cb) = &self.proposal_callback {
+                    if let Err(e) = cb(proposal) {
+                        proposal.status = ProposalStatus::Failed;
+                        return Err(e);
+                    }
+                }
                 proposal.status = ProposalStatus::Executed;
                 Ok(())
             }
@@ -778,6 +795,30 @@ impl GovernanceModule {
                 }
                 if let ProposalType::NewMemberInvitation(did) = &proposal.proposal_type {
                     self.members.insert(did.clone());
+                }
+                if let Some(cb) = &self.proposal_callback {
+                    if let Err(e) = cb(&proposal) {
+                        proposal.status = ProposalStatus::Failed;
+                        let encoded = bincode::serialize(&proposal).map_err(|e| {
+                            CommonError::SerializationError(format!(
+                                "Failed to serialize failed proposal {}: {}",
+                                proposal_id.0, e
+                            ))
+                        })?;
+                        tree.insert(key, encoded).map_err(|e| {
+                            CommonError::DatabaseError(format!(
+                                "Failed to persist failed proposal {}: {}",
+                                proposal_id.0, e
+                            ))
+                        })?;
+                        tree.flush().map_err(|e| {
+                            CommonError::DatabaseError(format!(
+                                "Failed to flush sled tree for failed proposal {}: {}",
+                                proposal_id.0, e
+                            ))
+                        })?;
+                        return Err(e);
+                    }
                 }
                 proposal.status = ProposalStatus::Executed;
                 let encoded = bincode::serialize(&proposal).map_err(|e| {
