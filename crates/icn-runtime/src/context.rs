@@ -846,12 +846,20 @@ impl RuntimeContext {
                             }
 
                             info!("[JobManagerLoop] Received {} bids for job {:?}. Selecting executor...", bids.len(), current_job_id);
-                            if let Some(selected_bid) = bids.into_iter().next() {
-                                // Simplistic selection
+                            let policy = icn_mesh::SelectionPolicy::default();
+                            let maybe_exec = icn_mesh::select_executor(
+                                &current_job_id,
+                                &job.spec,
+                                bids.clone(),
+                                &policy,
+                                self_clone.reputation_store.as_ref(),
+                                &self_clone.mana_ledger,
+                            );
+                            if let Some(selected_exec) = maybe_exec {
                                 let new_state = JobState::Assigned {
-                                    executor: selected_bid.executor_did.clone(),
+                                    executor: selected_exec.clone(),
                                 };
-                                info!("[JobManagerLoop] Job {:?} assigned to executor {:?}. Notifying...", current_job_id, selected_bid.executor_did);
+                                info!("[JobManagerLoop] Job {:?} assigned to executor {:?}. Notifying...", current_job_id, selected_exec);
 
                                 let mut job_states_guard = self_clone.job_states.lock().await;
                                 job_states_guard.insert(current_job_id.clone(), new_state);
@@ -859,7 +867,7 @@ impl RuntimeContext {
 
                                 let notice = JobAssignmentNotice {
                                     job_id: current_job_id.clone(),
-                                    executor_did: selected_bid.executor_did.clone(),
+                                    executor_did: selected_exec.clone(),
                                 };
 
                                 if let Err(e) = self_clone
@@ -881,10 +889,7 @@ impl RuntimeContext {
                                 let task_ctx = self_clone.clone(); // Clone the Arc for the new task
                                 tokio::spawn(async move {
                                     if let Err(e) = task_ctx
-                                        .wait_for_and_process_receipt(
-                                            job,
-                                            selected_bid.executor_did,
-                                        )
+                                        .wait_for_and_process_receipt(job, selected_exec)
                                         .await
                                     {
                                         error!("[JobManagerDetail] Error in wait_for_and_process_receipt for job {:?}: {:?}", current_job_id, e);

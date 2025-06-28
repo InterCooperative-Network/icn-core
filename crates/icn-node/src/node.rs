@@ -329,6 +329,9 @@ pub async fn app_router_with_options(
     let mesh_network_service = Arc::new(StubMeshNetworkService::new());
     // GovernanceModule is initialized inside RuntimeContext::new
 
+    let rep_path = reputation_db_path
+        .clone()
+        .unwrap_or_else(|| PathBuf::from("./reputation.sled"));
     let mut rt_ctx = RuntimeContext::new_with_ledger_path(
         node_did.clone(),
         mesh_network_service,
@@ -336,7 +339,7 @@ pub async fn app_router_with_options(
         Arc::new(icn_identity::KeyDidResolver),
         dag_store_for_rt,
         mana_ledger_path.unwrap_or_else(|| PathBuf::from("./mana_ledger.sled")),
-        reputation_db_path.unwrap_or_else(|| PathBuf::from("./reputation.sled")),
+        rep_path.clone(),
     );
 
     #[cfg(feature = "persist-sled")]
@@ -346,6 +349,11 @@ pub async fn app_router_with_options(
             .unwrap_or_else(|_| icn_governance::GovernanceModule::new());
         if let Some(ctx) = Arc::get_mut(&mut rt_ctx) {
             ctx.governance_module = Arc::new(TokioMutex::new(gov_mod));
+            if let Some(path) = &reputation_db_path {
+                if let Ok(store) = icn_reputation::SledReputationStore::new(path.clone()) {
+                    ctx.reputation_store = Arc::new(store);
+                }
+            }
         }
     }
 
@@ -617,6 +625,13 @@ async fn main() {
             .unwrap_or_else(|_| icn_governance::GovernanceModule::new());
         if let Some(ctx) = Arc::get_mut(&mut rt_ctx) {
             ctx.governance_module = Arc::new(TokioMutex::new(gov_mod));
+            if matches.contains_id("reputation_db_path") {
+                if let Ok(store) =
+                    icn_reputation::SledReputationStore::new(config.reputation_db_path.clone())
+                {
+                    ctx.reputation_store = Arc::new(store);
+                }
+            }
         }
     }
 
