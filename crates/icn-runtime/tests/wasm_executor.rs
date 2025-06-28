@@ -284,3 +284,37 @@ async fn queued_compiled_ccl_executes() {
         panic!("job not completed");
     }
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn compiled_example_contract_file_runs() {
+    let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let contract_path = manifest_dir.join("../../icn-ccl/tests/contracts/example.ccl");
+    let source = std::fs::read_to_string(contract_path).expect("read example");
+    let (wasm, _) = icn_ccl::compile_ccl_source_to_wasm(&source).unwrap();
+
+    let ctx = RuntimeContext::new_with_stubs_and_mana("did:key:zExampleExec", 5);
+    let block = DagBlock {
+        cid: Cid::new_v1_sha256(0x71, &wasm),
+        data: wasm.clone(),
+        links: vec![],
+    };
+    {
+        let mut store = ctx.dag_store.lock().await;
+        store.put(&block).unwrap();
+    }
+    let cid = block.cid.clone();
+    let job = ActualMeshJob {
+        id: Cid::new_v1_sha256(0x55, b"example"),
+        manifest_cid: cid.clone(),
+        spec: JobSpec::default(),
+        creator_did: ctx.current_identity.clone(),
+        cost_mana: 0,
+        max_execution_wait_ms: None,
+        signature: SignatureBytes(vec![]),
+    };
+    let signer = std::sync::Arc::new(StubSigner::new());
+    let exec = WasmExecutor::new(ctx.clone(), signer);
+    let receipt = exec.execute_job(&job).await.unwrap();
+    let expected = Cid::new_v1_sha256(0x55, &11i64.to_le_bytes());
+    assert_eq!(receipt.result_cid, expected);
+}
