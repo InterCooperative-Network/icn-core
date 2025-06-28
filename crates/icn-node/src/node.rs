@@ -21,7 +21,8 @@ use icn_api::governance_trait::{
 use icn_api::{query_data, submit_transaction};
 use icn_common::DagBlock as CoreDagBlock;
 use icn_common::{
-    parse_cid_from_string, Cid, Did, NodeInfo, NodeStatus, Transaction, ICN_CORE_VERSION,
+    parse_cid_from_string, Cid, CommonError, Did, NodeInfo, NodeStatus, Transaction,
+    ICN_CORE_VERSION,
 };
 #[cfg(feature = "persist-rocksdb")]
 use icn_dag::rocksdb_store::RocksDagStore;
@@ -215,6 +216,11 @@ struct AddPeerPayload {
     peer: String,
 }
 
+#[derive(Deserialize)]
+struct ProposalIdPayload {
+    proposal_id: String,
+}
+
 // --- Application State ---
 #[derive(Clone)]
 struct AppState {
@@ -384,6 +390,32 @@ pub async fn app_router_with_options(
         peers: Arc::new(TokioMutex::new(Vec::new())),
     };
 
+    // Register governance callback for parameter changes
+    {
+        let gov_mod = rt_ctx.governance_module.clone();
+        let rate_opt = rate_limiter.clone();
+        let handle = tokio::runtime::Handle::current();
+        let mut gov = gov_mod.lock().await;
+        gov.set_callback(move |proposal| {
+            if let icn_governance::ProposalType::SystemParameterChange(param, value) =
+                &proposal.proposal_type
+            {
+                if param == "open_rate_limit" {
+                    if let Some(ref limiter) = rate_opt {
+                        let new_lim: u64 = value
+                            .parse()
+                            .map_err(|e| CommonError::InvalidInputError(e.to_string()))?;
+                        handle.block_on(async {
+                            let mut data = limiter.lock().await;
+                            data.limit = new_lim;
+                        });
+                    }
+                }
+            }
+            Ok(())
+        });
+    }
+
     (
         Router::new()
             .route("/info", get(info_handler))
@@ -394,6 +426,8 @@ pub async fn app_router_with_options(
             .route("/data/query", post(data_query_handler))
             .route("/governance/submit", post(gov_submit_handler)) // Uses RT context's Gov mod
             .route("/governance/vote", post(gov_vote_handler)) // Uses RT context's Gov mod
+            .route("/governance/close", post(gov_close_handler))
+            .route("/governance/execute", post(gov_execute_handler))
             .route("/governance/proposals", get(gov_list_proposals_handler)) // Uses RT context's Gov mod
             .route(
                 "/governance/proposal/:proposal_id",
@@ -677,6 +711,31 @@ async fn main() {
         peers: Arc::new(TokioMutex::new(Vec::new())),
     };
 
+    {
+        let gov_mod = rt_ctx.governance_module.clone();
+        let rate_opt = rate_limiter.clone();
+        let handle = tokio::runtime::Handle::current();
+        let mut gov = gov_mod.lock().await;
+        gov.set_callback(move |proposal| {
+            if let icn_governance::ProposalType::SystemParameterChange(param, value) =
+                &proposal.proposal_type
+            {
+                if param == "open_rate_limit" {
+                    if let Some(ref limiter) = rate_opt {
+                        let new_lim: u64 = value
+                            .parse()
+                            .map_err(|e| CommonError::InvalidInputError(e.to_string()))?;
+                        handle.block_on(async {
+                            let mut data = limiter.lock().await;
+                            data.limit = new_lim;
+                        });
+                    }
+                }
+            }
+            Ok(())
+        });
+    }
+
     // --- Define HTTP Routes ---
     let router = Router::new()
         .route("/info", get(info_handler))
@@ -687,6 +746,8 @@ async fn main() {
         .route("/data/query", post(data_query_handler))
         .route("/governance/submit", post(gov_submit_handler))
         .route("/governance/vote", post(gov_vote_handler))
+        .route("/governance/close", post(gov_close_handler))
+        .route("/governance/execute", post(gov_execute_handler))
         .route("/governance/proposals", get(gov_list_proposals_handler))
         .route(
             "/governance/proposal/:proposal_id",
@@ -1096,6 +1157,58 @@ async fn gov_get_proposal_handler(
             .into_response(),
         Err(e) => map_rust_error_to_json_response(
             format!("Governance get error: {}", e),
+            StatusCode::BAD_REQUEST,
+        )
+        .into_response(),
+    }
+}
+
+// POST /governance/close – tally votes and, if accepted, execute proposal
+async fn gov_close_handler(
+    State(state): State<AppState>,
+    Json(req): Json<ProposalIdPayload>,
+) -> impl IntoResponse {
+    let result = icn_runtime::host_close_governance_proposal_voting(
+        &state.runtime_context,
+        &req.proposal_id,
+    )
+    .await;
+    let status = match result {
+        Ok(s) => s,
+        Err(e) => {
+            return map_rust_error_to_json_response(
+                format!("Close error: {}", e),
+                StatusCode::BAD_REQUEST,
+            )
+            .into_response()
+        }
+    };
+    if status == format!("{:?}", icn_governance::ProposalStatus::Accepted) {
+        if let Err(e) =
+            icn_runtime::host_execute_governance_proposal(&state.runtime_context, &req.proposal_id)
+                .await
+        {
+            return map_rust_error_to_json_response(
+                format!("Execute error: {}", e),
+                StatusCode::BAD_REQUEST,
+            )
+            .into_response();
+        }
+    }
+    (StatusCode::OK, Json(status)).into_response()
+}
+
+// POST /governance/execute – force execute an accepted proposal
+async fn gov_execute_handler(
+    State(state): State<AppState>,
+    Json(req): Json<ProposalIdPayload>,
+) -> impl IntoResponse {
+    match icn_runtime::host_execute_governance_proposal(&state.runtime_context, &req.proposal_id)
+        .await
+    {
+        Ok(_) => (StatusCode::OK, Json("executed".to_string())).into_response(),
+        Err(e) => map_rust_error_to_json_response(
+            format!("Execute error: {}", e),
             StatusCode::BAD_REQUEST,
         )
         .into_response(),

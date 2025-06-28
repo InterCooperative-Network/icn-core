@@ -140,5 +140,24 @@ async fn governance_endpoints() {
     .await
     .unwrap();
 
+    let bin = env!("CARGO_BIN_EXE_icn-cli");
+    let base_tally = format!("http://{addr}");
+    let pid_for_tally = pid.clone();
+    tokio::task::spawn_blocking(move || {
+        Command::new(bin)
+            .args([
+                "--api-url",
+                &base_tally,
+                "governance",
+                "tally",
+                &pid_for_tally,
+            ])
+            .assert()
+            .success()
+            .stdout(predicates::str::contains("Accepted"));
+    })
+    .await
+    .unwrap();
+
     server.abort();
 }

@@ -123,6 +123,11 @@ enum GovernanceCommands {
         #[clap(help = "Vote casting request as a JSON string (ApiCastVoteRequest format)")]
         vote_request_json: String,
     },
+    /// Tally votes and close a proposal
+    Tally {
+        #[clap(help = "ID of the proposal to tally and close")]
+        id: String,
+    },
     /// List all proposals
     Proposals,
     /// Get a specific proposal by its ID
@@ -211,6 +216,7 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
             GovernanceCommands::Vote { vote_request_json } => {
                 handle_gov_vote(cli, client, vote_request_json).await?
             }
+            GovernanceCommands::Tally { id } => handle_gov_tally(cli, client, id).await?,
             GovernanceCommands::Proposals => handle_gov_list_proposals(cli, client).await?,
             GovernanceCommands::Proposal { id } => handle_gov_get_proposal(cli, client, id).await?,
         },
@@ -395,6 +401,17 @@ async fn handle_gov_vote(
         "Vote response: {}",
         serde_json::to_string_pretty(&response)?
     );
+    Ok(())
+}
+
+async fn handle_gov_tally(
+    cli: &Cli,
+    client: &Client,
+    proposal_id: &str,
+) -> Result<(), anyhow::Error> {
+    let req = serde_json::json!({ "proposal_id": proposal_id });
+    let status: String = post_request(&cli.api_url, client, "/governance/close", &req).await?;
+    println!("Tally result: {}", status);
     Ok(())
 }
 
