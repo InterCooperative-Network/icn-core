@@ -1,0 +1,6 @@
+flowchart TD
+    P[Proposal Created] --> V[Members Vote]
+    V --> C{Quorum & Threshold Met?}
+    C -- yes --> A[Proposal Accepted]
+    C -- no --> R[Proposal Rejected]
+    A --> E[Execute Decision]

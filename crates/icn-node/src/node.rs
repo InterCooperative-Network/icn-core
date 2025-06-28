@@ -342,8 +342,7 @@ pub async fn app_router_with_options(
     let rep_path = reputation_db_path
         .clone()
         .unwrap_or_else(|| PathBuf::from("./reputation.sled"));
-    let ledger_backend =
-        mana_ledger_backend.unwrap_or_else(super::config::default_ledger_backend);
+    let ledger_backend = mana_ledger_backend.unwrap_or_else(super::config::default_ledger_backend);
     let ledger = icn_runtime::context::SimpleManaLedger::new_with_backend(
         mana_ledger_path.unwrap_or_else(|| PathBuf::from("./mana_ledger.sled")),
         ledger_backend,

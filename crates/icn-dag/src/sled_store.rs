@@ -17,6 +17,7 @@ pub struct SledDagStore {
 
 #[cfg(feature = "persist-sled")]
 impl SledDagStore {
+    /// Create a new sled backed DAG store at the given path.
     pub fn new(path: PathBuf) -> Result<Self, CommonError> {
         let db = sled::open(path)
             .map_err(|e| CommonError::DatabaseError(format!("Failed to open sled DB: {}", e)))?;
