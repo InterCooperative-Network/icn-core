@@ -62,6 +62,35 @@ To start the node using this configuration:
 
 Any CLI option provided will override the value from the file.
 
+### Nested Configuration & Environment Variables
+
+Configuration files may organize settings into sections. The following is
+equivalent to the flat example above:
+
+```toml
+[storage]
+backend = "rocksdb"
+path = "./icn_data/node_store"
+
+[http]
+listen_addr = "127.0.0.1:8080"
+
+[identity]
+node_did_path = "./icn_data/node_did.txt"
+node_private_key_path = "./icn_data/node_sk.bs58"
+```
+
+Every option can also be set via environment variables prefixed with `ICN_`.
+For example:
+
+```bash
+ICN_HTTP_LISTEN_ADDR=0.0.0.0:9000 ICN_STORAGE_BACKEND=sqlite \
+    ./target/debug/icn-node --config ./node_config.toml
+```
+
+Environment variables override file values but are in turn overridden by CLI
+flags.
+
 Useful CLI flags include:
 
 * `--node-did-path <PATH>` – location to read/write the node DID string

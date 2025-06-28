@@ -571,23 +571,8 @@ async fn main() {
     } else {
         NodeConfig::default()
     };
+    config.apply_env_overrides();
     config.apply_cli_overrides(&cli, &matches);
-    // Allow configuring API key and TLS paths via environment variables if
-    // they are not provided through CLI or config file.
-    if config.api_key.is_none() {
-        if let Ok(key) = std::env::var("ICN_HTTP_API_KEY") {
-            config.api_key = Some(key);
-        }
-    }
-    if config.tls_cert_path.is_none() && config.tls_key_path.is_none() {
-        if let (Ok(cert), Ok(key)) = (
-            std::env::var("ICN_TLS_CERT_PATH"),
-            std::env::var("ICN_TLS_KEY_PATH"),
-        ) {
-            config.tls_cert_path = Some(cert.into());
-            config.tls_key_path = Some(key.into());
-        }
-    }
     if let Err(e) = config.prepare_paths() {
         error!("Failed to prepare config directories: {}", e);
     }
