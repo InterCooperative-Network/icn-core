@@ -409,8 +409,42 @@ pub struct MeshJobAnnounce {
 pub struct MeshBidSubmit {
     /// The bid being submitted.
     pub bid: MeshJobBid,
-    // TODO: Potentially add a signature from the executor over the bid fields
-    // to ensure authenticity, though the bid itself contains the executor_did.
+    /// Signature from the executor over the bid fields to authenticate the
+    /// message. This should be created using the same key as
+    /// `bid.executor_did`.
+    pub signature: SignatureBytes,
+}
+
+impl MeshBidSubmit {
+    /// Bytes used when signing the bid submission.
+    fn to_signable_bytes(&self) -> Result<Vec<u8>, CommonError> {
+        self.bid.to_signable_bytes()
+    }
+
+    /// Sign the submission using the executor's signing key.
+    pub fn sign(mut self, signing_key: &IdentitySigningKey) -> Result<Self, CommonError> {
+        let message = self.to_signable_bytes()?;
+        let ed_sig = identity_sign_message(signing_key, &message);
+        self.signature = SignatureBytes(ed_sig.to_bytes().to_vec());
+        Ok(self)
+    }
+
+    /// Verify both the embedded bid and this submission signature.
+    pub fn verify_signature(
+        &self,
+        verifying_key: &IdentityVerifyingKey,
+    ) -> Result<(), CommonError> {
+        self.bid.verify_signature(verifying_key)?;
+        let message = self.to_signable_bytes()?;
+        let ed_sig = self.signature.to_ed_signature()?;
+        if identity_verify_signature(verifying_key, &message, &ed_sig) {
+            Ok(())
+        } else {
+            Err(CommonError::InternalError(
+                "MeshBidSubmit signature verification failed".into(),
+            ))
+        }
+    }
 }
 
 /// Message broadcast by the Job Manager to announce the selected executor for a job.
@@ -420,7 +454,45 @@ pub struct JobAssignmentNotice {
     pub job_id: JobId,
     /// The DID of the executor that has been assigned the job.
     pub executor_did: Did,
+    /// Signature from the job manager confirming this assignment. The
+    /// signing key is typically tied to the manager's DID.
+    pub signature: SignatureBytes,
     // TODO: Potentially include the original job details or manifest_cid for executor convenience?
+}
+
+impl JobAssignmentNotice {
+    /// Bytes that must be signed by the job manager when announcing the
+    /// assignment.
+    fn to_signable_bytes(&self) -> Result<Vec<u8>, CommonError> {
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(self.job_id.to_string().as_bytes());
+        bytes.extend_from_slice(self.executor_did.to_string().as_bytes());
+        Ok(bytes)
+    }
+
+    /// Sign this notice with the provided key.
+    pub fn sign(mut self, signing_key: &IdentitySigningKey) -> Result<Self, CommonError> {
+        let message = self.to_signable_bytes()?;
+        let ed_sig = identity_sign_message(signing_key, &message);
+        self.signature = SignatureBytes(ed_sig.to_bytes().to_vec());
+        Ok(self)
+    }
+
+    /// Verify the signature with the manager's verifying key.
+    pub fn verify_signature(
+        &self,
+        verifying_key: &IdentityVerifyingKey,
+    ) -> Result<(), CommonError> {
+        let message = self.to_signable_bytes()?;
+        let ed_sig = self.signature.to_ed_signature()?;
+        if identity_verify_signature(verifying_key, &message, &ed_sig) {
+            Ok(())
+        } else {
+            Err(CommonError::InternalError(
+                "JobAssignmentNotice signature verification failed".into(),
+            ))
+        }
+    }
 }
 
 /// Message sent by an Executor to the Job Manager to submit an ExecutionReceipt.
@@ -531,6 +603,60 @@ mod tests {
         let mut tampered_job = signed_job.clone();
         tampered_job.cost_mana = 200;
         assert!(tampered_job.verify_signature(&verifying_key).is_err());
+    }
+
+    #[test]
+    fn test_mesh_bid_submit_signing_and_verification() {
+        let (sk, vk) = icn_identity::generate_ed25519_keypair();
+        let did = Did::from_str(&icn_identity::did_key_from_verifying_key(&vk)).unwrap();
+
+        let bid = MeshJobBid {
+            job_id: dummy_cid("bid_submit"),
+            executor_did: did.clone(),
+            price_mana: 10,
+            resources: Resources::default(),
+            signature: SignatureBytes(vec![]),
+        }
+        .sign(&sk)
+        .unwrap();
+
+        let submit = MeshBidSubmit {
+            bid: bid.clone(),
+            signature: SignatureBytes(vec![]),
+        }
+        .sign(&sk)
+        .unwrap();
+
+        assert!(submit.verify_signature(&vk).is_ok());
+
+        let (_sk2, vk2) = icn_identity::generate_ed25519_keypair();
+        assert!(submit.verify_signature(&vk2).is_err());
+
+        let mut tampered = submit.clone();
+        tampered.bid.price_mana = 50;
+        assert!(tampered.verify_signature(&vk).is_err());
+    }
+
+    #[test]
+    fn test_job_assignment_notice_signing_and_verification() {
+        let (sk, vk) = icn_identity::generate_ed25519_keypair();
+
+        let notice = JobAssignmentNotice {
+            job_id: dummy_cid("assign_notice"),
+            executor_did: Did::from_str("did:icn:test:exec").unwrap(),
+            signature: SignatureBytes(vec![]),
+        }
+        .sign(&sk)
+        .unwrap();
+
+        assert!(notice.verify_signature(&vk).is_ok());
+
+        let (_sk2, vk2) = icn_identity::generate_ed25519_keypair();
+        assert!(notice.verify_signature(&vk2).is_err());
+
+        let mut tampered = notice.clone();
+        tampered.executor_did = Did::from_str("did:icn:test:other").unwrap();
+        assert!(tampered.verify_signature(&vk).is_err());
     }
 
     // Helper to create a dummy Cid for tests
