@@ -21,6 +21,17 @@ The API style emphasizes:
 *   **Interoperability:** Adherence to established standards for DIDs and VCs to ensure compatibility with other systems.
 *   **Usability:** Clear interfaces for managing identities and credentials.
 
+## DID Methods
+
+* **`did:key`** – deterministic key-based identifiers with helper functions for
+  creation and resolving to verifying keys.
+* **`did:web`** – identifiers served from standard `did.json` documents. The
+  [`WebDidResolver`] can fetch these documents over HTTPS at runtime to obtain
+  the public key.
+* **`did:peer`** – basic support for [algorithm 0](https://identity.foundation/peer-did-method-spec/).
+  Keys can be encoded with [`did_peer_from_verifying_key`] and resolved with
+  [`verifying_key_from_did_peer`].
+
 ## Contributing
 
 Contributions are welcome! Please see the main [CONTRIBUTING.md](../../CONTRIBUTING.md) in the root of the `icn-core` repository for guidelines.

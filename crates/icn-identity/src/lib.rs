@@ -116,6 +116,51 @@ pub fn parse_did_web(did: &Did) -> Result<(String, Vec<String>), CommonError> {
     Ok((domain, parts))
 }
 
+/// Construct a `did:peer` identifier (algorithm 0) from a verifying key.
+pub fn did_peer_from_verifying_key(pk: &VerifyingKey) -> String {
+    let mut buf = varint_encode::u16_buffer();
+    let prefix = varint_encode::u16(0xed, &mut buf);
+    let mut data = prefix.to_vec();
+    data.extend_from_slice(pk.as_bytes());
+    let mb = multibase_encode(Base::Base58Btc, data);
+    format!("did:peer:0{mb}")
+}
+
+/// Extract the verifying key from a `did:peer` identifier (algorithm 0).
+pub fn verifying_key_from_did_peer(did: &Did) -> Result<VerifyingKey, CommonError> {
+    if did.method != "peer" {
+        return Err(CommonError::IdentityError(format!(
+            "Unsupported DID method: {}",
+            did.method
+        )));
+    }
+    use unsigned_varint::decode as varint_decode;
+    let id = did
+        .id_string
+        .strip_prefix('0')
+        .ok_or_else(|| CommonError::IdentityError("Unsupported did:peer algorithm".into()))?;
+    let (base, data) = multibase::decode(id)
+        .map_err(|e| CommonError::IdentityError(format!("Failed to decode did:peer: {e}")))?;
+    if base != Base::Base58Btc {
+        return Err(CommonError::IdentityError(format!(
+            "Unsupported multibase prefix: {base:?}"
+        )));
+    }
+    let (codec, rest) = varint_decode::u16(&data).map_err(|e| {
+        CommonError::IdentityError(format!("Failed to decode multicodec prefix: {e}"))
+    })?;
+    if codec != 0xed {
+        return Err(CommonError::IdentityError(format!(
+            "Unsupported multicodec code: {codec}"
+        )));
+    }
+    let pk_bytes: [u8; 32] = rest
+        .try_into()
+        .map_err(|_| CommonError::IdentityError("Invalid Ed25519 key length in did:peer".into()))?;
+    VerifyingKey::from_bytes(&pk_bytes)
+        .map_err(|e| CommonError::IdentityError(format!("Invalid verifying key bytes: {e}")))
+}
+
 /// Trait representing storage for signing keys associated with DIDs.
 pub trait KeyStorage: Send + Sync {
     /// Retrieve the signing key for the given DID, if available.
@@ -190,10 +235,34 @@ impl DidResolver for WebDidResolver {
                 did.method
             )));
         }
-        self.keys
-            .get(&did.to_string())
-            .cloned()
-            .ok_or_else(|| CommonError::IdentityError("Unknown did:web".into()))
+        if let Some(k) = self.keys.get(&did.to_string()) {
+            return Ok(*k);
+        }
+
+        let (domain, path) = parse_did_web(did)?;
+        let url = if path.is_empty() {
+            format!("https://{domain}/.well-known/did.json")
+        } else {
+            format!("https://{domain}/{}/did.json", path.join("/"))
+        };
+        let resp = reqwest::blocking::get(&url)
+            .map_err(|e| CommonError::IdentityError(format!("HTTP GET failed: {e}")))?;
+        if !resp.status().is_success() {
+            return Err(CommonError::IdentityError(format!(
+                "HTTP error {} for {url}",
+                resp.status()
+            )));
+        }
+        let doc: icn_common::DidDocument = resp
+            .json()
+            .map_err(|e| CommonError::IdentityError(format!("Invalid DID document: {e}")))?;
+        let pk_bytes: [u8; 32] = doc
+            .public_key
+            .as_slice()
+            .try_into()
+            .map_err(|_| CommonError::IdentityError("Invalid key length".into()))?;
+        VerifyingKey::from_bytes(&pk_bytes)
+            .map_err(|e| CommonError::IdentityError(format!("Invalid verifying key: {e}")))
     }
 }
 
@@ -210,6 +279,16 @@ pub struct KeyDidResolver;
 impl DidResolver for KeyDidResolver {
     fn resolve(&self, did: &Did) -> Result<VerifyingKey, CommonError> {
         verifying_key_from_did_key(did)
+    }
+}
+
+/// Resolver for the `did:peer` method (algorithm 0).
+#[derive(Debug, Clone, Default)]
+pub struct PeerDidResolver;
+
+impl DidResolver for PeerDidResolver {
+    fn resolve(&self, did: &Did) -> Result<VerifyingKey, CommonError> {
+        verifying_key_from_did_peer(did)
     }
 }
 
@@ -555,5 +634,70 @@ mod tests {
         assert_ne!(did, new_did);
         assert!(store.get_signing_key(&new_did).is_some());
         assert!(store.get_signing_key(&did).is_none());
+    }
+
+    #[test]
+    fn did_peer_roundtrip_and_sign() {
+        let (sk, pk) = generate_ed25519_keypair();
+        let did_str = did_peer_from_verifying_key(&pk);
+        let did = Did::from_str(&did_str).unwrap();
+        let recovered = verifying_key_from_did_peer(&did).unwrap();
+        assert_eq!(pk.as_bytes(), recovered.as_bytes());
+
+        let msg = b"peer did test";
+        let sig = sign_message(&sk, msg);
+        assert!(verify_signature(&recovered, msg, &sig));
+
+        let resolver = PeerDidResolver;
+        assert_eq!(resolver.resolve(&did).unwrap().as_bytes(), pk.as_bytes());
+    }
+
+    #[test]
+    fn web_did_http_resolution_and_verify() {
+        use std::io::{Read, Write};
+        use std::net::TcpListener;
+
+        let (sk, pk) = generate_ed25519_keypair();
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        let domain = format!("localhost:{}", addr.port());
+        let did_str = did_web_from_parts(&domain, &[]);
+        let did = Did::from_str(&did_str).unwrap();
+
+        let doc = icn_common::DidDocument {
+            id: did.clone(),
+            public_key: pk.as_bytes().to_vec(),
+        };
+        let doc_json = serde_json::to_string(&doc).unwrap();
+
+        let handle = std::thread::spawn(move || {
+            if let Ok((mut stream, _)) = listener.accept() {
+                let mut buf = [0u8; 512];
+                let _ = stream.read(&mut buf);
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n{}",
+                    doc_json.len(),
+                    doc_json
+                );
+                let _ = stream.write_all(response.as_bytes());
+            }
+        });
+
+        let job_cid = dummy_cid_for_test("web_http_job");
+        let result_cid = dummy_cid_for_test("web_http_result");
+        let receipt = ExecutionReceipt {
+            job_id: job_cid,
+            executor_did: did.clone(),
+            result_cid,
+            cpu_ms: 1,
+            success: true,
+            sig: SignatureBytes(vec![]),
+        };
+
+        let resolver = WebDidResolver::new();
+        let signed = receipt.sign_with_key(&sk).unwrap();
+        assert!(signed.verify_with_resolver(&resolver).is_ok());
+
+        handle.join().unwrap();
     }
 }
