@@ -30,6 +30,7 @@ wasmtime = { version = "15", features = ["async"] }
 bincode = "1.3"
 once_cell = "1.21"
 prometheus-client = "0.22"
+clap = { version = "4.0", features = ["derive"], optional = true }
 
 [dev-dependencies]
 anyhow = "1.0.75"
@@ -48,6 +49,7 @@ enable-libp2p = ["dep:libp2p"]
 persist-sled = ["icn-governance/persist-sled", "icn-reputation/persist-sled"]
 persist-sqlite = ["icn-governance/persist-sled", "icn-reputation/persist-sqlite", "icn-economics/persist-sqlite"]
 persist-rocksdb = ["icn-governance/persist-sled", "icn-reputation/persist-rocksdb", "icn-economics/persist-rocksdb"]
+cli = ["dep:clap"]
 
 # Integration tests for cross-node functionality
 [[test]]

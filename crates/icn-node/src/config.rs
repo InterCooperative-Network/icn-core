@@ -24,6 +24,7 @@ pub enum StorageBackendType {
 pub struct NodeConfig {
     pub storage_backend: StorageBackendType,
     pub storage_path: std::path::PathBuf,
+    pub mana_ledger_backend: icn_runtime::context::LedgerBackend,
     pub mana_ledger_path: std::path::PathBuf,
     /// Path where executor reputation is persisted via sled.
     pub reputation_db_path: std::path::PathBuf,
@@ -52,11 +53,39 @@ pub struct NodeConfig {
     pub tls_key_path: Option<std::path::PathBuf>,
 }
 
+fn default_ledger_backend() -> icn_runtime::context::LedgerBackend {
+    #[cfg(feature = "persist-sled")]
+    {
+        icn_runtime::context::LedgerBackend::Sled
+    }
+    #[cfg(all(not(feature = "persist-sled"), feature = "persist-sqlite"))]
+    {
+        icn_runtime::context::LedgerBackend::Sqlite
+    }
+    #[cfg(all(
+        not(feature = "persist-sled"),
+        not(feature = "persist-sqlite"),
+        feature = "persist-rocksdb"
+    ))]
+    {
+        icn_runtime::context::LedgerBackend::Rocksdb
+    }
+    #[cfg(all(
+        not(feature = "persist-sled"),
+        not(feature = "persist-sqlite"),
+        not(feature = "persist-rocksdb")
+    ))]
+    {
+        icn_runtime::context::LedgerBackend::File
+    }
+}
+
 impl Default for NodeConfig {
     fn default() -> Self {
         Self {
             storage_backend: StorageBackendType::Memory,
             storage_path: "./icn_data/node_store".into(),
+            mana_ledger_backend: default_ledger_backend(),
             mana_ledger_path: "./mana_ledger.sled".into(),
             reputation_db_path: "./reputation.sled".into(),
             governance_db_path: "./governance_db".into(),
@@ -99,6 +128,9 @@ impl NodeConfig {
         }
         if let Some(v) = &cli.storage_path {
             self.storage_path = v.clone();
+        }
+        if let Some(v) = &cli.mana_ledger_backend {
+            self.mana_ledger_backend = *v;
         }
         if let Some(v) = &cli.mana_ledger_path {
             self.mana_ledger_path = v.clone();

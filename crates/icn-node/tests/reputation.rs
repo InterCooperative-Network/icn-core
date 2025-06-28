@@ -13,6 +13,7 @@ async fn reputation_persists_between_restarts() {
         None,
         None,
         None,
+        None,
         Some(ledger_path.clone()),
         None,
         Some(rep_path.clone()),
@@ -24,6 +25,7 @@ async fn reputation_persists_between_restarts() {
     drop(_router);
 
     let (_router2, ctx2) = app_router_with_options(
+        None,
         None,
         None,
         None,

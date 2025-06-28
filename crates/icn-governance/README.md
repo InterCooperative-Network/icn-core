@@ -22,6 +22,7 @@ The API style emphasizes:
 *   **Fairness:** Ensuring that voting and proposal mechanisms are equitable.
 *   **Flexibility:** Allowing for different governance models or parameters to be configured.
 *   **Interoperability:** Providing clear interfaces for other crates (e.g., `icn-cli`, `icn-node`) to interact with governance functions.
+*   **Persistence:** With the `persist-sled` feature, proposals and votes are stored using `Sled`, enabling recovery across restarts.
 
 ## Federation Sync
 
