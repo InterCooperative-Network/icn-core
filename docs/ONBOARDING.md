@@ -270,6 +270,24 @@ server {
 This secures the HTTP API with TLS and passes the required `x-api-key` header to
 `icn-node`.
 
+### 3.7. Environment Variables
+
+`icn-node` can also read certain settings from the environment. This is useful
+when deploying in containerized environments or CI systems.
+
+* `ICN_HTTP_API_KEY` – sets the API key required in the `x-api-key` header.
+* `ICN_TLS_CERT_PATH` – path to a PEM encoded TLS certificate.
+* `ICN_TLS_KEY_PATH` – path to the matching PEM private key.
+
+Example usage:
+
+```bash
+export ICN_HTTP_API_KEY=mysecretkey
+export ICN_TLS_CERT_PATH=/etc/ssl/certs/icn.pem
+export ICN_TLS_KEY_PATH=/etc/ssl/private/icn.key
+cargo run -p icn-node
+```
+
 ## 4. Understanding the Codebase
 
 *   **Workspace Root (`Cargo.toml`):** Defines the workspace members (all the crates).
