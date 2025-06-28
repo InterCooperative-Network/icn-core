@@ -81,3 +81,129 @@ async fn wasm_executor_runs_compiled_ccl_contract() {
     let expected_cid = Cid::new_v1_sha256(0x55, &7i64.to_le_bytes());
     assert_eq!(receipt.result_cid, expected_cid);
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn wasm_executor_host_submit_mesh_job_json() {
+    use icn_mesh::{JobKind, Resources};
+
+    let ctx = RuntimeContext::new_with_stubs_and_mana("did:key:zHostSubmit", 50);
+    let (sk, vk) = generate_ed25519_keypair();
+    let node_did = icn_common::Did::from_str(&did_key_from_verifying_key(&vk)).unwrap();
+
+    let complex_job = ActualMeshJob {
+        id: Cid::new_v1_sha256(0x55, b"embedded"),
+        manifest_cid: Cid::new_v1_sha256(0x71, b"embedded"),
+        spec: JobSpec {
+            kind: JobKind::GenericPlaceholder,
+            inputs: vec![
+                Cid::new_v1_sha256(0x71, b"in1"),
+                Cid::new_v1_sha256(0x71, b"in2"),
+            ],
+            outputs: vec!["out1".to_string(), "out2".to_string()],
+            required_resources: Resources {
+                cpu_cores: 2,
+                memory_mb: 256,
+            },
+        },
+        creator_did: node_did.clone(),
+        cost_mana: 10,
+        max_execution_wait_ms: Some(1000),
+        signature: SignatureBytes(vec![]),
+    };
+
+    let job_json = serde_json::to_string(&complex_job).unwrap();
+    let escaped = job_json.replace('\\', "\\\\").replace('"', "\\\"");
+    let wasm = format!(
+        "(module\n  (import \"icn\" \"host_submit_mesh_job\" (func $s (param i32 i32)))\n  (import \"icn\" \"host_account_get_mana\" (func $g (result i64)))\n  (memory (export \"memory\") 1)\n  (data (i32.const 0) \"{data}\")\n  (func (export \"run\") (result i64)\n    i32.const 0\n    i32.const {len}\n    call $s\n    call $g)\n)",
+        data = escaped,
+        len = job_json.len()
+    );
+
+    let wasm_bytes = wat::parse_str(&wasm).unwrap();
+    let block = DagBlock {
+        cid: Cid::new_v1_sha256(0x71, &wasm_bytes),
+        data: wasm_bytes,
+        links: vec![],
+    };
+    {
+        let mut store = ctx.dag_store.lock().await;
+        store.put(&block).unwrap();
+    }
+
+    let job = ActualMeshJob {
+        id: Cid::new_v1_sha256(0x55, b"job_host"),
+        manifest_cid: block.cid.clone(),
+        spec: JobSpec::default(),
+        creator_did: node_did.clone(),
+        cost_mana: 0,
+        max_execution_wait_ms: None,
+        signature: SignatureBytes(vec![]),
+    };
+
+    let exec = WasmExecutor::new(ctx.clone(), node_did.clone(), sk);
+    let receipt = exec.execute_job(&job).await.unwrap();
+
+    let expected_cid = Cid::new_v1_sha256(0x55, &(40i64).to_le_bytes());
+    assert_eq!(receipt.result_cid, expected_cid);
+    assert_eq!(ctx.get_mana(&ctx.current_identity).await.unwrap(), 40);
+    let pending = ctx.pending_mesh_jobs.lock().await;
+    assert_eq!(pending.len(), 1);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn wasm_executor_host_anchor_receipt_json() {
+    use icn_identity::ExecutionReceipt;
+
+    let ctx = RuntimeContext::new_with_stubs_and_mana("did:key:zHostAnchor", 10);
+    let (exec_sk, exec_vk) = generate_ed25519_keypair();
+    let executor_did = icn_common::Did::from_str(&did_key_from_verifying_key(&exec_vk)).unwrap();
+    let (node_sk, node_vk) = generate_ed25519_keypair();
+    let node_did = icn_common::Did::from_str(&did_key_from_verifying_key(&node_vk)).unwrap();
+
+    let receipt = ExecutionReceipt {
+        job_id: Cid::new_v1_sha256(0x55, b"jid"),
+        executor_did: executor_did.clone(),
+        result_cid: Cid::new_v1_sha256(0x55, b"res"),
+        cpu_ms: 5,
+        success: true,
+        sig: SignatureBytes(vec![]),
+    };
+    let receipt = receipt.sign_with_key(&exec_sk).unwrap();
+    let receipt_json = serde_json::to_string(&receipt).unwrap();
+    let escaped = receipt_json.replace('\\', "\\\\").replace('"', "\\\"");
+    let wasm = format!(
+        "(module\n  (import \"icn\" \"host_anchor_receipt\" (func $a (param i32 i32)))\n  (memory (export \"memory\") 1)\n  (data (i32.const 0) \"{data}\")\n  (func (export \"run\") (result i64)\n    i32.const 0\n    i32.const {len}\n    call $a\n    i64.const 1)\n)",
+        data = escaped,
+        len = receipt_json.len()
+    );
+
+    let wasm_bytes = wat::parse_str(&wasm).unwrap();
+    let block = DagBlock {
+        cid: Cid::new_v1_sha256(0x71, &wasm_bytes),
+        data: wasm_bytes,
+        links: vec![],
+    };
+    {
+        let mut store = ctx.dag_store.lock().await;
+        store.put(&block).unwrap();
+    }
+
+    let job = ActualMeshJob {
+        id: Cid::new_v1_sha256(0x55, b"job_anchor"),
+        manifest_cid: block.cid.clone(),
+        spec: JobSpec::default(),
+        creator_did: node_did.clone(),
+        cost_mana: 0,
+        max_execution_wait_ms: None,
+        signature: SignatureBytes(vec![]),
+    };
+
+    let exec = WasmExecutor::new(ctx.clone(), node_did.clone(), node_sk);
+    let _ = exec.execute_job(&job).await.unwrap();
+
+    let rec_bytes = serde_json::to_vec(&receipt).unwrap();
+    let expected = Cid::new_v1_sha256(0x71, &rec_bytes);
+    let store = ctx.dag_store.lock().await;
+    assert!(store.all().contains_key(&expected));
+    assert!(ctx.reputation_store.get_reputation(&executor_did) > 0);
+}
