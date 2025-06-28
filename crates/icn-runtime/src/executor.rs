@@ -24,12 +24,10 @@ pub trait JobExecutor: Send + Sync {
 }
 
 /// A simple executor that can handle basic predefined tasks like echo or hashing.
-#[derive(Debug)]
 pub struct SimpleExecutor {
     node_did: Did,
     signing_key: SigningKey,
-    // VerifyingKey can be derived from SigningKey if needed for self-check or DID generation.
-    // verifying_key: VerifyingKey,
+    ctx: Option<std::sync::Arc<RuntimeContext>>,
 }
 
 impl SimpleExecutor {
@@ -37,6 +35,21 @@ impl SimpleExecutor {
         Self {
             node_did,
             signing_key,
+            ctx: None,
+        }
+    }
+
+    /// Create a `SimpleExecutor` that can also execute CCL WASM jobs using the
+    /// provided runtime context.
+    pub fn with_context(
+        node_did: Did,
+        signing_key: SigningKey,
+        ctx: std::sync::Arc<RuntimeContext>,
+    ) -> Self {
+        Self {
+            node_did,
+            signing_key,
+            ctx: Some(ctx),
         }
     }
 }
@@ -57,6 +70,20 @@ impl JobExecutor for SimpleExecutor {
             JobKind::Echo { payload } => {
                 info!("[SimpleExecutor] Executing echo job: {:?}", job.id);
                 format!("Echo: {}", payload).into_bytes()
+            }
+            JobKind::CclWasm => {
+                let ctx = self.ctx.as_ref().ok_or_else(|| {
+                    CommonError::InternalError(
+                        "SimpleExecutor missing context for CCL WASM job".into(),
+                    )
+                })?;
+                let signer = std::sync::Arc::new(crate::context::StubSigner::new_with_keys(
+                    self.signing_key.clone(),
+                    self.signing_key.verifying_key(),
+                )) as std::sync::Arc<dyn crate::context::Signer>;
+                let wasm_exec = WasmExecutor::new(ctx.clone(), signer);
+                let receipt = wasm_exec.execute_job(job).await?;
+                return Ok(receipt);
             }
             JobKind::GenericPlaceholder => {
                 info!(
@@ -167,7 +194,7 @@ impl JobExecutor for WasmExecutor {
                 "icn",
                 "host_submit_mesh_job",
                 move |caller: Caller<'_, std::sync::Arc<RuntimeContext>>, ptr: u32, len: u32| {
-                    crate::wasm_host_submit_mesh_job(caller, ptr, len);
+                    crate::wasm_host_submit_mesh_job(caller, ptr, len, 0, 0);
                 },
             )
             .map_err(|e| CommonError::InternalError(e.to_string()))?;
@@ -177,7 +204,7 @@ impl JobExecutor for WasmExecutor {
                 "icn",
                 "host_anchor_receipt",
                 move |caller: Caller<'_, std::sync::Arc<RuntimeContext>>, ptr: u32, len: u32| {
-                    crate::wasm_host_anchor_receipt(caller, ptr, len);
+                    crate::wasm_host_anchor_receipt(caller, ptr, len, 0, 0);
                 },
             )
             .map_err(|e| CommonError::InternalError(e.to_string()))?;

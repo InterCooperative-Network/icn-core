@@ -85,9 +85,15 @@ pub trait ManaRepository: Send + Sync + std::fmt::Debug {
 }
 
 /// Simple wrapper around the selected `ManaLedger` implementation for use inside the runtime.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct SimpleManaLedger {
     ledger: Arc<dyn icn_economics::ManaLedger>,
+}
+
+impl std::fmt::Debug for SimpleManaLedger {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "SimpleManaLedger")
+    }
 }
 
 impl SimpleManaLedger {

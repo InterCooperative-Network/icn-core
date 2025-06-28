@@ -1,6 +1,6 @@
 //! Integration tests for the ICN mesh job pipeline.
 
-use icn_common::{Cid, CommonError, DagBlock, Did};
+use icn_common::{compute_merkle_cid, Cid, CommonError, DagBlock, Did};
 use icn_dag::StorageService;
 use icn_economics::{charge_mana, EconError}; // For mana interactions
 use icn_mesh::{
@@ -532,4 +532,52 @@ async fn test_reputation_update_failure() {
     .catch_unwind()
     .await;
     assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn simple_executor_ccl_job() {
+    use icn_ccl::compile_ccl_source_to_wasm;
+    use icn_identity::generate_ed25519_keypair;
+    use icn_runtime::executor::{JobExecutor, SimpleExecutor};
+
+    let mut ctx = create_test_runtime_context("did:icn:test:ccl_simple", 10);
+    let (sk, _vk) = generate_ed25519_keypair();
+
+    let source = "fn run() -> Integer { return 8; }";
+    let (wasm, _) = compile_ccl_source_to_wasm(source).unwrap();
+    let ts = 0u64;
+    let author = Did::new("key", "author");
+    let block = DagBlock {
+        cid: Cid::new_v1_sha256(0x71, &wasm),
+        data: wasm.clone(),
+        links: vec![],
+        timestamp: ts,
+        author_did: author,
+        signature: None,
+    };
+    {
+        let mut store = ctx.dag_store.lock().await;
+        store.put(&block).unwrap();
+    }
+    let job = ActualMeshJob {
+        id: Cid::new_v1_sha256(0x55, b"ccljob"),
+        manifest_cid: block.cid.clone(),
+        spec: JobSpec {
+            kind: JobKind::CclWasm,
+            ..Default::default()
+        },
+        creator_did: ctx.current_identity.clone(),
+        cost_mana: 0,
+        max_execution_wait_ms: None,
+        signature: SignatureBytes(vec![]),
+    };
+
+    let exec = SimpleExecutor::with_context(
+        ctx.current_identity.clone(),
+        sk,
+        std::sync::Arc::new(ctx),
+    );
+    let receipt = exec.execute_job(&job).await.unwrap();
+    let expected = Cid::new_v1_sha256(0x55, &8i64.to_le_bytes());
+    assert_eq!(receipt.result_cid, expected);
 }
