@@ -41,6 +41,10 @@ pub struct NodeConfig {
     pub bootstrap_peers: Option<Vec<String>>,
     pub enable_p2p: bool,
     pub api_key: Option<String>,
+    /// Optional bearer token for Authorization header auth.
+    pub auth_token: Option<String>,
+    /// Path to read the bearer token from if not provided inline.
+    pub auth_token_path: Option<std::path::PathBuf>,
     pub open_rate_limit: u64,
     /// TLS certificate path for HTTPS. Requires `tls_key_path` as well.
     pub tls_cert_path: Option<std::path::PathBuf>,
@@ -66,6 +70,8 @@ impl Default for NodeConfig {
             bootstrap_peers: None,
             enable_p2p: false,
             api_key: None,
+            auth_token: None,
+            auth_token_path: None,
             open_rate_limit: 60,
             tls_cert_path: None,
             tls_key_path: None,
@@ -163,6 +169,11 @@ impl NodeConfig {
         }
         if let Some(parent) = self.node_private_key_path.parent() {
             fs::create_dir_all(parent)?;
+        }
+        if let Some(path) = &self.auth_token_path {
+            if let Some(parent) = path.parent() {
+                fs::create_dir_all(parent)?;
+            }
         }
         Ok(())
     }
