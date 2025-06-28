@@ -7,11 +7,13 @@
 
 use icn_common::{CommonError, Did, NodeInfo};
 mod ledger;
+pub use ledger::FileManaLedger;
 #[cfg(feature = "persist-rocksdb")]
 pub use ledger::RocksdbManaLedger;
+#[cfg(feature = "persist-sled")]
+pub use ledger::SledManaLedger;
 #[cfg(feature = "persist-sqlite")]
 pub use ledger::SqliteManaLedger;
-pub use ledger::{FileManaLedger, SledManaLedger};
 
 /// Errors that can occur during mana accounting operations.
 #[derive(Debug)]
