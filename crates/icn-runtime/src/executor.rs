@@ -86,7 +86,6 @@ impl JobExecutor for SimpleExecutor {
             success: true,
             sig: SignatureBytes(vec![]),
         };
-
         unsigned_receipt
             .sign_with_key(&self.signing_key)
             .map_err(|e| {
@@ -99,8 +98,7 @@ impl JobExecutor for SimpleExecutor {
 /// exposes host functions from the [`RuntimeContext`] to the guest module.
 pub struct WasmExecutor {
     ctx: std::sync::Arc<crate::context::RuntimeContext>,
-    node_did: Did,
-    signing_key: SigningKey,
+    signer: std::sync::Arc<dyn crate::context::Signer>,
     engine: wasmtime::Engine,
 }
 
@@ -108,13 +106,11 @@ impl WasmExecutor {
     /// Creates a new [`WasmExecutor`] bound to the given runtime context.
     pub fn new(
         ctx: std::sync::Arc<crate::context::RuntimeContext>,
-        node_did: Did,
-        signing_key: SigningKey,
+        signer: std::sync::Arc<dyn crate::context::Signer>,
     ) -> Self {
         Self {
             ctx,
-            node_did,
-            signing_key,
+            signer,
             engine: wasmtime::Engine::default(),
         }
     }
@@ -204,20 +200,25 @@ impl JobExecutor for WasmExecutor {
         let result_bytes = result.to_le_bytes();
         let result_cid = Cid::new_v1_sha256(0x55, &result_bytes);
 
-        let unsigned_receipt = IdentityExecutionReceipt {
+        let executor_did = self.signer.did();
+        let mut msg = Vec::new();
+        msg.extend_from_slice(job.id.to_string().as_bytes());
+        msg.extend_from_slice(executor_did.to_string().as_bytes());
+        msg.extend_from_slice(result_cid.to_string().as_bytes());
+        msg.extend_from_slice(&cpu_ms.to_le_bytes());
+        msg.push(true as u8);
+        let sig = self
+            .signer
+            .sign(&msg)
+            .map_err(|e| CommonError::InternalError(format!("{:?}", e)))?;
+        Ok(IdentityExecutionReceipt {
             job_id: job.id.clone(),
-            executor_did: self.node_did.clone(),
+            executor_did,
             result_cid,
             cpu_ms,
             success: true,
-            sig: SignatureBytes(vec![]),
-        };
-
-        unsigned_receipt
-            .sign_with_key(&self.signing_key)
-            .map_err(|e| {
-                CommonError::InternalError(format!("Failed to sign execution receipt: {}", e))
-            })
+            sig: SignatureBytes(sig),
+        })
     }
 }
 
