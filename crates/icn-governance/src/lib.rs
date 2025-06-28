@@ -12,6 +12,7 @@ use icn_common::{CommonError, Did, NodeInfo};
 #[cfg(feature = "federation")]
 use icn_network::{MeshNetworkError, NetworkMessage, NetworkService, PeerId};
 use std::collections::{HashMap, HashSet};
+use std::fmt;
 #[cfg(feature = "persist-sled")]
 use std::path::PathBuf;
 
@@ -113,7 +114,6 @@ enum Backend {
 }
 
 /// Manages governance proposals and voting.
-#[derive(Debug)] // Removed Default, as `new` is now more explicit
 pub struct GovernanceModule {
     backend: Backend,
     members: HashSet<Did>,
@@ -842,6 +842,17 @@ impl GovernanceModule {
                 Ok(())
             }
         }
+    }
+}
+
+impl fmt::Debug for GovernanceModule {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("GovernanceModule")
+            .field("backend", &self.backend)
+            .field("members", &self.members)
+            .field("quorum", &self.quorum)
+            .field("threshold", &self.threshold)
+            .finish()
     }
 }
 
