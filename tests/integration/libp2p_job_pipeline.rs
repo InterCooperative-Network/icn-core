@@ -101,13 +101,19 @@ mod libp2p_job_pipeline {
             .as_str()
             .expect("result_cid");
 
-        let dag_res = client
-            .post(&format!("{}/dag/get", NODE_A_URL))
-            .json(&serde_json::json!({ "cid": result_cid }))
-            .send()
-            .await
-            .expect("dag get");
-        assert!(dag_res.status().is_success());
+        for url in [NODE_A_URL, NODE_B_URL, NODE_C_URL] {
+            let dag_res = client
+                .post(&format!("{}/dag/get", url))
+                .json(&serde_json::json!({ "cid": result_cid }))
+                .send()
+                .await
+                .expect("dag get");
+            assert!(
+                dag_res.status().is_success(),
+                "dag get failed on {}",
+                url
+            );
+        }
     }
 }
 
