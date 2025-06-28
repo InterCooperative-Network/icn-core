@@ -304,10 +304,17 @@ async fn test_mesh_job_full_lifecycle_happy_path() {
     let dag_store = get_dag_store(&arc_ctx_job_manager);
     let receipt_bytes =
         serde_json::to_vec(&retrieved_receipt).expect("Failed to serialize receipt");
+    let ts = 0u64;
+    let author = Did::new("key", "tester");
+    let sig_opt = None;
+    let cid = compute_merkle_cid(0x71, &receipt_bytes, &[], ts, &author, &sig_opt);
     let block = DagBlock {
-        cid: Cid::new_v1_sha256(0x71, &receipt_bytes),
+        cid,
         data: receipt_bytes,
         links: vec![],
+        timestamp: ts,
+        author_did: author,
+        signature: sig_opt,
     };
     {
         let mut store = dag_store.lock().await;

@@ -1,6 +1,6 @@
 #[cfg(feature = "persist-sqlite")]
 mod tests {
-    use icn_common::{Cid, DagBlock};
+    use icn_common::{compute_merkle_cid, Cid, DagBlock, Did};
     use icn_dag::sqlite_store::SqliteDagStore;
     use icn_dag::StorageService;
     use std::path::PathBuf;
@@ -8,11 +8,17 @@ mod tests {
 
     fn create_block(id: &str) -> DagBlock {
         let data = format!("data {id}").into_bytes();
-        let cid = Cid::new_v1_sha256(0x71, id.as_bytes());
+        let ts = 0u64;
+        let author = Did::new("key", "tester");
+        let sig = None;
+        let cid = compute_merkle_cid(0x71, &data, &[], ts, &author, &sig);
         DagBlock {
             cid,
             data,
             links: vec![],
+            timestamp: ts,
+            author_did: author,
+            signature: sig,
         }
     }
 
@@ -24,10 +30,18 @@ mod tests {
         assert!(!store.contains(&b2.cid).unwrap());
         assert_eq!(store.get(&b1.cid).unwrap().unwrap().cid, b1.cid);
         assert!(store.get(&b2.cid).unwrap().is_none());
+        let mod_data = b"mod".to_vec();
+        let ts = 1u64;
+        let author = Did::new("key", "tester");
+        let sig = None;
+        let cid = compute_merkle_cid(0x71, &mod_data, &[], ts, &author, &sig);
         let mod_block = DagBlock {
-            cid: b1.cid.clone(),
-            data: b"mod".to_vec(),
+            cid,
+            data: mod_data,
             links: vec![],
+            timestamp: ts,
+            author_did: author,
+            signature: sig,
         };
         assert!(store.put(&mod_block).is_ok());
         assert_eq!(store.get(&b1.cid).unwrap().unwrap().data, b"mod".to_vec());

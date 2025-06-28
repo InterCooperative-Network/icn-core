@@ -288,11 +288,17 @@ mod tests {
     // Helper function to create a test block
     fn create_test_block(id_str: &str) -> DagBlock {
         let data = format!("data for {id_str}").into_bytes();
-        let cid = Cid::new_v1_sha256(0x71, id_str.as_bytes());
+        let timestamp = 0u64;
+        let author = Did::new("key", "tester");
+        let sig = None;
+        let cid = compute_merkle_cid(0x71, &data, &[], timestamp, &author, &sig);
         DagBlock {
             cid,
             data,
             links: vec![],
+            timestamp,
+            author_did: author,
+            signature: sig,
         }
     }
 
@@ -316,10 +322,17 @@ mod tests {
         // Test put overwrite (assuming implementations overwrite)
         let modified_block1_data =
             format!("modified data for {}", "block1_service_test").into_bytes();
+        let timestamp = 1u64;
+        let author = Did::new("key", "tester");
+        let sig = None;
+        let cid = compute_merkle_cid(0x71, &modified_block1_data, &[], timestamp, &author, &sig);
         let modified_block1 = DagBlock {
-            cid: block1.cid.clone(),
+            cid,
             data: modified_block1_data,
             links: vec![],
+            timestamp,
+            author_did: author,
+            signature: sig,
         };
         assert!(store.put(&modified_block1).is_ok());
         match store.get(&block1.cid) {
@@ -508,11 +521,24 @@ mod tests {
             name: "child".into(),
             size: 0,
         };
-        let parent_cid = compute_merkle_cid(0x71, b"parent", std::slice::from_ref(&link));
+        let timestamp = 0u64;
+        let author = Did::new("key", "tester");
+        let sig = None;
+        let parent_cid = compute_merkle_cid(
+            0x71,
+            b"parent",
+            std::slice::from_ref(&link),
+            timestamp,
+            &author,
+            &sig,
+        );
         let parent = DagBlock {
             cid: parent_cid.clone(),
             data: b"parent".to_vec(),
             links: vec![link],
+            timestamp,
+            author_did: author,
+            signature: sig,
         };
         index.index_block(&child);
         index.index_block(&parent);

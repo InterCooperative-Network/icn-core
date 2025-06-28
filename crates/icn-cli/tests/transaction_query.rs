@@ -41,10 +41,17 @@ async fn submit_transaction_and_query_data() {
     assert_eq!(body["tx_id"], "tx-test");
 
     // Put a DAG block then query it
+    let ts = 0u64;
+    let author = Did::new("key", "tester");
+    let sig_opt = None;
+    let cid = compute_merkle_cid(0x71, b"data", &[], ts, &author, &sig_opt);
     let block = DagBlock {
-        cid: Cid::new_v1_sha256(0x71, b"data"),
+        cid,
         data: b"data".to_vec(),
         links: vec![],
+        timestamp: ts,
+        author_did: author,
+        signature: sig_opt,
     };
     let put_url = format!("http://{addr}/dag/put");
     let res = client.post(&put_url).json(&block).send().await.unwrap();

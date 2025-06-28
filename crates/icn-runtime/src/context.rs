@@ -640,7 +640,10 @@ impl RuntimeContext {
         false
     }
 
-    pub async fn internal_queue_mesh_job(self: &Arc<Self>, job: ActualMeshJob) -> Result<(), HostAbiError> {
+    pub async fn internal_queue_mesh_job(
+        self: &Arc<Self>,
+        job: ActualMeshJob,
+    ) -> Result<(), HostAbiError> {
         let mut queue = self.pending_mesh_jobs.lock().await;
         queue.push_back(job.clone());
         let mut states = self.job_states.lock().await;
@@ -1045,10 +1048,27 @@ impl RuntimeContext {
             HostAbiError::InternalError(format!("Failed to serialize final receipt for DAG: {}", e))
         })?;
 
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        let author = self.current_identity.clone();
+        let signature = None;
+        let cid = icn_common::compute_merkle_cid(
+            0x71,
+            &final_receipt_bytes,
+            &[],
+            timestamp,
+            &author,
+            &signature,
+        );
         let block = DagBlock {
-            cid: Cid::new_v1_sha256(0x71, &final_receipt_bytes),
+            cid,
             data: final_receipt_bytes,
             links: vec![],
+            timestamp,
+            author_did: author,
+            signature,
         };
         let mut store = self.dag_store.lock().await;
         store.put(&block).map_err(HostAbiError::Common)?;
@@ -1820,7 +1840,8 @@ mod tests {
         let result = env.env_submit_mesh_job(&ctx_arc, ptr, len);
         assert!(result.is_ok());
 
-        let mana_after = futures::executor::block_on(ctx_arc.get_mana(&ctx_arc.current_identity)).unwrap();
+        let mana_after =
+            futures::executor::block_on(ctx_arc.get_mana(&ctx_arc.current_identity)).unwrap();
         assert_eq!(mana_after, 90);
         let pending_len =
             futures::executor::block_on(async { ctx_arc.pending_mesh_jobs.lock().await.len() });
@@ -1853,7 +1874,8 @@ mod tests {
         let len = did_bytes.len() as u32;
         let result = env.env_account_spend_mana(&ctx_arc, ptr, len, 10);
         assert!(result.is_ok());
-        let mana = futures::executor::block_on(ctx_arc.get_mana(&ctx_arc.current_identity)).unwrap();
+        let mana =
+            futures::executor::block_on(ctx_arc.get_mana(&ctx_arc.current_identity)).unwrap();
         assert_eq!(mana, 10);
     }
 

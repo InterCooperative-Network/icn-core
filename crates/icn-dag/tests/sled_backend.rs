@@ -1,17 +1,23 @@
 #[cfg(feature = "persist-sled")]
 mod tests {
-    use icn_common::{Cid, DagBlock};
+    use icn_common::{compute_merkle_cid, Cid, DagBlock, Did};
     use icn_dag::sled_store::SledDagStore;
     use icn_dag::StorageService;
     use tempfile::tempdir;
 
     fn create_block(id: &str) -> DagBlock {
         let data = format!("data {id}").into_bytes();
-        let cid = Cid::new_v1_sha256(0x71, id.as_bytes());
+        let timestamp = 0u64;
+        let author = Did::new("key", "tester");
+        let sig = None;
+        let cid = compute_merkle_cid(0x71, &data, &[], timestamp, &author, &sig);
         DagBlock {
             cid,
             data,
             links: vec![],
+            timestamp,
+            author_did: author,
+            signature: sig,
         }
     }
 
@@ -26,10 +32,18 @@ mod tests {
             _ => panic!("failed get b1"),
         }
         assert!(store.get(&b2.cid).unwrap().is_none());
+        let mod_data = b"mod".to_vec();
+        let ts = 1u64;
+        let author = Did::new("key", "tester");
+        let sig = None;
+        let cid = compute_merkle_cid(0x71, &mod_data, &[], ts, &author, &sig);
         let mod_block = DagBlock {
-            cid: b1.cid.clone(),
-            data: b"mod".to_vec(),
+            cid,
+            data: mod_data,
             links: vec![],
+            timestamp: ts,
+            author_did: author,
+            signature: sig,
         };
         assert!(store.put(&mod_block).is_ok());
         assert_eq!(store.get(&b1.cid).unwrap().unwrap().data, b"mod".to_vec());

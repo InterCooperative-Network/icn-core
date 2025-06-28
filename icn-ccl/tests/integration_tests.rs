@@ -166,10 +166,17 @@ async fn test_wasm_executor_with_ccl() {
     use icn_common::DagBlock;
 
     let ctx = RuntimeContext::new_with_stubs_and_mana("did:key:zTestExec", 10);
+    let ts = 0u64;
+    let author = icn_common::Did::new("key", "tester");
+    let sig_opt = None;
+    let cid_calc = icn_common::compute_merkle_cid(0x71, &wasm, &[], ts, &author, &sig_opt);
     let block = DagBlock {
-        cid: Cid::new_v1_sha256(0x71, &wasm),
+        cid: cid_calc.clone(),
         data: wasm.clone(),
         links: vec![],
+        timestamp: ts,
+        author_did: author,
+        signature: sig_opt,
     };
     {
         let mut store = ctx.dag_store.lock().await;
@@ -301,11 +308,17 @@ async fn test_wasm_executor_runs_addition() {
     use icn_common::DagBlock;
 
     let ctx = RuntimeContext::new_with_stubs_and_mana("did:key:zAddExecInt", 10);
-    let cid_calc = icn_common::compute_merkle_cid(0x71, &wasm, &[]);
+    let ts = 0u64;
+    let author = icn_common::Did::new("key", "tester");
+    let sig_opt = None;
+    let cid_calc = icn_common::compute_merkle_cid(0x71, &wasm, &[], ts, &author, &sig_opt);
     let block = DagBlock {
         cid: cid_calc.clone(),
         data: wasm.clone(),
         links: vec![],
+        timestamp: ts,
+        author_did: author,
+        signature: sig_opt,
     };
     {
         let mut store = ctx.dag_store.lock().await;

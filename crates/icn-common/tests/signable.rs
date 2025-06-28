@@ -38,11 +38,24 @@ fn dagblock_sign_verify() {
         size: 5,
     };
     let data = b"parent".to_vec();
-    let cid = compute_merkle_cid(0x71, &data, std::slice::from_ref(&link));
+    let timestamp = 0u64;
+    let author = Did::new("key", "tester");
+    let sig_opt = None;
+    let cid = compute_merkle_cid(
+        0x71,
+        &data,
+        std::slice::from_ref(&link),
+        timestamp,
+        &author,
+        &sig_opt,
+    );
     let block = DagBlock {
         cid,
         data,
         links: vec![link],
+        timestamp,
+        author_did: author,
+        signature: sig_opt,
     };
 
     let sig = block.sign(&sk).unwrap();
