@@ -1,5 +1,6 @@
 use assert_cmd::prelude::*;
 use icn_node::app_router;
+use predicates::prelude::PredicateBooleanExt;
 use std::process::Command;
 use tempfile::tempdir;
 use tokio::task;
@@ -124,12 +125,35 @@ async fn mesh_network_and_ccl_commands() {
     .await
     .unwrap();
 
-    // add-peer and list-peers commands
+    // federation join, status, leave commands
     let bin = env!("CARGO_BIN_EXE_icn-cli");
     let base = format!("http://{addr}");
     tokio::task::spawn_blocking(move || {
         Command::new(bin)
-            .args(["--api-url", &base, "federation", "add-peer", "peer1"])
+            .args(["--api-url", &base, "federation", "join", "peer1"])
+            .assert()
+            .success();
+    })
+    .await
+    .unwrap();
+
+    let bin = env!("CARGO_BIN_EXE_icn-cli");
+    let base = format!("http://{addr}");
+    tokio::task::spawn_blocking(move || {
+        Command::new(bin)
+            .args(["--api-url", &base, "federation", "status"])
+            .assert()
+            .success()
+            .stdout(predicates::str::contains("peer1"));
+    })
+    .await
+    .unwrap();
+
+    let bin = env!("CARGO_BIN_EXE_icn-cli");
+    let base = format!("http://{addr}");
+    tokio::task::spawn_blocking(move || {
+        Command::new(bin)
+            .args(["--api-url", &base, "federation", "leave", "peer1"])
             .assert()
             .success();
     })
@@ -143,7 +167,7 @@ async fn mesh_network_and_ccl_commands() {
             .args(["--api-url", &base, "federation", "list-peers"])
             .assert()
             .success()
-            .stdout(predicates::str::contains("peer1"));
+            .stdout(predicates::str::contains("peer1").not());
     })
     .await
     .unwrap();

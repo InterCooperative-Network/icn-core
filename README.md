@@ -66,6 +66,8 @@ cargo build --no-default-features --features "with-libp2p persist-sqlite"
 # Interact with a node via the CLI
 ./target/debug/icn-cli info
 ./target/debug/icn-cli status
+./target/debug/icn-cli federation join peer1
+./target/debug/icn-cli federation status
 ```
 
 ### Justfile Commands
