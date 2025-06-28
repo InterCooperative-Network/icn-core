@@ -22,8 +22,19 @@ This will:
 Once running, you can access:
 
 - **Node A**: http://localhost:5001 (Bootstrap node)
-- **Node B**: http://localhost:5002 (Worker node)  
+- **Node B**: http://localhost:5002 (Worker node)
 - **Node C**: http://localhost:5003 (Worker node)
+
+### Step-by-Step Setup
+
+1. **Install prerequisites** – Docker and Docker Compose must be available.
+2. **Clone** this repository and `cd` into `icn-devnet`.
+3. **Choose a storage backend** by editing `ICN_STORAGE_BACKEND` in
+   `docker-compose.yml`. Use `memory` for ephemeral runs or `file` to persist
+   data under each node's `data/` volume.
+4. **Enable security** (optional): set an `ICN_HTTP_API_KEY` for each node and,
+   if TLS is desired, provide `ICN_TLS_CERT_PATH` and `ICN_TLS_KEY_PATH`.
+5. **Launch the federation** with `./launch_federation.sh`.
 
 ### Test Job Submission
 
@@ -94,6 +105,27 @@ Each node is configured via environment variables:
 | Node C P2P | 4003 | 4001 | libp2p networking |
 | Prometheus | 9090 | 9090 | Metrics (optional) |
 | Grafana | 3000 | 3000 | Dashboard (optional) |
+
+### Example `docker-compose.yml`
+
+```yaml
+services:
+  icn-node-a:
+    environment:
+      - ICN_NODE_NAME=Node-A
+      - ICN_HTTP_LISTEN_ADDR=0.0.0.0:7845
+      - ICN_STORAGE_BACKEND=file
+      - ICN_HTTP_API_KEY=devnet-a-key
+    volumes:
+      - ./data/node-a:/app/data
+
+  icn-node-b:
+    environment:
+      - ICN_NODE_NAME=Node-B
+      - ICN_HTTP_LISTEN_ADDR=0.0.0.0:7845
+      - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-a/tcp/4001/p2p/<NODE_A_PEER_ID>
+      - ICN_HTTP_API_KEY=devnet-b-key
+```
 
 ## 🛠️ Advanced Usage
 
