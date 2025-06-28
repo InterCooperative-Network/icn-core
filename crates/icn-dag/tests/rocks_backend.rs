@@ -1,6 +1,6 @@
 #[cfg(feature = "persist-rocksdb")]
 mod tests {
-    use icn_common::{compute_merkle_cid, Cid, DagBlock, Did};
+    use icn_common::{compute_merkle_cid, DagBlock, Did};
     use icn_dag::rocksdb_store::RocksDagStore;
     use icn_dag::StorageService;
     use std::path::PathBuf;

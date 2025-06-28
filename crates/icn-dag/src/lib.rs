@@ -10,6 +10,8 @@
 use icn_common::compute_merkle_cid;
 #[cfg(test)]
 use icn_common::DagLink;
+#[cfg(test)]
+use icn_common::Did;
 use icn_common::{Cid, CommonError, DagBlock, NodeInfo, ICN_CORE_VERSION};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

@@ -119,6 +119,7 @@ pub struct GovernanceModule {
     members: HashSet<Did>,
     quorum: usize,
     threshold: f32,
+    #[allow(clippy::type_complexity)]
     proposal_callback: Option<Box<dyn Fn(&Proposal) -> Result<(), CommonError> + Send + Sync>>,
 }
 

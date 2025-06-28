@@ -15,13 +15,17 @@ use icn_network::{NetworkMessage, NetworkService as ActualNetworkService};
     feature = "persist-rocksdb"
 )))]
 use icn_economics::FileManaLedger;
-#[cfg(feature = "persist-rocksdb")]
+#[cfg(all(
+    not(feature = "persist-sled"),
+    not(feature = "persist-sqlite"),
+    feature = "persist-rocksdb"
+))]
 use icn_economics::RocksdbManaLedger;
 #[cfg(feature = "persist-sled")]
 use icn_economics::SledManaLedger;
-#[cfg(feature = "persist-sqlite")]
+#[cfg(all(not(feature = "persist-sled"), feature = "persist-sqlite"))]
 use icn_economics::SqliteManaLedger;
-use icn_economics::{EconError, ManaLedger, ManaRepositoryAdapter};
+use icn_economics::{EconError, ManaRepositoryAdapter};
 use log::{debug, error, info, warn};
 use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
@@ -74,8 +78,15 @@ pub trait Signer: Send + Sync + std::fmt::Debug {
     fn verifying_key_ref(&self) -> &VerifyingKey;
 }
 
+#[cfg(feature = "persist-rocksdb")]
+use icn_dag::rocksdb_store::RocksDagStore;
+#[cfg(not(any(
+    feature = "persist-rocksdb",
+    feature = "persist-sled",
+    feature = "persist-sqlite"
+)))]
+use icn_dag::FileDagStore;
 use icn_dag::StorageService as DagStorageService;
-use icn_dag::{rocksdb_store::RocksDagStore, FileDagStore};
 
 // Placeholder for icn_economics::ManaRepository
 pub trait ManaRepository: Send + Sync + std::fmt::Debug {
@@ -2033,7 +2044,7 @@ mod tests {
     async fn test_wait_for_and_process_receipt_updates_mana_and_reputation() {
         let (sk, vk) = generate_ed25519_keypair();
         let did = did_key_from_verifying_key(&vk);
-        let signer = Arc::new(StubSigner::new_with_keys(sk.clone(), vk.clone()));
+        let signer = Arc::new(StubSigner::new_with_keys(sk.clone(), vk));
         let ctx = RuntimeContext::new_with_ledger_path(
             Did::from_str(&did).unwrap(),
             Arc::new(StubMeshNetworkService::new()),
