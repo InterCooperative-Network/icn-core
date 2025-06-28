@@ -10,6 +10,7 @@ icn-common = { path = "../icn-common" }
 icn-api = { path = "../icn-api" }
 icn-governance = { path = "../icn-governance" }
 icn-network = { path = "../icn-network" }
+icn-mesh = { path = "../icn-mesh" }
 icn-ccl = { path = "../../icn-ccl" }
 anyhow = "1.0"
 
