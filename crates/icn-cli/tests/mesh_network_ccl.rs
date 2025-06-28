@@ -17,7 +17,7 @@ async fn mesh_network_and_ccl_commands() {
 
     tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
-    // Submit a mesh job via the CLI
+    // Submit a mesh job via the new root command
     let job_req = serde_json::json!({
         "manifest_cid": "bafytestmanifest",
         "spec_json": { "Echo": { "payload": "hello" } },
@@ -28,7 +28,7 @@ async fn mesh_network_and_ccl_commands() {
     let base = format!("http://{addr}");
     let output = tokio::task::spawn_blocking(move || {
         Command::new(bin)
-            .args(["--api-url", &base, "mesh", "submit", &job_req])
+            .args(["--api-url", &base, "submit-job", &job_req])
             .output()
             .unwrap()
     })
@@ -53,13 +53,13 @@ async fn mesh_network_and_ccl_commands() {
     .await
     .unwrap();
 
-    // mesh status command
+    // job-status command
     let bin = env!("CARGO_BIN_EXE_icn-cli");
     let base = format!("http://{addr}");
     let job_id_clone2 = job_id.clone();
     tokio::task::spawn_blocking(move || {
         Command::new(bin)
-            .args(["--api-url", &base, "mesh", "status", &job_id_clone2])
+            .args(["--api-url", &base, "job-status", &job_id_clone2])
             .assert()
             .success()
             .stdout(predicates::str::contains(&job_id_clone2));
@@ -106,6 +106,44 @@ async fn mesh_network_and_ccl_commands() {
             .assert()
             .success()
             .stdout(predicates::str::contains("cid"));
+    })
+    .await
+    .unwrap();
+
+    // compile-ccl upload command
+    let bin = env!("CARGO_BIN_EXE_icn-cli");
+    let base = format!("http://{addr}");
+    let file_str2 = file_path.to_str().unwrap().to_string();
+    tokio::task::spawn_blocking(move || {
+        Command::new(bin)
+            .args(["--api-url", &base, "compile-ccl", &file_str2])
+            .assert()
+            .success()
+            .stdout(predicates::str::contains("cid"));
+    })
+    .await
+    .unwrap();
+
+    // add-peer and list-peers commands
+    let bin = env!("CARGO_BIN_EXE_icn-cli");
+    let base = format!("http://{addr}");
+    tokio::task::spawn_blocking(move || {
+        Command::new(bin)
+            .args(["--api-url", &base, "federation", "add-peer", "peer1"])
+            .assert()
+            .success();
+    })
+    .await
+    .unwrap();
+
+    let bin = env!("CARGO_BIN_EXE_icn-cli");
+    let base = format!("http://{addr}");
+    tokio::task::spawn_blocking(move || {
+        Command::new(bin)
+            .args(["--api-url", &base, "federation", "list-peers"])
+            .assert()
+            .success()
+            .stdout(predicates::str::contains("peer1"));
     })
     .await
     .unwrap();

@@ -19,7 +19,7 @@ use icn_common::{Cid, DagBlock, NodeInfo, NodeStatus};
 use icn_api::governance_trait::{
     CastVoteRequest as ApiCastVoteRequest, SubmitProposalRequest as ApiSubmitProposalRequest,
 };
-use icn_ccl::compile_ccl_file;
+use icn_ccl::{compile_ccl_file, compile_ccl_file_to_wasm};
 use icn_governance::{Proposal, ProposalId};
 
 // --- CLI Argument Parsing ---
@@ -69,6 +69,29 @@ enum Commands {
     Ccl {
         #[clap(subcommand)]
         command: CclCommands,
+    },
+    /// Compile a CCL file to WASM and upload to the node
+    #[clap(name = "compile-ccl")]
+    CompileCcl {
+        #[clap(help = "Path to the CCL source file")]
+        file: String,
+    },
+    /// Submit a mesh job (JSON string or '-' for stdin)
+    #[clap(name = "submit-job")]
+    SubmitJob {
+        #[clap(help = "Mesh job submission JSON or '-' for stdin")]
+        job_request_json_or_stdin: String,
+    },
+    /// Query mesh job status by ID
+    #[clap(name = "job-status")]
+    JobStatus {
+        #[clap(help = "Job ID (CID string)")]
+        job_id: String,
+    },
+    /// Federation management commands
+    Federation {
+        #[clap(subcommand)]
+        command: FederationCommands,
     },
 }
 
@@ -145,6 +168,19 @@ enum CclCommands {
     },
 }
 
+#[derive(Subcommand, Debug)]
+enum FederationCommands {
+    /// List peers known to the node
+    #[clap(name = "list-peers")]
+    ListPeers,
+    /// Add a peer to the federation
+    #[clap(name = "add-peer")]
+    AddPeer {
+        #[clap(help = "Peer identifier string")]
+        peer: String,
+    },
+}
+
 // --- Main CLI Logic ---
 
 #[tokio::main]
@@ -191,6 +227,15 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
         },
         Commands::Ccl { command } => match command {
             CclCommands::Compile { file } => handle_ccl_compile(file)?,
+        },
+        Commands::CompileCcl { file } => handle_compile_ccl_upload(cli, client, file).await?,
+        Commands::SubmitJob {
+            job_request_json_or_stdin,
+        } => handle_mesh_submit(cli, client, job_request_json_or_stdin).await?,
+        Commands::JobStatus { job_id } => handle_mesh_status(cli, client, job_id).await?,
+        Commands::Federation { command } => match command {
+            FederationCommands::ListPeers => handle_fed_list_peers(cli, client).await?,
+            FederationCommands::AddPeer { peer } => handle_fed_add_peer(cli, client, peer).await?,
         },
     }
     Ok(())
@@ -439,6 +484,49 @@ fn handle_ccl_compile(file: &str) -> Result<(), anyhow::Error> {
     let meta =
         compile_ccl_file(&source_path, &wasm_path, &meta_path).map_err(|e| anyhow::anyhow!(e))?;
     println!("{}", serde_json::to_string_pretty(&meta)?);
+    Ok(())
+}
+
+#[derive(Serialize)]
+struct DagBlockPayload {
+    data: Vec<u8>,
+}
+
+async fn handle_compile_ccl_upload(
+    cli: &Cli,
+    client: &Client,
+    file: &str,
+) -> Result<(), anyhow::Error> {
+    let path = PathBuf::from(file);
+    let (wasm, meta) = compile_ccl_file_to_wasm(&path)?;
+    let payload = DagBlockPayload { data: wasm };
+    let cid: Cid = post_request(&cli.api_url, client, "/dag/put", &payload).await?;
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&serde_json::json!({
+            "cid": cid,
+            "metadata": meta
+        }))?
+    );
+    Ok(())
+}
+
+async fn handle_fed_list_peers(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
+    let peers: Vec<String> = get_request(&cli.api_url, client, "/federation/peers").await?;
+    println!("{}", serde_json::to_string_pretty(&peers)?);
+    Ok(())
+}
+
+#[derive(Serialize)]
+struct AddPeerReq<'a> {
+    peer: &'a str,
+}
+
+async fn handle_fed_add_peer(cli: &Cli, client: &Client, peer: &str) -> Result<(), anyhow::Error> {
+    let req = AddPeerReq { peer };
+    let resp: serde_json::Value =
+        post_request(&cli.api_url, client, "/federation/peers", &req).await?;
+    println!("{}", serde_json::to_string_pretty(&resp)?);
     Ok(())
 }
 
