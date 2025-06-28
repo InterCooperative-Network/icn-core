@@ -46,6 +46,8 @@ serial_test = { version = "3", features = ["async"] }
 default = []
 enable-libp2p = ["dep:libp2p"]
 persist-sled = ["icn-governance/persist-sled", "icn-reputation/persist-sled"]
+persist-sqlite = ["icn-governance/persist-sled", "icn-reputation/persist-sqlite", "icn-economics/persist-sqlite"]
+persist-rocksdb = ["icn-governance/persist-sled", "icn-reputation/persist-rocksdb", "icn-economics/persist-rocksdb"]
 
 # Integration tests for cross-node functionality
 [[test]]

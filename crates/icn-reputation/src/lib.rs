@@ -10,6 +10,14 @@ use std::sync::Mutex;
 pub mod sled_store;
 #[cfg(feature = "persist-sled")]
 pub use sled_store::SledReputationStore;
+#[cfg(feature = "persist-sqlite")]
+pub mod sqlite_store;
+#[cfg(feature = "persist-sqlite")]
+pub use sqlite_store::SqliteReputationStore;
+#[cfg(feature = "persist-rocksdb")]
+pub mod rocksdb_store;
+#[cfg(feature = "persist-rocksdb")]
+pub use rocksdb_store::RocksdbReputationStore;
 
 /// Store for retrieving and updating executor reputation scores.
 pub trait ReputationStore: Send + Sync {

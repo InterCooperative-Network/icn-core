@@ -9,7 +9,19 @@ use downcast_rs::{impl_downcast, DowncastSync};
 use icn_network::libp2p_service::Libp2pNetworkService as ActualLibp2pNetworkService;
 use icn_network::{NetworkMessage, NetworkService as ActualNetworkService};
 
-use icn_economics::{EconError, ManaLedger, ManaRepositoryAdapter, SledManaLedger};
+#[cfg(not(any(
+    feature = "persist-sled",
+    feature = "persist-sqlite",
+    feature = "persist-rocksdb"
+)))]
+use icn_economics::FileManaLedger;
+#[cfg(feature = "persist-rocksdb")]
+use icn_economics::RocksdbManaLedger;
+#[cfg(feature = "persist-sled")]
+use icn_economics::SledManaLedger;
+#[cfg(feature = "persist-sqlite")]
+use icn_economics::SqliteManaLedger;
+use icn_economics::{EconError, ManaLedger, ManaRepositoryAdapter};
 use log::{debug, error, info, warn};
 use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
@@ -72,21 +84,45 @@ pub trait ManaRepository: Send + Sync + std::fmt::Debug {
     // async fn credit_mana(&self, account: &Did, amount: u64) -> Result<(), EconError>;
 }
 
-/// Simple wrapper around [`SledManaLedger`] for use inside the runtime.
+/// Simple wrapper around the selected `ManaLedger` implementation for use inside the runtime.
 #[derive(Debug, Clone)]
 pub struct SimpleManaLedger {
-    ledger: Arc<SledManaLedger>,
+    ledger: Arc<dyn icn_economics::ManaLedger>,
 }
 
 impl SimpleManaLedger {
     /// Create a new ledger at the given path. Panics if the ledger cannot be
     /// initialized.
     pub fn new(path: PathBuf) -> Self {
-        let ledger = SledManaLedger::new(path)
-            .unwrap_or_else(|e| panic!("Failed to create mana ledger: {e}"));
-        Self {
-            ledger: Arc::new(ledger),
-        }
+        #[cfg(feature = "persist-sled")]
+        let ledger = Arc::new(
+            SledManaLedger::new(path)
+                .unwrap_or_else(|e| panic!("Failed to create mana ledger: {e}")),
+        ) as Arc<dyn icn_economics::ManaLedger>;
+        #[cfg(all(not(feature = "persist-sled"), feature = "persist-sqlite"))]
+        let ledger = Arc::new(
+            icn_economics::SqliteManaLedger::new(path)
+                .unwrap_or_else(|e| panic!("Failed to create mana ledger: {e}")),
+        ) as Arc<dyn icn_economics::ManaLedger>;
+        #[cfg(all(
+            not(feature = "persist-sled"),
+            not(feature = "persist-sqlite"),
+            feature = "persist-rocksdb"
+        ))]
+        let ledger = Arc::new(
+            icn_economics::RocksdbManaLedger::new(path)
+                .unwrap_or_else(|e| panic!("Failed to create mana ledger: {e}")),
+        ) as Arc<dyn icn_economics::ManaLedger>;
+        #[cfg(not(any(
+            feature = "persist-sled",
+            feature = "persist-sqlite",
+            feature = "persist-rocksdb"
+        )))]
+        let ledger = Arc::new(
+            icn_economics::FileManaLedger::new(path)
+                .unwrap_or_else(|e| panic!("Failed to create mana ledger: {e}")),
+        ) as Arc<dyn icn_economics::ManaLedger>;
+        Self { ledger }
     }
 
     pub fn get_balance(&self, account: &Did) -> u64 {
@@ -509,7 +545,27 @@ impl RuntimeContext {
                 Ok(s) => Arc::new(s),
                 Err(_) => Arc::new(icn_reputation::InMemoryReputationStore::new()),
             };
-        #[cfg(not(feature = "persist-sled"))]
+        #[cfg(all(not(feature = "persist-sled"), feature = "persist-sqlite"))]
+        let reputation_store: Arc<dyn icn_reputation::ReputationStore> =
+            match icn_reputation::SqliteReputationStore::new(reputation_store_path) {
+                Ok(s) => Arc::new(s),
+                Err(_) => Arc::new(icn_reputation::InMemoryReputationStore::new()),
+            };
+        #[cfg(all(
+            not(feature = "persist-sled"),
+            not(feature = "persist-sqlite"),
+            feature = "persist-rocksdb"
+        ))]
+        let reputation_store: Arc<dyn icn_reputation::ReputationStore> =
+            match icn_reputation::RocksdbReputationStore::new(reputation_store_path) {
+                Ok(s) => Arc::new(s),
+                Err(_) => Arc::new(icn_reputation::InMemoryReputationStore::new()),
+            };
+        #[cfg(not(any(
+            feature = "persist-sled",
+            feature = "persist-sqlite",
+            feature = "persist-rocksdb"
+        )))]
         let reputation_store: Arc<dyn icn_reputation::ReputationStore> =
             Arc::new(icn_reputation::InMemoryReputationStore::new());
 
@@ -640,7 +696,10 @@ impl RuntimeContext {
         false
     }
 
-    pub async fn internal_queue_mesh_job(self: &Arc<Self>, job: ActualMeshJob) -> Result<(), HostAbiError> {
+    pub async fn internal_queue_mesh_job(
+        self: &Arc<Self>,
+        job: ActualMeshJob,
+    ) -> Result<(), HostAbiError> {
         let mut queue = self.pending_mesh_jobs.lock().await;
         queue.push_back(job.clone());
         let mut states = self.job_states.lock().await;
@@ -1820,7 +1879,8 @@ mod tests {
         let result = env.env_submit_mesh_job(&ctx_arc, ptr, len);
         assert!(result.is_ok());
 
-        let mana_after = futures::executor::block_on(ctx_arc.get_mana(&ctx_arc.current_identity)).unwrap();
+        let mana_after =
+            futures::executor::block_on(ctx_arc.get_mana(&ctx_arc.current_identity)).unwrap();
         assert_eq!(mana_after, 90);
         let pending_len =
             futures::executor::block_on(async { ctx_arc.pending_mesh_jobs.lock().await.len() });
@@ -1853,7 +1913,8 @@ mod tests {
         let len = did_bytes.len() as u32;
         let result = env.env_account_spend_mana(&ctx_arc, ptr, len, 10);
         assert!(result.is_ok());
-        let mana = futures::executor::block_on(ctx_arc.get_mana(&ctx_arc.current_identity)).unwrap();
+        let mana =
+            futures::executor::block_on(ctx_arc.get_mana(&ctx_arc.current_identity)).unwrap();
         assert_eq!(mana, 10);
     }
 
