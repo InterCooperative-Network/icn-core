@@ -311,7 +311,14 @@ pub async fn host_anchor_receipt(
     Ok(anchored_cid)
 }
 
-/// WASM wrapper for [`host_submit_mesh_job`]. Reads the job JSON from guest memory.
+/// WASM wrapper for [`host_submit_mesh_job`].
+///
+/// # Memory Layout
+/// * `ptr`/`len` – location of a UTF-8 JSON string describing an
+///   [`ActualMeshJob`](icn_mesh::ActualMeshJob).
+/// * `out_ptr`/`out_len` – location to write the resulting CID string.
+///
+/// Returns the number of bytes written to `out_ptr` or `0` on error.
 pub fn wasm_host_submit_mesh_job(
     mut caller: wasmtime::Caller<'_, std::sync::Arc<RuntimeContext>>,
     ptr: u32,
@@ -321,21 +328,36 @@ pub fn wasm_host_submit_mesh_job(
 ) -> u32 {
     let job_json = match memory::read_string_safe(&mut caller, ptr, len) {
         Ok(j) => j,
-        Err(_) => return 0,
+        Err(e) => {
+            log::error!("wasm_host_submit_mesh_job read error: {e:?}");
+            return 0;
+        }
     };
     let handle = tokio::runtime::Handle::current();
     let cid = match handle.block_on(host_submit_mesh_job(caller.data(), &job_json)) {
         Ok(c) => c,
-        Err(_) => return 0,
+        Err(e) => {
+            log::error!("wasm_host_submit_mesh_job runtime error: {e:?}");
+            return 0;
+        }
     };
     let cid_str = cid.to_string();
-    memory::write_string_limited(&mut caller, out_ptr, &cid_str, out_len).unwrap_or(0)
+    match memory::write_string_limited(&mut caller, out_ptr, &cid_str, out_len) {
+        Ok(w) => w,
+        Err(e) => {
+            log::error!("wasm_host_submit_mesh_job write error: {e:?}");
+            0
+        }
+    }
 }
 
 /// WASM wrapper for [`host_get_pending_mesh_jobs`].
-/// Writes the serialized job list into guest memory at `ptr` and returns
-/// the number of bytes written. If serialization or memory write fails,
-/// `0` is returned.
+///
+/// # Memory Layout
+/// * `ptr`/`len` – buffer where the serialized `Vec<ActualMeshJob>` JSON will
+///   be written.
+///
+/// Returns the number of bytes written or `0` on error.
 pub fn wasm_host_get_pending_mesh_jobs(
     mut caller: wasmtime::Caller<'_, std::sync::Arc<RuntimeContext>>,
     ptr: u32,
@@ -344,16 +366,34 @@ pub fn wasm_host_get_pending_mesh_jobs(
     let handle = tokio::runtime::Handle::current();
     let jobs = match handle.block_on(async { host_get_pending_mesh_jobs(caller.data()) }) {
         Ok(j) => j,
-        Err(_) => return 0,
+        Err(e) => {
+            log::error!("wasm_host_get_pending_mesh_jobs runtime error: {e:?}");
+            return 0;
+        }
     };
     let json = match serde_json::to_string(&jobs) {
         Ok(j) => j,
-        Err(_) => return 0,
+        Err(e) => {
+            log::error!("wasm_host_get_pending_mesh_jobs serialize error: {e:?}");
+            return 0;
+        }
     };
-    memory::write_string_limited(&mut caller, ptr, &json, len).unwrap_or(0)
+    match memory::write_string_limited(&mut caller, ptr, &json, len) {
+        Ok(w) => w,
+        Err(e) => {
+            log::error!("wasm_host_get_pending_mesh_jobs write error: {e:?}");
+            0
+        }
+    }
 }
 
-/// WASM wrapper for [`host_anchor_receipt`]. Reads the receipt JSON from guest memory.
+/// WASM wrapper for [`host_anchor_receipt`].
+///
+/// # Memory Layout
+/// * `ptr`/`len` – UTF-8 JSON representing an [`ExecutionReceipt`](icn_identity::ExecutionReceipt).
+/// * `out_ptr`/`out_len` – buffer for the resulting CID string.
+///
+/// Returns the number of bytes written or `0` on error.
 pub fn wasm_host_anchor_receipt(
     mut caller: wasmtime::Caller<'_, std::sync::Arc<RuntimeContext>>,
     ptr: u32,
@@ -363,46 +403,75 @@ pub fn wasm_host_anchor_receipt(
 ) -> u32 {
     let json = match memory::read_string_safe(&mut caller, ptr, len) {
         Ok(j) => j,
-        Err(_) => return 0,
+        Err(e) => {
+            log::error!("wasm_host_anchor_receipt read error: {e:?}");
+            return 0;
+        }
     };
     let handle = tokio::runtime::Handle::current();
     let rep = ReputationUpdater::new();
     let cid = match handle.block_on(host_anchor_receipt(caller.data(), &json, &rep)) {
         Ok(c) => c,
-        Err(_) => return 0,
+        Err(e) => {
+            log::error!("wasm_host_anchor_receipt runtime error: {e:?}");
+            return 0;
+        }
     };
     let cid_str = cid.to_string();
-    memory::write_string_limited(&mut caller, out_ptr, &cid_str, out_len).unwrap_or(0)
+    match memory::write_string_limited(&mut caller, out_ptr, &cid_str, out_len) {
+        Ok(w) => w,
+        Err(e) => {
+            log::error!("wasm_host_anchor_receipt write error: {e:?}");
+            0
+        }
+    }
 }
 
 /// WASM wrapper for [`host_account_get_mana`].
-/// Reads the account DID from guest memory and returns the mana balance.
+///
+/// # Memory Layout
+/// * `ptr`/`len` – UTF-8 string containing the account DID.
+///
+/// Returns the mana balance or `0` on error.
 pub fn wasm_host_account_get_mana(
     mut caller: wasmtime::Caller<'_, std::sync::Arc<RuntimeContext>>,
     ptr: u32,
     len: u32,
 ) -> u64 {
-    if let Ok(did) = memory::read_string_safe(&mut caller, ptr, len) {
-        let handle = tokio::runtime::Handle::current();
-        handle
-            .block_on(host_account_get_mana(caller.data(), &did))
-            .unwrap_or(0)
-    } else {
-        0
-    }
+    let did = match memory::read_string_safe(&mut caller, ptr, len) {
+        Ok(d) => d,
+        Err(e) => {
+            log::error!("wasm_host_account_get_mana read error: {e:?}");
+            return 0;
+        }
+    };
+    let handle = tokio::runtime::Handle::current();
+    handle
+        .block_on(host_account_get_mana(caller.data(), &did))
+        .unwrap_or(0)
 }
 
 /// WASM wrapper for [`host_account_spend_mana`].
-/// Reads the account DID from guest memory and attempts to spend mana.
+///
+/// # Memory Layout
+/// * `ptr`/`len` – UTF-8 string containing the account DID.
+/// * `amount` – mana to spend.
 pub fn wasm_host_account_spend_mana(
     mut caller: wasmtime::Caller<'_, std::sync::Arc<RuntimeContext>>,
     ptr: u32,
     len: u32,
     amount: u64,
 ) {
-    if let Ok(did) = memory::read_string_safe(&mut caller, ptr, len) {
-        let handle = tokio::runtime::Handle::current();
-        let _ = handle.block_on(host_account_spend_mana(caller.data(), &did, amount));
+    let did = match memory::read_string_safe(&mut caller, ptr, len) {
+        Ok(d) => d,
+        Err(e) => {
+            log::error!("wasm_host_account_spend_mana read error: {e:?}");
+            return;
+        }
+    };
+    let handle = tokio::runtime::Handle::current();
+    if let Err(e) = handle.block_on(host_account_spend_mana(caller.data(), &did, amount)) {
+        log::error!("wasm_host_account_spend_mana runtime error: {e:?}");
     }
 }
 
