@@ -113,13 +113,28 @@ enum Backend {
 }
 
 /// Manages governance proposals and voting.
-#[derive(Debug)] // Removed Default, as `new` is now more explicit
 pub struct GovernanceModule {
     backend: Backend,
     members: HashSet<Did>,
     quorum: usize,
     threshold: f32,
+    #[allow(clippy::type_complexity)]
     proposal_callback: Option<Box<dyn Fn(&Proposal) -> Result<(), CommonError> + Send + Sync>>,
+}
+
+impl std::fmt::Debug for GovernanceModule {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GovernanceModule")
+            .field("backend", &self.backend)
+            .field("members", &self.members)
+            .field("quorum", &self.quorum)
+            .field("threshold", &self.threshold)
+            .field(
+                "proposal_callback",
+                &self.proposal_callback.as_ref().map(|_| "<callback>"),
+            )
+            .finish()
+    }
 }
 
 impl GovernanceModule {

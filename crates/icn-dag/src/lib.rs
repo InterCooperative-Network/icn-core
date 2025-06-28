@@ -282,6 +282,7 @@ pub fn process_dag_related_data(info: &NodeInfo) -> Result<String, CommonError> 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use icn_common::Did;
     // For test setup
     use tempfile::tempdir; // For FileDagStore tests
 

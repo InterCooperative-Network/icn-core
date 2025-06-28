@@ -1,4 +1,4 @@
-use icn_common::{Cid, DagBlock, Did, Transaction};
+use icn_common::{compute_merkle_cid, Cid, DagBlock, Did, Transaction};
 use icn_node::app_router;
 use reqwest::StatusCode;
 use tokio::task;

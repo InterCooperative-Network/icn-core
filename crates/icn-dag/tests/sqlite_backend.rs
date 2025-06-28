@@ -1,6 +1,6 @@
 #[cfg(feature = "persist-sqlite")]
 mod tests {
-    use icn_common::{compute_merkle_cid, Cid, DagBlock, Did};
+    use icn_common::{compute_merkle_cid, DagBlock, Did};
     use icn_dag::sqlite_store::SqliteDagStore;
     use icn_dag::StorageService;
     use std::path::PathBuf;

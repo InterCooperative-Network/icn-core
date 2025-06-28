@@ -1,6 +1,6 @@
 #[cfg(feature = "persist-sled")]
 mod tests {
-    use icn_common::{compute_merkle_cid, Cid, DagBlock, Did};
+    use icn_common::{compute_merkle_cid, DagBlock, Did};
     use icn_dag::sled_store::SledDagStore;
     use icn_dag::StorageService;
     use tempfile::tempdir;

@@ -21,6 +21,12 @@ pub enum EconError {
     PolicyViolation(String),
 }
 
+impl From<CommonError> for EconError {
+    fn from(err: CommonError) -> Self {
+        EconError::AdapterError(err.to_string())
+    }
+}
+
 /// Abstraction over the persistence layer storing account balances.
 pub trait ManaLedger: Send + Sync {
     /// Retrieve the mana balance for a DID.
