@@ -21,11 +21,10 @@ The `main.rs` in this crate currently serves as a demonstration of integrating a
 
 1.  **Node Information & Status:** Calls `icn-api` functions (`get_node_info`, `get_node_status`) to retrieve and display node details. It demonstrates handling both successful calls and simulated error conditions (e.g., node offline).
 2.  **DAG Operations:** Demonstrates submitting a sample `DagBlock` to the local DAG store (via `icn-api` which uses `icn-dag`) and then retrieving it.
-3.  **Network Operations (Stubbed):**
-    *   Initializes a `StubNetworkService` from the `icn-network` crate.
-    *   Simulates peer discovery by calling `discover_peers`.
-    *   Simulates submitting another `DagBlock` and then broadcasting its announcement using `broadcast_message`.
-    *   Demonstrates sending a direct `RequestBlock` message to a (discovered) stubbed peer using `send_message`.
+3.  **Network Operations:**
+    *   When built with `with-libp2p`, the node spawns a real `Libp2pNetworkService` and discovers peers via bootstrap addresses.
+    *   Demonstrates submitting another `DagBlock` and broadcasting its announcement using `broadcast_message`.
+    *   Demonstrates sending a direct `RequestBlock` message to a discovered peer using `send_message`.
 
 All operations show how results and errors from the API and underlying services are handled and printed to the console.
 

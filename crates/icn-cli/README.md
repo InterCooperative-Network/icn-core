@@ -16,9 +16,9 @@ The `icn-cli` is the primary tool for users to interact with an ICN node from th
 *   **DAG Operations:**
     *   `icn-cli dag put <DAG_BLOCK_JSON_STRING>`: Submits a new DagBlock to the node. The block data must be provided as a complete JSON string.
     *   `icn-cli dag get <CID_JSON_STRING>`: Retrieves a DagBlock from the node by its CID. The CID must be provided as a JSON string.
-*   **Network Operations (Stubbed):**
-    *   `icn-cli network discover-peers`: Simulates peer discovery through the connected node. (Currently uses a stubbed network service).
-    *   `icn-cli network send-message <PEER_ID> <MESSAGE_JSON>`: Simulates sending a `NetworkMessage` to a specified peer. The peer ID is a string, and the message is a JSON representation of a `NetworkMessage` variant (e.g., `RequestBlock`, `AnnounceBlock`). (Currently uses a stubbed network service).
+*   **Network Operations:**
+    *   `icn-cli network discover-peers`: Query the connected node for peers. With the `with-libp2p` feature enabled the node will perform real discovery via libp2p.
+    *   `icn-cli network send-message <PEER_ID> <MESSAGE_JSON>`: Send a `NetworkMessage` to a specified peer. Requires the node to run with libp2p networking.
 *   **Miscellaneous:**
     *   `icn-cli hello`: A simple command to check if the CLI is responsive.
     *   `icn-cli help` or `icn-cli --help`: Displays usage information.

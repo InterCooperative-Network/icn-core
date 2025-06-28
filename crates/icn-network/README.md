@@ -1,7 +1,7 @@
 # ICN Network (`icn-network`)
 
 This crate manages peer-to-peer (P2P) networking aspects for the InterCooperative Network (ICN).
-It defines the core networking abstractions, message types, and service interfaces. The initial implementation includes a stubbed network service for testing and development, with plans to integrate a full P2P stack (e.g., using libp2p) under a feature flag.
+It defines the core networking abstractions, message types, and service interfaces. A lightweight stub service is available for tests, while production builds enable a libp2p-based implementation via the `libp2p` feature.
 
 ## Purpose
 
@@ -54,11 +54,11 @@ discovery via the DHT.
 
 ## Public API Style
 
-This crate provides: 
+This crate provides:
 *   Data structures (`PeerId`, `NetworkMessage`).
 *   A core trait (`NetworkService`) for P2P interactions.
-*   A concrete stub implementation (`StubNetworkService`) for testing and initial development.
-*   With the `libp2p` feature enabled, DHT record APIs (`get_kademlia_record` and `put_kademlia_record`) for storing service advertisements and DID documents.
+*   A concrete stub implementation (`StubNetworkService`) for testing.
+*   With the `libp2p` feature enabled, a full `Libp2pNetworkService` and DHT record APIs (`get_kademlia_record` and `put_kademlia_record`).
 
 The API aims for modularity, allowing different P2P backends to be integrated by implementing the `NetworkService` trait.
 
@@ -67,7 +67,7 @@ The API aims for modularity, allowing different P2P backends to be integrated by
 Please refer to the main `CONTRIBUTING.md` in the root of the `icn-core` repository.
 
 Key areas for future contributions:
-*   Implementing a `Libp2pNetworkService` that utilizes the `libp2p` stack (under the `libp2p` feature).
+*   Extending the existing `Libp2pNetworkService` and refining peer discovery.
 *   Defining and implementing robust peer discovery mechanisms.
 *   Implementing secure and efficient message serialization and transport.
 *   Adding support for various transport protocols.
