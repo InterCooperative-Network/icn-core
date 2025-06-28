@@ -453,6 +453,94 @@ pub async fn app_router_with_options(
     )
 }
 
+/// Build an Axum [`Router`] using an already initialized [`RuntimeContext`].
+///
+/// This is primarily intended for integration tests that construct custom
+/// runtime contexts (e.g. with real libp2p networking) and need to expose the
+/// standard HTTP API surface.
+pub async fn app_router_from_context(
+    ctx: Arc<RuntimeContext>,
+    api_key: Option<String>,
+    auth_token: Option<String>,
+    rate_limit: Option<u64>,
+) -> Router {
+    let rate_limiter = rate_limit.filter(|l| *l > 0).map(|limit| {
+        Arc::new(AsyncMutex::new(RateLimitData {
+            last: Instant::now(),
+            count: 0,
+            limit,
+        }))
+    });
+
+    let app_state = AppState {
+        runtime_context: ctx.clone(),
+        node_name: "ICN Test/Embedded Node".to_string(),
+        node_version: ICN_CORE_VERSION.to_string(),
+        api_key,
+        auth_token,
+        rate_limiter: rate_limiter.clone(),
+        peers: Arc::new(TokioMutex::new(Vec::new())),
+    };
+
+    {
+        let gov_mod = ctx.governance_module.clone();
+        let rate_opt = rate_limiter.clone();
+        let handle = tokio::runtime::Handle::current();
+        let mut gov = gov_mod.lock().await;
+        gov.set_callback(move |proposal| {
+            if let icn_governance::ProposalType::SystemParameterChange(param, value) =
+                &proposal.proposal_type
+            {
+                if param == "open_rate_limit" {
+                    if let Some(ref limiter) = rate_opt {
+                        let new_lim: u64 = value
+                            .parse::<u64>()
+                            .map_err(|e| CommonError::InvalidInputError(e.to_string()))?;
+                        handle.block_on(async {
+                            let mut data = limiter.lock().await;
+                            data.limit = new_lim;
+                        });
+                    }
+                }
+            }
+            Ok(())
+        });
+    }
+
+    Router::new()
+        .route("/info", get(info_handler))
+        .route("/status", get(status_handler))
+        .route("/dag/put", post(dag_put_handler))
+        .route("/dag/get", post(dag_get_handler))
+        .route("/transaction/submit", post(tx_submit_handler))
+        .route("/data/query", post(data_query_handler))
+        .route("/governance/submit", post(gov_submit_handler))
+        .route("/governance/vote", post(gov_vote_handler))
+        .route("/governance/close", post(gov_close_handler))
+        .route("/governance/execute", post(gov_execute_handler))
+        .route("/governance/proposals", get(gov_list_proposals_handler))
+        .route(
+            "/governance/proposal/:proposal_id",
+            get(gov_get_proposal_handler),
+        )
+        .route("/mesh/submit", post(mesh_submit_job_handler))
+        .route("/mesh/jobs", get(mesh_list_jobs_handler))
+        .route("/mesh/jobs/:job_id", get(mesh_get_job_status_handler))
+        .route("/mesh/receipts", post(mesh_submit_receipt_handler))
+        .route("/contracts", post(contracts_post_handler))
+        .route("/federation/peers", get(federation_list_peers_handler))
+        .route("/federation/peers", post(federation_add_peer_handler))
+        .with_state(app_state.clone())
+        .layer(middleware::from_fn_with_state(
+            app_state.clone(),
+            require_api_key,
+        ))
+        .layer(middleware::from_fn_with_state(
+            app_state.clone(),
+            rate_limit_middleware,
+        ))
+}
+
 // --- Main Application Logic ---
 #[tokio::main]
 async fn main() {

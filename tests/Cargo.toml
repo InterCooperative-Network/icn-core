@@ -19,6 +19,10 @@ path = "integration/network_resilience.rs"
 name = "persistence"
 path = "integration/persistence.rs"
 
+[[test]]
+name = "icn_node_end_to_end"
+path = "integration/icn_node_end_to_end.rs"
+
 [dependencies]
 reqwest.workspace = true
 serde_json.workspace = true
