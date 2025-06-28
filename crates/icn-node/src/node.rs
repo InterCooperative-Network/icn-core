@@ -343,7 +343,7 @@ pub async fn app_router_with_options(
         .clone()
         .unwrap_or_else(|| PathBuf::from("./reputation.sled"));
     let ledger_backend =
-        mana_ledger_backend.unwrap_or_else(|| super::config::default_ledger_backend());
+        mana_ledger_backend.unwrap_or_else(super::config::default_ledger_backend);
     let ledger = icn_runtime::context::SimpleManaLedger::new_with_backend(
         mana_ledger_path.unwrap_or_else(|| PathBuf::from("./mana_ledger.sled")),
         ledger_backend,
@@ -1906,7 +1906,7 @@ mod tests {
         use icn_identity::{did_key_from_verifying_key, generate_ed25519_keypair};
         use icn_runtime::executor::WasmExecutor;
 
-        let (app, ctx) = app_router_with_options(None, None, None, None, None, None).await;
+        let (app, ctx) = app_router_with_options(None, None, None, None, None, None, None).await;
 
         // Compile a tiny CCL contract
         let (wasm, _) =

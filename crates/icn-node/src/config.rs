@@ -68,7 +68,7 @@ pub struct NodeConfig {
     pub tls_key_path: Option<std::path::PathBuf>,
 }
 
-fn default_ledger_backend() -> icn_runtime::context::LedgerBackend {
+pub(crate) fn default_ledger_backend() -> icn_runtime::context::LedgerBackend {
     #[cfg(feature = "persist-sled")]
     {
         icn_runtime::context::LedgerBackend::Sled

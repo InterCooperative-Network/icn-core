@@ -46,6 +46,9 @@ jobs:
       - name: Run icn-cli integration tests
         run: cargo test --all-features -p icn-cli
 
+      - name: Run CLI-node integration tests
+        run: cargo test --all-features -p icn-integration-tests --test cli_node
+
       - name: Start devnet (nightly only)
         if: matrix.rust == 'nightly'
         run: |
