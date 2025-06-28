@@ -776,7 +776,9 @@ impl RuntimeContext {
         states.insert(job.id.clone(), JobState::Pending);
         println!("[CONTEXT] Queued mesh job: id={:?}, state=Pending", job.id);
 
-        if self.manifest_is_ccl_wasm(&job.manifest_cid).await {
+        if matches!(job.spec.kind, icn_mesh::JobKind::CclWasm)
+            || self.manifest_is_ccl_wasm(&job.manifest_cid).await
+        {
             let signer = self.signer.clone();
             let ctx_clone = Arc::clone(self);
             let job_clone = job.clone();

@@ -115,6 +115,83 @@ mod libp2p_job_pipeline {
             );
         }
     }
+
+    #[tokio::test]
+    async fn ccl_contract_job_execs() {
+        let _devnet = ensure_devnet().await;
+        let client = Client::new();
+
+        let contract_source = "fn run() -> Integer { return 7; }";
+        let contract_res: Value = client
+            .post(&format!("{}/contracts", NODE_A_URL))
+            .header("Content-Type", "application/json")
+            .json(&serde_json::json!({ "source": contract_source }))
+            .send()
+            .await
+            .expect("compile contract")
+            .json()
+            .await
+            .expect("contract json");
+
+        let manifest_cid = contract_res["manifest_cid"].as_str().expect("cid");
+        let job_spec = icn_mesh::JobSpec {
+            kind: icn_mesh::JobKind::CclWasm,
+            ..Default::default()
+        };
+        let job_request = serde_json::json!({
+            "manifest_cid": manifest_cid,
+            "spec_json": serde_json::to_value(&job_spec).unwrap(),
+            "cost_mana": 50
+        });
+
+        let submit_res: Value = client
+            .post(&format!("{}/mesh/submit", NODE_A_URL))
+            .header("Content-Type", "application/json")
+            .json(&job_request)
+            .send()
+            .await
+            .expect("submit job")
+            .json()
+            .await
+            .expect("submit json");
+
+        let job_id = submit_res["job_id"].as_str().expect("job_id").to_string();
+
+        let mut final_status: Value = Value::Null;
+        for _ in 0..MAX_RETRIES {
+            let resp = client
+                .get(&format!("{}/mesh/jobs/{}", NODE_A_URL, job_id))
+                .send()
+                .await
+                .expect("status");
+            if resp.status().is_success() {
+                final_status = resp.json().await.expect("status json");
+                if final_status["status"]["status"] == "completed" {
+                    break;
+                }
+            }
+            sleep(RETRY_DELAY).await;
+        }
+
+        assert_eq!(final_status["status"]["status"], "completed");
+        let result_cid = final_status["status"]["result_cid"].as_str().unwrap();
+        let expected = icn_common::Cid::new_v1_sha256(0x55, &7i64.to_le_bytes());
+        assert_eq!(result_cid, expected.to_string());
+
+        for url in [NODE_A_URL, NODE_B_URL, NODE_C_URL] {
+            let dag_res = client
+                .post(&format!("{}/dag/get", url))
+                .json(&serde_json::json!({ "cid": result_cid }))
+                .send()
+                .await
+                .expect("dag get");
+            assert!(
+                dag_res.status().is_success(),
+                "dag get failed on {}",
+                url
+            );
+        }
+    }
 }
 
 #[cfg(not(feature = "enable-libp2p"))]
