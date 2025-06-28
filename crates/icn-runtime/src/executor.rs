@@ -78,20 +78,21 @@ impl JobExecutor for SimpleExecutor {
         let result_cid = Cid::new_v1_sha256(0x55, &result_bytes);
         let cpu_ms = start_time.elapsed().unwrap_or_default().as_millis() as u64;
 
-        let unsigned_receipt = IdentityExecutionReceipt {
+        let mut receipt = IdentityExecutionReceipt {
             job_id: job.id.clone(),
-            executor_did: self.node_did.clone(),
+            executor_did: self.signer.did(),
             result_cid,
             cpu_ms,
             success: true,
             sig: SignatureBytes(vec![]),
         };
 
-        unsigned_receipt
-            .sign_with_key(&self.signing_key)
-            .map_err(|e| {
-                CommonError::InternalError(format!("Failed to sign execution receipt: {}", e))
-            })
+        let bytes = receipt.to_signable_bytes()?;
+        let sig = self.signer.sign(&bytes).map_err(|e| {
+            CommonError::InternalError(format!("Failed to sign execution receipt: {}", e))
+        })?;
+        receipt.sig = SignatureBytes(sig);
+        Ok(receipt)
     }
 }
 
@@ -99,8 +100,7 @@ impl JobExecutor for SimpleExecutor {
 /// exposes host functions from the [`RuntimeContext`] to the guest module.
 pub struct WasmExecutor {
     ctx: std::sync::Arc<crate::context::RuntimeContext>,
-    node_did: Did,
-    signing_key: SigningKey,
+    signer: std::sync::Arc<dyn crate::context::Signer>,
     engine: wasmtime::Engine,
 }
 
@@ -108,13 +108,11 @@ impl WasmExecutor {
     /// Creates a new [`WasmExecutor`] bound to the given runtime context.
     pub fn new(
         ctx: std::sync::Arc<crate::context::RuntimeContext>,
-        node_did: Did,
-        signing_key: SigningKey,
+        signer: std::sync::Arc<dyn crate::context::Signer>,
     ) -> Self {
         Self {
             ctx,
-            node_did,
-            signing_key,
+            signer,
             engine: wasmtime::Engine::default(),
         }
     }
@@ -204,20 +202,21 @@ impl JobExecutor for WasmExecutor {
         let result_bytes = result.to_le_bytes();
         let result_cid = Cid::new_v1_sha256(0x55, &result_bytes);
 
-        let unsigned_receipt = IdentityExecutionReceipt {
+        let mut receipt = IdentityExecutionReceipt {
             job_id: job.id.clone(),
-            executor_did: self.node_did.clone(),
+            executor_did: self.signer.did(),
             result_cid,
             cpu_ms,
             success: true,
             sig: SignatureBytes(vec![]),
         };
 
-        unsigned_receipt
-            .sign_with_key(&self.signing_key)
-            .map_err(|e| {
-                CommonError::InternalError(format!("Failed to sign execution receipt: {}", e))
-            })
+        let bytes = receipt.to_signable_bytes()?;
+        let sig = self.signer.sign(&bytes).map_err(|e| {
+            CommonError::InternalError(format!("Failed to sign execution receipt: {}", e))
+        })?;
+        receipt.sig = SignatureBytes(sig);
+        Ok(receipt)
     }
 }
 

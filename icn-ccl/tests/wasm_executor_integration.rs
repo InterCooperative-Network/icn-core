@@ -62,7 +62,8 @@ async fn wasm_executor_runs_compiled_ccl() {
         signature: SignatureBytes(vec![]),
     };
 
-    let exec = WasmExecutor::new(ctx.clone(), node_did.clone(), sk);
+    let signer = icn_runtime::context::StubSigner::new_with_keys(sk, vk);
+    let exec = WasmExecutor::new(ctx.clone(), std::sync::Arc::new(signer));
     let job_clone = job.clone();
     let handle = thread::spawn(move || {
         let rt = Runtime::new().unwrap();
@@ -105,7 +106,8 @@ async fn wasm_executor_runs_compiled_addition() {
         signature: SignatureBytes(vec![]),
     };
 
-    let exec = WasmExecutor::new(ctx.clone(), node_did.clone(), sk);
+    let signer = icn_runtime::context::StubSigner::new_with_keys(sk, vk);
+    let exec = WasmExecutor::new(ctx.clone(), std::sync::Arc::new(signer));
     let job_clone = job.clone();
     let handle = thread::spawn(move || {
         let rt = Runtime::new().unwrap();
@@ -148,7 +150,8 @@ async fn wasm_executor_fails_without_run() {
         signature: SignatureBytes(vec![]),
     };
 
-    let exec = WasmExecutor::new(ctx.clone(), node_did, sk);
+    let signer = icn_runtime::context::StubSigner::new_with_keys(sk, vk);
+    let exec = WasmExecutor::new(ctx.clone(), std::sync::Arc::new(signer));
     let job_clone = job.clone();
     let handle = thread::spawn(move || {
         let rt = Runtime::new().unwrap();
@@ -188,7 +191,8 @@ async fn compile_and_execute_simple_contract() {
         signature: SignatureBytes(vec![]),
     };
 
-    let exec = WasmExecutor::new(ctx.clone(), node_did.clone(), sk);
+    let signer = icn_runtime::context::StubSigner::new_with_keys(sk, vk);
+    let exec = WasmExecutor::new(ctx.clone(), std::sync::Arc::new(signer));
     let job_clone = job.clone();
     let handle = thread::spawn(move || {
         let rt = Runtime::new().unwrap();

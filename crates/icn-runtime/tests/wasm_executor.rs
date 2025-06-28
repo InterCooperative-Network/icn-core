@@ -10,8 +10,8 @@ use std::str::FromStr;
 async fn wasm_executor_runs_wasm() {
     let ctx = RuntimeContext::new_with_stubs_and_mana("did:key:zTestExec", 42);
     let (sk, vk) = generate_ed25519_keypair();
-    let node_did = did_key_from_verifying_key(&vk);
-    let node_did = icn_common::Did::from_str(&node_did).unwrap();
+    let signer = icn_runtime::context::StubSigner::new_with_keys(sk, vk);
+    let node_did = signer.did();
 
     let wasm = r#"(module
         (import "icn" "host_account_get_mana" (func $get (result i64)))
@@ -41,7 +41,7 @@ async fn wasm_executor_runs_wasm() {
         signature: SignatureBytes(vec![]),
     };
 
-    let exec = WasmExecutor::new(ctx.clone(), node_did.clone(), sk);
+    let exec = WasmExecutor::new(ctx.clone(), std::sync::Arc::new(signer));
     let receipt = exec.execute_job(&job).await.unwrap();
     assert_eq!(receipt.executor_did, node_did);
 }
@@ -50,7 +50,8 @@ async fn wasm_executor_runs_wasm() {
 async fn wasm_executor_runs_compiled_ccl_contract() {
     let ctx = RuntimeContext::new_with_stubs_and_mana("did:key:zCclExec", 10);
     let (sk, vk) = generate_ed25519_keypair();
-    let node_did = icn_common::Did::from_str(&did_key_from_verifying_key(&vk)).unwrap();
+    let signer = icn_runtime::context::StubSigner::new_with_keys(sk, vk);
+    let node_did = signer.did();
 
     let source = "fn run() -> Integer { return 3 + 4; }";
     let (wasm, _) = icn_ccl::compile_ccl_source_to_wasm(source).unwrap();
@@ -75,7 +76,7 @@ async fn wasm_executor_runs_compiled_ccl_contract() {
         signature: SignatureBytes(vec![]),
     };
 
-    let exec = WasmExecutor::new(ctx.clone(), node_did.clone(), sk);
+    let exec = WasmExecutor::new(ctx.clone(), std::sync::Arc::new(signer));
     let receipt = exec.execute_job(&job).await.unwrap();
     assert_eq!(receipt.executor_did, node_did);
     let expected_cid = Cid::new_v1_sha256(0x55, &7i64.to_le_bytes());
@@ -88,7 +89,8 @@ async fn wasm_executor_host_submit_mesh_job_json() {
 
     let ctx = RuntimeContext::new_with_stubs_and_mana("did:key:zHostSubmit", 50);
     let (sk, vk) = generate_ed25519_keypair();
-    let node_did = icn_common::Did::from_str(&did_key_from_verifying_key(&vk)).unwrap();
+    let signer = icn_runtime::context::StubSigner::new_with_keys(sk, vk);
+    let node_did = signer.did();
 
     let complex_job = ActualMeshJob {
         id: Cid::new_v1_sha256(0x55, b"embedded"),
@@ -140,7 +142,7 @@ async fn wasm_executor_host_submit_mesh_job_json() {
         signature: SignatureBytes(vec![]),
     };
 
-    let exec = WasmExecutor::new(ctx.clone(), node_did.clone(), sk);
+    let exec = WasmExecutor::new(ctx.clone(), std::sync::Arc::new(signer));
     let receipt = exec.execute_job(&job).await.unwrap();
 
     let expected_cid = Cid::new_v1_sha256(0x55, &(40i64).to_le_bytes());
@@ -158,7 +160,8 @@ async fn wasm_executor_host_anchor_receipt_json() {
     let (exec_sk, exec_vk) = generate_ed25519_keypair();
     let executor_did = icn_common::Did::from_str(&did_key_from_verifying_key(&exec_vk)).unwrap();
     let (node_sk, node_vk) = generate_ed25519_keypair();
-    let node_did = icn_common::Did::from_str(&did_key_from_verifying_key(&node_vk)).unwrap();
+    let signer = icn_runtime::context::StubSigner::new_with_keys(node_sk, node_vk);
+    let node_did = signer.did();
 
     let receipt = ExecutionReceipt {
         job_id: Cid::new_v1_sha256(0x55, b"jid"),
@@ -198,7 +201,7 @@ async fn wasm_executor_host_anchor_receipt_json() {
         signature: SignatureBytes(vec![]),
     };
 
-    let exec = WasmExecutor::new(ctx.clone(), node_did.clone(), node_sk);
+    let exec = WasmExecutor::new(ctx.clone(), std::sync::Arc::new(signer));
     let _ = exec.execute_job(&job).await.unwrap();
 
     let rec_bytes = serde_json::to_vec(&receipt).unwrap();
@@ -206,4 +209,43 @@ async fn wasm_executor_host_anchor_receipt_json() {
     let store = ctx.dag_store.lock().await;
     assert!(store.get(&expected).unwrap().is_some());
     assert!(ctx.reputation_store.get_reputation(&executor_did) > 0);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn auto_execute_compiled_ccl_job_via_submission() {
+    let ctx = RuntimeContext::new_with_stubs_and_mana("did:key:zAuto", 5);
+    let source = "fn run() -> Integer { return 2 + 2; }";
+    let (wasm, _) = icn_ccl::compile_ccl_source_to_wasm(source).unwrap();
+    let block = DagBlock {
+        cid: Cid::new_v1_sha256(0x71, &wasm),
+        data: wasm.clone(),
+        links: vec![],
+    };
+    {
+        let mut store = ctx.dag_store.lock().await;
+        store.put(&block).unwrap();
+    }
+
+    let job = ActualMeshJob {
+        id: Cid::new_v1_sha256(0x55, b"auto"),
+        manifest_cid: block.cid.clone(),
+        spec: JobSpec::default(),
+        creator_did: ctx.current_identity.clone(),
+        cost_mana: 0,
+        max_execution_wait_ms: None,
+        signature: SignatureBytes(vec![]),
+    };
+    let job_json = serde_json::to_string(&job).unwrap();
+    let job_id = icn_runtime::host_submit_mesh_job(&ctx, &job_json)
+        .await
+        .unwrap();
+
+    let states = ctx.job_states.lock().await;
+    if let Some(icn_mesh::JobState::Completed { receipt }) = states.get(&job_id) {
+        assert_eq!(receipt.executor_did, ctx.signer.did());
+        let expected = Cid::new_v1_sha256(0x55, &4i64.to_le_bytes());
+        assert_eq!(receipt.result_cid, expected);
+    } else {
+        panic!("job not completed");
+    }
 }
