@@ -468,6 +468,12 @@ impl NodeConfig {
         if let Some(v) = cli.open_rate_limit {
             self.open_rate_limit = v;
         }
+        if let Some(v) = &cli.auth_token {
+            self.auth_token = Some(v.clone());
+        }
+        if let Some(v) = &cli.auth_token_path {
+            self.auth_token_path = Some(v.clone());
+        }
         if let Some(v) = &cli.tls_cert_path {
             self.tls_cert_path = Some(v.clone());
         }

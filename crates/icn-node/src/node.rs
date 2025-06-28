@@ -146,6 +146,14 @@ pub struct Cli {
     #[clap(long)]
     pub open_rate_limit: Option<u64>,
 
+    /// Bearer token required via the `Authorization` header
+    #[clap(long)]
+    pub auth_token: Option<String>,
+
+    /// Path to a file containing the bearer token
+    #[clap(long)]
+    pub auth_token_path: Option<PathBuf>,
+
     #[clap(long)]
     pub tls_cert_path: Option<PathBuf>,
 
@@ -1387,6 +1395,7 @@ async fn mesh_submit_job_handler(
                 "[NODE] Job submitted via runtime, Actual Job ID: {}",
                 actual_job_id_cid
             );
+            info!(target: "audit", "job_submitted id={}" , actual_job_id_cid);
             (
                 StatusCode::ACCEPTED,
                 Json(serde_json::json!({ "job_id": actual_job_id_cid.to_string() })),
@@ -1395,6 +1404,7 @@ async fn mesh_submit_job_handler(
         }
         Err(e) => {
             error!("[NODE] Error submitting job via runtime: {:?}", e);
+            info!(target: "audit", "job_submission_failed error={}" , e);
             map_rust_error_to_json_response(
                 format!("Mesh job submission failed: {}", e),
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -1645,6 +1655,7 @@ async fn federation_add_peer_handler(
     let mut peers = state.peers.lock().await;
     if !peers.contains(&payload.peer) {
         peers.push(payload.peer.clone());
+        info!(target: "audit", "peer_added peer={}" , payload.peer);
     }
     (
         StatusCode::CREATED,

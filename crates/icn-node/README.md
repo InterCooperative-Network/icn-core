@@ -111,6 +111,13 @@ Useful CLI flags include:
 * `--tls-cert-path <PATH>` – PEM certificate file to enable HTTPS
 * `--tls-key-path <PATH>` – PEM private key file to enable HTTPS
 
+### Authentication and TLS
+
+If `auth_token` or `auth_token_path` is supplied, the server requires
+`Authorization: Bearer <token>` on every request in addition to any `x-api-key`.
+Providing both `tls_cert_path` and `tls_key_path` switches the HTTP server to
+HTTPS mode using the given PEM files.
+
 Supplying both TLS options makes the server listen on HTTPS instead of HTTP.
 
 When the node starts, it will attempt to load its DID and private key from the
