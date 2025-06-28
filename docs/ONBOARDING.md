@@ -226,7 +226,7 @@ This section provides examples for all major `icn-cli` commands. Ensure an `icn-
       cargo run -p icn-cli -- governance proposal "did:example:proposer123:Increase ma:1678886400"
       ```
 
-(Note: The old network examples are removed as they were stubbed and not part of the core HTTP API requirements in the prompt.)
+(Note: Early examples relied on a stub network service. These were removed once real libp2p networking became available.)
 
 ### 3.6. Example `icn-node` Configuration with TLS and API Keys
 
@@ -350,7 +350,7 @@ The system now has a foundational HTTP API and CLI client.
 Immediate next steps from the original prompt include:
 
 *   **Persistence Backends:** While `icn-node` supports a file backend for `DagStorageService`, implementing a `sled` backend is a next step. `GovernanceModule` currently uses in-memory storage; this needs a pluggable persistence strategy similar to `DagStorageService`.
-*   **Real Networking (Libp2p):** The current focus was on the HTTP API. Integrating `libp2p` for true P2P federation remains a larger goal.
+*   **Networking (Libp2p):** libp2p support is now available. Future work focuses on refining peer discovery and federation protocols.
 *   **Configuration:** Advanced configuration file support for `icn-node` (beyond CLI args).
 *   **Identity Implementation:** Further flesh out DID methods and cryptographic primitives in `icn-identity`.
 *   **Testing:** Enhance test coverage, especially integration tests for the node-cli interaction and endpoint tests for `icn-node`.

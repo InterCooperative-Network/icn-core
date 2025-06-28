@@ -2,6 +2,8 @@
 
 This guide provides minimal examples for launching `icn-node` in common scenarios.
 
+For details on the HTTP API exposed by the node see [API.md](API.md).
+
 ## Single Node Local
 
 This mode runs a standalone node for development or testing.
