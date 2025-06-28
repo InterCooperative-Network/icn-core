@@ -176,3 +176,63 @@ async fn wasm_host_api_functions() {
     let jobs: Vec<ActualMeshJob> = serde_json::from_slice(&buf).unwrap();
     assert!(!jobs.is_empty());
 }
+
+#[tokio::test]
+async fn wasm_host_api_error_paths() {
+    let ctx = RuntimeContext::new_with_stubs_and_mana("did:key:zHostErr", 10);
+    let engine = Engine::default();
+    let module_wat = r#"(module
+        (import "icn" "wasm_host_submit_mesh_job" (func $submit (param i32 i32 i32 i32) (result i32)))
+        (import "icn" "wasm_host_get_pending_mesh_jobs" (func $get (param i32 i32) (result i32)))
+        (memory (export "memory") 1)
+        (func (export "submit_invalid") (result i32)
+            i32.const 0
+            i32.const 0
+            i32.const 100
+            i32.const 10
+            call $submit)
+        (func (export "get_small") (result i32)
+            i32.const 200
+            i32.const 2
+            call $get)
+    )"#;
+    let module_bytes = wat::parse_str(module_wat).unwrap();
+    let module = Module::new(&engine, module_bytes).unwrap();
+
+    let mut linker = Linker::new(&engine);
+    linker
+        .func_wrap(
+            "icn",
+            "wasm_host_submit_mesh_job",
+            wasm_host_submit_mesh_job,
+        )
+        .unwrap();
+    linker
+        .func_wrap(
+            "icn",
+            "wasm_host_get_pending_mesh_jobs",
+            wasm_host_get_pending_mesh_jobs,
+        )
+        .unwrap();
+
+    let mut store = Store::new(&engine, ctx.clone());
+    let instance = linker.instantiate(&mut store, &module).unwrap();
+    let memory = instance.get_memory(&mut store, "memory").unwrap();
+
+    // Call invalid submit (empty JSON)
+    let submit_invalid = instance
+        .get_typed_func::<(), i32>(&mut store, "submit_invalid")
+        .unwrap();
+    let written = submit_invalid.call(&mut store, ()).unwrap();
+    assert_eq!(written, 0);
+
+    // Request pending jobs with tiny buffer (should just return length of '[]')
+    let get_small = instance
+        .get_typed_func::<(), i32>(&mut store, "get_small")
+        .unwrap();
+    let len = get_small.call(&mut store, ()).unwrap();
+    assert_eq!(len, 2);
+    let mut buf = vec![0u8; len as usize];
+    memory.read(&mut store, 200usize, &mut buf).unwrap();
+    assert_eq!(&buf, b"[]");
+}
