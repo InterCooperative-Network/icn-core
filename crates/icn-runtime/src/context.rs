@@ -1870,6 +1870,7 @@ impl MeshNetworkService for StubMeshNetworkService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use icn_identity::KeyDidResolver;
     use std::path::PathBuf;
     use std::sync::Arc;
     use tokio::sync::Mutex as TokioMutex;

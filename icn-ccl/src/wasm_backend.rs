@@ -23,6 +23,14 @@ impl WasmBackend {
         let mut codes = CodeSection::new();
         let mut exports = ExportSection::new();
         let mut export_names = Vec::new();
+        let mut memories = wasm_encoder::MemorySection::new();
+        memories.memory(wasm_encoder::MemoryType {
+            minimum: 1,
+            maximum: None,
+            memory64: false,
+            shared: false,
+            page_size_log2: None,
+        });
 
         let policy_items = match ast {
             AstNode::Policy(items) => items,
@@ -78,6 +86,11 @@ impl WasmBackend {
         }
         if functions.len() > 0 {
             module.section(&functions);
+        }
+        if memories.len() > 0 {
+            module.section(&memories);
+            exports.export("memory", ExportKind::Memory, 0);
+            export_names.push("memory".to_string());
         }
         if exports.len() > 0 {
             module.section(&exports);
