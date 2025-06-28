@@ -316,10 +316,25 @@ pub fn wasm_host_submit_mesh_job(
     mut caller: wasmtime::Caller<'_, std::sync::Arc<RuntimeContext>>,
     ptr: u32,
     len: u32,
-) {
-    if let Ok(job_json) = memory::read_string(&mut caller, ptr, len) {
-        let handle = tokio::runtime::Handle::current();
-        let _ = handle.block_on(host_submit_mesh_job(caller.data(), &job_json));
+    out_ptr: u32,
+    out_len: u32,
+) -> u32 {
+    let job_json = match memory::read_string(&mut caller, ptr, len) {
+        Ok(j) => j,
+        Err(_) => return 0,
+    };
+    let handle = tokio::runtime::Handle::current();
+    let cid = match handle.block_on(host_submit_mesh_job(caller.data(), &job_json)) {
+        Ok(c) => c,
+        Err(_) => return 0,
+    };
+    let cid_str = cid.to_string();
+    let bytes = cid_str.as_bytes();
+    let copy_len = bytes.len().min(out_len as usize);
+    if memory::write_bytes(&mut caller, out_ptr, &bytes[..copy_len]).is_ok() {
+        copy_len as u32
+    } else {
+        0
     }
 }
 
@@ -355,11 +370,26 @@ pub fn wasm_host_anchor_receipt(
     mut caller: wasmtime::Caller<'_, std::sync::Arc<RuntimeContext>>,
     ptr: u32,
     len: u32,
-) {
-    if let Ok(json) = memory::read_string(&mut caller, ptr, len) {
-        let handle = tokio::runtime::Handle::current();
-        let rep = ReputationUpdater::new();
-        let _ = handle.block_on(host_anchor_receipt(caller.data(), &json, &rep));
+    out_ptr: u32,
+    out_len: u32,
+) -> u32 {
+    let json = match memory::read_string(&mut caller, ptr, len) {
+        Ok(j) => j,
+        Err(_) => return 0,
+    };
+    let handle = tokio::runtime::Handle::current();
+    let rep = ReputationUpdater::new();
+    let cid = match handle.block_on(host_anchor_receipt(caller.data(), &json, &rep)) {
+        Ok(c) => c,
+        Err(_) => return 0,
+    };
+    let cid_str = cid.to_string();
+    let bytes = cid_str.as_bytes();
+    let copy_len = bytes.len().min(out_len as usize);
+    if memory::write_bytes(&mut caller, out_ptr, &bytes[..copy_len]).is_ok() {
+        copy_len as u32
+    } else {
+        0
     }
 }
 
