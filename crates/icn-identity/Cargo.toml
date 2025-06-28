@@ -19,6 +19,7 @@ multibase      = "0.9"          # base-58btc ("z...") encoder/decoder
 # tiny crate that just exposes the unsigned-varint impl used by multicodec
 unsigned-varint = { version = "0.7", default-features = false } 
 serde_bytes = "0.11" # For SignatureBytes serialization
+reqwest.workspace = true
 
 # Ensure old ones are removed if they conflict or are replaced
 # ed25519-dalek = { version = "2.0", features = ["serde"] } # Old, replaced by specific version
@@ -28,4 +29,5 @@ serde_bytes = "0.11" # For SignatureBytes serialization
 
 [dev-dependencies]
 # rand is still useful for general tests if needed, but OsRng from rand_core is for dalek
-rand = "0.8" 
+rand = "0.8"
+serde_json = "1.0"
