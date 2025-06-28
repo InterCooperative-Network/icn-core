@@ -71,3 +71,69 @@ async fn bearer_token_required_for_requests() {
 
     server.abort();
 }
+
+#[tokio::test]
+async fn api_key_required_for_dag_put() {
+    let (router, _ctx) =
+        app_router_with_options(Some("secret".into()), None, None, None, None, None).await;
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = task::spawn(async move {
+        axum::serve(listener, router).await.unwrap();
+    });
+
+    let client = Client::new();
+    let url = format!("http://{addr}/dag/put");
+
+    let resp = client
+        .post(&url)
+        .json(&serde_json::json!({"data": [1, 2, 3]}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), reqwest::StatusCode::UNAUTHORIZED);
+
+    let resp = client
+        .post(&url)
+        .header("x-api-key", "secret")
+        .json(&serde_json::json!({"data": [1, 2, 3]}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), reqwest::StatusCode::CREATED);
+
+    server.abort();
+}
+
+#[tokio::test]
+async fn bearer_token_required_for_dag_put() {
+    let (router, _ctx) =
+        app_router_with_options(None, Some("tok".into()), None, None, None, None).await;
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = task::spawn(async move {
+        axum::serve(listener, router).await.unwrap();
+    });
+
+    let client = Client::new();
+    let url = format!("http://{addr}/dag/put");
+
+    let resp = client
+        .post(&url)
+        .json(&serde_json::json!({"data": [1, 2, 3]}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), reqwest::StatusCode::UNAUTHORIZED);
+
+    let resp = client
+        .post(&url)
+        .header("Authorization", "Bearer tok")
+        .json(&serde_json::json!({"data": [1, 2, 3]}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), reqwest::StatusCode::CREATED);
+
+    server.abort();
+}

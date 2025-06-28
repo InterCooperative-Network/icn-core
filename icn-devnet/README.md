@@ -81,6 +81,11 @@ Each node is configured via environment variables:
 | `ICN_ENABLE_P2P` | Enable P2P networking | `true` |
 | `ICN_BOOTSTRAP_PEERS` | Comma-separated bootstrap peers | `/ip4/node-a/tcp/4001/p2p/...` |
 | `ICN_STORAGE_BACKEND` | Storage backend type | `memory` or `file` |
+| `ICN_API_KEY` | Require this key via `x-api-key` header | `devnet-secret` |
+| `ICN_AUTH_TOKEN` | Require `Authorization: Bearer <token>` | `devnet-bearer` |
+
+Set `ICN_API_KEY` or `ICN_AUTH_TOKEN` to secure the node's HTTP API. Requests
+without the corresponding header will receive a `401 Unauthorized` response.
 
 ### Ports
 
