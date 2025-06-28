@@ -403,7 +403,7 @@ pub async fn app_router_with_options(
                 if param == "open_rate_limit" {
                     if let Some(ref limiter) = rate_opt {
                         let new_lim: u64 = value
-                            .parse()
+                            .parse::<u64>()
                             .map_err(|e| CommonError::InvalidInputError(e.to_string()))?;
                         handle.block_on(async {
                             let mut data = limiter.lock().await;
@@ -723,7 +723,7 @@ async fn main() {
                 if param == "open_rate_limit" {
                     if let Some(ref limiter) = rate_opt {
                         let new_lim: u64 = value
-                            .parse()
+                            .parse::<u64>()
                             .map_err(|e| CommonError::InvalidInputError(e.to_string()))?;
                         handle.block_on(async {
                             let mut data = limiter.lock().await;
