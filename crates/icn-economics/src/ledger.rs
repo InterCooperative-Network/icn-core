@@ -135,6 +135,7 @@ impl crate::ManaLedger for FileManaLedger {
 
 // --- Persistent Sled-based Mana Ledger ---
 
+#[cfg(feature = "persist-sled")]
 #[derive(Debug)]
 pub struct SledManaLedger {
     tree: sled::Tree,
@@ -150,6 +151,7 @@ pub mod rocksdb;
 #[cfg(feature = "persist-rocksdb")]
 pub use rocksdb::RocksdbManaLedger;
 
+#[cfg(feature = "persist-sled")]
 impl SledManaLedger {
     pub fn new(path: PathBuf) -> Result<Self, CommonError> {
         let db = sled::open(path)
@@ -189,6 +191,7 @@ impl SledManaLedger {
     }
 }
 
+#[cfg(feature = "persist-sled")]
 impl crate::ManaLedger for SledManaLedger {
     fn get_balance(&self, did: &Did) -> u64 {
         self.read_balance(did).unwrap_or(0)
