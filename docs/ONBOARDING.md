@@ -272,20 +272,18 @@ This secures the HTTP API with TLS and passes the required `x-api-key` header to
 
 ### 3.7. Environment Variables
 
-`icn-node` can also read certain settings from the environment. This is useful
-when deploying in containerized environments or CI systems.
-
-* `ICN_HTTP_API_KEY` – sets the API key required in the `x-api-key` header.
-* `ICN_TLS_CERT_PATH` – path to a PEM encoded TLS certificate.
-* `ICN_TLS_KEY_PATH` – path to the matching PEM private key.
+`icn-node` can read any configuration value from environment variables using the
+`ICN_` prefix. Variable names mirror the keys found in the configuration file.
+For example, `ICN_HTTP_LISTEN_ADDR` sets `http_listen_addr` and
+`ICN_STORAGE_BACKEND` sets `storage_backend`. These environment values override
+those loaded from a file but are overridden by CLI flags.
 
 Example usage:
 
 ```bash
-export ICN_HTTP_API_KEY=mysecretkey
-export ICN_TLS_CERT_PATH=/etc/ssl/certs/icn.pem
-export ICN_TLS_KEY_PATH=/etc/ssl/private/icn.key
-cargo run -p icn-node
+export ICN_HTTP_LISTEN_ADDR=0.0.0.0:9000
+export ICN_STORAGE_BACKEND=rocksdb
+cargo run -p icn-node --config node_config.toml
 ```
 
 ## 4. Understanding the Codebase

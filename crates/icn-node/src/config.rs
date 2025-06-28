@@ -2,9 +2,10 @@ use clap::ArgMatches;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
+use std::path::PathBuf;
 
 /// Storage backends supported by the node.
-#[derive(clap::ValueEnum, Clone, Debug, Serialize, Deserialize)]
+#[derive(clap::ValueEnum, Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub enum StorageBackendType {
     /// In-memory store, volatile.
     Memory,
@@ -16,6 +17,20 @@ pub enum StorageBackendType {
     Sled,
     /// RocksDB database backend (requires `persist-rocksdb` feature).
     Rocksdb,
+}
+
+impl std::str::FromStr for StorageBackendType {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_ascii_lowercase().as_str() {
+            "memory" => Ok(Self::Memory),
+            "file" => Ok(Self::File),
+            "sqlite" => Ok(Self::Sqlite),
+            "sled" => Ok(Self::Sled),
+            "rocksdb" => Ok(Self::Rocksdb),
+            _ => Err(format!("invalid storage backend: {s}")),
+        }
+    }
 }
 
 /// Configuration values for running an ICN node.
@@ -79,17 +94,296 @@ impl Default for NodeConfig {
     }
 }
 
+#[derive(Debug, Default, Deserialize)]
+#[serde(default)]
+struct StorageSection {
+    backend: Option<StorageBackendType>,
+    path: Option<PathBuf>,
+    mana_ledger_path: Option<PathBuf>,
+    reputation_db_path: Option<PathBuf>,
+    governance_db_path: Option<PathBuf>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default)]
+struct IdentitySection {
+    node_did: Option<String>,
+    node_private_key_bs58: Option<String>,
+    node_did_path: Option<PathBuf>,
+    node_private_key_path: Option<PathBuf>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default)]
+struct HttpSection {
+    listen_addr: Option<String>,
+    api_key: Option<String>,
+    auth_token: Option<String>,
+    auth_token_path: Option<PathBuf>,
+    open_rate_limit: Option<u64>,
+    tls_cert_path: Option<PathBuf>,
+    tls_key_path: Option<PathBuf>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default)]
+struct P2pSection {
+    listen_address: Option<String>,
+    bootstrap_peers: Option<Vec<String>>,
+    enable_p2p: Option<bool>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default)]
+struct FileNodeConfig {
+    node_name: Option<String>,
+    storage_backend: Option<StorageBackendType>,
+    storage_path: Option<PathBuf>,
+    mana_ledger_path: Option<PathBuf>,
+    reputation_db_path: Option<PathBuf>,
+    governance_db_path: Option<PathBuf>,
+    http_listen_addr: Option<String>,
+    node_did: Option<String>,
+    node_private_key_bs58: Option<String>,
+    node_did_path: Option<PathBuf>,
+    node_private_key_path: Option<PathBuf>,
+    listen_address: Option<String>,
+    bootstrap_peers: Option<Vec<String>>,
+    enable_p2p: Option<bool>,
+    api_key: Option<String>,
+    auth_token: Option<String>,
+    auth_token_path: Option<PathBuf>,
+    open_rate_limit: Option<u64>,
+    tls_cert_path: Option<PathBuf>,
+    tls_key_path: Option<PathBuf>,
+    #[serde(default)]
+    storage: StorageSection,
+    #[serde(default)]
+    identity: IdentitySection,
+    #[serde(default)]
+    http: HttpSection,
+    #[serde(default)]
+    p2p: P2pSection,
+}
+
 impl NodeConfig {
     /// Load configuration from a TOML or YAML file. The format is inferred from the file extension.
     pub fn from_file(path: &Path) -> Result<Self, Box<dyn std::error::Error>> {
         let data = fs::read_to_string(path)?;
         let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
-        let config = match ext {
+        let file_cfg: FileNodeConfig = match ext {
             "toml" => toml::from_str(&data)?,
             "yaml" | "yml" => serde_yaml::from_str(&data)?,
             _ => return Err(format!("unsupported config extension: {ext}").into()),
         };
-        Ok(config)
+
+        let mut cfg = NodeConfig::default();
+        cfg.apply_file_config(file_cfg);
+        Ok(cfg)
+    }
+
+    fn apply_file_config(&mut self, file: FileNodeConfig) {
+        if let Some(v) = file.node_name {
+            self.node_name = v;
+        }
+        if let Some(v) = file.storage_backend {
+            self.storage_backend = v;
+        }
+        if let Some(v) = file.storage_path {
+            self.storage_path = v;
+        }
+        if let Some(v) = file.mana_ledger_path {
+            self.mana_ledger_path = v;
+        }
+        if let Some(v) = file.reputation_db_path {
+            self.reputation_db_path = v;
+        }
+        if let Some(v) = file.governance_db_path {
+            self.governance_db_path = v;
+        }
+        if let Some(v) = file.http_listen_addr {
+            self.http_listen_addr = v;
+        }
+        if let Some(v) = file.node_did {
+            self.node_did = Some(v);
+        }
+        if let Some(v) = file.node_private_key_bs58 {
+            self.node_private_key_bs58 = Some(v);
+        }
+        if let Some(v) = file.node_did_path {
+            self.node_did_path = v;
+        }
+        if let Some(v) = file.node_private_key_path {
+            self.node_private_key_path = v;
+        }
+        if let Some(v) = file.listen_address {
+            self.listen_address = v;
+        }
+        if let Some(v) = file.bootstrap_peers {
+            self.bootstrap_peers = Some(v);
+        }
+        if let Some(v) = file.enable_p2p {
+            self.enable_p2p = v;
+        }
+        if let Some(v) = file.api_key {
+            self.api_key = Some(v);
+        }
+        if let Some(v) = file.auth_token {
+            self.auth_token = Some(v);
+        }
+        if let Some(v) = file.auth_token_path {
+            self.auth_token_path = Some(v);
+        }
+        if let Some(v) = file.open_rate_limit {
+            self.open_rate_limit = v;
+        }
+        if let Some(v) = file.tls_cert_path {
+            self.tls_cert_path = Some(v);
+        }
+        if let Some(v) = file.tls_key_path {
+            self.tls_key_path = Some(v);
+        }
+
+        // nested sections
+        let s = file.storage;
+        if let Some(v) = s.backend {
+            self.storage_backend = v;
+        }
+        if let Some(v) = s.path {
+            self.storage_path = v;
+        }
+        if let Some(v) = s.mana_ledger_path {
+            self.mana_ledger_path = v;
+        }
+        if let Some(v) = s.reputation_db_path {
+            self.reputation_db_path = v;
+        }
+        if let Some(v) = s.governance_db_path {
+            self.governance_db_path = v;
+        }
+
+        let id = file.identity;
+        if let Some(v) = id.node_did {
+            self.node_did = Some(v);
+        }
+        if let Some(v) = id.node_private_key_bs58 {
+            self.node_private_key_bs58 = Some(v);
+        }
+        if let Some(v) = id.node_did_path {
+            self.node_did_path = v;
+        }
+        if let Some(v) = id.node_private_key_path {
+            self.node_private_key_path = v;
+        }
+
+        let http = file.http;
+        if let Some(v) = http.listen_addr {
+            self.http_listen_addr = v;
+        }
+        if let Some(v) = http.api_key {
+            self.api_key = Some(v);
+        }
+        if let Some(v) = http.auth_token {
+            self.auth_token = Some(v);
+        }
+        if let Some(v) = http.auth_token_path {
+            self.auth_token_path = Some(v);
+        }
+        if let Some(v) = http.open_rate_limit {
+            self.open_rate_limit = v;
+        }
+        if let Some(v) = http.tls_cert_path {
+            self.tls_cert_path = Some(v);
+        }
+        if let Some(v) = http.tls_key_path {
+            self.tls_key_path = Some(v);
+        }
+
+        let p2p = file.p2p;
+        if let Some(v) = p2p.listen_address {
+            self.listen_address = v;
+        }
+        if let Some(v) = p2p.bootstrap_peers {
+            self.bootstrap_peers = Some(v);
+        }
+        if let Some(v) = p2p.enable_p2p {
+            self.enable_p2p = v;
+        }
+    }
+
+    /// Override configuration values with `ICN_*` environment variables.
+    pub fn apply_env_overrides(&mut self) {
+        macro_rules! set_from_env {
+            ($field:ident, $var:expr, $parse:expr) => {
+                if let Ok(val) = std::env::var($var) {
+                    if let Ok(parsed) = $parse(&val) {
+                        self.$field = parsed;
+                    }
+                }
+            };
+        }
+        macro_rules! set_opt_from_env {
+            ($field:ident, $var:expr) => {
+                if let Ok(val) = std::env::var($var) {
+                    self.$field = Some(val.into());
+                }
+            };
+        }
+
+        set_from_env!(storage_backend, "ICN_STORAGE_BACKEND", |v: &str| {
+            v.parse::<StorageBackendType>()
+        });
+        set_from_env!(enable_p2p, "ICN_ENABLE_P2P", |v: &str| v.parse::<bool>());
+        set_from_env!(open_rate_limit, "ICN_OPEN_RATE_LIMIT", |v: &str| v
+            .parse::<u64>());
+
+        if let Ok(val) = std::env::var("ICN_STORAGE_PATH") {
+            self.storage_path = val.into();
+        }
+        if let Ok(val) = std::env::var("ICN_MANA_LEDGER_PATH") {
+            self.mana_ledger_path = val.into();
+        }
+        if let Ok(val) = std::env::var("ICN_REPUTATION_DB_PATH") {
+            self.reputation_db_path = val.into();
+        }
+        if let Ok(val) = std::env::var("ICN_GOVERNANCE_DB_PATH") {
+            self.governance_db_path = val.into();
+        }
+        if let Ok(val) = std::env::var("ICN_HTTP_LISTEN_ADDR") {
+            self.http_listen_addr = val;
+        }
+        if let Ok(val) = std::env::var("ICN_NODE_DID") {
+            self.node_did = Some(val);
+        }
+        if let Ok(val) = std::env::var("ICN_NODE_PRIVATE_KEY_BS58") {
+            self.node_private_key_bs58 = Some(val);
+        }
+        if let Ok(val) = std::env::var("ICN_NODE_DID_PATH") {
+            self.node_did_path = val.into();
+        }
+        if let Ok(val) = std::env::var("ICN_NODE_PRIVATE_KEY_PATH") {
+            self.node_private_key_path = val.into();
+        }
+        if let Ok(val) = std::env::var("ICN_NODE_NAME") {
+            self.node_name = val;
+        }
+        if let Ok(val) = std::env::var("ICN_LISTEN_ADDRESS") {
+            self.listen_address = val;
+        }
+        if let Ok(val) = std::env::var("ICN_BOOTSTRAP_PEERS") {
+            self.bootstrap_peers = Some(val.split(',').map(|s| s.to_string()).collect());
+        }
+        set_opt_from_env!(api_key, "ICN_HTTP_API_KEY");
+        set_opt_from_env!(auth_token, "ICN_AUTH_TOKEN");
+        if let Ok(val) = std::env::var("ICN_AUTH_TOKEN_PATH") {
+            self.auth_token_path = Some(val.into());
+        }
+        if let Ok(val) = std::env::var("ICN_TLS_CERT_PATH") {
+            self.tls_cert_path = Some(val.into());
+        }
+        if let Ok(val) = std::env::var("ICN_TLS_KEY_PATH") {
+            self.tls_key_path = Some(val.into());
+        }
     }
 
     /// Apply CLI overrides onto this configuration.
