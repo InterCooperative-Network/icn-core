@@ -132,6 +132,9 @@ impl ActualMeshJob {
 pub enum JobKind {
     /// Simple echo job used for basic integration tests.
     Echo { payload: String },
+    /// Execute a compiled CCL WASM module referenced by the job's `manifest_cid`.
+    /// The runtime will load the module from the DAG store and run its `run` function.
+    CclWasm,
     /// Placeholder until more kinds are defined.
     #[default]
     GenericPlaceholder,

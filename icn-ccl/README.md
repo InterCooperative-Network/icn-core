@@ -36,6 +36,19 @@ let (wasm, meta) = compile_ccl_source_to_wasm(source)?;
 
 CLI-oriented helpers live in the `cli` module for tools like `icn-cli` to compile `.ccl` files from disk.
 
+### End-to-End Workflow
+
+1. **Write a CCL policy** – author a `.ccl` file describing the desired logic.
+2. **Compile to WASM** – use `compile_ccl_source_to_wasm` or the CLI helpers to
+   produce a `.wasm` module and metadata JSON.
+3. **Store in the DAG** – anchor the compiled module as a `DagBlock` so it can
+   be referenced by a mesh job's `manifest_cid`.
+4. **Submit a mesh job** – create an `ActualMeshJob` whose `manifest_cid` points
+   at the stored module and set `JobKind::CclWasm`.
+5. **Execution** – an executor node loads the module via `icn-runtime` and runs
+   its `run` export. The resulting `ExecutionReceipt` is anchored back to the
+   DAG.
+
 ## Integration with Other Crates
 
 * Compiled WASM is executed inside [`icn-runtime`](../crates/icn-runtime/README.md).
