@@ -202,6 +202,11 @@ struct DagBlockPayload {
     data: Vec<u8>,
 }
 
+#[derive(Deserialize)]
+struct ContractSourcePayload {
+    source: String,
+}
+
 // --- Application State ---
 #[derive(Clone)]
 struct AppState {
@@ -351,6 +356,7 @@ pub async fn app_router_with_options(
             .route("/mesh/jobs", get(mesh_list_jobs_handler)) // List all jobs
             .route("/mesh/jobs/:job_id", get(mesh_get_job_status_handler)) // Get specific job status
             .route("/mesh/receipts", post(mesh_submit_receipt_handler)) // Submit execution receipt
+            .route("/contracts", post(contracts_post_handler))
             .with_state(app_state.clone())
             .layer(middleware::from_fn_with_state(
                 app_state.clone(),
@@ -597,6 +603,7 @@ async fn main() {
         .route("/mesh/jobs", get(mesh_list_jobs_handler))
         .route("/mesh/jobs/:job_id", get(mesh_get_job_status_handler))
         .route("/mesh/receipts", post(mesh_submit_receipt_handler))
+        .route("/contracts", post(contracts_post_handler))
         .with_state(app_state.clone())
         .layer(middleware::from_fn_with_state(
             app_state.clone(),
@@ -746,6 +753,56 @@ async fn dag_get_handler(
             .into_response(),
         Err(e) => map_rust_error_to_json_response(
             format!("DAG get error: {}", e),
+            StatusCode::INTERNAL_SERVER_ERROR,
+        )
+        .into_response(),
+    }
+}
+
+// POST /contracts - Compile CCL source and store resulting WASM in DAG
+async fn contracts_post_handler(
+    State(state): State<AppState>,
+    Json(payload): Json<ContractSourcePayload>,
+) -> impl IntoResponse {
+    use icn_ccl::compile_ccl_source_to_wasm;
+
+    let (wasm, _meta) = match compile_ccl_source_to_wasm(&payload.source) {
+        Ok(res) => res,
+        Err(e) => {
+            return map_rust_error_to_json_response(
+                format!("Compilation error: {e}"),
+                StatusCode::BAD_REQUEST,
+            )
+            .into_response();
+        }
+    };
+
+    let cid = icn_common::Cid::new_v1_sha256(0x71, &wasm);
+    let block = CoreDagBlock {
+        cid: cid.clone(),
+        data: wasm,
+        links: vec![],
+    };
+
+    let block_json = match serde_json::to_string(&block) {
+        Ok(j) => j,
+        Err(e) => {
+            return map_rust_error_to_json_response(
+                format!("Failed to serialize DagBlock: {e}"),
+                StatusCode::INTERNAL_SERVER_ERROR,
+            )
+            .into_response();
+        }
+    };
+
+    match icn_api::submit_dag_block(state.runtime_context.dag_store.clone(), block_json).await {
+        Ok(_) => (
+            StatusCode::CREATED,
+            Json(serde_json::json!({ "manifest_cid": cid.to_string() })),
+        )
+            .into_response(),
+        Err(e) => map_rust_error_to_json_response(
+            format!("Failed to store contract: {e}"),
             StatusCode::INTERNAL_SERVER_ERROR,
         )
         .into_response(),

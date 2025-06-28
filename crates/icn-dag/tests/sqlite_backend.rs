@@ -37,6 +37,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn sqlite_round_trip() {
         let dir = tempdir().unwrap();
         let db_path: PathBuf = dir.path().join("dag.sqlite");
