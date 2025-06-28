@@ -301,8 +301,9 @@ async fn test_wasm_executor_runs_addition() {
     use icn_common::DagBlock;
 
     let ctx = RuntimeContext::new_with_stubs_and_mana("did:key:zAddExecInt", 10);
+    let cid_calc = icn_common::compute_merkle_cid(0x71, &wasm, &[]);
     let block = DagBlock {
-        cid: Cid::new_v1_dummy(0x71, 0x12, &wasm),
+        cid: cid_calc.clone(),
         data: wasm.clone(),
         links: vec![],
     };
@@ -317,7 +318,7 @@ async fn test_wasm_executor_runs_addition() {
     let node_did = icn_common::Did::from_str(&node_did).unwrap();
 
     let job = ActualMeshJob {
-        id: Cid::new_v1_dummy(0x55, 0x12, b"jobadd"),
+        id: Cid::new_v1_sha256(0x55, b"jobadd"),
         manifest_cid: cid,
         spec: JobSpec::default(),
         creator_did: node_did.clone(),

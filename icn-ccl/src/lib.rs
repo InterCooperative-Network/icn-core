@@ -22,16 +22,26 @@ pub use metadata::ContractMetadata;
 
 /// Compiles a CCL source string into WASM bytecode and metadata.
 pub fn compile_ccl_source_to_wasm(source: &str) -> Result<(Vec<u8>, ContractMetadata), CclError> {
+    use sha2::{Digest, Sha256};
+    use std::cmp::min;
+
     let ast_node = parser::parse_ccl_source(source)?;
 
     let mut semantic_analyzer = semantic_analyzer::SemanticAnalyzer::new();
     semantic_analyzer.analyze(&ast_node)?;
 
     let optimizer = optimizer::Optimizer::new();
-    let optimized_ast = optimizer.optimize(ast_node)?; // ast_node might be consumed or cloned
+    let optimized_ast = optimizer.optimize(ast_node)?;
 
     let backend = wasm_backend::WasmBackend::new();
-    backend.compile_to_wasm(&optimized_ast)
+    let (wasm, mut meta) = backend.compile_to_wasm(&optimized_ast)?;
+
+    // Placeholder CID and source hash until real DAG integration is wired in
+    meta.cid = format!("bafy2bzace{}", hex::encode(&wasm[0..min(10, wasm.len())]));
+    let digest = Sha256::digest(source.as_bytes());
+    meta.source_hash = format!("sha256:{:x}", digest);
+
+    Ok((wasm, meta))
 }
 
 /// Reads a CCL source file from disk and compiles it to WASM bytecode and metadata.
@@ -43,8 +53,6 @@ pub fn compile_ccl_source_to_wasm(source: &str) -> Result<(Vec<u8>, ContractMeta
 pub fn compile_ccl_file_to_wasm(
     path: &std::path::Path,
 ) -> Result<(Vec<u8>, ContractMetadata), CclError> {
-    use sha2::{Digest, Sha256};
-    use std::cmp::min;
     use std::fs;
 
     let source_code = fs::read_to_string(path).map_err(|e| {
@@ -55,15 +63,7 @@ pub fn compile_ccl_file_to_wasm(
         ))
     })?;
 
-    let (wasm, mut meta) = compile_ccl_source_to_wasm(&source_code)?;
-
-    // Placeholder CID calculation until real DAG integration is wired in.
-    meta.cid = format!("bafy2bzace{}", hex::encode(&wasm[0..min(10, wasm.len())]));
-
-    let digest = Sha256::digest(source_code.as_bytes());
-    meta.source_hash = format!("sha256:{:x}", digest);
-
-    Ok((wasm, meta))
+    compile_ccl_source_to_wasm(&source_code)
 }
 
 // Re-export CLI helper functions for easier access by icn-cli

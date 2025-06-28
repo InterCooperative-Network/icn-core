@@ -156,3 +156,45 @@ async fn wasm_executor_fails_without_run() {
     let result = handle.join().unwrap();
     assert!(result.is_err());
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn compile_and_execute_simple_contract() {
+    let source = "fn run() -> Integer { return 8; }";
+    let (wasm, meta) = compile_ccl_source_to_wasm(source).expect("compile ccl");
+    assert!(meta.exports.contains(&"run".to_string()));
+
+    let ctx = ctx_with_temp_store("did:key:zSimple", 5);
+    let cid = icn_common::compute_merkle_cid(0x71, &wasm, &[]);
+    let block = DagBlock {
+        cid: cid.clone(),
+        data: wasm.clone(),
+        links: vec![],
+    };
+    {
+        let mut store = ctx.dag_store.lock().await;
+        store.put(&block).unwrap();
+    }
+
+    let (sk, vk) = generate_ed25519_keypair();
+    let node_did = icn_common::Did::from_str(&did_key_from_verifying_key(&vk)).unwrap();
+    let job = ActualMeshJob {
+        id: Cid::new_v1_sha256(0x55, b"job_simple"),
+        manifest_cid: cid,
+        spec: JobSpec::default(),
+        creator_did: node_did.clone(),
+        cost_mana: 0,
+        max_execution_wait_ms: None,
+        signature: SignatureBytes(vec![]),
+    };
+
+    let exec = WasmExecutor::new(ctx.clone(), node_did.clone(), sk);
+    let job_clone = job.clone();
+    let handle = thread::spawn(move || {
+        let rt = Runtime::new().unwrap();
+        rt.block_on(async { exec.execute_job(&job_clone).await })
+    });
+    let receipt = handle.join().unwrap().unwrap();
+    assert_eq!(receipt.executor_did, node_did);
+    let expected_cid = Cid::new_v1_sha256(0x55, &8i64.to_le_bytes());
+    assert_eq!(receipt.result_cid, expected_cid);
+}

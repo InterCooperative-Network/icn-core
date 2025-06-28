@@ -34,6 +34,8 @@ prometheus-client = "0.22"
 [dev-dependencies]
 anyhow = "1.0.75"
 wat = "1.0"
+# Needed for integration tests compiling CCL contracts
+icn-ccl = { path = "../../icn-ccl" }
 # For temporary ledger storage during tests
 tempfile = "3"
 # Ensure sequential execution for metrics tests
