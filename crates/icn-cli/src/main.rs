@@ -175,15 +175,24 @@ enum CclCommands {
 
 #[derive(Subcommand, Debug)]
 enum FederationCommands {
-    /// List peers known to the node
-    #[clap(name = "list-peers")]
-    ListPeers,
-    /// Add a peer to the federation
-    #[clap(name = "add-peer")]
-    AddPeer {
+    /// Join a federation by specifying a peer
+    #[clap(name = "join")]
+    Join {
         #[clap(help = "Peer identifier string")]
         peer: String,
     },
+    /// Leave a federation
+    #[clap(name = "leave")]
+    Leave {
+        #[clap(help = "Peer identifier string")]
+        peer: String,
+    },
+    /// List peers known to the node
+    #[clap(name = "list-peers")]
+    ListPeers,
+    /// Show federation status
+    #[clap(name = "status")]
+    Status,
 }
 
 // --- Main CLI Logic ---
@@ -240,8 +249,10 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
         } => handle_mesh_submit(cli, client, job_request_json_or_stdin).await?,
         Commands::JobStatus { job_id } => handle_mesh_status(cli, client, job_id).await?,
         Commands::Federation { command } => match command {
+            FederationCommands::Join { peer } => handle_fed_join(cli, client, peer).await?,
+            FederationCommands::Leave { peer } => handle_fed_leave(cli, client, peer).await?,
             FederationCommands::ListPeers => handle_fed_list_peers(cli, client).await?,
-            FederationCommands::AddPeer { peer } => handle_fed_add_peer(cli, client, peer).await?,
+            FederationCommands::Status => handle_fed_status(cli, client).await?,
         },
     }
     Ok(())
@@ -535,15 +546,29 @@ async fn handle_fed_list_peers(cli: &Cli, client: &Client) -> Result<(), anyhow:
 }
 
 #[derive(Serialize)]
-struct AddPeerReq<'a> {
+struct PeerReq<'a> {
     peer: &'a str,
 }
 
-async fn handle_fed_add_peer(cli: &Cli, client: &Client, peer: &str) -> Result<(), anyhow::Error> {
-    let req = AddPeerReq { peer };
+async fn handle_fed_join(cli: &Cli, client: &Client, peer: &str) -> Result<(), anyhow::Error> {
+    let req = PeerReq { peer };
     let resp: serde_json::Value =
-        post_request(&cli.api_url, client, "/federation/peers", &req).await?;
+        post_request(&cli.api_url, client, "/federation/join", &req).await?;
     println!("{}", serde_json::to_string_pretty(&resp)?);
+    Ok(())
+}
+
+async fn handle_fed_leave(cli: &Cli, client: &Client, peer: &str) -> Result<(), anyhow::Error> {
+    let req = PeerReq { peer };
+    let resp: serde_json::Value =
+        post_request(&cli.api_url, client, "/federation/leave", &req).await?;
+    println!("{}", serde_json::to_string_pretty(&resp)?);
+    Ok(())
+}
+
+async fn handle_fed_status(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
+    let status: serde_json::Value = get_request(&cli.api_url, client, "/federation/status").await?;
+    println!("{}", serde_json::to_string_pretty(&status)?);
     Ok(())
 }
 

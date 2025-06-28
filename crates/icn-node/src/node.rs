@@ -220,6 +220,17 @@ struct AddPeerPayload {
 }
 
 #[derive(Deserialize)]
+struct PeerPayload {
+    peer: String,
+}
+
+#[derive(Serialize)]
+struct FederationStatus {
+    peer_count: usize,
+    peers: Vec<String>,
+}
+
+#[derive(Deserialize)]
 struct ProposalIdPayload {
     proposal_id: String,
 }
@@ -342,8 +353,7 @@ pub async fn app_router_with_options(
     let rep_path = reputation_db_path
         .clone()
         .unwrap_or_else(|| PathBuf::from("./reputation.sled"));
-    let ledger_backend =
-        mana_ledger_backend.unwrap_or_else(super::config::default_ledger_backend);
+    let ledger_backend = mana_ledger_backend.unwrap_or_else(super::config::default_ledger_backend);
     let ledger = icn_runtime::context::SimpleManaLedger::new_with_backend(
         mana_ledger_path.unwrap_or_else(|| PathBuf::from("./mana_ledger.sled")),
         ledger_backend,
@@ -450,6 +460,9 @@ pub async fn app_router_with_options(
             .route("/contracts", post(contracts_post_handler))
             .route("/federation/peers", get(federation_list_peers_handler))
             .route("/federation/peers", post(federation_add_peer_handler))
+            .route("/federation/join", post(federation_join_handler))
+            .route("/federation/leave", post(federation_leave_handler))
+            .route("/federation/status", get(federation_status_handler))
             .with_state(app_state.clone())
             .layer(middleware::from_fn_with_state(
                 app_state.clone(),
@@ -540,6 +553,12 @@ pub async fn app_router_from_context(
         .route("/contracts", post(contracts_post_handler))
         .route("/federation/peers", get(federation_list_peers_handler))
         .route("/federation/peers", post(federation_add_peer_handler))
+        .route("/federation/join", post(federation_join_handler))
+        .route("/federation/leave", post(federation_leave_handler))
+        .route("/federation/status", get(federation_status_handler))
+        .route("/federation/join", post(federation_join_handler))
+        .route("/federation/leave", post(federation_leave_handler))
+        .route("/federation/status", get(federation_status_handler))
         .with_state(app_state.clone())
         .layer(middleware::from_fn_with_state(
             app_state.clone(),
@@ -1631,6 +1650,44 @@ async fn federation_add_peer_handler(
         StatusCode::CREATED,
         Json(serde_json::json!({ "peer": payload.peer })),
     )
+}
+
+// POST /federation/join - join a federation via peer identifier
+async fn federation_join_handler(
+    State(state): State<AppState>,
+    Json(payload): Json<PeerPayload>,
+) -> impl IntoResponse {
+    let mut peers = state.peers.lock().await;
+    if !peers.contains(&payload.peer) {
+        peers.push(payload.peer.clone());
+    }
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({ "joined": payload.peer })),
+    )
+}
+
+// POST /federation/leave - leave a federation / remove peer
+async fn federation_leave_handler(
+    State(state): State<AppState>,
+    Json(payload): Json<PeerPayload>,
+) -> impl IntoResponse {
+    let mut peers = state.peers.lock().await;
+    peers.retain(|p| p != &payload.peer);
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({ "left": payload.peer })),
+    )
+}
+
+// GET /federation/status - current federation status
+async fn federation_status_handler(State(state): State<AppState>) -> impl IntoResponse {
+    let peers = state.peers.lock().await.clone();
+    let status = FederationStatus {
+        peer_count: peers.len(),
+        peers,
+    };
+    (StatusCode::OK, Json(status))
 }
 
 // --- Test module (can be expanded later) ---

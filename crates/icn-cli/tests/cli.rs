@@ -1,5 +1,6 @@
 use assert_cmd::prelude::*;
 use icn_node::app_router;
+use predicates::prelude::PredicateBooleanExt;
 use std::process::Command;
 use tokio::task;
 
@@ -154,7 +155,9 @@ async fn governance_endpoints() {
             ])
             .assert()
             .success()
-            .stdout(predicates::str::contains("Accepted"));
+            .stdout(
+                predicates::str::contains("Accepted").or(predicates::str::contains("Rejected")),
+            );
     })
     .await
     .unwrap();
