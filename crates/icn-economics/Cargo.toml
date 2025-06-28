@@ -24,7 +24,7 @@ sled = { version = "0.34" }
 bincode = "1.3"
 
 [features]
-default = ["persist-sled"]
+default = ["persist-rocksdb"]
 persist-sled = ["dep:sled", "dep:bincode"]
 persist-sqlite = ["dep:rusqlite"]
 persist-rocksdb = ["dep:rocksdb", "dep:bincode"]

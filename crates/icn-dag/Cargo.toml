@@ -23,7 +23,7 @@ rusqlite = { version = "0.29", optional = false, features = ["bundled"] }
 rocksdb = { version = "0.21", optional = false }
 
 [features]
-default = ["persist-sled"]
+default = ["persist-rocksdb"]
 persist-sled = ["dep:sled", "dep:bincode"]
 persist-sqlite = ["dep:rusqlite"]
 persist-rocksdb = ["dep:rocksdb", "dep:bincode"]

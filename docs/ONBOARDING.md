@@ -239,8 +239,8 @@ Caddy).
 # node_config.toml
 node_name = "Federation Node"
 http_listen_addr = "0.0.0.0:7845"        # Behind a TLS proxy
-storage_backend = "sqlite"
-storage_path = "./icn_data/node.sqlite"
+storage_backend = "rocksdb"
+storage_path = "./icn_data/node.rocks"
 api_key = "mysecretkey"
 open_rate_limit = 0
 ```

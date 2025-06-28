@@ -75,6 +75,7 @@ pub trait Signer: Send + Sync + std::fmt::Debug {
 }
 
 use icn_dag::StorageService as DagStorageService;
+use icn_dag::{rocksdb_store::RocksDagStore, FileDagStore};
 
 // Placeholder for icn_economics::ManaRepository
 pub trait ManaRepository: Send + Sync + std::fmt::Debug {
@@ -600,6 +601,58 @@ impl RuntimeContext {
             dag_store,
             PathBuf::from("./mana_ledger.sled"),
             PathBuf::from("./reputation.sled"),
+        )
+    }
+
+    /// Create a new context using filesystem paths for the DAG store and mana ledger.
+    /// The store type is selected based on enabled persistence features.
+    pub fn new_with_paths(
+        current_identity: Did,
+        mesh_network_service: Arc<dyn MeshNetworkService>,
+        signer: Arc<dyn Signer>,
+        did_resolver: Arc<dyn icn_identity::DidResolver>,
+        dag_path: PathBuf,
+        mana_ledger_path: PathBuf,
+        reputation_store_path: PathBuf,
+    ) -> Arc<Self> {
+        #[cfg(feature = "persist-rocksdb")]
+        let dag_store = Arc::new(TokioMutex::new(
+            RocksDagStore::new(dag_path)
+                .unwrap_or_else(|e| panic!("Failed to init RocksDagStore: {e}")),
+        )) as Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>;
+
+        #[cfg(all(not(feature = "persist-rocksdb"), feature = "persist-sled"))]
+        let dag_store = Arc::new(TokioMutex::new(
+            icn_dag::sled_store::SledDagStore::new(dag_path).expect("Failed to init SledDagStore"),
+        )) as Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>;
+
+        #[cfg(all(
+            not(feature = "persist-rocksdb"),
+            not(feature = "persist-sled"),
+            feature = "persist-sqlite"
+        ))]
+        let dag_store = Arc::new(TokioMutex::new(
+            icn_dag::sqlite_store::SqliteDagStore::new(dag_path)
+                .expect("Failed to init SqliteDagStore"),
+        )) as Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>;
+
+        #[cfg(not(any(
+            feature = "persist-rocksdb",
+            feature = "persist-sled",
+            feature = "persist-sqlite"
+        )))]
+        let dag_store = Arc::new(TokioMutex::new(
+            FileDagStore::new(dag_path).expect("Failed to init FileDagStore"),
+        )) as Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>;
+
+        Self::new_with_ledger_path(
+            current_identity,
+            mesh_network_service,
+            signer,
+            did_resolver,
+            dag_store,
+            mana_ledger_path,
+            reputation_store_path,
         )
     }
 
