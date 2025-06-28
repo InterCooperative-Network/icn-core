@@ -319,7 +319,7 @@ pub fn wasm_host_submit_mesh_job(
     out_ptr: u32,
     out_len: u32,
 ) -> u32 {
-    let job_json = match memory::read_string(&mut caller, ptr, len) {
+    let job_json = match memory::read_string_safe(&mut caller, ptr, len) {
         Ok(j) => j,
         Err(_) => return 0,
     };
@@ -329,13 +329,7 @@ pub fn wasm_host_submit_mesh_job(
         Err(_) => return 0,
     };
     let cid_str = cid.to_string();
-    let bytes = cid_str.as_bytes();
-    let copy_len = bytes.len().min(out_len as usize);
-    if memory::write_bytes(&mut caller, out_ptr, &bytes[..copy_len]).is_ok() {
-        copy_len as u32
-    } else {
-        0
-    }
+    memory::write_string_limited(&mut caller, out_ptr, &cid_str, out_len).unwrap_or(0)
 }
 
 /// WASM wrapper for [`host_get_pending_mesh_jobs`].
@@ -356,13 +350,7 @@ pub fn wasm_host_get_pending_mesh_jobs(
         Ok(j) => j,
         Err(_) => return 0,
     };
-    let bytes = json.as_bytes();
-    let copy_len = bytes.len().min(len as usize);
-    if memory::write_bytes(&mut caller, ptr, &bytes[..copy_len]).is_ok() {
-        copy_len as u32
-    } else {
-        0
-    }
+    memory::write_string_limited(&mut caller, ptr, &json, len).unwrap_or(0)
 }
 
 /// WASM wrapper for [`host_anchor_receipt`]. Reads the receipt JSON from guest memory.
@@ -373,7 +361,7 @@ pub fn wasm_host_anchor_receipt(
     out_ptr: u32,
     out_len: u32,
 ) -> u32 {
-    let json = match memory::read_string(&mut caller, ptr, len) {
+    let json = match memory::read_string_safe(&mut caller, ptr, len) {
         Ok(j) => j,
         Err(_) => return 0,
     };
@@ -384,13 +372,7 @@ pub fn wasm_host_anchor_receipt(
         Err(_) => return 0,
     };
     let cid_str = cid.to_string();
-    let bytes = cid_str.as_bytes();
-    let copy_len = bytes.len().min(out_len as usize);
-    if memory::write_bytes(&mut caller, out_ptr, &bytes[..copy_len]).is_ok() {
-        copy_len as u32
-    } else {
-        0
-    }
+    memory::write_string_limited(&mut caller, out_ptr, &cid_str, out_len).unwrap_or(0)
 }
 
 /// WASM wrapper for [`host_account_get_mana`].
@@ -400,7 +382,7 @@ pub fn wasm_host_account_get_mana(
     ptr: u32,
     len: u32,
 ) -> u64 {
-    if let Ok(did) = memory::read_string(&mut caller, ptr, len) {
+    if let Ok(did) = memory::read_string_safe(&mut caller, ptr, len) {
         let handle = tokio::runtime::Handle::current();
         handle
             .block_on(host_account_get_mana(caller.data(), &did))
@@ -418,7 +400,7 @@ pub fn wasm_host_account_spend_mana(
     len: u32,
     amount: u64,
 ) {
-    if let Ok(did) = memory::read_string(&mut caller, ptr, len) {
+    if let Ok(did) = memory::read_string_safe(&mut caller, ptr, len) {
         let handle = tokio::runtime::Handle::current();
         let _ = handle.block_on(host_account_spend_mana(caller.data(), &did, amount));
     }
