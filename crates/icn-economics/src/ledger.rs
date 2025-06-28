@@ -181,7 +181,7 @@ impl SledManaLedger {
             .get(account.to_string())
             .map_err(|e| CommonError::DatabaseError(format!("Failed to read balance: {e}")))?
         {
-            let amt: u64 = bincode::deserialize(&val).map_err(|e| {
+            let amt: u64 = bincode::deserialize(val.as_ref()).map_err(|e| {
                 CommonError::DeserializationError(format!("Failed to deserialize balance: {e}"))
             })?;
             Ok(amt)
