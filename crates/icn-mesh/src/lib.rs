@@ -27,9 +27,12 @@ pub enum MeshError {
     InvalidBid(String),
     /// The job specification was invalid.
     InvalidJobSpec(String),
+    /// A bid was submitted more than once for the same executor and job.
+    DuplicateBid(String),
+    /// A network operation failed.
+    NetworkFailure(String),
     /// An internal error occurred.
     InternalError(String),
-    // TODO: Add other specific error variants as needed.
 }
 
 // Optional: Implement std::error::Error and std::fmt::Display for MeshError
@@ -41,6 +44,8 @@ impl std::fmt::Display for MeshError {
             MeshError::NoSuitableExecutor(msg) => write!(f, "No suitable executor: {}", msg),
             MeshError::InvalidBid(msg) => write!(f, "Invalid bid: {}", msg),
             MeshError::InvalidJobSpec(msg) => write!(f, "Invalid job spec: {}", msg),
+            MeshError::DuplicateBid(msg) => write!(f, "Duplicate bid: {}", msg),
+            MeshError::NetworkFailure(msg) => write!(f, "Network failure: {}", msg),
             MeshError::InternalError(msg) => write!(f, "Internal mesh error: {}", msg),
         }
     }
@@ -400,8 +405,13 @@ pub struct MeshJobAnnounce {
     pub creator_did: Did,
     /// The maximum mana the creator is willing to pay.
     pub cost_mana: u64,
-    // TODO: Potentially add a summary of JobSpec or key requirements here
-    // to allow executors to filter announcements without fetching the full manifest.
+    /// Key requirements from the [`JobSpec`] so executors can filter
+    /// announcements without downloading the full manifest.
+    #[serde(default)]
+    pub job_kind: JobKind,
+    /// Minimal resources required for the job.
+    #[serde(default)]
+    pub required_resources: Resources,
 }
 
 /// Message sent by an executor to the job's originating node to submit a bid.
@@ -457,7 +467,9 @@ pub struct JobAssignmentNotice {
     /// Signature from the job manager confirming this assignment. The
     /// signing key is typically tied to the manager's DID.
     pub signature: SignatureBytes,
-    // TODO: Potentially include the original job details or manifest_cid for executor convenience?
+    /// Optional CID of the job manifest for convenience.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub manifest_cid: Option<Cid>,
 }
 
 impl JobAssignmentNotice {
@@ -500,8 +512,33 @@ impl JobAssignmentNotice {
 pub struct SubmitReceiptMessage {
     /// The execution receipt being submitted.
     pub receipt: icn_identity::ExecutionReceipt,
-    // TODO: Consider if this message itself needs a signature from the executor,
-    // though the receipt inside is already signed by the executor.
+    /// Optional signature from the executor over the receipt bytes.
+    pub signature: SignatureBytes,
+}
+
+impl SubmitReceiptMessage {
+    fn to_signable_bytes(&self) -> Result<Vec<u8>, CommonError> {
+        self.receipt.to_signable_bytes()
+    }
+
+    pub fn sign(mut self, signing_key: &IdentitySigningKey) -> Result<Self, CommonError> {
+        let message = self.to_signable_bytes()?;
+        let ed_sig = identity_sign_message(signing_key, &message);
+        self.signature = SignatureBytes(ed_sig.to_bytes().to_vec());
+        Ok(self)
+    }
+
+    pub fn verify_signature(&self, verifying_key: &IdentityVerifyingKey) -> Result<(), CommonError> {
+        let message = self.to_signable_bytes()?;
+        let ed_sig = self.signature.to_ed_signature()?;
+        if identity_verify_signature(verifying_key, &message, &ed_sig) {
+            Ok(())
+        } else {
+            Err(CommonError::InternalError(
+                "SubmitReceiptMessage signature verification failed".into(),
+            ))
+        }
+    }
 }
 
 #[cfg(test)]
@@ -1039,5 +1076,41 @@ mod tests {
         let score_b = score_bid(&bid_b, &JobSpec::default(), &policy, &rep_store, &ledger);
 
         assert!(score_a > score_b);
+    }
+
+    #[test]
+    fn test_submit_receipt_message_signing_and_verification() {
+        let (sk, vk) = icn_identity::generate_ed25519_keypair();
+        let receipt = icn_identity::ExecutionReceipt {
+            job_id: dummy_cid("receipt"),
+            executor_did: Did::from_str(&icn_identity::did_key_from_verifying_key(&vk)).unwrap(),
+            result_cid: dummy_cid("result"),
+            cpu_ms: 10,
+            success: true,
+            sig: SignatureBytes(vec![]),
+        }
+        .sign_with_key(&sk)
+        .unwrap();
+
+        let msg = SubmitReceiptMessage {
+            receipt: receipt.clone(),
+            signature: SignatureBytes(vec![]),
+        }
+        .sign(&sk)
+        .unwrap();
+
+        assert!(msg.verify_signature(&vk).is_ok());
+
+        let (_sk2, vk2) = icn_identity::generate_ed25519_keypair();
+        assert!(msg.verify_signature(&vk2).is_err());
+    }
+
+    #[test]
+    fn test_mesh_error_display() {
+        let dup = MeshError::DuplicateBid("dup".into()).to_string();
+        assert!(dup.contains("Duplicate bid"));
+
+        let net = MeshError::NetworkFailure("net".into()).to_string();
+        assert!(net.contains("Network failure"));
     }
 }
