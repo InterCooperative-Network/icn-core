@@ -631,6 +631,15 @@ impl RuntimeContext {
         ctx
     }
 
+    /// Returns true if the DAG block for the given CID starts with the WASM
+    /// magic bytes, indicating a compiled CCL module.
+    pub async fn manifest_is_ccl_wasm(&self, cid: &Cid) -> bool {
+        if let Ok(Some(block)) = self.dag_store.lock().await.get(cid) {
+            return block.data.starts_with(b"\0asm");
+        }
+        false
+    }
+
     pub async fn internal_queue_mesh_job(&self, job: ActualMeshJob) -> Result<(), HostAbiError> {
         let mut queue = self.pending_mesh_jobs.lock().await;
         queue.push_back(job.clone());

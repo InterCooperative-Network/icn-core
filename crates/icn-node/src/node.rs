@@ -1729,7 +1729,8 @@ mod tests {
         let (sk, vk) = generate_ed25519_keypair();
         let exec_did = did_key_from_verifying_key(&vk);
         let exec_did = Did::from_str(&exec_did).unwrap();
-        let executor = WasmExecutor::new(ctx.clone(), exec_did.clone(), sk);
+        let signer = std::sync::Arc::new(icn_runtime::context::StubSigner::new_with_keys(sk, vk));
+        let executor = WasmExecutor::new(ctx.clone(), signer);
         let job = ActualMeshJob {
             id: job_id.clone(),
             manifest_cid: wasm_cid.clone(),

@@ -26,11 +26,10 @@ pub use icn_dag::StorageService;
 // Re-export ABI constants
 pub use abi::*;
 
+use crate::executor::WasmExecutor;
 use icn_common::{Cid, CommonError, Did, NodeInfo};
 use log::{debug, info};
 use std::str::FromStr;
-#[cfg(test)]
-use std::sync::Arc;
 
 /// Placeholder function demonstrating use of common types for runtime operations.
 /// This function is not directly part of the Host ABI layer discussed below but serves as an example.
@@ -54,7 +53,7 @@ pub fn execute_icn_script(info: &NodeInfo, script_id: &str) -> Result<String, Co
 ///
 /// TODO: WASM bindings will need to handle memory marshalling for `job_json`.
 pub async fn host_submit_mesh_job(
-    ctx: &RuntimeContext,
+    ctx: &std::sync::Arc<RuntimeContext>,
     job_json: &str,
 ) -> Result<Cid, HostAbiError> {
     metrics::HOST_SUBMIT_MESH_JOB_CALLS.inc();
@@ -107,6 +106,19 @@ pub async fn host_submit_mesh_job(
 
     // Call the internal queuing function on RuntimeContext
     ctx.internal_queue_mesh_job(job_to_submit.clone()).await?; // Await the async call
+
+    // If the manifest CID references a compiled CCL WASM module, execute it
+    if ctx.manifest_is_ccl_wasm(&job_to_submit.manifest_cid).await {
+        let signer = ctx.signer.clone();
+        let ctx_clone = ctx.clone();
+        let job_clone = job_to_submit.clone();
+        tokio::spawn(async move {
+            let executor = WasmExecutor::new(ctx_clone.clone(), signer);
+            if let Err(e) = executor.execute_and_anchor_job(&job_clone).await {
+                log::error!("WASM job execution failed: {:?}", e);
+            }
+        });
+    }
 
     println!(
         "[RUNTIME_ABI] Job {:?} submitted by {:?} with cost {} was queued successfully.",
@@ -448,6 +460,7 @@ mod tests {
     use icn_identity::SignatureBytes;
     use icn_mesh::{ActualMeshJob, JobSpec};
     use std::str::FromStr;
+    use std::sync::Arc;
 
     const TEST_IDENTITY_DID_STR: &str = "did:icn:test:dummy_executor";
     const OTHER_IDENTITY_DID_STR: &str = "did:icn:test:other_account";

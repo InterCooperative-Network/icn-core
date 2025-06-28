@@ -191,7 +191,8 @@ async fn test_wasm_executor_with_ccl() {
         signature: SignatureBytes(vec![]),
     };
 
-    let exec = WasmExecutor::new(ctx.clone(), node_did.clone(), sk);
+    let signer = std::sync::Arc::new(icn_runtime::context::StubSigner::new_with_keys(sk, vk));
+    let exec = WasmExecutor::new(ctx.clone(), signer);
     let receipt = exec.execute_job(&job).await.unwrap();
     assert_eq!(receipt.executor_did, node_did);
 }
@@ -326,7 +327,8 @@ async fn test_wasm_executor_runs_addition() {
         signature: SignatureBytes(vec![]),
     };
 
-    let exec = WasmExecutor::new(ctx.clone(), node_did.clone(), sk);
+    let signer = std::sync::Arc::new(icn_runtime::context::StubSigner::new_with_keys(sk, vk));
+    let exec = WasmExecutor::new(ctx.clone(), signer);
     let receipt = exec.execute_job(&job).await.unwrap();
     assert_eq!(receipt.executor_did, node_did);
 }
