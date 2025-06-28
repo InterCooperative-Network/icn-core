@@ -157,3 +157,59 @@ async fn wasm_host_api_functions() {
     let jobs: Vec<ActualMeshJob> = serde_json::from_slice(&buf).unwrap();
     assert!(!jobs.is_empty());
 }
+
+#[tokio::test]
+async fn wasm_mana_round_trip() {
+    let ctx = RuntimeContext::new_with_stubs_and_mana("did:key:zRoundTrip", 20);
+    let engine = Engine::default();
+    let module_wat = r#"(module
+        (import "icn" "wasm_host_account_get_mana" (func $get (param i32 i32) (result i64)))
+        (import "icn" "wasm_host_account_spend_mana" (func $spend (param i32 i32 i64)))
+        (memory (export "memory") 1)
+        (func (export "get") (param i32 i32) (result i64)
+            (local.get 0) (local.get 1) call $get)
+        (func (export "spend") (param i32 i32 i64)
+            (local.get 0) (local.get 1) (local.get 2) call $spend)
+    )"#;
+    let module_bytes = wat::parse_str(module_wat).unwrap();
+    let module = Module::new(&engine, module_bytes).unwrap();
+
+    let mut linker = Linker::new(&engine);
+    linker
+        .func_wrap(
+            "icn",
+            "wasm_host_account_get_mana",
+            wasm_host_account_get_mana,
+        )
+        .unwrap();
+    linker
+        .func_wrap(
+            "icn",
+            "wasm_host_account_spend_mana",
+            wasm_host_account_spend_mana,
+        )
+        .unwrap();
+
+    let mut store = Store::new(&engine, ctx.clone());
+    let instance = linker.instantiate(&mut store, &module).unwrap();
+    let memory = instance.get_memory(&mut store, "memory").unwrap();
+
+    let did_bytes = ctx.current_identity.to_string().into_bytes();
+    memory.write(&mut store, 0, &did_bytes).unwrap();
+
+    let get = instance
+        .get_typed_func::<(i32, i32), i64>(&mut store, "get")
+        .unwrap();
+    let spend = instance
+        .get_typed_func::<(i32, i32, i64), ()>(&mut store, "spend")
+        .unwrap();
+
+    let before = get.call(&mut store, (0, did_bytes.len() as i32)).unwrap();
+    assert_eq!(before, 20);
+
+    spend
+        .call(&mut store, (0, did_bytes.len() as i32, 5))
+        .unwrap();
+    let after = get.call(&mut store, (0, did_bytes.len() as i32)).unwrap();
+    assert_eq!(after, 15);
+}

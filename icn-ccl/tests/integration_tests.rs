@@ -165,7 +165,22 @@ async fn test_wasm_executor_with_ccl() {
 
     use icn_common::DagBlock;
 
-    let ctx = RuntimeContext::new_with_stubs_and_mana("did:key:zTestExec", 10);
+    let tmp = tempfile::tempdir().unwrap();
+    let dag_store = std::sync::Arc::new(tokio::sync::Mutex::new(
+        icn_runtime::context::StubDagStore::new(),
+    ));
+    let ctx = RuntimeContext::new_with_ledger_path(
+        icn_common::Did::from_str("did:key:zTestExec").unwrap(),
+        std::sync::Arc::new(icn_runtime::context::StubMeshNetworkService::new()),
+        std::sync::Arc::new(icn_runtime::context::StubSigner::new()),
+        std::sync::Arc::new(icn_identity::KeyDidResolver),
+        dag_store,
+        tmp.path().join("mana.sled"),
+        tmp.path().join("rep.sled"),
+    );
+    ctx.mana_ledger
+        .set_balance(&ctx.current_identity, 10)
+        .unwrap();
     let block = DagBlock {
         cid: Cid::new_v1_sha256(0x71, &wasm),
         data: wasm.clone(),

@@ -52,7 +52,20 @@ pub fn execute_icn_script(info: &NodeInfo, script_id: &str) -> Result<String, Co
 /// The `id` and `submitter` fields within the deserialized job will be overridden
 /// by the runtime (new JobId generation, context's current_identity).
 ///
-/// TODO: WASM bindings will need to handle memory marshalling for `job_json`.
+/// # Example
+/// A WASM module writes the job JSON into its linear memory and calls the host
+/// function via the `wasm_host_submit_mesh_job` import:
+///
+/// ```wat
+/// (import "icn" "wasm_host_submit_mesh_job" (func $submit (param i32 i32)))
+/// (memory (export "memory") 1)
+/// (func (export "submit_job")
+///     ;; assume `ptr` and `len` describe a JSON encoded `ActualMeshJob`
+///     (local.get 0) (local.get 1) call $submit)
+/// )
+/// ```
+/// The runtime uses [`memory::read_string`] to retrieve the JSON from the guest
+/// memory.
 pub async fn host_submit_mesh_job(
     ctx: &RuntimeContext,
     job_json: &str,
@@ -120,7 +133,17 @@ pub async fn host_submit_mesh_job(
 /// ABI Index: (defined in `abi::ABI_HOST_GET_PENDING_MESH_JOBS`)
 /// Retrieves a snapshot of the current pending mesh jobs from the runtime context.
 ///
-/// TODO: WASM bindings will need to handle memory marshalling for the returned Vec<ActualMeshJob> (e.g., serialize to JSON string).
+/// # Example
+/// The wrapper [`wasm_host_get_pending_mesh_jobs`] serializes the list of
+/// `ActualMeshJob`s into JSON and writes it back to the caller's memory:
+///
+/// ```wat
+/// (import "icn" "wasm_host_get_pending_mesh_jobs" (func $get (param i32 i32) (result i32)))
+/// (memory (export "memory") 1)
+/// ;; allocate buffer at `ptr` with capacity `cap`
+/// (call $get (i32.const ptr) (i32.const cap))
+/// ;; function returns number of bytes written
+/// ```
 pub fn host_get_pending_mesh_jobs(
     ctx: &RuntimeContext,
 ) -> Result<Vec<icn_mesh::ActualMeshJob>, HostAbiError> {
@@ -150,7 +173,14 @@ pub fn host_get_pending_mesh_jobs(
 /// In many cases, this will be the `current_identity` within the `ctx`,
 /// but the API allows specifying it for potential future flexibility (e.g., admin queries).
 ///
-/// TODO: WASM bindings will need to handle memory marshalling for `account_id_str`.
+/// # Example
+/// ```wat
+/// (import "icn" "wasm_host_account_get_mana" (func $mana (param i32 i32) (result i64)))
+/// (memory (export "memory") 1)
+/// ;; write the DID string to memory at `ptr`
+/// (call $mana (i32.const ptr) (i32.const len))
+/// ```
+/// The host reads the bytes using [`memory::read_string`] to determine the account DID.
 pub async fn host_account_get_mana(
     ctx: &RuntimeContext,
     account_id_str: &str,
@@ -182,7 +212,13 @@ pub async fn host_account_get_mana(
 ///
 /// Policy Note: `RuntimeContext::spend_mana` currently only allows spending from `ctx.current_identity`.
 ///
-/// TODO: WASM bindings will need to handle memory marshalling for `account_id_str` and `amount`.
+/// # Example
+/// ```wat
+/// (import "icn" "wasm_host_account_spend_mana" (func $spend (param i32 i32 i64)))
+/// (memory (export "memory") 1)
+/// (call $spend (i32.const ptr) (i32.const len) (i64.const 5))
+/// ```
+/// The host reads the DID with [`memory::read_string`] and deducts the amount from the ledger.
 pub async fn host_account_spend_mana(
     ctx: &RuntimeContext,
     account_id_str: &str,
@@ -285,7 +321,15 @@ impl ReputationUpdater {
 ///
 /// The `receipt_json` is expected to be a JSON string serializing `icn_identity::ExecutionReceipt`.
 ///
-/// TODO: WASM bindings will need to handle memory marshalling for `receipt_json` and returned `Cid`.
+/// # Example
+/// ```wat
+/// (import "icn" "wasm_host_anchor_receipt" (func $anchor (param i32 i32)))
+/// (memory (export "memory") 1)
+/// ;; receipt JSON is written at `ptr`
+/// (call $anchor (i32.const ptr) (i32.const len))
+/// ```
+/// [`wasm_host_anchor_receipt`] reads the receipt using [`memory::read_string`] and
+/// anchors it to the DAG.
 pub async fn host_anchor_receipt(
     ctx: &RuntimeContext,
     receipt_json: &str,

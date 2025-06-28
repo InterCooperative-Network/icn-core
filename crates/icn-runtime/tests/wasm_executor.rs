@@ -204,6 +204,6 @@ async fn wasm_executor_host_anchor_receipt_json() {
     let rec_bytes = serde_json::to_vec(&receipt).unwrap();
     let expected = Cid::new_v1_sha256(0x71, &rec_bytes);
     let store = ctx.dag_store.lock().await;
-    assert!(store.all().contains_key(&expected));
+    assert!(store.get(&expected).unwrap().is_some());
     assert!(ctx.reputation_store.get_reputation(&executor_did) > 0);
 }

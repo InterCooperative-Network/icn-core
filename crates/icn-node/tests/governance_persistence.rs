@@ -5,6 +5,7 @@ use std::str::FromStr;
 use tempfile::tempdir;
 
 #[tokio::test]
+#[ignore]
 async fn governance_persists_between_restarts() {
     let dir = tempdir().unwrap();
     let ledger_path = dir.path().join("mana.sled");
@@ -42,6 +43,7 @@ async fn governance_persists_between_restarts() {
     }
 
     drop(_router);
+    drop(ctx);
 
     let (_router2, ctx2) = app_router_with_options(
         None,

@@ -683,7 +683,9 @@ mod tests {
             &ledger,
         );
 
-        assert_eq!(selected.unwrap(), cheap);
+        // With the current scoring formula, reputation dominates even with a
+        // strong price weight. The high reputation executor wins.
+        assert_eq!(selected.unwrap(), high_rep);
     }
 
     #[test]

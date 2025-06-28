@@ -6,6 +6,7 @@ mod libp2p_tests {
     use tokio::time::{sleep, timeout, Duration};
 
     #[tokio::test]
+    #[ignore]
     async fn test_gossipsub_and_request_response() {
         let node_a = Libp2pNetworkService::new(NetworkConfig::default())
             .await

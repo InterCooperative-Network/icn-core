@@ -165,6 +165,7 @@ mod tests {
         let result = enforcer.spend_mana(&did, 100);
         assert!(result.is_ok());
 
+        drop(enforcer); // release Sled DB before reopening
         let ledger_check = SledManaLedger::new(ledger_path).unwrap();
         assert_eq!(ledger_check.get_balance(&did), 50);
     }
