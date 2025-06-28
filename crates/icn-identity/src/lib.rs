@@ -352,10 +352,15 @@ pub struct ExecutionReceipt {
 }
 
 impl ExecutionReceipt {
-    /// Creates the canonical message bytes for signing.
-    /// The fields must be serialized in a deterministic way.
-    /// IMPORTANT: The order of fields here MUST match the order in `verify_signature`.
-    fn to_signable_bytes(&self) -> Result<Vec<u8>, CommonError> {
+    /// Creates the canonical message bytes used when signing an execution receipt.
+    ///
+    /// The fields are serialized in a deterministic order so both the signer
+    /// and verifier produce identical bytes. This method is public so external
+    /// components can obtain the exact payload that is covered by the
+    /// [`sign_with_key`](Self::sign_with_key) and verification helpers.
+    /// IMPORTANT: The order of fields here **must** match the order in
+    /// [`verify_against_key`](Self::verify_against_key).
+    pub fn to_signable_bytes(&self) -> Result<Vec<u8>, CommonError> {
         // Using a simple concatenation of relevant fields.
         // A more robust canonicalization (e.g., IPLD canonical form, or JSON Canonicalization Scheme)
         // would be better for interoperability and to prevent canonicalization attacks.
@@ -699,5 +704,29 @@ mod tests {
         assert!(signed.verify_with_resolver(&resolver).is_ok());
 
         handle.join().unwrap();
+    }
+
+    #[test]
+    fn receipt_to_signable_bytes_public() {
+        let (_sk, pk) = generate_ed25519_keypair();
+        let did = Did::from_str(&did_key_from_verifying_key(&pk)).unwrap();
+        let job_cid = dummy_cid_for_test("bytes_job");
+        let result_cid = dummy_cid_for_test("bytes_res");
+        let receipt = ExecutionReceipt {
+            job_id: job_cid.clone(),
+            executor_did: did.clone(),
+            result_cid: result_cid.clone(),
+            cpu_ms: 42,
+            success: true,
+            sig: SignatureBytes(vec![]),
+        };
+        let bytes = receipt.to_signable_bytes().unwrap();
+        let mut expected = Vec::new();
+        expected.extend_from_slice(job_cid.to_string().as_bytes());
+        expected.extend_from_slice(did.to_string().as_bytes());
+        expected.extend_from_slice(result_cid.to_string().as_bytes());
+        expected.extend_from_slice(&42u64.to_le_bytes());
+        expected.push(1);
+        assert_eq!(bytes, expected);
     }
 }
