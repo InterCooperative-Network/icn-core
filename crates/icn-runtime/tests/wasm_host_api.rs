@@ -16,17 +16,17 @@ async fn wasm_host_api_functions() {
     let ctx = RuntimeContext::new_with_stubs_and_mana("did:key:zHostTest", 50);
     let engine = Engine::default();
     let module_wat = r#"(module
-        (import "icn" "wasm_host_submit_mesh_job" (func $submit (param i32 i32)))
+        (import "icn" "wasm_host_submit_mesh_job" (func $submit (param i32 i32 i32 i32) (result i32)))
         (import "icn" "wasm_host_get_pending_mesh_jobs" (func $get_jobs (param i32 i32) (result i32)))
         (import "icn" "wasm_host_account_get_mana" (func $get_mana (param i32 i32) (result i64)))
         (import "icn" "wasm_host_account_spend_mana" (func $spend (param i32 i32 i64)))
-        (import "icn" "wasm_host_anchor_receipt" (func $anchor (param i32 i32)))
+        (import "icn" "wasm_host_anchor_receipt" (func $anchor (param i32 i32 i32 i32) (result i32)))
         (memory (export "memory") 1)
-        (func (export "submit") (param i32 i32) (local.get 0) (local.get 1) call $submit)
+        (func (export "submit") (param i32 i32 i32 i32) (result i32) (local.get 0) (local.get 1) (local.get 2) (local.get 3) call $submit)
         (func (export "get_jobs") (param i32 i32) (result i32) (local.get 0) (local.get 1) call $get_jobs)
         (func (export "get_mana") (param i32 i32) (result i64) (local.get 0) (local.get 1) call $get_mana)
         (func (export "spend") (param i32 i32 i64) (local.get 0) (local.get 1) (local.get 2) call $spend)
-        (func (export "anchor") (param i32 i32) (local.get 0) (local.get 1) call $anchor)
+        (func (export "anchor") (param i32 i32 i32 i32) (result i32) (local.get 0) (local.get 1) (local.get 2) (local.get 3) call $anchor)
     )"#;
     let module_bytes = wat::parse_str(module_wat).unwrap();
     let module = Module::new(&engine, module_bytes).unwrap();
@@ -84,9 +84,18 @@ async fn wasm_host_api_functions() {
 
     // Submit job via wasm
     let submit = instance
-        .get_typed_func::<(i32, i32), ()>(&mut store, "submit")
+        .get_typed_func::<(i32, i32, i32, i32), i32>(&mut store, "submit")
         .unwrap();
-    submit.call(&mut store, (0, job_json.len() as i32)).unwrap();
+    let job_id_ptr = 500i32;
+    let written_id = submit
+        .call(&mut store, (0, job_json.len() as i32, job_id_ptr, 100))
+        .unwrap();
+    assert!(written_id > 0);
+    let mut id_buf = vec![0u8; written_id as usize];
+    memory
+        .read(&mut store, job_id_ptr as usize, &mut id_buf)
+        .unwrap();
+    let _job_id_str = String::from_utf8(id_buf).unwrap();
 
     // DID string for mana calls
     let did_str = ctx.current_identity.to_string();
@@ -137,11 +146,21 @@ async fn wasm_host_api_functions() {
         .write(&mut store, 2000, receipt_json.as_bytes())
         .unwrap();
     let anchor = instance
-        .get_typed_func::<(i32, i32), ()>(&mut store, "anchor")
+        .get_typed_func::<(i32, i32, i32, i32), i32>(&mut store, "anchor")
         .unwrap();
-    anchor
-        .call(&mut store, (2000, receipt_json.len() as i32))
+    let anchor_ptr = 4000i32;
+    let cid_len = anchor
+        .call(
+            &mut store,
+            (2000, receipt_json.len() as i32, anchor_ptr, 100),
+        )
         .unwrap();
+    assert!(cid_len > 0);
+    let mut cid_buf = vec![0u8; cid_len as usize];
+    memory
+        .read(&mut store, anchor_ptr as usize, &mut cid_buf)
+        .unwrap();
+    let _anchor_cid = String::from_utf8(cid_buf).unwrap();
 
     // reputation updated
     assert!(ctx.reputation_store.get_reputation(&node_did) > 0);
