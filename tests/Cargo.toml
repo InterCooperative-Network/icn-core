@@ -23,8 +23,19 @@ path = "integration/persistence.rs"
 name = "icn_node_end_to_end"
 path = "integration/icn_node_end_to_end.rs"
 
+[[test]]
+name = "cli_integration"
+path = "integration/cli_integration.rs"
+
 [dependencies]
 reqwest.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
 once_cell = "1"
+assert_cmd = "2.0"
+predicates = "3.1"
+serial_test = { version = "3", features = ["async"] }
+axum = { version = "0.7", features = ["json"] }
+icn-cli = { path = "../crates/icn-cli" }
+icn-node = { path = "../crates/icn-node" }
+icn-common = { path = "../crates/icn-common" }
