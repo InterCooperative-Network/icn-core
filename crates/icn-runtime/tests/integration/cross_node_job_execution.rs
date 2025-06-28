@@ -55,6 +55,7 @@ mod cross_node_tests {
             listen,
             bootstrap_peers,
             std::path::PathBuf::from("./mana_ledger.sled"),
+            std::path::PathBuf::from("./reputation.sled"),
         )
         .await?;
         

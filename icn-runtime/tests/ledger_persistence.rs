@@ -16,6 +16,7 @@ async fn mana_persists_across_contexts() {
         Arc::new(StubSigner::new()),
         Arc::new(TokioMutex::new(StubDagStore::new())),
         ledger_path.clone(),
+        temp_dir.path().join("rep.sled"),
     );
     ctx1.mana_ledger.set_balance(&did, 42).unwrap();
     drop(ctx1);
@@ -26,6 +27,7 @@ async fn mana_persists_across_contexts() {
         Arc::new(StubSigner::new()),
         Arc::new(TokioMutex::new(StubDagStore::new())),
         ledger_path,
+        temp_dir.path().join("rep.sled"),
     );
     assert_eq!(ctx2.mana_ledger.get_balance(&did), 42);
 }

@@ -15,6 +15,7 @@ async fn governance_persists_between_restarts() {
         None,
         Some(ledger_path.clone()),
         Some(gov_path.clone()),
+        None,
     )
     .await;
 
@@ -47,6 +48,7 @@ async fn governance_persists_between_restarts() {
         None,
         Some(ledger_path.clone()),
         Some(gov_path.clone()),
+        None,
     )
     .await;
     let gov2 = ctx2.governance_module.lock().await;

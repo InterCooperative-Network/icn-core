@@ -39,6 +39,7 @@ mod multi_node_libp2p {
             listen,
             bootstrap_peers,
             std::path::PathBuf::from("./mana_ledger.sled"),
+            std::path::PathBuf::from("./reputation.sled"),
         )
         .await?;
         let identity = Did::from_str(&identity_str)?;

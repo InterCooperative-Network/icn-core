@@ -20,6 +20,7 @@ mod libp2p_integration_tests {
             listen,
             None,  // No bootstrap peers for this simple test
             std::path::PathBuf::from("./mana_ledger.sled"),
+            std::path::PathBuf::from("./reputation.sled"),
         )
         .await;
         
@@ -74,6 +75,7 @@ mod libp2p_integration_tests {
             listen,
             Some(bootstrap_peers),
             std::path::PathBuf::from("./mana_ledger.sled"),
+            std::path::PathBuf::from("./reputation.sled"),
         )
         .await;
         
