@@ -318,7 +318,7 @@ pub fn wasm_host_submit_mesh_job(
     ptr: u32,
     len: u32,
 ) {
-    if let Ok(job_json) = memory::read_string(&mut caller, ptr, len) {
+    if let Ok(job_json) = memory::read_guest_string(&mut caller, ptr, len) {
         let handle = tokio::runtime::Handle::current();
         let _ = handle.block_on(host_submit_mesh_job(caller.data(), &job_json));
     }
@@ -344,7 +344,7 @@ pub fn wasm_host_get_pending_mesh_jobs(
     };
     let bytes = json.as_bytes();
     let copy_len = bytes.len().min(len as usize);
-    if memory::write_bytes(&mut caller, ptr, &bytes[..copy_len]).is_ok() {
+    if memory::write_guest_bytes(&mut caller, ptr, &bytes[..copy_len]).is_ok() {
         copy_len as u32
     } else {
         0
@@ -357,7 +357,7 @@ pub fn wasm_host_anchor_receipt(
     ptr: u32,
     len: u32,
 ) {
-    if let Ok(json) = memory::read_string(&mut caller, ptr, len) {
+    if let Ok(json) = memory::read_guest_string(&mut caller, ptr, len) {
         let handle = tokio::runtime::Handle::current();
         let rep = ReputationUpdater::new();
         let _ = handle.block_on(host_anchor_receipt(caller.data(), &json, &rep));
@@ -371,7 +371,7 @@ pub fn wasm_host_account_get_mana(
     ptr: u32,
     len: u32,
 ) -> u64 {
-    if let Ok(did) = memory::read_string(&mut caller, ptr, len) {
+    if let Ok(did) = memory::read_guest_string(&mut caller, ptr, len) {
         let handle = tokio::runtime::Handle::current();
         handle
             .block_on(host_account_get_mana(caller.data(), &did))
@@ -389,7 +389,7 @@ pub fn wasm_host_account_spend_mana(
     len: u32,
     amount: u64,
 ) {
-    if let Ok(did) = memory::read_string(&mut caller, ptr, len) {
+    if let Ok(did) = memory::read_guest_string(&mut caller, ptr, len) {
         let handle = tokio::runtime::Handle::current();
         let _ = handle.block_on(host_account_spend_mana(caller.data(), &did, amount));
     }
