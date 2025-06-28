@@ -1,6 +1,6 @@
 # ICN HTTP API
 
-The ICN node exposes a REST interface. All endpoints require the configured `x-api-key` header if an API key is set. If an `auth_token` is configured, requests must also include `Authorization: Bearer <token>`. When no API key is set the `--open-rate-limit` option controls the number of unauthenticated requests allowed per minute.
+The ICN node exposes a REST interface. All endpoints require the configured `x-api-key` header if an API key is set. If an `auth_token` is configured, requests must also include `Authorization: Bearer <token>`. When no API key is set the `--open-rate-limit` option controls the number of unauthenticated requests allowed per minute. If `tls_cert_path` and `tls_key_path` are supplied the server only accepts HTTPS connections.
 
 | Method | Path | Description |
 |--------|------|-------------|
