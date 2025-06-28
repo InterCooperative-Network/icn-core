@@ -1,4 +1,4 @@
-use icn_ccl::compile_ccl_source_to_wasm;
+use icn_ccl::{compile_ccl_file_to_wasm, compile_ccl_source_to_wasm};
 use icn_common::{Cid, DagBlock};
 use icn_dag::sled_store::SledDagStore;
 use icn_identity::{did_key_from_verifying_key, generate_ed25519_keypair, SignatureBytes};
@@ -225,5 +225,57 @@ async fn compile_and_execute_simple_contract() {
     let receipt = handle.join().unwrap().unwrap();
     assert_eq!(receipt.executor_did, node_did);
     let expected_cid = Cid::new_v1_sha256(0x55, &8i64.to_le_bytes());
+    assert_eq!(receipt.result_cid, expected_cid);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn wasm_executor_runs_compiled_file() {
+    let contract_path =
+        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/contracts/example.ccl");
+    let (wasm, _) = compile_ccl_file_to_wasm(&contract_path).expect("compile file");
+
+    let ctx = ctx_with_temp_store("did:key:zFileExec", 10);
+    let ts = 0u64;
+    let author = icn_common::Did::new("key", "tester");
+    let sig_opt = None;
+    let cid = icn_common::compute_merkle_cid(0x71, &wasm, &[], ts, &author, &sig_opt);
+    let block = DagBlock {
+        cid: cid.clone(),
+        data: wasm.clone(),
+        links: vec![],
+        timestamp: ts,
+        author_did: author,
+        signature: sig_opt,
+    };
+    {
+        let mut store = ctx.dag_store.lock().await;
+        store.put(&block).unwrap();
+    }
+
+    let (sk, vk) = generate_ed25519_keypair();
+    let node_did = icn_common::Did::from_str(&did_key_from_verifying_key(&vk)).unwrap();
+    let job = ActualMeshJob {
+        id: Cid::new_v1_sha256(0x55, b"job_file"),
+        manifest_cid: cid,
+        spec: JobSpec {
+            kind: icn_mesh::JobKind::CclWasm,
+            ..Default::default()
+        },
+        creator_did: node_did.clone(),
+        cost_mana: 0,
+        max_execution_wait_ms: None,
+        signature: SignatureBytes(vec![]),
+    };
+
+    let signer = Arc::new(StubSigner::new_with_keys(sk, vk));
+    let exec = WasmExecutor::new(ctx.clone(), signer);
+    let job_clone = job.clone();
+    let handle = std::thread::spawn(move || {
+        let rt = Runtime::new().unwrap();
+        rt.block_on(async { exec.execute_job(&job_clone).await })
+    });
+    let receipt = handle.join().unwrap().unwrap();
+    assert_eq!(receipt.executor_did, node_did);
+    let expected_cid = Cid::new_v1_sha256(0x55, &11i64.to_le_bytes());
     assert_eq!(receipt.result_cid, expected_cid);
 }
