@@ -640,12 +640,24 @@ impl RuntimeContext {
         false
     }
 
-    pub async fn internal_queue_mesh_job(&self, job: ActualMeshJob) -> Result<(), HostAbiError> {
+    pub async fn internal_queue_mesh_job(self: &Arc<Self>, job: ActualMeshJob) -> Result<(), HostAbiError> {
         let mut queue = self.pending_mesh_jobs.lock().await;
         queue.push_back(job.clone());
         let mut states = self.job_states.lock().await;
         states.insert(job.id.clone(), JobState::Pending);
         println!("[CONTEXT] Queued mesh job: id={:?}, state=Pending", job.id);
+
+        if self.manifest_is_ccl_wasm(&job.manifest_cid).await {
+            let signer = self.signer.clone();
+            let ctx_clone = Arc::clone(self);
+            let job_clone = job.clone();
+            tokio::spawn(async move {
+                let executor = crate::executor::WasmExecutor::new(ctx_clone.clone(), signer);
+                if let Err(e) = executor.execute_and_anchor_job(&job_clone).await {
+                    log::error!("WASM job execution failed: {:?}", e);
+                }
+            });
+        }
         Ok(())
     }
 
@@ -1396,19 +1408,19 @@ impl RuntimeContext {
 pub trait HostEnvironment: Send + Sync + std::fmt::Debug {
     fn env_submit_mesh_job(
         &self,
-        ctx: &mut RuntimeContext,
+        ctx: &Arc<RuntimeContext>,
         job_data_ptr: u32,
         job_data_len: u32,
     ) -> Result<u32, HostAbiError>;
     fn env_account_get_mana(
         &self,
-        ctx: &RuntimeContext,
+        ctx: &Arc<RuntimeContext>,
         account_did_ptr: u32,
         account_did_len: u32,
     ) -> Result<u64, HostAbiError>;
     fn env_account_spend_mana(
         &self,
-        ctx: &mut RuntimeContext,
+        ctx: &Arc<RuntimeContext>,
         account_did_ptr: u32,
         account_did_len: u32,
         amount: u64,
@@ -1433,7 +1445,7 @@ impl ConcreteHostEnvironment {
 impl HostEnvironment for ConcreteHostEnvironment {
     fn env_submit_mesh_job(
         &self,
-        ctx: &mut RuntimeContext,
+        ctx: &Arc<RuntimeContext>,
         job_data_ptr: u32,
         job_data_len: u32,
     ) -> Result<u32, HostAbiError> {
@@ -1458,13 +1470,16 @@ impl HostEnvironment for ConcreteHostEnvironment {
             .build()
             .map_err(|e| HostAbiError::InternalError(format!("Runtime build failed: {e}")))?;
 
+        let ctx_clone = Arc::clone(ctx);
         let cid = rt.block_on(async {
-            ctx.spend_mana(&ctx.current_identity, job.cost_mana).await?;
+            ctx_clone
+                .spend_mana(&ctx_clone.current_identity, job.cost_mana)
+                .await?;
             let job_id_val = NEXT_JOB_ID.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             let cid = Cid::new_v1_sha256(0x55, format!("job_cid_{job_id_val}").as_bytes());
             job.id = cid.clone();
-            job.creator_did = ctx.current_identity.clone();
-            ctx.internal_queue_mesh_job(job).await?;
+            job.creator_did = ctx_clone.current_identity.clone();
+            ctx_clone.internal_queue_mesh_job(job).await?;
             Ok::<Cid, HostAbiError>(cid)
         })?;
 
@@ -1476,7 +1491,7 @@ impl HostEnvironment for ConcreteHostEnvironment {
     }
     fn env_account_get_mana(
         &self,
-        ctx: &RuntimeContext,
+        ctx: &Arc<RuntimeContext>,
         account_did_ptr: u32,
         account_did_len: u32,
     ) -> Result<u64, HostAbiError> {
@@ -1499,11 +1514,12 @@ impl HostEnvironment for ConcreteHostEnvironment {
             .build()
             .map_err(|e| HostAbiError::InternalError(format!("Runtime build failed: {e}")))?;
 
-        rt.block_on(ctx.get_mana(&account_did))
+        let ctx_clone = Arc::clone(ctx);
+        rt.block_on(ctx_clone.get_mana(&account_did))
     }
     fn env_account_spend_mana(
         &self,
-        ctx: &mut RuntimeContext,
+        ctx: &Arc<RuntimeContext>,
         account_did_ptr: u32,
         account_did_len: u32,
         amount: u64,
@@ -1527,7 +1543,8 @@ impl HostEnvironment for ConcreteHostEnvironment {
             .build()
             .map_err(|e| HostAbiError::InternalError(format!("Runtime build failed: {e}")))?;
 
-        rt.block_on(ctx.spend_mana(&account_did, amount))
+        let ctx_clone = Arc::clone(ctx);
+        rt.block_on(ctx_clone.spend_mana(&account_did, amount))
     }
 }
 
@@ -1777,23 +1794,21 @@ impl MeshNetworkService for StubMeshNetworkService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::PathBuf;
     use std::sync::Arc;
+    use tokio::sync::Mutex as TokioMutex;
 
     #[test]
     fn test_env_submit_mesh_job_success() {
         let mut env = ConcreteHostEnvironment::new();
         let _ = std::fs::remove_file("./mana_ledger.sled");
         let ctx_arc = RuntimeContext::new_with_stubs_and_mana("did:icn:test:env_submit", 100);
-        let mut ctx = match Arc::try_unwrap(ctx_arc) {
-            Ok(c) => c,
-            Err(_) => panic!("Arc had multiple references"),
-        };
 
         let job = ActualMeshJob {
             id: Cid::new_v1_sha256(0x55, b"job"),
             manifest_cid: Cid::new_v1_sha256(0x55, b"manifest"),
             spec: icn_mesh::JobSpec::default(),
-            creator_did: ctx.current_identity.clone(),
+            creator_did: ctx_arc.current_identity.clone(),
             cost_mana: 10,
             max_execution_wait_ms: None,
             signature: icn_identity::SignatureBytes(vec![0u8; 64]),
@@ -1802,13 +1817,13 @@ mod tests {
         env.set_memory(job_json.clone());
         let ptr = 0u32;
         let len = job_json.len() as u32;
-        let result = env.env_submit_mesh_job(&mut ctx, ptr, len);
+        let result = env.env_submit_mesh_job(&ctx_arc, ptr, len);
         assert!(result.is_ok());
 
-        let mana_after = futures::executor::block_on(ctx.get_mana(&ctx.current_identity)).unwrap();
+        let mana_after = futures::executor::block_on(ctx_arc.get_mana(&ctx_arc.current_identity)).unwrap();
         assert_eq!(mana_after, 90);
         let pending_len =
-            futures::executor::block_on(async { ctx.pending_mesh_jobs.lock().await.len() });
+            futures::executor::block_on(async { ctx_arc.pending_mesh_jobs.lock().await.len() });
         assert_eq!(pending_len, 1);
     }
 
@@ -1817,16 +1832,12 @@ mod tests {
         let mut env = ConcreteHostEnvironment::new();
         let _ = std::fs::remove_file("./mana_ledger.sled");
         let ctx_arc = RuntimeContext::new_with_stubs_and_mana("did:icn:test:env_mana", 50);
-        let ctx = match Arc::try_unwrap(ctx_arc) {
-            Ok(c) => c,
-            Err(_) => panic!("Arc had multiple references"),
-        };
 
-        let did_bytes = ctx.current_identity.to_string().into_bytes();
+        let did_bytes = ctx_arc.current_identity.to_string().into_bytes();
         env.set_memory(did_bytes.clone());
         let ptr = 0u32;
         let len = did_bytes.len() as u32;
-        let mana = env.env_account_get_mana(&ctx, ptr, len).unwrap();
+        let mana = env.env_account_get_mana(&ctx_arc, ptr, len).unwrap();
         assert_eq!(mana, 50);
     }
 
@@ -1835,18 +1846,14 @@ mod tests {
         let mut env = ConcreteHostEnvironment::new();
         let _ = std::fs::remove_file("./mana_ledger.sled");
         let ctx_arc = RuntimeContext::new_with_stubs_and_mana("did:icn:test:env_spend", 20);
-        let mut ctx = match Arc::try_unwrap(ctx_arc) {
-            Ok(c) => c,
-            Err(_) => panic!("Arc had multiple references"),
-        };
 
-        let did_bytes = ctx.current_identity.to_string().into_bytes();
+        let did_bytes = ctx_arc.current_identity.to_string().into_bytes();
         env.set_memory(did_bytes.clone());
         let ptr = 0u32;
         let len = did_bytes.len() as u32;
-        let result = env.env_account_spend_mana(&mut ctx, ptr, len, 10);
+        let result = env.env_account_spend_mana(&ctx_arc, ptr, len, 10);
         assert!(result.is_ok());
-        let mana = futures::executor::block_on(ctx.get_mana(&ctx.current_identity)).unwrap();
+        let mana = futures::executor::block_on(ctx_arc.get_mana(&ctx_arc.current_identity)).unwrap();
         assert_eq!(mana, 10);
     }
 
@@ -1854,13 +1861,10 @@ mod tests {
     fn test_env_submit_mesh_job_invalid_utf8() {
         let mut env = ConcreteHostEnvironment::new();
         let ctx_arc = RuntimeContext::new_with_stubs_and_mana("did:icn:test:env_submit_utf8", 100);
-        let mut ctx = Arc::try_unwrap(ctx_arc)
-            .ok()
-            .expect("Arc had multiple references");
 
         // Invalid UTF-8 bytes
         env.set_memory(vec![0xff, 0xfe, 0xfd]);
-        let err = env.env_submit_mesh_job(&mut ctx, 0, 3).unwrap_err();
+        let err = env.env_submit_mesh_job(&ctx_arc, 0, 3).unwrap_err();
         assert!(matches!(err, HostAbiError::InvalidParameters(_)));
     }
 
@@ -1868,12 +1872,9 @@ mod tests {
     fn test_env_account_get_mana_invalid_did() {
         let mut env = ConcreteHostEnvironment::new();
         let ctx_arc = RuntimeContext::new_with_stubs_and_mana("did:icn:test:env_get_invalid", 10);
-        let ctx = Arc::try_unwrap(ctx_arc)
-            .ok()
-            .expect("Arc had multiple references");
 
         env.set_memory(b"not_a_did".to_vec());
-        let res = env.env_account_get_mana(&ctx, 0, 9);
+        let res = env.env_account_get_mana(&ctx_arc, 0, 9);
         assert!(matches!(res, Err(HostAbiError::InvalidParameters(_))));
     }
 
@@ -1881,21 +1882,29 @@ mod tests {
     fn test_env_account_spend_mana_insufficient() {
         let mut env = ConcreteHostEnvironment::new();
         let ctx_arc = RuntimeContext::new_with_stubs_and_mana("did:icn:test:env_spend_fail", 5);
-        let mut ctx = Arc::try_unwrap(ctx_arc)
-            .ok()
-            .expect("Arc had multiple references");
 
-        let did_bytes = ctx.current_identity.to_string().into_bytes();
+        let did_bytes = ctx_arc.current_identity.to_string().into_bytes();
         env.set_memory(did_bytes.clone());
         let err = env
-            .env_account_spend_mana(&mut ctx, 0, did_bytes.len() as u32, 10)
+            .env_account_spend_mana(&ctx_arc, 0, did_bytes.len() as u32, 10)
             .unwrap_err();
         assert!(matches!(err, HostAbiError::InsufficientMana));
     }
 
     #[tokio::test]
     async fn test_wait_for_and_process_receipt_updates_mana_and_reputation() {
-        let ctx = RuntimeContext::new_with_stubs_and_mana("did:icn:test:manager", 0);
+        let (sk, vk) = generate_ed25519_keypair();
+        let did = did_key_from_verifying_key(&vk);
+        let signer = Arc::new(StubSigner::new_with_keys(sk.clone(), vk.clone()));
+        let ctx = RuntimeContext::new_with_ledger_path(
+            Did::from_str(&did).unwrap(),
+            Arc::new(StubMeshNetworkService::new()),
+            signer.clone(),
+            Arc::new(KeyDidResolver),
+            Arc::new(TokioMutex::new(StubDagStore::new())),
+            PathBuf::from("./mana_ledger.sled"),
+            PathBuf::from("./reputation.sled"),
+        );
 
         let stub_net = ctx
             .mesh_network_service

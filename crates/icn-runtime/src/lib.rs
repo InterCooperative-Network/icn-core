@@ -25,8 +25,6 @@ pub use icn_dag::StorageService;
 
 // Re-export ABI constants
 pub use abi::*;
-
-use crate::executor::WasmExecutor;
 use icn_common::{Cid, CommonError, Did, NodeInfo};
 use log::{debug, info};
 use std::str::FromStr;
@@ -104,21 +102,10 @@ pub async fn host_submit_mesh_job(
     job_to_submit.id = job_id_cid.clone();
     job_to_submit.creator_did = ctx.current_identity.clone();
 
-    // Call the internal queuing function on RuntimeContext
-    ctx.internal_queue_mesh_job(job_to_submit.clone()).await?; // Await the async call
-
-    // If the manifest CID references a compiled CCL WASM module, execute it
-    if ctx.manifest_is_ccl_wasm(&job_to_submit.manifest_cid).await {
-        let signer = ctx.signer.clone();
-        let ctx_clone = ctx.clone();
-        let job_clone = job_to_submit.clone();
-        tokio::spawn(async move {
-            let executor = WasmExecutor::new(ctx_clone.clone(), signer);
-            if let Err(e) = executor.execute_and_anchor_job(&job_clone).await {
-                log::error!("WASM job execution failed: {:?}", e);
-            }
-        });
-    }
+    // Call the internal queuing function on RuntimeContext. It will
+    // automatically execute the job if the manifest references a compiled
+    // CCL module.
+    ctx.internal_queue_mesh_job(job_to_submit.clone()).await?;
 
     println!(
         "[RUNTIME_ABI] Job {:?} submitted by {:?} with cost {} was queued successfully.",

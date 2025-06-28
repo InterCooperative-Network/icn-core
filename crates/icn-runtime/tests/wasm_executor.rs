@@ -249,3 +249,38 @@ async fn submit_compiled_ccl_runs_via_executor() {
         panic!("job not completed");
     }
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn queued_compiled_ccl_executes() {
+    let ctx = RuntimeContext::new_with_stubs_and_mana("did:key:zQueueExec", 5);
+    let source = "fn run() -> Integer { return 4; }";
+    let (wasm, _) = icn_ccl::compile_ccl_source_to_wasm(source).unwrap();
+    let block = DagBlock {
+        cid: Cid::new_v1_sha256(0x71, &wasm),
+        data: wasm.clone(),
+        links: vec![],
+    };
+    {
+        let mut store = ctx.dag_store.lock().await;
+        store.put(&block).unwrap();
+    }
+    let cid = block.cid.clone();
+    let job = ActualMeshJob {
+        id: Cid::new_v1_sha256(0x55, b"queued"),
+        manifest_cid: cid.clone(),
+        spec: JobSpec::default(),
+        creator_did: ctx.current_identity.clone(),
+        cost_mana: 0,
+        max_execution_wait_ms: None,
+        signature: SignatureBytes(vec![]),
+    };
+    ctx.internal_queue_mesh_job(job.clone()).await.unwrap();
+    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    let states = ctx.job_states.lock().await;
+    if let Some(icn_mesh::JobState::Completed { receipt }) = states.get(&job.id) {
+        let expected = Cid::new_v1_sha256(0x55, &4i64.to_le_bytes());
+        assert_eq!(receipt.result_cid, expected);
+    } else {
+        panic!("job not completed");
+    }
+}
