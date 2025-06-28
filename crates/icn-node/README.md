@@ -48,7 +48,7 @@ Below is a minimal example in TOML (the same keys can be used in YAML):
 ```toml
 node_name = "Local Node"
 http_listen_addr = "127.0.0.1:8080"
-storage_backend = "file"
+storage_backend = "rocksdb"
 storage_path = "./icn_data/node_store"
 mana_ledger_path = "./mana_ledger.sled"
 node_did_path = "./icn_data/node_did.txt"
@@ -67,7 +67,7 @@ Useful CLI flags include:
 
 * `--node-did-path <PATH>` – location to read/write the node DID string
 * `--node-private-key-path <PATH>` – location to read/write the node private key
-* `--storage-backend <memory|file|sqlite>` – choose the DAG storage backend
+* `--storage-backend <memory|file|sqlite|rocksdb>` – choose the DAG storage backend
 * `--storage-path <PATH>` – directory for the file or SQLite backends
 * `--mana-ledger-path <PATH>` – location of the mana ledger database
 * `--governance-db-path <PATH>` – location to persist governance proposals and votes

@@ -30,7 +30,7 @@ For a small group of cooperating nodes, each node may use a persistent store and
 bootstrap to known peers.
 
 ```bash
-icn-node --storage-backend sqlite --storage-path ./icn_data/node1.sqlite \
+icn-node --storage-backend rocksdb --storage-path ./icn_data/node1.rocks \
          --bootstrap-peers /ip4/1.2.3.4/tcp/7000/p2p/QmPeer \
          --api-key node1secret --open-rate-limit 0 \
          --tls-cert-path ./cert.pem --tls-key-path ./key.pem
@@ -41,8 +41,8 @@ A configuration file might contain:
 
 ```toml
 http_listen_addr = "0.0.0.0:7845"
-storage_backend = "sqlite"
-storage_path = "./icn_data/node1.sqlite"
+storage_backend = "rocksdb"
+storage_path = "./icn_data/node1.rocks"
 bootstrap_peers = ["/ip4/1.2.3.4/tcp/7000/p2p/QmPeer"]
 api_key = "node1secret"
 tls_cert_path = "./cert.pem"
