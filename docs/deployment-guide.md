@@ -15,6 +15,14 @@ icn-node --storage-backend memory --http-listen-addr 127.0.0.1:7845 \
 Providing certificate and key paths makes the server listen on HTTPS instead of HTTP.
 
 A sample TOML configuration is in `configs/single_node.toml`.
+You can also supply these values via configuration or environment variables:
+
+```toml
+http_listen_addr = "127.0.0.1:7845"
+api_key = "mylocalkey"
+tls_cert_path = "./cert.pem"
+tls_key_path = "./key.pem"
+```
 
 ## Small Federation
 
@@ -29,3 +37,14 @@ icn-node --storage-backend sqlite --storage-path ./icn_data/node1.sqlite \
 ```
 
 See `configs/small_federation.toml` for an example configuration file.
+A configuration file might contain:
+
+```toml
+http_listen_addr = "0.0.0.0:7845"
+storage_backend = "sqlite"
+storage_path = "./icn_data/node1.sqlite"
+bootstrap_peers = ["/ip4/1.2.3.4/tcp/7000/p2p/QmPeer"]
+api_key = "node1secret"
+tls_cert_path = "./cert.pem"
+tls_key_path = "./key.pem"
+```

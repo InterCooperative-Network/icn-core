@@ -14,6 +14,9 @@ services:
       - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
       - ICN_ENABLE_P2P=true
       - ICN_STORAGE_BACKEND=memory
+      - ICN_HTTP_API_KEY=devnet-a-key
+      - ICN_TLS_CERT_PATH=/app/certs/cert.pem
+      - ICN_TLS_KEY_PATH=/app/certs/key.pem
       - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
     ports:
       - "5001:7845"  # HTTP API
@@ -22,6 +25,7 @@ services:
       - icn-federation
     volumes:
       - node-a-data:/app/data
+      - ./certs:/app/certs:ro
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:7845/info"]
       interval: 30s
@@ -43,6 +47,9 @@ services:
       - ICN_ENABLE_P2P=true
       - ICN_BOOTSTRAP_PEERS=/ip4/172.20.0.2/tcp/4001/p2p/12D3KooWMihHnheYawaboC67SA9ZTG71DPfTiC8BphXz8PcojDdz
       - ICN_STORAGE_BACKEND=memory
+      - ICN_HTTP_API_KEY=devnet-b-key
+      - ICN_TLS_CERT_PATH=/app/certs/cert.pem
+      - ICN_TLS_KEY_PATH=/app/certs/key.pem
       - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
     ports:
       - "5002:7845"  # HTTP API
@@ -51,6 +58,7 @@ services:
       - icn-federation
     volumes:
       - node-b-data:/app/data
+      - ./certs:/app/certs:ro
     depends_on:
       - icn-node-a
     healthcheck:
@@ -74,6 +82,9 @@ services:
       - ICN_ENABLE_P2P=true
       - ICN_BOOTSTRAP_PEERS=/ip4/172.20.0.2/tcp/4001/p2p/12D3KooWMihHnheYawaboC67SA9ZTG71DPfTiC8BphXz8PcojDdz
       - ICN_STORAGE_BACKEND=memory
+      - ICN_HTTP_API_KEY=devnet-c-key
+      - ICN_TLS_CERT_PATH=/app/certs/cert.pem
+      - ICN_TLS_KEY_PATH=/app/certs/key.pem
       - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
     ports:
       - "5003:7845"  # HTTP API
@@ -82,6 +93,7 @@ services:
       - icn-federation
     volumes:
       - node-c-data:/app/data
+      - ./certs:/app/certs:ro
     depends_on:
       - icn-node-a
     healthcheck:
