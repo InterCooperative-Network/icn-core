@@ -230,8 +230,8 @@ This section provides examples for all major `icn-cli` commands. Ensure an `icn-
 
 ### 3.6. Example `icn-node` Configuration with TLS and API Keys
 
-`icn-node` reads its settings from a TOML file or environment variables. Below is
-an example configuration that enables an API key, uses persistent storage, and
+`icn-node` reads its settings from a TOML file or environment variables. Below
+is an example configuration that enables an API key, uses persistent storage, and
 expects traffic to be terminated via a TLS reverse proxy (such as Nginx or
 Caddy).
 
@@ -269,6 +269,19 @@ server {
 
 This secures the HTTP API with TLS and passes the required `x-api-key` header to
 `icn-node`.
+
+To use bearer token authentication instead of an API key, add an `auth_token`
+entry to the configuration:
+
+```toml
+# node_config.toml
+auth_token = "s3cr3t-token"
+```
+
+Clients must then include `Authorization: Bearer s3cr3t-token` with each
+request. You can also supply these values via the `--api-key` and
+`--auth-token` CLI flags or the corresponding environment variables
+`ICN_API_KEY` and `ICN_AUTH_TOKEN`.
 
 ## 4. Understanding the Codebase
 
