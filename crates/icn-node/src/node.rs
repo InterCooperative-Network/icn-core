@@ -222,6 +222,7 @@ struct AppState {
     node_name: String,
     node_version: String,
     api_key: Option<String>,
+    auth_token: Option<String>,
     rate_limiter: Option<Arc<AsyncMutex<RateLimitData>>>,
     peers: Arc<TokioMutex<Vec<String>>>,
 }
@@ -239,18 +240,40 @@ async fn require_api_key(
 ) -> impl IntoResponse {
     if let Some(ref expected) = state.api_key {
         match req.headers().get("x-api-key").and_then(|v| v.to_str().ok()) {
-            Some(provided) if provided == expected => next.run(req).await,
-            _ => (
-                StatusCode::UNAUTHORIZED,
-                Json(JsonErrorResponse {
-                    error: "missing or invalid api key".to_string(),
-                }),
-            )
-                .into_response(),
+            Some(provided) if provided == expected => {}
+            _ => {
+                return (
+                    StatusCode::UNAUTHORIZED,
+                    Json(JsonErrorResponse {
+                        error: "missing or invalid api key".to_string(),
+                    }),
+                )
+                    .into_response()
+            }
         }
-    } else {
-        next.run(req).await
     }
+
+    if let Some(ref token) = state.auth_token {
+        match req
+            .headers()
+            .get(axum::http::header::AUTHORIZATION)
+            .and_then(|v| v.to_str().ok())
+            .and_then(|s| s.strip_prefix("Bearer "))
+        {
+            Some(provided) if provided == token => {}
+            _ => {
+                return (
+                    StatusCode::UNAUTHORIZED,
+                    Json(JsonErrorResponse {
+                        error: "missing or invalid bearer token".to_string(),
+                    }),
+                )
+                    .into_response()
+            }
+        }
+    }
+
+    next.run(req).await
 }
 
 async fn rate_limit_middleware(
@@ -281,7 +304,7 @@ async fn rate_limit_middleware(
 
 // --- Public App Constructor (for tests or embedding) ---
 pub async fn app_router() -> Router {
-    app_router_with_options(None, None, None, None, None)
+    app_router_with_options(None, None, None, None, None, None)
         .await
         .0
 }
@@ -289,6 +312,7 @@ pub async fn app_router() -> Router {
 /// Construct a router for tests or embedding with optional API key and rate limit.
 pub async fn app_router_with_options(
     api_key: Option<String>,
+    auth_token: Option<String>,
     rate_limit: Option<u64>,
     mana_ledger_path: Option<PathBuf>,
     governance_db_path: Option<PathBuf>,
@@ -347,6 +371,7 @@ pub async fn app_router_with_options(
         node_name: "ICN Test/Embedded Node".to_string(),
         node_version: ICN_CORE_VERSION.to_string(),
         api_key,
+        auth_token,
         rate_limiter: rate_limiter.clone(),
         peers: Arc::new(TokioMutex::new(Vec::new())),
     };
@@ -409,6 +434,19 @@ async fn main() {
     config.apply_cli_overrides(&cli, &matches);
     if let Err(e) = config.prepare_paths() {
         error!("Failed to prepare config directories: {}", e);
+    }
+
+    if config.auth_token.is_none() {
+        if let Some(path) = &config.auth_token_path {
+            match fs::read_to_string(path) {
+                Ok(tok) => {
+                    config.auth_token = Some(tok.trim().to_string());
+                }
+                Err(e) => {
+                    error!("Failed to read auth token file {}: {}", path.display(), e);
+                }
+            }
+        }
     }
 
     // --- Initialize Node Identity ---
@@ -587,21 +625,23 @@ async fn main() {
     info!("ICN RuntimeContext initialized and JobManager spawned.");
 
     // --- Create AppState for Axum ---
-    let rate_limiter = if config.api_key.is_none() && config.open_rate_limit > 0 {
-        Some(Arc::new(AsyncMutex::new(RateLimitData {
-            last: Instant::now(),
-            count: 0,
-            limit: config.open_rate_limit,
-        })))
-    } else {
-        None
-    };
+    let rate_limiter =
+        if config.api_key.is_none() && config.auth_token.is_none() && config.open_rate_limit > 0 {
+            Some(Arc::new(AsyncMutex::new(RateLimitData {
+                last: Instant::now(),
+                count: 0,
+                limit: config.open_rate_limit,
+            })))
+        } else {
+            None
+        };
 
     let app_state = AppState {
         runtime_context: rt_ctx.clone(),
         node_name: node_name.clone(),
         node_version: ICN_CORE_VERSION.to_string(),
         api_key: config.api_key.clone(),
+        auth_token: config.auth_token.clone(),
         rate_limiter: rate_limiter.clone(),
         peers: Arc::new(TokioMutex::new(Vec::new())),
     };
@@ -1622,7 +1662,7 @@ mod tests {
         use icn_identity::{did_key_from_verifying_key, generate_ed25519_keypair};
         use icn_runtime::executor::WasmExecutor;
 
-        let (app, ctx) = app_router_with_options(None, None, None, None, None).await;
+        let (app, ctx) = app_router_with_options(None, None, None, None, None, None).await;
 
         // Compile a tiny CCL contract
         let (wasm, _) =

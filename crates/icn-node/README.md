@@ -77,6 +77,7 @@ Useful CLI flags include:
 * `--bootstrap-peers <LIST>` – comma-separated list of bootstrap peer multiaddrs
 * `--enable-p2p` – enable libp2p networking (requires `with-libp2p` feature)
 * `--api-key <KEY>` – require this key via the `x-api-key` header for all requests
+* `auth_token` / `auth_token_path` – set a bearer token string or file and require `Authorization: Bearer <token>`
 * `--open-rate-limit <N>` – allowed unauthenticated requests per minute when no API key is set
 * `--tls-cert-path <PATH>` – PEM certificate file to enable HTTPS
 * `--tls-key-path <PATH>` – PEM private key file to enable HTTPS
