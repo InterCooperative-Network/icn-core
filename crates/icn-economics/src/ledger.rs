@@ -141,16 +141,6 @@ pub struct SledManaLedger {
     tree: sled::Tree,
 }
 
-#[cfg(feature = "persist-sqlite")]
-pub mod sqlite;
-#[cfg(feature = "persist-sqlite")]
-pub use sqlite::SqliteManaLedger;
-
-#[cfg(feature = "persist-rocksdb")]
-pub mod rocksdb;
-#[cfg(feature = "persist-rocksdb")]
-pub use rocksdb::RocksdbManaLedger;
-
 #[cfg(feature = "persist-sled")]
 impl SledManaLedger {
     pub fn new(path: PathBuf) -> Result<Self, CommonError> {

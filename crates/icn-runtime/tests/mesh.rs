@@ -6,7 +6,7 @@
 )]
 // crates/icn-runtime/tests/mesh.rs
 
-use icn_common::{Cid, Did};
+use icn_common::{compute_merkle_cid, Cid, Did};
 use icn_dag::StorageService;
 use icn_identity::{ExecutionReceipt as IdentityExecutionReceipt, SignatureBytes};
 use icn_mesh::{ActualMeshJob, JobId, JobSpec, JobState, MeshJobBid, Resources};

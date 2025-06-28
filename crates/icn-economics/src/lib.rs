@@ -23,6 +23,12 @@ pub enum EconError {
     PolicyViolation(String),
 }
 
+impl From<CommonError> for EconError {
+    fn from(err: CommonError) -> Self {
+        EconError::AdapterError(err.to_string())
+    }
+}
+
 /// Abstraction over the persistence layer storing account balances.
 pub trait ManaLedger: Send + Sync {
     /// Retrieve the mana balance for a DID.
@@ -155,6 +161,24 @@ mod tests {
         drop(ledger);
 
         let ledger2 = SledManaLedger::new(ledger_path).unwrap();
+        assert_eq!(ledger2.get_balance(&did), 40);
+    }
+
+    #[cfg(feature = "persist-rocksdb")]
+    #[test]
+    fn test_rocksdb_mana_ledger_basic_ops() {
+        let dir = tempdir().unwrap();
+        let ledger_path = dir.path().join("mana.rocks");
+        let ledger = RocksdbManaLedger::new(ledger_path.clone()).unwrap();
+        let did = Did::from_str("did:example:dan").unwrap();
+
+        ledger.set_balance(&did, 50).unwrap();
+        ledger.credit(&did, 20).unwrap();
+        ledger.spend(&did, 30).unwrap();
+        assert_eq!(ledger.get_balance(&did), 40);
+
+        drop(ledger);
+        let ledger2 = RocksdbManaLedger::new(ledger_path).unwrap();
         assert_eq!(ledger2.get_balance(&did), 40);
     }
 
