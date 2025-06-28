@@ -70,6 +70,28 @@ enum Commands {
         #[clap(subcommand)]
         command: CclCommands,
     },
+    /// Compile a CCL source file and upload to the node DAG
+    CompileCcl {
+        #[clap(help = "Path to the .ccl source file")]
+        file: String,
+    },
+    /// Submit a mesh job via HTTP
+    SubmitJob {
+        #[clap(help = "Mesh job submission request as a JSON string, or '-' to read from stdin")]
+        job_request_json_or_stdin: String,
+    },
+    /// Get status for a mesh job via HTTP
+    JobStatus {
+        #[clap(help = "Job ID (CID string)")]
+        job_id: String,
+    },
+    /// List federation peers
+    ListPeers,
+    /// Add a federation peer
+    AddPeer {
+        #[clap(help = "Peer ID to add")]
+        peer_id: String,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -192,6 +214,13 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
         Commands::Ccl { command } => match command {
             CclCommands::Compile { file } => handle_ccl_compile(file)?,
         },
+        Commands::CompileCcl { file } => handle_compile_ccl_upload(cli, client, file).await?,
+        Commands::SubmitJob {
+            job_request_json_or_stdin,
+        } => handle_mesh_submit(cli, client, job_request_json_or_stdin).await?,
+        Commands::JobStatus { job_id } => handle_mesh_status(cli, client, job_id).await?,
+        Commands::ListPeers => handle_list_peers(cli, client).await?,
+        Commands::AddPeer { peer_id } => handle_add_peer(cli, client, peer_id).await?,
     }
     Ok(())
 }
@@ -439,6 +468,50 @@ fn handle_ccl_compile(file: &str) -> Result<(), anyhow::Error> {
     let meta =
         compile_ccl_file(&source_path, &wasm_path, &meta_path).map_err(|e| anyhow::anyhow!(e))?;
     println!("{}", serde_json::to_string_pretty(&meta)?);
+    Ok(())
+}
+
+async fn handle_compile_ccl_upload(
+    cli: &Cli,
+    client: &Client,
+    file: &str,
+) -> Result<(), anyhow::Error> {
+    use icn_ccl::compile_ccl_file_to_wasm;
+    let source_path = PathBuf::from(file);
+    let (wasm, mut meta) = compile_ccl_file_to_wasm(&source_path)?;
+    #[derive(Serialize)]
+    struct DagBlockPayload {
+        data: Vec<u8>,
+    }
+    let payload = DagBlockPayload { data: wasm };
+    let cid: Cid = post_request(&cli.api_url, client, "/dag/put", &payload).await?;
+    meta.cid = cid.to_string();
+    println!("{}", serde_json::to_string_pretty(&meta)?);
+    Ok(())
+}
+
+async fn handle_list_peers(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
+    #[derive(Deserialize)]
+    struct Resp {
+        peers: Vec<String>,
+    }
+    let resp: Resp = get_request(&cli.api_url, client, "/federation/peers").await?;
+    println!("{}", serde_json::to_string_pretty(&resp.peers)?);
+    Ok(())
+}
+
+async fn handle_add_peer(cli: &Cli, client: &Client, peer_id: &str) -> Result<(), anyhow::Error> {
+    #[derive(Serialize)]
+    struct AddPeerRequest<'a> {
+        peer: &'a str,
+    }
+    #[derive(Deserialize)]
+    struct Resp {
+        status: String,
+    }
+    let req = AddPeerRequest { peer: peer_id };
+    let _resp: Resp = post_request(&cli.api_url, client, "/federation/peers", &req).await?;
+    println!("Peer added: {}", peer_id);
     Ok(())
 }
 

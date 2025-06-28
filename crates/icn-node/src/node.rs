@@ -210,6 +210,7 @@ struct AppState {
     node_version: String,
     api_key: Option<String>,
     rate_limiter: Option<Arc<AsyncMutex<RateLimitData>>>,
+    peers: Arc<AsyncMutex<Vec<String>>>,
 }
 
 struct RateLimitData {
@@ -330,6 +331,7 @@ pub async fn app_router_with_options(
         node_version: ICN_CORE_VERSION.to_string(),
         api_key,
         rate_limiter: rate_limiter.clone(),
+        peers: Arc::new(AsyncMutex::new(Vec::new())),
     };
 
     (
@@ -351,6 +353,8 @@ pub async fn app_router_with_options(
             .route("/mesh/jobs", get(mesh_list_jobs_handler)) // List all jobs
             .route("/mesh/jobs/:job_id", get(mesh_get_job_status_handler)) // Get specific job status
             .route("/mesh/receipts", post(mesh_submit_receipt_handler)) // Submit execution receipt
+            .route("/federation/peers", get(list_peers_handler))
+            .route("/federation/peers", post(add_peer_handler))
             .with_state(app_state.clone())
             .layer(middleware::from_fn_with_state(
                 app_state.clone(),
@@ -576,6 +580,7 @@ async fn main() {
         node_version: ICN_CORE_VERSION.to_string(),
         api_key: config.api_key.clone(),
         rate_limiter: rate_limiter.clone(),
+        peers: Arc::new(AsyncMutex::new(Vec::new())),
     };
 
     // --- Define HTTP Routes ---
@@ -597,6 +602,8 @@ async fn main() {
         .route("/mesh/jobs", get(mesh_list_jobs_handler))
         .route("/mesh/jobs/:job_id", get(mesh_get_job_status_handler))
         .route("/mesh/receipts", post(mesh_submit_receipt_handler))
+        .route("/federation/peers", get(list_peers_handler))
+        .route("/federation/peers", post(add_peer_handler))
         .with_state(app_state.clone())
         .layer(middleware::from_fn_with_state(
             app_state.clone(),
@@ -1245,6 +1252,29 @@ async fn mesh_submit_receipt_handler(
             .into_response()
         }
     }
+}
+
+#[derive(Deserialize)]
+struct AddPeerRequest {
+    peer: String,
+}
+
+// GET /federation/peers - List known federation peers
+async fn list_peers_handler(State(state): State<AppState>) -> impl IntoResponse {
+    let peers = state.peers.lock().await.clone();
+    (StatusCode::OK, Json(serde_json::json!({ "peers": peers })))
+}
+
+// POST /federation/peers - Add a peer to the federation list
+async fn add_peer_handler(
+    State(state): State<AppState>,
+    Json(req): Json<AddPeerRequest>,
+) -> impl IntoResponse {
+    state.peers.lock().await.push(req.peer);
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({ "status": "added" })),
+    )
 }
 
 // --- Test module (can be expanded later) ---

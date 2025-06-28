@@ -16,7 +16,7 @@ async fn mesh_network_and_ccl_commands() {
 
     tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
-    // Submit a mesh job via the CLI
+    // Submit a mesh job via the new submit-job command
     let job_req = serde_json::json!({
         "manifest_cid": "bafytestmanifest",
         "spec_json": { "Echo": { "payload": "hello" } },
@@ -27,7 +27,7 @@ async fn mesh_network_and_ccl_commands() {
     let base = format!("http://{addr}");
     let output = tokio::task::spawn_blocking(move || {
         Command::new(bin)
-            .args(["--api-url", &base, "mesh", "submit", &job_req])
+            .args(["--api-url", &base, "submit-job", &job_req])
             .output()
             .unwrap()
     })
@@ -38,7 +38,7 @@ async fn mesh_network_and_ccl_commands() {
     let body: serde_json::Value = serde_json::from_str(&stdout).unwrap();
     let job_id = body["job_id"].as_str().unwrap().to_string();
 
-    // mesh jobs command
+    // mesh jobs command (existing)
     let bin = env!("CARGO_BIN_EXE_icn-cli");
     let base = format!("http://{addr}");
     let job_id_clone = job_id.clone();
@@ -52,13 +52,13 @@ async fn mesh_network_and_ccl_commands() {
     .await
     .unwrap();
 
-    // mesh status command
+    // job-status command
     let bin = env!("CARGO_BIN_EXE_icn-cli");
     let base = format!("http://{addr}");
     let job_id_clone2 = job_id.clone();
     tokio::task::spawn_blocking(move || {
         Command::new(bin)
-            .args(["--api-url", &base, "mesh", "status", &job_id_clone2])
+            .args(["--api-url", &base, "job-status", &job_id_clone2])
             .assert()
             .success()
             .stdout(predicates::str::contains(&job_id_clone2));
@@ -92,19 +92,44 @@ async fn mesh_network_and_ccl_commands() {
     .await
     .unwrap();
 
-    // ccl compile command
+    // compile-ccl command uploads the compiled WASM
     let dir = tempdir().unwrap();
     let file_path = dir.path().join("test.ccl");
     std::fs::write(&file_path, "fn main() -> Bool { return true; }").unwrap();
 
     let bin = env!("CARGO_BIN_EXE_icn-cli");
     let file_str = file_path.to_str().unwrap().to_string();
+    let base = format!("http://{addr}");
     tokio::task::spawn_blocking(move || {
         Command::new(bin)
-            .args(["ccl", "compile", &file_str])
+            .args(["--api-url", &base, "compile-ccl", &file_str])
             .assert()
             .success()
             .stdout(predicates::str::contains("cid"));
+    })
+    .await
+    .unwrap();
+
+    // add-peer then list-peers
+    let bin = env!("CARGO_BIN_EXE_icn-cli");
+    let base = format!("http://{addr}");
+    tokio::task::spawn_blocking(move || {
+        Command::new(bin)
+            .args(["--api-url", &base, "add-peer", "peer42"])
+            .assert()
+            .success();
+    })
+    .await
+    .unwrap();
+
+    let bin = env!("CARGO_BIN_EXE_icn-cli");
+    let base = format!("http://{addr}");
+    tokio::task::spawn_blocking(move || {
+        Command::new(bin)
+            .args(["--api-url", &base, "list-peers"])
+            .assert()
+            .success()
+            .stdout(predicates::str::contains("peer42"));
     })
     .await
     .unwrap();
