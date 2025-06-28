@@ -89,6 +89,9 @@ pub struct Cli {
     pub mana_ledger_path: Option<PathBuf>,
 
     #[clap(long)]
+    pub reputation_db_path: Option<PathBuf>,
+
+    #[clap(long)]
     pub governance_db_path: Option<PathBuf>,
 
     #[clap(long)]
@@ -267,7 +270,9 @@ async fn rate_limit_middleware(
 
 // --- Public App Constructor (for tests or embedding) ---
 pub async fn app_router() -> Router {
-    app_router_with_options(None, None, None, None).await.0
+    app_router_with_options(None, None, None, None, None)
+        .await
+        .0
 }
 
 /// Construct a router for tests or embedding with optional API key and rate limit.
@@ -276,6 +281,7 @@ pub async fn app_router_with_options(
     rate_limit: Option<u64>,
     mana_ledger_path: Option<PathBuf>,
     governance_db_path: Option<PathBuf>,
+    reputation_db_path: Option<PathBuf>,
 ) -> (Router, Arc<RuntimeContext>) {
     // Generate a new identity for this test/embedded instance
     let (sk, pk) = generate_ed25519_keypair();
@@ -295,6 +301,7 @@ pub async fn app_router_with_options(
         Arc::new(icn_identity::KeyDidResolver),
         dag_store_for_rt,
         mana_ledger_path.unwrap_or_else(|| PathBuf::from("./mana_ledger.sled")),
+        reputation_db_path.unwrap_or_else(|| PathBuf::from("./reputation.sled")),
     );
 
     #[cfg(feature = "persist-sled")]
@@ -385,6 +392,9 @@ async fn main() {
         NodeConfig::default()
     };
     config.apply_cli_overrides(&cli, &matches);
+    if let Err(e) = config.prepare_paths() {
+        error!("Failed to prepare config directories: {}", e);
+    }
 
     // --- Initialize Node Identity ---
     let (node_sk, node_pk, node_did_string) = load_or_generate_identity(&mut config);
@@ -452,6 +462,7 @@ async fn main() {
                 listen_addrs,
                 bootstrap_peers,
                 config.mana_ledger_path.clone(),
+                config.reputation_db_path.clone(),
             )
             .await
             {
@@ -543,6 +554,7 @@ async fn main() {
             Arc::new(icn_identity::KeyDidResolver),
             dag_store_for_rt,
             config.mana_ledger_path.clone(),
+            config.reputation_db_path.clone(),
         )
     };
 
@@ -1520,7 +1532,7 @@ mod tests {
         use icn_identity::{did_key_from_verifying_key, generate_ed25519_keypair};
         use icn_runtime::executor::WasmExecutor;
 
-        let (app, ctx) = app_router_with_options(None, None, None, None).await;
+        let (app, ctx) = app_router_with_options(None, None, None, None, None).await;
 
         // Compile a tiny CCL contract
         let (wasm, _) =

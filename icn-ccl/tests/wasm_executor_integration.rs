@@ -23,6 +23,7 @@ fn ctx_with_temp_store(did: &str, mana: u64) -> Arc<RuntimeContext> {
         Arc::new(icn_identity::KeyDidResolver),
         dag_store,
         temp.path().join("mana"),
+        temp.path().join("reputation"),
     );
     ctx.mana_ledger
         .set_balance(&icn_common::Did::from_str(did).unwrap(), mana)

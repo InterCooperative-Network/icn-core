@@ -19,6 +19,7 @@ mod cross_node_governance {
             listen,
             bootstrap,
             std::path::PathBuf::from("./mana_ledger.sled"),
+            std::path::PathBuf::from("./reputation.sled"),
         )
         .await?;
         Ok(ctx)

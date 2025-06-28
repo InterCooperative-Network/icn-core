@@ -25,6 +25,8 @@ pub struct NodeConfig {
     pub storage_backend: StorageBackendType,
     pub storage_path: std::path::PathBuf,
     pub mana_ledger_path: std::path::PathBuf,
+    /// Path where executor reputation is persisted via sled.
+    pub reputation_db_path: std::path::PathBuf,
     /// Path where governance proposals and votes are persisted via sled.
     pub governance_db_path: std::path::PathBuf,
     pub http_listen_addr: String,
@@ -52,6 +54,7 @@ impl Default for NodeConfig {
             storage_backend: StorageBackendType::Memory,
             storage_path: "./icn_data/node_store".into(),
             mana_ledger_path: "./mana_ledger.sled".into(),
+            reputation_db_path: "./reputation.sled".into(),
             governance_db_path: "./governance_db".into(),
             http_listen_addr: "127.0.0.1:7845".to_string(),
             node_did: None,
@@ -93,6 +96,9 @@ impl NodeConfig {
         }
         if let Some(v) = &cli.mana_ledger_path {
             self.mana_ledger_path = v.clone();
+        }
+        if let Some(v) = &cli.reputation_db_path {
+            self.reputation_db_path = v.clone();
         }
         if let Some(v) = &cli.governance_db_path {
             self.governance_db_path = v.clone();
@@ -136,5 +142,28 @@ impl NodeConfig {
         if let Some(v) = &cli.tls_key_path {
             self.tls_key_path = Some(v.clone());
         }
+    }
+
+    /// Ensure directories for all configured paths exist.
+    pub fn prepare_paths(&self) -> std::io::Result<()> {
+        if let Some(parent) = self.storage_path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        if let Some(parent) = self.mana_ledger_path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        if let Some(parent) = self.reputation_db_path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        if let Some(parent) = self.governance_db_path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        if let Some(parent) = self.node_did_path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        if let Some(parent) = self.node_private_key_path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        Ok(())
     }
 }

@@ -31,13 +31,13 @@ use libp2p::{Multiaddr, PeerId as Libp2pPeerId};
 
 use bincode;
 use icn_governance::{GovernanceModule, ProposalId, ProposalType, VoteOption};
+#[cfg(feature = "enable-libp2p")]
+use icn_identity::KeyDidResolver;
 use icn_identity::{
     did_key_from_verifying_key, generate_ed25519_keypair, sign_message,
     verify_signature as identity_verify_signature, EdSignature, SigningKey, VerifyingKey,
     SIGNATURE_LENGTH,
 };
-#[cfg(feature = "enable-libp2p")]
-use icn_identity::KeyDidResolver;
 use serde::{Deserialize, Serialize};
 
 // Counter for generating unique (within this runtime instance) job IDs for stubs
@@ -490,6 +490,7 @@ impl RuntimeContext {
         did_resolver: Arc<dyn icn_identity::DidResolver>,
         dag_store: Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>,
         mana_ledger_path: PathBuf,
+        reputation_store_path: PathBuf,
     ) -> Arc<Self> {
         let job_states = Arc::new(TokioMutex::new(HashMap::new()));
         let pending_mesh_jobs = Arc::new(TokioMutex::new(VecDeque::new()));
@@ -504,9 +505,7 @@ impl RuntimeContext {
 
         #[cfg(feature = "persist-sled")]
         let reputation_store: Arc<dyn icn_reputation::ReputationStore> =
-            match icn_reputation::SledReputationStore::new(std::path::PathBuf::from(
-                "./reputation.sled",
-            )) {
+            match icn_reputation::SledReputationStore::new(reputation_store_path) {
                 Ok(s) => Arc::new(s),
                 Err(_) => Arc::new(icn_reputation::InMemoryReputationStore::new()),
             };
@@ -544,6 +543,7 @@ impl RuntimeContext {
             did_resolver,
             dag_store,
             PathBuf::from("./mana_ledger.sled"),
+            PathBuf::from("./reputation.sled"),
         )
     }
 
@@ -602,6 +602,7 @@ impl RuntimeContext {
             Arc::new(icn_identity::KeyDidResolver),
             dag_store,
             PathBuf::from("./mana_ledger.sled"),
+            PathBuf::from("./reputation.sled"),
         )
     }
 
@@ -622,6 +623,7 @@ impl RuntimeContext {
             Arc::new(icn_identity::KeyDidResolver),
             dag_store,
             PathBuf::from("./mana_ledger.sled"),
+            PathBuf::from("./reputation.sled"),
         );
         ctx.mana_ledger
             .set_balance(&current_identity, initial_mana)
@@ -1245,6 +1247,7 @@ impl RuntimeContext {
         listen_addresses: Vec<Multiaddr>,
         bootstrap_peers: Option<Vec<(Libp2pPeerId, Multiaddr)>>,
         mana_ledger_path: PathBuf,
+        reputation_store_path: PathBuf,
     ) -> Result<Arc<Self>, CommonError> {
         info!("Initializing RuntimeContext with real libp2p networking");
 
@@ -1292,6 +1295,7 @@ impl RuntimeContext {
             Arc::new(KeyDidResolver),
             dag_store,
             mana_ledger_path,
+            reputation_store_path,
         );
 
         info!("RuntimeContext with real libp2p networking created successfully");

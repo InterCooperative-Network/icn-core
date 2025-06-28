@@ -23,6 +23,7 @@ async fn anchor_receipt_updates_reputation() {
         Arc::new(icn_identity::KeyDidResolver),
         Arc::new(tokio::sync::Mutex::new(StubDagStore::new())),
         std::path::PathBuf::from("./mana_ledger.sled"),
+        std::path::PathBuf::from("./reputation.sled"),
     );
     let job_id = Cid::new_v1_sha256(0x55, b"rep_job");
     let result_cid = Cid::new_v1_sha256(0x55, b"res");
