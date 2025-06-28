@@ -166,9 +166,16 @@ impl TryFrom<&SignatureBytes> for ed25519_dalek::Signature {
 /// Represents a Decentralized Identifier (DID).
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 pub struct Did {
-    pub method: String, // e.g., "key", "web", "ion"
-    pub id_string: String, // The method-specific identifier string
-                        // TODO: Potentially add DID URL parsing elements like path, query, fragment later.
+    /// DID method name, e.g. `"key"` or `"web"`.
+    pub method: String,
+    /// Method specific identifier string (without path, query, or fragment).
+    pub id_string: String,
+    /// Optional path component beginning with `/`.
+    pub path: Option<String>,
+    /// Optional URL query string without the leading `?`.
+    pub query: Option<String>,
+    /// Optional URL fragment without the leading `#`.
+    pub fragment: Option<String>,
 }
 
 impl Did {
@@ -179,28 +186,101 @@ impl Did {
         Did {
             method: method.to_string(),
             id_string: id_string.to_string(),
+            path: None,
+            query: None,
+            fragment: None,
         }
     }
 }
 
 impl fmt::Display for Did {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "did:{}:{}", self.method, self.id_string)
+        write!(f, "did:{}:{}", self.method, self.id_string)?;
+        if let Some(path) = &self.path {
+            if !path.starts_with('/') {
+                write!(f, "/{path}")?;
+            } else {
+                write!(f, "{path}")?;
+            }
+        }
+        if let Some(query) = &self.query {
+            write!(f, "?{query}")?;
+        }
+        if let Some(fragment) = &self.fragment {
+            write!(f, "#{fragment}")?;
+        }
+        Ok(())
     }
 }
 
 impl std::str::FromStr for Did {
     type Err = CommonError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let parts: Vec<_> = s.splitn(3, ':').collect();
-        if parts.len() == 3 && parts[0] == "did" && !parts[1].is_empty() && !parts[2].is_empty() {
-            Ok(Did {
-                method: parts[1].to_string(),
-                id_string: parts[2].to_string(),
-            })
-        } else {
-            Err(CommonError::InvalidInputError(format!("Invalid DID string format: {s}. Expected 'did:method:id' with non-empty method and id.")))
+        if !s.starts_with("did:") {
+            return Err(CommonError::InvalidInputError(
+                "DID must start with 'did:'".to_string(),
+            ));
         }
+        let mut rest = &s[4..];
+        let method_end = rest
+            .find(':')
+            .ok_or_else(|| CommonError::InvalidInputError("Missing method".into()))?;
+        let method = &rest[..method_end];
+        rest = &rest[method_end + 1..];
+        if method.is_empty() || rest.is_empty() {
+            return Err(CommonError::InvalidInputError(format!(
+                "Invalid DID string format: {s}. Expected 'did:method:id'"
+            )));
+        }
+
+        let mut id_end = rest.len();
+        for c in ['/', '?', '#'] {
+            if let Some(pos) = rest.find(c) {
+                id_end = id_end.min(pos);
+            }
+        }
+        let id_string = &rest[..id_end];
+        rest = &rest[id_end..];
+
+        let mut path = None;
+        let mut query = None;
+        let mut fragment = None;
+
+        if rest.starts_with('/') {
+            let mut end = rest.len();
+            for c in ['?', '#'] {
+                if let Some(pos) = rest.find(c) {
+                    end = end.min(pos);
+                }
+            }
+            path = Some(rest[..end].to_string());
+            rest = &rest[end..];
+        }
+
+        if rest.starts_with('?') {
+            let end = rest.find('#').unwrap_or(rest.len());
+            query = Some(rest[1..end].to_string());
+            rest = &rest[end..];
+        }
+
+        if rest.starts_with('#') {
+            fragment = Some(rest[1..].to_string());
+            rest = "";
+        }
+
+        if !rest.is_empty() {
+            return Err(CommonError::InvalidInputError(format!(
+                "Unexpected characters in DID URL: {rest}"
+            )));
+        }
+
+        Ok(Did {
+            method: method.to_string(),
+            id_string: id_string.to_string(),
+            path,
+            query,
+            fragment,
+        })
     }
 }
 
