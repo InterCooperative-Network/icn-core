@@ -101,13 +101,29 @@ mod libp2p_job_pipeline {
             .as_str()
             .expect("result_cid");
 
-        let dag_res = client
-            .post(&format!("{}/dag/get", NODE_A_URL))
-            .json(&serde_json::json!({ "cid": result_cid }))
-            .send()
-            .await
-            .expect("dag get");
-        assert!(dag_res.status().is_success());
+        // Ensure all nodes report the job as completed
+        for url in [NODE_A_URL, NODE_B_URL, NODE_C_URL] {
+            let status: Value = client
+                .get(&format!("{}/mesh/jobs/{}", url, job_id))
+                .send()
+                .await
+                .expect("status check")
+                .json()
+                .await
+                .expect("status json");
+            assert_eq!(status["status"]["status"], "completed", "status mismatch on {}", url);
+        }
+
+        // Verify the execution receipt propagates to all nodes via DAG fetch
+        for url in [NODE_A_URL, NODE_B_URL, NODE_C_URL] {
+            let dag_res = client
+                .post(&format!("{}/dag/get", url))
+                .json(&serde_json::json!({ "cid": result_cid }))
+                .send()
+                .await
+                .expect("dag get");
+            assert!(dag_res.status().is_success(), "dag get failed for {}", url);
+        }
     }
 }
 
