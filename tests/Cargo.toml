@@ -27,8 +27,16 @@ path = "integration/icn_node_end_to_end.rs"
 name = "peer_discovery"
 path = "integration/peer_discovery.rs"
 
+[[test]]
+name = "cli_node"
+path = "integration/cli_node.rs"
+
 [dependencies]
 reqwest.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
 once_cell = "1"
+assert_cmd = "2.0"
+predicates = "3.1"
+axum = { version = "0.7", features = ["json"] }
+icn-node = { path = "../crates/icn-node" }
