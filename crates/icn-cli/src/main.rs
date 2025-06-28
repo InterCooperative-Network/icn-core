@@ -479,8 +479,37 @@ async fn handle_mesh_submit(
         job_request_json_or_stdin.to_string()
     };
 
-    let request_value: serde_json::Value = serde_json::from_str(&job_json_content)
+    let mut request_value: serde_json::Value = serde_json::from_str(&job_json_content)
         .map_err(|e| anyhow::anyhow!("Invalid mesh job JSON: {}", e))?;
+
+    if let Some(manifest_path) = request_value
+        .get("manifest_cid")
+        .and_then(|v| v.as_str())
+        .filter(|s| s.ends_with(".ccl"))
+    {
+        let path = PathBuf::from(manifest_path);
+        let (wasm, _meta) = compile_ccl_file_to_wasm(&path).map_err(anyhow::Error::msg)?;
+        let payload = DagBlockPayload { data: wasm };
+        let cid: Cid = post_request(&cli.api_url, client, "/dag/put", &payload).await?;
+
+        if let Some(obj) = request_value.as_object_mut() {
+            obj.insert(
+                "manifest_cid".to_string(),
+                serde_json::json!(cid.to_string()),
+            );
+            if !obj.contains_key("spec_json") {
+                let spec = icn_mesh::JobSpec {
+                    kind: icn_mesh::JobKind::CclWasm,
+                    ..Default::default()
+                };
+                obj.insert(
+                    "spec_json".to_string(),
+                    serde_json::to_value(&spec).unwrap(),
+                );
+            }
+        }
+    }
+
     let response: serde_json::Value =
         post_request(&cli.api_url, client, "/mesh/submit", &request_value).await?;
     println!("{}", serde_json::to_string_pretty(&response)?);
