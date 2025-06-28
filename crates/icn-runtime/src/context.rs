@@ -114,6 +114,18 @@ impl SimpleManaLedger {
     }
 }
 
+fn is_ccl_wasm(bytes: &[u8]) -> bool {
+    if bytes.len() < 4 || &bytes[0..4] != b"\0asm" {
+        return false;
+    }
+    let engine = wasmtime::Engine::default();
+    if let Ok(module) = wasmtime::Module::new(&engine, bytes) {
+        module.exports().any(|e| e.name() == "run")
+    } else {
+        false
+    }
+}
+
 impl icn_economics::ManaLedger for SimpleManaLedger {
     fn get_balance(&self, did: &Did) -> u64 {
         self.ledger.get_balance(did)
@@ -632,12 +644,30 @@ impl RuntimeContext {
     }
 
     pub async fn internal_queue_mesh_job(&self, job: ActualMeshJob) -> Result<(), HostAbiError> {
+        if self.is_compiled_ccl_job(&job).await? {
+            let exec = crate::executor::WasmExecutor::new(self.clone(), self.signer.clone());
+            exec.execute_and_anchor_job(&job).await?;
+            return Ok(());
+        }
+
         let mut queue = self.pending_mesh_jobs.lock().await;
         queue.push_back(job.clone());
         let mut states = self.job_states.lock().await;
         states.insert(job.id.clone(), JobState::Pending);
         println!("[CONTEXT] Queued mesh job: id={:?}, state=Pending", job.id);
         Ok(())
+    }
+
+    async fn is_compiled_ccl_job(&self, job: &ActualMeshJob) -> Result<bool, HostAbiError> {
+        let maybe_block = {
+            let store = self.dag_store.lock().await;
+            store.get(&job.manifest_cid).map_err(HostAbiError::Common)?
+        };
+        if let Some(block) = maybe_block {
+            Ok(is_ccl_wasm(&block.data))
+        } else {
+            Ok(false)
+        }
     }
 
     async fn wait_for_and_process_receipt(

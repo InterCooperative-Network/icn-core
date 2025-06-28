@@ -1727,9 +1727,9 @@ mod tests {
 
         // Execute the job using WasmExecutor and anchor the receipt
         let (sk, vk) = generate_ed25519_keypair();
-        let exec_did = did_key_from_verifying_key(&vk);
-        let exec_did = Did::from_str(&exec_did).unwrap();
-        let executor = WasmExecutor::new(ctx.clone(), exec_did.clone(), sk);
+        let signer = icn_runtime::context::StubSigner::new_with_keys(sk, vk);
+        let exec_did = signer.did();
+        let executor = WasmExecutor::new(ctx.clone(), std::sync::Arc::new(signer));
         let job = ActualMeshJob {
             id: job_id.clone(),
             manifest_cid: wasm_cid.clone(),
