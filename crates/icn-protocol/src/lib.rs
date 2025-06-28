@@ -4,7 +4,9 @@
 //! This crate defines core message formats and protocol definitions for the ICN,
 //! ensuring interoperability between different components and nodes.
 
+use icn_common::Did;
 use icn_common::{CommonError, NodeInfo};
+use serde::{Deserialize, Serialize};
 
 /// Placeholder function demonstrating use of common types for protocol messages.
 pub fn serialize_protocol_message(
@@ -16,6 +18,24 @@ pub fn serialize_protocol_message(
         message_type, info.name, info.version
     );
     Ok(msg_string.into_bytes())
+}
+
+/// Message sent when a node requests to join a federation.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FederationJoinRequest {
+    /// DID of the requesting node
+    pub node: Did,
+    /// Identifier of the federation to join
+    pub federation_id: String,
+}
+
+/// Response to a [`FederationJoinRequest`].
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FederationJoinResponse {
+    /// DID of the node requesting membership
+    pub node: Did,
+    /// Whether the request was accepted
+    pub accepted: bool,
 }
 
 #[cfg(test)]
