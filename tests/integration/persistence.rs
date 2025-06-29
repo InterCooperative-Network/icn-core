@@ -37,7 +37,8 @@ mod persistence_rocksdb {
             dag_path.clone(),
             mana_path.clone(),
             rep_path.clone(),
-        );
+        )
+        .unwrap();
 
         ctx1.credit_mana(&id, 42).await.unwrap();
         let block = sample_block();
@@ -52,7 +53,8 @@ mod persistence_rocksdb {
             dag_path,
             mana_path,
             rep_path,
-        );
+        )
+        .unwrap();
 
         assert_eq!(ctx2.mana_ledger.get_balance(&id), 42);
         assert!(ctx2

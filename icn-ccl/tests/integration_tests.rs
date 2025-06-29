@@ -171,7 +171,7 @@ async fn test_wasm_executor_with_ccl() {
 
     use icn_common::DagBlock;
 
-    let ctx = RuntimeContext::new_with_stubs_and_mana("did:key:zTestExec", 10);
+    let ctx = RuntimeContext::new_with_stubs_and_mana("did:key:zTestExec", 10).unwrap();
     let ts = 0u64;
     let author = icn_common::Did::new("key", "tester");
     let sig_opt = None;
@@ -313,7 +313,7 @@ async fn test_wasm_executor_runs_addition() {
 
     use icn_common::DagBlock;
 
-    let ctx = RuntimeContext::new_with_stubs_and_mana("did:key:zAddExecInt", 10);
+    let ctx = RuntimeContext::new_with_stubs_and_mana("did:key:zAddExecInt", 10).unwrap();
     let ts = 0u64;
     let author = icn_common::Did::new("key", "tester");
     let sig_opt = None;

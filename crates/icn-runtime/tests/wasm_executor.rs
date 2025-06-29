@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn wasm_executor_runs_wasm() {
-    let ctx = RuntimeContext::new_with_stubs_and_mana("did:key:zTestExec", 42);
+    let ctx = RuntimeContext::new_with_stubs_and_mana("did:key:zTestExec", 42).unwrap();
     let (sk, vk) = generate_ed25519_keypair();
     let node_did = did_key_from_verifying_key(&vk);
     let node_did = icn_common::Did::from_str(&node_did).unwrap();
@@ -57,7 +57,7 @@ async fn wasm_executor_runs_wasm() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn wasm_executor_runs_compiled_ccl_contract() {
-    let ctx = RuntimeContext::new_with_stubs_and_mana("did:key:zCclExec", 10);
+    let ctx = RuntimeContext::new_with_stubs_and_mana("did:key:zCclExec", 10).unwrap();
     let (sk, vk) = generate_ed25519_keypair();
     let node_did = icn_common::Did::from_str(&did_key_from_verifying_key(&vk)).unwrap();
 
@@ -103,7 +103,7 @@ async fn wasm_executor_runs_compiled_ccl_contract() {
 async fn wasm_executor_host_submit_mesh_job_json() {
     use icn_mesh::{JobKind, Resources};
 
-    let ctx = RuntimeContext::new_with_stubs_and_mana("did:key:zHostSubmit", 50);
+    let ctx = RuntimeContext::new_with_stubs_and_mana("did:key:zHostSubmit", 50).unwrap();
     let (sk, vk) = generate_ed25519_keypair();
     let node_did = icn_common::Did::from_str(&did_key_from_verifying_key(&vk)).unwrap();
 
@@ -179,7 +179,7 @@ async fn wasm_executor_host_submit_mesh_job_json() {
 async fn wasm_executor_host_anchor_receipt_json() {
     use icn_identity::ExecutionReceipt;
 
-    let ctx = RuntimeContext::new_with_stubs_and_mana("did:key:zHostAnchor", 10);
+    let ctx = RuntimeContext::new_with_stubs_and_mana("did:key:zHostAnchor", 10).unwrap();
     let (exec_sk, exec_vk) = generate_ed25519_keypair();
     let executor_did = icn_common::Did::from_str(&did_key_from_verifying_key(&exec_vk)).unwrap();
     let (node_sk, node_vk) = generate_ed25519_keypair();
@@ -243,7 +243,7 @@ async fn wasm_executor_host_anchor_receipt_json() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn submit_compiled_ccl_runs_via_executor() {
-    let ctx = RuntimeContext::new_with_stubs_and_mana("did:key:zEndToEnd", 5);
+    let ctx = RuntimeContext::new_with_stubs_and_mana("did:key:zEndToEnd", 5).unwrap();
     let source = "fn run() -> Integer { return 9; }";
     let (wasm, _) = icn_ccl::compile_ccl_source_to_wasm(source).unwrap();
     let ts = 0u64;
@@ -286,7 +286,7 @@ async fn submit_compiled_ccl_runs_via_executor() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn queued_compiled_ccl_executes() {
-    let ctx = RuntimeContext::new_with_stubs_and_mana("did:key:zQueueExec", 5);
+    let ctx = RuntimeContext::new_with_stubs_and_mana("did:key:zQueueExec", 5).unwrap();
     let source = "fn run() -> Integer { return 4; }";
     let (wasm, _) = icn_ccl::compile_ccl_source_to_wasm(source).unwrap();
     let ts = 0u64;
@@ -333,7 +333,7 @@ async fn compiled_example_contract_file_runs() {
     let source = std::fs::read_to_string(contract_path).expect("read example");
     let (wasm, _) = icn_ccl::compile_ccl_source_to_wasm(&source).unwrap();
 
-    let ctx = RuntimeContext::new_with_stubs_and_mana("did:key:zExampleExec", 5);
+    let ctx = RuntimeContext::new_with_stubs_and_mana("did:key:zExampleExec", 5).unwrap();
     let block = DagBlock {
         cid: Cid::new_v1_sha256(0x71, &wasm),
         data: wasm.clone(),
