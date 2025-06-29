@@ -528,7 +528,10 @@ impl SubmitReceiptMessage {
         Ok(self)
     }
 
-    pub fn verify_signature(&self, verifying_key: &IdentityVerifyingKey) -> Result<(), CommonError> {
+    pub fn verify_signature(
+        &self,
+        verifying_key: &IdentityVerifyingKey,
+    ) -> Result<(), CommonError> {
         let message = self.to_signable_bytes()?;
         let ed_sig = self.signature.to_ed_signature()?;
         if identity_verify_signature(verifying_key, &message, &ed_sig) {
@@ -682,6 +685,7 @@ mod tests {
             job_id: dummy_cid("assign_notice"),
             executor_did: Did::from_str("did:icn:test:exec").unwrap(),
             signature: SignatureBytes(vec![]),
+            manifest_cid: None,
         }
         .sign(&sk)
         .unwrap();
