@@ -136,6 +136,16 @@ Future contributions to `icn-node` will focus on:
 *   Managing the lifecycle of different service components.
 *   Robust logging and metrics.
 
+### Metrics Endpoint
+
+The embedded HTTP server exposes `/metrics` for Prometheus scraping. It returns
+runtime counters such as `host_submit_mesh_job_calls` in the standard text
+format:
+
+```bash
+curl http://127.0.0.1:7845/metrics
+```
+
 ## License
 
 This crate is licensed under the Apache 2.0 license, as is the entire `icn-core` repository. 
