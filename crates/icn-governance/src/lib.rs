@@ -443,6 +443,11 @@ impl GovernanceModule {
         self.members.insert(member);
     }
 
+    /// Removes an existing member, preventing them from voting.
+    pub fn remove_member(&mut self, member: &Did) {
+        self.members.remove(member);
+    }
+
     /// Returns a reference to the current member set.
     pub fn members(&self) -> &HashSet<Did> {
         &self.members
@@ -606,6 +611,68 @@ impl GovernanceModule {
             }
         }
         (yes, no, abstain)
+    }
+
+    /// Automatically close all proposals whose voting deadlines have passed.
+    pub fn close_expired_proposals(&mut self) -> Result<(), CommonError> {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        match &mut self.backend {
+            Backend::InMemory { proposals } => {
+                let expired: Vec<ProposalId> = proposals
+                    .values()
+                    .filter(|p| p.voting_deadline <= now && p.status == ProposalStatus::VotingOpen)
+                    .map(|p| p.id.clone())
+                    .collect();
+                for id in expired {
+                    let _ = self.close_voting_period(&id)?;
+                }
+                Ok(())
+            }
+            #[cfg(feature = "persist-sled")]
+            Backend::Sled {
+                db,
+                proposals_tree_name,
+            } => {
+                let tree = db.open_tree(proposals_tree_name).map_err(|e| {
+                    CommonError::DatabaseError(format!(
+                        "Failed to open proposals tree for close_expired_proposals: {}",
+                        e
+                    ))
+                })?;
+                let mut expired = Vec::new();
+                for item in tree.iter() {
+                    let (key, val) = item.map_err(|e| {
+                        CommonError::DatabaseError(format!(
+                            "Failed to iterate proposals tree: {}",
+                            e
+                        ))
+                    })?;
+                    let prop: Proposal = bincode::deserialize(&val).map_err(|e| {
+                        CommonError::DeserializationError(format!(
+                            "Failed to deserialize proposal: {}",
+                            e
+                        ))
+                    })?;
+                    if prop.voting_deadline <= now && prop.status == ProposalStatus::VotingOpen {
+                        let id_str = String::from_utf8(key.to_vec()).map_err(|e| {
+                            CommonError::DeserializationError(format!(
+                                "Invalid UTF-8 in proposal key: {}",
+                                e
+                            ))
+                        })?;
+                        expired.push(ProposalId(id_str));
+                    }
+                }
+                drop(tree);
+                for id in expired {
+                    let _ = self.close_voting_period(&id)?;
+                }
+                Ok(())
+            }
+        }
     }
 
     /// Finalizes voting on a proposal and updates its status based on quorum and threshold.
