@@ -995,9 +995,6 @@ async fn status_handler(State(state): State<AppState>) -> impl IntoResponse {
 
 // GET /metrics – Prometheus metrics text
 async fn metrics_handler() -> impl IntoResponse {
-    use icn_network::metrics::{
-        PING_AVG_RTT_MS, PING_LAST_RTT_MS, PING_MAX_RTT_MS, PING_MIN_RTT_MS,
-    };
     use icn_runtime::metrics::{
         HOST_ACCOUNT_GET_MANA_CALLS, HOST_ACCOUNT_SPEND_MANA_CALLS,
         HOST_GET_PENDING_MESH_JOBS_CALLS, HOST_SUBMIT_MESH_JOB_CALLS,
@@ -1007,42 +1004,22 @@ async fn metrics_handler() -> impl IntoResponse {
     registry.register(
         "host_submit_mesh_job_calls",
         "Number of host_submit_mesh_job calls",
-        &*HOST_SUBMIT_MESH_JOB_CALLS,
+        HOST_SUBMIT_MESH_JOB_CALLS.clone(),
     );
     registry.register(
         "host_get_pending_mesh_jobs_calls",
         "Number of host_get_pending_mesh_jobs calls",
-        &*HOST_GET_PENDING_MESH_JOBS_CALLS,
+        HOST_GET_PENDING_MESH_JOBS_CALLS.clone(),
     );
     registry.register(
         "host_account_get_mana_calls",
         "Number of host_account_get_mana calls",
-        &*HOST_ACCOUNT_GET_MANA_CALLS,
+        HOST_ACCOUNT_GET_MANA_CALLS.clone(),
     );
     registry.register(
         "host_account_spend_mana_calls",
         "Number of host_account_spend_mana calls",
-        &*HOST_ACCOUNT_SPEND_MANA_CALLS,
-    );
-    registry.register(
-        "ping_last_rtt_ms",
-        "Last observed ping round trip time in ms",
-        &*PING_LAST_RTT_MS,
-    );
-    registry.register(
-        "ping_min_rtt_ms",
-        "Minimum observed ping round trip time in ms",
-        &*PING_MIN_RTT_MS,
-    );
-    registry.register(
-        "ping_max_rtt_ms",
-        "Maximum observed ping round trip time in ms",
-        &*PING_MAX_RTT_MS,
-    );
-    registry.register(
-        "ping_avg_rtt_ms",
-        "Average observed ping round trip time in ms",
-        &*PING_AVG_RTT_MS,
+        HOST_ACCOUNT_SPEND_MANA_CALLS.clone(),
     );
 
     let mut buffer = String::new();
