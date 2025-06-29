@@ -125,6 +125,12 @@ configured paths. If no key material exists, a new Ed25519 key pair is generated
 and written to these files. Subsequent runs will reuse the persisted identity
 allowing consistent node identification across restarts.
 
+### Metrics Endpoint
+
+The node exposes Prometheus-compatible metrics at `http://<addr>/metrics`. The
+response uses the OpenMetrics text format and includes runtime counters like
+`host_submit_mesh_job_calls`.
+
 ## Contributing
 
 Please refer to the main `CONTRIBUTING.md` in the root of the `icn-core` repository.

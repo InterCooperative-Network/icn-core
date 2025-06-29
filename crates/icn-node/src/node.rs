@@ -43,6 +43,7 @@ use icn_runtime::context::{
 };
 use icn_runtime::{host_anchor_receipt, host_submit_mesh_job, ReputationUpdater};
 
+use axum::http::{header, HeaderValue};
 use axum::{
     extract::{Path as AxumPath, State},
     http::StatusCode,
@@ -57,6 +58,7 @@ use clap::{ArgMatches, CommandFactory, FromArgMatches, Parser};
 #[cfg(feature = "enable-libp2p")]
 use log::warn;
 use log::{debug, error, info};
+use prometheus_client::{encoding::text::encode, registry::Registry};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::net::SocketAddr;
@@ -448,6 +450,7 @@ pub async fn app_router_with_options(
         Router::new()
             .route("/info", get(info_handler))
             .route("/status", get(status_handler))
+            .route("/metrics", get(metrics_handler))
             .route("/dag/put", post(dag_put_handler)) // These will use RT context's DAG store
             .route("/dag/get", post(dag_get_handler)) // These will use RT context's DAG store
             .route("/transaction/submit", post(tx_submit_handler))
@@ -541,6 +544,7 @@ pub async fn app_router_from_context(
     Router::new()
         .route("/info", get(info_handler))
         .route("/status", get(status_handler))
+        .route("/metrics", get(metrics_handler))
         .route("/dag/put", post(dag_put_handler))
         .route("/dag/get", post(dag_get_handler))
         .route("/transaction/submit", post(tx_submit_handler))
@@ -854,6 +858,7 @@ async fn main() {
     let router = Router::new()
         .route("/info", get(info_handler))
         .route("/status", get(status_handler))
+        .route("/metrics", get(metrics_handler))
         .route("/dag/put", post(dag_put_handler))
         .route("/dag/get", post(dag_get_handler))
         .route("/transaction/submit", post(tx_submit_handler))
@@ -977,6 +982,48 @@ async fn status_handler(State(state): State<AppState>) -> impl IntoResponse {
         version: state.node_version.clone(),
     };
     (StatusCode::OK, Json(status))
+}
+
+// GET /metrics – Prometheus/OpenMetrics formatted runtime metrics
+async fn metrics_handler() -> impl IntoResponse {
+    use icn_runtime::metrics::{
+        HOST_ACCOUNT_GET_MANA_CALLS, HOST_ACCOUNT_SPEND_MANA_CALLS,
+        HOST_GET_PENDING_MESH_JOBS_CALLS, HOST_SUBMIT_MESH_JOB_CALLS,
+    };
+
+    let mut registry = Registry::default();
+    registry.register(
+        "host_submit_mesh_job_calls",
+        "Number of host_submit_mesh_job calls",
+        HOST_SUBMIT_MESH_JOB_CALLS.clone(),
+    );
+    registry.register(
+        "host_get_pending_mesh_jobs_calls",
+        "Number of host_get_pending_mesh_jobs calls",
+        HOST_GET_PENDING_MESH_JOBS_CALLS.clone(),
+    );
+    registry.register(
+        "host_account_get_mana_calls",
+        "Number of host_account_get_mana calls",
+        HOST_ACCOUNT_GET_MANA_CALLS.clone(),
+    );
+    registry.register(
+        "host_account_spend_mana_calls",
+        "Number of host_account_spend_mana calls",
+        HOST_ACCOUNT_SPEND_MANA_CALLS.clone(),
+    );
+
+    let mut buf = String::new();
+    encode(&mut buf, &registry).unwrap();
+
+    (
+        StatusCode::OK,
+        [(
+            header::CONTENT_TYPE,
+            HeaderValue::from_static("application/openmetrics-text; version=1.0.0; charset=utf-8"),
+        )],
+        buf,
+    )
 }
 
 // POST /dag/put – Store a DAG block. (Body: block JSON)
