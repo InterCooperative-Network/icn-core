@@ -20,6 +20,9 @@ fn vote_tally_and_execute() {
         )
         .unwrap();
 
+    // open voting period
+    gov.open_voting(&pid).unwrap();
+
     gov.cast_vote(
         Did::from_str("did:example:bob").unwrap(),
         &pid,
@@ -62,6 +65,8 @@ fn reject_due_to_quorum() {
             60,
         )
         .unwrap();
+
+    gov.open_voting(&pid).unwrap();
 
     gov.cast_vote(
         Did::from_str("did:example:bob").unwrap(),

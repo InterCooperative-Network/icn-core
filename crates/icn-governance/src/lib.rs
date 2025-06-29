@@ -182,7 +182,7 @@ impl GovernanceModule {
             description,
             created_at: now,
             voting_deadline: now + duration_secs,
-            status: ProposalStatus::VotingOpen,
+            status: ProposalStatus::Pending,
             votes: HashMap::new(),
         };
 
@@ -241,6 +241,84 @@ impl GovernanceModule {
             }
         }
         Ok(proposal_id)
+    }
+
+    /// Transition a proposal from `Pending` to `VotingOpen`.
+    pub fn open_voting(&mut self, proposal_id: &ProposalId) -> Result<(), CommonError> {
+        match &mut self.backend {
+            Backend::InMemory { proposals } => {
+                let proposal = proposals.get_mut(proposal_id).ok_or_else(|| {
+                    CommonError::ResourceNotFound(format!(
+                        "Proposal with ID {} not found for opening",
+                        proposal_id.0
+                    ))
+                })?;
+                if proposal.status != ProposalStatus::Pending {
+                    return Err(CommonError::InvalidInputError(format!(
+                        "Proposal {} not pending, current status: {:?}",
+                        proposal_id.0, proposal.status
+                    )));
+                }
+                proposal.status = ProposalStatus::VotingOpen;
+            }
+            #[cfg(feature = "persist-sled")]
+            Backend::Sled {
+                db,
+                proposals_tree_name,
+            } => {
+                let tree = db.open_tree(proposals_tree_name).map_err(|e| {
+                    CommonError::DatabaseError(format!("Failed to open proposals tree: {}", e))
+                })?;
+                let key = proposal_id.0.as_bytes();
+                let proposal_bytes = tree
+                    .get(key)
+                    .map_err(|e| {
+                        CommonError::DatabaseError(format!(
+                            "Failed to get proposal {} from sled: {}",
+                            proposal_id.0, e
+                        ))
+                    })?
+                    .ok_or_else(|| {
+                        CommonError::ResourceNotFound(format!(
+                            "Proposal with ID {} not found for opening",
+                            proposal_id.0
+                        ))
+                    })?;
+                let mut proposal: Proposal =
+                    bincode::deserialize(&proposal_bytes).map_err(|e| {
+                        CommonError::DeserializationError(format!(
+                            "Failed to deserialize proposal {}: {}",
+                            proposal_id.0, e
+                        ))
+                    })?;
+                if proposal.status != ProposalStatus::Pending {
+                    return Err(CommonError::InvalidInputError(format!(
+                        "Proposal {} not pending, current status: {:?}",
+                        proposal_id.0, proposal.status
+                    )));
+                }
+                proposal.status = ProposalStatus::VotingOpen;
+                let encoded = bincode::serialize(&proposal).map_err(|e| {
+                    CommonError::SerializationError(format!(
+                        "Failed to serialize updated proposal {}: {}",
+                        proposal_id.0, e
+                    ))
+                })?;
+                tree.insert(key, encoded).map_err(|e| {
+                    CommonError::DatabaseError(format!(
+                        "Failed to persist proposal {}: {}",
+                        proposal_id.0, e
+                    ))
+                })?;
+                tree.flush().map_err(|e| {
+                    CommonError::DatabaseError(format!(
+                        "Failed to flush sled tree for proposal {} open: {}",
+                        proposal_id.0, e
+                    ))
+                })?;
+            }
+        }
+        Ok(())
     }
 
     /// Record a vote for the specified proposal.

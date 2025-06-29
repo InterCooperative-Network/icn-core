@@ -21,6 +21,8 @@ mod tests {
             )
             .unwrap();
 
+        gov.open_voting(&pid).unwrap();
+
         // 2. vote
         gov.cast_vote(
             Did::from_str("did:example:bob").unwrap(),
@@ -56,6 +58,7 @@ mod tests {
                 60,
             )
             .unwrap();
+        gov.open_voting(&pid).unwrap();
         gov.cast_vote(
             Did::from_str("did:example:alice").unwrap(),
             &pid,
@@ -124,6 +127,7 @@ mod tests {
                 60,
             )
             .unwrap();
+        gov.open_voting(&pid).unwrap();
         drop(gov);
 
         let mut gov2 = GovernanceModule::new_sled(dir.path().to_path_buf()).unwrap();
