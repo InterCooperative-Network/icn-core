@@ -6,9 +6,13 @@ use crate::error::CclError;
 use crate::metadata::ContractMetadata;
 use std::cmp::min;
 use wasm_encoder::{
-    CodeSection, ExportKind, ExportSection, Function, FunctionSection, Instruction, Module,
-    TypeSection, ValType,
+    CodeSection, ExportKind, ExportSection, Function, FunctionSection, ImportSection, Instruction,
+    Module, TypeSection, ValType,
 };
+
+use std::collections::HashMap;
+
+const IMPORT_COUNT: u32 = 3;
 
 pub struct WasmBackend {}
 
@@ -19,6 +23,7 @@ impl WasmBackend {
 
     pub fn compile_to_wasm(&self, ast: &AstNode) -> Result<(Vec<u8>, ContractMetadata), CclError> {
         let mut types = TypeSection::new();
+        let mut imports = ImportSection::new();
         let mut functions = FunctionSection::new();
         let mut codes = CodeSection::new();
         let mut exports = ExportSection::new();
@@ -31,6 +36,47 @@ impl WasmBackend {
             shared: false,
             page_size_log2: None,
         });
+
+        // Map of function name -> index in the function table
+        let mut fn_indices = HashMap::<String, u32>::new();
+        let mut next_index: u32 = 0;
+
+        // Host function imports expected by WasmExecutor
+        let ty_get_mana = types.len() as u32;
+        types
+            .ty()
+            .function(Vec::<ValType>::new(), vec![ValType::I64]);
+        imports.import(
+            "icn",
+            "host_account_get_mana",
+            wasm_encoder::EntityType::Function(ty_get_mana),
+        );
+        fn_indices.insert("host_account_get_mana".to_string(), next_index);
+        next_index += 1;
+
+        let ty_submit = types.len() as u32;
+        types
+            .ty()
+            .function(vec![ValType::I32, ValType::I32], Vec::<ValType>::new());
+        imports.import(
+            "icn",
+            "host_submit_mesh_job",
+            wasm_encoder::EntityType::Function(ty_submit),
+        );
+        fn_indices.insert("host_submit_mesh_job".to_string(), next_index);
+        next_index += 1;
+
+        let ty_anchor = types.len() as u32;
+        types
+            .ty()
+            .function(vec![ValType::I32, ValType::I32], Vec::<ValType>::new());
+        imports.import(
+            "icn",
+            "host_anchor_receipt",
+            wasm_encoder::EntityType::Function(ty_anchor),
+        );
+        fn_indices.insert("host_anchor_receipt".to_string(), next_index);
+        next_index += 1;
 
         let policy_items = match ast {
             AstNode::Policy(items) => items,
@@ -53,12 +99,15 @@ impl WasmBackend {
                 let type_index = types.len();
                 types.ty().function(Vec::<ValType>::new(), vec![ret_ty]);
                 functions.function(type_index as u32);
+                let func_index = next_index;
+                fn_indices.insert(name.clone(), func_index);
+                next_index += 1;
 
                 let mut func = Function::new(Vec::new());
 
                 // Expect a single return statement for now
                 if let Some(StatementNode::Return(expr)) = body.statements.first() {
-                    let expr_ty = self.emit_expression(expr, &mut func)?;
+                    let expr_ty = self.emit_expression(expr, &mut func, &fn_indices)?;
                     let expected = map_val_type(return_type)?;
                     if expr_ty != expected {
                         return Err(CclError::WasmGenerationError(
@@ -74,7 +123,8 @@ impl WasmBackend {
                 func.instruction(&Instruction::End);
                 codes.function(&func);
 
-                let func_index = (functions.len() - 1) as u32;
+                // Final index within the module = imported count + position in function section
+                let func_index = IMPORT_COUNT + (functions.len() - 1) as u32;
                 exports.export(name, ExportKind::Func, func_index);
                 export_names.push(name.clone());
             }
@@ -83,6 +133,9 @@ impl WasmBackend {
         let mut module = Module::new();
         if types.len() > 0 {
             module.section(&types);
+        }
+        if imports.len() > 0 {
+            module.section(&imports);
         }
         if functions.len() > 0 {
             module.section(&functions);
@@ -119,6 +172,7 @@ impl WasmBackend {
         &self,
         expr: &ExpressionNode,
         func: &mut Function,
+        indices: &HashMap<String, u32>,
     ) -> Result<ValType, CclError> {
         match expr {
             ExpressionNode::IntegerLiteral(i) => {
@@ -129,13 +183,28 @@ impl WasmBackend {
                 func.instruction(&Instruction::I32Const(if *b { 1 } else { 0 }));
                 Ok(ValType::I32)
             }
+            ExpressionNode::FunctionCall { name, arguments } => {
+                let idx = indices.get(name).ok_or_else(|| {
+                    CclError::WasmGenerationError(format!("Unknown function {}", name))
+                })?;
+                for arg in arguments {
+                    self.emit_expression(arg, func, indices)?;
+                }
+                func.instruction(&Instruction::Call(*idx));
+                let ret = match name.as_str() {
+                    "host_account_get_mana" => ValType::I64,
+                    "host_submit_mesh_job" | "host_anchor_receipt" => ValType::I32,
+                    _ => ValType::I64,
+                };
+                Ok(ret)
+            }
             ExpressionNode::BinaryOp {
                 left,
                 operator,
                 right,
             } => {
-                let l_ty = self.emit_expression(left, func)?;
-                let r_ty = self.emit_expression(right, func)?;
+                let l_ty = self.emit_expression(left, func, indices)?;
+                let r_ty = self.emit_expression(right, func, indices)?;
                 match (l_ty, r_ty, operator) {
                     (ValType::I64, ValType::I64, BinaryOperator::Add) => {
                         func.instruction(&Instruction::I64Add);
