@@ -5,7 +5,10 @@ mod reputation_persistence {
     use icn_mesh::{select_executor, MeshJobBid, JobSpec, Resources, SelectionPolicy};
     use icn_reputation::sled_store::SledReputationStore;
     use icn_reputation::ReputationStore;
-    use icn_runtime::context::SimpleManaLedger;
+    use icn_runtime::{
+        context::{RuntimeContext, SimpleManaLedger, StubMeshNetworkService, StubSigner},
+        host_anchor_receipt, ReputationUpdater,
+    };
     use std::str::FromStr;
     use tempfile::tempdir;
 
@@ -59,6 +62,63 @@ mod reputation_persistence {
 
         assert_eq!(selected, did_a);
     }
+
+    #[tokio::test]
+    async fn reputation_survives_restart() {
+        let dir = tempdir().unwrap();
+        let dag_path = dir.path().join("dag.sled");
+        let mana_path = dir.path().join("mana.sled");
+        let rep_path = dir.path().join("rep.sled");
+
+        let did = Did::new("key", "tester");
+        let ctx1 = RuntimeContext::new_with_paths(
+            did.clone(),
+            Arc::new(StubMeshNetworkService::new()),
+            Arc::new(StubSigner::new()),
+            Arc::new(icn_identity::KeyDidResolver),
+            dag_path.clone(),
+            mana_path.clone(),
+            rep_path.clone(),
+        )
+        .unwrap();
+
+        let mut receipt = icn_identity::ExecutionReceipt {
+            job_id: Cid::new_v1_sha256(0x55, b"r"),
+            executor_did: did.clone(),
+            result_cid: Cid::new_v1_sha256(0x55, b"r"),
+            cpu_ms: 1000,
+            success: true,
+            sig: SignatureBytes(Vec::new()),
+        };
+
+        let mut msg = Vec::new();
+        msg.extend_from_slice(receipt.job_id.to_string().as_bytes());
+        msg.extend_from_slice(did.to_string().as_bytes());
+        msg.extend_from_slice(receipt.result_cid.to_string().as_bytes());
+        msg.extend_from_slice(&receipt.cpu_ms.to_le_bytes());
+        msg.push(receipt.success as u8);
+        let sig = ctx1.signer.sign(&msg).unwrap();
+        receipt.sig = SignatureBytes(sig);
+
+        let json = serde_json::to_string(&receipt).unwrap();
+        host_anchor_receipt(&ctx1, &json, &ReputationUpdater::new())
+            .await
+            .unwrap();
+        drop(ctx1);
+
+        let ctx2 = RuntimeContext::new_with_paths(
+            did.clone(),
+            Arc::new(StubMeshNetworkService::new()),
+            Arc::new(StubSigner::new()),
+            Arc::new(icn_identity::KeyDidResolver),
+            dag_path,
+            mana_path,
+            rep_path,
+        )
+        .unwrap();
+
+        assert_eq!(ctx2.reputation_store.get_reputation(&did), 2);
+    }
 }
 
 #[cfg(feature = "persist-sqlite")]
@@ -68,7 +128,10 @@ mod reputation_persistence_sqlite {
     use icn_mesh::{select_executor, MeshJobBid, JobSpec, Resources, SelectionPolicy};
     use icn_reputation::sqlite_store::SqliteReputationStore;
     use icn_reputation::ReputationStore;
-    use icn_runtime::context::SimpleManaLedger;
+    use icn_runtime::{
+        context::{RuntimeContext, SimpleManaLedger, StubMeshNetworkService, StubSigner},
+        host_anchor_receipt, ReputationUpdater,
+    };
     use std::str::FromStr;
     use tempfile::tempdir;
 
@@ -121,6 +184,63 @@ mod reputation_persistence_sqlite {
         .expect("executor selected");
 
         assert_eq!(selected, did_a);
+    }
+
+    #[tokio::test]
+    async fn reputation_survives_restart() {
+        let dir = tempdir().unwrap();
+        let dag_path = dir.path().join("dag.sqlite");
+        let mana_path = dir.path().join("mana.sqlite");
+        let rep_path = dir.path().join("rep.sqlite");
+
+        let did = Did::new("key", "tester");
+        let ctx1 = RuntimeContext::new_with_paths(
+            did.clone(),
+            Arc::new(StubMeshNetworkService::new()),
+            Arc::new(StubSigner::new()),
+            Arc::new(icn_identity::KeyDidResolver),
+            dag_path.clone(),
+            mana_path.clone(),
+            rep_path.clone(),
+        )
+        .unwrap();
+
+        let mut receipt = icn_identity::ExecutionReceipt {
+            job_id: Cid::new_v1_sha256(0x55, b"r"),
+            executor_did: did.clone(),
+            result_cid: Cid::new_v1_sha256(0x55, b"r"),
+            cpu_ms: 1000,
+            success: true,
+            sig: SignatureBytes(Vec::new()),
+        };
+
+        let mut msg = Vec::new();
+        msg.extend_from_slice(receipt.job_id.to_string().as_bytes());
+        msg.extend_from_slice(did.to_string().as_bytes());
+        msg.extend_from_slice(receipt.result_cid.to_string().as_bytes());
+        msg.extend_from_slice(&receipt.cpu_ms.to_le_bytes());
+        msg.push(receipt.success as u8);
+        let sig = ctx1.signer.sign(&msg).unwrap();
+        receipt.sig = SignatureBytes(sig);
+
+        let json = serde_json::to_string(&receipt).unwrap();
+        host_anchor_receipt(&ctx1, &json, &ReputationUpdater::new())
+            .await
+            .unwrap();
+        drop(ctx1);
+
+        let ctx2 = RuntimeContext::new_with_paths(
+            did.clone(),
+            Arc::new(StubMeshNetworkService::new()),
+            Arc::new(StubSigner::new()),
+            Arc::new(icn_identity::KeyDidResolver),
+            dag_path,
+            mana_path,
+            rep_path,
+        )
+        .unwrap();
+
+        assert_eq!(ctx2.reputation_store.get_reputation(&did), 2);
     }
 }
 
