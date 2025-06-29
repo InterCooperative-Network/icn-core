@@ -824,15 +824,6 @@ impl RuntimeContext {
         ctx
     }
 
-    /// Returns true if the DAG block for the given CID starts with the WASM
-    /// magic bytes, indicating a compiled CCL module.
-    pub async fn manifest_is_ccl_wasm(&self, cid: &Cid) -> bool {
-        if let Ok(Some(block)) = self.dag_store.lock().await.get(cid) {
-            return block.data.starts_with(b"\0asm");
-        }
-        false
-    }
-
     pub async fn internal_queue_mesh_job(
         self: &Arc<Self>,
         job: ActualMeshJob,
@@ -843,9 +834,7 @@ impl RuntimeContext {
         states.insert(job.id.clone(), JobState::Pending);
         println!("[CONTEXT] Queued mesh job: id={:?}, state=Pending", job.id);
 
-        if matches!(job.spec.kind, icn_mesh::JobKind::CclWasm)
-            || self.manifest_is_ccl_wasm(&job.manifest_cid).await
-        {
+        if job.spec.kind.is_ccl_wasm() {
             let signer = self.signer.clone();
             let ctx_clone = Arc::clone(self);
             let job_clone = job.clone();

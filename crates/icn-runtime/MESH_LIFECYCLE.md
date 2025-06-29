@@ -22,6 +22,9 @@ from submission by a host to final completion and receipt anchoring.
     *   Mana is deducted from the host.
     *   The job (`ActualMeshJob`) is added to the `pending_mesh_jobs` queue within the `RuntimeContext`.
     *   The job's state is set to `JobState::Pending` in `job_states`.
+    *   If `JobSpec.kind` is `CclWasm`, the runtime immediately loads the referenced
+        WASM module from the DAG and executes it using the built-in WASM executor,
+        anchoring the resulting receipt.
 
 2.  **Job Announcement (by JobManager on Submitter's Node)**
     *   The `JobManager` (running within the submitter's `RuntimeContext`) picks up the job from `pending_mesh_jobs`.
