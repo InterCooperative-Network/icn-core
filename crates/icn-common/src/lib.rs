@@ -475,9 +475,14 @@ pub struct Transaction {
     pub payload_type: String,
     /// Serialized transaction-specific data.
     pub payload: Vec<u8>,
+    /// Nonce ensuring transaction uniqueness.
+    pub nonce: u64,
+    /// Maximum compute units the sender is willing to expend.
+    pub gas_limit: u64,
+    /// Price per compute unit the sender is willing to pay.
+    pub gas_price: u64,
     /// Optional Ed25519 signature of the transaction content.
     pub signature: Option<SignatureBytes>,
-    // TODO: Add fields like nonce, gas_limit, gas_price if relevant to economic model
 }
 
 /// Minimal DID document containing the public verifying key for a [`Did`].
@@ -516,6 +521,9 @@ impl Signable for Transaction {
         }
         bytes.extend_from_slice(self.payload_type.as_bytes());
         bytes.extend_from_slice(&self.payload);
+        bytes.extend_from_slice(&self.nonce.to_le_bytes());
+        bytes.extend_from_slice(&self.gas_limit.to_le_bytes());
+        bytes.extend_from_slice(&self.gas_price.to_le_bytes());
         Ok(bytes)
     }
 }
@@ -635,6 +643,9 @@ mod tests {
             recipient_did: None,
             payload_type: "test_payload".to_string(),
             payload: b"some test data".to_vec(),
+            nonce: 1,
+            gas_limit: 10,
+            gas_price: 1,
             signature: Some(SignatureBytes(vec![0u8; ed25519_dalek::SIGNATURE_LENGTH])),
         };
         assert_eq!(transaction.sender_did, sender);

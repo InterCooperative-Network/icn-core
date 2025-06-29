@@ -24,6 +24,9 @@ async fn submit_transaction_and_query_data() {
         recipient_did: None,
         payload_type: "test".to_string(),
         payload: b"hello".to_vec(),
+        nonce: 0,
+        gas_limit: 100,
+        gas_price: 1,
         signature: None,
     };
     let tx_json = serde_json::to_string(&tx).unwrap();

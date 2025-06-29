@@ -15,6 +15,9 @@ fn transaction_sign_verify() {
         recipient_did: None,
         payload_type: "test".to_string(),
         payload: b"hello".to_vec(),
+        nonce: 0,
+        gas_limit: 100,
+        gas_price: 1,
         signature: None,
     };
 
@@ -24,6 +27,26 @@ fn transaction_sign_verify() {
     let mut bad_tx = tx.clone();
     bad_tx.payload.push(1);
     assert!(bad_tx.verify(&sig, &pk).is_err());
+}
+
+#[test]
+fn transaction_serialization_roundtrip() {
+    let tx = Transaction {
+        id: "tx2".to_string(),
+        timestamp: 42,
+        sender_did: Did::new("key", "alice"),
+        recipient_did: Some(Did::new("key", "bob")),
+        payload_type: "test".to_string(),
+        payload: b"hello".to_vec(),
+        nonce: 7,
+        gas_limit: 200,
+        gas_price: 2,
+        signature: None,
+    };
+
+    let json = serde_json::to_string(&tx).unwrap();
+    let parsed: Transaction = serde_json::from_str(&json).unwrap();
+    assert_eq!(tx, parsed);
 }
 
 #[test]
