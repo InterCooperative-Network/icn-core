@@ -419,10 +419,68 @@ async fn test_no_valid_bids_job_times_out_refund_mana() {
     );
 }
 
-// TODO: Add more tests for other error cases and edge conditions.
-// - Executor selected, but fails mana re-check during assignment.
-// - DAG anchoring fails.
-// - Reputation update fails.
+// Additional error case tests
+
+#[tokio::test]
+async fn executor_recheck_failure_after_selection() {
+    let rep_store = icn_reputation::InMemoryReputationStore::new();
+    let ledger = InMemoryManaLedger::default();
+
+    let exec = Did::from_str("did:icn:test:exec_recheck").unwrap();
+    ledger.set_balance(&exec, 5).unwrap();
+
+    let job_id = JobId("job_recheck".into());
+    let bid = Bid {
+        job_id: job_id.clone(),
+        executor_did: exec.clone(),
+        price_mana: 5,
+        resources: Resources::default(),
+        signature: icn_identity::SignatureBytes(vec![]),
+    };
+
+    let selected = select_executor(
+        &job_id,
+        &JobSpec::default(),
+        vec![bid.clone()],
+        &SelectionPolicy::default(),
+        &rep_store,
+        &ledger,
+    )
+    .expect("selection");
+    assert_eq!(selected, exec);
+
+    ledger.set_balance(&exec, 0).unwrap();
+    let result = ledger.spend(&exec, bid.price_mana);
+    assert!(matches!(result, Err(EconError::InsufficientBalance(_))));
+}
+
+#[tokio::test]
+async fn anchor_receipt_returns_dag_error() {
+    let mut ctx = create_test_runtime_context("did:icn:test:dag_error", 10);
+    ctx.dag_store = Arc::new(TokioMutex::new(FailingDagStore::default()));
+
+    let receipt_json =
+        dummy_receipt_json("job_err", &ctx.current_identity.to_string(), "res");
+    let result = host_anchor_receipt(&mut ctx, &receipt_json, &ReputationUpdater::new()).await;
+    assert!(matches!(result, Err(HostAbiError::DagOperationFailed(_))));
+}
+
+#[tokio::test]
+async fn reputation_update_panic() {
+    let mut ctx = create_test_runtime_context("did:icn:test:rep_panic", 10);
+    ctx.reputation_store = Arc::new(FailingReputationStore::default());
+
+    let receipt_json =
+        dummy_receipt_json("job_panic", &ctx.current_identity.to_string(), "res");
+    let result = std::panic::AssertUnwindSafe(host_anchor_receipt(
+        &mut ctx,
+        &receipt_json,
+        &ReputationUpdater::new(),
+    ))
+    .catch_unwind()
+    .await;
+    assert!(result.is_err());
+}
 
 #[tokio::test]
 async fn test_executor_selection_bidder_loses_mana() {
