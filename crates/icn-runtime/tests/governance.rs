@@ -10,7 +10,7 @@ use std::str::FromStr;
 #[tokio::test]
 async fn proposal_can_be_closed_and_executed() {
     // setup context
-    let ctx = RuntimeContext::new_with_stubs("did:icn:test:alice");
+    let ctx = RuntimeContext::new_with_stubs("did:icn:test:alice").unwrap();
     {
         let mut gov = ctx.governance_module.lock().await;
         gov.add_member(Did::from_str("did:icn:test:alice").unwrap());

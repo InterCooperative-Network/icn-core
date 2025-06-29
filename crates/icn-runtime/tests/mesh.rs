@@ -44,7 +44,7 @@ fn create_test_mesh_job(manifest_cid: Cid, cost_mana: u64, creator_did: Did) -> 
 // The Stub services are now part of RuntimeContext::new_with_stubs_and_mana
 fn create_test_context(identity_did_str: &str, initial_mana: u64) -> Arc<RuntimeContext> {
     let _ = std::fs::remove_file("./mana_ledger.sled");
-    RuntimeContext::new_with_stubs_and_mana(identity_did_str, initial_mana)
+    RuntimeContext::new_with_stubs_and_mana(identity_did_str, initial_mana).unwrap()
 }
 
 // Helper to assert the state of a job

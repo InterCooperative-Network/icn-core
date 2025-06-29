@@ -816,7 +816,7 @@ mod tests {
     #[tokio::test]
     async fn test_runtime_context_new_with_stubs() {
         let node_did_str = "did:key:z6MkjL4FwS3np2p2NLiqH57sX99pZtG9x3Fy9bYh3xHqs14z";
-        let ctx = RuntimeContext::new_with_stubs(node_did_str);
+        let ctx = RuntimeContext::new_with_stubs(node_did_str).unwrap();
         assert_eq!(ctx.current_identity.to_string(), node_did_str);
         // Further checks can be added here if needed
     }
@@ -825,7 +825,7 @@ mod tests {
     async fn test_runtime_context_new_with_stubs_and_mana() {
         let node_did_str = "did:key:zTestManaDid";
         let initial_mana = 1000u64;
-        let ctx = RuntimeContext::new_with_stubs_and_mana(node_did_str, initial_mana);
+        let ctx = RuntimeContext::new_with_stubs_and_mana(node_did_str, initial_mana).unwrap();
         assert_eq!(ctx.current_identity.to_string(), node_did_str);
         let balance = ctx.get_mana(&ctx.current_identity).await.unwrap();
         assert_eq!(balance, initial_mana);

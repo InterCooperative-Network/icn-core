@@ -698,38 +698,34 @@ impl RuntimeContext {
         dag_path: PathBuf,
         mana_ledger_path: PathBuf,
         reputation_store_path: PathBuf,
-    ) -> Arc<Self> {
+    ) -> Result<Arc<Self>, CommonError> {
         #[cfg(feature = "persist-rocksdb")]
-        let dag_store = Arc::new(TokioMutex::new(
-            RocksDagStore::new(dag_path)
-                .unwrap_or_else(|e| panic!("Failed to init RocksDagStore: {e}")),
-        )) as Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>;
+        let dag_store = Arc::new(TokioMutex::new(RocksDagStore::new(dag_path)?))
+            as Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>;
 
         #[cfg(all(not(feature = "persist-rocksdb"), feature = "persist-sled"))]
-        let dag_store = Arc::new(TokioMutex::new(
-            icn_dag::sled_store::SledDagStore::new(dag_path).expect("Failed to init SledDagStore"),
-        )) as Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>;
+        let dag_store = Arc::new(TokioMutex::new(icn_dag::sled_store::SledDagStore::new(
+            dag_path,
+        )?)) as Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>;
 
         #[cfg(all(
             not(feature = "persist-rocksdb"),
             not(feature = "persist-sled"),
             feature = "persist-sqlite"
         ))]
-        let dag_store = Arc::new(TokioMutex::new(
-            icn_dag::sqlite_store::SqliteDagStore::new(dag_path)
-                .expect("Failed to init SqliteDagStore"),
-        )) as Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>;
+        let dag_store = Arc::new(TokioMutex::new(icn_dag::sqlite_store::SqliteDagStore::new(
+            dag_path,
+        )?)) as Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>;
 
         #[cfg(not(any(
             feature = "persist-rocksdb",
             feature = "persist-sled",
             feature = "persist-sqlite"
         )))]
-        let dag_store = Arc::new(TokioMutex::new(
-            FileDagStore::new(dag_path).expect("Failed to init FileDagStore"),
-        )) as Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>;
+        let dag_store = Arc::new(TokioMutex::new(FileDagStore::new(dag_path)?))
+            as Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>;
 
-        Self::new_with_ledger_path(
+        Ok(Self::new_with_ledger_path(
             current_identity,
             mesh_network_service,
             signer,
@@ -737,7 +733,7 @@ impl RuntimeContext {
             dag_store,
             mana_ledger_path,
             reputation_store_path,
-        )
+        ))
     }
 
     #[cfg(feature = "enable-libp2p")]
@@ -778,17 +774,21 @@ impl RuntimeContext {
         ))
     }
 
-    pub fn new_with_stubs(current_identity_str: &str) -> Arc<Self> {
-        let current_identity = Did::from_str(current_identity_str)
-            .expect("Invalid DID for test context in new_with_stubs");
+    pub fn new_with_stubs(current_identity_str: &str) -> Result<Arc<Self>, CommonError> {
+        let current_identity = Did::from_str(current_identity_str).map_err(|e| {
+            CommonError::IdentityError(format!(
+                "Invalid DID for test context in new_with_stubs: {}",
+                e
+            ))
+        })?;
         #[cfg(feature = "persist-sled")]
-        let dag_store = Arc::new(TokioMutex::new(
-            icn_dag::sled_store::SledDagStore::new(PathBuf::from("./dag.sled")).unwrap(),
-        ));
+        let dag_store = Arc::new(TokioMutex::new(icn_dag::sled_store::SledDagStore::new(
+            PathBuf::from("./dag.sled"),
+        )?));
         #[cfg(not(feature = "persist-sled"))]
         let dag_store = Arc::new(TokioMutex::new(StubDagStore::new()));
 
-        Self::new_with_ledger_path(
+        Ok(Self::new_with_ledger_path(
             current_identity,
             Arc::new(StubMeshNetworkService::new()),
             Arc::new(StubSigner::new()),
@@ -796,16 +796,23 @@ impl RuntimeContext {
             dag_store,
             PathBuf::from("./mana_ledger.sled"),
             PathBuf::from("./reputation.sled"),
-        )
+        ))
     }
 
-    pub fn new_with_stubs_and_mana(current_identity_str: &str, initial_mana: u64) -> Arc<Self> {
-        let current_identity = Did::from_str(current_identity_str)
-            .expect("Invalid DID for test context in new_with_stubs_and_mana");
+    pub fn new_with_stubs_and_mana(
+        current_identity_str: &str,
+        initial_mana: u64,
+    ) -> Result<Arc<Self>, CommonError> {
+        let current_identity = Did::from_str(current_identity_str).map_err(|e| {
+            CommonError::IdentityError(format!(
+                "Invalid DID for test context in new_with_stubs_and_mana: {}",
+                e
+            ))
+        })?;
         #[cfg(feature = "persist-sled")]
-        let dag_store = Arc::new(TokioMutex::new(
-            icn_dag::sled_store::SledDagStore::new(PathBuf::from("./dag.sled")).unwrap(),
-        ));
+        let dag_store = Arc::new(TokioMutex::new(icn_dag::sled_store::SledDagStore::new(
+            PathBuf::from("./dag.sled"),
+        )?));
         #[cfg(not(feature = "persist-sled"))]
         let dag_store = Arc::new(TokioMutex::new(StubDagStore::new()));
 
@@ -821,7 +828,7 @@ impl RuntimeContext {
         ctx.mana_ledger
             .set_balance(&current_identity, initial_mana)
             .expect("set initial mana");
-        ctx
+        Ok(ctx)
     }
 
     /// Returns true if the DAG block for the given CID starts with the WASM
@@ -2034,7 +2041,8 @@ mod tests {
     fn test_env_submit_mesh_job_success() {
         let mut env = ConcreteHostEnvironment::new();
         let _ = std::fs::remove_file("./mana_ledger.sled");
-        let ctx_arc = RuntimeContext::new_with_stubs_and_mana("did:icn:test:env_submit", 100);
+        let ctx_arc =
+            RuntimeContext::new_with_stubs_and_mana("did:icn:test:env_submit", 100).unwrap();
 
         let job = ActualMeshJob {
             id: Cid::new_v1_sha256(0x55, b"job"),
@@ -2064,7 +2072,7 @@ mod tests {
     fn test_env_account_get_mana_success() {
         let mut env = ConcreteHostEnvironment::new();
         let _ = std::fs::remove_file("./mana_ledger.sled");
-        let ctx_arc = RuntimeContext::new_with_stubs_and_mana("did:icn:test:env_mana", 50);
+        let ctx_arc = RuntimeContext::new_with_stubs_and_mana("did:icn:test:env_mana", 50).unwrap();
 
         let did_bytes = ctx_arc.current_identity.to_string().into_bytes();
         env.set_memory(did_bytes.clone());
@@ -2078,7 +2086,8 @@ mod tests {
     fn test_env_account_spend_mana_success() {
         let mut env = ConcreteHostEnvironment::new();
         let _ = std::fs::remove_file("./mana_ledger.sled");
-        let ctx_arc = RuntimeContext::new_with_stubs_and_mana("did:icn:test:env_spend", 20);
+        let ctx_arc =
+            RuntimeContext::new_with_stubs_and_mana("did:icn:test:env_spend", 20).unwrap();
 
         let did_bytes = ctx_arc.current_identity.to_string().into_bytes();
         env.set_memory(did_bytes.clone());
@@ -2094,7 +2103,8 @@ mod tests {
     #[test]
     fn test_env_submit_mesh_job_invalid_utf8() {
         let mut env = ConcreteHostEnvironment::new();
-        let ctx_arc = RuntimeContext::new_with_stubs_and_mana("did:icn:test:env_submit_utf8", 100);
+        let ctx_arc =
+            RuntimeContext::new_with_stubs_and_mana("did:icn:test:env_submit_utf8", 100).unwrap();
 
         // Invalid UTF-8 bytes
         env.set_memory(vec![0xff, 0xfe, 0xfd]);
@@ -2105,7 +2115,8 @@ mod tests {
     #[test]
     fn test_env_account_get_mana_invalid_did() {
         let mut env = ConcreteHostEnvironment::new();
-        let ctx_arc = RuntimeContext::new_with_stubs_and_mana("did:icn:test:env_get_invalid", 10);
+        let ctx_arc =
+            RuntimeContext::new_with_stubs_and_mana("did:icn:test:env_get_invalid", 10).unwrap();
 
         env.set_memory(b"not_a_did".to_vec());
         let res = env.env_account_get_mana(&ctx_arc, 0, 9);
@@ -2115,7 +2126,8 @@ mod tests {
     #[test]
     fn test_env_account_spend_mana_insufficient() {
         let mut env = ConcreteHostEnvironment::new();
-        let ctx_arc = RuntimeContext::new_with_stubs_and_mana("did:icn:test:env_spend_fail", 5);
+        let ctx_arc =
+            RuntimeContext::new_with_stubs_and_mana("did:icn:test:env_spend_fail", 5).unwrap();
 
         let did_bytes = ctx_arc.current_identity.to_string().into_bytes();
         env.set_memory(did_bytes.clone());

@@ -13,7 +13,7 @@ use wasmtime::{Engine, Linker, Module, Store};
 
 #[tokio::test]
 async fn wasm_host_api_functions() {
-    let ctx = RuntimeContext::new_with_stubs_and_mana("did:key:zHostTest", 50);
+    let ctx = RuntimeContext::new_with_stubs_and_mana("did:key:zHostTest", 50).unwrap();
     let engine = Engine::default();
     let module_wat = r#"(module
         (import "icn" "wasm_host_submit_mesh_job" (func $submit (param i32 i32 i32 i32) (result i32)))
@@ -179,7 +179,7 @@ async fn wasm_host_api_functions() {
 
 #[tokio::test]
 async fn wasm_host_api_error_paths() {
-    let ctx = RuntimeContext::new_with_stubs_and_mana("did:key:zHostErr", 10);
+    let ctx = RuntimeContext::new_with_stubs_and_mana("did:key:zHostErr", 10).unwrap();
     let engine = Engine::default();
     let module_wat = r#"(module
         (import "icn" "wasm_host_submit_mesh_job" (func $submit (param i32 i32 i32 i32) (result i32)))
