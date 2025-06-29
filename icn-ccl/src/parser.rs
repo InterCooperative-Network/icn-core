@@ -13,7 +13,7 @@ use pest_derive::Parser;
 pub struct CclParser;
 
 // Parse a simple literal or identifier expression
-fn parse_literal_expression(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
+pub(crate) fn parse_literal_expression(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
     match pair.as_rule() {
         Rule::integer_literal => {
             let value = pair
@@ -48,7 +48,7 @@ fn parse_literal_expression(pair: Pair<Rule>) -> Result<ExpressionNode, CclError
     }
 }
 
-fn parse_function_call(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
+pub(crate) fn parse_function_call(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
     let mut inner = pair.into_inner();
     let name_pair = inner
         .next()
@@ -66,7 +66,7 @@ fn parse_function_call(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
     })
 }
 
-fn parse_primary(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
+pub(crate) fn parse_primary(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
     match pair.as_rule() {
         Rule::integer_literal | Rule::boolean_literal | Rule::string_literal | Rule::identifier => {
             parse_literal_expression(pair)
@@ -86,7 +86,7 @@ fn parse_primary(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
     }
 }
 
-fn parse_expression(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
+pub(crate) fn parse_expression(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
     match pair.as_rule() {
         Rule::expression => {
             let inner = pair
@@ -216,7 +216,7 @@ fn parse_expression(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
     }
 }
 
-fn parse_block(pair: Pair<Rule>) -> Result<BlockNode, CclError> {
+pub(crate) fn parse_block(pair: Pair<Rule>) -> Result<BlockNode, CclError> {
     let mut statements = vec![];
     // block = { "{" ~ statement* ~ "}" }
     // We expect the block's inner rules to be `statement` rules.
@@ -298,7 +298,7 @@ fn parse_block(pair: Pair<Rule>) -> Result<BlockNode, CclError> {
     Ok(BlockNode { statements })
 }
 
-fn parse_type_annotation(pair: Pair<Rule>) -> Result<TypeAnnotationNode, CclError> {
+pub(crate) fn parse_type_annotation(pair: Pair<Rule>) -> Result<TypeAnnotationNode, CclError> {
     // `type_annotation` rule in Pest is now `{ identifier }`.
     // So, the `pair` passed here should have `pair.as_rule() == Rule::identifier` if Pest rule `type_annotation = { identifier }` was used directly in `function_definition`.
     // However, the `function_definition` rule is `... ~ type_annotation ~ ...`
@@ -326,7 +326,7 @@ fn parse_type_annotation(pair: Pair<Rule>) -> Result<TypeAnnotationNode, CclErro
     }
 }
 
-fn parse_function_definition(pair: Pair<Rule>) -> Result<AstNode, CclError> {
+pub(crate) fn parse_function_definition(pair: Pair<Rule>) -> Result<AstNode, CclError> {
     // function_definition = { "fn" ~ identifier ~ "(" ~ (parameter ~ ("," ~ parameter)*)? ~ ")" ~ "->" ~ type_annotation ~ block }
     let mut inner_rules = pair.into_inner();
 
@@ -378,7 +378,7 @@ fn parse_function_definition(pair: Pair<Rule>) -> Result<AstNode, CclError> {
     })
 }
 
-fn parse_action(pair: Pair<Rule>) -> Result<ActionNode, CclError> {
+pub(crate) fn parse_action(pair: Pair<Rule>) -> Result<ActionNode, CclError> {
     let mut inner = pair.into_inner();
     let first = inner
         .next()
@@ -399,7 +399,7 @@ fn parse_action(pair: Pair<Rule>) -> Result<ActionNode, CclError> {
     }
 }
 
-fn parse_rule_definition(pair: Pair<Rule>) -> Result<AstNode, CclError> {
+pub(crate) fn parse_rule_definition(pair: Pair<Rule>) -> Result<AstNode, CclError> {
     let mut inner = pair.into_inner();
     let name_pair = inner
         .next()

@@ -126,10 +126,67 @@ pub enum ActionNode {
                             // ... other policy-specific actions
 }
 
-// Helper function to convert Pest pairs to AST (simplified example)
-// pub fn pair_to_ast(pair: pest::iterators::Pair<Rule>) -> Result<AstNode, Error> {
-//     match pair.as_rule() {
-//         // ... conversion logic ...
-//         _ => unimplemented!("Rule not implemented in AST conversion: {:?}", pair.as_rule()),
-//     }
-// }
+/// Converts a Pest `Pair` into an AST node.
+pub fn pair_to_ast(
+    pair: pest::iterators::Pair<crate::parser::Rule>,
+) -> Result<AstNode, crate::error::CclError> {
+    use crate::error::CclError;
+    use crate::parser::{self, Rule};
+    match pair.as_rule() {
+        Rule::policy => {
+            let mut items = Vec::new();
+            for inner in pair.into_inner() {
+                match inner.as_rule() {
+                    Rule::function_definition => {
+                        items.push(PolicyStatementNode::FunctionDef(
+                            parser::parse_function_definition(inner)?,
+                        ));
+                    }
+                    Rule::policy_statement => {
+                        let mut stmt_inner = inner.into_inner();
+                        let stmt = stmt_inner.next().ok_or_else(|| {
+                            CclError::ParsingError("Empty policy statement".to_string())
+                        })?;
+                        match stmt.as_rule() {
+                            Rule::rule_definition => items.push(PolicyStatementNode::RuleDef(
+                                parser::parse_rule_definition(stmt)?,
+                            )),
+                            Rule::import_statement => {
+                                let mut i = stmt.into_inner();
+                                let path_pair = i.next().ok_or_else(|| {
+                                    CclError::ParsingError("Import missing path".to_string())
+                                })?;
+                                let alias_pair = i.next().ok_or_else(|| {
+                                    CclError::ParsingError("Import missing alias".to_string())
+                                })?;
+                                let path = path_pair.as_str().trim_matches('"').to_string();
+                                let alias = alias_pair.as_str().to_string();
+                                items.push(PolicyStatementNode::Import { path, alias });
+                            }
+                            _ => {
+                                return Err(CclError::ParsingError(format!(
+                                    "Unexpected policy statement: {:?}",
+                                    stmt.as_rule()
+                                )));
+                            }
+                        }
+                    }
+                    Rule::EOI => (),
+                    _ => {
+                        return Err(CclError::ParsingError(format!(
+                            "Unexpected rule in policy: {:?}",
+                            inner.as_rule()
+                        )));
+                    }
+                }
+            }
+            Ok(AstNode::Policy(items))
+        }
+        Rule::function_definition => parser::parse_function_definition(pair),
+        Rule::rule_definition => parser::parse_rule_definition(pair),
+        _ => Err(CclError::ParsingError(format!(
+            "Rule not implemented in AST conversion: {:?}",
+            pair.as_rule()
+        ))),
+    }
+}
