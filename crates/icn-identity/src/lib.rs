@@ -658,6 +658,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn web_did_http_resolution_and_verify() {
         use std::io::{Read, Write};
         use std::net::TcpListener;

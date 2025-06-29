@@ -4,9 +4,19 @@ mod federation;
 #[cfg(feature = "enable-libp2p")]
 mod libp2p_job_pipeline {
     use super::federation::{ensure_devnet, NODE_A_URL, NODE_B_URL, NODE_C_URL};
+    use icn_common::{Cid, Did};
+    use icn_identity::{generate_ed25519_keypair, SignatureBytes};
+    use icn_mesh::{ActualMeshJob, JobSpec, JobState, MeshJobBid, Resources};
+    use icn_network::{NetworkMessage, NetworkService};
+    use icn_runtime::context::{RuntimeContext, DefaultMeshNetworkService, MeshNetworkService};
+    use icn_runtime::executor::{JobExecutor, SimpleExecutor};
+    use icn_runtime::{host_anchor_receipt, host_submit_mesh_job, ReputationUpdater};
+    use libp2p::{Multiaddr, PeerId as Libp2pPeerId};
+    use std::str::FromStr;
+    use std::sync::Arc;
+    use tokio::time::{sleep, timeout, Duration};
     use reqwest::Client;
     use serde_json::Value;
-    use tokio::time::{sleep, Duration};
 
     const RETRY_DELAY: Duration = Duration::from_secs(3);
     const MAX_RETRIES: u32 = 20;
@@ -190,6 +200,197 @@ mod libp2p_job_pipeline {
                 "dag get failed on {}",
                 url
             );
+        }
+    }
+
+    #[tokio::test]
+    async fn runtime_context_two_node_pipeline() -> anyhow::Result<()> {
+        env_logger::try_init().ok();
+
+        // --- Node A setup ---
+        let listen: Vec<Multiaddr> = vec!["/ip4/0.0.0.0/tcp/0".parse().unwrap()];
+        let node_a = RuntimeContext::new_with_real_libp2p(
+            "did:key:z6MktestA",
+            listen.clone(),
+            None,
+            std::path::PathBuf::from("./mana_a.sled"),
+            std::path::PathBuf::from("./rep_a.sled"),
+        )
+        .await?;
+        node_a
+            .mana_ledger
+            .set_balance(&node_a.current_identity, 1000)
+            .unwrap();
+        let service_a = node_a.get_libp2p_service()?;
+        sleep(Duration::from_millis(500)).await;
+        let peer_a = *service_a.local_peer_id();
+        let addr_a = service_a
+            .listening_addresses()
+            .get(0)
+            .cloned()
+            .expect("addr_a");
+
+        // --- Node B setup bootstrapped to A ---
+        let node_b = RuntimeContext::new_with_real_libp2p(
+            "did:key:z6MktestB",
+            listen,
+            Some(vec![(peer_a, addr_a.clone())]),
+            std::path::PathBuf::from("./mana_b.sled"),
+            std::path::PathBuf::from("./rep_b.sled"),
+        )
+        .await?;
+        let service_b = node_b.get_libp2p_service()?;
+        sleep(Duration::from_secs(2)).await;
+
+        let rep_before = node_a.reputation_store.get_reputation(&node_b.current_identity);
+
+        let mut recv_a = service_a.subscribe().await?;
+        let mut recv_b = service_b.subscribe().await?;
+        let mesh_a = DefaultMeshNetworkService::new(service_a.clone());
+
+        // --- Submit job on Node A ---
+        let job = create_job("pipeline", &node_a.current_identity);
+        let job_json = serde_json::to_string(&job)?;
+        let job_id = host_submit_mesh_job(&node_a, &job_json).await?;
+
+        {
+            let states = node_a.job_states.lock().await;
+            assert!(matches!(states.get(&job_id), Some(JobState::Pending)));
+        }
+
+        mesh_a.announce_job(&job).await?;
+
+        // Wait for announcement
+        timeout(Duration::from_secs(5), async {
+            loop {
+                if let Some(NetworkMessage::MeshJobAnnouncement(j)) = recv_b.recv().await {
+                    if j.id == job_id {
+                        break;
+                    }
+                }
+            }
+        })
+        .await?;
+
+        // Node B sends bid
+        let unsigned = MeshJobBid {
+            job_id: job_id.clone(),
+            executor_did: node_b.current_identity.clone(),
+            price_mana: 30,
+            resources: Resources::default(),
+            signature: SignatureBytes(vec![]),
+        };
+        let sig = node_b.signer.sign(&unsigned.to_signable_bytes().unwrap()).unwrap();
+        let bid = MeshJobBid { signature: SignatureBytes(sig), ..unsigned };
+        service_b
+            .broadcast_message(NetworkMessage::BidSubmission(bid))
+            .await?;
+
+        // Wait for bid on A
+        timeout(Duration::from_secs(5), async {
+            loop {
+                if let Some(NetworkMessage::BidSubmission(b)) = recv_a.recv().await {
+                    if b.job_id == job_id {
+                        break;
+                    }
+                }
+            }
+        })
+        .await?;
+
+        // Assign job to B
+        service_a
+            .broadcast_message(NetworkMessage::JobAssignmentNotification(
+                job_id.clone(),
+                node_b.current_identity.clone(),
+            ))
+            .await?;
+
+        {
+            let mut states = node_a.job_states.lock().await;
+            states.insert(
+                job_id.clone(),
+                JobState::Assigned {
+                    executor: node_b.current_identity.clone(),
+                },
+            );
+        }
+
+        // Wait for assignment on B
+        timeout(Duration::from_secs(5), async {
+            loop {
+                if let Some(NetworkMessage::JobAssignmentNotification(id, ex)) = recv_b.recv().await {
+                    if id == job_id && ex == node_b.current_identity {
+                        break;
+                    }
+                }
+            }
+        })
+        .await?;
+
+        // Execute job on B
+        let (sk, pk) = generate_ed25519_keypair();
+        let executor = SimpleExecutor::new(node_b.current_identity.clone(), sk);
+        let receipt = executor.execute_job(&job).await?;
+        assert!(receipt.verify_against_key(&pk).is_ok());
+
+        service_b
+            .broadcast_message(NetworkMessage::SubmitReceipt(receipt.clone()))
+            .await?;
+
+        // Node A waits for receipt
+        let final_receipt = timeout(Duration::from_secs(5), async {
+            loop {
+                if let Some(NetworkMessage::SubmitReceipt(r)) = recv_a.recv().await {
+                    if r.job_id == job_id {
+                        break r;
+                    }
+                }
+            }
+        })
+        .await?
+        .unwrap();
+
+        let receipt_json = serde_json::to_string(&final_receipt)?;
+        let cid = host_anchor_receipt(&node_a, &receipt_json, &ReputationUpdater::new()).await?;
+
+        {
+            let states = node_a.job_states.lock().await;
+            match states.get(&job_id) {
+                Some(JobState::Completed { .. }) => {}
+                other => panic!("Job not completed: {:?}", other),
+            }
+        }
+
+        let rep_after = node_a
+            .reputation_store
+            .get_reputation(&node_b.current_identity);
+        assert!(rep_after > rep_before, "reputation should increase");
+
+        let stored = node_a
+            .dag_store
+            .lock()
+            .await
+            .get(&cid)?
+            .expect("receipt stored");
+        assert_eq!(stored.cid, cid);
+
+        Ok(())
+    }
+
+    fn create_job(suffix: &str, creator: &Did) -> ActualMeshJob {
+        let job_id = Cid::new_v1_sha256(0x55, format!("job_{suffix}").as_bytes());
+        let manifest_cid = Cid::new_v1_sha256(0x55, format!("manifest_{suffix}").as_bytes());
+        ActualMeshJob {
+            id: job_id,
+            manifest_cid,
+            spec: JobSpec::Echo {
+                payload: "two node".into(),
+            },
+            creator_did: creator.clone(),
+            cost_mana: 50,
+            max_execution_wait_ms: None,
+            signature: SignatureBytes(vec![0u8; 64]),
         }
     }
 }

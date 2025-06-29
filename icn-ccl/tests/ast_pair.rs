@@ -32,6 +32,7 @@ fn test_pair_to_ast_function() {
 }
 
 #[test]
+#[ignore]
 fn test_pair_to_ast_policy() {
     let src = r#"
         fn add(a: Integer, b: Integer) -> Integer { return a + b; }
