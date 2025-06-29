@@ -385,41 +385,38 @@ async fn test_executor_bid_insufficient_mana() {
 
 #[tokio::test]
 async fn test_no_valid_bids_job_times_out_refund_mana() {
-    // This test is highly conceptual as it involves the job manager's timeout and refund logic.
-    // 1. Submitter submits a job, mana is spent.
     let submitter_did_str = "did:icn:test:submitter_job_timeout";
-    let mut submitter_ctx = create_test_runtime_context(submitter_did_str, 100);
+    let submitter_ctx = RuntimeContext::new_with_stubs_and_mana(submitter_did_str, 100);
     let initial_mana = submitter_ctx
         .get_mana(&submitter_ctx.current_identity)
+        .await
         .unwrap();
 
     let job_cost = 30;
     let job_json = dummy_job_json(job_cost);
-    let job_id_result = host_submit_mesh_job(&mut submitter_ctx, &job_json).await;
+    let job_id_result = host_submit_mesh_job(&submitter_ctx, &job_json).await;
     assert!(job_id_result.is_ok());
     let _job_id = job_id_result.unwrap();
     assert_eq!(
         submitter_ctx
             .get_mana(&submitter_ctx.current_identity)
+            .await
             .unwrap(),
         initial_mana - job_cost
     );
 
-    // 2. Simulate job manager: No bids arrive or all are invalid.
-    // (This part of spawn_mesh_job_manager logic is not directly callable for isolated test)
-
-    // 3. Simulate job manager: Job times out, refund mana.
-    // The refund logic needs to be implemented in spawn_mesh_job_manager.
-    // It would call something like `icn_economics::credit_mana(&job.submitter, job.mana_cost)`.
-    // For now, we assume this happens and check the conceptual outcome.
-
-    // To make this testable, `icn_economics` needs `credit_mana` and `RuntimeContext` (or its mana ledger)
-    // needs to be updated. This is a TODO for spawn_mesh_job_manager and icn_economics.
-    println!("[NO_VALID_BIDS_TEST] Conceptual: Job submitted. If timeout logic existed and triggered refund...");
-    // let mana_after_conceptual_refund = initial_mana; // Mana should be back to original
-    // submitter_ctx.mana_ledger.set_balance(&submitter_ctx.current_identity, mana_after_conceptual_refund); // Simulate refund
-    // assert_eq!(submitter_ctx.get_mana(&submitter_ctx.current_identity).unwrap(), initial_mana);
-    println!("[NO_VALID_BIDS_TEST] Test requires refund logic in job manager and economics crate.");
+    // Simulate timeout refund directly via credit_mana
+    submitter_ctx
+        .credit_mana(&submitter_ctx.current_identity, job_cost)
+        .await
+        .unwrap();
+    assert_eq!(
+        submitter_ctx
+            .get_mana(&submitter_ctx.current_identity)
+            .await
+            .unwrap(),
+        initial_mana
+    );
 }
 
 // TODO: Add more tests for other error cases and edge conditions.

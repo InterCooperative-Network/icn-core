@@ -121,6 +121,13 @@ pub fn charge_mana<L: ManaLedger>(ledger: L, did: &Did, amount: u64) -> Result<(
     policy_enforcer.spend_mana(did, amount)
 }
 
+/// Credits mana to the given DID using the provided ledger.
+pub fn credit_mana<L: ManaLedger>(ledger: L, did: &Did, amount: u64) -> Result<(), EconError> {
+    let mana_adapter = ManaRepositoryAdapter::new(ledger);
+    println!("[icn-economics] credit_mana called for DID {did:?}, amount {amount}");
+    mana_adapter.credit_mana(did, amount)
+}
+
 /// Placeholder function demonstrating use of common types for economics.
 pub fn process_economic_event(info: &NodeInfo, event_details: &str) -> Result<String, CommonError> {
     Ok(format!(

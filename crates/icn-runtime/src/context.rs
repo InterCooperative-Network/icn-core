@@ -9,6 +9,7 @@ use downcast_rs::{impl_downcast, DowncastSync};
 use icn_network::libp2p_service::Libp2pNetworkService as ActualLibp2pNetworkService;
 use icn_network::{NetworkMessage, NetworkService as ActualNetworkService};
 
+use icn_economics::EconError;
 #[cfg(not(any(
     feature = "persist-sled",
     feature = "persist-sqlite",
@@ -25,7 +26,6 @@ use icn_economics::RocksdbManaLedger;
 use icn_economics::SledManaLedger;
 #[cfg(all(not(feature = "persist-sled"), feature = "persist-sqlite"))]
 use icn_economics::SqliteManaLedger;
-use icn_economics::{EconError, ManaRepositoryAdapter};
 use log::{debug, error, info, warn};
 use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
@@ -939,6 +939,12 @@ impl RuntimeContext {
                                 reason: format!("Failed to anchor receipt: {}", e),
                             },
                         );
+                        if let Err(err) = self.credit_mana(&job.creator_did, job.cost_mana).await {
+                            error!(
+                                "[JobManagerDetail] Failed to refund mana to {:?}: {}",
+                                job.creator_did, err
+                            );
+                        }
                         Err(HostAbiError::DagOperationFailed(format!(
                             "Failed to anchor receipt: {}",
                             e
@@ -955,6 +961,12 @@ impl RuntimeContext {
                         reason: "No receipt received within timeout".to_string(),
                     },
                 );
+                if let Err(err) = self.credit_mana(&job.creator_did, job.cost_mana).await {
+                    error!(
+                        "[JobManagerDetail] Failed to refund mana to {:?}: {}",
+                        job.creator_did, err
+                    );
+                }
                 Err(HostAbiError::NetworkError(
                     "No receipt received within timeout".to_string(),
                 ))
@@ -968,6 +980,12 @@ impl RuntimeContext {
                         reason: format!("Error receiving receipt: {}", e),
                     },
                 );
+                if let Err(err) = self.credit_mana(&job.creator_did, job.cost_mana).await {
+                    error!(
+                        "[JobManagerDetail] Failed to refund mana to {:?}: {}",
+                        job.creator_did, err
+                    );
+                }
                 Err(e)
             }
         }
@@ -1208,9 +1226,7 @@ impl RuntimeContext {
             "[CONTEXT] credit_mana called for account: {:?} amount: {}",
             account, amount
         );
-        let adapter = ManaRepositoryAdapter::new(self.mana_ledger.clone());
-        adapter
-            .credit_mana(account, amount)
+        icn_economics::credit_mana(self.mana_ledger.clone(), account, amount)
             .map_err(|e| HostAbiError::InternalError(format!("{e:?}")))
     }
 
