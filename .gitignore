@@ -16,3 +16,4 @@ Cargo.lock
 *.log
 tmp/
 icn-ccl/governance_db/
+*.sled/
