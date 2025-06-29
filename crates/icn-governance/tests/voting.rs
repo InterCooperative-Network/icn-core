@@ -1,6 +1,8 @@
 use icn_common::Did;
 use icn_governance::{GovernanceModule, ProposalStatus, ProposalType, VoteOption};
 use std::str::FromStr;
+use std::thread::sleep;
+use std::time::Duration;
 
 #[test]
 fn vote_tally_and_execute() {
@@ -72,4 +74,55 @@ fn reject_due_to_quorum() {
 
     let status = gov.close_voting_period(&pid).unwrap();
     assert_eq!(status, ProposalStatus::Rejected);
+}
+
+#[test]
+fn vote_fails_after_expiration() {
+    let mut gov = GovernanceModule::new();
+    gov.add_member(Did::from_str("did:example:alice").unwrap());
+
+    let pid = gov
+        .submit_proposal(
+            Did::from_str("did:example:alice").unwrap(),
+            ProposalType::GenericText("hi".into()),
+            "desc".into(),
+            1,
+        )
+        .unwrap();
+
+    sleep(Duration::from_secs(2));
+
+    assert!(gov
+        .cast_vote(
+            Did::from_str("did:example:alice").unwrap(),
+            &pid,
+            VoteOption::Yes,
+        )
+        .is_err());
+
+    let prop = gov.get_proposal(&pid).unwrap().unwrap();
+    assert_eq!(prop.status, ProposalStatus::Rejected);
+}
+
+#[test]
+fn expired_proposal_auto_rejected_on_close() {
+    let mut gov = GovernanceModule::new();
+    gov.add_member(Did::from_str("did:example:alice").unwrap());
+
+    let pid = gov
+        .submit_proposal(
+            Did::from_str("did:example:alice").unwrap(),
+            ProposalType::GenericText("bye".into()),
+            "desc".into(),
+            1,
+        )
+        .unwrap();
+
+    sleep(Duration::from_secs(2));
+
+    let status = gov.close_voting_period(&pid).unwrap();
+    assert_eq!(status, ProposalStatus::Rejected);
+
+    let prop = gov.get_proposal(&pid).unwrap().unwrap();
+    assert_eq!(prop.status, ProposalStatus::Rejected);
 }
