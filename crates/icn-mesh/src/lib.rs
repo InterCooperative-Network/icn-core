@@ -682,6 +682,7 @@ mod tests {
             job_id: dummy_cid("assign_notice"),
             executor_did: Did::from_str("did:icn:test:exec").unwrap(),
             signature: SignatureBytes(vec![]),
+            manifest_cid: None,
         }
         .sign(&sk)
         .unwrap();

@@ -49,7 +49,9 @@ pub fn execute_icn_script(info: &NodeInfo, script_id: &str) -> Result<String, Co
 /// The `id` and `submitter` fields within the deserialized job will be overridden
 /// by the runtime (new JobId generation, context's current_identity).
 ///
-/// TODO: WASM bindings will need to handle memory marshalling for `job_json`.
+/// When invoked from WebAssembly use [`wasm_host_submit_mesh_job`], which
+/// accepts pointer/length parameters and marshals the JSON string via the
+/// `memory` helpers.
 pub async fn host_submit_mesh_job(
     ctx: &std::sync::Arc<RuntimeContext>,
     job_json: &str,
@@ -119,7 +121,9 @@ pub async fn host_submit_mesh_job(
 /// ABI Index: (defined in `abi::ABI_HOST_GET_PENDING_MESH_JOBS`)
 /// Retrieves a snapshot of the current pending mesh jobs from the runtime context.
 ///
-/// TODO: WASM bindings will need to handle memory marshalling for the returned Vec<ActualMeshJob> (e.g., serialize to JSON string).
+/// For WebAssembly callers see [`wasm_host_get_pending_mesh_jobs`], which
+/// serializes the job list to JSON and writes it to guest memory using
+/// pointer/length parameters.
 pub fn host_get_pending_mesh_jobs(
     ctx: &RuntimeContext,
 ) -> Result<Vec<icn_mesh::ActualMeshJob>, HostAbiError> {
@@ -149,7 +153,8 @@ pub fn host_get_pending_mesh_jobs(
 /// In many cases, this will be the `current_identity` within the `ctx`,
 /// but the API allows specifying it for potential future flexibility (e.g., admin queries).
 ///
-/// TODO: WASM bindings will need to handle memory marshalling for `account_id_str`.
+/// WebAssembly modules should call [`wasm_host_account_get_mana`], which
+/// reads the DID string from guest memory using pointer/length arguments.
 pub async fn host_account_get_mana(
     ctx: &RuntimeContext,
     account_id_str: &str,
@@ -181,7 +186,8 @@ pub async fn host_account_get_mana(
 ///
 /// Policy Note: `RuntimeContext::spend_mana` currently only allows spending from `ctx.current_identity`.
 ///
-/// TODO: WASM bindings will need to handle memory marshalling for `account_id_str` and `amount`.
+/// For WebAssembly use [`wasm_host_account_spend_mana`], which reads the DID
+/// string and writes any errors through pointer/length parameters.
 pub async fn host_account_spend_mana(
     ctx: &RuntimeContext,
     account_id_str: &str,
@@ -284,7 +290,9 @@ impl ReputationUpdater {
 ///
 /// The `receipt_json` is expected to be a JSON string serializing `icn_identity::ExecutionReceipt`.
 ///
-/// TODO: WASM bindings will need to handle memory marshalling for `receipt_json` and returned `Cid`.
+/// WebAssembly callers should use [`wasm_host_anchor_receipt`], which reads the
+/// receipt JSON from guest memory and returns the resulting CID string via
+/// pointer/length arguments.
 pub async fn host_anchor_receipt(
     ctx: &RuntimeContext,
     receipt_json: &str,
