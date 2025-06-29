@@ -1,6 +1,7 @@
 //! This module provides executor-side functionality for running mesh jobs.
 
 use crate::context::RuntimeContext;
+use icn_ccl::ContractMetadata;
 use icn_common::{Cid, CommonError, Did};
 use icn_identity::{
     ExecutionReceipt as IdentityExecutionReceipt,
@@ -12,7 +13,6 @@ use icn_mesh::JobSpec; /* ... other mesh types ... */
 use icn_mesh::{ActualMeshJob, JobKind};
 use log::info; // Removed error
 use std::time::SystemTime;
-use icn_ccl::ContractMetadata;
 
 /// Trait for a job executor.
 #[async_trait::async_trait]
@@ -87,9 +87,7 @@ impl JobExecutor for SimpleExecutor {
                         .map_err(|e| CommonError::StorageError(format!("{e}")))?
                 }
                 .ok_or_else(|| {
-                    CommonError::ResourceNotFound(
-                        "CCL contract metadata not found".to_string(),
-                    )
+                    CommonError::ResourceNotFound("CCL contract metadata not found".to_string())
                 })?
                 .data;
 
@@ -112,12 +110,10 @@ impl JobExecutor for SimpleExecutor {
                         })?;
                 }
 
-                let signer = std::sync::Arc::new(
-                    crate::context::StubSigner::new_with_keys(
-                        self.signing_key.clone(),
-                        self.signing_key.verifying_key(),
-                    ),
-                ) as std::sync::Arc<dyn crate::context::Signer>;
+                let signer = std::sync::Arc::new(crate::context::StubSigner::new_with_keys(
+                    self.signing_key.clone(),
+                    self.signing_key.verifying_key(),
+                )) as std::sync::Arc<dyn crate::context::Signer>;
 
                 let wasm_exec = WasmExecutor::new(ctx.clone(), signer);
                 let mut wasm_job = job.clone();
@@ -126,19 +122,27 @@ impl JobExecutor for SimpleExecutor {
                 return Ok(receipt);
             }
             JobKind::GenericPlaceholder => {
-                info!(
-                    "[SimpleExecutor] Executing hash job (placeholder): {:?}",
-                    job.id
-                );
-                let timestamp = SystemTime::now()
-                    .duration_since(SystemTime::UNIX_EPOCH)
-                    .unwrap()
-                    .as_millis();
-                format!(
-                    "job_id:{:?}-manifest:{:?}-timestamp:{}",
-                    job.id, job.manifest_cid, timestamp
-                )
-                .into_bytes()
+                info!("[SimpleExecutor] Executing hashing job: {:?}", job.id);
+
+                // Retrieve the manifest bytes from the DAG store
+                let ctx = self.ctx.as_ref().ok_or_else(|| {
+                    CommonError::InternalError(
+                        "SimpleExecutor missing context for hashing job".into(),
+                    )
+                })?;
+
+                let manifest_bytes = {
+                    let store = ctx.dag_store.lock().await;
+                    store
+                        .get(&job.manifest_cid)
+                        .map_err(|e| CommonError::StorageError(format!("{e}")))?
+                }
+                .ok_or_else(|| CommonError::ResourceNotFound("Manifest not found".into()))?
+                .data;
+
+                // Compute SHA-256 of the manifest bytes
+                use sha2::{Digest, Sha256};
+                Sha256::digest(&manifest_bytes).to_vec()
             }
         };
 
@@ -378,5 +382,54 @@ mod tests {
             "Echo job receipt (test_execute_job_echo_success): {:?}",
             receipt
         );
+    }
+
+    #[tokio::test]
+    async fn test_generic_placeholder_hash_deterministic() {
+        use icn_common::{compute_merkle_cid, DagBlock};
+        use sha2::{Digest, Sha256};
+
+        let ctx = RuntimeContext::new_with_stubs_and_mana("did:key:zHashTest", 0).unwrap();
+
+        let manifest_data = b"manifest";
+        let ts = 0u64;
+        let author = Did::new("key", "tester");
+        let sig_opt = None;
+        let cid = compute_merkle_cid(0x71, manifest_data, &[], ts, &author, &sig_opt);
+        let block = DagBlock {
+            cid: cid.clone(),
+            data: manifest_data.to_vec(),
+            links: vec![],
+            timestamp: ts,
+            author_did: author,
+            signature: sig_opt,
+        };
+        {
+            let mut store = ctx.dag_store.lock().await;
+            store.put(&block).unwrap();
+        }
+
+        let (sk, vk) = generate_keys_for_test();
+        let node_did = Did::from_str(&did_key_from_verifying_key(&vk)).unwrap();
+
+        let job = ActualMeshJob {
+            id: dummy_cid_for_executor_test("hash_job"),
+            manifest_cid: cid.clone(),
+            spec: JobSpec::default(),
+            creator_did: node_did.clone(),
+            cost_mana: 0,
+            max_execution_wait_ms: None,
+            signature: SignatureBytes(vec![]),
+        };
+
+        let exec = SimpleExecutor::with_context(node_did.clone(), sk, ctx);
+        let receipt = exec.execute_job(&job).await.unwrap();
+
+        let expected_bytes = Sha256::digest(manifest_data);
+        let expected_cid = Cid::new_v1_sha256(0x55, &expected_bytes);
+
+        assert_eq!(receipt.result_cid, expected_cid);
+        assert_eq!(receipt.executor_did, node_did);
+        assert!(receipt.verify_against_key(&vk).is_ok());
     }
 }
