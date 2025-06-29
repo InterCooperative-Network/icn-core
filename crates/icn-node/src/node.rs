@@ -42,6 +42,7 @@ use icn_runtime::context::{
     StubSigner as RuntimeStubSigner,
 };
 use icn_runtime::{host_anchor_receipt, host_submit_mesh_job, ReputationUpdater};
+use prometheus_client::{encoding::text::encode, registry::Registry};
 
 use axum::{
     extract::{Path as AxumPath, State},
@@ -452,6 +453,7 @@ pub async fn app_router_with_options(
         Router::new()
             .route("/info", get(info_handler))
             .route("/status", get(status_handler))
+            .route("/metrics", get(metrics_handler))
             .route("/dag/put", post(dag_put_handler)) // These will use RT context's DAG store
             .route("/dag/get", post(dag_get_handler)) // These will use RT context's DAG store
             .route("/transaction/submit", post(tx_submit_handler))
@@ -548,6 +550,7 @@ pub async fn app_router_from_context(
     Router::new()
         .route("/info", get(info_handler))
         .route("/status", get(status_handler))
+        .route("/metrics", get(metrics_handler))
         .route("/dag/put", post(dag_put_handler))
         .route("/dag/get", post(dag_get_handler))
         .route("/transaction/submit", post(tx_submit_handler))
@@ -864,6 +867,7 @@ async fn main() {
     let router = Router::new()
         .route("/info", get(info_handler))
         .route("/status", get(status_handler))
+        .route("/metrics", get(metrics_handler))
         .route("/dag/put", post(dag_put_handler))
         .route("/dag/get", post(dag_get_handler))
         .route("/transaction/submit", post(tx_submit_handler))
@@ -987,6 +991,63 @@ async fn status_handler(State(state): State<AppState>) -> impl IntoResponse {
         version: state.node_version.clone(),
     };
     (StatusCode::OK, Json(status))
+}
+
+// GET /metrics – Prometheus metrics text
+async fn metrics_handler() -> impl IntoResponse {
+    use icn_network::metrics::{
+        PING_AVG_RTT_MS, PING_LAST_RTT_MS, PING_MAX_RTT_MS, PING_MIN_RTT_MS,
+    };
+    use icn_runtime::metrics::{
+        HOST_ACCOUNT_GET_MANA_CALLS, HOST_ACCOUNT_SPEND_MANA_CALLS,
+        HOST_GET_PENDING_MESH_JOBS_CALLS, HOST_SUBMIT_MESH_JOB_CALLS,
+    };
+
+    let mut registry = Registry::default();
+    registry.register(
+        "host_submit_mesh_job_calls",
+        "Number of host_submit_mesh_job calls",
+        &*HOST_SUBMIT_MESH_JOB_CALLS,
+    );
+    registry.register(
+        "host_get_pending_mesh_jobs_calls",
+        "Number of host_get_pending_mesh_jobs calls",
+        &*HOST_GET_PENDING_MESH_JOBS_CALLS,
+    );
+    registry.register(
+        "host_account_get_mana_calls",
+        "Number of host_account_get_mana calls",
+        &*HOST_ACCOUNT_GET_MANA_CALLS,
+    );
+    registry.register(
+        "host_account_spend_mana_calls",
+        "Number of host_account_spend_mana calls",
+        &*HOST_ACCOUNT_SPEND_MANA_CALLS,
+    );
+    registry.register(
+        "ping_last_rtt_ms",
+        "Last observed ping round trip time in ms",
+        &*PING_LAST_RTT_MS,
+    );
+    registry.register(
+        "ping_min_rtt_ms",
+        "Minimum observed ping round trip time in ms",
+        &*PING_MIN_RTT_MS,
+    );
+    registry.register(
+        "ping_max_rtt_ms",
+        "Maximum observed ping round trip time in ms",
+        &*PING_MAX_RTT_MS,
+    );
+    registry.register(
+        "ping_avg_rtt_ms",
+        "Average observed ping round trip time in ms",
+        &*PING_AVG_RTT_MS,
+    );
+
+    let mut buffer = String::new();
+    encode(&mut buffer, &registry).unwrap();
+    (StatusCode::OK, buffer)
 }
 
 // POST /dag/put – Store a DAG block. (Body: block JSON)
