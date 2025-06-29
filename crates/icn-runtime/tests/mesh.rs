@@ -757,7 +757,174 @@ async fn forge_execution_receipt(
 
 #[cfg(feature = "enable-libp2p")]
 #[tokio::test]
-#[ignore = "Blocked on environment/macro/import issues, particularly with libp2p Kademlia types and tokio/serde macros in dependent crates."]
 async fn test_full_mesh_job_cycle_libp2p() -> Result<(), anyhow::Error> {
-    todo!("libp2p integration pending");
+    use icn_network::{NetworkMessage, NetworkService};
+    use icn_runtime::executor::{JobExecutor, SimpleExecutor};
+    use icn_runtime::{host_anchor_receipt, ReputationUpdater};
+    use log::info;
+
+    env_logger::try_init().ok();
+
+    async fn create_libp2p_runtime_context(
+        identity_suffix: &str,
+        bootstrap_peers: Option<Vec<(Libp2pPeerId, Multiaddr)>>,
+        initial_mana: u64,
+    ) -> Result<Arc<RuntimeContext>, anyhow::Error> {
+        let identity_str = format!("did:key:z6Mkv{}", identity_suffix);
+        let listen: Vec<Multiaddr> = vec!["/ip4/0.0.0.0/tcp/0".parse().unwrap()];
+        let ctx = RuntimeContext::new_with_real_libp2p(
+            &identity_str,
+            listen,
+            bootstrap_peers,
+            std::path::PathBuf::from("./mana_ledger.sled"),
+            std::path::PathBuf::from("./reputation.sled"),
+        )
+        .await?;
+        let did = Did::from_str(&identity_str)?;
+        ctx.mana_ledger
+            .set_balance(&did, initial_mana)
+            .expect("init mana");
+        Ok(ctx)
+    }
+
+    fn create_test_job(suffix: &str, creator: &Did, cost: u64) -> ActualMeshJob {
+        let job_id = Cid::new_v1_sha256(0x55, format!("test_job_{}", suffix).as_bytes());
+        let manifest_cid = Cid::new_v1_sha256(0x55, format!("manifest_{}", suffix).as_bytes());
+        ActualMeshJob {
+            id: job_id,
+            manifest_cid,
+            spec: JobSpec::Echo {
+                payload: format!("Libp2p job {}", suffix),
+            },
+            creator_did: creator.clone(),
+            cost_mana: cost,
+            max_execution_wait_ms: None,
+            signature: SignatureBytes(vec![0u8; 64]),
+        }
+    }
+
+    // --- Setup nodes ---
+    let node_a = create_libp2p_runtime_context("FullA", None, 1000).await?;
+    let node_a_libp2p = node_a.get_libp2p_service()?;
+    let peer_a = node_a_libp2p.local_peer_id().clone();
+    sleep(Duration::from_millis(500)).await;
+    let addr_a = node_a_libp2p
+        .listening_addresses()
+        .get(0)
+        .cloned()
+        .expect("node A address");
+
+    let bootstrap = vec![(peer_a, addr_a)];
+    let node_b = create_libp2p_runtime_context("FullB", Some(bootstrap), 100).await?;
+    let node_b_libp2p = node_b.get_libp2p_service()?;
+    sleep(Duration::from_secs(2)).await;
+
+    // --- Submit job on Node A ---
+    let submitter_did = node_a.current_identity.clone();
+    let executor_did = node_b.current_identity.clone();
+    let test_job = create_test_job("cycle", &submitter_did, 50);
+    let job_json = serde_json::to_string(&test_job)?;
+    let job_id = host_submit_mesh_job(&node_a, &job_json).await?;
+
+    // --- Manual mesh pipeline ---
+    let mut recv_a = node_a_libp2p.subscribe().await?;
+    let mut recv_b = node_b_libp2p.subscribe().await?;
+    let network_a = DefaultMeshNetworkService::new(node_a_libp2p.clone());
+
+    network_a.announce_job(&test_job).await?;
+
+    timeout(Duration::from_secs(5), async {
+        loop {
+            if let Some(NetworkMessage::MeshJobAnnouncement(job)) = recv_b.recv().await {
+                if job.id == job_id {
+                    break;
+                }
+            }
+        }
+    })
+    .await?;
+
+    let unsigned_bid = MeshJobBid {
+        job_id: job_id.clone(),
+        executor_did: executor_did.clone(),
+        price_mana: 30,
+        resources: Resources::default(),
+        signature: SignatureBytes(vec![]),
+    };
+    let sig = node_b
+        .signer
+        .sign(&unsigned_bid.to_signable_bytes().unwrap())
+        .unwrap();
+    let bid = MeshJobBid {
+        signature: SignatureBytes(sig),
+        ..unsigned_bid
+    };
+    node_b_libp2p
+        .broadcast_message(NetworkMessage::BidSubmission(bid))
+        .await?;
+
+    timeout(Duration::from_secs(5), async {
+        loop {
+            if let Some(NetworkMessage::BidSubmission(b)) = recv_a.recv().await {
+                if b.job_id == job_id {
+                    break;
+                }
+            }
+        }
+    })
+    .await?;
+
+    node_a_libp2p
+        .broadcast_message(NetworkMessage::JobAssignmentNotification(
+            job_id.clone(),
+            executor_did.clone(),
+        ))
+        .await?;
+
+    timeout(Duration::from_secs(5), async {
+        loop {
+            if let Some(NetworkMessage::JobAssignmentNotification(id, ex)) = recv_b.recv().await {
+                if id == job_id && ex == executor_did {
+                    break;
+                }
+            }
+        }
+    })
+    .await?;
+
+    let (sk, pk) = generate_ed25519_keypair();
+    let executor = SimpleExecutor::new(executor_did.clone(), sk);
+    let receipt = executor.execute_job(&test_job).await?;
+    assert!(receipt.verify_against_key(&pk).is_ok());
+
+    node_b_libp2p
+        .broadcast_message(NetworkMessage::SubmitReceipt(receipt.clone()))
+        .await?;
+
+    let final_receipt = timeout(Duration::from_secs(5), async {
+        loop {
+            if let Some(NetworkMessage::SubmitReceipt(r)) = recv_a.recv().await {
+                if r.job_id == job_id {
+                    break r;
+                }
+            }
+        }
+    })
+    .await?;
+
+    let rep_before = node_a.reputation_store.get_reputation(&executor_did);
+    let receipt_json = serde_json::to_string(&final_receipt)?;
+    let cid = host_anchor_receipt(&node_a, &receipt_json, &ReputationUpdater::new()).await?;
+    let rep_after = node_a.reputation_store.get_reputation(&executor_did);
+    assert!(rep_after > rep_before);
+    let stored = node_a
+        .dag_store
+        .lock()
+        .await
+        .get(&cid)?
+        .expect("receipt stored");
+    assert_eq!(stored.cid, cid);
+
+    info!("Full libp2p mesh cycle completed with receipt {:?}", cid);
+    Ok(())
 }
