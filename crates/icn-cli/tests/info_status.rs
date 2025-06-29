@@ -58,3 +58,30 @@ async fn status_command_reports_node_status() {
 
     server.abort();
 }
+
+#[tokio::test]
+#[serial_test::serial]
+async fn metrics_command_outputs_metrics() {
+    let _ = std::fs::remove_dir_all("./mana_ledger.sled");
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = task::spawn(async move {
+        axum::serve(listener, app_router().await).await.unwrap();
+    });
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+    let bin = env!("CARGO_BIN_EXE_icn-cli");
+    let base = format!("http://{addr}");
+
+    tokio::task::spawn_blocking(move || {
+        Command::new(bin)
+            .args(["--api-url", &base, "metrics"])
+            .assert()
+            .success()
+            .stdout(predicates::str::contains("host_submit_mesh_job_calls"));
+    })
+    .await
+    .unwrap();
+
+    server.abort();
+}

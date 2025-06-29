@@ -45,6 +45,8 @@ enum Commands {
     Info,
     /// Get node status (online, peers, block height)
     Status,
+    /// Fetch Prometheus metrics text
+    Metrics,
     /// DAG block operations
     Dag {
         #[clap(subcommand)]
@@ -212,6 +214,7 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
     match &cli.command {
         Commands::Info => handle_info(cli, client).await?,
         Commands::Status => handle_status(cli, client).await?,
+        Commands::Metrics => handle_metrics(cli, client).await?,
         Commands::Dag { command } => match command {
             DagCommands::Put {
                 block_json_or_stdin,
@@ -334,6 +337,28 @@ async fn handle_status(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> 
     println!("Version:        {}", response.version);
     println!("-------------------");
     Ok(())
+}
+
+async fn handle_metrics(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
+    let url = format!("{}{}", &cli.api_url, "/metrics");
+    let res = client.get(&url).send().await?;
+    if res.status().is_success() {
+        let body = res.text().await?;
+        println!("{}", body);
+        Ok(())
+    } else {
+        let status = res.status();
+        let text = res
+            .text()
+            .await
+            .unwrap_or_else(|_| "Failed to read error body".to_string());
+        Err(anyhow::anyhow!(
+            "Request failed with status {}: {}\nURL: {}",
+            status,
+            text,
+            url
+        ))
+    }
 }
 
 async fn handle_dag_put(
