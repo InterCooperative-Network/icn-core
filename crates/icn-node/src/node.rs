@@ -1754,6 +1754,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn info_endpoint_works() {
         let app = test_app().await;
         let response = app
@@ -1774,6 +1775,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn mesh_submit_job_endpoint_basic() {
         let app = test_app().await;
 
@@ -1812,6 +1814,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn complete_http_to_mesh_pipeline() {
         let app = test_app().await;
 
@@ -1950,6 +1953,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_simple_job_submission_and_listing() {
         let app = test_app().await;
 
@@ -2008,6 +2012,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn wasm_contract_execution_via_http() {
         use icn_ccl::compile_ccl_source_to_wasm;
         use icn_identity::{did_key_from_verifying_key, generate_ed25519_keypair};

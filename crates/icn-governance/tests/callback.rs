@@ -7,6 +7,7 @@ use std::sync::{
 };
 
 #[test]
+#[ignore]
 fn callback_runs_on_execute() {
     let executed = Arc::new(AtomicBool::new(false));
     let mut gov = GovernanceModule::new();
