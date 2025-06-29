@@ -24,13 +24,7 @@ use icn_common::{
     parse_cid_from_string, Cid, CommonError, Did, NodeInfo, NodeStatus, Transaction,
     ICN_CORE_VERSION,
 };
-#[cfg(feature = "persist-rocksdb")]
-use icn_dag::rocksdb_store::RocksDagStore;
-#[cfg(feature = "persist-sled")]
-use icn_dag::sled_store::SledDagStore;
-#[cfg(feature = "persist-sqlite")]
-use icn_dag::sqlite_store::SqliteDagStore;
-use icn_dag::{self, FileDagStore, InMemoryDagStore};
+use icn_dag;
 use icn_identity::{
     did_key_from_verifying_key, generate_ed25519_keypair,
     ExecutionReceipt as IdentityExecutionReceipt, SignatureBytes,
@@ -334,7 +328,7 @@ async fn rate_limit_middleware(
 
 // --- Public App Constructor (for tests or embedding) ---
 pub async fn app_router() -> Router {
-    app_router_with_options(None, None, None, None, None, None, None)
+    app_router_with_options(None, None, None, None, None, None, None, None)
         .await
         .0
 }
@@ -346,6 +340,8 @@ pub async fn app_router_with_options(
     rate_limit: Option<u64>,
     mana_ledger_backend: Option<icn_runtime::context::LedgerBackend>,
     mana_ledger_path: Option<PathBuf>,
+    storage_backend: Option<crate::config::StorageBackendType>,
+    storage_path: Option<PathBuf>,
     governance_db_path: Option<PathBuf>,
     reputation_db_path: Option<PathBuf>,
 ) -> (Router, Arc<RuntimeContext>) {
@@ -356,7 +352,14 @@ pub async fn app_router_with_options(
     info!("Test/Embedded Node DID: {}", node_did);
 
     let signer = Arc::new(RuntimeStubSigner::new_with_keys(sk, pk));
-    let dag_store_for_rt = Arc::new(TokioMutex::new(RuntimeStubDagStore::new()));
+    let cfg = NodeConfig {
+        storage_backend: storage_backend.unwrap_or(StorageBackendType::Memory),
+        storage_path: storage_path.clone().unwrap_or_else(|| PathBuf::from("./dag_store")),
+        ..NodeConfig::default()
+    };
+    let dag_store_for_rt = cfg
+        .init_dag_store()
+        .expect("Failed to init DAG store for test context");
     let mesh_network_service = Arc::new(StubMeshNetworkService::new());
     // GovernanceModule is initialized inside RuntimeContext::new
 
@@ -402,7 +405,7 @@ pub async fn app_router_with_options(
 
     rt_ctx.clone().spawn_mesh_job_manager().await; // Start the job manager
 
-    let config = Arc::new(TokioMutex::new(NodeConfig::default()));
+    let config = Arc::new(TokioMutex::new(cfg.clone()));
 
     let rate_limiter = rate_limit.filter(|l| *l > 0).map(|limit| {
         Arc::new(AsyncMutex::new(RateLimitData {
@@ -724,60 +727,13 @@ async fn main() {
     } else {
         info!("Using stub networking (P2P disabled)");
         let signer = Arc::new(RuntimeStubSigner::new_with_keys(node_sk, node_pk));
-        let dag_store_for_rt: Arc<TokioMutex<dyn icn_dag::StorageService<CoreDagBlock> + Send>> =
-            match config.storage_backend {
-                StorageBackendType::Memory => Arc::new(TokioMutex::new(RuntimeStubDagStore::new())),
-                StorageBackendType::File => {
-                    let store = FileDagStore::new(config.storage_path.clone())
-                        .expect("Failed to init file store");
-                    Arc::new(TokioMutex::new(store))
-                }
-                StorageBackendType::Sqlite => {
-                    #[cfg(feature = "persist-sqlite")]
-                    {
-                        let store = SqliteDagStore::new(config.storage_path.clone())
-                            .expect("Failed to init sqlite store");
-                        Arc::new(TokioMutex::new(store))
-                    }
-                    #[cfg(not(feature = "persist-sqlite"))]
-                    {
-                        error!(
-                            "SQLite backend selected but the 'persist-sqlite' feature is not enabled"
-                        );
-                        std::process::exit(1);
-                    }
-                }
-                StorageBackendType::Sled => {
-                    #[cfg(feature = "persist-sled")]
-                    {
-                        let store = SledDagStore::new(config.storage_path.clone())
-                            .expect("Failed to init sled store");
-                        Arc::new(TokioMutex::new(store))
-                    }
-                    #[cfg(not(feature = "persist-sled"))]
-                    {
-                        error!(
-                            "Sled backend selected but the 'persist-sled' feature is not enabled"
-                        );
-                        std::process::exit(1);
-                    }
-                }
-                StorageBackendType::Rocksdb => {
-                    #[cfg(feature = "persist-rocksdb")]
-                    {
-                        let store = RocksDagStore::new(config.storage_path.clone())
-                            .expect("Failed to init rocksdb store");
-                        Arc::new(TokioMutex::new(store))
-                    }
-                    #[cfg(not(feature = "persist-rocksdb"))]
-                    {
-                        error!(
-                            "RocksDB backend selected but the 'persist-rocksdb' feature is not enabled"
-                        );
-                        std::process::exit(1);
-                    }
-                }
-            };
+        let dag_store_for_rt = match config.init_dag_store() {
+            Ok(store) => store,
+            Err(e) => {
+                error!("Failed to initialize DAG store: {}", e);
+                std::process::exit(1);
+            }
+        };
         let mesh_network_service = Arc::new(StubMeshNetworkService::new());
 
         let ledger = icn_runtime::context::SimpleManaLedger::new_with_backend(
@@ -2057,7 +2013,7 @@ mod tests {
         use icn_identity::{did_key_from_verifying_key, generate_ed25519_keypair};
         use icn_runtime::executor::WasmExecutor;
 
-        let (app, ctx) = app_router_with_options(None, None, None, None, None, None, None).await;
+        let (app, ctx) = app_router_with_options(None, None, None, None, None, None, None, None).await;
 
         // Compile a tiny CCL contract
         let (wasm, _) =
