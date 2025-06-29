@@ -42,7 +42,10 @@ async fn wasm_executor_runs_wasm() {
     let job = ActualMeshJob {
         id: Cid::new_v1_sha256(0x55, b"job"),
         manifest_cid: cid,
-        spec: JobSpec::default(),
+        spec: JobSpec {
+            kind: JobKind::CclWasm,
+            ..Default::default()
+        },
         creator_did: node_did.clone(),
         cost_mana: 0,
         max_execution_wait_ms: None,

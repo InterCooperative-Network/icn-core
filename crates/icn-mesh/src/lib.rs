@@ -138,11 +138,21 @@ pub enum JobKind {
     /// Simple echo job used for basic integration tests.
     Echo { payload: String },
     /// Execute a compiled CCL WASM module referenced by the job's `manifest_cid`.
-    /// The runtime will load the module from the DAG store and run its `run` function.
+    ///
+    /// When this variant is used the runtime will immediately load the WASM
+    /// bytes from the DAG store and invoke its `run` export using the built-in
+    /// WASM executor.
     CclWasm,
     /// Placeholder until more kinds are defined.
     #[default]
     GenericPlaceholder,
+}
+
+impl JobKind {
+    /// Returns `true` if this job represents a compiled CCL WASM module.
+    pub fn is_ccl_wasm(&self) -> bool {
+        matches!(self, JobKind::CclWasm)
+    }
 }
 
 /// Detailed specification for a mesh job.
