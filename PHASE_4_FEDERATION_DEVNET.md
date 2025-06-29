@@ -236,9 +236,26 @@ docker network inspect icn-devnet_icn-federation
 
 ### **Phase 5: Public Demonstration**
 1. **Web UI Integration** - Connect React/Vue frontend to federation APIs
-2. **CLI Tool Enhancement** - Add federation management commands  
+2. **CLI Tool Enhancement** - Add federation management commands
 3. **Public Deployment** - Host demo federation on cloud infrastructure
 4. **Performance Optimization** - Optimize job execution and P2P messaging
+
+## 🛣 Phase 5 Roadmap
+
+Building on the earlier milestones—[Phase 3 HTTP Gateway Operational](PHASE_3_COMPLETION.md)
+and **this Phase 4 Federation Devnet**—the next phase focuses on three concrete
+tasks while keeping repository boundaries in mind:
+
+1. **Web UI Integration** (`icn-web-ui`)
+   - Wire the dashboard to the HTTP APIs exposed by `icn-core`.
+2. **CLI Enhancements** (`icn-cli`)
+   - Extend command coverage for federation setup and job lifecycle management.
+3. **Cloud Deployment** (`icn-infra`)
+   - Publish a reproducible Kubernetes demo using the devnet configuration.
+
+These deliverables pave the way for **Phase 6 – Production Readiness** and
+ensure that UI, CLI, and infrastructure work stays in their dedicated
+repositories.
 
 ### **Phase 6: Production Readiness**
 1. **Security Hardening** - Add authentication, TLS, and audit logging
