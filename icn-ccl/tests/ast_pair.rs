@@ -1,0 +1,77 @@
+use icn_ccl::{
+    ast::{
+        self, ActionNode, AstNode, BinaryOperator, BlockNode, ExpressionNode, ParameterNode,
+        PolicyStatementNode, StatementNode, TypeAnnotationNode,
+    },
+    parser::{CclParser, Rule},
+};
+use pest::Parser;
+
+#[test]
+fn test_pair_to_ast_function() {
+    let src = "fn inc(a: Integer) -> Integer { return a + 1; }";
+    let mut pairs = CclParser::parse(Rule::function_definition, src).unwrap();
+    let pair = pairs.next().unwrap();
+    let ast = ast::pair_to_ast(pair).unwrap();
+    let expected = AstNode::FunctionDefinition {
+        name: "inc".to_string(),
+        parameters: vec![ParameterNode {
+            name: "a".to_string(),
+            type_ann: TypeAnnotationNode::Integer,
+        }],
+        return_type: TypeAnnotationNode::Integer,
+        body: BlockNode {
+            statements: vec![StatementNode::Return(ExpressionNode::BinaryOp {
+                left: Box::new(ExpressionNode::Identifier("a".to_string())),
+                operator: BinaryOperator::Add,
+                right: Box::new(ExpressionNode::IntegerLiteral(1)),
+            })],
+        },
+    };
+    assert_eq!(ast, expected);
+}
+
+#[test]
+fn test_pair_to_ast_policy() {
+    let src = r#"
+        fn add(a: Integer, b: Integer) -> Integer { return a + b; }
+        rule allow_all when true then allow
+        import \"other.ccl\" as other;
+    "#;
+    let mut pairs = CclParser::parse(Rule::policy, src).unwrap();
+    let pair = pairs.next().unwrap();
+    let ast = ast::pair_to_ast(pair).unwrap();
+    let expected = AstNode::Policy(vec![
+        PolicyStatementNode::FunctionDef(AstNode::FunctionDefinition {
+            name: "add".to_string(),
+            parameters: vec![
+                ParameterNode {
+                    name: "a".to_string(),
+                    type_ann: TypeAnnotationNode::Integer,
+                },
+                ParameterNode {
+                    name: "b".to_string(),
+                    type_ann: TypeAnnotationNode::Integer,
+                },
+            ],
+            return_type: TypeAnnotationNode::Integer,
+            body: BlockNode {
+                statements: vec![StatementNode::Return(ExpressionNode::BinaryOp {
+                    left: Box::new(ExpressionNode::Identifier("a".to_string())),
+                    operator: BinaryOperator::Add,
+                    right: Box::new(ExpressionNode::Identifier("b".to_string())),
+                })],
+            },
+        }),
+        PolicyStatementNode::RuleDef(AstNode::RuleDefinition {
+            name: "allow_all".to_string(),
+            condition: ExpressionNode::BooleanLiteral(true),
+            action: ActionNode::Allow,
+        }),
+        PolicyStatementNode::Import {
+            path: "other.ccl".to_string(),
+            alias: "other".to_string(),
+        },
+    ]);
+    assert_eq!(ast, expected);
+}
