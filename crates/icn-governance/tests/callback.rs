@@ -28,6 +28,7 @@ fn callback_runs_on_execute() {
             60,
         )
         .unwrap();
+    gov.open_voting(&pid).unwrap();
     gov.cast_vote(
         Did::from_str("did:example:bob").unwrap(),
         &pid,
