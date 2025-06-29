@@ -16,6 +16,7 @@ async fn reputation_persists_between_restarts() {
         None,
         Some(ledger_path.clone()),
         None,
+        None,
         Some(rep_path.clone()),
     )
     .await;
@@ -30,6 +31,7 @@ async fn reputation_persists_between_restarts() {
         None,
         None,
         Some(ledger_path.clone()),
+        None,
         None,
         Some(rep_path.clone()),
     )

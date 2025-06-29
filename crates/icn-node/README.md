@@ -95,7 +95,7 @@ Useful CLI flags include:
 
 * `--node-did-path <PATH>` – location to read/write the node DID string
 * `--node-private-key-path <PATH>` – location to read/write the node private key
-* `--storage-backend <memory|file|sqlite|rocksdb>` – choose the DAG storage backend
+* `--storage-backend <memory|file|sqlite|sled|rocksdb>` – choose the DAG storage backend
 * `--storage-path <PATH>` – directory for the file or SQLite backends
 * `--mana-ledger-backend <file|sled|sqlite|rocksdb>` – choose ledger persistence
 * `--mana-ledger-path <PATH>` – location of the mana ledger database

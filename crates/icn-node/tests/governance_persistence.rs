@@ -16,6 +16,7 @@ async fn governance_persists_between_restarts() {
         None,
         None,
         Some(ledger_path.clone()),
+        None,
         Some(gov_path.clone()),
         None,
     )
@@ -51,6 +52,7 @@ async fn governance_persists_between_restarts() {
         None,
         None,
         Some(ledger_path.clone()),
+        None,
         Some(gov_path.clone()),
         None,
     )
