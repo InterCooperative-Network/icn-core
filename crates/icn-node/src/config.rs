@@ -66,6 +66,8 @@ pub struct NodeConfig {
     pub tls_cert_path: Option<std::path::PathBuf>,
     /// TLS private key path for HTTPS. Requires `tls_cert_path` as well.
     pub tls_key_path: Option<std::path::PathBuf>,
+    /// Peers this node has joined in a federation.
+    pub federation_peers: Vec<String>,
 }
 
 pub(crate) fn default_ledger_backend() -> icn_runtime::context::LedgerBackend {
@@ -119,6 +121,7 @@ impl Default for NodeConfig {
             open_rate_limit: 60,
             tls_cert_path: None,
             tls_key_path: None,
+            federation_peers: Vec::new(),
         }
     }
 }

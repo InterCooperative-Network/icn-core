@@ -23,6 +23,7 @@ use icn_network::{NetworkMessage, NetworkService, PeerId, StubNetworkService};
 use icn_governance::{GovernanceModule, Proposal, ProposalId, ProposalType, VoteOption};
 use std::str::FromStr;
 
+pub mod federation_trait;
 pub mod governance_trait;
 use crate::governance_trait::{
     CastVoteRequest as GovernanceCastVoteRequest, // Renamed to avoid conflict

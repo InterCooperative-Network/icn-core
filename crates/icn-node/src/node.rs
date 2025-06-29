@@ -36,7 +36,7 @@ use icn_identity::{
     ExecutionReceipt as IdentityExecutionReceipt, SignatureBytes,
 };
 use icn_mesh::{ActualMeshJob, JobSpec};
-use icn_network::NetworkService;
+use icn_network::{NetworkMessage, NetworkService};
 use icn_runtime::context::{
     RuntimeContext, StubDagStore as RuntimeStubDagStore, StubMeshNetworkService,
     StubSigner as RuntimeStubSigner,
@@ -253,6 +253,7 @@ struct AppState {
     auth_token: Option<String>,
     rate_limiter: Option<Arc<AsyncMutex<RateLimitData>>>,
     peers: Arc<TokioMutex<Vec<String>>>,
+    config: Arc<TokioMutex<NodeConfig>>,
 }
 
 struct RateLimitData {
@@ -400,6 +401,8 @@ pub async fn app_router_with_options(
 
     rt_ctx.clone().spawn_mesh_job_manager().await; // Start the job manager
 
+    let config = Arc::new(TokioMutex::new(NodeConfig::default()));
+
     let rate_limiter = rate_limit.filter(|l| *l > 0).map(|limit| {
         Arc::new(AsyncMutex::new(RateLimitData {
             last: Instant::now(),
@@ -416,6 +419,7 @@ pub async fn app_router_with_options(
         auth_token,
         rate_limiter: rate_limiter.clone(),
         peers: Arc::new(TokioMutex::new(Vec::new())),
+        config: config.clone(),
     };
 
     // Register governance callback for parameter changes
@@ -503,6 +507,8 @@ pub async fn app_router_from_context(
         }))
     });
 
+    let config = Arc::new(TokioMutex::new(NodeConfig::default()));
+
     let app_state = AppState {
         runtime_context: ctx.clone(),
         node_name: "ICN Test/Embedded Node".to_string(),
@@ -511,6 +517,7 @@ pub async fn app_router_from_context(
         auth_token,
         rate_limiter: rate_limiter.clone(),
         peers: Arc::new(TokioMutex::new(Vec::new())),
+        config: config.clone(),
     };
 
     {
@@ -603,6 +610,8 @@ async fn main() {
     if let Err(e) = config.prepare_paths() {
         error!("Failed to prepare config directories: {}", e);
     }
+
+    let shared_config = Arc::new(TokioMutex::new(config.clone()));
 
     if config.auth_token.is_none() {
         if let Some(path) = &config.auth_token_path {
@@ -823,6 +832,7 @@ async fn main() {
         auth_token: config.auth_token.clone(),
         rate_limiter: rate_limiter.clone(),
         peers: Arc::new(TokioMutex::new(Vec::new())),
+        config: shared_config.clone(),
     };
 
     {
@@ -1668,9 +1678,26 @@ async fn federation_join_handler(
     State(state): State<AppState>,
     Json(payload): Json<PeerPayload>,
 ) -> impl IntoResponse {
-    let mut peers = state.peers.lock().await;
-    if !peers.contains(&payload.peer) {
-        peers.push(payload.peer.clone());
+    {
+        let mut peers = state.peers.lock().await;
+        if !peers.contains(&payload.peer) {
+            peers.push(payload.peer.clone());
+        }
+    }
+    {
+        let mut cfg = state.config.lock().await;
+        cfg.federation_peers.push(payload.peer.clone());
+    }
+    #[cfg(feature = "enable-libp2p")]
+    if let Ok(service) = state.runtime_context.get_libp2p_service() {
+        if let Err(e) = service
+            .broadcast_message(NetworkMessage::FederationJoinRequest(
+                state.runtime_context.current_identity.clone(),
+            ))
+            .await
+        {
+            error!("Failed to broadcast join: {:?}", e);
+        }
     }
     (
         StatusCode::OK,
@@ -1683,8 +1710,26 @@ async fn federation_leave_handler(
     State(state): State<AppState>,
     Json(payload): Json<PeerPayload>,
 ) -> impl IntoResponse {
-    let mut peers = state.peers.lock().await;
-    peers.retain(|p| p != &payload.peer);
+    {
+        let mut peers = state.peers.lock().await;
+        peers.retain(|p| p != &payload.peer);
+    }
+    {
+        let mut cfg = state.config.lock().await;
+        cfg.federation_peers.retain(|p| p != &payload.peer);
+    }
+    #[cfg(feature = "enable-libp2p")]
+    if let Ok(service) = state.runtime_context.get_libp2p_service() {
+        if let Err(e) = service
+            .broadcast_message(NetworkMessage::GossipSub(
+                "federation_leave".to_string(),
+                payload.peer.clone().into_bytes(),
+            ))
+            .await
+        {
+            error!("Failed to broadcast leave: {:?}", e);
+        }
+    }
     (
         StatusCode::OK,
         Json(serde_json::json!({ "left": payload.peer })),
