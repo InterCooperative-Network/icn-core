@@ -72,6 +72,12 @@ fn test_compile_ccl_file_cli_function() {
             assert_eq!(metadata.source_hash, expected_hash);
             assert_eq!(parsed_meta.source_hash, expected_hash);
 
+            let ts = 0u64;
+            let author = icn_common::Did::new("key", "tester");
+            let sig_opt = None;
+            let expected_cid = icn_common::compute_merkle_cid(0x71, &wasm_bytes, &[], ts, &author, &sig_opt);
+            assert_eq!(metadata.cid, expected_cid.to_string());
+
             println!(
                 "CLI compile_ccl_file test successful. Metadata: {:?}",
                 metadata

@@ -12,7 +12,7 @@ use crate::wasm_backend::WasmBackend;
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::PathBuf;
-// use icn_common::Cid; // If calculating actual CIDs
+use icn_common::{compute_merkle_cid, Did};
 
 // This function would be called by `icn-cli ccl compile ...`
 pub fn compile_ccl_file(
@@ -46,13 +46,12 @@ pub fn compile_ccl_file(
     let wasm_backend = WasmBackend::new();
     let (wasm_bytecode, mut metadata) = wasm_backend.compile_to_wasm(&optimized_ast)?;
 
-    // Calculate CID of wasm_bytecode (placeholder)
-    // In reality, use icn_dag or similar to produce a real CID
-    let wasm_cid_placeholder = format!(
-        "bafy2bzace{}",
-        hex::encode(&wasm_bytecode[0..min(10, wasm_bytecode.len())])
-    ); // Very rough placeholder
-    metadata.cid = wasm_cid_placeholder;
+    // Calculate CID of the generated WASM using icn_common utilities
+    let ts = 0u64;
+    let author = Did::new("key", "tester");
+    let sig_opt = None;
+    let cid = compute_merkle_cid(0x71, &wasm_bytecode, &[], ts, &author, &sig_opt);
+    metadata.cid = cid.to_string();
 
     // Calculate SHA-256 hash of the source code
     let hash = Sha256::digest(source_code.as_bytes());
@@ -342,5 +341,3 @@ fn explain_ast(ast: &AstNode, target: Option<&str>) -> String {
     }
 }
 
-// Helper for min, replace with std::cmp::min
-use std::cmp::min;
