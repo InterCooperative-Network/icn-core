@@ -12,6 +12,7 @@ use icn_mesh::JobSpec; /* ... other mesh types ... */
 use icn_mesh::{ActualMeshJob, JobKind};
 use log::info; // Removed error
 use std::time::SystemTime;
+use icn_ccl::ContractMetadata;
 
 /// Trait for a job executor.
 #[async_trait::async_trait]
@@ -77,12 +78,51 @@ impl JobExecutor for SimpleExecutor {
                         "SimpleExecutor missing context for CCL WASM job".into(),
                     )
                 })?;
-                let signer = std::sync::Arc::new(crate::context::StubSigner::new_with_keys(
-                    self.signing_key.clone(),
-                    self.signing_key.verifying_key(),
-                )) as std::sync::Arc<dyn crate::context::Signer>;
+
+                // Fetch metadata block from the DAG store
+                let meta_bytes = {
+                    let store = ctx.dag_store.lock().await;
+                    store
+                        .get(&job.manifest_cid)
+                        .map_err(|e| CommonError::StorageError(format!("{e}")))?
+                }
+                .ok_or_else(|| {
+                    CommonError::ResourceNotFound(
+                        "CCL contract metadata not found".to_string(),
+                    )
+                })?
+                .data;
+
+                // Parse and validate metadata
+                let meta: ContractMetadata = serde_json::from_slice(&meta_bytes)
+                    .map_err(|e| CommonError::DeserError(format!("{e}")))?;
+                let wasm_cid = icn_common::parse_cid_from_string(&meta.cid)
+                    .map_err(|e| CommonError::DeserError(format!("{e}")))?;
+
+                // Ensure the referenced WASM module exists
+                {
+                    let store = ctx.dag_store.lock().await;
+                    store
+                        .get(&wasm_cid)
+                        .map_err(|e| CommonError::StorageError(format!("{e}")))?
+                        .ok_or_else(|| {
+                            CommonError::ResourceNotFound(
+                                "Referenced WASM module not found".to_string(),
+                            )
+                        })?;
+                }
+
+                let signer = std::sync::Arc::new(
+                    crate::context::StubSigner::new_with_keys(
+                        self.signing_key.clone(),
+                        self.signing_key.verifying_key(),
+                    ),
+                ) as std::sync::Arc<dyn crate::context::Signer>;
+
                 let wasm_exec = WasmExecutor::new(ctx.clone(), signer);
-                let receipt = wasm_exec.execute_job(job).await?;
+                let mut wasm_job = job.clone();
+                wasm_job.manifest_cid = wasm_cid;
+                let receipt = wasm_exec.execute_job(&wasm_job).await?;
                 return Ok(receipt);
             }
             JobKind::GenericPlaceholder => {
