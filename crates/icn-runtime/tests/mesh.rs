@@ -2,14 +2,17 @@
     unused_imports,
     unused_variables,
     dead_code,
-    clippy::uninlined_format_args
+    clippy::uninlined_format_args,
+    clippy::clone_on_copy,
+    clippy::get_first
 )]
 // crates/icn-runtime/tests/mesh.rs
 
 use icn_common::{compute_merkle_cid, Cid, Did};
 use icn_dag::StorageService;
+use icn_identity::generate_ed25519_keypair;
 use icn_identity::{ExecutionReceipt as IdentityExecutionReceipt, SignatureBytes};
-use icn_mesh::{ActualMeshJob, JobId, JobSpec, JobState, MeshJobBid, Resources};
+use icn_mesh::{ActualMeshJob, JobId, JobKind, JobSpec, JobState, MeshJobBid, Resources};
 use icn_network::libp2p_service::NetworkConfig;
 use icn_network::NetworkService;
 use icn_runtime::context::{
@@ -25,7 +28,7 @@ use std::hash::{Hash, Hasher};
 use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::Mutex as TokioMutex;
-use tokio::time::{sleep, Duration};
+use tokio::time::{sleep, timeout, Duration};
 
 // Helper to create a test ActualMeshJob with all required fields
 fn create_test_mesh_job(manifest_cid: Cid, cost_mana: u64, creator_did: Did) -> ActualMeshJob {
@@ -793,8 +796,11 @@ async fn test_full_mesh_job_cycle_libp2p() -> Result<(), anyhow::Error> {
         ActualMeshJob {
             id: job_id,
             manifest_cid,
-            spec: JobSpec::Echo {
-                payload: format!("Libp2p job {}", suffix),
+            spec: JobSpec {
+                kind: JobKind::Echo {
+                    payload: format!("Libp2p job {}", suffix),
+                },
+                ..Default::default()
             },
             creator_did: creator.clone(),
             cost_mana: cost,

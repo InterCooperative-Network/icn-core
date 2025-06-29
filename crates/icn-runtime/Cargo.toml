@@ -32,6 +32,7 @@ once_cell = "1.21"
 prometheus-client = "0.22"
 clap = { version = "4.0", features = ["derive"], optional = true }
 icn-ccl = { path = "../../icn-ccl" }
+sha2 = "0.10"
 
 [dev-dependencies]
 anyhow = "1.0.75"
@@ -42,6 +43,8 @@ icn-ccl = { path = "../../icn-ccl" }
 tempfile = "3"
 # Ensure sequential execution for metrics tests
 serial_test = { version = "3", features = ["async"] }
+# Logging for integration tests
+env_logger = "0.11"
 # temp-dir = "0.1"
 
 [features]
