@@ -9,10 +9,10 @@ use crate::optimizer::Optimizer;
 use crate::parser::parse_ccl_source;
 use crate::semantic_analyzer::SemanticAnalyzer;
 use crate::wasm_backend::WasmBackend;
+use icn_common::{compute_merkle_cid, Did};
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::PathBuf;
-use icn_common::{compute_merkle_cid, Did};
 
 // This function would be called by `icn-cli ccl compile ...`
 pub fn compile_ccl_file(
@@ -340,4 +340,3 @@ fn explain_ast(ast: &AstNode, target: Option<&str>) -> String {
         }
     }
 }
-
