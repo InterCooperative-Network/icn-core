@@ -43,6 +43,22 @@ impl RocksdbManaLedger {
             Ok(0)
         }
     }
+
+    pub fn credit_all(&self, amount: u64) -> Result<(), EconError> {
+        use rocksdb::IteratorMode;
+        use std::str::FromStr;
+        for (key, val) in self.db.iterator(IteratorMode::Start) {
+            let did_str = std::str::from_utf8(&key)
+                .map_err(|e| EconError::AdapterError(format!("Invalid key: {e}")))?;
+            let did =
+                Did::from_str(did_str).map_err(|e| EconError::AdapterError(format!("{e}")))?;
+            let mut bal: u64 = bincode::deserialize::<u64>(&val)
+                .map_err(|e| EconError::AdapterError(format!("Failed to decode balance: {e}")))?;
+            bal += amount;
+            self.write_balance(&did, bal)?;
+        }
+        Ok(())
+    }
 }
 
 impl crate::ManaLedger for RocksdbManaLedger {
@@ -69,5 +85,9 @@ impl crate::ManaLedger for RocksdbManaLedger {
         let current = self.read_balance(did)?;
         self.write_balance(did, current + amount)?;
         Ok(())
+    }
+
+    fn credit_all(&self, amount: u64) -> Result<(), EconError> {
+        RocksdbManaLedger::credit_all(self, amount)
     }
 }

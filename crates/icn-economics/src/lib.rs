@@ -39,6 +39,16 @@ pub trait ManaLedger: Send + Sync {
     fn spend(&self, did: &Did, amount: u64) -> Result<(), EconError>;
     /// Credit mana to the account.
     fn credit(&self, did: &Did, amount: u64) -> Result<(), EconError>;
+    /// Credit every known account with additional mana.
+    ///
+    /// The default implementation returns an [`EconError::AdapterError`]
+    /// if the ledger backend does not support iterating over accounts.
+    fn credit_all(&self, amount: u64) -> Result<(), EconError> {
+        let _ = amount;
+        Err(EconError::AdapterError(
+            "credit_all not implemented for this ledger".into(),
+        ))
+    }
 }
 
 /// Thin wrapper exposing convenience methods over a [`ManaLedger`].

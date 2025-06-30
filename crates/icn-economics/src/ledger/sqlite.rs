@@ -46,6 +46,17 @@ impl SqliteManaLedger {
             .map_err(|e| CommonError::DatabaseError(format!("Failed to read balance: {e}")))?;
         Ok(amt.unwrap_or(0) as u64)
     }
+
+    pub fn credit_all(&self, amount: u64) -> Result<(), EconError> {
+        let conn = Connection::open(&self.path)
+            .map_err(|e| CommonError::DatabaseError(format!("Failed to open sqlite DB: {e}")))?;
+        conn.execute(
+            "UPDATE mana_balances SET amount = amount + ?1",
+            [amount as i64],
+        )
+        .map_err(|e| EconError::AdapterError(format!("{e}")))?;
+        Ok(())
+    }
 }
 
 impl crate::ManaLedger for SqliteManaLedger {
@@ -72,5 +83,9 @@ impl crate::ManaLedger for SqliteManaLedger {
         let current = self.read_balance(did)?;
         self.write_balance(did, current + amount)?;
         Ok(())
+    }
+
+    fn credit_all(&self, amount: u64) -> Result<(), EconError> {
+        SqliteManaLedger::credit_all(self, amount)
     }
 }

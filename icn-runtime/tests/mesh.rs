@@ -152,6 +152,14 @@ impl icn_economics::ManaLedger for InMemoryManaLedger {
         *map.entry(did.clone()).or_insert(0) += amount;
         Ok(())
     }
+
+    fn credit_all(&self, amount: u64) -> Result<(), EconError> {
+        let mut map = self.balances.lock().unwrap();
+        for val in map.values_mut() {
+            *val += amount;
+        }
+        Ok(())
+    }
 }
 
 // Helper to create a test RuntimeContext with mocked dependencies
