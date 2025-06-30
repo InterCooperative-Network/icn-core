@@ -1085,7 +1085,14 @@ async fn contracts_post_handler(
         }
     };
 
-    match icn_api::submit_dag_block(state.runtime_context.dag_store.clone(), block_json).await {
+    match icn_api::submit_dag_block(
+        state.runtime_context.dag_store.clone(),
+        block_json,
+        state.runtime_context.policy_enforcer.clone(),
+        state.runtime_context.current_identity.clone(),
+    )
+    .await
+    {
         Ok(_) => (
             StatusCode::CREATED,
             Json(serde_json::json!({ "manifest_cid": cid.to_string() })),
