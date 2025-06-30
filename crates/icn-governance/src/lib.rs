@@ -334,6 +334,9 @@ impl GovernanceModule {
             .unwrap_or_default()
             .as_secs();
 
+        // expire outdated proposals before attempting to cast a vote
+        self.expire_proposals(now)?;
+
         match &mut self.backend {
             Backend::InMemory { proposals } => {
                 let proposal = proposals.get_mut(proposal_id).ok_or_else(|| {
@@ -692,6 +695,74 @@ impl GovernanceModule {
         (yes, no, abstain)
     }
 
+    /// Mark any proposals past their deadline as `Rejected` without tallying votes.
+    pub fn expire_proposals(&mut self, now: u64) -> Result<(), CommonError> {
+        match &mut self.backend {
+            Backend::InMemory { proposals } => {
+                for proposal in proposals.values_mut() {
+                    if proposal.status == ProposalStatus::VotingOpen
+                        && proposal.voting_deadline <= now
+                    {
+                        proposal.status = ProposalStatus::Rejected;
+                    }
+                }
+                Ok(())
+            }
+            #[cfg(feature = "persist-sled")]
+            Backend::Sled {
+                db,
+                proposals_tree_name,
+            } => {
+                let tree = db.open_tree(proposals_tree_name).map_err(|e| {
+                    CommonError::DatabaseError(format!(
+                        "Failed to open proposals tree for expire_proposals: {}",
+                        e
+                    ))
+                })?;
+                let mut updates = Vec::new();
+                for item in tree.iter() {
+                    let (key, val) = item.map_err(|e| {
+                        CommonError::DatabaseError(format!(
+                            "Failed to iterate proposals tree: {}",
+                            e
+                        ))
+                    })?;
+                    let mut prop: Proposal = bincode::deserialize(&val).map_err(|e| {
+                        CommonError::DeserializationError(format!(
+                            "Failed to deserialize proposal: {}",
+                            e
+                        ))
+                    })?;
+                    if prop.status == ProposalStatus::VotingOpen && prop.voting_deadline <= now {
+                        prop.status = ProposalStatus::Rejected;
+                        updates.push((key, prop));
+                    }
+                }
+                for (key, prop) in updates {
+                    let encoded = bincode::serialize(&prop).map_err(|e| {
+                        CommonError::SerializationError(format!(
+                            "Failed to serialize expired proposal {}: {}",
+                            prop.id.0, e
+                        ))
+                    })?;
+                    tree.insert(key, encoded).map_err(|e| {
+                        CommonError::DatabaseError(format!(
+                            "Failed to persist expired proposal: {}",
+                            e
+                        ))
+                    })?;
+                }
+                tree.flush().map_err(|e| {
+                    CommonError::DatabaseError(format!(
+                        "Failed to flush sled tree for expire_proposals: {}",
+                        e
+                    ))
+                })?;
+                Ok(())
+            }
+        }
+    }
+
     /// Automatically close all proposals whose voting deadlines have passed.
     pub fn close_expired_proposals(&mut self) -> Result<(), CommonError> {
         let now = std::time::SystemTime::now()
@@ -759,6 +830,14 @@ impl GovernanceModule {
         &mut self,
         proposal_id: &ProposalId,
     ) -> Result<ProposalStatus, CommonError> {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+
+        // expire any proposals that have passed their deadline before closing
+        self.expire_proposals(now)?;
+
         match &mut self.backend {
             Backend::InMemory { proposals } => {
                 let proposal = proposals.get_mut(proposal_id).ok_or_else(|| {
@@ -767,6 +846,15 @@ impl GovernanceModule {
                         proposal_id.0
                     ))
                 })?;
+                if now < proposal.voting_deadline {
+                    return Err(CommonError::InvalidInputError(format!(
+                        "Voting period for proposal {} has not closed yet.",
+                        proposal_id.0
+                    )));
+                }
+                if proposal.status != ProposalStatus::VotingOpen {
+                    return Ok(proposal.status.clone());
+                }
                 let (yes, no, abstain) = {
                     let mut yes = 0;
                     let mut no = 0;
@@ -826,6 +914,15 @@ impl GovernanceModule {
                             proposal_id.0, e
                         ))
                     })?;
+                if now < proposal.voting_deadline {
+                    return Err(CommonError::InvalidInputError(format!(
+                        "Voting period for proposal {} has not closed yet.",
+                        proposal_id.0
+                    )));
+                }
+                if proposal.status != ProposalStatus::VotingOpen {
+                    return Ok(proposal.status.clone());
+                }
                 let (yes, no, abstain) = {
                     let mut yes = 0;
                     let mut no = 0;

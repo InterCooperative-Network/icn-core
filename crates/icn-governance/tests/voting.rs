@@ -143,6 +143,48 @@ fn auto_close_after_deadline() {
 }
 
 #[test]
+fn vote_fails_after_expiration() {
+    let mut gov = GovernanceModule::new();
+    gov.add_member(Did::from_str("did:example:alice").unwrap());
+    let pid = gov
+        .submit_proposal(
+            Did::from_str("did:example:alice").unwrap(),
+            ProposalType::GenericText("expire".into()),
+            "desc".into(),
+            1,
+        )
+        .unwrap();
+    gov.open_voting(&pid).unwrap();
+
+    std::thread::sleep(std::time::Duration::from_secs(2));
+    assert!(gov
+        .cast_vote(
+            Did::from_str("did:example:alice").unwrap(),
+            &pid,
+            VoteOption::Yes
+        )
+        .is_err());
+    let prop = gov.get_proposal(&pid).unwrap().unwrap();
+    assert_eq!(prop.status, ProposalStatus::Rejected);
+}
+
+#[test]
+fn close_before_deadline_errors() {
+    let mut gov = GovernanceModule::new();
+    gov.add_member(Did::from_str("did:example:alice").unwrap());
+    let pid = gov
+        .submit_proposal(
+            Did::from_str("did:example:alice").unwrap(),
+            ProposalType::GenericText("early".into()),
+            "desc".into(),
+            60,
+        )
+        .unwrap();
+    gov.open_voting(&pid).unwrap();
+    assert!(gov.close_voting_period(&pid).is_err());
+}
+
+#[test]
 fn member_removal_affects_outcome() {
     let mut gov = GovernanceModule::new();
     gov.add_member(Did::from_str("did:example:alice").unwrap());
