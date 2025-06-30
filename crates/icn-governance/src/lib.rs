@@ -47,6 +47,7 @@ impl std::str::FromStr for ProposalId {
 pub enum ProposalType {
     SystemParameterChange(String, String), // param_name, new_value
     NewMemberInvitation(Did),              // DID of the member to invite
+    RemoveMember(Did),                     // DID of the member to remove
     SoftwareUpgrade(String),               // Version or identifier for the upgrade
     GenericText(String),                   // For general purpose proposals
 }
@@ -522,8 +523,8 @@ impl GovernanceModule {
     }
 
     /// Removes an existing member, preventing them from voting.
-    pub fn remove_member(&mut self, member: &Did) {
-        self.members.remove(member);
+    pub fn remove_member(&mut self, did: &Did) {
+        self.members.remove(did);
     }
 
     /// Returns a reference to the current member set.
@@ -888,8 +889,14 @@ impl GovernanceModule {
                         proposal_id.0
                     )));
                 }
-                if let ProposalType::NewMemberInvitation(did) = &proposal.proposal_type {
-                    self.members.insert(did.clone());
+                match &proposal.proposal_type {
+                    ProposalType::NewMemberInvitation(did) => {
+                        self.members.insert(did.clone());
+                    }
+                    ProposalType::RemoveMember(did) => {
+                        self.remove_member(did);
+                    }
+                    _ => {}
                 }
                 if let Some(cb) = &self.proposal_callback {
                     if let Err(e) = cb(proposal) {
@@ -939,8 +946,14 @@ impl GovernanceModule {
                         proposal_id.0
                     )));
                 }
-                if let ProposalType::NewMemberInvitation(did) = &proposal.proposal_type {
-                    self.members.insert(did.clone());
+                match &proposal.proposal_type {
+                    ProposalType::NewMemberInvitation(did) => {
+                        self.members.insert(did.clone());
+                    }
+                    ProposalType::RemoveMember(did) => {
+                        self.remove_member(did);
+                    }
+                    _ => {}
                 }
                 if let Some(cb) = &self.proposal_callback {
                     if let Err(e) = cb(&proposal) {
