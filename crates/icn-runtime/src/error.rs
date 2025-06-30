@@ -113,6 +113,10 @@ impl From<HostAbiError> for MeshJobError {
                 reason,
             },
             HostAbiError::CryptoError(reason) => MeshJobError::CryptoError { reason },
+            HostAbiError::PermissionDenied(reason) => MeshJobError::PermissionDenied {
+                job_id: Cid::new_v1_sha256(0, b"host_abi_permission"),
+                reason,
+            },
             HostAbiError::WasmExecutionError(reason) => MeshJobError::WasmExecutionError { reason },
             HostAbiError::ResourceLimitExceeded(reason) => {
                 MeshJobError::ResourceLimitExceeded { reason }

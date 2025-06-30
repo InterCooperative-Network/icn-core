@@ -48,7 +48,10 @@ use libp2p::{Multiaddr, PeerId as Libp2pPeerId};
 use bincode;
 #[cfg(feature = "cli")]
 use clap::ValueEnum;
-use icn_governance::{GovernanceModule, ProposalId, ProposalType, VoteOption};
+use icn_governance::{
+    scoped_policy::{DagPayloadOp, PolicyCheckResult, ScopedPolicyEnforcer},
+    GovernanceModule, ProposalId, ProposalType, VoteOption,
+};
 #[cfg(feature = "enable-libp2p")]
 use icn_identity::KeyDidResolver;
 use icn_identity::{
@@ -531,6 +534,7 @@ pub enum HostAbiError {
     DagOperationFailed(String),
     SignatureError(String),
     CryptoError(String),
+    PermissionDenied(String),
     WasmExecutionError(String),
     ResourceLimitExceeded(String),
     InvalidSystemApiCall(String),
@@ -552,6 +556,7 @@ impl std::fmt::Display for HostAbiError {
             HostAbiError::DagOperationFailed(msg) => write!(f, "DAG operation failed: {}", msg),
             HostAbiError::SignatureError(msg) => write!(f, "Signature error: {}", msg),
             HostAbiError::CryptoError(msg) => write!(f, "Crypto error: {}", msg),
+            HostAbiError::PermissionDenied(msg) => write!(f, "Permission denied: {}", msg),
             HostAbiError::WasmExecutionError(msg) => write!(f, "Wasm execution error: {}", msg),
             HostAbiError::ResourceLimitExceeded(msg) => {
                 write!(f, "Resource limit exceeded: {}", msg)
@@ -593,6 +598,7 @@ pub struct RuntimeContext {
     pub did_resolver: Arc<dyn icn_identity::DidResolver>,
     pub dag_store: Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>, // Uses icn_dag::StorageService
     pub reputation_store: Arc<dyn icn_reputation::ReputationStore>,
+    pub policy_enforcer: Option<Arc<dyn ScopedPolicyEnforcer>>,
     /// Default timeout in milliseconds when waiting for job execution receipts.
     pub default_receipt_wait_ms: u64,
 }
@@ -607,6 +613,7 @@ impl RuntimeContext {
         dag_store: Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>,
         mana_ledger_path: PathBuf,
         reputation_store_path: PathBuf,
+        policy_enforcer: Option<Arc<dyn ScopedPolicyEnforcer>>,
     ) -> Arc<Self> {
         Self::new_with_mana_ledger(
             current_identity,
@@ -616,6 +623,7 @@ impl RuntimeContext {
             dag_store,
             SimpleManaLedger::new(mana_ledger_path),
             reputation_store_path,
+            policy_enforcer,
         )
     }
 
@@ -628,6 +636,7 @@ impl RuntimeContext {
         dag_store: Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>,
         mana_ledger: SimpleManaLedger,
         reputation_store_path: PathBuf,
+        policy_enforcer: Option<Arc<dyn ScopedPolicyEnforcer>>,
     ) -> Arc<Self> {
         let job_states = Arc::new(TokioMutex::new(HashMap::new()));
         let pending_mesh_jobs = Arc::new(TokioMutex::new(VecDeque::new()));
@@ -681,6 +690,7 @@ impl RuntimeContext {
             did_resolver,
             dag_store,
             reputation_store,
+            policy_enforcer,
             default_receipt_wait_ms: 60_000,
         })
     }
@@ -701,6 +711,7 @@ impl RuntimeContext {
             dag_store,
             PathBuf::from("./mana_ledger.sled"),
             PathBuf::from("./reputation.sled"),
+            None,
         )
     }
 
@@ -714,6 +725,7 @@ impl RuntimeContext {
         dag_path: PathBuf,
         mana_ledger_path: PathBuf,
         reputation_store_path: PathBuf,
+        policy_enforcer: Option<Arc<dyn ScopedPolicyEnforcer>>,
     ) -> Result<Arc<Self>, CommonError> {
         #[cfg(feature = "persist-rocksdb")]
         let dag_store = Arc::new(TokioMutex::new(RocksDagStore::new(dag_path)?))
@@ -749,6 +761,7 @@ impl RuntimeContext {
             dag_store,
             mana_ledger_path,
             reputation_store_path,
+            policy_enforcer,
         ))
     }
 
@@ -812,6 +825,7 @@ impl RuntimeContext {
             dag_store,
             PathBuf::from("./mana_ledger.sled"),
             PathBuf::from("./reputation.sled"),
+            None,
         ))
     }
 
@@ -840,6 +854,7 @@ impl RuntimeContext {
             dag_store,
             PathBuf::from("./mana_ledger.sled"),
             PathBuf::from("./reputation.sled"),
+            None,
         );
         ctx.mana_ledger
             .set_balance(&current_identity, initial_mana)
@@ -1310,6 +1325,13 @@ impl RuntimeContext {
             author_did: author,
             signature,
         };
+        if let Some(enforcer) = &self.policy_enforcer {
+            if let PolicyCheckResult::Denied { reason } =
+                enforcer.check_permission(DagPayloadOp::AnchorReceipt, &self.current_identity)
+            {
+                return Err(HostAbiError::PermissionDenied(reason));
+            }
+        }
         let mut store = self.dag_store.lock().await;
         store.put(&block).map_err(HostAbiError::Common)?;
         let cid = block.cid.clone();
@@ -1604,6 +1626,7 @@ impl RuntimeContext {
             dag_store,
             mana_ledger_path,
             reputation_store_path,
+            None,
         );
 
         info!("RuntimeContext with real libp2p networking created successfully");
@@ -2194,6 +2217,7 @@ mod tests {
             Arc::new(TokioMutex::new(StubDagStore::new())),
             PathBuf::from("./mana_ledger.sled"),
             PathBuf::from("./reputation.sled"),
+            None,
         );
 
         let stub_net = ctx
