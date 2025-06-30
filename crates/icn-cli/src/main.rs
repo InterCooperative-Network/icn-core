@@ -280,10 +280,15 @@ async fn get_request<T: for<'de> Deserialize<'de>>(
             .text()
             .await
             .unwrap_or_else(|_| "Failed to read error body".to_string());
+        let message = serde_json::from_str::<serde_json::Value>(&error_text)
+            .ok()
+            .and_then(|v| v.get("error").cloned())
+            .and_then(|v| v.as_str().map(|s| s.to_string()))
+            .unwrap_or(error_text);
         Err(anyhow::anyhow!(
             "Request failed with status {}: {}\nURL: {}",
             status,
-            error_text,
+            message,
             url
         ))
     }
@@ -307,10 +312,15 @@ async fn post_request<S: Serialize, T: for<'de> Deserialize<'de>>(
             .text()
             .await
             .unwrap_or_else(|_| "Failed to read error body".to_string());
+        let message = serde_json::from_str::<serde_json::Value>(&error_text)
+            .ok()
+            .and_then(|v| v.get("error").cloned())
+            .and_then(|v| v.as_str().map(|s| s.to_string()))
+            .unwrap_or(error_text);
         Err(anyhow::anyhow!(
             "Request failed with status {}: {}\nURL: {}",
             status,
-            error_text,
+            message,
             url
         ))
     }

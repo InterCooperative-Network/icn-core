@@ -80,6 +80,9 @@ pub async fn query_data(
         CommonError::StorageError(msg) => {
             CommonError::StorageError(format!("API: Failed to query DagBlock: {}", msg))
         }
+        CommonError::PolicyDenied(msg) => {
+            CommonError::PolicyDenied(format!("API: Policy denied: {}", msg))
+        }
         other => CommonError::ApiError(format!("API: Unexpected error: {:?}", other)),
     })
 }
@@ -154,6 +157,9 @@ pub async fn submit_dag_block(
             "API: Deserialization error during put: {}",
             msg
         )),
+        CommonError::PolicyDenied(msg) => {
+            CommonError::PolicyDenied(format!("API: Policy denied: {}", msg))
+        }
         _ => CommonError::ApiError(format!("API: Unexpected error during store.put: {:?}", e)),
     })?;
     Ok(block.cid.clone())
@@ -430,6 +436,26 @@ mod tests {
         Arc::new(Mutex::new(GovernanceModule::new()))
     }
 
+    struct DenyStore;
+
+    impl StorageService<DagBlock> for DenyStore {
+        fn put(&mut self, _block: &DagBlock) -> Result<(), CommonError> {
+            Err(CommonError::PolicyDenied("no blocks allowed".into()))
+        }
+
+        fn get(&self, _cid: &Cid) -> Result<Option<DagBlock>, CommonError> {
+            Err(CommonError::PolicyDenied("get denied".into()))
+        }
+
+        fn delete(&mut self, _cid: &Cid) -> Result<(), CommonError> {
+            Ok(())
+        }
+
+        fn contains(&self, _cid: &Cid) -> Result<bool, CommonError> {
+            Ok(false)
+        }
+    }
+
     #[test]
     fn get_node_info_works() {
         match get_node_info() {
@@ -594,6 +620,41 @@ mod tests {
                 assert!(msg.contains("Failed to parse CID JSON"));
             }
             _ => panic!("retrieve_dag_block with invalid JSON did not return DeserializationError"),
+        }
+    }
+
+    #[tokio::test]
+    async fn submit_dag_block_policy_denied() {
+        let storage: Arc<tokio::sync::Mutex<dyn StorageService<DagBlock> + Send>> =
+            Arc::new(tokio::sync::Mutex::new(DenyStore));
+        let data = b"pd".to_vec();
+        let cid = super::compute_merkle_cid(0x71, &data, &[], 0, &Did::new("key", "pd"), &None);
+        let block = DagBlock {
+            cid: cid.clone(),
+            data: data.clone(),
+            links: vec![],
+            timestamp: 0,
+            author_did: Did::new("key", "pd"),
+            signature: None,
+        };
+        let block_json = serde_json::to_string(&block).unwrap();
+        let result = submit_dag_block(storage, block_json).await;
+        match result {
+            Err(CommonError::PolicyDenied(msg)) => assert!(msg.contains("no blocks allowed")),
+            other => panic!("expected PolicyDenied, got {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn query_data_policy_denied() {
+        let storage: Arc<tokio::sync::Mutex<dyn StorageService<DagBlock> + Send>> =
+            Arc::new(tokio::sync::Mutex::new(DenyStore));
+        let cid = Cid::new_v1_sha256(0x71, b"data");
+        let cid_json = serde_json::to_string(&cid).unwrap();
+        let result = query_data(storage, cid_json).await;
+        match result {
+            Err(CommonError::PolicyDenied(msg)) => assert!(msg.contains("get denied")),
+            other => panic!("expected PolicyDenied, got {:?}", other),
         }
     }
 

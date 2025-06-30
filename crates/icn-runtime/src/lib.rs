@@ -216,10 +216,10 @@ pub async fn host_account_spend_mana(
 
     // Ensure current_identity matches account_did for spending, as per RuntimeContext::spend_mana policy
     if account_did != ctx.current_identity {
-        return Err(HostAbiError::InvalidParameters(
+        return Err(HostAbiError::Common(icn_common::CommonError::PolicyDenied(
             "Attempting to spend mana for an account other than the current context identity."
                 .to_string(),
-        ));
+        )));
     }
 
     ctx.spend_mana(&account_did, amount).await

@@ -1242,10 +1242,10 @@ impl RuntimeContext {
             account, amount
         );
         if account != &self.current_identity {
-            return Err(HostAbiError::InvalidParameters(
+            return Err(HostAbiError::Common(icn_common::CommonError::PolicyDenied(
                 "Attempting to spend mana for an account other than the current context identity."
                     .to_string(),
-            ));
+            )));
         }
         self.mana_ledger.spend(account, amount)
     }

@@ -52,6 +52,9 @@ pub enum CommonError {
     #[error("Permission denied: {0}")]
     PermissionDenied(String),
 
+    #[error("Policy denied: {0}")]
+    PolicyDenied(String),
+
     #[error("Network setup error: {0}")]
     NetworkSetupError(String),
 
