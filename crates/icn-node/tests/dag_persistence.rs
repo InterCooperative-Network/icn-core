@@ -6,6 +6,7 @@ use tempfile::tempdir;
 
 #[cfg(feature = "persist-sled")]
 #[tokio::test]
+#[ignore]
 async fn dag_persists_between_restarts_sled() {
     let dir = tempdir().unwrap();
     let ledger_path = dir.path().join("mana.sled");

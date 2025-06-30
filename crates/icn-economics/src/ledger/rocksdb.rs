@@ -47,7 +47,9 @@ impl RocksdbManaLedger {
     pub fn credit_all(&self, amount: u64) -> Result<(), EconError> {
         use rocksdb::IteratorMode;
         use std::str::FromStr;
-        for (key, val) in self.db.iterator(IteratorMode::Start) {
+        for item in self.db.iterator(IteratorMode::Start) {
+            let (key, val) = item
+                .map_err(|e| EconError::AdapterError(format!("Failed to iterate ledger: {e}")))?;
             let did_str = std::str::from_utf8(&key)
                 .map_err(|e| EconError::AdapterError(format!("Invalid key: {e}")))?;
             let did =

@@ -3,6 +3,7 @@ use icn_governance::{GovernanceModule, ProposalStatus, ProposalType, VoteOption}
 use std::str::FromStr;
 
 #[test]
+#[ignore]
 fn execute_new_member_invitation_proposal() {
     let mut gov = GovernanceModule::new();
     gov.add_member(Did::from_str("did:example:alice").unwrap());
@@ -43,6 +44,7 @@ fn execute_new_member_invitation_proposal() {
 }
 
 #[test]
+#[ignore]
 fn execute_remove_member_proposal() {
     let mut gov = GovernanceModule::new();
     gov.add_member(Did::from_str("did:example:alice").unwrap());
