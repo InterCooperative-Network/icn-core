@@ -292,6 +292,12 @@ pub struct CastVotePayload {
     pub vote_option_str: String,
 }
 
+/// Mana cost deducted when creating a governance proposal.
+pub const PROPOSAL_COST_MANA: u64 = 10;
+
+/// Mana cost deducted when casting a governance vote.
+pub const VOTE_COST_MANA: u64 = 1;
+
 /// Trait for a service that can broadcast and receive mesh-specific messages.
 /// This is the local definition for icn-runtime.
 #[async_trait]
@@ -1307,6 +1313,8 @@ impl RuntimeContext {
         &self,
         payload: CreateProposalPayload,
     ) -> Result<String, HostAbiError> {
+        self.spend_mana(&self.current_identity, PROPOSAL_COST_MANA)
+            .await?;
         let proposal_type = match payload.proposal_type_str.to_lowercase().as_str() {
             "systemparameterchange" | "system_parameter_change" => {
                 let tup: (String, String) = serde_json::from_slice(&payload.type_specific_payload)
@@ -1370,6 +1378,8 @@ impl RuntimeContext {
     }
 
     pub async fn cast_governance_vote(&self, payload: CastVotePayload) -> Result<(), HostAbiError> {
+        self.spend_mana(&self.current_identity, VOTE_COST_MANA)
+            .await?;
         let proposal_id = ProposalId::from_str(&payload.proposal_id_str)
             .map_err(|e| HostAbiError::InvalidParameters(format!("Invalid proposal id: {}", e)))?;
         let vote_option = match payload.vote_option_str.to_lowercase().as_str() {
