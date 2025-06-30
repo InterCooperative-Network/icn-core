@@ -39,8 +39,8 @@ async fn compiled_policy_executes_via_host_abi() {
     // Store metadata referencing the wasm CID
     meta.cid = wasm_cid.to_string();
     let meta_bytes = serde_json::to_vec(&meta).unwrap();
-    let meta_cid = compute_merkle_cid(0x80, &meta_bytes, &[], ts, &author, &None);
-    let meta_block = DagBlock { cid: meta_cid.clone(), data: meta_bytes, links: vec![], timestamp: ts, author_did: author, signature: None };
+    let meta_cid = compute_merkle_cid(0x80, &meta_bytes, &[], ts, &author, &None, &None);
+    let meta_block = DagBlock { cid: meta_cid.clone(), data: meta_bytes, links: vec![], timestamp: ts, author_did: author, signature: None, scope: None };
     {
         let mut store = dag_store.lock().await;
         store.put(&meta_block).unwrap();

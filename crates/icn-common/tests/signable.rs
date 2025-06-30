@@ -71,6 +71,7 @@ fn dagblock_sign_verify() {
         timestamp,
         &author,
         &sig_opt,
+        &None,
     );
     let block = DagBlock {
         cid,
@@ -79,6 +80,7 @@ fn dagblock_sign_verify() {
         timestamp,
         author_did: author,
         signature: sig_opt,
+        scope: None,
     };
 
     let sig = block.sign(&sk).unwrap();

@@ -395,7 +395,7 @@ mod tests {
         let ts = 0u64;
         let author = Did::new("key", "tester");
         let sig_opt = None;
-        let cid = compute_merkle_cid(0x71, manifest_data, &[], ts, &author, &sig_opt);
+        let cid = compute_merkle_cid(0x71, manifest_data, &[], ts, &author, &sig_opt, &None);
         let block = DagBlock {
             cid: cid.clone(),
             data: manifest_data.to_vec(),
@@ -403,6 +403,7 @@ mod tests {
             timestamp: ts,
             author_did: author,
             signature: sig_opt,
+            scope: None,
         };
         {
             let mut store = ctx.dag_store.lock().await;

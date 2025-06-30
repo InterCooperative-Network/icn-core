@@ -24,7 +24,7 @@ async fn wasm_executor_runs_wasm() {
     let ts = 0u64;
     let author = Did::new("key", "tester");
     let sig_opt = None;
-    let cid = compute_merkle_cid(0x71, &wasm_bytes, &[], ts, &author, &sig_opt);
+    let cid = compute_merkle_cid(0x71, &wasm_bytes, &[], ts, &author, &sig_opt, &None);
     let block = DagBlock {
         cid: cid.clone(),
         data: wasm_bytes,
@@ -32,6 +32,7 @@ async fn wasm_executor_runs_wasm() {
         timestamp: ts,
         author_did: author,
         signature: sig_opt,
+        scope: None,
     };
     {
         let mut store = ctx.dag_store.lock().await;
@@ -69,7 +70,7 @@ async fn wasm_executor_runs_compiled_ccl_contract() {
     let ts = 0u64;
     let author = Did::new("key", "tester");
     let sig_opt = None;
-    let cid_calc = compute_merkle_cid(0x71, &wasm, &[], ts, &author, &sig_opt);
+    let cid_calc = compute_merkle_cid(0x71, &wasm, &[], ts, &author, &sig_opt, &None);
     let block = DagBlock {
         cid: cid_calc.clone(),
         data: wasm.clone(),
@@ -77,6 +78,7 @@ async fn wasm_executor_runs_compiled_ccl_contract() {
         timestamp: ts,
         author_did: author,
         signature: sig_opt,
+        scope: None,
     };
     {
         let mut store = ctx.dag_store.lock().await;
@@ -143,7 +145,7 @@ async fn wasm_executor_host_submit_mesh_job_json() {
     let ts = 0u64;
     let author = Did::new("key", "tester");
     let sig_opt = None;
-    let cid_calc = compute_merkle_cid(0x71, &wasm_bytes, &[], ts, &author, &sig_opt);
+    let cid_calc = compute_merkle_cid(0x71, &wasm_bytes, &[], ts, &author, &sig_opt, &None);
     let block = DagBlock {
         cid: cid_calc.clone(),
         data: wasm_bytes,
@@ -151,6 +153,7 @@ async fn wasm_executor_host_submit_mesh_job_json() {
         timestamp: ts,
         author_did: author,
         signature: sig_opt,
+        scope: None,
     };
     {
         let mut store = ctx.dag_store.lock().await;
@@ -209,7 +212,7 @@ async fn wasm_executor_host_anchor_receipt_json() {
     let ts = 0u64;
     let author = Did::new("key", "tester");
     let sig_opt = None;
-    let cid_calc = compute_merkle_cid(0x71, &wasm_bytes, &[], ts, &author, &sig_opt);
+    let cid_calc = compute_merkle_cid(0x71, &wasm_bytes, &[], ts, &author, &sig_opt, &None);
     let block = DagBlock {
         cid: cid_calc.clone(),
         data: wasm_bytes,
@@ -217,6 +220,7 @@ async fn wasm_executor_host_anchor_receipt_json() {
         timestamp: ts,
         author_did: author,
         signature: sig_opt,
+        scope: None,
     };
     {
         let mut store = ctx.dag_store.lock().await;
@@ -252,7 +256,7 @@ async fn submit_compiled_ccl_runs_via_executor() {
     let ts = 0u64;
     let author = Did::new("key", "tester");
     let sig_opt = None;
-    let cid_calc = compute_merkle_cid(0x71, &wasm, &[], ts, &author, &sig_opt);
+    let cid_calc = compute_merkle_cid(0x71, &wasm, &[], ts, &author, &sig_opt, &None);
     let block = DagBlock {
         cid: cid_calc.clone(),
         data: wasm.clone(),
@@ -260,6 +264,7 @@ async fn submit_compiled_ccl_runs_via_executor() {
         timestamp: ts,
         author_did: author,
         signature: sig_opt,
+        scope: None,
     };
     {
         let mut store = ctx.dag_store.lock().await;
@@ -295,7 +300,7 @@ async fn queued_compiled_ccl_executes() {
     let ts = 0u64;
     let author = Did::new("key", "tester");
     let sig_opt = None;
-    let cid_calc = compute_merkle_cid(0x71, &wasm, &[], ts, &author, &sig_opt);
+    let cid_calc = compute_merkle_cid(0x71, &wasm, &[], ts, &author, &sig_opt, &None);
     let block = DagBlock {
         cid: cid_calc.clone(),
         data: wasm.clone(),
@@ -303,6 +308,7 @@ async fn queued_compiled_ccl_executes() {
         timestamp: ts,
         author_did: author,
         signature: sig_opt,
+        scope: None,
     };
     {
         let mut store = ctx.dag_store.lock().await;
@@ -344,6 +350,7 @@ async fn compiled_example_contract_file_runs() {
         timestamp: 0,
         author_did: Did::new("key", "tester"),
         signature: None,
+        scope: None,
     };
     {
         let mut store = ctx.dag_store.lock().await;

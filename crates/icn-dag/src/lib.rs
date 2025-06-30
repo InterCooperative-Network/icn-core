@@ -293,7 +293,7 @@ mod tests {
         let timestamp = 0u64;
         let author = Did::new("key", "tester");
         let sig = None;
-        let cid = compute_merkle_cid(0x71, &data, &[], timestamp, &author, &sig);
+        let cid = compute_merkle_cid(0x71, &data, &[], timestamp, &author, &sig, &None);
         DagBlock {
             cid,
             data,
@@ -301,6 +301,7 @@ mod tests {
             timestamp,
             author_did: author,
             signature: sig,
+            scope: None,
         }
     }
 
@@ -327,7 +328,15 @@ mod tests {
         let timestamp = 1u64;
         let author = Did::new("key", "tester");
         let sig = None;
-        let cid = compute_merkle_cid(0x71, &modified_block1_data, &[], timestamp, &author, &sig);
+        let cid = compute_merkle_cid(
+            0x71,
+            &modified_block1_data,
+            &[],
+            timestamp,
+            &author,
+            &sig,
+            &None,
+        );
         let modified_block1 = DagBlock {
             cid,
             data: modified_block1_data,
@@ -335,6 +344,7 @@ mod tests {
             timestamp,
             author_did: author,
             signature: sig,
+            scope: None,
         };
         assert!(store.put(&modified_block1).is_ok());
         match store.get(&block1.cid) {
@@ -533,6 +543,7 @@ mod tests {
             timestamp,
             &author,
             &sig,
+            &None,
         );
         let parent = DagBlock {
             cid: parent_cid.clone(),
@@ -541,6 +552,7 @@ mod tests {
             timestamp,
             author_did: author,
             signature: sig,
+            scope: None,
         };
         index.index_block(&child);
         index.index_block(&parent);

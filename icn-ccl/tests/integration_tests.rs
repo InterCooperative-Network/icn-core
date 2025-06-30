@@ -75,8 +75,15 @@ fn test_compile_ccl_file_cli_function() {
             let ts = 0u64;
             let author = icn_common::Did::new("key", "tester");
             let sig_opt = None;
-            let expected_cid =
-                icn_common::compute_merkle_cid(0x71, &wasm_bytes, &[], ts, &author, &sig_opt);
+            let expected_cid = icn_common::compute_merkle_cid(
+                0x71,
+                &wasm_bytes,
+                &[],
+                ts,
+                &author,
+                &sig_opt,
+                &None,
+            );
             assert_eq!(metadata.cid, expected_cid.to_string());
 
             println!(
@@ -177,7 +184,7 @@ async fn test_wasm_executor_with_ccl() {
     let ts = 0u64;
     let author = icn_common::Did::new("key", "tester");
     let sig_opt = None;
-    let cid_calc = icn_common::compute_merkle_cid(0x71, &wasm, &[], ts, &author, &sig_opt);
+    let cid_calc = icn_common::compute_merkle_cid(0x71, &wasm, &[], ts, &author, &sig_opt, &None);
     let block = DagBlock {
         cid: cid_calc.clone(),
         data: wasm.clone(),
@@ -185,6 +192,7 @@ async fn test_wasm_executor_with_ccl() {
         timestamp: ts,
         author_did: author,
         signature: sig_opt,
+        scope: None,
     };
     {
         let mut store = ctx.dag_store.lock().await;
@@ -319,7 +327,7 @@ async fn test_wasm_executor_runs_addition() {
     let ts = 0u64;
     let author = icn_common::Did::new("key", "tester");
     let sig_opt = None;
-    let cid_calc = icn_common::compute_merkle_cid(0x71, &wasm, &[], ts, &author, &sig_opt);
+    let cid_calc = icn_common::compute_merkle_cid(0x71, &wasm, &[], ts, &author, &sig_opt, &None);
     let block = DagBlock {
         cid: cid_calc.clone(),
         data: wasm.clone(),
@@ -327,6 +335,7 @@ async fn test_wasm_executor_runs_addition() {
         timestamp: ts,
         author_did: author,
         signature: sig_opt,
+        scope: None,
     };
     {
         let mut store = ctx.dag_store.lock().await;

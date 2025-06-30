@@ -310,7 +310,7 @@ async fn test_mesh_job_full_lifecycle_happy_path() {
     let ts = 0u64;
     let author = Did::new("key", "tester");
     let sig_opt = None;
-    let cid = compute_merkle_cid(0x71, &receipt_bytes, &[], ts, &author, &sig_opt);
+    let cid = compute_merkle_cid(0x71, &receipt_bytes, &[], ts, &author, &sig_opt, &None);
     let block = DagBlock {
         cid,
         data: receipt_bytes,
@@ -318,6 +318,7 @@ async fn test_mesh_job_full_lifecycle_happy_path() {
         timestamp: ts,
         author_did: author,
         signature: sig_opt,
+        scope: None,
     };
     {
         let mut store = dag_store.lock().await;

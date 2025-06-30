@@ -999,7 +999,7 @@ async fn dag_put_handler(
     let ts = 0u64;
     let author = Did::new("key", "tester");
     let sig_opt = None;
-    let cid = icn_common::compute_merkle_cid(0x71, &block.data, &[], ts, &author, &sig_opt);
+    let cid = icn_common::compute_merkle_cid(0x71, &block.data, &[], ts, &author, &sig_opt, &None);
     let dag_block = CoreDagBlock {
         cid,
         data: block.data,
@@ -1007,6 +1007,7 @@ async fn dag_put_handler(
         timestamp: ts,
         author_did: author,
         signature: sig_opt,
+        scope: None,
     };
     let mut store = state.runtime_context.dag_store.lock().await;
     match store.put(&dag_block) {
@@ -1068,7 +1069,7 @@ async fn contracts_post_handler(
     let ts = 0u64;
     let author = Did::new("key", "tester");
     let sig_opt = None;
-    let cid = icn_common::compute_merkle_cid(0x71, &wasm, &[], ts, &author, &sig_opt);
+    let cid = icn_common::compute_merkle_cid(0x71, &wasm, &[], ts, &author, &sig_opt, &None);
     let block = CoreDagBlock {
         cid: cid.clone(),
         data: wasm,
@@ -1076,6 +1077,7 @@ async fn contracts_post_handler(
         timestamp: ts,
         author_did: author,
         signature: sig_opt,
+        scope: None,
     };
 
     let block_json = match serde_json::to_string(&block) {
