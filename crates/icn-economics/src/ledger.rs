@@ -118,6 +118,17 @@ impl FileManaLedger {
         self.persist()
             .map_err(|e| EconError::AdapterError(format!("{e}")))
     }
+
+    /// Add `amount` of mana to every stored account.
+    pub fn credit_all(&self, amount: u64) -> Result<(), EconError> {
+        let mut balances = self.balances.lock().unwrap();
+        for val in balances.values_mut() {
+            *val += amount;
+        }
+        drop(balances);
+        self.persist()
+            .map_err(|e| EconError::AdapterError(format!("{e}")))
+    }
 }
 
 impl crate::ManaLedger for FileManaLedger {
@@ -135,6 +146,10 @@ impl crate::ManaLedger for FileManaLedger {
 
     fn credit(&self, did: &Did, amount: u64) -> Result<(), EconError> {
         FileManaLedger::credit(self, did, amount)
+    }
+
+    fn credit_all(&self, amount: u64) -> Result<(), EconError> {
+        FileManaLedger::credit_all(self, amount)
     }
 }
 
@@ -185,6 +200,25 @@ impl SledManaLedger {
             Ok(0)
         }
     }
+
+    pub fn credit_all(&self, amount: u64) -> Result<(), EconError> {
+        use sled::IVec;
+        use std::str::FromStr;
+        for result in self.tree.iter() {
+            let (key, val) = result
+                .map_err(|e| EconError::AdapterError(format!("Failed to iterate ledger: {e}")))?;
+            let did_str = std::str::from_utf8(&key)
+                .map_err(|e| EconError::AdapterError(format!("Invalid key: {e}")))?;
+            let did =
+                Did::from_str(did_str).map_err(|e| EconError::AdapterError(format!("{e}")))?;
+            let mut bal: u64 = bincode::deserialize::<u64>(val.as_ref())
+                .map_err(|e| EconError::AdapterError(format!("Failed to decode balance: {e}")))?;
+            bal += amount;
+            self.write_balance(&did, bal)
+                .map_err(|e| EconError::AdapterError(format!("{e}")))?;
+        }
+        Ok(())
+    }
 }
 
 #[cfg(feature = "persist-sled")]
@@ -216,6 +250,10 @@ impl crate::ManaLedger for SledManaLedger {
             .map_err(|e| EconError::AdapterError(format!("{e}")))?;
         self.write_balance(did, current + amount)
             .map_err(|e| EconError::AdapterError(format!("{e}")))
+    }
+
+    fn credit_all(&self, amount: u64) -> Result<(), EconError> {
+        SledManaLedger::credit_all(self, amount)
     }
 }
 

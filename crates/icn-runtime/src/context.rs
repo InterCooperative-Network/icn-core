@@ -212,6 +212,12 @@ impl SimpleManaLedger {
             .credit(account, amount)
             .map_err(|e| HostAbiError::InternalError(format!("{e:?}")))
     }
+
+    pub fn credit_all(&self, amount: u64) -> Result<(), HostAbiError> {
+        self.ledger
+            .credit_all(amount)
+            .map_err(|e| HostAbiError::InternalError(format!("{e:?}")))
+    }
 }
 
 impl icn_economics::ManaLedger for SimpleManaLedger {
@@ -229,6 +235,10 @@ impl icn_economics::ManaLedger for SimpleManaLedger {
 
     fn credit(&self, did: &Did, amount: u64) -> Result<(), icn_economics::EconError> {
         self.ledger.credit(did, amount)
+    }
+
+    fn credit_all(&self, amount: u64) -> Result<(), icn_economics::EconError> {
+        self.ledger.credit_all(amount)
     }
 }
 
@@ -1196,6 +1206,23 @@ impl RuntimeContext {
                 }
             } // End loop
         }); // End tokio::spawn
+    }
+
+    /// Spawn a background task that periodically credits all mana accounts.
+    ///
+    /// `amount` is the mana added per interval. `interval` specifies how often
+    /// the crediting occurs.
+    pub async fn spawn_mana_regenerator(self: Arc<Self>, amount: u64, interval: StdDuration) {
+        let ledger = self.mana_ledger.clone();
+        tokio::spawn(async move {
+            let mut ticker = tokio::time::interval(interval);
+            loop {
+                ticker.tick().await;
+                if let Err(e) = ledger.credit_all(amount) {
+                    error!("[ManaRegenerator] Failed to credit accounts: {:?}", e);
+                }
+            }
+        });
     }
 
     pub async fn get_mana(&self, account: &Did) -> Result<u64, HostAbiError> {

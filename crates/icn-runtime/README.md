@@ -77,6 +77,12 @@ closed via `host_close_governance_proposal_voting`, returning the final
 `host_execute_governance_proposal`, which updates the stored proposal and member
 set.
 
+## Mana Regeneration
+
+`RuntimeContext` can automatically replenish mana. Use
+`spawn_mana_regenerator` to start a background task that credits every
+account with a fixed amount on a configurable interval.
+
 ## Error Types
 
 `MeshJobError` enumerates failures that can occur while processing mesh jobs.
