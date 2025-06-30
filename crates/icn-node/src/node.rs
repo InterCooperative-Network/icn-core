@@ -382,6 +382,7 @@ pub async fn app_router_with_options(
         dag_store_for_rt,
         ledger,
         rep_path.clone(),
+        None,
     );
 
     #[cfg(feature = "persist-sled")]
@@ -751,6 +752,7 @@ async fn main() {
             dag_store_for_rt,
             ledger,
             config.reputation_db_path.clone(),
+            None,
         )
     };
 
@@ -995,13 +997,14 @@ async fn dag_put_handler(
     let ts = 0u64;
     let author = Did::new("key", "tester");
     let sig_opt = None;
-    let cid = icn_common::compute_merkle_cid(0x71, &block.data, &[], ts, &author, &sig_opt);
+    let cid = icn_common::compute_merkle_cid(0x71, &block.data, &[], ts, &author, &None, &sig_opt);
     let dag_block = CoreDagBlock {
         cid,
         data: block.data,
         links: vec![],
         timestamp: ts,
         author_did: author,
+        scope: None,
         signature: sig_opt,
     };
     let mut store = state.runtime_context.dag_store.lock().await;
@@ -1064,13 +1067,14 @@ async fn contracts_post_handler(
     let ts = 0u64;
     let author = Did::new("key", "tester");
     let sig_opt = None;
-    let cid = icn_common::compute_merkle_cid(0x71, &wasm, &[], ts, &author, &sig_opt);
+    let cid = icn_common::compute_merkle_cid(0x71, &wasm, &[], ts, &author, &None, &sig_opt);
     let block = CoreDagBlock {
         cid: cid.clone(),
         data: wasm,
         links: vec![],
         timestamp: ts,
         author_did: author,
+        scope: None,
         signature: sig_opt,
     };
 

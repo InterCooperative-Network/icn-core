@@ -1315,6 +1315,7 @@ impl RuntimeContext {
             &[],
             timestamp,
             &author,
+            &None,
             &signature,
         );
         let block = DagBlock {
@@ -1323,11 +1324,12 @@ impl RuntimeContext {
             links: vec![],
             timestamp,
             author_did: author,
+            scope: None,
             signature,
         };
         if let Some(enforcer) = &self.policy_enforcer {
             if let PolicyCheckResult::Denied { reason } =
-                enforcer.check_permission(DagPayloadOp::AnchorReceipt, &self.current_identity)
+                enforcer.check_permission(DagPayloadOp::AnchorReceipt, &self.current_identity, None)
             {
                 return Err(HostAbiError::PermissionDenied(reason));
             }

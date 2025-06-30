@@ -24,13 +24,14 @@ async fn wasm_executor_runs_wasm() {
     let ts = 0u64;
     let author = Did::new("key", "tester");
     let sig_opt = None;
-    let cid = compute_merkle_cid(0x71, &wasm_bytes, &[], ts, &author, &sig_opt);
+    let cid = compute_merkle_cid(0x71, &wasm_bytes, &[], ts, &author, &None, &sig_opt);
     let block = DagBlock {
         cid: cid.clone(),
         data: wasm_bytes,
         links: vec![],
         timestamp: ts,
         author_did: author,
+        scope: None,
         signature: sig_opt,
     };
     {
@@ -69,13 +70,14 @@ async fn wasm_executor_runs_compiled_ccl_contract() {
     let ts = 0u64;
     let author = Did::new("key", "tester");
     let sig_opt = None;
-    let cid_calc = compute_merkle_cid(0x71, &wasm, &[], ts, &author, &sig_opt);
+    let cid_calc = compute_merkle_cid(0x71, &wasm, &[], ts, &author, &None, &sig_opt);
     let block = DagBlock {
         cid: cid_calc.clone(),
         data: wasm.clone(),
         links: vec![],
         timestamp: ts,
         author_did: author,
+        scope: None,
         signature: sig_opt,
     };
     {
@@ -143,13 +145,14 @@ async fn wasm_executor_host_submit_mesh_job_json() {
     let ts = 0u64;
     let author = Did::new("key", "tester");
     let sig_opt = None;
-    let cid_calc = compute_merkle_cid(0x71, &wasm_bytes, &[], ts, &author, &sig_opt);
+    let cid_calc = compute_merkle_cid(0x71, &wasm_bytes, &[], ts, &author, &None, &sig_opt);
     let block = DagBlock {
         cid: cid_calc.clone(),
         data: wasm_bytes,
         links: vec![],
         timestamp: ts,
         author_did: author,
+        scope: None,
         signature: sig_opt,
     };
     {
@@ -209,13 +212,14 @@ async fn wasm_executor_host_anchor_receipt_json() {
     let ts = 0u64;
     let author = Did::new("key", "tester");
     let sig_opt = None;
-    let cid_calc = compute_merkle_cid(0x71, &wasm_bytes, &[], ts, &author, &sig_opt);
+    let cid_calc = compute_merkle_cid(0x71, &wasm_bytes, &[], ts, &author, &None, &sig_opt);
     let block = DagBlock {
         cid: cid_calc.clone(),
         data: wasm_bytes,
         links: vec![],
         timestamp: ts,
         author_did: author,
+        scope: None,
         signature: sig_opt,
     };
     {
@@ -252,13 +256,14 @@ async fn submit_compiled_ccl_runs_via_executor() {
     let ts = 0u64;
     let author = Did::new("key", "tester");
     let sig_opt = None;
-    let cid_calc = compute_merkle_cid(0x71, &wasm, &[], ts, &author, &sig_opt);
+    let cid_calc = compute_merkle_cid(0x71, &wasm, &[], ts, &author, &None, &sig_opt);
     let block = DagBlock {
         cid: cid_calc.clone(),
         data: wasm.clone(),
         links: vec![],
         timestamp: ts,
         author_did: author,
+        scope: None,
         signature: sig_opt,
     };
     {
@@ -295,13 +300,14 @@ async fn queued_compiled_ccl_executes() {
     let ts = 0u64;
     let author = Did::new("key", "tester");
     let sig_opt = None;
-    let cid_calc = compute_merkle_cid(0x71, &wasm, &[], ts, &author, &sig_opt);
+    let cid_calc = compute_merkle_cid(0x71, &wasm, &[], ts, &author, &None, &sig_opt);
     let block = DagBlock {
         cid: cid_calc.clone(),
         data: wasm.clone(),
         links: vec![],
         timestamp: ts,
         author_did: author,
+        scope: None,
         signature: sig_opt,
     };
     {
@@ -343,6 +349,7 @@ async fn compiled_example_contract_file_runs() {
         links: vec![],
         timestamp: 0,
         author_did: Did::new("key", "tester"),
+        scope: None,
         signature: None,
     };
     {

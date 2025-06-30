@@ -29,8 +29,16 @@ async fn compiled_policy_executes_via_host_abi() {
     let ts = 0u64;
     let author = ctx.current_identity.clone();
     let sig = None;
-    let wasm_cid = compute_merkle_cid(0x71, &wasm, &[], ts, &author, &sig);
-    let wasm_block = DagBlock { cid: wasm_cid.clone(), data: wasm, links: vec![], timestamp: ts, author_did: author.clone(), signature: sig };
+    let wasm_cid = compute_merkle_cid(0x71, &wasm, &[], ts, &author, &None, &sig);
+    let wasm_block = DagBlock {
+        cid: wasm_cid.clone(),
+        data: wasm,
+        links: vec![],
+        timestamp: ts,
+        author_did: author.clone(),
+        scope: None,
+        signature: sig,
+    };
     {
         let mut store = dag_store.lock().await;
         store.put(&wasm_block).unwrap();

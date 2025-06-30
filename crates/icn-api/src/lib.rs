@@ -133,6 +133,7 @@ pub async fn submit_dag_block(
         &block.links,
         block.timestamp,
         &block.author_did,
+        &block.scope,
         &block.signature,
     );
     if expected_cid != block.cid {
@@ -487,6 +488,7 @@ mod tests {
             std::slice::from_ref(&link),
             ts,
             &author,
+            &None,
             &sig_opt,
         );
         let block = DagBlock {
@@ -495,6 +497,7 @@ mod tests {
             links: vec![link],
             timestamp: ts,
             author_did: author,
+            scope: None,
             signature: sig_opt,
         };
         let block_json = serde_json::to_string(&block).unwrap();
@@ -520,6 +523,7 @@ mod tests {
             links: vec![link],
             timestamp: 0,
             author_did: Did::new("key", "tester"),
+            scope: None,
             signature: None,
         };
         let block_json = serde_json::to_string(&block).unwrap();
@@ -771,13 +775,14 @@ mod tests {
         let ts = 0u64;
         let author = Did::new("key", "tester");
         let sig_opt = None;
-        let cid = compute_merkle_cid(0x71, &data, &[], ts, &author, &sig_opt);
+        let cid = compute_merkle_cid(0x71, &data, &[], ts, &author, &None, &sig_opt);
         let block = DagBlock {
             cid: cid.clone(),
             data: data.clone(),
             links: vec![],
             timestamp: ts,
             author_did: author,
+            scope: None,
             signature: sig_opt,
         };
         {
@@ -819,13 +824,14 @@ mod tests {
         let ts = 0u64;
         let author = Did::new("key", "tester");
         let sig_opt = None;
-        let cid = compute_merkle_cid(0x71, &data, &[], ts, &author, &sig_opt);
+        let cid = compute_merkle_cid(0x71, &data, &[], ts, &author, &None, &sig_opt);
         let block = DagBlock {
             cid: cid.clone(),
             data,
             links: vec![],
             timestamp: ts,
             author_did: author,
+            scope: None,
             signature: sig_opt,
         };
         let block_json = serde_json::to_string(&block).unwrap();

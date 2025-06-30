@@ -10,13 +10,14 @@ mod persistence_rocksdb {
         let timestamp = 0u64;
         let author = Did::new("key", "tester");
         let sig = None;
-        let cid = compute_merkle_cid(0x71, &data, &[], timestamp, &author, &sig);
+        let cid = compute_merkle_cid(0x71, &data, &[], timestamp, &author, &None, &sig);
         DagBlock {
             cid,
             data,
             links: vec![],
             timestamp,
             author_did: author,
+            scope: None,
             signature: sig,
         }
     }

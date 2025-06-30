@@ -70,6 +70,7 @@ fn dagblock_sign_verify() {
         std::slice::from_ref(&link),
         timestamp,
         &author,
+        &None,
         &sig_opt,
     );
     let block = DagBlock {
@@ -78,6 +79,7 @@ fn dagblock_sign_verify() {
         links: vec![link],
         timestamp,
         author_did: author,
+        scope: None,
         signature: sig_opt,
     };
 

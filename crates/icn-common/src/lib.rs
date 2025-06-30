@@ -408,6 +408,8 @@ pub struct DagBlock {
     pub timestamp: u64,
     /// DID of the block author.
     pub author_did: Did,
+    /// Optional scope restricting which nodes may store this block.
+    pub scope: Option<NodeScope>,
     /// Optional Ed25519 signature of the block contents.
     pub signature: Option<SignatureBytes>,
 }
@@ -427,6 +429,7 @@ pub fn compute_merkle_cid(
     links: &[DagLink],
     timestamp: u64,
     author_did: &Did,
+    scope: &Option<NodeScope>,
     signature: &Option<SignatureBytes>,
 ) -> Cid {
     use sha2::{Digest, Sha256};
@@ -439,6 +442,9 @@ pub fn compute_merkle_cid(
     }
     hasher.update(timestamp.to_le_bytes());
     hasher.update(author_did.to_string().as_bytes());
+    if let Some(scope) = scope {
+        hasher.update(scope.0.as_bytes());
+    }
     if let Some(sig) = signature {
         hasher.update(&sig.0);
     }
@@ -459,6 +465,7 @@ pub fn verify_block_integrity(block: &DagBlock) -> Result<(), CommonError> {
         &block.links,
         block.timestamp,
         &block.author_did,
+        &block.scope,
         &block.signature,
     );
     if expected == block.cid {
@@ -514,6 +521,9 @@ impl Signable for DagBlock {
         }
         bytes.extend_from_slice(&self.timestamp.to_le_bytes());
         bytes.extend_from_slice(self.author_did.to_string().as_bytes());
+        if let Some(scope) = &self.scope {
+            bytes.extend_from_slice(scope.0.as_bytes());
+        }
         Ok(bytes)
     }
 }
@@ -621,6 +631,7 @@ mod tests {
             std::slice::from_ref(&link),
             timestamp,
             &author,
+            &None,
             &sig,
         );
         let block = DagBlock {
@@ -629,6 +640,7 @@ mod tests {
             links: vec![link],
             timestamp,
             author_did: author,
+            scope: None,
             signature: sig,
         };
         assert_eq!(block.cid, block_cid);
@@ -687,6 +699,7 @@ mod tests {
             std::slice::from_ref(&link),
             timestamp,
             &author,
+            &None,
             &sig,
         );
         let block = DagBlock {
@@ -695,6 +708,7 @@ mod tests {
             links: vec![link],
             timestamp,
             author_did: author,
+            scope: None,
             signature: sig,
         };
         assert!(verify_block_integrity(&block).is_ok());

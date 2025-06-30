@@ -11,13 +11,14 @@ mod tests {
         let ts = 0u64;
         let author = Did::new("key", "tester");
         let sig = None;
-        let cid = compute_merkle_cid(0x71, &data, &[], ts, &author, &sig);
+        let cid = compute_merkle_cid(0x71, &data, &[], ts, &author, &None, &sig);
         DagBlock {
             cid,
             data,
             links: vec![],
             timestamp: ts,
             author_did: author,
+            scope: None,
             signature: sig,
         }
     }
@@ -34,13 +35,14 @@ mod tests {
         let ts = 1u64;
         let author = Did::new("key", "tester");
         let sig = None;
-        let cid = compute_merkle_cid(0x71, &mod_data, &[], ts, &author, &sig);
+        let cid = compute_merkle_cid(0x71, &mod_data, &[], ts, &author, &None, &sig);
         let mod_block = DagBlock {
             cid,
             data: mod_data,
             links: vec![],
             timestamp: ts,
             author_did: author,
+            scope: None,
             signature: sig,
         };
         assert!(store.put(&mod_block).is_ok());

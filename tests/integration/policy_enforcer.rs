@@ -95,6 +95,7 @@ async fn authorized_dag_write_succeeds() {
         links: vec![],
         timestamp: ts,
         author_did: alice.clone(),
+        scope: None,
         signature: None,
     };
 
@@ -125,6 +126,7 @@ async fn unauthorized_write_denied() {
         links: vec![],
         timestamp: ts,
         author_did: eve.clone(),
+        scope: None,
         signature: None,
     };
 
@@ -156,6 +158,7 @@ async fn invalid_parent_is_rejected() {
         links: vec![link],
         timestamp: ts,
         author_did: alice.clone(),
+        scope: None,
         signature: None,
     };
 

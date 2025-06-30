@@ -47,13 +47,14 @@ async fn submit_transaction_and_query_data() {
     let ts = 0u64;
     let author = Did::new("key", "tester");
     let sig_opt = None;
-    let cid = compute_merkle_cid(0x71, b"data", &[], ts, &author, &sig_opt);
+    let cid = compute_merkle_cid(0x71, b"data", &[], ts, &author, &None, &sig_opt);
     let block = DagBlock {
         cid,
         data: b"data".to_vec(),
         links: vec![],
         timestamp: ts,
         author_did: author,
+        scope: None,
         signature: sig_opt,
     };
     let put_url = format!("http://{addr}/dag/put");
