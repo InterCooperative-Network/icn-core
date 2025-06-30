@@ -14,7 +14,7 @@ pub use ed25519_dalek::{
 }; // Made pub, removed unused Verifier initially, then re-added Keys
 use multibase::{encode as multibase_encode, Base};
 use rand_core::OsRng;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 use unsigned_varint::encode as varint_encode;
 
@@ -289,6 +289,76 @@ pub struct PeerDidResolver;
 impl DidResolver for PeerDidResolver {
     fn resolve(&self, did: &Did) -> Result<VerifyingKey, CommonError> {
         verifying_key_from_did_peer(did)
+    }
+}
+
+/// Identifier representing a membership scope such as a community,
+/// cooperative, or federation.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+pub struct NodeScope(pub String);
+
+impl From<&str> for NodeScope {
+    fn from(value: &str) -> Self {
+        NodeScope(value.to_string())
+    }
+}
+
+/// Trait for determining if a given [`Did`] is a member of a [`NodeScope`].
+pub trait MembershipResolver: Send + Sync {
+    /// Returns `true` if the DID belongs to the provided scope.
+    fn is_member(&self, did: &Did, scope: &NodeScope) -> bool;
+}
+
+/// In-memory [`MembershipResolver`] backed by a map of scopes to member sets.
+#[derive(Default)]
+pub struct InMemoryMembershipResolver {
+    members: HashMap<NodeScope, HashSet<Did>>,
+}
+
+impl InMemoryMembershipResolver {
+    /// Insert a member into the specified scope.
+    pub fn add_member(&mut self, scope: NodeScope, did: Did) {
+        self.members.entry(scope).or_default().insert(did);
+    }
+
+    /// Remove a member from the specified scope.
+    pub fn remove_member(&mut self, scope: &NodeScope, did: &Did) {
+        if let Some(set) = self.members.get_mut(scope) {
+            set.remove(did);
+            if set.is_empty() {
+                self.members.remove(scope);
+            }
+        }
+    }
+}
+
+impl MembershipResolver for InMemoryMembershipResolver {
+    fn is_member(&self, did: &Did, scope: &NodeScope) -> bool {
+        self.members.get(scope).is_some_and(|set| set.contains(did))
+    }
+}
+
+/// Enforces that actions are only performed by members of a given scope.
+pub struct ScopedPolicyEnforcer<R: MembershipResolver> {
+    resolver: R,
+}
+
+impl<R: MembershipResolver> ScopedPolicyEnforcer<R> {
+    /// Create a new enforcer using the provided resolver.
+    pub fn new(resolver: R) -> Self {
+        Self { resolver }
+    }
+
+    /// Validate that `did` is a member of `scope`, returning an error if not.
+    pub fn ensure_member(&self, did: &Did, scope: &NodeScope) -> Result<(), CommonError> {
+        if self.resolver.is_member(did, scope) {
+            Ok(())
+        } else {
+            Err(CommonError::PermissionDenied(format!(
+                "DID {did} is not a member of scope {}",
+                scope.0
+            )))
+        }
     }
 }
 
@@ -729,5 +799,24 @@ mod tests {
         expected.extend_from_slice(&42u64.to_le_bytes());
         expected.push(1);
         assert_eq!(bytes, expected);
+    }
+
+    #[test]
+    fn membership_resolver_and_enforcer() {
+        let mut resolver = InMemoryMembershipResolver::default();
+        let scope = NodeScope::from("coop1");
+        let did = Did::from_str("did:example:alice").unwrap();
+        resolver.add_member(scope.clone(), did.clone());
+
+        assert!(resolver.is_member(&did, &scope));
+
+        let enforcer = ScopedPolicyEnforcer::new(resolver);
+        assert!(enforcer.ensure_member(&did, &scope).is_ok());
+
+        let other = Did::from_str("did:example:bob").unwrap();
+        assert!(matches!(
+            enforcer.ensure_member(&other, &scope),
+            Err(CommonError::PermissionDenied(_))
+        ));
     }
 }
