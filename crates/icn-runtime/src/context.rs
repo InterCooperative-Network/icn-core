@@ -1,5 +1,6 @@
 //! Defines the `RuntimeContext`, `HostEnvironment`, and related types for the ICN runtime.
 
+use crate::policy::{AllowAllPolicyEnforcer, ScopedPolicyEnforcer};
 use icn_common::{Cid, CommonError, DagBlock, Did};
 use icn_identity::ExecutionReceipt as IdentityExecutionReceipt;
 use icn_mesh::{ActualMeshJob, JobId, JobState, MeshJobBid};
@@ -593,6 +594,8 @@ pub struct RuntimeContext {
     pub did_resolver: Arc<dyn icn_identity::DidResolver>,
     pub dag_store: Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>, // Uses icn_dag::StorageService
     pub reputation_store: Arc<dyn icn_reputation::ReputationStore>,
+    /// Enforces scoped runtime policies.
+    pub policy_enforcer: Arc<dyn ScopedPolicyEnforcer>,
     /// Default timeout in milliseconds when waiting for job execution receipts.
     pub default_receipt_wait_ms: u64,
 }
@@ -681,6 +684,7 @@ impl RuntimeContext {
             did_resolver,
             dag_store,
             reputation_store,
+            policy_enforcer: Arc::new(AllowAllPolicyEnforcer),
             default_receipt_wait_ms: 60_000,
         })
     }
@@ -1310,6 +1314,10 @@ impl RuntimeContext {
             author_did: author,
             signature,
         };
+        self.policy_enforcer
+            .check_dag_submit(&block, &self.current_identity)
+            .await
+            .map_err(|e| HostAbiError::PermissionDenied(e.to_string()))?;
         let mut store = self.dag_store.lock().await;
         store.put(&block).map_err(HostAbiError::Common)?;
         let cid = block.cid.clone();
