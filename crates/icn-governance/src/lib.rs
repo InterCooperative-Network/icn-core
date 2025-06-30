@@ -19,6 +19,8 @@ use std::path::PathBuf;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
+pub mod scoped_policy;
+
 // --- Proposal System ---
 
 /// Unique identifier for a governance proposal.

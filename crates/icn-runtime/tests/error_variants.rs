@@ -61,3 +61,15 @@ fn host_abi_dag_error_maps_to_dag_operation_failed() {
         _ => panic!("Unexpected mapping: {mesh_err:?}"),
     }
 }
+
+#[test]
+fn host_abi_permission_denied_maps() {
+    let err = HostAbiError::PermissionDenied("nope".to_string());
+    let mesh_err: MeshJobError = err.into();
+    match mesh_err {
+        MeshJobError::PermissionDenied { reason, .. } => {
+            assert_eq!(reason, "nope");
+        }
+        _ => panic!("Unexpected mapping: {mesh_err:?}"),
+    }
+}
