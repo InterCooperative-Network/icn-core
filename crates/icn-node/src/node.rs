@@ -374,7 +374,7 @@ pub async fn app_router_with_options(
         mana_ledger_path.unwrap_or_else(|| PathBuf::from("./mana_ledger.sled")),
         ledger_backend,
     );
-    let mut rt_ctx = RuntimeContext::new_with_mana_ledger(
+    let mut rt_ctx = RuntimeContext::new_with_mana_ledger_and_time(
         node_did.clone(),
         mesh_network_service,
         signer,
@@ -382,6 +382,8 @@ pub async fn app_router_with_options(
         dag_store_for_rt,
         ledger,
         rep_path.clone(),
+        None,
+        Arc::new(icn_common::SystemTimeProvider),
     );
 
     #[cfg(feature = "persist-sled")]
@@ -743,7 +745,7 @@ async fn main() {
             config.mana_ledger_path.clone(),
             config.mana_ledger_backend,
         );
-        RuntimeContext::new_with_mana_ledger(
+        RuntimeContext::new_with_mana_ledger_and_time(
             node_did.clone(),
             mesh_network_service,
             signer,
@@ -751,6 +753,8 @@ async fn main() {
             dag_store_for_rt,
             ledger,
             config.reputation_db_path.clone(),
+            None,
+            Arc::new(icn_common::SystemTimeProvider),
         )
     };
 

@@ -35,6 +35,42 @@ pub struct NodeStatus {
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct NodeScope(pub String);
 
+/// Provides the current time for deterministic operations.
+pub trait TimeProvider: Send + Sync {
+    /// Return the current Unix timestamp in seconds.
+    fn unix_seconds(&self) -> u64;
+}
+
+/// Uses [`std::time::SystemTime`] as the source of time.
+#[derive(Debug, Clone)]
+pub struct SystemTimeProvider;
+
+impl TimeProvider for SystemTimeProvider {
+    fn unix_seconds(&self) -> u64 {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs()
+    }
+}
+
+/// Deterministic time provider returning a fixed timestamp.
+#[derive(Debug, Clone)]
+pub struct FixedTimeProvider(pub u64);
+
+impl FixedTimeProvider {
+    /// Create a new [`FixedTimeProvider`] returning `ts`.
+    pub fn new(ts: u64) -> Self {
+        Self(ts)
+    }
+}
+
+impl TimeProvider for FixedTimeProvider {
+    fn unix_seconds(&self) -> u64 {
+        self.0
+    }
+}
+
 /// Represents a generic error that can occur within the ICN network.
 #[derive(Debug, Error, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub enum CommonError {
