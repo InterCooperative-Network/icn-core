@@ -17,7 +17,7 @@ rand_core      = { version = "0.6", features = ["getrandom"] } # used by dalek's
 # --- DID:key helpers ---
 multibase      = "0.9"          # base-58btc ("z...") encoder/decoder
 # tiny crate that just exposes the unsigned-varint impl used by multicodec
-unsigned-varint = { version = "0.7", default-features = false } 
+unsigned-varint = { version = "0.8", default-features = false } 
 serde_bytes = "0.11" # For SignatureBytes serialization
 reqwest.workspace = true
 
