@@ -20,7 +20,10 @@ use std::sync::{Arc, Mutex}; // To accept the storage service
                              // Added imports for network functionality
 use icn_network::{NetworkMessage, NetworkService, PeerId, StubNetworkService};
 // Added imports for governance functionality
-use icn_governance::{GovernanceModule, Proposal, ProposalId, ProposalType, VoteOption};
+use icn_governance::{
+    scoped_policy::{DagPayloadOp, PolicyCheckResult, ScopedPolicyEnforcer},
+    GovernanceModule, Proposal, ProposalId, ProposalType, VoteOption,
+};
 use std::str::FromStr;
 
 pub mod federation_trait;
@@ -119,6 +122,8 @@ pub fn get_node_status(is_simulated_online: bool) -> Result<NodeStatus, CommonEr
 pub async fn submit_dag_block(
     storage: Arc<tokio::sync::Mutex<dyn StorageService<DagBlock> + Send>>,
     block_data_json: String,
+    policy_enforcer: Option<Arc<dyn ScopedPolicyEnforcer>>,
+    actor: Did,
 ) -> Result<Cid, CommonError> {
     let block: DagBlock = serde_json::from_str(&block_data_json).map_err(|e| {
         CommonError::DeserializationError(format!(
@@ -137,6 +142,14 @@ pub async fn submit_dag_block(
     );
     if expected_cid != block.cid {
         return Err(CommonError::DagValidationError("CID mismatch".to_string()));
+    }
+
+    if let Some(enforcer) = &policy_enforcer {
+        if let PolicyCheckResult::Denied { reason } =
+            enforcer.check_permission(DagPayloadOp::SubmitBlock, &actor)
+        {
+            return Err(CommonError::PolicyDenied(reason));
+        }
     }
 
     let mut store = storage.lock().await;
@@ -498,7 +511,7 @@ mod tests {
             signature: sig_opt,
         };
         let block_json = serde_json::to_string(&block).unwrap();
-        let result = submit_dag_block(storage, block_json).await;
+        let result = submit_dag_block(storage, block_json, None, block.author_did.clone()).await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), cid);
     }
@@ -523,7 +536,7 @@ mod tests {
             signature: None,
         };
         let block_json = serde_json::to_string(&block).unwrap();
-        let result = submit_dag_block(storage, block_json).await;
+        let result = submit_dag_block(storage, block_json, None, block.author_did.clone()).await;
         match result {
             Err(CommonError::DagValidationError(_)) => {}
             other => panic!("expected DagValidationError, got {:?}", other),
@@ -555,7 +568,14 @@ mod tests {
         };
 
         let block_json = serde_json::to_string(&block).unwrap();
-        match submit_dag_block(Arc::clone(&storage), block_json.clone()).await {
+        match submit_dag_block(
+            Arc::clone(&storage),
+            block_json.clone(),
+            None,
+            block.author_did.clone(),
+        )
+        .await
+        {
             Ok(submitted_cid) => assert_eq!(submitted_cid, cid),
             Err(e) => panic!("submit_dag_block failed: {:?}", e),
         }
@@ -583,7 +603,14 @@ mod tests {
 
         // Test invalid JSON for submit_dag_block
         let invalid_block_json = "this is not valid json";
-        match submit_dag_block(Arc::clone(&storage), invalid_block_json.to_string()).await {
+        match submit_dag_block(
+            Arc::clone(&storage),
+            invalid_block_json.to_string(),
+            None,
+            Did::new("key", "tester"),
+        )
+        .await
+        {
             Err(CommonError::DeserializationError(msg)) => {
                 assert!(msg.contains("Failed to parse DagBlock JSON"));
             }
@@ -829,7 +856,7 @@ mod tests {
             signature: sig_opt,
         };
         let block_json = serde_json::to_string(&block).unwrap();
-        match submit_dag_block(store, block_json).await {
+        match submit_dag_block(store, block_json, None, block.author_did.clone()).await {
             Err(CommonError::PolicyDenied(msg)) => assert!(msg.contains("blocked")),
             other => panic!("Expected PolicyDenied, got {:?}", other),
         }
@@ -858,6 +885,81 @@ mod tests {
         match query_data(store, cid_json).await {
             Err(CommonError::PolicyDenied(msg)) => assert!(msg.contains("blocked")),
             other => panic!("Expected PolicyDenied, got {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn submit_dag_block_allowed_by_policy() {
+        use icn_governance::scoped_policy::InMemoryPolicyEnforcer;
+        use std::collections::HashSet;
+
+        let store = new_test_storage();
+        let actor = Did::new("key", "allowed");
+        let mut submitters = HashSet::new();
+        submitters.insert(actor.clone());
+        let enforcer = InMemoryPolicyEnforcer::new(submitters, HashSet::new());
+
+        let data = b"block".to_vec();
+        let ts = 0u64;
+        let sig_opt = None;
+        let cid = compute_merkle_cid(0x71, &data, &[], ts, &actor, &sig_opt);
+        let block = DagBlock {
+            cid: cid.clone(),
+            data,
+            links: vec![],
+            timestamp: ts,
+            author_did: actor.clone(),
+            signature: sig_opt,
+        };
+
+        let block_json = serde_json::to_string(&block).unwrap();
+        let res = submit_dag_block(
+            Arc::clone(&store),
+            block_json,
+            Some(Arc::new(enforcer)),
+            actor.clone(),
+        )
+        .await;
+
+        assert_eq!(res.unwrap(), cid);
+    }
+
+    #[tokio::test]
+    async fn submit_dag_block_denied_by_policy() {
+        use icn_governance::scoped_policy::InMemoryPolicyEnforcer;
+        use std::collections::HashSet;
+
+        let store = new_test_storage();
+        let actor = Did::new("key", "denied");
+        let submitters = HashSet::new();
+        let enforcer = InMemoryPolicyEnforcer::new(submitters, HashSet::new());
+
+        let data = b"block".to_vec();
+        let ts = 0u64;
+        let sig_opt = None;
+        let cid = compute_merkle_cid(0x71, &data, &[], ts, &actor, &sig_opt);
+        let block = DagBlock {
+            cid,
+            data,
+            links: vec![],
+            timestamp: ts,
+            author_did: actor.clone(),
+            signature: sig_opt,
+        };
+        let block_json = serde_json::to_string(&block).unwrap();
+
+        match submit_dag_block(
+            Arc::clone(&store),
+            block_json,
+            Some(Arc::new(enforcer)),
+            actor.clone(),
+        )
+        .await
+        {
+            Err(CommonError::PolicyDenied(msg)) => {
+                assert!(msg.contains("not authorized"));
+            }
+            other => panic!("expected PolicyDenied, got {:?}", other),
         }
     }
 }
