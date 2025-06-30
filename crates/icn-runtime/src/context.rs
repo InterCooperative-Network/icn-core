@@ -1477,21 +1477,39 @@ impl RuntimeContext {
             .map_err(|e| HostAbiError::InvalidParameters(format!("Invalid proposal id: {e}")))?;
 
         let mut gov = self.governance_module.lock().await;
-        gov.execute_proposal(&proposal_id)
-            .map_err(HostAbiError::Common)?;
-        let proposal = gov
+        let result = gov.execute_proposal(&proposal_id);
+        let proposal_opt = gov
             .get_proposal(&proposal_id)
-            .map_err(HostAbiError::Common)?
-            .expect("Proposal should exist after execution");
+            .map_err(HostAbiError::Common)?;
         drop(gov);
 
-        let encoded = bincode::serialize(&proposal).map_err(|e| {
-            HostAbiError::InternalError(format!("Failed to serialize proposal: {e}"))
-        })?;
-        if let Err(e) = self.mesh_network_service.announce_proposal(encoded).await {
-            warn!("Failed to broadcast proposal {:?}: {}", proposal_id, e);
+        if let Some(proposal) = proposal_opt {
+            match result {
+                Ok(()) => {
+                    // reward proposer for successful execution
+                    self.credit_mana(&proposal.proposer, 1).await?;
+                    self.reputation_store
+                        .record_execution(&proposal.proposer, true, 0);
+
+                    let encoded = bincode::serialize(&proposal).map_err(|e| {
+                        HostAbiError::InternalError(format!("Failed to serialize proposal: {e}"))
+                    })?;
+                    if let Err(e) = self.mesh_network_service.announce_proposal(encoded).await {
+                        warn!("Failed to broadcast proposal {:?}: {}", proposal_id, e);
+                    }
+                    Ok(())
+                }
+                Err(e) => {
+                    // penalize proposer on failure without crediting mana
+                    self.reputation_store
+                        .record_execution(&proposal.proposer, false, 0);
+                    Err(HostAbiError::Common(e))
+                }
+            }
+        } else {
+            // Proposal not found
+            result.map_err(HostAbiError::Common)
         }
-        Ok(())
     }
 
     /// Inserts a proposal received from the network into the local GovernanceModule.
