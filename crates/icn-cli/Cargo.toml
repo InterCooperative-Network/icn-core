@@ -24,7 +24,7 @@ serde_json = "1.0"
 assert_cmd = "2.0"
 tokio = { version = "1", features = ["full"] }
 predicates = "3.1"
-axum = { version = "0.7", features = ["json"] }
+axum = { version = "0.8", features = ["json"] }
 icn-node = { path = "../icn-node" }
 icn-dag = { path = "../icn-dag", features = ["persist-sqlite"] }
 tempfile = "3"
