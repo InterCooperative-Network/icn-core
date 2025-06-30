@@ -1,7 +1,10 @@
 use std::collections::HashSet;
 use std::str::FromStr;
 
-use icn_common::{compute_merkle_cid, DagBlock, DagLink, Did, SignatureBytes};
+use icn_common::{compute_merkle_cid, DagBlock, DagLink, Did};
+use icn_governance::scoped_policy::{
+    DagPayloadOp, InMemoryPolicyEnforcer, PolicyCheckResult, ScopedPolicyEnforcer,
+};
 use icn_runtime::context::RuntimeContext;
 
 #[derive(Debug, PartialEq, Eq)]
@@ -10,56 +13,15 @@ enum PolicyError {
     InvalidParent,
 }
 
-trait MembershipResolver {
-    fn is_member(&self, did: &Did) -> bool;
-}
-
-struct StaticMembershipResolver {
-    members: HashSet<Did>,
-}
-
-impl StaticMembershipResolver {
-    fn new(members: HashSet<Did>) -> Self {
-        Self { members }
-    }
-}
-
-impl MembershipResolver for StaticMembershipResolver {
-    fn is_member(&self, did: &Did) -> bool {
-        self.members.contains(did)
-    }
-}
-
-trait ScopedPolicyEnforcer {
-    fn authorize_dag_write(&self, author: &Did) -> Result<(), PolicyError>;
-}
-
-struct MockScopedPolicyEnforcer<R: MembershipResolver> {
-    resolver: R,
-}
-
-impl<R: MembershipResolver> MockScopedPolicyEnforcer<R> {
-    fn new(resolver: R) -> Self {
-        Self { resolver }
-    }
-}
-
-impl<R: MembershipResolver> ScopedPolicyEnforcer for MockScopedPolicyEnforcer<R> {
-    fn authorize_dag_write(&self, author: &Did) -> Result<(), PolicyError> {
-        if self.resolver.is_member(author) {
-            Ok(())
-        } else {
-            Err(PolicyError::Unauthorized)
-        }
-    }
-}
-
 async fn anchor_block_with_policy<E: ScopedPolicyEnforcer>(
     ctx: &RuntimeContext,
     block: &DagBlock,
     enforcer: &E,
 ) -> Result<(), PolicyError> {
-    enforcer.authorize_dag_write(&block.author_did)?;
+    match enforcer.check_permission(DagPayloadOp::SubmitBlock, &block.author_did) {
+        PolicyCheckResult::Allowed => {}
+        PolicyCheckResult::Denied { .. } => return Err(PolicyError::Unauthorized),
+    }
 
     {
         let store = ctx.dag_store.lock().await;
@@ -81,10 +43,9 @@ async fn anchor_block_with_policy<E: ScopedPolicyEnforcer>(
 async fn authorized_dag_write_succeeds() {
     let ctx = RuntimeContext::new_with_stubs("did:example:alice").unwrap();
     let alice = Did::from_str("did:example:alice").unwrap();
-    let mut members = HashSet::new();
-    members.insert(alice.clone());
-    let resolver = StaticMembershipResolver::new(members);
-    let enforcer = MockScopedPolicyEnforcer::new(resolver);
+    let mut submitters = HashSet::new();
+    submitters.insert(alice.clone());
+    let enforcer = InMemoryPolicyEnforcer::new(submitters, HashSet::new());
 
     let data = b"block".to_vec();
     let ts = 0u64;
@@ -110,10 +71,9 @@ async fn authorized_dag_write_succeeds() {
 async fn unauthorized_write_denied() {
     let ctx = RuntimeContext::new_with_stubs("did:example:alice").unwrap();
     let alice = Did::from_str("did:example:alice").unwrap();
-    let mut members = HashSet::new();
-    members.insert(alice.clone());
-    let resolver = StaticMembershipResolver::new(members);
-    let enforcer = MockScopedPolicyEnforcer::new(resolver);
+    let mut submitters = HashSet::new();
+    submitters.insert(alice.clone());
+    let enforcer = InMemoryPolicyEnforcer::new(submitters, HashSet::new());
 
     let eve = Did::from_str("did:example:eve").unwrap();
     let data = b"bad".to_vec();
@@ -136,10 +96,9 @@ async fn unauthorized_write_denied() {
 async fn invalid_parent_is_rejected() {
     let ctx = RuntimeContext::new_with_stubs("did:example:alice").unwrap();
     let alice = Did::from_str("did:example:alice").unwrap();
-    let mut members = HashSet::new();
-    members.insert(alice.clone());
-    let resolver = StaticMembershipResolver::new(members);
-    let enforcer = MockScopedPolicyEnforcer::new(resolver);
+    let mut submitters = HashSet::new();
+    submitters.insert(alice.clone());
+    let enforcer = InMemoryPolicyEnforcer::new(submitters, HashSet::new());
 
     let missing_cid = compute_merkle_cid(0x71, b"parent", &[], 0, &alice, &None);
     let link = DagLink {

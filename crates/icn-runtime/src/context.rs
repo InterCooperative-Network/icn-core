@@ -605,6 +605,7 @@ pub struct RuntimeContext {
 
 impl RuntimeContext {
     /// Create a new context using a mana ledger stored at `mana_ledger_path`.
+    #[allow(clippy::too_many_arguments)]
     pub fn new_with_ledger_path(
         current_identity: Did,
         mesh_network_service: Arc<dyn MeshNetworkService>,
@@ -628,6 +629,7 @@ impl RuntimeContext {
     }
 
     /// Create a new context with a preconstructed mana ledger.
+    #[allow(clippy::too_many_arguments)]
     pub fn new_with_mana_ledger(
         current_identity: Did,
         mesh_network_service: Arc<dyn MeshNetworkService>,
@@ -717,6 +719,7 @@ impl RuntimeContext {
 
     /// Create a new context using filesystem paths for the DAG store and mana ledger.
     /// The store type is selected based on enabled persistence features.
+    #[allow(clippy::too_many_arguments)]
     pub fn new_with_paths(
         current_identity: Did,
         mesh_network_service: Arc<dyn MeshNetworkService>,
@@ -1704,6 +1707,7 @@ impl RuntimeContext {
             did_resolver,
             dag_store,
             reputation_store,
+            policy_enforcer: None,
             default_receipt_wait_ms: 60_000,
         })
     }

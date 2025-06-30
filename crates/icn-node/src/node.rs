@@ -382,6 +382,7 @@ pub async fn app_router_with_options(
         dag_store_for_rt,
         ledger,
         rep_path.clone(),
+        None,
     );
 
     #[cfg(feature = "persist-sled")]
@@ -751,6 +752,7 @@ async fn main() {
             dag_store_for_rt,
             ledger,
             config.reputation_db_path.clone(),
+            None,
         )
     };
 
