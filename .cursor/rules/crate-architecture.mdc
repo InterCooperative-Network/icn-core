@@ -1,5 +1,278 @@
 ---
-description:
-globs:
-alwaysApply: false
+description: 
+globs: 
+alwaysApply: true
 ---
+# ICN Core Crate Architecture Guide
+
+> **Purpose:** This file provides detailed architectural context for each crate within the `icn-core` workspace, their dependencies, interfaces, and interaction patterns.
+
+---
+
+## 1 · Dependency Hierarchy
+
+```
+icn-common (foundation layer)
+├── icn-protocol (protocol definitions)
+├── icn-identity (DID/credential management)
+├── icn-dag (content-addressed storage)
+└── icn-economics (mana/resource management)
+    ├── icn-mesh (job/bid/execution logic)
+    ├── icn-governance (proposals/voting)
+    ├── icn-reputation (scoring/validation)
+    └── icn-network (p2p communication)
+        └── icn-runtime (orchestration layer)
+            ├── icn-api (external interfaces)
+            ├── icn-cli (command interface)
+            └── icn-node (binary/server)
+```
+
+---
+
+## 2 · Core Foundation Crates
+
+### `icn-common`
+**Purpose:** Shared types, utilities, and constants used across all crates.
+
+**Key Exports:**
+- `Did` - Decentralized identifier type
+- `Cid` - Content identifier for DAG addressing
+- `CommonError` - Shared error types
+- `Address` - Network addressing types
+- Common serialization helpers
+
+**Dependencies:** Minimal (serde, bs58, basic crypto)
+**Used By:** All other crates
+**Critical Invariants:** Must remain lightweight, no business logic
+
+### `icn-protocol`
+**Purpose:** Wire format definitions, message types, and protocol constants.
+
+**Key Exports:**
+- `ProtocolMessage` - All network message types
+- `JobMessage`, `BidMessage`, `ReceiptMessage` - Mesh protocol messages
+- `GovernanceMessage` - Governance protocol messages
+- Protocol version constants and capabilities
+
+**Dependencies:** `icn-common`, serde
+**Used By:** `icn-network`, `icn-runtime`, `icn-mesh`, `icn-governance`
+
+---
+
+## 3 · Domain Logic Crates
+
+### `icn-identity`
+**Purpose:** DID management, credential verification, and execution receipts.
+
+**Key Exports:**
+- `DidDocument` - DID document management
+- `ExecutionReceipt` - Signed proof of job execution
+- `CredentialVerifier` - Verification logic for credentials
+- Key generation and management utilities
+
+**Dependencies:** `icn-common`, crypto libraries
+**Critical Features:** 
+- All receipts must be signed and verifiable
+- DID resolution and validation
+- Credential issuance and verification
+
+### `icn-dag`
+**Purpose:** Content-addressed storage with DAG semantics for receipts and state.
+
+**Key Exports:**
+- `StorageService` trait - Abstract storage interface
+- `DagStore` implementations (memory, file, distributed)
+- `anchor_receipt()` - Receipt anchoring logic
+- Content addressing utilities
+
+**Dependencies:** `icn-common`, `icn-identity`
+**Critical Features:**
+- Immutable content addressing
+- Receipt anchoring and retrieval
+- DAG traversal and verification
+
+### `icn-economics`
+**Purpose:** Mana management, resource policies, and economic enforcement.
+
+**Key Exports:**
+- `ManaAccount` - Account balance management
+- `ResourcePolicyEnforcer` - Policy enforcement logic
+- `charge_mana()`, `refund_mana()` - Transaction functions
+- Economic policy definitions
+
+**Dependencies:** `icn-common`, `icn-identity`, `icn-dag`
+**Critical Invariants:**
+- All resource usage must be tracked
+- Mana regeneration follows policy rules
+- No bypassing of mana checks
+
+---
+
+## 4 · Application Logic Crates
+
+### `icn-mesh`
+**Purpose:** Mesh computing job lifecycle, bidding, and executor selection.
+
+**Key Exports:**
+- `MeshJob` - Job specification and state
+- `MeshJobBid` - Bid submission and evaluation
+- `select_executor()` - Executor selection algorithms
+- Job state management
+
+**Dependencies:** `icn-common`, `icn-identity`, `icn-economics`, `icn-reputation`
+**Critical Features:**
+- Deterministic executor selection
+- Bid validation and ranking
+- Job lifecycle state management
+
+### `icn-governance`
+**Purpose:** Proposal creation, voting mechanisms, and parameter management.
+
+**Key Exports:**
+- `Proposal` - Governance proposal types
+- `Vote` - Voting mechanism and tallying
+- `GovernanceState` - Persistent governance state
+- Parameter update mechanisms
+
+**Dependencies:** `icn-common`, `icn-identity`, `icn-economics`, `icn-dag`
+**Critical Features:**
+- Proposal validation and lifecycle
+- Voting weight calculation
+- Parameter change enforcement
+
+### `icn-reputation`
+**Purpose:** Reputation scoring, tracking, and validation for network participants.
+
+**Key Exports:**
+- `ReputationScore` - Reputation calculation and storage
+- `ReputationValidator` - Score validation logic
+- `update_reputation()` - Score update mechanisms
+- Reputation decay and recovery algorithms
+
+**Dependencies:** `icn-common`, `icn-identity`, `icn-dag`
+**Critical Features:**
+- Fair reputation calculation
+- Historical performance tracking
+- Sybil resistance mechanisms
+
+---
+
+## 5 · Infrastructure Crates
+
+### `icn-network`
+**Purpose:** P2P networking, message routing, and network service abstractions.
+
+**Key Exports:**
+- `NetworkService` trait - Abstract network interface
+- `LibP2pService` - libp2p implementation
+- Message routing and discovery
+- Peer management
+
+**Dependencies:** `icn-common`, `icn-protocol`, libp2p
+**Critical Features:**
+- Peer discovery and connection management
+- Message routing and broadcast
+- Network security and authentication
+
+### `icn-runtime`
+**Purpose:** Node orchestration, Host-ABI, and system integration.
+
+**Key Exports:**
+- `RuntimeContext` - Global runtime state
+- `JobManager` - Job lifecycle orchestration
+- Host ABI functions (`host_*`)
+- System coordination logic
+
+**Dependencies:** All domain crates
+**Critical Features:**
+- System startup and shutdown
+- Resource coordination
+- ABI boundary management
+
+---
+
+## 6 · Interface and Application Crates
+
+### `icn-api`
+**Purpose:** Shared API types and traits for external consumption.
+
+**Key Exports:**
+- HTTP API DTOs and request/response types
+- Service traits for external implementation
+- API versioning and compatibility
+
+**Dependencies:** `icn-common`, domain crate types
+**Used By:** External applications, `icn-node`, frontends
+
+### `icn-cli`
+**Purpose:** Command-line interface logic and user interactions.
+
+**Key Exports:**
+- Command parsing and validation
+- User interaction workflows
+- Configuration management
+
+**Dependencies:** `icn-api`, `icn-runtime`
+**Critical Features:**
+- User-friendly command interface
+- Configuration validation
+- Error reporting and help
+
+### `icn-node`
+**Purpose:** Main node binary with HTTP API server.
+
+**Key Exports:**
+- Node startup and configuration
+- HTTP API endpoint implementations
+- Service orchestration
+
+**Dependencies:** All crates
+**Critical Features:**
+- HTTP API server
+- Node lifecycle management
+- Service coordination
+
+---
+
+## 7 · Cross-Crate Interaction Patterns
+
+### Data Flow Patterns
+1. **Job Submission:** `icn-api` → `icn-runtime` → `icn-mesh` + `icn-economics`
+2. **Receipt Anchoring:** `icn-identity` → `icn-dag` → `icn-reputation`
+3. **Governance:** `icn-api` → `icn-governance` → `icn-dag` → `icn-runtime`
+
+### Interface Patterns
+- **Traits over Structs:** Use traits for cross-crate interfaces
+- **Error Propagation:** Use `icn-common::CommonError` for shared errors
+- **Async Boundaries:** Network and I/O operations use async/await
+
+### Testing Patterns
+- **Unit Tests:** Each crate tests its own logic
+- **Integration Tests:** Cross-crate interactions tested in `icn-runtime`
+- **Mock Implementations:** Use trait mocks for isolated testing
+
+---
+
+## 8 · Modification Guidelines
+
+### Adding New Features
+1. Identify the correct crate based on domain responsibility
+2. Define interfaces in traits before implementation
+3. Update dependent crates' tests
+4. Document API changes in relevant crates
+
+### Cross-Crate Changes
+1. Start with `icn-common` if adding shared types
+2. Update protocol definitions in `icn-protocol` if needed
+3. Modify domain crates before infrastructure crates
+4. Update `icn-api` last for external interface changes
+
+### Breaking Changes
+1. Version the change appropriately
+2. Update all dependent crates simultaneously
+3. Provide migration documentation
+4. Test backward compatibility where possible
+
+---
+
+**Remember: Each crate should have a single, well-defined responsibility. Cross-crate dependencies should be minimal and well-justified.**

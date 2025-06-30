@@ -1,5 +1,785 @@
 ---
-description:
-globs:
-alwaysApply: false
+description: 
+globs: 
+alwaysApply: true
 ---
+# ICN Core Security and Validation Guide
+
+> **Purpose:** This file defines security patterns, validation strategies, and safety considerations for the `icn-core` system.
+
+---
+
+## 1 · Security Architecture Principles
+
+### Defense in Depth
+- **Multiple validation layers:** Input validation, business logic validation, persistence validation
+- **Fail-safe defaults:** Systems should fail to a secure state
+- **Principle of least privilege:** Components have minimal necessary permissions
+- **Trust boundaries:** Clear separation between trusted and untrusted components
+
+### Core Security Invariants
+1. **All actions must be attributable to a DID**
+2. **All economic transactions must be mana-enforced**
+3. **All network messages must be signed and verified**
+4. **All governance changes must follow proposal/voting workflow**
+5. **All receipts must be cryptographically verifiable**
+
+---
+
+## 2 · Input Validation Patterns
+
+### DID Validation
+```rust
+/// Comprehensive DID validation
+pub fn validate_did(did: &str) -> Result<Did, ValidationError> {
+    // Format validation
+    if !did.starts_with("did:") {
+        return Err(ValidationError::InvalidFormat("DID must start with 'did:'"));
+    }
+    
+    // Length validation
+    if did.len() < 10 || did.len() > 256 {
+        return Err(ValidationError::InvalidLength);
+    }
+    
+    // Character validation
+    if !did.chars().all(|c| c.is_ascii_alphanumeric() || c == ':' || c == '-') {
+        return Err(ValidationError::InvalidCharacters);
+    }
+    
+    // Parse and validate structure
+    let parsed = Did::parse(did)
+        .map_err(|_| ValidationError::InvalidStructure)?;
+    
+    // Additional semantic validation
+    validate_did_semantic(&parsed)?;
+    
+    Ok(parsed)
+}
+
+/// Semantic DID validation
+fn validate_did_semantic(did: &Did) -> Result<(), ValidationError> {
+    match did.method() {
+        "key" => validate_did_key(did),
+        "web" => validate_did_web(did),
+        _ => Err(ValidationError::UnsupportedMethod),
+    }
+}
+```
+
+### Job Specification Validation
+```rust
+/// Validate mesh job specifications
+pub fn validate_job_spec(spec: &JobSpecification) -> Result<(), ValidationError> {
+    // Basic structure validation
+    if spec.command.is_empty() {
+        return Err(ValidationError::EmptyCommand);
+    }
+    
+    if spec.command.len() > MAX_COMMAND_LENGTH {
+        return Err(ValidationError::CommandTooLong);
+    }
+    
+    // Resource requirement validation
+    validate_resource_requirements(&spec.resources)?;
+    
+    // Security validation
+    validate_job_security(spec)?;
+    
+    // Cost estimation validation
+    let estimated_cost = estimate_job_cost(spec)?;
+    if estimated_cost > MAX_JOB_COST {
+        return Err(ValidationError::CostTooHigh);
+    }
+    
+    Ok(())
+}
+
+/// Security validation for job specifications
+fn validate_job_security(spec: &JobSpecification) -> Result<(), ValidationError> {
+    // Check for dangerous commands
+    let dangerous_patterns = [
+        "rm -rf",
+        "dd if=",
+        "mkfs",
+        "format",
+        "sudo",
+        "su -",
+    ];
+    
+    for pattern in &dangerous_patterns {
+        if spec.command.contains(pattern) {
+            return Err(ValidationError::DangerousCommand(pattern.to_string()));
+        }
+    }
+    
+    // Validate environment variables
+    for (key, value) in &spec.environment {
+        validate_env_var(key, value)?;
+    }
+    
+    // Validate file access patterns
+    for path in &spec.file_access {
+        validate_file_path(path)?;
+    }
+    
+    Ok(())
+}
+```
+
+### Economic Validation
+```rust
+/// Validate mana transactions
+pub fn validate_mana_transaction(
+    transaction: &ManaTransaction,
+    account: &ManaAccount,
+) -> Result<(), ValidationError> {
+    // Basic structure validation
+    if transaction.amount == 0 {
+        return Err(ValidationError::ZeroAmount);
+    }
+    
+    // Balance validation for spending
+    if transaction.amount < 0 {
+        let spending_amount = (-transaction.amount) as u64;
+        if account.balance < spending_amount {
+            return Err(ValidationError::InsufficientMana {
+                required: spending_amount,
+                available: account.balance,
+            });
+        }
+    }
+    
+    // Rate limiting validation
+    validate_transaction_rate_limit(transaction, account)?;
+    
+    // Anti-spam validation
+    validate_transaction_spam_protection(transaction)?;
+    
+    Ok(())
+}
+
+/// Rate limiting for mana transactions
+fn validate_transaction_rate_limit(
+    transaction: &ManaTransaction,
+    account: &ManaAccount,
+) -> Result<(), ValidationError> {
+    let recent_transactions = account.get_recent_transactions(Duration::from_hours(1));
+    let total_recent_spending: u64 = recent_transactions
+        .iter()
+        .filter(|tx| tx.amount < 0)
+        .map(|tx| (-tx.amount) as u64)
+        .sum();
+    
+    let rate_limit = calculate_rate_limit(account);
+    
+    if total_recent_spending + (transaction.amount.abs() as u64) > rate_limit {
+        return Err(ValidationError::RateLimitExceeded {
+            limit: rate_limit,
+            current: total_recent_spending,
+        });
+    }
+    
+    Ok(())
+}
+```
+
+---
+
+## 3 · Cryptographic Security
+
+### Message Signing and Verification
+```rust
+/// Secure message signing pattern
+pub fn sign_message(
+    message: &ProtocolMessage,
+    private_key: &PrivateKey,
+) -> Result<Signature, CryptoError> {
+    // Canonicalize message for consistent signing
+    let canonical_message = canonicalize_message(message)?;
+    
+    // Create signature
+    let signature = private_key.sign(&canonical_message)
+        .map_err(CryptoError::SigningFailed)?;
+    
+    // Verify signature immediately (fail-fast)
+    let public_key = private_key.public_key();
+    if !public_key.verify(&canonical_message, &signature) {
+        return Err(CryptoError::SignatureVerificationFailed);
+    }
+    
+    Ok(signature)
+}
+
+/// Secure signature verification
+pub fn verify_message_signature(
+    message: &ProtocolMessage,
+    signature: &Signature,
+    public_key: &PublicKey,
+) -> Result<(), CryptoError> {
+    // Canonicalize message
+    let canonical_message = canonicalize_message(message)?;
+    
+    // Verify signature
+    if !public_key.verify(&canonical_message, signature) {
+        return Err(CryptoError::InvalidSignature);
+    }
+    
+    // Additional validation
+    validate_signature_freshness(message)?;
+    validate_signature_context(message, public_key)?;
+    
+    Ok(())
+}
+
+/// Prevent replay attacks
+fn validate_signature_freshness(message: &ProtocolMessage) -> Result<(), CryptoError> {
+    let now = Utc::now();
+    let message_time = message.timestamp;
+    
+    // Reject messages too old
+    if now.signed_duration_since(message_time) > Duration::from_minutes(5) {
+        return Err(CryptoError::MessageTooOld);
+    }
+    
+    // Reject messages from future (clock skew tolerance)
+    if message_time.signed_duration_since(now) > Duration::from_minutes(2) {
+        return Err(CryptoError::MessageFromFuture);
+    }
+    
+    Ok(())
+}
+```
+
+### Key Management
+```rust
+/// Secure key generation
+pub fn generate_keypair() -> Result<(PrivateKey, PublicKey), CryptoError> {
+    // Use cryptographically secure random number generator
+    let mut rng = OsRng;
+    
+    // Generate Ed25519 keypair (preferred for ICN)
+    let private_key = Ed25519PrivateKey::generate(&mut rng);
+    let public_key = private_key.public_key();
+    
+    // Validate generated keys
+    validate_keypair(&private_key, &public_key)?;
+    
+    Ok((private_key.into(), public_key.into()))
+}
+
+/// Key derivation for deterministic keys
+pub fn derive_key_from_seed(seed: &[u8], purpose: &str) -> Result<PrivateKey, CryptoError> {
+    if seed.len() < 32 {
+        return Err(CryptoError::SeedTooShort);
+    }
+    
+    // Use HKDF for key derivation
+    let hkdf = Hkdf::<Sha256>::new(None, seed);
+    let mut derived_key = [0u8; 32];
+    hkdf.expand(purpose.as_bytes(), &mut derived_key)
+        .map_err(|_| CryptoError::KeyDerivationFailed)?;
+    
+    // Create private key from derived material
+    let private_key = Ed25519PrivateKey::from_bytes(&derived_key)
+        .map_err(|_| CryptoError::InvalidKeyMaterial)?;
+    
+    Ok(private_key.into())
+}
+```
+
+---
+
+## 4 · Access Control and Authorization
+
+### DID-Based Authorization
+```rust
+/// Authorization middleware for API endpoints
+pub struct AuthorizationMiddleware {
+    identity_service: Arc<dyn IdentityService>,
+    governance_service: Arc<dyn GovernanceService>,
+}
+
+impl AuthorizationMiddleware {
+    /// Check if DID is authorized for specific action
+    pub async fn authorize_action(
+        &self,
+        did: &Did,
+        action: &Action,
+        resource: &Resource,
+    ) -> Result<(), AuthorizationError> {
+        // Basic identity validation
+        self.identity_service.validate_did(did).await?;
+        
+        // Check reputation requirements
+        let reputation = self.identity_service.get_reputation(did).await?;
+        if reputation < action.min_reputation() {
+            return Err(AuthorizationError::InsufficientReputation);
+        }
+        
+        // Check governance permissions
+        let permissions = self.governance_service.get_permissions(did).await?;
+        if !permissions.allows(action, resource) {
+            return Err(AuthorizationError::PermissionDenied);
+        }
+        
+        // Check resource-specific authorization
+        self.authorize_resource_access(did, action, resource).await?;
+        
+        Ok(())
+    }
+    
+    /// Resource-specific authorization logic
+    async fn authorize_resource_access(
+        &self,
+        did: &Did,
+        action: &Action,
+        resource: &Resource,
+    ) -> Result<(), AuthorizationError> {
+        match (action, resource) {
+            (Action::SubmitJob, Resource::MeshNetwork) => {
+                self.authorize_job_submission(did).await
+            }
+            (Action::Vote, Resource::Proposal(proposal_id)) => {
+                self.authorize_voting(did, proposal_id).await
+            }
+            (Action::Transfer, Resource::ManaAccount(target)) => {
+                self.authorize_mana_transfer(did, target).await
+            }
+            _ => Ok(()),
+        }
+    }
+}
+```
+
+### Capability-Based Security
+```rust
+/// Capability tokens for fine-grained access control
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Capability {
+    pub holder: Did,
+    pub resource: ResourceIdentifier,
+    pub permissions: Vec<Permission>,
+    pub expiry: DateTime<Utc>,
+    pub signature: Signature,
+}
+
+impl Capability {
+    /// Create and sign a new capability
+    pub fn create(
+        issuer: &Did,
+        holder: Did,
+        resource: ResourceIdentifier,
+        permissions: Vec<Permission>,
+        duration: Duration,
+        private_key: &PrivateKey,
+    ) -> Result<Self, CapabilityError> {
+        let expiry = Utc::now() + duration;
+        
+        let capability = Self {
+            holder,
+            resource,
+            permissions,
+            expiry,
+            signature: Signature::default(), // Placeholder
+        };
+        
+        // Sign the capability
+        let canonical_form = capability.canonicalize()?;
+        let signature = private_key.sign(&canonical_form)
+            .map_err(CapabilityError::SigningFailed)?;
+        
+        Ok(Self { signature, ..capability })
+    }
+    
+    /// Verify capability is valid and authorizes action
+    pub fn verify_authorization(
+        &self,
+        action: &Permission,
+        issuer_public_key: &PublicKey,
+    ) -> Result<(), CapabilityError> {
+        // Check expiry
+        if Utc::now() > self.expiry {
+            return Err(CapabilityError::Expired);
+        }
+        
+        // Verify signature
+        let canonical_form = self.canonicalize()?;
+        if !issuer_public_key.verify(&canonical_form, &self.signature) {
+            return Err(CapabilityError::InvalidSignature);
+        }
+        
+        // Check permissions
+        if !self.permissions.contains(action) {
+            return Err(CapabilityError::InsufficientPermissions);
+        }
+        
+        Ok(())
+    }
+}
+```
+
+---
+
+## 5 · Network Security
+
+### Peer Authentication
+```rust
+/// Secure peer authentication protocol
+pub struct PeerAuthenticator {
+    local_identity: IdentityManager,
+    trusted_peers: Arc<RwLock<HashSet<Did>>>,
+}
+
+impl PeerAuthenticator {
+    /// Authenticate incoming peer connection
+    pub async fn authenticate_peer(
+        &self,
+        peer_connection: &mut PeerConnection,
+    ) -> Result<Did, AuthenticationError> {
+        // Step 1: Peer sends authentication challenge
+        let challenge = self.generate_challenge();
+        peer_connection.send_challenge(challenge.clone()).await?;
+        
+        // Step 2: Peer responds with signed challenge and identity
+        let auth_response = peer_connection.receive_auth_response().await?;
+        
+        // Step 3: Verify peer identity
+        let peer_did = self.verify_auth_response(&challenge, &auth_response)?;
+        
+        // Step 4: Check peer reputation and trust
+        self.validate_peer_trust(&peer_did).await?;
+        
+        // Step 5: Complete mutual authentication
+        self.complete_mutual_auth(peer_connection, &peer_did).await?;
+        
+        Ok(peer_did)
+    }
+    
+    fn verify_auth_response(
+        &self,
+        challenge: &[u8],
+        response: &AuthResponse,
+    ) -> Result<Did, AuthenticationError> {
+        // Verify challenge signature
+        let public_key = response.did.public_key()
+            .map_err(|_| AuthenticationError::InvalidDid)?;
+        
+        if !public_key.verify(challenge, &response.signature) {
+            return Err(AuthenticationError::InvalidSignature);
+        }
+        
+        // Additional DID validation
+        self.validate_did_authenticity(&response.did)?;
+        
+        Ok(response.did.clone())
+    }
+}
+```
+
+### Message Integrity and Confidentiality
+```rust
+/// Secure message wrapper with encryption and integrity protection
+pub struct SecureMessage {
+    pub recipient: Did,
+    pub nonce: [u8; 24],
+    pub encrypted_payload: Vec<u8>,
+    pub mac: [u8; 32],
+}
+
+impl SecureMessage {
+    /// Encrypt and authenticate message
+    pub fn encrypt(
+        payload: &[u8],
+        recipient_public_key: &PublicKey,
+        sender_private_key: &PrivateKey,
+    ) -> Result<Self, EncryptionError> {
+        // Generate random nonce
+        let mut nonce = [0u8; 24];
+        OsRng.fill_bytes(&mut nonce);
+        
+        // Derive shared secret
+        let shared_secret = sender_private_key.diffie_hellman(recipient_public_key)?;
+        
+        // Encrypt payload
+        let cipher = ChaCha20Poly1305::new(&shared_secret.as_bytes()[..32]);
+        let encrypted_payload = cipher.encrypt(&nonce.into(), payload)
+            .map_err(EncryptionError::EncryptionFailed)?;
+        
+        // Compute MAC for integrity
+        let mac = Self::compute_mac(&encrypted_payload, &nonce, &shared_secret)?;
+        
+        Ok(Self {
+            recipient: Did::from_public_key(recipient_public_key)?,
+            nonce,
+            encrypted_payload,
+            mac,
+        })
+    }
+    
+    /// Decrypt and verify message
+    pub fn decrypt(
+        &self,
+        recipient_private_key: &PrivateKey,
+        sender_public_key: &PublicKey,
+    ) -> Result<Vec<u8>, EncryptionError> {
+        // Derive shared secret
+        let shared_secret = recipient_private_key.diffie_hellman(sender_public_key)?;
+        
+        // Verify MAC
+        let expected_mac = Self::compute_mac(&self.encrypted_payload, &self.nonce, &shared_secret)?;
+        if self.mac != expected_mac {
+            return Err(EncryptionError::IntegrityCheckFailed);
+        }
+        
+        // Decrypt payload
+        let cipher = ChaCha20Poly1305::new(&shared_secret.as_bytes()[..32]);
+        let payload = cipher.decrypt(&self.nonce.into(), self.encrypted_payload.as_slice())
+            .map_err(EncryptionError::DecryptionFailed)?;
+        
+        Ok(payload)
+    }
+}
+```
+
+---
+
+## 6 · Smart Contract Security (CCL)
+
+### Safe CCL Compilation
+```rust
+/// Secure CCL contract compilation
+pub struct SecureCCLCompiler {
+    max_instruction_count: usize,
+    max_memory_usage: usize,
+    max_execution_time: Duration,
+}
+
+impl SecureCCLCompiler {
+    /// Compile CCL with security validations
+    pub fn compile_secure(
+        &self,
+        source_code: &str,
+    ) -> Result<CompiledContract, CompilationError> {
+        // Parse and validate syntax
+        let ast = self.parse_ccl(source_code)?;
+        
+        // Security analysis
+        self.analyze_security_risks(&ast)?;
+        
+        // Resource usage analysis
+        self.analyze_resource_usage(&ast)?;
+        
+        // Compile to WASM
+        let wasm_module = self.compile_to_wasm(&ast)?;
+        
+        // Validate compiled WASM
+        self.validate_wasm_security(&wasm_module)?;
+        
+        Ok(CompiledContract {
+            source_hash: hash_source(source_code),
+            wasm_module,
+            metadata: self.extract_metadata(&ast)?,
+        })
+    }
+    
+    /// Analyze potential security risks in CCL code
+    fn analyze_security_risks(&self, ast: &CCLAst) -> Result<(), CompilationError> {
+        let mut analyzer = SecurityAnalyzer::new();
+        
+        // Check for infinite loops
+        analyzer.check_infinite_loops(ast)?;
+        
+        // Check for resource exhaustion
+        analyzer.check_resource_exhaustion(ast)?;
+        
+        // Check for unauthorized external calls
+        analyzer.check_external_calls(ast)?;
+        
+        // Check for information leakage
+        analyzer.check_information_leakage(ast)?;
+        
+        Ok(())
+    }
+}
+```
+
+### Runtime Security for WASM Execution
+```rust
+/// Secure WASM runtime with resource limits
+pub struct SecureWasmRuntime {
+    engine: WasmEngine,
+    resource_limiter: ResourceLimiter,
+    sandbox: ExecutionSandbox,
+}
+
+impl SecureWasmRuntime {
+    /// Execute contract with security constraints
+    pub async fn execute_contract(
+        &self,
+        contract: &CompiledContract,
+        context: &ExecutionContext,
+        input: &[u8],
+    ) -> Result<Vec<u8>, ExecutionError> {
+        // Validate execution context
+        self.validate_execution_context(context)?;
+        
+        // Create isolated execution environment
+        let instance = self.sandbox.create_instance(contract)?;
+        
+        // Set resource limits
+        self.resource_limiter.apply_limits(&instance, context)?;
+        
+        // Execute with timeout
+        let result = timeout(
+            self.max_execution_time,
+            instance.execute(input)
+        ).await
+        .map_err(|_| ExecutionError::Timeout)?;
+        
+        // Validate execution result
+        self.validate_execution_result(&result?)?;
+        
+        result
+    }
+    
+    /// Validate execution environment is secure
+    fn validate_execution_context(
+        &self,
+        context: &ExecutionContext,
+    ) -> Result<(), ExecutionError> {
+        // Check mana availability
+        if context.available_mana < context.estimated_cost {
+            return Err(ExecutionError::InsufficientMana);
+        }
+        
+        // Validate caller permissions
+        self.validate_caller_permissions(context)?;
+        
+        // Check rate limits
+        self.check_execution_rate_limits(context)?;
+        
+        Ok(())
+    }
+}
+```
+
+---
+
+## 7 · Testing Security
+
+### Security Test Patterns
+```rust
+/// Security-focused test utilities
+pub struct SecurityTestHarness {
+    test_keys: Vec<(PrivateKey, PublicKey)>,
+    mock_attackers: Vec<AttackerSimulator>,
+}
+
+impl SecurityTestHarness {
+    /// Test authentication bypass attempts
+    #[tokio::test]
+    async fn test_authentication_bypass() {
+        let harness = SecurityTestHarness::new();
+        
+        // Test with invalid signatures
+        let result = harness.attempt_invalid_signature_auth().await;
+        assert!(result.is_err());
+        
+        // Test with expired credentials
+        let result = harness.attempt_expired_credential_auth().await;
+        assert!(result.is_err());
+        
+        // Test with wrong DID
+        let result = harness.attempt_wrong_did_auth().await;
+        assert!(result.is_err());
+    }
+    
+    /// Test economic attack vectors
+    #[tokio::test]
+    async fn test_economic_attacks() {
+        let harness = SecurityTestHarness::new();
+        
+        // Test double spending
+        let result = harness.attempt_double_spend().await;
+        assert!(result.is_err());
+        
+        // Test mana generation exploits
+        let result = harness.attempt_mana_exploit().await;
+        assert!(result.is_err());
+        
+        // Test rate limit bypass
+        let result = harness.attempt_rate_limit_bypass().await;
+        assert!(result.is_err());
+    }
+    
+    /// Test network attack resistance
+    #[tokio::test]
+    async fn test_network_attacks() {
+        let harness = SecurityTestHarness::new();
+        
+        // Test message replay attacks
+        let result = harness.attempt_replay_attack().await;
+        assert!(result.is_err());
+        
+        // Test network flooding
+        let result = harness.attempt_network_flood().await;
+        assert!(result.is_err());
+        
+        // Test peer impersonation
+        let result = harness.attempt_peer_impersonation().await;
+        assert!(result.is_err());
+    }
+}
+```
+
+### Fuzzing and Property Testing
+```rust
+/// Property-based security testing
+#[cfg(test)]
+mod security_properties {
+    use proptest::prelude::*;
+    
+    proptest! {
+        /// Property: All valid signatures should verify
+        #[test]
+        fn signature_verification_property(
+            message in any::<Vec<u8>>(),
+            seed in any::<u64>()
+        ) {
+            let (private_key, public_key) = generate_test_keypair(seed);
+            let signature = private_key.sign(&message).unwrap();
+            
+            prop_assert!(public_key.verify(&message, &signature));
+        }
+        
+        /// Property: Mana conservation across transactions
+        #[test]
+        fn mana_conservation_property(
+            transactions in prop::collection::vec(any::<ManaTransaction>(), 1..100)
+        ) {
+            let initial_total = calculate_total_mana(&transactions[0].accounts);
+            let final_accounts = apply_transactions(&transactions);
+            let final_total = calculate_total_mana(&final_accounts);
+            
+            prop_assert_eq!(initial_total, final_total);
+        }
+        
+        /// Property: Job execution determinism
+        #[test]
+        fn job_execution_determinism_property(
+            job_spec in any::<JobSpecification>(),
+            context in any::<ExecutionContext>()
+        ) {
+            let result1 = execute_job(&job_spec, &context);
+            let result2 = execute_job(&job_spec, &context);
+            
+            prop_assert_eq!(result1, result2);
+        }
+    }
+}
+```
+
+---
+
+**Remember: Security is not a feature—it's a fundamental property. Every component must be designed with security in mind from the ground up.**

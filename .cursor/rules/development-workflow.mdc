@@ -1,5 +1,369 @@
 ---
-description:
-globs:
-alwaysApply: false
+description: 
+globs: 
+alwaysApply: true
 ---
+# ICN Core Development Workflow Guide
+
+> **Purpose:** This file defines development workflows, testing strategies, and contribution patterns for the `icn-core` workspace.
+
+---
+
+## 1 · Development Environment Setup
+
+### Prerequisites
+- Rust nightly (see `rust-toolchain.toml`)
+- `just` command runner
+- Git with pre-commit hooks enabled
+- IDE with rust-analyzer support
+
+### Initial Setup
+```bash
+# Clone and setup
+git clone <repo>
+cd icn-core
+just setup  # Install dependencies and hooks
+
+# Verify setup
+just test   # Run all tests
+just lint   # Run linting
+just build  # Build all crates
+```
+
+### Environment Variables
+- `ICN_LOG_LEVEL` - Set logging level (trace, debug, info, warn, error)
+- `ICN_TEST_MODE` - Enable test-specific behaviors
+- `ICN_DAG_STORE_PATH` - Override DAG storage location for tests
+
+---
+
+## 2 · Development Workflow
+
+### Feature Development Flow
+1. **Branch Creation**
+   ```bash
+   git checkout develop
+   git pull origin develop
+   git checkout -b feature/your-feature-name
+   ```
+
+2. **Development Cycle**
+   ```bash
+   # Make changes
+   just test           # Run tests frequently
+   just lint-fix       # Auto-fix linting issues
+   just check          # Quick compile check
+   ```
+
+3. **Pre-Commit Validation**
+   ```bash
+   just validate       # Full validation suite
+   just docs           # Generate and check docs
+   just test-coverage  # Check test coverage
+   ```
+
+4. **Commit and Push**
+   ```bash
+   git add .
+   git commit -m "[crate] Brief description"
+   git push origin feature/your-feature-name
+   ```
+
+### Commit Message Format
+```
+[affected-crate] Brief description
+
+Longer description if needed:
+- What changed
+- Why it changed
+- Any breaking changes
+
+Closes #issue-number
+```
+
+Examples:
+- `[icn-runtime] Add mana validation to job submission`
+- `[icn-mesh] Refactor executor selection for better performance`
+- `[icn-common] BREAKING: Update Did type to support new format`
+
+---
+
+## 3 · Testing Strategy
+
+### Test Categories
+
+#### Unit Tests (`src/lib.rs`, `src/module.rs`)
+- **Purpose:** Test individual functions and methods
+- **Scope:** Single crate, isolated logic
+- **Run:** `cargo test -p <crate-name>`
+
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn test_mana_calculation() {
+        // Test individual function behavior
+    }
+    
+    #[tokio::test]
+    async fn test_async_operation() {
+        // Test async functions
+    }
+}
+```
+
+#### Integration Tests (`tests/` directory)
+- **Purpose:** Test cross-crate interactions
+- **Scope:** Multiple crates working together
+- **Run:** `cargo test --test <test-name>`
+
+```rust
+// tests/mesh_integration.rs
+use icn_runtime::*;
+use icn_mesh::*;
+use icn_economics::*;
+
+#[tokio::test]
+async fn test_job_submission_flow() {
+    // Test complete job submission workflow
+}
+```
+
+#### End-to-End Tests (`tests/e2e/`)
+- **Purpose:** Test complete system behavior
+- **Scope:** Full node operation
+- **Run:** `just test-e2e`
+
+### Test Utilities
+
+#### Mock Implementations
+```rust
+// Common test mocks in each crate
+pub struct MockNetworkService {
+    // Mock implementation for testing
+}
+
+impl NetworkService for MockNetworkService {
+    // Implement trait with test behavior
+}
+```
+
+#### Test Fixtures
+```rust
+// tests/fixtures/mod.rs
+pub fn create_test_job() -> MeshJob {
+    // Standard test job creation
+}
+
+pub fn create_test_context() -> RuntimeContext {
+    // Standard test context setup
+}
+```
+
+#### Deterministic Testing
+```rust
+// Use fixed seeds for deterministic tests
+use rand::{SeedableRng, StdRng};
+
+#[test]
+fn test_with_fixed_seed() {
+    let mut rng = StdRng::seed_from_u64(42);
+    // Use rng for deterministic randomness
+}
+```
+
+---
+
+## 4 · Code Quality Standards
+
+### Linting and Formatting
+```bash
+just fmt           # Format code
+just lint          # Check linting
+just lint-fix      # Fix auto-fixable issues
+just clippy        # Run clippy
+just check-all     # Comprehensive check
+```
+
+### Documentation Standards
+- **Public APIs:** Must have comprehensive rustdoc
+- **Complex Logic:** Inline comments explaining algorithms
+- **Examples:** Include usage examples in rustdoc
+- **Architecture:** Update relevant .mdc files
+
+```rust
+/// Submits a mesh job to the network for execution.
+/// 
+/// This function validates the job specification, checks mana requirements,
+/// and adds the job to the pending queue for bidding.
+/// 
+/// # Arguments
+/// * `job` - The job specification to submit
+/// * `submitter` - DID of the job submitter
+/// 
+/// # Returns
+/// * `Ok(job_id)` - Unique identifier for the submitted job
+/// * `Err(error)` - If validation fails or insufficient mana
+/// 
+/// # Examples
+/// ```rust
+/// let job = MeshJob::new("echo hello");
+/// let job_id = submit_mesh_job(job, submitter_did).await?;
+/// ```
+pub async fn submit_mesh_job(job: MeshJob, submitter: Did) -> Result<JobId, RuntimeError> {
+    // Implementation
+}
+```
+
+### Error Handling Patterns
+```rust
+// Use specific error types
+#[derive(Debug, thiserror::Error)]
+pub enum MeshError {
+    #[error("Insufficient mana: required {required}, available {available}")]
+    InsufficientMana { required: u64, available: u64 },
+    
+    #[error("Invalid job specification: {reason}")]
+    InvalidJob { reason: String },
+}
+
+// Chain errors appropriately
+fn process_job(job: MeshJob) -> Result<JobId, MeshError> {
+    validate_job(&job)
+        .map_err(|e| MeshError::InvalidJob { reason: e.to_string() })?;
+    
+    // Continue processing
+}
+```
+
+---
+
+## 5 · Performance and Monitoring
+
+### Performance Testing
+```bash
+just bench         # Run benchmarks
+just profile       # Profile with perf
+just flamegraph    # Generate flamegraph
+```
+
+### Logging Guidelines
+```rust
+use tracing::{info, warn, error, debug, trace};
+
+// Use structured logging
+info!(
+    job_id = %job.id,
+    submitter = %job.submitter,
+    "Job submitted successfully"
+);
+
+// Use appropriate levels
+trace!("Detailed debugging information");
+debug!("Development debugging");
+info!("Important state changes");
+warn!("Recoverable issues");
+error!("Critical failures");
+```
+
+### Metrics Collection
+```rust
+// Use metrics for performance tracking
+use metrics::{counter, histogram, gauge};
+
+counter!("mesh.jobs.submitted").increment(1);
+histogram!("mesh.job.execution_time").record(duration);
+gauge!("mesh.pending_jobs").set(pending_count as f64);
+```
+
+---
+
+## 6 · Debugging and Troubleshooting
+
+### Common Debugging Commands
+```bash
+# Verbose test output
+RUST_LOG=debug cargo test -- --nocapture
+
+# Run specific test
+cargo test test_name -- --exact
+
+# Debug build with symbols
+cargo build --profile dev
+
+# Check for memory leaks
+just valgrind-test
+```
+
+### Debug Configuration
+```rust
+// Conditional compilation for debug features
+#[cfg(debug_assertions)]
+fn debug_validate_state(&self) {
+    // Expensive validation only in debug builds
+}
+
+// Test-only features
+#[cfg(test)]
+impl SomeStruct {
+    pub fn test_new() -> Self {
+        // Test-specific constructor
+    }
+}
+```
+
+### Common Issues and Solutions
+
+#### "Mana Calculation Mismatch"
+- **Cause:** Rounding errors in mana calculations
+- **Solution:** Use integer arithmetic, document precision
+- **Check:** `icn-economics/src/mana.rs` calculation logic
+
+#### "Job State Inconsistency"
+- **Cause:** Race conditions in job state updates
+- **Solution:** Use atomic operations or locks
+- **Check:** `icn-runtime/src/context.rs` state management
+
+#### "Network Message Deserialization Failed"
+- **Cause:** Protocol version mismatch
+- **Solution:** Check protocol compatibility
+- **Check:** `icn-protocol/src/messages.rs` versioning
+
+---
+
+## 7 · Continuous Integration
+
+### CI Pipeline Stages
+1. **Code Quality:** Format, lint, security audit
+2. **Build:** Compile all crates and features
+3. **Test:** Unit, integration, and E2E tests
+4. **Documentation:** Generate and validate docs
+5. **Performance:** Run benchmarks and check regressions
+
+### CI Configuration
+```yaml
+# .github/workflows/ci.yml
+name: CI
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions-rs/toolchain@v1
+      - run: just validate
+```
+
+### Release Process
+1. **Version Bump:** Update `Cargo.toml` versions
+2. **Changelog:** Update `CHANGELOG.md`
+3. **Tag:** Create git tag with version
+4. **Release:** GitHub release with artifacts
+5. **Publish:** Publish crates to crates.io (if applicable)
+
+---
+
+**Remember: Quality over speed. Take time to write tests, document changes, and follow established patterns.**
