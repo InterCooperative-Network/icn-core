@@ -31,6 +31,10 @@ pub struct NodeStatus {
     pub version: String,
 }
 
+/// Identifies a membership scope such as a community, cooperative, or federation.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct NodeScope(pub String);
+
 /// Represents a generic error that can occur within the ICN network.
 #[derive(Debug, Error, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub enum CommonError {
