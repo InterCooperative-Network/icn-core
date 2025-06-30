@@ -328,12 +328,13 @@ async fn rate_limit_middleware(
 
 // --- Public App Constructor (for tests or embedding) ---
 pub async fn app_router() -> Router {
-    app_router_with_options(None, None, None, None, None, None, None, None)
+    app_router_with_options(None, None, None, None, None, None, None, None, None)
         .await
         .0
 }
 
 /// Construct a router for tests or embedding with optional API key and rate limit.
+#[allow(clippy::too_many_arguments)]
 pub async fn app_router_with_options(
     api_key: Option<String>,
     auth_token: Option<String>,
@@ -354,7 +355,9 @@ pub async fn app_router_with_options(
     let signer = Arc::new(RuntimeStubSigner::new_with_keys(sk, pk));
     let cfg = NodeConfig {
         storage_backend: storage_backend.unwrap_or(StorageBackendType::Memory),
-        storage_path: storage_path.clone().unwrap_or_else(|| PathBuf::from("./dag_store")),
+        storage_path: storage_path
+            .clone()
+            .unwrap_or_else(|| PathBuf::from("./dag_store")),
         ..NodeConfig::default()
     };
     let dag_store_for_rt = cfg
@@ -2018,7 +2021,8 @@ mod tests {
         use icn_identity::{did_key_from_verifying_key, generate_ed25519_keypair};
         use icn_runtime::executor::WasmExecutor;
 
-        let (app, ctx) = app_router_with_options(None, None, None, None, None, None, None, None).await;
+        let (app, ctx) =
+            app_router_with_options(None, None, None, None, None, None, None, None, None).await;
 
         // Compile a tiny CCL contract
         let (wasm, _) =

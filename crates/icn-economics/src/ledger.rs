@@ -202,7 +202,6 @@ impl SledManaLedger {
     }
 
     pub fn credit_all(&self, amount: u64) -> Result<(), EconError> {
-        use sled::IVec;
         use std::str::FromStr;
         for result in self.tree.iter() {
             let (key, val) = result

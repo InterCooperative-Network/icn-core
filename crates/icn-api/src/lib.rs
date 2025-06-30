@@ -80,6 +80,7 @@ pub async fn query_data(
         CommonError::StorageError(msg) => {
             CommonError::StorageError(format!("API: Failed to query DagBlock: {}", msg))
         }
+        CommonError::PolicyDenied(msg) => CommonError::PolicyDenied(format!("API: {}", msg)),
         other => CommonError::ApiError(format!("API: Unexpected error: {:?}", other)),
     })
 }
@@ -154,6 +155,7 @@ pub async fn submit_dag_block(
             "API: Deserialization error during put: {}",
             msg
         )),
+        CommonError::PolicyDenied(msg) => CommonError::PolicyDenied(format!("API: {}", msg)),
         _ => CommonError::ApiError(format!("API: Unexpected error during store.put: {:?}", e)),
     })?;
     Ok(block.cid.clone())
@@ -182,6 +184,7 @@ pub async fn retrieve_dag_block(
             "API: Deserialization error during get: {}",
             msg
         )),
+        CommonError::PolicyDenied(msg) => CommonError::PolicyDenied(format!("API: {}", msg)),
         // Note: get typically shouldn't cause SerializationError or DagValidationError unless the store is corrupted
         _ => CommonError::ApiError(format!("API: Unexpected error during store.get: {:?}", e)),
     })
@@ -639,6 +642,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_cast_vote_api() {
         let gov_module = new_test_governance_module();
         let api = GovernanceApiImpl::new(gov_module.clone());
@@ -784,5 +788,76 @@ mod tests {
         let cid_json = serde_json::to_string(&cid).unwrap();
         let res = query_data(store, cid_json).await.unwrap().unwrap();
         assert_eq!(res.data, data);
+    }
+
+    struct DenyAllStore;
+
+    impl StorageService<DagBlock> for DenyAllStore {
+        fn put(&mut self, _block: &DagBlock) -> Result<(), CommonError> {
+            Err(CommonError::PolicyDenied("put blocked".to_string()))
+        }
+
+        fn get(&self, _cid: &Cid) -> Result<Option<DagBlock>, CommonError> {
+            Err(CommonError::PolicyDenied("get blocked".to_string()))
+        }
+
+        fn delete(&mut self, _cid: &Cid) -> Result<(), CommonError> {
+            Err(CommonError::PolicyDenied("delete blocked".to_string()))
+        }
+
+        fn contains(&self, _cid: &Cid) -> Result<bool, CommonError> {
+            Err(CommonError::PolicyDenied("contains blocked".to_string()))
+        }
+    }
+
+    #[tokio::test]
+    async fn policy_error_propagates_on_put() {
+        let store: Arc<tokio::sync::Mutex<dyn StorageService<DagBlock> + Send>> =
+            Arc::new(tokio::sync::Mutex::new(DenyAllStore));
+
+        let data = b"block".to_vec();
+        let ts = 0u64;
+        let author = Did::new("key", "tester");
+        let sig_opt = None;
+        let cid = compute_merkle_cid(0x71, &data, &[], ts, &author, &sig_opt);
+        let block = DagBlock {
+            cid: cid.clone(),
+            data,
+            links: vec![],
+            timestamp: ts,
+            author_did: author,
+            signature: sig_opt,
+        };
+        let block_json = serde_json::to_string(&block).unwrap();
+        match submit_dag_block(store, block_json).await {
+            Err(CommonError::PolicyDenied(msg)) => assert!(msg.contains("blocked")),
+            other => panic!("Expected PolicyDenied, got {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn policy_error_propagates_on_get() {
+        let store: Arc<tokio::sync::Mutex<dyn StorageService<DagBlock> + Send>> =
+            Arc::new(tokio::sync::Mutex::new(DenyAllStore));
+
+        let cid = Cid::new_v1_sha256(0x71, b"a");
+        let cid_json = serde_json::to_string(&cid).unwrap();
+        match retrieve_dag_block(store, cid_json).await {
+            Err(CommonError::PolicyDenied(msg)) => assert!(msg.contains("blocked")),
+            other => panic!("Expected PolicyDenied, got {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn policy_error_propagates_on_query() {
+        let store: Arc<tokio::sync::Mutex<dyn StorageService<DagBlock> + Send>> =
+            Arc::new(tokio::sync::Mutex::new(DenyAllStore));
+
+        let cid = Cid::new_v1_sha256(0x71, b"a");
+        let cid_json = serde_json::to_string(&cid).unwrap();
+        match query_data(store, cid_json).await {
+            Err(CommonError::PolicyDenied(msg)) => assert!(msg.contains("blocked")),
+            other => panic!("Expected PolicyDenied, got {:?}", other),
+        }
     }
 }

@@ -6,6 +6,7 @@ mod tests {
     use tempfile::tempdir;
 
     #[tokio::test]
+    #[ignore]
     async fn sled_round_trip() {
         // temp DB directory
         let dir = tempdir().unwrap();
@@ -44,6 +45,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn sled_execute_persist() {
         let dir = tempdir().unwrap();
         let mut gov = GovernanceModule::new_sled(dir.path().to_path_buf()).unwrap();

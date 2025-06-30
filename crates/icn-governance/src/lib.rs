@@ -991,7 +991,7 @@ impl GovernanceModule {
                         self.members.insert(did.clone());
                     }
                     ProposalType::RemoveMember(did) => {
-                        self.remove_member(did);
+                        self.members.remove(did);
                     }
                     _ => {}
                 }
@@ -1048,7 +1048,7 @@ impl GovernanceModule {
                         self.members.insert(did.clone());
                     }
                     ProposalType::RemoveMember(did) => {
-                        self.remove_member(did);
+                        self.members.remove(did);
                     }
                     _ => {}
                 }

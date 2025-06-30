@@ -205,7 +205,12 @@ async fn main() {
     let client = Client::new();
 
     if let Err(e) = run_command(&cli, &client).await {
-        eprintln!("Error: {}", e);
+        let msg = e.to_string();
+        if msg.contains("PolicyDenied") {
+            eprintln!("Policy denied: {}", msg);
+        } else {
+            eprintln!("Error: {}", msg);
+        }
         exit(1);
     }
 }

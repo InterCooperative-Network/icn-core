@@ -52,6 +52,10 @@ pub enum CommonError {
     #[error("Permission denied: {0}")]
     PermissionDenied(String),
 
+    /// Operation was rejected by a policy engine or CCL contract.
+    #[error("Policy denied: {0}")]
+    PolicyDenied(String),
+
     #[error("Network setup error: {0}")]
     NetworkSetupError(String),
 
