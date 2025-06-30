@@ -599,12 +599,15 @@ pub struct RuntimeContext {
     pub dag_store: Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>, // Uses icn_dag::StorageService
     pub reputation_store: Arc<dyn icn_reputation::ReputationStore>,
     pub policy_enforcer: Option<Arc<dyn ScopedPolicyEnforcer>>,
+    /// Source of time for timestamp generation.
+    pub time_provider: Arc<dyn icn_common::TimeProvider>,
     /// Default timeout in milliseconds when waiting for job execution receipts.
     pub default_receipt_wait_ms: u64,
 }
 
 impl RuntimeContext {
     /// Create a new context using a mana ledger stored at `mana_ledger_path`.
+    #[allow(clippy::too_many_arguments)]
     pub fn new_with_ledger_path(
         current_identity: Did,
         mesh_network_service: Arc<dyn MeshNetworkService>,
@@ -615,7 +618,33 @@ impl RuntimeContext {
         reputation_store_path: PathBuf,
         policy_enforcer: Option<Arc<dyn ScopedPolicyEnforcer>>,
     ) -> Arc<Self> {
-        Self::new_with_mana_ledger(
+        Self::new_with_ledger_path_and_time(
+            current_identity,
+            mesh_network_service,
+            signer,
+            did_resolver,
+            dag_store,
+            mana_ledger_path,
+            reputation_store_path,
+            policy_enforcer,
+            Arc::new(icn_common::SystemTimeProvider),
+        )
+    }
+
+    /// Create a new context using a mana ledger stored at `mana_ledger_path` and the provided [`TimeProvider`].
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_with_ledger_path_and_time(
+        current_identity: Did,
+        mesh_network_service: Arc<dyn MeshNetworkService>,
+        signer: Arc<dyn Signer>,
+        did_resolver: Arc<dyn icn_identity::DidResolver>,
+        dag_store: Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>,
+        mana_ledger_path: PathBuf,
+        reputation_store_path: PathBuf,
+        policy_enforcer: Option<Arc<dyn ScopedPolicyEnforcer>>,
+        time_provider: Arc<dyn icn_common::TimeProvider>,
+    ) -> Arc<Self> {
+        Self::new_with_mana_ledger_and_time(
             current_identity,
             mesh_network_service,
             signer,
@@ -624,10 +653,12 @@ impl RuntimeContext {
             SimpleManaLedger::new(mana_ledger_path),
             reputation_store_path,
             policy_enforcer,
+            time_provider,
         )
     }
 
     /// Create a new context with a preconstructed mana ledger.
+    #[allow(clippy::too_many_arguments)]
     pub fn new_with_mana_ledger(
         current_identity: Did,
         mesh_network_service: Arc<dyn MeshNetworkService>,
@@ -637,6 +668,32 @@ impl RuntimeContext {
         mana_ledger: SimpleManaLedger,
         reputation_store_path: PathBuf,
         policy_enforcer: Option<Arc<dyn ScopedPolicyEnforcer>>,
+    ) -> Arc<Self> {
+        Self::new_with_mana_ledger_and_time(
+            current_identity,
+            mesh_network_service,
+            signer,
+            did_resolver,
+            dag_store,
+            mana_ledger,
+            reputation_store_path,
+            policy_enforcer,
+            Arc::new(icn_common::SystemTimeProvider),
+        )
+    }
+
+    /// Create a new context with a preconstructed mana ledger and custom [`TimeProvider`].
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_with_mana_ledger_and_time(
+        current_identity: Did,
+        mesh_network_service: Arc<dyn MeshNetworkService>,
+        signer: Arc<dyn Signer>,
+        did_resolver: Arc<dyn icn_identity::DidResolver>,
+        dag_store: Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>,
+        mana_ledger: SimpleManaLedger,
+        reputation_store_path: PathBuf,
+        policy_enforcer: Option<Arc<dyn ScopedPolicyEnforcer>>,
+        time_provider: Arc<dyn icn_common::TimeProvider>,
     ) -> Arc<Self> {
         let job_states = Arc::new(TokioMutex::new(HashMap::new()));
         let pending_mesh_jobs = Arc::new(TokioMutex::new(VecDeque::new()));
@@ -691,6 +748,7 @@ impl RuntimeContext {
             dag_store,
             reputation_store,
             policy_enforcer,
+            time_provider,
             default_receipt_wait_ms: 60_000,
         })
     }
@@ -703,7 +761,7 @@ impl RuntimeContext {
         did_resolver: Arc<dyn icn_identity::DidResolver>,
         dag_store: Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>,
     ) -> Arc<Self> {
-        Self::new_with_ledger_path(
+        Self::new_with_ledger_path_and_time(
             current_identity,
             mesh_network_service,
             signer,
@@ -712,11 +770,13 @@ impl RuntimeContext {
             PathBuf::from("./mana_ledger.sled"),
             PathBuf::from("./reputation.sled"),
             None,
+            Arc::new(icn_common::SystemTimeProvider),
         )
     }
 
     /// Create a new context using filesystem paths for the DAG store and mana ledger.
     /// The store type is selected based on enabled persistence features.
+    #[allow(clippy::too_many_arguments)]
     pub fn new_with_paths(
         current_identity: Did,
         mesh_network_service: Arc<dyn MeshNetworkService>,
@@ -753,7 +813,7 @@ impl RuntimeContext {
         let dag_store = Arc::new(TokioMutex::new(FileDagStore::new(dag_path)?))
             as Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>;
 
-        Ok(Self::new_with_ledger_path(
+        Ok(Self::new_with_ledger_path_and_time(
             current_identity,
             mesh_network_service,
             signer,
@@ -762,6 +822,7 @@ impl RuntimeContext {
             mana_ledger_path,
             reputation_store_path,
             policy_enforcer,
+            Arc::new(icn_common::SystemTimeProvider),
         ))
     }
 
@@ -794,12 +855,16 @@ impl RuntimeContext {
         let default_mesh_service =
             Arc::new(DefaultMeshNetworkService::new(libp2p_service_dyn.clone()));
 
-        Ok(Self::new(
+        Ok(Self::new_with_ledger_path_and_time(
             current_identity,
             default_mesh_service,
             Arc::new(StubSigner::new()),
             Arc::new(icn_identity::KeyDidResolver),
             Arc::new(TokioMutex::new(StubDagStore::new())),
+            PathBuf::from("./mana_ledger.sled"),
+            PathBuf::from("./reputation.sled"),
+            None,
+            Arc::new(icn_common::SystemTimeProvider),
         ))
     }
 
@@ -817,7 +882,7 @@ impl RuntimeContext {
         #[cfg(not(feature = "persist-sled"))]
         let dag_store = Arc::new(TokioMutex::new(StubDagStore::new()));
 
-        Ok(Self::new_with_ledger_path(
+        Ok(Self::new_with_ledger_path_and_time(
             current_identity,
             Arc::new(StubMeshNetworkService::new()),
             Arc::new(StubSigner::new()),
@@ -826,6 +891,7 @@ impl RuntimeContext {
             PathBuf::from("./mana_ledger.sled"),
             PathBuf::from("./reputation.sled"),
             None,
+            Arc::new(icn_common::SystemTimeProvider),
         ))
     }
 
@@ -846,7 +912,7 @@ impl RuntimeContext {
         #[cfg(not(feature = "persist-sled"))]
         let dag_store = Arc::new(TokioMutex::new(StubDagStore::new()));
 
-        let ctx = Self::new_with_ledger_path(
+        let ctx = Self::new_with_ledger_path_and_time(
             current_identity.clone(),
             Arc::new(StubMeshNetworkService::new()),
             Arc::new(StubSigner::new()),
@@ -855,6 +921,7 @@ impl RuntimeContext {
             PathBuf::from("./mana_ledger.sled"),
             PathBuf::from("./reputation.sled"),
             None,
+            Arc::new(icn_common::SystemTimeProvider),
         );
         ctx.mana_ledger
             .set_balance(&current_identity, initial_mana)
@@ -1303,10 +1370,7 @@ impl RuntimeContext {
             HostAbiError::InternalError(format!("Failed to serialize final receipt for DAG: {}", e))
         })?;
 
-        let timestamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
+        let timestamp = self.time_provider.unix_seconds();
         let author = self.current_identity.clone();
         let signature = None;
         let cid = icn_common::compute_merkle_cid(
@@ -1442,10 +1506,7 @@ impl RuntimeContext {
                 )))
             }
         };
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
+        let now = self.time_provider.unix_seconds();
         let mut gov = self.governance_module.lock().await;
         gov.cast_vote(self.current_identity.clone(), &proposal_id, vote_option)
             .map_err(HostAbiError::Common)?;
@@ -1704,6 +1765,8 @@ impl RuntimeContext {
             did_resolver,
             dag_store,
             reputation_store,
+            policy_enforcer: None,
+            time_provider: Arc::new(icn_common::SystemTimeProvider),
             default_receipt_wait_ms: 60_000,
         })
     }
