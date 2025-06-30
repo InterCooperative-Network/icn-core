@@ -115,3 +115,85 @@ async fn lifecycle_with_member_add_and_remove() {
             .contains(&Did::from_str("did:icn:test:dave").unwrap()));
     }
 }
+
+#[tokio::test]
+async fn execution_rewards_proposer() {
+    let ctx = RuntimeContext::new_with_stubs_and_mana("did:icn:test:alice", 0).unwrap();
+    {
+        let mut gov = ctx.governance_module.lock().await;
+        gov.add_member(Did::from_str("did:icn:test:alice").unwrap());
+        gov.add_member(Did::from_str("did:icn:test:bob").unwrap());
+        gov.set_quorum(1);
+        gov.set_threshold(0.5);
+    }
+
+    let payload = serde_json::json!({
+        "proposal_type_str": "GenericText",
+        "type_specific_payload": b"hello".to_vec(),
+        "description": "hello world",
+        "duration_secs": 60
+    });
+    let pid_str = host_create_governance_proposal(&ctx, &payload.to_string())
+        .await
+        .expect("create proposal");
+    let pid = ProposalId(pid_str.clone());
+    {
+        let mut gov = ctx.governance_module.lock().await;
+        gov.cast_vote(
+            Did::from_str("did:icn:test:bob").unwrap(),
+            &pid,
+            VoteOption::Yes,
+        )
+        .unwrap();
+    }
+    host_close_governance_proposal_voting(&ctx, &pid_str)
+        .await
+        .expect("close voting");
+
+    let mana_before = ctx.mana_ledger.get_balance(&ctx.current_identity);
+    let rep_before = ctx.reputation_store.get_reputation(&ctx.current_identity);
+
+    host_execute_governance_proposal(&ctx, &pid_str)
+        .await
+        .expect("execute proposal");
+
+    let mana_after = ctx.mana_ledger.get_balance(&ctx.current_identity);
+    let rep_after = ctx.reputation_store.get_reputation(&ctx.current_identity);
+
+    assert_eq!(mana_after, mana_before + 1);
+    assert!(rep_after > rep_before);
+}
+
+#[tokio::test]
+async fn failed_execution_no_rewards() {
+    let ctx = RuntimeContext::new_with_stubs_and_mana("did:icn:test:alice", 0).unwrap();
+    {
+        let mut gov = ctx.governance_module.lock().await;
+        gov.add_member(Did::from_str("did:icn:test:alice").unwrap());
+    }
+
+    ctx.reputation_store
+        .record_execution(&ctx.current_identity, true, 0);
+
+    let payload = serde_json::json!({
+        "proposal_type_str": "GenericText",
+        "type_specific_payload": b"oops".to_vec(),
+        "description": "bad exec",
+        "duration_secs": 60
+    });
+    let pid_str = host_create_governance_proposal(&ctx, &payload.to_string())
+        .await
+        .expect("create proposal");
+
+    let mana_before = ctx.mana_ledger.get_balance(&ctx.current_identity);
+    let rep_before = ctx.reputation_store.get_reputation(&ctx.current_identity);
+
+    let res = host_execute_governance_proposal(&ctx, &pid_str).await;
+    assert!(res.is_err());
+
+    let mana_after = ctx.mana_ledger.get_balance(&ctx.current_identity);
+    let rep_after = ctx.reputation_store.get_reputation(&ctx.current_identity);
+
+    assert_eq!(mana_after, mana_before);
+    assert!(rep_after < rep_before);
+}
