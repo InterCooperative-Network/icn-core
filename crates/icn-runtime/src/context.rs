@@ -243,6 +243,10 @@ impl icn_economics::ManaLedger for SimpleManaLedger {
     fn credit_all(&self, amount: u64) -> Result<(), icn_economics::EconError> {
         self.ledger.credit_all(amount)
     }
+
+    fn all_accounts(&self) -> Vec<Did> {
+        self.ledger.all_accounts()
+    }
 }
 
 // Placeholder for icn_mesh::MeshJobStateChange
@@ -1302,11 +1306,16 @@ impl RuntimeContext {
     /// the crediting occurs.
     pub async fn spawn_mana_regenerator(self: Arc<Self>, amount: u64, interval: StdDuration) {
         let ledger = self.mana_ledger.clone();
+        let reputation = self.reputation_store.clone();
         tokio::spawn(async move {
             let mut ticker = tokio::time::interval(interval);
             loop {
                 ticker.tick().await;
-                if let Err(e) = ledger.credit_all(amount) {
+                if let Err(e) = icn_economics::credit_by_reputation(
+                    ledger.as_ref(),
+                    reputation.as_ref(),
+                    amount,
+                ) {
                     error!("[ManaRegenerator] Failed to credit accounts: {:?}", e);
                 }
             }
