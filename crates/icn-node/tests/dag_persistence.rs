@@ -28,7 +28,7 @@ async fn dag_persists_between_restarts_sled() {
     let data = b"hello".to_vec();
     let ts = 0u64;
     let author = Did::from_str("did:example:tester").unwrap();
-    let cid = compute_merkle_cid(0x71, &data, &[], ts, &author, &None);
+    let cid = compute_merkle_cid(0x71, &data, &[], ts, &author, &None, &None);
     let block = DagBlock {
         cid: cid.clone(),
         data: data.clone(),
@@ -36,6 +36,7 @@ async fn dag_persists_between_restarts_sled() {
         timestamp: ts,
         author_did: author,
         signature: None,
+        scope: None,
     };
     {
         let mut store = ctx.dag_store.lock().await;

@@ -50,7 +50,7 @@ pub fn compile_ccl_file(
     let ts = 0u64;
     let author = Did::new("key", "tester");
     let sig_opt = None;
-    let cid = compute_merkle_cid(0x71, &wasm_bytecode, &[], ts, &author, &sig_opt);
+    let cid = compute_merkle_cid(0x71, &wasm_bytecode, &[], ts, &author, &sig_opt, &None);
     metadata.cid = cid.to_string();
 
     // Calculate SHA-256 hash of the source code

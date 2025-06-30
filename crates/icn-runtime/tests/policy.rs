@@ -5,7 +5,7 @@ use icn_runtime::{
     context::{HostAbiError, RuntimeContext, StubDagStore, StubMeshNetworkService, StubSigner},
     host_anchor_receipt, ReputationUpdater,
 };
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -25,6 +25,7 @@ async fn anchor_receipt_denied_by_policy() {
         Some(Arc::new(InMemoryPolicyEnforcer::new(
             HashSet::new(),
             HashSet::new(),
+            HashMap::new(),
         ))),
     );
 

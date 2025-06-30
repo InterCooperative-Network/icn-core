@@ -446,6 +446,8 @@ pub struct DagBlock {
     pub author_did: Did,
     /// Optional Ed25519 signature of the block contents.
     pub signature: Option<SignatureBytes>,
+    /// Optional scope this block belongs to.
+    pub scope: Option<NodeScope>,
 }
 
 /// Represents a link within a DagBlock, pointing to another DagBlock.
@@ -464,6 +466,7 @@ pub fn compute_merkle_cid(
     timestamp: u64,
     author_did: &Did,
     signature: &Option<SignatureBytes>,
+    scope: &Option<NodeScope>,
 ) -> Cid {
     use sha2::{Digest, Sha256};
     let mut hasher = Sha256::new();
@@ -477,6 +480,9 @@ pub fn compute_merkle_cid(
     hasher.update(author_did.to_string().as_bytes());
     if let Some(sig) = signature {
         hasher.update(&sig.0);
+    }
+    if let Some(scope) = scope {
+        hasher.update(scope.0.as_bytes());
     }
     let hash_bytes = hasher.finalize().to_vec();
     Cid {
@@ -496,6 +502,7 @@ pub fn verify_block_integrity(block: &DagBlock) -> Result<(), CommonError> {
         block.timestamp,
         &block.author_did,
         &block.signature,
+        &block.scope,
     );
     if expected == block.cid {
         Ok(())
@@ -658,6 +665,7 @@ mod tests {
             timestamp,
             &author,
             &sig,
+            &None,
         );
         let block = DagBlock {
             cid: block_cid.clone(),
@@ -666,6 +674,7 @@ mod tests {
             timestamp,
             author_did: author,
             signature: sig,
+            scope: None,
         };
         assert_eq!(block.cid, block_cid);
         assert_eq!(block.links[0].cid, link_cid);
@@ -724,6 +733,7 @@ mod tests {
             timestamp,
             &author,
             &sig,
+            &None,
         );
         let block = DagBlock {
             cid: cid.clone(),
@@ -732,6 +742,7 @@ mod tests {
             timestamp,
             author_did: author,
             signature: sig,
+            scope: None,
         };
         assert!(verify_block_integrity(&block).is_ok());
     }

@@ -18,7 +18,7 @@ async fn dag_storage_via_cli() {
     let ts = 0u64;
     let author = Did::new("example", "alice");
     let sig_opt = None;
-    let cid = compute_merkle_cid(0x71, b"data", &[], ts, &author, &sig_opt);
+    let cid = compute_merkle_cid(0x71, b"data", &[], ts, &author, &sig_opt, &None);
     let block = DagBlock {
         cid: cid.clone(),
         data: b"data".to_vec(),
@@ -26,6 +26,7 @@ async fn dag_storage_via_cli() {
         timestamp: ts,
         author_did: author,
         signature: sig_opt,
+        scope: None,
     };
     let block_json = serde_json::to_string(&block).unwrap();
 

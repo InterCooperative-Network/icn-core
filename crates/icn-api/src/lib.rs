@@ -139,6 +139,7 @@ pub async fn submit_dag_block(
         block.timestamp,
         &block.author_did,
         &block.signature,
+        &block.scope,
     );
     if expected_cid != block.cid {
         return Err(CommonError::DagValidationError("CID mismatch".to_string()));
@@ -146,7 +147,7 @@ pub async fn submit_dag_block(
 
     if let Some(enforcer) = &policy_enforcer {
         if let PolicyCheckResult::Denied { reason } =
-            enforcer.check_permission(DagPayloadOp::SubmitBlock, &actor)
+            enforcer.check_permission(DagPayloadOp::SubmitBlock, &actor, block.scope.as_ref())
         {
             return Err(CommonError::PolicyDenied(reason));
         }
@@ -501,6 +502,7 @@ mod tests {
             ts,
             &author,
             &sig_opt,
+            &None,
         );
         let block = DagBlock {
             cid: cid.clone(),
@@ -509,6 +511,7 @@ mod tests {
             timestamp: ts,
             author_did: author,
             signature: sig_opt,
+            scope: None,
         };
         let block_json = serde_json::to_string(&block).unwrap();
         let result = submit_dag_block(storage, block_json, None, block.author_did.clone()).await;
@@ -534,6 +537,7 @@ mod tests {
             timestamp: 0,
             author_did: Did::new("key", "tester"),
             signature: None,
+            scope: None,
         };
         let block_json = serde_json::to_string(&block).unwrap();
         let result = submit_dag_block(storage, block_json, None, block.author_did.clone()).await;
@@ -565,6 +569,7 @@ mod tests {
             timestamp: ts,
             author_did: author,
             signature: sig_opt,
+            scope: None,
         };
 
         let block_json = serde_json::to_string(&block).unwrap();
@@ -798,7 +803,7 @@ mod tests {
         let ts = 0u64;
         let author = Did::new("key", "tester");
         let sig_opt = None;
-        let cid = compute_merkle_cid(0x71, &data, &[], ts, &author, &sig_opt);
+        let cid = compute_merkle_cid(0x71, &data, &[], ts, &author, &sig_opt, &None);
         let block = DagBlock {
             cid: cid.clone(),
             data: data.clone(),
@@ -806,6 +811,7 @@ mod tests {
             timestamp: ts,
             author_did: author,
             signature: sig_opt,
+            scope: None,
         };
         {
             let mut guard = store.lock().await;
@@ -846,7 +852,7 @@ mod tests {
         let ts = 0u64;
         let author = Did::new("key", "tester");
         let sig_opt = None;
-        let cid = compute_merkle_cid(0x71, &data, &[], ts, &author, &sig_opt);
+        let cid = compute_merkle_cid(0x71, &data, &[], ts, &author, &sig_opt, &None);
         let block = DagBlock {
             cid: cid.clone(),
             data,
@@ -854,6 +860,7 @@ mod tests {
             timestamp: ts,
             author_did: author,
             signature: sig_opt,
+            scope: None,
         };
         let block_json = serde_json::to_string(&block).unwrap();
         match submit_dag_block(store, block_json, None, block.author_did.clone()).await {
@@ -891,18 +898,18 @@ mod tests {
     #[tokio::test]
     async fn submit_dag_block_allowed_by_policy() {
         use icn_governance::scoped_policy::InMemoryPolicyEnforcer;
-        use std::collections::HashSet;
+        use std::collections::{HashMap, HashSet};
 
         let store = new_test_storage();
         let actor = Did::new("key", "allowed");
         let mut submitters = HashSet::new();
         submitters.insert(actor.clone());
-        let enforcer = InMemoryPolicyEnforcer::new(submitters, HashSet::new());
+        let enforcer = InMemoryPolicyEnforcer::new(submitters, HashSet::new(), HashMap::new());
 
         let data = b"block".to_vec();
         let ts = 0u64;
         let sig_opt = None;
-        let cid = compute_merkle_cid(0x71, &data, &[], ts, &actor, &sig_opt);
+        let cid = compute_merkle_cid(0x71, &data, &[], ts, &actor, &sig_opt, &None);
         let block = DagBlock {
             cid: cid.clone(),
             data,
@@ -910,6 +917,7 @@ mod tests {
             timestamp: ts,
             author_did: actor.clone(),
             signature: sig_opt,
+            scope: None,
         };
 
         let block_json = serde_json::to_string(&block).unwrap();
@@ -927,17 +935,17 @@ mod tests {
     #[tokio::test]
     async fn submit_dag_block_denied_by_policy() {
         use icn_governance::scoped_policy::InMemoryPolicyEnforcer;
-        use std::collections::HashSet;
+        use std::collections::{HashMap, HashSet};
 
         let store = new_test_storage();
         let actor = Did::new("key", "denied");
         let submitters = HashSet::new();
-        let enforcer = InMemoryPolicyEnforcer::new(submitters, HashSet::new());
+        let enforcer = InMemoryPolicyEnforcer::new(submitters, HashSet::new(), HashMap::new());
 
         let data = b"block".to_vec();
         let ts = 0u64;
         let sig_opt = None;
-        let cid = compute_merkle_cid(0x71, &data, &[], ts, &actor, &sig_opt);
+        let cid = compute_merkle_cid(0x71, &data, &[], ts, &actor, &sig_opt, &None);
         let block = DagBlock {
             cid,
             data,
@@ -945,6 +953,7 @@ mod tests {
             timestamp: ts,
             author_did: actor.clone(),
             signature: sig_opt,
+            scope: None,
         };
         let block_json = serde_json::to_string(&block).unwrap();
 
