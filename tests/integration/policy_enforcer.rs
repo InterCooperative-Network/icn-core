@@ -3,6 +3,7 @@ use std::str::FromStr;
 
 use icn_common::{compute_merkle_cid, DagBlock, DagLink, Did, SignatureBytes};
 use icn_runtime::context::RuntimeContext;
+use icn_governance::scoped_policy::{DagPayloadOp, PolicyCheckResult, ScopedPolicyEnforcer};
 
 #[derive(Debug, PartialEq, Eq)]
 enum PolicyError {
@@ -30,10 +31,6 @@ impl MembershipResolver for StaticMembershipResolver {
     }
 }
 
-trait ScopedPolicyEnforcer {
-    fn authorize_dag_write(&self, author: &Did) -> Result<(), PolicyError>;
-}
-
 struct MockScopedPolicyEnforcer<R: MembershipResolver> {
     resolver: R,
 }
@@ -45,11 +42,13 @@ impl<R: MembershipResolver> MockScopedPolicyEnforcer<R> {
 }
 
 impl<R: MembershipResolver> ScopedPolicyEnforcer for MockScopedPolicyEnforcer<R> {
-    fn authorize_dag_write(&self, author: &Did) -> Result<(), PolicyError> {
-        if self.resolver.is_member(author) {
-            Ok(())
+    fn check_permission(&self, _op: DagPayloadOp, actor: &Did) -> PolicyCheckResult {
+        if self.resolver.is_member(actor) {
+            PolicyCheckResult::Allowed
         } else {
-            Err(PolicyError::Unauthorized)
+            PolicyCheckResult::Denied {
+                reason: "unauthorized".to_string(),
+            }
         }
     }
 }
@@ -59,7 +58,11 @@ async fn anchor_block_with_policy<E: ScopedPolicyEnforcer>(
     block: &DagBlock,
     enforcer: &E,
 ) -> Result<(), PolicyError> {
-    enforcer.authorize_dag_write(&block.author_did)?;
+    if let PolicyCheckResult::Denied { .. } =
+        enforcer.check_permission(DagPayloadOp::SubmitBlock, &block.author_did)
+    {
+        return Err(PolicyError::Unauthorized);
+    }
 
     {
         let store = ctx.dag_store.lock().await;

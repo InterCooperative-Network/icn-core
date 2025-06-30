@@ -335,11 +335,11 @@ impl MembershipResolver for InMemoryMembershipResolver {
 }
 
 /// Enforces scoped permissions by consulting a [`MembershipResolver`].
-pub struct ScopedPolicyEnforcer<R: MembershipResolver> {
+pub struct MembershipPolicyEnforcer<R: MembershipResolver> {
     resolver: R,
 }
 
-impl<R: MembershipResolver> ScopedPolicyEnforcer<R> {
+impl<R: MembershipResolver> MembershipPolicyEnforcer<R> {
     /// Create a new enforcer using the provided membership resolver.
     pub fn new(resolver: R) -> Self {
         Self { resolver }
@@ -805,7 +805,7 @@ mod tests {
 
         assert!(resolver.is_member(&did, &scope));
 
-        let enforcer = ScopedPolicyEnforcer::new(resolver);
+        let enforcer = MembershipPolicyEnforcer::new(resolver);
         assert!(enforcer.check_permission(&did, &scope).is_ok());
 
         let outsider = Did::from_str("did:icn:test:bob").unwrap();
