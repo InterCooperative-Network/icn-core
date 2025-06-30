@@ -15,7 +15,7 @@ use icn_economics::EconError;
     feature = "persist-sqlite",
     feature = "persist-rocksdb"
 )))]
-use icn_economics::FileManaLedger;
+
 #[cfg(all(
     not(feature = "persist-sled"),
     not(feature = "persist-sqlite"),
@@ -695,7 +695,7 @@ impl RuntimeContext {
         did_resolver: Arc<dyn icn_identity::DidResolver>,
         dag_store: Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>,
         mana_ledger: SimpleManaLedger,
-        reputation_store_path: PathBuf,
+        _reputation_store_path: PathBuf,
         policy_enforcer: Option<Arc<dyn ScopedPolicyEnforcer>>,
         time_provider: Arc<dyn icn_common::TimeProvider>,
     ) -> Arc<Self> {
@@ -712,13 +712,13 @@ impl RuntimeContext {
 
         #[cfg(feature = "persist-sled")]
         let reputation_store: Arc<dyn icn_reputation::ReputationStore> =
-            match icn_reputation::SledReputationStore::new(reputation_store_path) {
+            match icn_reputation::SledReputationStore::new(_reputation_store_path) {
                 Ok(s) => Arc::new(s),
                 Err(_) => Arc::new(icn_reputation::InMemoryReputationStore::new()),
             };
         #[cfg(all(not(feature = "persist-sled"), feature = "persist-sqlite"))]
         let reputation_store: Arc<dyn icn_reputation::ReputationStore> =
-            match icn_reputation::SqliteReputationStore::new(reputation_store_path) {
+            match icn_reputation::SqliteReputationStore::new(_reputation_store_path) {
                 Ok(s) => Arc::new(s),
                 Err(_) => Arc::new(icn_reputation::InMemoryReputationStore::new()),
             };
@@ -728,7 +728,7 @@ impl RuntimeContext {
             feature = "persist-rocksdb"
         ))]
         let reputation_store: Arc<dyn icn_reputation::ReputationStore> =
-            match icn_reputation::RocksdbReputationStore::new(reputation_store_path) {
+            match icn_reputation::RocksdbReputationStore::new(_reputation_store_path) {
                 Ok(s) => Arc::new(s),
                 Err(_) => Arc::new(icn_reputation::InMemoryReputationStore::new()),
             };
@@ -1312,7 +1312,7 @@ impl RuntimeContext {
             loop {
                 ticker.tick().await;
                 if let Err(e) = icn_economics::credit_by_reputation(
-                    ledger.as_ref(),
+                    &ledger,
                     reputation.as_ref(),
                     amount,
                 ) {

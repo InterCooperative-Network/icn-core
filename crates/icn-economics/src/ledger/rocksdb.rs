@@ -2,7 +2,6 @@ use crate::EconError;
 use icn_common::{CommonError, Did};
 use rocksdb::DB;
 use std::path::PathBuf;
-use std::str::FromStr;
 
 #[derive(Debug)]
 pub struct RocksdbManaLedger {
