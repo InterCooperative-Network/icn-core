@@ -49,6 +49,14 @@ pub trait ManaLedger: Send + Sync {
             "credit_all not implemented for this ledger".into(),
         ))
     }
+
+    /// Returns a list of all known account DIDs.
+    ///
+    /// The default implementation returns an empty vector if the
+    /// underlying ledger does not support account iteration.
+    fn all_accounts(&self) -> Vec<Did> {
+        Vec::new()
+    }
 }
 
 /// Thin wrapper exposing convenience methods over a [`ManaLedger`].
@@ -136,6 +144,22 @@ pub fn credit_mana<L: ManaLedger>(ledger: L, did: &Did, amount: u64) -> Result<(
     let mana_adapter = ManaRepositoryAdapter::new(ledger);
     println!("[icn-economics] credit_mana called for DID {did:?}, amount {amount}");
     mana_adapter.credit_mana(did, amount)
+}
+
+/// Credits mana to all known accounts using their reputation scores.
+///
+/// Each account receives `base_amount * reputation_score` mana.
+pub fn credit_by_reputation(
+    ledger: &dyn ManaLedger,
+    reputation_store: &dyn icn_reputation::ReputationStore,
+    base_amount: u64,
+) -> Result<(), EconError> {
+    for did in ledger.all_accounts() {
+        let rep = reputation_store.get_reputation(&did);
+        let credit_amount = rep.saturating_mul(base_amount);
+        ledger.credit(&did, credit_amount)?;
+    }
+    Ok(())
 }
 
 /// Placeholder function demonstrating use of common types for economics.

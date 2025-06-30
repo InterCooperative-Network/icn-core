@@ -2,6 +2,7 @@ use crate::EconError;
 use icn_common::{CommonError, Did};
 use rocksdb::DB;
 use std::path::PathBuf;
+use std::str::FromStr;
 
 #[derive(Debug)]
 pub struct RocksdbManaLedger {
@@ -61,6 +62,23 @@ impl RocksdbManaLedger {
         }
         Ok(())
     }
+
+    /// Return all account DIDs currently stored in the ledger.
+    pub fn all_accounts(&self) -> Vec<Did> {
+        use rocksdb::IteratorMode;
+        use std::str::FromStr;
+        let mut accounts = Vec::new();
+        for item in self.db.iterator(IteratorMode::Start) {
+            if let Ok((key, _)) = item {
+                if let Ok(did_str) = std::str::from_utf8(&key) {
+                    if let Ok(did) = Did::from_str(did_str) {
+                        accounts.push(did);
+                    }
+                }
+            }
+        }
+        accounts
+    }
 }
 
 impl crate::ManaLedger for RocksdbManaLedger {
@@ -91,5 +109,9 @@ impl crate::ManaLedger for RocksdbManaLedger {
 
     fn credit_all(&self, amount: u64) -> Result<(), EconError> {
         RocksdbManaLedger::credit_all(self, amount)
+    }
+
+    fn all_accounts(&self) -> Vec<Did> {
+        RocksdbManaLedger::all_accounts(self)
     }
 }

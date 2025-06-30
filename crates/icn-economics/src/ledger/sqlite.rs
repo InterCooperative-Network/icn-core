@@ -2,6 +2,7 @@ use crate::EconError;
 use icn_common::{CommonError, Did};
 use rusqlite::{Connection, OptionalExtension};
 use std::path::PathBuf;
+use std::str::FromStr;
 
 #[derive(Debug)]
 pub struct SqliteManaLedger {
@@ -57,6 +58,23 @@ impl SqliteManaLedger {
         .map_err(|e| EconError::AdapterError(format!("{e}")))?;
         Ok(())
     }
+
+    /// Fetch all account DIDs present in the ledger.
+    pub fn all_accounts(&self) -> Vec<Did> {
+        let conn = match Connection::open(&self.path) {
+            Ok(c) => c,
+            Err(_) => return Vec::new(),
+        };
+        let mut stmt = match conn.prepare("SELECT did FROM mana_balances") {
+            Ok(s) => s,
+            Err(_) => return Vec::new(),
+        };
+        let rows = stmt
+            .query_map([], |row| row.get::<_, String>(0))
+            .unwrap_or_else(|_| Vec::new().into_iter());
+        rows.filter_map(|r| r.ok().and_then(|s| Did::from_str(&s).ok()))
+            .collect()
+    }
 }
 
 impl crate::ManaLedger for SqliteManaLedger {
@@ -87,5 +105,9 @@ impl crate::ManaLedger for SqliteManaLedger {
 
     fn credit_all(&self, amount: u64) -> Result<(), EconError> {
         SqliteManaLedger::credit_all(self, amount)
+    }
+
+    fn all_accounts(&self) -> Vec<Did> {
+        SqliteManaLedger::all_accounts(self)
     }
 }

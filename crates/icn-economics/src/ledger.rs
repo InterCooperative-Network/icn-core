@@ -129,6 +129,12 @@ impl FileManaLedger {
         self.persist()
             .map_err(|e| EconError::AdapterError(format!("{e}")))
     }
+
+    /// Return a list of all account DIDs stored in this ledger.
+    pub fn all_accounts(&self) -> Vec<Did> {
+        let balances = self.balances.lock().unwrap();
+        balances.keys().cloned().collect()
+    }
 }
 
 impl crate::ManaLedger for FileManaLedger {
@@ -150,6 +156,10 @@ impl crate::ManaLedger for FileManaLedger {
 
     fn credit_all(&self, amount: u64) -> Result<(), EconError> {
         FileManaLedger::credit_all(self, amount)
+    }
+
+    fn all_accounts(&self) -> Vec<Did> {
+        FileManaLedger::all_accounts(self)
     }
 }
 
@@ -218,6 +228,22 @@ impl SledManaLedger {
         }
         Ok(())
     }
+
+    /// Retrieve a list of all account DIDs stored in the ledger.
+    pub fn all_accounts(&self) -> Vec<Did> {
+        use std::str::FromStr;
+        let mut accounts = Vec::new();
+        for result in self.tree.iter() {
+            if let Ok((key, _)) = result {
+                if let Ok(did_str) = std::str::from_utf8(&key) {
+                    if let Ok(did) = Did::from_str(did_str) {
+                        accounts.push(did);
+                    }
+                }
+            }
+        }
+        accounts
+    }
 }
 
 #[cfg(feature = "persist-sled")]
@@ -253,6 +279,10 @@ impl crate::ManaLedger for SledManaLedger {
 
     fn credit_all(&self, amount: u64) -> Result<(), EconError> {
         SledManaLedger::credit_all(self, amount)
+    }
+
+    fn all_accounts(&self) -> Vec<Did> {
+        SledManaLedger::all_accounts(self)
     }
 }
 
