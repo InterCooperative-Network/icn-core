@@ -66,6 +66,16 @@ cargo run -p icn-cli -- --api-url http://localhost:7845 submit-job \
   '{"manifest_cid":"CID_FROM_UPLOAD","spec_json":{},"cost_mana":0}'
 ```
 
+### Included Governance Examples
+
+Several example contracts live in `tests/contracts/`:
+
+* `proposal_flow.ccl` – illustrates proposal creation, voting and finalization.
+* `voting_logic.ccl` – demonstrates an open/cast/close voting sequence.
+
+These files can be compiled with `compile_ccl_file_to_wasm` and executed using
+the `WasmExecutor` as shown in the integration tests.
+
 ## Integration with Other Crates
 
 * Compiled WASM is executed inside [`icn-runtime`](../crates/icn-runtime/README.md).

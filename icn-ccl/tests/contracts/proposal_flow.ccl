@@ -1,0 +1,5 @@
+// Example multi-step proposal workflow
+fn create_proposal() -> Integer { return 1; }
+fn vote_on_proposal(p: Integer) -> Integer { return p + 1; }
+fn finalize(v: Integer) -> Integer { return v + 1; }
+fn run() -> Integer { return finalize(vote_on_proposal(create_proposal())); }
