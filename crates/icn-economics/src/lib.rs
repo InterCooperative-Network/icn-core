@@ -15,19 +15,6 @@ pub use ledger::SledManaLedger;
 #[cfg(feature = "persist-sqlite")]
 pub use ledger::SqliteManaLedger;
 
-/// Errors that can occur during mana accounting operations.
-#[derive(Debug)]
-pub enum EconError {
-    InsufficientBalance(String),
-    AdapterError(String),
-    PolicyViolation(String),
-}
-
-impl From<CommonError> for EconError {
-    fn from(err: CommonError) -> Self {
-        EconError::AdapterError(err.to_string())
-    }
-}
 
 /// Abstraction over the persistence layer storing account balances.
 pub trait ManaLedger: Send + Sync {
@@ -36,16 +23,16 @@ pub trait ManaLedger: Send + Sync {
     /// Persist a new balance for a DID.
     fn set_balance(&self, did: &Did, amount: u64) -> Result<(), CommonError>;
     /// Spend mana from the account.
-    fn spend(&self, did: &Did, amount: u64) -> Result<(), EconError>;
+    fn spend(&self, did: &Did, amount: u64) -> Result<(), CommonError>;
     /// Credit mana to the account.
-    fn credit(&self, did: &Did, amount: u64) -> Result<(), EconError>;
+    fn credit(&self, did: &Did, amount: u64) -> Result<(), CommonError>;
     /// Credit every known account with additional mana.
     ///
-    /// The default implementation returns an [`EconError::AdapterError`]
+    /// The default implementation returns [`CommonError::NotImplementedError`]
     /// if the ledger backend does not support iterating over accounts.
-    fn credit_all(&self, amount: u64) -> Result<(), EconError> {
+    fn credit_all(&self, amount: u64) -> Result<(), CommonError> {
         let _ = amount;
-        Err(EconError::AdapterError(
+        Err(CommonError::NotImplementedError(
             "credit_all not implemented for this ledger".into(),
         ))
     }
@@ -72,7 +59,7 @@ impl<L: ManaLedger> ManaRepositoryAdapter<L> {
     }
 
     /// Deduct mana from an account via the underlying ledger.
-    pub fn spend_mana(&self, did: &Did, amount: u64) -> Result<(), EconError> {
+    pub fn spend_mana(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
         self.ledger.spend(did, amount)
     }
 
@@ -82,7 +69,7 @@ impl<L: ManaLedger> ManaRepositoryAdapter<L> {
     }
 
     /// Credits the specified account with additional mana.
-    pub fn credit_mana(&self, did: &Did, amount: u64) -> Result<(), EconError> {
+    pub fn credit_mana(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
         self.ledger.credit(did, amount)
     }
 }
@@ -103,24 +90,24 @@ impl<L: ManaLedger> ResourcePolicyEnforcer<L> {
     }
 
     /// Spend mana after applying basic policy checks.
-    pub fn spend_mana(&self, did: &Did, amount: u64) -> Result<(), EconError> {
+    pub fn spend_mana(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
         println!("[ResourcePolicyEnforcer] Enforcing spend_mana for DID {did:?}, amount {amount}");
 
         if amount == 0 {
-            return Err(EconError::PolicyViolation(
+            return Err(CommonError::PolicyDenied(
                 "Spend amount must be greater than zero".into(),
             ));
         }
 
         let available = self.adapter.get_balance(did);
         if available < amount {
-            return Err(EconError::InsufficientBalance(format!(
+            return Err(CommonError::PolicyDenied(format!(
                 "Insufficient mana for DID {did}"
             )));
         }
 
         if amount > Self::MAX_SPEND_LIMIT {
-            return Err(EconError::PolicyViolation(format!(
+            return Err(CommonError::PolicyDenied(format!(
                 "Spend amount {amount} exceeds limit {limit}",
                 limit = Self::MAX_SPEND_LIMIT
             )));
@@ -131,7 +118,7 @@ impl<L: ManaLedger> ResourcePolicyEnforcer<L> {
 }
 
 /// Exposes a public function to charge mana, wrapping ResourcePolicyEnforcer.
-pub fn charge_mana<L: ManaLedger>(ledger: L, did: &Did, amount: u64) -> Result<(), EconError> {
+pub fn charge_mana<L: ManaLedger>(ledger: L, did: &Did, amount: u64) -> Result<(), CommonError> {
     let mana_adapter = ManaRepositoryAdapter::new(ledger);
     let policy_enforcer = ResourcePolicyEnforcer::new(mana_adapter);
 
@@ -140,7 +127,7 @@ pub fn charge_mana<L: ManaLedger>(ledger: L, did: &Did, amount: u64) -> Result<(
 }
 
 /// Credits mana to the given DID using the provided ledger.
-pub fn credit_mana<L: ManaLedger>(ledger: L, did: &Did, amount: u64) -> Result<(), EconError> {
+pub fn credit_mana<L: ManaLedger>(ledger: L, did: &Did, amount: u64) -> Result<(), CommonError> {
     let mana_adapter = ManaRepositoryAdapter::new(ledger);
     println!("[icn-economics] credit_mana called for DID {did:?}, amount {amount}");
     mana_adapter.credit_mana(did, amount)
@@ -153,13 +140,13 @@ pub fn credit_by_reputation(
     ledger: &dyn ManaLedger,
     reputation_store: &dyn icn_reputation::ReputationStore,
     base_amount: u64,
-) -> Result<(), EconError> {
-    for did in ledger.all_accounts() {
-        let rep = reputation_store.get_reputation(&did);
-        let credit_amount = rep.saturating_mul(base_amount);
+) -> Result<(), CommonError> {
+        for did in ledger.all_accounts() {
+            let rep = reputation_store.get_reputation(&did);
+            let credit_amount = rep.saturating_mul(base_amount);
         ledger.credit(&did, credit_amount)?;
-    }
-    Ok(())
+        }
+        Ok(())
 }
 
 /// Placeholder function demonstrating use of common types for economics.
@@ -255,7 +242,7 @@ mod tests {
         let adapter = ManaRepositoryAdapter::new(ledger);
         let enforcer = ResourcePolicyEnforcer::new(adapter);
         let result = enforcer.spend_mana(&did, 30);
-        assert!(matches!(result, Err(EconError::InsufficientBalance(_))));
+        assert!(matches!(result, Err(CommonError::PolicyDenied(_))));
     }
 
     #[test]
@@ -271,6 +258,6 @@ mod tests {
         let enforcer = ResourcePolicyEnforcer::new(adapter);
         let over_limit = ResourcePolicyEnforcer::<FileManaLedger>::MAX_SPEND_LIMIT + 1;
         let result = enforcer.spend_mana(&did, over_limit);
-        assert!(matches!(result, Err(EconError::PolicyViolation(_))));
+        assert!(matches!(result, Err(CommonError::PolicyDenied(_))));
     }
 }

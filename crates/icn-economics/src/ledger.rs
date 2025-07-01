@@ -1,4 +1,3 @@
-use crate::EconError;
 use icn_common::{CommonError, Did};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -93,41 +92,41 @@ impl FileManaLedger {
     }
 
     /// Deduct `amount` of mana from the account, erroring if the balance is insufficient.
-    pub fn spend(&self, account: &Did, amount: u64) -> Result<(), EconError> {
+    pub fn spend(&self, account: &Did, amount: u64) -> Result<(), CommonError> {
         let mut balances = self.balances.lock().unwrap();
         let balance = balances
             .get_mut(account)
-            .ok_or_else(|| EconError::AdapterError("Account not found".into()))?;
+            .ok_or_else(|| CommonError::DatabaseError("Account not found".into()))?;
         if *balance < amount {
-            return Err(EconError::InsufficientBalance(format!(
+            return Err(CommonError::PolicyDenied(format!(
                 "Insufficient mana for DID {account}"
             )));
         }
         *balance -= amount;
         drop(balances);
         self.persist()
-            .map_err(|e| EconError::AdapterError(format!("{e}")))
+            .map_err(|e| CommonError::DatabaseError(format!("{e}")))
     }
 
     /// Credit `amount` of mana to the account.
-    pub fn credit(&self, account: &Did, amount: u64) -> Result<(), EconError> {
+    pub fn credit(&self, account: &Did, amount: u64) -> Result<(), CommonError> {
         let mut balances = self.balances.lock().unwrap();
         let entry = balances.entry(account.clone()).or_insert(0);
         *entry += amount;
         drop(balances);
         self.persist()
-            .map_err(|e| EconError::AdapterError(format!("{e}")))
+            .map_err(|e| CommonError::DatabaseError(format!("{e}")))
     }
 
     /// Add `amount` of mana to every stored account.
-    pub fn credit_all(&self, amount: u64) -> Result<(), EconError> {
+    pub fn credit_all(&self, amount: u64) -> Result<(), CommonError> {
         let mut balances = self.balances.lock().unwrap();
         for val in balances.values_mut() {
             *val += amount;
         }
         drop(balances);
         self.persist()
-            .map_err(|e| EconError::AdapterError(format!("{e}")))
+            .map_err(|e| CommonError::DatabaseError(format!("{e}")))
     }
 
     /// Return a list of all account DIDs stored in this ledger.
@@ -146,15 +145,15 @@ impl crate::ManaLedger for FileManaLedger {
         FileManaLedger::set_balance(self, did, amount)
     }
 
-    fn spend(&self, did: &Did, amount: u64) -> Result<(), EconError> {
+    fn spend(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
         FileManaLedger::spend(self, did, amount)
     }
 
-    fn credit(&self, did: &Did, amount: u64) -> Result<(), EconError> {
+    fn credit(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
         FileManaLedger::credit(self, did, amount)
     }
 
-    fn credit_all(&self, amount: u64) -> Result<(), EconError> {
+    fn credit_all(&self, amount: u64) -> Result<(), CommonError> {
         FileManaLedger::credit_all(self, amount)
     }
 
@@ -211,20 +210,20 @@ impl SledManaLedger {
         }
     }
 
-    pub fn credit_all(&self, amount: u64) -> Result<(), EconError> {
+    pub fn credit_all(&self, amount: u64) -> Result<(), CommonError> {
         use std::str::FromStr;
         for result in self.tree.iter() {
             let (key, val) = result
-                .map_err(|e| EconError::AdapterError(format!("Failed to iterate ledger: {e}")))?;
+                .map_err(|e| CommonError::DatabaseError(format!("Failed to iterate ledger: {e}")))?;
             let did_str = std::str::from_utf8(&key)
-                .map_err(|e| EconError::AdapterError(format!("Invalid key: {e}")))?;
+                .map_err(|e| CommonError::DatabaseError(format!("Invalid key: {e}")))?;
             let did =
-                Did::from_str(did_str).map_err(|e| EconError::AdapterError(format!("{e}")))?;
+                Did::from_str(did_str).map_err(|e| CommonError::InvalidInputError(format!("{e}")))?;
             let mut bal: u64 = bincode::deserialize::<u64>(val.as_ref())
-                .map_err(|e| EconError::AdapterError(format!("Failed to decode balance: {e}")))?;
+                .map_err(|e| CommonError::DatabaseError(format!("Failed to decode balance: {e}")))?;
             bal += amount;
             self.write_balance(&did, bal)
-                .map_err(|e| EconError::AdapterError(format!("{e}")))?;
+                .map_err(|e| CommonError::DatabaseError(format!("{e}")))?;
         }
         Ok(())
     }
@@ -256,28 +255,28 @@ impl crate::ManaLedger for SledManaLedger {
         self.write_balance(did, amount)
     }
 
-    fn spend(&self, did: &Did, amount: u64) -> Result<(), EconError> {
+    fn spend(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
         let current = self
             .read_balance(did)
-            .map_err(|e| EconError::AdapterError(format!("{e}")))?;
+            .map_err(|e| CommonError::DatabaseError(format!("{e}")))?;
         if current < amount {
-            return Err(EconError::InsufficientBalance(format!(
+            return Err(CommonError::PolicyDenied(format!(
                 "Insufficient mana for DID {did}"
             )));
         }
         self.write_balance(did, current - amount)
-            .map_err(|e| EconError::AdapterError(format!("{e}")))
+            .map_err(|e| CommonError::DatabaseError(format!("{e}")))
     }
 
-    fn credit(&self, did: &Did, amount: u64) -> Result<(), EconError> {
+    fn credit(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
         let current = self
             .read_balance(did)
-            .map_err(|e| EconError::AdapterError(format!("{e}")))?;
+            .map_err(|e| CommonError::DatabaseError(format!("{e}")))?;
         self.write_balance(did, current + amount)
-            .map_err(|e| EconError::AdapterError(format!("{e}")))
+            .map_err(|e| CommonError::DatabaseError(format!("{e}")))
     }
 
-    fn credit_all(&self, amount: u64) -> Result<(), EconError> {
+    fn credit_all(&self, amount: u64) -> Result<(), CommonError> {
         SledManaLedger::credit_all(self, amount)
     }
 

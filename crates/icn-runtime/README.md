@@ -85,11 +85,7 @@ account with a fixed amount on a configurable interval.
 
 ## Error Types
 
-`MeshJobError` enumerates failures that can occur while processing mesh jobs.
-All variants can be converted from `HostAbiError` or `MeshNetworkError`.
-
-* `Network` – issues communicating over the mesh network.
-* `NoSuitableExecutor` – no executor met the policy for a job.
+`CommonError` is used for all runtime failures.
 * `MissingOrInvalidReceipt` – receipt missing or failed validation.
 * `UnknownJob` – referenced job ID does not exist.
 * `ExecutionTimeout` – executor failed to produce a receipt in time.

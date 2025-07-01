@@ -1,4 +1,3 @@
-use crate::EconError;
 use icn_common::{CommonError, Did};
 use rusqlite::{Connection, OptionalExtension};
 use std::path::PathBuf;
@@ -48,14 +47,14 @@ impl SqliteManaLedger {
         Ok(amt.unwrap_or(0) as u64)
     }
 
-    pub fn credit_all(&self, amount: u64) -> Result<(), EconError> {
+    pub fn credit_all(&self, amount: u64) -> Result<(), CommonError> {
         let conn = Connection::open(&self.path)
             .map_err(|e| CommonError::DatabaseError(format!("Failed to open sqlite DB: {e}")))?;
         conn.execute(
             "UPDATE mana_balances SET amount = amount + ?1",
             [amount as i64],
         )
-        .map_err(|e| EconError::AdapterError(format!("{e}")))?;
+        .map_err(|e| CommonError::DatabaseError(format!("{e}")))?;
         Ok(())
     }
 
@@ -87,10 +86,10 @@ impl crate::ManaLedger for SqliteManaLedger {
         self.write_balance(did, amount)
     }
 
-    fn spend(&self, did: &Did, amount: u64) -> Result<(), EconError> {
+    fn spend(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
         let current = self.read_balance(did)?;
         if current < amount {
-            return Err(EconError::InsufficientBalance(format!(
+            return Err(CommonError::PolicyDenied(format!(
                 "Insufficient mana for DID {did}"
             )));
         }
@@ -98,13 +97,13 @@ impl crate::ManaLedger for SqliteManaLedger {
         Ok(())
     }
 
-    fn credit(&self, did: &Did, amount: u64) -> Result<(), EconError> {
+    fn credit(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
         let current = self.read_balance(did)?;
         self.write_balance(did, current + amount)?;
         Ok(())
     }
 
-    fn credit_all(&self, amount: u64) -> Result<(), EconError> {
+    fn credit_all(&self, amount: u64) -> Result<(), CommonError> {
         SqliteManaLedger::credit_all(self, amount)
     }
 

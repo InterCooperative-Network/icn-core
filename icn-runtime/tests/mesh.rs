@@ -2,7 +2,7 @@
 
 use icn_common::{compute_merkle_cid, Cid, CommonError, DagBlock, Did};
 use icn_dag::StorageService;
-use icn_economics::{charge_mana, EconError}; // For mana interactions
+use icn_economics::charge_mana; // For mana interactions
 use icn_mesh::{
     select_executor, JobSpec, MeshJob as ActualMeshJob, MeshJobBid as Bid, Resources,
     SelectionPolicy,
@@ -135,25 +135,25 @@ impl icn_economics::ManaLedger for InMemoryManaLedger {
         Ok(())
     }
 
-    fn spend(&self, did: &Did, amount: u64) -> Result<(), EconError> {
+    fn spend(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
         let mut map = self.balances.lock().unwrap();
         let bal = map
             .get_mut(did)
-            .ok_or_else(|| EconError::AdapterError("missing".into()))?;
+            .ok_or_else(|| CommonError::DatabaseError("missing".into()))?;
         if *bal < amount {
-            return Err(EconError::InsufficientBalance("insufficient".into()));
+            return Err(CommonError::PolicyDenied("insufficient".into()));
         }
         *bal -= amount;
         Ok(())
     }
 
-    fn credit(&self, did: &Did, amount: u64) -> Result<(), EconError> {
+    fn credit(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
         let mut map = self.balances.lock().unwrap();
         *map.entry(did.clone()).or_insert(0) += amount;
         Ok(())
     }
 
-    fn credit_all(&self, amount: u64) -> Result<(), EconError> {
+    fn credit_all(&self, amount: u64) -> Result<(), CommonError> {
         let mut map = self.balances.lock().unwrap();
         for val in map.values_mut() {
             *val += amount;
@@ -385,8 +385,8 @@ async fn test_executor_bid_insufficient_mana() {
     );
     assert!(charge_result.is_err());
     match charge_result.err().unwrap() {
-        EconError::InsufficientBalance(_) => { /* Expected */ }
-        e => panic!("Expected InsufficientBalance for bidding, got {:?}", e),
+        CommonError::PolicyDenied(_) => { /* Expected */ }
+        e => panic!("Expected PolicyDenied for bidding, got {:?}", e),
     }
     println!("[BID_INSUFFICIENT_MANA_TEST] Test conceptual check completed.");
 }
@@ -459,7 +459,7 @@ async fn executor_recheck_failure_after_selection() {
 
     ledger.set_balance(&exec, 0).unwrap();
     let result = ledger.spend(&exec, bid.price_mana);
-    assert!(matches!(result, Err(EconError::InsufficientBalance(_))));
+    assert!(matches!(result, Err(CommonError::PolicyDenied(_))));
 }
 
 #[tokio::test]
@@ -531,7 +531,7 @@ async fn test_executor_selection_bidder_loses_mana() {
 
     ledger.set_balance(&exec_a, 0).unwrap();
     let spend = ledger.spend(&exec_a, bid_a.price_mana);
-    assert!(matches!(spend, Err(EconError::InsufficientBalance(_))));
+    assert!(matches!(spend, Err(CommonError::PolicyDenied(_))));
 }
 
 #[tokio::test]

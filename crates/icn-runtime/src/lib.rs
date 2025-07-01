@@ -14,7 +14,6 @@
 
 pub mod abi;
 pub mod context;
-pub mod error;
 pub mod executor;
 pub mod memory;
 pub mod metrics;

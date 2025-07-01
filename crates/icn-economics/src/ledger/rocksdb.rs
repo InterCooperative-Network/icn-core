@@ -1,4 +1,3 @@
-use crate::EconError;
 use icn_common::{CommonError, Did};
 use rocksdb::DB;
 use std::path::PathBuf;
@@ -44,18 +43,18 @@ impl RocksdbManaLedger {
         }
     }
 
-    pub fn credit_all(&self, amount: u64) -> Result<(), EconError> {
+    pub fn credit_all(&self, amount: u64) -> Result<(), CommonError> {
         use rocksdb::IteratorMode;
         use std::str::FromStr;
         for item in self.db.iterator(IteratorMode::Start) {
             let (key, val) = item
-                .map_err(|e| EconError::AdapterError(format!("Failed to iterate ledger: {e}")))?;
+                .map_err(|e| CommonError::DatabaseError(format!("Failed to iterate ledger: {e}")))?;
             let did_str = std::str::from_utf8(&key)
-                .map_err(|e| EconError::AdapterError(format!("Invalid key: {e}")))?;
+                .map_err(|e| CommonError::DatabaseError(format!("Invalid key: {e}")))?;
             let did =
-                Did::from_str(did_str).map_err(|e| EconError::AdapterError(format!("{e}")))?;
+                Did::from_str(did_str).map_err(|e| CommonError::InvalidInputError(format!("{e}")))?;
             let mut bal: u64 = bincode::deserialize::<u64>(&val)
-                .map_err(|e| EconError::AdapterError(format!("Failed to decode balance: {e}")))?;
+                .map_err(|e| CommonError::DatabaseError(format!("Failed to decode balance: {e}")))?;
             bal += amount;
             self.write_balance(&did, bal)?;
         }
@@ -89,10 +88,10 @@ impl crate::ManaLedger for RocksdbManaLedger {
         self.write_balance(did, amount)
     }
 
-    fn spend(&self, did: &Did, amount: u64) -> Result<(), EconError> {
+    fn spend(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
         let current = self.read_balance(did)?;
         if current < amount {
-            return Err(EconError::InsufficientBalance(format!(
+            return Err(CommonError::PolicyDenied(format!(
                 "Insufficient mana for DID {did}"
             )));
         }
@@ -100,13 +99,13 @@ impl crate::ManaLedger for RocksdbManaLedger {
         Ok(())
     }
 
-    fn credit(&self, did: &Did, amount: u64) -> Result<(), EconError> {
+    fn credit(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
         let current = self.read_balance(did)?;
         self.write_balance(did, current + amount)?;
         Ok(())
     }
 
-    fn credit_all(&self, amount: u64) -> Result<(), EconError> {
+    fn credit_all(&self, amount: u64) -> Result<(), CommonError> {
         RocksdbManaLedger::credit_all(self, amount)
     }
 
