@@ -14,7 +14,6 @@ use icn_network::{NetworkMessage, NetworkService as ActualNetworkService};
     feature = "persist-sqlite",
     feature = "persist-rocksdb"
 )))]
-
 #[cfg(all(
     not(feature = "persist-sled"),
     not(feature = "persist-sqlite"),
@@ -202,12 +201,10 @@ impl SimpleManaLedger {
     }
 
     pub fn spend(&self, account: &Did, amount: u64) -> Result<(), HostAbiError> {
-        self.ledger
-            .spend(account, amount)
-            .map_err(|e| match e {
-                CommonError::PolicyDenied(_) => HostAbiError::InsufficientMana,
-                other => HostAbiError::Common(other),
-            })
+        self.ledger.spend(account, amount).map_err(|e| match e {
+            CommonError::PolicyDenied(_) => HostAbiError::InsufficientMana,
+            other => HostAbiError::Common(other),
+        })
     }
 
     pub fn credit(&self, account: &Did, amount: u64) -> Result<(), HostAbiError> {
@@ -948,7 +945,11 @@ impl RuntimeContext {
             let ctx_clone = Arc::clone(self);
             let job_clone = job.clone();
             tokio::spawn(async move {
-                let executor = crate::executor::WasmExecutor::new(ctx_clone.clone(), signer);
+                let executor = crate::executor::WasmExecutor::new(
+                    ctx_clone.clone(),
+                    signer,
+                    crate::executor::WasmExecutorConfig::default(),
+                );
                 if let Err(e) = executor.execute_and_anchor_job(&job_clone).await {
                     log::error!("WASM job execution failed: {:?}", e);
                 }
@@ -1311,11 +1312,9 @@ impl RuntimeContext {
             let mut ticker = tokio::time::interval(interval);
             loop {
                 ticker.tick().await;
-                if let Err(e) = icn_economics::credit_by_reputation(
-                    &ledger,
-                    reputation.as_ref(),
-                    amount,
-                ) {
+                if let Err(e) =
+                    icn_economics::credit_by_reputation(&ledger, reputation.as_ref(), amount)
+                {
                     error!("[ManaRegenerator] Failed to credit accounts: {:?}", e);
                 }
             }

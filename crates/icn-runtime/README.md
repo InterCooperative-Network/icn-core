@@ -83,6 +83,13 @@ set.
 `spawn_mana_regenerator` to start a background task that credits every
 account with a fixed amount on a configurable interval.
 
+## WASM Execution Limits
+
+`WasmExecutor` instances can be configured with a maximum linear memory size and
+a fuel allowance. Fuel metering is enabled via Wasmtime and each instruction
+consumes fuel. When a module exhausts its fuel or attempts to grow memory beyond
+the configured limit, execution is aborted.
+
 ## Error Types
 
 `CommonError` is used for all runtime failures.
