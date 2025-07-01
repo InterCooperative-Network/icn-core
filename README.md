@@ -37,7 +37,7 @@ rustup override set nightly
 
 ## Getting Started
 
-Refer to `docs/ONBOARDING.md` for detailed instructions on prerequisites, setup, building, testing, and running the components.
+Refer to `docs/ONBOARDING.md` for detailed instructions on prerequisites, setup, building, testing, and running the components. The latest API documentation is available at [https://intercooperative.network/docs/icn-core](https://intercooperative.network/docs/icn-core).
 
 ### Quick CLI Examples:
 
