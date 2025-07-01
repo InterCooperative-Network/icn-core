@@ -13,6 +13,7 @@ use icn_mesh::JobSpec; /* ... other mesh types ... */
 use icn_mesh::{ActualMeshJob, JobKind};
 use log::info; // Removed error
 use std::time::SystemTime;
+use wasmtime::{Config, StoreLimits, StoreLimitsBuilder};
 
 /// Trait for a job executor.
 #[async_trait::async_trait]
@@ -115,7 +116,8 @@ impl JobExecutor for SimpleExecutor {
                     self.signing_key.verifying_key(),
                 )) as std::sync::Arc<dyn crate::context::Signer>;
 
-                let wasm_exec = WasmExecutor::new(ctx.clone(), signer);
+                let wasm_exec =
+                    WasmExecutor::new(ctx.clone(), signer, WasmExecutorConfig::default());
                 let mut wasm_job = job.clone();
                 wasm_job.manifest_cid = wasm_cid;
                 let receipt = wasm_exec.execute_job(&wasm_job).await?;
@@ -167,10 +169,29 @@ impl JobExecutor for SimpleExecutor {
 
 /// A WASM-based executor that loads WASM modules from the DAG store and
 /// exposes host functions from the [`RuntimeContext`] to the guest module.
+/// Configuration options for [`WasmExecutor`].
+#[derive(Clone)]
+pub struct WasmExecutorConfig {
+    /// Maximum bytes of linear memory a guest may allocate.
+    pub max_memory: usize,
+    /// Instruction fuel allotted to each execution.
+    pub fuel: u64,
+}
+
+impl Default for WasmExecutorConfig {
+    fn default() -> Self {
+        Self {
+            max_memory: 10 * 1024 * 1024, // 10 MiB
+            fuel: 1_000_000,
+        }
+    }
+}
+
 pub struct WasmExecutor {
     ctx: std::sync::Arc<crate::context::RuntimeContext>,
     signer: std::sync::Arc<dyn crate::context::Signer>,
     engine: wasmtime::Engine,
+    config: WasmExecutorConfig,
 }
 
 impl WasmExecutor {
@@ -178,11 +199,17 @@ impl WasmExecutor {
     pub fn new(
         ctx: std::sync::Arc<crate::context::RuntimeContext>,
         signer: std::sync::Arc<dyn crate::context::Signer>,
+        config: WasmExecutorConfig,
     ) -> Self {
+        let mut wasmtime_config = Config::new();
+        wasmtime_config.consume_fuel(true);
+        wasmtime_config.async_support(true);
+        let engine = wasmtime::Engine::new(&wasmtime_config).expect("create engine");
         Self {
             ctx,
             signer,
-            engine: wasmtime::Engine::default(),
+            engine,
+            config,
         }
     }
 
@@ -220,6 +247,15 @@ impl JobExecutor for WasmExecutor {
         .data;
 
         let mut store = Store::new(&self.engine, self.ctx.clone());
+        let mut limits = wasmtime::StoreLimitsBuilder::new()
+            .memory_size(self.config.max_memory)
+            .trap_on_grow_failure(true)
+            .build();
+        let limits_ptr: &'static mut wasmtime::StoreLimits = Box::leak(Box::new(limits));
+        store.limiter(move |_| limits_ptr);
+        store
+            .set_fuel(self.config.fuel)
+            .map_err(|e| CommonError::InternalError(e.to_string()))?;
         let mut linker = Linker::new(&self.engine);
 
         let ctx_clone = self.ctx.clone();
@@ -282,14 +318,18 @@ impl JobExecutor for WasmExecutor {
             .signer
             .sign(&msg)
             .map_err(|e| CommonError::InternalError(format!("{:?}", e)))?;
-        Ok(IdentityExecutionReceipt {
+        let receipt = IdentityExecutionReceipt {
             job_id: job.id.clone(),
             executor_did,
             result_cid,
             cpu_ms,
             success: true,
             sig: SignatureBytes(sig),
-        })
+        };
+        unsafe {
+            Box::from_raw(limits_ptr);
+        }
+        Ok(receipt)
     }
 }
 
