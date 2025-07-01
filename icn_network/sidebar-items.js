@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["DID_DOC_PREFIX","SERVICE_AD_PREFIX"],"enum":["NetworkMessage"],"fn":["decode_network_message","send_network_ping"],"mod":["error","libp2p_service","metrics"],"struct":["NetworkStats","PeerId","StubNetworkService"],"trait":["NetworkService"]};

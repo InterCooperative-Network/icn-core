@@ -1,0 +1,119 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="ICN Node (`icn-node`)"><title>icn_node::node - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-84e720fa.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="icn_node" data-themes="" data-resource-suffix="" data-rustdoc-version="1.90.0-nightly (35f603652 2025-06-29)" data-channel="nightly" data-search-js="search-179e01a3.js" data-settings-js="settings-5514c975.js" ><script src="../../static.files/storage-4e99c027.js"></script><script defer src="../sidebar-items.js"></script><script defer src="../../static.files/main-340f468f.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-32bb7600.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc mod"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button></nav><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../icn_node/index.html">icn_<wbr>node</a><span class="version">0.1.0</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Module node</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#icn-node-icn-node" title="ICN Node (`icn-node`)">ICN Node (<code>icn-node</code>)</a><ul><li><a href="#purpose" title="Purpose">Purpose</a></li><li><a href="#current-functionality-demonstration" title="Current Functionality (Demonstration)">Current Functionality (Demonstration)</a></li><li><a href="#error-handling" title="Error Handling">Error Handling</a></li><li><a href="#public-api-style" title="Public API Style">Public API Style</a></li><li><a href="#cli-usage" title="CLI Usage">CLI Usage</a></li><li><a href="#contributing" title="Contributing">Contributing</a></li><li><a href="#license" title="License">License</a></li></ul></li><li><a href="#icn-node-crate" title="ICN Node Crate">ICN Node Crate</a></li></ul><h3><a href="#structs">Module Items</a></h3><ul class="block"><li><a href="#structs" title="Structs">Structs</a></li><li><a href="#functions" title="Functions">Functions</a></li></ul></section><div id="rustdoc-modnav"><h2 class="in-crate"><a href="../index.html">In crate icn_<wbr>node</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../index.html">icn_node</a></div><h1>Module <span>node</span><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../src/icn_node/node.rs.html#1-2126">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><h2 id="icn-node-icn-node"><a class="doc-anchor" href="#icn-node-icn-node">§</a>ICN Node (<code>icn-node</code>)</h2>
+<p>This crate provides the main binary for running a long-lived InterCooperative Network (ICN) daemon.
+It integrates various core components to operate a functional ICN node, handling initialization,
+lifecycle, configuration, service hosting, and persistence.</p>
+<h3 id="purpose"><a class="doc-anchor" href="#purpose">§</a>Purpose</h3>
+<p>The <code>icn-node</code> is intended to be the core daemon process that participants in the ICN will run.
+It is responsible for:</p>
+<ul>
+<li>Initializing and managing various ICN subsystems (e.g., identity, DAG storage, networking).</li>
+<li>Exposing an API (likely via <code>icn-api</code> implementations like JSON-RPC or gRPC) for clients (including <code>icn-cli</code>) to interact with.</li>
+<li>Participating in the P2P network, discovering peers, and exchanging messages.</li>
+<li>Processing and validating data (e.g., DagBlocks, transactions).</li>
+<li>Managing local data persistence.</li>
+</ul>
+<h3 id="current-functionality-demonstration"><a class="doc-anchor" href="#current-functionality-demonstration">§</a>Current Functionality (Demonstration)</h3>
+<p>The <code>main.rs</code> in this crate currently serves as a demonstration of integrating and using the various library crates (<code>icn-common</code>, <code>icn-api</code>, <code>icn-dag</code>, <code>icn-network</code>). When run, it performs a sequence of operations:</p>
+<ol>
+<li><strong>Node Information &amp; Status:</strong> Calls <code>icn-api</code> functions (<code>get_node_info</code>, <code>get_node_status</code>) to retrieve and display node details. It demonstrates handling both successful calls and simulated error conditions (e.g., node offline).</li>
+<li><strong>DAG Operations:</strong> Demonstrates submitting a sample <code>DagBlock</code> to the local DAG store (via <code>icn-api</code> which uses <code>icn-dag</code>) and then retrieving it.</li>
+<li><strong>Network Operations:</strong>
+<ul>
+<li>When built with <code>with-libp2p</code>, the node spawns a real <code>Libp2pNetworkService</code> and discovers peers via bootstrap addresses.</li>
+<li>Demonstrates submitting another <code>DagBlock</code> and broadcasting its announcement using <code>broadcast_message</code>.</li>
+<li>Demonstrates sending a direct <code>RequestBlock</code> message to a discovered peer using <code>send_message</code>.</li>
+</ul>
+</li>
+</ol>
+<p>All operations show how results and errors from the API and underlying services are handled and printed to the console.</p>
+<h3 id="error-handling"><a class="doc-anchor" href="#error-handling">§</a>Error Handling</h3>
+<p>The node executable aims to handle errors gracefully. Errors from API calls or internal services are caught, and informative messages are printed to <code>stderr</code>. In a production scenario, this would involve more robust logging and potentially different exit strategies or recovery mechanisms.</p>
+<h3 id="public-api-style"><a class="doc-anchor" href="#public-api-style">§</a>Public API Style</h3>
+<p>As a daemon, <code>icn-node</code>’s primary external API will be through network protocols (e.g., RPC exposed by <code>icn-api</code>). Its command-line interface is minimal, primarily for startup and configuration.</p>
+<p>The current <code>main()</code> function is for demonstration and testing the library integrations, not for long-running service yet.</p>
+<h3 id="cli-usage"><a class="doc-anchor" href="#cli-usage">§</a>CLI Usage</h3>
+<p>The node accepts configuration via CLI flags or a TOML/YAML file. Provide the
+file path with <code>--config &lt;path&gt;</code>. CLI flags override values found in the file.
+Below is a minimal example in TOML (the same keys can be used in YAML):</p>
+<div class="example-wrap"><pre class="language-toml"><code>node_name = &quot;Local Node&quot;
+http_listen_addr = &quot;127.0.0.1:8080&quot;
+storage_backend = &quot;rocksdb&quot;
+storage_path = &quot;./icn_data/node_store&quot;
+mana_ledger_path = &quot;./mana_ledger.sled&quot;
+node_did_path = &quot;./icn_data/node_did.txt&quot;
+node_private_key_path = &quot;./icn_data/node_sk.bs58&quot;</code></pre></div>
+<p>To start the node using this configuration:</p>
+<div class="example-wrap"><pre class="language-bash"><code>./target/debug/icn-node --config ./node_config.toml</code></pre></div>
+<p>Any CLI option provided will override the value from the file.</p>
+<h4 id="nested-configuration--environment-variables"><a class="doc-anchor" href="#nested-configuration--environment-variables">§</a>Nested Configuration &amp; Environment Variables</h4>
+<p>Configuration files may organize settings into sections. The following is
+equivalent to the flat example above:</p>
+<div class="example-wrap"><pre class="language-toml"><code>[storage]
+backend = &quot;rocksdb&quot;
+path = &quot;./icn_data/node_store&quot;
+
+[http]
+listen_addr = &quot;127.0.0.1:8080&quot;
+
+[identity]
+node_did_path = &quot;./icn_data/node_did.txt&quot;
+node_private_key_path = &quot;./icn_data/node_sk.bs58&quot;</code></pre></div>
+<p>Every option can also be set via environment variables prefixed with <code>ICN_</code>.
+For example:</p>
+<div class="example-wrap"><pre class="language-bash"><code>ICN_HTTP_LISTEN_ADDR=0.0.0.0:9000 ICN_STORAGE_BACKEND=sqlite \
+    ./target/debug/icn-node --config ./node_config.toml</code></pre></div>
+<p>Environment variables override file values but are in turn overridden by CLI
+flags.</p>
+<p>Useful CLI flags include:</p>
+<ul>
+<li><code>--node-did-path &lt;PATH&gt;</code> – location to read/write the node DID string</li>
+<li><code>--node-private-key-path &lt;PATH&gt;</code> – location to read/write the node private key</li>
+<li><code>--storage-backend &lt;memory|file|sqlite|sled|rocksdb&gt;</code> – choose the DAG storage backend</li>
+<li><code>--storage-path &lt;PATH&gt;</code> – directory for the file or SQLite backends</li>
+<li><code>--mana-ledger-backend &lt;file|sled|sqlite|rocksdb&gt;</code> – choose ledger persistence</li>
+<li><code>--mana-ledger-path &lt;PATH&gt;</code> – location of the mana ledger database</li>
+<li><code>--governance-db-path &lt;PATH&gt;</code> – location to persist governance proposals and votes</li>
+<li><code>--http-listen-addr &lt;ADDR&gt;</code> – HTTP server bind address (default <code>127.0.0.1:7845</code>)</li>
+<li><code>--node-name &lt;NAME&gt;</code> – human-readable node name for logs</li>
+<li><code>--listen-address &lt;MULTIADDR&gt;</code> – libp2p listen multiaddr (alias <code>--p2p-listen-addr</code>)</li>
+<li><code>--bootstrap-peers &lt;LIST&gt;</code> – comma-separated list of bootstrap peer multiaddrs</li>
+<li><code>--enable-p2p</code> – enable libp2p networking (requires <code>with-libp2p</code> feature)</li>
+<li><code>--api-key &lt;KEY&gt;</code> – require this key via the <code>x-api-key</code> header for all requests</li>
+<li><code>auth_token</code> / <code>auth_token_path</code> – set a bearer token string or file and require <code>Authorization: Bearer &lt;token&gt;</code></li>
+<li><code>--open-rate-limit &lt;N&gt;</code> – allowed unauthenticated requests per minute when no API key is set</li>
+<li><code>--tls-cert-path &lt;PATH&gt;</code> – PEM certificate file to enable HTTPS</li>
+<li><code>--tls-key-path &lt;PATH&gt;</code> – PEM private key file to enable HTTPS</li>
+</ul>
+<h4 id="authentication-and-tls"><a class="doc-anchor" href="#authentication-and-tls">§</a>Authentication and TLS</h4>
+<p>If <code>auth_token</code> or <code>auth_token_path</code> is supplied, the server requires
+<code>Authorization: Bearer &lt;token&gt;</code> on every request in addition to any <code>x-api-key</code>.
+Providing both <code>tls_cert_path</code> and <code>tls_key_path</code> switches the HTTP server to
+HTTPS mode using the given PEM files.</p>
+<p>Supplying both TLS options makes the server listen on HTTPS instead of HTTP.</p>
+<p>When the node starts, it will attempt to load its DID and private key from the
+configured paths. If no key material exists, a new Ed25519 key pair is generated
+and written to these files. Subsequent runs will reuse the persisted identity
+allowing consistent node identification across restarts.</p>
+<h3 id="contributing"><a class="doc-anchor" href="#contributing">§</a>Contributing</h3>
+<p>Please refer to the main <code>CONTRIBUTING.md</code> in the root of the <code>icn-core</code> repository.</p>
+<p>Future contributions to <code>icn-node</code> will focus on:</p>
+<ul>
+<li>Implementing a proper main event loop (e.g., using an async runtime like Tokio).</li>
+<li>Integrating a real RPC server.</li>
+<li>Loading configurations from files.</li>
+<li>Managing the lifecycle of different service components.</li>
+<li>Robust logging and metrics.</li>
+</ul>
+<h4 id="metrics-endpoint"><a class="doc-anchor" href="#metrics-endpoint">§</a>Metrics Endpoint</h4>
+<p>The embedded HTTP server exposes <code>/metrics</code> for Prometheus scraping. It returns
+runtime counters such as <code>host_submit_mesh_job_calls</code> in the standard text
+format:</p>
+<div class="example-wrap"><pre class="language-bash"><code>curl http://127.0.0.1:7845/metrics</code></pre></div><h3 id="license"><a class="doc-anchor" href="#license">§</a>License</h3>
+<p>This crate is licensed under the Apache 2.0 license, as is the entire <code>icn-core</code> repository.</p>
+<h2 id="icn-node-crate"><a class="doc-anchor" href="#icn-node-crate">§</a>ICN Node Crate</h2>
+<p>This crate provides the main binary for running a long-lived InterCooperative Network (ICN) daemon.
+It integrates various core components to operate a functional ICN node, handling initialization,
+lifecycle, configuration, service hosting, and persistence.</p>
+</div></details><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><dl class="item-table"><dt><a class="struct" href="struct.Cli.html" title="struct icn_node::node::Cli">Cli</a></dt><dt><a class="struct" href="struct.SubmitJobRequest.html" title="struct icn_node::node::SubmitJobRequest">Submit<wbr>JobRequest</a></dt><dd>Request body for submitting a mesh job.
+Note: <code>id</code> and <code>creator_did</code> will be overridden by the runtime.
+Signature also will be handled by the job submission logic after this initial DTO.</dd><dt><a class="struct" href="struct.SubmitReceiptRequest.html" title="struct icn_node::node::SubmitReceiptRequest">Submit<wbr>Receipt<wbr>Request</a></dt><dd>Request body for submitting an execution receipt</dd></dl><h2 id="functions" class="section-header">Functions<a href="#functions" class="anchor">§</a></h2><dl class="item-table"><dt><a class="fn" href="fn.app_router.html" title="fn icn_node::node::app_router">app_<wbr>router</a></dt><dt><a class="fn" href="fn.app_router_from_context.html" title="fn icn_node::node::app_router_from_context">app_<wbr>router_<wbr>from_<wbr>context</a></dt><dd>Build an Axum [<code>Router</code>] using an already initialized <a href="../../icn_runtime/context/struct.RuntimeContext.html" title="struct icn_runtime::context::RuntimeContext"><code>RuntimeContext</code></a>.</dd><dt><a class="fn" href="fn.app_router_with_options.html" title="fn icn_node::node::app_router_with_options">app_<wbr>router_<wbr>with_<wbr>options</a></dt><dd>Construct a router for tests or embedding with optional API key and rate limit.</dd><dt><a class="fn" href="fn.load_or_generate_identity.html" title="fn icn_node::node::load_or_generate_identity">load_<wbr>or_<wbr>generate_<wbr>identity</a></dt><dd>Load or generate the node identity based on the provided configuration.</dd></dl></section></div></main></body></html>

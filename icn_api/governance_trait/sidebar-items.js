@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ProposalInputType"],"struct":["CastVoteRequest","SubmitProposalRequest"],"trait":["GovernanceApi"]};

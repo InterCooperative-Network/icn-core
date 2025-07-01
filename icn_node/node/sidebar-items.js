@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["app_router","app_router_from_context","app_router_with_options","load_or_generate_identity"],"struct":["Cli","SubmitJobRequest","SubmitReceiptRequest"]};

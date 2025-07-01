@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["serialize_protocol_message"],"struct":["FederationJoinRequest","FederationJoinResponse"]};
