@@ -42,6 +42,11 @@ Welcome to the InterCooperative Network (ICN) Core project! This guide will help
     cargo install wasm-tools --locked
     ```
     ICN crates compile to WebAssembly for deterministic sandboxing. The `wasm32-unknown-unknown` target and `wasm-tools` utilities are required for building and running tests that involve the runtime or CCL compiler.
+6.  **Install Git hooks with `pre-commit`:**
+    ```bash
+    pre-commit install
+    ```
+    This sets up formatting and linting checks that run automatically before each commit.
 
 ## 3. Building and Running Components
 
