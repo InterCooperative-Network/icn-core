@@ -69,11 +69,12 @@ impl SqliteManaLedger {
             Ok(s) => s,
             Err(_) => return Vec::new(),
         };
-        let rows = stmt
-            .query_map([], |row| row.get::<_, String>(0))
-            .unwrap_or_else(|_| Vec::new().into_iter());
-        rows.filter_map(|r| r.ok().and_then(|s| Did::from_str(&s).ok()))
-            .collect()
+        match stmt.query_map([], |row| row.get::<_, String>(0)) {
+            Ok(rows) => rows
+                .filter_map(|r| r.ok().and_then(|s| Did::from_str(&s).ok()))
+                .collect(),
+            Err(_) => Vec::new(),
+        }
     }
 }
 

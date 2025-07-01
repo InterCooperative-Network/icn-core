@@ -343,7 +343,7 @@ pub async fn app_router_with_options(
     mana_ledger_path: Option<PathBuf>,
     storage_backend: Option<crate::config::StorageBackendType>,
     storage_path: Option<PathBuf>,
-    governance_db_path: Option<PathBuf>,
+    _governance_db_path: Option<PathBuf>,
     reputation_db_path: Option<PathBuf>,
 ) -> (Router, Arc<RuntimeContext>) {
     // Generate a new identity for this test/embedded instance
@@ -374,7 +374,7 @@ pub async fn app_router_with_options(
         mana_ledger_path.unwrap_or_else(|| PathBuf::from("./mana_ledger.sled")),
         ledger_backend,
     );
-    let mut rt_ctx = RuntimeContext::new_with_mana_ledger_and_time(
+    let rt_ctx = RuntimeContext::new_with_mana_ledger_and_time(
         node_did.clone(),
         mesh_network_service,
         signer,
@@ -388,7 +388,7 @@ pub async fn app_router_with_options(
 
     #[cfg(feature = "persist-sled")]
     {
-        let gov_path = governance_db_path.unwrap_or_else(|| PathBuf::from("./governance_db"));
+        let gov_path = _governance_db_path.unwrap_or_else(|| PathBuf::from("./governance_db"));
         let gov_mod = icn_governance::GovernanceModule::new_sled(gov_path)
             .unwrap_or_else(|_| icn_governance::GovernanceModule::new());
         if let Some(ctx) = Arc::get_mut(&mut rt_ctx) {
@@ -646,7 +646,7 @@ async fn main() {
     info!("Starting {} with DID: {}", node_name, node_did);
 
     // --- Create RuntimeContext with Networking ---
-    let mut rt_ctx = if config.enable_p2p {
+    let rt_ctx = if config.enable_p2p {
         #[cfg(feature = "enable-libp2p")]
         {
             info!(
@@ -764,12 +764,10 @@ async fn main() {
             .unwrap_or_else(|_| icn_governance::GovernanceModule::new());
         if let Some(ctx) = Arc::get_mut(&mut rt_ctx) {
             ctx.governance_module = Arc::new(TokioMutex::new(gov_mod));
-            if matches.contains_id("reputation_db_path") {
-                if let Ok(store) =
-                    icn_reputation::SledReputationStore::new(config.reputation_db_path.clone())
-                {
-                    ctx.reputation_store = Arc::new(store);
-                }
+            if let Ok(store) =
+                icn_reputation::SledReputationStore::new(config.reputation_db_path.clone())
+            {
+                ctx.reputation_store = Arc::new(store);
             }
         }
     }

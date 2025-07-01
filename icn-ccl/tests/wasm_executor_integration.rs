@@ -1,6 +1,6 @@
 use icn_ccl::{compile_ccl_file_to_wasm, compile_ccl_source_to_wasm};
 use icn_common::{Cid, DagBlock};
-use icn_dag::sled_store::SledDagStore;
+use icn_dag::InMemoryDagStore;
 use icn_identity::{did_key_from_verifying_key, generate_ed25519_keypair, SignatureBytes};
 use icn_mesh::{ActualMeshJob, JobSpec};
 use icn_runtime::context::{RuntimeContext, StubMeshNetworkService, StubSigner};
@@ -14,7 +14,7 @@ use tokio::sync::Mutex as TokioMutex;
 fn ctx_with_temp_store(did: &str, mana: u64) -> Arc<RuntimeContext> {
     let temp = tempfile::tempdir().unwrap();
     let dag_store = Arc::new(TokioMutex::new(
-        SledDagStore::new(temp.path().join("dag")).unwrap(),
+        InMemoryDagStore::new(),
     ));
     let ctx = RuntimeContext::new_with_ledger_path(
         icn_common::Did::from_str(did).unwrap(),
