@@ -7,6 +7,7 @@
 use clap::{Parser, Subcommand};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use icn_common::CommonError;
 use serde_json::Value as JsonValue; // For generic JSON data if needed
 use std::io::{self, Read};
 use std::path::PathBuf;
@@ -21,6 +22,15 @@ use icn_api::governance_trait::{
 };
 use icn_ccl::{compile_ccl_file, compile_ccl_file_to_wasm};
 use icn_governance::{Proposal, ProposalId};
+use anyhow::Error;
+
+fn anyhow_to_common(e: anyhow::Error) -> CommonError {
+    if let Some(c) = e.downcast_ref::<CommonError>() {
+        c.clone()
+    } else {
+        CommonError::UnknownError(e.to_string())
+    }
+}
 
 // --- CLI Argument Parsing ---
 
@@ -205,12 +215,8 @@ async fn main() {
     let client = Client::new();
 
     if let Err(e) = run_command(&cli, &client).await {
-        let msg = e.to_string();
-        if msg.contains("PolicyDenied") {
-            eprintln!("Policy denied: {}", msg);
-        } else {
-            eprintln!("Error: {}", msg);
-        }
+        let err = anyhow_to_common(e);
+        eprintln!("Error: {}", err);
         exit(1);
     }
 }

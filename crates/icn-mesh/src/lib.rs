@@ -14,44 +14,6 @@ use icn_identity::{
 };
 use serde::{Deserialize, Serialize};
 
-/// Errors that can occur within the ICN Mesh subsystem.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum MeshError {
-    /// Operation failed due to insufficient mana.
-    InsufficientMana(String),
-    /// Executor's reputation is too low for the operation.
-    ReputationTooLow(String),
-    /// No suitable executor could be found for the job.
-    NoSuitableExecutor(String),
-    /// The provided bid was invalid.
-    InvalidBid(String),
-    /// The job specification was invalid.
-    InvalidJobSpec(String),
-    /// A bid was submitted more than once for the same executor and job.
-    DuplicateBid(String),
-    /// A network operation failed.
-    NetworkFailure(String),
-    /// An internal error occurred.
-    InternalError(String),
-}
-
-// Optional: Implement std::error::Error and std::fmt::Display for MeshError
-impl std::fmt::Display for MeshError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            MeshError::InsufficientMana(msg) => write!(f, "Insufficient mana: {}", msg),
-            MeshError::ReputationTooLow(msg) => write!(f, "Reputation too low: {}", msg),
-            MeshError::NoSuitableExecutor(msg) => write!(f, "No suitable executor: {}", msg),
-            MeshError::InvalidBid(msg) => write!(f, "Invalid bid: {}", msg),
-            MeshError::InvalidJobSpec(msg) => write!(f, "Invalid job spec: {}", msg),
-            MeshError::DuplicateBid(msg) => write!(f, "Duplicate bid: {}", msg),
-            MeshError::NetworkFailure(msg) => write!(f, "Network failure: {}", msg),
-            MeshError::InternalError(msg) => write!(f, "Internal mesh error: {}", msg),
-        }
-    }
-}
-
-impl std::error::Error for MeshError {}
 
 // Define JobId and Resources if they are not already defined elsewhere
 // For now, let's use a simple type alias or placeholder
@@ -586,13 +548,13 @@ mod tests {
             Ok(())
         }
 
-        fn spend(&self, did: &Did, amount: u64) -> Result<(), icn_economics::EconError> {
+        fn spend(&self, did: &Did, amount: u64) -> Result<(), icn_common::CommonError> {
             let mut map = self.balances.lock().unwrap();
             let bal = map
                 .get_mut(did)
-                .ok_or_else(|| icn_economics::EconError::AdapterError("account".into()))?;
+                .ok_or_else(|| icn_common::CommonError::DatabaseError("account".into()))?;
             if *bal < amount {
-                return Err(icn_economics::EconError::InsufficientBalance(
+                return Err(icn_common::CommonError::PolicyDenied(
                     "insufficient".into(),
                 ));
             }
@@ -600,7 +562,7 @@ mod tests {
             Ok(())
         }
 
-        fn credit(&self, did: &Did, amount: u64) -> Result<(), icn_economics::EconError> {
+        fn credit(&self, did: &Did, amount: u64) -> Result<(), icn_common::CommonError> {
             let mut map = self.balances.lock().unwrap();
             let entry = map.entry(did.clone()).or_insert(0);
             *entry += amount;
@@ -1120,12 +1082,4 @@ mod tests {
         assert!(msg.verify_signature(&vk2).is_err());
     }
 
-    #[test]
-    fn test_mesh_error_display() {
-        let dup = MeshError::DuplicateBid("dup".into()).to_string();
-        assert!(dup.contains("Duplicate bid"));
-
-        let net = MeshError::NetworkFailure("net".into()).to_string();
-        assert!(net.contains("Network failure"));
-    }
 }

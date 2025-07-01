@@ -9,7 +9,6 @@ use downcast_rs::{impl_downcast, DowncastSync};
 use icn_network::libp2p_service::Libp2pNetworkService as ActualLibp2pNetworkService;
 use icn_network::{NetworkMessage, NetworkService as ActualNetworkService};
 
-use icn_economics::EconError;
 #[cfg(not(any(
     feature = "persist-sled",
     feature = "persist-sqlite",
@@ -203,11 +202,12 @@ impl SimpleManaLedger {
     }
 
     pub fn spend(&self, account: &Did, amount: u64) -> Result<(), HostAbiError> {
-        match self.ledger.spend(account, amount) {
-            Ok(()) => Ok(()),
-            Err(EconError::InsufficientBalance(_)) => Err(HostAbiError::InsufficientMana),
-            Err(e) => Err(HostAbiError::InternalError(format!("{e:?}"))),
-        }
+        self.ledger
+            .spend(account, amount)
+            .map_err(|e| match e {
+                CommonError::PolicyDenied(_) => HostAbiError::InsufficientMana,
+                other => HostAbiError::Common(other),
+            })
     }
 
     pub fn credit(&self, account: &Did, amount: u64) -> Result<(), HostAbiError> {
@@ -232,15 +232,15 @@ impl icn_economics::ManaLedger for SimpleManaLedger {
         self.ledger.set_balance(did, amount)
     }
 
-    fn spend(&self, did: &Did, amount: u64) -> Result<(), icn_economics::EconError> {
+    fn spend(&self, did: &Did, amount: u64) -> Result<(), icn_common::CommonError> {
         self.ledger.spend(did, amount)
     }
 
-    fn credit(&self, did: &Did, amount: u64) -> Result<(), icn_economics::EconError> {
+    fn credit(&self, did: &Did, amount: u64) -> Result<(), icn_common::CommonError> {
         self.ledger.credit(did, amount)
     }
 
-    fn credit_all(&self, amount: u64) -> Result<(), icn_economics::EconError> {
+    fn credit_all(&self, amount: u64) -> Result<(), icn_common::CommonError> {
         self.ledger.credit_all(amount)
     }
 
