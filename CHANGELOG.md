@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Kademlia DHT record storage and peer discovery behind `experimental-libp2p`.
 - New scoring algorithm in `icn-mesh` with reputation-based `select_executor`.
 - Introduced `icn-reputation` crate providing `ReputationStore` trait and in-memory implementation.
+- Multi-node CLI with libp2p networking and bootstrap peer discovery.
+- Cross-node mesh job execution pipeline with signed receipts anchored to the DAG.
+- HTTP gateway enabling REST job submission and status queries.
+- Containerized 3-node federation devnet with Docker and integration tests.
 
 ### Changed
 
@@ -33,5 +37,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - First version of crate skeletons.
 
-[Unreleased]: https://github.com/USERNAME/icn-core/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/USERNAME/icn-core/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/USERNAME/icn-core/releases/tag/v0.2.0
 [0.1.0]: https://github.com/USERNAME/icn-core/releases/tag/v0.1.0 
