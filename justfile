@@ -24,3 +24,7 @@ build:
 
 devnet:
     cd icn-devnet && ./launch_federation.sh
+
+# Run the complete validation suite (format, lint, test)
+validate:
+    just format && just lint && just test
