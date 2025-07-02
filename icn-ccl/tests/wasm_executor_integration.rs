@@ -283,3 +283,53 @@ async fn wasm_executor_runs_compiled_file() {
     let expected_cid = Cid::new_v1_sha256(0x55, &11i64.to_le_bytes());
     assert_eq!(receipt.result_cid, expected_cid);
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn wasm_executor_runs_while_loop() {
+    let contract_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/contracts/while_counter.ccl");
+    let (wasm, _) = compile_ccl_file_to_wasm(&contract_path).expect("compile file");
+
+    let ctx = ctx_with_temp_store("did:key:zWhile", 10);
+    let ts = 0u64;
+    let author = icn_common::Did::new("key", "tester");
+    let sig_opt = None;
+    let cid = icn_common::compute_merkle_cid(0x71, &wasm, &[], ts, &author, &sig_opt, &None);
+    let block = DagBlock {
+        cid: cid.clone(),
+        data: wasm.clone(),
+        links: vec![],
+        timestamp: ts,
+        author_did: author,
+        signature: sig_opt,
+        scope: None,
+    };
+    {
+        let mut store = ctx.dag_store.lock().await;
+        store.put(&block).unwrap();
+    }
+
+    let (sk, vk) = generate_ed25519_keypair();
+    let node_did = icn_common::Did::from_str(&did_key_from_verifying_key(&vk)).unwrap();
+    let job = ActualMeshJob {
+        id: Cid::new_v1_sha256(0x55, b"job_while"),
+        manifest_cid: cid,
+        spec: JobSpec::default(),
+        creator_did: node_did.clone(),
+        cost_mana: 0,
+        max_execution_wait_ms: None,
+        signature: SignatureBytes(vec![]),
+    };
+
+    let signer = Arc::new(StubSigner::new_with_keys(sk, vk));
+    let exec = WasmExecutor::new(ctx.clone(), signer, WasmExecutorConfig::default());
+    let job_clone = job.clone();
+    let handle = std::thread::spawn(move || {
+        let rt = Runtime::new().unwrap();
+        rt.block_on(async { exec.execute_job(&job_clone).await })
+    });
+    let receipt = handle.join().unwrap().unwrap();
+    assert_eq!(receipt.executor_did, node_did);
+    let expected_cid = Cid::new_v1_sha256(0x55, &5i64.to_le_bytes());
+    assert_eq!(receipt.result_cid, expected_cid);
+}

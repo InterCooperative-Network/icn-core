@@ -1,6 +1,7 @@
 // icn-ccl/src/wasm_backend.rs
 use crate::ast::{
-    AstNode, BinaryOperator, ExpressionNode, PolicyStatementNode, StatementNode, TypeAnnotationNode,
+    AstNode, BinaryOperator, BlockNode, ExpressionNode, PolicyStatementNode, StatementNode,
+    TypeAnnotationNode,
 };
 use crate::error::CclError;
 use crate::metadata::ContractMetadata;
@@ -11,6 +12,35 @@ use wasm_encoder::{
 };
 
 use std::collections::HashMap;
+
+struct LocalEnv {
+    locals: HashMap<String, (u32, ValType)>,
+    order: Vec<ValType>,
+}
+
+impl LocalEnv {
+    fn new() -> Self {
+        LocalEnv {
+            locals: HashMap::new(),
+            order: Vec::new(),
+        }
+    }
+
+    fn get_or_add(&mut self, name: &str, ty: ValType) -> u32 {
+        if let Some((idx, _)) = self.locals.get(name) {
+            *idx
+        } else {
+            let idx = self.order.len() as u32;
+            self.locals.insert(name.to_string(), (idx, ty));
+            self.order.push(ty);
+            idx
+        }
+    }
+
+    fn get(&self, name: &str) -> Option<(u32, ValType)> {
+        self.locals.get(name).copied()
+    }
+}
 
 const IMPORT_COUNT: u32 = 3;
 
@@ -103,27 +133,17 @@ impl WasmBackend {
                 fn_indices.insert(name.clone(), func_index);
                 next_index += 1;
 
-                let mut func = Function::new(Vec::new());
+                let mut locals = LocalEnv::new();
+                let mut instrs = Vec::<Instruction>::new();
+                self.emit_block(body, &mut instrs, &mut locals, return_type, &fn_indices)?;
+                instrs.push(Instruction::End);
 
-                // Expect a single return statement for now
-                if let Some(StatementNode::Return(expr)) = body.statements.first() {
-                    let expr_ty = self.emit_expression(expr, &mut func, &fn_indices)?;
-                    let expected = map_val_type(return_type)?;
-                    if expr_ty != expected {
-                        return Err(CclError::WasmGenerationError(
-                            "Return type mismatch during codegen".to_string(),
-                        ));
-                    }
-                } else {
-                    return Err(CclError::WasmGenerationError(
-                        "Only simple return-only functions supported".to_string(),
-                    ));
+                let mut func = Function::new_with_locals_types(locals.order.clone());
+                for inst in instrs {
+                    func.instruction(&inst);
                 }
-
-                func.instruction(&Instruction::End);
                 codes.function(&func);
 
-                // Final index within the module = imported count + position in function section
                 let func_index = IMPORT_COUNT + (functions.len() - 1) as u32;
                 exports.export(name, ExportKind::Func, func_index);
                 export_names.push(name.clone());
@@ -171,26 +191,34 @@ impl WasmBackend {
     fn emit_expression(
         &self,
         expr: &ExpressionNode,
-        func: &mut Function,
+        instrs: &mut Vec<Instruction>,
+        locals: &mut LocalEnv,
         indices: &HashMap<String, u32>,
     ) -> Result<ValType, CclError> {
         match expr {
             ExpressionNode::IntegerLiteral(i) => {
-                func.instruction(&Instruction::I64Const(*i));
+                instrs.push(Instruction::I64Const(*i));
                 Ok(ValType::I64)
             }
             ExpressionNode::BooleanLiteral(b) => {
-                func.instruction(&Instruction::I32Const(if *b { 1 } else { 0 }));
+                instrs.push(Instruction::I32Const(if *b { 1 } else { 0 }));
                 Ok(ValType::I32)
+            }
+            ExpressionNode::Identifier(name) => {
+                let (idx, ty) = locals.get(name).ok_or_else(|| {
+                    CclError::WasmGenerationError(format!("Unknown variable {}", name))
+                })?;
+                instrs.push(Instruction::LocalGet(idx));
+                Ok(ty)
             }
             ExpressionNode::FunctionCall { name, arguments } => {
                 let idx = indices.get(name).ok_or_else(|| {
                     CclError::WasmGenerationError(format!("Unknown function {}", name))
                 })?;
                 for arg in arguments {
-                    self.emit_expression(arg, func, indices)?;
+                    self.emit_expression(arg, instrs, locals, indices)?;
                 }
-                func.instruction(&Instruction::Call(*idx));
+                instrs.push(Instruction::Call(*idx));
                 let ret = match name.as_str() {
                     "host_account_get_mana" => ValType::I64,
                     "host_submit_mesh_job" | "host_anchor_receipt" => ValType::I32,
@@ -203,63 +231,63 @@ impl WasmBackend {
                 operator,
                 right,
             } => {
-                let l_ty = self.emit_expression(left, func, indices)?;
-                let r_ty = self.emit_expression(right, func, indices)?;
+                let l_ty = self.emit_expression(left, instrs, locals, indices)?;
+                let r_ty = self.emit_expression(right, instrs, locals, indices)?;
                 match (l_ty, r_ty, operator) {
                     (ValType::I64, ValType::I64, BinaryOperator::Add) => {
-                        func.instruction(&Instruction::I64Add);
+                        instrs.push(Instruction::I64Add);
                         Ok(ValType::I64)
                     }
                     (ValType::I64, ValType::I64, BinaryOperator::Sub) => {
-                        func.instruction(&Instruction::I64Sub);
+                        instrs.push(Instruction::I64Sub);
                         Ok(ValType::I64)
                     }
                     (ValType::I64, ValType::I64, BinaryOperator::Mul) => {
-                        func.instruction(&Instruction::I64Mul);
+                        instrs.push(Instruction::I64Mul);
                         Ok(ValType::I64)
                     }
                     (ValType::I64, ValType::I64, BinaryOperator::Div) => {
-                        func.instruction(&Instruction::I64DivS);
+                        instrs.push(Instruction::I64DivS);
                         Ok(ValType::I64)
                     }
                     (ValType::I64, ValType::I64, BinaryOperator::Eq) => {
-                        func.instruction(&Instruction::I64Eq);
+                        instrs.push(Instruction::I64Eq);
                         Ok(ValType::I32)
                     }
                     (ValType::I64, ValType::I64, BinaryOperator::Neq) => {
-                        func.instruction(&Instruction::I64Ne);
+                        instrs.push(Instruction::I64Ne);
                         Ok(ValType::I32)
                     }
                     (ValType::I64, ValType::I64, BinaryOperator::Lt) => {
-                        func.instruction(&Instruction::I64LtS);
+                        instrs.push(Instruction::I64LtS);
                         Ok(ValType::I32)
                     }
                     (ValType::I64, ValType::I64, BinaryOperator::Lte) => {
-                        func.instruction(&Instruction::I64LeS);
+                        instrs.push(Instruction::I64LeS);
                         Ok(ValType::I32)
                     }
                     (ValType::I64, ValType::I64, BinaryOperator::Gt) => {
-                        func.instruction(&Instruction::I64GtS);
+                        instrs.push(Instruction::I64GtS);
                         Ok(ValType::I32)
                     }
                     (ValType::I64, ValType::I64, BinaryOperator::Gte) => {
-                        func.instruction(&Instruction::I64GeS);
+                        instrs.push(Instruction::I64GeS);
                         Ok(ValType::I32)
                     }
                     (ValType::I32, ValType::I32, BinaryOperator::And) => {
-                        func.instruction(&Instruction::I32And);
+                        instrs.push(Instruction::I32And);
                         Ok(ValType::I32)
                     }
                     (ValType::I32, ValType::I32, BinaryOperator::Or) => {
-                        func.instruction(&Instruction::I32Or);
+                        instrs.push(Instruction::I32Or);
                         Ok(ValType::I32)
                     }
                     (ValType::I32, ValType::I32, BinaryOperator::Eq) => {
-                        func.instruction(&Instruction::I32Eq);
+                        instrs.push(Instruction::I32Eq);
                         Ok(ValType::I32)
                     }
                     (ValType::I32, ValType::I32, BinaryOperator::Neq) => {
-                        func.instruction(&Instruction::I32Ne);
+                        instrs.push(Instruction::I32Ne);
                         Ok(ValType::I32)
                     }
                     _ => Err(CclError::WasmGenerationError(
@@ -271,6 +299,73 @@ impl WasmBackend {
                 "Unsupported expression type".to_string(),
             )),
         }
+    }
+
+    fn emit_statement(
+        &self,
+        stmt: &StatementNode,
+        instrs: &mut Vec<Instruction>,
+        locals: &mut LocalEnv,
+        return_ty: &TypeAnnotationNode,
+        indices: &HashMap<String, u32>,
+    ) -> Result<(), CclError> {
+        match stmt {
+            StatementNode::Let { name, value } => {
+                let ty = self.emit_expression(value, instrs, locals, indices)?;
+                let idx = locals.get_or_add(name, ty);
+                instrs.push(Instruction::LocalSet(idx));
+            }
+            StatementNode::ExpressionStatement(expr) => {
+                self.emit_expression(expr, instrs, locals, indices)?;
+                instrs.push(Instruction::Drop);
+            }
+            StatementNode::Return(expr) => {
+                let ty = self.emit_expression(expr, instrs, locals, indices)?;
+                let expected = map_val_type(return_ty)?;
+                if ty != expected {
+                    return Err(CclError::WasmGenerationError(
+                        "Return type mismatch during codegen".to_string(),
+                    ));
+                }
+                instrs.push(Instruction::Return);
+            }
+            StatementNode::If { .. } => {
+                return Err(CclError::WasmGenerationError(
+                    "if statements not supported in wasm backend".to_string(),
+                ));
+            }
+            StatementNode::WhileLoop { condition, body } => {
+                instrs.push(Instruction::Block(wasm_encoder::BlockType::Empty));
+                instrs.push(Instruction::Loop(wasm_encoder::BlockType::Empty));
+                let cond_ty = self.emit_expression(condition, instrs, locals, indices)?;
+                if cond_ty != ValType::I32 {
+                    return Err(CclError::WasmGenerationError(
+                        "While condition must be boolean".to_string(),
+                    ));
+                }
+                instrs.push(Instruction::I32Eqz);
+                instrs.push(Instruction::BrIf(1));
+                self.emit_block(body, instrs, locals, return_ty, indices)?;
+                instrs.push(Instruction::Br(0));
+                instrs.push(Instruction::End);
+                instrs.push(Instruction::End);
+            }
+        }
+        Ok(())
+    }
+
+    fn emit_block(
+        &self,
+        block: &BlockNode,
+        instrs: &mut Vec<Instruction>,
+        locals: &mut LocalEnv,
+        return_ty: &TypeAnnotationNode,
+        indices: &HashMap<String, u32>,
+    ) -> Result<(), CclError> {
+        for stmt in &block.statements {
+            self.emit_statement(stmt, instrs, locals, return_ty, indices)?;
+        }
+        Ok(())
     }
 }
 

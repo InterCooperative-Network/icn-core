@@ -69,6 +69,15 @@ impl SemanticAnalyzer {
         None
     }
 
+    fn lookup_symbol_mut(&mut self, name: &str) -> Option<&mut Symbol> {
+        for scope in self.symbol_table_stack.iter_mut().rev() {
+            if let Some(sym) = scope.get_mut(name) {
+                return Some(sym);
+            }
+        }
+        None
+    }
+
     fn visit_node(&mut self, node: &AstNode) -> Result<(), CclError> {
         match node {
             AstNode::Policy(statements) => {
@@ -174,7 +183,17 @@ impl SemanticAnalyzer {
         match stmt {
             StatementNode::Let { name, value } => {
                 let ty = self.evaluate_expression(value)?;
-                self.insert_symbol(name.clone(), Symbol::Variable { type_ann: ty })?;
+                if let Some(Symbol::Variable { type_ann }) = self.lookup_symbol_mut(name) {
+                    if !ty.compatible_with(type_ann) {
+                        return Err(CclError::TypeError(format!(
+                            "Assignment type mismatch: expected {:?}, got {:?}",
+                            type_ann, ty
+                        )));
+                    }
+                    *type_ann = ty;
+                } else {
+                    self.insert_symbol(name.clone(), Symbol::Variable { type_ann: ty })?;
+                }
             }
             StatementNode::ExpressionStatement(expr) => {
                 self.evaluate_expression(expr)?;
@@ -205,6 +224,15 @@ impl SemanticAnalyzer {
                 if let Some(b) = else_block {
                     self.visit_block(b, found_return)?;
                 }
+            }
+            StatementNode::WhileLoop { condition, body } => {
+                let cond_ty = self.evaluate_expression(condition)?;
+                if cond_ty != TypeAnnotationNode::Bool {
+                    return Err(CclError::TypeError(
+                        "While condition must be Bool".to_string(),
+                    ));
+                }
+                self.visit_block(body, found_return)?;
             }
         }
         Ok(())
