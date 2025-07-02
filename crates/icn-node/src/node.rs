@@ -374,7 +374,7 @@ pub async fn app_router_with_options(
         mana_ledger_path.unwrap_or_else(|| PathBuf::from("./mana_ledger.sled")),
         ledger_backend,
     );
-    let rt_ctx = RuntimeContext::new_with_mana_ledger_and_time(
+    let mut rt_ctx = RuntimeContext::new_with_mana_ledger_and_time(
         node_did.clone(),
         mesh_network_service,
         signer,
@@ -646,7 +646,7 @@ async fn main() {
     info!("Starting {} with DID: {}", node_name, node_did);
 
     // --- Create RuntimeContext with Networking ---
-    let rt_ctx = if config.enable_p2p {
+    let mut rt_ctx = if config.enable_p2p {
         #[cfg(feature = "enable-libp2p")]
         {
             info!(
