@@ -14,10 +14,29 @@ use icn_identity::{
 };
 use serde::{Deserialize, Serialize};
 
+/// Unique identifier for a mesh job.
+///
+/// Wraps a [`Cid`] to enforce type safety when referencing jobs.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct JobId(pub Cid);
 
-// Define JobId and Resources if they are not already defined elsewhere
-// For now, let's use a simple type alias or placeholder
-pub type JobId = Cid;
+impl From<Cid> for JobId {
+    fn from(c: Cid) -> Self {
+        JobId(c)
+    }
+}
+
+impl From<JobId> for Cid {
+    fn from(j: JobId) -> Self {
+        j.0
+    }
+}
+
+impl std::fmt::Display for JobId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 /// Execution resource capabilities offered in a bid.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Resources {
@@ -554,9 +573,7 @@ mod tests {
                 .get_mut(did)
                 .ok_or_else(|| icn_common::CommonError::DatabaseError("account".into()))?;
             if *bal < amount {
-                return Err(icn_common::CommonError::PolicyDenied(
-                    "insufficient".into(),
-                ));
+                return Err(icn_common::CommonError::PolicyDenied("insufficient".into()));
             }
             *bal -= amount;
             Ok(())
@@ -1081,5 +1098,4 @@ mod tests {
         let (_sk2, vk2) = icn_identity::generate_ed25519_keypair();
         assert!(msg.verify_signature(&vk2).is_err());
     }
-
 }

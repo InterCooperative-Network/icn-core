@@ -1853,9 +1853,20 @@ impl HostEnvironment for ConcreteHostEnvironment {
             ctx_clone
                 .spend_mana(&ctx_clone.current_identity, job.cost_mana)
                 .await?;
-            let job_id_val = NEXT_JOB_ID.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-            let cid = Cid::new_v1_sha256(0x55, format!("job_cid_{job_id_val}").as_bytes());
-            job.id = cid.clone();
+            use sha2::{Digest, Sha256};
+            let mut h = Sha256::new();
+            h.update(job.manifest_cid.to_string().as_bytes());
+            let spec_bytes = serde_json::to_vec(&job.spec)
+                .map_err(|e| HostAbiError::InternalError(e.to_string()))?;
+            h.update(&spec_bytes);
+            h.update(&job.cost_mana.to_le_bytes());
+            if let Some(ms) = job.max_execution_wait_ms {
+                h.update(&ms.to_le_bytes());
+            }
+            h.update(ctx_clone.current_identity.to_string().as_bytes());
+            let digest = h.finalize();
+            let cid = Cid::new_v1_sha256(0x55, &digest);
+            job.id = icn_mesh::JobId::from(cid.clone());
             job.creator_did = ctx_clone.current_identity.clone();
             ctx_clone.internal_queue_mesh_job(job).await?;
             Ok::<Cid, HostAbiError>(cid)
@@ -2185,7 +2196,7 @@ mod tests {
             RuntimeContext::new_with_stubs_and_mana("did:icn:test:env_submit", 100).unwrap();
 
         let job = ActualMeshJob {
-            id: Cid::new_v1_sha256(0x55, b"job"),
+            id: icn_mesh::JobId::from(Cid::new_v1_sha256(0x55, b"job")),
             manifest_cid: Cid::new_v1_sha256(0x55, b"manifest"),
             spec: icn_mesh::JobSpec::default(),
             creator_did: ctx_arc.current_identity.clone(),
@@ -2300,7 +2311,7 @@ mod tests {
             .expect("stub network");
 
         let job = ActualMeshJob {
-            id: Cid::new_v1_sha256(0x55, b"job_update"),
+            id: icn_mesh::JobId::from(Cid::new_v1_sha256(0x55, b"job_update")),
             manifest_cid: Cid::new_v1_sha256(0x55, b"man"),
             spec: icn_mesh::JobSpec::default(),
             creator_did: Did::from_str("did:icn:test:creator").unwrap(),

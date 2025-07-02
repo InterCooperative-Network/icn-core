@@ -54,7 +54,7 @@ pub fn execute_icn_script(info: &NodeInfo, script_id: &str) -> Result<String, Co
 pub async fn host_submit_mesh_job(
     ctx: &std::sync::Arc<RuntimeContext>,
     job_json: &str,
-) -> Result<Cid, HostAbiError> {
+) -> Result<icn_mesh::JobId, HostAbiError> {
     metrics::HOST_SUBMIT_MESH_JOB_CALLS.inc();
     println!(
         "[RUNTIME_ABI] host_submit_mesh_job called with job_json: {}",
@@ -95,13 +95,23 @@ pub async fn host_submit_mesh_job(
 
     // 3. Prepare and queue the job.
     //    ID and submitter are overridden here.
-    let job_id_val = context::NEXT_JOB_ID.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-    // Create a dummy CID for the JobId for now.
-    // In a real scenario, this might be derived from the job content or other unique inputs.
-    let job_id_cid = Cid::new_v1_sha256(0x55, format!("job_cid_{}", job_id_val).as_bytes());
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(job_to_submit.manifest_cid.to_string().as_bytes());
+    let spec_bytes = serde_json::to_vec(&job_to_submit.spec)
+        .map_err(|e| HostAbiError::InternalError(format!("Spec serialization failed: {e}")))?;
+    hasher.update(&spec_bytes);
+    hasher.update(&job_to_submit.cost_mana.to_le_bytes());
+    if let Some(ms) = job_to_submit.max_execution_wait_ms {
+        hasher.update(&ms.to_le_bytes());
+    }
+    hasher.update(ctx.current_identity.to_string().as_bytes());
+    let digest = hasher.finalize();
+    let job_id_cid = Cid::new_v1_sha256(0x55, &digest);
 
-    job_to_submit.id = job_id_cid.clone();
+    job_to_submit.id = icn_mesh::JobId::from(job_id_cid.clone());
     job_to_submit.creator_did = ctx.current_identity.clone();
+    let return_id = job_to_submit.id.clone();
 
     // Call the internal queuing function on RuntimeContext. It will
     // automatically execute the job if the manifest references a compiled
@@ -110,11 +120,11 @@ pub async fn host_submit_mesh_job(
 
     println!(
         "[RUNTIME_ABI] Job {:?} submitted by {:?} with cost {} was queued successfully.",
-        job_id_cid, ctx.current_identity, job_to_submit.cost_mana
+        job_to_submit.id, ctx.current_identity, job_to_submit.cost_mana
     );
 
-    // 4. Return JobId (which is now a Cid).
-    Ok(job_id_cid)
+    // 4. Return JobId.
+    Ok(return_id)
 }
 
 /// ABI Index: (defined in `abi::ABI_HOST_GET_PENDING_MESH_JOBS`)
@@ -341,15 +351,15 @@ pub fn wasm_host_submit_mesh_job(
         }
     };
     let handle = tokio::runtime::Handle::current();
-    let cid = match handle.block_on(host_submit_mesh_job(caller.data(), &job_json)) {
+    let job_id = match handle.block_on(host_submit_mesh_job(caller.data(), &job_json)) {
         Ok(c) => c,
         Err(e) => {
             log::error!("wasm_host_submit_mesh_job runtime error: {e:?}");
             return 0;
         }
     };
-    let cid_str = cid.to_string();
-    match memory::write_string_limited(&mut caller, out_ptr, &cid_str, out_len) {
+    let id_str = job_id.to_string();
+    match memory::write_string_limited(&mut caller, out_ptr, &id_str, out_len) {
         Ok(w) => w,
         Err(e) => {
             log::error!("wasm_host_submit_mesh_job write error: {e:?}");
