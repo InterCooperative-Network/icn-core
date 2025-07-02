@@ -186,7 +186,7 @@ fn dummy_job_json(mana_cost: u64) -> String {
 }
 
 fn dummy_receipt_json(job_id_str: &str, executor_did_str: &str, result_cid_str: &str) -> String {
-    let job_id = JobId(job_id_str.to_string());
+    let job_id = JobId::from(Cid::new_v1_sha256(0x55, job_id_str.as_bytes()));
     let executor_did = Did::from_str(executor_did_str).unwrap();
     // For Cid, we need a proper Cid structure for JSON.
     // This is a simplified Cid for the dummy receipt.
@@ -437,7 +437,7 @@ async fn executor_recheck_failure_after_selection() {
     let exec = Did::from_str("did:icn:test:exec_recheck").unwrap();
     ledger.set_balance(&exec, 5).unwrap();
 
-    let job_id = JobId("job_recheck".into());
+    let job_id = JobId::from(Cid::new_v1_sha256(0x55, b"job_recheck"));
     let bid = Bid {
         job_id: job_id.clone(),
         executor_did: exec.clone(),
@@ -467,8 +467,7 @@ async fn anchor_receipt_returns_dag_error() {
     let mut ctx = create_test_runtime_context("did:icn:test:dag_error", 10);
     ctx.dag_store = Arc::new(TokioMutex::new(FailingDagStore::default()));
 
-    let receipt_json =
-        dummy_receipt_json("job_err", &ctx.current_identity.to_string(), "res");
+    let receipt_json = dummy_receipt_json("job_err", &ctx.current_identity.to_string(), "res");
     let result = host_anchor_receipt(&mut ctx, &receipt_json, &ReputationUpdater::new()).await;
     assert!(matches!(result, Err(HostAbiError::DagOperationFailed(_))));
 }
@@ -478,8 +477,7 @@ async fn reputation_update_panic() {
     let mut ctx = create_test_runtime_context("did:icn:test:rep_panic", 10);
     ctx.reputation_store = Arc::new(FailingReputationStore::default());
 
-    let receipt_json =
-        dummy_receipt_json("job_panic", &ctx.current_identity.to_string(), "res");
+    let receipt_json = dummy_receipt_json("job_panic", &ctx.current_identity.to_string(), "res");
     let result = std::panic::AssertUnwindSafe(host_anchor_receipt(
         &mut ctx,
         &receipt_json,
@@ -502,7 +500,7 @@ async fn test_executor_selection_bidder_loses_mana() {
     rep_store.set_score(exec_a.clone(), 5);
     rep_store.set_score(exec_b.clone(), 4);
 
-    let job_id = JobId("job_mana_drop".into());
+    let job_id = JobId::from(Cid::new_v1_sha256(0x55, b"job_mana_drop"));
     let bid_a = Bid {
         job_id: job_id.clone(),
         executor_did: exec_a.clone(),
@@ -635,11 +633,8 @@ async fn simple_executor_ccl_job() {
         signature: SignatureBytes(vec![]),
     };
 
-    let exec = SimpleExecutor::with_context(
-        ctx.current_identity.clone(),
-        sk,
-        std::sync::Arc::new(ctx),
-    );
+    let exec =
+        SimpleExecutor::with_context(ctx.current_identity.clone(), sk, std::sync::Arc::new(ctx));
     let receipt = exec.execute_job(&job).await.unwrap();
     let expected = Cid::new_v1_sha256(0x55, &8i64.to_le_bytes());
     assert_eq!(receipt.result_cid, expected);
