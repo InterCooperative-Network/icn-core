@@ -52,6 +52,27 @@ pub trait StorageService<B: Clone + Serialize + for<'de> Deserialize<'de>> {
     fn contains(&self, cid: &Cid) -> Result<bool, CommonError>;
 }
 
+// --- Asynchronous Storage Service Trait ---
+
+/// Async variant of [`StorageService`] using `async` methods for non-blocking I/O.
+#[cfg(feature = "async")]
+#[async_trait::async_trait]
+pub trait AsyncStorageService<B: Clone + Serialize + for<'de> Deserialize<'de>>:
+    Send + Sync
+{
+    /// Asynchronously store a block.
+    async fn put(&mut self, block: &B) -> Result<(), CommonError>;
+
+    /// Asynchronously retrieve a block by its CID.
+    async fn get(&self, cid: &Cid) -> Result<Option<B>, CommonError>;
+
+    /// Asynchronously delete a block by CID.
+    async fn delete(&mut self, cid: &Cid) -> Result<(), CommonError>;
+
+    /// Asynchronously check if the store contains a CID.
+    async fn contains(&self, cid: &Cid) -> Result<bool, CommonError>;
+}
+
 // --- In-Memory DAG Store ---
 
 /// Simple in-memory implementation of [`StorageService`] for tests and examples.
@@ -87,6 +108,26 @@ impl StorageService<DagBlock> for InMemoryDagStore {
 
     fn contains(&self, cid: &Cid) -> Result<bool, CommonError> {
         Ok(self.store.contains_key(cid))
+    }
+}
+
+#[cfg(feature = "async")]
+#[async_trait::async_trait]
+impl AsyncStorageService<DagBlock> for InMemoryDagStore {
+    async fn put(&mut self, block: &DagBlock) -> Result<(), CommonError> {
+        self.put(block)
+    }
+
+    async fn get(&self, cid: &Cid) -> Result<Option<DagBlock>, CommonError> {
+        self.get(cid)
+    }
+
+    async fn delete(&mut self, cid: &Cid) -> Result<(), CommonError> {
+        self.delete(cid)
+    }
+
+    async fn contains(&self, cid: &Cid) -> Result<bool, CommonError> {
+        self.contains(cid)
     }
 }
 
@@ -221,6 +262,134 @@ impl StorageService<DagBlock> for FileDagStore {
     fn contains(&self, cid: &Cid) -> Result<bool, CommonError> {
         let path = self.block_path(cid);
         Ok(path.exists())
+    }
+}
+
+// --- Tokio-based asynchronous file DAG store ---
+
+/// Asynchronous file-based store using `tokio::fs` for non-blocking I/O.
+#[cfg(feature = "async")]
+#[derive(Debug)]
+pub struct TokioFileDagStore {
+    storage_path: PathBuf,
+}
+
+#[cfg(feature = "async")]
+impl TokioFileDagStore {
+    /// Create a new store rooted at `storage_path`, creating the directory if needed.
+    pub async fn new(storage_path: PathBuf) -> Result<Self, CommonError> {
+        if tokio::fs::metadata(&storage_path).await.is_err() {
+            tokio::fs::create_dir_all(&storage_path)
+                .await
+                .map_err(|e| {
+                    CommonError::IoError(format!(
+                        "Failed to create storage directory {:?}: {}",
+                        storage_path, e
+                    ))
+                })?;
+        }
+        let meta = tokio::fs::metadata(&storage_path).await.map_err(|e| {
+            CommonError::IoError(format!(
+                "Failed to stat storage directory {:?}: {}",
+                storage_path, e
+            ))
+        })?;
+        if !meta.is_dir() {
+            return Err(CommonError::IoError(format!(
+                "Storage path {:?} is not a directory",
+                storage_path
+            )));
+        }
+        Ok(Self { storage_path })
+    }
+
+    fn block_path(&self, cid: &Cid) -> PathBuf {
+        self.storage_path.join(cid.to_string())
+    }
+
+    async fn put_block_to_file(&self, block: &DagBlock) -> Result<(), CommonError> {
+        icn_common::verify_block_integrity(block)?;
+        let file_path = self.block_path(&block.cid);
+        let serialized_block = serde_json::to_string(block).map_err(|e| {
+            CommonError::SerializationError(format!(
+                "Failed to serialize block {}: {}",
+                block.cid, e
+            ))
+        })?;
+
+        let mut file = tokio::fs::File::create(&file_path).await.map_err(|e| {
+            CommonError::IoError(format!(
+                "Failed to open/create file {:?} for writing: {}",
+                file_path, e
+            ))
+        })?;
+        use tokio::io::AsyncWriteExt;
+        file.write_all(serialized_block.as_bytes())
+            .await
+            .map_err(|e| {
+                CommonError::IoError(format!(
+                    "Failed to write block {} to file {:?}: {}",
+                    block.cid, file_path, e
+                ))
+            })?;
+        Ok(())
+    }
+
+    async fn get_block_from_file(&self, cid: &Cid) -> Result<Option<DagBlock>, CommonError> {
+        let file_path = self.block_path(cid);
+        if tokio::fs::metadata(&file_path).await.is_err() {
+            return Ok(None);
+        }
+        let contents = tokio::fs::read_to_string(&file_path).await.map_err(|e| {
+            CommonError::IoError(format!(
+                "Failed to read block {} from file {:?}: {}",
+                cid, file_path, e
+            ))
+        })?;
+
+        let block_data: DagBlock = serde_json::from_str(&contents).map_err(|e| {
+            CommonError::DeserializationError(format!(
+                "Failed to deserialize block {} from file {:?}: {}",
+                cid, file_path, e
+            ))
+        })?;
+        if &block_data.cid != cid {
+            return Err(CommonError::InvalidInputError(format!(
+                "CID mismatch for block read from file {:?}. Expected CID {}, got {}.",
+                file_path, cid, block_data.cid
+            )));
+        }
+        Ok(Some(block_data))
+    }
+
+    async fn delete_block_file(&self, cid: &Cid) -> Result<(), CommonError> {
+        let file_path = self.block_path(cid);
+        if tokio::fs::metadata(&file_path).await.is_ok() {
+            tokio::fs::remove_file(&file_path).await.map_err(|e| {
+                CommonError::IoError(format!("Failed to delete file {:?}: {}", file_path, e))
+            })?;
+        }
+        Ok(())
+    }
+}
+
+#[cfg(feature = "async")]
+#[async_trait::async_trait]
+impl AsyncStorageService<DagBlock> for TokioFileDagStore {
+    async fn put(&mut self, block: &DagBlock) -> Result<(), CommonError> {
+        self.put_block_to_file(block).await
+    }
+
+    async fn get(&self, cid: &Cid) -> Result<Option<DagBlock>, CommonError> {
+        self.get_block_from_file(cid).await
+    }
+
+    async fn delete(&mut self, cid: &Cid) -> Result<(), CommonError> {
+        self.delete_block_file(cid).await
+    }
+
+    async fn contains(&self, cid: &Cid) -> Result<bool, CommonError> {
+        Ok(tokio::fs::metadata(self.block_path(cid)).await.is_ok())
     }
 }
 
@@ -373,6 +542,68 @@ mod tests {
         assert!(store.contains(&block2.cid).unwrap());
     }
 
+    #[cfg(feature = "async")]
+    async fn test_async_storage_service_suite<S: AsyncStorageService<DagBlock> + Send>(
+        store: &mut S,
+    ) {
+        let block1 = create_test_block("block1_service_test_async");
+        let block2 = create_test_block("block2_service_test_async");
+
+        assert!(store.put(&block1).await.is_ok());
+        assert!(store.contains(&block1.cid).await.unwrap());
+        assert!(!store.contains(&block2.cid).await.unwrap());
+
+        match store.get(&block1.cid).await {
+            Ok(Some(retrieved_block)) => assert_eq!(retrieved_block.cid, block1.cid),
+            _ => panic!("Failed to get block1"),
+        }
+        assert!(store.get(&block2.cid).await.unwrap().is_none());
+
+        let modified_block1_data =
+            format!("modified data for {}", "block1_service_test_async").into_bytes();
+        let timestamp = 1u64;
+        let author = Did::new("key", "tester");
+        let sig = None;
+        let cid = compute_merkle_cid(
+            0x71,
+            &modified_block1_data,
+            &[],
+            timestamp,
+            &author,
+            &sig,
+            &None,
+        );
+        let modified_block1 = DagBlock {
+            cid,
+            data: modified_block1_data,
+            links: vec![],
+            timestamp,
+            author_did: author,
+            signature: sig,
+            scope: None,
+        };
+        assert!(store.put(&modified_block1).await.is_ok());
+        match store.get(&block1.cid).await {
+            Ok(Some(retrieved_block)) => {
+                assert_eq!(retrieved_block.cid, block1.cid);
+                assert_ne!(retrieved_block.data, block1.data);
+                assert_eq!(retrieved_block.data, modified_block1.data);
+            }
+            _ => panic!("Failed to get modified block1 after overwrite"),
+        }
+
+        assert!(store.delete(&block1.cid).await.is_ok());
+        assert!(!store.contains(&block1.cid).await.unwrap());
+        assert!(store.get(&block1.cid).await.unwrap().is_none());
+
+        assert!(store.delete(&block2.cid).await.is_ok());
+        let non_existent_cid = Cid::new_v1_sha256(0x55, b"non_existent_for_delete_async");
+        assert!(store.delete(&non_existent_cid).await.is_ok());
+
+        assert!(store.put(&block2).await.is_ok());
+        assert!(store.contains(&block2.cid).await.unwrap());
+    }
+
     #[test]
     #[ignore]
     fn test_in_memory_dag_store_service() {
@@ -423,6 +654,30 @@ mod tests {
             Ok(Some(_)) => panic!("Should have failed with CID mismatch"),
             Ok(None) => panic!("Block should exist but be corrupted (CID mismatch), not None"),
             Err(e) => panic!("Expected InvalidInputError for CID mismatch, got other error: {e:?}"),
+        }
+    }
+
+    #[cfg(feature = "async")]
+    #[tokio::test]
+    async fn test_tokio_file_dag_store_service() {
+        let dir = tempdir().unwrap();
+        let mut store = TokioFileDagStore::new(dir.path().to_path_buf())
+            .await
+            .unwrap();
+        test_async_storage_service_suite(&mut store).await;
+
+        let block_persist = create_test_block("persistent_block_async");
+        store.put(&block_persist).await.unwrap();
+        let store_path = store.storage_path.clone();
+        drop(store);
+
+        let mut store2 = TokioFileDagStore::new(store_path).await.unwrap();
+        match store2.get(&block_persist.cid).await {
+            Ok(Some(retrieved_block)) => {
+                assert_eq!(retrieved_block.cid, block_persist.cid);
+                assert_eq!(retrieved_block.data, block_persist.data);
+            }
+            _ => panic!("Failed to retrieve persistent block from TokioFileDagStore"),
         }
     }
 

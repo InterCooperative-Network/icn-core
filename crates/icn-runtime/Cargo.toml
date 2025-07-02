@@ -54,6 +54,7 @@ persist-sled = ["icn-governance/persist-sled", "icn-reputation/persist-sled"]
 persist-sqlite = ["icn-governance/persist-sled", "icn-reputation/persist-sqlite", "icn-economics/persist-sqlite"]
 persist-rocksdb = ["icn-governance/persist-sled", "icn-reputation/persist-rocksdb", "icn-economics/persist-rocksdb"]
 cli = ["dep:clap"]
+async = ["icn-dag/async"]
 
 # Integration tests for cross-node functionality
 [[test]]

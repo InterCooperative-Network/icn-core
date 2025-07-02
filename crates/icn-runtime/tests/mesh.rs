@@ -9,6 +9,9 @@
 // crates/icn-runtime/tests/mesh.rs
 
 use icn_common::{compute_merkle_cid, Cid, Did};
+#[cfg(feature = "async")]
+use icn_dag::AsyncStorageService as StorageService;
+#[cfg(not(feature = "async"))]
 use icn_dag::StorageService;
 use icn_identity::generate_ed25519_keypair;
 use icn_identity::{ExecutionReceipt as IdentityExecutionReceipt, SignatureBytes};

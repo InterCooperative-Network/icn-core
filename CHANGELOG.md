@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - New scoring algorithm in `icn-mesh` with reputation-based `select_executor`.
 - Introduced `icn-reputation` crate providing `ReputationStore` trait and in-memory implementation.
 - Multi-node CLI with libp2p networking and bootstrap peer discovery.
+- AsyncStorageService trait and TokioFileDagStore for async DAG I/O.
 - Cross-node mesh job execution pipeline with signed receipts anchored to the DAG.
 - HTTP gateway enabling REST job submission and status queries.
 - Containerized 3-node federation devnet with Docker and integration tests.

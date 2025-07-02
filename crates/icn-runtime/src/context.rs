@@ -96,12 +96,15 @@ pub trait Signer: Send + Sync + std::fmt::Debug {
 
 #[cfg(feature = "persist-rocksdb")]
 use icn_dag::rocksdb_store::RocksDagStore;
+#[cfg(feature = "async")]
+use icn_dag::AsyncStorageService as DagStorageService;
 #[cfg(not(any(
     feature = "persist-rocksdb",
     feature = "persist-sled",
     feature = "persist-sqlite"
 )))]
 use icn_dag::FileDagStore;
+#[cfg(not(feature = "async"))]
 use icn_dag::StorageService as DagStorageService;
 
 // Placeholder for icn_economics::ManaRepository
@@ -2051,6 +2054,26 @@ impl DagStorageService<DagBlock> for StubDagStore {
 
     fn contains(&self, cid: &Cid) -> Result<bool, CommonError> {
         Ok(self.store.contains_key(cid))
+    }
+}
+
+#[cfg(feature = "async")]
+#[async_trait::async_trait]
+impl icn_dag::AsyncStorageService<DagBlock> for StubDagStore {
+    async fn put(&mut self, block: &DagBlock) -> Result<(), CommonError> {
+        self.put(block)
+    }
+
+    async fn get(&self, cid: &Cid) -> Result<Option<DagBlock>, CommonError> {
+        self.get(cid)
+    }
+
+    async fn delete(&mut self, cid: &Cid) -> Result<(), CommonError> {
+        self.delete(cid)
+    }
+
+    async fn contains(&self, cid: &Cid) -> Result<bool, CommonError> {
+        self.contains(cid)
     }
 }
 
