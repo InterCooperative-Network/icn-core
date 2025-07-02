@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/icn-node/src/node.rs`."><title>node.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-84e720fa.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="icn_node" data-themes="" data-resource-suffix="" data-rustdoc-version="1.90.0-nightly (f26e58023 2025-06-30)" data-channel="nightly" data-search-js="search-179e01a3.js" data-settings-js="settings-5514c975.js" ><script src="../../static.files/storage-4e99c027.js"></script><script defer src="../../static.files/src-script-813739b1.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-340f468f.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-32bb7600.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">icn_node/</div>node.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-4"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="attr">#![doc = <span class="macro">include_str!</span>(<span class="string">"../README.md"</span>)]
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/icn-node/src/node.rs`."><title>node.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-84e720fa.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="icn_node" data-themes="" data-resource-suffix="" data-rustdoc-version="1.90.0-nightly (71e4c005c 2025-07-01)" data-channel="nightly" data-search-js="search-179e01a3.js" data-settings-js="settings-5514c975.js" ><script src="../../static.files/storage-4e99c027.js"></script><script defer src="../../static.files/src-script-813739b1.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-340f468f.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-32bb7600.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">icn_node/</div>node.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-4"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="attr">#![doc = <span class="macro">include_str!</span>(<span class="string">"../README.md"</span>)]
 <a href=#2 id=2 data-nosnippet>2</a>#![allow(
 <a href=#3 id=3 data-nosnippet>3</a>    clippy::uninlined_format_args,
 <a href=#4 id=4 data-nosnippet>4</a>    clippy::clone_on_copy,
@@ -374,7 +374,7 @@
 <a href=#374 id=374 data-nosnippet>374</a>        mana_ledger_path.unwrap_or_else(|| PathBuf::from(<span class="string">"./mana_ledger.sled"</span>)),
 <a href=#375 id=375 data-nosnippet>375</a>        ledger_backend,
 <a href=#376 id=376 data-nosnippet>376</a>    );
-<a href=#377 id=377 data-nosnippet>377</a>    <span class="kw">let </span>rt_ctx = RuntimeContext::new_with_mana_ledger_and_time(
+<a href=#377 id=377 data-nosnippet>377</a>    <span class="kw">let </span><span class="kw-2">mut </span>rt_ctx = RuntimeContext::new_with_mana_ledger_and_time(
 <a href=#378 id=378 data-nosnippet>378</a>        node_did.clone(),
 <a href=#379 id=379 data-nosnippet>379</a>        mesh_network_service,
 <a href=#380 id=380 data-nosnippet>380</a>        signer,
@@ -646,7 +646,7 @@
 <a href=#646 id=646 data-nosnippet>646</a>    <span class="macro">info!</span>(<span class="string">"Starting {} with DID: {}"</span>, node_name, node_did);
 <a href=#647 id=647 data-nosnippet>647</a>
 <a href=#648 id=648 data-nosnippet>648</a>    <span class="comment">// --- Create RuntimeContext with Networking ---
-<a href=#649 id=649 data-nosnippet>649</a>    </span><span class="kw">let </span>rt_ctx = <span class="kw">if </span>config.enable_p2p {
+<a href=#649 id=649 data-nosnippet>649</a>    </span><span class="kw">let </span><span class="kw-2">mut </span>rt_ctx = <span class="kw">if </span>config.enable_p2p {
 <a href=#650 id=650 data-nosnippet>650</a>        <span class="attr">#[cfg(feature = <span class="string">"enable-libp2p"</span>)]
 <a href=#651 id=651 data-nosnippet>651</a>        </span>{
 <a href=#652 id=652 data-nosnippet>652</a>            <span class="macro">info!</span>(
@@ -2086,41 +2086,45 @@
 <a href=#2086 id=2086 data-nosnippet>2086</a>        <span class="kw">let </span>exec_did = did_key_from_verifying_key(<span class="kw-2">&amp;</span>vk);
 <a href=#2087 id=2087 data-nosnippet>2087</a>        <span class="kw">let </span>exec_did = Did::from_str(<span class="kw-2">&amp;</span>exec_did).unwrap();
 <a href=#2088 id=2088 data-nosnippet>2088</a>        <span class="kw">let </span>signer = std::sync::Arc::new(icn_runtime::context::StubSigner::new_with_keys(sk, vk));
-<a href=#2089 id=2089 data-nosnippet>2089</a>        <span class="kw">let </span>executor = WasmExecutor::new(ctx.clone(), signer);
-<a href=#2090 id=2090 data-nosnippet>2090</a>        <span class="kw">let </span>job = ActualMeshJob {
-<a href=#2091 id=2091 data-nosnippet>2091</a>            id: job_id.clone(),
-<a href=#2092 id=2092 data-nosnippet>2092</a>            manifest_cid: wasm_cid.clone(),
-<a href=#2093 id=2093 data-nosnippet>2093</a>            spec: JobSpec::default(),
-<a href=#2094 id=2094 data-nosnippet>2094</a>            creator_did: ctx.current_identity.clone(),
-<a href=#2095 id=2095 data-nosnippet>2095</a>            cost_mana: <span class="number">0</span>,
-<a href=#2096 id=2096 data-nosnippet>2096</a>            max_execution_wait_ms: <span class="prelude-val">None</span>,
-<a href=#2097 id=2097 data-nosnippet>2097</a>            signature: SignatureBytes(<span class="macro">vec!</span>[]),
-<a href=#2098 id=2098 data-nosnippet>2098</a>        };
-<a href=#2099 id=2099 data-nosnippet>2099</a>        <span class="kw">let </span>receipt_cid = executor
-<a href=#2100 id=2100 data-nosnippet>2100</a>            .execute_and_anchor_job(<span class="kw-2">&amp;</span>job)
-<a href=#2101 id=2101 data-nosnippet>2101</a>            .<span class="kw">await
-<a href=#2102 id=2102 data-nosnippet>2102</a>            </span>.expect(<span class="string">"exec and anchor"</span>);
-<a href=#2103 id=2103 data-nosnippet>2103</a>
-<a href=#2104 id=2104 data-nosnippet>2104</a>        <span class="comment">// Fetch the anchored receipt via HTTP
-<a href=#2105 id=2105 data-nosnippet>2105</a>        </span><span class="kw">let </span>get_req = Request::builder()
-<a href=#2106 id=2106 data-nosnippet>2106</a>            .method(<span class="string">"POST"</span>)
-<a href=#2107 id=2107 data-nosnippet>2107</a>            .uri(<span class="string">"/dag/get"</span>)
-<a href=#2108 id=2108 data-nosnippet>2108</a>            .header(<span class="string">"content-type"</span>, <span class="string">"application/json"</span>)
-<a href=#2109 id=2109 data-nosnippet>2109</a>            .body(Body::from(
-<a href=#2110 id=2110 data-nosnippet>2110</a>                serde_json::to_vec(<span class="kw-2">&amp;</span><span class="macro">serde_json::json!</span>({
-<a href=#2111 id=2111 data-nosnippet>2111</a>                    <span class="string">"cid"</span>: receipt_cid.to_string()
-<a href=#2112 id=2112 data-nosnippet>2112</a>                }))
-<a href=#2113 id=2113 data-nosnippet>2113</a>                .unwrap(),
-<a href=#2114 id=2114 data-nosnippet>2114</a>            ))
-<a href=#2115 id=2115 data-nosnippet>2115</a>            .unwrap();
-<a href=#2116 id=2116 data-nosnippet>2116</a>        <span class="kw">let </span>get_resp = app.clone().oneshot(get_req).<span class="kw">await</span>.unwrap();
-<a href=#2117 id=2117 data-nosnippet>2117</a>        <span class="macro">assert_eq!</span>(get_resp.status(), StatusCode::OK);
-<a href=#2118 id=2118 data-nosnippet>2118</a>        <span class="kw">let </span>receipt_bytes = axum::body::to_bytes(get_resp.into_body(), usize::MAX)
-<a href=#2119 id=2119 data-nosnippet>2119</a>            .<span class="kw">await
-<a href=#2120 id=2120 data-nosnippet>2120</a>            </span>.unwrap();
-<a href=#2121 id=2121 data-nosnippet>2121</a>        <span class="kw">let </span>receipt: icn_identity::ExecutionReceipt =
-<a href=#2122 id=2122 data-nosnippet>2122</a>            serde_json::from_slice(<span class="kw-2">&amp;</span>receipt_bytes).unwrap();
-<a href=#2123 id=2123 data-nosnippet>2123</a>        <span class="macro">assert_eq!</span>(receipt.job_id, job_id);
-<a href=#2124 id=2124 data-nosnippet>2124</a>        <span class="macro">assert_eq!</span>(receipt.executor_did, exec_did);
-<a href=#2125 id=2125 data-nosnippet>2125</a>    }
-<a href=#2126 id=2126 data-nosnippet>2126</a>}</code></pre></div></section></main></body></html>
+<a href=#2089 id=2089 data-nosnippet>2089</a>        <span class="kw">let </span>executor = WasmExecutor::new(
+<a href=#2090 id=2090 data-nosnippet>2090</a>            ctx.clone(),
+<a href=#2091 id=2091 data-nosnippet>2091</a>            signer,
+<a href=#2092 id=2092 data-nosnippet>2092</a>            icn_runtime::executor::WasmExecutorConfig::default(),
+<a href=#2093 id=2093 data-nosnippet>2093</a>        );
+<a href=#2094 id=2094 data-nosnippet>2094</a>        <span class="kw">let </span>job = ActualMeshJob {
+<a href=#2095 id=2095 data-nosnippet>2095</a>            id: job_id.clone(),
+<a href=#2096 id=2096 data-nosnippet>2096</a>            manifest_cid: wasm_cid.clone(),
+<a href=#2097 id=2097 data-nosnippet>2097</a>            spec: JobSpec::default(),
+<a href=#2098 id=2098 data-nosnippet>2098</a>            creator_did: ctx.current_identity.clone(),
+<a href=#2099 id=2099 data-nosnippet>2099</a>            cost_mana: <span class="number">0</span>,
+<a href=#2100 id=2100 data-nosnippet>2100</a>            max_execution_wait_ms: <span class="prelude-val">None</span>,
+<a href=#2101 id=2101 data-nosnippet>2101</a>            signature: SignatureBytes(<span class="macro">vec!</span>[]),
+<a href=#2102 id=2102 data-nosnippet>2102</a>        };
+<a href=#2103 id=2103 data-nosnippet>2103</a>        <span class="kw">let </span>receipt_cid = executor
+<a href=#2104 id=2104 data-nosnippet>2104</a>            .execute_and_anchor_job(<span class="kw-2">&amp;</span>job)
+<a href=#2105 id=2105 data-nosnippet>2105</a>            .<span class="kw">await
+<a href=#2106 id=2106 data-nosnippet>2106</a>            </span>.expect(<span class="string">"exec and anchor"</span>);
+<a href=#2107 id=2107 data-nosnippet>2107</a>
+<a href=#2108 id=2108 data-nosnippet>2108</a>        <span class="comment">// Fetch the anchored receipt via HTTP
+<a href=#2109 id=2109 data-nosnippet>2109</a>        </span><span class="kw">let </span>get_req = Request::builder()
+<a href=#2110 id=2110 data-nosnippet>2110</a>            .method(<span class="string">"POST"</span>)
+<a href=#2111 id=2111 data-nosnippet>2111</a>            .uri(<span class="string">"/dag/get"</span>)
+<a href=#2112 id=2112 data-nosnippet>2112</a>            .header(<span class="string">"content-type"</span>, <span class="string">"application/json"</span>)
+<a href=#2113 id=2113 data-nosnippet>2113</a>            .body(Body::from(
+<a href=#2114 id=2114 data-nosnippet>2114</a>                serde_json::to_vec(<span class="kw-2">&amp;</span><span class="macro">serde_json::json!</span>({
+<a href=#2115 id=2115 data-nosnippet>2115</a>                    <span class="string">"cid"</span>: receipt_cid.to_string()
+<a href=#2116 id=2116 data-nosnippet>2116</a>                }))
+<a href=#2117 id=2117 data-nosnippet>2117</a>                .unwrap(),
+<a href=#2118 id=2118 data-nosnippet>2118</a>            ))
+<a href=#2119 id=2119 data-nosnippet>2119</a>            .unwrap();
+<a href=#2120 id=2120 data-nosnippet>2120</a>        <span class="kw">let </span>get_resp = app.clone().oneshot(get_req).<span class="kw">await</span>.unwrap();
+<a href=#2121 id=2121 data-nosnippet>2121</a>        <span class="macro">assert_eq!</span>(get_resp.status(), StatusCode::OK);
+<a href=#2122 id=2122 data-nosnippet>2122</a>        <span class="kw">let </span>receipt_bytes = axum::body::to_bytes(get_resp.into_body(), usize::MAX)
+<a href=#2123 id=2123 data-nosnippet>2123</a>            .<span class="kw">await
+<a href=#2124 id=2124 data-nosnippet>2124</a>            </span>.unwrap();
+<a href=#2125 id=2125 data-nosnippet>2125</a>        <span class="kw">let </span>receipt: icn_identity::ExecutionReceipt =
+<a href=#2126 id=2126 data-nosnippet>2126</a>            serde_json::from_slice(<span class="kw-2">&amp;</span>receipt_bytes).unwrap();
+<a href=#2127 id=2127 data-nosnippet>2127</a>        <span class="macro">assert_eq!</span>(receipt.job_id, job_id);
+<a href=#2128 id=2128 data-nosnippet>2128</a>        <span class="macro">assert_eq!</span>(receipt.executor_did, exec_did);
+<a href=#2129 id=2129 data-nosnippet>2129</a>    }
+<a href=#2130 id=2130 data-nosnippet>2130</a>}</code></pre></div></section></main></body></html>

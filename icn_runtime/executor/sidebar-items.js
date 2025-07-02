@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["SimpleExecutor","WasmExecutor"],"trait":["JobExecutor"]};
+window.SIDEBAR_ITEMS = {"struct":["SimpleExecutor","WasmExecutor","WasmExecutorConfig"],"trait":["JobExecutor"]};
