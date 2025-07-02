@@ -25,7 +25,7 @@ pub use icn_dag::StorageService;
 // Re-export ABI constants
 pub use abi::*;
 use icn_common::{Cid, CommonError, Did, NodeInfo};
-use log::{debug, info};
+use log::{debug, info, warn};
 use std::str::FromStr;
 
 /// Placeholder function demonstrating use of common types for runtime operations.
@@ -56,10 +56,7 @@ pub async fn host_submit_mesh_job(
     job_json: &str,
 ) -> Result<icn_mesh::JobId, HostAbiError> {
     metrics::HOST_SUBMIT_MESH_JOB_CALLS.inc();
-    println!(
-        "[RUNTIME_ABI] host_submit_mesh_job called with job_json: {}",
-        job_json
-    );
+    debug!("[host_submit_mesh_job] called with job_json: {}", job_json);
 
     if job_json.is_empty() {
         return Err(HostAbiError::InvalidParameters(
@@ -118,8 +115,8 @@ pub async fn host_submit_mesh_job(
     // CCL module.
     ctx.internal_queue_mesh_job(job_to_submit.clone()).await?;
 
-    println!(
-        "[RUNTIME_ABI] Job {:?} submitted by {:?} with cost {} was queued successfully.",
+    info!(
+        "[host_submit_mesh_job] Job {:?} submitted by {:?} with cost {} queued successfully.",
         job_to_submit.id, ctx.current_identity, job_to_submit.cost_mana
     );
 
@@ -137,7 +134,7 @@ pub fn host_get_pending_mesh_jobs(
     ctx: &RuntimeContext,
 ) -> Result<Vec<icn_mesh::ActualMeshJob>, HostAbiError> {
     metrics::HOST_GET_PENDING_MESH_JOBS_CALLS.inc();
-    println!("[RUNTIME_ABI] host_get_pending_mesh_jobs called.");
+    debug!("[host_get_pending_mesh_jobs] called");
 
     // Directly clone the jobs from the queue. This provides a snapshot.
     // Depending on WASM interface, this might need to be serialized (e.g., to JSON).
@@ -151,7 +148,10 @@ pub fn host_get_pending_mesh_jobs(
             .collect::<Vec<icn_mesh::ActualMeshJob>>()
     });
 
-    println!("[RUNTIME_ABI] Returning {} pending jobs.", jobs.len());
+    debug!(
+        "[host_get_pending_mesh_jobs] Returning {} pending jobs.",
+        jobs.len()
+    );
     Ok(jobs)
 }
 
@@ -169,8 +169,8 @@ pub async fn host_account_get_mana(
     account_id_str: &str,
 ) -> Result<u64, HostAbiError> {
     metrics::HOST_ACCOUNT_GET_MANA_CALLS.inc();
-    println!(
-        "[RUNTIME_ABI] host_account_get_mana called for account: {}",
+    debug!(
+        "[host_account_get_mana] called for account: {}",
         account_id_str
     );
 
@@ -203,8 +203,8 @@ pub async fn host_account_spend_mana(
     amount: u64,
 ) -> Result<(), HostAbiError> {
     metrics::HOST_ACCOUNT_SPEND_MANA_CALLS.inc();
-    println!(
-        "[RUNTIME_ABI] host_account_spend_mana called for account: {} amount: {}",
+    debug!(
+        "[host_account_spend_mana] called for account: {} amount: {}",
         account_id_str, amount
     );
 
@@ -241,8 +241,8 @@ pub async fn host_account_credit_mana(
     account_id_str: &str,
     amount: u64,
 ) -> Result<(), HostAbiError> {
-    println!(
-        "[RUNTIME_ABI] host_account_credit_mana called for account: {} amount: {}",
+    info!(
+        "[host_account_credit_mana] called for account: {} amount: {}",
         account_id_str, amount
     );
 
@@ -255,8 +255,8 @@ pub async fn host_account_credit_mana(
         // Crediting zero might be permissible, but often indicates an issue.
         // For now, let's allow it but log a warning. Or return InvalidParameters.
         // Sticking with allowing it for now.
-        println!(
-            "[RUNTIME_ABI_WARN] host_account_credit_mana called with amount zero for account: {}",
+        warn!(
+            "[host_account_credit_mana] called with amount zero for account: {}",
             account_id_str
         );
     }

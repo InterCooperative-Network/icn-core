@@ -938,7 +938,10 @@ impl RuntimeContext {
         queue.push_back(job.clone());
         let mut states = self.job_states.lock().await;
         states.insert(job.id.clone(), JobState::Pending);
-        println!("[CONTEXT] Queued mesh job: id={:?}, state=Pending", job.id);
+        info!(
+            "[RuntimeContext] Queued mesh job: id={:?}, state=Pending",
+            job.id
+        );
 
         if job.spec.kind.is_ccl_wasm() {
             let signer = self.signer.clone();
@@ -1322,13 +1325,16 @@ impl RuntimeContext {
     }
 
     pub async fn get_mana(&self, account: &Did) -> Result<u64, HostAbiError> {
-        println!("[CONTEXT] get_mana called for account: {:?}", account);
+        debug!(
+            "[RuntimeContext] get_mana called for account: {:?}",
+            account
+        );
         Ok(self.mana_ledger.get_balance(account))
     }
 
     pub async fn spend_mana(&self, account: &Did, amount: u64) -> Result<(), HostAbiError> {
-        println!(
-            "[CONTEXT] spend_mana called for account: {:?} amount: {}",
+        debug!(
+            "[RuntimeContext] spend_mana called for account: {:?} amount: {}",
             account, amount
         );
         if account != &self.current_identity {
@@ -1341,8 +1347,8 @@ impl RuntimeContext {
     }
 
     pub async fn credit_mana(&self, account: &Did, amount: u64) -> Result<(), HostAbiError> {
-        println!(
-            "[CONTEXT] credit_mana called for account: {:?} amount: {}",
+        debug!(
+            "[RuntimeContext] credit_mana called for account: {:?} amount: {}",
             account, amount
         );
         icn_economics::credit_mana(self.mana_ledger.clone(), account, amount)
@@ -1409,8 +1415,13 @@ impl RuntimeContext {
         let mut store = self.dag_store.lock().await;
         store.put(&block).map_err(HostAbiError::Common)?;
         let cid = block.cid.clone();
-        println!("[CONTEXT] Anchored receipt for job_id {:?} with CID: {:?}. Executor: {:?}. Receipt cost {}ms.", 
-                 receipt.job_id, cid, receipt.executor_did, receipt.cpu_ms);
+        info!(
+            "[RuntimeContext] Anchored receipt for job_id {:?} with CID: {:?}. Executor: {:?}. Receipt cost {}ms.",
+            receipt.job_id,
+            cid,
+            receipt.executor_did,
+            receipt.cpu_ms
+        );
 
         {
             let mut job_states_guard = self.job_states.lock().await;
@@ -1420,14 +1431,15 @@ impl RuntimeContext {
                     receipt: receipt.clone(),
                 },
             );
-            println!(
-                "[CONTEXT] Job {:?} state updated to Completed.",
+            debug!(
+                "[RuntimeContext] Job {:?} state updated to Completed.",
                 receipt.job_id
             );
         }
-        println!(
-            "[CONTEXT] Placeholder: Reputation update needed for executor {:?} for job {:?}.",
-            receipt.executor_did, receipt.job_id
+        debug!(
+            "[RuntimeContext] Placeholder: Reputation update needed for executor {:?} for job {:?}.",
+            receipt.executor_did,
+            receipt.job_id
         );
         Ok(cid)
     }
@@ -2090,17 +2102,17 @@ impl MeshNetworkService for StubMeshNetworkService {
     }
 
     async fn announce_job(&self, job: &ActualMeshJob) -> Result<(), HostAbiError> {
-        println!("[StubMeshNetworkService] Announced job: {:?}", job.id);
+        debug!("[StubMeshNetworkService] Announced job: {:?}", job.id);
         Ok(())
     }
 
     async fn announce_proposal(&self, _proposal_bytes: Vec<u8>) -> Result<(), HostAbiError> {
-        println!("[StubMeshNetworkService] Announced proposal (stub)");
+        debug!("[StubMeshNetworkService] Announced proposal (stub)");
         Ok(())
     }
 
     async fn announce_vote(&self, _vote_bytes: Vec<u8>) -> Result<(), HostAbiError> {
-        println!("[StubMeshNetworkService] Announced vote (stub)");
+        debug!("[StubMeshNetworkService] Announced vote (stub)");
         Ok(())
     }
 
@@ -2109,21 +2121,21 @@ impl MeshNetworkService for StubMeshNetworkService {
         job_id: &JobId,
         _duration: StdDuration,
     ) -> Result<Vec<MeshJobBid>, HostAbiError> {
-        println!(
+        debug!(
             "[StubMeshNetworkService] Collecting bids for job {:?}.",
             job_id
         );
         let mut bids_map = self.staged_bids.lock().await;
         if let Some(job_bids_queue) = bids_map.get_mut(job_id) {
             let bids: Vec<MeshJobBid> = job_bids_queue.drain(..).collect();
-            println!(
+            debug!(
                 "[StubMeshNetworkService] Found {} staged bids for job {:?}",
                 bids.len(),
                 job_id
             );
             Ok(bids)
         } else {
-            println!(
+            debug!(
                 "[StubMeshNetworkService] No staged bids found for job {:?}. Returning empty vec.",
                 job_id
             );
@@ -2135,7 +2147,7 @@ impl MeshNetworkService for StubMeshNetworkService {
         &self,
         notice: &JobAssignmentNotice,
     ) -> Result<(), HostAbiError> {
-        println!(
+        debug!(
             "[StubMeshNetworkService] Broadcast assignment for job {:?} to executor {:?}",
             notice.job_id, notice.executor_did
         );
@@ -2150,7 +2162,7 @@ impl MeshNetworkService for StubMeshNetworkService {
     ) -> Result<Option<IdentityExecutionReceipt>, HostAbiError> {
         let mut receipts_queue = self.staged_receipts.lock().await;
         if let Some(receipt_msg) = receipts_queue.pop_front() {
-            println!(
+            debug!(
                 "[StubMeshNetworkService] try_receive_receipt: Popped staged receipt for job {:?}",
                 receipt_msg.receipt.job_id
             );
