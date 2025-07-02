@@ -13,7 +13,7 @@ We are committed to ensuring the security of the InterCooperative Network (ICN) 
 
 The ICN Core team and community take all security vulnerabilities seriously. Thank you for improving the security of our project. We appreciate your efforts and responsible disclosure and will make every effort to acknowledge your contributions.
 
-To report a security vulnerability, please email the lead maintainers at [INSERT SECURITY CONTACT EMAIL HERE].
+To report a security vulnerability, please email the lead maintainers at [security@intercooperative.network](mailto:security@intercooperative.network).
 
 Please include the following details with your report:
 
