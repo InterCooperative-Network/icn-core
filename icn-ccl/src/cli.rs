@@ -220,6 +220,12 @@ fn stmt_to_string(stmt: &StatementNode, indent: usize) -> String {
             }
             s
         }
+        StatementNode::WhileLoop { condition, body } => {
+            let mut s = String::new();
+            s.push_str(&format!("while {} ", expr_to_string(condition)));
+            s.push_str(&block_to_string(body, indent));
+            s
+        }
     }
 }
 

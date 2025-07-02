@@ -281,6 +281,19 @@ pub(crate) fn parse_block(pair: Pair<Rule>) -> Result<BlockNode, CclError> {
                         else_block,
                     });
                 }
+                Rule::while_statement => {
+                    let mut inner = actual_statement_pair.into_inner();
+                    let cond_pair = inner.next().ok_or_else(|| {
+                        CclError::ParsingError("While statement missing condition".to_string())
+                    })?;
+                    let body_pair = inner.next().ok_or_else(|| {
+                        CclError::ParsingError("While statement missing body".to_string())
+                    })?;
+                    statements.push(StatementNode::WhileLoop {
+                        condition: parse_expression(cond_pair)?,
+                        body: parse_block(body_pair)?,
+                    });
+                }
                 _ => {
                     return Err(CclError::ParsingError(format!(
                         "Unsupported statement type: {:?}",

@@ -88,6 +88,10 @@ impl Optimizer {
                 then_block: self.fold_block(then_block),
                 else_block: else_block.map(|b| self.fold_block(b)),
             },
+            StatementNode::WhileLoop { condition, body } => StatementNode::WhileLoop {
+                condition: self.fold_expr(condition),
+                body: self.fold_block(body),
+            },
         }
     }
 

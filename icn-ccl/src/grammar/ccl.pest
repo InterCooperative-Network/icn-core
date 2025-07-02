@@ -25,11 +25,12 @@ import_statement = { "import" ~ string_literal ~ "as" ~ identifier ~ ";" }
 
 // Example: Block of statements
 block = { "{" ~ statement* ~ "}" }
-statement = { let_statement | expression_statement | return_statement | if_statement }
+statement = { let_statement | expression_statement | return_statement | if_statement | while_statement }
 let_statement = { "let" ~ identifier ~ "=" ~ expression ~ ";" }
 expression_statement = { expression ~ ";" }
 return_statement = { "return" ~ expression ~ ";" }
 if_statement = { "if" ~ expression ~ block ~ ("else" ~ block)? }
+while_statement = { "while" ~ expression ~ block }
 
 // Example: Expressions (highly simplified)
 expression = { logical_or }

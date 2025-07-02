@@ -81,6 +81,10 @@ pub enum StatementNode {
         then_block: BlockNode,
         else_block: Option<BlockNode>,
     },
+    WhileLoop {
+        condition: ExpressionNode,
+        body: BlockNode,
+    },
     // ... other statement types (loop, etc.)
 }
 
