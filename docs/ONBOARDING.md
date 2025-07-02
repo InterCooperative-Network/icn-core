@@ -307,7 +307,7 @@ cargo run -p icn-node --config node_config.toml
     *   **`icn-api`**: Defines functions that act as the API layer for node interactions. Currently, these are direct function calls but are designed to be adaptable for RPC.
     *   **`icn-dag`**: Implements L1 DAG block storage (currently an in-memory `HashMap`).
     *   **`icn-network`**: Contains networking abstractions (`NetworkService` trait, `NetworkMessage` enum) and a `StubNetworkService` for testing.
-    *   **`icn-identity`**: Placeholders for DID management and cryptographic functions.
+    *   **`icn-identity`**: Provides an initial module for DID management and cryptographic functions.
     *   **`icn-node`**: The main binary executable that runs a persistent HTTP server for the ICN node API.
     *   **`icn-cli`**: The command-line interface client that interacts with `icn-node` via HTTP.
     *   Other crates (`icn-economics`, `icn-governance`, etc.) are placeholders for future development.
