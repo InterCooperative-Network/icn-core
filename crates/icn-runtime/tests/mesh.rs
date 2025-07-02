@@ -33,7 +33,7 @@ use tokio::time::{sleep, timeout, Duration};
 // Helper to create a test ActualMeshJob with all required fields
 fn create_test_mesh_job(manifest_cid: Cid, cost_mana: u64, creator_did: Did) -> ActualMeshJob {
     ActualMeshJob {
-        id: Cid::new_v1_sha256(0x55, b"test_job_id"),
+        id: JobId(Cid::new_v1_sha256(0x55, b"test_job_id")),
         manifest_cid,
         spec: JobSpec::default(),
         creator_did,
@@ -86,7 +86,7 @@ async fn assert_job_state(
         ) => {
             if let Some(data) = expected_receipt_data {
                 assert_eq!(
-                    &receipt.job_id, &data.job_id,
+                    &receipt.job_id, &data.job_id.clone().into(),
                     "Completed receipt job_id mismatch"
                 );
                 assert_eq!(
@@ -254,7 +254,7 @@ async fn test_mesh_job_full_lifecycle_happy_path() {
 
     // Create the receipt and sign it using the public API
     let unsigned_receipt = IdentityExecutionReceipt {
-        job_id: submitted_job_id.clone(),
+        job_id: submitted_job_id.clone().into(),
         executor_did: executor_did.clone(),
         result_cid: result_cid.clone(),
         cpu_ms: 100,
@@ -270,7 +270,7 @@ async fn test_mesh_job_full_lifecycle_happy_path() {
         .expect("Failed to sign receipt");
 
     let signed_receipt = IdentityExecutionReceipt {
-        job_id: submitted_job_id.clone(),
+        job_id: submitted_job_id.clone().into(),
         executor_did: executor_did.clone(),
         result_cid: result_cid.clone(),
         cpu_ms: 100,
@@ -292,7 +292,7 @@ async fn test_mesh_job_full_lifecycle_happy_path() {
 
     assert!(retrieved_receipt.is_some(), "No receipt retrieved");
     let retrieved_receipt = retrieved_receipt.unwrap();
-    assert_eq!(retrieved_receipt.job_id, submitted_job_id);
+    assert_eq!(retrieved_receipt.job_id, submitted_job_id.clone().into());
     assert_eq!(retrieved_receipt.executor_did, executor_did);
 
     // 5. Test DAG anchoring - for now just verify the receipt structure
@@ -300,7 +300,7 @@ async fn test_mesh_job_full_lifecycle_happy_path() {
         !retrieved_receipt.sig.0.is_empty(),
         "Receipt should have a signature"
     );
-    assert_eq!(retrieved_receipt.job_id, submitted_job_id);
+    assert_eq!(retrieved_receipt.job_id, submitted_job_id.into());
     assert_eq!(retrieved_receipt.executor_did, executor_did);
 
     // Store in DAG using the job manager's storage
@@ -446,7 +446,7 @@ async fn test_invalid_receipt_wrong_executor() {
         .expect("Failed to sign receipt");
 
     let forged_receipt = IdentityExecutionReceipt {
-        job_id: submitted_job_id.clone(),
+        job_id: submitted_job_id.clone().into(),
         executor_did: wrong_executor_did.clone(), // Wrong executor DID
         result_cid: Cid::new_v1_sha256(0x55, b"result_invalid_executor"),
         cpu_ms: 50,
@@ -486,7 +486,7 @@ async fn test_invalid_receipt_wrong_executor() {
         .expect("Failed to sign receipt");
 
     let correct_receipt = IdentityExecutionReceipt {
-        job_id: submitted_job_id.clone(),
+        job_id: submitted_job_id.clone().into(),
         executor_did: correct_executor_ctx.current_identity.clone(),
         result_cid: Cid::new_v1_sha256(0x55, b"result_invalid_executor"),
         cpu_ms: 50,
@@ -598,7 +598,7 @@ fn create_test_job_payload_and_cost(submitter: &Did, job_cost: u64) -> (String, 
 /// Creates a `MeshJobBid` for the provided job using the executor context.
 fn create_test_bid(job_id: &Cid, executor_ctx: &Arc<RuntimeContext>, price: u64) -> MeshJobBid {
     let unsigned = MeshJobBid {
-        job_id: job_id.clone(), // JobId is a Cid here
+        job_id: JobId(job_id.clone()), // JobId is a Cid here
         executor_did: executor_ctx.current_identity.clone(),
         price_mana: price,
         resources: Resources::default(),
@@ -625,7 +625,7 @@ async fn assign_job_to_executor_directly(
     );
     let mut states = job_manager_ctx.job_states.lock().await;
     states.insert(
-        job_id,
+        JobId(job_id),
         JobState::Assigned {
             executor: assigned_executor_did.clone(),
         },
@@ -652,8 +652,8 @@ async fn test_job_assignment_with_two_executors() {
 
     // Stage bids from two executors with different prices
     let network = get_stub_network_service(&submitter_ctx);
-    let bid1 = create_test_bid(&job_id, &executor1_ctx, 15);
-    let bid2 = create_test_bid(&job_id, &executor2_ctx, 5);
+    let bid1 = create_test_bid(&job_id.clone().into(), &executor1_ctx, 15);
+    let bid2 = create_test_bid(&job_id.clone().into(), &executor2_ctx, 5);
     network.stage_bid(job_id.clone(), bid1).await;
     network.stage_bid(job_id.clone(), bid2).await;
 
@@ -671,7 +671,7 @@ async fn test_job_assignment_with_two_executors() {
         .executor_did
         .clone();
 
-    assign_job_to_executor_directly(&submitter_ctx, job_id.clone(), &selected).await;
+    assign_job_to_executor_directly(&submitter_ctx, job_id.clone().into(), &selected).await;
 
     assert_job_state(
         &submitter_ctx,
@@ -795,7 +795,7 @@ async fn test_full_mesh_job_cycle_libp2p() -> Result<(), anyhow::Error> {
         let job_id = Cid::new_v1_sha256(0x55, format!("test_job_{}", suffix).as_bytes());
         let manifest_cid = Cid::new_v1_sha256(0x55, format!("manifest_{}", suffix).as_bytes());
         ActualMeshJob {
-            id: job_id,
+            id: JobId(job_id),
             manifest_cid,
             spec: JobSpec {
                 kind: JobKind::Echo {
@@ -843,7 +843,7 @@ async fn test_full_mesh_job_cycle_libp2p() -> Result<(), anyhow::Error> {
     timeout(Duration::from_secs(5), async {
         loop {
             if let Some(NetworkMessage::MeshJobAnnouncement(job)) = recv_b.recv().await {
-                if job.id == job_id {
+                if job.id == job_id.clone().into() {
                     break;
                 }
             }
@@ -873,7 +873,7 @@ async fn test_full_mesh_job_cycle_libp2p() -> Result<(), anyhow::Error> {
     timeout(Duration::from_secs(5), async {
         loop {
             if let Some(NetworkMessage::BidSubmission(b)) = recv_a.recv().await {
-                if b.job_id == job_id {
+                if b.job_id == job_id.clone().into() {
                     break;
                 }
             }
@@ -911,7 +911,7 @@ async fn test_full_mesh_job_cycle_libp2p() -> Result<(), anyhow::Error> {
     let final_receipt = timeout(Duration::from_secs(5), async {
         loop {
             if let Some(NetworkMessage::SubmitReceipt(r)) = recv_a.recv().await {
-                if r.job_id == job_id {
+                if r.job_id == job_id.clone().into() {
                     break r;
                 }
             }

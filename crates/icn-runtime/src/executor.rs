@@ -154,7 +154,7 @@ impl JobExecutor for SimpleExecutor {
         let cpu_ms = start_time.elapsed().unwrap_or_default().as_millis() as u64;
 
         let unsigned_receipt = IdentityExecutionReceipt {
-            job_id: job.id.clone(),
+            job_id: job.id.clone().into(),
             executor_did: self.node_did.clone(),
             result_cid,
             cpu_ms,
@@ -315,7 +315,7 @@ impl JobExecutor for WasmExecutor {
             .sign(&msg)
             .map_err(|e| CommonError::InternalError(format!("{:?}", e)))?;
         let receipt = IdentityExecutionReceipt {
-            job_id: job.id.clone(),
+            job_id: job.id.clone().into(),
             executor_did,
             result_cid,
             cpu_ms,
@@ -352,7 +352,7 @@ mod tests {
         let manifest_cid = dummy_cid_for_executor_test("test_echo_manifest");
 
         let job = ActualMeshJob {
-            id: job_id.clone(),
+            id: icn_mesh::JobId::from(job_id.clone()),
             manifest_cid,
             spec: JobSpec {
                 kind: JobKind::Echo {
@@ -387,7 +387,7 @@ mod tests {
         let node_did = Did::from_str(&node_did_string).unwrap();
 
         let job = ActualMeshJob {
-            id: dummy_cid_for_executor_test("job1"),
+            id: icn_mesh::JobId::from(dummy_cid_for_executor_test("job1")),
             manifest_cid: dummy_cid_for_executor_test("manifest1"),
             spec: JobSpec {
                 kind: JobKind::Echo {
@@ -407,7 +407,7 @@ mod tests {
         assert!(result.is_ok());
         let receipt = result.unwrap();
 
-        assert_eq!(receipt.job_id, job.id);
+        assert_eq!(receipt.job_id, job.id.into());
         assert_eq!(receipt.executor_did, node_did);
         assert!(!receipt.sig.0.is_empty());
         assert!(receipt.verify_against_key(&node_pk).is_ok());
@@ -447,7 +447,7 @@ mod tests {
         let node_did = Did::from_str(&did_key_from_verifying_key(&vk)).unwrap();
 
         let job = ActualMeshJob {
-            id: dummy_cid_for_executor_test("hash_job"),
+            id: icn_mesh::JobId::from(dummy_cid_for_executor_test("hash_job")),
             manifest_cid: cid.clone(),
             spec: JobSpec::default(),
             creator_did: node_did.clone(),

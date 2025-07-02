@@ -15,7 +15,7 @@ mod runtime_host_abi_tests {
     use anyhow::Result;
     use icn_common::{Cid, Did};
     use icn_identity::{did_key_from_verifying_key, generate_ed25519_keypair, ExecutionReceipt};
-    use icn_mesh::{ActualMeshJob, JobKind, JobSpec};
+    use icn_mesh::{ActualMeshJob, JobId, JobKind, JobSpec};
     use icn_network::{NetworkMessage, NetworkService};
     use icn_runtime::context::RuntimeContext;
     use icn_runtime::{host_anchor_receipt, host_submit_mesh_job, ReputationUpdater};
@@ -59,7 +59,7 @@ mod runtime_host_abi_tests {
         let manifest_cid = Cid::new_v1_sha256(0x55, format!("manifest_{}", job_suffix).as_bytes());
 
         let job = ActualMeshJob {
-            id: job_id,
+            id: JobId(job_id),
             manifest_cid,
             spec: JobSpec {
                 kind: JobKind::Echo {
@@ -222,7 +222,7 @@ mod runtime_host_abi_tests {
 
         // The receipt should already be anchored by the runtime, but let's verify it
         assert_eq!(
-            receipt.job_id, submitted_job_id,
+            receipt.job_id, submitted_job_id.into(),
             "Receipt job ID matches submitted job"
         );
         assert_eq!(

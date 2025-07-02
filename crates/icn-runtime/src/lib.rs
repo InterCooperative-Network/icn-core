@@ -546,7 +546,7 @@ mod tests {
     };
     use icn_common::{Cid, Did, ICN_CORE_VERSION};
     use icn_identity::SignatureBytes;
-    use icn_mesh::{ActualMeshJob, JobSpec};
+    use icn_mesh::{ActualMeshJob, JobId, JobSpec};
     use std::str::FromStr;
     use std::sync::Arc;
 
@@ -556,7 +556,7 @@ mod tests {
     // Helper function to create a test ActualMeshJob with all required fields
     fn create_test_mesh_job(cost_mana: u64) -> ActualMeshJob {
         ActualMeshJob {
-            id: Cid::new_v1_sha256(0x55, b"test_job_id"),
+            id: JobId(Cid::new_v1_sha256(0x55, b"test_job_id")),
             manifest_cid: Cid::new_v1_sha256(0x55, b"test_manifest"),
             spec: JobSpec::default(),
             creator_did: Did::from_str(TEST_IDENTITY_DID_STR).unwrap(),

@@ -2,7 +2,7 @@ use icn_common::Cid;
 use icn_identity::{
     did_key_from_verifying_key, generate_ed25519_keypair, ExecutionReceipt, SignatureBytes,
 };
-use icn_mesh::{ActualMeshJob, JobSpec};
+use icn_mesh::{ActualMeshJob, JobId, JobSpec};
 use icn_runtime::context::RuntimeContext;
 use icn_runtime::{
     wasm_host_account_get_mana, wasm_host_account_spend_mana, wasm_host_anchor_receipt,
@@ -71,7 +71,7 @@ async fn wasm_host_api_functions() {
 
     // Prepare job JSON in memory
     let job = ActualMeshJob {
-        id: Cid::new_v1_sha256(0x55, b"job"),
+        id: JobId(Cid::new_v1_sha256(0x55, b"job")),
         manifest_cid: Cid::new_v1_sha256(0x71, b"wasm"),
         spec: JobSpec::default(),
         creator_did: ctx.current_identity.clone(),
@@ -127,7 +127,7 @@ async fn wasm_host_api_functions() {
     let (_sk, vk) = generate_ed25519_keypair();
     let node_did = icn_common::Did::from_str(&did_key_from_verifying_key(&vk)).unwrap();
     let mut receipt = ExecutionReceipt {
-        job_id,
+        job_id: job_id.into(),
         executor_did: node_did.clone(),
         result_cid: Cid::new_v1_sha256(0x55, b"res"),
         cpu_ms: 1,

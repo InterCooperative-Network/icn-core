@@ -1,6 +1,6 @@
 use icn_common::{compute_merkle_cid, Cid, DagBlock, Did};
 use icn_identity::{did_key_from_verifying_key, generate_ed25519_keypair, SignatureBytes};
-use icn_mesh::{ActualMeshJob, JobKind, JobSpec};
+use icn_mesh::{ActualMeshJob, JobId, JobKind, JobSpec};
 use icn_runtime::context::{RuntimeContext, StubSigner};
 use icn_runtime::executor::WasmExecutorConfig;
 use icn_runtime::executor::{JobExecutor, WasmExecutor};
@@ -42,7 +42,7 @@ async fn wasm_executor_runs_wasm() {
     let cid = block.cid.clone();
 
     let job = ActualMeshJob {
-        id: Cid::new_v1_sha256(0x55, b"job"),
+        id: JobId(Cid::new_v1_sha256(0x55, b"job")),
         manifest_cid: cid,
         spec: JobSpec {
             kind: JobKind::CclWasm,
@@ -88,7 +88,7 @@ async fn wasm_executor_runs_compiled_ccl_contract() {
     let cid = block.cid.clone();
 
     let job = ActualMeshJob {
-        id: Cid::new_v1_sha256(0x55, b"job_ccl"),
+        id: JobId(Cid::new_v1_sha256(0x55, b"job_ccl")),
         manifest_cid: cid,
         spec: JobSpec::default(),
         creator_did: node_did.clone(),
@@ -114,7 +114,7 @@ async fn wasm_executor_host_submit_mesh_job_json() {
     let node_did = icn_common::Did::from_str(&did_key_from_verifying_key(&vk)).unwrap();
 
     let complex_job = ActualMeshJob {
-        id: Cid::new_v1_sha256(0x55, b"embedded"),
+        id: JobId(Cid::new_v1_sha256(0x55, b"embedded")),
         manifest_cid: Cid::new_v1_sha256(0x71, b"embedded"),
         spec: JobSpec {
             kind: JobKind::GenericPlaceholder,
@@ -162,7 +162,7 @@ async fn wasm_executor_host_submit_mesh_job_json() {
     }
 
     let job = ActualMeshJob {
-        id: Cid::new_v1_sha256(0x55, b"job_host"),
+        id: JobId(Cid::new_v1_sha256(0x55, b"job_host")),
         manifest_cid: block.cid.clone(),
         spec: JobSpec::default(),
         creator_did: node_did.clone(),
@@ -229,7 +229,7 @@ async fn wasm_executor_host_anchor_receipt_json() {
     }
 
     let job = ActualMeshJob {
-        id: Cid::new_v1_sha256(0x55, b"job_anchor"),
+        id: JobId(Cid::new_v1_sha256(0x55, b"job_anchor")),
         manifest_cid: block.cid.clone(),
         spec: JobSpec::default(),
         creator_did: node_did.clone(),
@@ -273,7 +273,7 @@ async fn submit_compiled_ccl_runs_via_executor() {
     }
     let cid = block.cid.clone();
     let job = ActualMeshJob {
-        id: Cid::new_v1_sha256(0x55, b"auto"),
+        id: JobId(Cid::new_v1_sha256(0x55, b"auto")),
         manifest_cid: cid.clone(),
         spec: JobSpec::default(),
         creator_did: ctx.current_identity.clone(),
@@ -317,7 +317,7 @@ async fn queued_compiled_ccl_executes() {
     }
     let cid = block.cid.clone();
     let job = ActualMeshJob {
-        id: Cid::new_v1_sha256(0x55, b"queued"),
+        id: JobId(Cid::new_v1_sha256(0x55, b"queued")),
         manifest_cid: cid.clone(),
         spec: JobSpec::default(),
         creator_did: ctx.current_identity.clone(),
@@ -359,7 +359,7 @@ async fn compiled_example_contract_file_runs() {
     }
     let cid = block.cid.clone();
     let job = ActualMeshJob {
-        id: Cid::new_v1_sha256(0x55, b"example"),
+        id: JobId(Cid::new_v1_sha256(0x55, b"example")),
         manifest_cid: cid.clone(),
         spec: JobSpec::default(),
         creator_did: ctx.current_identity.clone(),
@@ -393,7 +393,7 @@ async fn wasm_executor_enforces_memory_limit() {
         store.put(&block).unwrap();
     }
     let job = ActualMeshJob {
-        id: Cid::new_v1_sha256(0x55, b"mem"),
+        id: JobId(Cid::new_v1_sha256(0x55, b"mem")),
         manifest_cid: block.cid.clone(),
         spec: JobSpec::default(),
         creator_did: ctx.current_identity.clone(),
@@ -429,7 +429,7 @@ async fn wasm_executor_enforces_fuel_limit() {
         store.put(&block).unwrap();
     }
     let job = ActualMeshJob {
-        id: Cid::new_v1_sha256(0x55, b"fuel"),
+        id: JobId(Cid::new_v1_sha256(0x55, b"fuel")),
         manifest_cid: block.cid.clone(),
         spec: JobSpec::default(),
         creator_did: ctx.current_identity.clone(),
