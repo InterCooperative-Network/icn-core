@@ -360,7 +360,7 @@ This makes the system more predictable and easier to debug.
 The system now has a foundational HTTP API and CLI client.
 Immediate next steps from the original prompt include:
 
-*   **Persistence Backends:** While `icn-node` supports a file backend for `DagStorageService`, implementing a `sled` backend is a next step. `GovernanceModule` currently uses in-memory storage; this needs a pluggable persistence strategy similar to `DagStorageService`.
+*   **Persistence Backends:** Durable storage is already available. `SledDagStore` persists DAG blocks on disk and `GovernanceModule` ships with a sled backend. Build `icn-node` with the `persist-sled` feature and run with `--storage-backend sled` to enable these stores. See `crates/icn-dag/README.md` and `crates/icn-governance/README.md` for details.
 *   **Networking (Libp2p):** libp2p support is now available. Future work focuses on refining peer discovery and federation protocols.
 *   **Configuration:** Advanced configuration file support for `icn-node` (beyond CLI args).
 *   **Identity Implementation:** Further flesh out DID methods and cryptographic primitives in `icn-identity`.
