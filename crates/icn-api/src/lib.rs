@@ -430,6 +430,54 @@ pub async fn send_network_message_api(
         })
 }
 
+/// Retrieve the local peer ID from an ICN node via HTTP.
+pub async fn http_get_local_peer_id(api_url: &str) -> Result<String, CommonError> {
+    let url = format!("{}/network/local-peer-id", api_url.trim_end_matches('/'));
+    let res = reqwest::get(&url)
+        .await
+        .map_err(|e| CommonError::ApiError(format!("Failed to send request: {}", e)))?;
+    if res.status().is_success() {
+        res.json::<serde_json::Value>()
+            .await
+            .map_err(|e| CommonError::DeserializationError(e.to_string()))
+            .and_then(|v| {
+                v.get("peer_id")
+                    .and_then(|p| p.as_str())
+                    .map(|s| s.to_string())
+                    .ok_or_else(|| {
+                        CommonError::DeserializationError("Missing peer_id field".to_string())
+                    })
+            })
+    } else {
+        let status = res.status();
+        let text = res.text().await.unwrap_or_default();
+        Err(CommonError::ApiError(format!(
+            "Request failed {}: {}",
+            status, text
+        )))
+    }
+}
+
+/// Retrieve the list of peers from an ICN node via HTTP.
+pub async fn http_get_peer_list(api_url: &str) -> Result<Vec<String>, CommonError> {
+    let url = format!("{}/network/peers", api_url.trim_end_matches('/'));
+    let res = reqwest::get(&url)
+        .await
+        .map_err(|e| CommonError::ApiError(format!("Failed to send request: {}", e)))?;
+    if res.status().is_success() {
+        res.json::<Vec<String>>()
+            .await
+            .map_err(|e| CommonError::DeserializationError(e.to_string()))
+    } else {
+        let status = res.status();
+        let text = res.text().await.unwrap_or_default();
+        Err(CommonError::ApiError(format!(
+            "Request failed {}: {}",
+            status, text
+        )))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

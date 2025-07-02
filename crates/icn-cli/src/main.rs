@@ -5,9 +5,9 @@
 //! This crate provides a command-line interface (CLI) for interacting with an ICN HTTP node.
 
 use clap::{Parser, Subcommand};
+use icn_common::CommonError;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use icn_common::CommonError;
 use serde_json::Value as JsonValue; // For generic JSON data if needed
 use std::io::{self, Read};
 use std::path::PathBuf;
@@ -22,7 +22,6 @@ use icn_api::governance_trait::{
 };
 use icn_ccl::{compile_ccl_file, compile_ccl_file_to_wasm};
 use icn_governance::{Proposal, ProposalId};
-use anyhow::Error;
 
 fn anyhow_to_common(e: anyhow::Error) -> CommonError {
     if let Some(c) = e.downcast_ref::<CommonError>() {
@@ -174,6 +173,8 @@ enum NetworkCommands {
         #[clap(help = "Target peer ID")]
         peer_id: String,
     },
+    /// Fetch local peer ID and list of discovered peers
+    Peers,
 }
 
 #[derive(Subcommand, Debug)]
@@ -253,6 +254,7 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
         Commands::Network { command } => match command {
             NetworkCommands::Stats => handle_network_stats(cli, client).await?,
             NetworkCommands::Ping { peer_id } => handle_network_ping(cli, client, peer_id).await?,
+            NetworkCommands::Peers => handle_network_peers(cli, client).await?,
         },
         Commands::Ccl { command } => match command {
             CclCommands::Compile { file } => handle_ccl_compile(file)?,
@@ -567,6 +569,17 @@ async fn handle_network_ping(
     let info: NodeInfo = get_request(&cli.api_url, client, "/info").await?;
     let result = icn_network::send_network_ping(&info, peer_id).await?;
     println!("{}", result);
+    Ok(())
+}
+
+async fn handle_network_peers(cli: &Cli, _client: &Client) -> Result<(), anyhow::Error> {
+    let peer_id = icn_api::http_get_local_peer_id(&cli.api_url).await?;
+    let peers = icn_api::http_get_peer_list(&cli.api_url).await?;
+    println!("Local Peer ID: {}", peer_id);
+    println!("Discovered Peers:");
+    for p in peers {
+        println!("- {}", p);
+    }
     Ok(())
 }
 

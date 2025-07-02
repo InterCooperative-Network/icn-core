@@ -462,6 +462,8 @@ pub async fn app_router_with_options(
             .route("/info", get(info_handler))
             .route("/status", get(status_handler))
             .route("/metrics", get(metrics_handler))
+            .route("/network/local-peer-id", get(network_local_peer_id_handler))
+            .route("/network/peers", get(network_peers_handler))
             .route("/dag/put", post(dag_put_handler)) // These will use RT context's DAG store
             .route("/dag/get", post(dag_get_handler)) // These will use RT context's DAG store
             .route("/transaction/submit", post(tx_submit_handler))
@@ -559,6 +561,8 @@ pub async fn app_router_from_context(
         .route("/info", get(info_handler))
         .route("/status", get(status_handler))
         .route("/metrics", get(metrics_handler))
+        .route("/network/local-peer-id", get(network_local_peer_id_handler))
+        .route("/network/peers", get(network_peers_handler))
         .route("/dag/put", post(dag_put_handler))
         .route("/dag/get", post(dag_get_handler))
         .route("/transaction/submit", post(tx_submit_handler))
@@ -1752,6 +1756,51 @@ async fn federation_status_handler(State(state): State<AppState>) -> impl IntoRe
         peers,
     };
     (StatusCode::OK, Json(status))
+}
+
+// GET /network/local-peer-id - return this node's peer ID
+async fn network_local_peer_id_handler(State(state): State<AppState>) -> impl IntoResponse {
+    #[cfg(feature = "enable-libp2p")]
+    {
+        match state.runtime_context.get_libp2p_service() {
+            Ok(service) => {
+                let id = service.local_peer_id().to_string();
+                (StatusCode::OK, Json(serde_json::json!({ "peer_id": id }))).into_response()
+            }
+            Err(e) => map_rust_error_to_json_response(e, StatusCode::BAD_REQUEST).into_response(),
+        }
+    }
+    #[cfg(not(feature = "enable-libp2p"))]
+    {
+        (
+            StatusCode::OK,
+            Json(serde_json::json!({ "peer_id": "p2p_disabled" })),
+        )
+            .into_response()
+    }
+}
+
+// GET /network/peers - list peers discovered via the network service
+async fn network_peers_handler(State(state): State<AppState>) -> impl IntoResponse {
+    #[cfg(feature = "enable-libp2p")]
+    {
+        match state.runtime_context.get_libp2p_service() {
+            Ok(service) => match service.discover_peers(None).await {
+                Ok(peers) => {
+                    let list: Vec<String> = peers.into_iter().map(|p| p.0).collect();
+                    (StatusCode::OK, Json(list)).into_response()
+                }
+                Err(e) => {
+                    map_rust_error_to_json_response(e, StatusCode::BAD_REQUEST).into_response()
+                }
+            },
+            Err(e) => map_rust_error_to_json_response(e, StatusCode::BAD_REQUEST).into_response(),
+        }
+    }
+    #[cfg(not(feature = "enable-libp2p"))]
+    {
+        (StatusCode::OK, Json(Vec::<String>::new())).into_response()
+    }
 }
 
 // --- Test module (can be expanded later) ---

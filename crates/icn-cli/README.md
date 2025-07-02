@@ -19,6 +19,7 @@ The `icn-cli` is the primary tool for users to interact with an ICN node from th
 *   **Network Operations:**
     *   `icn-cli network discover-peers`: Query the connected node for peers. With the `with-libp2p` feature enabled the node will perform real discovery via libp2p.
     *   `icn-cli network send-message <PEER_ID> <MESSAGE_JSON>`: Send a `NetworkMessage` to a specified peer. Requires the node to run with libp2p networking.
+    *   `icn-cli network peers`: Display this node's peer ID and the currently discovered peer list.
 *   **Federation Operations:**
     *   `icn-cli federation join <PEER_ID>`: Join a federation by adding the given peer.
     *   `icn-cli federation leave <PEER_ID>`: Leave a federation or remove the peer.
