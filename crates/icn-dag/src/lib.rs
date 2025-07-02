@@ -18,7 +18,6 @@ use std::collections::HashMap;
 use std::fs::{File, OpenOptions}; // For FileDagStore
 use std::io::{Read, Write}; // Removed Seek, SeekFrom
 use std::path::PathBuf; // For FileDagStore
-use std::sync::Mutex; // For basic interior mutability for the global store // For FileDagStore block serialization
 
 pub mod index;
 #[cfg(feature = "persist-rocksdb")]
@@ -222,44 +221,6 @@ impl StorageService<DagBlock> for FileDagStore {
         let path = self.block_path(cid);
         Ok(path.exists())
     }
-}
-
-// --- Global Store Access (Legacy - To be refactored/removed) ---
-// The following functions `put_block` and `get_block` use a global static store.
-// This pattern should be replaced by passing `StorageService` instances.
-// We keep them for now to minimize disruption to existing code using them,
-// but they should be considered deprecated.
-
-lazy_static::lazy_static! {
-    /// Global in-memory store used by the deprecated [`put_block`] and [`get_block`] helpers.
-    /// New code should create and pass explicit `StorageService` implementations instead.
-    static ref DEFAULT_IN_MEMORY_STORE: Mutex<InMemoryDagStore> = Mutex::new(InMemoryDagStore::new());
-}
-
-/// Puts a [`DagBlock`] into [`DEFAULT_IN_MEMORY_STORE`].
-///
-/// # Deprecation
-/// This helper exists for legacy code paths. New callers should pass a
-/// concrete implementation of [`StorageService`] instead.
-#[deprecated(note = "Use an explicit StorageService instance instead")]
-pub fn put_block(block: &DagBlock) -> Result<(), CommonError> {
-    let mut store = DEFAULT_IN_MEMORY_STORE.lock().map_err(|e| {
-        CommonError::InternalError(format!("Failed to acquire lock on default DAG store: {e}"))
-    })?;
-    store.put(block)
-}
-
-/// Retrieves a [`DagBlock`] from [`DEFAULT_IN_MEMORY_STORE`] by CID.
-///
-/// # Deprecation
-/// This helper exists for legacy code paths. New callers should pass a
-/// concrete implementation of [`StorageService`] instead.
-#[deprecated(note = "Use an explicit StorageService instance instead")]
-pub fn get_block(cid: &Cid) -> Result<Option<DagBlock>, CommonError> {
-    let store = DEFAULT_IN_MEMORY_STORE.lock().map_err(|e| {
-        CommonError::InternalError(format!("Failed to acquire lock on default DAG store: {e}"))
-    })?;
-    store.get(cid)
 }
 
 /// Placeholder function demonstrating use of common types.
@@ -476,10 +437,6 @@ mod tests {
         assert!(store2.get(&block_persist.cid).unwrap().is_some());
     }
 
-    // The old tests for global put_block/get_block might need adjustment
-    // or can be removed if we fully deprecate the global store access.
-    // For now, let's ensure they still work with the refactored DEFAULT_IN_MEMORY_STORE.
-
     #[test]
     #[ignore]
     fn test_process_dag_data() {
@@ -499,27 +456,6 @@ mod tests {
         };
         let result_err = process_dag_related_data(&mismatched_node_info);
         assert!(result_err.is_err());
-    }
-
-    #[test]
-    #[ignore]
-    fn test_put_and_get_block() {
-        let mut store = InMemoryDagStore::new();
-        let block = create_test_block("block_global_store");
-
-        assert!(store.put(&block).is_ok());
-        match store.get(&block.cid) {
-            Ok(Some(b)) => assert_eq!(b.cid, block.cid),
-            Ok(None) => panic!("Block not found in store"),
-            Err(e) => panic!("store.get returned an error: {e:?}"),
-        }
-
-        let non_existent_cid = Cid::new_v1_sha256(0x55, b"non_existent_global");
-        match store.get(&non_existent_cid) {
-            Ok(None) => { /* Expected */ }
-            Ok(Some(_)) => panic!("Found non-existent block in store"),
-            Err(e) => panic!("store.get for non-existent CID returned an error: {e:?}"),
-        }
     }
 
     #[test]
