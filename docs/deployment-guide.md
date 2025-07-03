@@ -26,13 +26,16 @@ tls_cert_path = "./cert.pem"
 tls_key_path = "./key.pem"
 ```
 
+To use RocksDB as the persistence layer, build `icn-node` with the
+`persist-rocksdb` feature and set `storage_backend = "rocksdb"`.
+
 ## Small Federation
 
 For a small group of cooperating nodes, each node may use a persistent store and
 bootstrap to known peers.
 
 ```bash
-icn-node --storage-backend rocksdb --storage-path ./icn_data/node1.rocks \
+icn-node --storage-backend sled --storage-path ./icn_data/node1.sled \
          --bootstrap-peers /ip4/1.2.3.4/tcp/7000/p2p/QmPeer \
          --api-key node1secret --open-rate-limit 0 \
          --tls-cert-path ./cert.pem --tls-key-path ./key.pem
@@ -43,8 +46,8 @@ A configuration file might contain:
 
 ```toml
 http_listen_addr = "0.0.0.0:7845"
-storage_backend = "rocksdb"
-storage_path = "./icn_data/node1.rocks"
+storage_backend = "sled"
+storage_path = "./icn_data/node1.sled"
 bootstrap_peers = ["/ip4/1.2.3.4/tcp/7000/p2p/QmPeer"]
 api_key = "node1secret"
 tls_cert_path = "./cert.pem"

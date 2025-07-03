@@ -252,8 +252,8 @@ Caddy).
 # node_config.toml
 node_name = "Federation Node"
 http_listen_addr = "0.0.0.0:7845"        # Behind a TLS proxy
-storage_backend = "rocksdb"
-storage_path = "./icn_data/node.rocks"
+storage_backend = "sled"
+storage_path = "./icn_data/node.sled"
 api_key = "mysecretkey"
 open_rate_limit = 0
 ```
@@ -295,9 +295,12 @@ Example usage:
 
 ```bash
 export ICN_HTTP_LISTEN_ADDR=0.0.0.0:9000
-export ICN_STORAGE_BACKEND=rocksdb
+export ICN_STORAGE_BACKEND=sled
 cargo run -p icn-node --config node_config.toml
 ```
+
+To use RocksDB instead of sled, build `icn-node` with the `persist-rocksdb` feature
+and set `storage_backend = "rocksdb"` in your configuration.
 
 ## 4. Understanding the Codebase
 
