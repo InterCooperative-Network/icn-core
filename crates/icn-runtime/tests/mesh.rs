@@ -86,7 +86,8 @@ async fn assert_job_state(
         ) => {
             if let Some(data) = expected_receipt_data {
                 assert_eq!(
-                    &receipt.job_id, &data.job_id.clone().into(),
+                    &receipt.job_id,
+                    &data.job_id.clone().into(),
                     "Completed receipt job_id mismatch"
                 );
                 assert_eq!(
@@ -731,7 +732,7 @@ async fn test_submit_mesh_job_with_custom_timeout() {
         .await
         .expect("Job submission failed");
 
-    let pending_jobs = host_get_pending_mesh_jobs(&ctx).unwrap();
+    let pending_jobs = host_get_pending_mesh_jobs(&ctx).await.unwrap();
     assert_eq!(pending_jobs.len(), 1);
     assert_eq!(pending_jobs[0].max_execution_wait_ms, Some(1234));
 }

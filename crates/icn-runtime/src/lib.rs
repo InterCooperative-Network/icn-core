@@ -143,7 +143,7 @@ pub async fn host_submit_mesh_job(
 /// For WebAssembly callers see [`wasm_host_get_pending_mesh_jobs`], which
 /// serializes the job list to JSON and writes it to guest memory using
 /// pointer/length parameters.
-pub fn host_get_pending_mesh_jobs(
+pub async fn host_get_pending_mesh_jobs(
     ctx: &RuntimeContext,
 ) -> Result<Vec<icn_mesh::ActualMeshJob>, HostAbiError> {
     metrics::HOST_GET_PENDING_MESH_JOBS_CALLS.inc();
@@ -152,14 +152,13 @@ pub fn host_get_pending_mesh_jobs(
     // Directly clone the jobs from the queue. This provides a snapshot.
     // Depending on WASM interface, this might need to be serialized (e.g., to JSON).
     // Need to acquire the lock and then await its resolution.
-    let jobs = futures::executor::block_on(async {
-        ctx.pending_mesh_jobs
-            .lock()
-            .await
-            .iter()
-            .cloned()
-            .collect::<Vec<icn_mesh::ActualMeshJob>>()
-    });
+    let jobs = ctx
+        .pending_mesh_jobs
+        .lock()
+        .await
+        .iter()
+        .cloned()
+        .collect::<Vec<icn_mesh::ActualMeshJob>>();
 
     debug!(
         "[host_get_pending_mesh_jobs] Returning {} pending jobs.",
@@ -394,7 +393,7 @@ pub fn wasm_host_get_pending_mesh_jobs(
     len: u32,
 ) -> u32 {
     let handle = tokio::runtime::Handle::current();
-    let jobs = match handle.block_on(async { host_get_pending_mesh_jobs(caller.data()) }) {
+    let jobs = match handle.block_on(host_get_pending_mesh_jobs(caller.data())) {
         Ok(j) => j,
         Err(e) => {
             log::error!("wasm_host_get_pending_mesh_jobs runtime error: {e:?}");
@@ -627,7 +626,7 @@ mod tests {
         assert_eq!(mana_after, 90);
 
         // Verify job was queued
-        let pending_jobs = host_get_pending_mesh_jobs(&ctx).unwrap();
+        let pending_jobs = host_get_pending_mesh_jobs(&ctx).await.unwrap();
         assert_eq!(pending_jobs.len(), 1);
         assert_eq!(pending_jobs[0].cost_mana, 10);
     }
@@ -688,7 +687,7 @@ mod tests {
         let _job_id1 = host_submit_mesh_job(&ctx, &job_json1).await.unwrap();
         let _job_id2 = host_submit_mesh_job(&ctx, &job_json2).await.unwrap();
 
-        let pending_jobs = host_get_pending_mesh_jobs(&ctx).unwrap();
+        let pending_jobs = host_get_pending_mesh_jobs(&ctx).await.unwrap();
         assert_eq!(pending_jobs.len(), 2);
         assert!(pending_jobs.iter().any(|j| j.cost_mana == 10));
         assert!(pending_jobs.iter().any(|j| j.cost_mana == 5));
@@ -697,7 +696,7 @@ mod tests {
     #[tokio::test]
     async fn test_host_get_pending_mesh_jobs_empty_queue() {
         let ctx = create_test_context();
-        let pending_jobs_result = host_get_pending_mesh_jobs(&ctx);
+        let pending_jobs_result = host_get_pending_mesh_jobs(&ctx).await;
         assert!(pending_jobs_result.is_ok());
         let pending_jobs = pending_jobs_result.unwrap();
         assert_eq!(pending_jobs.len(), 0);
@@ -888,7 +887,7 @@ mod tests {
         use crate::metrics::HOST_GET_PENDING_MESH_JOBS_CALLS;
         let ctx = create_test_context();
         let before = HOST_GET_PENDING_MESH_JOBS_CALLS.get();
-        host_get_pending_mesh_jobs(&ctx).unwrap();
+        host_get_pending_mesh_jobs(&ctx).await.unwrap();
         assert!(HOST_GET_PENDING_MESH_JOBS_CALLS.get() > before);
     }
 
