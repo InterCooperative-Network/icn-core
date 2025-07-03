@@ -6,6 +6,7 @@
 //! aiming for security, accuracy, and interoperability.
 
 use icn_common::{CommonError, Did, NodeInfo};
+use log::{debug, info};
 pub mod ledger;
 pub use ledger::FileManaLedger;
 #[cfg(feature = "persist-rocksdb")]
@@ -90,7 +91,7 @@ impl<L: ManaLedger> ResourcePolicyEnforcer<L> {
 
     /// Spend mana after applying basic policy checks.
     pub fn spend_mana(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
-        println!("[ResourcePolicyEnforcer] Enforcing spend_mana for DID {did:?}, amount {amount}");
+        debug!("[ResourcePolicyEnforcer] Enforcing spend_mana for DID {did:?}, amount {amount}");
 
         if amount == 0 {
             return Err(CommonError::PolicyDenied(
@@ -121,14 +122,14 @@ pub fn charge_mana<L: ManaLedger>(ledger: L, did: &Did, amount: u64) -> Result<(
     let mana_adapter = ManaRepositoryAdapter::new(ledger);
     let policy_enforcer = ResourcePolicyEnforcer::new(mana_adapter);
 
-    println!("[icn-economics] charge_mana called for DID {did:?}, amount {amount}");
+    info!("[icn-economics] charge_mana called for DID {did:?}, amount {amount}");
     policy_enforcer.spend_mana(did, amount)
 }
 
 /// Credits mana to the given DID using the provided ledger.
 pub fn credit_mana<L: ManaLedger>(ledger: L, did: &Did, amount: u64) -> Result<(), CommonError> {
     let mana_adapter = ManaRepositoryAdapter::new(ledger);
-    println!("[icn-economics] credit_mana called for DID {did:?}, amount {amount}");
+    info!("[icn-economics] credit_mana called for DID {did:?}, amount {amount}");
     mana_adapter.credit_mana(did, amount)
 }
 
