@@ -158,6 +158,10 @@ pub enum CommonError {
 
     #[error("Not implemented: {0}")]
     NotImplemented(String),
+
+    /// Duplicate or replayed message detected
+    #[error("Duplicate message")]
+    DuplicateMessage,
 }
 
 /// Trait for types that can produce a canonical byte representation for
