@@ -85,13 +85,53 @@ pub fn verifying_key_from_did_key(did: &Did) -> Result<VerifyingKey, CommonError
 }
 
 /// Construct a `did:web` identifier from a domain and optional path segments.
-pub fn did_web_from_parts(domain: &str, path: &[&str]) -> String {
+///
+/// # Errors
+///
+/// Returns [`CommonError::IdentityError`] if any path segment contains
+/// unsupported characters or exceeds [`MAX_SEGMENT_LEN`].
+pub fn did_web_from_parts(domain: &str, path: &[&str]) -> Result<String, CommonError> {
+    if !is_valid_domain(domain) {
+        return Err(CommonError::IdentityError("invalid did:web domain".into()));
+    }
     let mut id = domain.replace(':', "%3A");
     for segment in path {
+        if !is_valid_segment(segment) {
+            return Err(CommonError::IdentityError(format!(
+                "invalid did:web segment: {segment}"
+            )));
+        }
         id.push(':');
         id.push_str(segment);
     }
-    format!("did:web:{id}")
+    Ok(format!("did:web:{id}"))
+}
+
+const MAX_SEGMENT_LEN: usize = 63;
+const MAX_DOMAIN_LEN: usize = 253;
+
+fn is_valid_domain(domain: &str) -> bool {
+    if domain.is_empty() || domain.len() > MAX_DOMAIN_LEN {
+        return false;
+    }
+    domain.split('.').all(|label| {
+        let bytes = label.as_bytes();
+        !bytes.is_empty()
+            && bytes.len() <= MAX_SEGMENT_LEN
+            && !bytes.starts_with(b"-")
+            && !bytes.ends_with(b"-")
+            && bytes
+                .iter()
+                .all(|c| c.is_ascii_alphanumeric() || *c == b'-')
+    })
+}
+
+fn is_valid_segment(segment: &str) -> bool {
+    !segment.is_empty()
+        && segment.len() <= MAX_SEGMENT_LEN
+        && segment
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.')
 }
 
 /// Parse a `did:web` DID into its domain and path segments.
@@ -660,7 +700,7 @@ mod tests {
 
     #[test]
     fn did_web_generation_and_parse() {
-        let did_str = did_web_from_parts("example.com", &["user", "alice"]);
+        let did_str = did_web_from_parts("example.com", &["user", "alice"]).unwrap();
         assert_eq!(did_str, "did:web:example.com:user:alice");
         let did = Did::from_str(&did_str).unwrap();
         let (domain, path) = parse_did_web(&did).unwrap();
@@ -671,7 +711,7 @@ mod tests {
     #[test]
     fn verify_with_web_did_resolver() {
         let (sk, pk) = generate_ed25519_keypair();
-        let did_str = did_web_from_parts("example.com", &[]);
+        let did_str = did_web_from_parts("example.com", &[]).unwrap();
         let did = Did::from_str(&did_str).unwrap();
 
         let job_cid = dummy_cid_for_test("web_job");
@@ -691,6 +731,17 @@ mod tests {
 
         let signed = receipt.sign_with_key(&sk).unwrap();
         assert!(signed.verify_with_resolver(&resolver).is_ok());
+    }
+
+    #[test]
+    fn did_web_rejects_invalid_segment() {
+        assert!(did_web_from_parts("example.com", &["bad:seg"]).is_err());
+    }
+
+    #[test]
+    fn did_web_rejects_long_segment() {
+        let long = "a".repeat(70);
+        assert!(did_web_from_parts("example.com", &[&long]).is_err());
     }
 
     #[test]
@@ -732,7 +783,7 @@ mod tests {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = listener.local_addr().unwrap();
         let domain = format!("localhost:{}", addr.port());
-        let did_str = did_web_from_parts(&domain, &[]);
+        let did_str = did_web_from_parts(&domain, &[]).unwrap();
         let did = Did::from_str(&did_str).unwrap();
 
         let doc = icn_common::DidDocument {
