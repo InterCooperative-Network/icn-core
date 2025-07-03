@@ -3,6 +3,8 @@
 `icn-core` is the reference implementation of the InterCooperative Network (ICN) protocol, written in Rust.
 It provides the foundational crates for building ICN nodes, CLI tools, and other related infrastructure.
 
+For full architecture and philosophy, see [CONTEXT.md](CONTEXT.md).
+
 ## Overview
 
 The InterCooperative Network is envisioned as a decentralized network fostering collaboration and resource sharing. This repository contains the core building blocks for such a network.
@@ -37,7 +39,7 @@ rustup override set nightly
 
 ## Getting Started
 
-Refer to `docs/ONBOARDING.md` for detailed instructions on prerequisites, setup, building, testing, and running the components. The latest API documentation is available at [https://intercooperative.network/docs/icn-core](https://intercooperative.network/docs/icn-core).
+Refer to `docs/ONBOARDING.md` for detailed instructions on prerequisites, setup, building, testing, and running the components. The latest API documentation is available at [https://intercooperative.network/docs](https://intercooperative.network/docs).
 
 ### Quick CLI Examples:
 
