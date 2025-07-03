@@ -10,6 +10,7 @@ use crate::parser::parse_ccl_source;
 use crate::semantic_analyzer::SemanticAnalyzer;
 use crate::wasm_backend::WasmBackend;
 use icn_common::{compute_merkle_cid, Did};
+use log::info;
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::PathBuf;
@@ -20,7 +21,7 @@ pub fn compile_ccl_file(
     output_wasm_path: &PathBuf,
     output_meta_path: &PathBuf,
 ) -> Result<ContractMetadata, CclError> {
-    println!(
+    info!(
         "[CCL CLI Lib] Compiling {} to {} (meta: {})",
         source_path.display(),
         output_wasm_path.display(),
@@ -76,7 +77,7 @@ pub fn compile_ccl_file(
         ))
     })?;
 
-    println!(
+    info!(
         "[CCL CLI Lib] Compilation successful. WASM: {}, Meta: {}",
         output_wasm_path.display(),
         output_meta_path.display()
@@ -86,18 +87,18 @@ pub fn compile_ccl_file(
 
 // This function would be called by `icn-cli ccl lint ...` or `icn-cli ccl check ...`
 pub fn check_ccl_file(source_path: &PathBuf) -> Result<(), CclError> {
-    println!("[CCL CLI Lib] Checking/Linting {}", source_path.display());
+    info!("[CCL CLI Lib] Checking/Linting {}", source_path.display());
     let source_code = fs::read_to_string(source_path)?;
     let ast = parse_ccl_source(&source_code)?;
     let mut semantic_analyzer = SemanticAnalyzer::new();
     semantic_analyzer.analyze(&ast)?;
-    println!("[CCL CLI Lib] {} passed checks.", source_path.display());
+    info!("[CCL CLI Lib] {} passed checks.", source_path.display());
     Ok(())
 }
 
 // This function would be called by `icn-cli ccl fmt ...`
 pub fn format_ccl_file(source_path: &PathBuf, _inplace: bool) -> Result<String, CclError> {
-    println!(
+    info!(
         "[CCL CLI Lib] Formatting {} (Inplace: {})",
         source_path.display(),
         _inplace
@@ -122,7 +123,7 @@ pub fn explain_ccl_policy(
     source_path: &PathBuf,
     _target_construct: Option<String>,
 ) -> Result<String, CclError> {
-    println!(
+    info!(
         "[CCL CLI Lib] Explaining {} (Target: {:?})",
         source_path.display(),
         _target_construct

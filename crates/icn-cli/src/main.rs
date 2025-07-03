@@ -212,6 +212,7 @@ enum FederationCommands {
 
 #[tokio::main]
 async fn main() {
+    env_logger::init();
     let cli = Cli::parse();
     let client = Client::new();
 
