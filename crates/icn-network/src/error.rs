@@ -54,4 +54,8 @@ pub enum MeshNetworkError {
     /// Failure decoding a received network message
     #[error("Message decode failed: {0}")]
     MessageDecodeFailed(String),
+
+    /// Duplicate signed message detected
+    #[error("Duplicate signed message")]
+    DuplicateMessage,
 }

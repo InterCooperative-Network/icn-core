@@ -19,13 +19,15 @@ use async_trait::async_trait;
 use downcast_rs::{impl_downcast, DowncastSync};
 use icn_common::{Cid, DagBlock, Did, NodeInfo};
 use icn_identity::ExecutionReceipt;
+use icn_identity::SignatureBytes;
 use icn_mesh::{ActualMeshJob as Job, JobId, MeshJobBid as Bid};
 #[cfg(feature = "libp2p")]
 use libp2p::PeerId as Libp2pPeerId;
 use log::{info, warn};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::any::Any;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 #[cfg(feature = "libp2p")]
 use std::str::FromStr;
@@ -155,6 +157,16 @@ pub fn sign_message(
     })
 }
 
+/// Compute a SHA-256 hash over `(sender, message)` for duplicate detection.
+pub fn signed_message_hash(msg: &SignedMessage) -> Result<Vec<u8>, icn_common::CommonError> {
+    let mut hasher = Sha256::new();
+    hasher.update(msg.sender.to_string().as_bytes());
+    let msg_bytes = bincode::serialize(&msg.message)
+        .map_err(|e| icn_common::CommonError::SerializationError(e.to_string()))?;
+    hasher.update(&msg_bytes);
+    Ok(hasher.finalize().to_vec())
+}
+
 /// Verify the signature contained in a [`SignedMessage`].
 pub fn verify_message_signature(msg: &SignedMessage) -> Result<(), icn_common::CommonError> {
     let verifying_key = icn_identity::verifying_key_from_did_key(&msg.sender)?;
@@ -266,12 +278,14 @@ impl_downcast!(sync NetworkService);
 #[derive(Debug)]
 pub struct StubNetworkService {
     records: std::sync::Arc<tokio::sync::Mutex<HashMap<String, Vec<u8>>>>,
+    seen_hashes: std::sync::Arc<tokio::sync::Mutex<HashSet<Vec<u8>>>>,
 }
 
 impl Default for StubNetworkService {
     fn default() -> Self {
         Self {
             records: std::sync::Arc::new(tokio::sync::Mutex::new(HashMap::new())),
+            seen_hashes: std::sync::Arc::new(tokio::sync::Mutex::new(HashSet::new())),
         }
     }
 }
@@ -345,6 +359,11 @@ impl NetworkService for StubNetworkService {
         message: SignedMessage,
     ) -> Result<(), MeshNetworkError> {
         verify_message_signature(&message).map_err(MeshNetworkError::Common)?;
+        let hash = signed_message_hash(&message).map_err(MeshNetworkError::Common)?;
+        let mut set = self.seen_hashes.lock().await;
+        if !set.insert(hash) {
+            return Err(MeshNetworkError::DuplicateMessage);
+        }
         println!(
             "[StubNetworkService] Sending signed message to peer {:?}: {:?}",
             peer, message.message
@@ -357,6 +376,11 @@ impl NetworkService for StubNetworkService {
         message: SignedMessage,
     ) -> Result<(), MeshNetworkError> {
         verify_message_signature(&message).map_err(MeshNetworkError::Common)?;
+        let hash = signed_message_hash(&message).map_err(MeshNetworkError::Common)?;
+        let mut set = self.seen_hashes.lock().await;
+        if !set.insert(hash) {
+            return Err(MeshNetworkError::DuplicateMessage);
+        }
         println!(
             "[StubNetworkService] Broadcasting signed message: {:?}",
             message.message
