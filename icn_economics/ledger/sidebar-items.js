@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["rocksdb"],"struct":["FileManaLedger"]};
+window.SIDEBAR_ITEMS = {"struct":["FileManaLedger","SledManaLedger"]};
