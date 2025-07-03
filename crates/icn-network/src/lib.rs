@@ -282,7 +282,7 @@ impl NetworkService for StubNetworkService {
         &self,
         target_peer_id_str: Option<String>,
     ) -> Result<Vec<PeerId>, MeshNetworkError> {
-        println!(
+        log::info!(
             "[StubNetworkService] Discovering peers (target: {:?})... returning mock peers.",
             target_peer_id_str
         );
@@ -297,9 +297,10 @@ impl NetworkService for StubNetworkService {
         peer: &PeerId,
         message: NetworkMessage,
     ) -> Result<(), MeshNetworkError> {
-        println!(
+        log::debug!(
             "[StubNetworkService] Sending message to peer {:?}: {:?}",
-            peer, message
+            peer,
+            message
         );
         if peer.0 == "error_peer" {
             return Err(MeshNetworkError::SendFailure(format!(
@@ -317,7 +318,7 @@ impl NetworkService for StubNetworkService {
     }
 
     async fn broadcast_message(&self, message: NetworkMessage) -> Result<(), MeshNetworkError> {
-        println!("[StubNetworkService] Broadcasting message: {:?}", message);
+        log::debug!("[StubNetworkService] Broadcasting message: {:?}", message);
         if let NetworkMessage::GossipSub(topic, _) = &message {
             if topic == "system_critical_error_topic" {
                 return Err(MeshNetworkError::Libp2p(
@@ -329,7 +330,7 @@ impl NetworkService for StubNetworkService {
     }
 
     async fn subscribe(&self) -> Result<Receiver<NetworkMessage>, MeshNetworkError> {
-        println!("[StubNetworkService] Subscribing to messages... returning an empty channel.");
+        log::info!("[StubNetworkService] Subscribing to messages... returning an empty channel.");
         let (_tx, rx) = tokio::sync::mpsc::channel(1);
         Ok(rx)
     }
