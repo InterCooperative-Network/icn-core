@@ -395,6 +395,8 @@ mod tests {
     use super::*;
     // For test setup
     use tempfile::tempdir; // For FileDagStore tests
+    #[cfg(feature = "async")]
+    use tokio::fs; // For async file operations
 
     // Helper function to create a test block
     fn create_test_block(id_str: &str) -> DagBlock {
@@ -603,6 +605,29 @@ mod tests {
                 assert_eq!(b.data, block_persist.data);
             }
             _ => panic!("Failed to retrieve persistent block"),
+        }
+
+        // Test error case: CID mismatch on read
+        let block_x = create_test_block("block_x_corruption_async");
+        store2.put(&block_x).await.unwrap();
+        let block_x_path = store2.block_path(&block_x.cid);
+
+        // Corrupt the stored CID to simulate a mismatch
+        let mut file_contents = tokio::fs::read_to_string(&block_x_path).await.unwrap();
+        let mut corrupted_block: DagBlock = serde_json::from_str(&file_contents).unwrap();
+        corrupted_block.cid.hash_bytes[0] ^= 0xFF;
+        file_contents = serde_json::to_string(&corrupted_block).unwrap();
+        tokio::fs::write(&block_x_path, file_contents)
+            .await
+            .unwrap();
+
+        match store2.get(&block_x.cid).await {
+            Err(CommonError::InvalidInputError(msg)) => {
+                assert!(msg.contains("CID mismatch"));
+            }
+            Ok(Some(_)) => panic!("Should have failed with CID mismatch"),
+            Ok(None) => panic!("Block should exist but be corrupted (CID mismatch), not None"),
+            Err(e) => panic!("Expected InvalidInputError for CID mismatch, got other error: {e:?}"),
         }
     }
 
