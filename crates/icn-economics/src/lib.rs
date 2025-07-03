@@ -15,7 +15,6 @@ pub use ledger::SledManaLedger;
 #[cfg(feature = "persist-sqlite")]
 pub use ledger::SqliteManaLedger;
 
-
 /// Abstraction over the persistence layer storing account balances.
 pub trait ManaLedger: Send + Sync {
     /// Retrieve the mana balance for a DID.
@@ -141,12 +140,12 @@ pub fn credit_by_reputation(
     reputation_store: &dyn icn_reputation::ReputationStore,
     base_amount: u64,
 ) -> Result<(), CommonError> {
-        for did in ledger.all_accounts() {
-            let rep = reputation_store.get_reputation(&did);
-            let credit_amount = rep.saturating_mul(base_amount);
+    for did in ledger.all_accounts() {
+        let rep = reputation_store.get_reputation(&did);
+        let credit_amount = rep.saturating_mul(base_amount);
         ledger.credit(&did, credit_amount)?;
-        }
-        Ok(())
+    }
+    Ok(())
 }
 
 /// Placeholder function demonstrating use of common types for economics.
@@ -161,8 +160,57 @@ pub fn process_economic_event(info: &NodeInfo, event_details: &str) -> Result<St
 mod tests {
     use super::*;
     use icn_common::ICN_CORE_VERSION;
+    use std::collections::HashMap;
     use std::str::FromStr;
+    use std::sync::Mutex;
     use tempfile::tempdir;
+
+    #[derive(Default)]
+    struct InMemoryLedger {
+        balances: Mutex<HashMap<Did, u64>>,
+    }
+
+    impl InMemoryLedger {
+        fn new() -> Self {
+            Self {
+                balances: Mutex::new(HashMap::new()),
+            }
+        }
+    }
+
+    impl ManaLedger for InMemoryLedger {
+        fn get_balance(&self, did: &Did) -> u64 {
+            *self.balances.lock().unwrap().get(did).unwrap_or(&0)
+        }
+
+        fn set_balance(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
+            self.balances.lock().unwrap().insert(did.clone(), amount);
+            Ok(())
+        }
+
+        fn spend(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
+            let mut map = self.balances.lock().unwrap();
+            let bal = map
+                .get_mut(did)
+                .ok_or_else(|| CommonError::DatabaseError("account".into()))?;
+            if *bal < amount {
+                return Err(CommonError::PolicyDenied("insufficient".into()));
+            }
+            *bal -= amount;
+            Ok(())
+        }
+
+        fn credit(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
+            let mut map = self.balances.lock().unwrap();
+            let entry = map.entry(did.clone()).or_insert(0);
+            *entry = entry.saturating_add(amount);
+            Ok(())
+        }
+
+        fn all_accounts(&self) -> Vec<Did> {
+            self.balances.lock().unwrap().keys().cloned().collect()
+        }
+    }
 
     #[test]
     fn test_process_economic_event() {
@@ -259,5 +307,43 @@ mod tests {
         let over_limit = ResourcePolicyEnforcer::<FileManaLedger>::MAX_SPEND_LIMIT + 1;
         let result = enforcer.spend_mana(&did, over_limit);
         assert!(matches!(result, Err(CommonError::PolicyDenied(_))));
+    }
+
+    #[test]
+    fn test_credit_by_reputation_basic() {
+        use icn_reputation::InMemoryReputationStore;
+
+        let ledger = InMemoryLedger::new();
+        let rep_store = InMemoryReputationStore::new();
+
+        let alice = Did::from_str("did:example:alice").unwrap();
+        let bob = Did::from_str("did:example:bob").unwrap();
+
+        ledger.set_balance(&alice, 0).unwrap();
+        ledger.set_balance(&bob, 0).unwrap();
+
+        rep_store.set_score(alice.clone(), 3);
+        rep_store.set_score(bob.clone(), 0);
+
+        credit_by_reputation(&ledger, &rep_store, 10).unwrap();
+
+        assert_eq!(ledger.get_balance(&alice), 30);
+        assert_eq!(ledger.get_balance(&bob), 0);
+    }
+
+    #[test]
+    fn test_credit_by_reputation_overflow() {
+        use icn_reputation::InMemoryReputationStore;
+
+        let ledger = InMemoryLedger::new();
+        let rep_store = InMemoryReputationStore::new();
+
+        let over = Did::from_str("did:example:overflow").unwrap();
+        ledger.set_balance(&over, 0).unwrap();
+        rep_store.set_score(over.clone(), 2);
+
+        credit_by_reputation(&ledger, &rep_store, u64::MAX).unwrap();
+
+        assert_eq!(ledger.get_balance(&over), u64::MAX);
     }
 }
