@@ -22,6 +22,7 @@ use icn_identity::ExecutionReceipt;
 use icn_mesh::{ActualMeshJob as Job, JobId, MeshJobBid as Bid};
 #[cfg(feature = "libp2p")]
 use libp2p::PeerId as Libp2pPeerId;
+#[cfg(feature = "libp2p")]
 use log::{info, warn};
 use serde::{Deserialize, Serialize};
 use std::any::Any;
@@ -29,6 +30,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 #[cfg(feature = "libp2p")]
 use std::str::FromStr;
+#[cfg(feature = "libp2p")]
 use std::time::Duration;
 use tokio::sync::mpsc::Receiver;
 // Removed unused imports for testing Kademlia disabled build
@@ -126,7 +128,7 @@ pub struct SignedMessage {
     /// DID of the sender.
     pub sender: Did,
     /// Signature over the message and DID.
-    pub signature: SignatureBytes,
+    pub signature: icn_identity::SignatureBytes,
 }
 
 /// Decode a raw byte slice into a [`NetworkMessage`].
@@ -345,9 +347,10 @@ impl NetworkService for StubNetworkService {
         message: SignedMessage,
     ) -> Result<(), MeshNetworkError> {
         verify_message_signature(&message).map_err(MeshNetworkError::Common)?;
-        println!(
+        log::debug!(
             "[StubNetworkService] Sending signed message to peer {:?}: {:?}",
-            peer, message.message
+            peer,
+            message.message
         );
         self.send_message(peer, message.message).await
     }
@@ -357,7 +360,7 @@ impl NetworkService for StubNetworkService {
         message: SignedMessage,
     ) -> Result<(), MeshNetworkError> {
         verify_message_signature(&message).map_err(MeshNetworkError::Common)?;
-        println!(
+        log::debug!(
             "[StubNetworkService] Broadcasting signed message: {:?}",
             message.message
         );
@@ -365,7 +368,7 @@ impl NetworkService for StubNetworkService {
     }
 
     async fn subscribe_signed(&self) -> Result<Receiver<SignedMessage>, MeshNetworkError> {
-        println!(
+        log::info!(
             "[StubNetworkService] Subscribing to signed messages... returning an empty channel."
         );
         let (_tx, rx) = tokio::sync::mpsc::channel(1);
