@@ -83,6 +83,31 @@ set.
 `spawn_mana_regenerator` to start a background task that credits every
 account with a fixed amount on a configurable interval.
 
+## DAG Storage
+
+`RuntimeContext` selects a storage backend for receipts and other DAG data. When
+compiled with the `async` feature, use `TokioFileDagStore`:
+
+```rust
+use icn_runtime::context::{RuntimeContext, StubMeshNetworkService, StubSigner};
+use icn_common::Did;
+use std::sync::Arc;
+use tokio::sync::Mutex;
+
+#[cfg(feature = "async")]
+let dag_store = Arc::new(Mutex::new(icn_dag::TokioFileDagStore::new("./dag".into()).unwrap()));
+#[cfg(not(feature = "async"))]
+let dag_store = Arc::new(Mutex::new(icn_dag::FileDagStore::new("./dag".into()).unwrap()));
+
+let ctx = RuntimeContext::new(
+    Did::new("key", "node"),
+    Arc::new(StubMeshNetworkService::new()),
+    Arc::new(StubSigner::new()),
+    Arc::new(icn_identity::KeyDidResolver),
+    dag_store,
+);
+```
+
 ## WASM Execution Limits
 
 `WasmExecutor` instances can be configured with a maximum linear memory size and

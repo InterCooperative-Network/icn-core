@@ -22,6 +22,24 @@ The API style prioritizes:
 *   **Flexibility:** Supporting different codecs and storage backends where appropriate.
 *   **Pluggable Persistence:** Includes in-memory, file-based, and optional `sled` backends via the `persist-sled` feature. When enabled, `SledDagStore` provides durable storage on disk.
 
+## Async Feature
+
+Enable the `async` feature to use asynchronous storage via `TokioFileDagStore`:
+
+```toml
+[dependencies]
+icn-dag = { path = "../icn-dag", features = ["async"] }
+```
+
+```rust
+use icn_dag::{AsyncStorageService, TokioFileDagStore};
+use tokio::sync::Mutex;
+use std::path::PathBuf;
+
+let store = TokioFileDagStore::new(PathBuf::from("./dag")).unwrap();
+let dag_store = Mutex::new(store); // implement AsyncStorageService
+```
+
 ## Contributing
 
 Contributions are welcome! Please see the main [CONTRIBUTING.md](../../CONTRIBUTING.md) in the root of the `icn-core` repository for guidelines.
