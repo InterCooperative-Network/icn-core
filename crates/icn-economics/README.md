@@ -27,6 +27,21 @@ Ledger implementations may support bulk credit operations.
 `ManaLedger::credit_all` adds a specified amount to every account and is used by
 the runtime to periodically regenerate balances.
 
+## Feature Flags
+
+Persistence backends are selected via Cargo features. The default backend uses
+[`sled`](https://crates.io/crates/sled) for a simple embedded database.
+
+- `persist-sled` *(default)* – store the mana ledger using sled.
+- `persist-rocksdb` – store the ledger using RocksDB. Enable with:
+
+```bash
+cargo build --features persist-rocksdb
+```
+
+When using RocksDB at runtime, pass `--mana-ledger-backend rocksdb` and a path
+ending in `.rocks` to the node binary.
+
 ## Contributing
 
 Contributions are welcome! Please see the main [CONTRIBUTING.md](../../CONTRIBUTING.md) in the root of the `icn-core` repository for guidelines.
