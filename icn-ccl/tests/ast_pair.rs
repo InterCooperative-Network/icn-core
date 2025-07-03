@@ -32,12 +32,11 @@ fn test_pair_to_ast_function() {
 }
 
 #[test]
-#[ignore]
 fn test_pair_to_ast_policy() {
     let src = r#"
         fn add(a: Integer, b: Integer) -> Integer { return a + b; }
         rule allow_all when true then allow
-        import \"other.ccl\" as other;
+        import "otherccl" as other;
     "#;
     let mut pairs = CclParser::parse(Rule::policy, src).unwrap();
     let pair = pairs.next().unwrap();
@@ -70,9 +69,36 @@ fn test_pair_to_ast_policy() {
             action: ActionNode::Allow,
         }),
         PolicyStatementNode::Import {
-            path: "other.ccl".to_string(),
+            path: "otherccl".to_string(),
             alias: "other".to_string(),
         },
     ]);
+    assert_eq!(ast, expected);
+}
+
+#[test]
+fn test_pair_to_ast_policy_statement_rule() {
+    let src = "rule allow_all when true then allow";
+    let mut pairs = CclParser::parse(Rule::policy_statement, src).unwrap();
+    let pair = pairs.next().unwrap();
+    let ast = ast::pair_to_ast(pair).unwrap();
+    let expected = AstNode::RuleDefinition {
+        name: "allow_all".to_string(),
+        condition: ExpressionNode::BooleanLiteral(true),
+        action: ActionNode::Allow,
+    };
+    assert_eq!(ast, expected);
+}
+
+#[test]
+fn test_pair_to_ast_import_statement() {
+    let src = r#"import "otherccl" as other;"#;
+    let mut pairs = CclParser::parse(Rule::import_statement, src).unwrap();
+    let pair = pairs.next().unwrap();
+    let ast = ast::pair_to_ast(pair).unwrap();
+    let expected = AstNode::Policy(vec![PolicyStatementNode::Import {
+        path: "otherccl".to_string(),
+        alias: "other".to_string(),
+    }]);
     assert_eq!(ast, expected);
 }
