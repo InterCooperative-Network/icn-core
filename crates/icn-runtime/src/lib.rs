@@ -530,7 +530,19 @@ pub async fn host_cast_governance_vote(
     ctx.cast_governance_vote(payload).await
 }
 
-/// Closes voting on a governance proposal. Currently not implemented.
+/// Closes voting on a governance proposal and broadcasts the final
+/// [`icn_governance::ProposalStatus`] across the mesh network.
+///
+/// Returns the status as a `String`.
+///
+/// # Example
+/// ```no_run
+/// # async fn demo(ctx: &icn_runtime::context::RuntimeContext) -> Result<(), icn_runtime::HostAbiError> {
+/// let status = icn_runtime::host_close_governance_proposal_voting(ctx, "pid").await?;
+/// println!("Proposal status: {status}");
+/// # Ok(())
+/// # }
+/// ```
 pub async fn host_close_governance_proposal_voting(
     ctx: &RuntimeContext,
     proposal_id: &str,
@@ -538,7 +550,16 @@ pub async fn host_close_governance_proposal_voting(
     ctx.close_governance_proposal_voting(proposal_id).await
 }
 
-/// Executes an accepted governance proposal. Currently not implemented.
+/// Executes an accepted governance proposal and rewards the proposer on
+/// success.
+///
+/// # Example
+/// ```no_run
+/// # async fn demo(ctx: &icn_runtime::context::RuntimeContext) -> Result<(), icn_runtime::HostAbiError> {
+/// icn_runtime::host_execute_governance_proposal(ctx, "pid").await?;
+/// # Ok(())
+/// # }
+/// ```
 pub async fn host_execute_governance_proposal(
     ctx: &RuntimeContext,
     proposal_id: &str,

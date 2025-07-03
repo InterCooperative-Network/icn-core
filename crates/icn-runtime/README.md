@@ -79,6 +79,22 @@ closed via `host_close_governance_proposal_voting`, returning the final
 `host_execute_governance_proposal`, which updates the stored proposal and member
 set.
 
+```rust,no_run
+use icn_runtime::{
+    context::RuntimeContext,
+    host_close_governance_proposal_voting,
+    host_execute_governance_proposal,
+};
+
+async fn finalize_proposal(ctx: &RuntimeContext, pid: &str) -> Result<(), icn_runtime::HostAbiError> {
+    let status = host_close_governance_proposal_voting(ctx, pid).await?;
+    if status == "Accepted" {
+        host_execute_governance_proposal(ctx, pid).await?;
+    }
+    Ok(())
+}
+```
+
 ## Mana Regeneration
 
 `RuntimeContext` can automatically replenish mana. Use
