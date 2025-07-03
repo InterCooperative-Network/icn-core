@@ -29,7 +29,7 @@
 <a href=#29 id=29 data-nosnippet>29</a>    did_key_from_verifying_key, generate_ed25519_keypair,
 <a href=#30 id=30 data-nosnippet>30</a>    ExecutionReceipt <span class="kw">as </span>IdentityExecutionReceipt, SignatureBytes,
 <a href=#31 id=31 data-nosnippet>31</a>};
-<a href=#32 id=32 data-nosnippet>32</a><span class="kw">use </span>icn_mesh::{ActualMeshJob, JobSpec};
+<a href=#32 id=32 data-nosnippet>32</a><span class="kw">use </span>icn_mesh::{ActualMeshJob, JobId, JobSpec};
 <a href=#33 id=33 data-nosnippet>33</a><span class="kw">use </span>icn_network::{NetworkMessage, NetworkService};
 <a href=#34 id=34 data-nosnippet>34</a><span class="kw">use </span>icn_runtime::context::{
 <a href=#35 id=35 data-nosnippet>35</a>    RuntimeContext, StubDagStore <span class="kw">as </span>RuntimeStubDagStore, StubMeshNetworkService,
@@ -1514,7 +1514,7 @@
 <a href=#1514 id=1514 data-nosnippet>1514</a>        <span class="macro">info!</span>(<span class="string">"[Node] Stored job ID: {:?}"</span>, stored_job_id);
 <a href=#1515 id=1515 data-nosnippet>1515</a>    }
 <a href=#1516 id=1516 data-nosnippet>1516</a>
-<a href=#1517 id=1517 data-nosnippet>1517</a>    <span class="kw">match </span>job_states.get(<span class="kw-2">&amp;</span>job_id) {
+<a href=#1517 id=1517 data-nosnippet>1517</a>    <span class="kw">match </span>job_states.get(<span class="kw-2">&amp;</span>icn_mesh::JobId::from(job_id.clone())) {
 <a href=#1518 id=1518 data-nosnippet>1518</a>        <span class="prelude-val">Some</span>(job_state) =&gt; {
 <a href=#1519 id=1519 data-nosnippet>1519</a>            <span class="kw">let </span>response = <span class="macro">serde_json::json!</span>({
 <a href=#1520 id=1520 data-nosnippet>1520</a>                <span class="string">"job_id"</span>: job_id.to_string(),
@@ -2141,7 +2141,7 @@
 <a href=#2141 id=2141 data-nosnippet>2141</a>            icn_runtime::executor::WasmExecutorConfig::default(),
 <a href=#2142 id=2142 data-nosnippet>2142</a>        );
 <a href=#2143 id=2143 data-nosnippet>2143</a>        <span class="kw">let </span>job = ActualMeshJob {
-<a href=#2144 id=2144 data-nosnippet>2144</a>            id: job_id.clone(),
+<a href=#2144 id=2144 data-nosnippet>2144</a>            id: JobId(job_id.clone()),
 <a href=#2145 id=2145 data-nosnippet>2145</a>            manifest_cid: wasm_cid.clone(),
 <a href=#2146 id=2146 data-nosnippet>2146</a>            spec: JobSpec::default(),
 <a href=#2147 id=2147 data-nosnippet>2147</a>            creator_did: ctx.current_identity.clone(),

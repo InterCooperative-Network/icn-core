@@ -154,7 +154,7 @@
 <a href=#154 id=154 data-nosnippet>154</a>        <span class="kw">let </span>cpu_ms = start_time.elapsed().unwrap_or_default().as_millis() <span class="kw">as </span>u64;
 <a href=#155 id=155 data-nosnippet>155</a>
 <a href=#156 id=156 data-nosnippet>156</a>        <span class="kw">let </span>unsigned_receipt = IdentityExecutionReceipt {
-<a href=#157 id=157 data-nosnippet>157</a>            job_id: job.id.clone(),
+<a href=#157 id=157 data-nosnippet>157</a>            job_id: job.id.clone().into(),
 <a href=#158 id=158 data-nosnippet>158</a>            executor_did: <span class="self">self</span>.node_did.clone(),
 <a href=#159 id=159 data-nosnippet>159</a>            result_cid,
 <a href=#160 id=160 data-nosnippet>160</a>            cpu_ms,
@@ -315,7 +315,7 @@
 <a href=#315 id=315 data-nosnippet>315</a>            .sign(<span class="kw-2">&amp;</span>msg)
 <a href=#316 id=316 data-nosnippet>316</a>            .map_err(|e| CommonError::InternalError(<span class="macro">format!</span>(<span class="string">"{:?}"</span>, e)))<span class="question-mark">?</span>;
 <a href=#317 id=317 data-nosnippet>317</a>        <span class="kw">let </span>receipt = IdentityExecutionReceipt {
-<a href=#318 id=318 data-nosnippet>318</a>            job_id: job.id.clone(),
+<a href=#318 id=318 data-nosnippet>318</a>            job_id: job.id.clone().into(),
 <a href=#319 id=319 data-nosnippet>319</a>            executor_did,
 <a href=#320 id=320 data-nosnippet>320</a>            result_cid,
 <a href=#321 id=321 data-nosnippet>321</a>            cpu_ms,
@@ -352,7 +352,7 @@
 <a href=#352 id=352 data-nosnippet>352</a>        <span class="kw">let </span>manifest_cid = dummy_cid_for_executor_test(<span class="string">"test_echo_manifest"</span>);
 <a href=#353 id=353 data-nosnippet>353</a>
 <a href=#354 id=354 data-nosnippet>354</a>        <span class="kw">let </span>job = ActualMeshJob {
-<a href=#355 id=355 data-nosnippet>355</a>            id: job_id.clone(),
+<a href=#355 id=355 data-nosnippet>355</a>            id: icn_mesh::JobId::from(job_id.clone()),
 <a href=#356 id=356 data-nosnippet>356</a>            manifest_cid,
 <a href=#357 id=357 data-nosnippet>357</a>            spec: JobSpec {
 <a href=#358 id=358 data-nosnippet>358</a>                kind: JobKind::Echo {
@@ -387,7 +387,7 @@
 <a href=#387 id=387 data-nosnippet>387</a>        <span class="kw">let </span>node_did = Did::from_str(<span class="kw-2">&amp;</span>node_did_string).unwrap();
 <a href=#388 id=388 data-nosnippet>388</a>
 <a href=#389 id=389 data-nosnippet>389</a>        <span class="kw">let </span>job = ActualMeshJob {
-<a href=#390 id=390 data-nosnippet>390</a>            id: dummy_cid_for_executor_test(<span class="string">"job1"</span>),
+<a href=#390 id=390 data-nosnippet>390</a>            id: icn_mesh::JobId::from(dummy_cid_for_executor_test(<span class="string">"job1"</span>)),
 <a href=#391 id=391 data-nosnippet>391</a>            manifest_cid: dummy_cid_for_executor_test(<span class="string">"manifest1"</span>),
 <a href=#392 id=392 data-nosnippet>392</a>            spec: JobSpec {
 <a href=#393 id=393 data-nosnippet>393</a>                kind: JobKind::Echo {
@@ -407,7 +407,7 @@
 <a href=#407 id=407 data-nosnippet>407</a>        <span class="macro">assert!</span>(result.is_ok());
 <a href=#408 id=408 data-nosnippet>408</a>        <span class="kw">let </span>receipt = result.unwrap();
 <a href=#409 id=409 data-nosnippet>409</a>
-<a href=#410 id=410 data-nosnippet>410</a>        <span class="macro">assert_eq!</span>(receipt.job_id, job.id);
+<a href=#410 id=410 data-nosnippet>410</a>        <span class="macro">assert_eq!</span>(receipt.job_id, job.id.into());
 <a href=#411 id=411 data-nosnippet>411</a>        <span class="macro">assert_eq!</span>(receipt.executor_did, node_did);
 <a href=#412 id=412 data-nosnippet>412</a>        <span class="macro">assert!</span>(!receipt.sig.<span class="number">0</span>.is_empty());
 <a href=#413 id=413 data-nosnippet>413</a>        <span class="macro">assert!</span>(receipt.verify_against_key(<span class="kw-2">&amp;</span>node_pk).is_ok());
@@ -447,7 +447,7 @@
 <a href=#447 id=447 data-nosnippet>447</a>        <span class="kw">let </span>node_did = Did::from_str(<span class="kw-2">&amp;</span>did_key_from_verifying_key(<span class="kw-2">&amp;</span>vk)).unwrap();
 <a href=#448 id=448 data-nosnippet>448</a>
 <a href=#449 id=449 data-nosnippet>449</a>        <span class="kw">let </span>job = ActualMeshJob {
-<a href=#450 id=450 data-nosnippet>450</a>            id: dummy_cid_for_executor_test(<span class="string">"hash_job"</span>),
+<a href=#450 id=450 data-nosnippet>450</a>            id: icn_mesh::JobId::from(dummy_cid_for_executor_test(<span class="string">"hash_job"</span>)),
 <a href=#451 id=451 data-nosnippet>451</a>            manifest_cid: cid.clone(),
 <a href=#452 id=452 data-nosnippet>452</a>            spec: JobSpec::default(),
 <a href=#453 id=453 data-nosnippet>453</a>            creator_did: node_did.clone(),
