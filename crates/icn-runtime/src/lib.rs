@@ -20,6 +20,9 @@ pub mod metrics;
 
 // Re-export important types for convenience
 pub use context::{HostAbiError, RuntimeContext, Signer};
+#[cfg(feature = "async")]
+pub use icn_dag::AsyncStorageService as StorageService;
+#[cfg(not(feature = "async"))]
 pub use icn_dag::StorageService;
 
 // Re-export ABI constants

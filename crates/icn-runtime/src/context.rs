@@ -96,13 +96,18 @@ pub trait Signer: Send + Sync + std::fmt::Debug {
 
 #[cfg(feature = "persist-rocksdb")]
 use icn_dag::rocksdb_store::RocksDagStore;
+#[cfg(feature = "async")]
+use icn_dag::AsyncStorageService as DagStorageService;
 #[cfg(not(any(
     feature = "persist-rocksdb",
     feature = "persist-sled",
     feature = "persist-sqlite"
 )))]
 use icn_dag::FileDagStore;
+#[cfg(not(feature = "async"))]
 use icn_dag::StorageService as DagStorageService;
+#[cfg(feature = "async")]
+use icn_dag::TokioFileDagStore;
 
 // Placeholder for icn_economics::ManaRepository
 pub trait ManaRepository: Send + Sync + std::fmt::Debug {
@@ -597,7 +602,7 @@ pub struct RuntimeContext {
     pub mesh_network_service: Arc<dyn MeshNetworkService>, // Uses local MeshNetworkService trait
     pub signer: Arc<dyn Signer>,
     pub did_resolver: Arc<dyn icn_identity::DidResolver>,
-    pub dag_store: Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>, // Uses icn_dag::StorageService
+    pub dag_store: Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>, // Storage backend
     pub reputation_store: Arc<dyn icn_reputation::ReputationStore>,
     pub policy_enforcer: Option<Arc<dyn ScopedPolicyEnforcer>>,
     /// Source of time for timestamp generation.
@@ -811,6 +816,10 @@ impl RuntimeContext {
             feature = "persist-sled",
             feature = "persist-sqlite"
         )))]
+        #[cfg(feature = "async")]
+        let dag_store = Arc::new(TokioMutex::new(icn_dag::TokioFileDagStore::new(dag_path)?))
+            as Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>;
+        #[cfg(not(feature = "async"))]
         let dag_store = Arc::new(TokioMutex::new(FileDagStore::new(dag_path)?))
             as Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>;
 
@@ -2062,6 +2071,28 @@ impl DagStorageService<DagBlock> for StubDagStore {
     }
 
     fn contains(&self, cid: &Cid) -> Result<bool, CommonError> {
+        Ok(self.store.contains_key(cid))
+    }
+}
+
+#[cfg(feature = "async")]
+#[async_trait::async_trait]
+impl icn_dag::AsyncStorageService<DagBlock> for StubDagStore {
+    async fn put(&mut self, block: &DagBlock) -> Result<(), CommonError> {
+        self.store.insert(block.cid.clone(), block.clone());
+        Ok(())
+    }
+
+    async fn get(&self, cid: &Cid) -> Result<Option<DagBlock>, CommonError> {
+        Ok(self.store.get(cid).cloned())
+    }
+
+    async fn delete(&mut self, cid: &Cid) -> Result<(), CommonError> {
+        self.store.remove(cid);
+        Ok(())
+    }
+
+    async fn contains(&self, cid: &Cid) -> Result<bool, CommonError> {
         Ok(self.store.contains_key(cid))
     }
 }
