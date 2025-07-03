@@ -48,12 +48,18 @@ cargo build --features with-libp2p
 # Build using the SQLite backend
 cargo build --no-default-features --features "with-libp2p persist-sqlite"
 
+# Build using the RocksDB backend
+cargo build --no-default-features --features "with-libp2p persist-rocksdb"
+
 # Start a node with persistent storage and P2P enabled
 ./target/debug/icn-node \
   --enable-p2p \
   --p2p-listen-addr /ip4/0.0.0.0/tcp/4001 \
   --storage-backend sqlite \
   --storage-path ./icn_data/node1.sqlite
+
+# To use RocksDB instead of SQLite, compile with `--features persist-rocksdb`
+# and pass `--storage-backend rocksdb` with a `.rocks` path.
 
 # In a second terminal start another node connecting to the first
 ./target/debug/icn-node \
