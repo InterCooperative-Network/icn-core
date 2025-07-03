@@ -158,36 +158,40 @@ pub struct Cli {
 /// Load or generate the node identity based on the provided configuration.
 pub fn load_or_generate_identity(
     config: &mut NodeConfig,
-) -> (icn_identity::SigningKey, icn_identity::VerifyingKey, String) {
+) -> Result<(icn_identity::SigningKey, icn_identity::VerifyingKey, String), CommonError> {
     if let (Some(did_str), Some(sk_bs58)) = (
         config.node_did.clone(),
         config.node_private_key_bs58.clone(),
     ) {
         let sk_bytes = bs58::decode(sk_bs58)
             .into_vec()
-            .expect("Invalid base58 private key");
-        let sk_array: [u8; 32] = sk_bytes.try_into().expect("Invalid private key length");
+            .map_err(|_| CommonError::IdentityError("Invalid base58 private key".into()))?;
+        let sk_array: [u8; 32] = sk_bytes
+            .try_into()
+            .map_err(|_| CommonError::IdentityError("Invalid private key length".into()))?;
         let sk = icn_identity::SigningKey::from_bytes(&sk_array);
         let pk = sk.verifying_key();
-        (sk, pk, did_str)
+        Ok((sk, pk, did_str))
     } else if config.node_did_path.exists() && config.node_private_key_path.exists() {
         let did_str = fs::read_to_string(&config.node_did_path)
-            .expect("Failed to read DID file")
+            .map_err(|e| CommonError::IoError(format!("Failed to read DID file: {e}")))?
             .trim()
             .to_string();
         let sk_bs58 = fs::read_to_string(&config.node_private_key_path)
-            .expect("Failed to read key file")
+            .map_err(|e| CommonError::IoError(format!("Failed to read key file: {e}")))?
             .trim()
             .to_string();
         let sk_bytes = bs58::decode(sk_bs58.clone())
             .into_vec()
-            .expect("Invalid base58 private key");
-        let sk_array: [u8; 32] = sk_bytes.try_into().expect("Invalid private key length");
+            .map_err(|_| CommonError::IdentityError("Invalid base58 private key".into()))?;
+        let sk_array: [u8; 32] = sk_bytes
+            .try_into()
+            .map_err(|_| CommonError::IdentityError("Invalid private key length".into()))?;
         let sk = icn_identity::SigningKey::from_bytes(&sk_array);
         let pk = sk.verifying_key();
         config.node_did = Some(did_str.clone());
         config.node_private_key_bs58 = Some(sk_bs58);
-        (sk, pk, did_str)
+        Ok((sk, pk, did_str))
     } else {
         let (sk, pk) = generate_ed25519_keypair();
         let did_str = did_key_from_verifying_key(&pk);
@@ -200,7 +204,7 @@ pub fn load_or_generate_identity(
         }
         config.node_did = Some(did_str.clone());
         config.node_private_key_bs58 = Some(sk_bs58);
-        (sk, pk, did_str)
+        Ok((sk, pk, did_str))
     }
 }
 
@@ -670,7 +674,13 @@ async fn main() {
     }
 
     // --- Initialize Node Identity ---
-    let (node_sk, node_pk, node_did_string) = load_or_generate_identity(&mut config);
+    let (node_sk, node_pk, node_did_string) = match load_or_generate_identity(&mut config) {
+        Ok(ids) => ids,
+        Err(e) => {
+            error!("Failed to initialize node identity: {}", e);
+            std::process::exit(1);
+        }
+    };
 
     let node_did = Did::from_str(&node_did_string).expect("Failed to create node DID");
 
