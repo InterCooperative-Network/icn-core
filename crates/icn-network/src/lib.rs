@@ -478,7 +478,6 @@ pub mod libp2p_service {
     }
 
     #[derive(Debug)]
-    #[allow(dead_code)]
     enum Command {
         DiscoverPeers {
             target: Option<Libp2pPeerId>,
