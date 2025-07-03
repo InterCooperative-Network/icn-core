@@ -32,6 +32,13 @@ The API style emphasizes:
   Keys can be encoded with [`did_peer_from_verifying_key`] and resolved with
   [`verifying_key_from_did_peer`].
 
+### `did:web` segment validation
+
+`did_web_from_parts` returns an error if any domain label or path segment
+contains characters other than ASCII letters, digits, `-`, `_`, or `.` or if a
+segment exceeds 63 characters. Domains longer than 253 characters are also
+rejected.
+
 ## Contributing
 
 Contributions are welcome! Please see the main [CONTRIBUTING.md](../../CONTRIBUTING.md) in the root of the `icn-core` repository for guidelines.
