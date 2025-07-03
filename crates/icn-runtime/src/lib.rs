@@ -31,6 +31,9 @@ use icn_common::{Cid, CommonError, Did, NodeInfo};
 use log::{debug, info, warn};
 use std::str::FromStr;
 
+/// Maximum allowed size of a submitted job JSON payload in bytes (1 MiB).
+const MAX_JOB_JSON_SIZE: usize = 1_048_576;
+
 /// Placeholder function demonstrating use of common types for runtime operations.
 /// This function is not directly part of the Host ABI layer discussed below but serves as an example.
 pub fn execute_icn_script(info: &NodeInfo, script_id: &str) -> Result<String, CommonError> {
@@ -65,6 +68,13 @@ pub async fn host_submit_mesh_job(
         return Err(HostAbiError::InvalidParameters(
             "Job JSON cannot be empty".to_string(),
         ));
+    }
+
+    if job_json.len() > MAX_JOB_JSON_SIZE {
+        return Err(HostAbiError::InvalidParameters(format!(
+            "Job JSON exceeds {} bytes",
+            MAX_JOB_JSON_SIZE
+        )));
     }
 
     // 1. Deserialize MeshJob
@@ -646,6 +656,23 @@ mod tests {
         assert!(
             matches!(result, Err(HostAbiError::InsufficientMana)),
             "Expected InsufficientMana, got {:?}",
+            result
+        );
+    }
+
+    #[tokio::test]
+    async fn test_host_submit_mesh_job_rejects_large_json() {
+        let ctx = create_test_context_with_mana(100);
+        let mut job = create_test_mesh_job(10);
+        job.spec.kind = JobKind::Echo {
+            payload: "x".repeat(MAX_JOB_JSON_SIZE + 1),
+        };
+        let job_json = serde_json::to_string(&job).unwrap();
+        assert!(job_json.len() > MAX_JOB_JSON_SIZE);
+        let result = host_submit_mesh_job(&ctx, &job_json).await;
+        assert!(
+            matches!(result, Err(HostAbiError::InvalidParameters(_))),
+            "Expected InvalidParameters, got {:?}",
             result
         );
     }
