@@ -49,9 +49,7 @@ use axum::{
 use axum_server::tls_rustls::RustlsConfig;
 use bs58;
 use clap::{ArgMatches, CommandFactory, FromArgMatches, Parser};
-#[cfg(feature = "enable-libp2p")]
-use log::warn;
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::net::SocketAddr;
@@ -59,6 +57,7 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use subtle::ConstantTimeEq;
 use tokio::sync::{Mutex as AsyncMutex, Mutex as TokioMutex};
 
 use crate::config::{NodeConfig, StorageBackendType};
@@ -255,6 +254,7 @@ struct RateLimitData {
     last: Instant,
     count: u64,
     limit: u64,
+    failed_attempts: u64,
 }
 
 async fn require_api_key(
@@ -263,37 +263,62 @@ async fn require_api_key(
     next: Next,
 ) -> impl IntoResponse {
     if let Some(ref expected) = state.api_key {
-        match req.headers().get("x-api-key").and_then(|v| v.to_str().ok()) {
-            Some(provided) if provided == expected => {}
-            _ => {
-                return (
-                    StatusCode::UNAUTHORIZED,
-                    Json(JsonErrorResponse {
-                        error: "missing or invalid api key".to_string(),
-                    }),
-                )
-                    .into_response()
+        let provided = req.headers().get("x-api-key").and_then(|v| v.to_str().ok());
+        let valid = provided
+            .map(|p| ConstantTimeEq::ct_eq(p.as_bytes(), expected.as_bytes()).into())
+            .unwrap_or(false);
+        if !valid {
+            warn!("Invalid API key attempt");
+            if let Some(ref limiter) = state.rate_limiter {
+                let mut data = limiter.lock().await;
+                let now = Instant::now();
+                if now.duration_since(data.last) > Duration::from_secs(60) {
+                    data.last = now;
+                    data.count = 0;
+                    data.failed_attempts = 0;
+                }
+                data.count += 1;
+                data.failed_attempts += 1;
             }
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(JsonErrorResponse {
+                    error: "missing or invalid api key".to_string(),
+                }),
+            )
+                .into_response();
         }
     }
 
     if let Some(ref token) = state.auth_token {
-        match req
+        let provided = req
             .headers()
             .get(axum::http::header::AUTHORIZATION)
             .and_then(|v| v.to_str().ok())
-            .and_then(|s| s.strip_prefix("Bearer "))
-        {
-            Some(provided) if provided == token => {}
-            _ => {
-                return (
-                    StatusCode::UNAUTHORIZED,
-                    Json(JsonErrorResponse {
-                        error: "missing or invalid bearer token".to_string(),
-                    }),
-                )
-                    .into_response()
+            .and_then(|s| s.strip_prefix("Bearer "));
+        let valid = provided
+            .map(|p| ConstantTimeEq::ct_eq(p.as_bytes(), token.as_bytes()).into())
+            .unwrap_or(false);
+        if !valid {
+            warn!("Invalid bearer token attempt");
+            if let Some(ref limiter) = state.rate_limiter {
+                let mut data = limiter.lock().await;
+                let now = Instant::now();
+                if now.duration_since(data.last) > Duration::from_secs(60) {
+                    data.last = now;
+                    data.count = 0;
+                    data.failed_attempts = 0;
+                }
+                data.count += 1;
+                data.failed_attempts += 1;
             }
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(JsonErrorResponse {
+                    error: "missing or invalid bearer token".to_string(),
+                }),
+            )
+                .into_response();
         }
     }
 
@@ -311,6 +336,7 @@ async fn rate_limit_middleware(
         if now.duration_since(data.last) > Duration::from_secs(60) {
             data.last = now;
             data.count = 0;
+            data.failed_attempts = 0;
         }
         if data.count >= data.limit {
             return (
@@ -417,6 +443,7 @@ pub async fn app_router_with_options(
             last: Instant::now(),
             count: 0,
             limit,
+            failed_attempts: 0,
         }))
     });
 
@@ -516,6 +543,7 @@ pub async fn app_router_from_context(
             last: Instant::now(),
             count: 0,
             limit,
+            failed_attempts: 0,
         }))
     });
 
@@ -787,6 +815,7 @@ async fn main() {
                 last: Instant::now(),
                 count: 0,
                 limit: config.open_rate_limit,
+                failed_attempts: 0,
             })))
         } else {
             None
