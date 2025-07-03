@@ -118,12 +118,58 @@ impl NetworkMessage {
     }
 }
 
+/// A network message signed by the sender.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SignedMessage {
+    /// The underlying payload.
+    pub message: NetworkMessage,
+    /// DID of the sender.
+    pub sender: Did,
+    /// Signature over the message and DID.
+    pub signature: SignatureBytes,
+}
+
 /// Decode a raw byte slice into a [`NetworkMessage`].
 ///
 /// Returns [`MeshNetworkError::MessageDecodeFailed`] if the bytes cannot be
 /// deserialized using `bincode`.
 pub fn decode_network_message(data: &[u8]) -> Result<NetworkMessage, MeshNetworkError> {
     bincode::deserialize(data).map_err(|e| MeshNetworkError::MessageDecodeFailed(e.to_string()))
+}
+
+/// Create a [`SignedMessage`] by signing `message` with `signing_key` and recording `sender`.
+pub fn sign_message(
+    message: &NetworkMessage,
+    sender: &Did,
+    signing_key: &icn_identity::SigningKey,
+) -> Result<SignedMessage, icn_common::CommonError> {
+    let mut bytes = sender.to_string().into_bytes();
+    let msg_bytes = bincode::serialize(message)
+        .map_err(|e| icn_common::CommonError::SerializationError(e.to_string()))?;
+    bytes.extend_from_slice(&msg_bytes);
+    let sig = icn_identity::sign_message(signing_key, &bytes);
+    Ok(SignedMessage {
+        message: message.clone(),
+        sender: sender.clone(),
+        signature: icn_identity::SignatureBytes(sig.to_bytes().to_vec()),
+    })
+}
+
+/// Verify the signature contained in a [`SignedMessage`].
+pub fn verify_message_signature(msg: &SignedMessage) -> Result<(), icn_common::CommonError> {
+    let verifying_key = icn_identity::verifying_key_from_did_key(&msg.sender)?;
+    let mut bytes = msg.sender.to_string().into_bytes();
+    let msg_bytes = bincode::serialize(&msg.message)
+        .map_err(|e| icn_common::CommonError::SerializationError(e.to_string()))?;
+    bytes.extend_from_slice(&msg_bytes);
+    let ed_sig = msg.signature.to_ed_signature()?;
+    if icn_identity::verify_signature(&verifying_key, &bytes, &ed_sig) {
+        Ok(())
+    } else {
+        Err(icn_common::CommonError::CryptoError(
+            "Message signature verification failed".into(),
+        ))
+    }
 }
 
 /// Comprehensive network statistics for monitoring and observability.
@@ -177,6 +223,33 @@ pub trait NetworkService: Send + Sync + Debug + DowncastSync + 'static {
     ) -> Result<(), MeshNetworkError>;
     async fn broadcast_message(&self, message: NetworkMessage) -> Result<(), MeshNetworkError>;
     async fn subscribe(&self) -> Result<Receiver<NetworkMessage>, MeshNetworkError>;
+    /// Send a pre-signed message. Default implementation returns an error.
+    async fn send_signed_message(
+        &self,
+        _peer: &PeerId,
+        _message: SignedMessage,
+    ) -> Result<(), MeshNetworkError> {
+        Err(MeshNetworkError::InvalidInput(
+            "Signed messaging not supported".to_string(),
+        ))
+    }
+
+    /// Broadcast a pre-signed message. Default implementation returns an error.
+    async fn broadcast_signed_message(
+        &self,
+        _message: SignedMessage,
+    ) -> Result<(), MeshNetworkError> {
+        Err(MeshNetworkError::InvalidInput(
+            "Signed messaging not supported".to_string(),
+        ))
+    }
+
+    /// Subscribe to signed messages. Default implementation returns an error.
+    async fn subscribe_signed(&self) -> Result<Receiver<SignedMessage>, MeshNetworkError> {
+        Err(MeshNetworkError::InvalidInput(
+            "Signed messaging not supported".to_string(),
+        ))
+    }
     async fn get_network_stats(&self) -> Result<NetworkStats, MeshNetworkError>;
     /// Store a record in the network DHT. Keys should take the form
     /// `/icn/service/<id>` to avoid collisions between components.
@@ -263,6 +336,39 @@ impl NetworkService for StubNetworkService {
 
     async fn get_network_stats(&self) -> Result<NetworkStats, MeshNetworkError> {
         Ok(NetworkStats::default())
+    }
+
+    async fn send_signed_message(
+        &self,
+        peer: &PeerId,
+        message: SignedMessage,
+    ) -> Result<(), MeshNetworkError> {
+        verify_message_signature(&message).map_err(MeshNetworkError::Common)?;
+        println!(
+            "[StubNetworkService] Sending signed message to peer {:?}: {:?}",
+            peer, message.message
+        );
+        self.send_message(peer, message.message).await
+    }
+
+    async fn broadcast_signed_message(
+        &self,
+        message: SignedMessage,
+    ) -> Result<(), MeshNetworkError> {
+        verify_message_signature(&message).map_err(MeshNetworkError::Common)?;
+        println!(
+            "[StubNetworkService] Broadcasting signed message: {:?}",
+            message.message
+        );
+        self.broadcast_message(message.message).await
+    }
+
+    async fn subscribe_signed(&self) -> Result<Receiver<SignedMessage>, MeshNetworkError> {
+        println!(
+            "[StubNetworkService] Subscribing to signed messages... returning an empty channel."
+        );
+        let (_tx, rx) = tokio::sync::mpsc::channel(1);
+        Ok(rx)
     }
 
     async fn store_record(&self, key: String, value: Vec<u8>) -> Result<(), MeshNetworkError> {
