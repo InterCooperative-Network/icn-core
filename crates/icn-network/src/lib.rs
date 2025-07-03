@@ -24,12 +24,16 @@ use icn_mesh::{ActualMeshJob as Job, JobId, MeshJobBid as Bid};
 use libp2p::PeerId as Libp2pPeerId;
 #[cfg(feature = "libp2p")]
 use log::{info, warn};
+use lru::LruCache;
+use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::any::Any;
 use std::collections::HashMap;
 use std::fmt::Debug;
 #[cfg(feature = "libp2p")]
 use std::str::FromStr;
+use std::sync::Mutex;
 #[cfg(feature = "libp2p")]
 use std::time::Duration;
 use tokio::sync::mpsc::Receiver;
@@ -49,6 +53,12 @@ pub const SERVICE_AD_PREFIX: &str = "/icn/service/";
 /// document for `did:web:example.com` would therefore be stored under
 /// `/icn/did/did:web:example.com`.
 pub const DID_DOC_PREFIX: &str = "/icn/did/";
+
+/// Cache of recently verified message hashes to prevent replay.
+static MESSAGE_CACHE: Lazy<Mutex<LruCache<Vec<u8>, ()>>> = Lazy::new(|| {
+    use std::num::NonZeroUsize;
+    Mutex::new(LruCache::new(NonZeroUsize::new(1024).unwrap()))
+});
 
 // --- Core Types ---
 
@@ -159,13 +169,23 @@ pub fn sign_message(
 
 /// Verify the signature contained in a [`SignedMessage`].
 pub fn verify_message_signature(msg: &SignedMessage) -> Result<(), icn_common::CommonError> {
-    let verifying_key = icn_identity::verifying_key_from_did_key(&msg.sender)?;
     let mut bytes = msg.sender.to_string().into_bytes();
     let msg_bytes = bincode::serialize(&msg.message)
         .map_err(|e| icn_common::CommonError::SerializationError(e.to_string()))?;
     bytes.extend_from_slice(&msg_bytes);
+    let digest = Sha256::digest(&bytes);
+    {
+        let cache = &mut *MESSAGE_CACHE.lock().expect("cache mutex poisoned");
+        if cache.contains(&digest.to_vec()) {
+            return Err(icn_common::CommonError::DuplicateMessage);
+        }
+    }
+
+    let verifying_key = icn_identity::verifying_key_from_did_key(&msg.sender)?;
     let ed_sig = msg.signature.to_ed_signature()?;
     if icn_identity::verify_signature(&verifying_key, &bytes, &ed_sig) {
+        let cache = &mut *MESSAGE_CACHE.lock().expect("cache mutex poisoned");
+        cache.put(digest.to_vec(), ());
         Ok(())
     } else {
         Err(icn_common::CommonError::CryptoError(
