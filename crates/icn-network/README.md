@@ -3,6 +3,8 @@
 This crate manages peer-to-peer (P2P) networking aspects for the InterCooperative Network (ICN).
 It defines the core networking abstractions, message types, and service interfaces. A lightweight stub service is available for tests, while production builds enable a libp2p-based implementation via the `libp2p` feature.
 
+See [CONTEXT.md](../CONTEXT.md) for ICN Core design philosophy and crate roles.
+
 ## Purpose
 
 The `icn-network` crate is responsible for:

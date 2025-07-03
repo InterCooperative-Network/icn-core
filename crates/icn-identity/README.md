@@ -2,6 +2,8 @@
 
 This crate manages decentralized identities (DIDs), verifiable credentials (VCs), and cryptographic operations for users and nodes within the InterCooperative Network (ICN).
 
+See [CONTEXT.md](../CONTEXT.md) for ICN Core design philosophy and crate roles.
+
 ## Purpose
 
 The `icn-identity` crate is responsible for:

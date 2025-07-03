@@ -4,6 +4,8 @@ This crate provides the main binary for running a long-lived InterCooperative Ne
 It integrates various core components to operate a functional ICN node, handling initialization,
 lifecycle, configuration, service hosting, and persistence.
 
+See [CONTEXT.md](../CONTEXT.md) for ICN Core design philosophy and crate roles.
+
 ## Purpose
 
 The `icn-node` is intended to be the core daemon process that participants in the ICN will run.
