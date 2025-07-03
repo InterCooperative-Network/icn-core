@@ -29,7 +29,7 @@ use icn_identity::{
     did_key_from_verifying_key, generate_ed25519_keypair,
     ExecutionReceipt as IdentityExecutionReceipt, SignatureBytes,
 };
-use icn_mesh::{ActualMeshJob, JobSpec};
+use icn_mesh::{ActualMeshJob, JobId, JobSpec};
 use icn_network::{NetworkMessage, NetworkService};
 use icn_runtime::context::{
     RuntimeContext, StubDagStore as RuntimeStubDagStore, StubMeshNetworkService,
@@ -1514,7 +1514,7 @@ async fn mesh_get_job_status_handler(
         info!("[Node] Stored job ID: {:?}", stored_job_id);
     }
 
-    match job_states.get(&job_id) {
+    match job_states.get(&icn_mesh::JobId::from(job_id.clone())) {
         Some(job_state) => {
             let response = serde_json::json!({
                 "job_id": job_id.to_string(),
@@ -2141,7 +2141,7 @@ mod tests {
             icn_runtime::executor::WasmExecutorConfig::default(),
         );
         let job = ActualMeshJob {
-            id: job_id.clone(),
+            id: JobId(job_id.clone()),
             manifest_cid: wasm_cid.clone(),
             spec: JobSpec::default(),
             creator_did: ctx.current_identity.clone(),

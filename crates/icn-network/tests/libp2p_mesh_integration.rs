@@ -671,7 +671,7 @@ mod libp2p_mesh_integration {
         // Node A receives and verifies receipt
         let verified_receipt = wait_for_message(&mut node_a.receiver, 10, |msg| match msg {
             NetworkMessage::SubmitReceipt(receipt) => {
-                if receipt.job_id == job_id && receipt.executor_did == assigned_executor {
+                if receipt.job_id == job_id.clone().into() && receipt.executor_did == assigned_executor {
                     Some(receipt.clone())
                 } else {
                     None
@@ -784,7 +784,7 @@ mod libp2p_mesh_integration {
 
         let execution_result = execute_job_with_simple_executor(&test_job, executor_did).await?;
 
-        assert_eq!(execution_result.job_id, test_job.id);
+        assert_eq!(execution_result.job_id, test_job.id.into());
         assert_eq!(execution_result.executor_did, *executor_did);
         assert!(
             execution_result.cpu_ms >= 0,

@@ -605,7 +605,7 @@ mod tests {
         let creator_did_string = icn_identity::did_key_from_verifying_key(&verifying_key);
         let creator_did = Did::from_str(&creator_did_string).unwrap();
 
-        let job_id = dummy_cid("test_job_data_for_cid_signing"); // Use dummy_cid helper
+        let job_id = dummy_job_id("test_job_data_for_cid_signing"); // Use dummy_job_id helper
         let manifest_cid = dummy_cid("test_manifest_data_for_cid_signing"); // Use dummy_cid helper
 
         let job_unsigned = ActualMeshJob {
@@ -640,7 +640,7 @@ mod tests {
         let did = Did::from_str(&icn_identity::did_key_from_verifying_key(&vk)).unwrap();
 
         let bid = MeshJobBid {
-            job_id: dummy_cid("bid_submit"),
+            job_id: dummy_job_id("bid_submit"),
             executor_did: did.clone(),
             price_mana: 10,
             resources: Resources::default(),
@@ -671,7 +671,7 @@ mod tests {
         let (sk, vk) = icn_identity::generate_ed25519_keypair();
 
         let notice = JobAssignmentNotice {
-            job_id: dummy_cid("assign_notice"),
+            job_id: dummy_job_id("assign_notice"),
             executor_did: Did::from_str("did:icn:test:exec").unwrap(),
             signature: SignatureBytes(vec![]),
             manifest_cid: None,
@@ -694,9 +694,14 @@ mod tests {
         Cid::new_v1_sha256(0x55, s.as_bytes())
     }
 
+    // Helper to create a dummy JobId for tests
+    fn dummy_job_id(s: &str) -> JobId {
+        JobId::from(dummy_cid(s))
+    }
+
     #[test]
     fn test_select_executor_prefers_reputation() {
-        let job_id = dummy_cid("job_sel");
+        let job_id = dummy_job_id("job_sel");
         let (sk_high, vk_high) = icn_identity::generate_ed25519_keypair();
         let high = Did::from_str(&icn_identity::did_key_from_verifying_key(&vk_high)).unwrap();
         let (sk_low, vk_low) = icn_identity::generate_ed25519_keypair();
@@ -751,7 +756,7 @@ mod tests {
 
     #[test]
     fn test_select_executor_uses_price_when_reputation_equal() {
-        let job_id = dummy_cid("job_price");
+        let job_id = dummy_job_id("job_price");
         let (sk_a, vk_a) = icn_identity::generate_ed25519_keypair();
         let a = Did::from_str(&icn_identity::did_key_from_verifying_key(&vk_a)).unwrap();
         let (sk_b, vk_b) = icn_identity::generate_ed25519_keypair();
@@ -801,7 +806,7 @@ mod tests {
     #[test]
     #[ignore]
     fn test_policy_price_weight_overrides_reputation() {
-        let job_id = dummy_cid("job_weight");
+        let job_id = dummy_job_id("job_weight");
         let high_rep = Did::from_str("did:icn:test:highrep").unwrap();
         let cheap = Did::from_str("did:icn:test:cheap").unwrap();
 
@@ -848,7 +853,7 @@ mod tests {
 
     #[test]
     fn test_bid_skipped_without_mana() {
-        let job_id = dummy_cid("job_mana");
+        let job_id = dummy_job_id("job_mana");
         let a = Did::from_str("did:icn:test:mana_a").unwrap();
         let b = Did::from_str("did:icn:test:mana_b").unwrap();
 
@@ -890,7 +895,7 @@ mod tests {
 
     #[test]
     fn test_resource_weight_influences_selection() {
-        let job_id = dummy_cid("job_resource");
+        let job_id = dummy_job_id("job_resource");
         let (sk_fast, vk_fast) = icn_identity::generate_ed25519_keypair();
         let fast = Did::from_str(&icn_identity::did_key_from_verifying_key(&vk_fast)).unwrap();
         let (sk_slow, vk_slow) = icn_identity::generate_ed25519_keypair();
@@ -950,7 +955,7 @@ mod tests {
 
     #[test]
     fn test_score_bid_zero_without_mana() {
-        let job_id = dummy_cid("job_score_mana");
+        let job_id = dummy_job_id("job_score_mana");
         let bidder = Did::from_str("did:icn:test:score_mana").unwrap();
 
         let rep_store = icn_reputation::InMemoryReputationStore::new();
@@ -977,7 +982,7 @@ mod tests {
 
     #[test]
     fn test_select_executor_returns_none_with_no_bids() {
-        let job_id = dummy_cid("job_nobids");
+        let job_id = dummy_job_id("job_nobids");
         let rep_store = icn_reputation::InMemoryReputationStore::new();
         let ledger = InMemoryLedger::new();
         let policy = SelectionPolicy::default();
@@ -996,7 +1001,7 @@ mod tests {
 
     #[test]
     fn test_select_executor_all_bids_insufficient_mana() {
-        let job_id = dummy_cid("job_no_mana");
+        let job_id = dummy_job_id("job_no_mana");
         let did_a = Did::from_str("did:icn:test:no_mana_a").unwrap();
         let did_b = Did::from_str("did:icn:test:no_mana_b").unwrap();
 
@@ -1038,7 +1043,7 @@ mod tests {
 
     #[test]
     fn test_score_bid_respects_reputation() {
-        let job_id = dummy_cid("job_rep_score");
+        let job_id = dummy_job_id("job_rep_score");
         let did_a = Did::from_str("did:icn:test:rep_a").unwrap();
         let did_b = Did::from_str("did:icn:test:rep_b").unwrap();
 

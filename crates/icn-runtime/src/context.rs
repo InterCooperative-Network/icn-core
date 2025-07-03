@@ -493,7 +493,7 @@ impl MeshNetworkService for DefaultMeshNetworkService {
                 Ok(result) => {
                     match result {
                         Some(NetworkMessage::SubmitReceipt(receipt)) => {
-                            if &receipt.job_id == job_id
+                            if &JobId::from(receipt.job_id.clone()) == job_id
                                 && &receipt.executor_did == expected_executor
                             {
                                 debug!("Received relevant receipt: {:?}", receipt);
@@ -1435,7 +1435,7 @@ impl RuntimeContext {
         {
             let mut job_states_guard = self.job_states.lock().await;
             job_states_guard.insert(
-                receipt.job_id.clone(),
+                JobId::from(receipt.job_id.clone()),
                 JobState::Completed {
                     receipt: receipt.clone(),
                 },
@@ -2364,7 +2364,7 @@ mod tests {
         };
 
         let receipt = IdentityExecutionReceipt {
-            job_id: job.id.clone(),
+            job_id: job.id.clone().into(),
             executor_did: ctx.current_identity.clone(),
             result_cid: Cid::new_v1_sha256(0x55, b"res"),
             cpu_ms: 1,
