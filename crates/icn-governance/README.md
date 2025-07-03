@@ -2,6 +2,8 @@
 
 This crate defines the mechanisms for network governance within the InterCooperative Network (ICN).
 
+See [CONTEXT.md](../CONTEXT.md) for ICN Core design philosophy and crate roles.
+
 ## Purpose
 
 The `icn-governance` crate is responsible for:

@@ -4,6 +4,8 @@ This crate provides a command-line interface (CLI) for interacting with the Inte
 It allows users and administrators to manage nodes, interact with the network, and perform administrative tasks.
 The CLI aims for usability, discoverability, and scriptability.
 
+See [CONTEXT.md](../CONTEXT.md) for ICN Core design philosophy and crate roles.
+
 ## Purpose
 
 The `icn-cli` is the primary tool for users to interact with an ICN node from the command line. It connects to an ICN node (via the `icn-api` crate, which in turn might be an RPC client to a running `icn-node` instance) to perform actions.

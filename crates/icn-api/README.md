@@ -2,6 +2,8 @@
 
 This crate provides the primary API endpoints for interacting with InterCooperative Network (ICN) nodes.
 
+See [CONTEXT.md](../CONTEXT.md) for ICN Core design philosophy and crate roles.
+
 ## Purpose
 
 The `icn-api` crate defines the service interfaces, data structures for requests and responses, and potentially server/client implementations for ICN node APIs. This typically includes functionalities like querying node status, submitting transactions or messages, and interacting with specific ICN protocols (e.g., governance, economics).

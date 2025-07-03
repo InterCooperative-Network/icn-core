@@ -2,6 +2,8 @@
 
 This crate provides the execution environment for InterCooperative Network (ICN) logic, possibly including WebAssembly (WASM) runtimes and host interaction capabilities.
 
+See [CONTEXT.md](../CONTEXT.md) for ICN Core design philosophy and crate roles.
+
 ## Purpose
 
 The `icn-runtime` crate is responsible for:

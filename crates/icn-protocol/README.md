@@ -2,6 +2,8 @@
 
 This crate defines core message formats, communication protocols, and potentially helpers for a domain-specific language like CCL (Cooperative Contract Language) within the InterCooperative Network (ICN).
 
+See [CONTEXT.md](../CONTEXT.md) for ICN Core design philosophy and crate roles.
+
 ## Purpose
 
 The `icn-protocol` crate is responsible for:
