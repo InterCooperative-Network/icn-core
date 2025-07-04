@@ -73,11 +73,11 @@ The API style emphasizes:
 
 ### Governance
 
-The runtime exposes host calls for managing on-chain proposals. Voting can be
+The runtime exposes host calls for managing governance proposals. Voting can be
 closed via `host_close_governance_proposal_voting`, returning the final
 `ProposalStatus` as a string. Accepted proposals may then be executed with
-`host_execute_governance_proposal`, which updates the stored proposal and member
-set.
+`host_execute_governance_proposal`, which broadcasts the updated proposal and
+rewards the proposer.
 
 ```rust,no_run
 use icn_runtime::{
