@@ -44,6 +44,7 @@ impl Optimizer {
                 condition: self.fold_expr(condition),
                 action: self.fold_action(action),
             },
+            AstNode::Block(b) => AstNode::Block(self.fold_block(b)),
         }
     }
 

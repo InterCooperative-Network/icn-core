@@ -17,6 +17,7 @@ pub enum AstNode {
         condition: ExpressionNode,
         action: ActionNode,
     },
+    Block(BlockNode),
     // ... other top-level nodes
 }
 
@@ -190,22 +191,25 @@ pub fn pair_to_ast(
         Rule::rule_definition => parser::parse_rule_definition(pair),
         Rule::policy_statement => {
             let mut inner = pair.into_inner();
-            let stmt = inner.next().ok_or_else(|| {
-                CclError::ParsingError("Empty policy statement".to_string())
-            })?;
+            let stmt = inner
+                .next()
+                .ok_or_else(|| CclError::ParsingError("Empty policy statement".to_string()))?;
             match stmt.as_rule() {
                 Rule::rule_definition => parser::parse_rule_definition(stmt),
                 Rule::import_statement => {
                     let mut i = stmt.into_inner();
-                    let path_pair = i.next().ok_or_else(|| {
-                        CclError::ParsingError("Import missing path".to_string())
-                    })?;
+                    let path_pair = i
+                        .next()
+                        .ok_or_else(|| CclError::ParsingError("Import missing path".to_string()))?;
                     let alias_pair = i.next().ok_or_else(|| {
                         CclError::ParsingError("Import missing alias".to_string())
                     })?;
                     let path = path_pair.as_str().trim_matches('"').to_string();
                     let alias = alias_pair.as_str().to_string();
-                    Ok(AstNode::Policy(vec![PolicyStatementNode::Import { path, alias }]))
+                    Ok(AstNode::Policy(vec![PolicyStatementNode::Import {
+                        path,
+                        alias,
+                    }]))
                 }
                 _ => Err(CclError::ParsingError(format!(
                     "Unexpected policy statement: {:?}",
@@ -215,19 +219,23 @@ pub fn pair_to_ast(
         }
         Rule::import_statement => {
             let mut i = pair.into_inner();
-            let path_pair = i.next().ok_or_else(|| {
-                CclError::ParsingError("Import missing path".to_string())
-            })?;
-            let alias_pair = i.next().ok_or_else(|| {
-                CclError::ParsingError("Import missing alias".to_string())
-            })?;
+            let path_pair = i
+                .next()
+                .ok_or_else(|| CclError::ParsingError("Import missing path".to_string()))?;
+            let alias_pair = i
+                .next()
+                .ok_or_else(|| CclError::ParsingError("Import missing alias".to_string()))?;
             let path = path_pair.as_str().trim_matches('"').to_string();
             let alias = alias_pair.as_str().to_string();
-            Ok(AstNode::Policy(vec![PolicyStatementNode::Import { path, alias }]))
+            Ok(AstNode::Policy(vec![PolicyStatementNode::Import {
+                path,
+                alias,
+            }]))
         }
-        _ => Err(CclError::ParsingError(format!(
-            "Rule not implemented in AST conversion: {:?}",
+        Rule::block => Ok(AstNode::Block(parser::parse_block(pair)?)),
+        _ => unreachable!(
+            "pair_to_ast called with unsupported rule: {:?}",
             pair.as_rule()
-        ))),
+        ),
     }
 }

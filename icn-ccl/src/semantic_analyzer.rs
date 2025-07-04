@@ -136,6 +136,10 @@ impl SemanticAnalyzer {
                 }
                 self.visit_action(action)?;
             }
+            AstNode::Block(block) => {
+                let mut _has_ret = false;
+                self.visit_block(block, &mut _has_ret)?;
+            }
         }
         Ok(())
     }
