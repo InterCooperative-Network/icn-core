@@ -102,3 +102,15 @@ fn test_pair_to_ast_import_statement() {
     }]);
     assert_eq!(ast, expected);
 }
+
+#[test]
+fn test_pair_to_ast_block() {
+    let src = "{ return 1; }";
+    let mut pairs = CclParser::parse(Rule::block, src).unwrap();
+    let pair = pairs.next().unwrap();
+    let ast = ast::pair_to_ast(pair).unwrap();
+    let expected = AstNode::Block(BlockNode {
+        statements: vec![StatementNode::Return(ExpressionNode::IntegerLiteral(1))],
+    });
+    assert_eq!(ast, expected);
+}

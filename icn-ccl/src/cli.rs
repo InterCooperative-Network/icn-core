@@ -169,6 +169,7 @@ fn ast_to_string(ast: &AstNode, indent: usize) -> String {
                 action_to_string(action)
             )
         }
+        AstNode::Block(b) => block_to_string(b, indent),
     }
 }
 
