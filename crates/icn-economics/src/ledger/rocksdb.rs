@@ -47,16 +47,18 @@ impl RocksdbManaLedger {
         use rocksdb::IteratorMode;
         use std::str::FromStr;
         for item in self.db.iterator(IteratorMode::Start) {
-            let (key, val) = item
-                .map_err(|e| CommonError::DatabaseError(format!("Failed to iterate ledger: {e}")))?;
+            let (key, val) = item.map_err(|e| {
+                CommonError::DatabaseError(format!("Failed to iterate ledger: {e}"))
+            })?;
             let did_str = std::str::from_utf8(&key)
                 .map_err(|e| CommonError::DatabaseError(format!("Invalid key: {e}")))?;
-            let did =
-                Did::from_str(did_str).map_err(|e| CommonError::InvalidInputError(format!("{e}")))?;
-            let mut bal: u64 = bincode::deserialize::<u64>(&val)
-                .map_err(|e| CommonError::DatabaseError(format!("Failed to decode balance: {e}")))?;
-            bal += amount;
-            self.write_balance(&did, bal)?;
+            let did = Did::from_str(did_str)
+                .map_err(|e| CommonError::InvalidInputError(format!("{e}")))?;
+            let bal: u64 = bincode::deserialize::<u64>(&val).map_err(|e| {
+                CommonError::DatabaseError(format!("Failed to decode balance: {e}"))
+            })?;
+            let new_bal = bal.saturating_add(amount);
+            self.write_balance(&did, new_bal)?;
         }
         Ok(())
     }
