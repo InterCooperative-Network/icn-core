@@ -243,11 +243,11 @@
 <a href=#243 id=243 data-nosnippet>243</a>                .map_err(|e| CommonError::DatabaseError(<span class="macro">format!</span>(<span class="string">"Invalid key: {e}"</span>)))<span class="question-mark">?</span>;
 <a href=#244 id=244 data-nosnippet>244</a>            <span class="kw">let </span>did = Did::from_str(did_str)
 <a href=#245 id=245 data-nosnippet>245</a>                .map_err(|e| CommonError::InvalidInputError(<span class="macro">format!</span>(<span class="string">"{e}"</span>)))<span class="question-mark">?</span>;
-<a href=#246 id=246 data-nosnippet>246</a>            <span class="kw">let </span><span class="kw-2">mut </span>bal: u64 = bincode::deserialize::&lt;u64&gt;(val.as_ref()).map_err(|e| {
+<a href=#246 id=246 data-nosnippet>246</a>            <span class="kw">let </span>bal: u64 = bincode::deserialize::&lt;u64&gt;(val.as_ref()).map_err(|e| {
 <a href=#247 id=247 data-nosnippet>247</a>                CommonError::DatabaseError(<span class="macro">format!</span>(<span class="string">"Failed to decode balance: {e}"</span>))
 <a href=#248 id=248 data-nosnippet>248</a>            })<span class="question-mark">?</span>;
-<a href=#249 id=249 data-nosnippet>249</a>            bal += amount;
-<a href=#250 id=250 data-nosnippet>250</a>            <span class="self">self</span>.write_balance(<span class="kw-2">&amp;</span>did, bal)
+<a href=#249 id=249 data-nosnippet>249</a>            <span class="kw">let </span>new_bal = bal.saturating_add(amount);
+<a href=#250 id=250 data-nosnippet>250</a>            <span class="self">self</span>.write_balance(<span class="kw-2">&amp;</span>did, new_bal)
 <a href=#251 id=251 data-nosnippet>251</a>                .map_err(|e| CommonError::DatabaseError(<span class="macro">format!</span>(<span class="string">"{e}"</span>)))<span class="question-mark">?</span>;
 <a href=#252 id=252 data-nosnippet>252</a>        }
 <a href=#253 id=253 data-nosnippet>253</a>        <span class="prelude-val">Ok</span>(())
