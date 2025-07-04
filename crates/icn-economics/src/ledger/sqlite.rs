@@ -50,11 +50,23 @@ impl SqliteManaLedger {
     pub fn credit_all(&self, amount: u64) -> Result<(), CommonError> {
         let conn = Connection::open(&self.path)
             .map_err(|e| CommonError::DatabaseError(format!("Failed to open sqlite DB: {e}")))?;
-        conn.execute(
-            "UPDATE mana_balances SET amount = amount + ?1",
-            [amount as i64],
-        )
-        .map_err(|e| CommonError::DatabaseError(format!("{e}")))?;
+        let mut stmt = conn
+            .prepare("SELECT did, amount FROM mana_balances")
+            .map_err(|e| CommonError::DatabaseError(format!("Failed to fetch balances: {e}")))?;
+        let rows = stmt
+            .query_map([], |row| {
+                let did: String = row.get(0)?;
+                let amount: i64 = row.get(1)?;
+                Ok((did, amount))
+            })
+            .map_err(|e| CommonError::DatabaseError(format!("{e}")))?;
+        for row in rows {
+            let (did_str, bal) = row.map_err(|e| CommonError::DatabaseError(format!("{e}")))?;
+            let did = Did::from_str(&did_str)
+                .map_err(|e| CommonError::InvalidInputError(format!("{e}")))?;
+            let new_bal = (bal as u64).saturating_add(amount);
+            self.write_balance(&did, new_bal)?;
+        }
         Ok(())
     }
 
