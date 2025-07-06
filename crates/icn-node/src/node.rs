@@ -30,7 +30,9 @@ use icn_identity::{
     ExecutionReceipt as IdentityExecutionReceipt, SignatureBytes,
 };
 use icn_mesh::{ActualMeshJob, JobId, JobSpec};
-use icn_network::{NetworkMessage, NetworkService};
+#[allow(unused_imports)]
+use icn_network::{NetworkService, PeerId, StubNetworkService};
+use icn_protocol::{ProtocolMessage, MessagePayload, GossipMessage, FederationJoinRequestMessage, NodeCapabilities, ResourceRequirements};
 use icn_runtime::context::{
     RuntimeContext, StubDagStore as RuntimeStubDagStore, StubMeshNetworkService,
     StubSigner as RuntimeStubSigner,
@@ -1741,12 +1743,23 @@ async fn federation_join_handler(
     }
     #[cfg(feature = "enable-libp2p")]
     if let Ok(service) = state.runtime_context.get_libp2p_service() {
-        if let Err(e) = service
-            .broadcast_message(NetworkMessage::FederationJoinRequest(
-                state.runtime_context.current_identity.clone(),
-            ))
-            .await
-        {
+        let join_msg = ProtocolMessage::new(
+            MessagePayload::FederationJoinRequest(FederationJoinRequestMessage {
+                requesting_node: state.runtime_context.current_identity.clone(),
+                federation_id: "default".to_string(),
+                node_capabilities: NodeCapabilities {
+                    compute_resources: ResourceRequirements::default(),
+                    supported_job_kinds: vec![],
+                    network_bandwidth_mbps: 0,
+                    storage_capacity_gb: 0,
+                    uptime_percentage: 0.0,
+                },
+                referral_from: None,
+            }),
+            Did::default(),
+            None,
+        );
+        if let Err(e) = service.broadcast_message(join_msg).await {
             error!("Failed to broadcast join: {:?}", e);
         }
     }
@@ -1771,13 +1784,16 @@ async fn federation_leave_handler(
     }
     #[cfg(feature = "enable-libp2p")]
     if let Ok(service) = state.runtime_context.get_libp2p_service() {
-        if let Err(e) = service
-            .broadcast_message(NetworkMessage::GossipSub(
-                "federation_leave".to_string(),
-                payload.peer.clone().into_bytes(),
-            ))
-            .await
-        {
+        let leave_msg = ProtocolMessage::new(
+            MessagePayload::GossipMessage(GossipMessage {
+                topic: "federation_leave".to_string(),
+                payload: payload.peer.clone().into_bytes(),
+                ttl: 1,
+            }),
+            Did::default(),
+            None,
+        );
+        if let Err(e) = service.broadcast_message(leave_msg).await {
             error!("Failed to broadcast leave: {:?}", e);
         }
     }

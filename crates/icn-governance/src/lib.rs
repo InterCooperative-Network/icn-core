@@ -10,7 +10,8 @@
 
 use icn_common::{CommonError, Did, NodeInfo};
 #[cfg(feature = "federation")]
-use icn_network::{MeshNetworkError, NetworkService, PeerId};
+#[allow(unused_imports)]
+use icn_network::{MeshNetworkError, NetworkService, PeerId, StubNetworkService};
 #[cfg(feature = "federation")]
 use icn_protocol::{FederationSyncRequestMessage, MessagePayload, ProtocolMessage};
 use std::collections::{HashMap, HashSet};
@@ -1119,7 +1120,7 @@ impl fmt::Debug for GovernanceModule {
 /// Request federation data synchronization from a peer.
 ///
 /// This uses the provided [`NetworkService`] to send a
-/// [`NetworkMessage::FederationSyncRequest`] to `target_peer`.
+/// [`MessagePayload::FederationSyncRequest`] to `target_peer`.
 #[cfg(feature = "federation")]
 pub async fn request_federation_sync(
     service: &dyn NetworkService,
