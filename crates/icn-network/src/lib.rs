@@ -18,8 +18,8 @@ pub mod metrics;
 use async_trait::async_trait;
 use downcast_rs::{impl_downcast, DowncastSync};
 use icn_common::{Cid, DagBlock, Did, NodeInfo};
-use icn_identity::ExecutionReceipt;
-use icn_mesh::{ActualMeshJob as Job, JobId, MeshJobBid as Bid};
+use icn_protocol::{ProtocolMessage, MessagePayload};
+use icn_identity::{ExecutionReceipt, SignatureBytes};
 #[cfg(feature = "libp2p")]
 use libp2p::PeerId as Libp2pPeerId;
 #[cfg(feature = "libp2p")]
@@ -53,6 +53,11 @@ pub const SERVICE_AD_PREFIX: &str = "/icn/service/";
 /// document for `did:web:example.com` would therefore be stored under
 /// `/icn/did/did:web:example.com`.
 pub const DID_DOC_PREFIX: &str = "/icn/did/";
+
+/// Legacy type aliases for compatibility
+pub type Job = icn_protocol::MeshJobAnnouncementMessage;
+pub type Bid = icn_protocol::MeshBidSubmissionMessage; 
+pub type JobId = Cid;
 
 /// Cache of recently verified message hashes to prevent replay.
 static MESSAGE_CACHE: Lazy<Mutex<LruCache<Vec<u8>, ()>>> = Lazy::new(|| {
@@ -93,65 +98,28 @@ impl std::convert::TryFrom<PeerId> for Libp2pPeerId {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum NetworkMessage {
-    AnnounceBlock(DagBlock),
-    RequestBlock(Cid),
-    GossipSub(String, Vec<u8>),
-    FederationSyncRequest(Did),
-    /// Request to join a federation
-    FederationJoinRequest(Did),
-    /// Response to a federation join request (true if accepted)
-    FederationJoinResponse(Did, bool),
-    MeshJobAnnouncement(Job),
-    BidSubmission(Bid),
-    JobAssignmentNotification(JobId, Did),
-    SubmitReceipt(ExecutionReceipt),
-    ProposalAnnouncement(Vec<u8>),
-    VoteAnnouncement(Vec<u8>),
-}
-
-impl NetworkMessage {
-    pub fn message_type(&self) -> &'static str {
-        match self {
-            NetworkMessage::AnnounceBlock(_) => "AnnounceBlock",
-            NetworkMessage::RequestBlock(_) => "RequestBlock",
-            NetworkMessage::GossipSub(_, _) => "GossipSub",
-            NetworkMessage::FederationSyncRequest(_) => "FederationSyncRequest",
-            NetworkMessage::FederationJoinRequest(_) => "FederationJoinRequest",
-            NetworkMessage::FederationJoinResponse(_, _) => "FederationJoinResponse",
-            NetworkMessage::MeshJobAnnouncement(_) => "MeshJobAnnouncement",
-            NetworkMessage::BidSubmission(_) => "BidSubmission",
-            NetworkMessage::JobAssignmentNotification(_, _) => "JobAssignmentNotification",
-            NetworkMessage::SubmitReceipt(_) => "SubmitReceipt",
-            NetworkMessage::ProposalAnnouncement(_) => "ProposalAnnouncement",
-            NetworkMessage::VoteAnnouncement(_) => "VoteAnnouncement",
-        }
-    }
-}
-
 /// A network message signed by the sender.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SignedMessage {
     /// The underlying payload.
-    pub message: NetworkMessage,
+    pub message: ProtocolMessage,
     /// DID of the sender.
     pub sender: Did,
     /// Signature over the message and DID.
     pub signature: icn_identity::SignatureBytes,
 }
 
-/// Decode a raw byte slice into a [`NetworkMessage`].
+/// Decode a raw byte slice into a [`ProtocolMessage`].
 ///
 /// Returns [`MeshNetworkError::MessageDecodeFailed`] if the bytes cannot be
 /// deserialized using `bincode`.
-pub fn decode_network_message(data: &[u8]) -> Result<NetworkMessage, MeshNetworkError> {
+pub fn decode_protocol_message(data: &[u8]) -> Result<ProtocolMessage, MeshNetworkError> {
     bincode::deserialize(data).map_err(|e| MeshNetworkError::MessageDecodeFailed(e.to_string()))
 }
 
 /// Create a [`SignedMessage`] by signing `message` with `signing_key` and recording `sender`.
 pub fn sign_message(
-    message: &NetworkMessage,
+    message: &ProtocolMessage,
     sender: &Did,
     signing_key: &icn_identity::SigningKey,
 ) -> Result<SignedMessage, icn_common::CommonError> {
@@ -241,10 +209,10 @@ pub trait NetworkService: Send + Sync + Debug + DowncastSync + 'static {
     async fn send_message(
         &self,
         peer: &PeerId,
-        message: NetworkMessage,
+        message: ProtocolMessage,
     ) -> Result<(), MeshNetworkError>;
-    async fn broadcast_message(&self, message: NetworkMessage) -> Result<(), MeshNetworkError>;
-    async fn subscribe(&self) -> Result<Receiver<NetworkMessage>, MeshNetworkError>;
+    async fn broadcast_message(&self, message: ProtocolMessage) -> Result<(), MeshNetworkError>;
+    async fn subscribe(&self) -> Result<Receiver<ProtocolMessage>, MeshNetworkError>;
     /// Send a pre-signed message. Default implementation returns an error.
     async fn send_signed_message(
         &self,
@@ -317,7 +285,7 @@ impl NetworkService for StubNetworkService {
     async fn send_message(
         &self,
         peer: &PeerId,
-        message: NetworkMessage,
+        message: ProtocolMessage,
     ) -> Result<(), MeshNetworkError> {
         log::debug!(
             "[StubNetworkService] Sending message to peer {:?}: {:?}",
@@ -339,10 +307,10 @@ impl NetworkService for StubNetworkService {
         Ok(())
     }
 
-    async fn broadcast_message(&self, message: NetworkMessage) -> Result<(), MeshNetworkError> {
+    async fn broadcast_message(&self, message: ProtocolMessage) -> Result<(), MeshNetworkError> {
         log::debug!("[StubNetworkService] Broadcasting message: {:?}", message);
-        if let NetworkMessage::GossipSub(topic, _) = &message {
-            if topic == "system_critical_error_topic" {
+        if let MessagePayload::GossipMessage(gossip) = &message.payload {
+            if gossip.topic == "system_critical_error_topic" {
                 return Err(MeshNetworkError::Libp2p(
                     "Broadcast failed: system critical topic is currently down.".to_string(),
                 ));
@@ -351,7 +319,7 @@ impl NetworkService for StubNetworkService {
         Ok(())
     }
 
-    async fn subscribe(&self) -> Result<Receiver<NetworkMessage>, MeshNetworkError> {
+    async fn subscribe(&self) -> Result<Receiver<ProtocolMessage>, MeshNetworkError> {
         log::info!("[StubNetworkService] Subscribing to messages... returning an empty channel.");
         let (_tx, rx) = tokio::sync::mpsc::channel(1);
         Ok(rx)
@@ -417,11 +385,21 @@ pub async fn send_network_ping(
     target_peer: &str,
 ) -> Result<String, MeshNetworkError> {
     let service = StubNetworkService::default();
+    use icn_protocol::{ProtocolMessage, MessagePayload, GossipMessage};
+    use std::str::FromStr;
+    
+    let ping_message = ProtocolMessage::new(
+        MessagePayload::GossipMessage(GossipMessage {
+            topic: "ping_topic".to_string(),
+            payload: vec![1, 2, 3],
+            ttl: 5,
+        }),
+        Did::from_str("did:key:stub").unwrap(), 
+        None
+    );
+    
     let _ = service
-        .send_message(
-            &PeerId(target_peer.to_string()),
-            NetworkMessage::GossipSub("ping_topic".to_string(), vec![1, 2, 3]),
-        )
+        .send_message(&PeerId(target_peer.to_string()), ping_message)
         .await?;
     Ok(format!(
         "Sent (stubbed) ping to {} from node: {} (v{})",
@@ -615,14 +593,14 @@ pub mod libp2p_service {
         },
         SendMessage {
             peer: Libp2pPeerId,
-            message: super::NetworkMessage,
+            message: super::ProtocolMessage,
             rsp: oneshot::Sender<Result<(), MeshNetworkError>>,
         },
         Broadcast {
             data: Vec<u8>,
         },
         Subscribe {
-            rsp: oneshot::Sender<mpsc::Receiver<super::NetworkMessage>>,
+            rsp: oneshot::Sender<mpsc::Receiver<super::ProtocolMessage>>,
         },
         GetStats {
             rsp: oneshot::Sender<super::NetworkStats>,
@@ -676,14 +654,14 @@ pub mod libp2p_service {
     #[async_trait::async_trait]
     impl RequestResponseCodec for MessageCodec {
         type Protocol = MessageProtocol;
-        type Request = super::NetworkMessage;
-        type Response = super::NetworkMessage;
+        type Request = super::ProtocolMessage;
+        type Response = super::ProtocolMessage;
 
         async fn read_request<T>(
             &mut self,
             _: &MessageProtocol,
             io: &mut T,
-        ) -> std::io::Result<super::NetworkMessage>
+        ) -> std::io::Result<super::ProtocolMessage>
         where
             T: libp2p::futures::AsyncRead + Unpin + Send,
         {
@@ -697,7 +675,7 @@ pub mod libp2p_service {
             &mut self,
             _: &MessageProtocol,
             io: &mut T,
-        ) -> std::io::Result<super::NetworkMessage>
+        ) -> std::io::Result<super::ProtocolMessage>
         where
             T: libp2p::futures::AsyncRead + Unpin + Send,
         {
@@ -711,7 +689,7 @@ pub mod libp2p_service {
             &mut self,
             _: &MessageProtocol,
             io: &mut T,
-            req: super::NetworkMessage,
+            req: super::ProtocolMessage,
         ) -> std::io::Result<()>
         where
             T: libp2p::futures::AsyncWrite + Unpin + Send,
@@ -725,7 +703,7 @@ pub mod libp2p_service {
             &mut self,
             _: &MessageProtocol,
             io: &mut T,
-            res: super::NetworkMessage,
+            res: super::ProtocolMessage,
         ) -> std::io::Result<()>
         where
             T: libp2p::futures::AsyncWrite + Unpin + Send,
@@ -823,7 +801,9 @@ pub mod libp2p_service {
                 transport,
                 behaviour,
                 local_peer_id,
-                SwarmConfig::with_tokio_executor(),
+                SwarmConfig::with_executor(Box::new(|fut| {
+                    tokio::spawn(fut);
+                })),
             );
 
             for addr in &config.listen_addresses {
@@ -889,7 +869,7 @@ pub mod libp2p_service {
                     log::debug!("🔧 [LIBP2P] No bootstrap peers configured");
                 }
 
-                let mut subscribers: Vec<mpsc::Sender<super::NetworkMessage>> = Vec::new();
+                let mut subscribers: Vec<mpsc::Sender<super::ProtocolMessage>> = Vec::new();
                 let mut pending_kad_queries: HashMap<QueryId, PendingQuery> = HashMap::new();
                 let mut bootstrap_tick = tokio::time::interval(config.bootstrap_interval);
                 let mut discovery_tick = tokio::time::interval(config.peer_discovery_interval);
@@ -934,7 +914,7 @@ pub mod libp2p_service {
                                     let mut stats_guard = stats_clone.lock().unwrap();
                                     stats_guard.bytes_sent += message_size;
                                     stats_guard.messages_sent += 1;
-                                    let msg_type = message.message_type().to_string();
+                                    let msg_type = message.payload.message_type().to_string();
                                     let type_stats = stats_guard.message_counts.entry(msg_type).or_default();
                                     type_stats.sent += 1;
                                     type_stats.bytes_sent += message_size;
@@ -953,8 +933,8 @@ pub mod libp2p_service {
                                         stats_guard.messages_sent += 1;
 
                                         // Update message type statistics for broadcasts
-                                        if let Ok(network_msg) = bincode::deserialize::<super::NetworkMessage>(&data) {
-                                            let msg_type = network_msg.message_type().to_string();
+                                        if let Ok(network_msg) = bincode::deserialize::<super::ProtocolMessage>(&data) {
+                                            let msg_type = network_msg.payload.message_type().to_string();
                                             let type_stats = stats_guard.message_counts.entry(msg_type).or_default();
                                             type_stats.sent += 1;
                                             type_stats.bytes_sent += data.len() as u64;
@@ -1057,7 +1037,7 @@ pub mod libp2p_service {
         async fn handle_swarm_event(
             event: SwarmEvent<CombinedBehaviourEvent>,
             stats: &Arc<Mutex<EnhancedNetworkStats>>,
-            subscribers: &mut Vec<mpsc::Sender<super::NetworkMessage>>,
+            subscribers: &mut Vec<mpsc::Sender<super::ProtocolMessage>>,
             swarm: &mut Swarm<CombinedBehaviour>,
             pending_kad_queries: &mut HashMap<QueryId, PendingQuery>,
         ) {
@@ -1076,15 +1056,15 @@ pub mod libp2p_service {
                     }
 
                     if let Ok(network_msg) =
-                        bincode::deserialize::<super::NetworkMessage>(&message.data)
+                        bincode::deserialize::<super::ProtocolMessage>(&message.data)
                     {
                         log::debug!(
                             "Received gossipsub message: {:?}",
-                            network_msg.message_type()
+                            network_msg.payload.message_type()
                         );
 
                         // Update message type statistics
-                        let msg_type = network_msg.message_type().to_string();
+                        let msg_type = network_msg.payload.message_type().to_string();
                         {
                             let mut stats_guard = stats.lock().unwrap();
                             let type_stats =
@@ -1134,7 +1114,7 @@ pub mod libp2p_service {
                                         Ok(ok) => ok
                                             .peers
                                             .into_iter()
-                                            .map(|p| super::PeerId(p.to_string()))
+                                            .map(|p| super::PeerId(p.peer_id.to_string()))
                                             .collect(),
                                         Err(e) => {
                                             let _ = tx
@@ -1182,7 +1162,7 @@ pub mod libp2p_service {
                 SwarmEvent::Behaviour(CombinedBehaviourEvent::RequestResponse(ev)) => {
                     use libp2p::request_response::{Event as ReqEvent, Message};
                     match ev {
-                        ReqEvent::Message { peer: _, message } => match message {
+                        ReqEvent::Message { peer: _, message, connection_id: _ } => match message {
                             Message::Request {
                                 request, channel, ..
                             } => {
@@ -1193,7 +1173,7 @@ pub mod libp2p_service {
                                     let mut stats_guard = stats.lock().unwrap();
                                     stats_guard.bytes_received += message_size;
                                     stats_guard.messages_received += 1;
-                                    let msg_type = request.message_type().to_string();
+                                    let msg_type = request.payload.message_type().to_string();
                                     let type_stats =
                                         stats_guard.message_counts.entry(msg_type).or_default();
                                     type_stats.received += 1;
@@ -1216,7 +1196,7 @@ pub mod libp2p_service {
                                     let mut stats_guard = stats.lock().unwrap();
                                     stats_guard.bytes_received += message_size;
                                     stats_guard.messages_received += 1;
-                                    let msg_type = response.message_type().to_string();
+                                    let msg_type = response.payload.message_type().to_string();
                                     let type_stats =
                                         stats_guard.message_counts.entry(msg_type).or_default();
                                     type_stats.received += 1;
@@ -1337,7 +1317,7 @@ pub mod libp2p_service {
         async fn send_message(
             &self,
             peer: &super::PeerId,
-            message: super::NetworkMessage,
+            message: super::ProtocolMessage,
         ) -> Result<(), MeshNetworkError> {
             let libp2p_peer = Libp2pPeerId::from_str(&peer.0)
                 .map_err(|e| MeshNetworkError::InvalidInput(format!("Invalid peer ID: {}", e)))?;
@@ -1359,7 +1339,7 @@ pub mod libp2p_service {
 
         async fn broadcast_message(
             &self,
-            message: super::NetworkMessage,
+            message: super::ProtocolMessage,
         ) -> Result<(), MeshNetworkError> {
             let data = bincode::serialize(&message)
                 .map_err(|e| MeshNetworkError::MessageDecodeFailed(e.to_string()))?;
@@ -1370,7 +1350,7 @@ pub mod libp2p_service {
                 .map_err(|e| MeshNetworkError::SendFailure(format!("Broadcast failed: {}", e)))
         }
 
-        async fn subscribe(&self) -> Result<Receiver<super::NetworkMessage>, MeshNetworkError> {
+        async fn subscribe(&self) -> Result<Receiver<super::ProtocolMessage>, MeshNetworkError> {
             let (tx, rx) = oneshot::channel();
             self.cmd_tx
                 .send(Command::Subscribe { rsp: tx })
