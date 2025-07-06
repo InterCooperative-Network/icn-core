@@ -62,6 +62,8 @@ check_prerequisites() {
     else
         error "Docker Compose is not installed or not in PATH"
     fi
+
+    log "Using '$DOCKER_COMPOSE' for container orchestration"
     
     if ! command -v curl &> /dev/null; then
         error "curl is not installed or not in PATH"
