@@ -30,7 +30,11 @@ use icn_identity::{
     ExecutionReceipt as IdentityExecutionReceipt, SignatureBytes,
 };
 use icn_mesh::{ActualMeshJob, JobId, JobSpec};
-use icn_network::{NetworkMessage, NetworkService};
+use icn_network::NetworkService;
+use icn_protocol::{
+    FederationJoinRequestMessage, GossipMessage, MessagePayload, NodeCapabilities, ProtocolMessage,
+    ResourceRequirements,
+};
 use icn_runtime::context::{
     RuntimeContext, StubDagStore as RuntimeStubDagStore, StubMeshNetworkService,
     StubSigner as RuntimeStubSigner,
@@ -1742,8 +1746,21 @@ async fn federation_join_handler(
     #[cfg(feature = "enable-libp2p")]
     if let Ok(service) = state.runtime_context.get_libp2p_service() {
         if let Err(e) = service
-            .broadcast_message(NetworkMessage::FederationJoinRequest(
+            .broadcast_message(ProtocolMessage::new(
+                MessagePayload::FederationJoinRequest(FederationJoinRequestMessage {
+                    requesting_node: state.runtime_context.current_identity.clone(),
+                    federation_id: "default".to_string(),
+                    node_capabilities: NodeCapabilities {
+                        compute_resources: ResourceRequirements::default(),
+                        supported_job_kinds: vec![],
+                        network_bandwidth_mbps: 0,
+                        storage_capacity_gb: 0,
+                        uptime_percentage: 0.0,
+                    },
+                    referral_from: None,
+                }),
                 state.runtime_context.current_identity.clone(),
+                None,
             ))
             .await
         {
@@ -1772,9 +1789,14 @@ async fn federation_leave_handler(
     #[cfg(feature = "enable-libp2p")]
     if let Ok(service) = state.runtime_context.get_libp2p_service() {
         if let Err(e) = service
-            .broadcast_message(NetworkMessage::GossipSub(
-                "federation_leave".to_string(),
-                payload.peer.clone().into_bytes(),
+            .broadcast_message(ProtocolMessage::new(
+                MessagePayload::GossipMessage(GossipMessage {
+                    topic: "federation_leave".to_string(),
+                    payload: payload.peer.clone().into_bytes(),
+                    ttl: 1,
+                }),
+                state.runtime_context.current_identity.clone(),
+                None,
             ))
             .await
         {

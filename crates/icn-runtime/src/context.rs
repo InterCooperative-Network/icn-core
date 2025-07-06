@@ -7,7 +7,10 @@ use icn_mesh::{ActualMeshJob, JobId, JobState, MeshJobBid};
 use downcast_rs::{impl_downcast, DowncastSync};
 #[cfg(feature = "enable-libp2p")]
 use icn_network::libp2p_service::Libp2pNetworkService as ActualLibp2pNetworkService;
-use icn_network::{NetworkMessage, NetworkService as ActualNetworkService};
+use icn_network::NetworkService as ActualNetworkService;
+use icn_protocol::{
+    MeshJobAssignmentMessage, MeshReceiptSubmissionMessage, MessagePayload, ProtocolMessage,
+};
 
 #[cfg(not(any(
     feature = "persist-sled",
@@ -372,8 +375,11 @@ impl MeshNetworkService for DefaultMeshNetworkService {
     }
 
     async fn announce_job(&self, job: &ActualMeshJob) -> Result<(), HostAbiError> {
-        // ActualMeshJob is aliased as Job in icn-network's NetworkMessage::MeshJobAnnouncement
-        let job_message = NetworkMessage::MeshJobAnnouncement(job.clone());
+        let job_message = ProtocolMessage::new(
+            MessagePayload::MeshJobAnnouncement(job.clone()),
+            job.creator_did.clone(),
+            None,
+        );
         self.inner
             .broadcast_message(job_message)
             .await
@@ -381,7 +387,11 @@ impl MeshNetworkService for DefaultMeshNetworkService {
     }
 
     async fn announce_proposal(&self, proposal_bytes: Vec<u8>) -> Result<(), HostAbiError> {
-        let msg = NetworkMessage::ProposalAnnouncement(proposal_bytes);
+        let msg = ProtocolMessage::new(
+            MessagePayload::GovernanceProposalAnnouncement(proposal_bytes),
+            Did::new("key", "runtime"),
+            None,
+        );
         self.inner
             .broadcast_message(msg)
             .await
@@ -389,7 +399,11 @@ impl MeshNetworkService for DefaultMeshNetworkService {
     }
 
     async fn announce_vote(&self, vote_bytes: Vec<u8>) -> Result<(), HostAbiError> {
-        let msg = NetworkMessage::VoteAnnouncement(vote_bytes);
+        let msg = ProtocolMessage::new(
+            MessagePayload::GovernanceVoteAnnouncement(vote_bytes),
+            Did::new("key", "runtime"),
+            None,
+        );
         self.inner
             .broadcast_message(msg)
             .await
@@ -419,20 +433,22 @@ impl MeshNetworkService for DefaultMeshNetworkService {
                 Ok(result) => {
                     // Timeout gives Result<Option<T>, Elapsed>
                     match result {
-                        Some(NetworkMessage::BidSubmission(bid)) => {
-                            if &bid.job_id == job_id {
-                                debug!("Received relevant bid: {:?}", bid);
-                                bids.push(bid);
-                            } else {
-                                debug!("Received bid for different job: {:?}", bid.job_id);
+                        Some(msg) => match &msg.payload {
+                            MessagePayload::MeshBidSubmission(bid) => {
+                                if &bid.job_id == job_id {
+                                    debug!("Received relevant bid: {:?}", bid);
+                                    bids.push(bid.clone());
+                                } else {
+                                    debug!("Received bid for different job: {:?}", bid.job_id);
+                                }
                             }
-                        }
-                        Some(other_message) => {
-                            debug!(
-                                "Received other network message during bid collection: {:?}",
-                                other_message
-                            );
-                        }
+                            other_payload => {
+                                debug!(
+                                    "Received other network message during bid collection: {:?}",
+                                    other_payload
+                                );
+                            }
+                        },
                         None => {
                             // Channel closed
                             warn!(
@@ -461,9 +477,16 @@ impl MeshNetworkService for DefaultMeshNetworkService {
             "[DefaultMeshNetworkService] Broadcasting assignment for job {:?}",
             notice.job_id
         );
-        let assignment_message = NetworkMessage::JobAssignmentNotification(
-            notice.job_id.clone(),
-            notice.executor_did.clone(),
+        let assignment_message = ProtocolMessage::new(
+            MessagePayload::MeshJobAssignment(MeshJobAssignmentMessage {
+                job_id: notice.job_id.clone(),
+                executor_did: notice.executor_did.clone(),
+                agreed_cost_mana: 0,
+                completion_deadline: 0,
+                manifest_cid: None,
+            }),
+            Did::new("key", "runtime"),
+            None,
         );
         self.inner
             .broadcast_message(assignment_message)
@@ -492,22 +515,28 @@ impl MeshNetworkService for DefaultMeshNetworkService {
             {
                 Ok(result) => {
                     match result {
-                        Some(NetworkMessage::SubmitReceipt(receipt)) => {
-                            if &JobId::from(receipt.job_id.clone()) == job_id
-                                && &receipt.executor_did == expected_executor
-                            {
-                                debug!("Received relevant receipt: {:?}", receipt);
-                                return Ok(Some(receipt));
-                            } else {
-                                debug!("Received receipt for different job/executor: job_id={:?}, executor={:?}", receipt.job_id, receipt.executor_did);
+                        Some(msg) => match &msg.payload {
+                            MessagePayload::MeshReceiptSubmission(r_msg) => {
+                                let receipt = r_msg.receipt.clone();
+                                if &JobId::from(receipt.job_id.clone()) == job_id
+                                    && &receipt.executor_did == expected_executor
+                                {
+                                    debug!("Received relevant receipt: {:?}", receipt);
+                                    return Ok(Some(receipt));
+                                } else {
+                                    debug!(
+                                        "Received receipt for different job/executor: job_id={:?}, executor={:?}",
+                                        receipt.job_id, receipt.executor_did
+                                    );
+                                }
                             }
-                        }
-                        Some(other_message) => {
-                            debug!(
-                                "Received other network message during receipt collection: {:?}",
-                                other_message
-                            );
-                        }
+                            other_payload => {
+                                debug!(
+                                    "Received other network message during receipt collection: {:?}",
+                                    other_payload
+                                );
+                            }
+                        },
                         None => {
                             // Channel closed
                             warn!(
