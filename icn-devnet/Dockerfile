@@ -22,6 +22,7 @@ COPY rust-toolchain.toml ./
 
 # Copy source code
 COPY crates/ ./crates/
+COPY icn-ccl/ ./icn-ccl/
 COPY tests/ ./tests/
 
 # Build the ICN node binary
