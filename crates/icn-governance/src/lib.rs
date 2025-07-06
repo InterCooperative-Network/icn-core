@@ -12,7 +12,9 @@ use icn_common::{CommonError, Did, NodeInfo};
 #[cfg(feature = "federation")]
 use icn_network::{MeshNetworkError, NetworkService, PeerId};
 #[cfg(feature = "federation")]
-use icn_protocol::{MessagePayload, ProtocolMessage};
+use icn_protocol::{
+    MessagePayload, ProtocolMessage, FederationSyncRequestMessage, SyncDataType,
+};
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 #[cfg(feature = "persist-sled")]
@@ -1119,16 +1121,23 @@ impl fmt::Debug for GovernanceModule {
 /// Request federation data synchronization from a peer.
 ///
 /// This uses the provided [`NetworkService`] to send a
-/// [`NetworkMessage::FederationSyncRequest`] to `target_peer`.
+/// [`ProtocolMessage`] with [`MessagePayload::FederationSyncRequest`] to `target_peer`.
 #[cfg(feature = "federation")]
 pub async fn request_federation_sync(
     service: &dyn NetworkService,
     target_peer: &PeerId,
     since_timestamp: Option<u64>,
 ) -> Result<(), CommonError> {
-    let payload = since_timestamp
-        .map(|ts| Did::new("sync", &ts.to_string()))
-        .unwrap_or_default();
+    let payload = FederationSyncRequestMessage {
+        federation_id: "default".to_string(),
+        since_timestamp,
+        sync_types: vec![
+            SyncDataType::Members,
+            SyncDataType::Proposals,
+            SyncDataType::Jobs,
+            SyncDataType::Reputation,
+        ],
+    };
 
     let msg = ProtocolMessage::new(
         MessagePayload::FederationSyncRequest(payload),

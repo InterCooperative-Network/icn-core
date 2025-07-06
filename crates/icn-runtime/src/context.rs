@@ -7,7 +7,11 @@ use icn_mesh::{ActualMeshJob, JobId, JobState, MeshJobBid};
 use downcast_rs::{impl_downcast, DowncastSync};
 #[cfg(feature = "enable-libp2p")]
 use icn_network::libp2p_service::Libp2pNetworkService as ActualLibp2pNetworkService;
-use icn_network::{NetworkMessage, NetworkService as ActualNetworkService};
+use icn_network::NetworkService as ActualNetworkService;
+use icn_protocol::{
+    MessagePayload, ProtocolMessage, MeshJobAnnouncementMessage,
+    MeshJobAssignmentMessage, GossipMessage,
+};
 
 #[cfg(not(any(
     feature = "persist-sled",
@@ -372,8 +376,19 @@ impl MeshNetworkService for DefaultMeshNetworkService {
     }
 
     async fn announce_job(&self, job: &ActualMeshJob) -> Result<(), HostAbiError> {
-        // ActualMeshJob is aliased as Job in icn-network's NetworkMessage::MeshJobAnnouncement
-        let job_message = NetworkMessage::MeshJobAnnouncement(job.clone());
+        let announcement = MeshJobAnnouncementMessage {
+            job_id: job.id.clone(),
+            manifest_cid: job.manifest_cid.clone(),
+            creator_did: job.creator_did.clone(),
+            max_cost_mana: job.cost_mana,
+            job_spec: job.spec.clone(),
+            bid_deadline: self.time_provider.now_seconds() + 60,
+        };
+        let job_message = ProtocolMessage::new(
+            MessagePayload::MeshJobAnnouncement(announcement),
+            self.current_identity.clone(),
+            None,
+        );
         self.inner
             .broadcast_message(job_message)
             .await
@@ -381,7 +396,15 @@ impl MeshNetworkService for DefaultMeshNetworkService {
     }
 
     async fn announce_proposal(&self, proposal_bytes: Vec<u8>) -> Result<(), HostAbiError> {
-        let msg = NetworkMessage::ProposalAnnouncement(proposal_bytes);
+        let msg = ProtocolMessage::new(
+            MessagePayload::GossipMessage(GossipMessage {
+                topic: "governance_proposal".to_string(),
+                payload: proposal_bytes,
+                ttl: 60,
+            }),
+            self.current_identity.clone(),
+            None,
+        );
         self.inner
             .broadcast_message(msg)
             .await
@@ -389,7 +412,15 @@ impl MeshNetworkService for DefaultMeshNetworkService {
     }
 
     async fn announce_vote(&self, vote_bytes: Vec<u8>) -> Result<(), HostAbiError> {
-        let msg = NetworkMessage::VoteAnnouncement(vote_bytes);
+        let msg = ProtocolMessage::new(
+            MessagePayload::GossipMessage(GossipMessage {
+                topic: "governance_vote".to_string(),
+                payload: vote_bytes,
+                ttl: 60,
+            }),
+            self.current_identity.clone(),
+            None,
+        );
         self.inner
             .broadcast_message(msg)
             .await
@@ -462,9 +493,17 @@ impl MeshNetworkService for DefaultMeshNetworkService {
             "[DefaultMeshNetworkService] Broadcasting assignment for job {:?}",
             notice.job_id
         );
-        let assignment_message = NetworkMessage::JobAssignmentNotification(
-            notice.job_id.clone(),
-            notice.executor_did.clone(),
+        let assignment = MeshJobAssignmentMessage {
+            job_id: notice.job_id.clone(),
+            executor_did: notice.executor_did.clone(),
+            agreed_cost_mana: 0,
+            completion_deadline: self.time_provider.now_seconds() + 60,
+            manifest_cid: None,
+        };
+        let assignment_message = ProtocolMessage::new(
+            MessagePayload::MeshJobAssignment(assignment),
+            self.current_identity.clone(),
+            None,
         );
         self.inner
             .broadcast_message(assignment_message)
