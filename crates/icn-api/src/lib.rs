@@ -18,7 +18,8 @@ use icn_common::{
 use icn_dag::StorageService; // Import the trait
 use std::sync::{Arc, Mutex}; // To accept the storage service
                              // Added imports for network functionality
-use icn_network::{NetworkMessage, NetworkService, PeerId, StubNetworkService};
+use icn_network::{NetworkService, PeerId, StubNetworkService};
+use icn_protocol::{DagBlockRequestMessage, GossipMessage, MessagePayload, ProtocolMessage};
 // Added imports for governance functionality
 use icn_governance::{
     scoped_policy::{DagPayloadOp, PolicyCheckResult, ScopedPolicyEnforcer},
@@ -401,8 +402,8 @@ pub async fn discover_peers_api(
 }
 
 /// API endpoint to send a message to a specific peer (currently uses StubNetworkService).
-/// `peer_id_str` is the string representation of the target PeerId.
-/// `message_json` is a JSON string representation of the NetworkMessage.
+/// `peer_id_str` is the string representation of the target [`PeerId`].
+/// `message_json` is a JSON string representation of a [`ProtocolMessage`].
 pub async fn send_network_message_api(
     peer_id_str: String,
     message_json: String,
@@ -410,11 +411,10 @@ pub async fn send_network_message_api(
     let network_service = StubNetworkService::default();
     let peer_id = PeerId(peer_id_str); // Assuming PeerId is a simple wrapper around String for now.
 
-    // Deserialize the NetworkMessage from JSON.
-    // This requires NetworkMessage to implement Deserialize.
-    let message: NetworkMessage = serde_json::from_str(&message_json).map_err(|e| {
+    // Deserialize the ProtocolMessage from JSON.
+    let message: ProtocolMessage = serde_json::from_str(&message_json).map_err(|e| {
         CommonError::DeserializationError(format!(
-            "Failed to parse NetworkMessage JSON: {}. Input: {}",
+            "Failed to parse ProtocolMessage JSON: {}. Input: {}",
             e, message_json
         ))
     })?;
@@ -773,8 +773,15 @@ mod tests {
         // Made async
         let peer_id_str = "test_peer_123".to_string();
         // Using GossipSub as a generic message type for the test, as Ping variant doesn't exist.
-        let message_to_send =
-            NetworkMessage::GossipSub("test_topic".to_string(), b"hello world".to_vec());
+        let message_to_send = ProtocolMessage::new(
+            MessagePayload::GossipMessage(GossipMessage {
+                topic: "test_topic".to_string(),
+                payload: b"hello world".to_vec(),
+                ttl: 1,
+            }),
+            Did::new("key", "tester"),
+            None,
+        );
         let message_json = serde_json::to_string(&message_to_send).unwrap();
 
         let result = send_network_message_api(peer_id_str, message_json).await;
@@ -790,7 +797,14 @@ mod tests {
         // Made async
         let peer_id_str = "unknown_peer_id".to_string(); // StubNetworkService simulates error for this peer
         let dummy_cid = Cid::new_v1_sha256(0x55, b"test_cid_for_req_block");
-        let message_to_send = NetworkMessage::RequestBlock(dummy_cid); // Corrected to tuple variant
+        let message_to_send = ProtocolMessage::new(
+            MessagePayload::DagBlockRequest(DagBlockRequestMessage {
+                block_cid: dummy_cid,
+                priority: 0,
+            }),
+            Did::new("key", "tester"),
+            None,
+        ); // Corrected to struct variant
         let message_json = serde_json::to_string(&message_to_send).unwrap();
 
         let result = send_network_message_api(peer_id_str, message_json).await;
@@ -812,7 +826,7 @@ mod tests {
 
         match send_network_message_api(peer_id_str, invalid_message_json.to_string()).await {
             Err(CommonError::DeserializationError(msg)) => {
-                assert!(msg.contains("Failed to parse NetworkMessage JSON"));
+                assert!(msg.contains("Failed to parse ProtocolMessage JSON"));
             }
             Ok(_) => panic!("send_network_message_api should have failed for invalid JSON input"),
             Err(e) => panic!(
