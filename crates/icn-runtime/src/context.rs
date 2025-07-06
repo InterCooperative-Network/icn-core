@@ -7,7 +7,9 @@ use icn_mesh::{ActualMeshJob, JobId, JobState, MeshJobBid};
 use downcast_rs::{impl_downcast, DowncastSync};
 #[cfg(feature = "enable-libp2p")]
 use icn_network::libp2p_service::Libp2pNetworkService as ActualLibp2pNetworkService;
-use icn_network::{NetworkMessage, NetworkService as ActualNetworkService};
+#[allow(unused_imports)]
+use icn_network::{NetworkService, PeerId, StubNetworkService};
+use icn_protocol::{ProtocolMessage, MessagePayload, GossipMessage};
 
 #[cfg(not(any(
     feature = "persist-sled",
@@ -347,11 +349,11 @@ impl_downcast!(sync MeshNetworkService);
 
 #[derive(Debug)]
 pub struct DefaultMeshNetworkService {
-    inner: Arc<dyn ActualNetworkService>, // Uses the imported ActualNetworkService from icn-network
+    inner: Arc<dyn NetworkService>, // Uses the NetworkService trait from icn-network
 }
 
 impl DefaultMeshNetworkService {
-    pub fn new(service: Arc<dyn ActualNetworkService>) -> Self {
+    pub fn new(service: Arc<dyn NetworkService>) -> Self {
         Self { inner: service }
     }
 
@@ -372,8 +374,18 @@ impl MeshNetworkService for DefaultMeshNetworkService {
     }
 
     async fn announce_job(&self, job: &ActualMeshJob) -> Result<(), HostAbiError> {
-        // ActualMeshJob is aliased as Job in icn-network's NetworkMessage::MeshJobAnnouncement
-        let job_message = NetworkMessage::MeshJobAnnouncement(job.clone());
+        let payload_bytes = bincode::serialize(job).map_err(|e| {
+            HostAbiError::NetworkError(format!("Failed to serialize job: {}", e))
+        })?;
+        let job_message = ProtocolMessage::new(
+            MessagePayload::GossipMessage(GossipMessage {
+                topic: "mesh_job_announcement".to_string(),
+                payload: payload_bytes,
+                ttl: 1,
+            }),
+            Did::default(),
+            None,
+        );
         self.inner
             .broadcast_message(job_message)
             .await
@@ -381,7 +393,15 @@ impl MeshNetworkService for DefaultMeshNetworkService {
     }
 
     async fn announce_proposal(&self, proposal_bytes: Vec<u8>) -> Result<(), HostAbiError> {
-        let msg = NetworkMessage::ProposalAnnouncement(proposal_bytes);
+        let msg = ProtocolMessage::new(
+            MessagePayload::GossipMessage(GossipMessage {
+                topic: "governance_proposal".to_string(),
+                payload: proposal_bytes,
+                ttl: 1,
+            }),
+            Did::default(),
+            None,
+        );
         self.inner
             .broadcast_message(msg)
             .await
@@ -389,7 +409,15 @@ impl MeshNetworkService for DefaultMeshNetworkService {
     }
 
     async fn announce_vote(&self, vote_bytes: Vec<u8>) -> Result<(), HostAbiError> {
-        let msg = NetworkMessage::VoteAnnouncement(vote_bytes);
+        let msg = ProtocolMessage::new(
+            MessagePayload::GossipMessage(GossipMessage {
+                topic: "governance_vote".to_string(),
+                payload: vote_bytes,
+                ttl: 1,
+            }),
+            Did::default(),
+            None,
+        );
         self.inner
             .broadcast_message(msg)
             .await
@@ -462,9 +490,17 @@ impl MeshNetworkService for DefaultMeshNetworkService {
             "[DefaultMeshNetworkService] Broadcasting assignment for job {:?}",
             notice.job_id
         );
-        let assignment_message = NetworkMessage::JobAssignmentNotification(
-            notice.job_id.clone(),
-            notice.executor_did.clone(),
+        let assignment_data = bincode::serialize(&notice).map_err(|e| {
+            HostAbiError::NetworkError(format!("Failed to serialize assignment: {}", e))
+        })?;
+        let assignment_message = ProtocolMessage::new(
+            MessagePayload::GossipMessage(GossipMessage {
+                topic: "job_assignment".to_string(),
+                payload: assignment_data,
+                ttl: 1,
+            }),
+            Did::default(),
+            None,
         );
         self.inner
             .broadcast_message(assignment_message)
@@ -867,7 +903,7 @@ impl RuntimeContext {
                     e
                 ))
             })?);
-        let libp2p_service_dyn: Arc<dyn ActualNetworkService> = libp2p_service_concrete;
+        let libp2p_service_dyn: Arc<dyn NetworkService> = libp2p_service_concrete;
 
         let default_mesh_service =
             Arc::new(DefaultMeshNetworkService::new(libp2p_service_dyn.clone()));
@@ -1710,7 +1746,7 @@ impl RuntimeContext {
 
         // Wrap in DefaultMeshNetworkService
         let mesh_service = Arc::new(DefaultMeshNetworkService::new(
-            libp2p_service.clone() as Arc<dyn ActualNetworkService>
+            libp2p_service.clone() as Arc<dyn NetworkService>
         ));
 
         // Create stub DAG store for now (can be enhanced later)

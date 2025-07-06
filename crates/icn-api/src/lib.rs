@@ -19,7 +19,7 @@ use icn_dag::StorageService; // Import the trait
 use std::sync::{Arc, Mutex}; // To accept the storage service
                              // Added imports for network functionality
 use icn_network::{NetworkService, PeerId, StubNetworkService};
-use icn_protocol::ProtocolMessage;
+use icn_protocol::{ProtocolMessage, MessagePayload};
 // Added imports for governance functionality
 use icn_governance::{
     scoped_policy::{DagPayloadOp, PolicyCheckResult, ScopedPolicyEnforcer},
