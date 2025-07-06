@@ -20,6 +20,7 @@ NC='\033[0m' # No Color
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COMPOSE_FILE="$SCRIPT_DIR/docker-compose.yml"
+DOCKER_COMPOSE=""
 MAX_WAIT_TIME=180  # 3 minutes max wait
 HEALTH_CHECK_INTERVAL=5
 
@@ -54,7 +55,11 @@ check_prerequisites() {
         error "Docker is not installed or not in PATH"
     fi
     
-    if ! command -v docker-compose &> /dev/null; then
+    if command -v docker-compose &> /dev/null; then
+        DOCKER_COMPOSE="docker-compose"
+    elif docker compose version &> /dev/null; then
+        DOCKER_COMPOSE="docker compose"
+    else
         error "Docker Compose is not installed or not in PATH"
     fi
     
@@ -219,11 +224,11 @@ main() {
     
     # Clean up any existing containers
     log "Cleaning up existing containers..."
-    docker-compose -f "$COMPOSE_FILE" down --volumes --remove-orphans 2>/dev/null || true
+    $DOCKER_COMPOSE -f "$COMPOSE_FILE" down --volumes --remove-orphans 2>/dev/null || true
     
     # Start the federation
     log "Starting ICN federation (3 nodes)..."
-    docker-compose -f "$COMPOSE_FILE" up -d
+    $DOCKER_COMPOSE -f "$COMPOSE_FILE" up -d
     
     # Wait for nodes to be healthy
     wait_for_node "Node A" "$NODE_A_URL"
@@ -257,7 +262,7 @@ main() {
     echo -e "    -d '{\"manifest_cid\": \"test\", \"spec_json\": {\"Echo\": {\"payload\": \"Hello Federation!\"}}, \"cost_mana\": 50}'"
     echo ""
     echo -e "${YELLOW}To stop the federation:${NC}"
-    echo -e "  docker-compose -f $COMPOSE_FILE down"
+    echo -e "  $DOCKER_COMPOSE -f $COMPOSE_FILE down"
 }
 
 # Handle cleanup on exit
@@ -265,7 +270,7 @@ cleanup() {
     if [ "$1" != "0" ]; then
         error "Federation launch failed"
         log "Cleaning up..."
-        docker-compose -f "$COMPOSE_FILE" down --volumes --remove-orphans 2>/dev/null || true
+        $DOCKER_COMPOSE -f "$COMPOSE_FILE" down --volumes --remove-orphans 2>/dev/null || true
     fi
 }
 
