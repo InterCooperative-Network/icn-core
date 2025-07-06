@@ -11,7 +11,8 @@ use icn_common::{Cid, Did};
 use icn_identity::{generate_ed25519_keypair, ExecutionReceipt, SignatureBytes, SigningKey};
 use icn_mesh::{ActualMeshJob as Job, JobId, JobKind, JobSpec, MeshJobBid as Bid, Resources};
 use icn_network::libp2p_service::{Libp2pNetworkService, NetworkConfig};
-use icn_network::{NetworkMessage, NetworkService};
+use icn_network::NetworkService;
+use icn_protocol::{MessagePayload, ProtocolMessage};
 use icn_runtime::executor::{JobExecutor, SimpleExecutor};
 use libp2p::PeerId as Libp2pPeerId;
 use std::str::FromStr;
@@ -22,7 +23,7 @@ use tokio::time::{sleep, timeout, Duration};
 pub struct TestNode {
     pub service: Libp2pNetworkService,
     pub peer_id: String,
-    pub receiver: Receiver<NetworkMessage>,
+    pub receiver: Receiver<ProtocolMessage>,
 }
 
 /// Test job configuration
@@ -190,12 +191,12 @@ pub fn verify_receipt_signature_format(receipt: &ExecutionReceipt) -> Result<()>
 
 /// Waits for a specific message type with timeout
 pub async fn wait_for_message<F, T>(
-    receiver: &mut Receiver<NetworkMessage>,
+    receiver: &mut Receiver<ProtocolMessage>,
     timeout_secs: u64,
     matcher: F,
 ) -> Result<T>
 where
-    F: Fn(&NetworkMessage) -> Option<T>,
+    F: Fn(&ProtocolMessage) -> Option<T>,
 {
     timeout(Duration::from_secs(timeout_secs), async {
         loop {

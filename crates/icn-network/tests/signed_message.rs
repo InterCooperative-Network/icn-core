@@ -1,8 +1,7 @@
 use icn_common::Did;
 use icn_identity::{did_key_from_verifying_key, generate_ed25519_keypair};
-use icn_network::{
-    sign_message, NetworkMessage, NetworkService, SignedMessage, StubNetworkService,
-};
+use icn_network::{sign_message, NetworkService, SignedMessage, StubNetworkService};
+use icn_protocol::{GossipMessage, MessagePayload, ProtocolMessage};
 use std::str::FromStr;
 
 #[tokio::test]
@@ -11,7 +10,15 @@ async fn stub_service_valid_signature() {
     let (sk, vk) = generate_ed25519_keypair();
     let did_str = did_key_from_verifying_key(&vk);
     let did = Did::from_str(&did_str).unwrap();
-    let msg = NetworkMessage::GossipSub("test".into(), b"hello".to_vec());
+    let msg = ProtocolMessage::new(
+        MessagePayload::GossipMessage(GossipMessage {
+            topic: "test".into(),
+            payload: b"hello".to_vec(),
+            ttl: 1,
+        }),
+        did.clone(),
+        None,
+    );
     let signed = sign_message(&msg, &did, &sk).unwrap();
     service
         .send_signed_message(&icn_network::PeerId("peer1".into()), signed)
@@ -25,7 +32,15 @@ async fn stub_service_invalid_signature() {
     let (sk, vk) = generate_ed25519_keypair();
     let did_str = did_key_from_verifying_key(&vk);
     let did = Did::from_str(&did_str).unwrap();
-    let msg = NetworkMessage::GossipSub("test".into(), b"hello".to_vec());
+    let msg = ProtocolMessage::new(
+        MessagePayload::GossipMessage(GossipMessage {
+            topic: "test".into(),
+            payload: b"hello".to_vec(),
+            ttl: 1,
+        }),
+        did.clone(),
+        None,
+    );
     let mut signed = sign_message(&msg, &did, &sk).unwrap();
     // Corrupt the signature
     if let Some(byte) = signed.signature.0.first_mut() {
@@ -47,7 +62,15 @@ async fn stub_service_rejects_duplicate() {
     let (sk, vk) = generate_ed25519_keypair();
     let did_str = did_key_from_verifying_key(&vk);
     let did = Did::from_str(&did_str).unwrap();
-    let msg = NetworkMessage::GossipSub("dup".into(), b"hello".to_vec());
+    let msg = ProtocolMessage::new(
+        MessagePayload::GossipMessage(GossipMessage {
+            topic: "dup".into(),
+            payload: b"hello".to_vec(),
+            ttl: 1,
+        }),
+        did.clone(),
+        None,
+    );
     let signed = sign_message(&msg, &did, &sk).unwrap();
     service
         .send_signed_message(&icn_network::PeerId("peer1".into()), signed.clone())

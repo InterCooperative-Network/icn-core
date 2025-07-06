@@ -12,7 +12,8 @@ mod federation_sync {
     use icn_common::Did;
     use icn_governance::request_federation_sync;
     use icn_network::libp2p_service::{Libp2pNetworkService, NetworkConfig};
-    use icn_network::{NetworkMessage, NetworkService, PeerId};
+    use icn_network::{NetworkService, PeerId};
+    use icn_protocol::{MessagePayload, ProtocolMessage};
     use tokio::time::{sleep, timeout, Duration};
 
     #[tokio::test]
@@ -48,13 +49,13 @@ mod federation_sync {
             .await
             .expect("send sync");
 
-        let msg = timeout(Duration::from_secs(5), sub_b.recv())
+        let msg: ProtocolMessage = timeout(Duration::from_secs(5), sub_b.recv())
             .await
             .expect("recv timeout")
             .expect("recv message");
 
-        match msg {
-            NetworkMessage::FederationSyncRequest(did) => {
+        match msg.payload {
+            MessagePayload::FederationSyncRequest(did) => {
                 assert_eq!(did, Did::new("sync", &ts.to_string()));
             }
             other => panic!("unexpected message: {:?}", other),
