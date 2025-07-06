@@ -189,53 +189,37 @@
 <a href=#189 id=189 data-nosnippet>189</a>        }
 <a href=#190 id=190 data-nosnippet>190</a>        Rule::function_definition =&gt; parser::parse_function_definition(pair),
 <a href=#191 id=191 data-nosnippet>191</a>        Rule::rule_definition =&gt; parser::parse_rule_definition(pair),
-<a href=#192 id=192 data-nosnippet>192</a>        Rule::policy_statement =&gt; {
-<a href=#193 id=193 data-nosnippet>193</a>            <span class="kw">let </span><span class="kw-2">mut </span>inner = pair.into_inner();
-<a href=#194 id=194 data-nosnippet>194</a>            <span class="kw">let </span>stmt = inner
+<a href=#192 id=192 data-nosnippet>192</a>        Rule::import_statement =&gt; {
+<a href=#193 id=193 data-nosnippet>193</a>            <span class="kw">let </span><span class="kw-2">mut </span>i = pair.into_inner();
+<a href=#194 id=194 data-nosnippet>194</a>            <span class="kw">let </span>path_pair = i
 <a href=#195 id=195 data-nosnippet>195</a>                .next()
-<a href=#196 id=196 data-nosnippet>196</a>                .ok_or_else(|| CclError::ParsingError(<span class="string">"Empty policy statement"</span>.to_string()))<span class="question-mark">?</span>;
-<a href=#197 id=197 data-nosnippet>197</a>            <span class="kw">match </span>stmt.as_rule() {
-<a href=#198 id=198 data-nosnippet>198</a>                Rule::rule_definition =&gt; parser::parse_rule_definition(stmt),
-<a href=#199 id=199 data-nosnippet>199</a>                Rule::import_statement =&gt; {
-<a href=#200 id=200 data-nosnippet>200</a>                    <span class="kw">let </span><span class="kw-2">mut </span>i = stmt.into_inner();
-<a href=#201 id=201 data-nosnippet>201</a>                    <span class="kw">let </span>path_pair = i
-<a href=#202 id=202 data-nosnippet>202</a>                        .next()
-<a href=#203 id=203 data-nosnippet>203</a>                        .ok_or_else(|| CclError::ParsingError(<span class="string">"Import missing path"</span>.to_string()))<span class="question-mark">?</span>;
-<a href=#204 id=204 data-nosnippet>204</a>                    <span class="kw">let </span>alias_pair = i.next().ok_or_else(|| {
-<a href=#205 id=205 data-nosnippet>205</a>                        CclError::ParsingError(<span class="string">"Import missing alias"</span>.to_string())
-<a href=#206 id=206 data-nosnippet>206</a>                    })<span class="question-mark">?</span>;
-<a href=#207 id=207 data-nosnippet>207</a>                    <span class="kw">let </span>path = path_pair.as_str().trim_matches(<span class="string">'"'</span>).to_string();
-<a href=#208 id=208 data-nosnippet>208</a>                    <span class="kw">let </span>alias = alias_pair.as_str().to_string();
-<a href=#209 id=209 data-nosnippet>209</a>                    <span class="prelude-val">Ok</span>(AstNode::Policy(<span class="macro">vec!</span>[PolicyStatementNode::Import {
-<a href=#210 id=210 data-nosnippet>210</a>                        path,
-<a href=#211 id=211 data-nosnippet>211</a>                        alias,
-<a href=#212 id=212 data-nosnippet>212</a>                    }]))
-<a href=#213 id=213 data-nosnippet>213</a>                }
-<a href=#214 id=214 data-nosnippet>214</a>                <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(CclError::ParsingError(<span class="macro">format!</span>(
-<a href=#215 id=215 data-nosnippet>215</a>                    <span class="string">"Unexpected policy statement: {:?}"</span>,
-<a href=#216 id=216 data-nosnippet>216</a>                    stmt.as_rule()
-<a href=#217 id=217 data-nosnippet>217</a>                ))),
-<a href=#218 id=218 data-nosnippet>218</a>            }
-<a href=#219 id=219 data-nosnippet>219</a>        }
-<a href=#220 id=220 data-nosnippet>220</a>        Rule::import_statement =&gt; {
-<a href=#221 id=221 data-nosnippet>221</a>            <span class="kw">let </span><span class="kw-2">mut </span>i = pair.into_inner();
-<a href=#222 id=222 data-nosnippet>222</a>            <span class="kw">let </span>path_pair = i
-<a href=#223 id=223 data-nosnippet>223</a>                .next()
-<a href=#224 id=224 data-nosnippet>224</a>                .ok_or_else(|| CclError::ParsingError(<span class="string">"Import missing path"</span>.to_string()))<span class="question-mark">?</span>;
-<a href=#225 id=225 data-nosnippet>225</a>            <span class="kw">let </span>alias_pair = i
-<a href=#226 id=226 data-nosnippet>226</a>                .next()
-<a href=#227 id=227 data-nosnippet>227</a>                .ok_or_else(|| CclError::ParsingError(<span class="string">"Import missing alias"</span>.to_string()))<span class="question-mark">?</span>;
-<a href=#228 id=228 data-nosnippet>228</a>            <span class="kw">let </span>path = path_pair.as_str().trim_matches(<span class="string">'"'</span>).to_string();
-<a href=#229 id=229 data-nosnippet>229</a>            <span class="kw">let </span>alias = alias_pair.as_str().to_string();
-<a href=#230 id=230 data-nosnippet>230</a>            <span class="prelude-val">Ok</span>(AstNode::Policy(<span class="macro">vec!</span>[PolicyStatementNode::Import {
-<a href=#231 id=231 data-nosnippet>231</a>                path,
-<a href=#232 id=232 data-nosnippet>232</a>                alias,
-<a href=#233 id=233 data-nosnippet>233</a>            }]))
-<a href=#234 id=234 data-nosnippet>234</a>        }
-<a href=#235 id=235 data-nosnippet>235</a>        Rule::block =&gt; <span class="prelude-val">Ok</span>(AstNode::Block(parser::parse_block(pair)<span class="question-mark">?</span>)),
-<a href=#236 id=236 data-nosnippet>236</a>        <span class="kw">_ </span>=&gt; <span class="macro">unreachable!</span>(
-<a href=#237 id=237 data-nosnippet>237</a>            <span class="string">"pair_to_ast called with unsupported rule: {:?}"</span>,
-<a href=#238 id=238 data-nosnippet>238</a>            pair.as_rule()
-<a href=#239 id=239 data-nosnippet>239</a>        ),
-<a href=#240 id=240 data-nosnippet>240</a>    }
-<a href=#241 id=241 data-nosnippet>241</a>}</code></pre></div></section></main></body></html>
+<a href=#196 id=196 data-nosnippet>196</a>                .ok_or_else(|| CclError::ParsingError(<span class="string">"Import missing path"</span>.to_string()))<span class="question-mark">?</span>;
+<a href=#197 id=197 data-nosnippet>197</a>            <span class="kw">let </span>alias_pair = i
+<a href=#198 id=198 data-nosnippet>198</a>                .next()
+<a href=#199 id=199 data-nosnippet>199</a>                .ok_or_else(|| CclError::ParsingError(<span class="string">"Import missing alias"</span>.to_string()))<span class="question-mark">?</span>;
+<a href=#200 id=200 data-nosnippet>200</a>            <span class="kw">let </span>path = path_pair.as_str().trim_matches(<span class="string">'"'</span>).to_string();
+<a href=#201 id=201 data-nosnippet>201</a>            <span class="kw">let </span>alias = alias_pair.as_str().to_string();
+<a href=#202 id=202 data-nosnippet>202</a>            <span class="prelude-val">Ok</span>(AstNode::Policy(<span class="macro">vec!</span>[PolicyStatementNode::Import {
+<a href=#203 id=203 data-nosnippet>203</a>                path,
+<a href=#204 id=204 data-nosnippet>204</a>                alias,
+<a href=#205 id=205 data-nosnippet>205</a>            }]))
+<a href=#206 id=206 data-nosnippet>206</a>        }
+<a href=#207 id=207 data-nosnippet>207</a>        Rule::block =&gt; <span class="prelude-val">Ok</span>(AstNode::Block(parser::parse_block(pair)<span class="question-mark">?</span>)),
+<a href=#208 id=208 data-nosnippet>208</a>        Rule::policy_statement =&gt; {
+<a href=#209 id=209 data-nosnippet>209</a>            <span class="kw">match </span>parser::parse_policy_statement(pair)<span class="question-mark">? </span>{
+<a href=#210 id=210 data-nosnippet>210</a>                PolicyStatementNode::RuleDef(rule) =&gt; <span class="prelude-val">Ok</span>(rule),
+<a href=#211 id=211 data-nosnippet>211</a>                PolicyStatementNode::Import { path, alias } =&gt; <span class="prelude-val">Ok</span>(AstNode::Policy(<span class="macro">vec!</span>[
+<a href=#212 id=212 data-nosnippet>212</a>                    PolicyStatementNode::Import { path, alias },
+<a href=#213 id=213 data-nosnippet>213</a>                ])),
+<a href=#214 id=214 data-nosnippet>214</a>                PolicyStatementNode::FunctionDef(func) =&gt; <span class="prelude-val">Ok</span>(func),
+<a href=#215 id=215 data-nosnippet>215</a>            }
+<a href=#216 id=216 data-nosnippet>216</a>        }
+<a href=#217 id=217 data-nosnippet>217</a>        Rule::statement =&gt; <span class="prelude-val">Ok</span>(AstNode::Block(BlockNode {
+<a href=#218 id=218 data-nosnippet>218</a>            statements: <span class="macro">vec!</span>[parser::parse_statement(pair)<span class="question-mark">?</span>],
+<a href=#219 id=219 data-nosnippet>219</a>        })),
+<a href=#220 id=220 data-nosnippet>220</a>        <span class="kw">_ </span>=&gt; <span class="macro">unreachable!</span>(
+<a href=#221 id=221 data-nosnippet>221</a>            <span class="string">"pair_to_ast called with unsupported rule: {:?}"</span>,
+<a href=#222 id=222 data-nosnippet>222</a>            pair.as_rule()
+<a href=#223 id=223 data-nosnippet>223</a>        ),
+<a href=#224 id=224 data-nosnippet>224</a>    }
+<a href=#225 id=225 data-nosnippet>225</a>}</code></pre></div></section></main></body></html>
