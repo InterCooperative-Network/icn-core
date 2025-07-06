@@ -189,34 +189,6 @@ pub fn pair_to_ast(
         }
         Rule::function_definition => parser::parse_function_definition(pair),
         Rule::rule_definition => parser::parse_rule_definition(pair),
-        Rule::policy_statement => {
-            let mut inner = pair.into_inner();
-            let stmt = inner
-                .next()
-                .ok_or_else(|| CclError::ParsingError("Empty policy statement".to_string()))?;
-            match stmt.as_rule() {
-                Rule::rule_definition => parser::parse_rule_definition(stmt),
-                Rule::import_statement => {
-                    let mut i = stmt.into_inner();
-                    let path_pair = i
-                        .next()
-                        .ok_or_else(|| CclError::ParsingError("Import missing path".to_string()))?;
-                    let alias_pair = i.next().ok_or_else(|| {
-                        CclError::ParsingError("Import missing alias".to_string())
-                    })?;
-                    let path = path_pair.as_str().trim_matches('"').to_string();
-                    let alias = alias_pair.as_str().to_string();
-                    Ok(AstNode::Policy(vec![PolicyStatementNode::Import {
-                        path,
-                        alias,
-                    }]))
-                }
-                _ => Err(CclError::ParsingError(format!(
-                    "Unexpected policy statement: {:?}",
-                    stmt.as_rule()
-                ))),
-            }
-        }
         Rule::import_statement => {
             let mut i = pair.into_inner();
             let path_pair = i
@@ -233,6 +205,18 @@ pub fn pair_to_ast(
             }]))
         }
         Rule::block => Ok(AstNode::Block(parser::parse_block(pair)?)),
+        Rule::policy_statement => {
+            match parser::parse_policy_statement(pair)? {
+                PolicyStatementNode::RuleDef(rule) => Ok(rule),
+                PolicyStatementNode::Import { path, alias } => Ok(AstNode::Policy(vec![
+                    PolicyStatementNode::Import { path, alias },
+                ])),
+                PolicyStatementNode::FunctionDef(func) => Ok(func),
+            }
+        }
+        Rule::statement => Ok(AstNode::Block(BlockNode {
+            statements: vec![parser::parse_statement(pair)?],
+        })),
         _ => unreachable!(
             "pair_to_ast called with unsupported rule: {:?}",
             pair.as_rule()

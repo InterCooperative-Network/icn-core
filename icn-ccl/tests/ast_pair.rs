@@ -114,3 +114,28 @@ fn test_pair_to_ast_block() {
     });
     assert_eq!(ast, expected);
 }
+
+#[test]
+fn test_pair_to_ast_policy_statement_import() {
+    let src = "import \"foo\" as bar;";
+    let mut pairs = CclParser::parse(Rule::policy_statement, src).unwrap();
+    let pair = pairs.next().unwrap();
+    let ast = ast::pair_to_ast(pair).unwrap();
+    let expected = AstNode::Policy(vec![PolicyStatementNode::Import {
+        path: "foo".to_string(),
+        alias: "bar".to_string(),
+    }]);
+    assert_eq!(ast, expected);
+}
+
+#[test]
+fn test_pair_to_ast_statement_return() {
+    let src = "return 5;";
+    let mut pairs = CclParser::parse(Rule::statement, src).unwrap();
+    let pair = pairs.next().unwrap();
+    let ast = ast::pair_to_ast(pair).unwrap();
+    let expected = AstNode::Block(BlockNode {
+        statements: vec![StatementNode::Return(ExpressionNode::IntegerLiteral(5))],
+    });
+    assert_eq!(ast, expected);
+}
