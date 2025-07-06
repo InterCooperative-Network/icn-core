@@ -164,7 +164,7 @@ Note the printed Peer ID on startup.
 
 Planned features include:
 
-* Broadcasting proposals and votes via `NetworkMessage`.
+* Broadcasting proposals and votes via `ProtocolMessage`.
 * Remote nodes receiving and syncing governance state.
 * Full inter-node proposal lifecycle with vote aggregation.
 
@@ -181,6 +181,6 @@ Planned features include:
 ## Roadmap for Multi-Node Networking
 
 * [ ] Full `Libp2pNetworkService` with peer management
-* [ ] Gossipsub propagation of `NetworkMessage::AnnounceProposal`, `AnnounceVote`, etc.
+* [ ] Gossipsub propagation of `MessagePayload::GovernanceProposalAnnouncement`, `GovernanceVoteAnnouncement`, etc.
 * [ ] CLI/API for listing peers, showing connection status
 * [ ] Governance state sync hooks across nodes
