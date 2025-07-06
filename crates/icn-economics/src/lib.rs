@@ -208,6 +208,14 @@ mod tests {
             Ok(())
         }
 
+        fn credit_all(&self, amount: u64) -> Result<(), CommonError> {
+            let mut map = self.balances.lock().unwrap();
+            for bal in map.values_mut() {
+                *bal = bal.saturating_add(amount);
+            }
+            Ok(())
+        }
+
         fn all_accounts(&self) -> Vec<Did> {
             self.balances.lock().unwrap().keys().cloned().collect()
         }
@@ -346,5 +354,17 @@ mod tests {
         credit_by_reputation(&ledger, &rep_store, u64::MAX).unwrap();
 
         assert_eq!(ledger.get_balance(&over), u64::MAX);
+    }
+
+    #[test]
+    fn test_inmemory_ledger_credit_all() {
+        let ledger = InMemoryLedger::new();
+        let alice = Did::from_str("did:example:alice").unwrap();
+        let bob = Did::from_str("did:example:bob").unwrap();
+        ledger.set_balance(&alice, 1).unwrap();
+        ledger.set_balance(&bob, 2).unwrap();
+        ledger.credit_all(5).unwrap();
+        assert_eq!(ledger.get_balance(&alice), 6);
+        assert_eq!(ledger.get_balance(&bob), 7);
     }
 }
