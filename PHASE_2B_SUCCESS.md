@@ -32,20 +32,32 @@ The following pipeline now works end-to-end across real P2P nodes:
 let job_id = host_submit_mesh_job(&runtime_ctx, &job_json).await?;
 
 // Job announced via gossipsub to the network
-NetworkMessage::MeshJobAnnouncement(job)
+ProtocolMessage::new(
+    MessagePayload::MeshJobAnnouncement(job),
+    sender_did,
+    None,
+)
 ```
 
 ### **2. Discovery & Bidding**
 ```rust
 // Node B discovers job and submits bid
 let bid = create_test_bid(&job_id, &executor_did, price_mana);
-NetworkMessage::BidSubmission(bid)
+ProtocolMessage::new(
+    MessagePayload::MeshBidSubmission(bid),
+    executor_did,
+    None,
+)
 ```
 
 ### **3. Assignment & Notification**
 ```rust
 // Node A selects executor and notifies assignment
-NetworkMessage::JobAssignmentNotification(job_id, executor_did)
+ProtocolMessage::new(
+    MessagePayload::MeshJobAssignment(job_id, executor_did),
+    sender_did,
+    None,
+)
 ```
 
 ### **4. Job Execution**
@@ -58,7 +70,11 @@ let receipt = SimpleExecutor::new(executor_did, signing_key)
 ### **5. Receipt Submission & Verification**
 ```rust
 // Node B submits cryptographically signed receipt
-NetworkMessage::SubmitReceipt(execution_receipt)
+ProtocolMessage::new(
+    MessagePayload::MeshReceiptSubmission(execution_receipt),
+    executor_did,
+    None,
+)
 
 // Node A verifies signature and anchors to DAG
 let anchored_cid = host_anchor_receipt(&runtime_ctx, &receipt_json, &reputation_updater).await?;

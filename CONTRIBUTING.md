@@ -42,7 +42,7 @@ Below are actionable, bite-sized issues to drive forward the next major features
     Implement signal-based or programmatic shutdown for network tasks.
     *Difficulty: Medium*
 *   **\[Network] JSON Gossipsub Serialization**
-    Encode/decode `NetworkMessage` via JSON for pub/sub.
+    Encode/decode `ProtocolMessage` via JSON for pub/sub.
     *Difficulty: Easy-Medium*
 *   **\[API] List Connected/Known Peers**
     CLI/API to query/display current peers.

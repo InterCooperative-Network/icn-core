@@ -12,7 +12,7 @@ from submission by a host to final completion and receipt anchoring.
     *   **`DefaultMeshNetworkService` (impl in `icn-runtime`)**: Concrete implementation using `Libp2pNetworkService`.
 *   **`NetworkService` (trait in `icn-network`)**: Lower-level P2P networking abstraction.
     *   **`Libp2pNetworkService` (impl in `icn-network`)**: Concrete libp2p-based implementation.
-*   **`NetworkMessage` (enum in `icn-network`)**: Defines the types of messages exchanged over the network.
+*   **`ProtocolMessage` (struct in `icn-protocol`)**: Signed envelope that carries a `MessagePayload` detailing the action exchanged over the network.
 
 ## Job Lifecycle Stages
 
@@ -29,20 +29,20 @@ from submission by a host to final completion and receipt anchoring.
 2.  **Job Announcement (by JobManager on Submitter's Node)**
     *   The `JobManager` (running within the submitter's `RuntimeContext`) picks up the job from `pending_mesh_jobs`.
     *   It calls `MeshNetworkService::announce_job` with a `MeshJobAnnounce` payload.
-    *   `DefaultMeshNetworkService` translates this into a `NetworkMessage::MeshJobAnnouncement(Job)` and uses its underlying `Libp2pNetworkService` (specifically `broadcast_message`) to send it over the gossipsub topic.
+    *   `DefaultMeshNetworkService` translates this into a `ProtocolMessage` with `MessagePayload::MeshJobAnnouncement(Job)` and uses its underlying `Libp2pNetworkService` (specifically `broadcast_message`) to send it over the gossipsub topic.
 
 3.  **Job Discovery & Bid Submission (by Potential Executors)**
     *   Executor nodes are running their own `RuntimeContext` and `Libp2pNetworkService`.
     *   Their `Libp2pNetworkService` is subscribed to the gossipsub topic.
-    *   Upon receiving a `NetworkMessage::MeshJobAnnouncement`, an interested executor:
+    *   Upon receiving a `ProtocolMessage` containing `MessagePayload::MeshJobAnnouncement`, an interested executor:
         *   Evaluates the job.
         *   If willing to execute, constructs a `MeshJobBid`.
-        *   Submits the bid by creating a `NetworkMessage::BidSubmission(Bid)` and broadcasting it via its `Libp2pNetworkService`.
+        *   Submits the bid by creating a `ProtocolMessage` with `MessagePayload::MeshBidSubmission(Bid)` and broadcasting it via its `Libp2pNetworkService`.
 
 4.  **Bid Collection & Executor Selection (by JobManager on Submitter's Node)**
     *   The `JobManager` on the submitter's node calls `MeshNetworkService::collect_bids_for_job` for a defined period.
     *   `DefaultMeshNetworkService` subscribes to its `Libp2pNetworkService` for incoming messages.
-    *   It filters for `NetworkMessage::BidSubmission` messages matching the `JobId`.
+    *   It filters for `ProtocolMessage` values whose payload is `MessagePayload::MeshBidSubmission` matching the `JobId`.
     *   After the bidding window, the `JobManager` validates bids (e.g., mana checks, reputation).
     *   It uses a `SelectionPolicy` (e.g., `select_executor` from `icn-mesh`) to choose the best executor from valid bids.
 
@@ -50,7 +50,7 @@ from submission by a host to final completion and receipt anchoring.
     *   If an executor is selected:
         *   The `JobManager` updates the job's state to `JobState::Assigned { executor_did }`.
         *   It calls `MeshNetworkService::broadcast_assignment` with a `JobAssignmentNotice`.
-        *   `DefaultMeshNetworkService` translates this into `NetworkMessage::JobAssignmentNotification(JobId, ExecutorDid)` and broadcasts it.
+        *   `DefaultMeshNetworkService` translates this into a `ProtocolMessage` with `MessagePayload::MeshJobAssignment(JobId, ExecutorDid)` and broadcasts it.
     *   The assigned executor node receives this notification and prepares to execute the job.
 
 6.  **Job Execution & Receipt Creation (by Assigned Executor)**
@@ -60,11 +60,11 @@ from submission by a host to final completion and receipt anchoring.
 
 7.  **Receipt Submission (by Assigned Executor)**
     *   The executor node sends the signed `ExecutionReceipt` back to the network.
-    *   This is done by creating a `NetworkMessage::SubmitReceipt(ExecutionReceipt)` and broadcasting it via its `Libp2pNetworkService`.
+    *   This is done by creating a `ProtocolMessage` with `MessagePayload::MeshReceiptSubmission(ExecutionReceipt)` and broadcasting it via its `Libp2pNetworkService`.
 
 8.  **Receipt Processing & Anchoring (by JobManager on Submitter's Node)**
     *   The `JobManager` on the submitter's node periodically calls `MeshNetworkService::try_receive_receipt`.
-    *   `DefaultMeshNetworkService` again uses its subscription to `Libp2pNetworkService` to look for `NetworkMessage::SubmitReceipt`.
+    *   `DefaultMeshNetworkService` again uses its subscription to `Libp2pNetworkService` to look for `ProtocolMessage` values with `MessagePayload::MeshReceiptSubmission`.
     *   When a receipt for a managed job is received:
         *   The `JobManager` calls its `RuntimeContext::anchor_receipt`.
         *   `anchor_receipt` verifies:
