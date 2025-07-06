@@ -18,8 +18,8 @@ pub mod metrics;
 use async_trait::async_trait;
 use downcast_rs::{impl_downcast, DowncastSync};
 use icn_common::{Cid, DagBlock, Did, NodeInfo};
-use icn_protocol::{ProtocolMessage, MessagePayload};
 use icn_identity::{ExecutionReceipt, SignatureBytes};
+use icn_protocol::{MessagePayload, ProtocolMessage};
 #[cfg(feature = "libp2p")]
 use libp2p::PeerId as Libp2pPeerId;
 #[cfg(feature = "libp2p")]
@@ -56,7 +56,7 @@ pub const DID_DOC_PREFIX: &str = "/icn/did/";
 
 /// Legacy type aliases for compatibility
 pub type Job = icn_protocol::MeshJobAnnouncementMessage;
-pub type Bid = icn_protocol::MeshBidSubmissionMessage; 
+pub type Bid = icn_protocol::MeshBidSubmissionMessage;
 pub type JobId = Cid;
 
 /// Cache of recently verified message hashes to prevent replay.
@@ -385,19 +385,19 @@ pub async fn send_network_ping(
     target_peer: &str,
 ) -> Result<String, MeshNetworkError> {
     let service = StubNetworkService::default();
-    use icn_protocol::{ProtocolMessage, MessagePayload, GossipMessage};
+    use icn_protocol::{GossipMessage, MessagePayload, ProtocolMessage};
     use std::str::FromStr;
-    
+
     let ping_message = ProtocolMessage::new(
         MessagePayload::GossipMessage(GossipMessage {
             topic: "ping_topic".to_string(),
             payload: vec![1, 2, 3],
             ttl: 5,
         }),
-        Did::from_str("did:key:stub").unwrap(), 
-        None
+        Did::from_str("did:key:stub").unwrap(),
+        None,
     );
-    
+
     let _ = service
         .send_message(&PeerId(target_peer.to_string()), ping_message)
         .await?;
@@ -1162,7 +1162,11 @@ pub mod libp2p_service {
                 SwarmEvent::Behaviour(CombinedBehaviourEvent::RequestResponse(ev)) => {
                     use libp2p::request_response::{Event as ReqEvent, Message};
                     match ev {
-                        ReqEvent::Message { peer: _, message, connection_id: _ } => match message {
+                        ReqEvent::Message {
+                            peer: _,
+                            message,
+                            connection_id: _,
+                        } => match message {
                             Message::Request {
                                 request, channel, ..
                             } => {

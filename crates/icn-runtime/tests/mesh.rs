@@ -843,9 +843,11 @@ async fn test_full_mesh_job_cycle_libp2p() -> Result<(), anyhow::Error> {
 
     timeout(Duration::from_secs(5), async {
         loop {
-            if let Some(NetworkMessage::MeshJobAnnouncement(job)) = recv_b.recv().await {
-                if job.id == job_id.clone().into() {
-                    break;
+            if let Some(message) = recv_b.recv().await {
+                if let MessagePayload::MeshJobAnnouncement(job) = &message.payload {
+                    if job.id == job_id.clone().into() {
+                        break;
+                    }
                 }
             }
         }
@@ -873,9 +875,11 @@ async fn test_full_mesh_job_cycle_libp2p() -> Result<(), anyhow::Error> {
 
     timeout(Duration::from_secs(5), async {
         loop {
-            if let Some(NetworkMessage::BidSubmission(b)) = recv_a.recv().await {
-                if b.job_id == job_id.clone().into() {
-                    break;
+            if let Some(message) = recv_a.recv().await {
+                if let MessagePayload::MeshBidSubmission(b) = &message.payload {
+                    if b.job_id == job_id.clone().into() {
+                        break;
+                    }
                 }
             }
         }
@@ -891,9 +895,11 @@ async fn test_full_mesh_job_cycle_libp2p() -> Result<(), anyhow::Error> {
 
     timeout(Duration::from_secs(5), async {
         loop {
-            if let Some(NetworkMessage::JobAssignmentNotification(id, ex)) = recv_b.recv().await {
-                if id == job_id && ex == executor_did {
-                    break;
+            if let Some(message) = recv_b.recv().await {
+                if let MessagePayload::MeshJobAssignment(assign) = &message.payload {
+                    if assign.job_id == job_id && assign.executor_did == executor_did {
+                        break;
+                    }
                 }
             }
         }
@@ -911,9 +917,11 @@ async fn test_full_mesh_job_cycle_libp2p() -> Result<(), anyhow::Error> {
 
     let final_receipt = timeout(Duration::from_secs(5), async {
         loop {
-            if let Some(NetworkMessage::SubmitReceipt(r)) = recv_a.recv().await {
-                if r.job_id == job_id.clone().into() {
-                    break r;
+            if let Some(message) = recv_a.recv().await {
+                if let MessagePayload::MeshReceiptSubmission(r) = &message.payload {
+                    if r.job_id == job_id.clone().into() {
+                        break r.clone();
+                    }
                 }
             }
         }

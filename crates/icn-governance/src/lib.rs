@@ -10,7 +10,9 @@
 
 use icn_common::{CommonError, Did, NodeInfo};
 #[cfg(feature = "federation")]
-use icn_network::{MeshNetworkError, NetworkMessage, NetworkService, PeerId};
+use icn_network::{MeshNetworkError, NetworkService, PeerId};
+#[cfg(feature = "federation")]
+use icn_protocol::{MessagePayload, ProtocolMessage};
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 #[cfg(feature = "persist-sled")]
@@ -1128,7 +1130,11 @@ pub async fn request_federation_sync(
         .map(|ts| Did::new("sync", &ts.to_string()))
         .unwrap_or_default();
 
-    let msg = NetworkMessage::FederationSyncRequest(payload);
+    let msg = ProtocolMessage::new(
+        MessagePayload::FederationSyncRequest(payload),
+        Did::default(),
+        None,
+    );
     service
         .send_message(target_peer, msg)
         .await

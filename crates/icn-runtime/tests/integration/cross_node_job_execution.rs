@@ -168,10 +168,10 @@ mod cross_node_tests {
             loop {
                 if let Some(message) = node_b_receiver.recv().await {
                     debug!("Node B received message: {:?}", message);
-                    if let NetworkMessage::MeshJobAnnouncement(announced_job) = message {
+                    if let MessagePayload::MeshJobAnnouncement(announced_job) = &message.payload {
                         if announced_job.id == test_job.id {
                             info!("✓ Node B received job announcement for {:?}", announced_job.id);
-                            return Some(announced_job);
+                            return Some(announced_job.clone());
                         }
                     }
                 }
@@ -249,10 +249,10 @@ mod cross_node_tests {
             loop {
                 if let Some(message) = node_a_receiver.recv().await {
                     debug!("Node A received message: {:?}", message);
-                    if let NetworkMessage::BidSubmission(received_bid) = message {
+                    if let MessagePayload::MeshBidSubmission(received_bid) = &message.payload {
                         if received_bid.job_id == test_job.id {
                             info!("✓ Node A received bid for job {:?} from {:?}", received_bid.job_id, received_bid.executor_did);
-                            return Some(received_bid);
+                            return Some(received_bid.clone());
                         }
                     }
                 }
@@ -317,10 +317,10 @@ mod cross_node_tests {
             loop {
                 if let Some(message) = node_b_receiver.recv().await {
                     debug!("Node B received message: {:?}", message);
-                    if let NetworkMessage::JobAssignmentNotification(job_id, assigned_executor) = message {
-                        if job_id == test_job.id && assigned_executor == executor_did {
-                            info!("✓ Node B received assignment for job {:?}", job_id);
-                            return Some((job_id, assigned_executor));
+                    if let MessagePayload::MeshJobAssignment(assign) = &message.payload {
+                        if assign.job_id == test_job.id && assign.executor_did == executor_did {
+                            info!("✓ Node B received assignment for job {:?}", assign.job_id);
+                            return Some((assign.job_id.clone(), assign.executor_did.clone()));
                         }
                     }
                 }
@@ -403,10 +403,10 @@ mod cross_node_tests {
             loop {
                 if let Some(message) = node_a_receiver.recv().await {
                     debug!("Node A received message: {:?}", message);
-                    if let NetworkMessage::SubmitReceipt(received_receipt) = message {
+                    if let MessagePayload::MeshReceiptSubmission(received_receipt) = &message.payload {
                         if received_receipt.job_id == test_job.id {
                             info!("✓ Node A received receipt for job {:?}", received_receipt.job_id);
-                            return Some(received_receipt);
+                            return Some(received_receipt.clone());
                         }
                     }
                 }
@@ -490,9 +490,11 @@ mod cross_node_tests {
         // Node B: Wait for job announcement
         let job_announcement = timeout(Duration::from_secs(5), async {
             loop {
-                if let Some(NetworkMessage::MeshJobAnnouncement(job)) = node_b_receiver.recv().await {
-                    if job.id == test_job.id {
-                        return Some(job);
+                if let Some(message) = node_b_receiver.recv().await {
+                    if let MessagePayload::MeshJobAnnouncement(job) = &message.payload {
+                        if job.id == test_job.id {
+                            return Some(job.clone());
+                        }
                     }
                 }
             }
@@ -528,9 +530,11 @@ mod cross_node_tests {
         // Node A: Wait for bid
         let received_bid = timeout(Duration::from_secs(5), async {
             loop {
-                if let Some(NetworkMessage::BidSubmission(bid)) = node_a_receiver.recv().await {
-                    if bid.job_id == test_job.id {
-                        return Some(bid);
+                if let Some(message) = node_a_receiver.recv().await {
+                    if let MessagePayload::MeshBidSubmission(bid) = &message.payload {
+                        if bid.job_id == test_job.id {
+                            return Some(bid.clone());
+                        }
                     }
                 }
             }
@@ -553,9 +557,11 @@ mod cross_node_tests {
         // Node B: Wait for assignment and execute
         let assignment_received = timeout(Duration::from_secs(5), async {
             loop {
-                if let Some(NetworkMessage::JobAssignmentNotification(job_id, assigned_executor)) = node_b_receiver.recv().await {
-                    if job_id == test_job.id && assigned_executor == executor_did {
-                        return Some((job_id, assigned_executor));
+                if let Some(message) = node_b_receiver.recv().await {
+                    if let MessagePayload::MeshJobAssignment(assign) = &message.payload {
+                        if assign.job_id == test_job.id && assign.executor_did == executor_did {
+                            return Some((assign.job_id.clone(), assign.executor_did.clone()));
+                        }
                     }
                 }
             }
@@ -582,9 +588,11 @@ mod cross_node_tests {
         // Node A: Wait for receipt
         let received_receipt = timeout(Duration::from_secs(5), async {
             loop {
-                if let Some(NetworkMessage::SubmitReceipt(receipt)) = node_a_receiver.recv().await {
-                    if receipt.job_id == test_job.id {
-                        return Some(receipt);
+                if let Some(message) = node_a_receiver.recv().await {
+                    if let MessagePayload::MeshReceiptSubmission(receipt) = &message.payload {
+                        if receipt.job_id == test_job.id {
+                            return Some(receipt.clone());
+                        }
                     }
                 }
             }

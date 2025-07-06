@@ -182,7 +182,10 @@ mod libp2p_mesh_integration {
                                             received_msg
                                         );
                                         assert!(
-                                            matches!(received_msg, NetworkMessage::GossipSub(_, _)),
+                                            matches!(
+                                                received_msg.payload,
+                                                MessagePayload::GossipMessage(_)
+                                            ),
                                             "Expected GossipSub message"
                                         );
                                     }
@@ -399,7 +402,9 @@ mod libp2p_mesh_integration {
         let received_on_b_res = timeout(Duration::from_secs(15), node_b_receiver.recv()).await;
         match received_on_b_res {
             Ok(Some(network_message_b)) => {
-                if let NetworkMessage::MeshJobAnnouncement(received_job) = network_message_b {
+                if let MessagePayload::MeshJobAnnouncement(received_job) =
+                    &network_message_b.payload
+                {
                     assert_eq!(
                         received_job.id, job_to_announce.id,
                         "Node B received incorrect job ID"
@@ -671,7 +676,9 @@ mod libp2p_mesh_integration {
         // Node A receives and verifies receipt
         let verified_receipt = wait_for_message(&mut node_a.receiver, 10, |msg| match msg {
             NetworkMessage::SubmitReceipt(receipt) => {
-                if receipt.job_id == job_id.clone().into() && receipt.executor_did == assigned_executor {
+                if receipt.job_id == job_id.clone().into()
+                    && receipt.executor_did == assigned_executor
+                {
                     Some(receipt.clone())
                 } else {
                     None

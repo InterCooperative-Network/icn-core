@@ -263,9 +263,11 @@ mod libp2p_job_pipeline {
         // Wait for announcement
         timeout(Duration::from_secs(5), async {
             loop {
-                if let Some(NetworkMessage::MeshJobAnnouncement(j)) = recv_b.recv().await {
-                    if j.id == job_id {
-                        break;
+                if let Some(message) = recv_b.recv().await {
+                    if let MessagePayload::MeshJobAnnouncement(j) = &message.payload {
+                        if j.id == job_id {
+                            break;
+                        }
                     }
                 }
             }
@@ -289,9 +291,11 @@ mod libp2p_job_pipeline {
         // Wait for bid on A
         timeout(Duration::from_secs(5), async {
             loop {
-                if let Some(NetworkMessage::BidSubmission(b)) = recv_a.recv().await {
-                    if b.job_id == job_id {
-                        break;
+                if let Some(message) = recv_a.recv().await {
+                    if let MessagePayload::MeshBidSubmission(b) = &message.payload {
+                        if b.job_id == job_id {
+                            break;
+                        }
                     }
                 }
             }
@@ -319,9 +323,11 @@ mod libp2p_job_pipeline {
         // Wait for assignment on B
         timeout(Duration::from_secs(5), async {
             loop {
-                if let Some(NetworkMessage::JobAssignmentNotification(id, ex)) = recv_b.recv().await {
-                    if id == job_id && ex == node_b.current_identity {
-                        break;
+                if let Some(message) = recv_b.recv().await {
+                    if let MessagePayload::MeshJobAssignment(assign) = &message.payload {
+                        if assign.job_id == job_id && assign.executor_did == node_b.current_identity {
+                            break;
+                        }
                     }
                 }
             }
@@ -341,9 +347,11 @@ mod libp2p_job_pipeline {
         // Node A waits for receipt
         let final_receipt = timeout(Duration::from_secs(5), async {
             loop {
-                if let Some(NetworkMessage::SubmitReceipt(r)) = recv_a.recv().await {
-                    if r.job_id == job_id {
-                        break r;
+                if let Some(message) = recv_a.recv().await {
+                    if let MessagePayload::MeshReceiptSubmission(r) = &message.payload {
+                        if r.job_id == job_id {
+                            break r.clone();
+                        }
                     }
                 }
             }
