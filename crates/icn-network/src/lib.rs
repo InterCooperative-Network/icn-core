@@ -17,8 +17,7 @@ pub mod metrics;
 
 use async_trait::async_trait;
 use downcast_rs::{impl_downcast, DowncastSync};
-use icn_common::{Cid, DagBlock, Did, NodeInfo};
-use icn_identity::{ExecutionReceipt, SignatureBytes};
+use icn_common::{Cid, Did, NodeInfo};
 use icn_protocol::{MessagePayload, ProtocolMessage};
 #[cfg(feature = "libp2p")]
 use libp2p::PeerId as Libp2pPeerId;

@@ -8,7 +8,8 @@
 #[cfg(feature = "libp2p")]
 mod network_stats {
     use icn_network::libp2p_service::{Libp2pNetworkService, NetworkConfig};
-    use icn_network::{NetworkMessage, NetworkService};
+    use icn_network::NetworkService;
+    use icn_protocol::{GossipMessage, MessagePayload, ProtocolMessage};
     use std::time::Duration;
     use tokio::time::sleep;
 
@@ -34,13 +35,16 @@ mod network_stats {
 
         sleep(Duration::from_secs(2)).await;
 
-        node2
-            .broadcast_message(NetworkMessage::GossipSub(
-                "test".to_string(),
-                b"hello".to_vec(),
-            ))
-            .await
-            .expect("broadcast");
+        let gossip = ProtocolMessage::new(
+            MessagePayload::GossipMessage(GossipMessage {
+                topic: "test".to_string(),
+                payload: b"hello".to_vec(),
+                ttl: 1,
+            }),
+            icn_common::Did::new("key", "network_stats"),
+            None,
+        );
+        node2.broadcast_message(gossip).await.expect("broadcast");
 
         sleep(Duration::from_secs(2)).await;
 

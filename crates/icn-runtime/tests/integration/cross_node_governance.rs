@@ -1,7 +1,7 @@
 #[cfg(feature = "enable-libp2p")]
 mod cross_node_governance {
     use icn_governance::Proposal;
-    use icn_network::{NetworkMessage, NetworkService};
+    use icn_network::NetworkService;
     use icn_runtime::context::RuntimeContext;
     use icn_runtime::{host_cast_governance_vote, host_create_governance_proposal};
     use libp2p::{Multiaddr, PeerId as Libp2pPeerId};

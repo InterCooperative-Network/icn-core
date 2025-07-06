@@ -16,7 +16,12 @@ mod cross_node_tests {
     use icn_common::{Did, Cid};
     use icn_identity::{SignatureBytes, generate_ed25519_keypair};
     use icn_mesh::{ActualMeshJob, MeshJobBid, JobSpec, Resources};
-    use icn_network::{NetworkMessage, NetworkService};
+    use icn_network::NetworkService;
+    use icn_protocol::{
+        GossipMessage, MessagePayload, ProtocolMessage,
+        MeshBidSubmissionMessage, MeshJobAnnouncementMessage, MeshJobAssignmentMessage,
+        MeshReceiptSubmissionMessage, ExecutionMetadata,
+    };
     use std::str::FromStr;
     use std::sync::Arc;
     use tokio::time::{sleep, Duration, timeout};
@@ -98,7 +103,15 @@ mod cross_node_tests {
         info!("Node B stats: {:?}", stats_b);
         
         // Test basic message broadcasting (without expecting anyone to receive it)
-        let test_message = NetworkMessage::GossipSub("test_topic".to_string(), b"hello world".to_vec());
+        let test_message = ProtocolMessage::new(
+            MessagePayload::GossipMessage(GossipMessage {
+                topic: "test_topic".to_string(),
+                payload: b"hello world".to_vec(),
+                ttl: 1,
+            }),
+            Did::new("key", "node_a"),
+            None,
+        );
         node_a_libp2p.broadcast_message(test_message).await?;
         
         info!("✓ Basic libp2p setup and broadcasting works");
@@ -238,7 +251,18 @@ mod cross_node_tests {
         let bid = MeshJobBid { signature: SignatureBytes(sig), ..unsigned_bid };
         
         // Node B broadcasts bid
-        let bid_message = NetworkMessage::BidSubmission(bid.clone());
+        let bid_message = ProtocolMessage::new(
+            MessagePayload::MeshBidSubmission(MeshBidSubmissionMessage {
+                job_id: bid.job_id.clone(),
+                executor_did: bid.executor_did.clone(),
+                cost_mana: bid.price_mana,
+                estimated_duration_secs: 0,
+                offered_resources: bid.resources.clone(),
+                reputation_score: 0,
+            }),
+            executor_did.clone(),
+            None,
+        );
         node_b_libp2p.broadcast_message(bid_message).await.map_err(|e| anyhow::anyhow!("Bid broadcast failed: {}", e))?;
         
         info!("Node B: Bid submitted for job {:?}", test_job.id);
@@ -302,12 +326,22 @@ mod cross_node_tests {
         let test_job = create_test_job("assignment_test", &submitter_did, 40);
         
         // Node A: Send assignment notification
-        let assignment_message = NetworkMessage::JobAssignmentNotification(
-            test_job.id.clone(), 
-            executor_did.clone()
+        let assignment_message = ProtocolMessage::new(
+            MessagePayload::MeshJobAssignment(MeshJobAssignmentMessage {
+                job_id: test_job.id.clone(),
+                executor_did: executor_did.clone(),
+                agreed_cost_mana: 0,
+                completion_deadline: 0,
+                manifest_cid: None,
+            }),
+            submitter_did.clone(),
+            None,
         );
-        
-        node_a_libp2p.broadcast_message(assignment_message).await.map_err(|e| anyhow::anyhow!("Assignment notification failed: {}", e))?;
+
+        node_a_libp2p
+            .broadcast_message(assignment_message)
+            .await
+            .map_err(|e| anyhow::anyhow!("Assignment notification failed: {}", e))?;
         
         info!("Node A: Assignment notification sent for job {:?} to executor {:?}", test_job.id, executor_did);
         
@@ -392,8 +426,23 @@ mod cross_node_tests {
         let receipt = executor.execute_job(&test_job).await.map_err(|e| anyhow::anyhow!("Job execution failed: {}", e))?;
         
         // Node B: Submit receipt to Node A
-        let receipt_message = NetworkMessage::SubmitReceipt(receipt.clone());
-        node_b_libp2p.broadcast_message(receipt_message).await.map_err(|e| anyhow::anyhow!("Receipt submission failed: {}", e))?;
+        let receipt_message = ProtocolMessage::new(
+            MessagePayload::MeshReceiptSubmission(MeshReceiptSubmissionMessage {
+                receipt: receipt.clone(),
+                execution_metadata: ExecutionMetadata {
+                    wall_time_ms: 0,
+                    peak_memory_mb: 0,
+                    exit_code: 0,
+                    execution_logs: None,
+                },
+            }),
+            executor_did.clone(),
+            None,
+        );
+        node_b_libp2p
+            .broadcast_message(receipt_message)
+            .await
+            .map_err(|e| anyhow::anyhow!("Receipt submission failed: {}", e))?;
         
         info!("Node B: Receipt submitted for job {:?}", test_job.id);
         
@@ -522,8 +571,22 @@ mod cross_node_tests {
             ..unsigned_bid
         };
         
-        let bid_message = NetworkMessage::BidSubmission(bid.clone());
-        node_b_libp2p.broadcast_message(bid_message).await.map_err(|e| anyhow::anyhow!("Bid broadcast failed: {}", e))?;
+        let bid_message = ProtocolMessage::new(
+            MessagePayload::MeshBidSubmission(MeshBidSubmissionMessage {
+                job_id: bid.job_id.clone(),
+                executor_did: bid.executor_did.clone(),
+                cost_mana: bid.price_mana,
+                estimated_duration_secs: 0,
+                offered_resources: bid.resources.clone(),
+                reputation_score: 0,
+            }),
+            executor_did.clone(),
+            None,
+        );
+        node_b_libp2p
+            .broadcast_message(bid_message)
+            .await
+            .map_err(|e| anyhow::anyhow!("Bid broadcast failed: {}", e))?;
         
         info!("✓ Bid submitted by Node B");
         
@@ -546,9 +609,16 @@ mod cross_node_tests {
         // Phase 5: Assignment and Execution
         info!("Phase 5: Node A assigns job, Node B executes");
         
-        let assignment_message = NetworkMessage::JobAssignmentNotification(
-            test_job.id.clone(),
-            executor_did.clone()
+        let assignment_message = ProtocolMessage::new(
+            MessagePayload::MeshJobAssignment(MeshJobAssignmentMessage {
+                job_id: test_job.id.clone(),
+                executor_did: executor_did.clone(),
+                agreed_cost_mana: 0,
+                completion_deadline: 0,
+                manifest_cid: None,
+            }),
+            submitter_did.clone(),
+            None,
         );
         node_a_libp2p.broadcast_message(assignment_message).await.map_err(|e| anyhow::anyhow!("Assignment failed: {}", e))?;
         
@@ -580,8 +650,23 @@ mod cross_node_tests {
         // Phase 6: Receipt Submission and Verification
         info!("Phase 6: Node B submits receipt, Node A verifies and anchors");
         
-        let receipt_message = NetworkMessage::SubmitReceipt(receipt.clone());
-        node_b_libp2p.broadcast_message(receipt_message).await.map_err(|e| anyhow::anyhow!("Receipt submission failed: {}", e))?;
+        let receipt_message = ProtocolMessage::new(
+            MessagePayload::MeshReceiptSubmission(MeshReceiptSubmissionMessage {
+                receipt: receipt.clone(),
+                execution_metadata: ExecutionMetadata {
+                    wall_time_ms: 0,
+                    peak_memory_mb: 0,
+                    exit_code: 0,
+                    execution_logs: None,
+                },
+            }),
+            executor_did.clone(),
+            None,
+        );
+        node_b_libp2p
+            .broadcast_message(receipt_message)
+            .await
+            .map_err(|e| anyhow::anyhow!("Receipt submission failed: {}", e))?;
         
         info!("✓ Receipt submitted by Node B");
         
@@ -721,7 +806,15 @@ mod cross_node_tests {
         
         // Test basic message broadcasting
         info!("Testing basic message broadcast...");
-        let test_message = NetworkMessage::GossipSub("test".to_string(), b"hello".to_vec());
+        let test_message = ProtocolMessage::new(
+            MessagePayload::GossipMessage(GossipMessage {
+                topic: "test".to_string(),
+                payload: b"hello".to_vec(),
+                ttl: 1,
+            }),
+            Did::new("key", "node_a"),
+            None,
+        );
         node_a_libp2p.broadcast_message(test_message).await?;
         
         info!("✓ Simplified test completed successfully");

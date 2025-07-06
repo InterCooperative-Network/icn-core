@@ -763,7 +763,11 @@ async fn forge_execution_receipt(
 #[cfg(feature = "enable-libp2p")]
 #[tokio::test]
 async fn test_full_mesh_job_cycle_libp2p() -> Result<(), anyhow::Error> {
-    use icn_network::{NetworkMessage, NetworkService};
+    use icn_network::NetworkService;
+    use icn_protocol::{
+        ExecutionMetadata, GossipMessage, MeshBidSubmissionMessage, MeshJobAnnouncementMessage,
+        MeshJobAssignmentMessage, MeshReceiptSubmissionMessage, MessagePayload, ProtocolMessage,
+    };
     use icn_runtime::executor::{JobExecutor, SimpleExecutor};
     use icn_runtime::{host_anchor_receipt, ReputationUpdater};
     use log::info;
@@ -869,9 +873,19 @@ async fn test_full_mesh_job_cycle_libp2p() -> Result<(), anyhow::Error> {
         signature: SignatureBytes(sig),
         ..unsigned_bid
     };
-    node_b_libp2p
-        .broadcast_message(NetworkMessage::BidSubmission(bid))
-        .await?;
+    let bid_msg = ProtocolMessage::new(
+        MessagePayload::MeshBidSubmission(MeshBidSubmissionMessage {
+            job_id: bid.job_id.clone(),
+            executor_did: bid.executor_did.clone(),
+            cost_mana: bid.price_mana,
+            estimated_duration_secs: 0,
+            offered_resources: bid.resources.clone(),
+            reputation_score: 0,
+        }),
+        executor_did.clone(),
+        None,
+    );
+    node_b_libp2p.broadcast_message(bid_msg).await?;
 
     timeout(Duration::from_secs(5), async {
         loop {
@@ -886,12 +900,18 @@ async fn test_full_mesh_job_cycle_libp2p() -> Result<(), anyhow::Error> {
     })
     .await?;
 
-    node_a_libp2p
-        .broadcast_message(NetworkMessage::JobAssignmentNotification(
-            job_id.clone(),
-            executor_did.clone(),
-        ))
-        .await?;
+    let assign_msg = ProtocolMessage::new(
+        MessagePayload::MeshJobAssignment(MeshJobAssignmentMessage {
+            job_id: job_id.clone(),
+            executor_did: executor_did.clone(),
+            agreed_cost_mana: 0,
+            completion_deadline: 0,
+            manifest_cid: None,
+        }),
+        submitter_did.clone(),
+        None,
+    );
+    node_a_libp2p.broadcast_message(assign_msg).await?;
 
     timeout(Duration::from_secs(5), async {
         loop {
@@ -911,9 +931,20 @@ async fn test_full_mesh_job_cycle_libp2p() -> Result<(), anyhow::Error> {
     let receipt = executor.execute_job(&test_job).await?;
     assert!(receipt.verify_against_key(&pk).is_ok());
 
-    node_b_libp2p
-        .broadcast_message(NetworkMessage::SubmitReceipt(receipt.clone()))
-        .await?;
+    let receipt_msg = ProtocolMessage::new(
+        MessagePayload::MeshReceiptSubmission(MeshReceiptSubmissionMessage {
+            receipt: receipt.clone(),
+            execution_metadata: ExecutionMetadata {
+                wall_time_ms: 0,
+                peak_memory_mb: 0,
+                exit_code: 0,
+                execution_logs: None,
+            },
+        }),
+        executor_did.clone(),
+        None,
+    );
+    node_b_libp2p.broadcast_message(receipt_msg).await?;
 
     let final_receipt = timeout(Duration::from_secs(5), async {
         loop {
