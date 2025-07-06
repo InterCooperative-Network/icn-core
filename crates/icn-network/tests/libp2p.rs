@@ -50,8 +50,8 @@ mod libp2p_tests {
             .await
             .expect("recv timeout")
             .expect("recv");
-        match msg {
-            NetworkMessage::GossipSub(_, _) => {}
+        match msg.payload {
+            MessagePayload::GossipMessage(_) => {}
             _ => panic!("unexpected message"),
         }
 
@@ -67,8 +67,8 @@ mod libp2p_tests {
             .await
             .expect("req timeout")
             .expect("recv");
-        match req {
-            NetworkMessage::FederationSyncRequest(_) => {}
+        match req.payload {
+            MessagePayload::FederationSyncRequest(_) => {}
             _ => panic!("unexpected request"),
         }
 

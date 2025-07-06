@@ -222,7 +222,8 @@ mod runtime_host_abi_tests {
 
         // The receipt should already be anchored by the runtime, but let's verify it
         assert_eq!(
-            receipt.job_id, submitted_job_id.into(),
+            receipt.job_id,
+            submitted_job_id.into(),
             "Receipt job ID matches submitted job"
         );
         assert_eq!(

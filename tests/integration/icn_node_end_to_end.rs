@@ -114,8 +114,10 @@ mod icn_node_end_to_end {
         // Wait for announcement on B
         timeout(Duration::from_secs(5), async {
             loop {
-                if let Some(NetworkMessage::MeshJobAnnouncement(j)) = recv_b.recv().await {
-                    if j.id.to_string() == job_id { break; }
+                if let Some(message) = recv_b.recv().await {
+                    if let MessagePayload::MeshJobAnnouncement(j) = &message.payload {
+                        if j.id.to_string() == job_id { break; }
+                    }
                 }
             }
         })
@@ -139,8 +141,10 @@ mod icn_node_end_to_end {
         // Wait for bid on A
         timeout(Duration::from_secs(5), async {
             loop {
-                if let Some(NetworkMessage::BidSubmission(_)) = recv_a.recv().await {
-                    break;
+                if let Some(message) = recv_a.recv().await {
+                    if let MessagePayload::MeshBidSubmission(_) = &message.payload {
+                        break;
+                    }
                 }
             }
         })
@@ -157,8 +161,10 @@ mod icn_node_end_to_end {
         // Wait for assignment on B
         timeout(Duration::from_secs(5), async {
             loop {
-                if let Some(NetworkMessage::JobAssignmentNotification(id, ex)) = recv_b.recv().await {
-                    if id == job.id && ex == ctx_b.current_identity { break; }
+                if let Some(message) = recv_b.recv().await {
+                    if let MessagePayload::MeshJobAssignment(assign) = &message.payload {
+                        if assign.job_id == job.id && assign.executor_did == ctx_b.current_identity { break; }
+                    }
                 }
             }
         })

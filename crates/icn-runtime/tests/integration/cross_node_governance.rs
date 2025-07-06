@@ -57,8 +57,11 @@ mod cross_node_governance {
 
         let proposal_bytes = timeout(Duration::from_secs(10), async {
             loop {
-                if let Some(NetworkMessage::ProposalAnnouncement(bytes)) = b_rx.recv().await {
-                    break bytes;
+                if let Some(message) = b_rx.recv().await {
+                    if let MessagePayload::GovernanceProposalAnnouncement(bytes) = &message.payload
+                    {
+                        break bytes.clone();
+                    }
                 }
             }
         })
@@ -79,8 +82,10 @@ mod cross_node_governance {
 
         let vote_bytes = timeout(Duration::from_secs(10), async {
             loop {
-                if let Some(NetworkMessage::VoteAnnouncement(bytes)) = a_rx.recv().await {
-                    break bytes;
+                if let Some(message) = a_rx.recv().await {
+                    if let MessagePayload::GovernanceVoteAnnouncement(bytes) = &message.payload {
+                        break bytes.clone();
+                    }
                 }
             }
         })

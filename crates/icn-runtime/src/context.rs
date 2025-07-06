@@ -419,19 +419,20 @@ impl MeshNetworkService for DefaultMeshNetworkService {
                 Ok(result) => {
                     // Timeout gives Result<Option<T>, Elapsed>
                     match result {
-                        Some(NetworkMessage::BidSubmission(bid)) => {
-                            if &bid.job_id == job_id {
-                                debug!("Received relevant bid: {:?}", bid);
-                                bids.push(bid);
+                        Some(message) => {
+                            if let MessagePayload::MeshBidSubmission(bid) = &message.payload {
+                                if &bid.job_id == job_id {
+                                    debug!("Received relevant bid: {:?}", bid);
+                                    bids.push(bid.clone());
+                                } else {
+                                    debug!("Received bid for different job: {:?}", bid.job_id);
+                                }
                             } else {
-                                debug!("Received bid for different job: {:?}", bid.job_id);
+                                debug!(
+                                    "Received other network message during bid collection: {:?}",
+                                    message
+                                );
                             }
-                        }
-                        Some(other_message) => {
-                            debug!(
-                                "Received other network message during bid collection: {:?}",
-                                other_message
-                            );
                         }
                         None => {
                             // Channel closed
@@ -492,21 +493,27 @@ impl MeshNetworkService for DefaultMeshNetworkService {
             {
                 Ok(result) => {
                     match result {
-                        Some(NetworkMessage::SubmitReceipt(receipt)) => {
-                            if &JobId::from(receipt.job_id.clone()) == job_id
-                                && &receipt.executor_did == expected_executor
+                        Some(message) => {
+                            if let MessagePayload::MeshReceiptSubmission(receipt) = &message.payload
                             {
-                                debug!("Received relevant receipt: {:?}", receipt);
-                                return Ok(Some(receipt));
+                                if &JobId::from(receipt.job_id.clone()) == job_id
+                                    && &receipt.executor_did == expected_executor
+                                {
+                                    debug!("Received relevant receipt: {:?}", receipt);
+                                    return Ok(Some(receipt.clone()));
+                                } else {
+                                    debug!(
+                                        "Received receipt for different job/executor: job_id={:?}, executor={:?}",
+                                        receipt.job_id,
+                                        receipt.executor_did
+                                    );
+                                }
                             } else {
-                                debug!("Received receipt for different job/executor: job_id={:?}, executor={:?}", receipt.job_id, receipt.executor_did);
+                                debug!(
+                                    "Received other network message during receipt collection: {:?}",
+                                    message
+                                );
                             }
-                        }
-                        Some(other_message) => {
-                            debug!(
-                                "Received other network message during receipt collection: {:?}",
-                                other_message
-                            );
                         }
                         None => {
                             // Channel closed
