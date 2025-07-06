@@ -25,9 +25,10 @@ The API style emphasizes:
 
 ### Mana Regeneration
 
-Ledger implementations may support bulk credit operations.
-`ManaLedger::credit_all` adds a specified amount to every account and is used by
-the runtime to periodically regenerate balances.
+All persistent ledger backends expose a bulk credit operation via
+`ManaLedger::credit_all`. This method adds a specified amount to every stored
+account and is used by the runtime to periodically regenerate balances. In-memory
+test ledgers implement the same interface for parity with the on-disk backends.
 
 ## Feature Flags
 

@@ -2,6 +2,7 @@
 mod tests {
     use icn_common::Did;
     use icn_economics::ledger::SqliteManaLedger;
+    use icn_economics::ManaLedger;
     use std::str::FromStr;
     use tempfile::tempdir;
 
