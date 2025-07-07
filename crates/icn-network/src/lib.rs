@@ -397,9 +397,18 @@ pub async fn send_network_ping(
         None,
     );
 
-    let _ = service
-        .send_message(&PeerId(target_peer.to_string()), ping_message)
-        .await?;
+    use std::time::Duration;
+    icn_common::retry_with_backoff(
+        || async {
+            service
+                .send_message(&PeerId(target_peer.to_string()), ping_message.clone())
+                .await
+        },
+        3,
+        Duration::from_millis(100),
+        Duration::from_secs(2),
+    )
+    .await?;
     Ok(format!(
         "Sent (stubbed) ping to {} from node: {} (v{})",
         target_peer, info.name, info.version

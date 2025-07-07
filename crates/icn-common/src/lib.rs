@@ -8,6 +8,8 @@
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use thiserror::Error;
+pub mod retry;
+pub use retry::retry_with_backoff;
 
 pub const ICN_CORE_VERSION: &str = "0.1.0-dev-functional";
 
