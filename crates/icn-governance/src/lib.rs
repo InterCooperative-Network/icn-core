@@ -13,7 +13,9 @@ use icn_common::{CommonError, Did, NodeInfo};
 #[allow(unused_imports)]
 use icn_network::{MeshNetworkError, NetworkService, PeerId, StubNetworkService};
 #[cfg(feature = "federation")]
-use icn_protocol::{FederationSyncRequestMessage, MessagePayload, ProtocolMessage};
+use icn_protocol::FederationSyncRequestMessage;
+#[cfg(feature = "federation")]
+use icn_protocol::{MessagePayload, ProtocolMessage};
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 #[cfg(feature = "persist-sled")]
