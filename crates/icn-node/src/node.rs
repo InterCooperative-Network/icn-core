@@ -367,7 +367,7 @@ async fn rate_limit_middleware(
 
 // --- Public App Constructor (for tests or embedding) ---
 pub async fn app_router() -> Router {
-    app_router_with_options(None, None, None, None, None, None, None, None, None)
+    app_router_with_options(None, None, None, None, None, None, None, None, None, None)
         .await
         .0
 }
@@ -611,7 +611,7 @@ pub async fn app_router_from_context(
     {
         let gov_mod = ctx.governance_module.clone();
         let rate_opt = rate_limiter.clone();
-        let param_store_opt = Some(parameter_store.clone());
+        let param_store_opt: Option<Arc<TokioMutex<ParameterStore>>> = None;
         let handle = tokio::runtime::Handle::current();
         let mut gov = gov_mod.lock().await;
         gov.set_callback(move |proposal| {
@@ -704,16 +704,19 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
         NodeConfig::default()
     };
     let param_store_path = config_path.unwrap_or_else(|| PathBuf::from("node_config.toml"));
-    let mut parameter_store =
-        ParameterStore::load(param_store_path.clone()).unwrap_or(ParameterStore {
-            path: param_store_path.clone(),
-            config: NodeConfig::default(),
+    let mut parameter_store = ParameterStore::load(param_store_path.clone())
+        .unwrap_or_else(|e| {
+            warn!("Failed to load parameter store from {}: {}, using defaults", param_store_path.display(), e);
+            // The load method should handle this case, but if not, we can't recover
+            panic!("Failed to create parameter store")
         });
     // Start with persisted parameter values
-    config.open_rate_limit = parameter_store.config.open_rate_limit;
+    config.open_rate_limit = parameter_store.open_rate_limit();
     config.apply_env_overrides();
     config.apply_cli_overrides(&cli, &matches);
-    parameter_store.config.open_rate_limit = config.open_rate_limit;
+    if let Err(e) = parameter_store.set_parameter("open_rate_limit", &config.open_rate_limit.to_string()) {
+        warn!("Failed to update parameter store: {}", e);
+    }
     let _ = parameter_store.save();
     if let Err(e) = config.prepare_paths() {
         error!("Failed to prepare config directories: {}", e);
@@ -1953,7 +1956,7 @@ async fn federation_status_handler(State(state): State<AppState>) -> impl IntoRe
 }
 
 // GET /network/local-peer-id - return this node's peer ID
-async fn network_local_peer_id_handler(State(state): State<AppState>) -> impl IntoResponse {
+async fn network_local_peer_id_handler(State(_state): State<AppState>) -> impl IntoResponse {
     #[cfg(feature = "enable-libp2p")]
     {
         match state.runtime_context.get_libp2p_service() {
@@ -1975,7 +1978,7 @@ async fn network_local_peer_id_handler(State(state): State<AppState>) -> impl In
 }
 
 // GET /network/peers - list peers discovered via the network service
-async fn network_peers_handler(State(state): State<AppState>) -> impl IntoResponse {
+async fn network_peers_handler(State(_state): State<AppState>) -> impl IntoResponse {
     #[cfg(feature = "enable-libp2p")]
     {
         match state.runtime_context.get_libp2p_service() {
@@ -2276,7 +2279,7 @@ mod tests {
         use icn_runtime::executor::WasmExecutor;
 
         let (app, ctx) =
-            app_router_with_options(None, None, None, None, None, None, None, None, None).await;
+            app_router_with_options(None, None, None, None, None, None, None, None, None, None).await;
 
         // Compile a tiny CCL contract
         let (wasm, _) =
