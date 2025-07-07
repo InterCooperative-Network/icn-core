@@ -53,7 +53,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn rocksdb_round_trip() {
         let dir = tempdir().unwrap();
         let path: PathBuf = dir.path().join("rocks");

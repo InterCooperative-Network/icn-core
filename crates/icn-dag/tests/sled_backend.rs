@@ -55,7 +55,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn sled_round_trip() {
         let dir = tempdir().unwrap();
         let mut store = SledDagStore::new(dir.path().to_path_buf()).unwrap();

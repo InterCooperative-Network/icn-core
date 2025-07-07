@@ -85,6 +85,19 @@ Binaries will be placed in the `target/debug/` or `target/release/` directory at
     # Or just part of the name
     cargo test <partial_test_name>
     ```
+*   **Run persistence tests for DAG backends:**
+    ```bash
+    # sled backend (enabled by default)
+    cargo test -p icn-dag --features persist-sled --test sled_backend
+
+    # SQLite backend
+    cargo test -p icn-dag --no-default-features --features persist-sqlite \
+      --test sqlite_backend
+
+    # RocksDB backend
+    cargo test -p icn-dag --no-default-features --features persist-rocksdb \
+      --test rocks_backend
+    ```
 
 ### 3.3. Linting & Formatting
 
