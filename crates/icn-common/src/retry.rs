@@ -28,13 +28,10 @@ where
             Err(error) => {
                 attempts += 1;
                 if attempts >= max_retries {
-                    error!("Operation failed after {} attempts: {:?}", attempts, error);
+                    error!("Operation failed after {attempts} attempts: {error:?}");
                     return Err(error);
                 }
-                warn!(
-                    "Operation failed (attempt {}), retrying in {:?}: {:?}",
-                    attempts, delay, error
-                );
+                warn!("Operation failed (attempt {attempts}), retrying in {delay:?}: {error:?}");
                 tokio::time::sleep(delay).await;
                 delay = std::cmp::min(delay * 2, max_delay);
                 let jitter =

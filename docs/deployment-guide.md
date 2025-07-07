@@ -101,3 +101,30 @@ icn-cli dag backup --path ./backups/sqlite
 icn-cli dag restore --path ./backups/sqlite
 icn-cli dag verify
 ```
+
+## Reliability: Circuit Breaker & Retry
+
+ICN nodes include built-in circuit breaker and retry logic to handle unreliable networks and temporary external failures.
+
+### Circuit Breaker
+
+Repeated failures when contacting peers or services will open the circuit and halt further attempts. The breaker closes again after a cooldown period. Tune these values in the node configuration:
+
+```toml
+# maximum consecutive failures before the circuit opens
+circuit_failure_threshold = 5
+# time in milliseconds before attempts resume
+circuit_recovery_timeout_ms = 30000
+```
+
+### Retry with Backoff
+
+Operations such as peer discovery and job submission automatically retry using jittered exponential backoff. Operators can adjust the aggressiveness:
+
+```toml
+retry_max_attempts = 5
+retry_initial_delay_ms = 500
+retry_max_delay_ms = 30000
+```
+
+Lower thresholds reduce latency when peers recover, while higher values prevent excessive load. These options can also be set via CLI flags of the same names.

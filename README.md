@@ -175,6 +175,7 @@ This project prioritizes robust and clear error handling to improve developer ex
 5. **Error Propagation**: Errors are propagated up the call stack with additional context at each layer.
 
 This approach ensures errors are not silently ignored and provides clear debugging information for developers.
+For deployment tuning options see [Deployment Guide – Circuit Breaker and Retry](docs/deployment-guide.md#reliability-circuit-breaker--retry).
 
 ## Crate Descriptions
 
