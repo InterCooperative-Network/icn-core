@@ -26,6 +26,8 @@ fn callback_runs_on_execute() {
             ProposalType::GenericText("hi".into()),
             "test".into(),
             60,
+            None,
+            None,
         )
         .unwrap();
     gov.open_voting(&pid).unwrap();

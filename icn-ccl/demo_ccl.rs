@@ -1,4 +1,6 @@
-use icn_ccl::{compile_ccl_source_to_wasm, compile_ccl_file_to_wasm};
+#![allow(clippy::uninlined_format_args)]
+
+use icn_ccl::{compile_ccl_file_to_wasm, compile_ccl_source_to_wasm};
 use std::path::Path;
 
 fn main() {
@@ -71,4 +73,4 @@ fn main() {
     println!("   • Deterministic WASM execution");
     println!("   • Policy templates for cooperatives");
     println!("   • Composable governance logic");
-} 
+}

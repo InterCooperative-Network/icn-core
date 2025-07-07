@@ -18,6 +18,8 @@ async fn submit_and_vote_proposal() {
         proposal: ProposalInputType::GenericText { text: "hi".into() },
         description: "test".into(),
         duration_secs: 60,
+        quorum: None,
+        threshold: None,
     };
     let submit_resp = client
         .post(format!("http://{addr}/governance/submit"))

@@ -11,6 +11,8 @@ fn open_voting_transitions_from_pending() {
             ProposalType::GenericText("pending".into()),
             "desc".into(),
             60,
+            None,
+            None,
         )
         .unwrap();
     let prop = gov.get_proposal(&pid).unwrap().unwrap();
@@ -31,6 +33,8 @@ fn vote_rejected_before_opening() {
             ProposalType::GenericText("vote".into()),
             "desc".into(),
             60,
+            None,
+            None,
         )
         .unwrap();
 

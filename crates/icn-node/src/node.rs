@@ -935,7 +935,7 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
     }
-    
+
     Ok(())
 }
 
@@ -1249,6 +1249,8 @@ async fn gov_submit_handler(
         type_specific_payload: payload_bytes,
         description: request.description,
         duration_secs: request.duration_secs,
+        quorum: request.quorum,
+        threshold: request.threshold,
     };
 
     let payload_json = match serde_json::to_string(&payload) {

@@ -204,7 +204,9 @@ This section provides examples for all major `icn-cli` commands. Ensure an `icn-
         "proposer_did": "did:example:123",
         "proposal_type_json": { "GenericText": "My awesome proposal idea" },
         "description": "This proposal aims to do great things.",
-        "duration_secs": 604800 
+        "duration_secs": 604800,
+        "quorum": null,
+        "threshold": null
       }
       ```
       CLI command:
