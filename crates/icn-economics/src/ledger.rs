@@ -88,11 +88,6 @@ impl FileManaLedger {
         Ok(())
     }
 
-    fn persist(&self) -> Result<(), CommonError> {
-        let balances = self.balances.lock().unwrap();
-        self.persist_locked(&balances)
-    }
-
     /// Return the current mana balance for `account`.
     pub fn get_balance(&self, account: &Did) -> u64 {
         let balances = self.balances.lock().unwrap();
