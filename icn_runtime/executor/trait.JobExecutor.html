@@ -2,7 +2,7 @@
     // Required method
     fn <a href="#tymethod.execute_job" class="fn">execute_job</a>&lt;'life0, 'life1, 'async_trait&gt;(
         &amp;'life0 self,
-        job: &amp;'life1 ActualMeshJob,
+        job: &amp;'life1 <a class="struct" href="../../icn_mesh/struct.ActualMeshJob.html" title="struct icn_mesh::ActualMeshJob">ActualMeshJob</a>,
     ) -&gt; <a class="struct" href="https://doc.rust-lang.org/nightly/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/nightly/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/nightly/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;IdentityExecutionReceipt, <a class="enum" href="../../icn_common/enum.CommonError.html" title="enum icn_common::CommonError">CommonError</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;
        <span class="where">where Self: 'async_trait,
              'life0: 'async_trait,
@@ -10,7 +10,7 @@
 }</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Trait for a job executor.</p>
 </div></details><h2 id="required-methods" class="section-header">Required Methods<a href="#required-methods" class="anchor">§</a></h2><div class="methods"><details class="toggle method-toggle" open><summary><section id="tymethod.execute_job" class="method"><a class="src rightside" href="../../src/icn_runtime/executor.rs.html#24-27">Source</a><h4 class="code-header">fn <a href="#tymethod.execute_job" class="fn">execute_job</a>&lt;'life0, 'life1, 'async_trait&gt;(
     &amp;'life0 self,
-    job: &amp;'life1 ActualMeshJob,
+    job: &amp;'life1 <a class="struct" href="../../icn_mesh/struct.ActualMeshJob.html" title="struct icn_mesh::ActualMeshJob">ActualMeshJob</a>,
 ) -&gt; <a class="struct" href="https://doc.rust-lang.org/nightly/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/nightly/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/nightly/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;IdentityExecutionReceipt, <a class="enum" href="../../icn_common/enum.CommonError.html" title="enum icn_common::CommonError">CommonError</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;<div class="where">where
     Self: 'async_trait,
     'life0: 'async_trait,
