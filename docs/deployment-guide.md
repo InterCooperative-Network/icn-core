@@ -101,3 +101,31 @@ icn-cli dag backup --path ./backups/sqlite
 icn-cli dag restore --path ./backups/sqlite
 icn-cli dag verify
 ```
+
+## Circuit Breaker and Retry
+
+The node automatically wraps outbound network calls in a circuit breaker and retry helper. These mechanisms prevent cascading failures when peers become unreachable.
+
+### Circuit Breaker
+
+When a request fails repeatedly, the circuit opens and blocks further attempts for a period of time. The following options control its behaviour:
+
+```toml
+failure_threshold = 3      # errors before opening the circuit
+open_timeout_secs = 5      # time to wait before a trial request
+```
+
+Increase `failure_threshold` or the timeout in noisy environments; decrease them to fail fast.
+
+### Retry with Backoff
+
+Operations use jittered exponential backoff retries. Tune them via:
+
+```toml
+retry_max_attempts = 3     # number of tries before giving up
+retry_initial_delay_ms = 100
+retry_max_delay_ms = 1000
+```
+
+These values control the helper used across HTTP and P2P operations.
+
