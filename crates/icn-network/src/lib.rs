@@ -18,6 +18,7 @@ pub mod metrics;
 use async_trait::async_trait;
 use downcast_rs::{impl_downcast, DowncastSync};
 use icn_common::{Cid, Did, NodeInfo};
+use icn_common::resilience::{CircuitBreaker, CircuitBreakerError};
 use icn_protocol::{MessagePayload, ProtocolMessage};
 #[cfg(feature = "libp2p")]
 use libp2p::PeerId as Libp2pPeerId;
@@ -251,6 +252,40 @@ pub trait NetworkService: Send + Sync + Debug + DowncastSync + 'static {
 }
 impl_downcast!(sync NetworkService);
 
+/// Send a message via a [`NetworkService`] wrapped in a [`CircuitBreaker`].
+pub async fn send_message_with_cb<S: NetworkService>(
+    service: &S,
+    breaker: &CircuitBreaker,
+    peer: &PeerId,
+    message: ProtocolMessage,
+) -> Result<(), MeshNetworkError> {
+    breaker
+        .call(service.send_message(peer, message))
+        .await
+        .map_err(|e| match e {
+            CircuitBreakerError::CircuitOpen => MeshNetworkError::ConnectionFailed {
+                peer_id: Some(peer.clone()),
+                cause: "circuit open".into(),
+            },
+            CircuitBreakerError::OperationFailed(err) => err,
+        })
+}
+
+/// Broadcast a message via a [`NetworkService`] using a [`CircuitBreaker`].
+pub async fn broadcast_message_with_cb<S: NetworkService>(
+    service: &S,
+    breaker: &CircuitBreaker,
+    message: ProtocolMessage,
+) -> Result<(), MeshNetworkError> {
+    breaker
+        .call(service.broadcast_message(message))
+        .await
+        .map_err(|e| match e {
+            CircuitBreakerError::CircuitOpen => MeshNetworkError::Libp2p("circuit open".into()),
+            CircuitBreakerError::OperationFailed(err) => err,
+        })
+}
+
 /// Stub implementation for testing.
 #[derive(Debug)]
 pub struct StubNetworkService {
@@ -382,6 +417,7 @@ impl NetworkService for StubNetworkService {
 pub async fn send_network_ping(
     info: &NodeInfo,
     target_peer: &str,
+    breaker: &CircuitBreaker,
 ) -> Result<String, MeshNetworkError> {
     let service = StubNetworkService::default();
     use icn_protocol::{GossipMessage, MessagePayload, ProtocolMessage};
@@ -397,9 +433,7 @@ pub async fn send_network_ping(
         None,
     );
 
-    let _ = service
-        .send_message(&PeerId(target_peer.to_string()), ping_message)
-        .await?;
+    send_message_with_cb(&service, breaker, &PeerId(target_peer.to_string()), ping_message).await?;
     Ok(format!(
         "Sent (stubbed) ping to {} from node: {} (v{})",
         target_peer, info.name, info.version

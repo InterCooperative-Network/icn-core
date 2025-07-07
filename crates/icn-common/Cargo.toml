@@ -20,3 +20,4 @@ unsigned-varint = { version = "0.7", default-features = false }
 
 [dev-dependencies]
 rand_core = { version = "0.6", features = ["getrandom"] }
+tokio = { version = "1", features = ["full"] }
