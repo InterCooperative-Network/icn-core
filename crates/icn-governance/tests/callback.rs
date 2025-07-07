@@ -7,7 +7,6 @@ use std::sync::{
 };
 
 #[test]
-#[ignore]
 fn callback_runs_on_execute() {
     let executed = Arc::new(AtomicBool::new(false));
     let mut gov = GovernanceModule::new();
@@ -25,12 +24,18 @@ fn callback_runs_on_execute() {
             Did::from_str("did:example:alice").unwrap(),
             ProposalType::GenericText("hi".into()),
             "test".into(),
-            60,
+            1,
             None,
             None,
         )
         .unwrap();
     gov.open_voting(&pid).unwrap();
+    gov.cast_vote(
+        Did::from_str("did:example:alice").unwrap(),
+        &pid,
+        VoteOption::Yes,
+    )
+    .unwrap();
     gov.cast_vote(
         Did::from_str("did:example:bob").unwrap(),
         &pid,

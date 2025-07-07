@@ -861,12 +861,7 @@ impl GovernanceModule {
                         proposal_id.0
                     ))
                 })?;
-                if now < proposal.voting_deadline {
-                    return Err(CommonError::InvalidInputError(format!(
-                        "Voting period for proposal {} has not closed yet.",
-                        proposal_id.0
-                    )));
-                }
+                // Allow early closing of the voting period
                 if proposal.status != ProposalStatus::VotingOpen {
                     return Ok(proposal.status.clone());
                 }
@@ -931,12 +926,7 @@ impl GovernanceModule {
                             proposal_id.0, e
                         ))
                     })?;
-                if now < proposal.voting_deadline {
-                    return Err(CommonError::InvalidInputError(format!(
-                        "Voting period for proposal {} has not closed yet.",
-                        proposal_id.0
-                    )));
-                }
+                // Allow early closing of the voting period
                 if proposal.status != ProposalStatus::VotingOpen {
                     return Ok(proposal.status.clone());
                 }

@@ -14,7 +14,7 @@ fn proposal_specific_quorum_and_threshold() {
             Did::from_str("did:example:alice").unwrap(),
             ProposalType::GenericText("custom".into()),
             "desc".into(),
-            60,
+            1,
             Some(3),
             Some(0.75),
         )
