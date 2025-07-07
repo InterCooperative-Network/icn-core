@@ -107,7 +107,7 @@ async fn wasm_executor_runs_compiled_ccl_contract() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn wasm_executor_host_submit_mesh_job_json() {
-    use icn_mesh::{JobKind, Resources};
+    use icn_mesh::Resources;
 
     let ctx = RuntimeContext::new_with_stubs_and_mana("did:key:zHostSubmit", 50).unwrap();
     let (sk, vk) = generate_ed25519_keypair();
