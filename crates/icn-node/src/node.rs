@@ -1261,6 +1261,9 @@ async fn gov_submit_handler(
         icn_api::governance_trait::ProposalInputType::MemberAdmission { did } => {
             ("MemberAdmission".to_string(), did.into_bytes())
         }
+        icn_api::governance_trait::ProposalInputType::RemoveMember { did } => {
+            ("RemoveMember".to_string(), did.into_bytes())
+        }
         icn_api::governance_trait::ProposalInputType::SoftwareUpgrade { version } => {
             ("SoftwareUpgrade".to_string(), version.into_bytes())
         }
