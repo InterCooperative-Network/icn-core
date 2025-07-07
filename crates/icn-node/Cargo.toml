@@ -25,7 +25,7 @@ toml = "0.5"
 serde_yaml = "0.9"
 clap = { version = "4.0", features = ["derive"] }
 tokio = { version = "1.0", features = ["full"] }
-axum = { version = "0.7", features = ["json"] }
+axum = { version = "0.8", features = ["json"] }
 axum-server = { version = "0.7", features = ["tls-rustls"] }
 tower = { version = "0.4", features = ["full"] }
 hex = "0.4"
