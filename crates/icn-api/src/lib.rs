@@ -20,7 +20,6 @@ use std::sync::{Arc, Mutex}; // To accept the storage service
                              // Added imports for network functionality
 use icn_network::{NetworkService, PeerId, StubNetworkService};
 #[cfg(test)]
-use icn_protocol::MessagePayload;
 use icn_protocol::ProtocolMessage;
 // Added imports for governance functionality
 use icn_governance::{
@@ -436,51 +435,71 @@ pub async fn send_network_message_api(
 }
 
 /// Retrieve the local peer ID from an ICN node via HTTP.
-pub async fn http_get_local_peer_id(api_url: &str) -> Result<String, CommonError> {
+use icn_common::resilience::{CircuitBreaker, CircuitBreakerError};
+
+pub async fn http_get_local_peer_id(api_url: &str, breaker: &CircuitBreaker) -> Result<String, CommonError> {
     let url = format!("{}/network/local-peer-id", api_url.trim_end_matches('/'));
-    let res = reqwest::get(&url)
-        .await
-        .map_err(|e| CommonError::ApiError(format!("Failed to send request: {}", e)))?;
-    if res.status().is_success() {
-        res.json::<serde_json::Value>()
+    let fut = async {
+        let res = reqwest::get(&url)
             .await
-            .map_err(|e| CommonError::DeserializationError(e.to_string()))
-            .and_then(|v| {
-                v.get("peer_id")
-                    .and_then(|p| p.as_str())
-                    .map(|s| s.to_string())
-                    .ok_or_else(|| {
-                        CommonError::DeserializationError("Missing peer_id field".to_string())
-                    })
-            })
-    } else {
-        let status = res.status();
-        let text = res.text().await.unwrap_or_default();
-        Err(CommonError::ApiError(format!(
-            "Request failed {}: {}",
-            status, text
-        )))
-    }
+            .map_err(|e| CommonError::ApiError(format!("Failed to send request: {}", e)))?;
+        if res.status().is_success() {
+            res.json::<serde_json::Value>()
+                .await
+                .map_err(|e| CommonError::DeserializationError(e.to_string()))
+                .and_then(|v| {
+                    v.get("peer_id")
+                        .and_then(|p| p.as_str())
+                        .map(|s| s.to_string())
+                        .ok_or_else(|| {
+                            CommonError::DeserializationError("Missing peer_id field".to_string())
+                        })
+                })
+        } else {
+            let status = res.status();
+            let text = res.text().await.unwrap_or_default();
+            Err(CommonError::ApiError(format!(
+                "Request failed {}: {}",
+                status, text
+            )))
+        }
+    };
+    breaker
+        .call(fut)
+        .await
+        .map_err(|e| match e {
+            CircuitBreakerError::CircuitOpen => CommonError::NetworkUnhealthy("circuit open".into()),
+            CircuitBreakerError::OperationFailed(err) => err,
+        })
 }
 
 /// Retrieve the list of peers from an ICN node via HTTP.
-pub async fn http_get_peer_list(api_url: &str) -> Result<Vec<String>, CommonError> {
+pub async fn http_get_peer_list(api_url: &str, breaker: &CircuitBreaker) -> Result<Vec<String>, CommonError> {
     let url = format!("{}/network/peers", api_url.trim_end_matches('/'));
-    let res = reqwest::get(&url)
-        .await
-        .map_err(|e| CommonError::ApiError(format!("Failed to send request: {}", e)))?;
-    if res.status().is_success() {
-        res.json::<Vec<String>>()
+    let fut = async {
+        let res = reqwest::get(&url)
             .await
-            .map_err(|e| CommonError::DeserializationError(e.to_string()))
-    } else {
-        let status = res.status();
-        let text = res.text().await.unwrap_or_default();
-        Err(CommonError::ApiError(format!(
-            "Request failed {}: {}",
-            status, text
-        )))
-    }
+            .map_err(|e| CommonError::ApiError(format!("Failed to send request: {}", e)))?;
+        if res.status().is_success() {
+            res.json::<Vec<String>>()
+                .await
+                .map_err(|e| CommonError::DeserializationError(e.to_string()))
+        } else {
+            let status = res.status();
+            let text = res.text().await.unwrap_or_default();
+            Err(CommonError::ApiError(format!(
+                "Request failed {}: {}",
+                status, text
+            )))
+        }
+    };
+    breaker
+        .call(fut)
+        .await
+        .map_err(|e| match e {
+            CircuitBreakerError::CircuitOpen => CommonError::NetworkUnhealthy("circuit open".into()),
+            CircuitBreakerError::OperationFailed(err) => err,
+        })
 }
 
 #[cfg(test)]
@@ -699,6 +718,8 @@ mod tests {
             },
             description: "Test description".to_string(),
             duration_secs: 3600,
+            quorum: None,
+            threshold: None,
         };
 
         let proposal_id_res = api.submit_proposal(submit_req);
@@ -741,6 +762,8 @@ mod tests {
             },
             description: "Voting test".to_string(),
             duration_secs: 3600,
+            quorum: None,
+            threshold: None,
         };
         let proposal_id = api
             .submit_proposal(submit_req)
@@ -908,6 +931,14 @@ mod tests {
 
         fn contains(&self, _cid: &Cid) -> Result<bool, CommonError> {
             Err(CommonError::PolicyDenied("contains blocked".to_string()))
+        }
+
+        fn as_any(&self) -> &dyn std::any::Any {
+            self
+        }
+
+        fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+            self
         }
     }
 
