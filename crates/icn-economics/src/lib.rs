@@ -149,6 +149,19 @@ pub fn credit_by_reputation(
     Ok(())
 }
 
+/// Calculates the final mana price for a resource based on reputation.
+///
+/// Higher reputation results in a lower price. The formula is:
+/// `price = base_price * 100 / (100 + reputation)`.
+///
+/// This provides diminishing returns so reputation never drops the cost below
+/// zero and ensures a fair discount curve.
+pub fn price_by_reputation(base_price: u64, reputation: u64) -> u64 {
+    let denom = 100u128 + reputation as u128;
+    let num = (base_price as u128) * 100u128;
+    (num / denom) as u64
+}
+
 /// Placeholder function demonstrating use of common types for economics.
 pub fn process_economic_event(info: &NodeInfo, event_details: &str) -> Result<String, CommonError> {
     Ok(format!(
@@ -366,5 +379,18 @@ mod tests {
         ledger.credit_all(5).unwrap();
         assert_eq!(ledger.get_balance(&alice), 6);
         assert_eq!(ledger.get_balance(&bob), 7);
+    }
+
+    #[test]
+    fn test_price_by_reputation_reduces_cost() {
+        // base price 100 with reputation 0 stays 100
+        assert_eq!(price_by_reputation(100, 0), 100);
+
+        // reputation should lower the price but never below zero
+        assert!(price_by_reputation(100, 50) < 100);
+        assert!(price_by_reputation(100, 200) < price_by_reputation(100, 50));
+
+        // very high reputation approaches zero but never exceeds base
+        assert!(price_by_reputation(100, 1000) < 100);
     }
 }
