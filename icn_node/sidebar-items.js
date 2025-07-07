@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["config","node"]};
+window.SIDEBAR_ITEMS = {"mod":["config","node","parameter_store"]};
