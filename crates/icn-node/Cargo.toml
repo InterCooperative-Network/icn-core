@@ -50,3 +50,7 @@ tempfile = "3"
 icn-ccl = { path = "../../icn-ccl" }
 rcgen = "0.9"
 prometheus-parse = "0.2"
+
+[[bin]]
+name = "icn-node"
+path = "src/node.rs"
