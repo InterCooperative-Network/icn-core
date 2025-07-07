@@ -28,19 +28,18 @@
 <a href=#28 id=28 data-nosnippet>28</a>            <span class="prelude-val">Err</span>(error) =&gt; {
 <a href=#29 id=29 data-nosnippet>29</a>                attempts += <span class="number">1</span>;
 <a href=#30 id=30 data-nosnippet>30</a>                <span class="kw">if </span>attempts &gt;= max_retries {
-<a href=#31 id=31 data-nosnippet>31</a>                    <span class="macro">error!</span>(<span class="string">"Operation failed after {} attempts: {:?}"</span>, attempts, error);
+<a href=#31 id=31 data-nosnippet>31</a>                    <span class="macro">error!</span>(<span class="string">"Operation failed after {attempts} attempts: {error:?}"</span>);
 <a href=#32 id=32 data-nosnippet>32</a>                    <span class="kw">return </span><span class="prelude-val">Err</span>(error);
 <a href=#33 id=33 data-nosnippet>33</a>                }
 <a href=#34 id=34 data-nosnippet>34</a>                <span class="macro">warn!</span>(
-<a href=#35 id=35 data-nosnippet>35</a>                    <span class="string">"Operation failed (attempt {}), retrying in {:?}: {:?}"</span>,
-<a href=#36 id=36 data-nosnippet>36</a>                    attempts, delay, error
-<a href=#37 id=37 data-nosnippet>37</a>                );
-<a href=#38 id=38 data-nosnippet>38</a>                tokio::time::sleep(delay).<span class="kw">await</span>;
-<a href=#39 id=39 data-nosnippet>39</a>                delay = std::cmp::min(delay * <span class="number">2</span>, max_delay);
-<a href=#40 id=40 data-nosnippet>40</a>                <span class="kw">let </span>jitter =
-<a href=#41 id=41 data-nosnippet>41</a>                    Duration::from_millis(fastrand::u64(<span class="number">0</span>..=delay.as_millis() <span class="kw">as </span>u64 / <span class="number">10</span>));
-<a href=#42 id=42 data-nosnippet>42</a>                delay += jitter;
-<a href=#43 id=43 data-nosnippet>43</a>            }
-<a href=#44 id=44 data-nosnippet>44</a>        }
-<a href=#45 id=45 data-nosnippet>45</a>    }
-<a href=#46 id=46 data-nosnippet>46</a>}</code></pre></div></section></main></body></html>
+<a href=#35 id=35 data-nosnippet>35</a>                    <span class="string">"Operation failed (attempt {attempts}), retrying in {delay:?}: {error:?}"
+<a href=#36 id=36 data-nosnippet>36</a>                </span>);
+<a href=#37 id=37 data-nosnippet>37</a>                tokio::time::sleep(delay).<span class="kw">await</span>;
+<a href=#38 id=38 data-nosnippet>38</a>                delay = std::cmp::min(delay * <span class="number">2</span>, max_delay);
+<a href=#39 id=39 data-nosnippet>39</a>                <span class="kw">let </span>jitter =
+<a href=#40 id=40 data-nosnippet>40</a>                    Duration::from_millis(fastrand::u64(<span class="number">0</span>..=delay.as_millis() <span class="kw">as </span>u64 / <span class="number">10</span>));
+<a href=#41 id=41 data-nosnippet>41</a>                delay += jitter;
+<a href=#42 id=42 data-nosnippet>42</a>            }
+<a href=#43 id=43 data-nosnippet>43</a>        }
+<a href=#44 id=44 data-nosnippet>44</a>    }
+<a href=#45 id=45 data-nosnippet>45</a>}</code></pre></div></section></main></body></html>
