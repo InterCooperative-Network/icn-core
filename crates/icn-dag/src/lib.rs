@@ -396,6 +396,7 @@ mod tests {
     // For test setup
     use tempfile::tempdir; // For FileDagStore tests
     #[cfg(feature = "async")]
+    #[allow(unused_imports)]
     use tokio::fs; // For async file operations
 
     // Helper function to create a test block
