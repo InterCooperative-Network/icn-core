@@ -28,3 +28,7 @@ devnet:
 # Run the complete validation suite (format, lint, test)
 validate:
     just format && just lint && just test
+
+# Run benchmarks for all crates
+bench:
+    cargo bench --all-features --workspace
