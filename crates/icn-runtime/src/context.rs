@@ -61,7 +61,6 @@ use icn_identity::{
     SIGNATURE_LENGTH,
 };
 use serde::{Deserialize, Serialize};
-use zeroize::Zeroizing;
 
 // Counter for generating unique (within this runtime instance) job IDs for stubs
 pub static NEXT_JOB_ID: AtomicU32 = AtomicU32::new(1);
@@ -2118,7 +2117,7 @@ impl Signer for StubSigner {
 /// Production signer using an Ed25519 keypair with memory zeroization.
 #[derive(Debug)]
 pub struct Ed25519Signer {
-    sk: Zeroizing<SigningKey>,
+    sk: SigningKey,
     pk: VerifyingKey,
     did: Did,
 }
@@ -2129,22 +2128,14 @@ impl Ed25519Signer {
         let pk = sk.verifying_key();
         let did = Did::from_str(&did_key_from_verifying_key(&pk))
             .expect("Failed to construct DID from verifying key");
-        Self {
-            sk: Zeroizing::new(sk),
-            pk,
-            did,
-        }
+        Self { sk, pk, did }
     }
 
     /// Create from a precomputed keypair.
     pub fn new_with_keys(sk: SigningKey, pk: VerifyingKey) -> Self {
         let did = Did::from_str(&did_key_from_verifying_key(&pk))
             .expect("Failed to construct DID from verifying key");
-        Self {
-            sk: Zeroizing::new(sk),
-            pk,
-            did,
-        }
+        Self { sk, pk, did }
     }
 
     /// Expose verifying key reference.
