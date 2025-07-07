@@ -166,6 +166,10 @@ The default Alertmanager configuration sends emails to
 `alerts@intercooperative.network`. Modify `alertmanager.yml` to customize
 receivers or routing rules.
 
+### Grafana Dashboards
+Dashboard JSON files are located in `grafana/`. After launching with monitoring, open Grafana at `http://localhost:3000`, click **Import**, and upload `grafana/icn-devnet-dashboard.json`.
+
+
 ### Development Mode
 
 ```bash
