@@ -53,6 +53,20 @@ pub trait StorageService<B: Clone + Serialize + for<'de> Deserialize<'de>> {
     /// Checks if a block with the given CID exists in the store.
     /// Returns `Ok(true)` if it exists, `Ok(false)` if not, or `Err` on storage failure.
     fn contains(&self, cid: &Cid) -> Result<bool, CommonError>;
+
+    /// Retrieve all blocks stored in the backend. The default implementation
+    /// indicates the operation is not implemented.
+    fn list_blocks(&self) -> Result<Vec<B>, CommonError> {
+        Err(CommonError::NotImplemented(
+            "list_blocks not supported".to_string(),
+        ))
+    }
+
+    /// Cast to [`Any`] for downcasting when the concrete type is needed.
+    fn as_any(&self) -> &dyn std::any::Any;
+
+    /// Mutable variant of [`as_any`].
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any;
 }
 
 /// Asynchronous version of [`StorageService`].
@@ -73,6 +87,18 @@ where
 
     /// Checks if a block with the given CID exists in the store.
     async fn contains(&self, cid: &Cid) -> Result<bool, CommonError>;
+
+    /// Retrieve all blocks stored in the backend.
+    async fn list_blocks(&self) -> Result<Vec<B>, CommonError> {
+        Err(CommonError::NotImplemented(
+            "list_blocks not supported".to_string(),
+        ))
+    }
+
+    /// Cast to [`Any`] for downcasting.
+    fn as_any(&self) -> &dyn std::any::Any;
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any;
 }
 
 // --- In-Memory DAG Store ---
@@ -110,6 +136,18 @@ impl StorageService<DagBlock> for InMemoryDagStore {
 
     fn contains(&self, cid: &Cid) -> Result<bool, CommonError> {
         Ok(self.store.contains_key(cid))
+    }
+
+    fn list_blocks(&self) -> Result<Vec<DagBlock>, CommonError> {
+        Ok(self.store.values().cloned().collect())
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
     }
 }
 
@@ -245,6 +283,33 @@ impl StorageService<DagBlock> for FileDagStore {
         let path = self.block_path(cid);
         Ok(path.exists())
     }
+
+    fn list_blocks(&self) -> Result<Vec<DagBlock>, CommonError> {
+        let mut blocks = Vec::new();
+        for entry in std::fs::read_dir(&self.storage_path).map_err(|e| {
+            CommonError::IoError(format!("Failed to read dir {:?}: {}", self.storage_path, e))
+        })? {
+            let path = entry.map_err(|e| CommonError::IoError(format!("Dir entry error: {}", e)))?.path();
+            if path.is_file() {
+                let contents = std::fs::read_to_string(&path).map_err(|e| {
+                    CommonError::IoError(format!("Failed to read file {:?}: {}", path, e))
+                })?;
+                let block: DagBlock = serde_json::from_str(&contents).map_err(|e| {
+                    CommonError::DeserializationError(format!("Failed to deserialize {:?}: {}", path, e))
+                })?;
+                blocks.push(block);
+            }
+        }
+        Ok(blocks)
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
 }
 
 // --- Tokio-based File DAG Store ---
@@ -369,6 +434,40 @@ impl AsyncStorageService<DagBlock> for TokioFileDagStore {
     async fn contains(&self, cid: &Cid) -> Result<bool, CommonError> {
         Ok(fs::metadata(self.block_path(cid)).await.is_ok())
     }
+
+    async fn list_blocks(&self) -> Result<Vec<DagBlock>, CommonError> {
+        let mut blocks = Vec::new();
+        let mut dir = fs::read_dir(&self.storage_path).await.map_err(|e| {
+            CommonError::IoError(format!("Failed to read dir {:?}: {}", self.storage_path, e))
+        })?;
+        while let Some(entry) = dir.next_entry().await.map_err(|e| {
+            CommonError::IoError(format!("Dir entry error: {}", e))
+        })? {
+            let path = entry.path();
+            if path.is_file() {
+                let mut file = TokioFile::open(&path).await.map_err(|e| {
+                    CommonError::IoError(format!("Failed to open file {:?}: {}", path, e))
+                })?;
+                let mut contents = String::new();
+                file.read_to_string(&mut contents).await.map_err(|e| {
+                    CommonError::IoError(format!("Failed to read file {:?}: {}", path, e))
+                })?;
+                let block: DagBlock = serde_json::from_str(&contents).map_err(|e| {
+                    CommonError::DeserializationError(format!("Failed to deserialize {:?}: {}", path, e))
+                })?;
+                blocks.push(block);
+            }
+        }
+        Ok(blocks)
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
 }
 
 /// Placeholder function demonstrating use of common types.
@@ -384,6 +483,25 @@ pub fn process_dag_related_data(info: &NodeInfo) -> Result<String, CommonError> 
             ICN_CORE_VERSION, info.version, info.name
         )))
     }
+}
+
+/// Verify integrity of every block in the given store.
+pub fn verify_all(store: &dyn StorageService<DagBlock>) -> Result<(), CommonError> {
+    for block in store.list_blocks()? {
+        icn_common::verify_block_integrity(&block)?;
+    }
+    Ok(())
+}
+
+#[cfg(feature = "async")]
+/// Asynchronous variant of [`verify_all`].
+pub async fn verify_all_async(
+    store: &(dyn AsyncStorageService<DagBlock> + Send + Sync),
+) -> Result<(), CommonError> {
+    for block in store.list_blocks().await? {
+        icn_common::verify_block_integrity(&block)?;
+    }
+    Ok(())
 }
 
 // pub fn add(left: u64, right: u64) -> u64 {
