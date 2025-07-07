@@ -16,11 +16,24 @@ pub struct CastVoteRequest {
 #[derive(Serialize, Deserialize, Debug, Clone)] // Added Clone
 #[serde(tag = "type", content = "data")]
 pub enum ProposalInputType {
-    SystemParameterChange { param: String, value: String },
-    MemberAdmission { did: String },
-    SoftwareUpgrade { version: String }, // Matches ProposalType more closely
-    GenericText { text: String },        // Matches ProposalType more closely
-                                         // Add more as needed
+    SystemParameterChange {
+        param: String,
+        value: String,
+    },
+    MemberAdmission {
+        did: String,
+    },
+    /// Remove an existing member from the cooperative
+    RemoveMember {
+        did: String,
+    },
+    SoftwareUpgrade {
+        version: String,
+    }, // Matches ProposalType more closely
+    GenericText {
+        text: String,
+    }, // Matches ProposalType more closely
+       // Add more as needed
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)] // Added Clone

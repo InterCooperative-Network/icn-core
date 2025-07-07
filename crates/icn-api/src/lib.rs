@@ -253,6 +253,15 @@ impl GovernanceApi for GovernanceApiImpl {
                 })?;
                 ProposalType::NewMemberInvitation(member_did)
             }
+            ProposalInputType::RemoveMember { did } => {
+                let member_did = Did::from_str(&did).map_err(|e| {
+                    CommonError::InvalidInputError(format!(
+                        "Invalid member DID format for removal: {}. Error: {:?}",
+                        did, e
+                    ))
+                })?;
+                ProposalType::RemoveMember(member_did)
+            }
             ProposalInputType::SoftwareUpgrade { version } => {
                 ProposalType::SoftwareUpgrade(version)
             }
