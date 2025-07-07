@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs::{File, OpenOptions}; // For FileDagStore
 use std::io::{Read, Write}; // Removed Seek, SeekFrom
-use std::path::PathBuf; // For FileDagStore
+use std::path::{Path, PathBuf}; // For FileDagStore and backup/restore
 #[cfg(feature = "async")]
 use tokio::fs::{self, File as TokioFile, OpenOptions as TokioOpenOptions};
 #[cfg(feature = "async")]
@@ -289,13 +289,18 @@ impl StorageService<DagBlock> for FileDagStore {
         for entry in std::fs::read_dir(&self.storage_path).map_err(|e| {
             CommonError::IoError(format!("Failed to read dir {:?}: {}", self.storage_path, e))
         })? {
-            let path = entry.map_err(|e| CommonError::IoError(format!("Dir entry error: {}", e)))?.path();
+            let path = entry
+                .map_err(|e| CommonError::IoError(format!("Dir entry error: {}", e)))?
+                .path();
             if path.is_file() {
                 let contents = std::fs::read_to_string(&path).map_err(|e| {
                     CommonError::IoError(format!("Failed to read file {:?}: {}", path, e))
                 })?;
                 let block: DagBlock = serde_json::from_str(&contents).map_err(|e| {
-                    CommonError::DeserializationError(format!("Failed to deserialize {:?}: {}", path, e))
+                    CommonError::DeserializationError(format!(
+                        "Failed to deserialize {:?}: {}",
+                        path, e
+                    ))
                 })?;
                 blocks.push(block);
             }
@@ -440,9 +445,11 @@ impl AsyncStorageService<DagBlock> for TokioFileDagStore {
         let mut dir = fs::read_dir(&self.storage_path).await.map_err(|e| {
             CommonError::IoError(format!("Failed to read dir {:?}: {}", self.storage_path, e))
         })?;
-        while let Some(entry) = dir.next_entry().await.map_err(|e| {
-            CommonError::IoError(format!("Dir entry error: {}", e))
-        })? {
+        while let Some(entry) = dir
+            .next_entry()
+            .await
+            .map_err(|e| CommonError::IoError(format!("Dir entry error: {}", e)))?
+        {
             let path = entry.path();
             if path.is_file() {
                 let mut file = TokioFile::open(&path).await.map_err(|e| {
@@ -453,7 +460,10 @@ impl AsyncStorageService<DagBlock> for TokioFileDagStore {
                     CommonError::IoError(format!("Failed to read file {:?}: {}", path, e))
                 })?;
                 let block: DagBlock = serde_json::from_str(&contents).map_err(|e| {
-                    CommonError::DeserializationError(format!("Failed to deserialize {:?}: {}", path, e))
+                    CommonError::DeserializationError(format!(
+                        "Failed to deserialize {:?}: {}",
+                        path, e
+                    ))
                 })?;
                 blocks.push(block);
             }
@@ -485,8 +495,59 @@ pub fn process_dag_related_data(info: &NodeInfo) -> Result<String, CommonError> 
     }
 }
 
+/// Backup all DAG blocks from `store` into files under `path`.
+pub fn backup<S>(store: &S, path: &Path) -> Result<(), CommonError>
+where
+    S: StorageService<DagBlock> + ?Sized,
+{
+    if !path.exists() {
+        std::fs::create_dir_all(path).map_err(|e| {
+            CommonError::IoError(format!("Failed to create backup dir {:?}: {}", path, e))
+        })?;
+    }
+    for block in store.list_blocks()? {
+        let serialized = serde_json::to_string(&block).map_err(|e| {
+            CommonError::SerializationError(format!("Failed to serialize block {}: {}", block.cid, e))
+        })?;
+        let file_path = path.join(block.cid.to_string());
+        std::fs::write(&file_path, serialized).map_err(|e| {
+            CommonError::IoError(format!("Failed to write block {} to {:?}: {}", block.cid, file_path, e))
+        })?;
+    }
+    Ok(())
+}
+
+/// Restore DAG blocks into `store` from files under `path`.
+pub fn restore<S>(store: &mut S, path: &Path) -> Result<(), CommonError>
+where
+    S: StorageService<DagBlock> + ?Sized,
+{
+    if !path.is_dir() {
+        return Err(CommonError::IoError(format!("Restore path {:?} is not a directory", path)));
+    }
+    for entry in std::fs::read_dir(path).map_err(|e| {
+        CommonError::IoError(format!("Failed to read backup dir {:?}: {}", path, e))
+    })? {
+        let entry = entry.map_err(|e| CommonError::IoError(format!("Dir entry error: {}", e)))?;
+        let file_path = entry.path();
+        if file_path.is_file() {
+            let contents = std::fs::read_to_string(&file_path).map_err(|e| {
+                CommonError::IoError(format!("Failed to read file {:?}: {}", file_path, e))
+            })?;
+            let block: DagBlock = serde_json::from_str(&contents).map_err(|e| {
+                CommonError::DeserializationError(format!("Failed to deserialize {:?}: {}", file_path, e))
+            })?;
+            store.put(&block)?;
+        }
+    }
+    Ok(())
+}
+
 /// Verify integrity of every block in the given store.
-pub fn verify_all(store: &dyn StorageService<DagBlock>) -> Result<(), CommonError> {
+pub fn verify_all<S>(store: &S) -> Result<(), CommonError>
+where
+    S: StorageService<DagBlock> + ?Sized,
+{
     for block in store.list_blocks()? {
         icn_common::verify_block_integrity(&block)?;
     }
@@ -494,10 +555,61 @@ pub fn verify_all(store: &dyn StorageService<DagBlock>) -> Result<(), CommonErro
 }
 
 #[cfg(feature = "async")]
+/// Asynchronous variant of [`backup`].
+pub async fn backup_async<S>(store: &S, path: &Path) -> Result<(), CommonError>
+where
+    S: AsyncStorageService<DagBlock> + Sync + ?Sized,
+{
+    if !path.exists() {
+        fs::create_dir_all(path).await.map_err(|e| {
+            CommonError::IoError(format!("Failed to create backup dir {:?}: {}", path, e))
+        })?;
+    }
+    for block in store.list_blocks().await? {
+        let serialized = serde_json::to_string(&block).map_err(|e| {
+            CommonError::SerializationError(format!("Failed to serialize block {}: {}", block.cid, e))
+        })?;
+        let file_path = path.join(block.cid.to_string());
+        fs::write(&file_path, serialized).await.map_err(|e| {
+            CommonError::IoError(format!("Failed to write block {} to {:?}: {}", block.cid, file_path, e))
+        })?;
+    }
+    Ok(())
+}
+
+#[cfg(feature = "async")]
+/// Asynchronous variant of [`restore`].
+pub async fn restore_async<S>(store: &mut S, path: &Path) -> Result<(), CommonError>
+where
+    S: AsyncStorageService<DagBlock> + Send + ?Sized,
+{
+    if !path.is_dir() {
+        return Err(CommonError::IoError(format!("Restore path {:?} is not a directory", path)));
+    }
+    let mut entries = fs::read_dir(path).await.map_err(|e| {
+        CommonError::IoError(format!("Failed to read backup dir {:?}: {}", path, e))
+    })?;
+    while let Some(entry) = entries.next_entry().await.map_err(|e| CommonError::IoError(format!("Dir entry error: {}", e)))? {
+        let file_path = entry.path();
+        if file_path.is_file() {
+            let contents = fs::read_to_string(&file_path).await.map_err(|e| {
+                CommonError::IoError(format!("Failed to read file {:?}: {}", file_path, e))
+            })?;
+            let block: DagBlock = serde_json::from_str(&contents).map_err(|e| {
+                CommonError::DeserializationError(format!("Failed to deserialize {:?}: {}", file_path, e))
+            })?;
+            store.put(&block).await?;
+        }
+    }
+    Ok(())
+}
+
+#[cfg(feature = "async")]
 /// Asynchronous variant of [`verify_all`].
-pub async fn verify_all_async(
-    store: &(dyn AsyncStorageService<DagBlock> + Send + Sync),
-) -> Result<(), CommonError> {
+pub async fn verify_all_async<S>(store: &S) -> Result<(), CommonError>
+where
+    S: AsyncStorageService<DagBlock> + Sync + ?Sized,
+{
     for block in store.list_blocks().await? {
         icn_common::verify_block_integrity(&block)?;
     }
