@@ -92,7 +92,7 @@ just build    # build all crates
 just devnet   # launch the containerized federation devnet
 icn-devnet/launch_federation.sh # build and test the federation containers
 # If building the devnet Docker images manually, ensure a larger stack size:
-export RUST_MIN_STACK=16777216
+export RUST_MIN_STACK=33554432
 ```
 
 
@@ -169,8 +169,8 @@ Development has progressed through several major phases:
 3. **Phase&nbsp;2B – Cross‑Node Mesh Jobs**: distributed job execution is verified with cryptographically signed receipts.
 4. **Phase&nbsp;3 – HTTP Gateway**: all runtime functionality is accessible over REST endpoints.
 5. **Phase&nbsp;4 – Federation Devnet**: containerized devnet demonstrating a three‑node federation.
-   Run `icn-devnet/launch_federation.sh` to build and test the federation locally.
-   The Docker build sets `RUST_MIN_STACK=16777216` to avoid stack overflow.
+  Run `icn-devnet/launch_federation.sh` to build and test the federation locally.
+  The Docker build sets `RUST_MIN_STACK=33554432` to avoid stack overflow during compilation.
 
 Future planning and outstanding tasks are tracked on the
 [issue tracker](https://github.com/InterCooperative/icn-core/issues).
