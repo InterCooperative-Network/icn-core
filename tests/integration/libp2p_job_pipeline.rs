@@ -7,16 +7,17 @@ mod libp2p_job_pipeline {
     use icn_common::{Cid, Did};
     use icn_identity::{generate_ed25519_keypair, SignatureBytes};
     use icn_mesh::{ActualMeshJob, JobSpec, JobState, MeshJobBid, Resources};
-    use icn_network::{NetworkMessage, NetworkService};
-    use icn_runtime::context::{RuntimeContext, DefaultMeshNetworkService, MeshNetworkService};
+    use icn_network::NetworkService;
+    use icn_protocol::{MeshJobAssignmentMessage, MessagePayload, ProtocolMessage};
+    use icn_runtime::context::{DefaultMeshNetworkService, MeshNetworkService, RuntimeContext};
     use icn_runtime::executor::{JobExecutor, SimpleExecutor};
     use icn_runtime::{host_anchor_receipt, host_submit_mesh_job, ReputationUpdater};
     use libp2p::{Multiaddr, PeerId as Libp2pPeerId};
+    use reqwest::Client;
+    use serde_json::Value;
     use std::str::FromStr;
     use std::sync::Arc;
     use tokio::time::{sleep, timeout, Duration};
-    use reqwest::Client;
-    use serde_json::Value;
 
     const RETRY_DELAY: Duration = Duration::from_secs(3);
     const MAX_RETRIES: u32 = 20;
@@ -118,11 +119,7 @@ mod libp2p_job_pipeline {
                 .send()
                 .await
                 .expect("dag get");
-            assert!(
-                dag_res.status().is_success(),
-                "dag get failed on {}",
-                url
-            );
+            assert!(dag_res.status().is_success(), "dag get failed on {}", url);
         }
     }
 
@@ -195,11 +192,7 @@ mod libp2p_job_pipeline {
                 .send()
                 .await
                 .expect("dag get");
-            assert!(
-                dag_res.status().is_success(),
-                "dag get failed on {}",
-                url
-            );
+            assert!(dag_res.status().is_success(), "dag get failed on {}", url);
         }
     }
 
@@ -242,7 +235,9 @@ mod libp2p_job_pipeline {
         let service_b = node_b.get_libp2p_service()?;
         sleep(Duration::from_secs(2)).await;
 
-        let rep_before = node_a.reputation_store.get_reputation(&node_b.current_identity);
+        let rep_before = node_a
+            .reputation_store
+            .get_reputation(&node_b.current_identity);
 
         let mut recv_a = service_a.subscribe().await?;
         let mut recv_b = service_b.subscribe().await?;
@@ -282,11 +277,20 @@ mod libp2p_job_pipeline {
             resources: Resources::default(),
             signature: SignatureBytes(vec![]),
         };
-        let sig = node_b.signer.sign(&unsigned.to_signable_bytes().unwrap()).unwrap();
-        let bid = MeshJobBid { signature: SignatureBytes(sig), ..unsigned };
-        service_b
-            .broadcast_message(NetworkMessage::BidSubmission(bid))
-            .await?;
+        let sig = node_b
+            .signer
+            .sign(&unsigned.to_signable_bytes().unwrap())
+            .unwrap();
+        let bid = MeshJobBid {
+            signature: SignatureBytes(sig),
+            ..unsigned
+        };
+        let msg = ProtocolMessage::new(
+            MessagePayload::MeshBidSubmission(bid),
+            node_b.current_identity.clone(),
+            None,
+        );
+        service_b.broadcast_message(msg).await?;
 
         // Wait for bid on A
         timeout(Duration::from_secs(5), async {
@@ -303,12 +307,15 @@ mod libp2p_job_pipeline {
         .await?;
 
         // Assign job to B
-        service_a
-            .broadcast_message(NetworkMessage::JobAssignmentNotification(
-                job_id.clone(),
-                node_b.current_identity.clone(),
-            ))
-            .await?;
+        let msg = ProtocolMessage::new(
+            MessagePayload::MeshJobAssignment(MeshJobAssignmentMessage {
+                job_id: job_id.clone(),
+                executor_did: node_b.current_identity.clone(),
+            }),
+            node_a.current_identity.clone(),
+            None,
+        );
+        service_a.broadcast_message(msg).await?;
 
         {
             let mut states = node_a.job_states.lock().await;
@@ -325,7 +332,8 @@ mod libp2p_job_pipeline {
             loop {
                 if let Some(message) = recv_b.recv().await {
                     if let MessagePayload::MeshJobAssignment(assign) = &message.payload {
-                        if assign.job_id == job_id && assign.executor_did == node_b.current_identity {
+                        if assign.job_id == job_id && assign.executor_did == node_b.current_identity
+                        {
                             break;
                         }
                     }
@@ -340,9 +348,12 @@ mod libp2p_job_pipeline {
         let receipt = executor.execute_job(&job).await?;
         assert!(receipt.verify_against_key(&pk).is_ok());
 
-        service_b
-            .broadcast_message(NetworkMessage::SubmitReceipt(receipt.clone()))
-            .await?;
+        let msg = ProtocolMessage::new(
+            MessagePayload::MeshReceiptSubmission(receipt.clone()),
+            node_b.current_identity.clone(),
+            None,
+        );
+        service_b.broadcast_message(msg).await?;
 
         // Node A waits for receipt
         let final_receipt = timeout(Duration::from_secs(5), async {
@@ -408,4 +419,3 @@ mod libp2p_job_pipeline {
 async fn libp2p_feature_disabled_stub() {
     println!("libp2p feature disabled; skipping libp2p job pipeline test");
 }
-
