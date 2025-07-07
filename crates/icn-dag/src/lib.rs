@@ -24,6 +24,7 @@ use tokio::fs::{self, File as TokioFile, OpenOptions as TokioOpenOptions};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 pub mod index;
+pub mod metrics;
 #[cfg(feature = "persist-rocksdb")]
 pub mod rocksdb_store;
 #[cfg(feature = "persist-sled")]
@@ -120,12 +121,14 @@ impl InMemoryDagStore {
 
 impl StorageService<DagBlock> for InMemoryDagStore {
     fn put(&mut self, block: &DagBlock) -> Result<(), CommonError> {
+        metrics::DAG_PUT_CALLS.inc();
         icn_common::verify_block_integrity(block)?;
         self.store.insert(block.cid.clone(), block.clone());
         Ok(())
     }
 
     fn get(&self, cid: &Cid) -> Result<Option<DagBlock>, CommonError> {
+        metrics::DAG_GET_CALLS.inc();
         Ok(self.store.get(cid).cloned())
     }
 
@@ -268,10 +271,12 @@ impl FileDagStore {
 
 impl StorageService<DagBlock> for FileDagStore {
     fn put(&mut self, block: &DagBlock) -> Result<(), CommonError> {
+        metrics::DAG_PUT_CALLS.inc();
         self.put_block_to_file(block)
     }
 
     fn get(&self, cid: &Cid) -> Result<Option<DagBlock>, CommonError> {
+        metrics::DAG_GET_CALLS.inc();
         self.get_block_from_file(cid)
     }
 
@@ -507,11 +512,17 @@ where
     }
     for block in store.list_blocks()? {
         let serialized = serde_json::to_string(&block).map_err(|e| {
-            CommonError::SerializationError(format!("Failed to serialize block {}: {}", block.cid, e))
+            CommonError::SerializationError(format!(
+                "Failed to serialize block {}: {}",
+                block.cid, e
+            ))
         })?;
         let file_path = path.join(block.cid.to_string());
         std::fs::write(&file_path, serialized).map_err(|e| {
-            CommonError::IoError(format!("Failed to write block {} to {:?}: {}", block.cid, file_path, e))
+            CommonError::IoError(format!(
+                "Failed to write block {} to {:?}: {}",
+                block.cid, file_path, e
+            ))
         })?;
     }
     Ok(())
@@ -523,11 +534,14 @@ where
     S: StorageService<DagBlock> + ?Sized,
 {
     if !path.is_dir() {
-        return Err(CommonError::IoError(format!("Restore path {:?} is not a directory", path)));
+        return Err(CommonError::IoError(format!(
+            "Restore path {:?} is not a directory",
+            path
+        )));
     }
-    for entry in std::fs::read_dir(path).map_err(|e| {
-        CommonError::IoError(format!("Failed to read backup dir {:?}: {}", path, e))
-    })? {
+    for entry in std::fs::read_dir(path)
+        .map_err(|e| CommonError::IoError(format!("Failed to read backup dir {:?}: {}", path, e)))?
+    {
         let entry = entry.map_err(|e| CommonError::IoError(format!("Dir entry error: {}", e)))?;
         let file_path = entry.path();
         if file_path.is_file() {
@@ -535,7 +549,10 @@ where
                 CommonError::IoError(format!("Failed to read file {:?}: {}", file_path, e))
             })?;
             let block: DagBlock = serde_json::from_str(&contents).map_err(|e| {
-                CommonError::DeserializationError(format!("Failed to deserialize {:?}: {}", file_path, e))
+                CommonError::DeserializationError(format!(
+                    "Failed to deserialize {:?}: {}",
+                    file_path, e
+                ))
             })?;
             store.put(&block)?;
         }
@@ -567,11 +584,17 @@ where
     }
     for block in store.list_blocks().await? {
         let serialized = serde_json::to_string(&block).map_err(|e| {
-            CommonError::SerializationError(format!("Failed to serialize block {}: {}", block.cid, e))
+            CommonError::SerializationError(format!(
+                "Failed to serialize block {}: {}",
+                block.cid, e
+            ))
         })?;
         let file_path = path.join(block.cid.to_string());
         fs::write(&file_path, serialized).await.map_err(|e| {
-            CommonError::IoError(format!("Failed to write block {} to {:?}: {}", block.cid, file_path, e))
+            CommonError::IoError(format!(
+                "Failed to write block {} to {:?}: {}",
+                block.cid, file_path, e
+            ))
         })?;
     }
     Ok(())
@@ -584,19 +607,29 @@ where
     S: AsyncStorageService<DagBlock> + Send + ?Sized,
 {
     if !path.is_dir() {
-        return Err(CommonError::IoError(format!("Restore path {:?} is not a directory", path)));
+        return Err(CommonError::IoError(format!(
+            "Restore path {:?} is not a directory",
+            path
+        )));
     }
     let mut entries = fs::read_dir(path).await.map_err(|e| {
         CommonError::IoError(format!("Failed to read backup dir {:?}: {}", path, e))
     })?;
-    while let Some(entry) = entries.next_entry().await.map_err(|e| CommonError::IoError(format!("Dir entry error: {}", e)))? {
+    while let Some(entry) = entries
+        .next_entry()
+        .await
+        .map_err(|e| CommonError::IoError(format!("Dir entry error: {}", e)))?
+    {
         let file_path = entry.path();
         if file_path.is_file() {
             let contents = fs::read_to_string(&file_path).await.map_err(|e| {
                 CommonError::IoError(format!("Failed to read file {:?}: {}", file_path, e))
             })?;
             let block: DagBlock = serde_json::from_str(&contents).map_err(|e| {
-                CommonError::DeserializationError(format!("Failed to deserialize {:?}: {}", file_path, e))
+                CommonError::DeserializationError(format!(
+                    "Failed to deserialize {:?}: {}",
+                    file_path, e
+                ))
             })?;
             store.put(&block).await?;
         }

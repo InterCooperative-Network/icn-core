@@ -1030,6 +1030,10 @@ async fn status_handler(State(state): State<AppState>) -> impl IntoResponse {
 
 // GET /metrics – Prometheus metrics text
 async fn metrics_handler() -> impl IntoResponse {
+    use icn_dag::metrics::{DAG_GET_CALLS, DAG_PUT_CALLS};
+    use icn_economics::metrics::{CREDIT_MANA_CALLS, GET_BALANCE_CALLS, SPEND_MANA_CALLS};
+    use icn_governance::metrics::{CAST_VOTE_CALLS, EXECUTE_PROPOSAL_CALLS, SUBMIT_PROPOSAL_CALLS};
+    use icn_mesh::metrics::{SCHEDULE_MESH_JOB_CALLS, SELECT_EXECUTOR_CALLS};
     use icn_runtime::metrics::{
         HOST_ACCOUNT_GET_MANA_CALLS, HOST_ACCOUNT_SPEND_MANA_CALLS,
         HOST_GET_PENDING_MESH_JOBS_CALLS, HOST_SUBMIT_MESH_JOB_CALLS,
@@ -1055,6 +1059,56 @@ async fn metrics_handler() -> impl IntoResponse {
         "host_account_spend_mana_calls",
         "Number of host_account_spend_mana calls",
         HOST_ACCOUNT_SPEND_MANA_CALLS.clone(),
+    );
+    registry.register(
+        "economics_get_balance_calls",
+        "Number of mana get_balance calls",
+        GET_BALANCE_CALLS.clone(),
+    );
+    registry.register(
+        "economics_spend_mana_calls",
+        "Number of mana spend_mana calls",
+        SPEND_MANA_CALLS.clone(),
+    );
+    registry.register(
+        "economics_credit_mana_calls",
+        "Number of mana credit_mana calls",
+        CREDIT_MANA_CALLS.clone(),
+    );
+    registry.register(
+        "governance_submit_proposal_calls",
+        "Number of submit_proposal calls",
+        SUBMIT_PROPOSAL_CALLS.clone(),
+    );
+    registry.register(
+        "governance_cast_vote_calls",
+        "Number of cast_vote calls",
+        CAST_VOTE_CALLS.clone(),
+    );
+    registry.register(
+        "governance_execute_proposal_calls",
+        "Number of execute_proposal calls",
+        EXECUTE_PROPOSAL_CALLS.clone(),
+    );
+    registry.register(
+        "dag_put_calls",
+        "Number of DAG put calls",
+        DAG_PUT_CALLS.clone(),
+    );
+    registry.register(
+        "dag_get_calls",
+        "Number of DAG get calls",
+        DAG_GET_CALLS.clone(),
+    );
+    registry.register(
+        "mesh_select_executor_calls",
+        "Number of select_executor calls",
+        SELECT_EXECUTOR_CALLS.clone(),
+    );
+    registry.register(
+        "mesh_schedule_job_calls",
+        "Number of schedule_mesh_job calls",
+        SCHEDULE_MESH_JOB_CALLS.clone(),
     );
 
     let mut buffer = String::new();

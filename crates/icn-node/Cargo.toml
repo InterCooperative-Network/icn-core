@@ -15,6 +15,7 @@ icn-runtime = { path = "../icn-runtime", features = ["cli"] }
 icn-identity = { path = "../icn-identity" }
 icn-mesh = { path = "../icn-mesh" }
 icn-reputation = { path = "../icn-reputation" }
+icn-economics = { path = "../icn-economics" }
 icn-ccl = { path = "../../icn-ccl" }
 icn-protocol = { path = "../icn-protocol" }
 log = "0.4"
