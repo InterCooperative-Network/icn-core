@@ -1,2 +1,2 @@
-window.ALL_CRATES = ["icn_api","icn_ccl","icn_cli","icn_common","icn_dag","icn_economics","icn_governance","icn_identity","icn_mesh","icn_network","icn_node","icn_protocol","icn_reputation","icn_runtime"];
-//{"start":21,"fragment_lengths":[9,10,10,13,10,16,17,15,11,14,11,15,17,14]}
+window.ALL_CRATES = ["demo_ccl","demo_with_devnet","icn_api","icn_ccl","icn_cli","icn_common","icn_dag","icn_economics","icn_governance","icn_identity","icn_mesh","icn_network","icn_node","icn_protocol","icn_reputation","icn_runtime"];
+//{"start":21,"fragment_lengths":[10,19,10,10,10,13,10,16,17,15,11,14,11,15,17,14]}
