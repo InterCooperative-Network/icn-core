@@ -251,7 +251,7 @@ where
 - [ ] ✅ Monitoring runbook and alert response procedures
 - [ ] ✅ Security audit and penetration testing report
 - [ ] ✅ Performance benchmarking results
-- [ ] ✅ Disaster recovery and backup procedures
+- [ ] ✅ Disaster recovery and backup procedures ([DAG backup docs](docs/deployment-guide.md#dag-backup-and-restore))
 
 ---
 
@@ -284,7 +284,7 @@ where
 ### **Technical Risks**
 1. **Performance Degradation**: Replace stubs incrementally, benchmark each change
 2. **Security Vulnerabilities**: Security review for each major component
-3. **Data Loss**: Implement backup/restore before persistence changes
+3. **Data Loss**: Implement backup/restore before persistence changes. See the [DAG Backup and Restore guide](docs/deployment-guide.md#dag-backup-and-restore).
 4. **Network Partitions**: Test split-brain scenarios extensively
 
 ### **Project Risks**
