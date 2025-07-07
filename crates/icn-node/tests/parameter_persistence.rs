@@ -1,32 +1,27 @@
-#[cfg(feature = "persist-sled")]
 use icn_common::Did;
-#[cfg(feature = "persist-sled")]
-use icn_governance::{ProposalId, ProposalType, VoteOption};
-#[cfg(feature = "persist-sled")]
+use icn_governance::{ProposalType, VoteOption};
 use icn_node::app_router_with_options;
-#[cfg(feature = "persist-sled")]
+use icn_node::config::NodeConfig;
 use std::str::FromStr;
-#[cfg(feature = "persist-sled")]
 use tempfile::tempdir;
 
-#[cfg(feature = "persist-sled")]
 #[tokio::test]
-async fn governance_persists_between_restarts() {
+async fn parameter_persists_between_restarts() {
     let dir = tempdir().unwrap();
     let ledger_path = dir.path().join("mana.sled");
-    let gov_path = dir.path().join("gov.sled");
+    let param_path = dir.path().join("params.toml");
 
     let (_router, ctx) = app_router_with_options(
-        None, // api_key
-        None, // auth_token
-        None, // rate_limit
-        None, // mana ledger backend
+        None,
+        None,
+        None,
+        None,
         Some(ledger_path.clone()),
-        None, // storage backend
-        None, // storage path
-        Some(gov_path.clone()),
         None,
         None,
+        None,
+        None,
+        Some(param_path.clone()),
     )
     .await;
 
@@ -37,7 +32,7 @@ async fn governance_persists_between_restarts() {
         let pid = gov
             .submit_proposal(
                 Did::from_str("did:example:alice").unwrap(),
-                ProposalType::GenericText("hello".into()),
+                ProposalType::SystemParameterChange("open_rate_limit".into(), "5".into()),
                 "desc".into(),
                 60,
                 None,
@@ -55,12 +50,17 @@ async fn governance_persists_between_restarts() {
             VoteOption::Yes,
         )
         .unwrap();
+        gov.close_voting_period(&pid).unwrap();
+        gov.execute_proposal(&pid).unwrap();
     }
 
     drop(_router);
     drop(ctx);
 
-    let (_router2, ctx2) = app_router_with_options(
+    let cfg = NodeConfig::from_file(&param_path).unwrap();
+    assert_eq!(cfg.open_rate_limit, 5);
+
+    let (_r2, _ctx2) = app_router_with_options(
         None,
         None,
         None,
@@ -68,18 +68,11 @@ async fn governance_persists_between_restarts() {
         Some(ledger_path.clone()),
         None,
         None,
-        Some(gov_path.clone()),
         None,
         None,
+        Some(param_path.clone()),
     )
     .await;
-    let gov2 = ctx2.governance_module.lock().await;
-    let prop = gov2.get_proposal(&pid).unwrap().unwrap();
-    assert_eq!(prop.votes.len(), 1);
-}
-
-#[cfg(not(feature = "persist-sled"))]
-#[tokio::test]
-async fn governance_persists_between_restarts() {
-    // Feature not enabled; nothing to test
+    let cfg2 = NodeConfig::from_file(&param_path).unwrap();
+    assert_eq!(cfg2.open_rate_limit, 5);
 }
