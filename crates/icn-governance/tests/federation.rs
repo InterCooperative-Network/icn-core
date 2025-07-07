@@ -1,3 +1,5 @@
+#![cfg(feature = "federation")]
+
 use icn_governance::request_federation_sync;
 use icn_network::{PeerId, StubNetworkService};
 
