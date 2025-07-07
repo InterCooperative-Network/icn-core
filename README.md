@@ -113,6 +113,9 @@ rustup component add rustfmt
 4. Use `--storage-backend sqlite` or `file` with a dedicated `--storage-path` to
    persist DAG blocks and governance state across restarts.
 
+For multi-node testing instructions, see [Libp2p Integration Tests](MULTI_NODE_GUIDE.md#libp2p-integration-tests).
+
+
 ## Error Handling Philosophy
 
 This project prioritizes robust and clear error handling to improve developer experience and system reliability:
