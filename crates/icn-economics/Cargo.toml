@@ -12,7 +12,7 @@ icn-common = { path = "../icn-common" }
 icn-reputation = { path = "../icn-reputation" }
 serde = { version = "1.0", features = ["derive"] }
 tokio = { version = "1", features = ["sync"] } # For Mutex, RwLock if needed async
-thiserror = "1.0" # Added thiserror
+thiserror = "2.0" # Added thiserror
 serde_json = "1.0"
 log = "0.4"
 sled = { version = "0.34", optional = true }
