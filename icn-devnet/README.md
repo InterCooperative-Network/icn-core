@@ -164,7 +164,9 @@ docker-compose --profile monitoring up -d
 
 The default Alertmanager configuration sends emails to
 `alerts@intercooperative.network`. Modify `alertmanager.yml` to customize
-receivers or routing rules.
+receivers or routing rules. Sample alert rules live in `alert.rules.yml` and
+cover basic node availability. Extend these rules or hook Alertmanager into your
+own notification channels as needed.
 
 ### Development Mode
 
