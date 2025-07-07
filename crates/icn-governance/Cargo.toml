@@ -22,6 +22,6 @@ sled = { version = "0.34" }
 
 [features]
 default = ["persist-sled"]
-persist-sled = ["dep:sled", "dep:serde", "dep:bincode"]
+persist-sled = ["dep:sled", "dep:serde", "dep:bincode", "serde"]
 federation = ["dep:icn-network"]
 serde = ["dep:serde"]
