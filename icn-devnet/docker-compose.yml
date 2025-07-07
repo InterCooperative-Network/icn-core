@@ -15,8 +15,6 @@ services:
       - ICN_ENABLE_P2P=true
       - ICN_STORAGE_BACKEND=memory
       - ICN_HTTP_API_KEY=devnet-a-key
-      - ICN_TLS_CERT_PATH=/app/certs/cert.pem
-      - ICN_TLS_KEY_PATH=/app/certs/key.pem
       - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
     ports:
       - "5001:7845"  # HTTP API
@@ -48,8 +46,6 @@ services:
       - ICN_BOOTSTRAP_PEERS=/ip4/172.20.0.2/tcp/4001/p2p/12D3KooWMihHnheYawaboC67SA9ZTG71DPfTiC8BphXz8PcojDdz
       - ICN_STORAGE_BACKEND=memory
       - ICN_HTTP_API_KEY=devnet-b-key
-      - ICN_TLS_CERT_PATH=/app/certs/cert.pem
-      - ICN_TLS_KEY_PATH=/app/certs/key.pem
       - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
     ports:
       - "5002:7845"  # HTTP API
@@ -83,8 +79,6 @@ services:
       - ICN_BOOTSTRAP_PEERS=/ip4/172.20.0.2/tcp/4001/p2p/12D3KooWMihHnheYawaboC67SA9ZTG71DPfTiC8BphXz8PcojDdz
       - ICN_STORAGE_BACKEND=memory
       - ICN_HTTP_API_KEY=devnet-c-key
-      - ICN_TLS_CERT_PATH=/app/certs/cert.pem
-      - ICN_TLS_KEY_PATH=/app/certs/key.pem
       - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
     ports:
       - "5003:7845"  # HTTP API
