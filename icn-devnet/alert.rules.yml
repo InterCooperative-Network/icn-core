@@ -1,0 +1,11 @@
+groups:
+  - name: icn-example
+    rules:
+      - alert: FederationNodeDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "ICN node down"
+          description: "The node {{ $labels.instance }} has no heartbeat for 1 minute."

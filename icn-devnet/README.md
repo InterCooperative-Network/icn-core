@@ -77,6 +77,7 @@ curl http://localhost:5001/mesh/jobs
 - **ICN Nodes**: 3 containerized nodes with HTTP APIs and P2P networking
 - **Prometheus**: Metrics collection (optional, with `--profile monitoring`)
 - **Grafana**: Dashboard visualization (optional, with `--profile monitoring`)
+- **Alertmanager**: Alert routing (optional, with `--profile monitoring`)
 
 ## 📋 Configuration
 
@@ -105,6 +106,7 @@ Each node is configured via environment variables:
 | Node C P2P | 4003 | 4001 | libp2p networking |
 | Prometheus | 9090 | 9090 | Metrics (optional) |
 | Grafana | 3000 | 3000 | Dashboard (optional) |
+| Alertmanager | 9093 | 9093 | Alert routing (optional) |
 
 ### Example `docker-compose.yml`
 
@@ -151,13 +153,18 @@ docker-compose down --volumes --remove-orphans
 ### With Monitoring
 
 ```bash
-# Start with Prometheus and Grafana
+# Start with Prometheus, Grafana, and Alertmanager
 docker-compose --profile monitoring up -d
 
 # Access monitoring
 # Prometheus: http://localhost:9090
 # Grafana: http://localhost:3000 (admin/icnfederation)
+# Alertmanager: http://localhost:9093
 ```
+
+The default Alertmanager configuration sends emails to
+`alerts@intercooperative.network`. Modify `alertmanager.yml` to customize
+receivers or routing rules.
 
 ### Development Mode
 
