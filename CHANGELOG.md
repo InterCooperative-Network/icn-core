@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cross-node mesh job execution pipeline with signed receipts anchored to the DAG.
 - HTTP gateway enabling REST job submission and status queries.
 - Containerized 3-node federation devnet with Docker and integration tests.
+- `Ed25519Signer` replaces `StubSigner` for production runtime; tests may continue using `StubSigner`.
 
 ### Changed
 
