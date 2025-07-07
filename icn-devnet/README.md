@@ -176,6 +176,10 @@ Pre-built dashboards are available under `grafana/`.
 2. Open Grafana at [http://localhost:3000](http://localhost:3000) (admin/icnfederation).
 3. Navigate to **Dashboards → Import** and upload `grafana/icn-devnet-overview.json`.
 
+### Grafana Dashboards
+Dashboard JSON files are located in `grafana/`. After launching with monitoring, open Grafana at `http://localhost:3000`, click **Import**, and upload `grafana/icn-devnet-dashboard.json`.
+
+
 ### Development Mode
 
 ```bash
