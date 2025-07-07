@@ -101,3 +101,29 @@ icn-cli dag backup --path ./backups/sqlite
 icn-cli dag restore --path ./backups/sqlite
 icn-cli dag verify
 ```
+
+## Circuit Breaker and Retry Mechanisms
+
+The node applies a circuit breaker with automatic retries around outbound requests such as federation sync and mesh job submission. These controls help the service remain responsive when peers become temporarily unavailable.
+
+### Configuration Options
+
+The following keys may be set in the node configuration file or passed as CLI arguments:
+
+- `circuit_breaker_threshold` – number of consecutive failures before the breaker trips (default `5`)
+- `circuit_breaker_reset` – time in seconds before the breaker allows new attempts (default `60`)
+- `retry_initial_delay_ms` – starting delay between retries in milliseconds (default `500`)
+- `retry_max_delay_ms` – maximum delay for exponential backoff (default `10000`)
+- `retry_attempts` – number of retries before giving up (default `3`)
+
+Example snippet:
+
+```toml
+circuit_breaker_threshold = 10
+circuit_breaker_reset = 120
+retry_initial_delay_ms = 1000
+retry_max_delay_ms = 20000
+retry_attempts = 5
+```
+
+Each failed request increases the failure count. When the threshold is reached, the circuit opens and subsequent operations fail fast until the reset timeout expires. Successful calls reset the failure count.

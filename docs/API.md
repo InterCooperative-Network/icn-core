@@ -22,3 +22,5 @@ The ICN node exposes a REST interface. All endpoints require the configured `x-a
 | GET | `/federation/peers` | List known federation peers |
 | POST | `/federation/peers` | Add a federation peer |
 
+
+See the [Deployment Guide](deployment-guide.md#circuit-breaker-and-retry-mechanisms) for tuning circuit breakers and retry behavior.

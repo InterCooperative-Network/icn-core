@@ -159,6 +159,7 @@ More detailed information can be found in the `README.md` file within each crate
   * [icn-governance](crates/icn-governance/README.md)
   * [icn-runtime](crates/icn-runtime/README.md)
   * [icn-network](crates/icn-network/README.md)
+* [Deployment Guide](docs/deployment-guide.md#circuit-breaker-and-retry-mechanisms) – how to tune circuit breakers and retries
 
 ## Contribution Guidelines
 
