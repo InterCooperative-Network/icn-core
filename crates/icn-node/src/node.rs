@@ -376,7 +376,7 @@ pub async fn app_router_with_options(
     rate_limit: Option<u64>,
     mana_ledger_backend: Option<icn_runtime::context::LedgerBackend>,
     mana_ledger_path: Option<PathBuf>,
-    storage_backend: Option<crate::config::StorageBackendType>,
+    storage_backend: Option<StorageBackendType>,
     storage_path: Option<PathBuf>,
     _governance_db_path: Option<PathBuf>,
     reputation_db_path: Option<PathBuf>,
@@ -404,7 +404,7 @@ pub async fn app_router_with_options(
     let rep_path = reputation_db_path
         .clone()
         .unwrap_or_else(|| PathBuf::from("./reputation.sled"));
-    let ledger_backend = mana_ledger_backend.unwrap_or_else(super::config::default_ledger_backend);
+    let ledger_backend = mana_ledger_backend.unwrap_or_else(crate::config::default_ledger_backend);
     let ledger = icn_runtime::context::SimpleManaLedger::new_with_backend(
         mana_ledger_path.unwrap_or_else(|| PathBuf::from("./mana_ledger.sled")),
         ledger_backend,
@@ -638,8 +638,7 @@ pub async fn app_router_from_context(
 }
 
 // --- Main Application Logic ---
-#[tokio::main]
-async fn main() {
+pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init(); // Initialize logger
     let cmd = Cli::command();
     let matches = cmd.get_matches();
@@ -936,6 +935,8 @@ async fn main() {
             }
         }
     }
+    
+    Ok(())
 }
 
 // --- Utility Functions for HTTP Responses ---

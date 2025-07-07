@@ -22,6 +22,9 @@ WORKDIR /app
 COPY Cargo.toml Cargo.lock ./
 COPY rust-toolchain.toml ./
 
+# Install rustfmt component
+RUN rustup component add rustfmt
+
 # Copy source code
 COPY crates/ ./crates/
 COPY icn-ccl/ ./icn-ccl/

@@ -53,4 +53,4 @@ prometheus-parse = "0.2"
 
 [[bin]]
 name = "icn-node"
-path = "src/node.rs"
+path = "src/main.rs"
