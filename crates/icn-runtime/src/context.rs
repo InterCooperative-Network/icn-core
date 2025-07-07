@@ -1000,6 +1000,7 @@ impl RuntimeContext {
     ) -> Result<(), HostAbiError> {
         let mut queue = self.pending_mesh_jobs.lock().await;
         queue.push_back(job.clone());
+        icn_mesh::metrics::PENDING_JOBS_GAUGE.inc();
         let mut states = self.job_states.lock().await;
         states.insert(job.id.clone(), JobState::Pending);
         info!(
@@ -1175,6 +1176,9 @@ impl RuntimeContext {
                     // job here is ActualMeshJob
                     let mut pending_jobs_guard = self_clone.pending_mesh_jobs.lock().await;
                     let popped_job = pending_jobs_guard.pop_front();
+                    if popped_job.is_some() {
+                        icn_mesh::metrics::PENDING_JOBS_GAUGE.dec();
+                    }
                     drop(pending_jobs_guard);
                     popped_job
                 } {
@@ -1352,6 +1356,7 @@ impl RuntimeContext {
                     for job_to_requeue in jobs_to_requeue {
                         // Ensure it's added to the back for fairness
                         pending_jobs_guard.push_back(job_to_requeue);
+                        icn_mesh::metrics::PENDING_JOBS_GAUGE.inc();
                     }
                     drop(pending_jobs_guard);
                 }

@@ -1079,7 +1079,7 @@ async fn metrics_handler() -> impl IntoResponse {
     use icn_dag::metrics::{DAG_GET_CALLS, DAG_PUT_CALLS};
     use icn_economics::metrics::{CREDIT_MANA_CALLS, GET_BALANCE_CALLS, SPEND_MANA_CALLS};
     use icn_governance::metrics::{CAST_VOTE_CALLS, EXECUTE_PROPOSAL_CALLS, SUBMIT_PROPOSAL_CALLS};
-    use icn_mesh::metrics::{SCHEDULE_MESH_JOB_CALLS, SELECT_EXECUTOR_CALLS};
+    use icn_mesh::metrics::{PENDING_JOBS_GAUGE, SCHEDULE_MESH_JOB_CALLS, SELECT_EXECUTOR_CALLS};
     use icn_runtime::metrics::{
         HOST_ACCOUNT_GET_MANA_CALLS, HOST_ACCOUNT_SPEND_MANA_CALLS,
         HOST_GET_PENDING_MESH_JOBS_CALLS, HOST_SUBMIT_MESH_JOB_CALLS,
@@ -1155,6 +1155,11 @@ async fn metrics_handler() -> impl IntoResponse {
         "mesh_schedule_job_calls",
         "Number of schedule_mesh_job calls",
         SCHEDULE_MESH_JOB_CALLS.clone(),
+    );
+    registry.register(
+        "mesh_pending_jobs",
+        "Current number of pending mesh jobs",
+        PENDING_JOBS_GAUGE.clone(),
     );
 
     let mut buffer = String::new();
