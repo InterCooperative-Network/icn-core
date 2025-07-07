@@ -70,13 +70,13 @@
 <a href=#70 id=70 data-nosnippet>70</a>            .truncate(<span class="bool-val">true</span>)
 <a href=#71 id=71 data-nosnippet>71</a>            .open(<span class="kw-2">&amp;</span>tmp_path)
 <a href=#72 id=72 data-nosnippet>72</a>            .map_err(|e| {
-<a href=#73 id=73 data-nosnippet>73</a>                CommonError::IoError(<span class="macro">format!</span>(<span class="string">"Failed to open ledger file {:?}: {e}"</span>, tmp_path))
+<a href=#73 id=73 data-nosnippet>73</a>                CommonError::IoError(<span class="macro">format!</span>(<span class="string">"Failed to open ledger file {tmp_path:?}: {e}"</span>))
 <a href=#74 id=74 data-nosnippet>74</a>            })<span class="question-mark">?</span>;
 <a href=#75 id=75 data-nosnippet>75</a>        file.write_all(serialized.as_bytes()).map_err(|e| {
-<a href=#76 id=76 data-nosnippet>76</a>            CommonError::IoError(<span class="macro">format!</span>(<span class="string">"Failed to write ledger file {:?}: {e}"</span>, tmp_path))
+<a href=#76 id=76 data-nosnippet>76</a>            CommonError::IoError(<span class="macro">format!</span>(<span class="string">"Failed to write ledger file {tmp_path:?}: {e}"</span>))
 <a href=#77 id=77 data-nosnippet>77</a>        })<span class="question-mark">?</span>;
 <a href=#78 id=78 data-nosnippet>78</a>        file.sync_all().map_err(|e| {
-<a href=#79 id=79 data-nosnippet>79</a>            CommonError::IoError(<span class="macro">format!</span>(<span class="string">"Failed to sync ledger file {:?}: {e}"</span>, tmp_path))
+<a href=#79 id=79 data-nosnippet>79</a>            CommonError::IoError(<span class="macro">format!</span>(<span class="string">"Failed to sync ledger file {tmp_path:?}: {e}"</span>))
 <a href=#80 id=80 data-nosnippet>80</a>        })<span class="question-mark">?</span>;
 <a href=#81 id=81 data-nosnippet>81</a>        drop(file);
 <a href=#82 id=82 data-nosnippet>82</a>        rename(<span class="kw-2">&amp;</span>tmp_path, <span class="kw-2">&amp;</span><span class="self">self</span>.path).map_err(|e| {
@@ -252,65 +252,63 @@
 <a href=#252 id=252 data-nosnippet>252</a>    </span><span class="kw">pub fn </span>all_accounts(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Vec&lt;Did&gt; {
 <a href=#253 id=253 data-nosnippet>253</a>        <span class="kw">use </span>std::str::FromStr;
 <a href=#254 id=254 data-nosnippet>254</a>        <span class="kw">let </span><span class="kw-2">mut </span>accounts = Vec::new();
-<a href=#255 id=255 data-nosnippet>255</a>        <span class="kw">for </span>result <span class="kw">in </span><span class="self">self</span>.tree.iter() {
-<a href=#256 id=256 data-nosnippet>256</a>            <span class="kw">if let </span><span class="prelude-val">Ok</span>((key, <span class="kw">_</span>)) = result {
-<a href=#257 id=257 data-nosnippet>257</a>                <span class="kw">if let </span><span class="prelude-val">Ok</span>(did_str) = std::str::from_utf8(<span class="kw-2">&amp;</span>key) {
-<a href=#258 id=258 data-nosnippet>258</a>                    <span class="kw">if let </span><span class="prelude-val">Ok</span>(did) = Did::from_str(did_str) {
-<a href=#259 id=259 data-nosnippet>259</a>                        accounts.push(did);
-<a href=#260 id=260 data-nosnippet>260</a>                    }
-<a href=#261 id=261 data-nosnippet>261</a>                }
-<a href=#262 id=262 data-nosnippet>262</a>            }
-<a href=#263 id=263 data-nosnippet>263</a>        }
-<a href=#264 id=264 data-nosnippet>264</a>        accounts
-<a href=#265 id=265 data-nosnippet>265</a>    }
-<a href=#266 id=266 data-nosnippet>266</a>}
-<a href=#267 id=267 data-nosnippet>267</a>
-<a href=#268 id=268 data-nosnippet>268</a><span class="attr">#[cfg(feature = <span class="string">"persist-sled"</span>)]
-<a href=#269 id=269 data-nosnippet>269</a></span><span class="kw">impl </span><span class="kw">crate</span>::ManaLedger <span class="kw">for </span>SledManaLedger {
-<a href=#270 id=270 data-nosnippet>270</a>    <span class="kw">fn </span>get_balance(<span class="kw-2">&amp;</span><span class="self">self</span>, did: <span class="kw-2">&amp;</span>Did) -&gt; u64 {
-<a href=#271 id=271 data-nosnippet>271</a>        <span class="self">self</span>.read_balance(did).unwrap_or(<span class="number">0</span>)
-<a href=#272 id=272 data-nosnippet>272</a>    }
-<a href=#273 id=273 data-nosnippet>273</a>
-<a href=#274 id=274 data-nosnippet>274</a>    <span class="kw">fn </span>set_balance(<span class="kw-2">&amp;</span><span class="self">self</span>, did: <span class="kw-2">&amp;</span>Did, amount: u64) -&gt; <span class="prelude-ty">Result</span>&lt;(), CommonError&gt; {
-<a href=#275 id=275 data-nosnippet>275</a>        <span class="self">self</span>.write_balance(did, amount)
-<a href=#276 id=276 data-nosnippet>276</a>    }
-<a href=#277 id=277 data-nosnippet>277</a>
-<a href=#278 id=278 data-nosnippet>278</a>    <span class="kw">fn </span>spend(<span class="kw-2">&amp;</span><span class="self">self</span>, did: <span class="kw-2">&amp;</span>Did, amount: u64) -&gt; <span class="prelude-ty">Result</span>&lt;(), CommonError&gt; {
-<a href=#279 id=279 data-nosnippet>279</a>        <span class="kw">let </span>current = <span class="self">self
-<a href=#280 id=280 data-nosnippet>280</a>            </span>.read_balance(did)
-<a href=#281 id=281 data-nosnippet>281</a>            .map_err(|e| CommonError::DatabaseError(<span class="macro">format!</span>(<span class="string">"{e}"</span>)))<span class="question-mark">?</span>;
-<a href=#282 id=282 data-nosnippet>282</a>        <span class="kw">if </span>current &lt; amount {
-<a href=#283 id=283 data-nosnippet>283</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(CommonError::PolicyDenied(<span class="macro">format!</span>(
-<a href=#284 id=284 data-nosnippet>284</a>                <span class="string">"Insufficient mana for DID {did}"
-<a href=#285 id=285 data-nosnippet>285</a>            </span>)));
-<a href=#286 id=286 data-nosnippet>286</a>        }
-<a href=#287 id=287 data-nosnippet>287</a>        <span class="self">self</span>.write_balance(did, current - amount)
-<a href=#288 id=288 data-nosnippet>288</a>            .map_err(|e| CommonError::DatabaseError(<span class="macro">format!</span>(<span class="string">"{e}"</span>)))
-<a href=#289 id=289 data-nosnippet>289</a>    }
-<a href=#290 id=290 data-nosnippet>290</a>
-<a href=#291 id=291 data-nosnippet>291</a>    <span class="kw">fn </span>credit(<span class="kw-2">&amp;</span><span class="self">self</span>, did: <span class="kw-2">&amp;</span>Did, amount: u64) -&gt; <span class="prelude-ty">Result</span>&lt;(), CommonError&gt; {
-<a href=#292 id=292 data-nosnippet>292</a>        <span class="kw">let </span>current = <span class="self">self
-<a href=#293 id=293 data-nosnippet>293</a>            </span>.read_balance(did)
-<a href=#294 id=294 data-nosnippet>294</a>            .map_err(|e| CommonError::DatabaseError(<span class="macro">format!</span>(<span class="string">"{e}"</span>)))<span class="question-mark">?</span>;
-<a href=#295 id=295 data-nosnippet>295</a>        <span class="self">self</span>.write_balance(did, current + amount)
-<a href=#296 id=296 data-nosnippet>296</a>            .map_err(|e| CommonError::DatabaseError(<span class="macro">format!</span>(<span class="string">"{e}"</span>)))
-<a href=#297 id=297 data-nosnippet>297</a>    }
-<a href=#298 id=298 data-nosnippet>298</a>
-<a href=#299 id=299 data-nosnippet>299</a>    <span class="kw">fn </span>credit_all(<span class="kw-2">&amp;</span><span class="self">self</span>, amount: u64) -&gt; <span class="prelude-ty">Result</span>&lt;(), CommonError&gt; {
-<a href=#300 id=300 data-nosnippet>300</a>        SledManaLedger::credit_all(<span class="self">self</span>, amount)
-<a href=#301 id=301 data-nosnippet>301</a>    }
-<a href=#302 id=302 data-nosnippet>302</a>
-<a href=#303 id=303 data-nosnippet>303</a>    <span class="kw">fn </span>all_accounts(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Vec&lt;Did&gt; {
-<a href=#304 id=304 data-nosnippet>304</a>        SledManaLedger::all_accounts(<span class="self">self</span>)
-<a href=#305 id=305 data-nosnippet>305</a>    }
-<a href=#306 id=306 data-nosnippet>306</a>}
-<a href=#307 id=307 data-nosnippet>307</a>
+<a href=#255 id=255 data-nosnippet>255</a>        <span class="kw">for </span>(key, <span class="kw">_</span>) <span class="kw">in </span><span class="self">self</span>.tree.iter().flatten() {
+<a href=#256 id=256 data-nosnippet>256</a>            <span class="kw">if let </span><span class="prelude-val">Ok</span>(did_str) = std::str::from_utf8(<span class="kw-2">&amp;</span>key) {
+<a href=#257 id=257 data-nosnippet>257</a>                <span class="kw">if let </span><span class="prelude-val">Ok</span>(did) = Did::from_str(did_str) {
+<a href=#258 id=258 data-nosnippet>258</a>                    accounts.push(did);
+<a href=#259 id=259 data-nosnippet>259</a>                }
+<a href=#260 id=260 data-nosnippet>260</a>            }
+<a href=#261 id=261 data-nosnippet>261</a>        }
+<a href=#262 id=262 data-nosnippet>262</a>        accounts
+<a href=#263 id=263 data-nosnippet>263</a>    }
+<a href=#264 id=264 data-nosnippet>264</a>}
+<a href=#265 id=265 data-nosnippet>265</a>
+<a href=#266 id=266 data-nosnippet>266</a><span class="attr">#[cfg(feature = <span class="string">"persist-sled"</span>)]
+<a href=#267 id=267 data-nosnippet>267</a></span><span class="kw">impl </span><span class="kw">crate</span>::ManaLedger <span class="kw">for </span>SledManaLedger {
+<a href=#268 id=268 data-nosnippet>268</a>    <span class="kw">fn </span>get_balance(<span class="kw-2">&amp;</span><span class="self">self</span>, did: <span class="kw-2">&amp;</span>Did) -&gt; u64 {
+<a href=#269 id=269 data-nosnippet>269</a>        <span class="self">self</span>.read_balance(did).unwrap_or(<span class="number">0</span>)
+<a href=#270 id=270 data-nosnippet>270</a>    }
+<a href=#271 id=271 data-nosnippet>271</a>
+<a href=#272 id=272 data-nosnippet>272</a>    <span class="kw">fn </span>set_balance(<span class="kw-2">&amp;</span><span class="self">self</span>, did: <span class="kw-2">&amp;</span>Did, amount: u64) -&gt; <span class="prelude-ty">Result</span>&lt;(), CommonError&gt; {
+<a href=#273 id=273 data-nosnippet>273</a>        <span class="self">self</span>.write_balance(did, amount)
+<a href=#274 id=274 data-nosnippet>274</a>    }
+<a href=#275 id=275 data-nosnippet>275</a>
+<a href=#276 id=276 data-nosnippet>276</a>    <span class="kw">fn </span>spend(<span class="kw-2">&amp;</span><span class="self">self</span>, did: <span class="kw-2">&amp;</span>Did, amount: u64) -&gt; <span class="prelude-ty">Result</span>&lt;(), CommonError&gt; {
+<a href=#277 id=277 data-nosnippet>277</a>        <span class="kw">let </span>current = <span class="self">self
+<a href=#278 id=278 data-nosnippet>278</a>            </span>.read_balance(did)
+<a href=#279 id=279 data-nosnippet>279</a>            .map_err(|e| CommonError::DatabaseError(<span class="macro">format!</span>(<span class="string">"{e}"</span>)))<span class="question-mark">?</span>;
+<a href=#280 id=280 data-nosnippet>280</a>        <span class="kw">if </span>current &lt; amount {
+<a href=#281 id=281 data-nosnippet>281</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(CommonError::PolicyDenied(<span class="macro">format!</span>(
+<a href=#282 id=282 data-nosnippet>282</a>                <span class="string">"Insufficient mana for DID {did}"
+<a href=#283 id=283 data-nosnippet>283</a>            </span>)));
+<a href=#284 id=284 data-nosnippet>284</a>        }
+<a href=#285 id=285 data-nosnippet>285</a>        <span class="self">self</span>.write_balance(did, current - amount)
+<a href=#286 id=286 data-nosnippet>286</a>            .map_err(|e| CommonError::DatabaseError(<span class="macro">format!</span>(<span class="string">"{e}"</span>)))
+<a href=#287 id=287 data-nosnippet>287</a>    }
+<a href=#288 id=288 data-nosnippet>288</a>
+<a href=#289 id=289 data-nosnippet>289</a>    <span class="kw">fn </span>credit(<span class="kw-2">&amp;</span><span class="self">self</span>, did: <span class="kw-2">&amp;</span>Did, amount: u64) -&gt; <span class="prelude-ty">Result</span>&lt;(), CommonError&gt; {
+<a href=#290 id=290 data-nosnippet>290</a>        <span class="kw">let </span>current = <span class="self">self
+<a href=#291 id=291 data-nosnippet>291</a>            </span>.read_balance(did)
+<a href=#292 id=292 data-nosnippet>292</a>            .map_err(|e| CommonError::DatabaseError(<span class="macro">format!</span>(<span class="string">"{e}"</span>)))<span class="question-mark">?</span>;
+<a href=#293 id=293 data-nosnippet>293</a>        <span class="self">self</span>.write_balance(did, current + amount)
+<a href=#294 id=294 data-nosnippet>294</a>            .map_err(|e| CommonError::DatabaseError(<span class="macro">format!</span>(<span class="string">"{e}"</span>)))
+<a href=#295 id=295 data-nosnippet>295</a>    }
+<a href=#296 id=296 data-nosnippet>296</a>
+<a href=#297 id=297 data-nosnippet>297</a>    <span class="kw">fn </span>credit_all(<span class="kw-2">&amp;</span><span class="self">self</span>, amount: u64) -&gt; <span class="prelude-ty">Result</span>&lt;(), CommonError&gt; {
+<a href=#298 id=298 data-nosnippet>298</a>        SledManaLedger::credit_all(<span class="self">self</span>, amount)
+<a href=#299 id=299 data-nosnippet>299</a>    }
+<a href=#300 id=300 data-nosnippet>300</a>
+<a href=#301 id=301 data-nosnippet>301</a>    <span class="kw">fn </span>all_accounts(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Vec&lt;Did&gt; {
+<a href=#302 id=302 data-nosnippet>302</a>        SledManaLedger::all_accounts(<span class="self">self</span>)
+<a href=#303 id=303 data-nosnippet>303</a>    }
+<a href=#304 id=304 data-nosnippet>304</a>}
+<a href=#305 id=305 data-nosnippet>305</a>
+<a href=#306 id=306 data-nosnippet>306</a><span class="attr">#[cfg(feature = <span class="string">"persist-sqlite"</span>)]
+<a href=#307 id=307 data-nosnippet>307</a></span><span class="kw">pub mod </span>sqlite;
 <a href=#308 id=308 data-nosnippet>308</a><span class="attr">#[cfg(feature = <span class="string">"persist-sqlite"</span>)]
-<a href=#309 id=309 data-nosnippet>309</a></span><span class="kw">pub mod </span>sqlite;
-<a href=#310 id=310 data-nosnippet>310</a><span class="attr">#[cfg(feature = <span class="string">"persist-sqlite"</span>)]
-<a href=#311 id=311 data-nosnippet>311</a></span><span class="kw">pub use </span>sqlite::SqliteManaLedger;
-<a href=#312 id=312 data-nosnippet>312</a>
+<a href=#309 id=309 data-nosnippet>309</a></span><span class="kw">pub use </span>sqlite::SqliteManaLedger;
+<a href=#310 id=310 data-nosnippet>310</a>
+<a href=#311 id=311 data-nosnippet>311</a><span class="attr">#[cfg(feature = <span class="string">"persist-rocksdb"</span>)]
+<a href=#312 id=312 data-nosnippet>312</a></span><span class="kw">pub mod </span>rocksdb;
 <a href=#313 id=313 data-nosnippet>313</a><span class="attr">#[cfg(feature = <span class="string">"persist-rocksdb"</span>)]
-<a href=#314 id=314 data-nosnippet>314</a></span><span class="kw">pub mod </span>rocksdb;
-<a href=#315 id=315 data-nosnippet>315</a><span class="attr">#[cfg(feature = <span class="string">"persist-rocksdb"</span>)]
-<a href=#316 id=316 data-nosnippet>316</a></span><span class="kw">pub use </span>rocksdb::RocksdbManaLedger;</code></pre></div></section></main></body></html>
+<a href=#314 id=314 data-nosnippet>314</a></span><span class="kw">pub use </span>rocksdb::RocksdbManaLedger;</code></pre></div></section></main></body></html>
