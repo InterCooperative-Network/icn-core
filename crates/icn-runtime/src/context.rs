@@ -261,7 +261,7 @@ pub struct MeshJobStateChange {/* ... fields ... */}
 pub struct BidId(pub String);
 
 // Definition for JobAssignmentNotice (used in MeshNetworkService trait)
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JobAssignmentNotice {
     pub job_id: JobId,
     pub executor_did: Did,
