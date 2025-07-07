@@ -86,8 +86,13 @@ pub async fn host_submit_mesh_job(
             ))
         })?;
 
-    // 2. Call ResourcePolicyEnforcer::spend_mana(did, cost).
-    // This should use the RuntimeContext's spend_mana which is now async.
+    // 2. Adjust cost based on the submitter's reputation and spend mana.
+    let rep = ctx.reputation_store.get_reputation(&ctx.current_identity);
+    job_to_submit.cost_mana = icn_economics::price_by_reputation(
+        job_to_submit.cost_mana,
+        rep,
+    );
+
     ctx.spend_mana(&ctx.current_identity, job_to_submit.cost_mana)
         .await
         .map_err(|e| match e {
