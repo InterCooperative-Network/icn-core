@@ -28,7 +28,8 @@ COPY icn-ccl/ ./icn-ccl/
 COPY tests/ ./tests/
 
 # Build the ICN node binary
-ENV RUST_MIN_STACK=16777216
+# Increase rustc stack size to avoid segfaults during optimized builds
+ENV RUST_MIN_STACK=33554432
 RUN cargo build --release -p icn-node --features with-libp2p
 
 # Runtime stage
