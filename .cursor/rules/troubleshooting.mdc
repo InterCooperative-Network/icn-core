@@ -239,6 +239,8 @@ icn-cli dag repair --block <block-id>
 # Backup and restore
 icn-cli dag backup --path ./dag-backup
 icn-cli dag restore --path ./dag-backup
+# Detailed instructions:
+# [DAG Backup and Restore](../../docs/deployment-guide.md#dag-backup-and-restore)
 ```
 
 ### Performance Issues

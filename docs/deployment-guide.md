@@ -53,3 +53,51 @@ api_key = "node1secret"
 tls_cert_path = "./cert.pem"
 tls_key_path = "./key.pem"
 ```
+
+## DAG Backup and Restore
+
+Use `icn-cli` to export and re-import the node's DAG storage. The same commands
+work with any storage backend. After restoring, run `icn-cli dag verify` to
+confirm integrity.
+
+### RocksDB
+
+```bash
+# Node configured with RocksDB
+icn-node --storage-backend rocksdb --storage-path ./icn_data/rocksdb
+
+# Backup DAG data
+icn-cli dag backup --path ./backups/rocksdb
+
+# Restore and verify
+icn-cli dag restore --path ./backups/rocksdb
+icn-cli dag verify
+```
+
+### Sled
+
+```bash
+# Node configured with Sled
+icn-node --storage-backend sled --storage-path ./icn_data/node1.sled
+
+# Backup DAG data
+icn-cli dag backup --path ./backups/sled
+
+# Restore and verify
+icn-cli dag restore --path ./backups/sled
+icn-cli dag verify
+```
+
+### SQLite
+
+```bash
+# Node configured with SQLite
+icn-node --storage-backend sqlite --storage-path ./icn_data/dag.sqlite
+
+# Backup DAG data
+icn-cli dag backup --path ./backups/sqlite
+
+# Restore and verify
+icn-cli dag restore --path ./backups/sqlite
+icn-cli dag verify
+```

@@ -215,6 +215,8 @@ curl http://localhost:5001/mesh/jobs/$job_id
 - Check Dockerfile dependencies
 - Clear Docker build cache: `docker system prune -a`
 
+For persistent deployments see the [DAG Backup and Restore guide](../docs/deployment-guide.md#dag-backup-and-restore).
+
 ### Logs
 
 ```bash
