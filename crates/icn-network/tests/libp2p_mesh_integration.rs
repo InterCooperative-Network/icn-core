@@ -89,7 +89,6 @@ mod libp2p_mesh_integration {
     }
 
     #[tokio::test]
-    #[ignore = "Testing libp2p event loop debugging with comprehensive logging"]
     async fn test_minimal_gossipsub_connectivity() -> Result<(), anyhow::Error> {
         // Initialize logging (safe for multiple test calls)
         init_test_logger();
@@ -283,7 +282,6 @@ mod libp2p_mesh_integration {
     }
 
     #[tokio::test]
-    #[ignore = "Enhanced job announcement test with proper network readiness checks"]
     async fn test_job_announcement_and_bid_submission() -> Result<(), anyhow::Error> {
         init_test_logger();
         println!("🔧 [test-mesh-network] Setting up Node A (Job Originator).");
@@ -612,7 +610,6 @@ mod libp2p_mesh_integration {
     }
 
     #[tokio::test]
-    #[ignore = "Complete cross-node job execution pipeline test - REFACTORED"]
     async fn test_full_job_execution_pipeline_refactored() -> Result<()> {
         init_test_logger();
         info!("🚀 [PIPELINE-REFACTORED] Starting complete cross-node job execution pipeline test (using utilities)");

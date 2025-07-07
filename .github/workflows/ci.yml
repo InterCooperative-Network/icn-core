@@ -71,3 +71,20 @@ jobs:
       - name: Build release (nightly only, for early detection of issues)
         if: matrix.rust == 'nightly'
         run: cargo build --release --all-features --workspace
+
+  libp2p_tests:
+    name: Libp2p Feature Tests
+    needs: test_and_lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+      - name: Cache dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+      - name: Run libp2p tests
+        run: cargo test -p icn-network --features libp2p
