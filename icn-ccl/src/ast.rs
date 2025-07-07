@@ -38,9 +38,12 @@ pub struct ParameterNode {
 pub enum TypeAnnotationNode {
     Mana,
     Bool,
-    Did, // Example, might be a string or a specific DID type
+    Did, // Decentralized identifier type
     String,
     Integer,
+    Array(Box<TypeAnnotationNode>), // Arrays of any type, e.g., Array<Integer>
+    Proposal, // Governance proposal type
+    Vote,     // Vote type for governance
     Custom(String), // For user-defined types or imported ones
 }
 
@@ -61,6 +64,17 @@ impl TypeAnnotationNode {
     /// Returns true if this type behaves like an integer number.
     pub fn is_numeric(&self) -> bool {
         matches!(self, TypeAnnotationNode::Integer | TypeAnnotationNode::Mana)
+    }
+    
+    /// Returns true if this type can be stored/compared
+    pub fn is_comparable(&self) -> bool {
+        matches!(self, 
+            TypeAnnotationNode::Integer | 
+            TypeAnnotationNode::Mana |
+            TypeAnnotationNode::Bool |
+            TypeAnnotationNode::String |
+            TypeAnnotationNode::Did
+        )
     }
 }
 
@@ -94,6 +108,7 @@ pub enum ExpressionNode {
     IntegerLiteral(i64),
     BooleanLiteral(bool),
     StringLiteral(String),
+    ArrayLiteral(Vec<ExpressionNode>), // [1, 2, 3] or ["a", "b", "c"]
     Identifier(String),
     FunctionCall {
         name: String,
@@ -103,6 +118,10 @@ pub enum ExpressionNode {
         left: Box<ExpressionNode>,
         operator: BinaryOperator,
         right: Box<ExpressionNode>,
+    },
+    ArrayAccess {
+        array: Box<ExpressionNode>,
+        index: Box<ExpressionNode>,
     },
     // ... other expression types (unary op, member access, etc.)
 }
@@ -121,6 +140,7 @@ pub enum BinaryOperator {
     Gte,
     And,
     Or,
+    Concat, // String concatenation: "hello" + " world"
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

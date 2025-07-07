@@ -1,0 +1,18 @@
+fn add_numbers(x: Integer, y: Integer) -> Integer {
+    return x + y;
+}
+
+fn multiply(a: Integer, b: Integer) -> Integer {
+    let result = a * b;
+    return result;
+}
+
+fn calculate_score(base: Integer, bonus: Integer) -> Integer {
+    let total = add_numbers(base, bonus);
+    let doubled = multiply(total, 2);
+    return doubled;
+}
+
+fn run() -> Integer {
+    return calculate_score(10, 5);
+} 

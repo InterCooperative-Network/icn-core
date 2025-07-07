@@ -236,6 +236,14 @@ fn expr_to_string(expr: &ExpressionNode) -> String {
         ExpressionNode::IntegerLiteral(i) => i.to_string(),
         ExpressionNode::BooleanLiteral(b) => b.to_string(),
         ExpressionNode::StringLiteral(s) => format!("\"{}\"", s),
+        ExpressionNode::ArrayLiteral(elements) => {
+            let items = elements
+                .iter()
+                .map(expr_to_string)
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("[{}]", items)
+        }
         ExpressionNode::Identifier(s) => s.clone(),
         ExpressionNode::FunctionCall { name, arguments } => {
             let args = arguments
@@ -263,6 +271,7 @@ fn expr_to_string(expr: &ExpressionNode) -> String {
                 crate::ast::BinaryOperator::Gte => ">=",
                 crate::ast::BinaryOperator::And => "&&",
                 crate::ast::BinaryOperator::Or => "||",
+                crate::ast::BinaryOperator::Concat => "++",
             };
             format!(
                 "({} {} {})",
@@ -271,6 +280,9 @@ fn expr_to_string(expr: &ExpressionNode) -> String {
                 expr_to_string(right)
             )
         }
+        ExpressionNode::ArrayAccess { array, index } => {
+            format!("{}[{}]", expr_to_string(array), expr_to_string(index))
+        }
     }
 }
 
@@ -278,9 +290,12 @@ fn type_to_string(ty: &TypeAnnotationNode) -> String {
     match ty {
         TypeAnnotationNode::Mana => "Mana".to_string(),
         TypeAnnotationNode::Bool => "Bool".to_string(),
-        TypeAnnotationNode::Did => "DID".to_string(),
+        TypeAnnotationNode::Did => "Did".to_string(),
         TypeAnnotationNode::String => "String".to_string(),
         TypeAnnotationNode::Integer => "Integer".to_string(),
+        TypeAnnotationNode::Array(inner_ty) => format!("Array<{}>", type_to_string(inner_ty)),
+        TypeAnnotationNode::Proposal => "Proposal".to_string(),
+        TypeAnnotationNode::Vote => "Vote".to_string(),
         TypeAnnotationNode::Custom(s) => s.clone(),
     }
 }

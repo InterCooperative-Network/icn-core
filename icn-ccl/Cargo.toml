@@ -14,6 +14,18 @@ path = "demo_ccl.rs"
 name = "demo_with_devnet"
 path = "demo_with_devnet.rs"
 
+[[bin]]
+name = "test_parameter_fix"
+path = "test_parameter_fix.rs"
+
+[[bin]]
+name = "test_enhanced_features"
+path = "test_enhanced_features.rs"
+
+[[bin]]
+name = "test_working_features"
+path = "test_working_features.rs"
+
 [dependencies]
 pest = "2.7" # Or the version you intend to use
 pest_derive = "2.7"

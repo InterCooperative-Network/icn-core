@@ -265,6 +265,43 @@ impl SemanticAnalyzer {
             ExpressionNode::IntegerLiteral(_) => Ok(TypeAnnotationNode::Integer),
             ExpressionNode::BooleanLiteral(_) => Ok(TypeAnnotationNode::Bool),
             ExpressionNode::StringLiteral(_) => Ok(TypeAnnotationNode::String),
+            ExpressionNode::ArrayLiteral(elements) => {
+                if elements.is_empty() {
+                    return Err(CclError::SemanticError(
+                        "Empty arrays are not supported".to_string(),
+                    ));
+                }
+                
+                let first_type = self.evaluate_expression(&elements[0])?;
+                for element in elements.iter().skip(1) {
+                    let elem_type = self.evaluate_expression(element)?;
+                    if !elem_type.compatible_with(&first_type) {
+                        return Err(CclError::TypeError(format!(
+                            "Array elements must be of same type: expected {:?}, got {:?}",
+                            first_type, elem_type
+                        )));
+                    }
+                }
+                Ok(TypeAnnotationNode::Array(Box::new(first_type)))
+            },
+            ExpressionNode::ArrayAccess { array, index } => {
+                let array_type = self.evaluate_expression(array)?;
+                let index_type = self.evaluate_expression(index)?;
+                
+                if !index_type.is_numeric() {
+                    return Err(CclError::TypeError(
+                        "Array index must be numeric".to_string(),
+                    ));
+                }
+                
+                match array_type {
+                    TypeAnnotationNode::Array(element_type) => Ok(*element_type),
+                    _ => Err(CclError::TypeError(format!(
+                        "Cannot index into non-array type: {:?}",
+                        array_type
+                    ))),
+                }
+            },
             ExpressionNode::Identifier(name) => match self.lookup_symbol(name) {
                 Some(Symbol::Variable { type_ann }) => Ok(type_ann.clone()),
                 Some(Symbol::Function { .. }) => Err(CclError::TypeError(format!(
@@ -320,8 +357,18 @@ impl SemanticAnalyzer {
                 let l = self.evaluate_expression(left)?;
                 let r = self.evaluate_expression(right)?;
                 match operator {
-                    BinaryOperator::Add
-                    | BinaryOperator::Sub
+                    BinaryOperator::Add => {
+                        if l.is_numeric() && r.is_numeric() {
+                            Ok(TypeAnnotationNode::Integer)
+                        } else if l == TypeAnnotationNode::String && r == TypeAnnotationNode::String {
+                            Ok(TypeAnnotationNode::String) // String concatenation
+                        } else {
+                            Err(CclError::TypeError(
+                                "Addition requires Integer operands or String concatenation".to_string(),
+                            ))
+                        }
+                    }
+                    BinaryOperator::Sub
                     | BinaryOperator::Mul
                     | BinaryOperator::Div => {
                         if l.is_numeric() && r.is_numeric() {
@@ -329,6 +376,15 @@ impl SemanticAnalyzer {
                         } else {
                             Err(CclError::TypeError(
                                 "Arithmetic operations require Integer operands".to_string(),
+                            ))
+                        }
+                    }
+                    BinaryOperator::Concat => {
+                        if l == TypeAnnotationNode::String && r == TypeAnnotationNode::String {
+                            Ok(TypeAnnotationNode::String)
+                        } else {
+                            Err(CclError::TypeError(
+                                "String concatenation requires String operands".to_string(),
                             ))
                         }
                     }

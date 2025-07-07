@@ -16,6 +16,7 @@ use std::collections::HashMap;
 struct LocalEnv {
     locals: HashMap<String, (u32, ValType)>,
     order: Vec<ValType>,
+    next_local_index: u32,
 }
 
 impl LocalEnv {
@@ -23,6 +24,7 @@ impl LocalEnv {
         LocalEnv {
             locals: HashMap::new(),
             order: Vec::new(),
+            next_local_index: 0,
         }
     }
 
@@ -30,7 +32,7 @@ impl LocalEnv {
         if let Some((idx, _)) = self.locals.get(name) {
             *idx
         } else {
-            let idx = self.order.len() as u32;
+            let idx = self.next_local_index + self.order.len() as u32;
             self.locals.insert(name.to_string(), (idx, ty));
             self.order.push(ty);
             idx
@@ -120,20 +122,37 @@ impl WasmBackend {
         for item in policy_items {
             if let PolicyStatementNode::FunctionDef(AstNode::FunctionDefinition {
                 name,
+                parameters,
                 return_type,
                 body,
-                ..
             }) = item
             {
                 let ret_ty = map_val_type(return_type)?;
+                
+                // Build parameter types for WASM function signature
+                let mut param_types = Vec::new();
+                for param in parameters {
+                    param_types.push(map_val_type(&param.type_ann)?);
+                }
+                
                 let type_index = types.len();
-                types.ty().function(Vec::<ValType>::new(), vec![ret_ty]);
+                types.ty().function(param_types.clone(), vec![ret_ty]);
                 functions.function(type_index as u32);
                 let func_index = next_index;
                 fn_indices.insert(name.clone(), func_index);
                 next_index += 1;
 
                 let mut locals = LocalEnv::new();
+                
+                // Register function parameters (they don't go in locals.order, only in the name mapping)
+                for (i, param) in parameters.iter().enumerate() {
+                    let param_type = map_val_type(&param.type_ann)?;
+                    locals.locals.insert(param.name.clone(), (i as u32, param_type));
+                }
+                
+                // Set the starting index for additional local variables after parameters
+                locals.next_local_index = parameters.len() as u32;
+                
                 let mut instrs = Vec::<Instruction>::new();
                 self.emit_block(body, &mut instrs, &mut locals, return_type, &fn_indices)?;
                 instrs.push(Instruction::End);
@@ -290,14 +309,37 @@ impl WasmBackend {
                         instrs.push(Instruction::I32Ne);
                         Ok(ValType::I32)
                     }
+                    (ValType::I64, ValType::I64, BinaryOperator::Concat) => {
+                        // String concatenation - simplified: just add the handles
+                        // Real implementation would manage string memory
+                        instrs.push(Instruction::I64Add);
+                        Ok(ValType::I64)
+                    }
                     _ => Err(CclError::WasmGenerationError(
                         "Unsupported binary operation".to_string(),
                     )),
                 }
             }
-            _ => Err(CclError::WasmGenerationError(
-                "Unsupported expression type".to_string(),
-            )),
+            ExpressionNode::StringLiteral(s) => {
+                // For now, string literals will be represented as memory offsets
+                // This is a simplified implementation - real strings need memory management
+                let str_handle = s.len() as i64; // Simplified: use length as handle
+                instrs.push(Instruction::I64Const(str_handle));
+                Ok(ValType::I64)
+            }
+            ExpressionNode::ArrayLiteral(elements) => {
+                // For now, arrays will be represented as their length
+                // Real implementation would allocate memory and store elements
+                let array_handle = elements.len() as i64;
+                instrs.push(Instruction::I64Const(array_handle));
+                Ok(ValType::I64)
+            }
+            ExpressionNode::ArrayAccess { array, index: _ } => {
+                // Simplified: just emit the array and ignore index for now
+                // Real implementation would do bounds checking and memory access
+                self.emit_expression(array, instrs, locals, indices)?;
+                Ok(ValType::I64) // Assume accessing an integer array
+            }
         }
     }
 
@@ -376,6 +418,14 @@ fn map_val_type(ty: &TypeAnnotationNode) -> Result<ValType, CclError> {
         }
         TypeAnnotationNode::Bool => Ok(ValType::I32),
         TypeAnnotationNode::String => Ok(ValType::I64),
+        TypeAnnotationNode::Array(_) => {
+            // Arrays represented as i64 (memory offset to array metadata)
+            Ok(ValType::I64)
+        }
+        TypeAnnotationNode::Proposal | TypeAnnotationNode::Vote => {
+            // Governance types represented as i64 handles
+            Ok(ValType::I64)
+        }
         TypeAnnotationNode::Custom(name) => Err(CclError::WasmGenerationError(format!(
             "Unsupported type {}",
             name
