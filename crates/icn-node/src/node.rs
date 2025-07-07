@@ -15,6 +15,7 @@
 //! It integrates various core components to operate a functional ICN node, handling initialization,
 //! lifecycle, configuration, service hosting, and persistence.
 
+use crate::parameter_store::ParameterStore;
 use icn_api::governance_trait::{
     CastVoteRequest as ApiCastVoteRequest, SubmitProposalRequest as ApiSubmitProposalRequest,
 };
@@ -259,6 +260,7 @@ struct AppState {
     rate_limiter: Option<Arc<AsyncMutex<RateLimitData>>>,
     peers: Arc<TokioMutex<Vec<String>>>,
     config: Arc<TokioMutex<NodeConfig>>,
+    parameter_store: Option<Arc<TokioMutex<ParameterStore>>>,
 }
 
 struct RateLimitData {
@@ -382,6 +384,7 @@ pub async fn app_router_with_options(
     storage_path: Option<PathBuf>,
     _governance_db_path: Option<PathBuf>,
     reputation_db_path: Option<PathBuf>,
+    parameter_store_path: Option<PathBuf>,
 ) -> (Router, Arc<RuntimeContext>) {
     // Generate a new identity for this test/embedded instance
     let (sk, pk) = generate_ed25519_keypair();
@@ -397,6 +400,11 @@ pub async fn app_router_with_options(
             .unwrap_or_else(|| PathBuf::from("./dag_store")),
         ..NodeConfig::default()
     };
+    let parameter_store = parameter_store_path.map(|p| {
+        Arc::new(TokioMutex::new(
+            ParameterStore::load(p).expect("failed to load parameter store"),
+        ))
+    });
     let dag_store_for_rt = cfg
         .init_dag_store()
         .expect("Failed to init DAG store for test context");
@@ -460,7 +468,15 @@ pub async fn app_router_with_options(
 
     let config = Arc::new(TokioMutex::new(cfg.clone()));
 
-    let rate_limiter = rate_limit.filter(|l| *l > 0).map(|limit| {
+    let mut effective_limit = rate_limit;
+    if effective_limit.is_none() {
+        if let Some(ps) = &parameter_store {
+            let ps_guard = ps.lock().await;
+            effective_limit = Some(ps_guard.open_rate_limit());
+        }
+    }
+
+    let rate_limiter = effective_limit.filter(|l| *l > 0).map(|limit| {
         Arc::new(AsyncMutex::new(RateLimitData {
             last: Instant::now(),
             count: 0,
@@ -478,12 +494,14 @@ pub async fn app_router_with_options(
         rate_limiter: rate_limiter.clone(),
         peers: Arc::new(TokioMutex::new(Vec::new())),
         config: config.clone(),
+        parameter_store: parameter_store.clone(),
     };
 
     // Register governance callback for parameter changes
     {
         let gov_mod = rt_ctx.governance_module.clone();
         let rate_opt = rate_limiter.clone();
+        let param_store_opt = parameter_store.clone();
         let handle = tokio::runtime::Handle::current();
         let mut gov = gov_mod.lock().await;
         gov.set_callback(move |proposal| {
@@ -498,6 +516,13 @@ pub async fn app_router_with_options(
                         handle.block_on(async {
                             let mut data = limiter.lock().await;
                             data.limit = new_lim;
+                        });
+                    }
+                    if let Some(ref store) = param_store_opt {
+                        let val = value.clone();
+                        handle.block_on(async {
+                            let mut ps = store.lock().await;
+                            let _ = ps.set_parameter(param, &val);
                         });
                     }
                 }
@@ -580,11 +605,13 @@ pub async fn app_router_from_context(
         rate_limiter: rate_limiter.clone(),
         peers: Arc::new(TokioMutex::new(Vec::new())),
         config: config.clone(),
+        parameter_store: None,
     };
 
     {
         let gov_mod = ctx.governance_module.clone();
         let rate_opt = rate_limiter.clone();
+        let param_store_opt = Some(parameter_store.clone());
         let handle = tokio::runtime::Handle::current();
         let mut gov = gov_mod.lock().await;
         gov.set_callback(move |proposal| {
@@ -599,6 +626,13 @@ pub async fn app_router_from_context(
                         handle.block_on(async {
                             let mut data = limiter.lock().await;
                             data.limit = new_lim;
+                        });
+                    }
+                    if let Some(ref store) = param_store_opt {
+                        let val = value.clone();
+                        handle.block_on(async {
+                            let mut ps = store.lock().await;
+                            let _ = ps.set_parameter(param, &val);
                         });
                     }
                 }
@@ -658,7 +692,7 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::from_arg_matches(&matches).expect("CLI parsing failed");
 
     let config_path = cli.config.clone();
-    let mut config = if let Some(path) = config_path {
+    let mut config = if let Some(path) = config_path.clone() {
         match NodeConfig::from_file(&path) {
             Ok(cfg) => cfg,
             Err(e) => {
@@ -669,13 +703,24 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
     } else {
         NodeConfig::default()
     };
+    let param_store_path = config_path.unwrap_or_else(|| PathBuf::from("node_config.toml"));
+    let mut parameter_store =
+        ParameterStore::load(param_store_path.clone()).unwrap_or(ParameterStore {
+            path: param_store_path.clone(),
+            config: NodeConfig::default(),
+        });
+    // Start with persisted parameter values
+    config.open_rate_limit = parameter_store.config.open_rate_limit;
     config.apply_env_overrides();
     config.apply_cli_overrides(&cli, &matches);
+    parameter_store.config.open_rate_limit = config.open_rate_limit;
+    let _ = parameter_store.save();
     if let Err(e) = config.prepare_paths() {
         error!("Failed to prepare config directories: {}", e);
     }
 
     let shared_config = Arc::new(TokioMutex::new(config.clone()));
+    let parameter_store = Arc::new(TokioMutex::new(parameter_store));
 
     if config.auth_token.is_none() {
         if let Some(path) = &config.auth_token_path {
@@ -869,6 +914,7 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
         rate_limiter: rate_limiter.clone(),
         peers: Arc::new(TokioMutex::new(Vec::new())),
         config: shared_config.clone(),
+        parameter_store: Some(parameter_store.clone()),
     };
 
     {

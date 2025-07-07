@@ -9,7 +9,7 @@ use tokio::task;
 #[tokio::test]
 async fn submit_and_vote_proposal() {
     let (router, ctx) =
-        app_router_with_options(None, None, None, None, None, None, None, None, None).await;
+        app_router_with_options(None, None, None, None, None, None, None, None, None, None).await;
     {
         let mut gov = ctx.governance_module.lock().await;
         gov.add_member(Did::from_str("did:example:alice").unwrap());

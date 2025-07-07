@@ -581,4 +581,14 @@ impl NodeConfig {
         };
         Ok(store)
     }
+
+    /// Persist this configuration to the given path in TOML format.
+    pub fn save_to_file(&self, path: &std::path::Path) -> std::io::Result<()> {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        let toml_str = toml::to_string_pretty(self)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+        std::fs::write(path, toml_str)
+    }
 }

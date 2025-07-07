@@ -19,6 +19,7 @@ async fn ledger_persists_between_restarts() {
         None,
         None,
         None,
+        None,
     )
     .await;
     let did = Did::from_str("did:example:alice").unwrap();
@@ -32,6 +33,7 @@ async fn ledger_persists_between_restarts() {
         None,
         None,
         Some(ledger_path.clone()),
+        None,
         None,
         None,
         None,

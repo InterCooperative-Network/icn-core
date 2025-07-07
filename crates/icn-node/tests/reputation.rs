@@ -20,6 +20,7 @@ async fn reputation_persists_between_restarts() {
         None,
         Some(rep_path.clone()),
         None,
+        None,
     )
     .await;
     let did = Did::from_str("did:example:alice").unwrap();
@@ -36,6 +37,7 @@ async fn reputation_persists_between_restarts() {
         None,
         None,
         Some(rep_path.clone()),
+        None,
         None,
     )
     .await;
