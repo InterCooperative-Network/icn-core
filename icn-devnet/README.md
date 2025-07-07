@@ -166,6 +166,14 @@ The default Alertmanager configuration sends emails to
 `alerts@intercooperative.network`. Modify `alertmanager.yml` to customize
 receivers or routing rules.
 
+### Grafana Dashboards
+
+Pre-built dashboards are available under `grafana/`.
+
+1. Start the monitoring profile with `docker-compose --profile monitoring up -d`.
+2. Open Grafana at [http://localhost:3000](http://localhost:3000) (admin/icnfederation).
+3. Navigate to **Dashboards → Import** and upload `grafana/icn-devnet-overview.json`.
+
 ### Development Mode
 
 ```bash
