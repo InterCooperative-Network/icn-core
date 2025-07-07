@@ -1,4 +1,3 @@
-use crate::EconError;
 use icn_common::{CommonError, Did};
 use rocksdb::DB;
 use std::path::PathBuf;
@@ -43,6 +42,41 @@ impl RocksdbManaLedger {
             Ok(0)
         }
     }
+
+    pub fn credit_all(&self, amount: u64) -> Result<(), CommonError> {
+        use rocksdb::IteratorMode;
+        use std::str::FromStr;
+        for item in self.db.iterator(IteratorMode::Start) {
+            let (key, val) = item.map_err(|e| {
+                CommonError::DatabaseError(format!("Failed to iterate ledger: {e}"))
+            })?;
+            let did_str = std::str::from_utf8(&key)
+                .map_err(|e| CommonError::DatabaseError(format!("Invalid key: {e}")))?;
+            let did = Did::from_str(did_str)
+                .map_err(|e| CommonError::InvalidInputError(format!("{e}")))?;
+            let bal: u64 = bincode::deserialize::<u64>(&val).map_err(|e| {
+                CommonError::DatabaseError(format!("Failed to decode balance: {e}"))
+            })?;
+            let new_bal = bal.saturating_add(amount);
+            self.write_balance(&did, new_bal)?;
+        }
+        Ok(())
+    }
+
+    /// Return all account DIDs currently stored in the ledger.
+    pub fn all_accounts(&self) -> Vec<Did> {
+        use rocksdb::IteratorMode;
+        use std::str::FromStr;
+        let mut accounts = Vec::new();
+        for (key, _) in self.db.iterator(IteratorMode::Start).flatten() {
+            if let Ok(did_str) = std::str::from_utf8(&key) {
+                if let Ok(did) = Did::from_str(did_str) {
+                    accounts.push(did);
+                }
+            }
+        }
+        accounts
+    }
 }
 
 impl crate::ManaLedger for RocksdbManaLedger {
@@ -54,10 +88,10 @@ impl crate::ManaLedger for RocksdbManaLedger {
         self.write_balance(did, amount)
     }
 
-    fn spend(&self, did: &Did, amount: u64) -> Result<(), EconError> {
+    fn spend(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
         let current = self.read_balance(did)?;
         if current < amount {
-            return Err(EconError::InsufficientBalance(format!(
+            return Err(CommonError::PolicyDenied(format!(
                 "Insufficient mana for DID {did}"
             )));
         }
@@ -65,9 +99,17 @@ impl crate::ManaLedger for RocksdbManaLedger {
         Ok(())
     }
 
-    fn credit(&self, did: &Did, amount: u64) -> Result<(), EconError> {
+    fn credit(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
         let current = self.read_balance(did)?;
         self.write_balance(did, current + amount)?;
         Ok(())
+    }
+
+    fn credit_all(&self, amount: u64) -> Result<(), CommonError> {
+        RocksdbManaLedger::credit_all(self, amount)
+    }
+
+    fn all_accounts(&self) -> Vec<Did> {
+        RocksdbManaLedger::all_accounts(self)
     }
 }

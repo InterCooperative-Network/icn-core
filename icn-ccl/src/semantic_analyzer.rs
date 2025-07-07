@@ -69,6 +69,15 @@ impl SemanticAnalyzer {
         None
     }
 
+    fn lookup_symbol_mut(&mut self, name: &str) -> Option<&mut Symbol> {
+        for scope in self.symbol_table_stack.iter_mut().rev() {
+            if let Some(sym) = scope.get_mut(name) {
+                return Some(sym);
+            }
+        }
+        None
+    }
+
     fn visit_node(&mut self, node: &AstNode) -> Result<(), CclError> {
         match node {
             AstNode::Policy(statements) => {
@@ -127,6 +136,10 @@ impl SemanticAnalyzer {
                 }
                 self.visit_action(action)?;
             }
+            AstNode::Block(block) => {
+                let mut _has_ret = false;
+                self.visit_block(block, &mut _has_ret)?;
+            }
         }
         Ok(())
     }
@@ -174,7 +187,17 @@ impl SemanticAnalyzer {
         match stmt {
             StatementNode::Let { name, value } => {
                 let ty = self.evaluate_expression(value)?;
-                self.insert_symbol(name.clone(), Symbol::Variable { type_ann: ty })?;
+                if let Some(Symbol::Variable { type_ann }) = self.lookup_symbol_mut(name) {
+                    if !ty.compatible_with(type_ann) {
+                        return Err(CclError::TypeError(format!(
+                            "Assignment type mismatch: expected {:?}, got {:?}",
+                            type_ann, ty
+                        )));
+                    }
+                    *type_ann = ty;
+                } else {
+                    self.insert_symbol(name.clone(), Symbol::Variable { type_ann: ty })?;
+                }
             }
             StatementNode::ExpressionStatement(expr) => {
                 self.evaluate_expression(expr)?;
@@ -206,6 +229,15 @@ impl SemanticAnalyzer {
                     self.visit_block(b, found_return)?;
                 }
             }
+            StatementNode::WhileLoop { condition, body } => {
+                let cond_ty = self.evaluate_expression(condition)?;
+                if cond_ty != TypeAnnotationNode::Bool {
+                    return Err(CclError::TypeError(
+                        "While condition must be Bool".to_string(),
+                    ));
+                }
+                self.visit_block(body, found_return)?;
+            }
         }
         Ok(())
     }
@@ -233,6 +265,43 @@ impl SemanticAnalyzer {
             ExpressionNode::IntegerLiteral(_) => Ok(TypeAnnotationNode::Integer),
             ExpressionNode::BooleanLiteral(_) => Ok(TypeAnnotationNode::Bool),
             ExpressionNode::StringLiteral(_) => Ok(TypeAnnotationNode::String),
+            ExpressionNode::ArrayLiteral(elements) => {
+                if elements.is_empty() {
+                    return Err(CclError::SemanticError(
+                        "Empty arrays are not supported".to_string(),
+                    ));
+                }
+                
+                let first_type = self.evaluate_expression(&elements[0])?;
+                for element in elements.iter().skip(1) {
+                    let elem_type = self.evaluate_expression(element)?;
+                    if !elem_type.compatible_with(&first_type) {
+                        return Err(CclError::TypeError(format!(
+                            "Array elements must be of same type: expected {:?}, got {:?}",
+                            first_type, elem_type
+                        )));
+                    }
+                }
+                Ok(TypeAnnotationNode::Array(Box::new(first_type)))
+            },
+            ExpressionNode::ArrayAccess { array, index } => {
+                let array_type = self.evaluate_expression(array)?;
+                let index_type = self.evaluate_expression(index)?;
+                
+                if !index_type.is_numeric() {
+                    return Err(CclError::TypeError(
+                        "Array index must be numeric".to_string(),
+                    ));
+                }
+                
+                match array_type {
+                    TypeAnnotationNode::Array(element_type) => Ok(*element_type),
+                    _ => Err(CclError::TypeError(format!(
+                        "Cannot index into non-array type: {:?}",
+                        array_type
+                    ))),
+                }
+            },
             ExpressionNode::Identifier(name) => match self.lookup_symbol(name) {
                 Some(Symbol::Variable { type_ann }) => Ok(type_ann.clone()),
                 Some(Symbol::Function { .. }) => Err(CclError::TypeError(format!(
@@ -288,8 +357,18 @@ impl SemanticAnalyzer {
                 let l = self.evaluate_expression(left)?;
                 let r = self.evaluate_expression(right)?;
                 match operator {
-                    BinaryOperator::Add
-                    | BinaryOperator::Sub
+                    BinaryOperator::Add => {
+                        if l.is_numeric() && r.is_numeric() {
+                            Ok(TypeAnnotationNode::Integer)
+                        } else if l == TypeAnnotationNode::String && r == TypeAnnotationNode::String {
+                            Ok(TypeAnnotationNode::String) // String concatenation
+                        } else {
+                            Err(CclError::TypeError(
+                                "Addition requires Integer operands or String concatenation".to_string(),
+                            ))
+                        }
+                    }
+                    BinaryOperator::Sub
                     | BinaryOperator::Mul
                     | BinaryOperator::Div => {
                         if l.is_numeric() && r.is_numeric() {
@@ -297,6 +376,15 @@ impl SemanticAnalyzer {
                         } else {
                             Err(CclError::TypeError(
                                 "Arithmetic operations require Integer operands".to_string(),
+                            ))
+                        }
+                    }
+                    BinaryOperator::Concat => {
+                        if l == TypeAnnotationNode::String && r == TypeAnnotationNode::String {
+                            Ok(TypeAnnotationNode::String)
+                        } else {
+                            Err(CclError::TypeError(
+                                "String concatenation requires String operands".to_string(),
                             ))
                         }
                     }

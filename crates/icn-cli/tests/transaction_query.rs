@@ -24,6 +24,9 @@ async fn submit_transaction_and_query_data() {
         recipient_did: None,
         payload_type: "test".to_string(),
         payload: b"hello".to_vec(),
+        nonce: 0,
+        gas_limit: 100,
+        gas_price: 1,
         signature: None,
     };
     let tx_json = serde_json::to_string(&tx).unwrap();
@@ -44,7 +47,7 @@ async fn submit_transaction_and_query_data() {
     let ts = 0u64;
     let author = Did::new("key", "tester");
     let sig_opt = None;
-    let cid = compute_merkle_cid(0x71, b"data", &[], ts, &author, &sig_opt);
+    let cid = compute_merkle_cid(0x71, b"data", &[], ts, &author, &sig_opt, &None);
     let block = DagBlock {
         cid,
         data: b"data".to_vec(),
@@ -52,6 +55,7 @@ async fn submit_transaction_and_query_data() {
         timestamp: ts,
         author_did: author,
         signature: sig_opt,
+        scope: None,
     };
     let put_url = format!("http://{addr}/dag/put");
     let res = client.post(&put_url).json(&block).send().await.unwrap();

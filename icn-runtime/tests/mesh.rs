@@ -2,7 +2,7 @@
 
 use icn_common::{compute_merkle_cid, Cid, CommonError, DagBlock, Did};
 use icn_dag::StorageService;
-use icn_economics::{charge_mana, EconError}; // For mana interactions
+use icn_economics::charge_mana; // For mana interactions
 use icn_mesh::{
     select_executor, JobSpec, MeshJob as ActualMeshJob, MeshJobBid as Bid, Resources,
     SelectionPolicy,
@@ -135,21 +135,29 @@ impl icn_economics::ManaLedger for InMemoryManaLedger {
         Ok(())
     }
 
-    fn spend(&self, did: &Did, amount: u64) -> Result<(), EconError> {
+    fn spend(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
         let mut map = self.balances.lock().unwrap();
         let bal = map
             .get_mut(did)
-            .ok_or_else(|| EconError::AdapterError("missing".into()))?;
+            .ok_or_else(|| CommonError::DatabaseError("missing".into()))?;
         if *bal < amount {
-            return Err(EconError::InsufficientBalance("insufficient".into()));
+            return Err(CommonError::PolicyDenied("insufficient".into()));
         }
         *bal -= amount;
         Ok(())
     }
 
-    fn credit(&self, did: &Did, amount: u64) -> Result<(), EconError> {
+    fn credit(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
         let mut map = self.balances.lock().unwrap();
         *map.entry(did.clone()).or_insert(0) += amount;
+        Ok(())
+    }
+
+    fn credit_all(&self, amount: u64) -> Result<(), CommonError> {
+        let mut map = self.balances.lock().unwrap();
+        for val in map.values_mut() {
+            *val += amount;
+        }
         Ok(())
     }
 }
@@ -178,7 +186,7 @@ fn dummy_job_json(mana_cost: u64) -> String {
 }
 
 fn dummy_receipt_json(job_id_str: &str, executor_did_str: &str, result_cid_str: &str) -> String {
-    let job_id = JobId(job_id_str.to_string());
+    let job_id = JobId::from(Cid::new_v1_sha256(0x55, job_id_str.as_bytes()));
     let executor_did = Did::from_str(executor_did_str).unwrap();
     // For Cid, we need a proper Cid structure for JSON.
     // This is a simplified Cid for the dummy receipt.
@@ -377,8 +385,8 @@ async fn test_executor_bid_insufficient_mana() {
     );
     assert!(charge_result.is_err());
     match charge_result.err().unwrap() {
-        EconError::InsufficientBalance(_) => { /* Expected */ }
-        e => panic!("Expected InsufficientBalance for bidding, got {:?}", e),
+        CommonError::PolicyDenied(_) => { /* Expected */ }
+        e => panic!("Expected PolicyDenied for bidding, got {:?}", e),
     }
     println!("[BID_INSUFFICIENT_MANA_TEST] Test conceptual check completed.");
 }
@@ -429,7 +437,7 @@ async fn executor_recheck_failure_after_selection() {
     let exec = Did::from_str("did:icn:test:exec_recheck").unwrap();
     ledger.set_balance(&exec, 5).unwrap();
 
-    let job_id = JobId("job_recheck".into());
+    let job_id = JobId::from(Cid::new_v1_sha256(0x55, b"job_recheck"));
     let bid = Bid {
         job_id: job_id.clone(),
         executor_did: exec.clone(),
@@ -451,7 +459,7 @@ async fn executor_recheck_failure_after_selection() {
 
     ledger.set_balance(&exec, 0).unwrap();
     let result = ledger.spend(&exec, bid.price_mana);
-    assert!(matches!(result, Err(EconError::InsufficientBalance(_))));
+    assert!(matches!(result, Err(CommonError::PolicyDenied(_))));
 }
 
 #[tokio::test]
@@ -459,8 +467,7 @@ async fn anchor_receipt_returns_dag_error() {
     let mut ctx = create_test_runtime_context("did:icn:test:dag_error", 10);
     ctx.dag_store = Arc::new(TokioMutex::new(FailingDagStore::default()));
 
-    let receipt_json =
-        dummy_receipt_json("job_err", &ctx.current_identity.to_string(), "res");
+    let receipt_json = dummy_receipt_json("job_err", &ctx.current_identity.to_string(), "res");
     let result = host_anchor_receipt(&mut ctx, &receipt_json, &ReputationUpdater::new()).await;
     assert!(matches!(result, Err(HostAbiError::DagOperationFailed(_))));
 }
@@ -470,8 +477,7 @@ async fn reputation_update_panic() {
     let mut ctx = create_test_runtime_context("did:icn:test:rep_panic", 10);
     ctx.reputation_store = Arc::new(FailingReputationStore::default());
 
-    let receipt_json =
-        dummy_receipt_json("job_panic", &ctx.current_identity.to_string(), "res");
+    let receipt_json = dummy_receipt_json("job_panic", &ctx.current_identity.to_string(), "res");
     let result = std::panic::AssertUnwindSafe(host_anchor_receipt(
         &mut ctx,
         &receipt_json,
@@ -494,7 +500,7 @@ async fn test_executor_selection_bidder_loses_mana() {
     rep_store.set_score(exec_a.clone(), 5);
     rep_store.set_score(exec_b.clone(), 4);
 
-    let job_id = JobId("job_mana_drop".into());
+    let job_id = JobId::from(Cid::new_v1_sha256(0x55, b"job_mana_drop"));
     let bid_a = Bid {
         job_id: job_id.clone(),
         executor_did: exec_a.clone(),
@@ -523,7 +529,7 @@ async fn test_executor_selection_bidder_loses_mana() {
 
     ledger.set_balance(&exec_a, 0).unwrap();
     let spend = ledger.spend(&exec_a, bid_a.price_mana);
-    assert!(matches!(spend, Err(EconError::InsufficientBalance(_))));
+    assert!(matches!(spend, Err(CommonError::PolicyDenied(_))));
 }
 
 #[tokio::test]
@@ -627,11 +633,8 @@ async fn simple_executor_ccl_job() {
         signature: SignatureBytes(vec![]),
     };
 
-    let exec = SimpleExecutor::with_context(
-        ctx.current_identity.clone(),
-        sk,
-        std::sync::Arc::new(ctx),
-    );
+    let exec =
+        SimpleExecutor::with_context(ctx.current_identity.clone(), sk, std::sync::Arc::new(ctx));
     let receipt = exec.execute_job(&job).await.unwrap();
     let expected = Cid::new_v1_sha256(0x55, &8i64.to_le_bytes());
     assert_eq!(receipt.result_cid, expected);

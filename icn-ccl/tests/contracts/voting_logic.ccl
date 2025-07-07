@@ -1,0 +1,5 @@
+// Example voting logic workflow
+fn open_vote() -> Integer { return 5; }
+fn cast_vote(v: Integer) -> Integer { return v + 2; }
+fn close_vote(v: Integer) -> Integer { return v - 1; }
+fn run() -> Integer { return close_vote(cast_vote(open_vote())); }

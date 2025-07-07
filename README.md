@@ -3,6 +3,8 @@
 `icn-core` is the reference implementation of the InterCooperative Network (ICN) protocol, written in Rust.
 It provides the foundational crates for building ICN nodes, CLI tools, and other related infrastructure.
 
+For full architecture and philosophy, see [CONTEXT.md](CONTEXT.md).
+
 ## Overview
 
 The InterCooperative Network is envisioned as a decentralized network fostering collaboration and resource sharing. This repository contains the core building blocks for such a network.
@@ -11,9 +13,9 @@ The InterCooperative Network is envisioned as a decentralized network fostering 
 
 The project has achieved a significant milestone, delivering an MVP with a functional protocol stack powered by a real libp2p mesh. Key features include:
 
-*   **Modular Crate Structure:** Well-defined crates for common types (`icn-common`), API definitions (`icn-api`), DAG L1 logic (`icn-dag`), identity placeholders (`icn-identity`), networking abstractions (`icn-network`), a node runner (`icn-node`), a CLI (`icn-cli`), and the Cooperative Contract Language compiler (`icn-ccl`, located at the repository root outside `crates/`).
+*   **Modular Crate Structure:** Well-defined crates for common types (`icn-common`), API definitions (`icn-api`), DAG L1 logic (`icn-dag`), an initial identity module (`icn-identity`), networking abstractions (`icn-network`), a node runner (`icn-node`), a CLI (`icn-cli`), and the Cooperative Contract Language compiler (`icn-ccl`, located at the repository root outside `crates/`).
 *   **Real Protocol Data Models:** Core data types like DIDs, CIDs, DagBlocks, Transactions, and NodeStatus are defined in `icn-common` and utilize `serde` for serialization.
-*   **In-Memory DAG Store:** `icn-dag` ships with an in-memory DAG store implementing the `StorageService` trait. Use this trait directly rather than the deprecated `put_block`/`get_block` helpers.
+*   **In-Memory DAG Store:** `icn-dag` provides an in-memory DAG store implementing the `StorageService` trait. Interact with DAG data through a chosen `StorageService` implementation.
 *   **API Layer:** `icn-api` exposes functions for node interaction (info, status) and DAG operations (submit, retrieve blocks).
 *   **Node & CLI Prototypes:**
     *   `icn-node`: A binary that demonstrates the integration of API, DAG, and networking components. When compiled with `with-libp2p` and started with `--enable-p2p`, it joins the libp2p mesh, discovers peers, and exchanges messages via gossipsub.
@@ -37,7 +39,7 @@ rustup override set nightly
 
 ## Getting Started
 
-Refer to `docs/ONBOARDING.md` for detailed instructions on prerequisites, setup, building, testing, and running the components.
+Refer to `docs/ONBOARDING.md` for detailed instructions on prerequisites, setup, building, testing, and running the components. The latest API documentation is available at [https://intercooperative.network/docs](https://intercooperative.network/docs).
 
 ### Quick CLI Examples:
 
@@ -48,12 +50,20 @@ cargo build --features with-libp2p
 # Build using the SQLite backend
 cargo build --no-default-features --features "with-libp2p persist-sqlite"
 
+# Build using the RocksDB backend
+cargo build --no-default-features --features "with-libp2p persist-rocksdb"
+
 # Start a node with persistent storage and P2P enabled
 ./target/debug/icn-node \
   --enable-p2p \
   --p2p-listen-addr /ip4/0.0.0.0/tcp/4001 \
   --storage-backend sqlite \
   --storage-path ./icn_data/node1.sqlite
+
+# To use RocksDB instead of SQLite, compile with `--features persist-rocksdb`
+# and pass `--storage-backend rocksdb` with a `.rocks` path.
+# If RocksDB compilation fails (e.g. missing C++ toolchain) you can fall back
+# to SQLite with `--features persist-sqlite` and `--storage-backend sqlite`.
 
 # In a second terminal start another node connecting to the first
 ./target/debug/icn-node \
@@ -80,6 +90,16 @@ just lint     # run clippy
 just test     # execute all tests
 just build    # build all crates
 just devnet   # launch the containerized federation devnet
+icn-devnet/launch_federation.sh # build and test the federation containers
+# If building the devnet Docker images manually, ensure a larger stack size:
+# 64 MiB required
+export RUST_MIN_STACK=67108864
+```
+
+Before running `just format` or `cargo fmt`, make sure the `rustfmt` component is installed:
+
+```bash
+rustup component add rustfmt
 ```
 
 
@@ -111,7 +131,7 @@ This workspace is organized into several crates, each with a specific focus:
 
 *   `icn-api`: Provides the primary API endpoints for interacting with ICN nodes, likely via JSON-RPC or gRPC.
 *   `icn-cli`: A command-line interface for users and administrators to manage and interact with ICN nodes and the network.
-*   [`icn-ccl`](icn-ccl/README.md): Implements the Cooperative Contract Language compiler, producing WASM modules for the runtime. **This crate is under active development and is not yet fully implemented.**
+*   [`icn-ccl`](icn-ccl/README.md): Implements the Cooperative Contract Language compiler, producing WASM modules for the runtime. 
 *   `icn-common`: Contains common data structures, types, utilities, and error definitions shared across multiple ICN crates.
 *   `icn-dag`: Implements or defines interfaces for content-addressed Directed Acyclic Graph (DAG) storage and manipulation, crucial for ICN's data model.
 *   `icn-economics`: Handles the economic protocols of the ICN, including token models (e.g., Mana), ledger management, and transaction logic.
@@ -156,6 +176,8 @@ Development has progressed through several major phases:
 3. **Phase&nbsp;2B – Cross‑Node Mesh Jobs**: distributed job execution is verified with cryptographically signed receipts.
 4. **Phase&nbsp;3 – HTTP Gateway**: all runtime functionality is accessible over REST endpoints.
 5. **Phase&nbsp;4 – Federation Devnet**: containerized devnet demonstrating a three‑node federation.
+  Run `icn-devnet/launch_federation.sh` to build and test the federation locally.
+  The Docker build sets `RUST_MIN_STACK=67108864` (64 MiB) to avoid stack overflow during compilation.
 
 Future planning and outstanding tasks are tracked on the
 [issue tracker](https://github.com/InterCooperative/icn-core/issues).

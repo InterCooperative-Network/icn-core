@@ -2,6 +2,8 @@
 
 Welcome to the InterCooperative Network (ICN) Core project! This guide will help you get set up, understand the codebase, and start contributing.
 
+Before jumping into the setup steps below, please read [CONTEXT.md](../CONTEXT.md) at the repository root. It explains the project's goals, rules, and terminology that all contributors should understand.
+
 ## 1. Prerequisites
 
 *   **Rust:** Install the nightly Rust toolchain using [rustup.rs](https://rustup.rs/).
@@ -42,6 +44,11 @@ Welcome to the InterCooperative Network (ICN) Core project! This guide will help
     cargo install wasm-tools --locked
     ```
     ICN crates compile to WebAssembly for deterministic sandboxing. The `wasm32-unknown-unknown` target and `wasm-tools` utilities are required for building and running tests that involve the runtime or CCL compiler.
+6.  **Install Git hooks with `pre-commit`:**
+    ```bash
+    pre-commit install
+    ```
+    This sets up formatting and linting checks that run automatically before each commit.
 
 ## 3. Building and Running Components
 
@@ -197,7 +204,9 @@ This section provides examples for all major `icn-cli` commands. Ensure an `icn-
         "proposer_did": "did:example:123",
         "proposal_type_json": { "GenericText": "My awesome proposal idea" },
         "description": "This proposal aims to do great things.",
-        "duration_secs": 604800 
+        "duration_secs": 604800,
+        "quorum": null,
+        "threshold": null
       }
       ```
       CLI command:
@@ -247,8 +256,8 @@ Caddy).
 # node_config.toml
 node_name = "Federation Node"
 http_listen_addr = "0.0.0.0:7845"        # Behind a TLS proxy
-storage_backend = "rocksdb"
-storage_path = "./icn_data/node.rocks"
+storage_backend = "sled"
+storage_path = "./icn_data/node.sled"
 api_key = "mysecretkey"
 open_rate_limit = 0
 ```
@@ -290,9 +299,12 @@ Example usage:
 
 ```bash
 export ICN_HTTP_LISTEN_ADDR=0.0.0.0:9000
-export ICN_STORAGE_BACKEND=rocksdb
+export ICN_STORAGE_BACKEND=sled
 cargo run -p icn-node --config node_config.toml
 ```
+
+To use RocksDB instead of sled, build `icn-node` with the `persist-rocksdb` feature
+and set `storage_backend = "rocksdb"` in your configuration.
 
 ## 4. Understanding the Codebase
 
@@ -301,8 +313,8 @@ cargo run -p icn-node --config node_config.toml
     *   **`icn-common`**: Core data structures (CIDs, DIDs, `DagBlock`, `NodeStatus`, etc.) and the central `CommonError` enum used throughout the workspace.
     *   **`icn-api`**: Defines functions that act as the API layer for node interactions. Currently, these are direct function calls but are designed to be adaptable for RPC.
     *   **`icn-dag`**: Implements L1 DAG block storage (currently an in-memory `HashMap`).
-    *   **`icn-network`**: Contains networking abstractions (`NetworkService` trait, `NetworkMessage` enum) and a `StubNetworkService` for testing.
-    *   **`icn-identity`**: Placeholders for DID management and cryptographic functions.
+    *   **`icn-network`**: Contains networking abstractions (`NetworkService` trait, `ProtocolMessage` and `MessagePayload` types) and a `StubNetworkService` for testing.
+    *   **`icn-identity`**: Provides an initial module for DID management and cryptographic functions.
     *   **`icn-node`**: The main binary executable that runs a persistent HTTP server for the ICN node API.
     *   **`icn-cli`**: The command-line interface client that interacts with `icn-node` via HTTP.
     *   Other crates (`icn-economics`, `icn-governance`, etc.) are placeholders for future development.
@@ -355,7 +367,7 @@ This makes the system more predictable and easier to debug.
 The system now has a foundational HTTP API and CLI client.
 Immediate next steps from the original prompt include:
 
-*   **Persistence Backends:** While `icn-node` supports a file backend for `DagStorageService`, implementing a `sled` backend is a next step. `GovernanceModule` currently uses in-memory storage; this needs a pluggable persistence strategy similar to `DagStorageService`.
+*   **Persistence Backends:** Durable storage is already available. `SledDagStore` persists DAG blocks on disk and `GovernanceModule` ships with a sled backend. Build `icn-node` with the `persist-sled` feature and run with `--storage-backend sled` to enable these stores. See `crates/icn-dag/README.md` and `crates/icn-governance/README.md` for details.
 *   **Networking (Libp2p):** libp2p support is now available. Future work focuses on refining peer discovery and federation protocols.
 *   **Configuration:** Advanced configuration file support for `icn-node` (beyond CLI args).
 *   **Identity Implementation:** Further flesh out DID methods and cryptographic primitives in `icn-identity`.

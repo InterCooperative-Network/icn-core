@@ -310,4 +310,54 @@ pub async fn wait_for_federation_ready() -> Result<(), Box<dyn std::error::Error
     }
     
     Err("Federation failed to become ready".into())
-} 
+}
+
+#[tokio::test]
+async fn join_and_leave_federation_via_http() {
+    let (router, _ctx) = icn_node::app_router_with_options(None, None, None, None, None, None, None).await;
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move { axum::serve(listener, router.into_make_service()).await.unwrap(); });
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+    let base = format!("http://{}", addr);
+    let client = reqwest::Client::new();
+
+    let resp = client
+        .post(format!("{}/federation/join", base))
+        .json(&serde_json::json!({"peer":"peerA"}))
+        .send()
+        .await
+        .unwrap();
+    assert!(resp.status().is_success());
+
+    let status: serde_json::Value = client
+        .get(format!("{}/federation/status", base))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(status["peer_count"], 1);
+
+    let resp = client
+        .post(format!("{}/federation/leave", base))
+        .json(&serde_json::json!({"peer":"peerA"}))
+        .send()
+        .await
+        .unwrap();
+    assert!(resp.status().is_success());
+
+    let status: serde_json::Value = client
+        .get(format!("{}/federation/status", base))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(status["peer_count"], 0);
+
+    server.abort();
+}

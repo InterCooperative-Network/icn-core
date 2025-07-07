@@ -1,7 +1,8 @@
 use icn_common::{compute_merkle_cid, Cid, DagBlock, Did};
 use icn_identity::{did_key_from_verifying_key, generate_ed25519_keypair, SignatureBytes};
-use icn_mesh::{ActualMeshJob, JobKind, JobSpec};
+use icn_mesh::{ActualMeshJob, JobId, JobKind, JobSpec};
 use icn_runtime::context::{RuntimeContext, StubSigner};
+use icn_runtime::executor::WasmExecutorConfig;
 use icn_runtime::executor::{JobExecutor, WasmExecutor};
 use icn_runtime::host_submit_mesh_job;
 use std::str::FromStr;
@@ -24,7 +25,7 @@ async fn wasm_executor_runs_wasm() {
     let ts = 0u64;
     let author = Did::new("key", "tester");
     let sig_opt = None;
-    let cid = compute_merkle_cid(0x71, &wasm_bytes, &[], ts, &author, &sig_opt);
+    let cid = compute_merkle_cid(0x71, &wasm_bytes, &[], ts, &author, &sig_opt, &None);
     let block = DagBlock {
         cid: cid.clone(),
         data: wasm_bytes,
@@ -32,6 +33,7 @@ async fn wasm_executor_runs_wasm() {
         timestamp: ts,
         author_did: author,
         signature: sig_opt,
+        scope: None,
     };
     {
         let mut store = ctx.dag_store.lock().await;
@@ -40,7 +42,7 @@ async fn wasm_executor_runs_wasm() {
     let cid = block.cid.clone();
 
     let job = ActualMeshJob {
-        id: Cid::new_v1_sha256(0x55, b"job"),
+        id: JobId(Cid::new_v1_sha256(0x55, b"job")),
         manifest_cid: cid,
         spec: JobSpec {
             kind: JobKind::CclWasm,
@@ -53,7 +55,7 @@ async fn wasm_executor_runs_wasm() {
     };
 
     let signer = Arc::new(StubSigner::new_with_keys(sk, vk));
-    let exec = WasmExecutor::new(ctx.clone(), signer);
+    let exec = WasmExecutor::new(ctx.clone(), signer, WasmExecutorConfig::default());
     let receipt = exec.execute_job(&job).await.unwrap();
     assert_eq!(receipt.executor_did, node_did);
 }
@@ -69,7 +71,7 @@ async fn wasm_executor_runs_compiled_ccl_contract() {
     let ts = 0u64;
     let author = Did::new("key", "tester");
     let sig_opt = None;
-    let cid_calc = compute_merkle_cid(0x71, &wasm, &[], ts, &author, &sig_opt);
+    let cid_calc = compute_merkle_cid(0x71, &wasm, &[], ts, &author, &sig_opt, &None);
     let block = DagBlock {
         cid: cid_calc.clone(),
         data: wasm.clone(),
@@ -77,6 +79,7 @@ async fn wasm_executor_runs_compiled_ccl_contract() {
         timestamp: ts,
         author_did: author,
         signature: sig_opt,
+        scope: None,
     };
     {
         let mut store = ctx.dag_store.lock().await;
@@ -85,7 +88,7 @@ async fn wasm_executor_runs_compiled_ccl_contract() {
     let cid = block.cid.clone();
 
     let job = ActualMeshJob {
-        id: Cid::new_v1_sha256(0x55, b"job_ccl"),
+        id: JobId(Cid::new_v1_sha256(0x55, b"job_ccl")),
         manifest_cid: cid,
         spec: JobSpec::default(),
         creator_did: node_did.clone(),
@@ -95,7 +98,7 @@ async fn wasm_executor_runs_compiled_ccl_contract() {
     };
 
     let signer = Arc::new(StubSigner::new_with_keys(sk, vk));
-    let exec = WasmExecutor::new(ctx.clone(), signer);
+    let exec = WasmExecutor::new(ctx.clone(), signer, WasmExecutorConfig::default());
     let receipt = exec.execute_job(&job).await.unwrap();
     assert_eq!(receipt.executor_did, node_did);
     let expected_cid = Cid::new_v1_sha256(0x55, &7i64.to_le_bytes());
@@ -111,7 +114,7 @@ async fn wasm_executor_host_submit_mesh_job_json() {
     let node_did = icn_common::Did::from_str(&did_key_from_verifying_key(&vk)).unwrap();
 
     let complex_job = ActualMeshJob {
-        id: Cid::new_v1_sha256(0x55, b"embedded"),
+        id: JobId(Cid::new_v1_sha256(0x55, b"embedded")),
         manifest_cid: Cid::new_v1_sha256(0x71, b"embedded"),
         spec: JobSpec {
             kind: JobKind::GenericPlaceholder,
@@ -143,7 +146,7 @@ async fn wasm_executor_host_submit_mesh_job_json() {
     let ts = 0u64;
     let author = Did::new("key", "tester");
     let sig_opt = None;
-    let cid_calc = compute_merkle_cid(0x71, &wasm_bytes, &[], ts, &author, &sig_opt);
+    let cid_calc = compute_merkle_cid(0x71, &wasm_bytes, &[], ts, &author, &sig_opt, &None);
     let block = DagBlock {
         cid: cid_calc.clone(),
         data: wasm_bytes,
@@ -151,6 +154,7 @@ async fn wasm_executor_host_submit_mesh_job_json() {
         timestamp: ts,
         author_did: author,
         signature: sig_opt,
+        scope: None,
     };
     {
         let mut store = ctx.dag_store.lock().await;
@@ -158,7 +162,7 @@ async fn wasm_executor_host_submit_mesh_job_json() {
     }
 
     let job = ActualMeshJob {
-        id: Cid::new_v1_sha256(0x55, b"job_host"),
+        id: JobId(Cid::new_v1_sha256(0x55, b"job_host")),
         manifest_cid: block.cid.clone(),
         spec: JobSpec::default(),
         creator_did: node_did.clone(),
@@ -168,7 +172,7 @@ async fn wasm_executor_host_submit_mesh_job_json() {
     };
 
     let signer = Arc::new(StubSigner::new_with_keys(sk, vk));
-    let exec = WasmExecutor::new(ctx.clone(), signer);
+    let exec = WasmExecutor::new(ctx.clone(), signer, WasmExecutorConfig::default());
     let receipt = exec.execute_job(&job).await.unwrap();
 
     let expected_cid = Cid::new_v1_sha256(0x55, &(40i64).to_le_bytes());
@@ -209,7 +213,7 @@ async fn wasm_executor_host_anchor_receipt_json() {
     let ts = 0u64;
     let author = Did::new("key", "tester");
     let sig_opt = None;
-    let cid_calc = compute_merkle_cid(0x71, &wasm_bytes, &[], ts, &author, &sig_opt);
+    let cid_calc = compute_merkle_cid(0x71, &wasm_bytes, &[], ts, &author, &sig_opt, &None);
     let block = DagBlock {
         cid: cid_calc.clone(),
         data: wasm_bytes,
@@ -217,6 +221,7 @@ async fn wasm_executor_host_anchor_receipt_json() {
         timestamp: ts,
         author_did: author,
         signature: sig_opt,
+        scope: None,
     };
     {
         let mut store = ctx.dag_store.lock().await;
@@ -224,7 +229,7 @@ async fn wasm_executor_host_anchor_receipt_json() {
     }
 
     let job = ActualMeshJob {
-        id: Cid::new_v1_sha256(0x55, b"job_anchor"),
+        id: JobId(Cid::new_v1_sha256(0x55, b"job_anchor")),
         manifest_cid: block.cid.clone(),
         spec: JobSpec::default(),
         creator_did: node_did.clone(),
@@ -234,7 +239,7 @@ async fn wasm_executor_host_anchor_receipt_json() {
     };
 
     let signer = Arc::new(StubSigner::new_with_keys(node_sk, node_vk));
-    let exec = WasmExecutor::new(ctx.clone(), signer);
+    let exec = WasmExecutor::new(ctx.clone(), signer, WasmExecutorConfig::default());
     let _ = exec.execute_job(&job).await.unwrap();
 
     let rec_bytes = serde_json::to_vec(&receipt).unwrap();
@@ -252,7 +257,7 @@ async fn submit_compiled_ccl_runs_via_executor() {
     let ts = 0u64;
     let author = Did::new("key", "tester");
     let sig_opt = None;
-    let cid_calc = compute_merkle_cid(0x71, &wasm, &[], ts, &author, &sig_opt);
+    let cid_calc = compute_merkle_cid(0x71, &wasm, &[], ts, &author, &sig_opt, &None);
     let block = DagBlock {
         cid: cid_calc.clone(),
         data: wasm.clone(),
@@ -260,6 +265,7 @@ async fn submit_compiled_ccl_runs_via_executor() {
         timestamp: ts,
         author_did: author,
         signature: sig_opt,
+        scope: None,
     };
     {
         let mut store = ctx.dag_store.lock().await;
@@ -267,7 +273,7 @@ async fn submit_compiled_ccl_runs_via_executor() {
     }
     let cid = block.cid.clone();
     let job = ActualMeshJob {
-        id: Cid::new_v1_sha256(0x55, b"auto"),
+        id: JobId(Cid::new_v1_sha256(0x55, b"auto")),
         manifest_cid: cid.clone(),
         spec: JobSpec::default(),
         creator_did: ctx.current_identity.clone(),
@@ -295,7 +301,7 @@ async fn queued_compiled_ccl_executes() {
     let ts = 0u64;
     let author = Did::new("key", "tester");
     let sig_opt = None;
-    let cid_calc = compute_merkle_cid(0x71, &wasm, &[], ts, &author, &sig_opt);
+    let cid_calc = compute_merkle_cid(0x71, &wasm, &[], ts, &author, &sig_opt, &None);
     let block = DagBlock {
         cid: cid_calc.clone(),
         data: wasm.clone(),
@@ -303,6 +309,7 @@ async fn queued_compiled_ccl_executes() {
         timestamp: ts,
         author_did: author,
         signature: sig_opt,
+        scope: None,
     };
     {
         let mut store = ctx.dag_store.lock().await;
@@ -310,7 +317,7 @@ async fn queued_compiled_ccl_executes() {
     }
     let cid = block.cid.clone();
     let job = ActualMeshJob {
-        id: Cid::new_v1_sha256(0x55, b"queued"),
+        id: JobId(Cid::new_v1_sha256(0x55, b"queued")),
         manifest_cid: cid.clone(),
         spec: JobSpec::default(),
         creator_did: ctx.current_identity.clone(),
@@ -344,6 +351,7 @@ async fn compiled_example_contract_file_runs() {
         timestamp: 0,
         author_did: Did::new("key", "tester"),
         signature: None,
+        scope: None,
     };
     {
         let mut store = ctx.dag_store.lock().await;
@@ -351,7 +359,7 @@ async fn compiled_example_contract_file_runs() {
     }
     let cid = block.cid.clone();
     let job = ActualMeshJob {
-        id: Cid::new_v1_sha256(0x55, b"example"),
+        id: JobId(Cid::new_v1_sha256(0x55, b"example")),
         manifest_cid: cid.clone(),
         spec: JobSpec::default(),
         creator_did: ctx.current_identity.clone(),
@@ -360,8 +368,80 @@ async fn compiled_example_contract_file_runs() {
         signature: SignatureBytes(vec![]),
     };
     let signer = std::sync::Arc::new(StubSigner::new());
-    let exec = WasmExecutor::new(ctx.clone(), signer);
+    let exec = WasmExecutor::new(ctx.clone(), signer, WasmExecutorConfig::default());
     let receipt = exec.execute_job(&job).await.unwrap();
     let expected = Cid::new_v1_sha256(0x55, &11i64.to_le_bytes());
     assert_eq!(receipt.result_cid, expected);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn wasm_executor_enforces_memory_limit() {
+    let ctx = RuntimeContext::new_with_stubs_and_mana("did:key:zMem", 1).unwrap();
+    let wasm = "(module (memory 2) (func (export \"run\") (result i64) i64.const 1))";
+    let wasm_bytes = wat::parse_str(wasm).unwrap();
+    let block = DagBlock {
+        cid: Cid::new_v1_sha256(0x71, &wasm_bytes),
+        data: wasm_bytes,
+        links: vec![],
+        timestamp: 0,
+        author_did: Did::new("key", "tester"),
+        signature: None,
+        scope: None,
+    };
+    {
+        let mut store = ctx.dag_store.lock().await;
+        store.put(&block).unwrap();
+    }
+    let job = ActualMeshJob {
+        id: JobId(Cid::new_v1_sha256(0x55, b"mem")),
+        manifest_cid: block.cid.clone(),
+        spec: JobSpec::default(),
+        creator_did: ctx.current_identity.clone(),
+        cost_mana: 0,
+        max_execution_wait_ms: None,
+        signature: SignatureBytes(vec![]),
+    };
+    let signer = Arc::new(StubSigner::new());
+    let config = WasmExecutorConfig {
+        max_memory: 64 * 1024,
+        fuel: 10_000,
+    };
+    let exec = WasmExecutor::new(ctx.clone(), signer, config);
+    assert!(exec.execute_job(&job).await.is_err());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn wasm_executor_enforces_fuel_limit() {
+    let ctx = RuntimeContext::new_with_stubs_and_mana("did:key:zFuel", 1).unwrap();
+    let wasm = "(module (func (export \"run\") (result i64) (loop br 0) unreachable))";
+    let wasm_bytes = wat::parse_str(wasm).unwrap();
+    let block = DagBlock {
+        cid: Cid::new_v1_sha256(0x71, &wasm_bytes),
+        data: wasm_bytes,
+        links: vec![],
+        timestamp: 0,
+        author_did: Did::new("key", "tester"),
+        signature: None,
+        scope: None,
+    };
+    {
+        let mut store = ctx.dag_store.lock().await;
+        store.put(&block).unwrap();
+    }
+    let job = ActualMeshJob {
+        id: JobId(Cid::new_v1_sha256(0x55, b"fuel")),
+        manifest_cid: block.cid.clone(),
+        spec: JobSpec::default(),
+        creator_did: ctx.current_identity.clone(),
+        cost_mana: 0,
+        max_execution_wait_ms: None,
+        signature: SignatureBytes(vec![]),
+    };
+    let signer = Arc::new(StubSigner::new());
+    let config = WasmExecutorConfig {
+        max_memory: 256 * 1024,
+        fuel: 100,
+    };
+    let exec = WasmExecutor::new(ctx.clone(), signer, config);
+    assert!(exec.execute_job(&job).await.is_err());
 }

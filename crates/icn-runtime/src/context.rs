@@ -1,21 +1,22 @@
 //! Defines the `RuntimeContext`, `HostEnvironment`, and related types for the ICN runtime.
 
 use icn_common::{Cid, CommonError, DagBlock, Did};
-use icn_identity::ExecutionReceipt as IdentityExecutionReceipt;
-use icn_mesh::{ActualMeshJob, JobId, JobState, MeshJobBid};
+use icn_identity::{ExecutionReceipt as IdentityExecutionReceipt, SignatureBytes};
+use icn_mesh::{ActualMeshJob, JobId, JobState, MeshJobBid, Resources};
 
 use downcast_rs::{impl_downcast, DowncastSync};
 #[cfg(feature = "enable-libp2p")]
 use icn_network::libp2p_service::Libp2pNetworkService as ActualLibp2pNetworkService;
-use icn_network::{NetworkMessage, NetworkService as ActualNetworkService};
+#[allow(unused_imports)]
+use icn_network::{NetworkService, PeerId, StubNetworkService};
+use icn_protocol::GossipMessage;
+use icn_protocol::{MessagePayload, ProtocolMessage};
 
-use icn_economics::EconError;
 #[cfg(not(any(
     feature = "persist-sled",
     feature = "persist-sqlite",
     feature = "persist-rocksdb"
 )))]
-use icn_economics::FileManaLedger;
 #[cfg(all(
     not(feature = "persist-sled"),
     not(feature = "persist-sqlite"),
@@ -48,7 +49,10 @@ use libp2p::{Multiaddr, PeerId as Libp2pPeerId};
 use bincode;
 #[cfg(feature = "cli")]
 use clap::ValueEnum;
-use icn_governance::{GovernanceModule, ProposalId, ProposalType, VoteOption};
+use icn_governance::{
+    scoped_policy::{DagPayloadOp, PolicyCheckResult, ScopedPolicyEnforcer},
+    GovernanceModule, ProposalId, ProposalType, VoteOption,
+};
 #[cfg(feature = "enable-libp2p")]
 use icn_identity::KeyDidResolver;
 use icn_identity::{
@@ -95,13 +99,18 @@ pub trait Signer: Send + Sync + std::fmt::Debug {
 
 #[cfg(feature = "persist-rocksdb")]
 use icn_dag::rocksdb_store::RocksDagStore;
+#[cfg(feature = "async")]
+use icn_dag::AsyncStorageService as DagStorageService;
 #[cfg(not(any(
     feature = "persist-rocksdb",
     feature = "persist-sled",
     feature = "persist-sqlite"
 )))]
 use icn_dag::FileDagStore;
+#[cfg(not(feature = "async"))]
 use icn_dag::StorageService as DagStorageService;
+#[cfg(feature = "async")]
+use icn_dag::TokioFileDagStore;
 
 // Placeholder for icn_economics::ManaRepository
 pub trait ManaRepository: Send + Sync + std::fmt::Debug {
@@ -200,16 +209,21 @@ impl SimpleManaLedger {
     }
 
     pub fn spend(&self, account: &Did, amount: u64) -> Result<(), HostAbiError> {
-        match self.ledger.spend(account, amount) {
-            Ok(()) => Ok(()),
-            Err(EconError::InsufficientBalance(_)) => Err(HostAbiError::InsufficientMana),
-            Err(e) => Err(HostAbiError::InternalError(format!("{e:?}"))),
-        }
+        self.ledger.spend(account, amount).map_err(|e| match e {
+            CommonError::PolicyDenied(_) => HostAbiError::InsufficientMana,
+            other => HostAbiError::Common(other),
+        })
     }
 
     pub fn credit(&self, account: &Did, amount: u64) -> Result<(), HostAbiError> {
         self.ledger
             .credit(account, amount)
+            .map_err(|e| HostAbiError::InternalError(format!("{e:?}")))
+    }
+
+    pub fn credit_all(&self, amount: u64) -> Result<(), HostAbiError> {
+        self.ledger
+            .credit_all(amount)
             .map_err(|e| HostAbiError::InternalError(format!("{e:?}")))
     }
 }
@@ -223,12 +237,20 @@ impl icn_economics::ManaLedger for SimpleManaLedger {
         self.ledger.set_balance(did, amount)
     }
 
-    fn spend(&self, did: &Did, amount: u64) -> Result<(), icn_economics::EconError> {
+    fn spend(&self, did: &Did, amount: u64) -> Result<(), icn_common::CommonError> {
         self.ledger.spend(did, amount)
     }
 
-    fn credit(&self, did: &Did, amount: u64) -> Result<(), icn_economics::EconError> {
+    fn credit(&self, did: &Did, amount: u64) -> Result<(), icn_common::CommonError> {
         self.ledger.credit(did, amount)
+    }
+
+    fn credit_all(&self, amount: u64) -> Result<(), icn_common::CommonError> {
+        self.ledger.credit_all(amount)
+    }
+
+    fn all_accounts(&self) -> Vec<Did> {
+        self.ledger.all_accounts()
     }
 }
 
@@ -240,7 +262,7 @@ pub struct MeshJobStateChange {/* ... fields ... */}
 pub struct BidId(pub String);
 
 // Definition for JobAssignmentNotice (used in MeshNetworkService trait)
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JobAssignmentNotice {
     pub job_id: JobId,
     pub executor_did: Did,
@@ -284,6 +306,8 @@ pub struct CreateProposalPayload {
     pub type_specific_payload: Vec<u8>,
     pub description: String,
     pub duration_secs: u64,
+    pub quorum: Option<usize>,
+    pub threshold: Option<f32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -291,6 +315,12 @@ pub struct CastVotePayload {
     pub proposal_id_str: String,
     pub vote_option_str: String,
 }
+
+/// Mana cost deducted when creating a governance proposal.
+pub const PROPOSAL_COST_MANA: u64 = 10;
+
+/// Mana cost deducted when casting a governance vote.
+pub const VOTE_COST_MANA: u64 = 1;
 
 /// Trait for a service that can broadcast and receive mesh-specific messages.
 /// This is the local definition for icn-runtime.
@@ -322,11 +352,11 @@ impl_downcast!(sync MeshNetworkService);
 
 #[derive(Debug)]
 pub struct DefaultMeshNetworkService {
-    inner: Arc<dyn ActualNetworkService>, // Uses the imported ActualNetworkService from icn-network
+    inner: Arc<dyn NetworkService>, // Uses the NetworkService trait from icn-network
 }
 
 impl DefaultMeshNetworkService {
-    pub fn new(service: Arc<dyn ActualNetworkService>) -> Self {
+    pub fn new(service: Arc<dyn NetworkService>) -> Self {
         Self { inner: service }
     }
 
@@ -347,8 +377,17 @@ impl MeshNetworkService for DefaultMeshNetworkService {
     }
 
     async fn announce_job(&self, job: &ActualMeshJob) -> Result<(), HostAbiError> {
-        // ActualMeshJob is aliased as Job in icn-network's NetworkMessage::MeshJobAnnouncement
-        let job_message = NetworkMessage::MeshJobAnnouncement(job.clone());
+        let payload_bytes = bincode::serialize(job)
+            .map_err(|e| HostAbiError::NetworkError(format!("Failed to serialize job: {}", e)))?;
+        let job_message = ProtocolMessage::new(
+            MessagePayload::GossipMessage(GossipMessage {
+                topic: "mesh_job_announcement".to_string(),
+                payload: payload_bytes,
+                ttl: 1,
+            }),
+            Did::default(),
+            None,
+        );
         self.inner
             .broadcast_message(job_message)
             .await
@@ -356,7 +395,15 @@ impl MeshNetworkService for DefaultMeshNetworkService {
     }
 
     async fn announce_proposal(&self, proposal_bytes: Vec<u8>) -> Result<(), HostAbiError> {
-        let msg = NetworkMessage::ProposalAnnouncement(proposal_bytes);
+        let msg = ProtocolMessage::new(
+            MessagePayload::GossipMessage(GossipMessage {
+                topic: "governance_proposal".to_string(),
+                payload: proposal_bytes,
+                ttl: 1,
+            }),
+            Did::default(),
+            None,
+        );
         self.inner
             .broadcast_message(msg)
             .await
@@ -364,7 +411,15 @@ impl MeshNetworkService for DefaultMeshNetworkService {
     }
 
     async fn announce_vote(&self, vote_bytes: Vec<u8>) -> Result<(), HostAbiError> {
-        let msg = NetworkMessage::VoteAnnouncement(vote_bytes);
+        let msg = ProtocolMessage::new(
+            MessagePayload::GossipMessage(GossipMessage {
+                topic: "governance_vote".to_string(),
+                payload: vote_bytes,
+                ttl: 1,
+            }),
+            Did::default(),
+            None,
+        );
         self.inner
             .broadcast_message(msg)
             .await
@@ -394,19 +449,29 @@ impl MeshNetworkService for DefaultMeshNetworkService {
                 Ok(result) => {
                     // Timeout gives Result<Option<T>, Elapsed>
                     match result {
-                        Some(NetworkMessage::BidSubmission(bid)) => {
-                            if &bid.job_id == job_id {
-                                debug!("Received relevant bid: {:?}", bid);
-                                bids.push(bid);
+                        Some(message) => {
+                            if let MessagePayload::MeshBidSubmission(bid) = &message.payload {
+                                if &JobId::from(bid.job_id.clone()) == job_id {
+                                    debug!("Received relevant bid: {:?}", bid);
+                                    bids.push(MeshJobBid {
+                                        job_id: JobId::from(bid.job_id.clone()),
+                                        executor_did: bid.executor_did.clone(),
+                                        price_mana: bid.cost_mana,
+                                        resources: Resources {
+                                            cpu_cores: bid.offered_resources.cpu_cores,
+                                            memory_mb: bid.offered_resources.memory_mb,
+                                        },
+                                        signature: SignatureBytes(vec![]),
+                                    });
+                                } else {
+                                    debug!("Received bid for different job: {:?}", bid.job_id);
+                                }
                             } else {
-                                debug!("Received bid for different job: {:?}", bid.job_id);
+                                debug!(
+                                    "Received other network message during bid collection: {:?}",
+                                    message
+                                );
                             }
-                        }
-                        Some(other_message) => {
-                            debug!(
-                                "Received other network message during bid collection: {:?}",
-                                other_message
-                            );
                         }
                         None => {
                             // Channel closed
@@ -436,9 +501,17 @@ impl MeshNetworkService for DefaultMeshNetworkService {
             "[DefaultMeshNetworkService] Broadcasting assignment for job {:?}",
             notice.job_id
         );
-        let assignment_message = NetworkMessage::JobAssignmentNotification(
-            notice.job_id.clone(),
-            notice.executor_did.clone(),
+        let assignment_data = bincode::serialize(&notice).map_err(|e| {
+            HostAbiError::NetworkError(format!("Failed to serialize assignment: {}", e))
+        })?;
+        let assignment_message = ProtocolMessage::new(
+            MessagePayload::GossipMessage(GossipMessage {
+                topic: "job_assignment".to_string(),
+                payload: assignment_data,
+                ttl: 1,
+            }),
+            Did::default(),
+            None,
         );
         self.inner
             .broadcast_message(assignment_message)
@@ -467,21 +540,28 @@ impl MeshNetworkService for DefaultMeshNetworkService {
             {
                 Ok(result) => {
                     match result {
-                        Some(NetworkMessage::SubmitReceipt(receipt)) => {
-                            if &receipt.job_id == job_id
-                                && &receipt.executor_did == expected_executor
+                        Some(message) => {
+                            if let MessagePayload::MeshReceiptSubmission(receipt_msg) =
+                                &message.payload
                             {
-                                debug!("Received relevant receipt: {:?}", receipt);
-                                return Ok(Some(receipt));
+                                if &JobId::from(receipt_msg.receipt.job_id.clone()) == job_id
+                                    && &receipt_msg.receipt.executor_did == expected_executor
+                                {
+                                    debug!("Received relevant receipt: {:?}", receipt_msg);
+                                    return Ok(Some(receipt_msg.receipt.clone()));
+                                } else {
+                                    debug!(
+                                        "Received receipt for different job/executor: job_id={:?}, executor={:?}",
+                                        receipt_msg.receipt.job_id,
+                                        receipt_msg.receipt.executor_did
+                                    );
+                                }
                             } else {
-                                debug!("Received receipt for different job/executor: job_id={:?}, executor={:?}", receipt.job_id, receipt.executor_did);
+                                debug!(
+                                    "Received other network message during receipt collection: {:?}",
+                                    message
+                                );
                             }
-                        }
-                        Some(other_message) => {
-                            debug!(
-                                "Received other network message during receipt collection: {:?}",
-                                other_message
-                            );
                         }
                         None => {
                             // Channel closed
@@ -515,6 +595,7 @@ pub enum HostAbiError {
     DagOperationFailed(String),
     SignatureError(String),
     CryptoError(String),
+    PermissionDenied(String),
     WasmExecutionError(String),
     ResourceLimitExceeded(String),
     InvalidSystemApiCall(String),
@@ -536,6 +617,7 @@ impl std::fmt::Display for HostAbiError {
             HostAbiError::DagOperationFailed(msg) => write!(f, "DAG operation failed: {}", msg),
             HostAbiError::SignatureError(msg) => write!(f, "Signature error: {}", msg),
             HostAbiError::CryptoError(msg) => write!(f, "Crypto error: {}", msg),
+            HostAbiError::PermissionDenied(msg) => write!(f, "Permission denied: {}", msg),
             HostAbiError::WasmExecutionError(msg) => write!(f, "Wasm execution error: {}", msg),
             HostAbiError::ResourceLimitExceeded(msg) => {
                 write!(f, "Resource limit exceeded: {}", msg)
@@ -575,14 +657,18 @@ pub struct RuntimeContext {
     pub mesh_network_service: Arc<dyn MeshNetworkService>, // Uses local MeshNetworkService trait
     pub signer: Arc<dyn Signer>,
     pub did_resolver: Arc<dyn icn_identity::DidResolver>,
-    pub dag_store: Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>, // Uses icn_dag::StorageService
+    pub dag_store: Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>, // Storage backend
     pub reputation_store: Arc<dyn icn_reputation::ReputationStore>,
+    pub policy_enforcer: Option<Arc<dyn ScopedPolicyEnforcer>>,
+    /// Source of time for timestamp generation.
+    pub time_provider: Arc<dyn icn_common::TimeProvider>,
     /// Default timeout in milliseconds when waiting for job execution receipts.
     pub default_receipt_wait_ms: u64,
 }
 
 impl RuntimeContext {
     /// Create a new context using a mana ledger stored at `mana_ledger_path`.
+    #[allow(clippy::too_many_arguments)]
     pub fn new_with_ledger_path(
         current_identity: Did,
         mesh_network_service: Arc<dyn MeshNetworkService>,
@@ -591,8 +677,35 @@ impl RuntimeContext {
         dag_store: Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>,
         mana_ledger_path: PathBuf,
         reputation_store_path: PathBuf,
+        policy_enforcer: Option<Arc<dyn ScopedPolicyEnforcer>>,
     ) -> Arc<Self> {
-        Self::new_with_mana_ledger(
+        Self::new_with_ledger_path_and_time(
+            current_identity,
+            mesh_network_service,
+            signer,
+            did_resolver,
+            dag_store,
+            mana_ledger_path,
+            reputation_store_path,
+            policy_enforcer,
+            Arc::new(icn_common::SystemTimeProvider),
+        )
+    }
+
+    /// Create a new context using a mana ledger stored at `mana_ledger_path` and the provided [`TimeProvider`].
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_with_ledger_path_and_time(
+        current_identity: Did,
+        mesh_network_service: Arc<dyn MeshNetworkService>,
+        signer: Arc<dyn Signer>,
+        did_resolver: Arc<dyn icn_identity::DidResolver>,
+        dag_store: Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>,
+        mana_ledger_path: PathBuf,
+        reputation_store_path: PathBuf,
+        policy_enforcer: Option<Arc<dyn ScopedPolicyEnforcer>>,
+        time_provider: Arc<dyn icn_common::TimeProvider>,
+    ) -> Arc<Self> {
+        Self::new_with_mana_ledger_and_time(
             current_identity,
             mesh_network_service,
             signer,
@@ -600,10 +713,13 @@ impl RuntimeContext {
             dag_store,
             SimpleManaLedger::new(mana_ledger_path),
             reputation_store_path,
+            policy_enforcer,
+            time_provider,
         )
     }
 
     /// Create a new context with a preconstructed mana ledger.
+    #[allow(clippy::too_many_arguments)]
     pub fn new_with_mana_ledger(
         current_identity: Did,
         mesh_network_service: Arc<dyn MeshNetworkService>,
@@ -612,6 +728,33 @@ impl RuntimeContext {
         dag_store: Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>,
         mana_ledger: SimpleManaLedger,
         reputation_store_path: PathBuf,
+        policy_enforcer: Option<Arc<dyn ScopedPolicyEnforcer>>,
+    ) -> Arc<Self> {
+        Self::new_with_mana_ledger_and_time(
+            current_identity,
+            mesh_network_service,
+            signer,
+            did_resolver,
+            dag_store,
+            mana_ledger,
+            reputation_store_path,
+            policy_enforcer,
+            Arc::new(icn_common::SystemTimeProvider),
+        )
+    }
+
+    /// Create a new context with a preconstructed mana ledger and custom [`TimeProvider`].
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_with_mana_ledger_and_time(
+        current_identity: Did,
+        mesh_network_service: Arc<dyn MeshNetworkService>,
+        signer: Arc<dyn Signer>,
+        did_resolver: Arc<dyn icn_identity::DidResolver>,
+        dag_store: Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>,
+        mana_ledger: SimpleManaLedger,
+        _reputation_store_path: PathBuf,
+        policy_enforcer: Option<Arc<dyn ScopedPolicyEnforcer>>,
+        time_provider: Arc<dyn icn_common::TimeProvider>,
     ) -> Arc<Self> {
         let job_states = Arc::new(TokioMutex::new(HashMap::new()));
         let pending_mesh_jobs = Arc::new(TokioMutex::new(VecDeque::new()));
@@ -626,13 +769,13 @@ impl RuntimeContext {
 
         #[cfg(feature = "persist-sled")]
         let reputation_store: Arc<dyn icn_reputation::ReputationStore> =
-            match icn_reputation::SledReputationStore::new(reputation_store_path) {
+            match icn_reputation::SledReputationStore::new(_reputation_store_path) {
                 Ok(s) => Arc::new(s),
                 Err(_) => Arc::new(icn_reputation::InMemoryReputationStore::new()),
             };
         #[cfg(all(not(feature = "persist-sled"), feature = "persist-sqlite"))]
         let reputation_store: Arc<dyn icn_reputation::ReputationStore> =
-            match icn_reputation::SqliteReputationStore::new(reputation_store_path) {
+            match icn_reputation::SqliteReputationStore::new(_reputation_store_path) {
                 Ok(s) => Arc::new(s),
                 Err(_) => Arc::new(icn_reputation::InMemoryReputationStore::new()),
             };
@@ -642,7 +785,7 @@ impl RuntimeContext {
             feature = "persist-rocksdb"
         ))]
         let reputation_store: Arc<dyn icn_reputation::ReputationStore> =
-            match icn_reputation::RocksdbReputationStore::new(reputation_store_path) {
+            match icn_reputation::RocksdbReputationStore::new(_reputation_store_path) {
                 Ok(s) => Arc::new(s),
                 Err(_) => Arc::new(icn_reputation::InMemoryReputationStore::new()),
             };
@@ -665,6 +808,8 @@ impl RuntimeContext {
             did_resolver,
             dag_store,
             reputation_store,
+            policy_enforcer,
+            time_provider,
             default_receipt_wait_ms: 60_000,
         })
     }
@@ -677,7 +822,7 @@ impl RuntimeContext {
         did_resolver: Arc<dyn icn_identity::DidResolver>,
         dag_store: Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>,
     ) -> Arc<Self> {
-        Self::new_with_ledger_path(
+        Self::new_with_ledger_path_and_time(
             current_identity,
             mesh_network_service,
             signer,
@@ -685,11 +830,14 @@ impl RuntimeContext {
             dag_store,
             PathBuf::from("./mana_ledger.sled"),
             PathBuf::from("./reputation.sled"),
+            None,
+            Arc::new(icn_common::SystemTimeProvider),
         )
     }
 
     /// Create a new context using filesystem paths for the DAG store and mana ledger.
     /// The store type is selected based on enabled persistence features.
+    #[allow(clippy::too_many_arguments)]
     pub fn new_with_paths(
         current_identity: Did,
         mesh_network_service: Arc<dyn MeshNetworkService>,
@@ -698,6 +846,7 @@ impl RuntimeContext {
         dag_path: PathBuf,
         mana_ledger_path: PathBuf,
         reputation_store_path: PathBuf,
+        policy_enforcer: Option<Arc<dyn ScopedPolicyEnforcer>>,
     ) -> Result<Arc<Self>, CommonError> {
         #[cfg(feature = "persist-rocksdb")]
         let dag_store = Arc::new(TokioMutex::new(RocksDagStore::new(dag_path)?))
@@ -722,10 +871,14 @@ impl RuntimeContext {
             feature = "persist-sled",
             feature = "persist-sqlite"
         )))]
+        #[cfg(feature = "async")]
+        let dag_store = Arc::new(TokioMutex::new(icn_dag::TokioFileDagStore::new(dag_path)?))
+            as Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>;
+        #[cfg(not(feature = "async"))]
         let dag_store = Arc::new(TokioMutex::new(FileDagStore::new(dag_path)?))
             as Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>;
 
-        Ok(Self::new_with_ledger_path(
+        Ok(Self::new_with_ledger_path_and_time(
             current_identity,
             mesh_network_service,
             signer,
@@ -733,6 +886,8 @@ impl RuntimeContext {
             dag_store,
             mana_ledger_path,
             reputation_store_path,
+            policy_enforcer,
+            Arc::new(icn_common::SystemTimeProvider),
         ))
     }
 
@@ -760,17 +915,21 @@ impl RuntimeContext {
                     e
                 ))
             })?);
-        let libp2p_service_dyn: Arc<dyn ActualNetworkService> = libp2p_service_concrete;
+        let libp2p_service_dyn: Arc<dyn NetworkService> = libp2p_service_concrete;
 
         let default_mesh_service =
             Arc::new(DefaultMeshNetworkService::new(libp2p_service_dyn.clone()));
 
-        Ok(Self::new(
+        Ok(Self::new_with_ledger_path_and_time(
             current_identity,
             default_mesh_service,
             Arc::new(StubSigner::new()),
             Arc::new(icn_identity::KeyDidResolver),
             Arc::new(TokioMutex::new(StubDagStore::new())),
+            PathBuf::from("./mana_ledger.sled"),
+            PathBuf::from("./reputation.sled"),
+            None,
+            Arc::new(icn_common::SystemTimeProvider),
         ))
     }
 
@@ -788,7 +947,7 @@ impl RuntimeContext {
         #[cfg(not(feature = "persist-sled"))]
         let dag_store = Arc::new(TokioMutex::new(StubDagStore::new()));
 
-        Ok(Self::new_with_ledger_path(
+        Ok(Self::new_with_ledger_path_and_time(
             current_identity,
             Arc::new(StubMeshNetworkService::new()),
             Arc::new(StubSigner::new()),
@@ -796,6 +955,8 @@ impl RuntimeContext {
             dag_store,
             PathBuf::from("./mana_ledger.sled"),
             PathBuf::from("./reputation.sled"),
+            None,
+            Arc::new(icn_common::SystemTimeProvider),
         ))
     }
 
@@ -816,7 +977,7 @@ impl RuntimeContext {
         #[cfg(not(feature = "persist-sled"))]
         let dag_store = Arc::new(TokioMutex::new(StubDagStore::new()));
 
-        let ctx = Self::new_with_ledger_path(
+        let ctx = Self::new_with_ledger_path_and_time(
             current_identity.clone(),
             Arc::new(StubMeshNetworkService::new()),
             Arc::new(StubSigner::new()),
@@ -824,6 +985,8 @@ impl RuntimeContext {
             dag_store,
             PathBuf::from("./mana_ledger.sled"),
             PathBuf::from("./reputation.sled"),
+            None,
+            Arc::new(icn_common::SystemTimeProvider),
         );
         ctx.mana_ledger
             .set_balance(&current_identity, initial_mana)
@@ -839,14 +1002,21 @@ impl RuntimeContext {
         queue.push_back(job.clone());
         let mut states = self.job_states.lock().await;
         states.insert(job.id.clone(), JobState::Pending);
-        println!("[CONTEXT] Queued mesh job: id={:?}, state=Pending", job.id);
+        info!(
+            "[RuntimeContext] Queued mesh job: id={:?}, state=Pending",
+            job.id
+        );
 
         if job.spec.kind.is_ccl_wasm() {
             let signer = self.signer.clone();
             let ctx_clone = Arc::clone(self);
             let job_clone = job.clone();
             tokio::spawn(async move {
-                let executor = crate::executor::WasmExecutor::new(ctx_clone.clone(), signer);
+                let executor = crate::executor::WasmExecutor::new(
+                    ctx_clone.clone(),
+                    signer,
+                    crate::executor::WasmExecutorConfig::default(),
+                );
                 if let Err(e) = executor.execute_and_anchor_job(&job_clone).await {
                     log::error!("WASM job execution failed: {:?}", e);
                 }
@@ -1198,14 +1368,37 @@ impl RuntimeContext {
         }); // End tokio::spawn
     }
 
+    /// Spawn a background task that periodically credits all mana accounts.
+    ///
+    /// `amount` is the mana added per interval. `interval` specifies how often
+    /// the crediting occurs.
+    pub async fn spawn_mana_regenerator(self: Arc<Self>, amount: u64, interval: StdDuration) {
+        let ledger = self.mana_ledger.clone();
+        let reputation = self.reputation_store.clone();
+        tokio::spawn(async move {
+            let mut ticker = tokio::time::interval(interval);
+            loop {
+                ticker.tick().await;
+                if let Err(e) =
+                    icn_economics::credit_by_reputation(&ledger, reputation.as_ref(), amount)
+                {
+                    error!("[ManaRegenerator] Failed to credit accounts: {:?}", e);
+                }
+            }
+        });
+    }
+
     pub async fn get_mana(&self, account: &Did) -> Result<u64, HostAbiError> {
-        println!("[CONTEXT] get_mana called for account: {:?}", account);
+        debug!(
+            "[RuntimeContext] get_mana called for account: {:?}",
+            account
+        );
         Ok(self.mana_ledger.get_balance(account))
     }
 
     pub async fn spend_mana(&self, account: &Did, amount: u64) -> Result<(), HostAbiError> {
-        println!(
-            "[CONTEXT] spend_mana called for account: {:?} amount: {}",
+        debug!(
+            "[RuntimeContext] spend_mana called for account: {:?} amount: {}",
             account, amount
         );
         if account != &self.current_identity {
@@ -1218,8 +1411,8 @@ impl RuntimeContext {
     }
 
     pub async fn credit_mana(&self, account: &Did, amount: u64) -> Result<(), HostAbiError> {
-        println!(
-            "[CONTEXT] credit_mana called for account: {:?} amount: {}",
+        debug!(
+            "[RuntimeContext] credit_mana called for account: {:?} amount: {}",
             account, amount
         );
         icn_economics::credit_mana(self.mana_ledger.clone(), account, amount)
@@ -1255,10 +1448,7 @@ impl RuntimeContext {
             HostAbiError::InternalError(format!("Failed to serialize final receipt for DAG: {}", e))
         })?;
 
-        let timestamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
+        let timestamp = self.time_provider.unix_seconds();
         let author = self.current_identity.clone();
         let signature = None;
         let cid = icn_common::compute_merkle_cid(
@@ -1268,6 +1458,7 @@ impl RuntimeContext {
             timestamp,
             &author,
             &signature,
+            &None,
         );
         let block = DagBlock {
             cid,
@@ -1276,29 +1467,43 @@ impl RuntimeContext {
             timestamp,
             author_did: author,
             signature,
+            scope: None,
         };
+        if let Some(enforcer) = &self.policy_enforcer {
+            if let PolicyCheckResult::Denied { reason } =
+                enforcer.check_permission(DagPayloadOp::AnchorReceipt, &self.current_identity, None)
+            {
+                return Err(HostAbiError::PermissionDenied(reason));
+            }
+        }
         let mut store = self.dag_store.lock().await;
         store.put(&block).map_err(HostAbiError::Common)?;
         let cid = block.cid.clone();
-        println!("[CONTEXT] Anchored receipt for job_id {:?} with CID: {:?}. Executor: {:?}. Receipt cost {}ms.", 
-                 receipt.job_id, cid, receipt.executor_did, receipt.cpu_ms);
+        info!(
+            "[RuntimeContext] Anchored receipt for job_id {:?} with CID: {:?}. Executor: {:?}. Receipt cost {}ms.",
+            receipt.job_id,
+            cid,
+            receipt.executor_did,
+            receipt.cpu_ms
+        );
 
         {
             let mut job_states_guard = self.job_states.lock().await;
             job_states_guard.insert(
-                receipt.job_id.clone(),
+                JobId::from(receipt.job_id.clone()),
                 JobState::Completed {
                     receipt: receipt.clone(),
                 },
             );
-            println!(
-                "[CONTEXT] Job {:?} state updated to Completed.",
+            debug!(
+                "[RuntimeContext] Job {:?} state updated to Completed.",
                 receipt.job_id
             );
         }
-        println!(
-            "[CONTEXT] Placeholder: Reputation update needed for executor {:?} for job {:?}.",
-            receipt.executor_did, receipt.job_id
+        debug!(
+            "[RuntimeContext] Placeholder: Reputation update needed for executor {:?} for job {:?}.",
+            receipt.executor_did,
+            receipt.job_id
         );
         Ok(cid)
     }
@@ -1307,6 +1512,8 @@ impl RuntimeContext {
         &self,
         payload: CreateProposalPayload,
     ) -> Result<String, HostAbiError> {
+        self.spend_mana(&self.current_identity, PROPOSAL_COST_MANA)
+            .await?;
         let proposal_type = match payload.proposal_type_str.to_lowercase().as_str() {
             "systemparameterchange" | "system_parameter_change" => {
                 let tup: (String, String) = serde_json::from_slice(&payload.type_specific_payload)
@@ -1353,6 +1560,8 @@ impl RuntimeContext {
                 proposal_type,
                 payload.description,
                 payload.duration_secs,
+                payload.quorum,
+                payload.threshold,
             )
             .map_err(HostAbiError::Common)?;
         let proposal = gov
@@ -1370,6 +1579,8 @@ impl RuntimeContext {
     }
 
     pub async fn cast_governance_vote(&self, payload: CastVotePayload) -> Result<(), HostAbiError> {
+        self.spend_mana(&self.current_identity, VOTE_COST_MANA)
+            .await?;
         let proposal_id = ProposalId::from_str(&payload.proposal_id_str)
             .map_err(|e| HostAbiError::InvalidParameters(format!("Invalid proposal id: {}", e)))?;
         let vote_option = match payload.vote_option_str.to_lowercase().as_str() {
@@ -1383,10 +1594,7 @@ impl RuntimeContext {
                 )))
             }
         };
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
+        let now = self.time_provider.unix_seconds();
         let mut gov = self.governance_module.lock().await;
         gov.cast_vote(self.current_identity.clone(), &proposal_id, vote_option)
             .map_err(HostAbiError::Common)?;
@@ -1440,21 +1648,39 @@ impl RuntimeContext {
             .map_err(|e| HostAbiError::InvalidParameters(format!("Invalid proposal id: {e}")))?;
 
         let mut gov = self.governance_module.lock().await;
-        gov.execute_proposal(&proposal_id)
-            .map_err(HostAbiError::Common)?;
-        let proposal = gov
+        let result = gov.execute_proposal(&proposal_id);
+        let proposal_opt = gov
             .get_proposal(&proposal_id)
-            .map_err(HostAbiError::Common)?
-            .expect("Proposal should exist after execution");
+            .map_err(HostAbiError::Common)?;
         drop(gov);
 
-        let encoded = bincode::serialize(&proposal).map_err(|e| {
-            HostAbiError::InternalError(format!("Failed to serialize proposal: {e}"))
-        })?;
-        if let Err(e) = self.mesh_network_service.announce_proposal(encoded).await {
-            warn!("Failed to broadcast proposal {:?}: {}", proposal_id, e);
+        if let Some(proposal) = proposal_opt {
+            match result {
+                Ok(()) => {
+                    // reward proposer for successful execution
+                    self.credit_mana(&proposal.proposer, 1).await?;
+                    self.reputation_store
+                        .record_execution(&proposal.proposer, true, 0);
+
+                    let encoded = bincode::serialize(&proposal).map_err(|e| {
+                        HostAbiError::InternalError(format!("Failed to serialize proposal: {e}"))
+                    })?;
+                    if let Err(e) = self.mesh_network_service.announce_proposal(encoded).await {
+                        warn!("Failed to broadcast proposal {:?}: {}", proposal_id, e);
+                    }
+                    Ok(())
+                }
+                Err(e) => {
+                    // penalize proposer on failure without crediting mana
+                    self.reputation_store
+                        .record_execution(&proposal.proposer, false, 0);
+                    Err(HostAbiError::Common(e))
+                }
+            }
+        } else {
+            // Proposal not found
+            result.map_err(HostAbiError::Common)
         }
-        Ok(())
     }
 
     /// Inserts a proposal received from the network into the local GovernanceModule.
@@ -1534,7 +1760,7 @@ impl RuntimeContext {
 
         // Wrap in DefaultMeshNetworkService
         let mesh_service = Arc::new(DefaultMeshNetworkService::new(
-            libp2p_service.clone() as Arc<dyn ActualNetworkService>
+            libp2p_service.clone() as Arc<dyn NetworkService>
         ));
 
         // Create stub DAG store for now (can be enhanced later)
@@ -1549,6 +1775,7 @@ impl RuntimeContext {
             dag_store,
             mana_ledger_path,
             reputation_store_path,
+            None,
         );
 
         info!("RuntimeContext with real libp2p networking created successfully");
@@ -1626,6 +1853,8 @@ impl RuntimeContext {
             did_resolver,
             dag_store,
             reputation_store,
+            policy_enforcer: None,
+            time_provider: Arc::new(icn_common::SystemTimeProvider),
             default_receipt_wait_ms: 60_000,
         })
     }
@@ -1702,9 +1931,20 @@ impl HostEnvironment for ConcreteHostEnvironment {
             ctx_clone
                 .spend_mana(&ctx_clone.current_identity, job.cost_mana)
                 .await?;
-            let job_id_val = NEXT_JOB_ID.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-            let cid = Cid::new_v1_sha256(0x55, format!("job_cid_{job_id_val}").as_bytes());
-            job.id = cid.clone();
+            use sha2::{Digest, Sha256};
+            let mut h = Sha256::new();
+            h.update(job.manifest_cid.to_string().as_bytes());
+            let spec_bytes = serde_json::to_vec(&job.spec)
+                .map_err(|e| HostAbiError::InternalError(e.to_string()))?;
+            h.update(&spec_bytes);
+            h.update(&job.cost_mana.to_le_bytes());
+            if let Some(ms) = job.max_execution_wait_ms {
+                h.update(&ms.to_le_bytes());
+            }
+            h.update(ctx_clone.current_identity.to_string().as_bytes());
+            let digest = h.finalize();
+            let cid = Cid::new_v1_sha256(0x55, &digest);
+            job.id = icn_mesh::JobId::from(cid.clone());
             job.creator_did = ctx_clone.current_identity.clone();
             ctx_clone.internal_queue_mesh_job(job).await?;
             Ok::<Cid, HostAbiError>(cid)
@@ -1892,6 +2132,28 @@ impl DagStorageService<DagBlock> for StubDagStore {
     }
 }
 
+#[cfg(feature = "async")]
+#[async_trait::async_trait]
+impl icn_dag::AsyncStorageService<DagBlock> for StubDagStore {
+    async fn put(&mut self, block: &DagBlock) -> Result<(), CommonError> {
+        self.store.insert(block.cid.clone(), block.clone());
+        Ok(())
+    }
+
+    async fn get(&self, cid: &Cid) -> Result<Option<DagBlock>, CommonError> {
+        Ok(self.store.get(cid).cloned())
+    }
+
+    async fn delete(&mut self, cid: &Cid) -> Result<(), CommonError> {
+        self.store.remove(cid);
+        Ok(())
+    }
+
+    async fn contains(&self, cid: &Cid) -> Result<bool, CommonError> {
+        Ok(self.store.contains_key(cid))
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct StubMeshNetworkService {
     staged_bids: Arc<TokioMutex<HashMap<JobId, VecDeque<MeshJobBid>>>>,
@@ -1928,17 +2190,17 @@ impl MeshNetworkService for StubMeshNetworkService {
     }
 
     async fn announce_job(&self, job: &ActualMeshJob) -> Result<(), HostAbiError> {
-        println!("[StubMeshNetworkService] Announced job: {:?}", job.id);
+        debug!("[StubMeshNetworkService] Announced job: {:?}", job.id);
         Ok(())
     }
 
     async fn announce_proposal(&self, _proposal_bytes: Vec<u8>) -> Result<(), HostAbiError> {
-        println!("[StubMeshNetworkService] Announced proposal (stub)");
+        debug!("[StubMeshNetworkService] Announced proposal (stub)");
         Ok(())
     }
 
     async fn announce_vote(&self, _vote_bytes: Vec<u8>) -> Result<(), HostAbiError> {
-        println!("[StubMeshNetworkService] Announced vote (stub)");
+        debug!("[StubMeshNetworkService] Announced vote (stub)");
         Ok(())
     }
 
@@ -1947,21 +2209,21 @@ impl MeshNetworkService for StubMeshNetworkService {
         job_id: &JobId,
         _duration: StdDuration,
     ) -> Result<Vec<MeshJobBid>, HostAbiError> {
-        println!(
+        debug!(
             "[StubMeshNetworkService] Collecting bids for job {:?}.",
             job_id
         );
         let mut bids_map = self.staged_bids.lock().await;
         if let Some(job_bids_queue) = bids_map.get_mut(job_id) {
             let bids: Vec<MeshJobBid> = job_bids_queue.drain(..).collect();
-            println!(
+            debug!(
                 "[StubMeshNetworkService] Found {} staged bids for job {:?}",
                 bids.len(),
                 job_id
             );
             Ok(bids)
         } else {
-            println!(
+            debug!(
                 "[StubMeshNetworkService] No staged bids found for job {:?}. Returning empty vec.",
                 job_id
             );
@@ -1973,7 +2235,7 @@ impl MeshNetworkService for StubMeshNetworkService {
         &self,
         notice: &JobAssignmentNotice,
     ) -> Result<(), HostAbiError> {
-        println!(
+        debug!(
             "[StubMeshNetworkService] Broadcast assignment for job {:?} to executor {:?}",
             notice.job_id, notice.executor_did
         );
@@ -1988,7 +2250,7 @@ impl MeshNetworkService for StubMeshNetworkService {
     ) -> Result<Option<IdentityExecutionReceipt>, HostAbiError> {
         let mut receipts_queue = self.staged_receipts.lock().await;
         if let Some(receipt_msg) = receipts_queue.pop_front() {
-            println!(
+            debug!(
                 "[StubMeshNetworkService] try_receive_receipt: Popped staged receipt for job {:?}",
                 receipt_msg.receipt.job_id
             );
@@ -2034,7 +2296,7 @@ mod tests {
             RuntimeContext::new_with_stubs_and_mana("did:icn:test:env_submit", 100).unwrap();
 
         let job = ActualMeshJob {
-            id: Cid::new_v1_sha256(0x55, b"job"),
+            id: icn_mesh::JobId::from(Cid::new_v1_sha256(0x55, b"job")),
             manifest_cid: Cid::new_v1_sha256(0x55, b"manifest"),
             spec: icn_mesh::JobSpec::default(),
             creator_did: ctx_arc.current_identity.clone(),
@@ -2139,6 +2401,7 @@ mod tests {
             Arc::new(TokioMutex::new(StubDagStore::new())),
             PathBuf::from("./mana_ledger.sled"),
             PathBuf::from("./reputation.sled"),
+            None,
         );
 
         let stub_net = ctx
@@ -2148,7 +2411,7 @@ mod tests {
             .expect("stub network");
 
         let job = ActualMeshJob {
-            id: Cid::new_v1_sha256(0x55, b"job_update"),
+            id: icn_mesh::JobId::from(Cid::new_v1_sha256(0x55, b"job_update")),
             manifest_cid: Cid::new_v1_sha256(0x55, b"man"),
             spec: icn_mesh::JobSpec::default(),
             creator_did: Did::from_str("did:icn:test:creator").unwrap(),
@@ -2158,7 +2421,7 @@ mod tests {
         };
 
         let receipt = IdentityExecutionReceipt {
-            job_id: job.id.clone(),
+            job_id: job.id.clone().into(),
             executor_did: ctx.current_identity.clone(),
             result_cid: Cid::new_v1_sha256(0x55, b"res"),
             cpu_ms: 1,

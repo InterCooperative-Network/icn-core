@@ -9,10 +9,11 @@ use crate::optimizer::Optimizer;
 use crate::parser::parse_ccl_source;
 use crate::semantic_analyzer::SemanticAnalyzer;
 use crate::wasm_backend::WasmBackend;
+use icn_common::{compute_merkle_cid, Did};
+use log::info;
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::PathBuf;
-use icn_common::{compute_merkle_cid, Did};
 
 // This function would be called by `icn-cli ccl compile ...`
 pub fn compile_ccl_file(
@@ -20,7 +21,7 @@ pub fn compile_ccl_file(
     output_wasm_path: &PathBuf,
     output_meta_path: &PathBuf,
 ) -> Result<ContractMetadata, CclError> {
-    println!(
+    info!(
         "[CCL CLI Lib] Compiling {} to {} (meta: {})",
         source_path.display(),
         output_wasm_path.display(),
@@ -50,7 +51,7 @@ pub fn compile_ccl_file(
     let ts = 0u64;
     let author = Did::new("key", "tester");
     let sig_opt = None;
-    let cid = compute_merkle_cid(0x71, &wasm_bytecode, &[], ts, &author, &sig_opt);
+    let cid = compute_merkle_cid(0x71, &wasm_bytecode, &[], ts, &author, &sig_opt, &None);
     metadata.cid = cid.to_string();
 
     // Calculate SHA-256 hash of the source code
@@ -76,7 +77,7 @@ pub fn compile_ccl_file(
         ))
     })?;
 
-    println!(
+    info!(
         "[CCL CLI Lib] Compilation successful. WASM: {}, Meta: {}",
         output_wasm_path.display(),
         output_meta_path.display()
@@ -86,18 +87,18 @@ pub fn compile_ccl_file(
 
 // This function would be called by `icn-cli ccl lint ...` or `icn-cli ccl check ...`
 pub fn check_ccl_file(source_path: &PathBuf) -> Result<(), CclError> {
-    println!("[CCL CLI Lib] Checking/Linting {}", source_path.display());
+    info!("[CCL CLI Lib] Checking/Linting {}", source_path.display());
     let source_code = fs::read_to_string(source_path)?;
     let ast = parse_ccl_source(&source_code)?;
     let mut semantic_analyzer = SemanticAnalyzer::new();
     semantic_analyzer.analyze(&ast)?;
-    println!("[CCL CLI Lib] {} passed checks.", source_path.display());
+    info!("[CCL CLI Lib] {} passed checks.", source_path.display());
     Ok(())
 }
 
 // This function would be called by `icn-cli ccl fmt ...`
 pub fn format_ccl_file(source_path: &PathBuf, _inplace: bool) -> Result<String, CclError> {
-    println!(
+    info!(
         "[CCL CLI Lib] Formatting {} (Inplace: {})",
         source_path.display(),
         _inplace
@@ -122,7 +123,7 @@ pub fn explain_ccl_policy(
     source_path: &PathBuf,
     _target_construct: Option<String>,
 ) -> Result<String, CclError> {
-    println!(
+    info!(
         "[CCL CLI Lib] Explaining {} (Target: {:?})",
         source_path.display(),
         _target_construct
@@ -168,6 +169,7 @@ fn ast_to_string(ast: &AstNode, indent: usize) -> String {
                 action_to_string(action)
             )
         }
+        AstNode::Block(b) => block_to_string(b, indent),
     }
 }
 
@@ -220,6 +222,12 @@ fn stmt_to_string(stmt: &StatementNode, indent: usize) -> String {
             }
             s
         }
+        StatementNode::WhileLoop { condition, body } => {
+            let mut s = String::new();
+            s.push_str(&format!("while {} ", expr_to_string(condition)));
+            s.push_str(&block_to_string(body, indent));
+            s
+        }
     }
 }
 
@@ -228,6 +236,14 @@ fn expr_to_string(expr: &ExpressionNode) -> String {
         ExpressionNode::IntegerLiteral(i) => i.to_string(),
         ExpressionNode::BooleanLiteral(b) => b.to_string(),
         ExpressionNode::StringLiteral(s) => format!("\"{}\"", s),
+        ExpressionNode::ArrayLiteral(elements) => {
+            let items = elements
+                .iter()
+                .map(expr_to_string)
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("[{}]", items)
+        }
         ExpressionNode::Identifier(s) => s.clone(),
         ExpressionNode::FunctionCall { name, arguments } => {
             let args = arguments
@@ -255,6 +271,7 @@ fn expr_to_string(expr: &ExpressionNode) -> String {
                 crate::ast::BinaryOperator::Gte => ">=",
                 crate::ast::BinaryOperator::And => "&&",
                 crate::ast::BinaryOperator::Or => "||",
+                crate::ast::BinaryOperator::Concat => "++",
             };
             format!(
                 "({} {} {})",
@@ -263,6 +280,9 @@ fn expr_to_string(expr: &ExpressionNode) -> String {
                 expr_to_string(right)
             )
         }
+        ExpressionNode::ArrayAccess { array, index } => {
+            format!("{}[{}]", expr_to_string(array), expr_to_string(index))
+        }
     }
 }
 
@@ -270,9 +290,12 @@ fn type_to_string(ty: &TypeAnnotationNode) -> String {
     match ty {
         TypeAnnotationNode::Mana => "Mana".to_string(),
         TypeAnnotationNode::Bool => "Bool".to_string(),
-        TypeAnnotationNode::Did => "DID".to_string(),
+        TypeAnnotationNode::Did => "Did".to_string(),
         TypeAnnotationNode::String => "String".to_string(),
         TypeAnnotationNode::Integer => "Integer".to_string(),
+        TypeAnnotationNode::Array(inner_ty) => format!("Array<{}>", type_to_string(inner_ty)),
+        TypeAnnotationNode::Proposal => "Proposal".to_string(),
+        TypeAnnotationNode::Vote => "Vote".to_string(),
         TypeAnnotationNode::Custom(s) => s.clone(),
     }
 }
@@ -340,4 +363,3 @@ fn explain_ast(ast: &AstNode, target: Option<&str>) -> String {
         }
     }
 }
-

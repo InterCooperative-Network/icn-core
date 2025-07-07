@@ -17,3 +17,5 @@ Cargo.lock
 tmp/
 icn-ccl/governance_db/
 *.sled/
+icn-devnet/certs/cert.pem
+icn-devnet/certs/key.pem

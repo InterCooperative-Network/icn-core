@@ -1,0 +1,91 @@
+// ICN Governance Policy: Mana Cost Calculator for Mesh Jobs
+// This contract calculates the cost of mesh compute jobs based on 
+// resource requirements, submitter reputation, and network load.
+
+fn calculate_base_job_cost(cpu_cores: Integer, memory_mb: Integer, duration_seconds: Integer) -> Mana {
+    let cpu_cost = cpu_cores * 10;
+    let memory_cost = memory_mb / 128;
+    let duration_cost = duration_seconds / 60;
+    let base_cost = cpu_cost + memory_cost + duration_cost;
+    return base_cost;
+}
+
+fn apply_reputation_discount(base_cost: Mana, reputation_score: Integer) -> Mana {
+    let discount_tier_1 = 90; // 10% discount for reputation >= 90
+    let discount_tier_2 = 70; // 5% discount for reputation >= 70
+    
+    let discounted_cost = base_cost;
+    
+    // Tier 1 discount: 10% off for high reputation (90+)
+    let tier1_check = reputation_score / discount_tier_1; // Will be 1 if >= 90, 0 otherwise
+    let tier1_discount = base_cost * 10 / 100;
+    let after_tier1 = discounted_cost - tier1_discount * tier1_check;
+    
+    // Tier 2 discount: 5% off for medium reputation (70+)
+    let tier2_check = reputation_score / discount_tier_2; // Will be 1 if >= 70, 0 otherwise
+    let tier2_discount = base_cost * 5 / 100;
+    let tier2_multiplier = tier1_check * 0 + 1; // Don't apply tier2 if tier1 applied
+    let final_cost = after_tier1 - tier2_discount * tier2_check * tier2_multiplier;
+    
+    return final_cost;
+}
+
+fn calculate_network_congestion_multiplier(pending_jobs: Integer, max_capacity: Integer) -> Integer {
+    let load_ratio = pending_jobs * 100 / max_capacity;
+    let congestion_multiplier = 100 + load_ratio; // Base 100% + load percentage
+    return congestion_multiplier;
+}
+
+fn apply_congestion_pricing(base_cost: Mana, congestion_multiplier: Integer) -> Mana {
+    let adjusted_cost = base_cost * congestion_multiplier / 100;
+    return adjusted_cost;
+}
+
+fn validate_minimum_requirements(cpu_cores: Integer, memory_mb: Integer) -> Integer {
+    let min_cpu = 1;
+    let min_memory = 256;
+    
+    let cpu_valid = cpu_cores / min_cpu; // 1 if valid, 0 if not
+    let memory_valid = memory_mb / min_memory; // 1 if valid, 0 if not
+    
+    let both_valid = cpu_valid * memory_valid; // 1 only if both valid
+    return both_valid;
+}
+
+fn calculate_final_mana_cost(
+    cpu_cores: Integer,
+    memory_mb: Integer, 
+    duration_seconds: Integer,
+    reputation_score: Integer,
+    pending_jobs: Integer,
+    max_capacity: Integer
+) -> Mana {
+    // Step 1: Validate minimum requirements
+    let requirements_valid = validate_minimum_requirements(cpu_cores, memory_mb);
+    
+    // Step 2: Calculate base cost
+    let base_cost = calculate_base_job_cost(cpu_cores, memory_mb, duration_seconds);
+    
+    // Step 3: Apply reputation discount
+    let discounted_cost = apply_reputation_discount(base_cost, reputation_score);
+    
+    // Step 4: Apply network congestion pricing
+    let congestion_multiplier = calculate_network_congestion_multiplier(pending_jobs, max_capacity);
+    let final_cost = apply_congestion_pricing(discounted_cost, congestion_multiplier);
+    
+    // Step 5: Return cost only if requirements are valid
+    let result = final_cost * requirements_valid;
+    return result;
+}
+
+// Main entry point for the policy
+fn run() -> Mana {
+    // Example: Calculate cost for a mesh job with:
+    // - 4 CPU cores
+    // - 2048 MB memory  
+    // - 300 second duration
+    // - Reputation score of 85
+    // - 150 pending jobs
+    // - Network capacity of 1000 jobs
+    return calculate_final_mana_cost(4, 2048, 300, 85, 150, 1000);
+} 

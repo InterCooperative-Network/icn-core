@@ -2,6 +2,8 @@
 
 This crate provides the compiler for the Cooperative Contract Language (CCL) used in the InterCooperative Network (ICN). It translates CCL source into WebAssembly (WASM) modules and produces metadata describing the contract.
 
+See [CONTEXT.md](../CONTEXT.md) for ICN Core design philosophy and crate roles.
+
 ## Purpose
 
 The `icn-ccl` crate is responsible for:
@@ -20,7 +22,7 @@ The compiler is functional and includes:
 * A simple optimizer for constant folding
 * A WASM backend built on `wasm-encoder`
 
-While minimal, these stages are enough to compile small example contracts.
+These components allow compiling example contracts to WASM.
 
 ## Basic Usage
 
@@ -48,6 +50,39 @@ CLI-oriented helpers live in the `cli` module for tools like `icn-cli` to compil
 5. **Execution** – an executor node loads the module via `icn-runtime` and runs
    its `run` export. The resulting `ExecutionReceipt` is anchored back to the
    DAG.
+
+### Example: Compile and Submit with `icn-cli`
+
+With a node running and exposing the HTTP API you can compile a contract and
+submit it for execution using the CLI:
+
+```bash
+# Compile locally to `policy.wasm` and `policy.json`
+cargo run -p icn-cli -- ccl compile policy.ccl
+
+# Upload the compiled module and obtain its CID
+cargo run -p icn-cli -- --api-url http://localhost:7845 compile-ccl policy.ccl
+
+# Submit a mesh job referencing the returned CID
+cargo run -p icn-cli -- --api-url http://localhost:7845 submit-job \
+  '{"manifest_cid":"CID_FROM_UPLOAD","spec_json":{},"cost_mana":0}'
+```
+
+### Included Governance Examples
+
+Several example contracts live in `tests/contracts/`:
+
+* `proposal_flow.ccl` – illustrates proposal creation, voting and finalization.
+* `voting_logic.ccl` – demonstrates an open/cast/close voting sequence.
+
+These files can be compiled with `compile_ccl_file_to_wasm` and executed using
+the `WasmExecutor` as shown in the integration tests.
+
+## Mana Policies
+
+The repository includes example economic logic that manipulates mana balances. A
+full guide to implementing and deploying such policies is available in
+[docs/mana_policies.md](../docs/mana_policies.md).
 
 ## Integration with Other Crates
 

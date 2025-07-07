@@ -3,6 +3,8 @@
 This crate manages peer-to-peer (P2P) networking aspects for the InterCooperative Network (ICN).
 It defines the core networking abstractions, message types, and service interfaces. A lightweight stub service is available for tests, while production builds enable a libp2p-based implementation via the `libp2p` feature.
 
+See [CONTEXT.md](../CONTEXT.md) for ICN Core design philosophy and crate roles.
+
 ## Purpose
 
 The `icn-network` crate is responsible for:
@@ -19,7 +21,8 @@ The `icn-network` crate is responsible for:
 ## Key Components
 
 *   **`PeerId`**: A struct representing a unique identifier for a network peer. Currently a simple string wrapper, but intended to be compatible with underlying P2P library IDs (e.g., libp2p `PeerId`).
-*   **`NetworkMessage`**: An enum defining the various types of messages that can be exchanged between ICN nodes. This includes messages for block announcements (`AnnounceBlock`), block requests (`RequestBlock`), generic gossip messages (`GossipSub`), federation sync requests (`FederationSyncRequest`), and federation join handshakes (`FederationJoinRequest`/`FederationJoinResponse`). This enum derives `Serialize` and `Deserialize` for network transmission.
+*   **`ProtocolMessage`**: A signed envelope containing a `MessagePayload`. The payload represents specific actions such as block announcements (`DagBlockAnnouncement`), block requests (`DagBlockRequest`), generic gossip messages (`GossipMessage`), federation sync requests, and federation join handshakes. The struct derives `Serialize` and `Deserialize` for transmission.
+*   **`SignedMessage`**: Wraps a `ProtocolMessage` together with the sender's DID and an Ed25519 signature. Helpers `sign_message` and `verify_message_signature` are provided to create and validate these structures.
 *   **`NetworkService` Trait**: An abstraction defining the core functionalities a network service provider must implement. This includes methods like `discover_peers`, `send_message`, and `broadcast_message`. Methods return `Result<_, CommonError>` using specific error variants like `PeerNotFound`, `MessageSendError`, etc.
 *   **`StubNetworkService`**: A default implementation of `NetworkService` that simulates network interactions by logging actions to the console and returning predefined data. It's used for development and testing of higher-level crates without requiring a live P2P network. It demonstrates returning specific `CommonError` variants for simulated network issues.
 
@@ -55,10 +58,19 @@ cargo build --features libp2p
 to use the `get_kademlia_record` and `put_kademlia_record` APIs as well as peer
 discovery via the DHT.
 
+## Message Signing
+
+All network messages should be authenticated. The helper function `sign_message`
+takes a `ProtocolMessage`, the sender's `Did`, and a signing key to produce a
+`SignedMessage`. Peers can verify authenticity using
+`verify_message_signature`, which resolves the public key from the DID and
+checks the Ed25519 signature. The `StubNetworkService` verifies signatures for
+`send_signed_message` and `broadcast_signed_message` calls.
+
 ## Public API Style
 
 This crate provides:
-*   Data structures (`PeerId`, `NetworkMessage`).
+*   Data structures (`PeerId`, `ProtocolMessage`, `MessagePayload`).
 *   A core trait (`NetworkService`) for P2P interactions.
 *   A concrete stub implementation (`StubNetworkService`) for testing.
 *   With the `libp2p` feature enabled, a full `Libp2pNetworkService` and DHT record APIs (`get_kademlia_record` and `put_kademlia_record`).

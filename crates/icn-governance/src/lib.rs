@@ -10,7 +10,12 @@
 
 use icn_common::{CommonError, Did, NodeInfo};
 #[cfg(feature = "federation")]
-use icn_network::{MeshNetworkError, NetworkMessage, NetworkService, PeerId};
+#[allow(unused_imports)]
+use icn_network::{MeshNetworkError, NetworkService, PeerId, StubNetworkService};
+#[cfg(feature = "federation")]
+use icn_protocol::FederationSyncRequestMessage;
+#[cfg(feature = "federation")]
+use icn_protocol::{MessagePayload, ProtocolMessage};
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 #[cfg(feature = "persist-sled")]
@@ -18,6 +23,8 @@ use std::path::PathBuf;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+
+pub mod scoped_policy;
 
 // --- Proposal System ---
 
@@ -47,6 +54,7 @@ impl std::str::FromStr for ProposalId {
 pub enum ProposalType {
     SystemParameterChange(String, String), // param_name, new_value
     NewMemberInvitation(Did),              // DID of the member to invite
+    RemoveMember(Did),                     // DID of the member to remove
     SoftwareUpgrade(String),               // Version or identifier for the upgrade
     GenericText(String),                   // For general purpose proposals
 }
@@ -75,7 +83,11 @@ pub struct Proposal {
     pub voting_deadline: u64, // Timestamp for when voting closes
     pub status: ProposalStatus,
     pub votes: HashMap<Did, Vote>, // Voter DID to their vote
-                                   // Potentially, threshold and quorum requirements could be part of the proposal type or global config
+    /// Optional quorum override for this proposal
+    pub quorum: Option<usize>,
+    /// Optional threshold override for this proposal
+    pub threshold: Option<f32>,
+    // Potentially, threshold and quorum requirements could be part of the proposal type or global config
 }
 
 /// Possible voting options.
@@ -166,6 +178,8 @@ impl GovernanceModule {
         proposal_type: ProposalType,
         description: String,
         duration_secs: u64,
+        quorum: Option<usize>,
+        threshold: Option<f32>,
     ) -> Result<ProposalId, CommonError> {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -182,8 +196,10 @@ impl GovernanceModule {
             description,
             created_at: now,
             voting_deadline: now + duration_secs,
-            status: ProposalStatus::VotingOpen,
+            status: ProposalStatus::Pending,
             votes: HashMap::new(),
+            quorum,
+            threshold,
         };
 
         match &mut self.backend {
@@ -243,6 +259,84 @@ impl GovernanceModule {
         Ok(proposal_id)
     }
 
+    /// Transition a proposal from `Pending` to `VotingOpen`.
+    pub fn open_voting(&mut self, proposal_id: &ProposalId) -> Result<(), CommonError> {
+        match &mut self.backend {
+            Backend::InMemory { proposals } => {
+                let proposal = proposals.get_mut(proposal_id).ok_or_else(|| {
+                    CommonError::ResourceNotFound(format!(
+                        "Proposal with ID {} not found for opening",
+                        proposal_id.0
+                    ))
+                })?;
+                if proposal.status != ProposalStatus::Pending {
+                    return Err(CommonError::InvalidInputError(format!(
+                        "Proposal {} not pending, current status: {:?}",
+                        proposal_id.0, proposal.status
+                    )));
+                }
+                proposal.status = ProposalStatus::VotingOpen;
+            }
+            #[cfg(feature = "persist-sled")]
+            Backend::Sled {
+                db,
+                proposals_tree_name,
+            } => {
+                let tree = db.open_tree(proposals_tree_name).map_err(|e| {
+                    CommonError::DatabaseError(format!("Failed to open proposals tree: {}", e))
+                })?;
+                let key = proposal_id.0.as_bytes();
+                let proposal_bytes = tree
+                    .get(key)
+                    .map_err(|e| {
+                        CommonError::DatabaseError(format!(
+                            "Failed to get proposal {} from sled: {}",
+                            proposal_id.0, e
+                        ))
+                    })?
+                    .ok_or_else(|| {
+                        CommonError::ResourceNotFound(format!(
+                            "Proposal with ID {} not found for opening",
+                            proposal_id.0
+                        ))
+                    })?;
+                let mut proposal: Proposal =
+                    bincode::deserialize(&proposal_bytes).map_err(|e| {
+                        CommonError::DeserializationError(format!(
+                            "Failed to deserialize proposal {}: {}",
+                            proposal_id.0, e
+                        ))
+                    })?;
+                if proposal.status != ProposalStatus::Pending {
+                    return Err(CommonError::InvalidInputError(format!(
+                        "Proposal {} not pending, current status: {:?}",
+                        proposal_id.0, proposal.status
+                    )));
+                }
+                proposal.status = ProposalStatus::VotingOpen;
+                let encoded = bincode::serialize(&proposal).map_err(|e| {
+                    CommonError::SerializationError(format!(
+                        "Failed to serialize updated proposal {}: {}",
+                        proposal_id.0, e
+                    ))
+                })?;
+                tree.insert(key, encoded).map_err(|e| {
+                    CommonError::DatabaseError(format!(
+                        "Failed to persist proposal {}: {}",
+                        proposal_id.0, e
+                    ))
+                })?;
+                tree.flush().map_err(|e| {
+                    CommonError::DatabaseError(format!(
+                        "Failed to flush sled tree for proposal {} open: {}",
+                        proposal_id.0, e
+                    ))
+                })?;
+            }
+        }
+        Ok(())
+    }
+
     /// Record a vote for the specified proposal.
     pub fn cast_vote(
         &mut self,
@@ -254,6 +348,9 @@ impl GovernanceModule {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs();
+
+        // expire outdated proposals before attempting to cast a vote
+        self.expire_proposals(now)?;
 
         match &mut self.backend {
             Backend::InMemory { proposals } => {
@@ -443,6 +540,11 @@ impl GovernanceModule {
         self.members.insert(member);
     }
 
+    /// Removes an existing member, preventing them from voting.
+    pub fn remove_member(&mut self, did: &Did) {
+        self.members.remove(did);
+    }
+
     /// Returns a reference to the current member set.
     pub fn members(&self) -> &HashSet<Did> {
         &self.members
@@ -608,11 +710,149 @@ impl GovernanceModule {
         (yes, no, abstain)
     }
 
+    /// Mark any proposals past their deadline as `Rejected` without tallying votes.
+    pub fn expire_proposals(&mut self, now: u64) -> Result<(), CommonError> {
+        match &mut self.backend {
+            Backend::InMemory { proposals } => {
+                for proposal in proposals.values_mut() {
+                    if proposal.status == ProposalStatus::VotingOpen
+                        && proposal.voting_deadline <= now
+                    {
+                        proposal.status = ProposalStatus::Rejected;
+                    }
+                }
+                Ok(())
+            }
+            #[cfg(feature = "persist-sled")]
+            Backend::Sled {
+                db,
+                proposals_tree_name,
+            } => {
+                let tree = db.open_tree(proposals_tree_name).map_err(|e| {
+                    CommonError::DatabaseError(format!(
+                        "Failed to open proposals tree for expire_proposals: {}",
+                        e
+                    ))
+                })?;
+                let mut updates = Vec::new();
+                for item in tree.iter() {
+                    let (key, val) = item.map_err(|e| {
+                        CommonError::DatabaseError(format!(
+                            "Failed to iterate proposals tree: {}",
+                            e
+                        ))
+                    })?;
+                    let mut prop: Proposal = bincode::deserialize(&val).map_err(|e| {
+                        CommonError::DeserializationError(format!(
+                            "Failed to deserialize proposal: {}",
+                            e
+                        ))
+                    })?;
+                    if prop.status == ProposalStatus::VotingOpen && prop.voting_deadline <= now {
+                        prop.status = ProposalStatus::Rejected;
+                        updates.push((key, prop));
+                    }
+                }
+                for (key, prop) in updates {
+                    let encoded = bincode::serialize(&prop).map_err(|e| {
+                        CommonError::SerializationError(format!(
+                            "Failed to serialize expired proposal {}: {}",
+                            prop.id.0, e
+                        ))
+                    })?;
+                    tree.insert(key, encoded).map_err(|e| {
+                        CommonError::DatabaseError(format!(
+                            "Failed to persist expired proposal: {}",
+                            e
+                        ))
+                    })?;
+                }
+                tree.flush().map_err(|e| {
+                    CommonError::DatabaseError(format!(
+                        "Failed to flush sled tree for expire_proposals: {}",
+                        e
+                    ))
+                })?;
+                Ok(())
+            }
+        }
+    }
+
+    /// Automatically close all proposals whose voting deadlines have passed.
+    pub fn close_expired_proposals(&mut self) -> Result<(), CommonError> {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        match &mut self.backend {
+            Backend::InMemory { proposals } => {
+                let expired: Vec<ProposalId> = proposals
+                    .values()
+                    .filter(|p| p.voting_deadline <= now && p.status == ProposalStatus::VotingOpen)
+                    .map(|p| p.id.clone())
+                    .collect();
+                for id in expired {
+                    let _ = self.close_voting_period(&id)?;
+                }
+                Ok(())
+            }
+            #[cfg(feature = "persist-sled")]
+            Backend::Sled {
+                db,
+                proposals_tree_name,
+            } => {
+                let tree = db.open_tree(proposals_tree_name).map_err(|e| {
+                    CommonError::DatabaseError(format!(
+                        "Failed to open proposals tree for close_expired_proposals: {}",
+                        e
+                    ))
+                })?;
+                let mut expired = Vec::new();
+                for item in tree.iter() {
+                    let (key, val) = item.map_err(|e| {
+                        CommonError::DatabaseError(format!(
+                            "Failed to iterate proposals tree: {}",
+                            e
+                        ))
+                    })?;
+                    let prop: Proposal = bincode::deserialize(&val).map_err(|e| {
+                        CommonError::DeserializationError(format!(
+                            "Failed to deserialize proposal: {}",
+                            e
+                        ))
+                    })?;
+                    if prop.voting_deadline <= now && prop.status == ProposalStatus::VotingOpen {
+                        let id_str = String::from_utf8(key.to_vec()).map_err(|e| {
+                            CommonError::DeserializationError(format!(
+                                "Invalid UTF-8 in proposal key: {}",
+                                e
+                            ))
+                        })?;
+                        expired.push(ProposalId(id_str));
+                    }
+                }
+                drop(tree);
+                for id in expired {
+                    let _ = self.close_voting_period(&id)?;
+                }
+                Ok(())
+            }
+        }
+    }
+
     /// Finalizes voting on a proposal and updates its status based on quorum and threshold.
     pub fn close_voting_period(
         &mut self,
         proposal_id: &ProposalId,
     ) -> Result<ProposalStatus, CommonError> {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+
+        // expire any proposals that have passed their deadline before closing
+        self.expire_proposals(now)?;
+
         match &mut self.backend {
             Backend::InMemory { proposals } => {
                 let proposal = proposals.get_mut(proposal_id).ok_or_else(|| {
@@ -621,6 +861,15 @@ impl GovernanceModule {
                         proposal_id.0
                     ))
                 })?;
+                if now < proposal.voting_deadline {
+                    return Err(CommonError::InvalidInputError(format!(
+                        "Voting period for proposal {} has not closed yet.",
+                        proposal_id.0
+                    )));
+                }
+                if proposal.status != ProposalStatus::VotingOpen {
+                    return Ok(proposal.status.clone());
+                }
                 let (yes, no, abstain) = {
                     let mut yes = 0;
                     let mut no = 0;
@@ -638,9 +887,11 @@ impl GovernanceModule {
                     (yes, no, abstain)
                 };
                 let total = yes + no + abstain;
-                if total < self.quorum {
+                let quorum = proposal.quorum.unwrap_or(self.quorum);
+                let threshold = proposal.threshold.unwrap_or(self.threshold);
+                if total < quorum {
                     proposal.status = ProposalStatus::Rejected;
-                } else if (yes as f32) >= (total as f32 * self.threshold) {
+                } else if (yes as f32) >= (total as f32 * threshold) {
                     proposal.status = ProposalStatus::Accepted;
                 } else {
                     proposal.status = ProposalStatus::Rejected;
@@ -680,6 +931,15 @@ impl GovernanceModule {
                             proposal_id.0, e
                         ))
                     })?;
+                if now < proposal.voting_deadline {
+                    return Err(CommonError::InvalidInputError(format!(
+                        "Voting period for proposal {} has not closed yet.",
+                        proposal_id.0
+                    )));
+                }
+                if proposal.status != ProposalStatus::VotingOpen {
+                    return Ok(proposal.status.clone());
+                }
                 let (yes, no, abstain) = {
                     let mut yes = 0;
                     let mut no = 0;
@@ -697,9 +957,11 @@ impl GovernanceModule {
                     (yes, no, abstain)
                 };
                 let total = yes + no + abstain;
-                if total < self.quorum {
+                let quorum = proposal.quorum.unwrap_or(self.quorum);
+                let threshold = proposal.threshold.unwrap_or(self.threshold);
+                if total < quorum {
                     proposal.status = ProposalStatus::Rejected;
-                } else if (yes as f32) >= (total as f32 * self.threshold) {
+                } else if (yes as f32) >= (total as f32 * threshold) {
                     proposal.status = ProposalStatus::Accepted;
                 } else {
                     proposal.status = ProposalStatus::Rejected;
@@ -743,8 +1005,14 @@ impl GovernanceModule {
                         proposal_id.0
                     )));
                 }
-                if let ProposalType::NewMemberInvitation(did) = &proposal.proposal_type {
-                    self.members.insert(did.clone());
+                match &proposal.proposal_type {
+                    ProposalType::NewMemberInvitation(did) => {
+                        self.members.insert(did.clone());
+                    }
+                    ProposalType::RemoveMember(did) => {
+                        self.members.remove(did);
+                    }
+                    _ => {}
                 }
                 if let Some(cb) = &self.proposal_callback {
                     if let Err(e) = cb(proposal) {
@@ -794,8 +1062,14 @@ impl GovernanceModule {
                         proposal_id.0
                     )));
                 }
-                if let ProposalType::NewMemberInvitation(did) = &proposal.proposal_type {
-                    self.members.insert(did.clone());
+                match &proposal.proposal_type {
+                    ProposalType::NewMemberInvitation(did) => {
+                        self.members.insert(did.clone());
+                    }
+                    ProposalType::RemoveMember(did) => {
+                        self.members.remove(did);
+                    }
+                    _ => {}
                 }
                 if let Some(cb) = &self.proposal_callback {
                     if let Err(e) = cb(&proposal) {
@@ -860,18 +1134,24 @@ impl fmt::Debug for GovernanceModule {
 /// Request federation data synchronization from a peer.
 ///
 /// This uses the provided [`NetworkService`] to send a
-/// [`NetworkMessage::FederationSyncRequest`] to `target_peer`.
+/// [`MessagePayload::FederationSyncRequest`] to `target_peer`.
 #[cfg(feature = "federation")]
 pub async fn request_federation_sync(
     service: &dyn NetworkService,
     target_peer: &PeerId,
     since_timestamp: Option<u64>,
 ) -> Result<(), CommonError> {
-    let payload = since_timestamp
-        .map(|ts| Did::new("sync", &ts.to_string()))
-        .unwrap_or_default();
+    let payload = FederationSyncRequestMessage {
+        federation_id: "default".to_string(),
+        since_timestamp,
+        sync_types: vec![],
+    };
 
-    let msg = NetworkMessage::FederationSyncRequest(payload);
+    let msg = ProtocolMessage::new(
+        MessagePayload::FederationSyncRequest(payload),
+        Did::default(),
+        None,
+    );
     service
         .send_message(target_peer, msg)
         .await

@@ -2,6 +2,8 @@
 
 This crate provides common data structures, types, utilities, and error definitions shared across multiple InterCooperative Network (ICN) core crates.
 
+See [CONTEXT.md](../CONTEXT.md) for ICN Core design philosophy and crate roles.
+
 ## Purpose
 
 The `icn-common` crate aims to:

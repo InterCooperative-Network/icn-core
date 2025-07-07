@@ -2,14 +2,17 @@
     unused_imports,
     unused_variables,
     dead_code,
-    clippy::uninlined_format_args
+    clippy::uninlined_format_args,
+    clippy::clone_on_copy,
+    clippy::get_first
 )]
 // crates/icn-runtime/tests/mesh.rs
 
 use icn_common::{compute_merkle_cid, Cid, Did};
 use icn_dag::StorageService;
+use icn_identity::generate_ed25519_keypair;
 use icn_identity::{ExecutionReceipt as IdentityExecutionReceipt, SignatureBytes};
-use icn_mesh::{ActualMeshJob, JobId, JobSpec, JobState, MeshJobBid, Resources};
+use icn_mesh::{ActualMeshJob, JobId, JobKind, JobSpec, JobState, MeshJobBid, Resources};
 use icn_network::libp2p_service::NetworkConfig;
 use icn_network::NetworkService;
 use icn_runtime::context::{
@@ -25,12 +28,12 @@ use std::hash::{Hash, Hasher};
 use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::Mutex as TokioMutex;
-use tokio::time::{sleep, Duration};
+use tokio::time::{sleep, timeout, Duration};
 
 // Helper to create a test ActualMeshJob with all required fields
 fn create_test_mesh_job(manifest_cid: Cid, cost_mana: u64, creator_did: Did) -> ActualMeshJob {
     ActualMeshJob {
-        id: Cid::new_v1_sha256(0x55, b"test_job_id"),
+        id: JobId(Cid::new_v1_sha256(0x55, b"test_job_id")),
         manifest_cid,
         spec: JobSpec::default(),
         creator_did,
@@ -83,7 +86,8 @@ async fn assert_job_state(
         ) => {
             if let Some(data) = expected_receipt_data {
                 assert_eq!(
-                    &receipt.job_id, &data.job_id,
+                    &receipt.job_id,
+                    &data.job_id.clone().into(),
                     "Completed receipt job_id mismatch"
                 );
                 assert_eq!(
@@ -251,7 +255,7 @@ async fn test_mesh_job_full_lifecycle_happy_path() {
 
     // Create the receipt and sign it using the public API
     let unsigned_receipt = IdentityExecutionReceipt {
-        job_id: submitted_job_id.clone(),
+        job_id: submitted_job_id.clone().into(),
         executor_did: executor_did.clone(),
         result_cid: result_cid.clone(),
         cpu_ms: 100,
@@ -267,7 +271,7 @@ async fn test_mesh_job_full_lifecycle_happy_path() {
         .expect("Failed to sign receipt");
 
     let signed_receipt = IdentityExecutionReceipt {
-        job_id: submitted_job_id.clone(),
+        job_id: submitted_job_id.clone().into(),
         executor_did: executor_did.clone(),
         result_cid: result_cid.clone(),
         cpu_ms: 100,
@@ -289,7 +293,7 @@ async fn test_mesh_job_full_lifecycle_happy_path() {
 
     assert!(retrieved_receipt.is_some(), "No receipt retrieved");
     let retrieved_receipt = retrieved_receipt.unwrap();
-    assert_eq!(retrieved_receipt.job_id, submitted_job_id);
+    assert_eq!(retrieved_receipt.job_id, submitted_job_id.clone().into());
     assert_eq!(retrieved_receipt.executor_did, executor_did);
 
     // 5. Test DAG anchoring - for now just verify the receipt structure
@@ -297,7 +301,7 @@ async fn test_mesh_job_full_lifecycle_happy_path() {
         !retrieved_receipt.sig.0.is_empty(),
         "Receipt should have a signature"
     );
-    assert_eq!(retrieved_receipt.job_id, submitted_job_id);
+    assert_eq!(retrieved_receipt.job_id, submitted_job_id.into());
     assert_eq!(retrieved_receipt.executor_did, executor_did);
 
     // Store in DAG using the job manager's storage
@@ -307,7 +311,7 @@ async fn test_mesh_job_full_lifecycle_happy_path() {
     let ts = 0u64;
     let author = Did::new("key", "tester");
     let sig_opt = None;
-    let cid = compute_merkle_cid(0x71, &receipt_bytes, &[], ts, &author, &sig_opt);
+    let cid = compute_merkle_cid(0x71, &receipt_bytes, &[], ts, &author, &sig_opt, &None);
     let block = DagBlock {
         cid,
         data: receipt_bytes,
@@ -315,6 +319,7 @@ async fn test_mesh_job_full_lifecycle_happy_path() {
         timestamp: ts,
         author_did: author,
         signature: sig_opt,
+        scope: None,
     };
     {
         let mut store = dag_store.lock().await;
@@ -442,7 +447,7 @@ async fn test_invalid_receipt_wrong_executor() {
         .expect("Failed to sign receipt");
 
     let forged_receipt = IdentityExecutionReceipt {
-        job_id: submitted_job_id.clone(),
+        job_id: submitted_job_id.clone().into(),
         executor_did: wrong_executor_did.clone(), // Wrong executor DID
         result_cid: Cid::new_v1_sha256(0x55, b"result_invalid_executor"),
         cpu_ms: 50,
@@ -482,7 +487,7 @@ async fn test_invalid_receipt_wrong_executor() {
         .expect("Failed to sign receipt");
 
     let correct_receipt = IdentityExecutionReceipt {
-        job_id: submitted_job_id.clone(),
+        job_id: submitted_job_id.clone().into(),
         executor_did: correct_executor_ctx.current_identity.clone(),
         result_cid: Cid::new_v1_sha256(0x55, b"result_invalid_executor"),
         cpu_ms: 50,
@@ -594,7 +599,7 @@ fn create_test_job_payload_and_cost(submitter: &Did, job_cost: u64) -> (String, 
 /// Creates a `MeshJobBid` for the provided job using the executor context.
 fn create_test_bid(job_id: &Cid, executor_ctx: &Arc<RuntimeContext>, price: u64) -> MeshJobBid {
     let unsigned = MeshJobBid {
-        job_id: job_id.clone(), // JobId is a Cid here
+        job_id: JobId(job_id.clone()), // JobId is a Cid here
         executor_did: executor_ctx.current_identity.clone(),
         price_mana: price,
         resources: Resources::default(),
@@ -621,7 +626,7 @@ async fn assign_job_to_executor_directly(
     );
     let mut states = job_manager_ctx.job_states.lock().await;
     states.insert(
-        job_id,
+        JobId(job_id),
         JobState::Assigned {
             executor: assigned_executor_did.clone(),
         },
@@ -648,8 +653,8 @@ async fn test_job_assignment_with_two_executors() {
 
     // Stage bids from two executors with different prices
     let network = get_stub_network_service(&submitter_ctx);
-    let bid1 = create_test_bid(&job_id, &executor1_ctx, 15);
-    let bid2 = create_test_bid(&job_id, &executor2_ctx, 5);
+    let bid1 = create_test_bid(&job_id.clone().into(), &executor1_ctx, 15);
+    let bid2 = create_test_bid(&job_id.clone().into(), &executor2_ctx, 5);
     network.stage_bid(job_id.clone(), bid1).await;
     network.stage_bid(job_id.clone(), bid2).await;
 
@@ -667,7 +672,7 @@ async fn test_job_assignment_with_two_executors() {
         .executor_did
         .clone();
 
-    assign_job_to_executor_directly(&submitter_ctx, job_id.clone(), &selected).await;
+    assign_job_to_executor_directly(&submitter_ctx, job_id.clone().into(), &selected).await;
 
     assert_job_state(
         &submitter_ctx,
@@ -727,7 +732,7 @@ async fn test_submit_mesh_job_with_custom_timeout() {
         .await
         .expect("Job submission failed");
 
-    let pending_jobs = host_get_pending_mesh_jobs(&ctx).unwrap();
+    let pending_jobs = host_get_pending_mesh_jobs(&ctx).await.unwrap();
     assert_eq!(pending_jobs.len(), 1);
     assert_eq!(pending_jobs[0].max_execution_wait_ms, Some(1234));
 }
@@ -757,7 +762,216 @@ async fn forge_execution_receipt(
 
 #[cfg(feature = "enable-libp2p")]
 #[tokio::test]
-#[ignore = "Blocked on environment/macro/import issues, particularly with libp2p Kademlia types and tokio/serde macros in dependent crates."]
 async fn test_full_mesh_job_cycle_libp2p() -> Result<(), anyhow::Error> {
-    todo!("libp2p integration pending");
+    use icn_network::NetworkService;
+    use icn_protocol::{
+        ExecutionMetadata, GossipMessage, MeshBidSubmissionMessage, MeshJobAnnouncementMessage,
+        MeshJobAssignmentMessage, MeshReceiptSubmissionMessage, MessagePayload, ProtocolMessage,
+    };
+    use icn_runtime::executor::{JobExecutor, SimpleExecutor};
+    use icn_runtime::{host_anchor_receipt, ReputationUpdater};
+    use log::info;
+
+    env_logger::try_init().ok();
+
+    async fn create_libp2p_runtime_context(
+        identity_suffix: &str,
+        bootstrap_peers: Option<Vec<(Libp2pPeerId, Multiaddr)>>,
+        initial_mana: u64,
+    ) -> Result<Arc<RuntimeContext>, anyhow::Error> {
+        let identity_str = format!("did:key:z6Mkv{}", identity_suffix);
+        let listen: Vec<Multiaddr> = vec!["/ip4/0.0.0.0/tcp/0".parse().unwrap()];
+        let ctx = RuntimeContext::new_with_real_libp2p(
+            &identity_str,
+            listen,
+            bootstrap_peers,
+            std::path::PathBuf::from("./mana_ledger.sled"),
+            std::path::PathBuf::from("./reputation.sled"),
+        )
+        .await?;
+        let did = Did::from_str(&identity_str)?;
+        ctx.mana_ledger
+            .set_balance(&did, initial_mana)
+            .expect("init mana");
+        Ok(ctx)
+    }
+
+    fn create_test_job(suffix: &str, creator: &Did, cost: u64) -> ActualMeshJob {
+        let job_id = Cid::new_v1_sha256(0x55, format!("test_job_{}", suffix).as_bytes());
+        let manifest_cid = Cid::new_v1_sha256(0x55, format!("manifest_{}", suffix).as_bytes());
+        ActualMeshJob {
+            id: JobId(job_id),
+            manifest_cid,
+            spec: JobSpec {
+                kind: JobKind::Echo {
+                    payload: format!("Libp2p job {}", suffix),
+                },
+                ..Default::default()
+            },
+            creator_did: creator.clone(),
+            cost_mana: cost,
+            max_execution_wait_ms: None,
+            signature: SignatureBytes(vec![0u8; 64]),
+        }
+    }
+
+    // --- Setup nodes ---
+    let node_a = create_libp2p_runtime_context("FullA", None, 1000).await?;
+    let node_a_libp2p = node_a.get_libp2p_service()?;
+    let peer_a = node_a_libp2p.local_peer_id().clone();
+    sleep(Duration::from_millis(500)).await;
+    let addr_a = node_a_libp2p
+        .listening_addresses()
+        .get(0)
+        .cloned()
+        .expect("node A address");
+
+    let bootstrap = vec![(peer_a, addr_a)];
+    let node_b = create_libp2p_runtime_context("FullB", Some(bootstrap), 100).await?;
+    let node_b_libp2p = node_b.get_libp2p_service()?;
+    sleep(Duration::from_secs(2)).await;
+
+    // --- Submit job on Node A ---
+    let submitter_did = node_a.current_identity.clone();
+    let executor_did = node_b.current_identity.clone();
+    let test_job = create_test_job("cycle", &submitter_did, 50);
+    let job_json = serde_json::to_string(&test_job)?;
+    let job_id = host_submit_mesh_job(&node_a, &job_json).await?;
+
+    // --- Manual mesh pipeline ---
+    let mut recv_a = node_a_libp2p.subscribe().await?;
+    let mut recv_b = node_b_libp2p.subscribe().await?;
+    let network_a = DefaultMeshNetworkService::new(node_a_libp2p.clone());
+
+    network_a.announce_job(&test_job).await?;
+
+    timeout(Duration::from_secs(5), async {
+        loop {
+            if let Some(message) = recv_b.recv().await {
+                if let MessagePayload::MeshJobAnnouncement(job) = &message.payload {
+                    if job.id == job_id.clone().into() {
+                        break;
+                    }
+                }
+            }
+        }
+    })
+    .await?;
+
+    let unsigned_bid = MeshJobBid {
+        job_id: job_id.clone(),
+        executor_did: executor_did.clone(),
+        price_mana: 30,
+        resources: Resources::default(),
+        signature: SignatureBytes(vec![]),
+    };
+    let sig = node_b
+        .signer
+        .sign(&unsigned_bid.to_signable_bytes().unwrap())
+        .unwrap();
+    let bid = MeshJobBid {
+        signature: SignatureBytes(sig),
+        ..unsigned_bid
+    };
+    let bid_msg = ProtocolMessage::new(
+        MessagePayload::MeshBidSubmission(MeshBidSubmissionMessage {
+            job_id: bid.job_id.clone(),
+            executor_did: bid.executor_did.clone(),
+            cost_mana: bid.price_mana,
+            estimated_duration_secs: 0,
+            offered_resources: bid.resources.clone(),
+            reputation_score: 0,
+        }),
+        executor_did.clone(),
+        None,
+    );
+    node_b_libp2p.broadcast_message(bid_msg).await?;
+
+    timeout(Duration::from_secs(5), async {
+        loop {
+            if let Some(message) = recv_a.recv().await {
+                if let MessagePayload::MeshBidSubmission(b) = &message.payload {
+                    if b.job_id == job_id.clone().into() {
+                        break;
+                    }
+                }
+            }
+        }
+    })
+    .await?;
+
+    let assign_msg = ProtocolMessage::new(
+        MessagePayload::MeshJobAssignment(MeshJobAssignmentMessage {
+            job_id: job_id.clone(),
+            executor_did: executor_did.clone(),
+            agreed_cost_mana: 0,
+            completion_deadline: 0,
+            manifest_cid: None,
+        }),
+        submitter_did.clone(),
+        None,
+    );
+    node_a_libp2p.broadcast_message(assign_msg).await?;
+
+    timeout(Duration::from_secs(5), async {
+        loop {
+            if let Some(message) = recv_b.recv().await {
+                if let MessagePayload::MeshJobAssignment(assign) = &message.payload {
+                    if assign.job_id == job_id && assign.executor_did == executor_did {
+                        break;
+                    }
+                }
+            }
+        }
+    })
+    .await?;
+
+    let (sk, pk) = generate_ed25519_keypair();
+    let executor = SimpleExecutor::new(executor_did.clone(), sk);
+    let receipt = executor.execute_job(&test_job).await?;
+    assert!(receipt.verify_against_key(&pk).is_ok());
+
+    let receipt_msg = ProtocolMessage::new(
+        MessagePayload::MeshReceiptSubmission(MeshReceiptSubmissionMessage {
+            receipt: receipt.clone(),
+            execution_metadata: ExecutionMetadata {
+                wall_time_ms: 0,
+                peak_memory_mb: 0,
+                exit_code: 0,
+                execution_logs: None,
+            },
+        }),
+        executor_did.clone(),
+        None,
+    );
+    node_b_libp2p.broadcast_message(receipt_msg).await?;
+
+    let final_receipt = timeout(Duration::from_secs(5), async {
+        loop {
+            if let Some(message) = recv_a.recv().await {
+                if let MessagePayload::MeshReceiptSubmission(r) = &message.payload {
+                    if r.job_id == job_id.clone().into() {
+                        break r.clone();
+                    }
+                }
+            }
+        }
+    })
+    .await?;
+
+    let rep_before = node_a.reputation_store.get_reputation(&executor_did);
+    let receipt_json = serde_json::to_string(&final_receipt)?;
+    let cid = host_anchor_receipt(&node_a, &receipt_json, &ReputationUpdater::new()).await?;
+    let rep_after = node_a.reputation_store.get_reputation(&executor_did);
+    assert!(rep_after > rep_before);
+    let stored = node_a
+        .dag_store
+        .lock()
+        .await
+        .get(&cid)?
+        .expect("receipt stored");
+    assert_eq!(stored.cid, cid);
+
+    info!("Full libp2p mesh cycle completed with receipt {:?}", cid);
+    Ok(())
 }

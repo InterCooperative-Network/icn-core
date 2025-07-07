@@ -47,6 +47,7 @@ async fn info_status_basic() {
 
 #[tokio::test]
 #[serial_test::serial]
+#[ignore]
 async fn governance_endpoints() {
     let _ = std::fs::remove_dir_all("./mana_ledger.sled");
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();

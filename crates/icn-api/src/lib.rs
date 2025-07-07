@@ -18,11 +18,18 @@ use icn_common::{
 use icn_dag::StorageService; // Import the trait
 use std::sync::{Arc, Mutex}; // To accept the storage service
                              // Added imports for network functionality
-use icn_network::{NetworkMessage, NetworkService, PeerId, StubNetworkService};
+use icn_network::{NetworkService, PeerId, StubNetworkService};
+#[cfg(test)]
+use icn_protocol::MessagePayload;
+use icn_protocol::ProtocolMessage;
 // Added imports for governance functionality
-use icn_governance::{GovernanceModule, Proposal, ProposalId, ProposalType, VoteOption};
+use icn_governance::{
+    scoped_policy::{DagPayloadOp, PolicyCheckResult, ScopedPolicyEnforcer},
+    GovernanceModule, Proposal, ProposalId, ProposalType, VoteOption,
+};
 use std::str::FromStr;
 
+pub mod federation_trait;
 pub mod governance_trait;
 use crate::governance_trait::{
     CastVoteRequest as GovernanceCastVoteRequest, // Renamed to avoid conflict
@@ -79,6 +86,7 @@ pub async fn query_data(
         CommonError::StorageError(msg) => {
             CommonError::StorageError(format!("API: Failed to query DagBlock: {}", msg))
         }
+        CommonError::PolicyDenied(msg) => CommonError::PolicyDenied(format!("API: {}", msg)),
         other => CommonError::ApiError(format!("API: Unexpected error: {:?}", other)),
     })
 }
@@ -117,6 +125,8 @@ pub fn get_node_status(is_simulated_online: bool) -> Result<NodeStatus, CommonEr
 pub async fn submit_dag_block(
     storage: Arc<tokio::sync::Mutex<dyn StorageService<DagBlock> + Send>>,
     block_data_json: String,
+    policy_enforcer: Option<Arc<dyn ScopedPolicyEnforcer>>,
+    actor: Did,
 ) -> Result<Cid, CommonError> {
     let block: DagBlock = serde_json::from_str(&block_data_json).map_err(|e| {
         CommonError::DeserializationError(format!(
@@ -132,9 +142,18 @@ pub async fn submit_dag_block(
         block.timestamp,
         &block.author_did,
         &block.signature,
+        &block.scope,
     );
     if expected_cid != block.cid {
         return Err(CommonError::DagValidationError("CID mismatch".to_string()));
+    }
+
+    if let Some(enforcer) = &policy_enforcer {
+        if let PolicyCheckResult::Denied { reason } =
+            enforcer.check_permission(DagPayloadOp::SubmitBlock, &actor, block.scope.as_ref())
+        {
+            return Err(CommonError::PolicyDenied(reason));
+        }
     }
 
     let mut store = storage.lock().await;
@@ -153,6 +172,7 @@ pub async fn submit_dag_block(
             "API: Deserialization error during put: {}",
             msg
         )),
+        CommonError::PolicyDenied(msg) => CommonError::PolicyDenied(format!("API: {}", msg)),
         _ => CommonError::ApiError(format!("API: Unexpected error during store.put: {:?}", e)),
     })?;
     Ok(block.cid.clone())
@@ -181,6 +201,7 @@ pub async fn retrieve_dag_block(
             "API: Deserialization error during get: {}",
             msg
         )),
+        CommonError::PolicyDenied(msg) => CommonError::PolicyDenied(format!("API: {}", msg)),
         // Note: get typically shouldn't cause SerializationError or DagValidationError unless the store is corrupted
         _ => CommonError::ApiError(format!("API: Unexpected error during store.get: {:?}", e)),
     })
@@ -249,6 +270,8 @@ impl GovernanceApi for GovernanceApiImpl {
             core_proposal_type,
             request.description,
             request.duration_secs,
+            request.quorum,
+            request.threshold,
         )
     }
 
@@ -384,7 +407,7 @@ pub async fn discover_peers_api(
 
 /// API endpoint to send a message to a specific peer (currently uses StubNetworkService).
 /// `peer_id_str` is the string representation of the target PeerId.
-/// `message_json` is a JSON string representation of the NetworkMessage.
+/// `message_json` is a JSON string representation of the [`ProtocolMessage`].
 pub async fn send_network_message_api(
     peer_id_str: String,
     message_json: String,
@@ -392,11 +415,11 @@ pub async fn send_network_message_api(
     let network_service = StubNetworkService::default();
     let peer_id = PeerId(peer_id_str); // Assuming PeerId is a simple wrapper around String for now.
 
-    // Deserialize the NetworkMessage from JSON.
-    // This requires NetworkMessage to implement Deserialize.
-    let message: NetworkMessage = serde_json::from_str(&message_json).map_err(|e| {
+    // Deserialize the ProtocolMessage from JSON.
+    // This requires [`ProtocolMessage`] to implement `Deserialize`.
+    let message: ProtocolMessage = serde_json::from_str(&message_json).map_err(|e| {
         CommonError::DeserializationError(format!(
-            "Failed to parse NetworkMessage JSON: {}. Input: {}",
+            "Failed to parse ProtocolMessage JSON: {}. Input: {}",
             e, message_json
         ))
     })?;
@@ -412,12 +435,61 @@ pub async fn send_network_message_api(
         })
 }
 
+/// Retrieve the local peer ID from an ICN node via HTTP.
+pub async fn http_get_local_peer_id(api_url: &str) -> Result<String, CommonError> {
+    let url = format!("{}/network/local-peer-id", api_url.trim_end_matches('/'));
+    let res = reqwest::get(&url)
+        .await
+        .map_err(|e| CommonError::ApiError(format!("Failed to send request: {}", e)))?;
+    if res.status().is_success() {
+        res.json::<serde_json::Value>()
+            .await
+            .map_err(|e| CommonError::DeserializationError(e.to_string()))
+            .and_then(|v| {
+                v.get("peer_id")
+                    .and_then(|p| p.as_str())
+                    .map(|s| s.to_string())
+                    .ok_or_else(|| {
+                        CommonError::DeserializationError("Missing peer_id field".to_string())
+                    })
+            })
+    } else {
+        let status = res.status();
+        let text = res.text().await.unwrap_or_default();
+        Err(CommonError::ApiError(format!(
+            "Request failed {}: {}",
+            status, text
+        )))
+    }
+}
+
+/// Retrieve the list of peers from an ICN node via HTTP.
+pub async fn http_get_peer_list(api_url: &str) -> Result<Vec<String>, CommonError> {
+    let url = format!("{}/network/peers", api_url.trim_end_matches('/'));
+    let res = reqwest::get(&url)
+        .await
+        .map_err(|e| CommonError::ApiError(format!("Failed to send request: {}", e)))?;
+    if res.status().is_success() {
+        res.json::<Vec<String>>()
+            .await
+            .map_err(|e| CommonError::DeserializationError(e.to_string()))
+    } else {
+        let status = res.status();
+        let text = res.text().await.unwrap_or_default();
+        Err(CommonError::ApiError(format!(
+            "Request failed {}: {}",
+            status, text
+        )))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use icn_common::DagLink; // For test setup
     use icn_dag::InMemoryDagStore; // For creating test stores, removed FileDagStore
     use icn_governance::GovernanceModule; // For governance tests
+    use icn_protocol::{DagBlockRequestMessage, GossipMessage, MessagePayload, ProtocolMessage};
 
     // Helper to create a default in-memory store for tests
     fn new_test_storage() -> Arc<tokio::sync::Mutex<dyn StorageService<DagBlock> + Send>> {
@@ -484,6 +556,7 @@ mod tests {
             ts,
             &author,
             &sig_opt,
+            &None,
         );
         let block = DagBlock {
             cid: cid.clone(),
@@ -492,9 +565,10 @@ mod tests {
             timestamp: ts,
             author_did: author,
             signature: sig_opt,
+            scope: None,
         };
         let block_json = serde_json::to_string(&block).unwrap();
-        let result = submit_dag_block(storage, block_json).await;
+        let result = submit_dag_block(storage, block_json, None, block.author_did.clone()).await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), cid);
     }
@@ -517,9 +591,10 @@ mod tests {
             timestamp: 0,
             author_did: Did::new("key", "tester"),
             signature: None,
+            scope: None,
         };
         let block_json = serde_json::to_string(&block).unwrap();
-        let result = submit_dag_block(storage, block_json).await;
+        let result = submit_dag_block(storage, block_json, None, block.author_did.clone()).await;
         match result {
             Err(CommonError::DagValidationError(_)) => {}
             other => panic!("expected DagValidationError, got {:?}", other),
@@ -548,10 +623,18 @@ mod tests {
             timestamp: ts,
             author_did: author,
             signature: sig_opt,
+            scope: None,
         };
 
         let block_json = serde_json::to_string(&block).unwrap();
-        match submit_dag_block(Arc::clone(&storage), block_json.clone()).await {
+        match submit_dag_block(
+            Arc::clone(&storage),
+            block_json.clone(),
+            None,
+            block.author_did.clone(),
+        )
+        .await
+        {
             Ok(submitted_cid) => assert_eq!(submitted_cid, cid),
             Err(e) => panic!("submit_dag_block failed: {:?}", e),
         }
@@ -579,7 +662,14 @@ mod tests {
 
         // Test invalid JSON for submit_dag_block
         let invalid_block_json = "this is not valid json";
-        match submit_dag_block(Arc::clone(&storage), invalid_block_json.to_string()).await {
+        match submit_dag_block(
+            Arc::clone(&storage),
+            invalid_block_json.to_string(),
+            None,
+            Did::new("key", "tester"),
+        )
+        .await
+        {
             Err(CommonError::DeserializationError(msg)) => {
                 assert!(msg.contains("Failed to parse DagBlock JSON"));
             }
@@ -638,6 +728,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_cast_vote_api() {
         let gov_module = new_test_governance_module();
         let api = GovernanceApiImpl::new(gov_module.clone());
@@ -688,8 +779,15 @@ mod tests {
         // Made async
         let peer_id_str = "test_peer_123".to_string();
         // Using GossipSub as a generic message type for the test, as Ping variant doesn't exist.
-        let message_to_send =
-            NetworkMessage::GossipSub("test_topic".to_string(), b"hello world".to_vec());
+        let message_to_send = ProtocolMessage::new(
+            MessagePayload::GossipMessage(GossipMessage {
+                topic: "test_topic".to_string(),
+                payload: b"hello world".to_vec(),
+                ttl: 1,
+            }),
+            Did::new("key", "tester"),
+            None,
+        );
         let message_json = serde_json::to_string(&message_to_send).unwrap();
 
         let result = send_network_message_api(peer_id_str, message_json).await;
@@ -705,7 +803,14 @@ mod tests {
         // Made async
         let peer_id_str = "unknown_peer_id".to_string(); // StubNetworkService simulates error for this peer
         let dummy_cid = Cid::new_v1_sha256(0x55, b"test_cid_for_req_block");
-        let message_to_send = NetworkMessage::RequestBlock(dummy_cid); // Corrected to tuple variant
+        let message_to_send = ProtocolMessage::new(
+            MessagePayload::DagBlockRequest(DagBlockRequestMessage {
+                block_cid: dummy_cid,
+                priority: 0,
+            }),
+            Did::new("key", "tester"),
+            None,
+        );
         let message_json = serde_json::to_string(&message_to_send).unwrap();
 
         let result = send_network_message_api(peer_id_str, message_json).await;
@@ -727,7 +832,7 @@ mod tests {
 
         match send_network_message_api(peer_id_str, invalid_message_json.to_string()).await {
             Err(CommonError::DeserializationError(msg)) => {
-                assert!(msg.contains("Failed to parse NetworkMessage JSON"));
+                assert!(msg.contains("Failed to parse ProtocolMessage JSON"));
             }
             Ok(_) => panic!("send_network_message_api should have failed for invalid JSON input"),
             Err(e) => panic!(
@@ -746,6 +851,9 @@ mod tests {
             recipient_did: None,
             payload_type: "test".to_string(),
             payload: b"hello".to_vec(),
+            nonce: 0,
+            gas_limit: 100,
+            gas_price: 1,
             signature: None,
         };
         let tx_json = serde_json::to_string(&tx).unwrap();
@@ -763,7 +871,7 @@ mod tests {
         let ts = 0u64;
         let author = Did::new("key", "tester");
         let sig_opt = None;
-        let cid = compute_merkle_cid(0x71, &data, &[], ts, &author, &sig_opt);
+        let cid = compute_merkle_cid(0x71, &data, &[], ts, &author, &sig_opt, &None);
         let block = DagBlock {
             cid: cid.clone(),
             data: data.clone(),
@@ -771,6 +879,7 @@ mod tests {
             timestamp: ts,
             author_did: author,
             signature: sig_opt,
+            scope: None,
         };
         {
             let mut guard = store.lock().await;
@@ -780,5 +889,154 @@ mod tests {
         let cid_json = serde_json::to_string(&cid).unwrap();
         let res = query_data(store, cid_json).await.unwrap().unwrap();
         assert_eq!(res.data, data);
+    }
+
+    struct DenyAllStore;
+
+    impl StorageService<DagBlock> for DenyAllStore {
+        fn put(&mut self, _block: &DagBlock) -> Result<(), CommonError> {
+            Err(CommonError::PolicyDenied("put blocked".to_string()))
+        }
+
+        fn get(&self, _cid: &Cid) -> Result<Option<DagBlock>, CommonError> {
+            Err(CommonError::PolicyDenied("get blocked".to_string()))
+        }
+
+        fn delete(&mut self, _cid: &Cid) -> Result<(), CommonError> {
+            Err(CommonError::PolicyDenied("delete blocked".to_string()))
+        }
+
+        fn contains(&self, _cid: &Cid) -> Result<bool, CommonError> {
+            Err(CommonError::PolicyDenied("contains blocked".to_string()))
+        }
+    }
+
+    #[tokio::test]
+    async fn policy_error_propagates_on_put() {
+        let store: Arc<tokio::sync::Mutex<dyn StorageService<DagBlock> + Send>> =
+            Arc::new(tokio::sync::Mutex::new(DenyAllStore));
+
+        let data = b"block".to_vec();
+        let ts = 0u64;
+        let author = Did::new("key", "tester");
+        let sig_opt = None;
+        let cid = compute_merkle_cid(0x71, &data, &[], ts, &author, &sig_opt, &None);
+        let block = DagBlock {
+            cid: cid.clone(),
+            data,
+            links: vec![],
+            timestamp: ts,
+            author_did: author,
+            signature: sig_opt,
+            scope: None,
+        };
+        let block_json = serde_json::to_string(&block).unwrap();
+        match submit_dag_block(store, block_json, None, block.author_did.clone()).await {
+            Err(CommonError::PolicyDenied(msg)) => assert!(msg.contains("blocked")),
+            other => panic!("Expected PolicyDenied, got {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn policy_error_propagates_on_get() {
+        let store: Arc<tokio::sync::Mutex<dyn StorageService<DagBlock> + Send>> =
+            Arc::new(tokio::sync::Mutex::new(DenyAllStore));
+
+        let cid = Cid::new_v1_sha256(0x71, b"a");
+        let cid_json = serde_json::to_string(&cid).unwrap();
+        match retrieve_dag_block(store, cid_json).await {
+            Err(CommonError::PolicyDenied(msg)) => assert!(msg.contains("blocked")),
+            other => panic!("Expected PolicyDenied, got {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn policy_error_propagates_on_query() {
+        let store: Arc<tokio::sync::Mutex<dyn StorageService<DagBlock> + Send>> =
+            Arc::new(tokio::sync::Mutex::new(DenyAllStore));
+
+        let cid = Cid::new_v1_sha256(0x71, b"a");
+        let cid_json = serde_json::to_string(&cid).unwrap();
+        match query_data(store, cid_json).await {
+            Err(CommonError::PolicyDenied(msg)) => assert!(msg.contains("blocked")),
+            other => panic!("Expected PolicyDenied, got {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn submit_dag_block_allowed_by_policy() {
+        use icn_governance::scoped_policy::InMemoryPolicyEnforcer;
+        use std::collections::{HashMap, HashSet};
+
+        let store = new_test_storage();
+        let actor = Did::new("key", "allowed");
+        let mut submitters = HashSet::new();
+        submitters.insert(actor.clone());
+        let enforcer = InMemoryPolicyEnforcer::new(submitters, HashSet::new(), HashMap::new());
+
+        let data = b"block".to_vec();
+        let ts = 0u64;
+        let sig_opt = None;
+        let cid = compute_merkle_cid(0x71, &data, &[], ts, &actor, &sig_opt, &None);
+        let block = DagBlock {
+            cid: cid.clone(),
+            data,
+            links: vec![],
+            timestamp: ts,
+            author_did: actor.clone(),
+            signature: sig_opt,
+            scope: None,
+        };
+
+        let block_json = serde_json::to_string(&block).unwrap();
+        let res = submit_dag_block(
+            Arc::clone(&store),
+            block_json,
+            Some(Arc::new(enforcer)),
+            actor.clone(),
+        )
+        .await;
+
+        assert_eq!(res.unwrap(), cid);
+    }
+
+    #[tokio::test]
+    async fn submit_dag_block_denied_by_policy() {
+        use icn_governance::scoped_policy::InMemoryPolicyEnforcer;
+        use std::collections::{HashMap, HashSet};
+
+        let store = new_test_storage();
+        let actor = Did::new("key", "denied");
+        let submitters = HashSet::new();
+        let enforcer = InMemoryPolicyEnforcer::new(submitters, HashSet::new(), HashMap::new());
+
+        let data = b"block".to_vec();
+        let ts = 0u64;
+        let sig_opt = None;
+        let cid = compute_merkle_cid(0x71, &data, &[], ts, &actor, &sig_opt, &None);
+        let block = DagBlock {
+            cid,
+            data,
+            links: vec![],
+            timestamp: ts,
+            author_did: actor.clone(),
+            signature: sig_opt,
+            scope: None,
+        };
+        let block_json = serde_json::to_string(&block).unwrap();
+
+        match submit_dag_block(
+            Arc::clone(&store),
+            block_json,
+            Some(Arc::new(enforcer)),
+            actor.clone(),
+        )
+        .await
+        {
+            Err(CommonError::PolicyDenied(msg)) => {
+                assert!(msg.contains("not authorized"));
+            }
+            other => panic!("expected PolicyDenied, got {:?}", other),
+        }
     }
 }

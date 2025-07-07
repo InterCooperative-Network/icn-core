@@ -4,6 +4,8 @@ This crate provides a command-line interface (CLI) for interacting with the Inte
 It allows users and administrators to manage nodes, interact with the network, and perform administrative tasks.
 The CLI aims for usability, discoverability, and scriptability.
 
+See [CONTEXT.md](../CONTEXT.md) for ICN Core design philosophy and crate roles.
+
 ## Purpose
 
 The `icn-cli` is the primary tool for users to interact with an ICN node from the command line. It connects to an ICN node (via the `icn-api` crate, which in turn might be an RPC client to a running `icn-node` instance) to perform actions.
@@ -18,7 +20,8 @@ The `icn-cli` is the primary tool for users to interact with an ICN node from th
     *   `icn-cli dag get <CID_JSON_STRING>`: Retrieves a DagBlock from the node by its CID. The CID must be provided as a JSON string.
 *   **Network Operations:**
     *   `icn-cli network discover-peers`: Query the connected node for peers. With the `with-libp2p` feature enabled the node will perform real discovery via libp2p.
-    *   `icn-cli network send-message <PEER_ID> <MESSAGE_JSON>`: Send a `NetworkMessage` to a specified peer. Requires the node to run with libp2p networking.
+    *   `icn-cli network send-message <PEER_ID> <MESSAGE_JSON>`: Send a `ProtocolMessage` (encoded as JSON) to a specified peer. Requires the node to run with libp2p networking.
+    *   `icn-cli network peers`: Display this node's peer ID and the currently discovered peer list.
 *   **Federation Operations:**
     *   `icn-cli federation join <PEER_ID>`: Join a federation by adding the given peer.
     *   `icn-cli federation leave <PEER_ID>`: Leave a federation or remove the peer.
@@ -40,7 +43,7 @@ The CLI aims to provide clear error messages and exit with appropriate status co
 As a CLI application, its "public API" is its command-line arguments, options, and output format (both `stdout` for data and `stderr` for errors).
 
 *   Commands are structured hierarchically (e.g., `dag put`, `network discover-peers`).
-*   Input for complex data structures (like DagBlocks or NetworkMessages) is currently expected in JSON string format for simplicity in this development phase. Future versions may support file inputs or more structured argument parsing.
+*   Input for complex data structures (like DagBlocks or ProtocolMessages) is currently expected in JSON string format for simplicity in this development phase. Future versions may support file inputs or more structured argument parsing.
 *   Output is human-readable. Successful data retrieval is printed to `stdout`. Errors and verbose logging (if any) go to `stderr`.
 
 ## Contributing

@@ -13,6 +13,7 @@ icn-identity = { path = "../icn-identity" }
 icn-economics = { path = "../icn-economics" }
 icn-mesh = { path = "../icn-mesh" }
 icn-network = { path = "../icn-network", features = ["libp2p"] }
+icn-protocol = { path = "../icn-protocol" }
 icn-dag = { path = "../icn-dag" }
 icn-governance = { path = "../icn-governance", default-features = false, features = ["serde"] }
 icn-reputation = { path = "../icn-reputation" }
@@ -31,6 +32,8 @@ bincode = "1.3"
 once_cell = "1.21"
 prometheus-client = "0.22"
 clap = { version = "4.0", features = ["derive"], optional = true }
+icn-ccl = { path = "../../icn-ccl" }
+sha2 = "0.10"
 
 [dev-dependencies]
 anyhow = "1.0.75"
@@ -41,6 +44,8 @@ icn-ccl = { path = "../../icn-ccl" }
 tempfile = "3"
 # Ensure sequential execution for metrics tests
 serial_test = { version = "3", features = ["async"] }
+# Logging for integration tests
+env_logger = "0.11"
 # temp-dir = "0.1"
 
 [features]
@@ -50,6 +55,7 @@ persist-sled = ["icn-governance/persist-sled", "icn-reputation/persist-sled"]
 persist-sqlite = ["icn-governance/persist-sled", "icn-reputation/persist-sqlite", "icn-economics/persist-sqlite"]
 persist-rocksdb = ["icn-governance/persist-sled", "icn-reputation/persist-rocksdb", "icn-economics/persist-rocksdb"]
 cli = ["dep:clap"]
+async = ["icn-dag/async"]
 
 # Integration tests for cross-node functionality
 [[test]]

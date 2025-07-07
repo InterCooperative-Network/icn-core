@@ -1,0 +1,585 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# ICN Core Troubleshooting Guide
+
+> **Purpose:** This file provides comprehensive troubleshooting guidance, common issue patterns, and debugging strategies for the `icn-core` system.
+
+---
+
+## 1 · Diagnostic Tools and Commands
+
+### Quick Health Check
+```bash
+# Basic system validation
+just health-check      # Run health check suite
+just status            # Show system status
+just logs             # View recent logs
+just metrics          # Show performance metrics
+```
+
+### Detailed Diagnostics
+```bash
+# Runtime diagnostics
+cargo run --bin icn-node -- diagnose
+cargo run --bin icn-cli -- system status
+cargo run --bin icn-cli -- network peers
+
+# Performance profiling
+just profile-cpu       # CPU profiling
+just profile-memory    # Memory profiling
+just trace-calls       # Function call tracing
+```
+
+### Log Analysis
+```bash
+# Structured log filtering
+RUST_LOG=icn_runtime=debug cargo run
+RUST_LOG=icn_mesh=trace,icn_economics=debug cargo run
+
+# Log levels by component
+export ICN_LOG_CONFIG="icn_runtime=info,icn_mesh=debug,icn_network=warn"
+```
+
+---
+
+## 2 · Common Issues and Solutions
+
+### Job Execution Issues
+
+#### Issue: "Job Submission Failed - Insufficient Mana"
+```
+Error: ManaError::InsufficientMana { required: 1000, available: 250 }
+```
+
+**Diagnosis:**
+```bash
+# Check mana balance
+icn-cli account status --did <submitter-did>
+
+# Check mana regeneration
+icn-cli account history --did <submitter-did> --limit 10
+```
+
+**Solutions:**
+1. **Wait for regeneration:** Mana regenerates over time based on policy
+2. **Check reputation:** Low reputation affects regeneration rate
+3. **Reduce job cost:** Optimize job specification to require less resources
+4. **Transfer mana:** If transfers are enabled in governance
+
+**Code Fix Pattern:**
+```rust
+// Add proper mana validation before submission
+async fn submit_job_with_validation(job: MeshJob, submitter: Did) -> Result<JobId, RuntimeError> {
+    let account = economics_service.get_account(&submitter).await?;
+    let estimated_cost = estimate_job_cost(&job)?;
+    
+    if account.mana_balance < estimated_cost {
+        // Suggest wait time for regeneration
+        let wait_time = calculate_regeneration_time(estimated_cost - account.mana_balance, account.regeneration_rate);
+        return Err(RuntimeError::InsufficientMana { 
+            required: estimated_cost,
+            available: account.mana_balance,
+            regeneration_wait: wait_time,
+        });
+    }
+    
+    // Proceed with submission
+    runtime.submit_mesh_job(job, submitter).await
+}
+```
+
+#### Issue: "No Valid Bids Received"
+```
+Warning: Job 0x1234... expired with no valid bids
+```
+
+**Diagnosis:**
+```bash
+# Check network connectivity
+icn-cli network peers --verbose
+
+# Check job requirements
+icn-cli job details --id <job-id>
+
+# Check executor availability
+icn-cli network executors --capabilities <required-caps>
+```
+
+**Solutions:**
+1. **Relax requirements:** Reduce resource constraints
+2. **Increase timeout:** Allow more time for bid collection
+3. **Check network:** Ensure proper peer connectivity
+4. **Increase cost:** Higher bids attract more executors
+
+**Code Fix Pattern:**
+```rust
+// Add bid monitoring and automatic retry
+async fn submit_job_with_retry(job: MeshJob, submitter: Did, max_retries: u32) -> Result<JobId, RuntimeError> {
+    let mut attempts = 0;
+    let mut current_job = job;
+    
+    while attempts < max_retries {
+        match runtime.submit_mesh_job(current_job.clone(), submitter).await {
+            Ok(job_id) => {
+                // Monitor for bids
+                let bid_result = wait_for_bids(job_id, Duration::from_secs(30)).await;
+                
+                match bid_result {
+                    BidResult::Success => return Ok(job_id),
+                    BidResult::NoBids => {
+                        // Adjust job parameters for retry
+                        current_job.max_cost = (current_job.max_cost as f64 * 1.2) as u64;
+                        current_job.timeout += Duration::from_secs(30);
+                        attempts += 1;
+                    }
+                }
+            }
+            Err(e) => return Err(e),
+        }
+    }
+    
+    Err(RuntimeError::NoBidsAfterRetries)
+}
+```
+
+### Network and Connectivity Issues
+
+#### Issue: "Peer Discovery Failed"
+```
+Error: NetworkError::PeerDiscoveryTimeout
+```
+
+**Diagnosis:**
+```bash
+# Check network configuration
+cat ~/.icn/network-config.toml
+
+# Test connectivity
+icn-cli network ping --peer <peer-id>
+icn-cli network test-connectivity
+
+# Check firewall/NAT
+netstat -an | grep <icn-port>
+```
+
+**Solutions:**
+1. **Check firewall:** Ensure ICN ports are open
+2. **Bootstrap peers:** Configure known bootstrap nodes
+3. **NAT traversal:** Enable UPnP or configure port forwarding
+4. **Network mode:** Switch between public/private network modes
+
+#### Issue: "Message Routing Failed"
+```
+Warning: Failed to route message to peer <peer-id>
+```
+
+**Diagnosis:**
+```bash
+# Check routing table
+icn-cli network routing-table
+
+# Test specific peer
+icn-cli network route-test --target <peer-id>
+```
+
+**Solutions:**
+1. **Update routing:** Refresh peer discovery
+2. **Check peer status:** Verify target peer is online
+3. **Network partitioning:** Check for network splits
+
+### DAG and Storage Issues
+
+#### Issue: "Receipt Anchoring Failed"
+```
+Error: DagError::AnchoringFailed { receipt_id: "0x...", reason: "Invalid signature" }
+```
+
+**Diagnosis:**
+```rust
+// Debug receipt validation
+async fn debug_receipt_anchoring(receipt: ExecutionReceipt) -> Result<(), DagError> {
+    // Verify signature
+    let signature_valid = identity_service.verify_receipt_signature(&receipt).await?;
+    if !signature_valid {
+        error!("Invalid receipt signature from executor {}", receipt.executor);
+        return Err(DagError::InvalidSignature);
+    }
+    
+    // Check executor authorization
+    let executor_authorized = mesh_service.is_authorized_executor(&receipt.job_id, &receipt.executor).await?;
+    if !executor_authorized {
+        error!("Unauthorized executor {} for job {}", receipt.executor, receipt.job_id);
+        return Err(DagError::UnauthorizedExecutor);
+    }
+    
+    // Verify receipt content
+    validate_receipt_content(&receipt)?;
+    
+    // Proceed with anchoring
+    dag_service.anchor_receipt(receipt).await
+}
+```
+
+#### Issue: "DAG Store Corruption"
+```
+Error: DagError::CorruptedBlock { block_id: "0x..." }
+```
+
+**Diagnosis:**
+```bash
+# Check DAG integrity
+icn-cli dag verify --full
+
+# Repair corrupted blocks
+icn-cli dag repair --block <block-id>
+
+# Backup and restore
+icn-cli dag backup --path ./dag-backup
+icn-cli dag restore --path ./dag-backup
+```
+
+### Performance Issues
+
+#### Issue: "High Memory Usage"
+```
+Warning: Memory usage above threshold: 2.1GB / 2GB
+```
+
+**Diagnosis:**
+```bash
+# Memory profiling
+just profile-memory
+
+# Check for leaks
+valgrind --tool=memcheck --leak-check=full ./target/debug/icn-node
+
+# Monitor over time
+just memory-monitor
+```
+
+**Solutions:**
+1. **Increase limits:** Adjust memory configuration
+2. **Optimize caching:** Reduce cache sizes
+3. **Fix leaks:** Address memory leaks in code
+4. **Garbage collection:** Trigger manual cleanup
+
+**Code Fix Pattern:**
+```rust
+// Implement proper resource cleanup
+pub struct ResourceManager {
+    job_cache: LruCache<JobId, MeshJob>,
+    receipt_cache: LruCache<ReceiptId, ExecutionReceipt>,
+    cleanup_interval: Duration,
+}
+
+impl ResourceManager {
+    pub async fn cleanup_task(&mut self) {
+        let mut interval = tokio::time::interval(self.cleanup_interval);
+        
+        loop {
+            interval.tick().await;
+            
+            // Clean expired entries
+            self.job_cache.retain(|_, job| !job.is_expired());
+            self.receipt_cache.retain(|_, receipt| receipt.timestamp.elapsed() < Duration::from_hours(24));
+            
+            // Force garbage collection if memory high
+            if self.memory_usage() > self.memory_threshold() {
+                self.force_cleanup().await;
+            }
+        }
+    }
+}
+```
+
+---
+
+## 3 · Debugging Patterns
+
+### Runtime State Inspection
+```rust
+// Debug runtime context
+#[cfg(debug_assertions)]
+impl RuntimeContext {
+    pub fn debug_dump(&self) -> String {
+        format!(
+            "RuntimeContext Debug Dump:\n\
+             - Pending Jobs: {}\n\
+             - Active Jobs: {}\n\
+             - Connected Peers: {}\n\
+             - Mana Accounts: {}\n\
+             - DAG Blocks: {}",
+            self.pending_mesh_jobs.len(),
+            self.active_jobs.len(),
+            self.network_peers.len(),
+            self.mana_accounts.len(),
+            self.dag_store.block_count()
+        )
+    }
+    
+    pub fn debug_job_state(&self, job_id: &JobId) -> Option<String> {
+        self.pending_mesh_jobs.get(job_id)
+            .or_else(|| self.active_jobs.get(job_id))
+            .map(|job| format!("Job {}: {:?}", job_id, job))
+    }
+}
+```
+
+### Network Debugging
+```rust
+// Network message tracing
+pub struct NetworkDebugger {
+    message_log: VecDeque<(DateTime<Utc>, NetworkMessage)>,
+    max_log_size: usize,
+}
+
+impl NetworkDebugger {
+    pub fn log_message(&mut self, message: NetworkMessage) {
+        self.message_log.push_back((Utc::now(), message));
+        
+        if self.message_log.len() > self.max_log_size {
+            self.message_log.pop_front();
+        }
+    }
+    
+    pub fn analyze_patterns(&self) -> NetworkAnalysis {
+        // Analyze message patterns for debugging
+        NetworkAnalysis {
+            message_frequency: self.calculate_frequency(),
+            failed_deliveries: self.count_failures(),
+            average_latency: self.calculate_latency(),
+        }
+    }
+}
+```
+
+### Transaction Debugging
+```rust
+// Economics transaction tracing
+pub struct EconomicsDebugger {
+    transaction_trace: Vec<ManaTransaction>,
+}
+
+impl EconomicsDebugger {
+    pub fn trace_mana_flow(&self, account: &Did) -> ManaFlowTrace {
+        let transactions = self.transaction_trace
+            .iter()
+            .filter(|tx| tx.account == *account)
+            .collect::<Vec<_>>();
+            
+        ManaFlowTrace {
+            initial_balance: transactions.first().map(|tx| tx.balance_before).unwrap_or(0),
+            final_balance: transactions.last().map(|tx| tx.balance_after).unwrap_or(0),
+            total_spent: transactions.iter().filter(|tx| tx.amount < 0).map(|tx| -tx.amount).sum(),
+            total_earned: transactions.iter().filter(|tx| tx.amount > 0).map(|tx| tx.amount).sum(),
+            transaction_count: transactions.len(),
+        }
+    }
+}
+```
+
+---
+
+## 4 · Error Recovery Patterns
+
+### Graceful Degradation
+```rust
+// Implement fallback mechanisms
+pub struct FallbackJobManager {
+    primary_manager: Box<dyn JobManager>,
+    fallback_manager: Box<dyn JobManager>,
+}
+
+impl JobManager for FallbackJobManager {
+    async fn submit_job(&self, job: MeshJob, submitter: Did) -> Result<JobId, RuntimeError> {
+        match self.primary_manager.submit_job(job.clone(), submitter.clone()).await {
+            Ok(job_id) => Ok(job_id),
+            Err(primary_error) => {
+                warn!("Primary job manager failed: {}, trying fallback", primary_error);
+                
+                match self.fallback_manager.submit_job(job, submitter).await {
+                    Ok(job_id) => {
+                        info!("Fallback job manager succeeded");
+                        Ok(job_id)
+                    }
+                    Err(fallback_error) => {
+                        error!("Both primary and fallback managers failed");
+                        Err(RuntimeError::AllManagersFailed {
+                            primary: Box::new(primary_error),
+                            fallback: Box::new(fallback_error),
+                        })
+                    }
+                }
+            }
+        }
+    }
+}
+```
+
+### Circuit Breaker Pattern
+```rust
+// Prevent cascade failures
+pub struct CircuitBreaker {
+    failure_count: AtomicU32,
+    last_failure: AtomicU64,
+    failure_threshold: u32,
+    timeout: Duration,
+    state: AtomicU8, // 0 = Closed, 1 = Open, 2 = HalfOpen
+}
+
+impl CircuitBreaker {
+    pub async fn call<F, T, E>(&self, operation: F) -> Result<T, CircuitBreakerError<E>>
+    where
+        F: Future<Output = Result<T, E>>,
+    {
+        match self.get_state() {
+            CircuitState::Open => {
+                if self.should_attempt_reset() {
+                    self.set_state(CircuitState::HalfOpen);
+                } else {
+                    return Err(CircuitBreakerError::CircuitOpen);
+                }
+            }
+            CircuitState::HalfOpen => {
+                // Limited calls allowed in half-open state
+            }
+            CircuitState::Closed => {
+                // Normal operation
+            }
+        }
+        
+        match operation.await {
+            Ok(result) => {
+                self.record_success();
+                Ok(result)
+            }
+            Err(error) => {
+                self.record_failure();
+                Err(CircuitBreakerError::OperationFailed(error))
+            }
+        }
+    }
+}
+```
+
+### Retry Mechanisms
+```rust
+// Exponential backoff retry
+pub async fn retry_with_backoff<F, T, E>(
+    operation: F,
+    max_retries: u32,
+    initial_delay: Duration,
+    max_delay: Duration,
+) -> Result<T, E>
+where
+    F: Fn() -> Future<Output = Result<T, E>>,
+    E: std::fmt::Debug,
+{
+    let mut attempts = 0;
+    let mut delay = initial_delay;
+    
+    loop {
+        match operation().await {
+            Ok(result) => return Ok(result),
+            Err(error) => {
+                attempts += 1;
+                
+                if attempts >= max_retries {
+                    error!("Operation failed after {} attempts: {:?}", attempts, error);
+                    return Err(error);
+                }
+                
+                warn!("Operation failed (attempt {}), retrying in {:?}: {:?}", attempts, delay, error);
+                tokio::time::sleep(delay).await;
+                
+                // Exponential backoff with jitter
+                delay = std::cmp::min(delay * 2, max_delay);
+                let jitter = Duration::from_millis(fastrand::u64(0..=delay.as_millis() as u64 / 10));
+                delay += jitter;
+            }
+        }
+    }
+}
+```
+
+---
+
+## 5 · Monitoring and Alerting
+
+### Health Check Implementation
+```rust
+// Comprehensive health monitoring
+pub struct HealthChecker {
+    runtime: Arc<RuntimeContext>,
+    network: Arc<dyn NetworkService>,
+    dag: Arc<dyn DagStore>,
+    economics: Arc<dyn EconomicsService>,
+}
+
+impl HealthChecker {
+    pub async fn full_health_check(&self) -> HealthReport {
+        let mut report = HealthReport::new();
+        
+        // Runtime health
+        report.add_check("runtime", self.check_runtime_health().await);
+        
+        // Network connectivity
+        report.add_check("network", self.check_network_health().await);
+        
+        // DAG integrity
+        report.add_check("dag", self.check_dag_health().await);
+        
+        // Economics consistency
+        report.add_check("economics", self.check_economics_health().await);
+        
+        // Performance metrics
+        report.add_check("performance", self.check_performance_health().await);
+        
+        report
+    }
+    
+    async fn check_runtime_health(&self) -> HealthStatus {
+        let pending_jobs = self.runtime.pending_mesh_jobs.len();
+        let active_jobs = self.runtime.active_jobs.len();
+        
+        if pending_jobs > 1000 || active_jobs > 500 {
+            HealthStatus::Warning("High job queue load".to_string())
+        } else {
+            HealthStatus::Healthy
+        }
+    }
+}
+```
+
+### Metrics Collection
+```rust
+// Structured metrics for monitoring
+use metrics::{counter, histogram, gauge};
+
+pub struct ICNMetrics;
+
+impl ICNMetrics {
+    pub fn record_job_submitted() {
+        counter!("icn.jobs.submitted").increment(1);
+    }
+    
+    pub fn record_job_duration(duration: Duration) {
+        histogram!("icn.job.duration").record(duration.as_secs_f64());
+    }
+    
+    pub fn record_mana_balance(did: &Did, balance: u64) {
+        gauge!("icn.mana.balance", "did" => did.to_string()).set(balance as f64);
+    }
+    
+    pub fn record_network_peers(count: usize) {
+        gauge!("icn.network.peer_count").set(count as f64);
+    }
+}
+```
+
+---
+
+**Remember: When debugging, start with the logs, check the metrics, and use systematic elimination to isolate issues.**

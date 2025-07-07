@@ -5,6 +5,7 @@
 //! This crate provides a command-line interface (CLI) for interacting with an ICN HTTP node.
 
 use clap::{Parser, Subcommand};
+use icn_common::CommonError;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue; // For generic JSON data if needed
@@ -21,6 +22,14 @@ use icn_api::governance_trait::{
 };
 use icn_ccl::{compile_ccl_file, compile_ccl_file_to_wasm};
 use icn_governance::{Proposal, ProposalId};
+
+fn anyhow_to_common(e: anyhow::Error) -> CommonError {
+    if let Some(c) = e.downcast_ref::<CommonError>() {
+        c.clone()
+    } else {
+        CommonError::UnknownError(e.to_string())
+    }
+}
 
 // --- CLI Argument Parsing ---
 
@@ -45,6 +54,8 @@ enum Commands {
     Info,
     /// Get node status (online, peers, block height)
     Status,
+    /// Fetch Prometheus metrics text
+    Metrics,
     /// DAG block operations
     Dag {
         #[clap(subcommand)]
@@ -162,6 +173,8 @@ enum NetworkCommands {
         #[clap(help = "Target peer ID")]
         peer_id: String,
     },
+    /// Fetch local peer ID and list of discovered peers
+    Peers,
 }
 
 #[derive(Subcommand, Debug)]
@@ -199,11 +212,13 @@ enum FederationCommands {
 
 #[tokio::main]
 async fn main() {
+    env_logger::init();
     let cli = Cli::parse();
     let client = Client::new();
 
     if let Err(e) = run_command(&cli, &client).await {
-        eprintln!("Error: {}", e);
+        let err = anyhow_to_common(e);
+        eprintln!("Error: {}", err);
         exit(1);
     }
 }
@@ -212,6 +227,7 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
     match &cli.command {
         Commands::Info => handle_info(cli, client).await?,
         Commands::Status => handle_status(cli, client).await?,
+        Commands::Metrics => handle_metrics(cli, client).await?,
         Commands::Dag { command } => match command {
             DagCommands::Put {
                 block_json_or_stdin,
@@ -239,6 +255,7 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
         Commands::Network { command } => match command {
             NetworkCommands::Stats => handle_network_stats(cli, client).await?,
             NetworkCommands::Ping { peer_id } => handle_network_ping(cli, client, peer_id).await?,
+            NetworkCommands::Peers => handle_network_peers(cli, client).await?,
         },
         Commands::Ccl { command } => match command {
             CclCommands::Compile { file } => handle_ccl_compile(file)?,
@@ -334,6 +351,28 @@ async fn handle_status(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> 
     println!("Version:        {}", response.version);
     println!("-------------------");
     Ok(())
+}
+
+async fn handle_metrics(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
+    let url = format!("{}{}", &cli.api_url, "/metrics");
+    let res = client.get(&url).send().await?;
+    if res.status().is_success() {
+        let body = res.text().await?;
+        println!("{}", body);
+        Ok(())
+    } else {
+        let status = res.status();
+        let text = res
+            .text()
+            .await
+            .unwrap_or_else(|_| "Failed to read error body".to_string());
+        Err(anyhow::anyhow!(
+            "Request failed with status {}: {}\nURL: {}",
+            status,
+            text,
+            url
+        ))
+    }
 }
 
 async fn handle_dag_put(
@@ -531,6 +570,17 @@ async fn handle_network_ping(
     let info: NodeInfo = get_request(&cli.api_url, client, "/info").await?;
     let result = icn_network::send_network_ping(&info, peer_id).await?;
     println!("{}", result);
+    Ok(())
+}
+
+async fn handle_network_peers(cli: &Cli, _client: &Client) -> Result<(), anyhow::Error> {
+    let peer_id = icn_api::http_get_local_peer_id(&cli.api_url).await?;
+    let peers = icn_api::http_get_peer_list(&cli.api_url).await?;
+    println!("Local Peer ID: {}", peer_id);
+    println!("Discovered Peers:");
+    for p in peers {
+        println!("- {}", p);
+    }
     Ok(())
 }
 

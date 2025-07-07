@@ -1,25 +1,29 @@
 #[cfg(feature = "enable-libp2p")]
 mod multi_node_libp2p {
-    use icn_runtime::context::{RuntimeContext, DefaultMeshNetworkService, MeshNetworkService};
-    use icn_runtime::{host_submit_mesh_job, host_anchor_receipt, ReputationUpdater};
-    use icn_runtime::executor::{SimpleExecutor, JobExecutor};
-    use icn_common::{Did, Cid};
-    use icn_identity::{SignatureBytes, generate_ed25519_keypair};
-    use icn_mesh::{ActualMeshJob, MeshJobBid, JobSpec, Resources};
-    use icn_network::{NetworkMessage, NetworkService};
+    use icn_common::{Cid, Did};
+    use icn_identity::{generate_ed25519_keypair, SignatureBytes};
+    use icn_mesh::{ActualMeshJob, JobSpec, MeshJobBid, Resources};
+    use icn_network::NetworkService;
+    use icn_protocol::{MeshJobAssignmentMessage, MessagePayload, ProtocolMessage};
+    use icn_runtime::context::{DefaultMeshNetworkService, MeshNetworkService, RuntimeContext};
+    use icn_runtime::executor::{JobExecutor, SimpleExecutor};
+    use icn_runtime::{host_anchor_receipt, host_submit_mesh_job, ReputationUpdater};
     use libp2p::{Multiaddr, PeerId as Libp2pPeerId};
+    use log::info;
     use std::str::FromStr;
     use std::sync::Arc;
     use tokio::time::{sleep, timeout, Duration};
-    use log::info;
 
     fn create_test_job(job_id_suffix: &str, creator_did: &Did, cost_mana: u64) -> ActualMeshJob {
         let job_id = Cid::new_v1_sha256(0x55, format!("test_job_{}", job_id_suffix).as_bytes());
-        let manifest_cid = Cid::new_v1_sha256(0x55, format!("manifest_{}", job_id_suffix).as_bytes());
+        let manifest_cid =
+            Cid::new_v1_sha256(0x55, format!("manifest_{}", job_id_suffix).as_bytes());
         ActualMeshJob {
             id: job_id,
             manifest_cid,
-            spec: JobSpec::Echo { payload: format!("Cross-node test job {}", job_id_suffix) },
+            spec: JobSpec::Echo {
+                payload: format!("Cross-node test job {}", job_id_suffix),
+            },
             creator_did: creator_did.clone(),
             cost_mana,
             max_execution_wait_ms: None,
@@ -84,11 +88,16 @@ mod multi_node_libp2p {
         // Wait for announcement
         timeout(Duration::from_secs(5), async {
             loop {
-                if let Some(NetworkMessage::MeshJobAnnouncement(job)) = recv_b.recv().await {
-                    if job.id == job_id { break; }
+                if let Some(message) = recv_b.recv().await {
+                    if let MessagePayload::MeshJobAnnouncement(job) = &message.payload {
+                        if job.id == job_id {
+                            break;
+                        }
+                    }
                 }
             }
-        }).await?;
+        })
+        .await?;
 
         // Send bid from Node B
         let unsigned_bid = MeshJobBid {
@@ -104,35 +113,51 @@ mod multi_node_libp2p {
             signature: SignatureBytes(sig),
             ..unsigned_bid
         };
-        node_b_libp2p
-            .broadcast_message(NetworkMessage::BidSubmission(bid))
-            .await?;
+        let msg = ProtocolMessage::new(
+            MessagePayload::MeshBidSubmission(bid),
+            executor_did.clone(),
+            None,
+        );
+        node_b_libp2p.broadcast_message(msg).await?;
 
         // Wait for bid on Node A
         timeout(Duration::from_secs(5), async {
             loop {
-                if let Some(NetworkMessage::BidSubmission(b)) = recv_a.recv().await {
-                    if b.job_id == job_id { break; }
+                if let Some(message) = recv_a.recv().await {
+                    if let MessagePayload::MeshBidSubmission(b) = &message.payload {
+                        if b.job_id == job_id {
+                            break;
+                        }
+                    }
                 }
             }
-        }).await?;
+        })
+        .await?;
 
         // Assign job to Node B
-        node_a_libp2p
-            .broadcast_message(NetworkMessage::JobAssignmentNotification(
-                job_id.clone(),
-                executor_did.clone(),
-            ))
-            .await?;
+        let assign_msg = ProtocolMessage::new(
+            MessagePayload::MeshJobAssignment(MeshJobAssignmentMessage {
+                job_id: job_id.clone(),
+                executor_did: executor_did.clone(),
+            }),
+            node_a.current_identity.clone(),
+            None,
+        );
+        node_a_libp2p.broadcast_message(assign_msg).await?;
 
         // Wait for assignment on Node B
         timeout(Duration::from_secs(5), async {
             loop {
-                if let Some(NetworkMessage::JobAssignmentNotification(id, ex)) = recv_b.recv().await {
-                    if id == job_id && ex == executor_did { break; }
+                if let Some(message) = recv_b.recv().await {
+                    if let MessagePayload::MeshJobAssignment(assign) = &message.payload {
+                        if assign.job_id == job_id && assign.executor_did == executor_did {
+                            break;
+                        }
+                    }
                 }
             }
-        }).await?;
+        })
+        .await?;
 
         // Node B executes job
         let (sk, pk) = generate_ed25519_keypair();
@@ -141,15 +166,22 @@ mod multi_node_libp2p {
         assert!(receipt.verify_against_key(&pk).is_ok());
 
         // Submit receipt
-        node_b_libp2p
-            .broadcast_message(NetworkMessage::SubmitReceipt(receipt.clone()))
-            .await?;
+        let receipt_msg = ProtocolMessage::new(
+            MessagePayload::MeshReceiptSubmission(receipt.clone()),
+            executor_did.clone(),
+            None,
+        );
+        node_b_libp2p.broadcast_message(receipt_msg).await?;
 
         // Node A waits for receipt
         let final_receipt = timeout(Duration::from_secs(5), async {
             loop {
-                if let Some(NetworkMessage::SubmitReceipt(r)) = recv_a.recv().await {
-                    if r.job_id == job_id { break r; }
+                if let Some(message) = recv_a.recv().await {
+                    if let MessagePayload::MeshReceiptSubmission(r) = &message.payload {
+                        if r.job_id == job_id {
+                            break r.clone();
+                        }
+                    }
                 }
             }
         })

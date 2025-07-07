@@ -2,6 +2,8 @@
 
 This crate manages decentralized identities (DIDs), verifiable credentials (VCs), and cryptographic operations for users and nodes within the InterCooperative Network (ICN).
 
+See [CONTEXT.md](../CONTEXT.md) for ICN Core design philosophy and crate roles.
+
 ## Purpose
 
 The `icn-identity` crate is responsible for:
@@ -31,6 +33,13 @@ The API style emphasizes:
 * **`did:peer`** – basic support for [algorithm 0](https://identity.foundation/peer-did-method-spec/).
   Keys can be encoded with [`did_peer_from_verifying_key`] and resolved with
   [`verifying_key_from_did_peer`].
+
+### `did:web` segment validation
+
+`did_web_from_parts` returns an error if any domain label or path segment
+contains characters other than ASCII letters, digits, `-`, `_`, or `.` or if a
+segment exceeds 63 characters. Domains longer than 253 characters are also
+rejected.
 
 ## Contributing
 

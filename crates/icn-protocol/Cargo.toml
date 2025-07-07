@@ -3,16 +3,17 @@ name = "icn-protocol"
 version = "0.1.0"
 edition = "2021"
 authors = ["ICN Contributors"]
-description = "Core message formats and protocol definitions for ICN."
+description = "Core protocol message definitions for the InterCooperative Network"
 license = "Apache-2.0"
 readme = "README.md"
 
 [dependencies]
 icn-common = { path = "../icn-common" }
+icn-identity = { path = "../icn-identity" }
 serde = { version = "1.0", features = ["derive"] }
 
 [dev-dependencies]
-# Add any test-specific dependencies here
+tokio = { version = "1.0", features = ["macros"] }
 
 [features]
 default = []

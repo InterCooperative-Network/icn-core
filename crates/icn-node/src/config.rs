@@ -3,6 +3,17 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
+use std::sync::Arc;
+use tokio::sync::Mutex as TokioMutex;
+
+use icn_common::{CommonError, DagBlock};
+#[cfg(feature = "persist-rocksdb")]
+use icn_dag::rocksdb_store::RocksDagStore;
+#[cfg(feature = "persist-sled")]
+use icn_dag::sled_store::SledDagStore;
+#[cfg(feature = "persist-sqlite")]
+use icn_dag::sqlite_store::SqliteDagStore;
+use icn_dag::{FileDagStore, InMemoryDagStore, StorageService};
 
 /// Storage backends supported by the node.
 #[derive(clap::ValueEnum, Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -66,6 +77,8 @@ pub struct NodeConfig {
     pub tls_cert_path: Option<std::path::PathBuf>,
     /// TLS private key path for HTTPS. Requires `tls_cert_path` as well.
     pub tls_key_path: Option<std::path::PathBuf>,
+    /// Peers this node has joined in a federation.
+    pub federation_peers: Vec<String>,
 }
 
 pub(crate) fn default_ledger_backend() -> icn_runtime::context::LedgerBackend {
@@ -119,6 +132,7 @@ impl Default for NodeConfig {
             open_rate_limit: 60,
             tls_cert_path: None,
             tls_key_path: None,
+            federation_peers: Vec::new(),
         }
     }
 }
@@ -508,5 +522,63 @@ impl NodeConfig {
             }
         }
         Ok(())
+    }
+
+    /// Initialize a DAG store based on this configuration.
+    pub fn init_dag_store(
+        &self,
+    ) -> Result<Arc<TokioMutex<dyn StorageService<DagBlock> + Send>>, CommonError> {
+        let store: Arc<TokioMutex<dyn StorageService<DagBlock> + Send>> = match self.storage_backend
+        {
+            StorageBackendType::Memory => {
+                Arc::new(TokioMutex::new(InMemoryDagStore::new())) as Arc<_>
+            }
+            StorageBackendType::File => Arc::new(TokioMutex::new(FileDagStore::new(
+                self.storage_path.clone(),
+            )?)) as Arc<_>,
+            StorageBackendType::Sqlite => {
+                #[cfg(feature = "persist-sqlite")]
+                {
+                    Arc::new(TokioMutex::new(SqliteDagStore::new(
+                        self.storage_path.clone(),
+                    )?)) as Arc<_>
+                }
+                #[cfg(not(feature = "persist-sqlite"))]
+                {
+                    return Err(CommonError::ConfigError(
+                        "sqlite backend requires 'persist-sqlite' feature".into(),
+                    ));
+                }
+            }
+            StorageBackendType::Sled => {
+                #[cfg(feature = "persist-sled")]
+                {
+                    Arc::new(TokioMutex::new(SledDagStore::new(
+                        self.storage_path.clone(),
+                    )?)) as Arc<_>
+                }
+                #[cfg(not(feature = "persist-sled"))]
+                {
+                    return Err(CommonError::ConfigError(
+                        "sled backend requires 'persist-sled' feature".into(),
+                    ));
+                }
+            }
+            StorageBackendType::Rocksdb => {
+                #[cfg(feature = "persist-rocksdb")]
+                {
+                    Arc::new(TokioMutex::new(RocksDagStore::new(
+                        self.storage_path.clone(),
+                    )?)) as Arc<_>
+                }
+                #[cfg(not(feature = "persist-rocksdb"))]
+                {
+                    return Err(CommonError::ConfigError(
+                        "rocksdb backend requires 'persist-rocksdb' feature".into(),
+                    ));
+                }
+            }
+        };
+        Ok(store)
     }
 }

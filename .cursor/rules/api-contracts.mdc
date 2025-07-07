@@ -1,0 +1,514 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# ICN Core API Contracts Guide
+
+> **Purpose:** This file defines API contracts, external interfaces, and integration patterns for the `icn-core` system.
+
+---
+
+## 1 · API Boundary Architecture
+
+### External Interface Layers
+```
+┌─────────────────────────────────────────┐
+│ External Applications (Web UI, CLI)    │
+├─────────────────────────────────────────┤
+│ HTTP API Layer (icn-node)              │
+├─────────────────────────────────────────┤
+│ API Contracts (icn-api)                │
+├─────────────────────────────────────────┤
+│ Core Logic (icn-runtime + domain)      │
+└─────────────────────────────────────────┘
+```
+
+### Interface Principles
+- **Versioned Contracts:** All APIs must be versioned
+- **Backward Compatibility:** Maintain compatibility across versions
+- **Clear DTOs:** Use explicit data transfer objects
+- **Error Standardization:** Consistent error response formats
+- **Authentication:** All APIs require DID-based authentication
+
+---
+
+## 2 · Core API Contracts (`icn-api`)
+
+### Job Management API
+```rust
+/// Job submission and management endpoints
+#[async_trait]
+pub trait JobApi {
+    /// Submit a new mesh job for execution
+    async fn submit_job(&self, request: SubmitJobRequest) -> Result<SubmitJobResponse, ApiError>;
+    
+    /// Get job status and details
+    async fn get_job(&self, job_id: JobId) -> Result<JobResponse, ApiError>;
+    
+    /// List jobs with filtering and pagination
+    async fn list_jobs(&self, filter: JobFilter) -> Result<ListJobsResponse, ApiError>;
+    
+    /// Cancel a pending or running job
+    async fn cancel_job(&self, job_id: JobId) -> Result<CancelJobResponse, ApiError>;
+}
+
+/// Job submission request DTO
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SubmitJobRequest {
+    pub job_spec: JobSpecification,
+    pub max_cost: u64,
+    pub timeout_seconds: Option<u64>,
+    pub priority: JobPriority,
+    pub metadata: HashMap<String, String>,
+}
+
+/// Job response DTO
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct JobResponse {
+    pub job_id: JobId,
+    pub status: JobStatus,
+    pub submitter: Did,
+    pub executor: Option<Did>,
+    pub cost: u64,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub result: Option<JobResult>,
+    pub error: Option<String>,
+}
+```
+
+### Economics API
+```rust
+/// Mana and economic management endpoints
+#[async_trait]
+pub trait EconomicsApi {
+    /// Get account mana balance and regeneration info
+    async fn get_account(&self, did: Did) -> Result<AccountResponse, ApiError>;
+    
+    /// Get mana transaction history
+    async fn get_transactions(&self, did: Did, filter: TransactionFilter) -> Result<TransactionHistoryResponse, ApiError>;
+    
+    /// Transfer mana between accounts (if permitted)
+    async fn transfer_mana(&self, request: TransferManaRequest) -> Result<TransferManaResponse, ApiError>;
+}
+
+/// Account information response
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AccountResponse {
+    pub did: Did,
+    pub mana_balance: u64,
+    pub mana_capacity: u64,
+    pub regeneration_rate: f64,
+    pub last_regeneration: DateTime<Utc>,
+    pub reputation_score: f64,
+    pub account_level: AccountLevel,
+}
+```
+
+### Governance API
+```rust
+/// Governance and proposal management endpoints
+#[async_trait]
+pub trait GovernanceApi {
+    /// Submit a new governance proposal
+    async fn submit_proposal(&self, request: SubmitProposalRequest) -> Result<ProposalResponse, ApiError>;
+    
+    /// Vote on an active proposal
+    async fn vote(&self, request: VoteRequest) -> Result<VoteResponse, ApiError>;
+    
+    /// Get proposal details and current status
+    async fn get_proposal(&self, proposal_id: ProposalId) -> Result<ProposalResponse, ApiError>;
+    
+    /// List active and historical proposals
+    async fn list_proposals(&self, filter: ProposalFilter) -> Result<ListProposalsResponse, ApiError>;
+}
+
+/// Proposal submission request
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SubmitProposalRequest {
+    pub proposal_type: ProposalType,
+    pub title: String,
+    pub description: String,
+    pub changes: Vec<ParameterChange>,
+    pub voting_period_days: u32,
+}
+```
+
+### Identity API
+```rust
+/// DID and credential management endpoints
+#[async_trait]
+pub trait IdentityApi {
+    /// Register a new DID in the network
+    async fn register_did(&self, request: RegisterDidRequest) -> Result<DidResponse, ApiError>;
+    
+    /// Resolve a DID to its document
+    async fn resolve_did(&self, did: Did) -> Result<DidDocumentResponse, ApiError>;
+    
+    /// Issue a verifiable credential
+    async fn issue_credential(&self, request: IssueCredentialRequest) -> Result<CredentialResponse, ApiError>;
+    
+    /// Verify a credential's authenticity
+    async fn verify_credential(&self, credential: VerifiableCredential) -> Result<VerificationResponse, ApiError>;
+}
+```
+
+---
+
+## 3 · HTTP API Implementation (`icn-node`)
+
+### RESTful Endpoint Structure
+```
+GET    /api/v1/jobs                    # List jobs
+POST   /api/v1/jobs                    # Submit job
+GET    /api/v1/jobs/{id}               # Get job details
+DELETE /api/v1/jobs/{id}               # Cancel job
+
+GET    /api/v1/accounts/{did}          # Get account info
+GET    /api/v1/accounts/{did}/transactions  # Get transaction history
+POST   /api/v1/accounts/transfer       # Transfer mana
+
+GET    /api/v1/proposals               # List proposals
+POST   /api/v1/proposals               # Submit proposal
+GET    /api/v1/proposals/{id}          # Get proposal details
+POST   /api/v1/proposals/{id}/vote     # Vote on proposal
+
+GET    /api/v1/identity/{did}          # Resolve DID
+POST   /api/v1/identity/register       # Register DID
+POST   /api/v1/credentials/issue       # Issue credential
+POST   /api/v1/credentials/verify      # Verify credential
+```
+
+### Authentication & Authorization
+```rust
+/// DID-based authentication middleware
+pub struct AuthMiddleware {
+    identity_service: Arc<dyn IdentityApi>,
+}
+
+impl AuthMiddleware {
+    pub async fn authenticate(&self, request: &HttpRequest) -> Result<Did, AuthError> {
+        // Extract and verify DID signature from request headers
+        let auth_header = request.headers().get("Authorization")?;
+        let signature = parse_did_signature(auth_header)?;
+        
+        // Verify signature against request content
+        self.identity_service.verify_signature(signature, request).await
+    }
+}
+
+/// Request signing pattern for clients
+pub struct RequestSigner {
+    private_key: PrivateKey,
+    did: Did,
+}
+
+impl RequestSigner {
+    pub fn sign_request(&self, request: &mut HttpRequest) -> Result<(), SigningError> {
+        let payload = serialize_request_for_signing(request)?;
+        let signature = self.private_key.sign(&payload)?;
+        
+        request.headers_mut().insert(
+            "Authorization",
+            format!("DID {did} {signature}", did = self.did, signature = signature)
+        );
+        
+        Ok(())
+    }
+}
+```
+
+### Error Response Format
+```rust
+/// Standardized API error response
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ApiErrorResponse {
+    pub error: String,
+    pub error_code: String,
+    pub message: String,
+    pub details: Option<Value>,
+    pub timestamp: DateTime<Utc>,
+    pub request_id: String,
+}
+
+/// Common error types
+#[derive(Debug, thiserror::Error)]
+pub enum ApiError {
+    #[error("Authentication failed: {reason}")]
+    AuthenticationFailed { reason: String },
+    
+    #[error("Insufficient mana: required {required}, available {available}")]
+    InsufficientMana { required: u64, available: u64 },
+    
+    #[error("Job not found: {job_id}")]
+    JobNotFound { job_id: JobId },
+    
+    #[error("Invalid request: {reason}")]
+    InvalidRequest { reason: String },
+    
+    #[error("Internal server error")]
+    InternalError,
+    
+    #[error("Rate limit exceeded")]
+    RateLimitExceeded,
+}
+```
+
+---
+
+## 4 · Network Protocol Messages (`icn-protocol`)
+
+### P2P Message Types
+```rust
+/// Core network protocol message envelope
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProtocolMessage {
+    pub version: u32,
+    pub message_type: MessageType,
+    pub sender: Did,
+    pub recipient: Option<Did>,
+    pub timestamp: DateTime<Utc>,
+    pub signature: Signature,
+    pub payload: MessagePayload,
+}
+
+/// Message payload variants
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum MessagePayload {
+    // Job lifecycle messages
+    JobAnnouncement(JobAnnouncementMessage),
+    JobBid(JobBidMessage),
+    JobAssignment(JobAssignmentMessage),
+    JobCompletion(JobCompletionMessage),
+    
+    // Governance messages
+    ProposalBroadcast(ProposalBroadcastMessage),
+    VoteBroadcast(VoteBroadcastMessage),
+    
+    // Network maintenance
+    PeerDiscovery(PeerDiscoveryMessage),
+    Heartbeat(HeartbeatMessage),
+    
+    // DAG synchronization
+    BlockAnnouncement(BlockAnnouncementMessage),
+    BlockRequest(BlockRequestMessage),
+}
+
+/// Job announcement for mesh computing
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct JobAnnouncementMessage {
+    pub job_id: JobId,
+    pub job_spec: JobSpecification,
+    pub max_cost: u64,
+    pub timeout: Duration,
+    pub requirements: ExecutorRequirements,
+    pub bid_deadline: DateTime<Utc>,
+}
+
+/// Executor bid response
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct JobBidMessage {
+    pub job_id: JobId,
+    pub executor: Did,
+    pub cost_bid: u64,
+    pub estimated_duration: Duration,
+    pub capabilities: ExecutorCapabilities,
+    pub reputation_proof: ReputationProof,
+}
+```
+
+### Message Routing and Discovery
+```rust
+/// Network service for message routing
+#[async_trait]
+pub trait NetworkService {
+    /// Broadcast message to all peers
+    async fn broadcast(&self, message: ProtocolMessage) -> Result<(), NetworkError>;
+    
+    /// Send direct message to specific peer
+    async fn send_direct(&self, peer: PeerId, message: ProtocolMessage) -> Result<(), NetworkError>;
+    
+    /// Subscribe to specific message types
+    async fn subscribe(&self, message_types: Vec<MessageType>) -> Result<MessageReceiver, NetworkError>;
+    
+    /// Discover peers with specific capabilities
+    async fn discover_peers(&self, capabilities: PeerCapabilities) -> Result<Vec<PeerInfo>, NetworkError>;
+}
+```
+
+---
+
+## 5 · Client SDK Patterns
+
+### Rust Client SDK
+```rust
+/// High-level client for ICN network interaction
+pub struct IcnClient {
+    http_client: HttpClient,
+    identity: ClientIdentity,
+    node_endpoint: Url,
+}
+
+impl IcnClient {
+    /// Create authenticated client
+    pub fn new(private_key: PrivateKey, node_endpoint: Url) -> Result<Self, ClientError> {
+        let identity = ClientIdentity::from_private_key(private_key)?;
+        let http_client = HttpClient::new()?;
+        
+        Ok(Self {
+            http_client,
+            identity,
+            node_endpoint,
+        })
+    }
+    
+    /// Submit job with automatic mana calculation
+    pub async fn submit_job(&self, job_spec: JobSpecification) -> Result<JobId, ClientError> {
+        let request = SubmitJobRequest {
+            job_spec,
+            max_cost: self.estimate_job_cost(&job_spec).await?,
+            timeout_seconds: None,
+            priority: JobPriority::Normal,
+            metadata: HashMap::new(),
+        };
+        
+        let response = self.call_api("/api/v1/jobs", Method::POST, request).await?;
+        Ok(response.job_id)
+    }
+    
+    /// Wait for job completion with polling
+    pub async fn wait_for_job(&self, job_id: JobId, timeout: Duration) -> Result<JobResult, ClientError> {
+        let start = Instant::now();
+        
+        loop {
+            let job = self.get_job(job_id).await?;
+            
+            match job.status {
+                JobStatus::Completed => return Ok(job.result.unwrap()),
+                JobStatus::Failed => return Err(ClientError::JobFailed(job.error.unwrap())),
+                JobStatus::Cancelled => return Err(ClientError::JobCancelled),
+                _ => {
+                    if start.elapsed() > timeout {
+                        return Err(ClientError::Timeout);
+                    }
+                    tokio::time::sleep(Duration::from_secs(1)).await;
+                }
+            }
+        }
+    }
+}
+```
+
+### JavaScript/TypeScript Client
+```typescript
+// TypeScript client SDK
+export class IcnClient {
+    private httpClient: HttpClient;
+    private identity: ClientIdentity;
+    private nodeEndpoint: string;
+    
+    constructor(privateKey: string, nodeEndpoint: string) {
+        this.identity = new ClientIdentity(privateKey);
+        this.httpClient = new HttpClient();
+        this.nodeEndpoint = nodeEndpoint;
+    }
+    
+    async submitJob(jobSpec: JobSpecification): Promise<string> {
+        const request: SubmitJobRequest = {
+            job_spec: jobSpec,
+            max_cost: await this.estimateJobCost(jobSpec),
+            timeout_seconds: null,
+            priority: 'normal',
+            metadata: {}
+        };
+        
+        const response = await this.callApi<SubmitJobResponse>(
+            '/api/v1/jobs',
+            'POST',
+            request
+        );
+        
+        return response.job_id;
+    }
+    
+    async waitForJob(jobId: string, timeoutMs: number = 60000): Promise<JobResult> {
+        const start = Date.now();
+        
+        while (Date.now() - start < timeoutMs) {
+            const job = await this.getJob(jobId);
+            
+            if (job.status === 'completed') {
+                return job.result!;
+            } else if (job.status === 'failed') {
+                throw new Error(`Job failed: ${job.error}`);
+            } else if (job.status === 'cancelled') {
+                throw new Error('Job was cancelled');
+            }
+            
+            await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+        
+        throw new Error('Job timeout');
+    }
+}
+```
+
+---
+
+## 6 · Integration Testing Patterns
+
+### API Testing
+```rust
+/// Integration test utilities
+pub struct TestHarness {
+    node: TestNode,
+    client: IcnClient,
+}
+
+impl TestHarness {
+    pub async fn new() -> Result<Self, TestError> {
+        let node = TestNode::start().await?;
+        let client = IcnClient::new(
+            generate_test_key(),
+            node.endpoint()
+        )?;
+        
+        Ok(Self { node, client })
+    }
+    
+    pub async fn test_job_lifecycle(&self) -> Result<(), TestError> {
+        // Submit job
+        let job_id = self.client.submit_job(create_test_job()).await?;
+        
+        // Verify job is pending
+        let job = self.client.get_job(job_id).await?;
+        assert_eq!(job.status, JobStatus::Pending);
+        
+        // Wait for completion
+        let result = self.client.wait_for_job(job_id, Duration::from_secs(30)).await?;
+        assert!(result.success);
+        
+        Ok(())
+    }
+}
+```
+
+### Contract Testing
+```rust
+/// Contract test to verify API compatibility
+#[tokio::test]
+async fn test_api_contract_compatibility() {
+    let harness = TestHarness::new().await.unwrap();
+    
+    // Test all API endpoints maintain contract
+    harness.test_job_api_contract().await.unwrap();
+    harness.test_economics_api_contract().await.unwrap();
+    harness.test_governance_api_contract().await.unwrap();
+    harness.test_identity_api_contract().await.unwrap();
+}
+```
+
+---
+
+**Remember: APIs are contracts with external systems. Changes must be backward-compatible and well-documented.**

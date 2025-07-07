@@ -31,6 +31,10 @@ path = "integration/peer_discovery.rs"
 name = "cli_node"
 path = "integration/cli_node.rs"
 
+[[test]]
+name = "policy_enforcer"
+path = "integration/policy_enforcer.rs"
+
 [dependencies]
 reqwest.workspace = true
 serde_json.workspace = true
@@ -40,3 +44,5 @@ assert_cmd = "2.0"
 predicates = "3.1"
 axum = { version = "0.7", features = ["json"] }
 icn-node = { path = "../crates/icn-node" }
+icn-runtime = { path = "../crates/icn-runtime" }
+icn-governance = { path = "../crates/icn-governance" }

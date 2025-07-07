@@ -4,6 +4,8 @@ This crate provides the main binary for running a long-lived InterCooperative Ne
 It integrates various core components to operate a functional ICN node, handling initialization,
 lifecycle, configuration, service hosting, and persistence.
 
+See [CONTEXT.md](../CONTEXT.md) for ICN Core design philosophy and crate roles.
+
 ## Purpose
 
 The `icn-node` is intended to be the core daemon process that participants in the ICN will run.
@@ -95,7 +97,7 @@ Useful CLI flags include:
 
 * `--node-did-path <PATH>` – location to read/write the node DID string
 * `--node-private-key-path <PATH>` – location to read/write the node private key
-* `--storage-backend <memory|file|sqlite|rocksdb>` – choose the DAG storage backend
+* `--storage-backend <memory|file|sqlite|sled|rocksdb>` – choose the DAG storage backend
 * `--storage-path <PATH>` – directory for the file or SQLite backends
 * `--mana-ledger-backend <file|sled|sqlite|rocksdb>` – choose ledger persistence
 * `--mana-ledger-path <PATH>` – location of the mana ledger database
@@ -135,6 +137,16 @@ Future contributions to `icn-node` will focus on:
 *   Loading configurations from files.
 *   Managing the lifecycle of different service components.
 *   Robust logging and metrics.
+
+### Metrics Endpoint
+
+The embedded HTTP server exposes `/metrics` for Prometheus scraping. It returns
+runtime counters such as `host_submit_mesh_job_calls` in the standard text
+format:
+
+```bash
+curl http://127.0.0.1:7845/metrics
+```
 
 ## License
 

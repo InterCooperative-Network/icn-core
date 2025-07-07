@@ -2,6 +2,8 @@
 
 This crate provides the execution environment for InterCooperative Network (ICN) logic, possibly including WebAssembly (WASM) runtimes and host interaction capabilities.
 
+See [CONTEXT.md](../CONTEXT.md) for ICN Core design philosophy and crate roles.
+
 ## Purpose
 
 The `icn-runtime` crate is responsible for:
@@ -71,19 +73,69 @@ The API style emphasizes:
 
 ### Governance
 
-The runtime exposes host calls for managing on-chain proposals. Voting can be
+The runtime exposes host calls for managing governance proposals. Voting can be
 closed via `host_close_governance_proposal_voting`, returning the final
 `ProposalStatus` as a string. Accepted proposals may then be executed with
-`host_execute_governance_proposal`, which updates the stored proposal and member
-set.
+`host_execute_governance_proposal`, which broadcasts the updated proposal and
+rewards the proposer.
+
+```rust,no_run
+use icn_runtime::{
+    context::RuntimeContext,
+    host_close_governance_proposal_voting,
+    host_execute_governance_proposal,
+};
+
+async fn finalize_proposal(ctx: &RuntimeContext, pid: &str) -> Result<(), icn_runtime::HostAbiError> {
+    let status = host_close_governance_proposal_voting(ctx, pid).await?;
+    if status == "Accepted" {
+        host_execute_governance_proposal(ctx, pid).await?;
+    }
+    Ok(())
+}
+```
+
+## Mana Regeneration
+
+`RuntimeContext` can automatically replenish mana. Use
+`spawn_mana_regenerator` to start a background task that credits every
+account with a fixed amount on a configurable interval.
+
+## DAG Storage
+
+`RuntimeContext` selects a storage backend for receipts and other DAG data. When
+compiled with the `async` feature, use `TokioFileDagStore`:
+
+```rust
+use icn_runtime::context::{RuntimeContext, StubMeshNetworkService, StubSigner};
+use icn_common::Did;
+use std::sync::Arc;
+use tokio::sync::Mutex;
+
+#[cfg(feature = "async")]
+let dag_store = Arc::new(Mutex::new(icn_dag::TokioFileDagStore::new("./dag".into()).unwrap()));
+#[cfg(not(feature = "async"))]
+let dag_store = Arc::new(Mutex::new(icn_dag::FileDagStore::new("./dag".into()).unwrap()));
+
+let ctx = RuntimeContext::new(
+    Did::new("key", "node"),
+    Arc::new(StubMeshNetworkService::new()),
+    Arc::new(StubSigner::new()),
+    Arc::new(icn_identity::KeyDidResolver),
+    dag_store,
+);
+```
+
+## WASM Execution Limits
+
+`WasmExecutor` instances can be configured with a maximum linear memory size and
+a fuel allowance. Fuel metering is enabled via Wasmtime and each instruction
+consumes fuel. When a module exhausts its fuel or attempts to grow memory beyond
+the configured limit, execution is aborted.
 
 ## Error Types
 
-`MeshJobError` enumerates failures that can occur while processing mesh jobs.
-All variants can be converted from `HostAbiError` or `MeshNetworkError`.
-
-* `Network` – issues communicating over the mesh network.
-* `NoSuitableExecutor` – no executor met the policy for a job.
+`CommonError` is used for all runtime failures.
 * `MissingOrInvalidReceipt` – receipt missing or failed validation.
 * `UnknownJob` – referenced job ID does not exist.
 * `ExecutionTimeout` – executor failed to produce a receipt in time.

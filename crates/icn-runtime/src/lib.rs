@@ -14,20 +14,25 @@
 
 pub mod abi;
 pub mod context;
-pub mod error;
 pub mod executor;
 pub mod memory;
 pub mod metrics;
 
 // Re-export important types for convenience
 pub use context::{HostAbiError, RuntimeContext, Signer};
+#[cfg(feature = "async")]
+pub use icn_dag::AsyncStorageService as StorageService;
+#[cfg(not(feature = "async"))]
 pub use icn_dag::StorageService;
 
 // Re-export ABI constants
 pub use abi::*;
 use icn_common::{Cid, CommonError, Did, NodeInfo};
-use log::{debug, info};
+use log::{debug, info, warn};
 use std::str::FromStr;
+
+/// Maximum allowed size of a submitted job JSON payload in bytes (1 MiB).
+const MAX_JOB_JSON_SIZE: usize = 1_048_576;
 
 /// Placeholder function demonstrating use of common types for runtime operations.
 /// This function is not directly part of the Host ABI layer discussed below but serves as an example.
@@ -55,17 +60,21 @@ pub fn execute_icn_script(info: &NodeInfo, script_id: &str) -> Result<String, Co
 pub async fn host_submit_mesh_job(
     ctx: &std::sync::Arc<RuntimeContext>,
     job_json: &str,
-) -> Result<Cid, HostAbiError> {
+) -> Result<icn_mesh::JobId, HostAbiError> {
     metrics::HOST_SUBMIT_MESH_JOB_CALLS.inc();
-    println!(
-        "[RUNTIME_ABI] host_submit_mesh_job called with job_json: {}",
-        job_json
-    );
+    debug!("[host_submit_mesh_job] called with job_json: {}", job_json);
 
     if job_json.is_empty() {
         return Err(HostAbiError::InvalidParameters(
             "Job JSON cannot be empty".to_string(),
         ));
+    }
+
+    if job_json.len() > MAX_JOB_JSON_SIZE {
+        return Err(HostAbiError::InvalidParameters(format!(
+            "Job JSON exceeds {} bytes",
+            MAX_JOB_JSON_SIZE
+        )));
     }
 
     // 1. Deserialize MeshJob
@@ -77,8 +86,13 @@ pub async fn host_submit_mesh_job(
             ))
         })?;
 
-    // 2. Call ResourcePolicyEnforcer::spend_mana(did, cost).
-    // This should use the RuntimeContext's spend_mana which is now async.
+    // 2. Adjust cost based on the submitter's reputation and spend mana.
+    let rep = ctx.reputation_store.get_reputation(&ctx.current_identity);
+    job_to_submit.cost_mana = icn_economics::price_by_reputation(
+        job_to_submit.cost_mana,
+        rep,
+    );
+
     ctx.spend_mana(&ctx.current_identity, job_to_submit.cost_mana)
         .await
         .map_err(|e| match e {
@@ -96,26 +110,36 @@ pub async fn host_submit_mesh_job(
 
     // 3. Prepare and queue the job.
     //    ID and submitter are overridden here.
-    let job_id_val = context::NEXT_JOB_ID.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-    // Create a dummy CID for the JobId for now.
-    // In a real scenario, this might be derived from the job content or other unique inputs.
-    let job_id_cid = Cid::new_v1_sha256(0x55, format!("job_cid_{}", job_id_val).as_bytes());
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(job_to_submit.manifest_cid.to_string().as_bytes());
+    let spec_bytes = serde_json::to_vec(&job_to_submit.spec)
+        .map_err(|e| HostAbiError::InternalError(format!("Spec serialization failed: {e}")))?;
+    hasher.update(&spec_bytes);
+    hasher.update(&job_to_submit.cost_mana.to_le_bytes());
+    if let Some(ms) = job_to_submit.max_execution_wait_ms {
+        hasher.update(&ms.to_le_bytes());
+    }
+    hasher.update(ctx.current_identity.to_string().as_bytes());
+    let digest = hasher.finalize();
+    let job_id_cid = Cid::new_v1_sha256(0x55, &digest);
 
-    job_to_submit.id = job_id_cid.clone();
+    job_to_submit.id = icn_mesh::JobId::from(job_id_cid.clone());
     job_to_submit.creator_did = ctx.current_identity.clone();
+    let return_id = job_to_submit.id.clone();
 
     // Call the internal queuing function on RuntimeContext. It will
     // automatically execute the job if the manifest references a compiled
     // CCL module.
     ctx.internal_queue_mesh_job(job_to_submit.clone()).await?;
 
-    println!(
-        "[RUNTIME_ABI] Job {:?} submitted by {:?} with cost {} was queued successfully.",
-        job_id_cid, ctx.current_identity, job_to_submit.cost_mana
+    info!(
+        "[host_submit_mesh_job] Job {:?} submitted by {:?} with cost {} queued successfully.",
+        job_to_submit.id, ctx.current_identity, job_to_submit.cost_mana
     );
 
-    // 4. Return JobId (which is now a Cid).
-    Ok(job_id_cid)
+    // 4. Return JobId.
+    Ok(return_id)
 }
 
 /// ABI Index: (defined in `abi::ABI_HOST_GET_PENDING_MESH_JOBS`)
@@ -124,25 +148,27 @@ pub async fn host_submit_mesh_job(
 /// For WebAssembly callers see [`wasm_host_get_pending_mesh_jobs`], which
 /// serializes the job list to JSON and writes it to guest memory using
 /// pointer/length parameters.
-pub fn host_get_pending_mesh_jobs(
+pub async fn host_get_pending_mesh_jobs(
     ctx: &RuntimeContext,
 ) -> Result<Vec<icn_mesh::ActualMeshJob>, HostAbiError> {
     metrics::HOST_GET_PENDING_MESH_JOBS_CALLS.inc();
-    println!("[RUNTIME_ABI] host_get_pending_mesh_jobs called.");
+    debug!("[host_get_pending_mesh_jobs] called");
 
     // Directly clone the jobs from the queue. This provides a snapshot.
     // Depending on WASM interface, this might need to be serialized (e.g., to JSON).
     // Need to acquire the lock and then await its resolution.
-    let jobs = futures::executor::block_on(async {
-        ctx.pending_mesh_jobs
-            .lock()
-            .await
-            .iter()
-            .cloned()
-            .collect::<Vec<icn_mesh::ActualMeshJob>>()
-    });
+    let jobs = ctx
+        .pending_mesh_jobs
+        .lock()
+        .await
+        .iter()
+        .cloned()
+        .collect::<Vec<icn_mesh::ActualMeshJob>>();
 
-    println!("[RUNTIME_ABI] Returning {} pending jobs.", jobs.len());
+    debug!(
+        "[host_get_pending_mesh_jobs] Returning {} pending jobs.",
+        jobs.len()
+    );
     Ok(jobs)
 }
 
@@ -160,8 +186,8 @@ pub async fn host_account_get_mana(
     account_id_str: &str,
 ) -> Result<u64, HostAbiError> {
     metrics::HOST_ACCOUNT_GET_MANA_CALLS.inc();
-    println!(
-        "[RUNTIME_ABI] host_account_get_mana called for account: {}",
+    debug!(
+        "[host_account_get_mana] called for account: {}",
         account_id_str
     );
 
@@ -194,8 +220,8 @@ pub async fn host_account_spend_mana(
     amount: u64,
 ) -> Result<(), HostAbiError> {
     metrics::HOST_ACCOUNT_SPEND_MANA_CALLS.inc();
-    println!(
-        "[RUNTIME_ABI] host_account_spend_mana called for account: {} amount: {}",
+    debug!(
+        "[host_account_spend_mana] called for account: {} amount: {}",
         account_id_str, amount
     );
 
@@ -232,8 +258,8 @@ pub async fn host_account_credit_mana(
     account_id_str: &str,
     amount: u64,
 ) -> Result<(), HostAbiError> {
-    println!(
-        "[RUNTIME_ABI] host_account_credit_mana called for account: {} amount: {}",
+    info!(
+        "[host_account_credit_mana] called for account: {} amount: {}",
         account_id_str, amount
     );
 
@@ -246,8 +272,8 @@ pub async fn host_account_credit_mana(
         // Crediting zero might be permissible, but often indicates an issue.
         // For now, let's allow it but log a warning. Or return InvalidParameters.
         // Sticking with allowing it for now.
-        println!(
-            "[RUNTIME_ABI_WARN] host_account_credit_mana called with amount zero for account: {}",
+        warn!(
+            "[host_account_credit_mana] called with amount zero for account: {}",
             account_id_str
         );
     }
@@ -342,15 +368,15 @@ pub fn wasm_host_submit_mesh_job(
         }
     };
     let handle = tokio::runtime::Handle::current();
-    let cid = match handle.block_on(host_submit_mesh_job(caller.data(), &job_json)) {
+    let job_id = match handle.block_on(host_submit_mesh_job(caller.data(), &job_json)) {
         Ok(c) => c,
         Err(e) => {
             log::error!("wasm_host_submit_mesh_job runtime error: {e:?}");
             return 0;
         }
     };
-    let cid_str = cid.to_string();
-    match memory::write_string_limited(&mut caller, out_ptr, &cid_str, out_len) {
+    let id_str = job_id.to_string();
+    match memory::write_string_limited(&mut caller, out_ptr, &id_str, out_len) {
         Ok(w) => w,
         Err(e) => {
             log::error!("wasm_host_submit_mesh_job write error: {e:?}");
@@ -372,7 +398,7 @@ pub fn wasm_host_get_pending_mesh_jobs(
     len: u32,
 ) -> u32 {
     let handle = tokio::runtime::Handle::current();
-    let jobs = match handle.block_on(async { host_get_pending_mesh_jobs(caller.data()) }) {
+    let jobs = match handle.block_on(host_get_pending_mesh_jobs(caller.data())) {
         Ok(j) => j,
         Err(e) => {
             log::error!("wasm_host_get_pending_mesh_jobs runtime error: {e:?}");
@@ -509,7 +535,21 @@ pub async fn host_cast_governance_vote(
     ctx.cast_governance_vote(payload).await
 }
 
-/// Closes voting on a governance proposal. Currently not implemented.
+/// Closes voting on a governance proposal and broadcasts the final
+/// [`icn_governance::ProposalStatus`] across the mesh network.
+///
+/// Returns the status string (e.g. `"Accepted"`).
+///
+/// # Example
+/// ```no_run
+/// # async fn demo(ctx: &icn_runtime::context::RuntimeContext) -> Result<(), icn_runtime::HostAbiError> {
+/// let status = icn_runtime::host_close_governance_proposal_voting(ctx, "pid").await?;
+/// if status == "Accepted" {
+///     icn_runtime::host_execute_governance_proposal(ctx, "pid").await?;
+/// }
+/// # Ok(())
+/// # }
+/// ```
 pub async fn host_close_governance_proposal_voting(
     ctx: &RuntimeContext,
     proposal_id: &str,
@@ -517,7 +557,16 @@ pub async fn host_close_governance_proposal_voting(
     ctx.close_governance_proposal_voting(proposal_id).await
 }
 
-/// Executes an accepted governance proposal. Currently not implemented.
+/// Executes an accepted governance proposal, rewarding the proposer and
+/// broadcasting the updated proposal to the mesh network on success.
+///
+/// # Example
+/// ```no_run
+/// # async fn demo(ctx: &icn_runtime::context::RuntimeContext) -> Result<(), icn_runtime::HostAbiError> {
+/// icn_runtime::host_execute_governance_proposal(ctx, "pid").await?;
+/// # Ok(())
+/// # }
+/// ```
 pub async fn host_execute_governance_proposal(
     ctx: &RuntimeContext,
     proposal_id: &str,
@@ -534,7 +583,7 @@ mod tests {
     };
     use icn_common::{Cid, Did, ICN_CORE_VERSION};
     use icn_identity::SignatureBytes;
-    use icn_mesh::{ActualMeshJob, JobSpec};
+    use icn_mesh::{ActualMeshJob, JobId, JobSpec};
     use std::str::FromStr;
     use std::sync::Arc;
 
@@ -544,7 +593,7 @@ mod tests {
     // Helper function to create a test ActualMeshJob with all required fields
     fn create_test_mesh_job(cost_mana: u64) -> ActualMeshJob {
         ActualMeshJob {
-            id: Cid::new_v1_sha256(0x55, b"test_job_id"),
+            id: JobId(Cid::new_v1_sha256(0x55, b"test_job_id")),
             manifest_cid: Cid::new_v1_sha256(0x55, b"test_manifest"),
             spec: JobSpec::default(),
             creator_did: Did::from_str(TEST_IDENTITY_DID_STR).unwrap(),
@@ -605,7 +654,7 @@ mod tests {
         assert_eq!(mana_after, 90);
 
         // Verify job was queued
-        let pending_jobs = host_get_pending_mesh_jobs(&ctx).unwrap();
+        let pending_jobs = host_get_pending_mesh_jobs(&ctx).await.unwrap();
         assert_eq!(pending_jobs.len(), 1);
         assert_eq!(pending_jobs[0].cost_mana, 10);
     }
@@ -639,6 +688,23 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_host_submit_mesh_job_rejects_large_json() {
+        let ctx = create_test_context_with_mana(100);
+        let mut job = create_test_mesh_job(10);
+        job.spec.kind = JobKind::Echo {
+            payload: "x".repeat(MAX_JOB_JSON_SIZE + 1),
+        };
+        let job_json = serde_json::to_string(&job).unwrap();
+        assert!(job_json.len() > MAX_JOB_JSON_SIZE);
+        let result = host_submit_mesh_job(&ctx, &job_json).await;
+        assert!(
+            matches!(result, Err(HostAbiError::InvalidParameters(_))),
+            "Expected InvalidParameters, got {:?}",
+            result
+        );
+    }
+
+    #[tokio::test]
     async fn test_host_get_pending_mesh_jobs_retrieves_correctly() {
         let ctx = create_test_context_with_mana(100);
         let test_job1 = create_test_mesh_job(10);
@@ -649,7 +715,7 @@ mod tests {
         let _job_id1 = host_submit_mesh_job(&ctx, &job_json1).await.unwrap();
         let _job_id2 = host_submit_mesh_job(&ctx, &job_json2).await.unwrap();
 
-        let pending_jobs = host_get_pending_mesh_jobs(&ctx).unwrap();
+        let pending_jobs = host_get_pending_mesh_jobs(&ctx).await.unwrap();
         assert_eq!(pending_jobs.len(), 2);
         assert!(pending_jobs.iter().any(|j| j.cost_mana == 10));
         assert!(pending_jobs.iter().any(|j| j.cost_mana == 5));
@@ -658,7 +724,7 @@ mod tests {
     #[tokio::test]
     async fn test_host_get_pending_mesh_jobs_empty_queue() {
         let ctx = create_test_context();
-        let pending_jobs_result = host_get_pending_mesh_jobs(&ctx);
+        let pending_jobs_result = host_get_pending_mesh_jobs(&ctx).await;
         assert!(pending_jobs_result.is_ok());
         let pending_jobs = pending_jobs_result.unwrap();
         assert_eq!(pending_jobs.len(), 0);
@@ -849,7 +915,7 @@ mod tests {
         use crate::metrics::HOST_GET_PENDING_MESH_JOBS_CALLS;
         let ctx = create_test_context();
         let before = HOST_GET_PENDING_MESH_JOBS_CALLS.get();
-        host_get_pending_mesh_jobs(&ctx).unwrap();
+        host_get_pending_mesh_jobs(&ctx).await.unwrap();
         assert!(HOST_GET_PENDING_MESH_JOBS_CALLS.get() > before);
     }
 

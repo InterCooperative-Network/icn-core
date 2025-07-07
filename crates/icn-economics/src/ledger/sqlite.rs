@@ -1,7 +1,7 @@
-use crate::EconError;
 use icn_common::{CommonError, Did};
 use rusqlite::{Connection, OptionalExtension};
 use std::path::PathBuf;
+use std::str::FromStr;
 
 #[derive(Debug)]
 pub struct SqliteManaLedger {
@@ -46,6 +46,55 @@ impl SqliteManaLedger {
             .map_err(|e| CommonError::DatabaseError(format!("Failed to read balance: {e}")))?;
         Ok(amt.unwrap_or(0) as u64)
     }
+
+    pub fn credit_all(&self, amount: u64) -> Result<(), CommonError> {
+        let conn = Connection::open(&self.path)
+            .map_err(|e| CommonError::DatabaseError(format!("Failed to open sqlite DB: {e}")))?;
+        let mut stmt = conn
+            .prepare("SELECT did, amount FROM mana_balances")
+            .map_err(|e| CommonError::DatabaseError(format!("Failed to fetch balances: {e}")))?;
+        let rows = stmt
+            .query_map([], |row| {
+                let did: String = row.get(0)?;
+                let amount: i64 = row.get(1)?;
+                Ok((did, amount))
+            })
+            .map_err(|e| CommonError::DatabaseError(format!("{e}")))?;
+        for row in rows {
+            let (did_str, bal) = row.map_err(|e| CommonError::DatabaseError(format!("{e}")))?;
+            let did = Did::from_str(&did_str)
+                .map_err(|e| CommonError::InvalidInputError(format!("{e}")))?;
+            let new_bal = (bal as u64).saturating_add(amount);
+            self.write_balance(&did, new_bal)?;
+        }
+        Ok(())
+    }
+
+    /// Fetch all account DIDs present in the ledger.
+    pub fn all_accounts(&self) -> Vec<Did> {
+        let conn = match Connection::open(&self.path) {
+            Ok(c) => c,
+            Err(_) => return Vec::new(),
+        };
+        let mut stmt = match conn.prepare("SELECT did FROM mana_balances") {
+            Ok(s) => s,
+            Err(_) => return Vec::new(),
+        };
+        // Collect the results immediately to avoid lifetime issues
+        let rows_result = stmt.query_map([], |row| row.get::<_, String>(0));
+        match rows_result {
+            Ok(rows) => {
+                let mut accounts = Vec::new();
+                for did_string in rows.flatten() {
+                    if let Ok(did) = Did::from_str(&did_string) {
+                        accounts.push(did);
+                    }
+                }
+                accounts
+            }
+            Err(_) => Vec::new(),
+        }
+    }
 }
 
 impl crate::ManaLedger for SqliteManaLedger {
@@ -57,10 +106,10 @@ impl crate::ManaLedger for SqliteManaLedger {
         self.write_balance(did, amount)
     }
 
-    fn spend(&self, did: &Did, amount: u64) -> Result<(), EconError> {
+    fn spend(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
         let current = self.read_balance(did)?;
         if current < amount {
-            return Err(EconError::InsufficientBalance(format!(
+            return Err(CommonError::PolicyDenied(format!(
                 "Insufficient mana for DID {did}"
             )));
         }
@@ -68,9 +117,17 @@ impl crate::ManaLedger for SqliteManaLedger {
         Ok(())
     }
 
-    fn credit(&self, did: &Did, amount: u64) -> Result<(), EconError> {
+    fn credit(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
         let current = self.read_balance(did)?;
         self.write_balance(did, current + amount)?;
         Ok(())
+    }
+
+    fn credit_all(&self, amount: u64) -> Result<(), CommonError> {
+        SqliteManaLedger::credit_all(self, amount)
+    }
+
+    fn all_accounts(&self) -> Vec<Did> {
+        SqliteManaLedger::all_accounts(self)
     }
 }

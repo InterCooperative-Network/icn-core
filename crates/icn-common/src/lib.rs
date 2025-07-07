@@ -31,6 +31,46 @@ pub struct NodeStatus {
     pub version: String,
 }
 
+/// Identifies a membership scope such as a community, cooperative, or federation.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct NodeScope(pub String);
+
+/// Provides the current time for deterministic operations.
+pub trait TimeProvider: Send + Sync {
+    /// Return the current Unix timestamp in seconds.
+    fn unix_seconds(&self) -> u64;
+}
+
+/// Uses [`std::time::SystemTime`] as the source of time.
+#[derive(Debug, Clone)]
+pub struct SystemTimeProvider;
+
+impl TimeProvider for SystemTimeProvider {
+    fn unix_seconds(&self) -> u64 {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs()
+    }
+}
+
+/// Deterministic time provider returning a fixed timestamp.
+#[derive(Debug, Clone)]
+pub struct FixedTimeProvider(pub u64);
+
+impl FixedTimeProvider {
+    /// Create a new [`FixedTimeProvider`] returning `ts`.
+    pub fn new(ts: u64) -> Self {
+        Self(ts)
+    }
+}
+
+impl TimeProvider for FixedTimeProvider {
+    fn unix_seconds(&self) -> u64 {
+        self.0
+    }
+}
+
 /// Represents a generic error that can occur within the ICN network.
 #[derive(Debug, Error, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub enum CommonError {
@@ -51,6 +91,10 @@ pub enum CommonError {
 
     #[error("Permission denied: {0}")]
     PermissionDenied(String),
+
+    /// Operation was rejected by a policy engine or CCL contract.
+    #[error("Policy denied: {0}")]
+    PolicyDenied(String),
 
     #[error("Network setup error: {0}")]
     NetworkSetupError(String),
@@ -114,6 +158,10 @@ pub enum CommonError {
 
     #[error("Not implemented: {0}")]
     NotImplemented(String),
+
+    /// Duplicate or replayed message detected
+    #[error("Duplicate message")]
+    DuplicateMessage,
 }
 
 /// Trait for types that can produce a canonical byte representation for
@@ -402,6 +450,8 @@ pub struct DagBlock {
     pub author_did: Did,
     /// Optional Ed25519 signature of the block contents.
     pub signature: Option<SignatureBytes>,
+    /// Optional scope this block belongs to.
+    pub scope: Option<NodeScope>,
 }
 
 /// Represents a link within a DagBlock, pointing to another DagBlock.
@@ -420,6 +470,7 @@ pub fn compute_merkle_cid(
     timestamp: u64,
     author_did: &Did,
     signature: &Option<SignatureBytes>,
+    scope: &Option<NodeScope>,
 ) -> Cid {
     use sha2::{Digest, Sha256};
     let mut hasher = Sha256::new();
@@ -433,6 +484,9 @@ pub fn compute_merkle_cid(
     hasher.update(author_did.to_string().as_bytes());
     if let Some(sig) = signature {
         hasher.update(&sig.0);
+    }
+    if let Some(scope) = scope {
+        hasher.update(scope.0.as_bytes());
     }
     let hash_bytes = hasher.finalize().to_vec();
     Cid {
@@ -452,6 +506,7 @@ pub fn verify_block_integrity(block: &DagBlock) -> Result<(), CommonError> {
         block.timestamp,
         &block.author_did,
         &block.signature,
+        &block.scope,
     );
     if expected == block.cid {
         Ok(())
@@ -475,9 +530,14 @@ pub struct Transaction {
     pub payload_type: String,
     /// Serialized transaction-specific data.
     pub payload: Vec<u8>,
+    /// Nonce ensuring transaction uniqueness.
+    pub nonce: u64,
+    /// Maximum compute units the sender is willing to expend.
+    pub gas_limit: u64,
+    /// Price per compute unit the sender is willing to pay.
+    pub gas_price: u64,
     /// Optional Ed25519 signature of the transaction content.
     pub signature: Option<SignatureBytes>,
-    // TODO: Add fields like nonce, gas_limit, gas_price if relevant to economic model
 }
 
 /// Minimal DID document containing the public verifying key for a [`Did`].
@@ -516,6 +576,9 @@ impl Signable for Transaction {
         }
         bytes.extend_from_slice(self.payload_type.as_bytes());
         bytes.extend_from_slice(&self.payload);
+        bytes.extend_from_slice(&self.nonce.to_le_bytes());
+        bytes.extend_from_slice(&self.gas_limit.to_le_bytes());
+        bytes.extend_from_slice(&self.gas_price.to_le_bytes());
         Ok(bytes)
     }
 }
@@ -606,6 +669,7 @@ mod tests {
             timestamp,
             &author,
             &sig,
+            &None,
         );
         let block = DagBlock {
             cid: block_cid.clone(),
@@ -614,6 +678,7 @@ mod tests {
             timestamp,
             author_did: author,
             signature: sig,
+            scope: None,
         };
         assert_eq!(block.cid, block_cid);
         assert_eq!(block.links[0].cid, link_cid);
@@ -635,6 +700,9 @@ mod tests {
             recipient_did: None,
             payload_type: "test_payload".to_string(),
             payload: b"some test data".to_vec(),
+            nonce: 1,
+            gas_limit: 10,
+            gas_price: 1,
             signature: Some(SignatureBytes(vec![0u8; ed25519_dalek::SIGNATURE_LENGTH])),
         };
         assert_eq!(transaction.sender_did, sender);
@@ -669,6 +737,7 @@ mod tests {
             timestamp,
             &author,
             &sig,
+            &None,
         );
         let block = DagBlock {
             cid: cid.clone(),
@@ -677,6 +746,7 @@ mod tests {
             timestamp,
             author_did: author,
             signature: sig,
+            scope: None,
         };
         assert!(verify_block_integrity(&block).is_ok());
     }

@@ -6,6 +6,7 @@
 //! aiming for security, accuracy, and interoperability.
 
 use icn_common::{CommonError, Did, NodeInfo};
+use log::{debug, info};
 pub mod ledger;
 pub use ledger::FileManaLedger;
 #[cfg(feature = "persist-rocksdb")]
@@ -15,20 +16,6 @@ pub use ledger::SledManaLedger;
 #[cfg(feature = "persist-sqlite")]
 pub use ledger::SqliteManaLedger;
 
-/// Errors that can occur during mana accounting operations.
-#[derive(Debug)]
-pub enum EconError {
-    InsufficientBalance(String),
-    AdapterError(String),
-    PolicyViolation(String),
-}
-
-impl From<CommonError> for EconError {
-    fn from(err: CommonError) -> Self {
-        EconError::AdapterError(err.to_string())
-    }
-}
-
 /// Abstraction over the persistence layer storing account balances.
 pub trait ManaLedger: Send + Sync {
     /// Retrieve the mana balance for a DID.
@@ -36,9 +23,27 @@ pub trait ManaLedger: Send + Sync {
     /// Persist a new balance for a DID.
     fn set_balance(&self, did: &Did, amount: u64) -> Result<(), CommonError>;
     /// Spend mana from the account.
-    fn spend(&self, did: &Did, amount: u64) -> Result<(), EconError>;
+    fn spend(&self, did: &Did, amount: u64) -> Result<(), CommonError>;
     /// Credit mana to the account.
-    fn credit(&self, did: &Did, amount: u64) -> Result<(), EconError>;
+    fn credit(&self, did: &Did, amount: u64) -> Result<(), CommonError>;
+    /// Credit every known account with additional mana.
+    ///
+    /// The default implementation returns [`CommonError::NotImplementedError`]
+    /// if the ledger backend does not support iterating over accounts.
+    fn credit_all(&self, amount: u64) -> Result<(), CommonError> {
+        let _ = amount;
+        Err(CommonError::NotImplementedError(
+            "credit_all not implemented for this ledger".into(),
+        ))
+    }
+
+    /// Returns a list of all known account DIDs.
+    ///
+    /// The default implementation returns an empty vector if the
+    /// underlying ledger does not support account iteration.
+    fn all_accounts(&self) -> Vec<Did> {
+        Vec::new()
+    }
 }
 
 /// Thin wrapper exposing convenience methods over a [`ManaLedger`].
@@ -54,7 +59,7 @@ impl<L: ManaLedger> ManaRepositoryAdapter<L> {
     }
 
     /// Deduct mana from an account via the underlying ledger.
-    pub fn spend_mana(&self, did: &Did, amount: u64) -> Result<(), EconError> {
+    pub fn spend_mana(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
         self.ledger.spend(did, amount)
     }
 
@@ -64,7 +69,7 @@ impl<L: ManaLedger> ManaRepositoryAdapter<L> {
     }
 
     /// Credits the specified account with additional mana.
-    pub fn credit_mana(&self, did: &Did, amount: u64) -> Result<(), EconError> {
+    pub fn credit_mana(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
         self.ledger.credit(did, amount)
     }
 }
@@ -85,24 +90,24 @@ impl<L: ManaLedger> ResourcePolicyEnforcer<L> {
     }
 
     /// Spend mana after applying basic policy checks.
-    pub fn spend_mana(&self, did: &Did, amount: u64) -> Result<(), EconError> {
-        println!("[ResourcePolicyEnforcer] Enforcing spend_mana for DID {did:?}, amount {amount}");
+    pub fn spend_mana(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
+        debug!("[ResourcePolicyEnforcer] Enforcing spend_mana for DID {did:?}, amount {amount}");
 
         if amount == 0 {
-            return Err(EconError::PolicyViolation(
+            return Err(CommonError::PolicyDenied(
                 "Spend amount must be greater than zero".into(),
             ));
         }
 
         let available = self.adapter.get_balance(did);
         if available < amount {
-            return Err(EconError::InsufficientBalance(format!(
+            return Err(CommonError::PolicyDenied(format!(
                 "Insufficient mana for DID {did}"
             )));
         }
 
         if amount > Self::MAX_SPEND_LIMIT {
-            return Err(EconError::PolicyViolation(format!(
+            return Err(CommonError::PolicyDenied(format!(
                 "Spend amount {amount} exceeds limit {limit}",
                 limit = Self::MAX_SPEND_LIMIT
             )));
@@ -113,19 +118,48 @@ impl<L: ManaLedger> ResourcePolicyEnforcer<L> {
 }
 
 /// Exposes a public function to charge mana, wrapping ResourcePolicyEnforcer.
-pub fn charge_mana<L: ManaLedger>(ledger: L, did: &Did, amount: u64) -> Result<(), EconError> {
+pub fn charge_mana<L: ManaLedger>(ledger: L, did: &Did, amount: u64) -> Result<(), CommonError> {
     let mana_adapter = ManaRepositoryAdapter::new(ledger);
     let policy_enforcer = ResourcePolicyEnforcer::new(mana_adapter);
 
-    println!("[icn-economics] charge_mana called for DID {did:?}, amount {amount}");
+    info!("[icn-economics] charge_mana called for DID {did:?}, amount {amount}");
     policy_enforcer.spend_mana(did, amount)
 }
 
 /// Credits mana to the given DID using the provided ledger.
-pub fn credit_mana<L: ManaLedger>(ledger: L, did: &Did, amount: u64) -> Result<(), EconError> {
+pub fn credit_mana<L: ManaLedger>(ledger: L, did: &Did, amount: u64) -> Result<(), CommonError> {
     let mana_adapter = ManaRepositoryAdapter::new(ledger);
-    println!("[icn-economics] credit_mana called for DID {did:?}, amount {amount}");
+    info!("[icn-economics] credit_mana called for DID {did:?}, amount {amount}");
     mana_adapter.credit_mana(did, amount)
+}
+
+/// Credits mana to all known accounts using their reputation scores.
+///
+/// Each account receives `base_amount * reputation_score` mana.
+pub fn credit_by_reputation(
+    ledger: &dyn ManaLedger,
+    reputation_store: &dyn icn_reputation::ReputationStore,
+    base_amount: u64,
+) -> Result<(), CommonError> {
+    for did in ledger.all_accounts() {
+        let rep = reputation_store.get_reputation(&did);
+        let credit_amount = rep.saturating_mul(base_amount);
+        ledger.credit(&did, credit_amount)?;
+    }
+    Ok(())
+}
+
+/// Calculates the final mana price for a resource based on reputation.
+///
+/// Higher reputation results in a lower price. The formula is:
+/// `price = base_price * 100 / (100 + reputation)`.
+///
+/// This provides diminishing returns so reputation never drops the cost below
+/// zero and ensures a fair discount curve.
+pub fn price_by_reputation(base_price: u64, reputation: u64) -> u64 {
+    let denom = 100u128 + reputation as u128;
+    let num = (base_price as u128) * 100u128;
+    (num / denom) as u64
 }
 
 /// Placeholder function demonstrating use of common types for economics.
@@ -140,8 +174,65 @@ pub fn process_economic_event(info: &NodeInfo, event_details: &str) -> Result<St
 mod tests {
     use super::*;
     use icn_common::ICN_CORE_VERSION;
+    use std::collections::HashMap;
     use std::str::FromStr;
+    use std::sync::Mutex;
     use tempfile::tempdir;
+
+    #[derive(Default)]
+    struct InMemoryLedger {
+        balances: Mutex<HashMap<Did, u64>>,
+    }
+
+    impl InMemoryLedger {
+        fn new() -> Self {
+            Self {
+                balances: Mutex::new(HashMap::new()),
+            }
+        }
+    }
+
+    impl ManaLedger for InMemoryLedger {
+        fn get_balance(&self, did: &Did) -> u64 {
+            *self.balances.lock().unwrap().get(did).unwrap_or(&0)
+        }
+
+        fn set_balance(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
+            self.balances.lock().unwrap().insert(did.clone(), amount);
+            Ok(())
+        }
+
+        fn spend(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
+            let mut map = self.balances.lock().unwrap();
+            let bal = map
+                .get_mut(did)
+                .ok_or_else(|| CommonError::DatabaseError("account".into()))?;
+            if *bal < amount {
+                return Err(CommonError::PolicyDenied("insufficient".into()));
+            }
+            *bal -= amount;
+            Ok(())
+        }
+
+        fn credit(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
+            let mut map = self.balances.lock().unwrap();
+            let entry = map.entry(did.clone()).or_insert(0);
+            *entry = entry.saturating_add(amount);
+            Ok(())
+        }
+
+        fn credit_all(&self, amount: u64) -> Result<(), CommonError> {
+            let mut map = self.balances.lock().unwrap();
+            for bal in map.values_mut() {
+                *bal = bal.saturating_add(amount);
+            }
+            Ok(())
+        }
+
+        fn all_accounts(&self) -> Vec<Did> {
+            self.balances.lock().unwrap().keys().cloned().collect()
+        }
+    }
 
     #[test]
     fn test_process_economic_event() {
@@ -221,7 +312,7 @@ mod tests {
         let adapter = ManaRepositoryAdapter::new(ledger);
         let enforcer = ResourcePolicyEnforcer::new(adapter);
         let result = enforcer.spend_mana(&did, 30);
-        assert!(matches!(result, Err(EconError::InsufficientBalance(_))));
+        assert!(matches!(result, Err(CommonError::PolicyDenied(_))));
     }
 
     #[test]
@@ -237,6 +328,69 @@ mod tests {
         let enforcer = ResourcePolicyEnforcer::new(adapter);
         let over_limit = ResourcePolicyEnforcer::<FileManaLedger>::MAX_SPEND_LIMIT + 1;
         let result = enforcer.spend_mana(&did, over_limit);
-        assert!(matches!(result, Err(EconError::PolicyViolation(_))));
+        assert!(matches!(result, Err(CommonError::PolicyDenied(_))));
+    }
+
+    #[test]
+    fn test_credit_by_reputation_basic() {
+        use icn_reputation::InMemoryReputationStore;
+
+        let ledger = InMemoryLedger::new();
+        let rep_store = InMemoryReputationStore::new();
+
+        let alice = Did::from_str("did:example:alice").unwrap();
+        let bob = Did::from_str("did:example:bob").unwrap();
+
+        ledger.set_balance(&alice, 0).unwrap();
+        ledger.set_balance(&bob, 0).unwrap();
+
+        rep_store.set_score(alice.clone(), 3);
+        rep_store.set_score(bob.clone(), 0);
+
+        credit_by_reputation(&ledger, &rep_store, 10).unwrap();
+
+        assert_eq!(ledger.get_balance(&alice), 30);
+        assert_eq!(ledger.get_balance(&bob), 0);
+    }
+
+    #[test]
+    fn test_credit_by_reputation_overflow() {
+        use icn_reputation::InMemoryReputationStore;
+
+        let ledger = InMemoryLedger::new();
+        let rep_store = InMemoryReputationStore::new();
+
+        let over = Did::from_str("did:example:overflow").unwrap();
+        ledger.set_balance(&over, 0).unwrap();
+        rep_store.set_score(over.clone(), 2);
+
+        credit_by_reputation(&ledger, &rep_store, u64::MAX).unwrap();
+
+        assert_eq!(ledger.get_balance(&over), u64::MAX);
+    }
+
+    #[test]
+    fn test_inmemory_ledger_credit_all() {
+        let ledger = InMemoryLedger::new();
+        let alice = Did::from_str("did:example:alice").unwrap();
+        let bob = Did::from_str("did:example:bob").unwrap();
+        ledger.set_balance(&alice, 1).unwrap();
+        ledger.set_balance(&bob, 2).unwrap();
+        ledger.credit_all(5).unwrap();
+        assert_eq!(ledger.get_balance(&alice), 6);
+        assert_eq!(ledger.get_balance(&bob), 7);
+    }
+
+    #[test]
+    fn test_price_by_reputation_reduces_cost() {
+        // base price 100 with reputation 0 stays 100
+        assert_eq!(price_by_reputation(100, 0), 100);
+
+        // reputation should lower the price but never below zero
+        assert!(price_by_reputation(100, 50) < 100);
+        assert!(price_by_reputation(100, 200) < price_by_reputation(100, 50));
+
+        // very high reputation approaches zero but never exceeds base
+        assert!(price_by_reputation(100, 1000) < 100);
     }
 }

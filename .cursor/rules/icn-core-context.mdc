@@ -20,11 +20,6 @@ The core idea is to create a **foundational ruleset specifically for the `icn-co
 Here's a revised `icn-core-context.md`, aiming for conciseness while retaining critical information for an agent working *within this specific repository*:
 
 ```markdown
----
-description: ICN Core Workspace – Architecture, Responsibilities & Coding Rules for icn-core
-alwaysApply: true
----
-
 # ICN Core Workspace – Context & Rules of Engagement
 
 > **Attention Contributor (Human or AI):** This file defines the specific rules and architectural context for the `icn-core` repository. It complements the global ICN Shared Contributor Rules. Familiarize yourself with both. CI will enforce these guidelines.
@@ -45,14 +40,14 @@ This repository, `icn-core`, is the **authoritative Rust monorepo for the InterC
 * Developing the Cooperative Contract Language (CCL) compiler (`icn-ccl`) to compile governance policies and contracts to WASM.
 * Providing the node host runtime, Host-ABI, and job orchestration (`icn-runtime`).
 * Defining low-level P2P networking abstractions and implementing the libp2p-based service (`icn-network`).
-* (Potentially) Housing background service logic (e.g., for reputation, advanced mesh job persistence) in `icn-services::*` sub-crates.
+* Housing background service logic for reputation and persistence (`icn-reputation`).
 
 **Out of Scope for `icn-core`:**
-* HTTP API servers or clients (these belong in `icn-node` and `icn-cli`).
+* HTTP API servers or clients (these belong in `icn-node` and external projects).
 * User Interface (UI) code (this belongs in `icn-web-ui`, `icn-explorer`, etc.).
 * Deployment scripts, IaC, or specific environment configurations (these belong in `icn-infra`, `icn-devnet`).
 * General project documentation (this belongs in `icn-docs`).
-* Standalone CLI tools (these belong in `icn-cli`).
+* Standalone CLI tools (deployment logic belongs elsewhere, but CLI logic starts here).
 
 > **Guiding Principle:** If it's universal, deterministic Rust logic core to ICN's protocol, it likely belongs here. If it's an application, UI, or specific deployment concern, it belongs in another repository.
 
@@ -62,19 +57,21 @@ This repository, `icn-core`, is the **authoritative Rust monorepo for the InterC
 
 | Crate | Purpose | Key Files/Concepts |
 |-------|---------|--------------------|
-| **`icn-runtime`** | Node host runtime; Host-ABI; orchestrates mesh jobs, mana, receipts. | `src/abi.rs`, `src/context.rs` (RuntimeContext), `src/lib.rs` (JobManager), `MESH_LIFECYCLE.md`. |
-| **`icn-mesh`** | Global compute mesh domain model (jobs, bids, executor selection). | `src/lib.rs` (ActualMeshJob, MeshJobBid, JobState, select_executor, score_bid). |
-| **`icn-economics`** | Regenerating resource (mana), economic policy, token accounting, mana enforcement. | `src/lib.rs` (ResourcePolicyEnforcer, ManaRepositoryAdapter stubs, charge_mana). |
-| **`icn-governance`** | Proposal & voting engine; parameter management. | `src/lib.rs` (Proposal, Vote, GovernanceModule with InMemory/Sled). |
-| **`icn-identity`** | Decentralized identity (DID) primitives, credential verification. | `src/lib.rs` (ExecutionReceipt, key stubs, did:key generation). |
-| **`icn-dag`** | Content-addressed DAG store & receipt anchoring logic. | `src/lib.rs` (StorageService trait, InMemoryDagStore, FileDagStore). |
-| **`icn-network`** | P2P networking abstractions & libp2p implementation. | `src/lib.rs` (NetworkService trait, NetworkMessage enum), `src/libp2p_service.rs` (Swarm, Kademlia, Gossipsub). |
-| **`icn-ccl`** | _(To be developed)_ Cooperative Contract Language compiler (grammar → WASM). | Will use `ccl.pest` from legacy CoVM. |
-| **`icn-services::*`** | _(Potential)_ Decoupled background services (e.g., reputation, mesh job persistence). | Inspired by `icn-v3/crates/services/`. |
-| **`icn-common`** | Shared types, error enums, core constants. | `src/lib.rs` (Did, Cid, CommonError). |
-| **`icn-protocol`**| Core message formats and protocol definitions. | `src/lib.rs`. |
+| **`icn-runtime`** | Node host runtime; Host-ABI; orchestrates mesh jobs, mana, receipts. | `src/abi.rs`, `src/context.rs` (RuntimeContext), `src/lib.rs` (JobManager). |
+| **`icn-mesh`** | Global compute mesh domain model (jobs, bids, executor selection). | `src/lib.rs` (mesh job types, bid logic, executor selection algorithms). |
+| **`icn-economics`** | Regenerating resource (mana), economic policy, token accounting, mana enforcement. | `src/lib.rs` (mana management, resource policies, economic enforcement). |
+| **`icn-governance`** | Proposal & voting engine; parameter management. | `src/lib.rs` (proposals, voting mechanisms, governance state). |
+| **`icn-identity`** | Decentralized identity (DID) primitives, credential verification. | `src/lib.rs` (DID management, credential verification, execution receipts). |
+| **`icn-dag`** | Content-addressed DAG store & receipt anchoring logic. | `src/lib.rs` (DAG storage traits, anchoring logic, content addressing). |
+| **`icn-network`** | P2P networking abstractions & libp2p implementation. | `src/lib.rs` (network service traits, libp2p integration, messaging). |
+| **`icn-reputation`** | Reputation scoring, tracking, and validation for mesh participants. | `src/lib.rs` (reputation algorithms, scoring, validation logic). |
+| **`icn-api`** | Shared API types and traits for external consumption. | `src/lib.rs` (DTOs, service traits, API contracts). |
+| **`icn-protocol`**| Core message formats and protocol definitions. | `src/lib.rs` (protocol messages, serialization, wire formats). |
+| **`icn-common`** | Shared types, error enums, core constants. | `src/lib.rs` (common types, errors, utilities). |
+| **`icn-cli`** | CLI interface logic and command implementations. | `src/lib.rs` (command parsing, CLI logic, user interactions). |
+| **`icn-node`** | Main node binary and HTTP API server. | `src/main.rs`, `src/server.rs` (node startup, API endpoints). |
 
-> **Note:** `icn-api` (DTOs & traits) and `icn-cli` are **external** to this `icn-core` workspace and are imported/used as needed. Do not duplicate their logic here.
+> **Note:** External repositories will consume APIs from `icn-api` and interact with `icn-node`. Internal crates should minimize cross-dependencies and use well-defined interfaces.
 
 ---
 
@@ -87,19 +84,24 @@ This repository, `icn-core`, is the **authoritative Rust monorepo for the InterC
 1.  **Submission (via `icn-runtime`):**
     * Host calls `host_submit_mesh_job` (`icn-runtime/src/abi.rs`).
     * Checks: Submitter DID, mana ≥ job cost (`host_account_spend_mana`).
-    * Job (`ActualMeshJob`) added to `RuntimeContext::pending_mesh_jobs` (`icn-runtime/src/context.rs`).
+    * Job added to `RuntimeContext::pending_mesh_jobs` (`icn-runtime/src/context.rs`).
+
 2.  **Bidding (via `icn-mesh` & `icn-network`):**
-    * JobManager announces job; Executors discover and submit bids (`MeshJobBid` from `icn-mesh`).
-    * Bids require sufficient mana; reputation influences selection (via `ReputationExecutorSelector` concept).
+    * JobManager announces job; Executors discover and submit bids.
+    * Bids require sufficient mana; reputation influences selection.
+
 3.  **Assignment (via `icn-runtime` & `icn-mesh`):**
-    * JobManager (in `icn-runtime`) uses `select_executor` (`icn-mesh`) with a policy (scoring reputation, price, resources).
+    * JobManager uses `select_executor` with policy (scoring reputation, price, resources).
     * Job state transitions to `Assigned`; executor notified.
+
 4.  **Execution (by Executor):**
-    * Assigned executor runs the job, produces a signed `ExecutionReceipt` (`icn-identity`).
+    * Assigned executor runs the job, produces a signed `ExecutionReceipt`.
+
 5.  **Anchoring (via `icn-runtime`, `icn-dag`, `icn-identity`):**
-    * Executor (or JobManager processing receipt) calls `host_anchor_receipt` (`icn-runtime`).
-    * Receipt is validated (signature, correct executor) and stored in `icn-dag`.
-    * Reputation system (e.g., `icn-services::reputation` or internal updater) is notified.
+    * Executor calls `host_anchor_receipt`.
+    * Receipt is validated and stored in DAG.
+    * Reputation system is updated.
+
 6.  **Edge Cases:**
     * Insufficient mana/reputation: Job or bid rejected.
     * No valid bids: Job submitter's mana refunded; job marked failed.
@@ -110,14 +112,14 @@ This repository, `icn-core`, is the **authoritative Rust monorepo for the InterC
 
 When modifying the mesh job pipeline, economics, or runtime interactions, review files in this order:
 
-1.  **`crates/icn-runtime/src/abi.rs`**: Understand the Host ABI surface (`host_*` functions, especially `host_submit_mesh_job`, `host_anchor_receipt`, `host_account_spend_mana`).
-2.  **`crates/icn-runtime/src/context.rs`**: Grasp `RuntimeContext`'s role in managing queues, mana enforcement, and job states.
-3.  **`crates/icn-mesh/src/lib.rs`**: Review `ActualMeshJob`, `MeshJobBid`, executor selection logic (`select_executor`, `score_bid`), and job state enums.
-4.  **`crates/icn-economics/src/lib.rs`**: Examine `ResourcePolicyEnforcer`, `ManaRepositoryAdapter` (and underlying ledger concepts), and mana metering logic.
-5.  **`crates/icn-runtime/src/lib.rs`** (and `JobManager` in `context.rs`): See how runtime tasks, job queue management, and the mesh lifecycle are tied together.
-6.  **(If applicable) `crates/icn-ccl/`**: For changes involving CCL compilation or its interaction with the runtime/Host-ABI.
-7.  **(If applicable) `crates/icn-services/`**: For changes to background persistence or processing for reputation/mesh jobs.
-8.  **Relevant Tests**: `icn-runtime/tests/mesh.rs` and other integration tests for end-to-end validation and error handling.
+1.  **`crates/icn-runtime/src/abi.rs`**: Host ABI surface (`host_*` functions).
+2.  **`crates/icn-runtime/src/context.rs`**: `RuntimeContext` role in managing state.
+3.  **`crates/icn-mesh/src/lib.rs`**: Job types, bid logic, executor selection.
+4.  **`crates/icn-economics/src/lib.rs`**: Mana management and enforcement.
+5.  **`crates/icn-runtime/src/lib.rs`**: Runtime orchestration and job management.
+6.  **`crates/icn-reputation/src/lib.rs`**: Reputation scoring and validation.
+7.  **`crates/icn-dag/src/lib.rs`**: Receipt anchoring and storage.
+8.  **Relevant Tests**: Integration tests for end-to-end validation.
 
 ---
 
@@ -125,36 +127,26 @@ When modifying the mesh job pipeline, economics, or runtime interactions, review
 
 These supplement the global ICN Shared Contributor Rules.
 
-* **Determinism is Paramount**: All logic within `icn-core` crates (especially `icn-runtime`, `icn-economics`, `icn-mesh`, `icn-governance`, `icn-ccl`) must be strictly deterministic. No direct use of wall-clock time, unseeded randomness, or unpredictable I/O (network/file access should be through abstracted traits like `NetworkService` or `StorageService`).
-* **Mana & Reputation Invariants**: Never bypass mana checks (`host_account_spend_mana`, `ResourcePolicyEnforcer`) or reputation considerations in job, bid, or assignment logic.
-* **Atomic State Updates**: Job states and economic ledgers must be updated atomically. Log all significant state changes.
-* **Rustdoc & API Clarity**: Extend or update Rustdoc (`///`) for all new or changed public APIs, structs, enums, and error types.
-* **Comprehensive Testing**: Write unit tests for all logic branches and integration tests for every new feature, error case, or significant change to primary pipelines (mesh, governance).
-* **Backward Compatibility**: Maintain backward compatibility for Host-ABI functions and core data structures unless a breaking change is explicitly justified by an RFC and version bump.
-* **Minimal Dependencies in `icn-common`**: `icn-common` should only depend on essential, lightweight crates (like `serde`, `bs58`). Avoid pulling heavy dependencies into `icn-common`.
-* **Asynchronous Operations**: Use `async/await` for potentially blocking operations, especially anything involving network I/O (via `NetworkService` trait) or complex computations managed by the `JobManager`.
+* **Determinism is Paramount**: All logic must be strictly deterministic. No wall-clock time, unseeded randomness, or unpredictable I/O.
+* **Mana & Reputation Invariants**: Never bypass mana checks or reputation considerations.
+* **Atomic State Updates**: State changes must be atomic. Log all significant state changes.
+* **Rustdoc & API Clarity**: Document all public APIs with comprehensive Rustdoc.
+* **Comprehensive Testing**: Unit tests for all branches, integration tests for features.
+* **Backward Compatibility**: Maintain compatibility unless explicitly versioned.
+* **Minimal Dependencies in `icn-common`**: Keep dependencies lightweight.
+* **Asynchronous Operations**: Use `async/await` for potentially blocking operations.
 
 ---
 
 ## 6 · Tips for Working in `icn-core`
 
-* If uncertain about interactions, start by tracing function calls from `icn-runtime/src/abi.rs` through `RuntimeContext` and into the respective crates (`icn-mesh`, `icn-economics`, etc.).
-* Shared, serializable data types intended for API boundaries (to be used by `icn-node`, `icn-cli`, etc.) should ideally be defined in the external `icn-api` crate and imported here. Avoid defining API DTOs directly within `icn-core` unless they are purely internal.
-* Use types from `icn-common` whenever a type needs to be shared between different crates within this `icn-core` workspace.
+* Start by tracing function calls from `icn-runtime/src/abi.rs` through `RuntimeContext`.
+* Use types from `icn-common` for shared data structures.
+* Consult `icn-api` for external interface contracts.
+* Test changes with `cargo test --workspace --all-features`.
+* Use `cargo clippy --all-targets --all-features -- -D warnings` before commits.
 
 ---
 
 **Adherence to these rules is mandatory for all contributions to `icn-core`.**
 ```
-
-**Reasoning for Changes and Structure:**
-
-1.  **Specific to `icn-core`**: The file clearly states its scope is `icn-core`, complementing global rules.
-2.  **Mission & Scope Clarified**: Defines what `icn-core` *is* and *is not* responsible for, reinforcing the modular design.
-3.  **Workspace Layout Table**: Adapted from ChatGPT's excellent suggestion, but tailored to the crates *within* `icn-core` as per `develop(5).xml`, and includes placeholders for `icn-ccl` and `icn-services::*` based on our discussion of adopting legacy concepts. It clarifies that `icn-api` and `icn-cli` are external to this specific workspace.
-4.  **System Flow (Mesh Job Pipeline)**: Kept this critical flow from your original file as it's central to `icn-core`'s function, with citations.
-5.  **Reading Order**: Refined to include the new/potential `icn-ccl` and `icn-services` crates.
-6.  **Coding & Review Guidelines**: Made these specific to the demands of `icn-core` (determinism, mana/reputation invariants, async operations, `icn-common` dependency rules).
-7.  **Tips**: Focused on practical advice for navigating and contributing to `icn-core`.
-
-This revised file now serves as a robust guide for any agent (AI or human) specifically working on the `icn-core` repository. It leverages the clarity and structure from ChatGPT's suggestions while ensuring the content is directly relevant to `icn-core` and incorporates the architectural elements we've discussed (like re-implementing CCL and considering distinct services).

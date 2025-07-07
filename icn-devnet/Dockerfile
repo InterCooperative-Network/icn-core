@@ -10,6 +10,8 @@ RUN apt-get update && apt-get install -y \
     libssl-dev \
     curl \
     build-essential \
+    clang \
+    libclang-dev \
     protobuf-compiler \
     && rm -rf /var/lib/apt/lists/*
 
@@ -20,11 +22,18 @@ WORKDIR /app
 COPY Cargo.toml Cargo.lock ./
 COPY rust-toolchain.toml ./
 
+# Install rustfmt component
+RUN rustup component add rustfmt
+
 # Copy source code
 COPY crates/ ./crates/
+COPY icn-ccl/ ./icn-ccl/
 COPY tests/ ./tests/
 
 # Build the ICN node binary
+# Increase rustc stack size to avoid segfaults during optimized builds
+# 64 MiB is required for some build steps
+ENV RUST_MIN_STACK=67108864
 RUN cargo build --release -p icn-node --features with-libp2p
 
 # Runtime stage
@@ -59,4 +68,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:7845/info || exit 1
 
 # Use entrypoint script
-ENTRYPOINT ["/usr/local/bin/entrypoint.sh"] 
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
