@@ -62,6 +62,8 @@ cargo build --no-default-features --features "with-libp2p persist-rocksdb"
 
 # To use RocksDB instead of SQLite, compile with `--features persist-rocksdb`
 # and pass `--storage-backend rocksdb` with a `.rocks` path.
+# If RocksDB compilation fails (e.g. missing C++ toolchain) you can fall back
+# to SQLite with `--features persist-sqlite` and `--storage-backend sqlite`.
 
 # In a second terminal start another node connecting to the first
 ./target/debug/icn-node \
@@ -88,6 +90,7 @@ just lint     # run clippy
 just test     # execute all tests
 just build    # build all crates
 just devnet   # launch the containerized federation devnet
+icn-devnet/launch_federation.sh # build and test the federation containers
 ```
 
 
@@ -164,6 +167,7 @@ Development has progressed through several major phases:
 3. **Phase&nbsp;2B – Cross‑Node Mesh Jobs**: distributed job execution is verified with cryptographically signed receipts.
 4. **Phase&nbsp;3 – HTTP Gateway**: all runtime functionality is accessible over REST endpoints.
 5. **Phase&nbsp;4 – Federation Devnet**: containerized devnet demonstrating a three‑node federation.
+   Run `icn-devnet/launch_federation.sh` to build and test the federation locally.
 
 Future planning and outstanding tasks are tracked on the
 [issue tracker](https://github.com/InterCooperative/icn-core/issues).
