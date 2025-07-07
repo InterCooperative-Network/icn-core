@@ -16,6 +16,7 @@ use std::process::exit; // Added for reading from stdin
 // Types from our ICN crates that CLI will interact with (serialize/deserialize)
 // These types are expected to be sent to/received from the icn-node HTTP API.
 use icn_common::{Cid, DagBlock, NodeInfo, NodeStatus};
+use icn_common::resilience::CircuitBreaker;
 // Using aliased request structs from icn-api for clarity, these are what the node expects
 use icn_api::governance_trait::{
     CastVoteRequest as ApiCastVoteRequest, SubmitProposalRequest as ApiSubmitProposalRequest,
@@ -634,15 +635,17 @@ async fn handle_network_ping(
     client: &Client,
     peer_id: &str,
 ) -> Result<(), anyhow::Error> {
+    let breaker = CircuitBreaker::new(3, std::time::Duration::from_secs(1));
     let info: NodeInfo = get_request(&cli.api_url, client, "/info").await?;
-    let result = icn_network::send_network_ping(&info, peer_id).await?;
+    let result = icn_network::send_network_ping(&info, peer_id, &breaker).await?;
     println!("{}", result);
     Ok(())
 }
 
 async fn handle_network_peers(cli: &Cli, _client: &Client) -> Result<(), anyhow::Error> {
-    let peer_id = icn_api::http_get_local_peer_id(&cli.api_url).await?;
-    let peers = icn_api::http_get_peer_list(&cli.api_url).await?;
+    let breaker = CircuitBreaker::new(3, std::time::Duration::from_secs(1));
+    let peer_id = icn_api::http_get_local_peer_id(&cli.api_url, &breaker).await?;
+    let peers = icn_api::http_get_peer_list(&cli.api_url, &breaker).await?;
     println!("Local Peer ID: {}", peer_id);
     println!("Discovered Peers:");
     for p in peers {

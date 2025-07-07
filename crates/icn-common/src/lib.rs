@@ -9,6 +9,8 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 use thiserror::Error;
 
+pub mod resilience;
+
 pub const ICN_CORE_VERSION: &str = "0.1.0-dev-functional";
 
 /// Basic metadata about an ICN node used for diagnostics and handshakes.

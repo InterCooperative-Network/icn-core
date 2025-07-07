@@ -12,7 +12,7 @@ serde = { version = "1.0", features = ["derive"] }
 icn-common = { path = "../icn-common" }
 
 # --- crypto ---
-ed25519-dalek = { version = "2.0.0-pre.3", features = ["rand_core"] }
+ed25519-dalek = { version = "2.0.0-pre.3", features = ["rand_core", "zeroize"] }
 rand_core      = { version = "0.6", features = ["getrandom"] } # used by dalek's OsRng
 # --- DID:key helpers ---
 multibase      = "0.9"          # base-58btc ("z...") encoder/decoder
