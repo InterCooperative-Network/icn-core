@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["charge_mana","credit_by_reputation","credit_mana","process_economic_event"],"mod":["ledger"],"struct":["ManaRepositoryAdapter","ResourcePolicyEnforcer"],"trait":["ManaLedger"]};
+window.SIDEBAR_ITEMS = {"fn":["charge_mana","credit_by_reputation","credit_mana","price_by_reputation","process_economic_event"],"mod":["ledger"],"struct":["ManaRepositoryAdapter","ResourcePolicyEnforcer"],"trait":["ManaLedger"]};
