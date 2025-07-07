@@ -23,8 +23,7 @@ use std::sync::{Arc, Mutex}; // To accept the storage service
 use tokio::sync::Mutex as AsyncMutex;
                              // Added imports for network functionality
 use icn_network::{NetworkService, PeerId, StubNetworkService};
-#[cfg(test)]
-use icn_protocol::MessagePayload;
+
 use icn_protocol::ProtocolMessage;
 // Added imports for governance functionality
 use icn_governance::{
@@ -761,6 +760,8 @@ mod tests {
             },
             description: "Test description".to_string(),
             duration_secs: 3600,
+            quorum: None,
+            threshold: None,
         };
 
         let proposal_id_res = api.submit_proposal(submit_req);
@@ -803,6 +804,8 @@ mod tests {
             },
             description: "Voting test".to_string(),
             duration_secs: 3600,
+            quorum: None,
+            threshold: None,
         };
         let proposal_id = api
             .submit_proposal(submit_req)
@@ -970,6 +973,14 @@ mod tests {
 
         fn contains(&self, _cid: &Cid) -> Result<bool, CommonError> {
             Err(CommonError::PolicyDenied("contains blocked".to_string()))
+        }
+
+        fn as_any(&self) -> &(dyn std::any::Any + 'static) {
+            self
+        }
+
+        fn as_any_mut(&mut self) -> &mut (dyn std::any::Any + 'static) {
+            self
         }
     }
 

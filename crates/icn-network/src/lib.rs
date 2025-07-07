@@ -787,7 +787,9 @@ pub mod libp2p_service {
     // --- Network Behaviour Definition ---
 
     use libp2p::swarm::behaviour::toggle::Toggle;
+    
     #[derive(NetworkBehaviour)]
+    #[behaviour(to_swarm = "CombinedBehaviourEvent")]
     pub struct CombinedBehaviour {
         gossipsub: gossipsub::Behaviour,
         ping: ping::Behaviour,
@@ -796,7 +798,46 @@ pub mod libp2p_service {
         mdns: Toggle<libp2p::mdns::tokio::Behaviour>,
     }
 
-    // CombinedEvent removed - using auto-generated CombinedBehaviourEvent instead
+    // Define the combined event type manually with proper From implementations
+    #[derive(Debug)]
+    pub enum CombinedBehaviourEvent {
+        Gossipsub(gossipsub::Event),
+        Ping(ping::Event),
+        Kademlia(kad::Event),
+        RequestResponse(libp2p::request_response::Event<super::ProtocolMessage, super::ProtocolMessage>),
+        Mdns(libp2p::mdns::Event),
+    }
+
+    // Implement From traits for each event type
+    impl From<gossipsub::Event> for CombinedBehaviourEvent {
+        fn from(event: gossipsub::Event) -> Self {
+            CombinedBehaviourEvent::Gossipsub(event)
+        }
+    }
+
+    impl From<ping::Event> for CombinedBehaviourEvent {
+        fn from(event: ping::Event) -> Self {
+            CombinedBehaviourEvent::Ping(event)
+        }
+    }
+
+    impl From<kad::Event> for CombinedBehaviourEvent {
+        fn from(event: kad::Event) -> Self {
+            CombinedBehaviourEvent::Kademlia(event)
+        }
+    }
+
+    impl From<libp2p::request_response::Event<super::ProtocolMessage, super::ProtocolMessage>> for CombinedBehaviourEvent {
+        fn from(event: libp2p::request_response::Event<super::ProtocolMessage, super::ProtocolMessage>) -> Self {
+            CombinedBehaviourEvent::RequestResponse(event)
+        }
+    }
+
+    impl From<libp2p::mdns::Event> for CombinedBehaviourEvent {
+        fn from(event: libp2p::mdns::Event) -> Self {
+            CombinedBehaviourEvent::Mdns(event)
+        }
+    }
 
     impl Libp2pNetworkService {
         /// Spawn the networking service using the given configuration.

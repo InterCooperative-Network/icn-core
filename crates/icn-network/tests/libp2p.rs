@@ -63,7 +63,11 @@ mod libp2p_tests {
             .send_message(
                 &PeerId(node_a.local_peer_id().to_string()),
                 ProtocolMessage::new(
-                    MessagePayload::FederationSyncRequest(Did::default()),
+                    MessagePayload::FederationSyncRequest(icn_protocol::FederationSyncRequestMessage {
+                        federation_id: "test".to_string(),
+                        since_timestamp: None,
+                        sync_types: vec![],
+                    }),
                     Did::default(),
                     None,
                 ),

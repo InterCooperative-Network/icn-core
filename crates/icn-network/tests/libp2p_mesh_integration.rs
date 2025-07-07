@@ -388,11 +388,22 @@ mod libp2p_mesh_integration {
         let job_to_announce = generate_dummy_job("test_job_01");
         let job_announcement_msg = ProtocolMessage::new(
             MessagePayload::MeshJobAnnouncement(MeshJobAnnouncementMessage {
-                job_id: job_to_announce.id.clone(),
+                job_id: job_to_announce.id.0.clone(), // Convert JobId to Cid
                 manifest_cid: job_to_announce.manifest_cid.clone(),
                 creator_did: job_to_announce.creator_did.clone(),
                 max_cost_mana: job_to_announce.cost_mana,
-                job_spec: job_to_announce.spec.clone(),
+                job_spec: icn_protocol::JobSpec {
+                    image: job_to_announce.spec.image.clone(),
+                    command: job_to_announce.spec.command.clone(),
+                    args: job_to_announce.spec.args.clone(),
+                    env: job_to_announce.spec.env.clone(),
+                    resources: icn_protocol::ResourceRequirements {
+                        cpu: job_to_announce.spec.resources.cpu,
+                        memory: job_to_announce.spec.resources.memory,
+                        storage: job_to_announce.spec.resources.storage,
+                    },
+                    timeout: job_to_announce.spec.timeout,
+                },
                 bid_deadline: 0,
             }),
             Did::new("key", "node_a"),
@@ -424,22 +435,26 @@ mod libp2p_mesh_integration {
                     &network_message_b.payload
                 {
                     assert_eq!(
-                        received_job.id, job_to_announce.id,
+                        received_job.job_id, job_to_announce.id.0,
                         "Node B received incorrect job ID"
                     );
-                    println!("✅ [test-mesh-network] Node B received job announcement for job ID: {}. Submitting bid.", received_job.id);
+                    println!("✅ [test-mesh-network] Node B received job announcement for job ID: {}. Submitting bid.", received_job.job_id);
 
                     let bid_to_submit = generate_dummy_bid(
-                        &received_job.id,
+                        &JobId::from(received_job.job_id.clone()),
                         "did:key:z6MkjchhcVbWZkAbNGRsM4ac3gR3eNnYtD9tYtFv9T9xL4xH",
                     );
                     let bid_submission_msg = ProtocolMessage::new(
                         MessagePayload::MeshBidSubmission(MeshBidSubmissionMessage {
-                            job_id: bid_to_submit.job_id.clone(),
+                            job_id: bid_to_submit.job_id.0.clone(), // Convert JobId to Cid
                             executor_did: bid_to_submit.executor_did.clone(),
-                            cost_mana: bid_to_submit.price_mana,
+                            cost_mana: bid_to_submit.cost_mana,
                             estimated_duration_secs: 0,
-                            offered_resources: bid_to_submit.resources.clone(),
+                            offered_resources: icn_protocol::ResourceRequirements {
+                                cpu: bid_to_submit.resources.cpu,
+                                memory: bid_to_submit.resources.memory,
+                                storage: bid_to_submit.resources.storage,
+                            },
                             reputation_score: 0,
                         }),
                         Did::new("key", "node_b"),
@@ -472,7 +487,7 @@ mod libp2p_mesh_integration {
                                 &network_message_a.payload
                             {
                                 assert_eq!(
-                                    received_bid.job_id, job_to_announce.id,
+                                    received_bid.job_id, job_to_announce.id.0,
                                     "Node A received bid for incorrect job ID"
                                 );
                                 assert_eq!(
@@ -627,23 +642,34 @@ mod libp2p_mesh_integration {
         let job_id = test_job.id.clone();
 
         // Node A announces job
-        let announcement_msg = ProtocolMessage::new(
+        let job_announcement_msg = ProtocolMessage::new(
             MessagePayload::MeshJobAnnouncement(MeshJobAnnouncementMessage {
-                job_id: test_job.id.clone(),
+                job_id: test_job.id.clone().into(), // Convert JobId to Cid
                 manifest_cid: test_job.manifest_cid.clone(),
                 creator_did: test_job.creator_did.clone(),
                 max_cost_mana: test_job.cost_mana,
-                job_spec: test_job.spec.clone(),
+                job_spec: icn_protocol::JobSpec {
+                    image: test_job.spec.image.clone(),
+                    command: test_job.spec.command.clone(),
+                    args: test_job.spec.args.clone(),
+                    env: test_job.spec.env.clone(),
+                    resources: icn_protocol::ResourceRequirements {
+                        cpu: test_job.spec.resources.cpu,
+                        memory: test_job.spec.resources.memory,
+                        storage: test_job.spec.resources.storage,
+                    },
+                    timeout: test_job.spec.timeout,
+                },
                 bid_deadline: 0,
             }),
             Did::new("key", "node_a"),
             None,
         );
-        node_a.service.broadcast_message(announcement_msg).await?;
+        node_a.service.broadcast_message(job_announcement_msg).await?;
         info!("📢 [PIPELINE-REFACTORED] Job announced: {}", job_id);
 
         // Node B receives job announcement
-        let received_job = wait_for_message(&mut node_b.receiver, 10, |msg| match msg {
+        let received_job = wait_for_message(&mut node_b.receiver, 10, |msg| match &msg.payload {
             MessagePayload::MeshJobAnnouncement(job) => Some(job.clone()),
             _ => None,
         })
@@ -656,11 +682,15 @@ mod libp2p_mesh_integration {
         let bid = create_test_bid(&job_id, executor_did, 80, &sk);
         let bid_msg = ProtocolMessage::new(
             MessagePayload::MeshBidSubmission(MeshBidSubmissionMessage {
-                job_id: bid.job_id.clone(),
+                job_id: bid.job_id.0.clone(), // Convert JobId to Cid
                 executor_did: bid.executor_did.clone(),
-                cost_mana: bid.price_mana,
+                cost_mana: bid.cost_mana,
                 estimated_duration_secs: 0,
-                offered_resources: bid.resources.clone(),
+                offered_resources: icn_protocol::ResourceRequirements {
+                    cpu: bid.resources.cpu,
+                    memory: bid.resources.memory,
+                    storage: bid.resources.storage,
+                },
                 reputation_score: 0,
             }),
             Did::new("key", "node_b"),
@@ -670,9 +700,9 @@ mod libp2p_mesh_integration {
         info!("💰 [PIPELINE-REFACTORED] Bid submitted by Node B");
 
         // Node A receives bid
-        let received_bid = wait_for_message(&mut node_a.receiver, 10, |msg| match msg {
+        let received_bid = wait_for_message(&mut node_a.receiver, 10, |msg| match &msg.payload {
             MessagePayload::MeshBidSubmission(bid) => {
-                if bid.job_id == job_id {
+                if bid.job_id == job_id.0 {
                     Some(bid.clone())
                 } else {
                     None
@@ -691,11 +721,9 @@ mod libp2p_mesh_integration {
 
         let assignment_msg = ProtocolMessage::new(
             MessagePayload::MeshJobAssignment(MeshJobAssignmentMessage {
-                job_id: job_id.clone(),
+                job_id: job_id.0.clone(), // Convert JobId to Cid
                 executor_did: executor_did.clone(),
-                agreed_cost_mana: 0,
-                completion_deadline: 0,
-                manifest_cid: None,
+                assigned_at: 0,
             }),
             Did::new("key", "node_a"),
             None,
@@ -704,26 +732,51 @@ mod libp2p_mesh_integration {
         info!("📋 [PIPELINE-REFACTORED] Job assignment notification sent");
 
         // Node B receives assignment
-        let (assigned_job_id, assigned_executor) =
-            wait_for_message(&mut node_b.receiver, 10, |msg| match msg {
+        let received_job_assignment =
+            wait_for_message(&mut node_b.receiver, 10, |msg| match &msg.payload {
                 MessagePayload::MeshJobAssignment(assign) => {
-                    let job_id = &assign.job_id;
-                    let executor_did = &assign.executor_did;
-                    Some((job_id.clone(), executor_did.clone()))
+                    if assign.job_id == job_id.0 {
+                        Some(assign.clone())
+                    } else {
+                        None
+                    }
                 }
                 _ => None,
             })
             .await?;
         info!(
             "✅ [PIPELINE-REFACTORED] Assignment received: Job {} assigned to {}",
-            assigned_job_id, assigned_executor
+            received_job_assignment.job_id, received_job_assignment.executor_did
         );
 
         // === Phase 4: Job Execution ===
         info!("🔧 [PIPELINE-REFACTORED] Phase 4: Job execution with SimpleExecutor...");
 
+        let assigned_executor = received_job_assignment.executor_did.clone();
+
+        // Convert back to the expected format for the executor using original job data
+        let actual_job = icn_mesh::Job {
+            id: JobId::from(received_job_assignment.job_id.clone()),
+            manifest_cid: received_job.manifest_cid.clone(),
+            creator_did: received_job.creator_did.clone(),
+            cost_mana: received_job.max_cost_mana,
+            spec: icn_mesh::JobSpec {
+                image: received_job.job_spec.image.clone(),
+                command: received_job.job_spec.command.clone(),
+                args: received_job.job_spec.args.clone(),
+                env: received_job.job_spec.env.clone(),
+                resources: icn_mesh::Resources {
+                    cpu: received_job.job_spec.resources.cpu,
+                    memory: received_job.job_spec.resources.memory,
+                    storage: received_job.job_spec.resources.storage,
+                },
+                timeout: received_job.job_spec.timeout,
+            },
+            assigned_executor: Some(received_job_assignment.executor_did.clone()),
+        };
+
         let execution_result =
-            execute_job_with_simple_executor(&received_job, &assigned_executor).await?;
+            execute_job_with_simple_executor(&actual_job, &assigned_executor).await?;
         info!(
             "✅ [PIPELINE-REFACTORED] Job execution completed - Result CID: {}",
             execution_result.result_cid
@@ -749,12 +802,10 @@ mod libp2p_mesh_integration {
         info!("📤 [PIPELINE-REFACTORED] Receipt submitted");
 
         // Node A receives and verifies receipt
-        let verified_receipt = wait_for_message(&mut node_a.receiver, 10, |msg| match msg {
+        let verified_receipt = wait_for_message(&mut node_a.receiver, 10, |msg| match &msg.payload {
             MessagePayload::MeshReceiptSubmission(sub) => {
                 let receipt = &sub.receipt;
-                if receipt.job_id == job_id.clone().into()
-                    && receipt.executor_did == assigned_executor
-                {
+                if receipt.job_id == job_id.0 {
                     Some(receipt.clone())
                 } else {
                     None
@@ -811,28 +862,39 @@ mod libp2p_mesh_integration {
         let job_id = test_job.id.clone();
 
         // Announce job
-        let announcement_msg = ProtocolMessage::new(
+        let job_announcement_msg = ProtocolMessage::new(
             MessagePayload::MeshJobAnnouncement(MeshJobAnnouncementMessage {
-                job_id: test_job.id.clone(),
+                job_id: test_job.id.clone().into(), // Convert JobId to Cid
                 manifest_cid: test_job.manifest_cid.clone(),
                 creator_did: test_job.creator_did.clone(),
                 max_cost_mana: test_job.cost_mana,
-                job_spec: test_job.spec.clone(),
+                job_spec: icn_protocol::JobSpec {
+                    image: test_job.spec.image.clone(),
+                    command: test_job.spec.command.clone(),
+                    args: test_job.spec.args.clone(),
+                    env: test_job.spec.env.clone(),
+                    resources: icn_protocol::ResourceRequirements {
+                        cpu: test_job.spec.resources.cpu,
+                        memory: test_job.spec.resources.memory,
+                        storage: test_job.spec.resources.storage,
+                    },
+                    timeout: test_job.spec.timeout,
+                },
                 bid_deadline: 0,
             }),
             Did::new("key", "node_a"),
             None,
         );
-        node_a.service.broadcast_message(announcement_msg).await?;
+        node_a.service.broadcast_message(job_announcement_msg).await?;
 
         // Verify reception
-        let received_job = wait_for_message(&mut node_b.receiver, 5, |msg| match msg {
+        let received_job = wait_for_message(&mut node_b.receiver, 5, |msg| match &msg.payload {
             MessagePayload::MeshJobAnnouncement(job) => Some(job.clone()),
             _ => None,
         })
         .await?;
 
-        assert_eq!(received_job.id, job_id);
+        assert_eq!(received_job.job_id, job_id.0);
         assert_eq!(received_job.creator_did, job_config.creator_did);
 
         // Submit bid
@@ -840,11 +902,15 @@ mod libp2p_mesh_integration {
         let bid = create_test_bid(&job_id, &job_config.creator_did, 75, &sk);
         let bid_msg = ProtocolMessage::new(
             MessagePayload::MeshBidSubmission(MeshBidSubmissionMessage {
-                job_id: bid.job_id.clone(),
+                job_id: bid.job_id.0.clone(), // Convert JobId to Cid
                 executor_did: bid.executor_did.clone(),
-                cost_mana: bid.price_mana,
+                cost_mana: bid.cost_mana,
                 estimated_duration_secs: 0,
-                offered_resources: bid.resources.clone(),
+                offered_resources: icn_protocol::ResourceRequirements {
+                    cpu: bid.resources.cpu,
+                    memory: bid.resources.memory,
+                    storage: bid.resources.storage,
+                },
                 reputation_score: 0,
             }),
             Did::new("key", "node_b"),
@@ -853,9 +919,9 @@ mod libp2p_mesh_integration {
         node_b.service.broadcast_message(bid_msg).await?;
 
         // Verify bid reception
-        let received_bid = wait_for_message(&mut node_a.receiver, 5, |msg| match msg {
+        let received_bid = wait_for_message(&mut node_a.receiver, 5, |msg| match &msg.payload {
             MessagePayload::MeshBidSubmission(bid) => {
-                if bid.job_id == job_id {
+                if bid.job_id == job_id.0 {
                     Some(bid.clone())
                 } else {
                     None
@@ -865,9 +931,9 @@ mod libp2p_mesh_integration {
         })
         .await?;
 
-        assert_eq!(received_bid.job_id, job_id);
+        assert_eq!(received_bid.job_id, job_id.0);
         assert_eq!(received_bid.executor_did, job_config.creator_did);
-        assert_eq!(received_bid.price_mana, 75);
+        assert_eq!(received_bid.cost_mana, 75);
 
         info!("✅ [PHASE-TEST] Job announcement and bidding phase test passed");
         Ok(())

@@ -583,7 +583,7 @@ mod tests {
     };
     use icn_common::{Cid, Did, ICN_CORE_VERSION};
     use icn_identity::SignatureBytes;
-    use icn_mesh::{ActualMeshJob, JobId, JobSpec};
+    use icn_mesh::{ActualMeshJob, JobId, JobKind, JobSpec};
     use std::str::FromStr;
     use std::sync::Arc;
 

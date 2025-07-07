@@ -697,13 +697,13 @@ mod tests {
         }
         assert!(store.get(&block2.cid).unwrap().is_none());
 
-        // Test put overwrite (assuming implementations overwrite)
+        // Test putting a different block (content-addressed storage doesn't allow overwriting with different content)
         let modified_block1_data =
             format!("modified data for {}", "block1_service_test").into_bytes();
         let timestamp = 1u64;
         let author = Did::new("key", "tester");
         let sig = None;
-        let cid = compute_merkle_cid(
+        let modified_cid = compute_merkle_cid(
             0x71,
             &modified_block1_data,
             &[],
@@ -713,8 +713,8 @@ mod tests {
             &None,
         );
         let modified_block1 = DagBlock {
-            cid,
-            data: modified_block1_data,
+            cid: modified_cid.clone(),
+            data: modified_block1_data.clone(),
             links: vec![],
             timestamp,
             author_did: author,
@@ -722,14 +722,23 @@ mod tests {
             scope: None,
         };
         assert!(store.put(&modified_block1).is_ok());
+        
+        // Original block should still be retrievable by its CID
         match store.get(&block1.cid) {
             Ok(Some(retrieved_block)) => {
                 assert_eq!(retrieved_block.cid, block1.cid);
-                // Ensure data was actually modified
-                assert_ne!(retrieved_block.data, block1.data);
-                assert_eq!(retrieved_block.data, modified_block1.data);
+                assert_eq!(retrieved_block.data, block1.data);
             }
-            _ => panic!("Failed to get modified block1 after overwrite"),
+            _ => panic!("Failed to get original block1"),
+        }
+        
+        // Modified block should be retrievable by its CID
+        match store.get(&modified_cid) {
+            Ok(Some(retrieved_block)) => {
+                assert_eq!(retrieved_block.cid, modified_cid);
+                assert_eq!(retrieved_block.data, modified_block1_data);
+            }
+            _ => panic!("Failed to get modified block"),
         }
 
         // Test delete
@@ -770,10 +779,10 @@ mod tests {
         let timestamp = 1u64;
         let author = Did::new("key", "tester");
         let sig = None;
-        let cid = compute_merkle_cid(0x71, &mod_data, &[], timestamp, &author, &sig, &None);
+        let mod_cid = compute_merkle_cid(0x71, &mod_data, &[], timestamp, &author, &sig, &None);
         let mod_block = DagBlock {
-            cid,
-            data: mod_data,
+            cid: mod_cid.clone(),
+            data: mod_data.clone(),
             links: vec![],
             timestamp,
             author_did: author,
@@ -781,12 +790,23 @@ mod tests {
             scope: None,
         };
         store.put(&mod_block).await.unwrap();
+        
+        // Original block should still be retrievable
         match store.get(&block1.cid).await {
             Ok(Some(retrieved)) => {
                 assert_eq!(retrieved.cid, block1.cid);
-                assert_eq!(retrieved.data, mod_block.data);
+                assert_eq!(retrieved.data, block1.data);
             }
-            _ => panic!("Failed to get modified block1"),
+            _ => panic!("Failed to get original block1"),
+        }
+        
+        // Modified block should be retrievable by its CID
+        match store.get(&mod_cid).await {
+            Ok(Some(retrieved)) => {
+                assert_eq!(retrieved.cid, mod_cid);
+                assert_eq!(retrieved.data, mod_data);
+            }
+            _ => panic!("Failed to get modified block"),
         }
 
         store.delete(&block1.cid).await.unwrap();
