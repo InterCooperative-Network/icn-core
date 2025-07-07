@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["process_dag_related_data"],"mod":["index","sled_store"],"struct":["FileDagStore","InMemoryDagStore"],"trait":["StorageService"]};
+window.SIDEBAR_ITEMS = {"fn":["process_dag_related_data","verify_all"],"mod":["index","sled_store"],"struct":["FileDagStore","InMemoryDagStore"],"trait":["StorageService"]};
