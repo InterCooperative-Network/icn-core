@@ -17,7 +17,10 @@ pub mod metrics;
 
 use async_trait::async_trait;
 use downcast_rs::{impl_downcast, DowncastSync};
-use icn_common::{Cid, Did, NodeInfo};
+use icn_common::{
+    Cid, Did, NodeInfo, CircuitBreaker, CircuitBreakerError, SystemTimeProvider,
+    retry_with_backoff,
+};
 use icn_protocol::{MessagePayload, ProtocolMessage};
 #[cfg(feature = "libp2p")]
 use libp2p::PeerId as Libp2pPeerId;
@@ -62,6 +65,14 @@ pub type JobId = Cid;
 static MESSAGE_CACHE: Lazy<Mutex<LruCache<Vec<u8>, ()>>> = Lazy::new(|| {
     use std::num::NonZeroUsize;
     Mutex::new(LruCache::new(NonZeroUsize::new(1024).unwrap()))
+});
+
+static NETWORK_BREAKER: Lazy<tokio::sync::Mutex<CircuitBreaker<SystemTimeProvider>>> = Lazy::new(|| {
+    tokio::sync::Mutex::new(CircuitBreaker::new(
+        SystemTimeProvider,
+        3,
+        std::time::Duration::from_secs(5),
+    ))
 });
 
 // --- Core Types ---
@@ -286,36 +297,58 @@ impl NetworkService for StubNetworkService {
         peer: &PeerId,
         message: ProtocolMessage,
     ) -> Result<(), MeshNetworkError> {
-        log::debug!(
-            "[StubNetworkService] Sending message to peer {:?}: {:?}",
-            peer,
-            message
-        );
-        if peer.0 == "error_peer" {
-            return Err(MeshNetworkError::SendFailure(format!(
-                "Failed to send message to peer: {}",
-                peer.0
-            )));
-        }
-        if peer.0 == "unknown_peer_id" {
-            return Err(MeshNetworkError::PeerNotFound(format!(
-                "Peer with ID {} not found.",
-                peer.0
-            )));
-        }
-        Ok(())
+        let mut breaker = NETWORK_BREAKER.lock().await;
+        breaker
+            .call(|| async {
+                log::debug!(
+                    "[StubNetworkService] Sending message to peer {:?}: {:?}",
+                    peer,
+                    message
+                );
+                if peer.0 == "error_peer" {
+                    return Err(MeshNetworkError::SendFailure(format!(
+                        "Failed to send message to peer: {}",
+                        peer.0
+                    )));
+                }
+                if peer.0 == "unknown_peer_id" {
+                    return Err(MeshNetworkError::PeerNotFound(format!(
+                        "Peer with ID {} not found.",
+                        peer.0
+                    )));
+                }
+                Ok(())
+            })
+            .await
+            .map_err(|e| match e {
+                CircuitBreakerError::Open => {
+                    MeshNetworkError::Timeout("circuit open".to_string())
+                }
+                CircuitBreakerError::Inner(err) => err,
+            })
     }
 
     async fn broadcast_message(&self, message: ProtocolMessage) -> Result<(), MeshNetworkError> {
-        log::debug!("[StubNetworkService] Broadcasting message: {:?}", message);
-        if let MessagePayload::GossipMessage(gossip) = &message.payload {
-            if gossip.topic == "system_critical_error_topic" {
-                return Err(MeshNetworkError::Libp2p(
-                    "Broadcast failed: system critical topic is currently down.".to_string(),
-                ));
-            }
-        }
-        Ok(())
+        let mut breaker = NETWORK_BREAKER.lock().await;
+        breaker
+            .call(|| async {
+                log::debug!("[StubNetworkService] Broadcasting message: {:?}", message);
+                if let MessagePayload::GossipMessage(gossip) = &message.payload {
+                    if gossip.topic == "system_critical_error_topic" {
+                        return Err(MeshNetworkError::Libp2p(
+                            "Broadcast failed: system critical topic is currently down.".to_string(),
+                        ));
+                    }
+                }
+                Ok(())
+            })
+            .await
+            .map_err(|e| match e {
+                CircuitBreakerError::Open => {
+                    MeshNetworkError::Timeout("circuit open".to_string())
+                }
+                CircuitBreakerError::Inner(err) => err,
+            })
     }
 
     async fn subscribe(&self) -> Result<Receiver<ProtocolMessage>, MeshNetworkError> {
@@ -363,14 +396,32 @@ impl NetworkService for StubNetworkService {
     }
 
     async fn store_record(&self, key: String, value: Vec<u8>) -> Result<(), MeshNetworkError> {
-        let mut map = self.records.lock().await;
-        map.insert(key, value);
-        Ok(())
+        let mut breaker = NETWORK_BREAKER.lock().await;
+        breaker
+            .call(|| async {
+                let mut map = self.records.lock().await;
+                map.insert(key, value);
+                Ok(())
+            })
+            .await
+            .map_err(|e| match e {
+                CircuitBreakerError::Open => MeshNetworkError::Timeout("circuit open".to_string()),
+                CircuitBreakerError::Inner(err) => err,
+            })
     }
 
     async fn get_record(&self, key: String) -> Result<Option<Vec<u8>>, MeshNetworkError> {
-        let map = self.records.lock().await;
-        Ok(map.get(&key).cloned())
+        let mut breaker = NETWORK_BREAKER.lock().await;
+        breaker
+            .call(|| async {
+                let map = self.records.lock().await;
+                Ok(map.get(&key).cloned())
+            })
+            .await
+            .map_err(|e| match e {
+                CircuitBreakerError::Open => MeshNetworkError::Timeout("circuit open".to_string()),
+                CircuitBreakerError::Inner(err) => err,
+            })
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -398,17 +449,28 @@ pub async fn send_network_ping(
     );
 
     use std::time::Duration;
-    icn_common::retry_with_backoff(
-        || async {
-            service
-                .send_message(&PeerId(target_peer.to_string()), ping_message.clone())
+    {
+        let mut breaker = NETWORK_BREAKER.lock().await;
+        breaker
+            .call(|| async {
+                retry_with_backoff(
+                    || async {
+                        service
+                            .send_message(&PeerId(target_peer.to_string()), ping_message.clone())
+                            .await
+                    },
+                    3,
+                    Duration::from_millis(100),
+                    Duration::from_secs(2),
+                )
                 .await
-        },
-        3,
-        Duration::from_millis(100),
-        Duration::from_secs(2),
-    )
-    .await?;
+            })
+            .await
+            .map_err(|e| match e {
+                CircuitBreakerError::Open => MeshNetworkError::Timeout("circuit open".to_string()),
+                CircuitBreakerError::Inner(err) => err,
+            })?;
+    }
     Ok(format!(
         "Sent (stubbed) ping to {} from node: {} (v{})",
         target_peer, info.name, info.version

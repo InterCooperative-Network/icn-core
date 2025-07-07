@@ -11,12 +11,16 @@
 
 // Depending on icn_common crate
 use icn_common::{
-    compute_merkle_cid, Cid, CommonError, DagBlock, Did, NodeInfo, NodeStatus, ICN_CORE_VERSION,
+    compute_merkle_cid, retry_with_backoff, CircuitBreaker, CircuitBreakerError,
+    SystemTimeProvider, Cid, CommonError, DagBlock, Did, NodeInfo, NodeStatus,
+    ICN_CORE_VERSION,
 };
 // Remove direct use of icn_dag::put_block and icn_dag::get_block which use global store
 // use icn_dag::{put_block as dag_put_block, get_block as dag_get_block};
 use icn_dag::StorageService; // Import the trait
+use once_cell::sync::Lazy;
 use std::sync::{Arc, Mutex}; // To accept the storage service
+use tokio::sync::Mutex as AsyncMutex;
                              // Added imports for network functionality
 use icn_network::{NetworkService, PeerId, StubNetworkService};
 #[cfg(test)]
@@ -28,6 +32,15 @@ use icn_governance::{
     GovernanceModule, Proposal, ProposalId, ProposalType, VoteOption,
 };
 use std::str::FromStr;
+use std::time::Duration;
+
+static HTTP_BREAKER: Lazy<AsyncMutex<CircuitBreaker<SystemTimeProvider>>> = Lazy::new(|| {
+    AsyncMutex::new(CircuitBreaker::new(
+        SystemTimeProvider,
+        3,
+        Duration::from_secs(5),
+    ))
+});
 
 pub mod federation_trait;
 pub mod governance_trait;
@@ -448,17 +461,28 @@ pub async fn send_network_message_api(
 pub async fn http_get_local_peer_id(api_url: &str) -> Result<String, CommonError> {
     let url = format!("{}/network/local-peer-id", api_url.trim_end_matches('/'));
     use std::time::Duration;
-    let res = icn_common::retry_with_backoff(
-        || async {
-            reqwest::get(&url)
+    let res = {
+        let mut breaker = HTTP_BREAKER.lock().await;
+        breaker
+            .call(|| async {
+                retry_with_backoff(
+                    || async {
+                        reqwest::get(&url)
+                            .await
+                            .map_err(|e| CommonError::ApiError(format!("Failed to send request: {}", e)))
+                    },
+                    3,
+                    Duration::from_millis(100),
+                    Duration::from_secs(2),
+                )
                 .await
-                .map_err(|e| CommonError::ApiError(format!("Failed to send request: {}", e)))
-        },
-        3,
-        Duration::from_millis(100),
-        Duration::from_secs(2),
-    )
-    .await?;
+            })
+            .await
+    };
+    let res = res.map_err(|e| match e {
+        CircuitBreakerError::Open => CommonError::NetworkUnhealthy("circuit open".to_string()),
+        CircuitBreakerError::Inner(err) => err,
+    })?;
     if res.status().is_success() {
         res.json::<serde_json::Value>()
             .await
@@ -485,17 +509,28 @@ pub async fn http_get_local_peer_id(api_url: &str) -> Result<String, CommonError
 pub async fn http_get_peer_list(api_url: &str) -> Result<Vec<String>, CommonError> {
     let url = format!("{}/network/peers", api_url.trim_end_matches('/'));
     use std::time::Duration;
-    let res = icn_common::retry_with_backoff(
-        || async {
-            reqwest::get(&url)
+    let res = {
+        let mut breaker = HTTP_BREAKER.lock().await;
+        breaker
+            .call(|| async {
+                retry_with_backoff(
+                    || async {
+                        reqwest::get(&url)
+                            .await
+                            .map_err(|e| CommonError::ApiError(format!("Failed to send request: {}", e)))
+                    },
+                    3,
+                    Duration::from_millis(100),
+                    Duration::from_secs(2),
+                )
                 .await
-                .map_err(|e| CommonError::ApiError(format!("Failed to send request: {}", e)))
-        },
-        3,
-        Duration::from_millis(100),
-        Duration::from_secs(2),
-    )
-    .await?;
+            })
+            .await
+    };
+    let res = res.map_err(|e| match e {
+        CircuitBreakerError::Open => CommonError::NetworkUnhealthy("circuit open".to_string()),
+        CircuitBreakerError::Inner(err) => err,
+    })?;
     if res.status().is_success() {
         res.json::<Vec<String>>()
             .await
