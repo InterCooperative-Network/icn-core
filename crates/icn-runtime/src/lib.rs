@@ -19,7 +19,7 @@ pub mod memory;
 pub mod metrics;
 
 // Re-export important types for convenience
-pub use context::{HostAbiError, RuntimeContext, Signer};
+pub use context::{Ed25519Signer, HostAbiError, RuntimeContext, Signer};
 #[cfg(feature = "async")]
 pub use icn_dag::AsyncStorageService as StorageService;
 #[cfg(not(feature = "async"))]
@@ -88,10 +88,7 @@ pub async fn host_submit_mesh_job(
 
     // 2. Adjust cost based on the submitter's reputation and spend mana.
     let rep = ctx.reputation_store.get_reputation(&ctx.current_identity);
-    job_to_submit.cost_mana = icn_economics::price_by_reputation(
-        job_to_submit.cost_mana,
-        rep,
-    );
+    job_to_submit.cost_mana = icn_economics::price_by_reputation(job_to_submit.cost_mana, rep);
 
     ctx.spend_mana(&ctx.current_identity, job_to_submit.cost_mana)
         .await

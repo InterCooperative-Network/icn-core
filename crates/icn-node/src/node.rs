@@ -37,7 +37,7 @@ use icn_protocol::{
 };
 use icn_protocol::{MessagePayload, ProtocolMessage};
 use icn_runtime::context::{
-    DefaultMeshNetworkService, RuntimeContext, StubDagStore as RuntimeStubDagStore,
+    DefaultMeshNetworkService, Ed25519Signer, RuntimeContext, StubDagStore as RuntimeStubDagStore,
     StubMeshNetworkService, StubSigner as RuntimeStubSigner,
 };
 use icn_runtime::{host_anchor_receipt, host_submit_mesh_job, ReputationUpdater};
@@ -791,7 +791,7 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
         }
     } else {
         info!("Using local libp2p networking (P2P disabled)");
-        let signer = Arc::new(RuntimeStubSigner::new_with_keys(node_sk, node_pk));
+        let signer = Arc::new(Ed25519Signer::new_with_keys(node_sk, node_pk));
         let dag_store_for_rt = match config.init_dag_store() {
             Ok(store) => store,
             Err(e) => {

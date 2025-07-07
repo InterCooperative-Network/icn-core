@@ -61,6 +61,7 @@ use icn_identity::{
     SIGNATURE_LENGTH,
 };
 use serde::{Deserialize, Serialize};
+use zeroize::Zeroizing;
 
 // Counter for generating unique (within this runtime instance) job IDs for stubs
 pub static NEXT_JOB_ID: AtomicU32 = AtomicU32::new(1);
@@ -1737,7 +1738,7 @@ impl RuntimeContext {
 
         // Generate keys for this node
         let (sk, pk) = generate_ed25519_keypair();
-        let signer = Arc::new(StubSigner::new_with_keys(sk, pk));
+        let signer = Arc::new(Ed25519Signer::new_with_keys(sk, pk));
 
         // Create real libp2p network service with proper config
         let mut config = NetworkConfig {
@@ -2080,6 +2081,84 @@ impl Signer for StubSigner {
 
     fn did(&self) -> Did {
         // Assuming self.did_string is a valid DID string like "did:key:z..."
+        Did::from_str(&self.did_string).expect("Failed to parse internally generated DID string")
+    }
+
+    fn verifying_key_ref(&self) -> &VerifyingKey {
+        &self.pk
+    }
+}
+
+#[derive(Debug)]
+pub struct Ed25519Signer {
+    sk: Zeroizing<SigningKey>,
+    pk: VerifyingKey,
+    did_string: String,
+}
+
+impl Ed25519Signer {
+    pub fn new(sk: SigningKey) -> Self {
+        let pk = sk.verifying_key();
+        let did_string = did_key_from_verifying_key(&pk);
+        Self {
+            sk: Zeroizing::new(sk),
+            pk,
+            did_string,
+        }
+    }
+
+    pub fn new_with_keys(sk: SigningKey, pk: VerifyingKey) -> Self {
+        let did_string = did_key_from_verifying_key(&pk);
+        Self {
+            sk: Zeroizing::new(sk),
+            pk,
+            did_string,
+        }
+    }
+
+    pub fn verifying_key_ref(&self) -> &VerifyingKey {
+        &self.pk
+    }
+}
+
+impl Signer for Ed25519Signer {
+    fn sign(&self, payload: &[u8]) -> Result<Vec<u8>, HostAbiError> {
+        Ok(sign_message(&self.sk, payload).to_bytes().to_vec())
+    }
+
+    fn verify(
+        &self,
+        payload: &[u8],
+        signature_bytes: &[u8],
+        public_key_bytes: &[u8],
+    ) -> Result<bool, HostAbiError> {
+        let pk_array: [u8; 32] = public_key_bytes.try_into().map_err(|_| {
+            HostAbiError::InvalidParameters("Public key bytes not 32 bytes long".to_string())
+        })?;
+        let verifying_key = VerifyingKey::from_bytes(&pk_array).map_err(|e| {
+            HostAbiError::CryptoError(format!("Failed to create verifying key: {}", e))
+        })?;
+
+        let signature_array: [u8; SIGNATURE_LENGTH] = signature_bytes.try_into().map_err(|_| {
+            HostAbiError::InvalidParameters(format!(
+                "Signature not {} bytes long",
+                SIGNATURE_LENGTH
+            ))
+        })?;
+        let signature = EdSignature::from_bytes(&signature_array);
+
+        Ok(identity_verify_signature(
+            &verifying_key,
+            payload,
+            &signature,
+        ))
+    }
+
+    fn public_key_bytes(&self) -> Vec<u8> {
+        self.pk.as_bytes().to_vec()
+    }
+
+    fn did(&self) -> Did {
         Did::from_str(&self.did_string).expect("Failed to parse internally generated DID string")
     }
 
