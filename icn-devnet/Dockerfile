@@ -28,6 +28,7 @@ COPY icn-ccl/ ./icn-ccl/
 COPY tests/ ./tests/
 
 # Build the ICN node binary
+ENV RUST_MIN_STACK=16777216
 RUN cargo build --release -p icn-node --features with-libp2p
 
 # Runtime stage
