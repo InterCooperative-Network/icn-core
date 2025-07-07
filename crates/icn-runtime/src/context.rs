@@ -1,8 +1,8 @@
 //! Defines the `RuntimeContext`, `HostEnvironment`, and related types for the ICN runtime.
 
 use icn_common::{Cid, CommonError, DagBlock, Did};
-use icn_identity::ExecutionReceipt as IdentityExecutionReceipt;
-use icn_mesh::{ActualMeshJob, JobId, JobState, MeshJobBid};
+use icn_identity::{ExecutionReceipt as IdentityExecutionReceipt, SignatureBytes};
+use icn_mesh::{ActualMeshJob, JobId, JobState, MeshJobBid, Resources};
 
 use downcast_rs::{impl_downcast, DowncastSync};
 #[cfg(feature = "enable-libp2p")]
@@ -449,9 +449,18 @@ impl MeshNetworkService for DefaultMeshNetworkService {
                     match result {
                         Some(message) => {
                             if let MessagePayload::MeshBidSubmission(bid) = &message.payload {
-                                if &bid.job_id == job_id {
+                                if &JobId::from(bid.job_id.clone()) == job_id {
                                     debug!("Received relevant bid: {:?}", bid);
-                                    bids.push(bid.clone());
+                                    bids.push(MeshJobBid {
+                                        job_id: JobId::from(bid.job_id.clone()),
+                                        executor_did: bid.executor_did.clone(),
+                                        price_mana: bid.cost_mana,
+                                        resources: Resources {
+                                            cpu_cores: bid.offered_resources.cpu_cores,
+                                            memory_mb: bid.offered_resources.memory_mb,
+                                        },
+                                        signature: SignatureBytes(vec![]),
+                                    });
                                 } else {
                                     debug!("Received bid for different job: {:?}", bid.job_id);
                                 }
@@ -530,18 +539,18 @@ impl MeshNetworkService for DefaultMeshNetworkService {
                 Ok(result) => {
                     match result {
                         Some(message) => {
-                            if let MessagePayload::MeshReceiptSubmission(receipt) = &message.payload
+                            if let MessagePayload::MeshReceiptSubmission(receipt_msg) = &message.payload
                             {
-                                if &JobId::from(receipt.job_id.clone()) == job_id
-                                    && &receipt.executor_did == expected_executor
+                                if &JobId::from(receipt_msg.receipt.job_id.clone()) == job_id
+                                    && &receipt_msg.receipt.executor_did == expected_executor
                                 {
-                                    debug!("Received relevant receipt: {:?}", receipt);
-                                    return Ok(Some(receipt.clone()));
+                                    debug!("Received relevant receipt: {:?}", receipt_msg);
+                                    return Ok(Some(receipt_msg.receipt.clone()));
                                 } else {
                                     debug!(
                                         "Received receipt for different job/executor: job_id={:?}, executor={:?}",
-                                        receipt.job_id,
-                                        receipt.executor_did
+                                        receipt_msg.receipt.job_id,
+                                        receipt_msg.receipt.executor_did
                                     );
                                 }
                             } else {
