@@ -42,6 +42,7 @@ mod icn_node_end_to_end {
             &did,
             listen,
             bootstrap,
+            std::path::PathBuf::from(format!("./dag_{suffix}")),
             std::path::PathBuf::from(format!("./mana_{suffix}.sled")),
             std::path::PathBuf::from(format!("./rep_{suffix}.sled")),
         )

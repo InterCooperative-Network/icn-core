@@ -26,6 +26,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         node_identity,
         vec!["/ip4/0.0.0.0/tcp/0".parse().unwrap()],
         None, // No bootstrap peers for this demo
+        std::path::PathBuf::from("./dag_demo"),
         std::path::PathBuf::from("./mana_ledger.sled"),
         std::path::PathBuf::from("./reputation.sled"),
     )

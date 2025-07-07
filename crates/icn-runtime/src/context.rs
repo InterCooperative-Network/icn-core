@@ -1725,6 +1725,7 @@ impl RuntimeContext {
         identity_str: &str,
         listen_addresses: Vec<Multiaddr>,
         bootstrap_peers: Option<Vec<(Libp2pPeerId, Multiaddr)>>,
+        dag_store_path: PathBuf,
         mana_ledger_path: PathBuf,
         reputation_store_path: PathBuf,
     ) -> Result<Arc<Self>, CommonError> {
@@ -1763,20 +1764,17 @@ impl RuntimeContext {
             libp2p_service.clone() as Arc<dyn NetworkService>
         ));
 
-        // Create stub DAG store for now (can be enhanced later)
-        let dag_store = Arc::new(TokioMutex::new(StubDagStore::new()));
-
-        // Create RuntimeContext with real networking - this returns Arc<Self>
-        let ctx = Self::new_with_ledger_path(
+        // Create RuntimeContext with real networking and persistent DAG storage
+        let ctx = Self::new_with_paths(
             identity,
             mesh_service,
             signer,
             Arc::new(KeyDidResolver),
-            dag_store,
+            dag_store_path,
             mana_ledger_path,
             reputation_store_path,
             None,
-        );
+        )?;
 
         info!("RuntimeContext with real libp2p networking created successfully");
         Ok(ctx)
