@@ -125,7 +125,7 @@ impl Default for NodeConfig {
             node_name: "ICN Node".to_string(),
             listen_address: "/ip4/0.0.0.0/tcp/0".to_string(),
             bootstrap_peers: None,
-            enable_p2p: false,
+            enable_p2p: cfg!(feature = "enable-libp2p"),
             api_key: None,
             auth_token: None,
             auth_token_path: None,
