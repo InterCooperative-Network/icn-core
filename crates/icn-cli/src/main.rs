@@ -301,7 +301,19 @@ async fn get_request<T: for<'de> Deserialize<'de>>(
     path: &str,
 ) -> Result<T, anyhow::Error> {
     let url = format!("{}{}", api_url, path);
-    let res = client.get(&url).send().await?;
+    let res = icn_common::retry_with_backoff(
+        || async {
+            client
+                .get(&url)
+                .send()
+                .await
+                .map_err(|e| anyhow::anyhow!(e))
+        },
+        3,
+        std::time::Duration::from_millis(100),
+        std::time::Duration::from_secs(2),
+    )
+    .await?;
 
     if res.status().is_success() {
         let body = res.json::<T>().await?;
@@ -328,7 +340,20 @@ async fn post_request<S: Serialize, T: for<'de> Deserialize<'de>>(
     body: &S,
 ) -> Result<T, anyhow::Error> {
     let url = format!("{}{}", api_url, path);
-    let res = client.post(&url).json(body).send().await?;
+    let res = icn_common::retry_with_backoff(
+        || async {
+            client
+                .post(&url)
+                .json(body)
+                .send()
+                .await
+                .map_err(|e| anyhow::anyhow!(e))
+        },
+        3,
+        std::time::Duration::from_millis(100),
+        std::time::Duration::from_secs(2),
+    )
+    .await?;
 
     if res.status().is_success() {
         let response_body = res.json::<T>().await?;
@@ -373,7 +398,19 @@ async fn handle_status(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> 
 
 async fn handle_metrics(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
     let url = format!("{}{}", &cli.api_url, "/metrics");
-    let res = client.get(&url).send().await?;
+    let res = icn_common::retry_with_backoff(
+        || async {
+            client
+                .get(&url)
+                .send()
+                .await
+                .map_err(|e| anyhow::anyhow!(e))
+        },
+        3,
+        std::time::Duration::from_millis(100),
+        std::time::Duration::from_secs(2),
+    )
+    .await?;
     if res.status().is_success() {
         let body = res.text().await?;
         println!("{}", body);

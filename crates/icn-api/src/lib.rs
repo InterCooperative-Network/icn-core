@@ -447,9 +447,18 @@ pub async fn send_network_message_api(
 /// Retrieve the local peer ID from an ICN node via HTTP.
 pub async fn http_get_local_peer_id(api_url: &str) -> Result<String, CommonError> {
     let url = format!("{}/network/local-peer-id", api_url.trim_end_matches('/'));
-    let res = reqwest::get(&url)
-        .await
-        .map_err(|e| CommonError::ApiError(format!("Failed to send request: {}", e)))?;
+    use std::time::Duration;
+    let res = icn_common::retry_with_backoff(
+        || async {
+            reqwest::get(&url)
+                .await
+                .map_err(|e| CommonError::ApiError(format!("Failed to send request: {}", e)))
+        },
+        3,
+        Duration::from_millis(100),
+        Duration::from_secs(2),
+    )
+    .await?;
     if res.status().is_success() {
         res.json::<serde_json::Value>()
             .await
@@ -475,9 +484,18 @@ pub async fn http_get_local_peer_id(api_url: &str) -> Result<String, CommonError
 /// Retrieve the list of peers from an ICN node via HTTP.
 pub async fn http_get_peer_list(api_url: &str) -> Result<Vec<String>, CommonError> {
     let url = format!("{}/network/peers", api_url.trim_end_matches('/'));
-    let res = reqwest::get(&url)
-        .await
-        .map_err(|e| CommonError::ApiError(format!("Failed to send request: {}", e)))?;
+    use std::time::Duration;
+    let res = icn_common::retry_with_backoff(
+        || async {
+            reqwest::get(&url)
+                .await
+                .map_err(|e| CommonError::ApiError(format!("Failed to send request: {}", e)))
+        },
+        3,
+        Duration::from_millis(100),
+        Duration::from_secs(2),
+    )
+    .await?;
     if res.status().is_success() {
         res.json::<Vec<String>>()
             .await
