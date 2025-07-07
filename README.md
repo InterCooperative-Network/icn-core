@@ -29,35 +29,40 @@ The project has achieved a significant milestone with a production-ready foundat
 - **Modular Crate Structure**: Well-defined crates for all major domains
 - **Real Protocol Data Models**: DIDs, CIDs, DagBlocks, governance primitives
 - **Multiple Storage Backends**: SQLite, RocksDB, Sled, File-based persistence
-- **API Layer**: Comprehensive REST endpoints and programmatic interfaces
-- **P2P Mesh Networking**: libp2p integration with Kademlia and Gossipsub
+- **API Layer**: Comprehensive REST endpoints with authentication and TLS
+- **P2P Mesh Networking**: libp2p integration with Kademlia peer discovery
+- **Production Security**: Ed25519 cryptographic signing with memory protection
 - **Comprehensive Error Handling**: Robust error propagation and user feedback
 
 ### **✅ Governance & Economics**
 - **CCL Compiler**: Complete Cooperative Contract Language toolchain
-- **Governance Engine**: Proposals, voting, quorum, and policy execution
-- **Mana System**: Regenerating resource tokens for compute and participation
+- **Governance Engine**: Proposals, voting, quorum, and policy execution with persistence
+- **Mana System**: Regenerating resource tokens with multiple ledger backends
 - **Identity Management**: DID-based identity with verifiable credentials
-- **Reputation System**: Contribution tracking and trust metrics
+- **Reputation System**: Contribution tracking and trust metrics with persistence
+- **Federation Sync**: Cross-federation governance synchronization
 
 ### **✅ Distributed Computing**
 - **Mesh Job Execution**: WASM-sandboxed distributed computation
 - **Execution Receipts**: Cryptographically signed proof of work
 - **Load Balancing**: Intelligent job routing based on capacity and reputation
 - **Multi-Node Federation**: Production-ready cluster coordination
+- **Resource Management**: Mana-based economic enforcement
 
 ### **✅ Developer Experience**
-- **Comprehensive CLI**: Full node management and interaction
-- **HTTP API**: Machine-readable endpoints for all functionality
+- **Comprehensive CLI**: Full node management with federation commands
+- **HTTP API**: Machine-readable endpoints with authentication and TLS
 - **Containerized Devnet**: Multi-node federation testing environment
 - **Rich Documentation**: Onboarding guides, API docs, governance examples
+- **Monitoring**: Prometheus metrics and audit logging
 
 ### **📊 Implementation Status**
-- **Foundation**: 6/9 features complete (67%)
-- **Governance**: 4/11 features complete (36%)
-- **Economics**: 4/12 features complete (33%)
-- **Computing**: 4/11 features complete (36%)
-- **Overall**: 40/104 total features complete (38%)
+- **Foundation**: 8/9 features complete (89%)
+- **Governance**: 7/11 features complete (64%)
+- **Economics**: 6/12 features complete (50%)
+- **Computing**: 6/11 features complete (55%)
+- **Security**: 5/8 features complete (63%)
+- **Overall**: 65/104 total features complete (63%)
 
 See [docs/ICN_FEATURE_OVERVIEW.md](docs/ICN_FEATURE_OVERVIEW.md) for the complete feature breakdown and roadmap.
 
@@ -87,12 +92,17 @@ cargo build --no-default-features --features "with-libp2p persist-sqlite"
 # Build using the RocksDB backend
 cargo build --no-default-features --features "with-libp2p persist-rocksdb"
 
-# Start a node with persistent storage and P2P enabled
+# Start a node with persistent storage, P2P, and TLS enabled
 ./target/debug/icn-node \
   --enable-p2p \
   --p2p-listen-addr /ip4/0.0.0.0/tcp/4001 \
   --storage-backend sqlite \
-  --storage-path ./icn_data/node1.sqlite
+  --storage-path ./icn_data/node1.sqlite \
+  --mana-ledger-backend sled \
+  --mana-ledger-path ./icn_data/mana1.sled \
+  --auth-token "secure-api-token" \
+  --tls-cert-path ./certs/server.crt \
+  --tls-key-path ./certs/server.key
 
 # In a second terminal start another node connecting to the first
 ./target/debug/icn-node \
@@ -100,13 +110,21 @@ cargo build --no-default-features --features "with-libp2p persist-rocksdb"
   --p2p-listen-addr /ip4/0.0.0.0/tcp/4002 \
   --bootstrap-peers /ip4/127.0.0.1/tcp/4001/p2p/<PEER_ID> \
   --storage-backend sqlite \
-  --storage-path ./icn_data/node2.sqlite
+  --storage-path ./icn_data/node2.sqlite \
+  --mana-ledger-backend sled \
+  --mana-ledger-path ./icn_data/mana2.sled
 
 # Interact with a node via the CLI
 ./target/debug/icn-cli info
 ./target/debug/icn-cli status
 ./target/debug/icn-cli governance propose "Increase mesh job timeout to 300 seconds"
 ./target/debug/icn-cli mesh submit-job echo-job.json
+
+# Federation management commands
+./target/debug/icn-cli federation join <PEER_ID>
+./target/debug/icn-cli federation status
+./target/debug/icn-cli federation leave <PEER_ID>
+./target/debug/icn-cli federation list-peers
 ```
 
 ### Justfile Commands
@@ -133,7 +151,9 @@ rustup component add rustfmt
 1. **Compile with libp2p support** using `cargo build --features with-libp2p`.
 2. Start each node with `--enable-p2p` and a unique `--p2p-listen-addr`.
 3. Provide known peers via `--bootstrap-peers` to join an existing mesh.
-4. Use `--storage-backend sqlite` or `file` with a dedicated `--storage-path` to persist DAG blocks and governance state across restarts.
+4. Use `--storage-backend sqlite|sled|rocksdb|file` with a dedicated `--storage-path` to persist DAG blocks and governance state across restarts.
+5. Configure `--mana-ledger-backend sled|sqlite|rocksdb|file` with `--mana-ledger-path` for persistent mana accounting.
+6. Optional: Enable API security with `--auth-token` and TLS with `--tls-cert-path` and `--tls-key-path`.
 
 For multi-node testing instructions, see [Libp2p Integration Tests](MULTI_NODE_GUIDE.md#libp2p-integration-tests).
 
@@ -263,10 +283,12 @@ This project is licensed under the Apache License 2.0. See the [LICENSE](LICENSE
 ### **Current Phase 5: Production Readiness (Q1 2025)**
 - ✅ Real networking and persistent storage
 - ✅ Governance system with comprehensive voting
-- ✅ Performance benchmarking and optimization
-- 🚧 Secure key management and hardware signing
-- 🚧 Comprehensive monitoring and observability
-- 🚧 Multi-node federation testing at scale
+- ✅ Ed25519 cryptographic signing with memory protection
+- ✅ API authentication and TLS support
+- ✅ Federation management and synchronization
+- ✅ Comprehensive monitoring and observability
+- ✅ Multi-node federation testing at scale
+- 🚧 Performance benchmarking and optimization
 
 ### **Upcoming Phases**
 - **Phase 6**: Advanced governance, zero-knowledge proofs, CCL IDE support

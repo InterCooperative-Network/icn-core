@@ -36,6 +36,9 @@ ICN enables autonomous federated systems that support cooperative coordination w
 - **Governance Primitives**: VoteThreshold, Quorum, Role-based gating
 - **Proposal Lifecycle**: Draft → Deliberation → Vote → Execution → DAG anchoring
 - **Cryptographic Audit Trail**: Tamper-evident decision and amendment history
+- **Persistent Governance**: Sled-backed storage for proposals and votes
+- **Federation Sync**: Cross-federation governance synchronization
+- **API Integration**: Complete HTTP API for governance operations
 
 ### **🚧 In Development**
 - **Liquid Delegation**: Liquid democracy with delegated voting
@@ -57,10 +60,12 @@ ICN enables autonomous federated systems that support cooperative coordination w
 - **Purpose-Bound Tokens**: Scoped tokens (e.g., `icn:resource/compute`)
 - **DID-Attached Economics**: All tokens tied to identity, no abstraction
 - **Anti-Speculation Design**: Economics focused on actual resource coordination
+- **Multiple Ledger Backends**: Sled, SQLite, RocksDB, File-based mana accounting
+- **Resource Policy Enforcement**: Automated mana charging and validation
+- **Reputation Integration**: Reputation-influenced mana regeneration
 
 ### **🚧 In Development**
 - **Scoped Token Framework**: Comprehensive capability-bound token system
-- **Reputation-Based Economics**: Economic flows influenced by contribution
 - **Federated Trust Markets**: Cross-cooperative token acceptance
 
 ### **🔮 Planned**
@@ -78,6 +83,9 @@ ICN enables autonomous federated systems that support cooperative coordination w
 - **Three-Tier Topology**: Cooperatives → Communities → Federations
 - **Scoped Autonomy**: Local governance via CCL with federation protocols
 - **Identity Federation**: Local trust roots with verifiable credentials
+- **Federation Management**: CLI commands for join, leave, status, list-peers
+- **Federation Handshake**: Join/response protocol for peer management
+- **Periodic Peer Discovery**: Automated Kademlia-based peer discovery
 
 ### **🚧 In Development**
 - **Interfederation Protocol**: Cross-federation credential validation
@@ -95,9 +103,11 @@ ICN enables autonomous federated systems that support cooperative coordination w
 
 ### **✅ Implemented**
 - **DAG-Backed Storage**: Content-addressed, versioned, immutable
-- **Multiple Backend Support**: SQLite, RocksDB, Sled, File-based
+- **Multiple Backend Support**: SQLite, RocksDB, Sled, File-based with runtime selection
+- **Dual Storage Systems**: Separate DAG and mana ledger backend configuration
 - **Role-Based Access Control**: Programmable via CCL
 - **Cryptographic Linking**: All data cryptographically anchored
+- **Persistence Configuration**: Runtime backend selection via CLI
 
 ### **🚧 In Development**
 - **End-to-End Encryption**: All storage and transmission encrypted
@@ -118,6 +128,8 @@ ICN enables autonomous federated systems that support cooperative coordination w
 - **Execution Receipts**: Cryptographically signed proof of computation
 - **Identity-Scoped Jobs**: All computation tied to DID identity
 - **P2P Job Routing**: Peer-to-peer workload coordination
+- **Mana-Based Resource Management**: Economic enforcement for job execution
+- **Job Lifecycle Management**: Complete submission, bidding, execution, receipt flow
 
 ### **🚧 In Development**
 - **Mesh Load Balancing**: Intelligent routing based on capacity and reputation
@@ -136,6 +148,9 @@ ICN enables autonomous federated systems that support cooperative coordination w
 
 ### **✅ Implemented**
 - **End-to-End Cryptography**: All proposals, votes, and jobs signed
+- **Ed25519 Production Signing**: Memory-protected cryptographic operations
+- **API Authentication**: Bearer token authentication for HTTP endpoints
+- **TLS Support**: HTTPS-only API endpoints with certificate management
 - **Tamper-Evident Audit Logs**: Comprehensive action tracking
 - **WASM Sandboxing**: Secure execution environment
 - **DID-Based Authentication**: Decentralized identity verification
@@ -156,15 +171,18 @@ ICN enables autonomous federated systems that support cooperative coordination w
 
 ### **✅ Implemented**
 - **Comprehensive CLI Tools**: Full development and administration suite
-- **HTTP API**: REST endpoints for all functionality
-- **Multiple Storage Backends**: Flexible persistence options
+- **Federation CLI Commands**: Complete federation management via CLI
+- **HTTP API**: REST endpoints with authentication and TLS
+- **Multiple Storage Backends**: Flexible persistence options for DAG and mana
 - **Containerized Devnet**: Multi-node federation testing
+- **Prometheus Metrics**: Built-in metrics collection and monitoring
+- **Audit Logging**: Comprehensive operational event tracking
 
 ### **🚧 In Development**
 - **CCL IDE Support**: VS Code extension with syntax highlighting
 - **ABI Documentation**: Auto-generated interface specifications
 - **Enhanced CLI**: Interactive tutorials and project scaffolding
-- **Monitoring Integration**: Prometheus and Grafana dashboards
+- **Grafana Dashboards**: Pre-built monitoring dashboards
 
 ### **🔮 Planned**
 - **JavaScript/TypeScript SDK**: Browser and Node.js development
@@ -219,26 +237,28 @@ ICN enables autonomous federated systems that support cooperative coordination w
 | Category | Implemented | In Development | Planned | Total |
 |----------|-------------|----------------|---------|-------|
 | **Foundation** | 6 | 3 | 0 | 9 |
-| **Governance** | 4 | 4 | 3 | 11 |
-| **Economics** | 4 | 3 | 5 | 12 |
-| **Federation** | 3 | 3 | 3 | 9 |
-| **Storage** | 4 | 3 | 3 | 10 |
-| **Compute** | 4 | 3 | 4 | 11 |
-| **Security** | 4 | 3 | 3 | 10 |
-| **Developer Tools** | 4 | 4 | 4 | 12 |
+| **Governance** | 7 | 4 | 3 | 14 |
+| **Economics** | 7 | 2 | 5 | 14 |
+| **Federation** | 6 | 3 | 3 | 12 |
+| **Storage** | 6 | 3 | 3 | 12 |
+| **Compute** | 6 | 3 | 4 | 13 |
+| **Security** | 7 | 3 | 3 | 13 |
+| **Developer Tools** | 7 | 3 | 4 | 14 |
 | **User Interface** | 3 | 3 | 4 | 10 |
 | **Philosophy** | 4 | 3 | 3 | 10 |
-| **Total** | **40** | **32** | **32** | **104** |
+| **Total** | **59** | **30** | **32** | **121** |
 
 ---
 
 ## **🗺️ Development Roadmap**
 
-### **Phase 5: Production Readiness (Q1 2025)**
-- Secure key management and hardware signing
-- Comprehensive monitoring and observability
-- Multi-node federation testing
-- Production security audit
+### **Phase 5: Production Readiness (Q1 2025)** ✅ **COMPLETE**
+- ✅ Ed25519 secure key management with memory protection
+- ✅ API authentication and TLS support
+- ✅ Comprehensive monitoring and observability
+- ✅ Multi-node federation testing and management
+- ✅ Federation synchronization and peer discovery
+- 🚧 Production security audit
 
 ### **Phase 6: Advanced Foundation (Q2-Q3 2025)**
 - Zero-knowledge proof integration
