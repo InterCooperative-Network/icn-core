@@ -25,7 +25,7 @@ services:
       - node-a-data:/app/data
       - ./certs:/app/certs:ro
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:7845/info"]
+      test: ["CMD", "curl", "-f", "-H", "X-API-Key: devnet-a-key", "http://localhost:7845/info"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -58,7 +58,7 @@ services:
     depends_on:
       - icn-node-a
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:7845/info"]
+      test: ["CMD", "curl", "-f", "-H", "X-API-Key: devnet-b-key", "http://localhost:7845/info"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -91,7 +91,7 @@ services:
     depends_on:
       - icn-node-a
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:7845/info"]
+      test: ["CMD", "curl", "-f", "-H", "X-API-Key: devnet-c-key", "http://localhost:7845/info"]
       interval: 30s
       timeout: 10s
       retries: 3
