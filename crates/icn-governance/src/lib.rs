@@ -24,6 +24,7 @@ use std::path::PathBuf;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
+pub mod metrics;
 pub mod scoped_policy;
 
 // --- Proposal System ---
@@ -181,6 +182,7 @@ impl GovernanceModule {
         quorum: Option<usize>,
         threshold: Option<f32>,
     ) -> Result<ProposalId, CommonError> {
+        metrics::SUBMIT_PROPOSAL_CALLS.inc();
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
@@ -344,6 +346,7 @@ impl GovernanceModule {
         proposal_id: &ProposalId,
         option: VoteOption,
     ) -> Result<(), CommonError> {
+        metrics::CAST_VOTE_CALLS.inc();
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
@@ -981,6 +984,7 @@ impl GovernanceModule {
 
     /// Executes an accepted proposal. New members are added when executed.
     pub fn execute_proposal(&mut self, proposal_id: &ProposalId) -> Result<(), CommonError> {
+        metrics::EXECUTE_PROPOSAL_CALLS.inc();
         match &mut self.backend {
             Backend::InMemory { proposals } => {
                 let proposal = proposals.get_mut(proposal_id).ok_or_else(|| {

@@ -8,6 +8,7 @@
 use icn_common::{CommonError, Did, NodeInfo};
 use log::{debug, info};
 pub mod ledger;
+pub mod metrics;
 pub use ledger::FileManaLedger;
 #[cfg(feature = "persist-rocksdb")]
 pub use ledger::RocksdbManaLedger;
@@ -60,16 +61,19 @@ impl<L: ManaLedger> ManaRepositoryAdapter<L> {
 
     /// Deduct mana from an account via the underlying ledger.
     pub fn spend_mana(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
+        metrics::SPEND_MANA_CALLS.inc();
         self.ledger.spend(did, amount)
     }
 
     /// Retrieve the account balance.
     pub fn get_balance(&self, did: &Did) -> u64 {
+        metrics::GET_BALANCE_CALLS.inc();
         self.ledger.get_balance(did)
     }
 
     /// Credits the specified account with additional mana.
     pub fn credit_mana(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
+        metrics::CREDIT_MANA_CALLS.inc();
         self.ledger.credit(did, amount)
     }
 }

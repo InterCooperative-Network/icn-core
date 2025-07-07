@@ -13,6 +13,7 @@ use icn_identity::{
     VerifyingKey as IdentityVerifyingKey,
 };
 use serde::{Deserialize, Serialize};
+pub mod metrics;
 
 /// Unique identifier for a mesh job.
 ///
@@ -305,6 +306,7 @@ pub fn select_executor(
     reputation_store: &dyn icn_reputation::ReputationStore,
     mana_ledger: &dyn icn_economics::ManaLedger,
 ) -> Option<Did> {
+    metrics::SELECT_EXECUTOR_CALLS.inc();
     // Iterate over bids and pick the executor with the highest score as
     // determined by `score_bid`. Bids from executors without enough mana are
     // ignored.
@@ -377,6 +379,7 @@ pub fn score_bid(
 
 /// Placeholder function demonstrating use of common types for mesh operations.
 pub fn schedule_mesh_job(info: &NodeInfo, job_id: &str) -> Result<String, CommonError> {
+    metrics::SCHEDULE_MESH_JOB_CALLS.inc();
     Ok(format!(
         "Scheduled mesh job {} on node: {} (v{})",
         job_id, info.name, info.version
