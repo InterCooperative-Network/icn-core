@@ -42,6 +42,24 @@ let store = TokioFileDagStore::new(PathBuf::from("./dag")).unwrap();
 let dag_store = Mutex::new(store); // implement AsyncStorageService
 ```
 
+## Running Persistence Tests
+
+Integration tests for each storage backend are gated by their corresponding
+`persist-*` feature. Enable the feature when running `cargo test`:
+
+```bash
+# sled backend (enabled by default)
+cargo test -p icn-dag --features persist-sled --test sled_backend
+
+# SQLite backend
+cargo test -p icn-dag --no-default-features --features persist-sqlite \
+  --test sqlite_backend
+
+# RocksDB backend
+cargo test -p icn-dag --no-default-features --features persist-rocksdb \
+  --test rocks_backend
+```
+
 ## Contributing
 
 Contributions are welcome! Please see the main [CONTRIBUTING.md](../../CONTRIBUTING.md) in the root of the `icn-core` repository for guidelines.
