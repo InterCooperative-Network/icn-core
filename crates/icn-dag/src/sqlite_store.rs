@@ -99,4 +99,30 @@ impl StorageService<DagBlock> for SqliteDagStore {
             })?;
         Ok(count > 0)
     }
+
+    fn list_blocks(&self) -> Result<Vec<DagBlock>, CommonError> {
+        let mut stmt = self.conn.prepare("SELECT data FROM blocks").map_err(|e| {
+            CommonError::DatabaseError(format!("Prepare failed: {}", e))
+        })?;
+        let rows = stmt.query_map([], |row| row.get::<_, Vec<u8>>(0)).map_err(|e| {
+            CommonError::DatabaseError(format!("Query failed: {}", e))
+        })?;
+        let mut blocks = Vec::new();
+        for row_result in rows {
+            let data = row_result.map_err(|e| CommonError::DatabaseError(format!("Row error: {}", e)))?;
+            let block: DagBlock = serde_json::from_slice(&data).map_err(|e| {
+                CommonError::DeserializationError(format!("Failed to deserialize block: {}", e))
+            })?;
+            blocks.push(block);
+        }
+        Ok(blocks)
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
 }

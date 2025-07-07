@@ -1388,6 +1388,32 @@ impl RuntimeContext {
         });
     }
 
+    /// Verify integrity of all DAG blocks once.
+    pub async fn integrity_check_once(&self) -> Result<(), CommonError> {
+        let store = self.dag_store.lock().await;
+        #[cfg(feature = "async")]
+        {
+            icn_dag::verify_all_async(&*store).await
+        }
+        #[cfg(not(feature = "async"))]
+        {
+            icn_dag::verify_all(&*store)
+        }
+    }
+
+    /// Spawn a background task that periodically checks DAG integrity.
+    pub async fn spawn_integrity_checker(self: Arc<Self>, interval: StdDuration) {
+        tokio::spawn(async move {
+            let mut ticker = tokio::time::interval(interval);
+            loop {
+                ticker.tick().await;
+                if let Err(e) = self.integrity_check_once().await {
+                    error!("[IntegrityChecker] DAG verification failed: {:?}", e);
+                }
+            }
+        });
+    }
+
     pub async fn get_mana(&self, account: &Did) -> Result<u64, HostAbiError> {
         debug!(
             "[RuntimeContext] get_mana called for account: {:?}",
@@ -2098,6 +2124,10 @@ impl StubDagStore {
             store: HashMap::new(),
         }
     }
+
+    pub fn get_mut(&mut self, cid: &Cid) -> Option<&mut DagBlock> {
+        self.store.get_mut(cid)
+    }
     pub fn all(&self) -> HashMap<Cid, DagBlock> {
         self.store.clone()
     }
@@ -2128,6 +2158,18 @@ impl DagStorageService<DagBlock> for StubDagStore {
     fn contains(&self, cid: &Cid) -> Result<bool, CommonError> {
         Ok(self.store.contains_key(cid))
     }
+
+    fn list_blocks(&self) -> Result<Vec<DagBlock>, CommonError> {
+        Ok(self.store.values().cloned().collect())
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
 }
 
 #[cfg(feature = "async")]
@@ -2149,6 +2191,18 @@ impl icn_dag::AsyncStorageService<DagBlock> for StubDagStore {
 
     async fn contains(&self, cid: &Cid) -> Result<bool, CommonError> {
         Ok(self.store.contains_key(cid))
+    }
+
+    async fn list_blocks(&self) -> Result<Vec<DagBlock>, CommonError> {
+        Ok(self.store.values().cloned().collect())
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
     }
 }
 

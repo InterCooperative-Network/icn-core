@@ -101,6 +101,13 @@ async fn finalize_proposal(ctx: &RuntimeContext, pid: &str) -> Result<(), icn_ru
 `spawn_mana_regenerator` to start a background task that credits every
 account with a fixed amount on a configurable interval.
 
+## DAG Integrity Checker
+
+To detect storage corruption, call `spawn_integrity_checker` with a check
+interval. The task runs `icn_dag::verify_all` over the configured DAG store
+and logs an error if verification fails. You may adjust the interval and
+implement a custom repair strategy if desired.
+
 ## DAG Storage
 
 `RuntimeContext` selects a storage backend for receipts and other DAG data. When
