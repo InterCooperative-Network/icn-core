@@ -32,7 +32,10 @@ use icn_identity::{
 use icn_mesh::{ActualMeshJob, JobId, JobSpec};
 #[allow(unused_imports)]
 use icn_network::{NetworkService, PeerId, StubNetworkService};
-use icn_protocol::{ProtocolMessage, MessagePayload, GossipMessage, FederationJoinRequestMessage, NodeCapabilities, ResourceRequirements};
+use icn_protocol::{
+    FederationJoinRequestMessage, GossipMessage, NodeCapabilities, ResourceRequirements,
+};
+use icn_protocol::{MessagePayload, ProtocolMessage};
 use icn_runtime::context::{
     RuntimeContext, StubDagStore as RuntimeStubDagStore, StubMeshNetworkService,
     StubSigner as RuntimeStubSigner,

@@ -9,7 +9,8 @@ use downcast_rs::{impl_downcast, DowncastSync};
 use icn_network::libp2p_service::Libp2pNetworkService as ActualLibp2pNetworkService;
 #[allow(unused_imports)]
 use icn_network::{NetworkService, PeerId, StubNetworkService};
-use icn_protocol::{ProtocolMessage, MessagePayload, GossipMessage};
+use icn_protocol::GossipMessage;
+use icn_protocol::{MessagePayload, ProtocolMessage};
 
 #[cfg(not(any(
     feature = "persist-sled",
@@ -374,9 +375,8 @@ impl MeshNetworkService for DefaultMeshNetworkService {
     }
 
     async fn announce_job(&self, job: &ActualMeshJob) -> Result<(), HostAbiError> {
-        let payload_bytes = bincode::serialize(job).map_err(|e| {
-            HostAbiError::NetworkError(format!("Failed to serialize job: {}", e))
-        })?;
+        let payload_bytes = bincode::serialize(job)
+            .map_err(|e| HostAbiError::NetworkError(format!("Failed to serialize job: {}", e)))?;
         let job_message = ProtocolMessage::new(
             MessagePayload::GossipMessage(GossipMessage {
                 topic: "mesh_job_announcement".to_string(),
