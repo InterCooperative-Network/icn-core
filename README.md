@@ -137,6 +137,13 @@ rustup component add rustfmt
 
 For multi-node testing instructions, see [Libp2p Integration Tests](MULTI_NODE_GUIDE.md#libp2p-integration-tests).
 
+### Metrics & Observability
+
+ICN crates expose Prometheus metrics using the `prometheus-client` crate. When
+running `icn-node` with the embedded HTTP server enabled, scrape metrics at the
+`/metrics` endpoint. Counters such as `host_submit_mesh_job_calls` and gauges for
+network latency are collected automatically.
+
 ## ICN Philosophy & Design Principles
 
 ### **Core Values**
