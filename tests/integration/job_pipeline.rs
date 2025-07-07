@@ -1,98 +1,234 @@
-// tests/integration/job_pipeline.rs
+#[cfg(feature = "enable-libp2p")]
+mod job_pipeline {
+    use icn_common::{Cid, Did};
+    use icn_identity::{generate_ed25519_keypair, SignatureBytes};
+    use icn_mesh::{ActualMeshJob, JobSpec, MeshJobBid, Resources};
+    use icn_protocol::{MeshJobAssignmentMessage, MessagePayload, ProtocolMessage};
+    use icn_runtime::context::{DefaultMeshNetworkService, RuntimeContext};
+    use icn_runtime::executor::SimpleExecutor;
+    use icn_runtime::{host_anchor_receipt, host_submit_mesh_job, ReputationUpdater};
+    use libp2p::Multiaddr;
+    use tokio::time::{sleep, timeout, Duration};
 
-use std::{sync::Arc, time::Duration};
+    #[tokio::test]
+    async fn runtime_context_two_node_pipeline() -> anyhow::Result<()> {
+        env_logger::try_init().ok();
 
-use icn_identity::{generate_ed25519_keypair, did_key_from_verifying_key}; // Adjusted to actual function names
-use icn_runtime::{
-    context::{RuntimeContext, StubSigner, StubMeshNetworkService, RuntimeStubDagStore}, // Corrected: RuntimeStubDagStore
-    host_submit_mesh_job,
-};
-use icn_mesh::{JobSpec, JobState}; // Added JobState
-use serde_json::json;
-use tokio::time::sleep;
-use tokio::sync::Mutex;
-use icn_common::Did; // Added Did
-use std::str::FromStr; // For Did::from_str
+        // --- Node A setup ---
+        let listen: Vec<Multiaddr> = vec!["/ip4/0.0.0.0/tcp/0".parse().unwrap()];
+        let node_a = RuntimeContext::new_with_real_libp2p(
+            "did:key:z6MktestA",
+            listen.clone(),
+            None,
+            std::path::PathBuf::from("./mana_a.sled"),
+            std::path::PathBuf::from("./rep_a.sled"),
+        )
+        .await?;
+        node_a
+            .mana_ledger
+            .set_balance(&node_a.current_identity, 1000)
+            .unwrap();
+        let service_a = node_a.get_libp2p_service()?;
+        sleep(Duration::from_millis(500)).await;
+        let peer_a = *service_a.local_peer_id();
+        let addr_a = service_a
+            .listening_addresses()
+            .get(0)
+            .cloned()
+            .expect("addr_a");
 
-#[tokio::test]
-async fn end_to_end_mesh_job_execution() {
-    // 1. Create test identity and runtime context
-    let (sk, pk) = generate_ed25519_keypair();
-    let did_string = did_key_from_verifying_key(&pk);
-    let did = Did::from_str(&did_string).expect("Failed to parse DID string"); // Create Did struct
+        // --- Node B setup bootstrapped to A ---
+        let node_b = RuntimeContext::new_with_real_libp2p(
+            "did:key:z6MktestB",
+            listen,
+            Some(vec![(peer_a, addr_a.clone())]),
+            std::path::PathBuf::from("./mana_b.sled"),
+            std::path::PathBuf::from("./rep_b.sled"),
+        )
+        .await?;
+        let service_b = node_b.get_libp2p_service()?;
+        sleep(Duration::from_secs(2)).await;
 
-    let signer = StubSigner::new_with_keys(sk, pk);
-    let net = Arc::new(StubMeshNetworkService::default()); // Assumes Default trait
-    let dag = Arc::new(tokio::sync::Mutex::new(RuntimeStubDagStore::default()));   // Assumes Default trait
-    
-    // Using a simplified constructor or assuming one exists that takes these components.
-    // The user provided `new_for_test` which I will add.
-    let ctx = Arc::new(RuntimeContext::new_for_test(did.clone(), signer, net.clone(), dag.clone()));
-    ctx.spawn_mesh_job_manager().await;
+        let rep_before = node_a
+            .reputation_store
+            .get_reputation(&node_b.current_identity);
 
-    // 2. Submit a basic Echo job
-    let job_spec = JobSpec::Echo { payload: "hello world".to_owned() }; // Assumes JobSpec::Echo variant
-    let manifest_cid = "bafybeigdyrzt7dpbrm3kmhgtr5mk6yzqq3wj7owxsbs2hlkzbfio4ilv5e"; // any CID string
-    
-    // Constructing the JSON payload for ActualMeshJob as expected by host_submit_mesh_job
-    let submit_json = json!({
-        "manifest_cid": manifest_cid,
-        "spec": job_spec, // This needs to match how ActualMeshJob serializes its spec
-        "cost_mana": 1,
-        // id, creator_did, signature are handled by host_submit_mesh_job or prior steps
-    });
+        let mut recv_a = service_a.subscribe().await?;
+        let mut recv_b = service_b.subscribe().await?;
+        let mesh_a = DefaultMeshNetworkService::new(service_a.clone());
 
-    let submit_res = host_submit_mesh_job(&ctx, &submit_json.to_string()).await; // Pass Arc as reference
-    assert!(submit_res.is_ok(), "Job submission failed: {submit_res:?}");
-    let submitted_job_id = submit_res.unwrap();
+        // --- Submit job on Node A ---
+        let job = create_job("pipeline", &node_a.current_identity);
+        let job_json = serde_json::to_string(&job)?;
+        let job_id = host_submit_mesh_job(&node_a, &job_json).await?;
 
-    // 3. Allow job manager loop to process the pipeline
-    // Increased sleep to give more time for the full pipeline including potential receipt handling.
-    sleep(Duration::from_secs(5)).await; 
+        {
+            let states = node_a.job_states.lock().await;
+            assert!(matches!(states.get(&job_id), Some(icn_mesh::JobState::Pending)));
+        }
 
-    // 4. Check for anchored receipt in stub DAG
-    let all_dag_items = dag.lock().await.all();
-    
-    // We need to find the specific receipt for our job_id or verify its presence.
-    // A generic check for !all_dag_items.is_empty() is a good start.
-    // For a more robust check, we'd ideally parse these items as receipts and find ours.
-    assert!(!all_dag_items.is_empty(), "DAG should have at least one anchored receipt");
-    
-    // Let's try to find our specific receipt (this is a more advanced check)
-    let mut found_receipt_for_job = false;
-    for (_cid, item_bytes) in all_dag_items {
-        if let Ok(receipt) = serde_json::from_slice::<icn_identity::ExecutionReceipt>(&item_bytes) {
-            if receipt.job_id == submitted_job_id {
-                found_receipt_for_job = true;
-                println!("Found receipt for job_id {}: {:?}", submitted_job_id, receipt);
-                break;
+        mesh_a.announce_job(&job).await?;
+
+        // Wait for announcement
+        timeout(Duration::from_secs(5), async {
+            loop {
+                if let Some(message) = recv_b.recv().await {
+                    if let MessagePayload::MeshJobAnnouncement(j) = &message.payload {
+                        if j.id == job_id {
+                            break;
+                        }
+                    }
+                }
+            }
+        })
+        .await?;
+
+        // Node B sends bid
+        let unsigned = MeshJobBid {
+            job_id: job_id.clone(),
+            executor_did: node_b.current_identity.clone(),
+            price_mana: 30,
+            resources: Resources::default(),
+            signature: SignatureBytes(vec![]),
+        };
+        let sig = node_b
+            .signer
+            .sign(&unsigned.to_signable_bytes().unwrap())
+            .unwrap();
+        let bid = MeshJobBid {
+            signature: SignatureBytes(sig),
+            ..unsigned
+        };
+        let msg = ProtocolMessage::new(
+            MessagePayload::MeshBidSubmission(bid),
+            node_b.current_identity.clone(),
+            None,
+        );
+        service_b.broadcast_message(msg).await?;
+
+        // Wait for bid on A
+        timeout(Duration::from_secs(5), async {
+            loop {
+                if let Some(message) = recv_a.recv().await {
+                    if let MessagePayload::MeshBidSubmission(b) = &message.payload {
+                        if b.job_id == job_id {
+                            break;
+                        }
+                    }
+                }
+            }
+        })
+        .await?;
+
+        // Assign job to B
+        let msg = ProtocolMessage::new(
+            MessagePayload::MeshJobAssignment(MeshJobAssignmentMessage {
+                job_id: job_id.clone(),
+                executor_did: node_b.current_identity.clone(),
+            }),
+            node_a.current_identity.clone(),
+            None,
+        );
+        service_a.broadcast_message(msg).await?;
+
+        {
+            let mut states = node_a.job_states.lock().await;
+            states.insert(
+                job_id.clone(),
+                icn_mesh::JobState::Assigned {
+                    executor: node_b.current_identity.clone(),
+                },
+            );
+        }
+
+        // Wait for assignment on B
+        timeout(Duration::from_secs(5), async {
+            loop {
+                if let Some(message) = recv_b.recv().await {
+                    if let MessagePayload::MeshJobAssignment(assign) = &message.payload {
+                        if assign.job_id == job_id && assign.executor_did == node_b.current_identity {
+                            break;
+                        }
+                    }
+                }
+            }
+        })
+        .await?;
+
+        // Execute job on B
+        let (sk, pk) = generate_ed25519_keypair();
+        let executor = SimpleExecutor::new(node_b.current_identity.clone(), sk);
+        let receipt = executor.execute_job(&job).await?;
+        assert!(receipt.verify_against_key(&pk).is_ok());
+
+        let msg = ProtocolMessage::new(
+            MessagePayload::MeshReceiptSubmission(receipt.clone()),
+            node_b.current_identity.clone(),
+            None,
+        );
+        service_b.broadcast_message(msg).await?;
+
+        // Node A waits for receipt
+        let final_receipt = timeout(Duration::from_secs(5), async {
+            loop {
+                if let Some(message) = recv_a.recv().await {
+                    if let MessagePayload::MeshReceiptSubmission(r) = &message.payload {
+                        if r.job_id == job_id {
+                            break r.clone();
+                        }
+                    }
+                }
+            }
+        })
+        .await?
+        .unwrap();
+
+        let receipt_json = serde_json::to_string(&final_receipt)?;
+        let cid = host_anchor_receipt(&node_a, &receipt_json, &ReputationUpdater::new()).await?;
+
+        {
+            let states = node_a.job_states.lock().await;
+            match states.get(&job_id) {
+                Some(icn_mesh::JobState::Completed { .. }) => {}
+                other => panic!("Job not completed: {:?}", other),
             }
         }
+
+        let rep_after = node_a
+            .reputation_store
+            .get_reputation(&node_b.current_identity);
+        assert!(rep_after > rep_before, "reputation should increase");
+
+        let stored = node_a
+            .dag_store
+            .lock()
+            .await
+            .get(&cid)?
+            .expect("receipt stored");
+        assert_eq!(stored.cid, cid);
+
+        Ok(())
     }
-    assert!(found_receipt_for_job, "Receipt for submitted job ID {} not found in DAG", submitted_job_id);
 
-
-    // 5. Confirm job state is Completed
-    let job_states_map = ctx.job_states.lock().await; // Access job_states directly
-    
-    let final_job_state = job_states_map.get(&submitted_job_id);
-    assert!(final_job_state.is_some(), "Job ID {} not found in job_states", submitted_job_id);
-
-    match final_job_state.unwrap() {
-        JobState::Completed { receipt } => {
-            println!("Job {} reached Completed state with receipt: {:?}", submitted_job_id, receipt);
-            assert_eq!(receipt.job_id, submitted_job_id);
-        }
-        other_state => {
-            panic!("Job {} is in state {:?}, expected Completed", submitted_job_id, other_state);
+    fn create_job(suffix: &str, creator: &Did) -> ActualMeshJob {
+        let job_id = Cid::new_v1_sha256(0x55, format!("job_{suffix}").as_bytes());
+        let manifest_cid = Cid::new_v1_sha256(0x55, format!("manifest_{suffix}").as_bytes());
+        ActualMeshJob {
+            id: job_id,
+            manifest_cid,
+            spec: JobSpec::Echo {
+                payload: "two node".into(),
+            },
+            creator_did: creator.clone(),
+            cost_mana: 50,
+            max_execution_wait_ms: None,
+            signature: SignatureBytes(vec![0u8; 64]),
         }
     }
-    
-    // An alternative check as in the original prompt, assuming JobState has is_completed()
-    // assert!(
-    //     job_states_map.values().any(|s| s.is_completed()),
-    //     "No job reached Completed state in job_states map"
-    // );
+}
 
-    println!("End-to-end mesh job pipeline test succeeded for job {}.", submitted_job_id);
-} 
+#[cfg(not(feature = "enable-libp2p"))]
+#[tokio::test]
+async fn libp2p_feature_disabled_stub() {
+    println!("libp2p feature disabled; skipping job pipeline test");
+}
