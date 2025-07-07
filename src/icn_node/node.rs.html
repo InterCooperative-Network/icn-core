@@ -31,14 +31,14 @@
 <a href=#31 id=31 data-nosnippet>31</a>};
 <a href=#32 id=32 data-nosnippet>32</a><span class="kw">use </span>icn_mesh::{ActualMeshJob, JobId, JobSpec};
 <a href=#33 id=33 data-nosnippet>33</a><span class="attr">#[allow(unused_imports)]
-<a href=#34 id=34 data-nosnippet>34</a></span><span class="kw">use </span>icn_network::{NetworkService, PeerId, StubNetworkService};
+<a href=#34 id=34 data-nosnippet>34</a></span><span class="kw">use </span>icn_network::{NetworkService, PeerId};
 <a href=#35 id=35 data-nosnippet>35</a><span class="kw">use </span>icn_protocol::{
 <a href=#36 id=36 data-nosnippet>36</a>    FederationJoinRequestMessage, GossipMessage, NodeCapabilities, ResourceRequirements,
 <a href=#37 id=37 data-nosnippet>37</a>};
 <a href=#38 id=38 data-nosnippet>38</a><span class="kw">use </span>icn_protocol::{MessagePayload, ProtocolMessage};
 <a href=#39 id=39 data-nosnippet>39</a><span class="kw">use </span>icn_runtime::context::{
-<a href=#40 id=40 data-nosnippet>40</a>    DefaultMeshNetworkService, RuntimeContext, StubDagStore <span class="kw">as </span>RuntimeStubDagStore,
-<a href=#41 id=41 data-nosnippet>41</a>    StubMeshNetworkService, StubSigner <span class="kw">as </span>RuntimeStubSigner,
+<a href=#40 id=40 data-nosnippet>40</a>    DefaultMeshNetworkService, RuntimeContext, StubMeshNetworkService,
+<a href=#41 id=41 data-nosnippet>41</a>    StubSigner <span class="kw">as </span>RuntimeStubSigner,
 <a href=#42 id=42 data-nosnippet>42</a>};
 <a href=#43 id=43 data-nosnippet>43</a><span class="kw">use </span>icn_runtime::{host_anchor_receipt, host_submit_mesh_job, ReputationUpdater};
 <a href=#44 id=44 data-nosnippet>44</a><span class="kw">use </span>prometheus_client::{encoding::text::encode, registry::Registry};
