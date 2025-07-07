@@ -212,6 +212,9 @@ Common HTTP status codes:
 ./icn-node --http-listen-addr 0.0.0.0:8080 --open-rate-limit 100
 ```
 
+For tuning circuit breaker thresholds and retry delays, see the
+[deployment guide](docs/deployment-guide.md#circuit-breaker-and-retry).
+
 ## Monitoring & Observability
 
 ### Prometheus Metrics
