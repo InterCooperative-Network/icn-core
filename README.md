@@ -95,6 +95,12 @@ icn-devnet/launch_federation.sh # build and test the federation containers
 export RUST_MIN_STACK=33554432
 ```
 
+Before running `just format` or `cargo fmt`, make sure the `rustfmt` component is installed:
+
+```bash
+rustup component add rustfmt
+```
+
 
 ### Enabling Peer Discovery and Persistent Storage
 

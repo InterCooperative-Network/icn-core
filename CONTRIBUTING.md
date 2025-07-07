@@ -83,6 +83,7 @@ When issues are created in the tracker, they should ideally be labeled with `goo
 4.  **Make your changes**. Ensure you add relevant tests and update documentation as needed.
 5.  **Run tests**: `cargo test --all` (or per-crate tests).
 6.  **Format your code**: `cargo fmt --all`.
+    If this command fails, install the formatter with `rustup component add rustfmt`.
 7.  **Lint your code**: `cargo clippy --all -- -D warnings` (or per-crate).
 8.  **Commit your changes**: Write clear, concise commit messages.
 9.  **Push to your branch**.
