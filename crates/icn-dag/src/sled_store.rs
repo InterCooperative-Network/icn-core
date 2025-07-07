@@ -90,4 +90,18 @@ impl StorageService<DagBlock> for SledDagStore {
         })?;
         Ok(exists)
     }
+
+    fn iter(&self) -> Result<Vec<DagBlock>, CommonError> {
+        let tree = self.tree()?;
+        let mut blocks = Vec::new();
+        for item in tree.iter() {
+            let (_k, v) =
+                item.map_err(|e| CommonError::DatabaseError(format!("Failed to iterate: {}", e)))?;
+            let block: DagBlock = bincode::deserialize(&v).map_err(|e| {
+                CommonError::DeserializationError(format!("Failed to deserialize block: {}", e))
+            })?;
+            blocks.push(block);
+        }
+        Ok(blocks)
+    }
 }
