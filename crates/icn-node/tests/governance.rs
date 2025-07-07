@@ -1,15 +1,24 @@
 use icn_api::governance_trait::{CastVoteRequest, ProposalInputType, SubmitProposalRequest};
-use icn_node::app_router;
+use icn_common::Did;
+use icn_governance::ProposalId;
+use icn_node::app_router_with_options;
 use reqwest::Client;
+use std::str::FromStr;
 use tokio::task;
 
 #[tokio::test]
-#[ignore]
 async fn submit_and_vote_proposal() {
+    let (router, ctx) =
+        app_router_with_options(None, None, None, None, None, None, None, None, None).await;
+    {
+        let mut gov = ctx.governance_module.lock().await;
+        gov.add_member(Did::from_str("did:example:alice").unwrap());
+        gov.add_member(Did::from_str("did:example:bob").unwrap());
+    }
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let server = task::spawn(async move {
-        axum::serve(listener, app_router().await).await.unwrap();
+        axum::serve(listener, router).await.unwrap();
     });
 
     let client = Client::new();
@@ -28,11 +37,16 @@ async fn submit_and_vote_proposal() {
         .await
         .unwrap();
     assert_eq!(submit_resp.status(), reqwest::StatusCode::CREATED);
-    let pid: String = submit_resp.json().await.unwrap();
+    let pid_str: String = submit_resp.json().await.unwrap();
+    {
+        let mut gov = ctx.governance_module.lock().await;
+        let pid = ProposalId(pid_str.clone());
+        gov.open_voting(&pid).unwrap();
+    }
 
     let vote_req = CastVoteRequest {
         voter_did: "did:example:bob".to_string(),
-        proposal_id: pid,
+        proposal_id: pid_str,
         vote_option: "yes".to_string(),
     };
     let vote_resp = client
