@@ -1,4 +1,6 @@
-use icn_ccl::{compile_ccl_source_to_wasm};
+#![allow(clippy::uninlined_format_args)]
+
+use icn_ccl::compile_ccl_source_to_wasm;
 
 fn main() {
     println!("🌟 ICN CCL Enhanced Features Test 🌟\n");
@@ -22,7 +24,7 @@ fn main() {
             return bonus;
         }
     "#;
-    
+
     match compile_ccl_source_to_wasm(function_test) {
         Ok((wasm_bytes, metadata)) => {
             println!("✅ Advanced functions compiled successfully!");
@@ -46,7 +48,7 @@ fn main() {
             return build_message("Hello ", "ICN!");
         }
     "#;
-    
+
     match compile_ccl_source_to_wasm(string_test) {
         Ok((wasm_bytes, metadata)) => {
             println!("✅ String operations compiled successfully!");
@@ -70,7 +72,7 @@ fn main() {
             return process_scores(numbers);
         }
     "#;
-    
+
     match compile_ccl_source_to_wasm(array_test) {
         Ok((wasm_bytes, metadata)) => {
             println!("✅ Array literals compiled successfully!");
@@ -111,7 +113,7 @@ fn main() {
             }
         }
     "#;
-    
+
     match compile_ccl_source_to_wasm(governance_test) {
         Ok((wasm_bytes, metadata)) => {
             println!("✅ Governance contract compiled successfully!");
@@ -148,7 +150,7 @@ fn main() {
             return final_cost;
         }
     "#;
-    
+
     match compile_ccl_source_to_wasm(economic_test) {
         Ok((wasm_bytes, metadata)) => {
             println!("✅ Economic policy compiled successfully!");
@@ -172,4 +174,4 @@ fn main() {
     println!("   • ✅ Multi-function composition");
     println!("   • ✅ Type compatibility checking");
     println!("\n💡 Ready for real governance and economic policies!");
-} 
+}

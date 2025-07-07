@@ -270,6 +270,8 @@ impl GovernanceApi for GovernanceApiImpl {
             core_proposal_type,
             request.description,
             request.duration_secs,
+            request.quorum,
+            request.threshold,
         )
     }
 

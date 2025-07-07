@@ -33,6 +33,8 @@ async fn governance_persists_between_restarts() {
             ProposalType::GenericText("hello".into()),
             "desc".into(),
             60,
+            None,
+            None,
         )
         .unwrap()
     };

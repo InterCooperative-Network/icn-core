@@ -11,6 +11,8 @@ fn insert_external_proposal_round_trip() {
             ProposalType::GenericText("hi".into()),
             "desc".into(),
             60,
+            None,
+            None,
         )
         .unwrap();
     let proposal = gov1.get_proposal(&pid).unwrap().unwrap();

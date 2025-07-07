@@ -18,6 +18,8 @@ fn vote_tally_and_execute() {
             ProposalType::NewMemberInvitation(Did::from_str("did:example:dave").unwrap()),
             "add dave".into(),
             60,
+            None,
+            None,
         )
         .unwrap();
 
@@ -65,6 +67,8 @@ fn reject_due_to_quorum() {
             ProposalType::GenericText("hi".into()),
             "desc".into(),
             60,
+            None,
+            None,
         )
         .unwrap();
 
@@ -97,6 +101,8 @@ fn reject_due_to_threshold() {
             ProposalType::GenericText("threshold".into()),
             "desc".into(),
             60,
+            None,
+            None,
         )
         .unwrap();
 
@@ -130,6 +136,8 @@ fn auto_close_after_deadline() {
             ProposalType::GenericText("auto".into()),
             "desc".into(),
             1,
+            None,
+            None,
         )
         .unwrap();
 
@@ -157,6 +165,8 @@ fn vote_fails_after_expiration() {
             ProposalType::GenericText("expire".into()),
             "desc".into(),
             1,
+            None,
+            None,
         )
         .unwrap();
     gov.open_voting(&pid).unwrap();
@@ -184,6 +194,8 @@ fn close_before_deadline_errors() {
             ProposalType::GenericText("early".into()),
             "desc".into(),
             60,
+            None,
+            None,
         )
         .unwrap();
     gov.open_voting(&pid).unwrap();
@@ -206,6 +218,8 @@ fn member_removal_affects_outcome() {
             ProposalType::GenericText("member".into()),
             "desc".into(),
             60,
+            None,
+            None,
         )
         .unwrap();
 

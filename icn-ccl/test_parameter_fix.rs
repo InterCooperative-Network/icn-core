@@ -1,4 +1,6 @@
-use icn_ccl::{compile_ccl_source_to_wasm, compile_ccl_file_to_wasm};
+#![allow(clippy::uninlined_format_args)]
+
+use icn_ccl::{compile_ccl_file_to_wasm, compile_ccl_source_to_wasm};
 use std::path::Path;
 
 fn main() {
@@ -15,7 +17,7 @@ fn main() {
             return add_numbers(10, 5);
         }
     "#;
-    
+
     match compile_ccl_source_to_wasm(param_contract) {
         Ok((wasm_bytes, metadata)) => {
             println!("✅ Parameter function compiled successfully!");
@@ -40,7 +42,7 @@ fn main() {
             return calculate(5, 3, 2);
         }
     "#;
-    
+
     match compile_ccl_source_to_wasm(complex_contract) {
         Ok((wasm_bytes, metadata)) => {
             println!("✅ Complex parameters compiled successfully!");
@@ -61,7 +63,7 @@ fn main() {
                 println!("✅ Parameter file compiled successfully!");
                 println!("📦 WASM size: {} bytes", wasm_bytes.len());
                 println!("📋 Exports: {:?}", metadata.exports);
-                
+
                 // Show function composition working
                 println!("🔗 Functions: add_numbers, multiply, calculate_score, run");
                 println!("💡 Expected result: calculate_score(10, 5) = (10+5)*2 = 30");
@@ -80,4 +82,4 @@ fn main() {
     println!("   • ✅ Parameter variable resolution");
     println!("   • ✅ Function composition with parameters");
     println!("   • ✅ Local variable shadowing in function scope");
-} 
+}

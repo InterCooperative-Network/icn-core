@@ -83,7 +83,11 @@ pub struct Proposal {
     pub voting_deadline: u64, // Timestamp for when voting closes
     pub status: ProposalStatus,
     pub votes: HashMap<Did, Vote>, // Voter DID to their vote
-                                   // Potentially, threshold and quorum requirements could be part of the proposal type or global config
+    /// Optional quorum override for this proposal
+    pub quorum: Option<usize>,
+    /// Optional threshold override for this proposal
+    pub threshold: Option<f32>,
+    // Potentially, threshold and quorum requirements could be part of the proposal type or global config
 }
 
 /// Possible voting options.
@@ -174,6 +178,8 @@ impl GovernanceModule {
         proposal_type: ProposalType,
         description: String,
         duration_secs: u64,
+        quorum: Option<usize>,
+        threshold: Option<f32>,
     ) -> Result<ProposalId, CommonError> {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -192,6 +198,8 @@ impl GovernanceModule {
             voting_deadline: now + duration_secs,
             status: ProposalStatus::Pending,
             votes: HashMap::new(),
+            quorum,
+            threshold,
         };
 
         match &mut self.backend {
@@ -879,9 +887,11 @@ impl GovernanceModule {
                     (yes, no, abstain)
                 };
                 let total = yes + no + abstain;
-                if total < self.quorum {
+                let quorum = proposal.quorum.unwrap_or(self.quorum);
+                let threshold = proposal.threshold.unwrap_or(self.threshold);
+                if total < quorum {
                     proposal.status = ProposalStatus::Rejected;
-                } else if (yes as f32) >= (total as f32 * self.threshold) {
+                } else if (yes as f32) >= (total as f32 * threshold) {
                     proposal.status = ProposalStatus::Accepted;
                 } else {
                     proposal.status = ProposalStatus::Rejected;
@@ -947,9 +957,11 @@ impl GovernanceModule {
                     (yes, no, abstain)
                 };
                 let total = yes + no + abstain;
-                if total < self.quorum {
+                let quorum = proposal.quorum.unwrap_or(self.quorum);
+                let threshold = proposal.threshold.unwrap_or(self.threshold);
+                if total < quorum {
                     proposal.status = ProposalStatus::Rejected;
-                } else if (yes as f32) >= (total as f32 * self.threshold) {
+                } else if (yes as f32) >= (total as f32 * threshold) {
                     proposal.status = ProposalStatus::Accepted;
                 } else {
                     proposal.status = ProposalStatus::Rejected;

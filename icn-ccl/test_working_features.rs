@@ -1,4 +1,6 @@
-use icn_ccl::{compile_ccl_source_to_wasm};
+#![allow(clippy::uninlined_format_args)]
+
+use icn_ccl::compile_ccl_source_to_wasm;
 
 fn main() {
     println!("🎯 ICN CCL Working Features Showcase 🎯\n");
@@ -28,7 +30,7 @@ fn main() {
             return complex_calculation(5, 3, 2, 4);
         }
     "#;
-    
+
     match compile_ccl_source_to_wasm(function_test) {
         Ok((wasm_bytes, metadata)) => {
             println!("✅ Multi-parameter functions compiled successfully!");
@@ -66,13 +68,15 @@ fn main() {
             return calculate_final_mana_cost(4, 8, 75);
         }
     "#;
-    
+
     match compile_ccl_source_to_wasm(mana_test) {
         Ok((wasm_bytes, metadata)) => {
             println!("✅ Mana economic functions compiled successfully!");
             println!("📦 WASM size: {} bytes", wasm_bytes.len());
             println!("📋 Exports: {:?}", metadata.exports);
-            println!("💰 Expected result: base=(4*50)+(8*25)=200+200=400, final=400-(75/10)=400-7=393");
+            println!(
+                "💰 Expected result: base=(4*50)+(8*25)=200+200=400, final=400-(75/10)=400-7=393"
+            );
         }
         Err(e) => {
             println!("❌ Failed: {:?}", e);
@@ -103,7 +107,7 @@ fn main() {
             return complex_formula(3, 4, 2);
         }
     "#;
-    
+
     match compile_ccl_source_to_wasm(complex_test) {
         Ok((wasm_bytes, metadata)) => {
             println!("✅ Complex calculations compiled successfully!");
@@ -137,7 +141,7 @@ fn main() {
             return nested_calculations(10);
         }
     "#;
-    
+
     match compile_ccl_source_to_wasm(scoping_test) {
         Ok((wasm_bytes, metadata)) => {
             println!("✅ Variable scoping compiled successfully!");
@@ -160,13 +164,15 @@ fn main() {
     println!("   • 📊 Local variable declarations and usage");
     println!("   • 🎯 Multi-parameter functions");
     println!("   • ⚡ WASM compilation and optimization");
-    
+
     println!("\n🚧 **NEEDS WORK:**");
     println!("   • 📝 String literals in function calls");
     println!("   • 📋 Array type syntax (Array<Type>)");
     println!("   • 🔍 Comparison operators (>=, <=)");
     println!("   • 🔀 If/else statement WASM generation");
     println!("   • 🔤 String concatenation operations");
-    
-    println!("\n🚀 **READY FOR:** Real economic and governance policies with numeric calculations!");
-} 
+
+    println!(
+        "\n🚀 **READY FOR:** Real economic and governance policies with numeric calculations!"
+    );
+}

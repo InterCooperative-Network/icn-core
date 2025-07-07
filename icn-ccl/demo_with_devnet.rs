@@ -1,4 +1,9 @@
-use icn_ccl::{compile_ccl_source_to_wasm};
+#![allow(
+    clippy::uninlined_format_args,
+    clippy::needless_borrows_for_generic_args
+)]
+
+use icn_ccl::compile_ccl_source_to_wasm;
 use std::process::Command;
 
 fn main() {
@@ -19,7 +24,11 @@ fn main() {
         println!("🔧 Compiling: {}", name);
         match compile_ccl_source_to_wasm(source) {
             Ok((wasm_bytes, metadata)) => {
-                println!("  ✅ Success! WASM size: {} bytes, CID: {}", wasm_bytes.len(), metadata.cid);
+                println!(
+                    "  ✅ Success! WASM size: {} bytes, CID: {}",
+                    wasm_bytes.len(),
+                    metadata.cid
+                );
                 compiled_contracts.push((name, wasm_bytes, metadata));
             }
             Err(e) => {
@@ -29,7 +38,11 @@ fn main() {
     }
 
     println!("\n=== CCL Compilation Summary ===");
-    println!("📊 Compiled {} out of {} contracts successfully", compiled_contracts.len(), 4);
+    println!(
+        "📊 Compiled {} out of {} contracts successfully",
+        compiled_contracts.len(),
+        4
+    );
 
     if !compiled_contracts.is_empty() {
         println!("\n=== Contract Details ===");
@@ -53,7 +66,12 @@ fn main() {
 
     println!("\n=== Testing devnet connectivity ===");
     let curl_result = Command::new("curl")
-        .args(&["-s", "-H", "X-API-Key: devnet-a-key", "http://localhost:5001/info"])
+        .args(&[
+            "-s",
+            "-H",
+            "X-API-Key: devnet-a-key",
+            "http://localhost:5001/info",
+        ])
         .output();
 
     match curl_result {
@@ -71,7 +89,9 @@ fn main() {
             }
         }
         Err(_) => {
-            println!("⚠️  Could not test devnet connectivity (curl not available or devnet not running)");
+            println!(
+                "⚠️  Could not test devnet connectivity (curl not available or devnet not running)"
+            );
         }
     }
 
@@ -82,4 +102,4 @@ fn main() {
     println!("  🔗 Mesh Integration - Deploy and execute across ICN network");
     println!("  🔒 Security - Sandboxed execution with resource limits");
     println!("  📜 Auditability - Source code hashing and receipts");
-} 
+}

@@ -19,6 +19,8 @@ mod tests {
                 ProposalType::GenericText("hello".into()),
                 "desc".into(),
                 60,
+                None,
+                None,
             )
             .unwrap();
 
@@ -58,6 +60,8 @@ mod tests {
                 ProposalType::GenericText("hi".into()),
                 "desc".into(),
                 60,
+                None,
+                None,
             )
             .unwrap();
         gov.open_voting(&pid).unwrap();
@@ -104,6 +108,8 @@ mod tests {
             voting_deadline: now + 60,
             status: ProposalStatus::VotingOpen,
             votes: HashMap::new(),
+            quorum: None,
+            threshold: None,
         };
 
         gov.insert_external_proposal(proposal.clone()).unwrap();
@@ -127,6 +133,8 @@ mod tests {
                 ProposalType::GenericText("vote".into()),
                 "desc".into(),
                 60,
+                None,
+                None,
             )
             .unwrap();
         gov.open_voting(&pid).unwrap();

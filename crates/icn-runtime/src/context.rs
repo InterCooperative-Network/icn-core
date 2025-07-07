@@ -306,6 +306,8 @@ pub struct CreateProposalPayload {
     pub type_specific_payload: Vec<u8>,
     pub description: String,
     pub duration_secs: u64,
+    pub quorum: Option<usize>,
+    pub threshold: Option<f32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -539,7 +541,8 @@ impl MeshNetworkService for DefaultMeshNetworkService {
                 Ok(result) => {
                     match result {
                         Some(message) => {
-                            if let MessagePayload::MeshReceiptSubmission(receipt_msg) = &message.payload
+                            if let MessagePayload::MeshReceiptSubmission(receipt_msg) =
+                                &message.payload
                             {
                                 if &JobId::from(receipt_msg.receipt.job_id.clone()) == job_id
                                     && &receipt_msg.receipt.executor_did == expected_executor
@@ -1557,6 +1560,8 @@ impl RuntimeContext {
                 proposal_type,
                 payload.description,
                 payload.duration_secs,
+                payload.quorum,
+                payload.threshold,
             )
             .map_err(HostAbiError::Common)?;
         let proposal = gov

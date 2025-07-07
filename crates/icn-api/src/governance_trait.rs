@@ -29,6 +29,8 @@ pub struct SubmitProposalRequest {
     pub proposal: ProposalInputType,
     pub description: String,
     pub duration_secs: u64,
+    pub quorum: Option<usize>,
+    pub threshold: Option<f32>,
 }
 
 pub trait GovernanceApi {
