@@ -4,7 +4,7 @@
     bids: &amp;[<a class="struct" href="struct.MeshJobBid.html" title="struct icn_mesh::MeshJobBid">MeshJobBid</a>],
     job_spec: &amp;<a class="struct" href="struct.JobSpec.html" title="struct icn_mesh::JobSpec">JobSpec</a>,
     policy: &amp;<a class="struct" href="struct.SelectionPolicy.html" title="struct icn_mesh::SelectionPolicy">SelectionPolicy</a>,
-    reputation_store: &amp;dyn <a class="trait" href="../icn_reputation/trait.ReputationStore.html" title="trait icn_reputation::ReputationStore">ReputationStore</a>,
+    reputation_store: &amp;dyn ReputationStore,
     mana_ledger: &amp;dyn <a class="trait" href="../icn_economics/trait.ManaLedger.html" title="trait icn_economics::ManaLedger">ManaLedger</a>,
 ) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="struct" href="../icn_common/struct.Did.html" title="struct icn_common::Did">Did</a>&gt;</h4></section></summary><div class="docblock"><p>Returns the executor DID with the highest bid score according to the
 provided policy and reputation store.</p>
