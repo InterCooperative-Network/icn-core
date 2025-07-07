@@ -78,6 +78,12 @@ Several example contracts live in `tests/contracts/`:
 These files can be compiled with `compile_ccl_file_to_wasm` and executed using
 the `WasmExecutor` as shown in the integration tests.
 
+## Mana Policies
+
+The repository includes example economic logic that manipulates mana balances. A
+full guide to implementing and deploying such policies is available in
+[docs/mana_policies.md](../docs/mana_policies.md).
+
 ## Integration with Other Crates
 
 * Compiled WASM is executed inside [`icn-runtime`](../crates/icn-runtime/README.md).
