@@ -42,6 +42,7 @@ mod multi_node_libp2p {
             &identity_str,
             listen,
             bootstrap_peers,
+            std::path::PathBuf::from("./dag_store"),
             std::path::PathBuf::from("./mana_ledger.sled"),
             std::path::PathBuf::from("./reputation.sled"),
         )

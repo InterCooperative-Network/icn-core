@@ -748,6 +748,7 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
                 &node_did_string,
                 listen_addrs,
                 bootstrap_peers,
+                config.storage_path.clone(),
                 config.mana_ledger_path.clone(),
                 config.reputation_db_path.clone(),
             )

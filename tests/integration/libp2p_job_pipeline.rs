@@ -206,6 +206,7 @@ mod libp2p_job_pipeline {
             "did:key:z6MktestA",
             listen.clone(),
             None,
+            std::path::PathBuf::from("./dag_a"),
             std::path::PathBuf::from("./mana_a.sled"),
             std::path::PathBuf::from("./rep_a.sled"),
         )
@@ -228,6 +229,7 @@ mod libp2p_job_pipeline {
             "did:key:z6MktestB",
             listen,
             Some(vec![(peer_a, addr_a.clone())]),
+            std::path::PathBuf::from("./dag_b"),
             std::path::PathBuf::from("./mana_b.sled"),
             std::path::PathBuf::from("./rep_b.sled"),
         )
