@@ -37,8 +37,8 @@ use icn_protocol::{
 };
 use icn_protocol::{MessagePayload, ProtocolMessage};
 use icn_runtime::context::{
-    RuntimeContext, StubDagStore as RuntimeStubDagStore, StubMeshNetworkService,
-    StubSigner as RuntimeStubSigner,
+    DefaultMeshNetworkService, RuntimeContext, StubDagStore as RuntimeStubDagStore,
+    StubMeshNetworkService, StubSigner as RuntimeStubSigner,
 };
 use icn_runtime::{host_anchor_receipt, host_submit_mesh_job, ReputationUpdater};
 use prometheus_client::{encoding::text::encode, registry::Registry};
@@ -67,6 +67,8 @@ use tokio::sync::{Mutex as AsyncMutex, Mutex as TokioMutex};
 
 use crate::config::{NodeConfig, StorageBackendType};
 
+#[cfg(feature = "enable-libp2p")]
+use icn_network::libp2p_service::{Libp2pNetworkService, NetworkConfig};
 #[cfg(feature = "enable-libp2p")]
 use libp2p::{Multiaddr, PeerId as Libp2pPeerId};
 
@@ -398,6 +400,17 @@ pub async fn app_router_with_options(
     let dag_store_for_rt = cfg
         .init_dag_store()
         .expect("Failed to init DAG store for test context");
+
+    #[cfg(feature = "enable-libp2p")]
+    let mesh_network_service = {
+        let cfg = NetworkConfig::default();
+        let service = Libp2pNetworkService::new(cfg)
+            .await
+            .expect("Failed to create libp2p service");
+        let service_dyn: Arc<dyn NetworkService> = Arc::new(service);
+        Arc::new(DefaultMeshNetworkService::new(service_dyn))
+    };
+    #[cfg(not(feature = "enable-libp2p"))]
     let mesh_network_service = Arc::new(StubMeshNetworkService::new());
     // GovernanceModule is initialized inside RuntimeContext::new
 
@@ -776,7 +789,7 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
             std::process::exit(1);
         }
     } else {
-        info!("Using stub networking (P2P disabled)");
+        info!("Using local libp2p networking (P2P disabled)");
         let signer = Arc::new(RuntimeStubSigner::new_with_keys(node_sk, node_pk));
         let dag_store_for_rt = match config.init_dag_store() {
             Ok(store) => store,
@@ -785,6 +798,17 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
                 std::process::exit(1);
             }
         };
+
+        #[cfg(feature = "enable-libp2p")]
+        let mesh_network_service = {
+            let net_cfg = icn_network::libp2p_service::NetworkConfig::default();
+            let libp2p_service = icn_network::libp2p_service::Libp2pNetworkService::new(net_cfg)
+                .await
+                .expect("Failed to create libp2p service");
+            let service_dyn: Arc<dyn NetworkService> = Arc::new(libp2p_service);
+            Arc::new(DefaultMeshNetworkService::new(service_dyn))
+        };
+        #[cfg(not(feature = "enable-libp2p"))]
         let mesh_network_service = Arc::new(StubMeshNetworkService::new());
 
         let ledger = icn_runtime::context::SimpleManaLedger::new_with_backend(
