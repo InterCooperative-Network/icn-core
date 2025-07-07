@@ -1,0 +1,48 @@
+{
+  "uid": "icn-devnet-overview",
+  "title": "ICN Devnet Overview",
+  "schemaVersion": 37,
+  "version": 1,
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Submit Mesh Job Calls",
+      "id": 1,
+      "datasource": "Prometheus",
+      "targets": [{ "expr": "host_submit_mesh_job_calls" }],
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 0 }
+    },
+    {
+      "type": "stat",
+      "title": "Spend Mana Calls",
+      "id": 2,
+      "datasource": "Prometheus",
+      "targets": [{ "expr": "host_account_spend_mana_calls" }],
+      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 0 }
+    },
+    {
+      "type": "gauge",
+      "title": "Ping Avg RTT (ms)",
+      "id": 3,
+      "datasource": "Prometheus",
+      "targets": [{ "expr": "PING_AVG_RTT_MS" }],
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 4 }
+    },
+    {
+      "type": "gauge",
+      "title": "Ping Max RTT (ms)",
+      "id": 4,
+      "datasource": "Prometheus",
+      "targets": [{ "expr": "PING_MAX_RTT_MS" }],
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 4 }
+    },
+    {
+      "type": "stat",
+      "title": "Credit Mana Calls",
+      "id": 5,
+      "datasource": "Prometheus",
+      "targets": [{ "expr": "economics_credit_mana_calls" }],
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 4 }
+    }
+  ]
+}

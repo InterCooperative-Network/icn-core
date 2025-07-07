@@ -168,6 +168,14 @@ receivers or routing rules. Sample alert rules live in `alert.rules.yml` and
 cover basic node availability. Extend these rules or hook Alertmanager into your
 own notification channels as needed.
 
+### Grafana Dashboards
+
+Pre-built dashboards are available under `grafana/`.
+
+1. Start the monitoring profile with `docker-compose --profile monitoring up -d`.
+2. Open Grafana at [http://localhost:3000](http://localhost:3000) (admin/icnfederation).
+3. Navigate to **Dashboards → Import** and upload `grafana/icn-devnet-overview.json`.
+
 ### Development Mode
 
 ```bash
