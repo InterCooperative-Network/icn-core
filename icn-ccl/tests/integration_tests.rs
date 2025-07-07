@@ -205,7 +205,7 @@ async fn test_wasm_executor_with_ccl() {
     let node_did = icn_common::Did::from_str(&node_did).unwrap();
 
     let job = ActualMeshJob {
-        id: Cid::new_v1_sha256(0x55, b"job"),
+        id: icn_mesh::JobId(Cid::new_v1_sha256(0x55, b"job")),
         manifest_cid: cid,
         spec: JobSpec::default(),
         creator_did: node_did.clone(),
@@ -352,7 +352,7 @@ async fn test_wasm_executor_runs_addition() {
     let node_did = icn_common::Did::from_str(&node_did).unwrap();
 
     let job = ActualMeshJob {
-        id: Cid::new_v1_sha256(0x55, b"jobadd"),
+        id: icn_mesh::JobId(Cid::new_v1_sha256(0x55, b"jobadd")),
         manifest_cid: cid,
         spec: JobSpec::default(),
         creator_did: node_did.clone(),
@@ -409,7 +409,7 @@ async fn test_wasm_executor_runs_proposal_flow() {
     let node_did = icn_common::Did::from_str(&node_did).unwrap();
 
     let job = ActualMeshJob {
-        id: Cid::new_v1_sha256(0x55, b"jobprop"),
+        id: icn_mesh::JobId(Cid::new_v1_sha256(0x55, b"jobprop")),
         manifest_cid: cid,
         spec: JobSpec {
             kind: JobKind::CclWasm,
@@ -467,7 +467,7 @@ async fn test_wasm_executor_runs_voting_logic() {
     let node_did = icn_common::Did::from_str(&node_did).unwrap();
 
     let job = ActualMeshJob {
-        id: Cid::new_v1_sha256(0x55, b"jobvote"),
+        id: icn_mesh::JobId(Cid::new_v1_sha256(0x55, b"jobvote")),
         manifest_cid: cid,
         spec: JobSpec {
             kind: JobKind::CclWasm,

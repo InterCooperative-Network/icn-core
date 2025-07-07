@@ -6,6 +6,14 @@ authors = ["InterCooperative Network <dev@intercooperative.network>"]
 license = "Apache-2.0"
 # description = "Compiler for the Cooperative Contract Language (CCL) to WASM"
 
+[[bin]]
+name = "demo_ccl"
+path = "demo_ccl.rs"
+
+[[bin]]
+name = "demo_with_devnet"
+path = "demo_with_devnet.rs"
+
 [dependencies]
 pest = "2.7" # Or the version you intend to use
 pest_derive = "2.7"
