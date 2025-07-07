@@ -118,6 +118,21 @@ enum DagCommands {
         #[clap(help = "CID of the block to retrieve, as a JSON string")]
         cid_json: String,
     },
+    /// Backup the DAG store to the specified directory
+    Backup {
+        #[clap(help = "Path to store the backup data")]
+        path: String,
+    },
+    /// Restore the DAG store from the specified directory
+    Restore {
+        #[clap(help = "Path of the backup to restore from")]
+        path: String,
+    },
+    /// Verify blocks in the DAG store
+    Verify {
+        #[clap(long, help = "Verify all blocks, not just a sample")]
+        full: bool,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -233,6 +248,9 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
                 block_json_or_stdin,
             } => handle_dag_put(cli, client, block_json_or_stdin).await?,
             DagCommands::Get { cid_json } => handle_dag_get(cli, client, cid_json).await?,
+            DagCommands::Backup { path } => handle_dag_backup(path)?,
+            DagCommands::Restore { path } => handle_dag_restore(path)?,
+            DagCommands::Verify { full } => handle_dag_verify(*full)?,
         },
         Commands::Governance { command } => match command {
             GovernanceCommands::Submit {
@@ -405,6 +423,55 @@ async fn handle_dag_get(cli: &Cli, client: &Client, cid_json: &str) -> Result<()
     println!("--- Retrieved DAG Block ---");
     println!("{}", serde_json::to_string_pretty(&response_block)?);
     println!("-------------------------");
+    Ok(())
+}
+
+fn handle_dag_backup(path: &str) -> Result<(), anyhow::Error> {
+    let src = PathBuf::from("./icn_data/node_store");
+    let dest = PathBuf::from(path);
+    std::fs::create_dir_all(&dest)?;
+    for entry in std::fs::read_dir(&src)? {
+        let entry = entry?;
+        if entry.file_type()?.is_file() {
+            let target = dest.join(entry.file_name());
+            std::fs::copy(entry.path(), target)?;
+        }
+    }
+    println!("Backup created at {}", dest.display());
+    Ok(())
+}
+
+fn handle_dag_restore(path: &str) -> Result<(), anyhow::Error> {
+    let src = PathBuf::from(path);
+    let dest = PathBuf::from("./icn_data/node_store");
+    std::fs::create_dir_all(&dest)?;
+    for entry in std::fs::read_dir(&src)? {
+        let entry = entry?;
+        if entry.file_type()?.is_file() {
+            let target = dest.join(entry.file_name());
+            std::fs::copy(entry.path(), target)?;
+        }
+    }
+    println!("Restored DAG store from {}", src.display());
+    Ok(())
+}
+
+fn handle_dag_verify(full: bool) -> Result<(), anyhow::Error> {
+    let store_path = PathBuf::from("./icn_data/node_store");
+    let mut verified = 0usize;
+    for entry in std::fs::read_dir(&store_path)? {
+        let entry = entry?;
+        if entry.file_type()?.is_file() {
+            let content = std::fs::read_to_string(entry.path())?;
+            let block: DagBlock = serde_json::from_str(&content)?;
+            icn_common::verify_block_integrity(&block)?;
+            verified += 1;
+            if !full {
+                break;
+            }
+        }
+    }
+    println!("Verified {verified} block(s)");
     Ok(())
 }
 
