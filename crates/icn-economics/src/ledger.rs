@@ -70,13 +70,13 @@ impl FileManaLedger {
             .truncate(true)
             .open(&tmp_path)
             .map_err(|e| {
-                CommonError::IoError(format!("Failed to open ledger file {:?}: {e}", tmp_path))
+                CommonError::IoError(format!("Failed to open ledger file {tmp_path:?}: {e}"))
             })?;
         file.write_all(serialized.as_bytes()).map_err(|e| {
-            CommonError::IoError(format!("Failed to write ledger file {:?}: {e}", tmp_path))
+            CommonError::IoError(format!("Failed to write ledger file {tmp_path:?}: {e}"))
         })?;
         file.sync_all().map_err(|e| {
-            CommonError::IoError(format!("Failed to sync ledger file {:?}: {e}", tmp_path))
+            CommonError::IoError(format!("Failed to sync ledger file {tmp_path:?}: {e}"))
         })?;
         drop(file);
         rename(&tmp_path, &self.path).map_err(|e| {
@@ -252,12 +252,10 @@ impl SledManaLedger {
     pub fn all_accounts(&self) -> Vec<Did> {
         use std::str::FromStr;
         let mut accounts = Vec::new();
-        for result in self.tree.iter() {
-            if let Ok((key, _)) = result {
-                if let Ok(did_str) = std::str::from_utf8(&key) {
-                    if let Ok(did) = Did::from_str(did_str) {
-                        accounts.push(did);
-                    }
+        for (key, _) in self.tree.iter().flatten() {
+            if let Ok(did_str) = std::str::from_utf8(&key) {
+                if let Ok(did) = Did::from_str(did_str) {
+                    accounts.push(did);
                 }
             }
         }

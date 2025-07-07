@@ -85,11 +85,9 @@ impl SqliteManaLedger {
         match rows_result {
             Ok(rows) => {
                 let mut accounts = Vec::new();
-                for row_result in rows {
-                    if let Ok(did_string) = row_result {
-                        if let Ok(did) = Did::from_str(&did_string) {
-                            accounts.push(did);
-                        }
+                for did_string in rows.flatten() {
+                    if let Ok(did) = Did::from_str(&did_string) {
+                        accounts.push(did);
                     }
                 }
                 accounts

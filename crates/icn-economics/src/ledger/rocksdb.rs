@@ -68,12 +68,10 @@ impl RocksdbManaLedger {
         use rocksdb::IteratorMode;
         use std::str::FromStr;
         let mut accounts = Vec::new();
-        for item in self.db.iterator(IteratorMode::Start) {
-            if let Ok((key, _)) = item {
-                if let Ok(did_str) = std::str::from_utf8(&key) {
-                    if let Ok(did) = Did::from_str(did_str) {
-                        accounts.push(did);
-                    }
+        for (key, _) in self.db.iterator(IteratorMode::Start).flatten() {
+            if let Ok(did_str) = std::str::from_utf8(&key) {
+                if let Ok(did) = Did::from_str(did_str) {
+                    accounts.push(did);
                 }
             }
         }
