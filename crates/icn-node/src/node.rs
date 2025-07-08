@@ -60,13 +60,13 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::net::SocketAddr;
 use std::path::PathBuf;
+use std::process;
 use std::str::FromStr;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use subtle::ConstantTimeEq;
 use tokio::sync::{Mutex as AsyncMutex, Mutex as TokioMutex};
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::process;
 
 use crate::config::{NodeConfig, StorageBackendType};
 
@@ -481,7 +481,7 @@ pub async fn app_router_with_options(
         .unwrap_or_else(|| PathBuf::from("./reputation.sled"));
     let ledger_backend = mana_ledger_backend.unwrap_or_else(crate::config::default_ledger_backend);
     let ledger = icn_runtime::context::SimpleManaLedger::new_with_backend(
-        mana_ledger_path.unwrap_or_else(|| PathBuf::from("./mana_ledger.sled")),
+        mana_ledger_path.unwrap_or_else(|| PathBuf::from("./mana_ledger.sqlite")),
         ledger_backend,
     );
     let mut rt_ctx = RuntimeContext::new_with_mana_ledger_and_time(
@@ -746,7 +746,7 @@ pub async fn app_router_from_context(
 pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init(); // Initialize logger
     init_node_start_time(); // Initialize uptime tracking
-    
+
     let cmd = Cli::command();
     let matches = cmd.get_matches();
     let cli = Cli::from_arg_matches(&matches).expect("CLI parsing failed");
@@ -764,17 +764,22 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
         NodeConfig::default()
     };
     let param_store_path = config_path.unwrap_or_else(|| PathBuf::from("node_config.toml"));
-    let mut parameter_store = ParameterStore::load(param_store_path.clone())
-        .unwrap_or_else(|e| {
-            warn!("Failed to load parameter store from {}: {}, using defaults", param_store_path.display(), e);
-            // The load method should handle this case, but if not, we can't recover
-            panic!("Failed to create parameter store")
-        });
+    let mut parameter_store = ParameterStore::load(param_store_path.clone()).unwrap_or_else(|e| {
+        warn!(
+            "Failed to load parameter store from {}: {}, using defaults",
+            param_store_path.display(),
+            e
+        );
+        // The load method should handle this case, but if not, we can't recover
+        panic!("Failed to create parameter store")
+    });
     // Start with persisted parameter values
     config.open_rate_limit = parameter_store.open_rate_limit();
     config.apply_env_overrides();
     config.apply_cli_overrides(&cli, &matches);
-    if let Err(e) = parameter_store.set_parameter("open_rate_limit", &config.open_rate_limit.to_string()) {
+    if let Err(e) =
+        parameter_store.set_parameter("open_rate_limit", &config.open_rate_limit.to_string())
+    {
         warn!("Failed to update parameter store: {}", e);
     }
     let _ = parameter_store.save();
@@ -1145,10 +1150,10 @@ async fn health_handler(State(state): State<AppState>) -> impl IntoResponse {
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_secs();
-    
+
     let start_time = NODE_START_TIME.load(Ordering::Relaxed);
     let uptime = if start_time > 0 { now - start_time } else { 0 };
-    
+
     // Perform health checks
     let mut checks = HealthChecks {
         runtime: "OK".to_string(),
@@ -1156,9 +1161,9 @@ async fn health_handler(State(state): State<AppState>) -> impl IntoResponse {
         network: "OK".to_string(),
         mana_ledger: "OK".to_string(),
     };
-    
+
     let mut overall_status = "OK";
-    
+
     // Check DAG store health
     match state.runtime_context.dag_store.try_lock() {
         Ok(_) => checks.dag_store = "OK".to_string(),
@@ -1167,13 +1172,13 @@ async fn health_handler(State(state): State<AppState>) -> impl IntoResponse {
             overall_status = "DEGRADED";
         }
     }
-    
+
     // Check mana ledger health
     let test_did = icn_common::Did::new("key", "health_check_test");
     let _balance_check = state.runtime_context.mana_ledger.get_balance(&test_did);
     // get_balance returns u64, so it's always >= 0
     checks.mana_ledger = "OK".to_string();
-    
+
     // Check network health
     #[cfg(feature = "enable-libp2p")]
     {
@@ -1189,20 +1194,20 @@ async fn health_handler(State(state): State<AppState>) -> impl IntoResponse {
     {
         checks.network = "DISABLED".to_string();
     }
-    
+
     let health_status = HealthStatus {
         status: overall_status.to_string(),
         timestamp: now,
         uptime_seconds: uptime,
         checks,
     };
-    
+
     let status_code = match overall_status {
         "OK" => StatusCode::OK,
         "DEGRADED" => StatusCode::OK, // Still serving requests
         _ => StatusCode::SERVICE_UNAVAILABLE,
     };
-    
+
     (status_code, Json(health_status))
 }
 
@@ -1212,23 +1217,23 @@ async fn readiness_handler(State(state): State<AppState>) -> impl IntoResponse {
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_secs();
-    
+
     let mut checks = ReadinessChecks {
         can_serve_requests: true,
         mana_ledger_available: false,
         dag_store_available: false,
         network_initialized: false,
     };
-    
+
     // Check if DAG store is accessible
     checks.dag_store_available = state.runtime_context.dag_store.try_lock().is_ok();
-    
+
     // Check if mana ledger is working
     let test_did = icn_common::Did::new("key", "readiness_test");
     let _balance_check = state.runtime_context.mana_ledger.get_balance(&test_did);
     // get_balance returns u64, so it's always available
     checks.mana_ledger_available = true;
-    
+
     // Check network initialization
     #[cfg(feature = "enable-libp2p")]
     {
@@ -1238,24 +1243,24 @@ async fn readiness_handler(State(state): State<AppState>) -> impl IntoResponse {
     {
         checks.network_initialized = true; // Consider initialized if networking is disabled
     }
-    
-    let ready = checks.can_serve_requests && 
-                checks.mana_ledger_available && 
-                checks.dag_store_available && 
-                checks.network_initialized;
-    
+
+    let ready = checks.can_serve_requests
+        && checks.mana_ledger_available
+        && checks.dag_store_available
+        && checks.network_initialized;
+
     let readiness_status = ReadinessStatus {
         ready,
         timestamp: now,
         checks,
     };
-    
+
     let status_code = if ready {
         StatusCode::OK
     } else {
         StatusCode::SERVICE_UNAVAILABLE
     };
-    
+
     (status_code, Json(readiness_status))
 }
 
@@ -1272,7 +1277,7 @@ async fn metrics_handler() -> impl IntoResponse {
     use prometheus_client::metrics::{counter::Counter, gauge::Gauge};
 
     let mut registry = Registry::default();
-    
+
     // Existing metrics
     registry.register(
         "host_submit_mesh_job_calls",
@@ -1357,7 +1362,7 @@ async fn metrics_handler() -> impl IntoResponse {
         .as_secs();
     let start_time = NODE_START_TIME.load(Ordering::Relaxed);
     let uptime = if start_time > 0 { now - start_time } else { 0 };
-    
+
     let uptime_gauge: Gauge<f64, std::sync::atomic::AtomicU64> = Gauge::default();
     uptime_gauge.set(uptime as f64);
     registry.register(
@@ -1368,11 +1373,7 @@ async fn metrics_handler() -> impl IntoResponse {
 
     let process_id_gauge: Gauge<f64, std::sync::atomic::AtomicU64> = Gauge::default();
     process_id_gauge.set(process::id() as f64);
-    registry.register(
-        "node_process_id",
-        "Node process ID",
-        process_id_gauge,
-    );
+    registry.register("node_process_id", "Node process ID", process_id_gauge);
 
     // Memory usage (basic approximation - could be enhanced with proper system monitoring)
     if let Ok(status) = fs::read_to_string("/proc/self/status") {
@@ -1380,7 +1381,8 @@ async fn metrics_handler() -> impl IntoResponse {
             if line.starts_with("VmRSS:") {
                 if let Some(kb_str) = line.split_whitespace().nth(1) {
                     if let Ok(kb) = kb_str.parse::<u64>() {
-                        let memory_gauge: Gauge<f64, std::sync::atomic::AtomicU64> = Gauge::default();
+                        let memory_gauge: Gauge<f64, std::sync::atomic::AtomicU64> =
+                            Gauge::default();
                         memory_gauge.set((kb * 1024) as f64); // Convert KB to bytes
                         registry.register(
                             "node_memory_usage_bytes",
@@ -2508,7 +2510,8 @@ mod tests {
         use icn_runtime::executor::WasmExecutor;
 
         let (app, ctx) =
-            app_router_with_options(None, None, None, None, None, None, None, None, None, None).await;
+            app_router_with_options(None, None, None, None, None, None, None, None, None, None)
+                .await;
 
         // Compile a tiny CCL contract
         let (wasm, _) =

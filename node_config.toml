@@ -1,7 +1,7 @@
 storage_backend = 'Memory'
 storage_path = './icn_data/node_store'
 mana_ledger_backend = 'Sqlite'
-mana_ledger_path = './mana_ledger.sled'
+mana_ledger_path = './mana_ledger.sqlite'
 reputation_db_path = './reputation.sled'
 governance_db_path = './governance_db'
 http_listen_addr = '127.0.0.1:7845'

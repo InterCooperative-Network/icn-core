@@ -114,7 +114,7 @@ impl Default for NodeConfig {
             storage_backend: StorageBackendType::Memory,
             storage_path: "./icn_data/node_store".into(),
             mana_ledger_backend: default_ledger_backend(),
-            mana_ledger_path: "./mana_ledger.sled".into(),
+            mana_ledger_path: "./mana_ledger.sqlite".into(),
             reputation_db_path: "./reputation.sled".into(),
             governance_db_path: "./governance_db".into(),
             http_listen_addr: "127.0.0.1:7845".to_string(),
