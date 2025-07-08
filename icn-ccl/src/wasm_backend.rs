@@ -1,7 +1,7 @@
 // icn-ccl/src/wasm_backend.rs
 use crate::ast::{
-    AstNode, BinaryOperator, UnaryOperator, BlockNode, ExpressionNode, PolicyStatementNode, StatementNode,
-    TypeAnnotationNode,
+    AstNode, BinaryOperator, BlockNode, ExpressionNode, PolicyStatementNode, StatementNode,
+    TypeAnnotationNode, UnaryOperator,
 };
 use crate::error::CclError;
 use crate::metadata::ContractMetadata;
@@ -44,7 +44,7 @@ impl LocalEnv {
     }
 }
 
-const IMPORT_COUNT: u32 = 3;
+const IMPORT_COUNT: u32 = 4;
 
 pub struct WasmBackend {}
 
@@ -84,6 +84,18 @@ impl WasmBackend {
             wasm_encoder::EntityType::Function(ty_get_mana),
         );
         fn_indices.insert("host_account_get_mana".to_string(), next_index);
+        next_index += 1;
+
+        let ty_get_rep = types.len() as u32;
+        types
+            .ty()
+            .function(Vec::<ValType>::new(), vec![ValType::I64]);
+        imports.import(
+            "icn",
+            "host_get_reputation",
+            wasm_encoder::EntityType::Function(ty_get_rep),
+        );
+        fn_indices.insert("host_get_reputation".to_string(), next_index);
         next_index += 1;
 
         let ty_submit = types.len() as u32;
@@ -128,13 +140,13 @@ impl WasmBackend {
             }) = item
             {
                 let ret_ty = map_val_type(return_type)?;
-                
+
                 // Build parameter types for WASM function signature
                 let mut param_types = Vec::new();
                 for param in parameters {
                     param_types.push(map_val_type(&param.type_ann)?);
                 }
-                
+
                 let type_index = types.len();
                 types.ty().function(param_types.clone(), vec![ret_ty]);
                 functions.function(type_index as u32);
@@ -143,16 +155,18 @@ impl WasmBackend {
                 next_index += 1;
 
                 let mut locals = LocalEnv::new();
-                
+
                 // Register function parameters (they don't go in locals.order, only in the name mapping)
                 for (i, param) in parameters.iter().enumerate() {
                     let param_type = map_val_type(&param.type_ann)?;
-                    locals.locals.insert(param.name.clone(), (i as u32, param_type));
+                    locals
+                        .locals
+                        .insert(param.name.clone(), (i as u32, param_type));
                 }
-                
+
                 // Set the starting index for additional local variables after parameters
                 locals.next_local_index = parameters.len() as u32;
-                
+
                 let mut instrs = Vec::<Instruction>::new();
                 self.emit_block(body, &mut instrs, &mut locals, return_type, &fn_indices)?;
                 instrs.push(Instruction::End);
@@ -239,7 +253,7 @@ impl WasmBackend {
                 }
                 instrs.push(Instruction::Call(*idx));
                 let ret = match name.as_str() {
-                    "host_account_get_mana" => ValType::I64,
+                    "host_account_get_mana" | "host_get_reputation" => ValType::I64,
                     "host_submit_mesh_job" | "host_anchor_receipt" => ValType::I32,
                     _ => ValType::I64,
                 };
@@ -409,27 +423,33 @@ impl WasmBackend {
                         "If condition must be boolean".to_string(),
                     ));
                 }
-                
+
                 // Create if-else structure
                 if else_block.is_some() {
                     // if-else: use if with block type empty
                     instrs.push(Instruction::If(wasm_encoder::BlockType::Empty));
-                    
+
                     // Emit then block
                     self.emit_block(then_block, instrs, locals, return_ty, indices)?;
-                    
+
                     // Emit else block
                     instrs.push(Instruction::Else);
-                    self.emit_block(else_block.as_ref().unwrap(), instrs, locals, return_ty, indices)?;
-                    
+                    self.emit_block(
+                        else_block.as_ref().unwrap(),
+                        instrs,
+                        locals,
+                        return_ty,
+                        indices,
+                    )?;
+
                     instrs.push(Instruction::End);
                 } else {
                     // if without else: use if with block type empty
                     instrs.push(Instruction::If(wasm_encoder::BlockType::Empty));
-                    
+
                     // Emit then block
                     self.emit_block(then_block, instrs, locals, return_ty, indices)?;
-                    
+
                     instrs.push(Instruction::End);
                 }
             }

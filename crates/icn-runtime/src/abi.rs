@@ -27,6 +27,10 @@ pub const ABI_HOST_GET_PENDING_MESH_JOBS: u32 = 22;
 /// Anchors an execution receipt to the DAG and updates reputation.
 pub const ABI_HOST_ANCHOR_RECEIPT: u32 = 23;
 
+/// ABI Index for `host_get_reputation`.
+/// Retrieves the reputation score for the given DID.
+pub const ABI_HOST_GET_REPUTATION: u32 = 24;
+
 // --- Governance ABI Functions (RFC 0010) ---
 // Indices reserved for governance operations defined in RFC 0010.
 
