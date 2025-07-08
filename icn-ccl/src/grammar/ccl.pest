@@ -50,10 +50,10 @@ MUL_OP = { "*" }
 DIV_OP = { "/" }
 EQ_OP  = { "==" }
 NEQ_OP = { "!=" }
-LT_OP  = { "<" }
 LTE_OP = { "<=" }
-GT_OP  = { ">" }
+LT_OP  = { "<" }
 GTE_OP = { ">=" }
+GT_OP  = { ">" }
 AND_OP = { "&&" }
 OR_OP  = { "||" }
 NOT_OP = { "!" }

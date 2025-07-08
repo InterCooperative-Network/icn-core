@@ -139,3 +139,63 @@ fn test_pair_to_ast_statement_return() {
     });
     assert_eq!(ast, expected);
 }
+
+#[test]
+fn test_pair_to_ast_gte_comparison() {
+    let src = "fn cmp(a: Integer, b: Integer) -> Bool { return a >= b; }";
+    let mut pairs = CclParser::parse(Rule::function_definition, src).unwrap();
+    let pair = pairs.next().unwrap();
+    let ast = ast::pair_to_ast(pair).unwrap();
+    let expected = AstNode::FunctionDefinition {
+        name: "cmp".to_string(),
+        parameters: vec![
+            ParameterNode {
+                name: "a".to_string(),
+                type_ann: TypeAnnotationNode::Integer,
+            },
+            ParameterNode {
+                name: "b".to_string(),
+                type_ann: TypeAnnotationNode::Integer,
+            },
+        ],
+        return_type: TypeAnnotationNode::Bool,
+        body: BlockNode {
+            statements: vec![StatementNode::Return(ExpressionNode::BinaryOp {
+                left: Box::new(ExpressionNode::Identifier("a".to_string())),
+                operator: BinaryOperator::Gte,
+                right: Box::new(ExpressionNode::Identifier("b".to_string())),
+            })],
+        },
+    };
+    assert_eq!(ast, expected);
+}
+
+#[test]
+fn test_pair_to_ast_lte_comparison() {
+    let src = "fn cmp(a: Integer, b: Integer) -> Bool { return a <= b; }";
+    let mut pairs = CclParser::parse(Rule::function_definition, src).unwrap();
+    let pair = pairs.next().unwrap();
+    let ast = ast::pair_to_ast(pair).unwrap();
+    let expected = AstNode::FunctionDefinition {
+        name: "cmp".to_string(),
+        parameters: vec![
+            ParameterNode {
+                name: "a".to_string(),
+                type_ann: TypeAnnotationNode::Integer,
+            },
+            ParameterNode {
+                name: "b".to_string(),
+                type_ann: TypeAnnotationNode::Integer,
+            },
+        ],
+        return_type: TypeAnnotationNode::Bool,
+        body: BlockNode {
+            statements: vec![StatementNode::Return(ExpressionNode::BinaryOp {
+                left: Box::new(ExpressionNode::Identifier("a".to_string())),
+                operator: BinaryOperator::Lte,
+                right: Box::new(ExpressionNode::Identifier("b".to_string())),
+            })],
+        },
+    };
+    assert_eq!(ast, expected);
+}
