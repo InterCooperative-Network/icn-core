@@ -1,8 +1,6 @@
 //! Defines the `RuntimeContext`, `HostEnvironment`, and related types for the ICN runtime.
 
-use icn_common::{
-    Cid, CommonError, DagBlock, Did,
-};
+use icn_common::{Cid, CommonError, DagBlock, Did};
 use icn_identity::{ExecutionReceipt as IdentityExecutionReceipt, SignatureBytes};
 use icn_mesh::{ActualMeshJob, JobId, JobState, MeshJobBid, Resources};
 
@@ -34,13 +32,13 @@ use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
 use std::sync::atomic::AtomicU32;
 use std::sync::Arc;
+#[cfg(not(feature = "async"))]
+use std::sync::Mutex as SyncMutex;
 use std::time::{Duration as StdDuration, Instant as StdInstant};
 #[cfg(test)]
 use tempfile;
 #[cfg(feature = "async")]
 use tokio::sync::Mutex as TokioMutex;
-#[cfg(not(feature = "async"))]
-use std::sync::Mutex as SyncMutex;
 
 use async_trait::async_trait;
 
@@ -74,7 +72,7 @@ use icn_dag::rocksdb_store::RocksDagStore;
 #[cfg(feature = "async")]
 use icn_dag::{AsyncStorageService as DagStorageService, TokioFileDagStore};
 #[cfg(not(feature = "async"))]
-use icn_dag::{StorageService as DagStorageService, FileDagStore};
+use icn_dag::{FileDagStore, StorageService as DagStorageService};
 
 #[cfg(feature = "async")]
 type DagStoreMutex<T> = TokioMutex<T>;
@@ -437,7 +435,8 @@ impl MeshNetworkService for DefaultMeshNetworkService {
     ) -> Result<Vec<MeshJobBid>, HostAbiError> {
         log::debug!(
             "[DefaultMeshNetworkService] Collecting bids for job {:?} for {:?}",
-            job_id, duration
+            job_id,
+            duration
         );
         let mut bids = Vec::new();
         let mut receiver = self.inner.subscribe().await.map_err(|e| {
@@ -853,9 +852,9 @@ impl RuntimeContext {
         policy_enforcer: Option<Arc<dyn ScopedPolicyEnforcer>>,
     ) -> Result<Arc<Self>, CommonError> {
         #[cfg(feature = "persist-rocksdb")]
-        let dag_store = Arc::new(DagStoreMutex::new(icn_dag::rocksdb_store::RocksDagStore::new(
-            dag_path.clone(),
-        )?)) as Arc<DagStoreMutex<dyn DagStorageService<DagBlock> + Send>>;
+        let dag_store = Arc::new(DagStoreMutex::new(
+            icn_dag::rocksdb_store::RocksDagStore::new(dag_path.clone())?,
+        )) as Arc<DagStoreMutex<dyn DagStorageService<DagBlock> + Send>>;
 
         #[cfg(all(not(feature = "persist-rocksdb"), feature = "persist-sled"))]
         let dag_store = Arc::new(DagStoreMutex::new(icn_dag::sled_store::SledDagStore::new(
@@ -876,9 +875,9 @@ impl RuntimeContext {
             }
             #[cfg(not(feature = "async"))]
             {
-                Arc::new(DagStoreMutex::new(icn_dag::sqlite_store::SqliteDagStore::new(
-                    dag_path.clone(),
-                )?)) as Arc<DagStoreMutex<dyn DagStorageService<DagBlock> + Send>>
+                Arc::new(DagStoreMutex::new(
+                    icn_dag::sqlite_store::SqliteDagStore::new(dag_path.clone())?,
+                )) as Arc<DagStoreMutex<dyn DagStorageService<DagBlock> + Send>>
             }
         };
 
@@ -1053,9 +1052,11 @@ impl RuntimeContext {
         job: ActualMeshJob,
         assigned_executor_did: Did,
     ) -> Result<(), HostAbiError> {
+        let start_time = StdInstant::now();
         log::info!(
             "[JobManagerDetail] Waiting for receipt for job {:?} from executor {:?}",
-            job.id, assigned_executor_did
+            job.id,
+            assigned_executor_did
         );
         // Determine how long to wait for the execution receipt.
         let timeout_ms = job
@@ -1071,7 +1072,8 @@ impl RuntimeContext {
             Ok(Some(receipt)) => {
                 log::info!(
                     "[JobManagerDetail] Received receipt for job {:?}: {:?}",
-                    job.id, receipt
+                    job.id,
+                    receipt
                 );
 
                 // Resolve executor verifying key and verify the receipt.
@@ -1091,17 +1093,21 @@ impl RuntimeContext {
                     Err(e) => {
                         log::error!(
                             "[JobManagerDetail] Failed to resolve DID {:?}: {}",
-                            receipt.executor_did, e
+                            receipt.executor_did,
+                            e
                         );
                         return Err(HostAbiError::Common(e));
                     }
                 }
 
+                icn_mesh::metrics::JOB_PROCESS_TIME.observe(start_time.elapsed().as_secs_f64());
+
                 match self.anchor_receipt(&receipt).await {
                     Ok(receipt_cid) => {
                         log::info!(
                             "[JobManagerDetail] Receipt for job {:?} anchored successfully: {:?}",
-                            job.id, receipt_cid
+                            job.id,
+                            receipt_cid
                         );
                         let mut job_states_guard = self.job_states.lock().await;
                         job_states_guard.insert(
@@ -1131,7 +1137,8 @@ impl RuntimeContext {
                         if let Err(err) = self.credit_mana(&job.creator_did, job.cost_mana).await {
                             log::error!(
                                 "[JobManagerDetail] Failed to refund mana to {:?}: {}",
-                                job.creator_did, err
+                                job.creator_did,
+                                err
                             );
                         }
                         Err(HostAbiError::DagOperationFailed(format!(
@@ -1153,7 +1160,8 @@ impl RuntimeContext {
                 if let Err(err) = self.credit_mana(&job.creator_did, job.cost_mana).await {
                     log::error!(
                         "[JobManagerDetail] Failed to refund mana to {:?}: {}",
-                        job.creator_did, err
+                        job.creator_did,
+                        err
                     );
                 }
                 Err(HostAbiError::NetworkError(
@@ -1172,7 +1180,8 @@ impl RuntimeContext {
                 if let Err(err) = self.credit_mana(&job.creator_did, job.cost_mana).await {
                     log::error!(
                         "[JobManagerDetail] Failed to refund mana to {:?}: {}",
-                        job.creator_did, err
+                        job.creator_did,
+                        err
                     );
                 }
                 Err(e)
@@ -1214,7 +1223,8 @@ impl RuntimeContext {
 
                     log::info!(
                         "[JobManagerLoop] Processing job: {:?}, current state from map: {:?}",
-                        current_job_id, current_job_state
+                        current_job_id,
+                        current_job_state
                     );
 
                     match current_job_state {
@@ -1227,7 +1237,8 @@ impl RuntimeContext {
                             {
                                 log::error!(
                                     "[JobManagerLoop] Failed to announce job {:?}: {}. Re-queuing.",
-                                    current_job_id, e
+                                    current_job_id,
+                                    e
                                 );
                                 jobs_to_requeue.push_back(job); // Re-queue the ActualMeshJob
                                 continue;
@@ -1268,7 +1279,8 @@ impl RuntimeContext {
                                 {
                                     log::error!(
                                         "[JobManagerLoop] Failed to refund mana to {:?}: {}",
-                                        job.creator_did, e
+                                        job.creator_did,
+                                        e
                                     );
                                 }
                                 continue;
@@ -1340,7 +1352,8 @@ impl RuntimeContext {
                                 {
                                     log::error!(
                                         "[JobManagerLoop] Failed to refund mana to {:?}: {}",
-                                        job.creator_did, e
+                                        job.creator_did,
+                                        e
                                     );
                                 }
                                 continue;
@@ -1452,7 +1465,8 @@ impl RuntimeContext {
     pub async fn spend_mana(&self, account: &Did, amount: u64) -> Result<(), HostAbiError> {
         log::debug!(
             "[RuntimeContext] spend_mana called for account: {:?} amount: {}",
-            account, amount
+            account,
+            amount
         );
         if account != &self.current_identity {
             return Err(HostAbiError::InvalidParameters(
@@ -1466,7 +1480,8 @@ impl RuntimeContext {
     pub async fn credit_mana(&self, account: &Did, amount: u64) -> Result<(), HostAbiError> {
         log::debug!(
             "[RuntimeContext] credit_mana called for account: {:?} amount: {}",
-            account, amount
+            account,
+            amount
         );
         icn_economics::credit_mana(self.mana_ledger.clone(), account, amount)
             .map_err(|e| HostAbiError::InternalError(format!("{e:?}")))
@@ -1480,7 +1495,8 @@ impl RuntimeContext {
     ) -> Result<Cid, HostAbiError> {
         log::info!(
             "[CONTEXT] Attempting to anchor receipt for job {:?} from executor {:?}",
-            receipt.job_id, receipt.executor_did
+            receipt.job_id,
+            receipt.executor_did
         );
 
         // Resolve the executor's verifying key via the provided DidResolver.
@@ -1877,14 +1893,17 @@ impl RuntimeContext {
     }
 
     #[cfg(feature = "async")]
-    pub async fn host_anchor_receipt(&self, receipt: &IdentityExecutionReceipt) -> Result<(), HostAbiError> {
+    pub async fn host_anchor_receipt(
+        &self,
+        receipt: &IdentityExecutionReceipt,
+    ) -> Result<(), HostAbiError> {
         let receipt_data = serde_json::to_vec(receipt)
             .map_err(|e| HostAbiError::Common(CommonError::SerializationError(e.to_string())))?;
-        
+
         // Convert from icn_identity::SignatureBytes to icn_common::SignatureBytes
         let common_sig = icn_common::SignatureBytes(receipt.sig.0.clone());
         let signature_opt = Some(common_sig);
-        
+
         let block = DagBlock {
             cid: icn_common::compute_merkle_cid(
                 0x55, // DAG-CBOR codec
@@ -1902,7 +1921,7 @@ impl RuntimeContext {
             signature: signature_opt,
             scope: None,
         };
-        
+
         let result = {
             #[cfg(feature = "async")]
             {
@@ -1919,20 +1938,25 @@ impl RuntimeContext {
         let cid = block.cid.clone();
         log::info!(
             "Anchored receipt for job {} from executor {} to DAG as {}",
-            receipt.job_id, receipt.executor_did, cid
+            receipt.job_id,
+            receipt.executor_did,
+            cid
         );
         Ok(())
     }
 
     #[cfg(not(feature = "async"))]
-    pub fn host_anchor_receipt(&self, receipt: &IdentityExecutionReceipt) -> Result<(), HostAbiError> {
+    pub fn host_anchor_receipt(
+        &self,
+        receipt: &IdentityExecutionReceipt,
+    ) -> Result<(), HostAbiError> {
         let receipt_data = serde_json::to_vec(receipt)
             .map_err(|e| HostAbiError::Common(CommonError::SerializationError(e.to_string())))?;
-        
+
         // Convert from icn_identity::SignatureBytes to icn_common::SignatureBytes
         let common_sig = icn_common::SignatureBytes(receipt.sig.0.clone());
         let signature_opt = Some(common_sig);
-        
+
         let block = DagBlock {
             cid: icn_common::compute_merkle_cid(
                 0x55, // DAG-CBOR codec
@@ -1950,7 +1974,7 @@ impl RuntimeContext {
             signature: signature_opt,
             scope: None,
         };
-        
+
         let result = {
             #[cfg(feature = "async")]
             {
@@ -2496,7 +2520,8 @@ impl MeshNetworkService for StubMeshNetworkService {
     ) -> Result<(), HostAbiError> {
         log::debug!(
             "[StubMeshNetworkService] Broadcast assignment for job {:?} to executor {:?}",
-            notice.job_id, notice.executor_did
+            notice.job_id,
+            notice.executor_did
         );
         Ok(())
     }
