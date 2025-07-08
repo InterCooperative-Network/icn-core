@@ -44,7 +44,7 @@ icn-common = { path = "../crates/icn-common" } # Adjust path as necessary
 [dev-dependencies]
 tempfile = "3.10"
 # Needed to execute compiled WASM in tests
-icn-runtime = { path = "../crates/icn-runtime", features = ["async"] }
+icn-runtime = { path = "../crates/icn-runtime" }
 # Additional crates used in tests
 icn-identity = { path = "../crates/icn-identity" }
 icn-mesh = { path = "../crates/icn-mesh" }

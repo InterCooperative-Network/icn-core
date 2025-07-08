@@ -18,9 +18,7 @@ use std::collections::HashMap;
 use std::fs::{File, OpenOptions}; // For FileDagStore
 use std::io::{Read, Write}; // Removed Seek, SeekFrom
 use std::path::{Path, PathBuf}; // For FileDagStore and backup/restore
-#[cfg(feature = "async")]
 use tokio::fs::{self, File as TokioFile, OpenOptions as TokioOpenOptions};
-#[cfg(feature = "async")]
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 pub mod index;
@@ -71,7 +69,6 @@ pub trait StorageService<B: Clone + Serialize + for<'de> Deserialize<'de>> {
 }
 
 /// Asynchronous version of [`StorageService`].
-#[cfg(feature = "async")]
 #[async_trait::async_trait]
 pub trait AsyncStorageService<B>: Send + Sync
 where
@@ -325,13 +322,11 @@ impl StorageService<DagBlock> for FileDagStore {
 // --- Tokio-based File DAG Store ---
 
 /// Asynchronous file-based [`AsyncStorageService`] using `tokio::fs` for I/O.
-#[cfg(feature = "async")]
 #[derive(Debug)]
 pub struct TokioFileDagStore {
     storage_path: PathBuf,
 }
 
-#[cfg(feature = "async")]
 impl TokioFileDagStore {
     /// Create a new store rooted at `storage_path`, creating the directory if needed.
     pub fn new(storage_path: PathBuf) -> Result<Self, CommonError> {
@@ -357,7 +352,6 @@ impl TokioFileDagStore {
     }
 }
 
-#[cfg(feature = "async")]
 #[async_trait::async_trait]
 impl AsyncStorageService<DagBlock> for TokioFileDagStore {
     async fn put(&mut self, block: &DagBlock) -> Result<(), CommonError> {
@@ -571,7 +565,6 @@ where
     Ok(())
 }
 
-#[cfg(feature = "async")]
 /// Asynchronous variant of [`backup`].
 pub async fn backup_async<S>(store: &S, path: &Path) -> Result<(), CommonError>
 where
@@ -600,7 +593,6 @@ where
     Ok(())
 }
 
-#[cfg(feature = "async")]
 /// Asynchronous variant of [`restore`].
 pub async fn restore_async<S>(store: &mut S, path: &Path) -> Result<(), CommonError>
 where
@@ -637,7 +629,6 @@ where
     Ok(())
 }
 
-#[cfg(feature = "async")]
 /// Asynchronous variant of [`verify_all`].
 pub async fn verify_all_async<S>(store: &S) -> Result<(), CommonError>
 where
@@ -658,7 +649,6 @@ mod tests {
     use super::*;
     // For test setup
     use tempfile::tempdir; // For FileDagStore tests
-    #[cfg(feature = "async")]
     #[allow(unused_imports)]
     use tokio::fs; // For async file operations
 
@@ -722,7 +712,7 @@ mod tests {
             scope: None,
         };
         assert!(store.put(&modified_block1).is_ok());
-        
+
         // Original block should still be retrievable by its CID
         match store.get(&block1.cid) {
             Ok(Some(retrieved_block)) => {
@@ -731,7 +721,7 @@ mod tests {
             }
             _ => panic!("Failed to get original block1"),
         }
-        
+
         // Modified block should be retrievable by its CID
         match store.get(&modified_cid) {
             Ok(Some(retrieved_block)) => {
@@ -757,7 +747,6 @@ mod tests {
         assert!(store.contains(&block2.cid).unwrap());
     }
 
-    #[cfg(feature = "async")]
     async fn test_async_storage_service_suite<S>(store: &mut S)
     where
         S: AsyncStorageService<DagBlock> + Send,
@@ -790,7 +779,7 @@ mod tests {
             scope: None,
         };
         store.put(&mod_block).await.unwrap();
-        
+
         // Original block should still be retrievable
         match store.get(&block1.cid).await {
             Ok(Some(retrieved)) => {
@@ -799,7 +788,7 @@ mod tests {
             }
             _ => panic!("Failed to get original block1"),
         }
-        
+
         // Modified block should be retrievable by its CID
         match store.get(&mod_cid).await {
             Ok(Some(retrieved)) => {
@@ -867,7 +856,6 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "async")]
     #[tokio::test]
     async fn test_tokio_file_dag_store_service() {
         let dir = tempdir().unwrap();
