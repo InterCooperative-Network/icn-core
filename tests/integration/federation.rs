@@ -273,7 +273,6 @@ async fn test_federation_complete_workflow() {
 }
 
 // Helper function for manual testing
-#[allow(dead_code)]
 pub async fn wait_for_federation_ready() -> Result<(), Box<dyn std::error::Error>> {
     println!("⏳ Waiting for federation to be ready...");
     
