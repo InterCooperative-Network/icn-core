@@ -13,3 +13,6 @@ icn-reputation = { path = "../icn-reputation" }
 icn-economics = { path = "../icn-economics" }
 once_cell = "1.21"
 prometheus-client = "0.22"
+
+[dev-dependencies]
+criterion = "0.5"

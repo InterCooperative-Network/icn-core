@@ -72,6 +72,9 @@ jobs:
         if: matrix.rust == 'nightly'
         run: cargo build --release --all-features --workspace
 
+      - name: Run benchmarks
+        run: cargo bench --workspace --all-features
+
   libp2p_tests:
     name: Libp2p Feature Tests
     needs: test_and_lint
