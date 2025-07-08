@@ -35,6 +35,7 @@ curl -X GET https://localhost:8080/info \
 |--------|------|-------------|---------------|
 | POST | `/dag/put` | Store a content-addressed block | Yes |
 | POST | `/dag/get` | Retrieve a block by CID | Yes |
+| POST | `/dag/meta` | Retrieve metadata for a block | Yes |
 
 ### Example DAG Operations
 ```bash
@@ -46,6 +47,12 @@ curl -X POST https://localhost:8080/dag/put \
 
 # Retrieve a DAG block
 curl -X POST https://localhost:8080/dag/get \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: your-api-key" \
+  -d '{"cid": "your-cid-string"}'
+
+# Retrieve DAG block metadata
+curl -X POST https://localhost:8080/dag/meta \
   -H "Content-Type: application/json" \
   -H "x-api-key: your-api-key" \
   -d '{"cid": "your-cid-string"}'
@@ -262,6 +269,7 @@ export ICN_AUTH_TOKEN="your-bearer-token"
 icn-cli info
 icn-cli federation status
 icn-cli governance propose "Increase timeout to 300s"
+icn-cli dag meta '{"cid":"bafy..."}'
 ```
 
 ### HTTP Clients

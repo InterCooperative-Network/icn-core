@@ -218,6 +218,34 @@ pub async fn retrieve_dag_block(
     })
 }
 
+/// Retrieve [`DagBlock`] metadata by CID.
+pub async fn get_dag_metadata(
+    storage: Arc<tokio::sync::Mutex<dyn AsyncStorageService<DagBlock> + Send>>,
+    cid_json: String,
+) -> Result<Option<icn_dag::DagBlockMetadata>, CommonError> {
+    let cid: Cid = serde_json::from_str(&cid_json).map_err(|e| {
+        CommonError::DeserializationError(format!(
+            "Failed to parse CID JSON for metadata retrieval: {} (Input: '{}')",
+            e, cid_json
+        ))
+    })?;
+
+    let store = storage.lock().await;
+    let block_opt = store.get(&cid).await.map_err(|e| match e {
+        CommonError::StorageError(msg) => {
+            CommonError::StorageError(format!("API: Failed to retrieve DagBlock: {}", msg))
+        }
+        CommonError::DeserializationError(msg) => CommonError::DeserializationError(format!(
+            "API: Deserialization error during get: {}",
+            msg
+        )),
+        CommonError::PolicyDenied(msg) => CommonError::PolicyDenied(format!("API: {}", msg)),
+        _ => CommonError::ApiError(format!("API: Unexpected error during store.get: {:?}", e)),
+    })?;
+
+    Ok(block_opt.map(|b| icn_dag::metadata_from_block(&b)))
+}
+
 // pub fn add(left: u64, right: u64) -> u64 {
 //     left + right
 // }

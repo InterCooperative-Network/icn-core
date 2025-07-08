@@ -41,6 +41,29 @@ pub struct BlockMetadata {
     pub ttl: Option<u64>,
 }
 
+/// Basic metadata describing a [`DagBlock`].
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DagBlockMetadata {
+    /// Size of the block's data payload in bytes.
+    pub size: u64,
+    /// Creation timestamp of the block.
+    pub timestamp: u64,
+    /// DID of the block author.
+    pub author_did: Did,
+    /// Links contained in the block.
+    pub links: Vec<DagLink>,
+}
+
+/// Create [`DagBlockMetadata`] from a [`DagBlock`].
+pub fn metadata_from_block(block: &DagBlock) -> DagBlockMetadata {
+    DagBlockMetadata {
+        size: block.data.len() as u64,
+        timestamp: block.timestamp,
+        author_did: block.author_did.clone(),
+        links: block.links.clone(),
+    }
+}
+
 // --- Storage Service Trait ---
 
 /// Defines the interface for a DAG block storage backend.
