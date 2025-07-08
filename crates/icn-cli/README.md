@@ -5,6 +5,7 @@ It allows users and administrators to manage nodes, interact with the network, a
 The CLI aims for usability, discoverability, and scriptability.
 
 See [CONTEXT.md](../CONTEXT.md) for ICN Core design philosophy and crate roles.
+This binary runs on Tokio; see [async-guide](../docs/async-guide.md) for details.
 
 ## Purpose
 

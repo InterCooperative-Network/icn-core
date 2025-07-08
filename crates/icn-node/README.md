@@ -5,6 +5,7 @@ It integrates various core components to operate a functional ICN node, handling
 lifecycle, configuration, service hosting, and persistence.
 
 See [CONTEXT.md](../CONTEXT.md) for ICN Core design philosophy and crate roles.
+Async runtime considerations are documented in [async-guide](../docs/async-guide.md).
 
 ## Purpose
 

@@ -281,6 +281,7 @@ More detailed information can be found in the `README.md` file within each crate
 * [Complete Feature Overview](docs/ICN_FEATURE_OVERVIEW.md) – comprehensive feature breakdown
 * [Context & Philosophy](CONTEXT.md) – core principles and architectural vision
 * [Development Workflow](docs/ONBOARDING.md) – getting started guide
+* [Async Overview](docs/async-guide.md) – networking and storage use async/await
 * [Multi-Node Setup](MULTI_NODE_GUIDE.md) – federation deployment guide
 
 ### **Governance & Economics**
