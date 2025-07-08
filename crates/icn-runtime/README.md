@@ -110,8 +110,7 @@ implement a custom repair strategy if desired.
 
 ## DAG Storage
 
-`RuntimeContext` selects a storage backend for receipts and other DAG data. When
-compiled with the `async` feature, use `TokioFileDagStore`:
+`RuntimeContext` selects a storage backend for receipts and other DAG data. By default it uses `TokioFileDagStore`:
 
 ```rust
 use icn_runtime::context::{RuntimeContext, StubMeshNetworkService, StubSigner};
@@ -119,10 +118,7 @@ use icn_common::Did;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-#[cfg(feature = "async")]
 let dag_store = Arc::new(Mutex::new(icn_dag::TokioFileDagStore::new("./dag".into()).unwrap()));
-#[cfg(not(feature = "async"))]
-let dag_store = Arc::new(Mutex::new(icn_dag::FileDagStore::new("./dag".into()).unwrap()));
 
 let ctx = RuntimeContext::new(
     Did::new("key", "node"),

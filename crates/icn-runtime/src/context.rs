@@ -1,8 +1,6 @@
 //! Defines the `RuntimeContext`, `HostEnvironment`, and related types for the ICN runtime.
 
-use icn_common::{
-    Cid, CommonError, DagBlock, Did,
-};
+use icn_common::{Cid, CommonError, DagBlock, Did};
 use icn_identity::{ExecutionReceipt as IdentityExecutionReceipt, SignatureBytes};
 use icn_mesh::{ActualMeshJob, JobId, JobState, MeshJobBid, Resources};
 
@@ -37,10 +35,7 @@ use std::sync::Arc;
 use std::time::{Duration as StdDuration, Instant as StdInstant};
 #[cfg(test)]
 use tempfile;
-#[cfg(feature = "async")]
 use tokio::sync::Mutex as TokioMutex;
-#[cfg(not(feature = "async"))]
-use std::sync::Mutex as SyncMutex;
 
 use async_trait::async_trait;
 
@@ -71,15 +66,9 @@ use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "persist-rocksdb")]
 use icn_dag::rocksdb_store::RocksDagStore;
-#[cfg(feature = "async")]
 use icn_dag::{AsyncStorageService as DagStorageService, TokioFileDagStore};
-#[cfg(not(feature = "async"))]
-use icn_dag::{StorageService as DagStorageService, FileDagStore};
 
-#[cfg(feature = "async")]
 type DagStoreMutex<T> = TokioMutex<T>;
-#[cfg(not(feature = "async"))]
-type DagStoreMutex<T> = SyncMutex<T>;
 
 // Counter for generating unique (within this runtime instance) job IDs for stubs
 pub static NEXT_JOB_ID: AtomicU32 = AtomicU32::new(1);
@@ -437,7 +426,8 @@ impl MeshNetworkService for DefaultMeshNetworkService {
     ) -> Result<Vec<MeshJobBid>, HostAbiError> {
         log::debug!(
             "[DefaultMeshNetworkService] Collecting bids for job {:?} for {:?}",
-            job_id, duration
+            job_id,
+            duration
         );
         let mut bids = Vec::new();
         let mut receiver = self.inner.subscribe().await.map_err(|e| {
@@ -853,9 +843,9 @@ impl RuntimeContext {
         policy_enforcer: Option<Arc<dyn ScopedPolicyEnforcer>>,
     ) -> Result<Arc<Self>, CommonError> {
         #[cfg(feature = "persist-rocksdb")]
-        let dag_store = Arc::new(DagStoreMutex::new(icn_dag::rocksdb_store::RocksDagStore::new(
-            dag_path.clone(),
-        )?)) as Arc<DagStoreMutex<dyn DagStorageService<DagBlock> + Send>>;
+        let dag_store = Arc::new(DagStoreMutex::new(
+            icn_dag::rocksdb_store::RocksDagStore::new(dag_path.clone())?,
+        )) as Arc<DagStoreMutex<dyn DagStorageService<DagBlock> + Send>>;
 
         #[cfg(all(not(feature = "persist-rocksdb"), feature = "persist-sled"))]
         let dag_store = Arc::new(DagStoreMutex::new(icn_dag::sled_store::SledDagStore::new(
@@ -867,38 +857,17 @@ impl RuntimeContext {
             not(feature = "persist-sled"),
             feature = "persist-sqlite"
         ))]
-        let dag_store = {
-            #[cfg(feature = "async")]
-            {
-                Arc::new(DagStoreMutex::new(TokioFileDagStore::new(
-                    dag_path.clone(),
-                )?)) as Arc<DagStoreMutex<dyn DagStorageService<DagBlock> + Send>>
-            }
-            #[cfg(not(feature = "async"))]
-            {
-                Arc::new(DagStoreMutex::new(icn_dag::sqlite_store::SqliteDagStore::new(
-                    dag_path.clone(),
-                )?)) as Arc<DagStoreMutex<dyn DagStorageService<DagBlock> + Send>>
-            }
-        };
+        let dag_store = Arc::new(DagStoreMutex::new(
+            icn_dag::sqlite_store::SqliteDagStore::new(dag_path.clone())?,
+        )) as Arc<DagStoreMutex<dyn DagStorageService<DagBlock> + Send>>;
 
         #[cfg(not(any(
             feature = "persist-rocksdb",
             feature = "persist-sled",
             feature = "persist-sqlite"
         )))]
-        let dag_store = {
-            #[cfg(feature = "async")]
-            {
-                Arc::new(DagStoreMutex::new(TokioFileDagStore::new(dag_path)?))
-                    as Arc<DagStoreMutex<dyn DagStorageService<DagBlock> + Send>>
-            }
-            #[cfg(not(feature = "async"))]
-            {
-                Arc::new(DagStoreMutex::new(icn_dag::FileDagStore::new(dag_path)?))
-                    as Arc<DagStoreMutex<dyn DagStorageService<DagBlock> + Send>>
-            }
-        };
+        let dag_store = Arc::new(DagStoreMutex::new(TokioFileDagStore::new(dag_path)?))
+            as Arc<DagStoreMutex<dyn DagStorageService<DagBlock> + Send>>;
 
         Ok(Self::new_with_ledger_path_and_time(
             current_identity,
@@ -1055,7 +1024,8 @@ impl RuntimeContext {
     ) -> Result<(), HostAbiError> {
         log::info!(
             "[JobManagerDetail] Waiting for receipt for job {:?} from executor {:?}",
-            job.id, assigned_executor_did
+            job.id,
+            assigned_executor_did
         );
         // Determine how long to wait for the execution receipt.
         let timeout_ms = job
@@ -1071,7 +1041,8 @@ impl RuntimeContext {
             Ok(Some(receipt)) => {
                 log::info!(
                     "[JobManagerDetail] Received receipt for job {:?}: {:?}",
-                    job.id, receipt
+                    job.id,
+                    receipt
                 );
 
                 // Resolve executor verifying key and verify the receipt.
@@ -1091,7 +1062,8 @@ impl RuntimeContext {
                     Err(e) => {
                         log::error!(
                             "[JobManagerDetail] Failed to resolve DID {:?}: {}",
-                            receipt.executor_did, e
+                            receipt.executor_did,
+                            e
                         );
                         return Err(HostAbiError::Common(e));
                     }
@@ -1101,7 +1073,8 @@ impl RuntimeContext {
                     Ok(receipt_cid) => {
                         log::info!(
                             "[JobManagerDetail] Receipt for job {:?} anchored successfully: {:?}",
-                            job.id, receipt_cid
+                            job.id,
+                            receipt_cid
                         );
                         let mut job_states_guard = self.job_states.lock().await;
                         job_states_guard.insert(
@@ -1131,7 +1104,8 @@ impl RuntimeContext {
                         if let Err(err) = self.credit_mana(&job.creator_did, job.cost_mana).await {
                             log::error!(
                                 "[JobManagerDetail] Failed to refund mana to {:?}: {}",
-                                job.creator_did, err
+                                job.creator_did,
+                                err
                             );
                         }
                         Err(HostAbiError::DagOperationFailed(format!(
@@ -1153,7 +1127,8 @@ impl RuntimeContext {
                 if let Err(err) = self.credit_mana(&job.creator_did, job.cost_mana).await {
                     log::error!(
                         "[JobManagerDetail] Failed to refund mana to {:?}: {}",
-                        job.creator_did, err
+                        job.creator_did,
+                        err
                     );
                 }
                 Err(HostAbiError::NetworkError(
@@ -1172,7 +1147,8 @@ impl RuntimeContext {
                 if let Err(err) = self.credit_mana(&job.creator_did, job.cost_mana).await {
                     log::error!(
                         "[JobManagerDetail] Failed to refund mana to {:?}: {}",
-                        job.creator_did, err
+                        job.creator_did,
+                        err
                     );
                 }
                 Err(e)
@@ -1214,7 +1190,8 @@ impl RuntimeContext {
 
                     log::info!(
                         "[JobManagerLoop] Processing job: {:?}, current state from map: {:?}",
-                        current_job_id, current_job_state
+                        current_job_id,
+                        current_job_state
                     );
 
                     match current_job_state {
@@ -1227,7 +1204,8 @@ impl RuntimeContext {
                             {
                                 log::error!(
                                     "[JobManagerLoop] Failed to announce job {:?}: {}. Re-queuing.",
-                                    current_job_id, e
+                                    current_job_id,
+                                    e
                                 );
                                 jobs_to_requeue.push_back(job); // Re-queue the ActualMeshJob
                                 continue;
@@ -1268,7 +1246,8 @@ impl RuntimeContext {
                                 {
                                     log::error!(
                                         "[JobManagerLoop] Failed to refund mana to {:?}: {}",
-                                        job.creator_did, e
+                                        job.creator_did,
+                                        e
                                     );
                                 }
                                 continue;
@@ -1340,7 +1319,8 @@ impl RuntimeContext {
                                 {
                                     log::error!(
                                         "[JobManagerLoop] Failed to refund mana to {:?}: {}",
-                                        job.creator_did, e
+                                        job.creator_did,
+                                        e
                                     );
                                 }
                                 continue;
@@ -1418,11 +1398,9 @@ impl RuntimeContext {
     /// Verify integrity of all DAG blocks once.
     pub async fn integrity_check_once(&self) -> Result<(), CommonError> {
         let store = self.dag_store.lock().await;
-        #[cfg(feature = "async")]
         {
             icn_dag::verify_all_async(&*store).await
         }
-        #[cfg(not(feature = "async"))]
         {
             icn_dag::verify_all(&*store)
         }
@@ -1452,7 +1430,8 @@ impl RuntimeContext {
     pub async fn spend_mana(&self, account: &Did, amount: u64) -> Result<(), HostAbiError> {
         log::debug!(
             "[RuntimeContext] spend_mana called for account: {:?} amount: {}",
-            account, amount
+            account,
+            amount
         );
         if account != &self.current_identity {
             return Err(HostAbiError::InvalidParameters(
@@ -1466,7 +1445,8 @@ impl RuntimeContext {
     pub async fn credit_mana(&self, account: &Did, amount: u64) -> Result<(), HostAbiError> {
         log::debug!(
             "[RuntimeContext] credit_mana called for account: {:?} amount: {}",
-            account, amount
+            account,
+            amount
         );
         icn_economics::credit_mana(self.mana_ledger.clone(), account, amount)
             .map_err(|e| HostAbiError::InternalError(format!("{e:?}")))
@@ -1480,7 +1460,8 @@ impl RuntimeContext {
     ) -> Result<Cid, HostAbiError> {
         log::info!(
             "[CONTEXT] Attempting to anchor receipt for job {:?} from executor {:?}",
-            receipt.job_id, receipt.executor_did
+            receipt.job_id,
+            receipt.executor_did
         );
 
         // Resolve the executor's verifying key via the provided DidResolver.
@@ -1530,12 +1511,10 @@ impl RuntimeContext {
             }
         }
         let result = {
-            #[cfg(feature = "async")]
             {
                 let mut store = self.dag_store.lock().await;
                 store.put(&block).await
             }
-            #[cfg(not(feature = "async"))]
             {
                 let mut store = self.dag_store.lock().unwrap();
                 store.put(&block)
@@ -1876,15 +1855,17 @@ impl RuntimeContext {
         }
     }
 
-    #[cfg(feature = "async")]
-    pub async fn host_anchor_receipt(&self, receipt: &IdentityExecutionReceipt) -> Result<(), HostAbiError> {
+    pub async fn host_anchor_receipt(
+        &self,
+        receipt: &IdentityExecutionReceipt,
+    ) -> Result<(), HostAbiError> {
         let receipt_data = serde_json::to_vec(receipt)
             .map_err(|e| HostAbiError::Common(CommonError::SerializationError(e.to_string())))?;
-        
+
         // Convert from icn_identity::SignatureBytes to icn_common::SignatureBytes
         let common_sig = icn_common::SignatureBytes(receipt.sig.0.clone());
         let signature_opt = Some(common_sig);
-        
+
         let block = DagBlock {
             cid: icn_common::compute_merkle_cid(
                 0x55, // DAG-CBOR codec
@@ -1902,14 +1883,12 @@ impl RuntimeContext {
             signature: signature_opt,
             scope: None,
         };
-        
+
         let result = {
-            #[cfg(feature = "async")]
             {
                 let mut store = self.dag_store.lock().await;
                 store.put(&block).await
             }
-            #[cfg(not(feature = "async"))]
             {
                 let mut store = self.dag_store.lock().unwrap();
                 store.put(&block)
@@ -1919,51 +1898,10 @@ impl RuntimeContext {
         let cid = block.cid.clone();
         log::info!(
             "Anchored receipt for job {} from executor {} to DAG as {}",
-            receipt.job_id, receipt.executor_did, cid
+            receipt.job_id,
+            receipt.executor_did,
+            cid
         );
-        Ok(())
-    }
-
-    #[cfg(not(feature = "async"))]
-    pub fn host_anchor_receipt(&self, receipt: &IdentityExecutionReceipt) -> Result<(), HostAbiError> {
-        let receipt_data = serde_json::to_vec(receipt)
-            .map_err(|e| HostAbiError::Common(CommonError::SerializationError(e.to_string())))?;
-        
-        // Convert from icn_identity::SignatureBytes to icn_common::SignatureBytes
-        let common_sig = icn_common::SignatureBytes(receipt.sig.0.clone());
-        let signature_opt = Some(common_sig);
-        
-        let block = DagBlock {
-            cid: icn_common::compute_merkle_cid(
-                0x55, // DAG-CBOR codec
-                &receipt_data,
-                &[],
-                self.time_provider.unix_seconds(),
-                &receipt.executor_did,
-                &signature_opt,
-                &None,
-            ),
-            data: receipt_data,
-            links: vec![],
-            timestamp: self.time_provider.unix_seconds(),
-            author_did: receipt.executor_did.clone(),
-            signature: signature_opt,
-            scope: None,
-        };
-        
-        let result = {
-            #[cfg(feature = "async")]
-            {
-                let mut store = self.dag_store.lock().await;
-                store.put(&block).await
-            }
-            #[cfg(not(feature = "async"))]
-            {
-                let mut store = self.dag_store.lock().unwrap();
-                store.put(&block)
-            }
-        };
-        result.map_err(HostAbiError::Common)?;
         Ok(())
     }
 }
@@ -2346,7 +2284,6 @@ impl Default for StubDagStore {
 
 pub type RuntimeStubDagStore = StubDagStore;
 
-#[cfg(not(feature = "async"))]
 impl icn_dag::StorageService<DagBlock> for StubDagStore {
     fn put(&mut self, block: &DagBlock) -> Result<(), CommonError> {
         self.store.insert(block.cid.clone(), block.clone());
@@ -2379,7 +2316,6 @@ impl icn_dag::StorageService<DagBlock> for StubDagStore {
     }
 }
 
-#[cfg(feature = "async")]
 #[async_trait::async_trait]
 impl icn_dag::AsyncStorageService<DagBlock> for StubDagStore {
     async fn put(&mut self, block: &DagBlock) -> Result<(), CommonError> {
@@ -2496,7 +2432,8 @@ impl MeshNetworkService for StubMeshNetworkService {
     ) -> Result<(), HostAbiError> {
         log::debug!(
             "[StubMeshNetworkService] Broadcast assignment for job {:?} to executor {:?}",
-            notice.job_id, notice.executor_did
+            notice.job_id,
+            notice.executor_did
         );
         Ok(())
     }
