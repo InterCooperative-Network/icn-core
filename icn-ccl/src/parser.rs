@@ -134,6 +134,32 @@ pub(crate) fn parse_primary(pair: Pair<Rule>) -> Result<ExpressionNode, CclError
     }
 }
 
+pub(crate) fn parse_unary(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
+    if pair.as_rule() != Rule::unary {
+        return Err(CclError::ParsingError(format!(
+            "Expected unary expression, got {:?}",
+            pair.as_rule()
+        )));
+    }
+
+    let mut inner = pair.into_inner();
+    let first = inner
+        .next()
+        .ok_or_else(|| CclError::ParsingError("Unary rule missing first element".to_string()))?;
+
+    match first.as_rule() {
+        Rule::NOT_OP => Ok(ExpressionNode::UnaryOp {
+            operator: UnaryOperator::Not,
+            operand: Box::new(parse_unary(inner.next().unwrap())?),
+        }),
+        Rule::SUB_OP => Ok(ExpressionNode::UnaryOp {
+            operator: UnaryOperator::Neg,
+            operand: Box::new(parse_unary(inner.next().unwrap())?),
+        }),
+        _ => parse_primary(first),
+    }
+}
+
 pub(crate) fn parse_expression(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
     match pair.as_rule() {
         Rule::expression => {
@@ -251,32 +277,7 @@ pub(crate) fn parse_expression(pair: Pair<Rule>) -> Result<ExpressionNode, CclEr
             }
             Ok(expr)
         }
-        Rule::unary => {
-            let mut inner = pair.into_inner();
-            let first = inner.next().unwrap();
-
-            // Check if this is an operator or the primary expression
-            match first.as_rule() {
-                Rule::NOT_OP => {
-                    let operand = parse_expression(inner.next().unwrap())?;
-                    Ok(ExpressionNode::UnaryOp {
-                        operator: UnaryOperator::Not,
-                        operand: Box::new(operand),
-                    })
-                }
-                Rule::NEG_OP => {
-                    let operand = parse_expression(inner.next().unwrap())?;
-                    Ok(ExpressionNode::UnaryOp {
-                        operator: UnaryOperator::Neg,
-                        operand: Box::new(operand),
-                    })
-                }
-                _ => {
-                    // No unary operator, just parse the primary
-                    parse_primary(first)
-                }
-            }
-        }
+        Rule::unary => parse_unary(pair),
         Rule::primary => parse_primary(pair),
         Rule::function_call
         | Rule::integer_literal
