@@ -1,7 +1,7 @@
 use crate::TimeProvider;
+use std::future::Future;
 use std::time::Duration;
 use thiserror::Error;
-use std::future::Future;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum CircuitState {
@@ -48,15 +48,12 @@ impl<T: TimeProvider> CircuitBreaker<T> {
         Fut: Future<Output = Result<R, E>>,
     {
         let now = self.time_provider.unix_seconds();
-        match &self.state {
-            CircuitState::Open { opened_at } => {
-                if now - *opened_at >= self.open_timeout.as_secs() {
-                    self.state = CircuitState::HalfOpen;
-                } else {
-                    return Err(CircuitBreakerError::Open);
-                }
+        if let CircuitState::Open { opened_at } = &self.state {
+            if now - *opened_at >= self.open_timeout.as_secs() {
+                self.state = CircuitState::HalfOpen;
+            } else {
+                return Err(CircuitBreakerError::Open);
             }
-            _ => {}
         }
 
         match operation().await {
@@ -70,7 +67,9 @@ impl<T: TimeProvider> CircuitBreaker<T> {
                 match self.state {
                     CircuitState::HalfOpen | CircuitState::Closed => {
                         self.failure_count += 1;
-                        if self.failure_count >= self.failure_threshold || matches!(self.state, CircuitState::HalfOpen) {
+                        if self.failure_count >= self.failure_threshold
+                            || matches!(self.state, CircuitState::HalfOpen)
+                        {
                             self.state = CircuitState::Open { opened_at: now };
                             self.failure_count = 0;
                         }
@@ -103,9 +102,7 @@ mod tests {
 
         // fail twice -> open
         for _ in 0..2 {
-            let _ = cb
-                .call(|| async { Err::<(), _>("err") })
-                .await;
+            let _ = cb.call(|| async { Err::<(), _>("err") }).await;
         }
         assert!(matches!(cb.state(), CircuitState::Open { .. }));
 
@@ -121,4 +118,3 @@ mod tests {
         assert!(matches!(cb.state(), CircuitState::Closed));
     }
 }
-

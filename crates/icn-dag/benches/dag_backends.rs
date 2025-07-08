@@ -186,11 +186,13 @@ criterion_group!(rocks_group, bench_rocksdb);
 #[cfg(feature = "persist-sqlite")]
 criterion_group!(sqlite_group, bench_sqlite);
 
-criterion_main!(
-    #[cfg(feature = "persist-sled")]
-    sled_group,
-    #[cfg(feature = "persist-rocksdb")]
-    rocks_group,
-    #[cfg(feature = "persist-sqlite")]
-    sqlite_group,
-);
+#[cfg(feature = "persist-sled")]
+criterion_main!(sled_group);
+#[cfg(all(feature = "persist-rocksdb", not(feature = "persist-sled")))]
+criterion_main!(rocks_group);
+#[cfg(all(
+    feature = "persist-sqlite",
+    not(feature = "persist-sled"),
+    not(feature = "persist-rocksdb")
+))]
+criterion_main!(sqlite_group);

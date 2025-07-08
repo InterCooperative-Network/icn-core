@@ -51,7 +51,7 @@ node_name = "Local Node"
 http_listen_addr = "127.0.0.1:8080"
 storage_backend = "rocksdb"
 storage_path = "./icn_data/node_store"
-mana_ledger_path = "./mana_ledger.sled"
+mana_ledger_path = "./mana_ledger.sqlite"
 node_did_path = "./icn_data/node_did.txt"
 node_private_key_path = "./icn_data/node_sk.bs58"
 ```
