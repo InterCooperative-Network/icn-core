@@ -8,6 +8,7 @@ It provides the foundational crates for building ICN nodes, CLI tools, and other
 For full architecture, philosophy, and comprehensive feature overview, see:
 - [CONTEXT.md](CONTEXT.md) - Core philosophy and architectural principles
 - [docs/ICN_FEATURE_OVERVIEW.md](docs/ICN_FEATURE_OVERVIEW.md) - Complete feature set (current and planned)
+- [docs/ASYNC_OVERVIEW.md](docs/ASYNC_OVERVIEW.md) - Async APIs and concurrency model
 
 ## Overview
 
@@ -281,6 +282,7 @@ More detailed information can be found in the `README.md` file within each crate
 * [Complete Feature Overview](docs/ICN_FEATURE_OVERVIEW.md) – comprehensive feature breakdown
 * [Context & Philosophy](CONTEXT.md) – core principles and architectural vision
 * [Development Workflow](docs/ONBOARDING.md) – getting started guide
+* [Async Overview](docs/ASYNC_OVERVIEW.md) – networking and storage concurrency
 * [Multi-Node Setup](MULTI_NODE_GUIDE.md) – federation deployment guide
 
 ### **Governance & Economics**
