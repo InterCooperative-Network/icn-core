@@ -204,7 +204,10 @@ fn close_before_deadline_errors() {
         VoteOption::Yes,
     )
     .unwrap();
-    assert_eq!(gov.close_voting_period(&pid).unwrap(), ProposalStatus::Accepted);
+    assert_eq!(
+        gov.close_voting_period(&pid).unwrap(),
+        ProposalStatus::Accepted
+    );
 }
 
 #[test]

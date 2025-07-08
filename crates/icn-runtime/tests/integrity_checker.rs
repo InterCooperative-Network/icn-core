@@ -1,5 +1,5 @@
-use icn_runtime::context::RuntimeContext;
 use icn_common::{compute_merkle_cid, DagBlock, Did};
+use icn_runtime::context::RuntimeContext;
 
 fn create_block(id: &str) -> DagBlock {
     let data = format!("data {id}").into_bytes();
