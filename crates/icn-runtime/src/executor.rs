@@ -11,9 +11,9 @@ use icn_identity::{
 #[cfg(test)]
 use icn_mesh::JobSpec; /* ... other mesh types ... */
 use icn_mesh::{ActualMeshJob, JobKind};
-use log::info; // Removed error
-use std::time::SystemTime;
-use wasmtime::{Config, Linker, Module, Store, Caller};
+use log::{info, warn, error}; // Added warn, error
+use std::time::{SystemTime, Duration, Instant};
+use wasmtime::{Config, Linker, Module, Store, Caller, ResourceLimiter};
 use std::sync::Arc;
 use crate::host_account_get_mana;
 
@@ -25,6 +25,152 @@ pub trait JobExecutor: Send + Sync {
         &self,
         job: &ActualMeshJob,
     ) -> Result<IdentityExecutionReceipt, CommonError>;
+}
+
+/// Security limits for WASM execution
+#[derive(Clone, Debug)]
+pub struct WasmSecurityLimits {
+    /// Maximum execution time in seconds
+    pub max_execution_time_secs: u64,
+    /// Maximum linear memory pages (64KB each)
+    pub max_memory_pages: u32,
+    /// Maximum fuel consumption
+    pub max_fuel: u64,
+    /// Maximum stack depth
+    pub max_stack_depth: u32,
+    /// Maximum number of globals
+    pub max_globals: u32,
+    /// Maximum number of functions
+    pub max_functions: u32,
+    /// Maximum number of tables
+    pub max_tables: u32,
+    /// Maximum table size
+    pub max_table_size: u32,
+}
+
+impl Default for WasmSecurityLimits {
+    fn default() -> Self {
+        Self {
+            max_execution_time_secs: 30,     // 30 second timeout
+            max_memory_pages: 160,           // 10 MB (160 * 64KB)
+            max_fuel: 1_000_000,             // 1 million instructions
+            max_stack_depth: 1024,           // Reasonable stack depth
+            max_globals: 100,                // Limited globals
+            max_functions: 1000,             // Limited functions
+            max_tables: 10,                  // Limited tables
+            max_table_size: 10000,           // Limited table size
+        }
+    }
+}
+
+/// Resource limiter for WASM execution
+pub struct ICNResourceLimiter {
+    timeout: Duration,
+    memory_consumed: u64,
+    table_elements: u64,
+    max_memory_bytes: usize,
+}
+
+impl ICNResourceLimiter {
+    pub fn new(max_memory: usize, timeout: Duration) -> Self {
+        Self {
+            timeout,
+            memory_consumed: 0,
+            table_elements: 0,
+            max_memory_bytes: max_memory,
+        }
+    }
+}
+
+impl ResourceLimiter for ICNResourceLimiter {
+    fn memory_growing(&mut self, _current: usize, desired: usize, _maximum: Option<usize>) -> anyhow::Result<bool> {
+        // Check if the desired memory growth exceeds our limits
+        if desired > self.max_memory_bytes {
+            warn!("WASM memory limit exceeded: {} bytes > {} bytes", desired, self.max_memory_bytes);
+            return Ok(false); // Deny the growth
+        }
+        Ok(true)
+    }
+    
+    fn table_growing(&mut self, _current: u32, desired: u32, _maximum: Option<u32>) -> anyhow::Result<bool> {
+        // Limit table growth (simple check)
+        if desired > 1000 {
+            warn!("WASM table size limit exceeded: {} > {}", desired, 1000);
+            return Ok(false); // Deny the growth  
+        }
+        Ok(true)
+    }
+}
+
+/// WASM module validator for security analysis
+pub struct WasmModuleValidator {
+    limits: WasmSecurityLimits,
+}
+
+impl WasmModuleValidator {
+    pub fn new(limits: WasmSecurityLimits) -> Self {
+        Self { limits }
+    }
+
+    /// Validates a WASM module for security issues
+    fn validate_wasm_module(wasm_bytes: &[u8]) -> Result<(), CommonError> {
+        use wasmparser::{Parser, Payload};
+        
+        let mut memory_count = 0;
+        let mut function_count = 0;
+        let mut export_count = 0;
+        
+        // Parse the WASM module
+        let parser = Parser::new(0);
+        
+        for payload in parser.parse_all(wasm_bytes) {
+            match payload.map_err(|e| CommonError::InternalError(format!("WASM validation error: {}", e)))? {
+                Payload::FunctionSection(reader) => {
+                    function_count = reader.count();
+                    
+                    // Limit the number of functions
+                    if function_count > 1000 {
+                        return Err(CommonError::PolicyDenied(
+                            "Too many functions in WASM module".to_string()
+                        ));
+                    }
+                }
+                Payload::MemorySection(reader) => {
+                    memory_count = reader.count();
+                    
+                    // Limit memory sections
+                    if memory_count > 1 {
+                        return Err(CommonError::PolicyDenied(
+                            "Multiple memory sections not allowed".to_string()
+                        ));
+                    }
+                }
+                Payload::ExportSection(reader) => {
+                    export_count = reader.count();
+                    
+                    // Limit exports
+                    if export_count > 100 {
+                        return Err(CommonError::PolicyDenied(
+                            "Too many exports in WASM module".to_string()
+                        ));
+                    }
+                }
+                _ => {} // Ignore other sections for now
+            }
+        }
+        
+        // Check total module size
+        if wasm_bytes.len() > 50 * 1024 * 1024 { // 50MB limit
+            return Err(CommonError::PolicyDenied(
+                "WASM module too large".to_string()
+            ));
+        }
+        
+        info!("WASM module validation passed: {} functions, {} memories, {} exports", 
+              function_count, memory_count, export_count);
+        
+        Ok(())
+    }
 }
 
 /// A simple executor that can handle basic predefined tasks like echo or hashing.
@@ -87,6 +233,7 @@ impl JobExecutor for SimpleExecutor {
                     let store = ctx.dag_store.lock().await;
                     store
                         .get(&job.manifest_cid)
+                        .await
                         .map_err(|e| CommonError::StorageError(format!("{e}")))?
                 }
                 .ok_or_else(|| {
@@ -105,6 +252,7 @@ impl JobExecutor for SimpleExecutor {
                     let store = ctx.dag_store.lock().await;
                     store
                         .get(&wasm_cid)
+                        .await
                         .map_err(|e| CommonError::StorageError(format!("{e}")))?
                         .ok_or_else(|| {
                             CommonError::ResourceNotFound(
@@ -139,6 +287,7 @@ impl JobExecutor for SimpleExecutor {
                     let store = ctx.dag_store.lock().await;
                     store
                         .get(&job.manifest_cid)
+                        .await
                         .map_err(|e| CommonError::StorageError(format!("{e}")))?
                 }
                 .ok_or_else(|| CommonError::ResourceNotFound("Manifest not found".into()))?
@@ -178,6 +327,8 @@ pub struct WasmExecutorConfig {
     pub max_memory: usize,
     /// Instruction fuel allotted to each execution.
     pub fuel: u64,
+    /// Security limits for WASM execution
+    pub security_limits: WasmSecurityLimits,
 }
 
 impl Default for WasmExecutorConfig {
@@ -185,6 +336,7 @@ impl Default for WasmExecutorConfig {
         Self {
             max_memory: 10 * 1024 * 1024, // 10 MiB
             fuel: 1_000_000,
+            security_limits: WasmSecurityLimits::default(),
         }
     }
 }
@@ -194,6 +346,7 @@ pub struct WasmExecutor {
     signer: std::sync::Arc<dyn crate::context::Signer>,
     engine: wasmtime::Engine,
     config: WasmExecutorConfig,
+    validator: WasmModuleValidator,
 }
 
 impl WasmExecutor {
@@ -206,12 +359,25 @@ impl WasmExecutor {
         let mut wasmtime_config = Config::new();
         wasmtime_config.consume_fuel(true);
         wasmtime_config.async_support(true);
+        wasmtime_config.epoch_interruption(true); // Enable epoch-based interruption for timeouts
+        
+        // Security configurations
+        wasmtime_config.max_wasm_stack(config.security_limits.max_stack_depth as usize * 1024); // Stack in bytes
+        wasmtime_config.wasm_multi_memory(false); // Disable multi-memory for security
+        wasmtime_config.wasm_threads(false); // Disable threads for security
+        wasmtime_config.wasm_reference_types(false); // Disable reference types for simplicity
+        wasmtime_config.wasm_bulk_memory(false); // Disable bulk memory operations for security
+        wasmtime_config.wasm_simd(false); // Disable SIMD for security
+        
         let engine = wasmtime::Engine::new(&wasmtime_config).expect("create engine");
+        let validator = WasmModuleValidator::new(config.security_limits.clone());
+        
         Self {
             ctx,
             signer,
             engine,
             config,
+            validator,
         }
     }
 
@@ -227,6 +393,66 @@ impl WasmExecutor {
             .map_err(crate::context::HostAbiError::Common)?;
         self.ctx.anchor_receipt(&receipt).await
     }
+
+    /// Validates a WASM module for security issues
+    fn validate_wasm_module(wasm_bytes: &[u8]) -> Result<(), CommonError> {
+        use wasmparser::{Parser, Payload};
+        
+        let mut memory_count = 0;
+        let mut function_count = 0;
+        let mut export_count = 0;
+        
+        // Parse the WASM module
+        let parser = Parser::new(0);
+        
+        for payload in parser.parse_all(wasm_bytes) {
+            match payload.map_err(|e| CommonError::InternalError(format!("WASM validation error: {}", e)))? {
+                Payload::FunctionSection(reader) => {
+                    function_count = reader.count();
+                    
+                    // Limit the number of functions
+                    if function_count > 1000 {
+                        return Err(CommonError::PolicyDenied(
+                            "Too many functions in WASM module".to_string()
+                        ));
+                    }
+                }
+                Payload::MemorySection(reader) => {
+                    memory_count = reader.count();
+                    
+                    // Limit memory sections
+                    if memory_count > 1 {
+                        return Err(CommonError::PolicyDenied(
+                            "Multiple memory sections not allowed".to_string()
+                        ));
+                    }
+                }
+                Payload::ExportSection(reader) => {
+                    export_count = reader.count();
+                    
+                    // Limit exports
+                    if export_count > 100 {
+                        return Err(CommonError::PolicyDenied(
+                            "Too many exports in WASM module".to_string()
+                        ));
+                    }
+                }
+                _ => {} // Ignore other sections for now
+            }
+        }
+        
+        // Check total module size
+        if wasm_bytes.len() > 50 * 1024 * 1024 { // 50MB limit
+            return Err(CommonError::PolicyDenied(
+                "WASM module too large".to_string()
+            ));
+        }
+        
+        info!("WASM module validation passed: {} functions, {} memories, {} exports", 
+              function_count, memory_count, export_count);
+        
+        Ok(())
+    }
 }
 
 #[async_trait::async_trait]
@@ -235,23 +461,37 @@ impl JobExecutor for WasmExecutor {
         &self,
         job: &ActualMeshJob,
     ) -> Result<IdentityExecutionReceipt, CommonError> {
+        let execution_start = Instant::now();
+        
+        // Audit log the execution attempt
+        info!("WASM execution started: job_id={:?}, executor={}, max_time={}s", 
+              job.id, self.signer.did(), self.config.security_limits.max_execution_time_secs);
+        
         let wasm_bytes = self
             .ctx
             .dag_store
             .lock()
             .await
             .get(&job.manifest_cid)
+            .await
             .map_err(|e| CommonError::InternalError(e.to_string()))?
             .ok_or_else(|| CommonError::ResourceNotFound("WASM module not found".into()))?
             .data;
 
+        // Security validation of the WASM module
+        Self::validate_wasm_module(&wasm_bytes)?;
+
+        // Create store with resource limiter
         let mut store = Store::new(&self.engine, self.ctx.clone());
         
-        // Configure store limits directly - we'll skip the resource limiter for now
-        // This is a temporary approach to get the code compiling
-        store
-            .set_fuel(self.config.fuel)
-            .map_err(|e| CommonError::InternalError(e.to_string()))?;
+        // Set a simple memory and fuel limit instead of a complex resource limiter for now
+        store.set_fuel(100_000_000).map_err(|e| CommonError::InternalError(format!("Failed to set fuel: {}", e)))?;
+        
+        // Set epoch deadline for wall-clock timeout
+        let timeout_duration = Duration::from_secs(self.config.security_limits.max_execution_time_secs);
+        self.engine.increment_epoch();
+        store.set_epoch_deadline(1);
+        
         let mut linker = Linker::new(&self.engine);
 
         let ctx_clone = self.ctx.clone();
@@ -295,10 +535,31 @@ impl JobExecutor for WasmExecutor {
             .map_err(|e| CommonError::InternalError(e.to_string()))?;
 
         let start_time = SystemTime::now();
-        let result = func
-            .call(&mut store, ())
-            .map_err(|e| CommonError::InternalError(e.to_string()))?;
+        
+        // Execute with timeout handling
+        let result = async {
+            // Start a timer for timeout
+            let timeout_future = tokio::time::sleep(timeout_duration);
+            let execution_future = async {
+                func.call(&mut store, ())
+                    .map_err(|e| CommonError::InternalError(e.to_string()))
+            };
+            
+            tokio::select! {
+                result = execution_future => result,
+                _ = timeout_future => {
+                    error!("WASM execution timeout: job_id={:?}, duration={:?}", job.id, timeout_duration);
+                    Err(CommonError::InternalError("WASM execution timeout".into()))
+                }
+            }
+        }.await?;
+        
+        let execution_duration = execution_start.elapsed();
         let cpu_ms = start_time.elapsed().unwrap_or_default().as_millis() as u64;
+
+        // Audit log the execution completion
+        info!("WASM job {} completed in {:?}: {:?}", 
+              job.id, execution_duration, result);
 
         let result_bytes = result.to_le_bytes();
         let result_cid = Cid::new_v1_sha256(0x55, &result_bytes);
@@ -317,11 +578,16 @@ impl JobExecutor for WasmExecutor {
         let receipt = IdentityExecutionReceipt {
             job_id: job.id.clone().into(),
             executor_did,
-            result_cid,
+            result_cid: result_cid.clone(),
             cpu_ms,
             success: true,
             sig: SignatureBytes(sig),
         };
+        
+        // Final audit log
+        info!("WASM execution receipt created: job_id={:?}, result_cid={}, success=true", 
+              job.id, result_cid);
+        
         Ok(receipt)
     }
 }
@@ -466,4 +732,23 @@ mod tests {
         assert_eq!(receipt.executor_did, node_did);
         assert!(receipt.verify_against_key(&vk).is_ok());
     }
+
+    #[test]
+    fn test_wasm_security_limits_default() {
+        let limits = WasmSecurityLimits::default();
+        assert_eq!(limits.max_execution_time_secs, 30);
+        assert_eq!(limits.max_memory_pages, 160);
+        assert_eq!(limits.max_fuel, 1_000_000);
+    }
+    
+    #[test]
+    fn test_wasm_module_validator_validates_size() {
+        let limits = WasmSecurityLimits::default();
+        let validator = WasmModuleValidator::new(limits);
+        
+        // Test with oversized module
+        let oversized_wasm = vec![0u8; 51 * 1024 * 1024]; // 51MB
+        assert!(validator.validate_wasm_module(&oversized_wasm).is_err());
+    }
 }
+

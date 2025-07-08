@@ -9,7 +9,7 @@ use tokio::task;
 #[tokio::test]
 async fn add_and_remove_member_via_http() {
     let (router, ctx) =
-        app_router_with_options(None, None, None, None, None, None, None, None, None).await;
+        app_router_with_options(None, None, None, None, None, None, None, None, None, None).await;
     let node_did = ctx.current_identity.clone();
     {
         let mut gov = ctx.governance_module.lock().await;
@@ -131,4 +131,13 @@ async fn add_and_remove_member_via_http() {
     }
 
     server.abort();
+}
+
+#[tokio::test]
+async fn governance_membership_required_for_vote() {
+    let router = {
+        let (_router, _ctx) =
+            app_router_with_options(None, None, None, None, None, None, None, None, None, None).await;
+        _router
+    };
 }

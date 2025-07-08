@@ -18,8 +18,6 @@ async fn api_key_required_for_requests() {
         None,
         None,
         None,
-        None,
-        None,
     )
     .await;
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();

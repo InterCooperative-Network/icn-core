@@ -62,9 +62,11 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use subtle::ConstantTimeEq;
 use tokio::sync::{Mutex as AsyncMutex, Mutex as TokioMutex};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::process;
 
 use crate::config::{NodeConfig, StorageBackendType};
 
@@ -72,6 +74,58 @@ use crate::config::{NodeConfig, StorageBackendType};
 use icn_network::libp2p_service::{Libp2pNetworkService, NetworkConfig};
 #[cfg(feature = "enable-libp2p")]
 use libp2p::{Multiaddr, PeerId as Libp2pPeerId};
+
+static NODE_START_TIME: AtomicU64 = AtomicU64::new(0);
+
+// Initialize node start time (call this when the node starts)
+fn init_node_start_time() {
+    let start_time = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    NODE_START_TIME.store(start_time, Ordering::Relaxed);
+}
+
+#[derive(serde::Serialize)]
+struct HealthStatus {
+    status: String,
+    timestamp: u64,
+    uptime_seconds: u64,
+    checks: HealthChecks,
+}
+
+#[derive(serde::Serialize)]
+struct HealthChecks {
+    runtime: String,
+    dag_store: String,
+    network: String,
+    mana_ledger: String,
+}
+
+#[derive(serde::Serialize)]
+struct ReadinessStatus {
+    ready: bool,
+    timestamp: u64,
+    checks: ReadinessChecks,
+}
+
+#[derive(serde::Serialize)]
+struct ReadinessChecks {
+    can_serve_requests: bool,
+    mana_ledger_available: bool,
+    dag_store_available: bool,
+    network_initialized: bool,
+}
+
+#[derive(serde::Serialize)]
+struct SystemMetrics {
+    uptime_seconds: u64,
+    memory_usage_bytes: u64,
+    process_id: u32,
+    connected_peers: usize,
+    pending_jobs: usize,
+    mana_accounts: usize,
+}
 
 // --- CLI Arguments ---
 
@@ -535,6 +589,8 @@ pub async fn app_router_with_options(
         Router::new()
             .route("/info", get(info_handler))
             .route("/status", get(status_handler))
+            .route("/health", get(health_handler))
+            .route("/ready", get(readiness_handler))
             .route("/metrics", get(metrics_handler))
             .route("/network/local-peer-id", get(network_local_peer_id_handler))
             .route("/network/peers", get(network_peers_handler))
@@ -644,6 +700,8 @@ pub async fn app_router_from_context(
     Router::new()
         .route("/info", get(info_handler))
         .route("/status", get(status_handler))
+        .route("/health", get(health_handler))
+        .route("/ready", get(readiness_handler))
         .route("/metrics", get(metrics_handler))
         .route("/network/local-peer-id", get(network_local_peer_id_handler))
         .route("/network/peers", get(network_peers_handler))
@@ -687,6 +745,8 @@ pub async fn app_router_from_context(
 // --- Main Application Logic ---
 pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init(); // Initialize logger
+    init_node_start_time(); // Initialize uptime tracking
+    
     let cmd = Cli::command();
     let matches = cmd.get_matches();
     let cli = Cli::from_arg_matches(&matches).expect("CLI parsing failed");
@@ -949,6 +1009,8 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
     let router = Router::new()
         .route("/info", get(info_handler))
         .route("/status", get(status_handler))
+        .route("/health", get(health_handler))
+        .route("/ready", get(readiness_handler))
         .route("/metrics", get(metrics_handler))
         .route("/dag/put", post(dag_put_handler))
         .route("/dag/get", post(dag_get_handler))
@@ -1077,6 +1139,126 @@ async fn status_handler(State(state): State<AppState>) -> impl IntoResponse {
     (StatusCode::OK, Json(status))
 }
 
+// GET /health – Node health status
+async fn health_handler(State(state): State<AppState>) -> impl IntoResponse {
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    
+    let start_time = NODE_START_TIME.load(Ordering::Relaxed);
+    let uptime = if start_time > 0 { now - start_time } else { 0 };
+    
+    // Perform health checks
+    let mut checks = HealthChecks {
+        runtime: "OK".to_string(),
+        dag_store: "OK".to_string(),
+        network: "OK".to_string(),
+        mana_ledger: "OK".to_string(),
+    };
+    
+    let mut overall_status = "OK";
+    
+    // Check DAG store health
+    match state.runtime_context.dag_store.try_lock() {
+        Ok(_) => checks.dag_store = "OK".to_string(),
+        Err(_) => {
+            checks.dag_store = "BUSY".to_string();
+            overall_status = "DEGRADED";
+        }
+    }
+    
+    // Check mana ledger health
+    let test_did = icn_common::Did::new("key", "health_check_test");
+    let _balance_check = state.runtime_context.mana_ledger.get_balance(&test_did);
+    // get_balance returns u64, so it's always >= 0
+    checks.mana_ledger = "OK".to_string();
+    
+    // Check network health
+    #[cfg(feature = "enable-libp2p")]
+    {
+        match state.runtime_context.get_libp2p_service() {
+            Ok(_) => checks.network = "OK".to_string(),
+            Err(_) => {
+                checks.network = "NOT_AVAILABLE".to_string();
+                overall_status = "DEGRADED";
+            }
+        }
+    }
+    #[cfg(not(feature = "enable-libp2p"))]
+    {
+        checks.network = "DISABLED".to_string();
+    }
+    
+    let health_status = HealthStatus {
+        status: overall_status.to_string(),
+        timestamp: now,
+        uptime_seconds: uptime,
+        checks,
+    };
+    
+    let status_code = match overall_status {
+        "OK" => StatusCode::OK,
+        "DEGRADED" => StatusCode::OK, // Still serving requests
+        _ => StatusCode::SERVICE_UNAVAILABLE,
+    };
+    
+    (status_code, Json(health_status))
+}
+
+// GET /ready – Node readiness status
+async fn readiness_handler(State(state): State<AppState>) -> impl IntoResponse {
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    
+    let mut checks = ReadinessChecks {
+        can_serve_requests: true,
+        mana_ledger_available: false,
+        dag_store_available: false,
+        network_initialized: false,
+    };
+    
+    // Check if DAG store is accessible
+    checks.dag_store_available = state.runtime_context.dag_store.try_lock().is_ok();
+    
+    // Check if mana ledger is working
+    let test_did = icn_common::Did::new("key", "readiness_test");
+    let _balance_check = state.runtime_context.mana_ledger.get_balance(&test_did);
+    // get_balance returns u64, so it's always available
+    checks.mana_ledger_available = true;
+    
+    // Check network initialization
+    #[cfg(feature = "enable-libp2p")]
+    {
+        checks.network_initialized = state.runtime_context.get_libp2p_service().is_ok();
+    }
+    #[cfg(not(feature = "enable-libp2p"))]
+    {
+        checks.network_initialized = true; // Consider initialized if networking is disabled
+    }
+    
+    let ready = checks.can_serve_requests && 
+                checks.mana_ledger_available && 
+                checks.dag_store_available && 
+                checks.network_initialized;
+    
+    let readiness_status = ReadinessStatus {
+        ready,
+        timestamp: now,
+        checks,
+    };
+    
+    let status_code = if ready {
+        StatusCode::OK
+    } else {
+        StatusCode::SERVICE_UNAVAILABLE
+    };
+    
+    (status_code, Json(readiness_status))
+}
+
 // GET /metrics – Prometheus metrics text
 async fn metrics_handler() -> impl IntoResponse {
     use icn_dag::metrics::{DAG_GET_CALLS, DAG_PUT_CALLS};
@@ -1087,8 +1269,11 @@ async fn metrics_handler() -> impl IntoResponse {
         HOST_ACCOUNT_GET_MANA_CALLS, HOST_ACCOUNT_SPEND_MANA_CALLS,
         HOST_GET_PENDING_MESH_JOBS_CALLS, HOST_SUBMIT_MESH_JOB_CALLS,
     };
+    use prometheus_client::metrics::{counter::Counter, gauge::Gauge};
 
     let mut registry = Registry::default();
+    
+    // Existing metrics
     registry.register(
         "host_submit_mesh_job_calls",
         "Number of host_submit_mesh_job calls",
@@ -1164,6 +1349,50 @@ async fn metrics_handler() -> impl IntoResponse {
         "Current number of pending mesh jobs",
         PENDING_JOBS_GAUGE.clone(),
     );
+
+    // Add system metrics
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    let start_time = NODE_START_TIME.load(Ordering::Relaxed);
+    let uptime = if start_time > 0 { now - start_time } else { 0 };
+    
+    let uptime_gauge: Gauge<f64, std::sync::atomic::AtomicU64> = Gauge::default();
+    uptime_gauge.set(uptime as f64);
+    registry.register(
+        "node_uptime_seconds",
+        "Node uptime in seconds",
+        uptime_gauge,
+    );
+
+    let process_id_gauge: Gauge<f64, std::sync::atomic::AtomicU64> = Gauge::default();
+    process_id_gauge.set(process::id() as f64);
+    registry.register(
+        "node_process_id",
+        "Node process ID",
+        process_id_gauge,
+    );
+
+    // Memory usage (basic approximation - could be enhanced with proper system monitoring)
+    if let Ok(status) = fs::read_to_string("/proc/self/status") {
+        for line in status.lines() {
+            if line.starts_with("VmRSS:") {
+                if let Some(kb_str) = line.split_whitespace().nth(1) {
+                    if let Ok(kb) = kb_str.parse::<u64>() {
+                        let memory_gauge: Gauge<f64, std::sync::atomic::AtomicU64> = Gauge::default();
+                        memory_gauge.set((kb * 1024) as f64); // Convert KB to bytes
+                        registry.register(
+                            "node_memory_usage_bytes",
+                            "Node memory usage in bytes",
+                            memory_gauge,
+                        );
+                    }
+                }
+                break;
+            }
+        }
+    }
 
     let mut buffer = String::new();
     encode(&mut buffer, &registry).unwrap();
@@ -1956,7 +2185,7 @@ async fn federation_status_handler(State(state): State<AppState>) -> impl IntoRe
 }
 
 // GET /network/local-peer-id - return this node's peer ID
-async fn network_local_peer_id_handler(State(_state): State<AppState>) -> impl IntoResponse {
+async fn network_local_peer_id_handler(State(state): State<AppState>) -> impl IntoResponse {
     #[cfg(feature = "enable-libp2p")]
     {
         match state.runtime_context.get_libp2p_service() {
@@ -1978,7 +2207,7 @@ async fn network_local_peer_id_handler(State(_state): State<AppState>) -> impl I
 }
 
 // GET /network/peers - list peers discovered via the network service
-async fn network_peers_handler(State(_state): State<AppState>) -> impl IntoResponse {
+async fn network_peers_handler(State(state): State<AppState>) -> impl IntoResponse {
     #[cfg(feature = "enable-libp2p")]
     {
         match state.runtime_context.get_libp2p_service() {

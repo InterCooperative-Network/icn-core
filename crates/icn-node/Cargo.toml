@@ -40,9 +40,9 @@ subtle = "2"
 default = ["icn-network/default"]
 with-libp2p = ["icn-network/libp2p", "icn-runtime/enable-libp2p", "enable-libp2p", "dep:libp2p"]
 enable-libp2p = []
-persist-sqlite = ["icn-dag/persist-sqlite"]
-persist-sled = ["icn-dag/persist-sled"]
-persist-rocksdb = ["icn-dag/persist-rocksdb"]
+persist-sqlite = ["icn-dag/persist-sqlite", "icn-runtime/persist-sqlite", "icn-economics/persist-sqlite"]
+persist-sled = ["icn-dag/persist-sled", "icn-runtime/persist-sled", "icn-economics/persist-sled"]
+persist-rocksdb = ["icn-dag/persist-rocksdb", "icn-runtime/persist-rocksdb", "icn-economics/persist-rocksdb"]
 
 [dev-dependencies]
 reqwest = { version = "0.11", features = ["json", "rustls-tls"] }

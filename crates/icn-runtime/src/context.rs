@@ -1,6 +1,8 @@
 //! Defines the `RuntimeContext`, `HostEnvironment`, and related types for the ICN runtime.
 
-use icn_common::{Cid, CommonError, DagBlock, Did};
+use icn_common::{
+    Cid, CommonError, DagBlock, Did,
+};
 use icn_identity::{ExecutionReceipt as IdentityExecutionReceipt, SignatureBytes};
 use icn_mesh::{ActualMeshJob, JobId, JobState, MeshJobBid, Resources};
 
@@ -26,7 +28,7 @@ use icn_economics::RocksdbManaLedger;
 #[cfg(feature = "persist-sled")]
 use icn_economics::SledManaLedger;
 #[cfg(all(not(feature = "persist-sled"), feature = "persist-sqlite"))]
-use icn_economics::SqliteManaLedger;
+// use icn_economics::SqliteManaLedger; // Unused import
 use log::{debug, error, info, warn};
 use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
@@ -35,7 +37,10 @@ use std::sync::Arc;
 use std::time::{Duration as StdDuration, Instant as StdInstant};
 #[cfg(test)]
 use tempfile;
+#[cfg(feature = "async")]
 use tokio::sync::Mutex as TokioMutex;
+#[cfg(not(feature = "async"))]
+use std::sync::Mutex as SyncMutex;
 
 use async_trait::async_trait;
 
@@ -61,6 +66,20 @@ use icn_identity::{
     SIGNATURE_LENGTH,
 };
 use serde::{Deserialize, Serialize};
+
+// Duplicate imports removed - using the ones from the top of the file
+
+#[cfg(feature = "persist-rocksdb")]
+use icn_dag::rocksdb_store::RocksDagStore;
+#[cfg(feature = "async")]
+use icn_dag::{AsyncStorageService as DagStorageService, TokioFileDagStore};
+#[cfg(not(feature = "async"))]
+use icn_dag::{StorageService as DagStorageService, FileDagStore};
+
+#[cfg(feature = "async")]
+type DagStoreMutex<T> = TokioMutex<T>;
+#[cfg(not(feature = "async"))]
+type DagStoreMutex<T> = SyncMutex<T>;
 
 // Counter for generating unique (within this runtime instance) job IDs for stubs
 pub static NEXT_JOB_ID: AtomicU32 = AtomicU32::new(1);
@@ -96,21 +115,6 @@ pub trait Signer: Send + Sync + std::fmt::Debug {
     fn did(&self) -> Did;
     fn verifying_key_ref(&self) -> &VerifyingKey;
 }
-
-#[cfg(feature = "persist-rocksdb")]
-use icn_dag::rocksdb_store::RocksDagStore;
-#[cfg(feature = "async")]
-use icn_dag::AsyncStorageService as DagStorageService;
-#[cfg(not(any(
-    feature = "persist-rocksdb",
-    feature = "persist-sled",
-    feature = "persist-sqlite"
-)))]
-use icn_dag::FileDagStore;
-#[cfg(not(feature = "async"))]
-use icn_dag::StorageService as DagStorageService;
-#[cfg(feature = "async")]
-use icn_dag::TokioFileDagStore;
 
 // Placeholder for icn_economics::ManaRepository
 pub trait ManaRepository: Send + Sync + std::fmt::Debug {
@@ -651,13 +655,13 @@ impl From<CommonError> for HostAbiError {
 pub struct RuntimeContext {
     pub current_identity: Did,
     pub mana_ledger: SimpleManaLedger,
-    pub pending_mesh_jobs: Arc<TokioMutex<VecDeque<ActualMeshJob>>>,
-    pub job_states: Arc<TokioMutex<HashMap<JobId, JobState>>>,
-    pub governance_module: Arc<TokioMutex<GovernanceModule>>,
+    pub pending_mesh_jobs: Arc<DagStoreMutex<VecDeque<ActualMeshJob>>>,
+    pub job_states: Arc<DagStoreMutex<HashMap<JobId, JobState>>>,
+    pub governance_module: Arc<DagStoreMutex<GovernanceModule>>,
     pub mesh_network_service: Arc<dyn MeshNetworkService>, // Uses local MeshNetworkService trait
     pub signer: Arc<dyn Signer>,
     pub did_resolver: Arc<dyn icn_identity::DidResolver>,
-    pub dag_store: Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>, // Storage backend
+    pub dag_store: Arc<DagStoreMutex<dyn DagStorageService<DagBlock> + Send>>, // Storage backend
     pub reputation_store: Arc<dyn icn_reputation::ReputationStore>,
     pub policy_enforcer: Option<Arc<dyn ScopedPolicyEnforcer>>,
     /// Source of time for timestamp generation.
@@ -849,34 +853,52 @@ impl RuntimeContext {
         policy_enforcer: Option<Arc<dyn ScopedPolicyEnforcer>>,
     ) -> Result<Arc<Self>, CommonError> {
         #[cfg(feature = "persist-rocksdb")]
-        let dag_store = Arc::new(TokioMutex::new(RocksDagStore::new(dag_path)?))
-            as Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>;
+        let dag_store = Arc::new(DagStoreMutex::new(icn_dag::rocksdb_store::RocksDagStore::new(
+            dag_path.clone(),
+        )?)) as Arc<DagStoreMutex<dyn DagStorageService<DagBlock> + Send>>;
 
         #[cfg(all(not(feature = "persist-rocksdb"), feature = "persist-sled"))]
-        let dag_store = Arc::new(TokioMutex::new(icn_dag::sled_store::SledDagStore::new(
-            dag_path,
-        )?)) as Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>;
+        let dag_store = Arc::new(DagStoreMutex::new(icn_dag::sled_store::SledDagStore::new(
+            dag_path.clone(),
+        )?)) as Arc<DagStoreMutex<dyn DagStorageService<DagBlock> + Send>>;
 
         #[cfg(all(
             not(feature = "persist-rocksdb"),
             not(feature = "persist-sled"),
             feature = "persist-sqlite"
         ))]
-        let dag_store = Arc::new(TokioMutex::new(icn_dag::sqlite_store::SqliteDagStore::new(
-            dag_path,
-        )?)) as Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>;
+        let dag_store = {
+            #[cfg(feature = "async")]
+            {
+                Arc::new(DagStoreMutex::new(TokioFileDagStore::new(
+                    dag_path.clone(),
+                )?)) as Arc<DagStoreMutex<dyn DagStorageService<DagBlock> + Send>>
+            }
+            #[cfg(not(feature = "async"))]
+            {
+                Arc::new(DagStoreMutex::new(icn_dag::sqlite_store::SqliteDagStore::new(
+                    dag_path.clone(),
+                )?)) as Arc<DagStoreMutex<dyn DagStorageService<DagBlock> + Send>>
+            }
+        };
 
         #[cfg(not(any(
             feature = "persist-rocksdb",
             feature = "persist-sled",
             feature = "persist-sqlite"
         )))]
-        #[cfg(feature = "async")]
-        let dag_store = Arc::new(TokioMutex::new(icn_dag::TokioFileDagStore::new(dag_path)?))
-            as Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>;
-        #[cfg(not(feature = "async"))]
-        let dag_store = Arc::new(TokioMutex::new(FileDagStore::new(dag_path)?))
-            as Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>;
+        let dag_store = {
+            #[cfg(feature = "async")]
+            {
+                Arc::new(DagStoreMutex::new(TokioFileDagStore::new(dag_path)?))
+                    as Arc<DagStoreMutex<dyn DagStorageService<DagBlock> + Send>>
+            }
+            #[cfg(not(feature = "async"))]
+            {
+                Arc::new(DagStoreMutex::new(icn_dag::FileDagStore::new(dag_path)?))
+                    as Arc<DagStoreMutex<dyn DagStorageService<DagBlock> + Send>>
+            }
+        };
 
         Ok(Self::new_with_ledger_path_and_time(
             current_identity,
@@ -1507,8 +1529,19 @@ impl RuntimeContext {
                 return Err(HostAbiError::PermissionDenied(reason));
             }
         }
-        let mut store = self.dag_store.lock().await;
-        store.put(&block).map_err(HostAbiError::Common)?;
+        let result = {
+            #[cfg(feature = "async")]
+            {
+                let mut store = self.dag_store.lock().await;
+                store.put(&block).await
+            }
+            #[cfg(not(feature = "async"))]
+            {
+                let mut store = self.dag_store.lock().unwrap();
+                store.put(&block)
+            }
+        };
+        result.map_err(HostAbiError::Common)?;
         let cid = block.cid.clone();
         info!(
             "[RuntimeContext] Anchored receipt for job_id {:?} with CID: {:?}. Executor: {:?}. Receipt cost {}ms.",
@@ -1841,6 +1874,97 @@ impl RuntimeContext {
         } else {
             Ok(())
         }
+    }
+
+    #[cfg(feature = "async")]
+    pub async fn host_anchor_receipt(&self, receipt: &IdentityExecutionReceipt) -> Result<(), HostAbiError> {
+        let receipt_data = serde_json::to_vec(receipt)
+            .map_err(|e| HostAbiError::Common(CommonError::SerializationError(e.to_string())))?;
+        
+        // Convert from icn_identity::SignatureBytes to icn_common::SignatureBytes
+        let common_sig = icn_common::SignatureBytes(receipt.sig.0.clone());
+        let signature_opt = Some(common_sig);
+        
+        let block = DagBlock {
+            cid: icn_common::compute_merkle_cid(
+                0x55, // DAG-CBOR codec
+                &receipt_data,
+                &[],
+                self.time_provider.unix_seconds(),
+                &receipt.executor_did,
+                &signature_opt,
+                &None,
+            ),
+            data: receipt_data,
+            links: vec![],
+            timestamp: self.time_provider.unix_seconds(),
+            author_did: receipt.executor_did.clone(),
+            signature: signature_opt,
+            scope: None,
+        };
+        
+        let result = {
+            #[cfg(feature = "async")]
+            {
+                let mut store = self.dag_store.lock().await;
+                store.put(&block).await
+            }
+            #[cfg(not(feature = "async"))]
+            {
+                let mut store = self.dag_store.lock().unwrap();
+                store.put(&block)
+            }
+        };
+        result.map_err(HostAbiError::Common)?;
+        let cid = block.cid.clone();
+        info!(
+            "Anchored receipt for job {} from executor {} to DAG as {}",
+            receipt.job_id, receipt.executor_did, cid
+        );
+        Ok(())
+    }
+
+    #[cfg(not(feature = "async"))]
+    pub fn host_anchor_receipt(&self, receipt: &IdentityExecutionReceipt) -> Result<(), HostAbiError> {
+        let receipt_data = serde_json::to_vec(receipt)
+            .map_err(|e| HostAbiError::Common(CommonError::SerializationError(e.to_string())))?;
+        
+        // Convert from icn_identity::SignatureBytes to icn_common::SignatureBytes
+        let common_sig = icn_common::SignatureBytes(receipt.sig.0.clone());
+        let signature_opt = Some(common_sig);
+        
+        let block = DagBlock {
+            cid: icn_common::compute_merkle_cid(
+                0x55, // DAG-CBOR codec
+                &receipt_data,
+                &[],
+                self.time_provider.unix_seconds(),
+                &receipt.executor_did,
+                &signature_opt,
+                &None,
+            ),
+            data: receipt_data,
+            links: vec![],
+            timestamp: self.time_provider.unix_seconds(),
+            author_did: receipt.executor_did.clone(),
+            signature: signature_opt,
+            scope: None,
+        };
+        
+        let result = {
+            #[cfg(feature = "async")]
+            {
+                let mut store = self.dag_store.lock().await;
+                store.put(&block).await
+            }
+            #[cfg(not(feature = "async"))]
+            {
+                let mut store = self.dag_store.lock().unwrap();
+                store.put(&block)
+            }
+        };
+        result.map_err(HostAbiError::Common)?;
+        Ok(())
     }
 }
 
@@ -2221,7 +2345,9 @@ impl Default for StubDagStore {
 }
 
 pub type RuntimeStubDagStore = StubDagStore;
-impl DagStorageService<DagBlock> for StubDagStore {
+
+#[cfg(not(feature = "async"))]
+impl icn_dag::StorageService<DagBlock> for StubDagStore {
     fn put(&mut self, block: &DagBlock) -> Result<(), CommonError> {
         self.store.insert(block.cid.clone(), block.clone());
         Ok(())

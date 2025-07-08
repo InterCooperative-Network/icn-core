@@ -1,0 +1,14 @@
+storage_backend = 'Memory'
+storage_path = './icn_data/node_store'
+mana_ledger_backend = 'Sqlite'
+mana_ledger_path = './mana_ledger.sled'
+reputation_db_path = './reputation.sled'
+governance_db_path = './governance_db'
+http_listen_addr = '127.0.0.1:7845'
+node_did_path = './icn_data/node_did.txt'
+node_private_key_path = './icn_data/node_sk.bs58'
+node_name = 'ICN Node'
+listen_address = '/ip4/0.0.0.0/tcp/0'
+enable_p2p = true
+open_rate_limit = 60
+federation_peers = []
