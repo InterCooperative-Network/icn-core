@@ -1,4 +1,4 @@
-# Phase 2A Demo: Multi-Node ICN Network
+# Phase 2A Demo: Multi-Node ICN
 
 ## 🎯 Objective
 Demonstrate that two ICN nodes can discover each other via bootstrap peers and establish a P2P connection.

@@ -1,10 +1,10 @@
 #![doc = include_str!("../README.md")]
 
 //! # ICN Protocol Crate
-//! This crate defines core message formats and protocol definitions for the ICN,
+//! This crate defines core message formats and protocol definitions for ICN,
 //! ensuring interoperability between different components and nodes.
-//! 
-//! This is the single source of truth for all ICN network protocol messages,
+//!
+//! This is the single source of truth for all network protocol messages,
 //! including mesh computing, governance, DAG operations, and federation management.
 
 use icn_common::{Cid, Did, DagBlock, CommonError, NodeInfo};
@@ -16,7 +16,7 @@ pub const ICN_PROTOCOL_VERSION: u32 = 1;
 
 // === Core Protocol Message Envelope ===
 
-/// Main protocol message envelope that wraps all ICN network communications
+/// Main protocol message envelope that wraps all ICN communications
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProtocolMessage {
     /// Protocol version for compatibility checking

@@ -9,10 +9,10 @@ See [CONTEXT.md](../CONTEXT.md) for ICN Core design philosophy and crate roles.
 The `icn-runtime` crate is responsible for:
 
 *   **Execution Environment:** Defining and managing the environment where ICN's core logic or user-defined contracts/scripts run.
-*   **WASM Runtime (if applicable):** If ICN uses WebAssembly for smart contracts or extensible logic, this crate would host and manage the WASM execution engine (e.g., Wasmer, Wasmtime).
+*   **WASM Runtime (if applicable):** If ICN uses WebAssembly for CCL contracts or extensible logic, this crate would host and manage the WASM execution engine (e.g., Wasmer, Wasmtime).
 *   **Host Functions:** Providing a set of functions (host calls) that WASM modules or other sandboxed code can use to interact with the ICN node's capabilities (e.g., accessing storage, sending network messages, interacting with ledgers).
 *   **Sandboxing and Security:** Ensuring that executed code is properly isolated and cannot compromise the host node or the network.
-*   **Metering and Resource Limits:** Potentially implementing mechanisms to measure and limit the computational resources (e.g., gas) consumed by executed code.
+*   **Metering and Resource Limits:** Potentially implementing mechanisms to measure and limit the computational resources (e.g., mana) consumed by executed code.
 
 This crate is key to enabling safe and extensible functionality within ICN nodes.
 

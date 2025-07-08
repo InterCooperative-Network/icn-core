@@ -16,8 +16,8 @@ fn transaction_sign_verify() {
         payload_type: "test".to_string(),
         payload: b"hello".to_vec(),
         nonce: 0,
-        gas_limit: 100,
-        gas_price: 1,
+        mana_limit: 100,
+        mana_price: 1,
         signature: None,
     };
 
@@ -39,8 +39,8 @@ fn transaction_serialization_roundtrip() {
         payload_type: "test".to_string(),
         payload: b"hello".to_vec(),
         nonce: 7,
-        gas_limit: 200,
-        gas_price: 2,
+        mana_limit: 200,
+        mana_price: 2,
         signature: None,
     };
 

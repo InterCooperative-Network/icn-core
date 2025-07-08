@@ -1,4 +1,4 @@
-# ICN Network (`icn-network`)
+# Networking for ICN (`icn-network`)
 
 This crate manages peer-to-peer (P2P) networking aspects for the InterCooperative Network (ICN).
 It defines the core networking abstractions, message types, and service interfaces. A lightweight stub service is available for tests, while production builds enable a libp2p-based implementation via the `libp2p` feature.
