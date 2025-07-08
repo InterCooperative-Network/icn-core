@@ -11,17 +11,16 @@
 
 // Depending on icn_common crate
 use icn_common::{
-    compute_merkle_cid, retry_with_backoff, CircuitBreaker, CircuitBreakerError,
-    SystemTimeProvider, Cid, CommonError, DagBlock, Did, NodeInfo, NodeStatus,
-    ICN_CORE_VERSION,
+    compute_merkle_cid, retry_with_backoff, Cid, CircuitBreaker, CircuitBreakerError, CommonError,
+    DagBlock, Did, NodeInfo, NodeStatus, SystemTimeProvider, ICN_CORE_VERSION,
 };
 // Remove direct use of icn_dag::put_block and icn_dag::get_block which use global store
 // use icn_dag::{put_block as dag_put_block, get_block as dag_get_block};
-use icn_dag::StorageService; // Import the trait
+use icn_dag::AsyncStorageService; // Import the async storage trait
 use once_cell::sync::Lazy;
 use std::sync::{Arc, Mutex}; // To accept the storage service
 use tokio::sync::Mutex as AsyncMutex;
-                             // Added imports for network functionality
+// Added imports for network functionality
 use icn_network::{NetworkService, PeerId, StubNetworkService};
 
 use icn_protocol::ProtocolMessage;
@@ -83,7 +82,7 @@ pub fn submit_transaction(tx_json: String) -> Result<String, CommonError> {
 ///
 /// Returns the [`DagBlock`] if found, or `Ok(None)` if the block does not exist.
 pub async fn query_data(
-    storage: Arc<tokio::sync::Mutex<dyn StorageService<DagBlock> + Send>>,
+    storage: Arc<tokio::sync::Mutex<dyn AsyncStorageService<DagBlock> + Send>>,
     cid_json: String,
 ) -> Result<Option<DagBlock>, CommonError> {
     let cid: Cid = serde_json::from_str(&cid_json).map_err(|e| {
@@ -94,7 +93,7 @@ pub async fn query_data(
     })?;
 
     let store_guard = storage.lock().await;
-    store_guard.get(&cid).map_err(|e| match e {
+    store_guard.get(&cid).await.map_err(|e| match e {
         CommonError::StorageError(msg) => {
             CommonError::StorageError(format!("API: Failed to query DagBlock: {}", msg))
         }
@@ -135,7 +134,7 @@ pub fn get_node_status(is_simulated_online: bool) -> Result<NodeStatus, CommonEr
 /// Submits a DagBlock to the provided DAG store.
 /// Returns the CID of the stored block upon success.
 pub async fn submit_dag_block(
-    storage: Arc<tokio::sync::Mutex<dyn StorageService<DagBlock> + Send>>,
+    storage: Arc<tokio::sync::Mutex<dyn AsyncStorageService<DagBlock> + Send>>,
     block_data_json: String,
     policy_enforcer: Option<Arc<dyn ScopedPolicyEnforcer>>,
     actor: Did,
@@ -170,7 +169,7 @@ pub async fn submit_dag_block(
 
     let mut store = storage.lock().await;
 
-    store.put(&block).map_err(|e| match e {
+    store.put(&block).await.map_err(|e| match e {
         CommonError::StorageError(msg) => {
             CommonError::StorageError(format!("API: Failed to store DagBlock: {}", msg))
         }
@@ -193,7 +192,7 @@ pub async fn submit_dag_block(
 /// Retrieves a DagBlock from the provided DAG store by its CID.
 /// The result is an Option<DagBlock> to indicate if the block was found.
 pub async fn retrieve_dag_block(
-    storage: Arc<tokio::sync::Mutex<dyn StorageService<DagBlock> + Send>>,
+    storage: Arc<tokio::sync::Mutex<dyn AsyncStorageService<DagBlock> + Send>>,
     cid_json: String,
 ) -> Result<Option<DagBlock>, CommonError> {
     let cid: Cid = serde_json::from_str(&cid_json).map_err(|e| {
@@ -205,7 +204,7 @@ pub async fn retrieve_dag_block(
 
     let store = storage.lock().await;
 
-    store.get(&cid).map_err(|e| match e {
+    store.get(&cid).await.map_err(|e| match e {
         CommonError::StorageError(msg) => {
             CommonError::StorageError(format!("API: Failed to retrieve DagBlock: {}", msg))
         }
@@ -466,9 +465,9 @@ pub async fn http_get_local_peer_id(api_url: &str) -> Result<String, CommonError
             .call(|| async {
                 retry_with_backoff(
                     || async {
-                        reqwest::get(&url)
-                            .await
-                            .map_err(|e| CommonError::ApiError(format!("Failed to send request: {}", e)))
+                        reqwest::get(&url).await.map_err(|e| {
+                            CommonError::ApiError(format!("Failed to send request: {}", e))
+                        })
                     },
                     3,
                     Duration::from_millis(100),
@@ -514,9 +513,9 @@ pub async fn http_get_peer_list(api_url: &str) -> Result<Vec<String>, CommonErro
             .call(|| async {
                 retry_with_backoff(
                     || async {
-                        reqwest::get(&url)
-                            .await
-                            .map_err(|e| CommonError::ApiError(format!("Failed to send request: {}", e)))
+                        reqwest::get(&url).await.map_err(|e| {
+                            CommonError::ApiError(format!("Failed to send request: {}", e))
+                        })
                     },
                     3,
                     Duration::from_millis(100),
@@ -548,13 +547,17 @@ pub async fn http_get_peer_list(api_url: &str) -> Result<Vec<String>, CommonErro
 mod tests {
     use super::*;
     use icn_common::DagLink; // For test setup
-    use icn_dag::InMemoryDagStore; // For creating test stores, removed FileDagStore
+    use icn_dag::TokioFileDagStore; // Async file-based store for tests
+    use tempfile::tempdir;
     use icn_governance::GovernanceModule; // For governance tests
     use icn_protocol::{DagBlockRequestMessage, GossipMessage, MessagePayload, ProtocolMessage};
 
     // Helper to create a default in-memory store for tests
-    fn new_test_storage() -> Arc<tokio::sync::Mutex<dyn StorageService<DagBlock> + Send>> {
-        Arc::new(tokio::sync::Mutex::new(InMemoryDagStore::new()))
+    fn new_test_storage() -> Arc<tokio::sync::Mutex<dyn AsyncStorageService<DagBlock> + Send>> {
+        let dir = tempdir().unwrap();
+        Arc::new(tokio::sync::Mutex::new(
+            TokioFileDagStore::new(dir.into_path()).unwrap(),
+        ))
     }
 
     // Helper to create a default governance module for tests
@@ -928,10 +931,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_query_data() {
-        use icn_dag::InMemoryDagStore;
+        use icn_dag::TokioFileDagStore;
+        use tempfile::tempdir;
 
-        let store: Arc<tokio::sync::Mutex<dyn StorageService<DagBlock> + Send>> =
-            Arc::new(tokio::sync::Mutex::new(InMemoryDagStore::new()));
+        let dir = tempdir().unwrap();
+        let store: Arc<tokio::sync::Mutex<dyn AsyncStorageService<DagBlock> + Send>> =
+            Arc::new(tokio::sync::Mutex::new(
+                TokioFileDagStore::new(dir.into_path()).unwrap(),
+            ));
         let data = b"query block".to_vec();
         let ts = 0u64;
         let author = Did::new("key", "tester");
@@ -948,7 +955,7 @@ mod tests {
         };
         {
             let mut guard = store.lock().await;
-            guard.put(&block).unwrap();
+            guard.put(&block).await.unwrap();
         }
 
         let cid_json = serde_json::to_string(&cid).unwrap();
@@ -958,21 +965,26 @@ mod tests {
 
     struct DenyAllStore;
 
-    impl StorageService<DagBlock> for DenyAllStore {
-        fn put(&mut self, _block: &DagBlock) -> Result<(), CommonError> {
+    #[async_trait::async_trait]
+    impl AsyncStorageService<DagBlock> for DenyAllStore {
+        async fn put(&mut self, _block: &DagBlock) -> Result<(), CommonError> {
             Err(CommonError::PolicyDenied("put blocked".to_string()))
         }
 
-        fn get(&self, _cid: &Cid) -> Result<Option<DagBlock>, CommonError> {
+        async fn get(&self, _cid: &Cid) -> Result<Option<DagBlock>, CommonError> {
             Err(CommonError::PolicyDenied("get blocked".to_string()))
         }
 
-        fn delete(&mut self, _cid: &Cid) -> Result<(), CommonError> {
+        async fn delete(&mut self, _cid: &Cid) -> Result<(), CommonError> {
             Err(CommonError::PolicyDenied("delete blocked".to_string()))
         }
 
-        fn contains(&self, _cid: &Cid) -> Result<bool, CommonError> {
+        async fn contains(&self, _cid: &Cid) -> Result<bool, CommonError> {
             Err(CommonError::PolicyDenied("contains blocked".to_string()))
+        }
+
+        async fn list_blocks(&self) -> Result<Vec<DagBlock>, CommonError> {
+            Err(CommonError::PolicyDenied("list blocked".to_string()))
         }
 
         fn as_any(&self) -> &(dyn std::any::Any + 'static) {
@@ -986,7 +998,7 @@ mod tests {
 
     #[tokio::test]
     async fn policy_error_propagates_on_put() {
-        let store: Arc<tokio::sync::Mutex<dyn StorageService<DagBlock> + Send>> =
+        let store: Arc<tokio::sync::Mutex<dyn AsyncStorageService<DagBlock> + Send>> =
             Arc::new(tokio::sync::Mutex::new(DenyAllStore));
 
         let data = b"block".to_vec();
@@ -1012,7 +1024,7 @@ mod tests {
 
     #[tokio::test]
     async fn policy_error_propagates_on_get() {
-        let store: Arc<tokio::sync::Mutex<dyn StorageService<DagBlock> + Send>> =
+        let store: Arc<tokio::sync::Mutex<dyn AsyncStorageService<DagBlock> + Send>> =
             Arc::new(tokio::sync::Mutex::new(DenyAllStore));
 
         let cid = Cid::new_v1_sha256(0x71, b"a");
@@ -1025,7 +1037,7 @@ mod tests {
 
     #[tokio::test]
     async fn policy_error_propagates_on_query() {
-        let store: Arc<tokio::sync::Mutex<dyn StorageService<DagBlock> + Send>> =
+        let store: Arc<tokio::sync::Mutex<dyn AsyncStorageService<DagBlock> + Send>> =
             Arc::new(tokio::sync::Mutex::new(DenyAllStore));
 
         let cid = Cid::new_v1_sha256(0x71, b"a");
