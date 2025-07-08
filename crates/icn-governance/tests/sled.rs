@@ -20,6 +20,7 @@ mod tests {
                 60,
                 None,
                 None,
+                None,
             )
             .unwrap();
 
@@ -58,6 +59,7 @@ mod tests {
                 ProposalType::GenericText("hi".into()),
                 "desc".into(),
                 60,
+                None,
                 None,
                 None,
             )
@@ -108,6 +110,7 @@ mod tests {
             votes: HashMap::new(),
             quorum: None,
             threshold: None,
+            content_cid: None,
         };
 
         gov.insert_external_proposal(proposal.clone()).unwrap();
@@ -131,6 +134,7 @@ mod tests {
                 ProposalType::GenericText("vote".into()),
                 "desc".into(),
                 60,
+                None,
                 None,
                 None,
             )

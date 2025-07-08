@@ -277,3 +277,31 @@ async fn failed_execution_no_rewards() {
     assert_eq!(mana_after, mana_before);
     assert!(rep_after < rep_before);
 }
+
+#[tokio::test]
+async fn proposal_body_is_stored_in_dag() {
+    let ctx = RuntimeContext::new_with_stubs("did:icn:test:cid").unwrap();
+    {
+        let mut gov = ctx.governance_module.lock().await;
+        gov.add_member(Did::from_str("did:icn:test:cid").unwrap());
+    }
+    let body_bytes = b"full proposal text".to_vec();
+    let payload = serde_json::json!({
+        "proposal_type_str": "GenericText",
+        "type_specific_payload": b"short".to_vec(),
+        "description": "with body",
+        "duration_secs": 60,
+        "body": body_bytes,
+    });
+    let pid_str = host_create_governance_proposal(&ctx, &payload.to_string())
+        .await
+        .expect("create proposal");
+    let pid = ProposalId(pid_str);
+    let gov = ctx.governance_module.lock().await;
+    let prop = gov.get_proposal(&pid).unwrap().unwrap();
+    let cid = prop.content_cid.expect("cid stored");
+    drop(gov);
+    let store = ctx.dag_store.lock().await;
+    let block = store.get(&cid).unwrap().expect("block stored");
+    assert_eq!(block.data, b"full proposal text");
+}

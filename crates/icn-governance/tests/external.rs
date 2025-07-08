@@ -13,6 +13,7 @@ fn insert_external_proposal_round_trip() {
             60,
             None,
             None,
+            None,
         )
         .unwrap();
     let proposal = gov1.get_proposal(&pid).unwrap().unwrap();

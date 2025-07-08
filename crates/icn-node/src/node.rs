@@ -1625,6 +1625,7 @@ async fn gov_submit_handler(
         duration_secs: request.duration_secs,
         quorum: request.quorum,
         threshold: request.threshold,
+        body: request.body,
     };
 
     let payload_json = match serde_json::to_string(&payload) {

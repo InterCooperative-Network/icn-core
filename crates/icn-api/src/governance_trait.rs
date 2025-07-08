@@ -44,6 +44,7 @@ pub struct SubmitProposalRequest {
     pub duration_secs: u64,
     pub quorum: Option<usize>,
     pub threshold: Option<f32>,
+    pub body: Option<Vec<u8>>,
 }
 
 pub trait GovernanceApi {

@@ -292,6 +292,7 @@ impl GovernanceApi for GovernanceApiImpl {
             request.duration_secs,
             request.quorum,
             request.threshold,
+            None,
         )
     }
 
