@@ -38,8 +38,7 @@ use std::sync::Mutex as SyncMutex;
 use std::time::{Duration as StdDuration, Instant as StdInstant};
 #[cfg(test)]
 use tempfile;
-#[cfg(feature = "async")]
-use tokio::sync::Mutex as TokioMutex;
+use tokio::sync::{mpsc, Mutex as TokioMutex};
 
 use async_trait::async_trait;
 
@@ -655,7 +654,8 @@ impl From<CommonError> for HostAbiError {
 pub struct RuntimeContext {
     pub current_identity: Did,
     pub mana_ledger: SimpleManaLedger,
-    pub pending_mesh_jobs: Arc<DagStoreMutex<VecDeque<ActualMeshJob>>>,
+    pub pending_mesh_jobs_tx: mpsc::Sender<ActualMeshJob>,
+    pub pending_mesh_jobs_rx: TokioMutex<mpsc::Receiver<ActualMeshJob>>,
     pub job_states: Arc<DashMap<JobId, JobState>>,
     pub governance_module: Arc<DagStoreMutex<GovernanceModule>>,
     pub mesh_network_service: Arc<dyn MeshNetworkService>, // Uses local MeshNetworkService trait
@@ -761,7 +761,7 @@ impl RuntimeContext {
         time_provider: Arc<dyn icn_common::TimeProvider>,
     ) -> Arc<Self> {
         let job_states = Arc::new(DashMap::new());
-        let pending_mesh_jobs = Arc::new(TokioMutex::new(VecDeque::new()));
+        let (tx, rx) = mpsc::channel(128);
 
         #[cfg(feature = "persist-sled")]
         let governance_module = Arc::new(TokioMutex::new(
@@ -804,7 +804,8 @@ impl RuntimeContext {
         Arc::new(Self {
             current_identity,
             mana_ledger,
-            pending_mesh_jobs,
+            pending_mesh_jobs_tx: tx,
+            pending_mesh_jobs_rx: TokioMutex::new(rx),
             job_states,
             governance_module,
             mesh_network_service,
@@ -1020,8 +1021,10 @@ impl RuntimeContext {
         self: &Arc<Self>,
         job: ActualMeshJob,
     ) -> Result<(), HostAbiError> {
-        let mut queue = self.pending_mesh_jobs.lock().await;
-        queue.push_back(job.clone());
+        self.pending_mesh_jobs_tx
+            .send(job.clone())
+            .await
+            .map_err(|e| HostAbiError::InternalError(format!("{e:?}")))?;
         icn_mesh::metrics::PENDING_JOBS_GAUGE.inc();
         self.job_states.insert(job.id.clone(), JobState::Pending);
         log::info!(
@@ -1200,14 +1203,12 @@ impl RuntimeContext {
 
                 // Process jobs from the pending queue
                 while let Some(job) = {
-                    // job here is ActualMeshJob
-                    let mut pending_jobs_guard = self_clone.pending_mesh_jobs.lock().await;
-                    let popped_job = pending_jobs_guard.pop_front();
-                    if popped_job.is_some() {
+                    let mut rx = self_clone.pending_mesh_jobs_rx.lock().await;
+                    let job = rx.recv().await;
+                    if job.is_some() {
                         icn_mesh::metrics::PENDING_JOBS_GAUGE.dec();
                     }
-                    drop(pending_jobs_guard);
-                    popped_job
+                    job
                 } {
                     jobs_processed_in_cycle += 1;
                     let current_job_id = job.id.clone(); // Clone for use in logs and map keys
@@ -1379,20 +1380,24 @@ impl RuntimeContext {
 
                 // Re-queue jobs that need another attempt
                 if !jobs_to_requeue.is_empty() {
-                    let mut pending_jobs_guard = self_clone.pending_mesh_jobs.lock().await;
                     for job_to_requeue in jobs_to_requeue {
-                        // Ensure it's added to the back for fairness
-                        pending_jobs_guard.push_back(job_to_requeue);
-                        icn_mesh::metrics::PENDING_JOBS_GAUGE.inc();
+                        if self_clone
+                            .pending_mesh_jobs_tx
+                            .send(job_to_requeue)
+                            .await
+                            .is_ok()
+                        {
+                            icn_mesh::metrics::PENDING_JOBS_GAUGE.inc();
+                        }
                     }
-                    drop(pending_jobs_guard);
                 }
 
                 if jobs_processed_in_cycle == 0 {
-                    let pending_jobs_guard = self_clone.pending_mesh_jobs.lock().await;
-                    let is_empty = pending_jobs_guard.is_empty();
-                    drop(pending_jobs_guard);
-                    if is_empty {
+                    let rx_len = {
+                        let rx = self_clone.pending_mesh_jobs_rx.lock().await;
+                        rx.len()
+                    };
+                    if rx_len == 0 {
                         log::debug!("[JobManagerLoop] No jobs processed and no pending jobs. Manager is idle.");
                     }
                 }
@@ -1991,7 +1996,7 @@ impl RuntimeContext {
         dag_store: Arc<TokioMutex<StubDagStore>>,
     ) -> Arc<Self> {
         let job_states = Arc::new(DashMap::new());
-        let pending_mesh_jobs = Arc::new(TokioMutex::new(VecDeque::new()));
+        let (tx, rx) = mpsc::channel(128);
         let temp_dir = tempfile::tempdir().expect("temp dir for mana ledger");
         let mana_ledger_path = temp_dir.path().join("mana.sled");
         let mana_ledger = SimpleManaLedger::new(mana_ledger_path);
@@ -2011,7 +2016,8 @@ impl RuntimeContext {
         Arc::new(Self {
             current_identity,
             mana_ledger,
-            pending_mesh_jobs,
+            pending_mesh_jobs_tx: tx,
+            pending_mesh_jobs_rx: TokioMutex::new(rx),
             job_states,
             governance_module,
             mesh_network_service,
@@ -2587,8 +2593,10 @@ mod tests {
         let mana_after =
             futures::executor::block_on(ctx_arc.get_mana(&ctx_arc.current_identity)).unwrap();
         assert_eq!(mana_after, 90);
-        let pending_len =
-            futures::executor::block_on(async { ctx_arc.pending_mesh_jobs.lock().await.len() });
+        let pending_len = futures::executor::block_on(async {
+            let rx = ctx_arc.pending_mesh_jobs_rx.lock().await;
+            rx.len()
+        });
         assert_eq!(pending_len, 1);
     }
 

@@ -154,13 +154,21 @@ pub async fn host_get_pending_mesh_jobs(
     // Directly clone the jobs from the queue. This provides a snapshot.
     // Depending on WASM interface, this might need to be serialized (e.g., to JSON).
     // Need to acquire the lock and then await its resolution.
-    let jobs = ctx
-        .pending_mesh_jobs
-        .lock()
-        .await
-        .iter()
-        .cloned()
-        .collect::<Vec<icn_mesh::ActualMeshJob>>();
+    let mut jobs = Vec::new();
+    let mut drained = Vec::new();
+    {
+        let mut rx = ctx.pending_mesh_jobs_rx.lock().await;
+        while let Ok(job) = rx.try_recv() {
+            drained.push(job);
+        }
+    }
+    for job in drained.iter().cloned() {
+        ctx.pending_mesh_jobs_tx
+            .send(job.clone())
+            .await
+            .map_err(|e| HostAbiError::InternalError(format!("{e:?}")))?;
+    }
+    jobs.extend(drained);
 
     debug!(
         "[host_get_pending_mesh_jobs] Returning {} pending jobs.",
