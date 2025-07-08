@@ -1757,6 +1757,23 @@ impl RuntimeContext {
         }
     }
 
+    pub async fn delegate_vote(&self, from_did: &str, to_did: &str) -> Result<(), HostAbiError> {
+        let from = Did::from_str(from_did)
+            .map_err(|e| HostAbiError::InvalidParameters(format!("Invalid DID: {}", e)))?;
+        let to = Did::from_str(to_did)
+            .map_err(|e| HostAbiError::InvalidParameters(format!("Invalid DID: {}", e)))?;
+        let mut gov = self.governance_module.lock().await;
+        gov.delegate_vote(from, to).map_err(HostAbiError::Common)
+    }
+
+    pub async fn revoke_delegation(&self, from_did: &str) -> Result<(), HostAbiError> {
+        let from = Did::from_str(from_did)
+            .map_err(|e| HostAbiError::InvalidParameters(format!("Invalid DID: {}", e)))?;
+        let mut gov = self.governance_module.lock().await;
+        gov.revoke_delegation(from);
+        Ok(())
+    }
+
     /// Inserts a proposal received from the network into the local GovernanceModule.
     pub async fn ingest_external_proposal(
         &self,

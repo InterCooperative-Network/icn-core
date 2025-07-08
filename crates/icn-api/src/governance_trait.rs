@@ -12,6 +12,17 @@ pub struct CastVoteRequest {
     pub vote_option: String, // e.g., "Yes", "No", "Abstain" - will map to VoteOption enum
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+pub struct DelegateRequest {
+    pub from_did: String,
+    pub to_did: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct RevokeDelegationRequest {
+    pub from_did: String,
+}
+
 // Define ProposalInputType and SubmitProposalRequest as per Step 2
 #[derive(Serialize, Deserialize, Debug, Clone)] // Added Clone
 #[serde(tag = "type", content = "data")]

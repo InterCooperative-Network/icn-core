@@ -130,6 +130,7 @@ enum Backend {
 pub struct GovernanceModule {
     backend: Backend,
     members: HashSet<Did>,
+    delegations: HashMap<Did, Did>,
     quorum: usize,
     threshold: f32,
     #[allow(clippy::type_complexity)]
@@ -144,6 +145,7 @@ impl GovernanceModule {
                 proposals: HashMap::new(),
             },
             members: HashSet::new(),
+            delegations: HashMap::new(),
             quorum: 1,
             threshold: 0.5,
             proposal_callback: None,
@@ -166,6 +168,7 @@ impl GovernanceModule {
                 proposals_tree_name,
             },
             members: HashSet::new(),
+            delegations: HashMap::new(),
             quorum: 1,
             threshold: 0.5,
             proposal_callback: None,
@@ -548,6 +551,22 @@ impl GovernanceModule {
         self.members.remove(did);
     }
 
+    /// Delegate `from` member's vote to `to` member.
+    pub fn delegate_vote(&mut self, from: Did, to: Did) -> Result<(), CommonError> {
+        if !self.members.contains(&from) || !self.members.contains(&to) {
+            return Err(CommonError::InvalidInputError(
+                "Both delegator and delegatee must be members".to_string(),
+            ));
+        }
+        self.delegations.insert(from, to);
+        Ok(())
+    }
+
+    /// Revoke any delegation for `from`.
+    pub fn revoke_delegation(&mut self, from: Did) {
+        self.delegations.remove(&from);
+    }
+
     /// Returns a reference to the current member set.
     pub fn members(&self) -> &HashSet<Did> {
         &self.members
@@ -697,17 +716,29 @@ impl GovernanceModule {
 
     /// Counts yes/no/abstain votes for a proposal, considering only current members.
     pub fn tally_votes(&self, proposal: &Proposal) -> (usize, usize, usize) {
+        Self::tally_votes_static(&self.members, &self.delegations, proposal)
+    }
+
+    fn tally_votes_static(
+        members: &HashSet<Did>,
+        delegations: &HashMap<Did, Did>,
+        proposal: &Proposal,
+    ) -> (usize, usize, usize) {
         let mut yes = 0;
         let mut no = 0;
         let mut abstain = 0;
-        for (did, vote) in &proposal.votes {
-            if !self.members.contains(did) {
-                continue;
+        for member in members {
+            let mut option = proposal.votes.get(member).map(|v| v.option);
+            if option.is_none() {
+                if let Some(delegate) = delegations.get(member) {
+                    option = proposal.votes.get(delegate).map(|v| v.option);
+                }
             }
-            match vote.option {
-                VoteOption::Yes => yes += 1,
-                VoteOption::No => no += 1,
-                VoteOption::Abstain => abstain += 1,
+            match option {
+                Some(VoteOption::Yes) => yes += 1,
+                Some(VoteOption::No) => no += 1,
+                Some(VoteOption::Abstain) => abstain += 1,
+                None => {}
             }
         }
         (yes, no, abstain)
@@ -868,22 +899,9 @@ impl GovernanceModule {
                 if proposal.status != ProposalStatus::VotingOpen {
                     return Ok(proposal.status.clone());
                 }
-                let (yes, no, abstain) = {
-                    let mut yes = 0;
-                    let mut no = 0;
-                    let mut abstain = 0;
-                    for (did, vote) in &proposal.votes {
-                        if !self.members.contains(did) {
-                            continue;
-                        }
-                        match vote.option {
-                            VoteOption::Yes => yes += 1,
-                            VoteOption::No => no += 1,
-                            VoteOption::Abstain => abstain += 1,
-                        }
-                    }
-                    (yes, no, abstain)
-                };
+                let members = self.members.clone();
+                let delegations = self.delegations.clone();
+                let (yes, no, abstain) = Self::tally_votes_static(&members, &delegations, proposal);
                 let total = yes + no + abstain;
                 let quorum = proposal.quorum.unwrap_or(self.quorum);
                 let threshold = proposal.threshold.unwrap_or(self.threshold);
@@ -933,22 +951,10 @@ impl GovernanceModule {
                 if proposal.status != ProposalStatus::VotingOpen {
                     return Ok(proposal.status.clone());
                 }
-                let (yes, no, abstain) = {
-                    let mut yes = 0;
-                    let mut no = 0;
-                    let mut abstain = 0;
-                    for (did, vote) in &proposal.votes {
-                        if !self.members.contains(did) {
-                            continue;
-                        }
-                        match vote.option {
-                            VoteOption::Yes => yes += 1,
-                            VoteOption::No => no += 1,
-                            VoteOption::Abstain => abstain += 1,
-                        }
-                    }
-                    (yes, no, abstain)
-                };
+                let members = self.members.clone();
+                let delegations = self.delegations.clone();
+                let (yes, no, abstain) =
+                    Self::tally_votes_static(&members, &delegations, &proposal);
                 let total = yes + no + abstain;
                 let quorum = proposal.quorum.unwrap_or(self.quorum);
                 let threshold = proposal.threshold.unwrap_or(self.threshold);
@@ -1119,6 +1125,7 @@ impl fmt::Debug for GovernanceModule {
         f.debug_struct("GovernanceModule")
             .field("backend", &self.backend)
             .field("members", &self.members)
+            .field("delegations", &self.delegations)
             .field("quorum", &self.quorum)
             .field("threshold", &self.threshold)
             .finish()

@@ -589,6 +589,23 @@ pub async fn host_execute_governance_proposal(
     ctx.execute_governance_proposal(proposal_id).await
 }
 
+/// Delegate voting power from one DID to another.
+pub async fn host_delegate_vote(
+    ctx: &RuntimeContext,
+    from_did: &str,
+    to_did: &str,
+) -> Result<(), HostAbiError> {
+    ctx.delegate_vote(from_did, to_did).await
+}
+
+/// Revoke any vote delegation for the given DID.
+pub async fn host_revoke_delegation(
+    ctx: &RuntimeContext,
+    from_did: &str,
+) -> Result<(), HostAbiError> {
+    ctx.revoke_delegation(from_did).await
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
