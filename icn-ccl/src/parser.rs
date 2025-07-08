@@ -1,6 +1,6 @@
 // icn-ccl/src/parser.rs
 use crate::ast::{
-    ActionNode, AstNode, BinaryOperator, BlockNode, ExpressionNode, ParameterNode,
+    ActionNode, AstNode, BinaryOperator, UnaryOperator, BlockNode, ExpressionNode, ParameterNode,
     PolicyStatementNode, StatementNode, TypeAnnotationNode,
 };
 use crate::error::CclError;
@@ -202,6 +202,32 @@ pub(crate) fn parse_expression(pair: Pair<Rule>) -> Result<ExpressionNode, CclEr
                 };
             }
             Ok(expr)
+        }
+        Rule::unary => {
+            let mut inner = pair.into_inner();
+            let first = inner.next().unwrap();
+            
+            // Check if this is an operator or the primary expression
+            match first.as_rule() {
+                Rule::NOT_OP => {
+                    let operand = parse_expression(inner.next().unwrap())?;
+                    Ok(ExpressionNode::UnaryOp {
+                        operator: UnaryOperator::Not,
+                        operand: Box::new(operand),
+                    })
+                }
+                Rule::NEG_OP => {
+                    let operand = parse_expression(inner.next().unwrap())?;
+                    Ok(ExpressionNode::UnaryOp {
+                        operator: UnaryOperator::Neg,
+                        operand: Box::new(operand),
+                    })
+                }
+                _ => {
+                    // No unary operator, just parse the primary
+                    parse_primary(first)
+                }
+            }
         }
         Rule::primary => parse_primary(pair),
         Rule::function_call

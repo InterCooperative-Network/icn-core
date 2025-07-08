@@ -1,6 +1,6 @@
 // icn-ccl/src/semantic_analyzer.rs
 use crate::ast::{
-    ActionNode, AstNode, BinaryOperator, BlockNode, ExpressionNode, StatementNode,
+    ActionNode, AstNode, BinaryOperator, UnaryOperator, BlockNode, ExpressionNode, StatementNode,
     TypeAnnotationNode,
 };
 use crate::error::CclError;
@@ -415,6 +415,29 @@ impl SemanticAnalyzer {
                         } else {
                             Err(CclError::TypeError(
                                 "Logical operators require Bool operands".to_string(),
+                            ))
+                        }
+                    }
+                }
+            }
+            ExpressionNode::UnaryOp { operator, operand } => {
+                let operand_ty = self.evaluate_expression(operand)?;
+                match operator {
+                    UnaryOperator::Not => {
+                        if operand_ty == TypeAnnotationNode::Bool {
+                            Ok(TypeAnnotationNode::Bool)
+                        } else {
+                            Err(CclError::TypeError(
+                                "Logical negation requires Bool operand".to_string(),
+                            ))
+                        }
+                    }
+                    UnaryOperator::Neg => {
+                        if operand_ty.is_numeric() {
+                            Ok(operand_ty) // Preserve the exact numeric type (Integer or Mana)
+                        } else {
+                            Err(CclError::TypeError(
+                                "Arithmetic negation requires numeric operand".to_string(),
                             ))
                         }
                     }

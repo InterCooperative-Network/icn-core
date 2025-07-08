@@ -26,6 +26,10 @@ path = "test_enhanced_features.rs"
 name = "test_working_features"
 path = "test_working_features.rs"
 
+[[bin]]
+name = "test_control_flow"
+path = "test_control_flow.rs"
+
 [dependencies]
 pest = "2.7" # Or the version you intend to use
 pest_derive = "2.7"

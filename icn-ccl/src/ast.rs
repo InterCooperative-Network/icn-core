@@ -119,11 +119,15 @@ pub enum ExpressionNode {
         operator: BinaryOperator,
         right: Box<ExpressionNode>,
     },
+    UnaryOp {
+        operator: UnaryOperator,
+        operand: Box<ExpressionNode>,
+    },
     ArrayAccess {
         array: Box<ExpressionNode>,
         index: Box<ExpressionNode>,
     },
-    // ... other expression types (unary op, member access, etc.)
+    // ... other expression types (member access, etc.)
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -141,6 +145,12 @@ pub enum BinaryOperator {
     And,
     Or,
     Concat, // String concatenation: "hello" + " world"
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum UnaryOperator {
+    Not,    // Logical negation: !true -> false
+    Neg,    // Arithmetic negation: -5 -> -5
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

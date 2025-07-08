@@ -1,6 +1,6 @@
 // icn-ccl/src/wasm_backend.rs
 use crate::ast::{
-    AstNode, BinaryOperator, BlockNode, ExpressionNode, PolicyStatementNode, StatementNode,
+    AstNode, BinaryOperator, UnaryOperator, BlockNode, ExpressionNode, PolicyStatementNode, StatementNode,
     TypeAnnotationNode,
 };
 use crate::error::CclError;
@@ -340,6 +340,32 @@ impl WasmBackend {
                 self.emit_expression(array, instrs, locals, indices)?;
                 Ok(ValType::I64) // Assume accessing an integer array
             }
+            ExpressionNode::UnaryOp { operator, operand } => {
+                let operand_ty = self.emit_expression(operand, instrs, locals, indices)?;
+                match (operator, operand_ty) {
+                    (UnaryOperator::Not, ValType::I32) => {
+                        // Boolean negation: !x = x == 0
+                        instrs.push(Instruction::I32Eqz);
+                        Ok(ValType::I32)
+                    }
+                    (UnaryOperator::Neg, ValType::I32) => {
+                        // Integer negation: -x = 0 - x
+                        instrs.push(Instruction::I32Const(0));
+                        instrs.push(Instruction::I32Sub);
+                        Ok(ValType::I32)
+                    }
+                    (UnaryOperator::Neg, ValType::I64) => {
+                        // 64-bit integer negation: -x = 0 - x
+                        instrs.push(Instruction::I64Const(0));
+                        instrs.push(Instruction::I64Sub);
+                        Ok(ValType::I64)
+                    }
+                    _ => Err(CclError::WasmGenerationError(format!(
+                        "Unsupported unary operation: {:?} on {:?}",
+                        operator, operand_ty
+                    ))),
+                }
+            }
         }
     }
 
@@ -371,10 +397,41 @@ impl WasmBackend {
                 }
                 instrs.push(Instruction::Return);
             }
-            StatementNode::If { .. } => {
-                return Err(CclError::WasmGenerationError(
-                    "if statements not supported in wasm backend".to_string(),
-                ));
+            StatementNode::If {
+                condition,
+                then_block,
+                else_block,
+            } => {
+                // Emit condition
+                let cond_ty = self.emit_expression(condition, instrs, locals, indices)?;
+                if cond_ty != ValType::I32 {
+                    return Err(CclError::WasmGenerationError(
+                        "If condition must be boolean".to_string(),
+                    ));
+                }
+                
+                // Create if-else structure
+                if else_block.is_some() {
+                    // if-else: use if with block type empty
+                    instrs.push(Instruction::If(wasm_encoder::BlockType::Empty));
+                    
+                    // Emit then block
+                    self.emit_block(then_block, instrs, locals, return_ty, indices)?;
+                    
+                    // Emit else block
+                    instrs.push(Instruction::Else);
+                    self.emit_block(else_block.as_ref().unwrap(), instrs, locals, return_ty, indices)?;
+                    
+                    instrs.push(Instruction::End);
+                } else {
+                    // if without else: use if with block type empty
+                    instrs.push(Instruction::If(wasm_encoder::BlockType::Empty));
+                    
+                    // Emit then block
+                    self.emit_block(then_block, instrs, locals, return_ty, indices)?;
+                    
+                    instrs.push(Instruction::End);
+                }
             }
             StatementNode::WhileLoop { condition, body } => {
                 instrs.push(Instruction::Block(wasm_encoder::BlockType::Empty));
