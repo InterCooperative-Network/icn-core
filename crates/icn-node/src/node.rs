@@ -17,7 +17,9 @@
 
 use crate::parameter_store::ParameterStore;
 use icn_api::governance_trait::{
-    CastVoteRequest as ApiCastVoteRequest, SubmitProposalRequest as ApiSubmitProposalRequest,
+    CastVoteRequest as ApiCastVoteRequest, DelegateRequest as ApiDelegateRequest,
+    RevokeDelegationRequest as ApiRevokeDelegationRequest,
+    SubmitProposalRequest as ApiSubmitProposalRequest,
 };
 use icn_api::{query_data, submit_transaction};
 use icn_common::DagBlock as CoreDagBlock;
@@ -600,6 +602,8 @@ pub async fn app_router_with_options(
             .route("/data/query", post(data_query_handler))
             .route("/governance/submit", post(gov_submit_handler)) // Uses RT context's Gov mod
             .route("/governance/vote", post(gov_vote_handler)) // Uses RT context's Gov mod
+            .route("/governance/delegate", post(gov_delegate_handler))
+            .route("/governance/revoke", post(gov_revoke_handler))
             .route("/governance/close", post(gov_close_handler))
             .route("/governance/execute", post(gov_execute_handler))
             .route("/governance/proposals", get(gov_list_proposals_handler)) // Uses RT context's Gov mod
@@ -711,6 +715,8 @@ pub async fn app_router_from_context(
         .route("/data/query", post(data_query_handler))
         .route("/governance/submit", post(gov_submit_handler))
         .route("/governance/vote", post(gov_vote_handler))
+        .route("/governance/delegate", post(gov_delegate_handler))
+        .route("/governance/revoke", post(gov_revoke_handler))
         .route("/governance/close", post(gov_close_handler))
         .route("/governance/execute", post(gov_execute_handler))
         .route("/governance/proposals", get(gov_list_proposals_handler))
@@ -1683,6 +1689,36 @@ async fn gov_vote_handler(
             StatusCode::BAD_REQUEST,
         )
         .into_response(),
+    }
+}
+
+// POST /governance/delegate – Delegate vote from one DID to another
+async fn gov_delegate_handler(
+    State(state): State<AppState>,
+    Json(req): Json<ApiDelegateRequest>,
+) -> impl IntoResponse {
+    match icn_runtime::host_delegate_vote(&state.runtime_context, &req.from_did, &req.to_did).await
+    {
+        Ok(_) => (StatusCode::OK, Json("delegated".to_string())).into_response(),
+        Err(e) => map_rust_error_to_json_response(
+            format!("Delegate error: {}", e),
+            StatusCode::BAD_REQUEST,
+        )
+        .into_response(),
+    }
+}
+
+// POST /governance/revoke – Revoke delegation
+async fn gov_revoke_handler(
+    State(state): State<AppState>,
+    Json(req): Json<ApiRevokeDelegationRequest>,
+) -> impl IntoResponse {
+    match icn_runtime::host_revoke_delegation(&state.runtime_context, &req.from_did).await {
+        Ok(_) => (StatusCode::OK, Json("revoked".to_string())).into_response(),
+        Err(e) => {
+            map_rust_error_to_json_response(format!("Revoke error: {}", e), StatusCode::BAD_REQUEST)
+                .into_response()
+        }
     }
 }
 
