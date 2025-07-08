@@ -40,7 +40,7 @@ expression = { logical_or }
 logical_or = { logical_and ~ (OR_OP ~ logical_and)* }
 logical_and = { equality ~ (AND_OP ~ equality)* }
 equality = { comparison ~ ((EQ_OP | NEQ_OP) ~ comparison)* }
-comparison = { addition ~ ((LT_OP | LTE_OP | GT_OP | GTE_OP) ~ addition)* }
+comparison = { addition ~ ((LTE_OP | LT_OP | GTE_OP | GT_OP) ~ addition)* }
 addition = { multiplication ~ ((ADD_OP | SUB_OP) ~ multiplication)* }
 multiplication = { unary ~ ((MUL_OP | DIV_OP) ~ unary)* }
 unary = { (NOT_OP | NEG_OP)? ~ primary }
@@ -53,10 +53,10 @@ MUL_OP = { "*" }
 DIV_OP = { "/" }
 EQ_OP  = { "==" }
 NEQ_OP = { "!=" }
-LT_OP  = { "<" }
 LTE_OP = { "<=" }
-GT_OP  = { ">" }
+LT_OP  = { "<" }
 GTE_OP = { ">=" }
+GT_OP  = { ">" }
 AND_OP = { "&&" }
 OR_OP  = { "||" }
 NOT_OP = { "!" }

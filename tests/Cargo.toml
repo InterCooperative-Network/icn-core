@@ -39,6 +39,10 @@ path = "integration/policy_enforcer.rs"
 name = "parameter_change"
 path = "integration/parameter_change.rs"
 
+[[test]]
+name = "ccl_operator_precedence"
+path = "../icn-ccl/tests/operator_precedence.rs"
+
 [dependencies]
 reqwest.workspace = true
 serde_json.workspace = true
