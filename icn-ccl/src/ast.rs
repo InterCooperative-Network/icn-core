@@ -42,9 +42,9 @@ pub enum TypeAnnotationNode {
     String,
     Integer,
     Array(Box<TypeAnnotationNode>), // Arrays of any type, e.g., Array<Integer>
-    Proposal, // Governance proposal type
-    Vote,     // Vote type for governance
-    Custom(String), // For user-defined types or imported ones
+    Proposal,                       // Governance proposal type
+    Vote,                           // Vote type for governance
+    Custom(String),                 // For user-defined types or imported ones
 }
 
 impl TypeAnnotationNode {
@@ -65,15 +65,16 @@ impl TypeAnnotationNode {
     pub fn is_numeric(&self) -> bool {
         matches!(self, TypeAnnotationNode::Integer | TypeAnnotationNode::Mana)
     }
-    
+
     /// Returns true if this type can be stored/compared
     pub fn is_comparable(&self) -> bool {
-        matches!(self, 
-            TypeAnnotationNode::Integer | 
-            TypeAnnotationNode::Mana |
-            TypeAnnotationNode::Bool |
-            TypeAnnotationNode::String |
-            TypeAnnotationNode::Did
+        matches!(
+            self,
+            TypeAnnotationNode::Integer
+                | TypeAnnotationNode::Mana
+                | TypeAnnotationNode::Bool
+                | TypeAnnotationNode::String
+                | TypeAnnotationNode::Did
         )
     }
 }
@@ -149,8 +150,8 @@ pub enum BinaryOperator {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum UnaryOperator {
-    Not,    // Logical negation: !true -> false
-    Neg,    // Arithmetic negation: -5 -> -5
+    Not, // Logical negation: !true -> false
+    Neg, // Arithmetic negation: -5 -> -5
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -227,7 +228,8 @@ pub fn pair_to_ast(
             let alias_pair = i
                 .next()
                 .ok_or_else(|| CclError::ParsingError("Import missing alias".to_string()))?;
-            let path = path_pair.as_str().trim_matches('"').to_string();
+            let raw_path = path_pair.as_str().trim_matches('"');
+            let path = crate::parser::unescape_string(raw_path)?;
             let alias = alias_pair.as_str().to_string();
             Ok(AstNode::Policy(vec![PolicyStatementNode::Import {
                 path,
@@ -235,15 +237,16 @@ pub fn pair_to_ast(
             }]))
         }
         Rule::block => Ok(AstNode::Block(parser::parse_block(pair)?)),
-        Rule::policy_statement => {
-            match parser::parse_policy_statement(pair)? {
-                PolicyStatementNode::RuleDef(rule) => Ok(rule),
-                PolicyStatementNode::Import { path, alias } => Ok(AstNode::Policy(vec![
-                    PolicyStatementNode::Import { path, alias },
-                ])),
-                PolicyStatementNode::FunctionDef(func) => Ok(func),
+        Rule::policy_statement => match parser::parse_policy_statement(pair)? {
+            PolicyStatementNode::RuleDef(rule) => Ok(rule),
+            PolicyStatementNode::Import { path, alias } => {
+                Ok(AstNode::Policy(vec![PolicyStatementNode::Import {
+                    path,
+                    alias,
+                }]))
             }
-        }
+            PolicyStatementNode::FunctionDef(func) => Ok(func),
+        },
         Rule::statement => Ok(AstNode::Block(BlockNode {
             statements: vec![parser::parse_statement(pair)?],
         })),

@@ -7,7 +7,10 @@ COMMENT = _{ "//" ~ (!NEWLINE ~ ANY)* }
 // Basic building blocks
 identifier = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
 integer_literal = @{ ASCII_DIGIT+ }
-string_literal = @{ "\"" ~ (ASCII_ALPHANUMERIC | " ")* ~ "\"" } // Simplified
+// Strings may contain most punctuation and common escape sequences
+// like \n, \t, \\ and \". Newlines are not allowed unescaped.
+string_inner = { "\\" ~ ANY | !("\"" | NEWLINE) ~ ANY }
+string_literal = @{ "\"" ~ string_inner* ~ "\"" }
 boolean_literal = { "true" | "false" }
 
 // Top-level: A CCL policy is a sequence of statements or definitions
