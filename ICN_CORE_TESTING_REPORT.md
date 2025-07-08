@@ -152,8 +152,8 @@ cargo run --package icn-node -- \
 - **Workaround:** Build with `--features with-libp2p` (hits compiler issues)
 
 ### **2. CLI Interface**
-- **Status:** ⚠️ **COMPILATION ISSUES**
-- **Issue:** Rust nightly compiler ICE when building `icn-cli`
+- **Status:** ⚠️ **COMPILATION ISSUES** (observed with the former nightly toolchain)
+- **Issue:** Compiler ICE when building `icn-cli`
 - **Impact:** Must use HTTP API directly
 - **Workaround:** Use `curl` commands for testing
 
@@ -214,7 +214,7 @@ cargo run --package icn-node -- \
 
 ### **High Priority**
 1. **Enable P2P Networking**
-   - Resolve nightly compiler issues
+   - Resolve historical nightly compiler issues
    - Build with `--features with-libp2p`
    - Test peer discovery and mesh networking
 

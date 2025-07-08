@@ -12,7 +12,7 @@ alwaysApply: true
 ## 1 · Development Environment Setup
 
 ### Prerequisites
-- Rust nightly (see `rust-toolchain.toml`)
+- Rust stable (see `rust-toolchain.toml`)
 - `just` command runner
 - Git with pre-commit hooks enabled
 - IDE with rust-analyzer support
