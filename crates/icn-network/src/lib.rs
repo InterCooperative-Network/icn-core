@@ -7,9 +7,9 @@
 #![allow(clippy::let_unit_value)]
 #![allow(clippy::clone_on_copy)]
 
-//! # ICN Network Crate - Production-Ready P2P Networking
-//! This crate manages peer-to-peer (P2P) networking aspects for the InterCooperative Network (ICN),
-//! using libp2p for distributed communication between ICN nodes.
+//! # Networking Crate for ICN - Production-Ready P2P Networking
+//! This crate manages peer-to-peer (P2P) networking aspects for ICN,
+//! using libp2p for distributed communication between nodes.
 
 pub mod error;
 pub use error::MeshNetworkError;

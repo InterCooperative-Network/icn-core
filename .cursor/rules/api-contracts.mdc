@@ -343,7 +343,7 @@ pub trait NetworkService {
 
 ### Rust Client SDK
 ```rust
-/// High-level client for ICN network interaction
+/// High-level client for interacting with the network
 pub struct IcnClient {
     http_client: HttpClient,
     identity: ClientIdentity,

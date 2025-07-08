@@ -75,7 +75,7 @@ impl TimeProvider for FixedTimeProvider {
     }
 }
 
-/// Represents a generic error that can occur within the ICN network.
+/// Represents a generic error that can occur within the network.
 #[derive(Debug, Error, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub enum CommonError {
     #[error("Invalid input: {0}")]
@@ -537,9 +537,9 @@ pub struct Transaction {
     /// Nonce ensuring transaction uniqueness.
     pub nonce: u64,
     /// Maximum compute units the sender is willing to expend.
-    pub gas_limit: u64,
+    pub mana_limit: u64,
     /// Price per compute unit the sender is willing to pay.
-    pub gas_price: u64,
+    pub mana_price: u64,
     /// Optional Ed25519 signature of the transaction content.
     pub signature: Option<SignatureBytes>,
 }
@@ -581,8 +581,8 @@ impl Signable for Transaction {
         bytes.extend_from_slice(self.payload_type.as_bytes());
         bytes.extend_from_slice(&self.payload);
         bytes.extend_from_slice(&self.nonce.to_le_bytes());
-        bytes.extend_from_slice(&self.gas_limit.to_le_bytes());
-        bytes.extend_from_slice(&self.gas_price.to_le_bytes());
+        bytes.extend_from_slice(&self.mana_limit.to_le_bytes());
+        bytes.extend_from_slice(&self.mana_price.to_le_bytes());
         Ok(bytes)
     }
 }
@@ -705,8 +705,8 @@ mod tests {
             payload_type: "test_payload".to_string(),
             payload: b"some test data".to_vec(),
             nonce: 1,
-            gas_limit: 10,
-            gas_price: 1,
+            mana_limit: 10,
+            mana_price: 1,
             signature: Some(SignatureBytes(vec![0u8; ed25519_dalek::SIGNATURE_LENGTH])),
         };
         assert_eq!(transaction.sender_did, sender);
