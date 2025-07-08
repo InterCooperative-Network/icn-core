@@ -596,6 +596,9 @@ pub async fn app_router_with_options(
             .route("/network/peers", get(network_peers_handler))
             .route("/dag/put", post(dag_put_handler)) // These will use RT context's DAG store
             .route("/dag/get", post(dag_get_handler)) // These will use RT context's DAG store
+            .route("/dag/pin", post(dag_pin_handler))
+            .route("/dag/unpin", post(dag_unpin_handler))
+            .route("/dag/prune", post(dag_prune_handler))
             .route("/transaction/submit", post(tx_submit_handler))
             .route("/data/query", post(data_query_handler))
             .route("/governance/submit", post(gov_submit_handler)) // Uses RT context's Gov mod
@@ -707,6 +710,9 @@ pub async fn app_router_from_context(
         .route("/network/peers", get(network_peers_handler))
         .route("/dag/put", post(dag_put_handler))
         .route("/dag/get", post(dag_get_handler))
+        .route("/dag/pin", post(dag_pin_handler))
+        .route("/dag/unpin", post(dag_unpin_handler))
+        .route("/dag/prune", post(dag_prune_handler))
         .route("/transaction/submit", post(tx_submit_handler))
         .route("/data/query", post(data_query_handler))
         .route("/governance/submit", post(gov_submit_handler))
@@ -1019,6 +1025,9 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
         .route("/metrics", get(metrics_handler))
         .route("/dag/put", post(dag_put_handler))
         .route("/dag/get", post(dag_get_handler))
+        .route("/dag/pin", post(dag_pin_handler))
+        .route("/dag/unpin", post(dag_unpin_handler))
+        .route("/dag/prune", post(dag_prune_handler))
         .route("/transaction/submit", post(tx_submit_handler))
         .route("/data/query", post(data_query_handler))
         .route("/governance/submit", post(gov_submit_handler))
@@ -1466,6 +1475,83 @@ async fn dag_get_handler(
     }
 }
 
+// POST /dag/pin – Pin a block with optional TTL
+async fn dag_pin_handler(
+    State(state): State<AppState>,
+    Json(req): Json<PinRequest>,
+) -> impl IntoResponse {
+    let cid = match parse_cid_from_string(&req.cid) {
+        Ok(cid) => cid,
+        Err(e) => {
+            return map_rust_error_to_json_response(
+                format!("Invalid CID: {e}"),
+                StatusCode::BAD_REQUEST,
+            )
+            .into_response();
+        }
+    };
+    let mut store = state.runtime_context.dag_store.lock().await;
+    if let Err(e) = store.pin_block(&cid).await {
+        return map_rust_error_to_json_response(
+            format!("Pin error: {e}"),
+            StatusCode::INTERNAL_SERVER_ERROR,
+        )
+        .into_response();
+    }
+    if let Err(e) = store.set_ttl(&cid, req.ttl).await {
+        return map_rust_error_to_json_response(
+            format!("Set TTL error: {e}"),
+            StatusCode::INTERNAL_SERVER_ERROR,
+        )
+        .into_response();
+    }
+    (StatusCode::OK, Json(cid)).into_response()
+}
+
+// POST /dag/unpin – Remove pin from a block
+async fn dag_unpin_handler(
+    State(state): State<AppState>,
+    Json(req): Json<CidRequest>,
+) -> impl IntoResponse {
+    let cid = match parse_cid_from_string(&req.cid) {
+        Ok(cid) => cid,
+        Err(e) => {
+            return map_rust_error_to_json_response(
+                format!("Invalid CID: {e}"),
+                StatusCode::BAD_REQUEST,
+            )
+            .into_response();
+        }
+    };
+    let mut store = state.runtime_context.dag_store.lock().await;
+    match store.unpin_block(&cid).await {
+        Ok(()) => (StatusCode::OK, Json(cid)).into_response(),
+        Err(e) => map_rust_error_to_json_response(
+            format!("Unpin error: {e}"),
+            StatusCode::INTERNAL_SERVER_ERROR,
+        )
+        .into_response(),
+    }
+}
+
+// POST /dag/prune – Remove expired blocks
+async fn dag_prune_handler(State(state): State<AppState>) -> impl IntoResponse {
+    let now = state.runtime_context.time_provider.unix_seconds();
+    let mut store = state.runtime_context.dag_store.lock().await;
+    match store.prune_expired(now).await {
+        Ok(removed) => (
+            StatusCode::OK,
+            Json(serde_json::json!({"removed": removed.iter().map(|c| c.to_string()).collect::<Vec<_>>() })),
+        )
+            .into_response(),
+        Err(e) => map_rust_error_to_json_response(
+            format!("Prune error: {e}"),
+            StatusCode::INTERNAL_SERVER_ERROR,
+        )
+        .into_response(),
+    }
+}
+
 // POST /contracts - Compile CCL source and store resulting WASM in DAG
 async fn contracts_post_handler(
     State(state): State<AppState>,
@@ -1533,6 +1619,12 @@ async fn contracts_post_handler(
 #[derive(Deserialize)]
 struct CidRequest {
     cid: String,
+}
+
+#[derive(Deserialize)]
+struct PinRequest {
+    cid: String,
+    ttl: Option<u64>,
 }
 
 // POST /transaction/submit – Submit a transaction
