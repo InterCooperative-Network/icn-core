@@ -405,12 +405,13 @@ impl GovernanceApi for GovernanceApiImpl {
 
 // --- Network API Functions ---
 
-/// API endpoint to discover network peers (currently uses StubNetworkService).
-/// Takes a list of bootstrap node addresses (currently ignored by stub but good for API design).
+/// API endpoint to discover network peers. The caller supplies a [`NetworkService`]
+/// implementation, allowing either the default stub or a real libp2p service.
+/// `bootstrap_nodes_str` are optional bootstrap addresses for discovery.
 pub async fn discover_peers_api(
+    network_service: Arc<dyn NetworkService>,
     bootstrap_nodes_str: Vec<String>,
 ) -> Result<Vec<PeerId>, CommonError> {
-    let network_service = StubNetworkService::default();
     // In a real scenario, bootstrap_nodes_str might need parsing into a more specific type.
     // For discover_peers, we might want to pass a single optional peer, or handle multiple if the underlying service supports it.
     // For now, let's take the first bootstrap node as an example if provided, or None.
@@ -426,14 +427,15 @@ pub async fn discover_peers_api(
         })
 }
 
-/// API endpoint to send a message to a specific peer (currently uses StubNetworkService).
-/// `peer_id_str` is the string representation of the target PeerId.
+/// API endpoint to send a message to a specific peer. The caller supplies a [`NetworkService`]
+/// implementation (stub or libp2p).
+/// `peer_id_str` is the string representation of the target [`PeerId`].
 /// `message_json` is a JSON string representation of the [`ProtocolMessage`].
 pub async fn send_network_message_api(
+    network_service: Arc<dyn NetworkService>,
     peer_id_str: String,
     message_json: String,
 ) -> Result<(), CommonError> {
-    let network_service = StubNetworkService::default();
     let peer_id = PeerId(peer_id_str); // Assuming PeerId is a simple wrapper around String for now.
 
     // Deserialize the ProtocolMessage from JSON.
@@ -831,7 +833,8 @@ mod tests {
     async fn test_discover_peers_api() {
         // Made async
         let bootstrap_nodes = vec!["/ip4/127.0.0.1/tcp/12345/p2p/QmSimulatedPeer".to_string()];
-        match discover_peers_api(bootstrap_nodes).await {
+        let service = Arc::new(StubNetworkService::default()) as Arc<dyn NetworkService>;
+        match discover_peers_api(service, bootstrap_nodes).await {
             Ok(peers) => {
                 assert!(
                     !peers.is_empty(),
@@ -859,7 +862,8 @@ mod tests {
         );
         let message_json = serde_json::to_string(&message_to_send).unwrap();
 
-        let result = send_network_message_api(peer_id_str, message_json).await;
+        let service = Arc::new(StubNetworkService::default()) as Arc<dyn NetworkService>;
+        let result = send_network_message_api(service, peer_id_str, message_json).await;
         assert!(
             result.is_ok(),
             "send_network_message_api failed: {:?}",
@@ -882,7 +886,8 @@ mod tests {
         );
         let message_json = serde_json::to_string(&message_to_send).unwrap();
 
-        let result = send_network_message_api(peer_id_str, message_json).await;
+        let service = Arc::new(StubNetworkService::default()) as Arc<dyn NetworkService>;
+        let result = send_network_message_api(service, peer_id_str, message_json).await;
         assert!(result.is_err());
         match result.err().unwrap() {
             CommonError::ApiError(msg) => assert!(
@@ -899,7 +904,9 @@ mod tests {
         let peer_id_str = "QmTestPeerInvalidJson".to_string();
         let invalid_message_json = "this is not valid json for a network message";
 
-        match send_network_message_api(peer_id_str, invalid_message_json.to_string()).await {
+        let service = Arc::new(StubNetworkService::default()) as Arc<dyn NetworkService>;
+        match send_network_message_api(service, peer_id_str, invalid_message_json.to_string()).await
+        {
             Err(CommonError::DeserializationError(msg)) => {
                 assert!(msg.contains("Failed to parse ProtocolMessage JSON"));
             }
