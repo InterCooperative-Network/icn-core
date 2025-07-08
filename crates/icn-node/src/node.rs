@@ -596,6 +596,7 @@ pub async fn app_router_with_options(
             .route("/metrics", get(metrics_handler))
             .route("/network/local-peer-id", get(network_local_peer_id_handler))
             .route("/network/peers", get(network_peers_handler))
+            .route("/network/connect", post(network_connect_handler))
             .route("/dag/put", post(dag_put_handler)) // These will use RT context's DAG store
             .route("/dag/get", post(dag_get_handler)) // These will use RT context's DAG store
             .route("/dag/pin", post(dag_pin_handler))
@@ -712,6 +713,7 @@ pub async fn app_router_from_context(
         .route("/metrics", get(metrics_handler))
         .route("/network/local-peer-id", get(network_local_peer_id_handler))
         .route("/network/peers", get(network_peers_handler))
+        .route("/network/connect", post(network_connect_handler))
         .route("/dag/put", post(dag_put_handler))
         .route("/dag/get", post(dag_get_handler))
         .route("/dag/pin", post(dag_pin_handler))
@@ -2379,6 +2381,44 @@ async fn network_peers_handler(State(state): State<AppState>) -> impl IntoRespon
     }
 }
 
+// POST /network/connect - connect to a peer via multiaddress
+async fn network_connect_handler(
+    State(state): State<AppState>,
+    Json(payload): Json<PeerPayload>,
+) -> impl IntoResponse {
+    #[cfg(feature = "enable-libp2p")]
+    {
+        match state.runtime_context.get_libp2p_service() {
+            Ok(service) => match payload.peer.parse::<Multiaddr>() {
+                Ok(addr) => match service.connect_peer(addr).await {
+                    Ok(()) => (
+                        StatusCode::OK,
+                        Json(serde_json::json!({ "connected": payload.peer })),
+                    )
+                        .into_response(),
+                    Err(e) => {
+                        map_rust_error_to_json_response(e, StatusCode::BAD_REQUEST).into_response()
+                    }
+                },
+                Err(e) => (
+                    StatusCode::BAD_REQUEST,
+                    Json(serde_json::json!({ "error": format!("invalid multiaddr: {}", e) })),
+                )
+                    .into_response(),
+            },
+            Err(e) => map_rust_error_to_json_response(e, StatusCode::BAD_REQUEST).into_response(),
+        }
+    }
+    #[cfg(not(feature = "enable-libp2p"))]
+    {
+        (
+            StatusCode::OK,
+            Json(serde_json::json!({ "connected": payload.peer })),
+        )
+            .into_response()
+    }
+}
+
 // --- Test module (can be expanded later) ---
 #[cfg(test)]
 mod tests {
@@ -2752,5 +2792,23 @@ mod tests {
             serde_json::from_slice(&receipt_bytes).unwrap();
         assert_eq!(receipt.job_id, job_id);
         assert_eq!(receipt.executor_did, exec_did);
+    }
+
+    #[tokio::test]
+    async fn network_connect_endpoint_basic() {
+        let app = test_app().await;
+        let payload = serde_json::json!({ "peer": "/ip4/127.0.0.1/tcp/1234" });
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/network/connect")
+                    .header("content-type", "application/json")
+                    .body(Body::from(payload.to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
     }
 }
