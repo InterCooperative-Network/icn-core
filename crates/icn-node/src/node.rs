@@ -2335,7 +2335,7 @@ async fn federation_status_handler(State(state): State<AppState>) -> impl IntoRe
 }
 
 // GET /network/local-peer-id - return this node's peer ID
-async fn network_local_peer_id_handler(State(_state): State<AppState>) -> impl IntoResponse {
+async fn network_local_peer_id_handler(State(state): State<AppState>) -> impl IntoResponse {
     #[cfg(feature = "enable-libp2p")]
     {
         match state.runtime_context.get_libp2p_service() {
@@ -2357,7 +2357,7 @@ async fn network_local_peer_id_handler(State(_state): State<AppState>) -> impl I
 }
 
 // GET /network/peers - list peers discovered via the network service
-async fn network_peers_handler(State(_state): State<AppState>) -> impl IntoResponse {
+async fn network_peers_handler(State(state): State<AppState>) -> impl IntoResponse {
     #[cfg(feature = "enable-libp2p")]
     {
         match state.runtime_context.get_libp2p_service() {
