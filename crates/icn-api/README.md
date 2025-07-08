@@ -17,6 +17,11 @@ The API is designed to be accessible via common RPC mechanisms such as JSON-RPC 
 *   **Modularity:** Separating concerns for different aspects of the ICN functionality.
 *   **Extensibility:** Allowing for new API endpoints and versions to be added as the ICN evolves.
 
+Networking helpers like `discover_peers_api` and `send_network_message_api` now
+accept a generic [`NetworkService`] trait object. This allows callers to inject
+the real `Libp2pNetworkService` when running in a full node, while tests can
+pass the `StubNetworkService` for deterministic behavior.
+
 Refer to the `lib.rs` documentation for specific API function signatures and data types.
 
 ## Contributing
@@ -24,5 +29,4 @@ Refer to the `lib.rs` documentation for specific API function signatures and dat
 Contributions are welcome! Please see the main [CONTRIBUTING.md](../../CONTRIBUTING.md) in the root of the `icn-core` repository for guidelines.
 
 ## License
-
 Licensed under the Apache License, Version 2.0. See [LICENSE](../../LICENSE). 
