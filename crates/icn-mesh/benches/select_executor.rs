@@ -7,28 +7,28 @@ use icn_reputation::InMemoryReputationStore;
 use std::str::FromStr;
 
 // Simple in-memory ledger for benchmarks
-use std::cell::RefCell;
+use std::sync::RwLock;
 
 struct BenchLedger {
-    inner: RefCell<std::collections::HashMap<Did, u64>>,
+    inner: RwLock<std::collections::HashMap<Did, u64>>,
 }
 impl BenchLedger {
     fn new() -> Self {
         Self {
-            inner: RefCell::new(std::collections::HashMap::new()),
+            inner: RwLock::new(std::collections::HashMap::new()),
         }
     }
 }
 impl ManaLedger for BenchLedger {
     fn get_balance(&self, did: &Did) -> u64 {
-        *self.inner.borrow().get(did).unwrap_or(&0)
+        *self.inner.read().unwrap().get(did).unwrap_or(&0)
     }
     fn set_balance(&self, did: &Did, amount: u64) -> Result<(), icn_common::CommonError> {
-        self.inner.borrow_mut().insert(did.clone(), amount);
+        self.inner.write().unwrap().insert(did.clone(), amount);
         Ok(())
     }
     fn spend(&self, did: &Did, amount: u64) -> Result<(), icn_common::CommonError> {
-        let mut inner = self.inner.borrow_mut();
+        let mut inner = self.inner.write().unwrap();
         let bal = inner
             .get_mut(did)
             .ok_or_else(|| icn_common::CommonError::DatabaseError("account".into()))?;
@@ -39,7 +39,7 @@ impl ManaLedger for BenchLedger {
         Ok(())
     }
     fn credit(&self, did: &Did, amount: u64) -> Result<(), icn_common::CommonError> {
-        let mut inner = self.inner.borrow_mut();
+        let mut inner = self.inner.write().unwrap();
         let bal = inner.entry(did.clone()).or_insert(0);
         *bal += amount;
         Ok(())

@@ -529,57 +529,56 @@ impl NodeConfig {
     pub fn init_dag_store(
         &self,
     ) -> Result<Arc<TokioMutex<dyn AsyncStorageService<DagBlock> + Send>>, CommonError> {
-        let store: Arc<TokioMutex<dyn AsyncStorageService<DagBlock> + Send>> =
-            match self.storage_backend {
-                StorageBackendType::Memory => {
-                    Arc::new(TokioMutex::new(StubDagStore::new())) as Arc<_>
+        let store: Arc<TokioMutex<dyn AsyncStorageService<DagBlock> + Send>> = match self
+            .storage_backend
+        {
+            StorageBackendType::Memory => Arc::new(TokioMutex::new(StubDagStore::new())) as Arc<_>,
+            StorageBackendType::File => Arc::new(TokioMutex::new(TokioFileDagStore::new(
+                self.storage_path.clone(),
+            )?)) as Arc<_>,
+            StorageBackendType::Sqlite => {
+                #[cfg(feature = "persist-sqlite")]
+                {
+                    Arc::new(TokioMutex::new(SqliteDagStore::new(
+                        self.storage_path.clone(),
+                    )?)) as Arc<_>
                 }
-                StorageBackendType::File => Arc::new(TokioMutex::new(TokioFileDagStore::new(
-                    self.storage_path.clone(),
-                )?)) as Arc<_>,
-                StorageBackendType::Sqlite => {
-                    #[cfg(feature = "persist-sqlite")]
-                    {
-                        Arc::new(TokioMutex::new(SqliteDagStore::new(
-                            self.storage_path.clone(),
-                        )?)) as Arc<_>
-                    }
-                    #[cfg(not(feature = "persist-sqlite"))]
-                    {
-                        return Err(CommonError::ConfigError(
-                            "sqlite backend requires 'persist-sqlite' feature".into(),
-                        ));
-                    }
+                #[cfg(not(feature = "persist-sqlite"))]
+                {
+                    return Err(CommonError::ConfigError(
+                        "sqlite backend requires 'persist-sqlite' feature".into(),
+                    ));
                 }
-                StorageBackendType::Sled => {
-                    #[cfg(feature = "persist-sled")]
-                    {
-                        Arc::new(TokioMutex::new(SledDagStore::new(
-                            self.storage_path.clone(),
-                        )?)) as Arc<_>
-                    }
-                    #[cfg(not(feature = "persist-sled"))]
-                    {
-                        return Err(CommonError::ConfigError(
-                            "sled backend requires 'persist-sled' feature".into(),
-                        ));
-                    }
+            }
+            StorageBackendType::Sled => {
+                #[cfg(feature = "persist-sled")]
+                {
+                    Arc::new(TokioMutex::new(SledDagStore::new(
+                        self.storage_path.clone(),
+                    )?)) as Arc<_>
                 }
-                StorageBackendType::Rocksdb => {
-                    #[cfg(feature = "persist-rocksdb")]
-                    {
-                        Arc::new(TokioMutex::new(RocksDagStore::new(
-                            self.storage_path.clone(),
-                        )?)) as Arc<_>
-                    }
-                    #[cfg(not(feature = "persist-rocksdb"))]
-                    {
-                        return Err(CommonError::ConfigError(
-                            "rocksdb backend requires 'persist-rocksdb' feature".into(),
-                        ));
-                    }
+                #[cfg(not(feature = "persist-sled"))]
+                {
+                    return Err(CommonError::ConfigError(
+                        "sled backend requires 'persist-sled' feature".into(),
+                    ));
                 }
-            };
+            }
+            StorageBackendType::Rocksdb => {
+                #[cfg(feature = "persist-rocksdb")]
+                {
+                    Arc::new(TokioMutex::new(RocksDagStore::new(
+                        self.storage_path.clone(),
+                    )?)) as Arc<_>
+                }
+                #[cfg(not(feature = "persist-rocksdb"))]
+                {
+                    return Err(CommonError::ConfigError(
+                        "rocksdb backend requires 'persist-rocksdb' feature".into(),
+                    ));
+                }
+            }
+        };
         Ok(store)
     }
 

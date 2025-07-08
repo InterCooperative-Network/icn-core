@@ -1,7 +1,9 @@
 #[cfg(feature = "persist-sled")]
 mod tests {
     use icn_common::Did;
-    use icn_governance::{GovernanceModule, ProposalStatus, ProposalType, VoteOption};
+    use icn_governance::{
+        GovernanceModule, ProposalStatus, ProposalSubmission, ProposalType, VoteOption,
+    };
     use std::str::FromStr;
     use tempfile::tempdir;
 
@@ -13,15 +15,15 @@ mod tests {
 
         // 1. submit
         let pid = gov
-            .submit_proposal(
-                Did::from_str("did:example:alice").unwrap(),
-                ProposalType::GenericText("hello".into()),
-                "desc".into(),
-                60,
-                None,
-                None,
-                None,
-            )
+            .submit_proposal(ProposalSubmission {
+                proposer: Did::from_str("did:example:alice").unwrap(),
+                proposal_type: ProposalType::GenericText("hello".into()),
+                description: "desc".into(),
+                duration_secs: 60,
+                quorum: None,
+                threshold: None,
+                content_cid: None,
+            })
             .unwrap();
 
         gov.open_voting(&pid).unwrap();
@@ -54,15 +56,15 @@ mod tests {
         gov.add_member(Did::from_str("did:example:bob").unwrap());
         gov.set_quorum(2);
         let pid = gov
-            .submit_proposal(
-                Did::from_str("did:example:alice").unwrap(),
-                ProposalType::GenericText("hi".into()),
-                "desc".into(),
-                60,
-                None,
-                None,
-                None,
-            )
+            .submit_proposal(ProposalSubmission {
+                proposer: Did::from_str("did:example:alice").unwrap(),
+                proposal_type: ProposalType::GenericText("hi".into()),
+                description: "desc".into(),
+                duration_secs: 60,
+                quorum: None,
+                threshold: None,
+                content_cid: None,
+            })
             .unwrap();
         gov.open_voting(&pid).unwrap();
         gov.cast_vote(
@@ -129,15 +131,15 @@ mod tests {
         let dir = tempdir().unwrap();
         let mut gov = GovernanceModule::new_sled(dir.path().to_path_buf()).unwrap();
         let pid = gov
-            .submit_proposal(
-                Did::from_str("did:example:alice").unwrap(),
-                ProposalType::GenericText("vote".into()),
-                "desc".into(),
-                60,
-                None,
-                None,
-                None,
-            )
+            .submit_proposal(ProposalSubmission {
+                proposer: Did::from_str("did:example:alice").unwrap(),
+                proposal_type: ProposalType::GenericText("vote".into()),
+                description: "desc".into(),
+                duration_secs: 60,
+                quorum: None,
+                threshold: None,
+                content_cid: None,
+            })
             .unwrap();
         gov.open_voting(&pid).unwrap();
         drop(gov);

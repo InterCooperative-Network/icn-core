@@ -21,7 +21,7 @@ use once_cell::sync::Lazy;
 use std::sync::{Arc, Mutex}; // To accept the storage service
 use tokio::sync::Mutex as AsyncMutex;
 // Added imports for network functionality
-use icn_network::{NetworkService, PeerId, StubNetworkService};
+use icn_network::{NetworkService, PeerId};
 
 use icn_protocol::ProtocolMessage;
 // Added imports for governance functionality
@@ -313,15 +313,15 @@ impl GovernanceApi for GovernanceApiImpl {
             )
         })?;
 
-        module.submit_proposal(
-            proposer_did,
-            core_proposal_type,
-            request.description,
-            request.duration_secs,
-            request.quorum,
-            request.threshold,
-            None,
-        )
+        module.submit_proposal(icn_governance::ProposalSubmission {
+            proposer: proposer_did,
+            proposal_type: core_proposal_type,
+            description: request.description,
+            duration_secs: request.duration_secs,
+            quorum: request.quorum,
+            threshold: request.threshold,
+            content_cid: None,
+        })
     }
 
     fn cast_vote(&self, request: GovernanceCastVoteRequest) -> Result<(), CommonError> {
@@ -580,6 +580,7 @@ mod tests {
     use icn_common::DagLink; // For test setup
     use icn_dag::TokioFileDagStore; // Async file-based store for tests
     use icn_governance::GovernanceModule; // For governance tests
+    use icn_network::StubNetworkService; // For network tests
     use icn_protocol::{DagBlockRequestMessage, GossipMessage, MessagePayload, ProtocolMessage};
     use tempfile::tempdir;
 
@@ -587,7 +588,7 @@ mod tests {
     fn new_test_storage() -> Arc<tokio::sync::Mutex<dyn AsyncStorageService<DagBlock> + Send>> {
         let dir = tempdir().unwrap();
         Arc::new(tokio::sync::Mutex::new(
-            TokioFileDagStore::new(dir.into_path()).unwrap(),
+            TokioFileDagStore::new(dir.keep()).unwrap(),
         ))
     }
 
@@ -796,6 +797,7 @@ mod tests {
             duration_secs: 3600,
             quorum: None,
             threshold: None,
+            body: None,
         };
 
         let proposal_id_res = api.submit_proposal(submit_req);
@@ -840,6 +842,7 @@ mod tests {
             duration_secs: 3600,
             quorum: None,
             threshold: None,
+            body: None,
         };
         let proposal_id = api
             .submit_proposal(submit_req)
@@ -972,7 +975,7 @@ mod tests {
 
         let dir = tempdir().unwrap();
         let store: Arc<tokio::sync::Mutex<dyn AsyncStorageService<DagBlock> + Send>> = Arc::new(
-            tokio::sync::Mutex::new(TokioFileDagStore::new(dir.into_path()).unwrap()),
+            tokio::sync::Mutex::new(TokioFileDagStore::new(dir.keep()).unwrap()),
         );
         let data = b"query block".to_vec();
         let ts = 0u64;
@@ -1020,6 +1023,26 @@ mod tests {
 
         async fn list_blocks(&self) -> Result<Vec<DagBlock>, CommonError> {
             Err(CommonError::PolicyDenied("list blocked".to_string()))
+        }
+
+        async fn pin_block(&mut self, _cid: &Cid) -> Result<(), CommonError> {
+            Err(CommonError::PolicyDenied("pin blocked".to_string()))
+        }
+
+        async fn unpin_block(&mut self, _cid: &Cid) -> Result<(), CommonError> {
+            Err(CommonError::PolicyDenied("unpin blocked".to_string()))
+        }
+
+        async fn prune_expired(&mut self, _now: u64) -> Result<Vec<Cid>, CommonError> {
+            Err(CommonError::PolicyDenied("prune blocked".to_string()))
+        }
+
+        async fn set_ttl(&mut self, _cid: &Cid, _ttl: Option<u64>) -> Result<(), CommonError> {
+            Err(CommonError::PolicyDenied("set_ttl blocked".to_string()))
+        }
+
+        async fn get_metadata(&self, _cid: &Cid) -> Result<Option<icn_dag::BlockMetadata>, CommonError> {
+            Err(CommonError::PolicyDenied("get_metadata blocked".to_string()))
         }
 
         fn as_any(&self) -> &(dyn std::any::Any + 'static) {

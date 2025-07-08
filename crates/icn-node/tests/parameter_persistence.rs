@@ -1,5 +1,5 @@
 use icn_common::Did;
-use icn_governance::{ProposalType, VoteOption};
+use icn_governance::{ProposalSubmission, ProposalType, VoteOption};
 use icn_node::app_router_with_options;
 use icn_node::config::NodeConfig;
 use std::str::FromStr;
@@ -30,14 +30,18 @@ async fn parameter_persists_between_restarts() {
         gov.add_member(Did::from_str("did:example:alice").unwrap());
         gov.add_member(Did::from_str("did:example:bob").unwrap());
         let pid = gov
-            .submit_proposal(
-                Did::from_str("did:example:alice").unwrap(),
-                ProposalType::SystemParameterChange("open_rate_limit".into(), "5".into()),
-                "desc".into(),
-                60,
-                None,
-                None,
-            )
+            .submit_proposal(ProposalSubmission {
+                proposer: Did::from_str("did:example:alice").unwrap(),
+                proposal_type: ProposalType::SystemParameterChange(
+                    "open_rate_limit".into(),
+                    "5".into(),
+                ),
+                description: "desc".into(),
+                duration_secs: 60,
+                quorum: None,
+                threshold: None,
+                content_cid: None,
+            })
             .unwrap();
         gov.open_voting(&pid).unwrap();
         pid

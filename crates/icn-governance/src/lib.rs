@@ -139,6 +139,18 @@ pub struct GovernanceModule {
     proposal_callback: Option<Box<dyn Fn(&Proposal) -> Result<(), CommonError> + Send + Sync>>,
 }
 
+/// Parameters for submitting a new proposal
+#[derive(Debug, Clone)]
+pub struct ProposalSubmission {
+    pub proposer: Did,
+    pub proposal_type: ProposalType,
+    pub description: String,
+    pub duration_secs: u64,
+    pub quorum: Option<usize>,
+    pub threshold: Option<f32>,
+    pub content_cid: Option<Cid>,
+}
+
 impl GovernanceModule {
     /// Creates a new GovernanceModule with an in-memory backend.
     pub fn new() -> Self {
@@ -180,35 +192,34 @@ impl GovernanceModule {
     /// Create and store a new proposal in the governance module.
     pub fn submit_proposal(
         &mut self,
-        proposer: Did,
-        proposal_type: ProposalType,
-        description: String,
-        duration_secs: u64,
-        quorum: Option<usize>,
-        threshold: Option<f32>,
-        content_cid: Option<Cid>,
+        submission: ProposalSubmission,
     ) -> Result<ProposalId, CommonError> {
         metrics::SUBMIT_PROPOSAL_CALLS.inc();
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs();
-        let desc_hash_part = description.chars().take(10).collect::<String>();
-        let proposal_id_str = format!("prop:{}:{}:{}", proposer.to_string(), desc_hash_part, now);
+        let desc_hash_part = submission.description.chars().take(10).collect::<String>();
+        let proposal_id_str = format!(
+            "prop:{}:{}:{}",
+            submission.proposer.to_string(),
+            desc_hash_part,
+            now
+        );
         let proposal_id = ProposalId(proposal_id_str);
 
         let proposal = Proposal {
             id: proposal_id.clone(),
-            proposer,
-            proposal_type,
-            description,
+            proposer: submission.proposer,
+            proposal_type: submission.proposal_type,
+            description: submission.description,
             created_at: now,
-            voting_deadline: now + duration_secs,
+            voting_deadline: now + submission.duration_secs,
             status: ProposalStatus::Pending,
             votes: HashMap::new(),
-            quorum,
-            threshold,
-            content_cid,
+            quorum: submission.quorum,
+            threshold: submission.threshold,
+            content_cid: submission.content_cid,
         };
 
         match &mut self.backend {

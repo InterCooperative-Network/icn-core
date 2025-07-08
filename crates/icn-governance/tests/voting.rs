@@ -1,5 +1,7 @@
 use icn_common::Did;
-use icn_governance::{GovernanceModule, ProposalStatus, ProposalType, VoteOption};
+use icn_governance::{
+    GovernanceModule, ProposalStatus, ProposalSubmission, ProposalType, VoteOption,
+};
 use std::str::FromStr;
 
 #[test]
@@ -12,15 +14,17 @@ fn vote_tally_and_execute() {
     gov.set_threshold(0.5);
 
     let pid = gov
-        .submit_proposal(
-            Did::from_str("did:example:alice").unwrap(),
-            ProposalType::NewMemberInvitation(Did::from_str("did:example:dave").unwrap()),
-            "add dave".into(),
-            1,
-            None,
-            None,
-            None,
-        )
+        .submit_proposal(ProposalSubmission {
+            proposer: Did::from_str("did:example:alice").unwrap(),
+            proposal_type: ProposalType::NewMemberInvitation(
+                Did::from_str("did:example:dave").unwrap(),
+            ),
+            description: "add dave".into(),
+            duration_secs: 1,
+            quorum: None,
+            threshold: None,
+            content_cid: None,
+        })
         .unwrap();
 
     // open voting period
@@ -63,15 +67,15 @@ fn reject_due_to_quorum() {
     gov.set_threshold(0.5);
 
     let pid = gov
-        .submit_proposal(
-            Did::from_str("did:example:alice").unwrap(),
-            ProposalType::GenericText("hi".into()),
-            "desc".into(),
-            1,
-            None,
-            None,
-            None,
-        )
+        .submit_proposal(ProposalSubmission {
+            proposer: Did::from_str("did:example:alice").unwrap(),
+            proposal_type: ProposalType::GenericText("hi".into()),
+            description: "desc".into(),
+            duration_secs: 1,
+            quorum: None,
+            threshold: None,
+            content_cid: None,
+        })
         .unwrap();
 
     gov.open_voting(&pid).unwrap();
@@ -98,15 +102,15 @@ fn reject_due_to_threshold() {
     gov.set_threshold(0.75);
 
     let pid = gov
-        .submit_proposal(
-            Did::from_str("did:example:alice").unwrap(),
-            ProposalType::GenericText("threshold".into()),
-            "desc".into(),
-            1,
-            None,
-            None,
-            None,
-        )
+        .submit_proposal(ProposalSubmission {
+            proposer: Did::from_str("did:example:alice").unwrap(),
+            proposal_type: ProposalType::GenericText("threshold".into()),
+            description: "desc".into(),
+            duration_secs: 1,
+            quorum: None,
+            threshold: None,
+            content_cid: None,
+        })
         .unwrap();
 
     gov.open_voting(&pid).unwrap();
@@ -136,15 +140,15 @@ fn auto_close_after_deadline() {
     gov.set_quorum(1);
 
     let pid = gov
-        .submit_proposal(
-            Did::from_str("did:example:alice").unwrap(),
-            ProposalType::GenericText("auto".into()),
-            "desc".into(),
-            1,
-            None,
-            None,
-            None,
-        )
+        .submit_proposal(ProposalSubmission {
+            proposer: Did::from_str("did:example:alice").unwrap(),
+            proposal_type: ProposalType::GenericText("auto".into()),
+            description: "desc".into(),
+            duration_secs: 1,
+            quorum: None,
+            threshold: None,
+            content_cid: None,
+        })
         .unwrap();
 
     gov.open_voting(&pid).unwrap();
@@ -167,15 +171,15 @@ fn vote_fails_after_expiration() {
     let mut gov = GovernanceModule::new();
     gov.add_member(Did::from_str("did:example:alice").unwrap());
     let pid = gov
-        .submit_proposal(
-            Did::from_str("did:example:alice").unwrap(),
-            ProposalType::GenericText("expire".into()),
-            "desc".into(),
-            1,
-            None,
-            None,
-            None,
-        )
+        .submit_proposal(ProposalSubmission {
+            proposer: Did::from_str("did:example:alice").unwrap(),
+            proposal_type: ProposalType::GenericText("expire".into()),
+            description: "desc".into(),
+            duration_secs: 1,
+            quorum: None,
+            threshold: None,
+            content_cid: None,
+        })
         .unwrap();
     gov.open_voting(&pid).unwrap();
 
@@ -196,15 +200,15 @@ fn close_before_deadline_errors() {
     let mut gov = GovernanceModule::new();
     gov.add_member(Did::from_str("did:example:alice").unwrap());
     let pid = gov
-        .submit_proposal(
-            Did::from_str("did:example:alice").unwrap(),
-            ProposalType::GenericText("early".into()),
-            "desc".into(),
-            60,
-            None,
-            None,
-            None,
-        )
+        .submit_proposal(ProposalSubmission {
+            proposer: Did::from_str("did:example:alice").unwrap(),
+            proposal_type: ProposalType::GenericText("early".into()),
+            description: "desc".into(),
+            duration_secs: 60,
+            quorum: None,
+            threshold: None,
+            content_cid: None,
+        })
         .unwrap();
     gov.open_voting(&pid).unwrap();
     gov.cast_vote(
@@ -227,15 +231,15 @@ fn member_removal_affects_outcome() {
     gov.set_threshold(0.75);
 
     let pid = gov
-        .submit_proposal(
-            Did::from_str("did:example:alice").unwrap(),
-            ProposalType::GenericText("member".into()),
-            "desc".into(),
-            1,
-            None,
-            None,
-            None,
-        )
+        .submit_proposal(ProposalSubmission {
+            proposer: Did::from_str("did:example:alice").unwrap(),
+            proposal_type: ProposalType::GenericText("member".into()),
+            description: "desc".into(),
+            duration_secs: 1,
+            quorum: None,
+            threshold: None,
+            content_cid: None,
+        })
         .unwrap();
 
     gov.open_voting(&pid).unwrap();

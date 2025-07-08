@@ -15,8 +15,8 @@ use icn_mesh::{ActualMeshJob, JobKind};
 use log::{error, info, warn}; // Added warn, error
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
-use wasmtime::{Caller, Config, Linker, Module, ResourceLimiter, Store};
 use wasmparser::{Parser, Payload};
+use wasmtime::{Caller, Config, Linker, Module, ResourceLimiter, Store};
 
 /// Trait for a job executor.
 #[async_trait::async_trait]
@@ -139,7 +139,7 @@ impl WasmModuleValidator {
         for payload_result in parser.parse_all(wasm_bytes) {
             let payload = payload_result
                 .map_err(|e| CommonError::InternalError(format!("WASM validation error: {}", e)))?;
-            
+
             match payload {
                 Payload::FunctionSection(reader) => {
                     function_count = reader.count() as u32;
@@ -151,7 +151,8 @@ impl WasmModuleValidator {
                     table_count = reader.count() as u32;
                     // Fix: Use iterator instead of read() method
                     for table_result in reader {
-                        let table = table_result.map_err(|e| CommonError::DeserError(format!("{e}")))?;
+                        let table =
+                            table_result.map_err(|e| CommonError::DeserError(format!("{e}")))?;
                         let max = table.ty.maximum.unwrap_or(table.ty.initial);
                         if max > self.limits.max_table_size {
                             return Err(CommonError::PolicyDenied(
@@ -163,7 +164,8 @@ impl WasmModuleValidator {
                 Payload::MemorySection(reader) => {
                     // Fix: Use iterator instead of read() method
                     for mem_result in reader {
-                        let mem = mem_result.map_err(|e| CommonError::DeserError(format!("{e}")))?;
+                        let mem =
+                            mem_result.map_err(|e| CommonError::DeserError(format!("{e}")))?;
                         let max = mem.maximum.unwrap_or(mem.initial);
                         if max > self.limits.max_memory_pages as u64 {
                             return Err(CommonError::PolicyDenied(
@@ -705,7 +707,7 @@ mod tests {
         };
         {
             let mut store = ctx.dag_store.lock().await;
-            store.put(&block).unwrap();
+            store.put(&block).await.unwrap();
         }
 
         let (sk, vk) = generate_keys_for_test();

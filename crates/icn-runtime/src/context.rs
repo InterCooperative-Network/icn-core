@@ -68,9 +68,8 @@ use serde::{Deserialize, Serialize};
 // Duplicate imports removed - using the ones from the top of the file
 
 #[cfg(feature = "persist-rocksdb")]
-use icn_dag::rocksdb_store::RocksDagStore;
 #[cfg(feature = "async")]
-use icn_dag::{AsyncStorageService as DagStorageService, TokioFileDagStore};
+use icn_dag::{AsyncStorageService as DagStorageService};
 #[cfg(not(feature = "async"))]
 use icn_dag::{FileDagStore, StorageService as DagStorageService};
 
@@ -1641,15 +1640,8 @@ impl RuntimeContext {
             let ts = self.time_provider.unix_seconds();
             let author = self.current_identity.clone();
             let signature = None;
-            let cid = icn_common::compute_merkle_cid(
-                0x55,
-                &body,
-                &[],
-                ts,
-                &author,
-                &signature,
-                &None,
-            );
+            let cid =
+                icn_common::compute_merkle_cid(0x55, &body, &[], ts, &author, &signature, &None);
             let block = DagBlock {
                 cid: cid.clone(),
                 data: body,
@@ -1674,15 +1666,15 @@ impl RuntimeContext {
             None
         };
         let pid = gov
-            .submit_proposal(
-                self.current_identity.clone(),
+            .submit_proposal(icn_governance::ProposalSubmission {
+                proposer: self.current_identity.clone(),
                 proposal_type,
-                payload.description,
-                payload.duration_secs,
-                payload.quorum,
-                payload.threshold,
+                description: payload.description,
+                duration_secs: payload.duration_secs,
+                quorum: payload.quorum,
+                threshold: payload.threshold,
                 content_cid,
-            )
+            })
             .map_err(HostAbiError::Common)?;
         let proposal = gov
             .get_proposal(&pid)
@@ -1763,9 +1755,8 @@ impl RuntimeContext {
             no,
             abstain,
         };
-        Ok(serde_json::to_string(&result).map_err(|e| {
-            HostAbiError::InternalError(format!("Failed to serialize tally: {e}"))
-        })?)
+        Ok(serde_json::to_string(&result)
+            .map_err(|e| HostAbiError::InternalError(format!("Failed to serialize tally: {e}")))?)
     }
 
     pub async fn execute_governance_proposal(
