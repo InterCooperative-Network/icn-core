@@ -882,7 +882,7 @@
 <a href=#882 id=882 data-nosnippet>882</a>    </span><span class="kw">pub fn </span>close_voting_period(
 <a href=#883 id=883 data-nosnippet>883</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
 <a href=#884 id=884 data-nosnippet>884</a>        proposal_id: <span class="kw-2">&amp;</span>ProposalId,
-<a href=#885 id=885 data-nosnippet>885</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;ProposalStatus, CommonError&gt; {
+<a href=#885 id=885 data-nosnippet>885</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;(ProposalStatus, (usize, usize, usize)), CommonError&gt; {
 <a href=#886 id=886 data-nosnippet>886</a>        <span class="kw">let </span>now = std::time::SystemTime::now()
 <a href=#887 id=887 data-nosnippet>887</a>            .duration_since(std::time::UNIX_EPOCH)
 <a href=#888 id=888 data-nosnippet>888</a>            .unwrap_or_default()
@@ -901,7 +901,7 @@
 <a href=#901 id=901 data-nosnippet>901</a>                })<span class="question-mark">?</span>;
 <a href=#902 id=902 data-nosnippet>902</a>                <span class="comment">// Allow early closing of the voting period
 <a href=#903 id=903 data-nosnippet>903</a>                </span><span class="kw">if </span>proposal.status != ProposalStatus::VotingOpen {
-<a href=#904 id=904 data-nosnippet>904</a>                    <span class="kw">return </span><span class="prelude-val">Ok</span>(proposal.status.clone());
+<a href=#904 id=904 data-nosnippet>904</a>                    <span class="kw">return </span><span class="prelude-val">Ok</span>((proposal.status.clone(), (<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>)));
 <a href=#905 id=905 data-nosnippet>905</a>                }
 <a href=#906 id=906 data-nosnippet>906</a>                <span class="kw">let </span>members = <span class="self">self</span>.members.clone();
 <a href=#907 id=907 data-nosnippet>907</a>                <span class="kw">let </span>delegations = <span class="self">self</span>.delegations.clone();
@@ -916,7 +916,7 @@
 <a href=#916 id=916 data-nosnippet>916</a>                } <span class="kw">else </span>{
 <a href=#917 id=917 data-nosnippet>917</a>                    proposal.status = ProposalStatus::Rejected;
 <a href=#918 id=918 data-nosnippet>918</a>                }
-<a href=#919 id=919 data-nosnippet>919</a>                <span class="prelude-val">Ok</span>(proposal.status.clone())
+<a href=#919 id=919 data-nosnippet>919</a>                <span class="prelude-val">Ok</span>((proposal.status.clone(), (yes, no, abstain)))
 <a href=#920 id=920 data-nosnippet>920</a>            }
 <a href=#921 id=921 data-nosnippet>921</a>            <span class="attr">#[cfg(feature = <span class="string">"persist-sled"</span>)]
 <a href=#922 id=922 data-nosnippet>922</a>            </span>Backend::Sled {
@@ -953,7 +953,7 @@
 <a href=#953 id=953 data-nosnippet>953</a>                    })<span class="question-mark">?</span>;
 <a href=#954 id=954 data-nosnippet>954</a>                <span class="comment">// Allow early closing of the voting period
 <a href=#955 id=955 data-nosnippet>955</a>                </span><span class="kw">if </span>proposal.status != ProposalStatus::VotingOpen {
-<a href=#956 id=956 data-nosnippet>956</a>                    <span class="kw">return </span><span class="prelude-val">Ok</span>(proposal.status.clone());
+<a href=#956 id=956 data-nosnippet>956</a>                    <span class="kw">return </span><span class="prelude-val">Ok</span>((proposal.status.clone(), (<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>)));
 <a href=#957 id=957 data-nosnippet>957</a>                }
 <a href=#958 id=958 data-nosnippet>958</a>                <span class="kw">let </span>members = <span class="self">self</span>.members.clone();
 <a href=#959 id=959 data-nosnippet>959</a>                <span class="kw">let </span>delegations = <span class="self">self</span>.delegations.clone();
@@ -987,7 +987,7 @@
 <a href=#987 id=987 data-nosnippet>987</a>                        proposal_id.<span class="number">0</span>, e
 <a href=#988 id=988 data-nosnippet>988</a>                    ))
 <a href=#989 id=989 data-nosnippet>989</a>                })<span class="question-mark">?</span>;
-<a href=#990 id=990 data-nosnippet>990</a>                <span class="prelude-val">Ok</span>(proposal.status)
+<a href=#990 id=990 data-nosnippet>990</a>                <span class="prelude-val">Ok</span>((proposal.status, (yes, no, abstain)))
 <a href=#991 id=991 data-nosnippet>991</a>            }
 <a href=#992 id=992 data-nosnippet>992</a>        }
 <a href=#993 id=993 data-nosnippet>993</a>    }
