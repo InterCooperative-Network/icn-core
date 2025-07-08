@@ -284,8 +284,9 @@ async fn submit_compiled_ccl_runs_via_executor() {
     let job_json = serde_json::to_string(&job).unwrap();
     let job_id = host_submit_mesh_job(&ctx, &job_json).await.unwrap();
     tokio::time::sleep(std::time::Duration::from_millis(200)).await;
-    let states = ctx.job_states.lock().await;
-    if let Some(icn_mesh::JobState::Completed { receipt }) = states.get(&job_id) {
+    if let Some(icn_mesh::JobState::Completed { receipt }) =
+        ctx.job_states.get(&job_id).map(|s| s.value().clone())
+    {
         let expected = Cid::new_v1_sha256(0x55, &9i64.to_le_bytes());
         assert_eq!(receipt.result_cid, expected);
     } else {
@@ -327,8 +328,9 @@ async fn queued_compiled_ccl_executes() {
     };
     ctx.internal_queue_mesh_job(job.clone()).await.unwrap();
     tokio::time::sleep(std::time::Duration::from_millis(200)).await;
-    let states = ctx.job_states.lock().await;
-    if let Some(icn_mesh::JobState::Completed { receipt }) = states.get(&job.id) {
+    if let Some(icn_mesh::JobState::Completed { receipt }) =
+        ctx.job_states.get(&job.id).map(|s| s.value().clone())
+    {
         let expected = Cid::new_v1_sha256(0x55, &4i64.to_le_bytes());
         assert_eq!(receipt.result_cid, expected);
     } else {
