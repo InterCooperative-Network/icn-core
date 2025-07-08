@@ -44,7 +44,7 @@ pub fn compile_ccl_file(
     let optimizer = Optimizer::new();
     let optimized_ast = optimizer.optimize(ast)?; // AST might change to IR here
 
-    let wasm_backend = WasmBackend::new();
+    let mut wasm_backend = WasmBackend::new();
     let (wasm_bytecode, mut metadata) = wasm_backend.compile_to_wasm(&optimized_ast)?;
 
     // Calculate CID of the generated WASM using icn_common utilities
