@@ -44,7 +44,14 @@
 ### Storage & Execution
 - **Runtime-Based Execution**: The `icn-runtime` crate hosts WASM contracts and orchestrates mesh jobs through a host ABI. Deterministic execution ensures verifiable receipts.
 - **DAG Ground Truth**: `icn-dag` anchors execution receipts and stores state in a content-addressed DAG, providing tamper-evident history.
-- **Cryptographic Auditability**: Every significant action emits signed execution receipts stored in the DAG for complete transparency.
+ - **Cryptographic Auditability**: Every significant action emits signed execution receipts stored in the DAG for complete transparency.
+
+### Async I/O Model
+ - **Tokio Runtime**: All networking and persistence layers run on Tokio and expose `async` functions.
+ - **Async Storage Interfaces**: The `icn-dag` crate's `AsyncStorageService` is the canonical trait for persistence backends.
+ - **Async Crates**: `icn-api`, `icn-cli`, `icn-dag`, `icn-network`, `icn-runtime`, `icn-governance`, and `icn-node` provide async APIs.
+ - **Remaining Sync Code**: Only `icn-dag` retains `StorageService` for legacy synchronous environments.
+ - See [docs/ASYNC_OVERVIEW.md](docs/ASYNC_OVERVIEW.md) for more detail.
 
 ## Crate Responsibilities
 
