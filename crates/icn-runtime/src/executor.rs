@@ -511,14 +511,17 @@ impl JobExecutor for WasmExecutor {
         // Create store with resource limiter
         let mut store = Store::new(&self.engine, self.ctx.clone());
 
-        // Set a simple memory and fuel limit instead of a complex resource limiter for now
+        // Configure timeout and resource limits
+        let timeout_duration =
+            Duration::from_secs(self.config.security_limits.max_execution_time_secs);
+        let mut limiter = ICNResourceLimiter::new(self.config.max_memory, timeout_duration);
+        store.limiter(|_| &mut limiter);
+
         store
-            .set_fuel(100_000_000)
+            .set_fuel(self.config.fuel)
             .map_err(|e| CommonError::InternalError(format!("Failed to set fuel: {}", e)))?;
 
         // Set epoch deadline for wall-clock timeout
-        let timeout_duration =
-            Duration::from_secs(self.config.security_limits.max_execution_time_secs);
         self.engine.increment_epoch();
         store.set_epoch_deadline(1);
 
