@@ -19,7 +19,7 @@ use crate::parameter_store::ParameterStore;
 use icn_api::governance_trait::{
     CastVoteRequest as ApiCastVoteRequest, SubmitProposalRequest as ApiSubmitProposalRequest,
 };
-use icn_api::{query_data, submit_transaction};
+use icn_api::{get_dag_metadata, query_data, submit_transaction};
 use icn_common::DagBlock as CoreDagBlock;
 use icn_common::{
     parse_cid_from_string, Cid, CommonError, Did, NodeInfo, NodeStatus, Transaction,
@@ -596,6 +596,7 @@ pub async fn app_router_with_options(
             .route("/network/peers", get(network_peers_handler))
             .route("/dag/put", post(dag_put_handler)) // These will use RT context's DAG store
             .route("/dag/get", post(dag_get_handler)) // These will use RT context's DAG store
+            .route("/dag/meta", post(dag_meta_handler))
             .route("/transaction/submit", post(tx_submit_handler))
             .route("/data/query", post(data_query_handler))
             .route("/governance/submit", post(gov_submit_handler)) // Uses RT context's Gov mod
@@ -707,6 +708,7 @@ pub async fn app_router_from_context(
         .route("/network/peers", get(network_peers_handler))
         .route("/dag/put", post(dag_put_handler))
         .route("/dag/get", post(dag_get_handler))
+        .route("/dag/meta", post(dag_meta_handler))
         .route("/transaction/submit", post(tx_submit_handler))
         .route("/data/query", post(data_query_handler))
         .route("/governance/submit", post(gov_submit_handler))
@@ -1019,6 +1021,7 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
         .route("/metrics", get(metrics_handler))
         .route("/dag/put", post(dag_put_handler))
         .route("/dag/get", post(dag_get_handler))
+        .route("/dag/meta", post(dag_meta_handler))
         .route("/transaction/submit", post(tx_submit_handler))
         .route("/data/query", post(data_query_handler))
         .route("/governance/submit", post(gov_submit_handler))
@@ -1460,6 +1463,45 @@ async fn dag_get_handler(
             .into_response(),
         Err(e) => map_rust_error_to_json_response(
             format!("DAG get error: {}", e),
+            StatusCode::INTERNAL_SERVER_ERROR,
+        )
+        .into_response(),
+    }
+}
+
+// POST /dag/meta – Retrieve metadata for a DAG block. (Body: CID JSON)
+async fn dag_meta_handler(
+    State(state): State<AppState>,
+    Json(cid_request): Json<CidRequest>,
+) -> impl IntoResponse {
+    let cid = match parse_cid_from_string(&cid_request.cid) {
+        Ok(c) => c,
+        Err(e) => {
+            return map_rust_error_to_json_response(
+                format!("Invalid CID: {}", e),
+                StatusCode::BAD_REQUEST,
+            )
+            .into_response();
+        }
+    };
+
+    let cid_json = match serde_json::to_string(&cid) {
+        Ok(j) => j,
+        Err(e) => {
+            return map_rust_error_to_json_response(
+                format!("Failed to serialize CID: {}", e),
+                StatusCode::BAD_REQUEST,
+            )
+            .into_response();
+        }
+    };
+
+    match get_dag_metadata(state.runtime_context.dag_store.clone(), cid_json).await {
+        Ok(Some(meta)) => (StatusCode::OK, Json(meta)).into_response(),
+        Ok(None) => map_rust_error_to_json_response("Block not found", StatusCode::NOT_FOUND)
+            .into_response(),
+        Err(e) => map_rust_error_to_json_response(
+            format!("DAG metadata error: {}", e),
             StatusCode::INTERNAL_SERVER_ERROR,
         )
         .into_response(),

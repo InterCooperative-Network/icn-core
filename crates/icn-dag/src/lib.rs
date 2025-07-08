@@ -12,7 +12,7 @@ use icn_common::compute_merkle_cid;
 use icn_common::DagLink;
 #[cfg(test)]
 use icn_common::Did;
-use icn_common::{Cid, CommonError, DagBlock, NodeInfo, ICN_CORE_VERSION};
+use icn_common::{Cid, CommonError, DagBlock, Did, NodeInfo, ICN_CORE_VERSION};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs::{File, OpenOptions}; // For FileDagStore
@@ -31,6 +31,29 @@ pub mod rocksdb_store;
 pub mod sled_store;
 #[cfg(feature = "persist-sqlite")]
 pub mod sqlite_store;
+
+/// Metadata extracted from a [`DagBlock`].
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DagBlockMetadata {
+    /// Size of the block's data payload in bytes.
+    pub size: u64,
+    /// Unix timestamp when the block was created.
+    pub timestamp: u64,
+    /// DID of the block author.
+    pub author_did: Did,
+    /// CIDs of linked blocks.
+    pub links: Vec<Cid>,
+}
+
+/// Map a [`DagBlock`] into its [`DagBlockMetadata`] representation.
+pub fn block_to_metadata(block: &DagBlock) -> DagBlockMetadata {
+    DagBlockMetadata {
+        size: block.data.len() as u64,
+        timestamp: block.timestamp,
+        author_did: block.author_did.clone(),
+        links: block.links.iter().map(|l| l.cid.clone()).collect(),
+    }
+}
 
 // --- Storage Service Trait ---
 

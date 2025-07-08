@@ -16,6 +16,7 @@ use std::process::exit; // Added for reading from stdin
 // Types from our ICN crates that CLI will interact with (serialize/deserialize)
 // These types are expected to be sent to/received from the icn-node HTTP API.
 use icn_common::{Cid, DagBlock, NodeInfo, NodeStatus};
+use icn_dag::DagBlockMetadata;
 // Using aliased request structs from icn-api for clarity, these are what the node expects
 use icn_api::governance_trait::{
     CastVoteRequest as ApiCastVoteRequest, SubmitProposalRequest as ApiSubmitProposalRequest,
@@ -116,6 +117,11 @@ enum DagCommands {
     /// Retrieve a DAG block by its CID (provide CID as JSON string)
     Get {
         #[clap(help = "CID of the block to retrieve, as a JSON string")]
+        cid_json: String,
+    },
+    /// Retrieve metadata for a DAG block by its CID
+    Meta {
+        #[clap(help = "CID of the block to inspect, as a JSON string")]
         cid_json: String,
     },
     /// Backup the DAG store to the specified directory
@@ -248,6 +254,7 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
                 block_json_or_stdin,
             } => handle_dag_put(cli, client, block_json_or_stdin).await?,
             DagCommands::Get { cid_json } => handle_dag_get(cli, client, cid_json).await?,
+            DagCommands::Meta { cid_json } => handle_dag_meta(cli, client, cid_json).await?,
             DagCommands::Backup { path } => handle_dag_backup(path)?,
             DagCommands::Restore { path } => handle_dag_restore(path)?,
             DagCommands::Verify { full } => handle_dag_verify(*full)?,
@@ -460,6 +467,16 @@ async fn handle_dag_get(cli: &Cli, client: &Client, cid_json: &str) -> Result<()
     println!("--- Retrieved DAG Block ---");
     println!("{}", serde_json::to_string_pretty(&response_block)?);
     println!("-------------------------");
+    Ok(())
+}
+
+async fn handle_dag_meta(cli: &Cli, client: &Client, cid_json: &str) -> Result<(), anyhow::Error> {
+    let cid: Cid = serde_json::from_str(cid_json)
+        .map_err(|e| anyhow::anyhow!("Invalid CID JSON provided: {}. Error: {}", cid_json, e))?;
+    let meta: DagBlockMetadata = post_request(&cli.api_url, client, "/dag/meta", &cid).await?;
+    println!("--- DAG Block Metadata ---");
+    println!("{}", serde_json::to_string_pretty(&meta)?);
+    println!("--------------------------");
     Ok(())
 }
 

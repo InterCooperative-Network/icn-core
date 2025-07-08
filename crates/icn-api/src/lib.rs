@@ -16,7 +16,7 @@ use icn_common::{
 };
 // Remove direct use of icn_dag::put_block and icn_dag::get_block which use global store
 // use icn_dag::{put_block as dag_put_block, get_block as dag_get_block};
-use icn_dag::AsyncStorageService; // Import the async storage trait
+use icn_dag::{block_to_metadata, AsyncStorageService, DagBlockMetadata}; // Import the async storage trait and helper
 use once_cell::sync::Lazy;
 use std::sync::{Arc, Mutex}; // To accept the storage service
 use tokio::sync::Mutex as AsyncMutex;
@@ -216,6 +216,36 @@ pub async fn retrieve_dag_block(
         // Note: get typically shouldn't cause SerializationError or DagValidationError unless the store is corrupted
         _ => CommonError::ApiError(format!("API: Unexpected error during store.get: {:?}", e)),
     })
+}
+
+/// Retrieves metadata about a DagBlock from the store by its CID.
+/// Returns `Ok(Some(metadata))` if the block exists.
+pub async fn get_dag_metadata(
+    storage: Arc<tokio::sync::Mutex<dyn AsyncStorageService<DagBlock> + Send>>,
+    cid_json: String,
+) -> Result<Option<DagBlockMetadata>, CommonError> {
+    let cid: Cid = serde_json::from_str(&cid_json).map_err(|e| {
+        CommonError::DeserializationError(format!(
+            "Failed to parse CID JSON for metadata retrieval: {} (Input: '{}')",
+            e, cid_json
+        ))
+    })?;
+
+    let store = storage.lock().await;
+
+    let result = store.get(&cid).await.map_err(|e| match e {
+        CommonError::StorageError(msg) => {
+            CommonError::StorageError(format!("API: Failed to retrieve DagBlock: {}", msg))
+        }
+        CommonError::DeserializationError(msg) => CommonError::DeserializationError(format!(
+            "API: Deserialization error during get: {}",
+            msg
+        )),
+        CommonError::PolicyDenied(msg) => CommonError::PolicyDenied(format!("API: {}", msg)),
+        _ => CommonError::ApiError(format!("API: Unexpected error during store.get: {:?}", e)),
+    })?;
+
+    Ok(result.map(|b| block_to_metadata(&b)))
 }
 
 // pub fn add(left: u64, right: u64) -> u64 {
