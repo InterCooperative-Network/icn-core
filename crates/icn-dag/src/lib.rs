@@ -154,6 +154,38 @@ impl StorageService<DagBlock> for InMemoryDagStore {
     }
 }
 
+#[cfg(feature = "async")]
+#[async_trait::async_trait]
+impl AsyncStorageService<DagBlock> for InMemoryDagStore {
+    async fn put(&mut self, block: &DagBlock) -> Result<(), CommonError> {
+        StorageService::put(self, block)
+    }
+
+    async fn get(&self, cid: &Cid) -> Result<Option<DagBlock>, CommonError> {
+        StorageService::get(self, cid)
+    }
+
+    async fn delete(&mut self, cid: &Cid) -> Result<(), CommonError> {
+        StorageService::delete(self, cid)
+    }
+
+    async fn contains(&self, cid: &Cid) -> Result<bool, CommonError> {
+        StorageService::contains(self, cid)
+    }
+
+    async fn list_blocks(&self) -> Result<Vec<DagBlock>, CommonError> {
+        StorageService::list_blocks(self)
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+}
+
 // --- File-based DAG Store (Placeholder) ---
 
 /// Simple file-based [`StorageService`] storing one JSON file per block.

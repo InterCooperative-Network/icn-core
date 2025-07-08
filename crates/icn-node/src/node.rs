@@ -1421,7 +1421,7 @@ async fn dag_put_handler(
         scope: None,
     };
     let mut store = state.runtime_context.dag_store.lock().await;
-    match store.put(&dag_block) {
+    match store.put(&dag_block).await {
         Ok(()) => (StatusCode::CREATED, Json(dag_block.cid)).into_response(),
         Err(e) => map_rust_error_to_json_response(
             format!("DAG put error: {}", e),
@@ -1447,7 +1447,7 @@ async fn dag_get_handler(
         }
     };
     let store = state.runtime_context.dag_store.lock().await;
-    match store.get(&cid_to_get) {
+    match store.get(&cid_to_get).await {
         Ok(Some(block)) => (StatusCode::OK, Json(block.data)).into_response(),
         Ok(None) => map_rust_error_to_json_response("Block not found", StatusCode::NOT_FOUND)
             .into_response(),
