@@ -2335,7 +2335,7 @@
 <a href=#2335 id=2335 data-nosnippet>2335</a>}
 <a href=#2336 id=2336 data-nosnippet>2336</a>
 <a href=#2337 id=2337 data-nosnippet>2337</a><span class="comment">// GET /network/local-peer-id - return this node's peer ID
-<a href=#2338 id=2338 data-nosnippet>2338</a></span><span class="kw">async fn </span>network_local_peer_id_handler(State(_state): State&lt;AppState&gt;) -&gt; <span class="kw">impl </span>IntoResponse {
+<a href=#2338 id=2338 data-nosnippet>2338</a></span><span class="kw">async fn </span>network_local_peer_id_handler(State(state): State&lt;AppState&gt;) -&gt; <span class="kw">impl </span>IntoResponse {
 <a href=#2339 id=2339 data-nosnippet>2339</a>    <span class="attr">#[cfg(feature = <span class="string">"enable-libp2p"</span>)]
 <a href=#2340 id=2340 data-nosnippet>2340</a>    </span>{
 <a href=#2341 id=2341 data-nosnippet>2341</a>        <span class="kw">match </span>state.runtime_context.get_libp2p_service() {
@@ -2357,7 +2357,7 @@
 <a href=#2357 id=2357 data-nosnippet>2357</a>}
 <a href=#2358 id=2358 data-nosnippet>2358</a>
 <a href=#2359 id=2359 data-nosnippet>2359</a><span class="comment">// GET /network/peers - list peers discovered via the network service
-<a href=#2360 id=2360 data-nosnippet>2360</a></span><span class="kw">async fn </span>network_peers_handler(State(_state): State&lt;AppState&gt;) -&gt; <span class="kw">impl </span>IntoResponse {
+<a href=#2360 id=2360 data-nosnippet>2360</a></span><span class="kw">async fn </span>network_peers_handler(State(state): State&lt;AppState&gt;) -&gt; <span class="kw">impl </span>IntoResponse {
 <a href=#2361 id=2361 data-nosnippet>2361</a>    <span class="attr">#[cfg(feature = <span class="string">"enable-libp2p"</span>)]
 <a href=#2362 id=2362 data-nosnippet>2362</a>    </span>{
 <a href=#2363 id=2363 data-nosnippet>2363</a>        <span class="kw">match </span>state.runtime_context.get_libp2p_service() {
