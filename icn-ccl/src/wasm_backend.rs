@@ -53,7 +53,10 @@ impl WasmBackend {
         WasmBackend {}
     }
 
-    pub fn compile_to_wasm(&self, ast: &AstNode) -> Result<(Vec<u8>, ContractMetadata), CclError> {
+    pub fn compile_to_wasm(
+        &mut self,
+        ast: &AstNode,
+    ) -> Result<(Vec<u8>, ContractMetadata), CclError> {
         let mut types = TypeSection::new();
         let mut imports = ImportSection::new();
         let mut functions = FunctionSection::new();
@@ -384,7 +387,7 @@ impl WasmBackend {
     }
 
     fn emit_statement(
-        &self,
+        &mut self,
         stmt: &StatementNode,
         instrs: &mut Vec<Instruction>,
         locals: &mut LocalEnv,
@@ -416,42 +419,9 @@ impl WasmBackend {
                 then_block,
                 else_block,
             } => {
-                // Emit condition
-                let cond_ty = self.emit_expression(condition, instrs, locals, indices)?;
-                if cond_ty != ValType::I32 {
-                    return Err(CclError::WasmGenerationError(
-                        "If condition must be boolean".to_string(),
-                    ));
-                }
-
-                // Create if-else structure
-                if else_block.is_some() {
-                    // if-else: use if with block type empty
-                    instrs.push(Instruction::If(wasm_encoder::BlockType::Empty));
-
-                    // Emit then block
-                    self.emit_block(then_block, instrs, locals, return_ty, indices)?;
-
-                    // Emit else block
-                    instrs.push(Instruction::Else);
-                    self.emit_block(
-                        else_block.as_ref().unwrap(),
-                        instrs,
-                        locals,
-                        return_ty,
-                        indices,
-                    )?;
-
-                    instrs.push(Instruction::End);
-                } else {
-                    // if without else: use if with block type empty
-                    instrs.push(Instruction::If(wasm_encoder::BlockType::Empty));
-
-                    // Emit then block
-                    self.emit_block(then_block, instrs, locals, return_ty, indices)?;
-
-                    instrs.push(Instruction::End);
-                }
+                self.emit_if_statement(
+                    condition, then_block, else_block, instrs, locals, return_ty, indices,
+                )?;
             }
             StatementNode::WhileLoop { condition, body } => {
                 instrs.push(Instruction::Block(wasm_encoder::BlockType::Empty));
@@ -473,8 +443,47 @@ impl WasmBackend {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
+    fn emit_if_statement(
+        &mut self,
+        condition: &ExpressionNode,
+        then_block: &BlockNode,
+        else_block: &Option<BlockNode>,
+        instrs: &mut Vec<Instruction>,
+        locals: &mut LocalEnv,
+        return_ty: &TypeAnnotationNode,
+        indices: &HashMap<String, u32>,
+    ) -> Result<(), CclError> {
+        // Emit condition
+        let cond_ty = self.emit_expression(condition, instrs, locals, indices)?;
+        if cond_ty != ValType::I32 {
+            return Err(CclError::WasmGenerationError(
+                "If condition must be boolean".to_string(),
+            ));
+        }
+
+        if else_block.is_some() {
+            instrs.push(Instruction::If(wasm_encoder::BlockType::Empty));
+            self.emit_block(then_block, instrs, locals, return_ty, indices)?;
+            instrs.push(Instruction::Else);
+            self.emit_block(
+                else_block.as_ref().unwrap(),
+                instrs,
+                locals,
+                return_ty,
+                indices,
+            )?;
+            instrs.push(Instruction::End);
+        } else {
+            instrs.push(Instruction::If(wasm_encoder::BlockType::Empty));
+            self.emit_block(then_block, instrs, locals, return_ty, indices)?;
+            instrs.push(Instruction::End);
+        }
+        Ok(())
+    }
+
     fn emit_block(
-        &self,
+        &mut self,
         block: &BlockNode,
         instrs: &mut Vec<Instruction>,
         locals: &mut LocalEnv,

@@ -293,6 +293,7 @@ pub async fn host_get_reputation(
 
 // Placeholder for a reputation updater service/struct
 use icn_reputation::ReputationStore;
+use std::sync::Arc;
 
 /// Helper used by host functions to update executor reputation.
 pub struct ReputationUpdater;

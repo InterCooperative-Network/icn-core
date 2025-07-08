@@ -33,7 +33,7 @@ pub fn compile_ccl_source_to_wasm(source: &str) -> Result<(Vec<u8>, ContractMeta
     let optimizer = optimizer::Optimizer::new();
     let optimized_ast = optimizer.optimize(ast_node)?;
 
-    let backend = wasm_backend::WasmBackend::new();
+    let mut backend = wasm_backend::WasmBackend::new();
     let (wasm, mut meta) = backend.compile_to_wasm(&optimized_ast)?;
 
     // Placeholder CID and source hash until real DAG integration is wired in
