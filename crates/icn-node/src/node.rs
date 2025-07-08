@@ -484,7 +484,7 @@ pub async fn app_router_with_options(
         mana_ledger_path.unwrap_or_else(|| PathBuf::from("./mana_ledger.sqlite")),
         ledger_backend,
     );
-    let mut rt_ctx = RuntimeContext::new_with_mana_ledger_and_time(
+    let rt_ctx = RuntimeContext::new_with_mana_ledger_and_time(
         node_did.clone(),
         mesh_network_service,
         signer,
@@ -818,7 +818,7 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
     info!("Starting {} with DID: {}", node_name, node_did);
 
     // --- Create RuntimeContext with Networking ---
-    let mut rt_ctx = if config.enable_p2p {
+    let rt_ctx = if config.enable_p2p {
         #[cfg(feature = "enable-libp2p")]
         {
             info!(
@@ -1428,7 +1428,7 @@ async fn dag_put_handler(
         scope: None,
     };
     let mut store = state.runtime_context.dag_store.lock().await;
-    match store.put(&dag_block) {
+    match store.put(&dag_block).await {
         Ok(()) => (StatusCode::CREATED, Json(dag_block.cid)).into_response(),
         Err(e) => map_rust_error_to_json_response(
             format!("DAG put error: {}", e),
@@ -1454,7 +1454,7 @@ async fn dag_get_handler(
         }
     };
     let store = state.runtime_context.dag_store.lock().await;
-    match store.get(&cid_to_get) {
+    match store.get(&cid_to_get).await {
         Ok(Some(block)) => (StatusCode::OK, Json(block.data)).into_response(),
         Ok(None) => map_rust_error_to_json_response("Block not found", StatusCode::NOT_FOUND)
             .into_response(),
@@ -1861,13 +1861,15 @@ async fn mesh_submit_job_handler(
 async fn mesh_list_jobs_handler(State(state): State<AppState>) -> impl IntoResponse {
     info!("[Node] Received mesh_list_jobs request");
 
-    let job_states = state.runtime_context.job_states.lock().await;
+    let job_states = &state.runtime_context.job_states;
     let jobs: Vec<serde_json::Value> = job_states
         .iter()
-        .map(|(job_id, job_state)| {
+        .map(|entry| {
+            let job_id = entry.key();
+            let job_state = entry.value();
             serde_json::json!({
                 "job_id": job_id.to_string(),
-                "status": match job_state {
+                "status": match &*job_state {
                     icn_mesh::JobState::Pending => serde_json::json!("pending"),
                     icn_mesh::JobState::Assigned { executor } => {
                         serde_json::json!({
@@ -1923,7 +1925,7 @@ async fn mesh_get_job_status_handler(
         }
     };
 
-    let job_states = state.runtime_context.job_states.lock().await;
+    let job_states = &state.runtime_context.job_states;
     info!(
         "[Node] Looking for job_id {:?} in {} stored jobs",
         job_id,
@@ -1931,15 +1933,15 @@ async fn mesh_get_job_status_handler(
     );
 
     // Debug: List all stored job IDs
-    for stored_job_id in job_states.keys() {
-        info!("[Node] Stored job ID: {:?}", stored_job_id);
+    for entry in job_states.iter() {
+        info!("[Node] Stored job ID: {:?}", entry.key());
     }
 
     match job_states.get(&icn_mesh::JobId::from(job_id.clone())) {
         Some(job_state) => {
             let response = serde_json::json!({
                 "job_id": job_id.to_string(),
-                "status": match job_state {
+                "status": match &*job_state {
                     icn_mesh::JobState::Pending => serde_json::json!("pending"),
                     icn_mesh::JobState::Assigned { executor } => {
                         serde_json::json!({
@@ -2194,7 +2196,7 @@ async fn federation_status_handler(State(state): State<AppState>) -> impl IntoRe
 }
 
 // GET /network/local-peer-id - return this node's peer ID
-async fn network_local_peer_id_handler(State(state): State<AppState>) -> impl IntoResponse {
+async fn network_local_peer_id_handler(State(_state): State<AppState>) -> impl IntoResponse {
     #[cfg(feature = "enable-libp2p")]
     {
         match state.runtime_context.get_libp2p_service() {
@@ -2216,7 +2218,7 @@ async fn network_local_peer_id_handler(State(state): State<AppState>) -> impl In
 }
 
 // GET /network/peers - list peers discovered via the network service
-async fn network_peers_handler(State(state): State<AppState>) -> impl IntoResponse {
+async fn network_peers_handler(State(_state): State<AppState>) -> impl IntoResponse {
     #[cfg(feature = "enable-libp2p")]
     {
         match state.runtime_context.get_libp2p_service() {

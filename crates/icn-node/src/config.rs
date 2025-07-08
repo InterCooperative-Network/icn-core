@@ -13,7 +13,8 @@ use icn_dag::rocksdb_store::RocksDagStore;
 use icn_dag::sled_store::SledDagStore;
 #[cfg(feature = "persist-sqlite")]
 use icn_dag::sqlite_store::SqliteDagStore;
-use icn_dag::{AsyncStorageService, InMemoryDagStore, TokioFileDagStore};
+use icn_dag::{AsyncStorageService, TokioFileDagStore};
+use icn_runtime::context::StubDagStore;
 
 /// Storage backends supported by the node.
 #[derive(clap::ValueEnum, Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -531,7 +532,7 @@ impl NodeConfig {
         let store: Arc<TokioMutex<dyn AsyncStorageService<DagBlock> + Send>> =
             match self.storage_backend {
                 StorageBackendType::Memory => {
-                    Arc::new(TokioMutex::new(InMemoryDagStore::new())) as Arc<_>
+                    Arc::new(TokioMutex::new(StubDagStore::new())) as Arc<_>
                 }
                 StorageBackendType::File => Arc::new(TokioMutex::new(TokioFileDagStore::new(
                     self.storage_path.clone(),
