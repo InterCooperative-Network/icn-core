@@ -3,6 +3,7 @@
 This crate provides the compiler for the Cooperative Contract Language (CCL) used in the InterCooperative Network (ICN). It translates CCL source into WebAssembly (WASM) modules and produces metadata describing the contract.
 
 See [CONTEXT.md](../CONTEXT.md) for ICN Core design philosophy and crate roles.
+See [docs/ASYNC_OVERVIEW.md](../docs/ASYNC_OVERVIEW.md) for async API guidelines.
 
 ## Purpose
 
