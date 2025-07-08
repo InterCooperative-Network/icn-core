@@ -36,6 +36,7 @@ clap = { version = "4.0", features = ["derive"], optional = true }
 icn-ccl = { path = "../../icn-ccl" }
 sha2 = "0.10"
 anyhow = "1.0"
+dashmap = "5"
 
 [dev-dependencies]
 anyhow = "1.0.75"
