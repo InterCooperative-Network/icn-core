@@ -47,10 +47,13 @@ async fn proposal_can_be_closed_and_executed() {
         .unwrap();
     }
     // close voting
-    let status = host_close_governance_proposal_voting(&ctx, &pid_str)
+    let result_json = host_close_governance_proposal_voting(&ctx, &pid_str)
         .await
         .expect("close voting");
-    assert_eq!(status, format!("{:?}", ProposalStatus::Accepted));
+    let result: icn_api::governance_trait::CloseProposalResponse =
+        serde_json::from_str(&result_json).unwrap();
+    assert_eq!(result.status, format!("{:?}", ProposalStatus::Accepted));
+    assert_eq!((result.yes, result.no, result.abstain), (2, 0, 0));
     // execute proposal
     host_execute_governance_proposal(&ctx, &pid_str)
         .await
@@ -175,10 +178,13 @@ async fn lifecycle_with_member_add_and_remove() {
         )
         .unwrap();
     }
-    let status = host_close_governance_proposal_voting(&ctx, &pid_str)
+    let res_json = host_close_governance_proposal_voting(&ctx, &pid_str)
         .await
         .expect("close voting");
-    assert_eq!(status, format!("{:?}", ProposalStatus::Accepted));
+    let res: icn_api::governance_trait::CloseProposalResponse =
+        serde_json::from_str(&res_json).unwrap();
+    assert_eq!(res.status, format!("{:?}", ProposalStatus::Accepted));
+    assert_eq!((res.yes, res.no, res.abstain), (1, 0, 0));
 
     host_execute_governance_proposal(&ctx, &pid_str)
         .await
@@ -226,9 +232,12 @@ async fn execution_rewards_proposer() {
         )
         .unwrap();
     }
-    host_close_governance_proposal_voting(&ctx, &pid_str)
+    let res_json = host_close_governance_proposal_voting(&ctx, &pid_str)
         .await
         .expect("close voting");
+    let res: icn_api::governance_trait::CloseProposalResponse =
+        serde_json::from_str(&res_json).unwrap();
+    assert_eq!((res.yes, res.no, res.abstain), (1, 0, 0));
 
     let mana_before = ctx.mana_ledger.get_balance(&ctx.current_identity);
     let rep_before = ctx.reputation_store.get_reputation(&ctx.current_identity);

@@ -564,8 +564,12 @@ async fn handle_gov_tally(
     proposal_id: &str,
 ) -> Result<(), anyhow::Error> {
     let req = serde_json::json!({ "proposal_id": proposal_id });
-    let status: String = post_request(&cli.api_url, client, "/governance/close", &req).await?;
-    println!("Tally result: {}", status);
+    let result: icn_api::governance_trait::CloseProposalResponse =
+        post_request(&cli.api_url, client, "/governance/close", &req).await?;
+    println!(
+        "Tally result: yes={} no={} abstain={} status={}",
+        result.yes, result.no, result.abstain, result.status
+    );
     Ok(())
 }
 

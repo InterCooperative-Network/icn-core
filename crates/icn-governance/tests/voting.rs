@@ -39,8 +39,9 @@ fn vote_tally_and_execute() {
     .unwrap();
 
     // close immediately since early closing is allowed
-    let status = gov.close_voting_period(&pid).unwrap();
+    let (status, (yes, no, abstain)) = gov.close_voting_period(&pid).unwrap();
     assert_eq!(status, ProposalStatus::Accepted);
+    assert_eq!((yes, no, abstain), (2, 0, 0));
 
     gov.execute_proposal(&pid).unwrap();
     assert!(gov
@@ -80,8 +81,9 @@ fn reject_due_to_quorum() {
     )
     .unwrap();
 
-    let status = gov.close_voting_period(&pid).unwrap();
+    let (status, (yes, no, abstain)) = gov.close_voting_period(&pid).unwrap();
     assert_eq!(status, ProposalStatus::Rejected);
+    assert_eq!((yes, no, abstain), (1, 0, 0));
 }
 
 #[test]
@@ -119,8 +121,9 @@ fn reject_due_to_threshold() {
     )
     .unwrap();
 
-    let status = gov.close_voting_period(&pid).unwrap();
+    let (status, (yes, no, abstain)) = gov.close_voting_period(&pid).unwrap();
     assert_eq!(status, ProposalStatus::Rejected);
+    assert_eq!((yes, no, abstain), (1, 1, 0));
 }
 
 #[test]
@@ -204,10 +207,8 @@ fn close_before_deadline_errors() {
         VoteOption::Yes,
     )
     .unwrap();
-    assert_eq!(
-        gov.close_voting_period(&pid).unwrap(),
-        ProposalStatus::Accepted
-    );
+    let (status, _) = gov.close_voting_period(&pid).unwrap();
+    assert_eq!(status, ProposalStatus::Accepted);
 }
 
 #[test]
@@ -253,6 +254,7 @@ fn member_removal_affects_outcome() {
 
     gov.remove_member(&Did::from_str("did:example:charlie").unwrap());
 
-    let status = gov.close_voting_period(&pid).unwrap();
+    let (status, (yes, no, abstain)) = gov.close_voting_period(&pid).unwrap();
     assert_eq!(status, ProposalStatus::Accepted);
+    assert_eq!((yes, no, abstain), (2, 0, 0));
 }

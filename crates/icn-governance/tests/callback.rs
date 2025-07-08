@@ -42,10 +42,8 @@ fn callback_runs_on_execute() {
         VoteOption::Yes,
     )
     .unwrap();
-    assert_eq!(
-        gov.close_voting_period(&pid).unwrap(),
-        ProposalStatus::Accepted
-    );
+    let (status, _) = gov.close_voting_period(&pid).unwrap();
+    assert_eq!(status, ProposalStatus::Accepted);
     gov.execute_proposal(&pid).unwrap();
     assert!(executed.load(Ordering::SeqCst));
 }

@@ -59,6 +59,7 @@ curl -X POST https://localhost:8080/dag/get \
 | POST | `/governance/vote` | Cast a vote on a proposal | Yes |
 | GET | `/governance/proposals` | List all proposals | Yes |
 | GET | `/governance/proposal/:id` | Fetch a specific proposal | Yes |
+| POST | `/governance/close` | Close voting and return tally | Yes |
 
 ### Example Governance Operations
 ```bash
@@ -81,6 +82,20 @@ curl -X POST https://localhost:8080/governance/vote \
     "vote": "Yes"
   }'
 ```
+
+The `/governance/close` endpoint returns a JSON object:
+
+```json
+{
+  "status": "Accepted",
+  "yes": 2,
+  "no": 0,
+  "abstain": 1
+}
+```
+
+`status` is the final `ProposalStatus` string, and the numeric fields represent
+the counted votes.
 
 ## Mesh Computing Endpoints
 

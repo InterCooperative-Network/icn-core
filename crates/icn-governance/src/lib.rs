@@ -847,7 +847,7 @@ impl GovernanceModule {
     pub fn close_voting_period(
         &mut self,
         proposal_id: &ProposalId,
-    ) -> Result<ProposalStatus, CommonError> {
+    ) -> Result<(ProposalStatus, (usize, usize, usize)), CommonError> {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
@@ -866,7 +866,7 @@ impl GovernanceModule {
                 })?;
                 // Allow early closing of the voting period
                 if proposal.status != ProposalStatus::VotingOpen {
-                    return Ok(proposal.status.clone());
+                    return Ok((proposal.status.clone(), (0, 0, 0)));
                 }
                 let (yes, no, abstain) = {
                     let mut yes = 0;
@@ -894,7 +894,7 @@ impl GovernanceModule {
                 } else {
                     proposal.status = ProposalStatus::Rejected;
                 }
-                Ok(proposal.status.clone())
+                Ok((proposal.status.clone(), (yes, no, abstain)))
             }
             #[cfg(feature = "persist-sled")]
             Backend::Sled {
@@ -931,7 +931,7 @@ impl GovernanceModule {
                     })?;
                 // Allow early closing of the voting period
                 if proposal.status != ProposalStatus::VotingOpen {
-                    return Ok(proposal.status.clone());
+                    return Ok((proposal.status.clone(), (0, 0, 0)));
                 }
                 let (yes, no, abstain) = {
                     let mut yes = 0;
@@ -977,7 +977,7 @@ impl GovernanceModule {
                         proposal_id.0, e
                     ))
                 })?;
-                Ok(proposal.status)
+                Ok((proposal.status, (yes, no, abstain)))
             }
         }
     }

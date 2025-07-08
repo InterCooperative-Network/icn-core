@@ -34,6 +34,6 @@ fn proposal_specific_quorum_and_threshold() {
     )
     .unwrap();
 
-    let status = gov.close_voting_period(&pid).unwrap();
+    let (status, _) = gov.close_voting_period(&pid).unwrap();
     assert_eq!(status, ProposalStatus::Rejected);
 }

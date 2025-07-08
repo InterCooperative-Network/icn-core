@@ -52,3 +52,11 @@ pub trait GovernanceApi {
     fn get_proposal(&self, id: ProposalId) -> Result<Option<Proposal>, CommonError>;
     fn list_proposals(&self) -> Result<Vec<Proposal>, CommonError>;
 }
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct CloseProposalResponse {
+    pub status: String,
+    pub yes: usize,
+    pub no: usize,
+    pub abstain: usize,
+}
