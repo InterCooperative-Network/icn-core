@@ -44,7 +44,9 @@ comparison = { addition ~ ((LT_OP | LTE_OP | GT_OP | GTE_OP) ~ addition)* }
 addition = { multiplication ~ ((ADD_OP | SUB_OP) ~ multiplication)* }
 multiplication = { unary ~ ((MUL_OP | DIV_OP) ~ unary)* }
 unary = { (NOT_OP | NEG_OP)? ~ primary }
-primary = { integer_literal | boolean_literal | string_literal | function_call | identifier | "(" ~ expression ~ ")" }
+primary = { atom ~ ("[" ~ expression ~ "]")* }
+atom = { integer_literal | boolean_literal | string_literal | function_call | identifier | array_literal | "(" ~ expression ~ ")" }
+array_literal = { "[" ~ expression ~ ("," ~ expression)* ~ "]" }
 function_call = { identifier ~ "(" ~ (expression ~ ("," ~ expression)*)? ~ ")" }
 
 ADD_OP = { "+" }

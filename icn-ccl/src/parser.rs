@@ -89,19 +89,44 @@ pub(crate) fn parse_function_call(pair: Pair<Rule>) -> Result<ExpressionNode, Cc
     })
 }
 
+pub(crate) fn parse_array_literal(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
+    let elements = pair
+        .into_inner()
+        .map(parse_expression)
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(ExpressionNode::ArrayLiteral(elements))
+}
+
 pub(crate) fn parse_primary(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
     match pair.as_rule() {
+        Rule::primary => {
+            let mut inner = pair.into_inner();
+            let base = inner.next().ok_or_else(|| {
+                CclError::ParsingError("Primary expression missing base".to_string())
+            })?;
+            let mut expr = parse_primary(base)?;
+            for index_pair in inner {
+                let index_expr = parse_expression(index_pair)?;
+                expr = ExpressionNode::ArrayAccess {
+                    array: Box::new(expr),
+                    index: Box::new(index_expr),
+                };
+            }
+            Ok(expr)
+        }
+        Rule::atom => {
+            let inner = pair
+                .into_inner()
+                .next()
+                .ok_or_else(|| CclError::ParsingError("Atom missing inner".to_string()))?;
+            parse_primary(inner)
+        }
+        Rule::array_literal => parse_array_literal(pair),
         Rule::integer_literal | Rule::boolean_literal | Rule::string_literal | Rule::identifier => {
             parse_literal_expression(pair)
         }
         Rule::function_call => parse_function_call(pair),
         Rule::expression => parse_expression(pair),
-        Rule::primary => {
-            let inner = pair.into_inner().next().ok_or_else(|| {
-                CclError::ParsingError("Primary expression missing inner".to_string())
-            })?;
-            parse_primary(inner)
-        }
         _ => Err(CclError::ParsingError(format!(
             "Unsupported primary expression: {:?}",
             pair.as_rule()
@@ -257,7 +282,8 @@ pub(crate) fn parse_expression(pair: Pair<Rule>) -> Result<ExpressionNode, CclEr
         | Rule::integer_literal
         | Rule::boolean_literal
         | Rule::string_literal
-        | Rule::identifier => parse_primary(pair),
+        | Rule::identifier
+        | Rule::array_literal => parse_primary(pair),
         _ => Err(CclError::ParsingError(format!(
             "Unsupported expression rule: {:?}",
             pair.as_rule()
