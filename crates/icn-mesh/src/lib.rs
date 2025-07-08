@@ -278,8 +278,14 @@ impl ReputationExecutorSelector {
     ) -> Option<Did> {
         // This helper is retained for future stateful selection logic.
         bids.iter()
-            .max_by_key(|bid| score_bid(bid, job_spec, policy, reputation_store, mana_ledger))
-            .map(|bid| bid.executor_did.clone())
+            .map(|bid| {
+                let balance = mana_ledger.get_balance(&bid.executor_did);
+                (bid, balance)
+            })
+            .max_by_key(|(bid, balance)| {
+                score_bid(bid, job_spec, policy, reputation_store, *balance)
+            })
+            .map(|(bid, _)| bid.executor_did.clone())
     }
 }
 
@@ -294,6 +300,7 @@ impl ReputationExecutorSelector {
 /// * `bids` - A vector of `Bid` structs received for a specific job.
 /// * `policy` - The `SelectionPolicy` to apply for choosing the best executor.
 /// * `reputation_store` - Source of reputation scores for executors.
+/// * `available_mana` - Mana balance of the executor submitting the bid.
 ///
 /// # Returns
 /// * `Some(Did)` of the selected executor if a suitable one is found.
@@ -310,7 +317,7 @@ pub fn select_executor(
     // Iterate over bids and pick the executor with the highest score as
     // determined by `score_bid`. Bids from executors without enough mana are
     // ignored.
-    println!(
+    log::debug!(
         "[Mesh] Selecting executor for job {:?}. Received {} bids.",
         job_id,
         bids.len()
@@ -318,8 +325,12 @@ pub fn select_executor(
 
     bids.iter()
         .filter(|bid| mana_ledger.get_balance(&bid.executor_did) >= bid.price_mana)
-        .max_by_key(|bid| score_bid(bid, job_spec, policy, reputation_store, mana_ledger))
-        .map(|bid| bid.executor_did.clone())
+        .map(|bid| {
+            let balance = mana_ledger.get_balance(&bid.executor_did);
+            (bid, balance)
+        })
+        .max_by_key(|(bid, balance)| score_bid(bid, job_spec, policy, reputation_store, *balance))
+        .map(|(bid, _)| bid.executor_did.clone())
 }
 
 /// Scores a single bid according to a [`SelectionPolicy`].
@@ -334,6 +345,7 @@ pub fn select_executor(
 /// * `bid` - The `Bid` to score.
 /// * `policy` - The `SelectionPolicy` to use for calculating the score.
 /// * `reputation_store` - Source of reputation scores for executors.
+/// * `available_mana` - Mana balance of the executor submitting the bid.
 ///
 /// # Returns
 /// * A `u64` representing the calculated score for the bid. Higher is generally better.
@@ -342,9 +354,9 @@ pub fn score_bid(
     job_spec: &JobSpec,
     policy: &SelectionPolicy,
     reputation_store: &dyn icn_reputation::ReputationStore,
-    mana_ledger: &dyn icn_economics::ManaLedger,
+    available_mana: u64,
 ) -> u64 {
-    if mana_ledger.get_balance(&bid.executor_did) < bid.price_mana {
+    if available_mana < bid.price_mana {
         return 0;
     }
 
@@ -979,7 +991,13 @@ mod tests {
         };
 
         let policy = SelectionPolicy::default();
-        let score = score_bid(&bid, &JobSpec::default(), &policy, &rep_store, &ledger);
+        let score = score_bid(
+            &bid,
+            &JobSpec::default(),
+            &policy,
+            &rep_store,
+            ledger.get_balance(&bid.executor_did),
+        );
         assert_eq!(score, 0);
     }
 
@@ -1074,8 +1092,20 @@ mod tests {
         };
 
         let policy = SelectionPolicy::default();
-        let score_a = score_bid(&bid_a, &JobSpec::default(), &policy, &rep_store, &ledger);
-        let score_b = score_bid(&bid_b, &JobSpec::default(), &policy, &rep_store, &ledger);
+        let score_a = score_bid(
+            &bid_a,
+            &JobSpec::default(),
+            &policy,
+            &rep_store,
+            ledger.get_balance(&bid_a.executor_did),
+        );
+        let score_b = score_bid(
+            &bid_b,
+            &JobSpec::default(),
+            &policy,
+            &rep_store,
+            ledger.get_balance(&bid_b.executor_did),
+        );
 
         assert!(score_a > score_b);
     }
