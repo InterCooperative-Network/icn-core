@@ -137,6 +137,11 @@ just lint     # run clippy
 just test     # execute all tests
 just build    # build all crates
 just devnet   # launch the containerized federation devnet
+just health-check # run federation health checks
+just status   # query node status
+just logs     # show recent devnet logs
+just metrics  # fetch node metrics
+just docs     # build documentation
 icn-devnet/launch_federation.sh # build and test the federation containers
 ```
 
