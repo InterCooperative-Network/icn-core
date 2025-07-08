@@ -258,6 +258,9 @@ pub trait NetworkService: Send + Sync + Debug + DowncastSync + 'static {
     /// Retrieve a record previously stored via [`store_record`].
     /// Keys use the `/icn/service/<id>` format.
     async fn get_record(&self, key: String) -> Result<Option<Vec<u8>>, MeshNetworkError>;
+    /// Connect to a peer at the given multiaddress.
+    #[cfg(feature = "libp2p")]
+    async fn connect_peer(&self, addr: libp2p::Multiaddr) -> Result<(), MeshNetworkError>;
     fn as_any(&self) -> &dyn Any;
 }
 impl_downcast!(sync NetworkService);
@@ -419,6 +422,15 @@ impl NetworkService for StubNetworkService {
                 CircuitBreakerError::Open => MeshNetworkError::Timeout("circuit open".to_string()),
                 CircuitBreakerError::Inner(err) => err,
             })
+    }
+
+    #[cfg(feature = "libp2p")]
+    async fn connect_peer(&self, addr: libp2p::Multiaddr) -> Result<(), MeshNetworkError> {
+        log::info!(
+            "[StubNetworkService] Pretending to connect to peer at {}",
+            addr
+        );
+        Ok(())
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -679,6 +691,10 @@ pub mod libp2p_service {
         PutKademliaRecord {
             key: KademliaKey,
             value: Vec<u8>,
+            rsp: oneshot::Sender<Result<(), MeshNetworkError>>,
+        },
+        ConnectPeer {
+            addr: Multiaddr,
             rsp: oneshot::Sender<Result<(), MeshNetworkError>>,
         },
         Shutdown,
@@ -1103,6 +1119,17 @@ pub mod libp2p_service {
                                         }
                                     }
                                 }
+                                Command::ConnectPeer { addr, rsp } => {
+                                    match swarm.dial(addr.clone()) {
+                                        Ok(_) => {
+                                            log::info!("Dialing peer at {}", addr);
+                                            let _ = rsp.send(Ok(()));
+                                        }
+                                        Err(e) => {
+                                            let _ = rsp.send(Err(MeshNetworkError::Libp2p(format!("dial error: {}", e))));
+                                        }
+                                    }
+                                }
                                 Command::Shutdown => {
                                     log::info!("🔧 [LIBP2P] Shutdown command received");
                                     break;
@@ -1408,6 +1435,17 @@ pub mod libp2p_service {
             rx.await
                 .map_err(|e| MeshNetworkError::Libp2p(format!("response dropped: {}", e)))?
         }
+
+        /// Attempt to connect to the given peer multiaddress.
+        pub async fn connect_peer(&self, addr: Multiaddr) -> Result<(), MeshNetworkError> {
+            let (tx, rx) = oneshot::channel();
+            self.cmd_tx
+                .send(Command::ConnectPeer { addr, rsp: tx })
+                .await
+                .map_err(|e| MeshNetworkError::Libp2p(format!("command send failed: {}", e)))?;
+            rx.await
+                .map_err(|e| MeshNetworkError::Libp2p(format!("response dropped: {}", e)))?
+        }
     }
 
     #[async_trait]
@@ -1520,6 +1558,16 @@ pub mod libp2p_service {
                 MeshNetworkError::Libp2p(format!("Get record response failed: {}", e))
             })??;
             Ok(record_opt.map(|rec| rec.value))
+        }
+
+        async fn connect_peer(&self, addr: Multiaddr) -> Result<(), MeshNetworkError> {
+            let (tx, rx) = oneshot::channel();
+            self.cmd_tx
+                .send(Command::ConnectPeer { addr, rsp: tx })
+                .await
+                .map_err(|e| MeshNetworkError::Libp2p(format!("Connect send failed: {}", e)))?;
+            rx.await
+                .map_err(|e| MeshNetworkError::Libp2p(format!("Connect response failed: {}", e)))?
         }
 
         fn as_any(&self) -> &dyn Any {

@@ -157,6 +157,7 @@ curl -X POST https://localhost:8080/federation/leave \
 |--------|------|-------------|---------------|
 | POST | `/network/discover-peers` | Trigger peer discovery | Yes |
 | POST | `/network/send-message` | Send a message to a specific peer | Yes |
+| POST | `/network/connect` | Connect to a peer by multiaddress | Yes |
 | GET | `/network/peers` | List currently connected peers | Yes |
 
 ## Contract & WASM Endpoints
