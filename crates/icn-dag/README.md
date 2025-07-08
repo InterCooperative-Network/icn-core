@@ -27,7 +27,8 @@ The API style prioritizes:
 
 ## Async Feature
 
-Enable the `async` feature to use asynchronous storage via `TokioFileDagStore`:
+Enable the `async` feature to use asynchronous storage via `TokioFileDagStore`.
+`TokioFileDagStore` requires your application to run on the Tokio runtime:
 
 ```toml
 [dependencies]

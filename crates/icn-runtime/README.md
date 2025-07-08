@@ -112,7 +112,8 @@ implement a custom repair strategy if desired.
 ## DAG Storage
 
 `RuntimeContext` selects a storage backend for receipts and other DAG data. When
-compiled with the `async` feature, use `TokioFileDagStore`:
+compiled with the `async` feature, use `TokioFileDagStore` (requires the Tokio
+runtime):
 
 ```rust
 use icn_runtime::context::{RuntimeContext, StubMeshNetworkService, StubSigner};
