@@ -1,7 +1,7 @@
 // icn-ccl/src/semantic_analyzer.rs
 use crate::ast::{
-    ActionNode, AstNode, BinaryOperator, UnaryOperator, BlockNode, ExpressionNode, StatementNode,
-    TypeAnnotationNode,
+    ActionNode, AstNode, BinaryOperator, BlockNode, ExpressionNode, StatementNode,
+    TypeAnnotationNode, UnaryOperator,
 };
 use crate::error::CclError;
 use std::collections::HashMap;
@@ -271,7 +271,7 @@ impl SemanticAnalyzer {
                         "Empty arrays are not supported".to_string(),
                     ));
                 }
-                
+
                 let first_type = self.evaluate_expression(&elements[0])?;
                 for element in elements.iter().skip(1) {
                     let elem_type = self.evaluate_expression(element)?;
@@ -283,17 +283,17 @@ impl SemanticAnalyzer {
                     }
                 }
                 Ok(TypeAnnotationNode::Array(Box::new(first_type)))
-            },
+            }
             ExpressionNode::ArrayAccess { array, index } => {
                 let array_type = self.evaluate_expression(array)?;
                 let index_type = self.evaluate_expression(index)?;
-                
+
                 if !index_type.is_numeric() {
                     return Err(CclError::TypeError(
                         "Array index must be numeric".to_string(),
                     ));
                 }
-                
+
                 match array_type {
                     TypeAnnotationNode::Array(element_type) => Ok(*element_type),
                     _ => Err(CclError::TypeError(format!(
@@ -301,7 +301,7 @@ impl SemanticAnalyzer {
                         array_type
                     ))),
                 }
-            },
+            }
             ExpressionNode::Identifier(name) => match self.lookup_symbol(name) {
                 Some(Symbol::Variable { type_ann }) => Ok(type_ann.clone()),
                 Some(Symbol::Function { .. }) => Err(CclError::TypeError(format!(
@@ -360,17 +360,17 @@ impl SemanticAnalyzer {
                     BinaryOperator::Add => {
                         if l.is_numeric() && r.is_numeric() {
                             Ok(TypeAnnotationNode::Integer)
-                        } else if l == TypeAnnotationNode::String && r == TypeAnnotationNode::String {
+                        } else if l == TypeAnnotationNode::String && r == TypeAnnotationNode::String
+                        {
                             Ok(TypeAnnotationNode::String) // String concatenation
                         } else {
                             Err(CclError::TypeError(
-                                "Addition requires Integer operands or String concatenation".to_string(),
+                                "Addition requires Integer operands or String concatenation"
+                                    .to_string(),
                             ))
                         }
                     }
-                    BinaryOperator::Sub
-                    | BinaryOperator::Mul
-                    | BinaryOperator::Div => {
+                    BinaryOperator::Sub | BinaryOperator::Mul | BinaryOperator::Div => {
                         if l.is_numeric() && r.is_numeric() {
                             Ok(TypeAnnotationNode::Integer)
                         } else {
@@ -420,8 +420,8 @@ impl SemanticAnalyzer {
                     }
                 }
             }
-            ExpressionNode::UnaryOp { operator, operand } => {
-                let operand_ty = self.evaluate_expression(operand)?;
+            ExpressionNode::UnaryOp { operator, expr } => {
+                let operand_ty = self.evaluate_expression(expr)?;
                 match operator {
                     UnaryOperator::Not => {
                         if operand_ty == TypeAnnotationNode::Bool {

@@ -122,7 +122,7 @@ pub enum ExpressionNode {
     },
     UnaryOp {
         operator: UnaryOperator,
-        operand: Box<ExpressionNode>,
+        expr: Box<ExpressionNode>,
     },
     ArrayAccess {
         array: Box<ExpressionNode>,

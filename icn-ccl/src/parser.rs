@@ -109,6 +109,35 @@ pub(crate) fn parse_primary(pair: Pair<Rule>) -> Result<ExpressionNode, CclError
     }
 }
 
+fn parse_unary(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
+    let mut inner = pair.into_inner();
+    let first = inner
+        .next()
+        .ok_or_else(|| CclError::ParsingError("Unary rule missing inner".to_string()))?;
+
+    match first.as_rule() {
+        Rule::NOT_OP => {
+            let expr_pair = inner.next().ok_or_else(|| {
+                CclError::ParsingError("Unary NOT missing expression".to_string())
+            })?;
+            Ok(ExpressionNode::UnaryOp {
+                operator: UnaryOperator::Not,
+                expr: Box::new(parse_unary(expr_pair)?),
+            })
+        }
+        Rule::SUB_OP => {
+            let expr_pair = inner.next().ok_or_else(|| {
+                CclError::ParsingError("Unary minus missing expression".to_string())
+            })?;
+            Ok(ExpressionNode::UnaryOp {
+                operator: UnaryOperator::Neg,
+                expr: Box::new(parse_unary(expr_pair)?),
+            })
+        }
+        _ => parse_expression(first),
+    }
+}
+
 pub(crate) fn parse_expression(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
     match pair.as_rule() {
         Rule::expression => {
@@ -226,32 +255,7 @@ pub(crate) fn parse_expression(pair: Pair<Rule>) -> Result<ExpressionNode, CclEr
             }
             Ok(expr)
         }
-        Rule::unary => {
-            let mut inner = pair.into_inner();
-            let first = inner.next().unwrap();
-
-            // Check if this is an operator or the primary expression
-            match first.as_rule() {
-                Rule::NOT_OP => {
-                    let operand = parse_expression(inner.next().unwrap())?;
-                    Ok(ExpressionNode::UnaryOp {
-                        operator: UnaryOperator::Not,
-                        operand: Box::new(operand),
-                    })
-                }
-                Rule::NEG_OP => {
-                    let operand = parse_expression(inner.next().unwrap())?;
-                    Ok(ExpressionNode::UnaryOp {
-                        operator: UnaryOperator::Neg,
-                        operand: Box::new(operand),
-                    })
-                }
-                _ => {
-                    // No unary operator, just parse the primary
-                    parse_primary(first)
-                }
-            }
-        }
+        Rule::unary => parse_unary(pair),
         Rule::primary => parse_primary(pair),
         Rule::function_call
         | Rule::integer_literal

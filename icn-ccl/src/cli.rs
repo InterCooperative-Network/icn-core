@@ -280,12 +280,12 @@ fn expr_to_string(expr: &ExpressionNode) -> String {
                 expr_to_string(right)
             )
         }
-        ExpressionNode::UnaryOp { operator, operand } => {
+        ExpressionNode::UnaryOp { operator, expr } => {
             let op = match operator {
                 UnaryOperator::Not => "!",
                 UnaryOperator::Neg => "-",
             };
-            format!("({}{})", op, expr_to_string(operand))
+            format!("({}{})", op, expr_to_string(expr))
         }
         ExpressionNode::ArrayAccess { array, index } => {
             format!("{}[{}]", expr_to_string(array), expr_to_string(index))
