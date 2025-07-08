@@ -7,7 +7,7 @@ license.workspace = true
 
 [dependencies]
 icn-common = { path = "../icn-common" }
-icn-dag = { path = "../icn-dag" }
+icn-dag = { path = "../icn-dag", features = ["async"] }
 icn-network = { path = "../icn-network" }
 icn-protocol = { path = "../icn-protocol" }
 icn-governance = { path = "../icn-governance", features = ["serde"] }
