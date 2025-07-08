@@ -1,7 +1,7 @@
 // icn-ccl/src/optimizer.rs
 use crate::ast::{
     ActionNode, AstNode, BinaryOperator, BlockNode, ExpressionNode, PolicyStatementNode,
-    StatementNode,
+    StatementNode, UnaryOperator,
 };
 use crate::error::CclError;
 
@@ -158,6 +158,21 @@ impl Optimizer {
                 name,
                 arguments: arguments.into_iter().map(|a| self.fold_expr(a)).collect(),
             },
+            ExpressionNode::UnaryOp { operator, operand } => {
+                let folded_operand = self.fold_expr(*operand);
+                match (&operator, &folded_operand) {
+                    (UnaryOperator::Neg, ExpressionNode::IntegerLiteral(i)) => {
+                        ExpressionNode::IntegerLiteral(-i)
+                    }
+                    (UnaryOperator::Not, ExpressionNode::BooleanLiteral(b)) => {
+                        ExpressionNode::BooleanLiteral(!b)
+                    }
+                    _ => ExpressionNode::UnaryOp {
+                        operator,
+                        operand: Box::new(folded_operand),
+                    },
+                }
+            }
             e => e,
         }
     }

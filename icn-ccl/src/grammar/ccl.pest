@@ -43,7 +43,7 @@ equality = { comparison ~ ((EQ_OP | NEQ_OP) ~ comparison)* }
 comparison = { addition ~ ((LTE_OP | LT_OP | GTE_OP | GT_OP) ~ addition)* }
 addition = { multiplication ~ ((ADD_OP | SUB_OP) ~ multiplication)* }
 multiplication = { unary ~ ((MUL_OP | DIV_OP) ~ unary)* }
-unary = { (NOT_OP | NEG_OP)? ~ primary }
+unary = { (NOT_OP | SUB_OP) ~ unary | primary }
 primary = { atom ~ ("[" ~ expression ~ "]")* }
 atom = { integer_literal | boolean_literal | string_literal | function_call | identifier | array_literal | "(" ~ expression ~ ")" }
 array_literal = { "[" ~ expression ~ ("," ~ expression)* ~ "]" }
@@ -62,7 +62,6 @@ GT_OP  = { ">" }
 AND_OP = { "&&" }
 OR_OP  = { "||" }
 NOT_OP = { "!" }
-NEG_OP = { "-" }
 
 // Example: Actions (specific to policy rules)
 action = { ALLOW | DENY | CHARGE ~ expression }
