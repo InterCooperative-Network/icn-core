@@ -32,6 +32,15 @@ pub mod sled_store;
 #[cfg(feature = "persist-sqlite")]
 pub mod sqlite_store;
 
+/// Metadata associated with a stored DAG block.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct BlockMetadata {
+    /// Whether the block is pinned and should not be pruned.
+    pub pinned: bool,
+    /// Optional expiration timestamp (seconds since epoch).
+    pub ttl: Option<u64>,
+}
+
 // --- Storage Service Trait ---
 
 /// Defines the interface for a DAG block storage backend.
@@ -62,6 +71,22 @@ pub trait StorageService<B: Clone + Serialize + for<'de> Deserialize<'de>> {
             "list_blocks not supported".to_string(),
         ))
     }
+
+    /// Mark the block as pinned, preventing pruning.
+    fn pin_block(&mut self, cid: &Cid) -> Result<(), CommonError>;
+
+    /// Remove the pinned flag from the block.
+    fn unpin_block(&mut self, cid: &Cid) -> Result<(), CommonError>;
+
+    /// Remove blocks whose TTL has expired and are not pinned. Returns the list
+    /// of deleted CIDs.
+    fn prune_expired(&mut self, now: u64) -> Result<Vec<Cid>, CommonError>;
+
+    /// Update the TTL metadata for the given block.
+    fn set_ttl(&mut self, cid: &Cid, ttl: Option<u64>) -> Result<(), CommonError>;
+
+    /// Get metadata for a block if present.
+    fn get_metadata(&self, cid: &Cid) -> Result<Option<BlockMetadata>, CommonError>;
 
     /// Cast to [`Any`] for downcasting when the concrete type is needed.
     fn as_any(&self) -> &dyn std::any::Any;
@@ -96,6 +121,21 @@ where
         ))
     }
 
+    /// Mark the block as pinned.
+    async fn pin_block(&mut self, cid: &Cid) -> Result<(), CommonError>;
+
+    /// Remove the pinned flag.
+    async fn unpin_block(&mut self, cid: &Cid) -> Result<(), CommonError>;
+
+    /// Delete expired blocks that are not pinned.
+    async fn prune_expired(&mut self, now: u64) -> Result<Vec<Cid>, CommonError>;
+
+    /// Update TTL metadata for a block.
+    async fn set_ttl(&mut self, cid: &Cid, ttl: Option<u64>) -> Result<(), CommonError>;
+
+    /// Retrieve metadata for a block.
+    async fn get_metadata(&self, cid: &Cid) -> Result<Option<BlockMetadata>, CommonError>;
+
     /// Cast to [`Any`] for downcasting.
     fn as_any(&self) -> &dyn std::any::Any;
 
@@ -108,6 +148,7 @@ where
 #[derive(Debug, Default)]
 pub struct InMemoryDagStore {
     store: HashMap<Cid, DagBlock>,
+    meta: HashMap<Cid, BlockMetadata>,
 }
 
 impl InMemoryDagStore {
@@ -115,6 +156,7 @@ impl InMemoryDagStore {
     pub fn new() -> Self {
         InMemoryDagStore {
             store: HashMap::new(),
+            meta: HashMap::new(),
         }
     }
 }
@@ -124,6 +166,8 @@ impl StorageService<DagBlock> for InMemoryDagStore {
         metrics::DAG_PUT_CALLS.inc();
         icn_common::verify_block_integrity(block)?;
         self.store.insert(block.cid.clone(), block.clone());
+        self.meta
+            .insert(block.cid.clone(), BlockMetadata::default());
         Ok(())
     }
 
@@ -134,6 +178,7 @@ impl StorageService<DagBlock> for InMemoryDagStore {
 
     fn delete(&mut self, cid: &Cid) -> Result<(), CommonError> {
         self.store.remove(cid);
+        self.meta.remove(cid);
         Ok(())
     }
 
@@ -143,6 +188,65 @@ impl StorageService<DagBlock> for InMemoryDagStore {
 
     fn list_blocks(&self) -> Result<Vec<DagBlock>, CommonError> {
         Ok(self.store.values().cloned().collect())
+    }
+
+    fn pin_block(&mut self, cid: &Cid) -> Result<(), CommonError> {
+        match self.meta.get_mut(cid) {
+            Some(m) => {
+                m.pinned = true;
+                Ok(())
+            }
+            None => Err(CommonError::ResourceNotFound(format!(
+                "Block {} not found",
+                cid
+            ))),
+        }
+    }
+
+    fn unpin_block(&mut self, cid: &Cid) -> Result<(), CommonError> {
+        match self.meta.get_mut(cid) {
+            Some(m) => {
+                m.pinned = false;
+                Ok(())
+            }
+            None => Err(CommonError::ResourceNotFound(format!(
+                "Block {} not found",
+                cid
+            ))),
+        }
+    }
+
+    fn prune_expired(&mut self, now: u64) -> Result<Vec<Cid>, CommonError> {
+        let mut removed = Vec::new();
+        let to_remove: Vec<Cid> = self
+            .meta
+            .iter()
+            .filter(|(_, meta)| !meta.pinned && meta.ttl.map(|t| t <= now).unwrap_or(false))
+            .map(|(cid, _)| cid.clone())
+            .collect();
+        for cid in to_remove {
+            self.store.remove(&cid);
+            self.meta.remove(&cid);
+            removed.push(cid);
+        }
+        Ok(removed)
+    }
+
+    fn set_ttl(&mut self, cid: &Cid, ttl: Option<u64>) -> Result<(), CommonError> {
+        match self.meta.get_mut(cid) {
+            Some(m) => {
+                m.ttl = ttl;
+                Ok(())
+            }
+            None => Err(CommonError::ResourceNotFound(format!(
+                "Block {} not found",
+                cid
+            ))),
+        }
+    }
+
+    fn get_metadata(&self, cid: &Cid) -> Result<Option<BlockMetadata>, CommonError> {
+        Ok(self.meta.get(cid).cloned())
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
@@ -162,6 +266,7 @@ pub struct FileDagStore {
     storage_path: PathBuf,
     // Optional: In-memory index for faster lookups, synced with files
     // index: HashMap<Cid, PathBuf>, // Or some offset/length info if storing in a single large file
+    meta: HashMap<Cid, BlockMetadata>,
 }
 
 impl FileDagStore {
@@ -181,7 +286,10 @@ impl FileDagStore {
                 storage_path
             )));
         }
-        Ok(FileDagStore { storage_path })
+        Ok(FileDagStore {
+            storage_path,
+            meta: HashMap::new(),
+        })
     }
 
     // Renamed from get_block_path in apply model changes, reverting to original name for clarity
@@ -272,7 +380,10 @@ impl FileDagStore {
 impl StorageService<DagBlock> for FileDagStore {
     fn put(&mut self, block: &DagBlock) -> Result<(), CommonError> {
         metrics::DAG_PUT_CALLS.inc();
-        self.put_block_to_file(block)
+        self.put_block_to_file(block)?;
+        self.meta
+            .insert(block.cid.clone(), BlockMetadata::default());
+        Ok(())
     }
 
     fn get(&self, cid: &Cid) -> Result<Option<DagBlock>, CommonError> {
@@ -281,7 +392,9 @@ impl StorageService<DagBlock> for FileDagStore {
     }
 
     fn delete(&mut self, cid: &Cid) -> Result<(), CommonError> {
-        self.delete_block_file(cid)
+        self.delete_block_file(cid)?;
+        self.meta.remove(cid);
+        Ok(())
     }
 
     fn contains(&self, cid: &Cid) -> Result<bool, CommonError> {
@@ -313,6 +426,65 @@ impl StorageService<DagBlock> for FileDagStore {
         Ok(blocks)
     }
 
+    fn pin_block(&mut self, cid: &Cid) -> Result<(), CommonError> {
+        match self.meta.get_mut(cid) {
+            Some(m) => {
+                m.pinned = true;
+                Ok(())
+            }
+            None => Err(CommonError::ResourceNotFound(format!(
+                "Block {} not found",
+                cid
+            ))),
+        }
+    }
+
+    fn unpin_block(&mut self, cid: &Cid) -> Result<(), CommonError> {
+        match self.meta.get_mut(cid) {
+            Some(m) => {
+                m.pinned = false;
+                Ok(())
+            }
+            None => Err(CommonError::ResourceNotFound(format!(
+                "Block {} not found",
+                cid
+            ))),
+        }
+    }
+
+    fn prune_expired(&mut self, now: u64) -> Result<Vec<Cid>, CommonError> {
+        let mut removed = Vec::new();
+        let to_remove: Vec<Cid> = self
+            .meta
+            .iter()
+            .filter(|(_, m)| !m.pinned && m.ttl.map(|t| t <= now).unwrap_or(false))
+            .map(|(c, _)| c.clone())
+            .collect();
+        for cid in to_remove {
+            self.delete_block_file(&cid)?;
+            self.meta.remove(&cid);
+            removed.push(cid);
+        }
+        Ok(removed)
+    }
+
+    fn set_ttl(&mut self, cid: &Cid, ttl: Option<u64>) -> Result<(), CommonError> {
+        match self.meta.get_mut(cid) {
+            Some(m) => {
+                m.ttl = ttl;
+                Ok(())
+            }
+            None => Err(CommonError::ResourceNotFound(format!(
+                "Block {} not found",
+                cid
+            ))),
+        }
+    }
+
+    fn get_metadata(&self, cid: &Cid) -> Result<Option<BlockMetadata>, CommonError> {
+        Ok(self.meta.get(cid).cloned())
+    }
+
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
@@ -329,6 +501,7 @@ impl StorageService<DagBlock> for FileDagStore {
 #[derive(Debug)]
 pub struct TokioFileDagStore {
     storage_path: PathBuf,
+    meta: HashMap<Cid, BlockMetadata>,
 }
 
 #[cfg(feature = "async")]
@@ -349,7 +522,10 @@ impl TokioFileDagStore {
                 storage_path
             )));
         }
-        Ok(TokioFileDagStore { storage_path })
+        Ok(TokioFileDagStore {
+            storage_path,
+            meta: HashMap::new(),
+        })
     }
 
     fn block_path(&self, cid: &Cid) -> PathBuf {
@@ -391,6 +567,8 @@ impl AsyncStorageService<DagBlock> for TokioFileDagStore {
                     block.cid, file_path, e
                 ))
             })?;
+        self.meta
+            .insert(block.cid.clone(), BlockMetadata::default());
         Ok(())
     }
 
@@ -438,6 +616,7 @@ impl AsyncStorageService<DagBlock> for TokioFileDagStore {
                 CommonError::IoError(format!("Failed to delete file {:?}: {}", file_path, e))
             })?;
         }
+        self.meta.remove(cid);
         Ok(())
     }
 
@@ -474,6 +653,70 @@ impl AsyncStorageService<DagBlock> for TokioFileDagStore {
             }
         }
         Ok(blocks)
+    }
+
+    async fn pin_block(&mut self, cid: &Cid) -> Result<(), CommonError> {
+        match self.meta.get_mut(cid) {
+            Some(m) => {
+                m.pinned = true;
+                Ok(())
+            }
+            None => Err(CommonError::ResourceNotFound(format!(
+                "Block {} not found",
+                cid
+            ))),
+        }
+    }
+
+    async fn unpin_block(&mut self, cid: &Cid) -> Result<(), CommonError> {
+        match self.meta.get_mut(cid) {
+            Some(m) => {
+                m.pinned = false;
+                Ok(())
+            }
+            None => Err(CommonError::ResourceNotFound(format!(
+                "Block {} not found",
+                cid
+            ))),
+        }
+    }
+
+    async fn prune_expired(&mut self, now: u64) -> Result<Vec<Cid>, CommonError> {
+        let mut removed = Vec::new();
+        let to_remove: Vec<Cid> = self
+            .meta
+            .iter()
+            .filter(|(_, m)| !m.pinned && m.ttl.map(|t| t <= now).unwrap_or(false))
+            .map(|(c, _)| c.clone())
+            .collect();
+        for cid in to_remove {
+            let file_path = self.block_path(&cid);
+            if fs::metadata(&file_path).await.is_ok() {
+                fs::remove_file(&file_path).await.map_err(|e| {
+                    CommonError::IoError(format!("Failed to delete file {:?}: {}", file_path, e))
+                })?;
+            }
+            self.meta.remove(&cid);
+            removed.push(cid);
+        }
+        Ok(removed)
+    }
+
+    async fn set_ttl(&mut self, cid: &Cid, ttl: Option<u64>) -> Result<(), CommonError> {
+        match self.meta.get_mut(cid) {
+            Some(m) => {
+                m.ttl = ttl;
+                Ok(())
+            }
+            None => Err(CommonError::ResourceNotFound(format!(
+                "Block {} not found",
+                cid
+            ))),
+        }
+    }
+
+    async fn get_metadata(&self, cid: &Cid) -> Result<Option<BlockMetadata>, CommonError> {
+        Ok(self.meta.get(cid).cloned())
     }
 
     fn as_any(&self) -> &dyn std::any::Any {

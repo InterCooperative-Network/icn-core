@@ -133,6 +133,20 @@ enum DagCommands {
         #[clap(long, help = "Verify all blocks, not just a sample")]
         full: bool,
     },
+    /// Pin a DAG block with optional TTL
+    Pin {
+        #[clap(help = "CID of the block to pin as JSON string")]
+        cid_json: String,
+        #[clap(long, help = "Optional TTL in seconds")]
+        ttl: Option<u64>,
+    },
+    /// Unpin a DAG block
+    Unpin {
+        #[clap(help = "CID of the block to unpin as JSON string")]
+        cid_json: String,
+    },
+    /// Prune expired blocks
+    Prune,
 }
 
 #[derive(Subcommand, Debug)]
@@ -251,6 +265,11 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
             DagCommands::Backup { path } => handle_dag_backup(path)?,
             DagCommands::Restore { path } => handle_dag_restore(path)?,
             DagCommands::Verify { full } => handle_dag_verify(*full)?,
+            DagCommands::Pin { cid_json, ttl } => {
+                handle_dag_pin(cli, client, cid_json, *ttl).await?
+            }
+            DagCommands::Unpin { cid_json } => handle_dag_unpin(cli, client, cid_json).await?,
+            DagCommands::Prune => handle_dag_prune(cli, client).await?,
         },
         Commands::Governance { command } => match command {
             GovernanceCommands::Submit {
@@ -509,6 +528,34 @@ fn handle_dag_verify(full: bool) -> Result<(), anyhow::Error> {
         }
     }
     println!("Verified {verified} block(s)");
+    Ok(())
+}
+
+async fn handle_dag_pin(
+    cli: &Cli,
+    client: &Client,
+    cid_json: &str,
+    ttl: Option<u64>,
+) -> Result<(), anyhow::Error> {
+    let cid: Cid = serde_json::from_str(cid_json)
+        .map_err(|e| anyhow::anyhow!("Invalid CID JSON: {cid_json}. Error: {e}"))?;
+    let body = serde_json::json!({ "cid": cid, "ttl": ttl });
+    let _: JsonValue = post_request(&cli.api_url, client, "/dag/pin", &body).await?;
+    println!("Pinned block {cid_json}");
+    Ok(())
+}
+
+async fn handle_dag_unpin(cli: &Cli, client: &Client, cid_json: &str) -> Result<(), anyhow::Error> {
+    let cid: Cid = serde_json::from_str(cid_json)
+        .map_err(|e| anyhow::anyhow!("Invalid CID JSON: {cid_json}. Error: {e}"))?;
+    let _: JsonValue = post_request(&cli.api_url, client, "/dag/unpin", &cid).await?;
+    println!("Unpinned block {cid_json}");
+    Ok(())
+}
+
+async fn handle_dag_prune(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
+    let _: JsonValue = post_request(&cli.api_url, client, "/dag/prune", &()).await?;
+    println!("Prune triggered");
     Ok(())
 }
 
