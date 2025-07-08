@@ -117,3 +117,24 @@ fn compile_governance_conditions() {
     let (wasm, _meta) = compile_ccl_source_to_wasm(src).expect("compile");
     assert!(wasm.starts_with(b"\0asm"));
 }
+
+#[test]
+fn compile_comparison_operators() {
+    let src = r#"
+        fn compare(a: Integer, b: Integer) -> Integer {
+            if a < b {
+                return 1;
+            }
+            if a <= b {
+                return 1;
+            }
+            return 0;
+        }
+
+        fn run() -> Integer {
+            return compare(1, 2);
+        }
+    "#;
+    let (wasm, _meta) = compile_ccl_source_to_wasm(src).expect("compile");
+    assert!(wasm.starts_with(b"\0asm"));
+}
