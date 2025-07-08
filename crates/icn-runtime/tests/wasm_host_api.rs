@@ -21,12 +21,14 @@ async fn wasm_host_api_functions() {
         (import "icn" "wasm_host_account_get_mana" (func $get_mana (param i32 i32) (result i64)))
         (import "icn" "wasm_host_account_spend_mana" (func $spend (param i32 i32 i64)))
         (import "icn" "wasm_host_anchor_receipt" (func $anchor (param i32 i32 i32 i32) (result i32)))
+        (import "icn" "wasm_host_get_reputation" (func $get_rep (param i32 i32) (result i64)))
         (memory (export "memory") 1)
         (func (export "submit") (param i32 i32 i32 i32) (result i32) (local.get 0) (local.get 1) (local.get 2) (local.get 3) call $submit)
         (func (export "get_jobs") (param i32 i32) (result i32) (local.get 0) (local.get 1) call $get_jobs)
         (func (export "get_mana") (param i32 i32) (result i64) (local.get 0) (local.get 1) call $get_mana)
         (func (export "spend") (param i32 i32 i64) (local.get 0) (local.get 1) (local.get 2) call $spend)
         (func (export "anchor") (param i32 i32 i32 i32) (result i32) (local.get 0) (local.get 1) (local.get 2) (local.get 3) call $anchor)
+        (func (export "get_rep") (param i32 i32) (result i64) (local.get 0) (local.get 1) call $get_rep)
     )"#;
     let module_bytes = wat::parse_str(module_wat).unwrap();
     let module = Module::new(&engine, module_bytes).unwrap();
@@ -53,6 +55,9 @@ async fn wasm_host_api_functions() {
             "wasm_host_account_get_mana",
             wasm_host_account_get_mana,
         )
+        .unwrap();
+    linker
+        .func_wrap("icn", "wasm_host_get_reputation", wasm_host_get_reputation)
         .unwrap();
     linker
         .func_wrap(
@@ -164,6 +169,17 @@ async fn wasm_host_api_functions() {
 
     // reputation updated
     assert!(ctx.reputation_store.get_reputation(&node_did) > 0);
+    // verify via wasm import
+    memory
+        .write(&mut store, 5000, node_did.to_string().as_bytes())
+        .unwrap();
+    let get_rep = instance
+        .get_typed_func::<(i32, i32), i64>(&mut store, "get_rep")
+        .unwrap();
+    let rep_val = get_rep
+        .call(&mut store, (5000, node_did.to_string().len() as i32))
+        .unwrap();
+    assert!(rep_val > 0);
 
     // get pending jobs via wasm
     let get_jobs = instance

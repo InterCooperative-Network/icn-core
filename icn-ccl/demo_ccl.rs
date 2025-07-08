@@ -67,6 +67,19 @@ fn main() {
         println!("⚠️  Example file not found at {}", example_path.display());
     }
 
+    // Example usage of the runtime's host_get_reputation function to calculate
+    // a discounted mana cost. This is illustrative only and not executed.
+    //
+    // ```rust
+    // use icn_runtime::{host_get_reputation, context::RuntimeContext};
+    // use icn_economics::price_by_reputation;
+    //
+    // async fn calculate_mana_cost(ctx: &RuntimeContext, base: u64) -> u64 {
+    //     let rep = host_get_reputation(ctx, &ctx.current_identity.to_string()).await.unwrap();
+    //     price_by_reputation(base, rep)
+    // }
+    // ```
+
     println!("\n🎉 CCL Demo Complete!");
     println!("🔗 CCL enables:");
     println!("   • Governance as Code");

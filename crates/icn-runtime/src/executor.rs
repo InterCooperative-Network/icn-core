@@ -535,6 +535,17 @@ impl JobExecutor for WasmExecutor {
             })
             .map_err(|e| CommonError::InternalError(e.to_string()))?;
 
+        let ctx_clone = self.ctx.clone();
+        linker
+            .func_wrap("icn", "host_get_reputation", move || -> i64 {
+                let handle = tokio::runtime::Handle::current();
+                let did = ctx_clone.current_identity.to_string();
+                handle
+                    .block_on(async { host_get_reputation(&ctx_clone, &did).await })
+                    .unwrap_or(0) as i64
+            })
+            .map_err(|e| CommonError::InternalError(e.to_string()))?;
+
         linker
             .func_wrap(
                 "icn",

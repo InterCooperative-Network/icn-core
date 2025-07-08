@@ -88,10 +88,7 @@ pub async fn host_submit_mesh_job(
 
     // 2. Adjust cost based on the submitter's reputation and spend mana.
     let rep = ctx.reputation_store.get_reputation(&ctx.current_identity);
-    job_to_submit.cost_mana = icn_economics::price_by_reputation(
-        job_to_submit.cost_mana,
-        rep,
-    );
+    job_to_submit.cost_mana = icn_economics::price_by_reputation(job_to_submit.cost_mana, rep);
 
     ctx.spend_mana(&ctx.current_identity, job_to_submit.cost_mana)
         .await
@@ -202,6 +199,26 @@ pub async fn host_account_get_mana(
     })?;
 
     ctx.get_mana(&account_did).await
+}
+
+/// ABI Index: (defined in `abi::ABI_HOST_GET_REPUTATION`)
+/// Retrieves the reputation score for the given DID.
+///
+/// WebAssembly modules should call [`wasm_host_get_reputation`], which
+/// reads the DID string from guest memory using pointer/length arguments.
+pub async fn host_get_reputation(ctx: &RuntimeContext, did_str: &str) -> Result<u64, HostAbiError> {
+    debug!("[host_get_reputation] called for did: {}", did_str);
+
+    if did_str.is_empty() {
+        return Err(HostAbiError::InvalidParameters(
+            "DID string cannot be empty".to_string(),
+        ));
+    }
+
+    let did = Did::from_str(did_str)
+        .map_err(|e| HostAbiError::InvalidParameters(format!("Invalid DID format: {}", e)))?;
+
+    Ok(ctx.get_reputation(&did))
 }
 
 /// ABI Index: (defined in `abi::ABI_HOST_ACCOUNT_SPEND_MANA`)
@@ -482,6 +499,30 @@ pub fn wasm_host_account_get_mana(
     let handle = tokio::runtime::Handle::current();
     handle
         .block_on(host_account_get_mana(caller.data(), &did))
+        .unwrap_or(0)
+}
+
+/// WASM wrapper for [`host_get_reputation`].
+///
+/// # Memory Layout
+/// * `ptr`/`len` – UTF-8 string containing the DID.
+///
+/// Returns the reputation score or `0` on error.
+pub fn wasm_host_get_reputation(
+    mut caller: wasmtime::Caller<'_, std::sync::Arc<RuntimeContext>>,
+    ptr: u32,
+    len: u32,
+) -> u64 {
+    let did = match memory::read_string_safe(&mut caller, ptr, len) {
+        Ok(d) => d,
+        Err(e) => {
+            log::error!("wasm_host_get_reputation read error: {e:?}");
+            return 0;
+        }
+    };
+    let handle = tokio::runtime::Handle::current();
+    handle
+        .block_on(host_get_reputation(caller.data(), &did))
         .unwrap_or(0)
 }
 
