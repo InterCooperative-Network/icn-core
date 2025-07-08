@@ -33,10 +33,8 @@ fn execute_new_member_invitation_proposal() {
         VoteOption::Yes,
     )
     .unwrap();
-    assert_eq!(
-        gov.close_voting_period(&pid).unwrap(),
-        ProposalStatus::Accepted
-    );
+    let (status, _) = gov.close_voting_period(&pid).unwrap();
+    assert_eq!(status, ProposalStatus::Accepted);
     gov.execute_proposal(&pid).unwrap();
     assert!(gov
         .members()
@@ -76,10 +74,8 @@ fn execute_remove_member_proposal() {
         VoteOption::Yes,
     )
     .unwrap();
-    assert_eq!(
-        gov.close_voting_period(&pid).unwrap(),
-        ProposalStatus::Accepted
-    );
+    let (status, _) = gov.close_voting_period(&pid).unwrap();
+    assert_eq!(status, ProposalStatus::Accepted);
     gov.execute_proposal(&pid).unwrap();
     assert!(!gov
         .members()

@@ -1767,7 +1767,7 @@ async fn gov_close_handler(
         &req.proposal_id,
     )
     .await;
-    let status = match result {
+    let status_json = match result {
         Ok(s) => s,
         Err(e) => {
             return map_rust_error_to_json_response(
@@ -1777,7 +1777,17 @@ async fn gov_close_handler(
             .into_response()
         }
     };
-    if status == format!("{:?}", icn_governance::ProposalStatus::Accepted) {
+    let close: icn_api::governance_trait::CloseProposalResponse = match serde_json::from_str(&status_json) {
+        Ok(c) => c,
+        Err(e) => {
+            return map_rust_error_to_json_response(
+                format!("Serialization error: {}", e),
+                StatusCode::INTERNAL_SERVER_ERROR,
+            )
+            .into_response()
+        }
+    };
+    if close.status == format!("{:?}", icn_governance::ProposalStatus::Accepted) {
         if let Err(e) =
             icn_runtime::host_execute_governance_proposal(&state.runtime_context, &req.proposal_id)
                 .await
@@ -1789,7 +1799,7 @@ async fn gov_close_handler(
             .into_response();
         }
     }
-    (StatusCode::OK, Json(status)).into_response()
+    (StatusCode::OK, Json(close)).into_response()
 }
 
 // POST /governance/execute – force execute an accepted proposal

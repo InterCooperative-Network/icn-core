@@ -319,6 +319,14 @@ pub struct CastVotePayload {
     pub vote_option_str: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CloseProposalResult {
+    pub status: String,
+    pub yes: usize,
+    pub no: usize,
+    pub abstain: usize,
+}
+
 /// Mana cost deducted when creating a governance proposal.
 pub const PROPOSAL_COST_MANA: u64 = 10;
 
@@ -1733,7 +1741,7 @@ impl RuntimeContext {
             .map_err(|e| HostAbiError::InvalidParameters(format!("Invalid proposal id: {e}")))?;
 
         let mut gov = self.governance_module.lock().await;
-        let status = gov
+        let (status, (yes, no, abstain)) = gov
             .close_voting_period(&proposal_id)
             .map_err(HostAbiError::Common)?;
         let proposal = gov
@@ -1749,7 +1757,15 @@ impl RuntimeContext {
             log::warn!("Failed to broadcast proposal {:?}: {}", proposal_id, e);
         }
 
-        Ok(format!("{:?}", status))
+        let result = CloseProposalResult {
+            status: format!("{:?}", status),
+            yes,
+            no,
+            abstain,
+        };
+        Ok(serde_json::to_string(&result).map_err(|e| {
+            HostAbiError::InternalError(format!("Failed to serialize tally: {e}"))
+        })?)
     }
 
     pub async fn execute_governance_proposal(
