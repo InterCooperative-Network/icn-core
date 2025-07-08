@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"static":["DAG_GET_CALLS","DAG_PUT_CALLS"]};
