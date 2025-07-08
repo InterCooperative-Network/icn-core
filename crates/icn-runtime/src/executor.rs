@@ -1,7 +1,7 @@
 //! This module provides executor-side functionality for running mesh jobs.
 
 use crate::context::RuntimeContext;
-use crate::host_account_get_mana;
+use crate::{host_account_get_mana, host_get_reputation};
 use icn_ccl::ContractMetadata;
 use icn_common::{Cid, CommonError, Did};
 use icn_identity::{
@@ -532,6 +532,18 @@ impl JobExecutor for WasmExecutor {
                 handle
                     .block_on(async { host_account_get_mana(&ctx_clone, &account).await })
                     .unwrap_or(0) as i64
+            })
+            .map_err(|e| CommonError::InternalError(e.to_string()))?;
+
+        let ctx_rep = self.ctx.clone();
+        linker
+            .func_wrap("icn", "host_get_reputation", move || -> i64 {
+                let handle = tokio::runtime::Handle::current();
+                handle
+                    .block_on(async {
+                        host_get_reputation(&ctx_rep, &ctx_rep.current_identity).await
+                    })
+                    .unwrap_or(0)
             })
             .map_err(|e| CommonError::InternalError(e.to_string()))?;
 

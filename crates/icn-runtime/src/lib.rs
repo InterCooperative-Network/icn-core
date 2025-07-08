@@ -88,10 +88,7 @@ pub async fn host_submit_mesh_job(
 
     // 2. Adjust cost based on the submitter's reputation and spend mana.
     let rep = ctx.reputation_store.get_reputation(&ctx.current_identity);
-    job_to_submit.cost_mana = icn_economics::price_by_reputation(
-        job_to_submit.cost_mana,
-        rep,
-    );
+    job_to_submit.cost_mana = icn_economics::price_by_reputation(job_to_submit.cost_mana, rep);
 
     ctx.spend_mana(&ctx.current_identity, job_to_submit.cost_mana)
         .await
@@ -283,6 +280,15 @@ pub async fn host_account_credit_mana(
     })?;
 
     ctx.credit_mana(&account_did, amount).await
+}
+
+/// ABI Index: (defined in `abi::ABI_HOST_GET_REPUTATION`)
+/// Returns the reputation score for the provided DID.
+pub async fn host_get_reputation(
+    ctx: &Arc<RuntimeContext>,
+    did: &Did,
+) -> Result<i64, HostAbiError> {
+    Ok(ctx.reputation_store.get_reputation(did) as i64)
 }
 
 // Placeholder for a reputation updater service/struct
