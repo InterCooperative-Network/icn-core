@@ -2,7 +2,8 @@
 
 This crate implements or defines interfaces for content-addressed Directed Acyclic Graph (DAG) storage and manipulation, crucial for the InterCooperative Network (ICN) data model.
 
-See [CONTEXT.md](../CONTEXT.md) for ICN Core design philosophy and crate roles.
+See [CONTEXT.md](../../CONTEXT.md) for ICN Core design philosophy and crate roles.
+See [docs/ASYNC_OVERVIEW.md](../../docs/ASYNC_OVERVIEW.md) for async API guidelines.
 
 ## Purpose
 

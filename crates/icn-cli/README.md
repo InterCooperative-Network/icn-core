@@ -4,7 +4,8 @@ This crate provides a command-line interface (CLI) for interacting with the Inte
 It allows users and administrators to manage nodes, interact with the network, and perform administrative tasks.
 The CLI aims for usability, discoverability, and scriptability.
 
-See [CONTEXT.md](../CONTEXT.md) for ICN Core design philosophy and crate roles.
+See [CONTEXT.md](../../CONTEXT.md) for ICN Core design philosophy and crate roles.
+See [docs/ASYNC_OVERVIEW.md](../../docs/ASYNC_OVERVIEW.md) for async API guidelines.
 
 ## Purpose
 
