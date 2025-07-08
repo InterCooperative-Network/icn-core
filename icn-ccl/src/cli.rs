@@ -1,7 +1,7 @@
 // icn-ccl/src/cli.rs
 use crate::ast::{
     ActionNode, AstNode, BlockNode, ExpressionNode, PolicyStatementNode, StatementNode,
-    TypeAnnotationNode,
+    TypeAnnotationNode, UnaryOperator,
 };
 use crate::error::CclError;
 use crate::metadata::ContractMetadata;
@@ -279,6 +279,13 @@ fn expr_to_string(expr: &ExpressionNode) -> String {
                 op,
                 expr_to_string(right)
             )
+        }
+        ExpressionNode::UnaryOp { operator, operand } => {
+            let op = match operator {
+                UnaryOperator::Not => "!",
+                UnaryOperator::Neg => "-",
+            };
+            format!("({}{})", op, expr_to_string(operand))
         }
         ExpressionNode::ArrayAccess { array, index } => {
             format!("{}[{}]", expr_to_string(array), expr_to_string(index))
