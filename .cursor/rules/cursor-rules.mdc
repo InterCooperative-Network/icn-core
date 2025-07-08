@@ -103,7 +103,7 @@ Effective coordination between repositories is managed through well-defined inte
 These apply to all repositories, adapted by language where necessary.
 
 * **Primary Language**: Rust for `icn-core` and any derived node/CLI binaries. JavaScript/TypeScript with Astro (or other chosen frameworks) for `icn-website`, `icn.zone`, and other frontend UIs.
-* **Minimum Supported Rust Version (MSRV)**: Defined in `icn-core`'s `rust-toolchain.toml` (currently nightly). Other Rust-based repos should align or specify their own.
+* **Minimum Supported Rust Version (MSRV)**: Defined in `icn-core`'s `rust-toolchain.toml` (stable channel). Other Rust-based repos should align or specify their own.
 * **Mandatory Testing**:
     * Unit tests for all critical logic paths, branches, and edge cases.
     * Integration tests for interactions between components/modules within a repository.

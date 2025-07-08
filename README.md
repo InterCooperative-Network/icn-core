@@ -111,12 +111,12 @@ See [docs/ICN_FEATURE_OVERVIEW.md](docs/ICN_FEATURE_OVERVIEW.md) for the complet
 
 ### Rust Toolchain
 
-This repository is pinned to the nightly Rust toolchain via `rust-toolchain.toml`.
+This repository uses the stable Rust toolchain via `rust-toolchain.toml`.
 Install it with:
 
 ```bash
-rustup toolchain install nightly
-rustup override set nightly
+rustup toolchain install stable
+rustup override set stable
 ```
 
 ## Getting Started

@@ -6,10 +6,10 @@ Before jumping into the setup steps below, please read [CONTEXT.md](../CONTEXT.m
 
 ## 1. Prerequisites
 
-*   **Rust:** Install the nightly Rust toolchain using [rustup.rs](https://rustup.rs/).
-    *   Run `rustup toolchain install nightly` if you don't already have it.
-    *   Set the override for this repository with `rustup override set nightly`.
-    *   The project requires the `nightly` channel, as defined in `rust-toolchain.toml`.
+*   **Rust:** Install the stable Rust toolchain using [rustup.rs](https://rustup.rs/).
+    *   Run `rustup toolchain install stable` if you don't already have it.
+    *   Set the override for this repository with `rustup override set stable`.
+    *   The project uses the `stable` channel, as defined in `rust-toolchain.toml`.
 *   **Git:** For version control.
 *   **EditorConfig Plugin:** (Recommended) For your IDE/editor to maintain consistent coding styles across the project (uses `.editorconfig`).
 *   **Basic Familiarity:** With Rust programming, `cargo`, and decentralized systems concepts (DIDs, CIDs, P2P) will be helpful.
