@@ -74,9 +74,8 @@ impl StorageService<DagBlock> for RocksDagStore {
         use rocksdb::IteratorMode;
         let mut blocks = Vec::new();
         for item in self.db.iterator(IteratorMode::Start) {
-            let (_key, val) = item.map_err(|e| {
-                CommonError::DatabaseError(format!("Iteration error: {}", e))
-            })?;
+            let (_key, val) =
+                item.map_err(|e| CommonError::DatabaseError(format!("Iteration error: {}", e)))?;
             let block: DagBlock = bincode::deserialize(&val).map_err(|e| {
                 CommonError::DeserializationError(format!("Failed to deserialize block: {}", e))
             })?;

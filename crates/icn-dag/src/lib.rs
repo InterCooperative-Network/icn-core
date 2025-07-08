@@ -722,7 +722,7 @@ mod tests {
             scope: None,
         };
         assert!(store.put(&modified_block1).is_ok());
-        
+
         // Original block should still be retrievable by its CID
         match store.get(&block1.cid) {
             Ok(Some(retrieved_block)) => {
@@ -731,7 +731,7 @@ mod tests {
             }
             _ => panic!("Failed to get original block1"),
         }
-        
+
         // Modified block should be retrievable by its CID
         match store.get(&modified_cid) {
             Ok(Some(retrieved_block)) => {
@@ -790,7 +790,7 @@ mod tests {
             scope: None,
         };
         store.put(&mod_block).await.unwrap();
-        
+
         // Original block should still be retrievable
         match store.get(&block1.cid).await {
             Ok(Some(retrieved)) => {
@@ -799,7 +799,7 @@ mod tests {
             }
             _ => panic!("Failed to get original block1"),
         }
-        
+
         // Modified block should be retrievable by its CID
         match store.get(&mod_cid).await {
             Ok(Some(retrieved)) => {

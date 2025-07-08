@@ -50,6 +50,7 @@ serial_test = { version = "3", features = ["async"] }
 # Logging for integration tests
 env_logger = "0.11"
 # temp-dir = "0.1"
+criterion = { version = "0.5", features = ["async"] }
 
 [features]
 default = []

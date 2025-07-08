@@ -18,8 +18,7 @@ pub mod metrics;
 use async_trait::async_trait;
 use downcast_rs::{impl_downcast, DowncastSync};
 use icn_common::{
-    Cid, Did, NodeInfo, CircuitBreaker, CircuitBreakerError, SystemTimeProvider,
-    retry_with_backoff,
+    retry_with_backoff, Cid, CircuitBreaker, CircuitBreakerError, Did, NodeInfo, SystemTimeProvider,
 };
 use icn_protocol::{MessagePayload, ProtocolMessage};
 #[cfg(feature = "libp2p")]
@@ -67,13 +66,14 @@ static MESSAGE_CACHE: Lazy<Mutex<LruCache<Vec<u8>, ()>>> = Lazy::new(|| {
     Mutex::new(LruCache::new(NonZeroUsize::new(1024).unwrap()))
 });
 
-static NETWORK_BREAKER: Lazy<tokio::sync::Mutex<CircuitBreaker<SystemTimeProvider>>> = Lazy::new(|| {
-    tokio::sync::Mutex::new(CircuitBreaker::new(
-        SystemTimeProvider,
-        3,
-        std::time::Duration::from_secs(5),
-    ))
-});
+static NETWORK_BREAKER: Lazy<tokio::sync::Mutex<CircuitBreaker<SystemTimeProvider>>> =
+    Lazy::new(|| {
+        tokio::sync::Mutex::new(CircuitBreaker::new(
+            SystemTimeProvider,
+            3,
+            std::time::Duration::from_secs(5),
+        ))
+    });
 
 // --- Core Types ---
 
@@ -321,9 +321,7 @@ impl NetworkService for StubNetworkService {
             })
             .await
             .map_err(|e| match e {
-                CircuitBreakerError::Open => {
-                    MeshNetworkError::Timeout("circuit open".to_string())
-                }
+                CircuitBreakerError::Open => MeshNetworkError::Timeout("circuit open".to_string()),
                 CircuitBreakerError::Inner(err) => err,
             })
     }
@@ -336,7 +334,8 @@ impl NetworkService for StubNetworkService {
                 if let MessagePayload::GossipMessage(gossip) = &message.payload {
                     if gossip.topic == "system_critical_error_topic" {
                         return Err(MeshNetworkError::Libp2p(
-                            "Broadcast failed: system critical topic is currently down.".to_string(),
+                            "Broadcast failed: system critical topic is currently down."
+                                .to_string(),
                         ));
                     }
                 }
@@ -344,9 +343,7 @@ impl NetworkService for StubNetworkService {
             })
             .await
             .map_err(|e| match e {
-                CircuitBreakerError::Open => {
-                    MeshNetworkError::Timeout("circuit open".to_string())
-                }
+                CircuitBreakerError::Open => MeshNetworkError::Timeout("circuit open".to_string()),
                 CircuitBreakerError::Inner(err) => err,
             })
     }
@@ -787,7 +784,7 @@ pub mod libp2p_service {
     // --- Network Behaviour Definition ---
 
     use libp2p::swarm::behaviour::toggle::Toggle;
-    
+
     #[derive(NetworkBehaviour)]
     #[behaviour(to_swarm = "CombinedBehaviourEvent")]
     pub struct CombinedBehaviour {
@@ -804,7 +801,9 @@ pub mod libp2p_service {
         Gossipsub(gossipsub::Event),
         Ping(ping::Event),
         Kademlia(kad::Event),
-        RequestResponse(libp2p::request_response::Event<super::ProtocolMessage, super::ProtocolMessage>),
+        RequestResponse(
+            libp2p::request_response::Event<super::ProtocolMessage, super::ProtocolMessage>,
+        ),
         Mdns(libp2p::mdns::Event),
     }
 
@@ -827,8 +826,12 @@ pub mod libp2p_service {
         }
     }
 
-    impl From<libp2p::request_response::Event<super::ProtocolMessage, super::ProtocolMessage>> for CombinedBehaviourEvent {
-        fn from(event: libp2p::request_response::Event<super::ProtocolMessage, super::ProtocolMessage>) -> Self {
+    impl From<libp2p::request_response::Event<super::ProtocolMessage, super::ProtocolMessage>>
+        for CombinedBehaviourEvent
+    {
+        fn from(
+            event: libp2p::request_response::Event<super::ProtocolMessage, super::ProtocolMessage>,
+        ) -> Self {
             CombinedBehaviourEvent::RequestResponse(event)
         }
     }

@@ -665,7 +665,10 @@ mod libp2p_mesh_integration {
             Did::new("key", "node_a"),
             None,
         );
-        node_a.service.broadcast_message(job_announcement_msg).await?;
+        node_a
+            .service
+            .broadcast_message(job_announcement_msg)
+            .await?;
         info!("📢 [PIPELINE-REFACTORED] Job announced: {}", job_id);
 
         // Node B receives job announcement
@@ -802,18 +805,19 @@ mod libp2p_mesh_integration {
         info!("📤 [PIPELINE-REFACTORED] Receipt submitted");
 
         // Node A receives and verifies receipt
-        let verified_receipt = wait_for_message(&mut node_a.receiver, 10, |msg| match &msg.payload {
-            MessagePayload::MeshReceiptSubmission(sub) => {
-                let receipt = &sub.receipt;
-                if receipt.job_id == job_id.0 {
-                    Some(receipt.clone())
-                } else {
-                    None
+        let verified_receipt =
+            wait_for_message(&mut node_a.receiver, 10, |msg| match &msg.payload {
+                MessagePayload::MeshReceiptSubmission(sub) => {
+                    let receipt = &sub.receipt;
+                    if receipt.job_id == job_id.0 {
+                        Some(receipt.clone())
+                    } else {
+                        None
+                    }
                 }
-            }
-            _ => None,
-        })
-        .await?;
+                _ => None,
+            })
+            .await?;
         info!("✅ [PIPELINE-REFACTORED] Receipt received and verified");
 
         // Verify receipt signature format
@@ -885,7 +889,10 @@ mod libp2p_mesh_integration {
             Did::new("key", "node_a"),
             None,
         );
-        node_a.service.broadcast_message(job_announcement_msg).await?;
+        node_a
+            .service
+            .broadcast_message(job_announcement_msg)
+            .await?;
 
         // Verify reception
         let received_job = wait_for_message(&mut node_b.receiver, 5, |msg| match &msg.payload {

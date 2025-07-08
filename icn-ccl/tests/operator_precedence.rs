@@ -1,6 +1,7 @@
 use icn_ccl::{
     ast::{
-        AstNode, ExpressionNode, StatementNode, PolicyStatementNode, BinaryOperator, UnaryOperator, ParameterNode, TypeAnnotationNode, BlockNode,
+        AstNode, BinaryOperator, BlockNode, ExpressionNode, ParameterNode, PolicyStatementNode,
+        StatementNode, TypeAnnotationNode, UnaryOperator,
     },
     parser::parse_ccl_source,
 };
@@ -10,7 +11,9 @@ fn arithmetic_mixed_precedence() {
     let src = "fn run() -> Integer { return 1 + 2 * 3 - 4 / 2; }";
     let ast = parse_ccl_source(src).expect("parse");
     if let AstNode::Policy(items) = ast {
-        if let PolicyStatementNode::FunctionDef(AstNode::FunctionDefinition { body, .. }) = &items[0] {
+        if let PolicyStatementNode::FunctionDef(AstNode::FunctionDefinition { body, .. }) =
+            &items[0]
+        {
             if let StatementNode::Return(expr) = &body.statements[0] {
                 let expected = ExpressionNode::BinaryOp {
                     left: Box::new(ExpressionNode::BinaryOp {
@@ -46,7 +49,9 @@ fn nested_gte_comparisons() {
     let src = "fn run(a: Integer, b: Integer, c: Integer) -> Bool { return a >= b >= c; }";
     let ast = parse_ccl_source(src).expect("parse");
     if let AstNode::Policy(items) = ast {
-        if let PolicyStatementNode::FunctionDef(AstNode::FunctionDefinition { body, .. }) = &items[0] {
+        if let PolicyStatementNode::FunctionDef(AstNode::FunctionDefinition { body, .. }) =
+            &items[0]
+        {
             if let StatementNode::Return(expr) = &body.statements[0] {
                 let expected = ExpressionNode::BinaryOp {
                     left: Box::new(ExpressionNode::BinaryOp {
@@ -58,17 +63,26 @@ fn nested_gte_comparisons() {
                     right: Box::new(ExpressionNode::Identifier("c".into())),
                 };
                 assert_eq!(expr, &expected);
-            } else { panic!("expected return") }
-        } else { panic!("unexpected ast") }
-    } else { panic!("unexpected root") }
+            } else {
+                panic!("expected return")
+            }
+        } else {
+            panic!("unexpected ast")
+        }
+    } else {
+        panic!("unexpected root")
+    }
 }
 
 #[test]
 fn unary_logic_combination() {
-    let src = "fn run(x: Bool, y: Integer, z: Integer) -> Bool { return !x || -y * 2 > 3 && z != 0; }";
+    let src =
+        "fn run(x: Bool, y: Integer, z: Integer) -> Bool { return !x || -y * 2 > 3 && z != 0; }";
     let ast = parse_ccl_source(src).expect("parse");
     if let AstNode::Policy(items) = ast {
-        if let PolicyStatementNode::FunctionDef(AstNode::FunctionDefinition { body, .. }) = &items[0] {
+        if let PolicyStatementNode::FunctionDef(AstNode::FunctionDefinition { body, .. }) =
+            &items[0]
+        {
             if let StatementNode::Return(expr) = &body.statements[0] {
                 let expected = ExpressionNode::BinaryOp {
                     left: Box::new(ExpressionNode::UnaryOp {
@@ -98,7 +112,13 @@ fn unary_logic_combination() {
                     }),
                 };
                 assert_eq!(expr, &expected);
-            } else { panic!("expected return") }
-        } else { panic!("unexpected ast") }
-    } else { panic!("unexpected root") }
+            } else {
+                panic!("expected return")
+            }
+        } else {
+            panic!("unexpected ast")
+        }
+    } else {
+        panic!("unexpected root")
+    }
 }

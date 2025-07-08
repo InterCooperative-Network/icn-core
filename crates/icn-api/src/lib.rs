@@ -548,9 +548,9 @@ mod tests {
     use super::*;
     use icn_common::DagLink; // For test setup
     use icn_dag::TokioFileDagStore; // Async file-based store for tests
-    use tempfile::tempdir;
     use icn_governance::GovernanceModule; // For governance tests
     use icn_protocol::{DagBlockRequestMessage, GossipMessage, MessagePayload, ProtocolMessage};
+    use tempfile::tempdir;
 
     // Helper to create a default in-memory store for tests
     fn new_test_storage() -> Arc<tokio::sync::Mutex<dyn AsyncStorageService<DagBlock> + Send>> {
@@ -935,10 +935,9 @@ mod tests {
         use tempfile::tempdir;
 
         let dir = tempdir().unwrap();
-        let store: Arc<tokio::sync::Mutex<dyn AsyncStorageService<DagBlock> + Send>> =
-            Arc::new(tokio::sync::Mutex::new(
-                TokioFileDagStore::new(dir.into_path()).unwrap(),
-            ));
+        let store: Arc<tokio::sync::Mutex<dyn AsyncStorageService<DagBlock> + Send>> = Arc::new(
+            tokio::sync::Mutex::new(TokioFileDagStore::new(dir.into_path()).unwrap()),
+        );
         let data = b"query block".to_vec();
         let ts = 0u64;
         let author = Did::new("key", "tester");
