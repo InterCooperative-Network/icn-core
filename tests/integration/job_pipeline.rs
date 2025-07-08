@@ -63,8 +63,10 @@ mod job_pipeline {
         let job_id = host_submit_mesh_job(&node_a, &job_json).await?;
 
         {
-            let states = node_a.job_states.lock().await;
-            assert!(matches!(states.get(&job_id), Some(icn_mesh::JobState::Pending)));
+            assert!(matches!(
+                node_a.job_states.get(&job_id).map(|e| e.value().clone()),
+                Some(icn_mesh::JobState::Pending)
+            ));
         }
 
         mesh_a.announce_job(&job).await?;
@@ -132,8 +134,7 @@ mod job_pipeline {
         service_a.broadcast_message(msg).await?;
 
         {
-            let mut states = node_a.job_states.lock().await;
-            states.insert(
+            node_a.job_states.insert(
                 job_id.clone(),
                 icn_mesh::JobState::Assigned {
                     executor: node_b.current_identity.clone(),
@@ -187,8 +188,7 @@ mod job_pipeline {
         let cid = host_anchor_receipt(&node_a, &receipt_json, &ReputationUpdater::new()).await?;
 
         {
-            let states = node_a.job_states.lock().await;
-            match states.get(&job_id) {
+            match node_a.job_states.get(&job_id).map(|e| e.value().clone()) {
                 Some(icn_mesh::JobState::Completed { .. }) => {}
                 other => panic!("Job not completed: {:?}", other),
             }

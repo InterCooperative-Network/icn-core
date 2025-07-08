@@ -154,8 +154,8 @@ mod runtime_host_abi_tests {
         for attempt in 1..=20 {
             sleep(Duration::from_millis(500)).await;
 
-            let job_states = submitter_node.job_states.lock().await;
-            if let Some(job_state) = job_states.get(&submitted_job_id) {
+            if let Some(job_state) = submitter_node.job_states.get(&submitted_job_id) {
+                let job_state = job_state.value();
                 match job_state {
                     icn_mesh::JobState::Assigned { executor } => {
                         info!(
@@ -198,8 +198,8 @@ mod runtime_host_abi_tests {
         for attempt in 1..=30 {
             sleep(Duration::from_millis(1000)).await;
 
-            let job_states = submitter_node.job_states.lock().await;
-            if let Some(job_state) = job_states.get(&submitted_job_id) {
+            if let Some(job_state) = submitter_node.job_states.get(&submitted_job_id) {
+                let job_state = job_state.value();
                 match job_state {
                     icn_mesh::JobState::Completed { receipt } => {
                         info!("🎉 [RUNTIME-INTEGRATION] Job completed! Receipt job_id: {} (attempt {})", receipt.job_id, attempt);
@@ -297,10 +297,11 @@ mod runtime_host_abi_tests {
         info!("✅ [HOST-ABI-TEST] Job submitted successfully: {}", job_id);
 
         // Verify job appears in pending state
-        let job_states = runtime_ctx.job_states.lock().await;
-        let job_state = job_states
+        let job_state_entry = runtime_ctx
+            .job_states
             .get(&job_id)
             .ok_or_else(|| anyhow::anyhow!("Job not found in runtime state"))?;
+        let job_state = job_state_entry.value();
 
         match job_state {
             icn_mesh::JobState::Pending => {

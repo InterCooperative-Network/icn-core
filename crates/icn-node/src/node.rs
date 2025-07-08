@@ -1854,10 +1854,12 @@ async fn mesh_submit_job_handler(
 async fn mesh_list_jobs_handler(State(state): State<AppState>) -> impl IntoResponse {
     info!("[Node] Received mesh_list_jobs request");
 
-    let job_states = state.runtime_context.job_states.lock().await;
-    let jobs: Vec<serde_json::Value> = job_states
+    let jobs: Vec<serde_json::Value> = state
+        .runtime_context
+        .job_states
         .iter()
-        .map(|(job_id, job_state)| {
+        .map(|entry| {
+            let (job_id, job_state) = entry.pair();
             serde_json::json!({
                 "job_id": job_id.to_string(),
                 "status": match job_state {
@@ -1916,7 +1918,7 @@ async fn mesh_get_job_status_handler(
         }
     };
 
-    let job_states = state.runtime_context.job_states.lock().await;
+    let job_states = &state.runtime_context.job_states;
     info!(
         "[Node] Looking for job_id {:?} in {} stored jobs",
         job_id,
@@ -1924,12 +1926,13 @@ async fn mesh_get_job_status_handler(
     );
 
     // Debug: List all stored job IDs
-    for stored_job_id in job_states.keys() {
+    for stored_job_id in job_states.iter().map(|e| e.key().clone()) {
         info!("[Node] Stored job ID: {:?}", stored_job_id);
     }
 
     match job_states.get(&icn_mesh::JobId::from(job_id.clone())) {
         Some(job_state) => {
+            let job_state = job_state.value();
             let response = serde_json::json!({
                 "job_id": job_id.to_string(),
                 "status": match job_state {
