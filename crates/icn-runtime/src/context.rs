@@ -1052,6 +1052,7 @@ impl RuntimeContext {
         job: ActualMeshJob,
         assigned_executor_did: Did,
     ) -> Result<(), HostAbiError> {
+        let start_time = StdInstant::now();
         log::info!(
             "[JobManagerDetail] Waiting for receipt for job {:?} from executor {:?}",
             job.id,
@@ -1098,6 +1099,8 @@ impl RuntimeContext {
                         return Err(HostAbiError::Common(e));
                     }
                 }
+
+                icn_mesh::metrics::JOB_PROCESS_TIME.observe(start_time.elapsed().as_secs_f64());
 
                 match self.anchor_receipt(&receipt).await {
                     Ok(receipt_cid) => {
