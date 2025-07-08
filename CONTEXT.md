@@ -143,6 +143,74 @@
 
 ---
 
+## Cooperative Infrastructure Vision
+
+### ICN as Digital Commons for Cooperatives
+
+ICN is designed from the ground up to serve the needs of cooperatives, mutual aid networks, and solidarity economy organizations. The technical architecture explicitly supports cooperative values and organizational structures:
+
+#### **Comprehensive Cooperative Support**
+- **Worker Cooperatives**: Profit sharing algorithms, democratic workplace tools, labor coordination systems
+- **Consumer Cooperatives**: Patronage dividends, bulk purchasing coordination, member benefits management
+- **Housing Cooperatives**: Maintenance coordination, occupancy planning, housing justice advocacy
+- **Multi-Stakeholder Cooperatives**: Complex governance structures with multiple membership classes
+- **Cooperative Federations**: Cross-cooperative resource sharing and coordinated action
+
+#### **Solidarity Economy Integration**
+- **Mutual Aid Networks**: Emergency response coordination, resource sharing, community support matching
+- **Time Banking**: Hour-based service exchange systems integrated with mesh computing
+- **Local Currencies**: Community-controlled purpose-bound currencies for local economic development
+- **Gift Economies**: Non-market resource distribution mechanisms
+- **Commons Management**: Shared resource governance and stewardship tools
+
+#### **Economic Justice Tools**
+- **Mutual Credit Systems**: Peer-to-peer lending without traditional banking intermediaries
+- **Democratic Finance**: Cooperative loan management with member vote-based approval
+- **Anti-Speculation Design**: Economic mechanisms that prevent financialization and extraction
+- **Wealth Redistribution**: Progressive economic policies encoded in governance contracts
+- **Community Ownership**: Tools for collective ownership of productive assets
+
+#### **Democratic Participation Infrastructure**
+- **Liquid Democracy**: Delegated voting with revocable trust for scalable participation
+- **Consensus Building**: Tools for achieving agreement beyond simple majority voting
+- **Participatory Budgeting**: Multi-round democratic resource allocation processes
+- **Citizen Assemblies**: Randomly selected representative decision-making bodies
+- **Inclusive Facilitation**: Accessibility tools and equity mechanisms for participation
+
+#### **Transformative Justice Systems**
+- **Conflict Resolution**: Structured mediation workflows for interpersonal and organizational conflicts
+- **Restorative Justice**: Community-based accountability processes that center healing
+- **Community Healing**: Collective trauma processing and recovery tools
+- **Alternative Accountability**: Justice processes that don't rely on punishment or exclusion
+
+#### **Climate & Environmental Action**
+- **Carbon Credit Trading**: Environmental impact tracking and offset exchange systems
+- **Renewable Energy Sharing**: Community energy grid coordination and distribution
+- **Sustainability Metrics**: Comprehensive environmental impact measurement and reporting
+- **Ecological Regeneration**: Tools for coordinating ecosystem restoration and protection
+
+### Implementation Roadmap for Cooperative Features
+
+The cooperative infrastructure will be implemented through a phased approach that builds on ICN's existing foundation:
+
+1. **Phase 1 (Q1-Q2 2027)**: Cooperative Banking MVP - mutual credit, time banking, local currencies, democratic loans
+2. **Phase 2 (Q3-Q4 2027)**: Mutual Aid & Emergency Response - resource sharing, community support, skill matching
+3. **Phase 3 (Q1-Q2 2028)**: Worker & Consumer Cooperative Tools - profit sharing, patronage, workplace democracy
+4. **Phase 4 (Q3-Q4 2028)**: Specialized Domain Systems - supply chain, housing, education, climate action
+5. **Phase 5 (Q1-Q2 2029)**: Advanced Democracy & Justice - transformative justice, participatory governance
+
+Each phase builds functional modules that provide immediate value to cooperatives while laying groundwork for more advanced features. See [docs/COOPERATIVE_ROADMAP.md](docs/COOPERATIVE_ROADMAP.md) for detailed implementation plans.
+
+### Cooperative-First Development
+
+All ICN development considers cooperative needs as primary use cases:
+- **Feature Design**: Every feature evaluated for cooperative applicability and value
+- **API Development**: External interfaces designed for cooperative management dashboards and tools
+- **Governance Templates**: CCL contracts include templates for different cooperative structures
+- **Community Engagement**: Regular feedback loops with cooperative representatives and pilot programs
+
+---
+
 ## Next Steps for Contributors
 
 1. **Read the Complete Vision**: Review `docs/ICN_FEATURE_OVERVIEW.md` for comprehensive understanding

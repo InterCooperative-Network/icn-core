@@ -21,6 +21,48 @@ The InterCooperative Network is a comprehensive platform for building federated,
 - **Anti-Capitalist Economics**: Purpose-bound tokens that cannot be speculated on
 - **Governance as Code**: Programmable bylaws via Cooperative Contract Language (CCL)
 
+## 🤝 Value for Cooperatives & Communities
+
+ICN is purpose-built as digital infrastructure for the solidarity economy. It provides cooperatives, mutual aid networks, and communities with technology designed around their actual needs:
+
+### **🏛️ Democratic Governance Infrastructure**
+- **Programmable Bylaws**: Encode cooperative bylaws as executable CCL code for consistent, transparent governance
+- **Democratic Decision-Making**: Proposal lifecycle with configurable quorum, delegation, and consensus mechanisms
+- **Member Management**: Built-in systems for adding/removing members with role-based permissions
+- **Audit Transparency**: All governance decisions cryptographically signed and stored immutably
+
+### **💰 Anti-Capitalist Economics**
+- **Non-Speculative Resource System**: Mana tokens regenerate over time and cannot be abstracted or financialized
+- **Purpose-Bound Value**: Tokens scoped to specific capabilities prevent extraction and speculation
+- **Reputation-Based Allocation**: Higher contribution leads to lower costs and increased resource access
+- **Cooperative Banking Ready**: Foundation for mutual credit, time banking, and local currencies
+
+### **🌐 Federated Cooperation**
+- **Local Autonomy**: Each cooperative maintains full governance independence via CCL
+- **Federation Benefits**: Resource sharing and coordination across cooperatives without hierarchy
+- **Scoped Identity**: DID-based identity with verifiable credentials for cross-cooperative trust
+- **Network Solidarity**: Mutual aid and resource pooling at scale
+
+### **⚡ Shared Resource Computing**
+- **Democratic Resource Allocation**: Reputation-based job selection rewards reliable contributors
+- **Economic Enforcement**: Mana-based payment prevents resource abuse while ensuring access
+- **Transparent Execution**: Cryptographic receipts provide verifiable proof of work completion
+- **Community Infrastructure**: Cooperatives can pool computational resources instead of relying on cloud monopolies
+
+### **🚀 Planned Cooperative Infrastructure**
+The ICN roadmap includes comprehensive cooperative-specific features:
+- **Cooperative Banking**: Mutual credit systems, time banking, local currencies, democratic loans
+- **Mutual Aid Networks**: Emergency response coordination, resource sharing, community support
+- **Supply Chain Cooperation**: Product sourcing, bulk purchasing, quality assurance
+- **Worker Cooperative Tools**: Profit sharing, democratic workplace coordination, labor scheduling
+- **Consumer Cooperative Features**: Patronage dividends, member benefits, purchasing coordination
+- **Housing Justice**: Maintenance coordination, occupancy planning, eviction defense
+- **Educational Cooperation**: Skill sharing, learning resources, knowledge management
+- **Climate Action**: Carbon credit trading, renewable energy sharing, impact tracking
+- **Transformative Justice**: Mediation workflows, restorative justice, community healing
+
+See the complete [Cooperative Infrastructure overview](docs/ICN_FEATURE_OVERVIEW.md#11-🤝-cooperative-infrastructure-new) for detailed feature descriptions.
+
 ## Current Project Status (Production-Ready Foundation)
 
 The project has achieved a significant milestone with a production-ready foundation featuring:
