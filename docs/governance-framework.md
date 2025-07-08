@@ -83,6 +83,8 @@ pub struct Proposal {
     pub id: ProposalId,
     pub title: String,
     pub description: String,
+    /// CID referencing the full proposal body stored in the DAG
+    pub content_cid: Option<Cid>,
     pub proposal_type: ProposalType,
     pub author: Did,
     pub created_at: DateTime<Utc>,

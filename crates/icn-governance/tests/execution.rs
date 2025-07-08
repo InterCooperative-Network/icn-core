@@ -17,6 +17,7 @@ fn execute_new_member_invitation_proposal() {
             1,
             None,
             None,
+            None,
         )
         .unwrap();
     gov.open_voting(&pid).unwrap();
@@ -57,6 +58,7 @@ fn execute_remove_member_proposal() {
             ProposalType::RemoveMember(Did::from_str("did:example:bob").unwrap()),
             "remove bob".into(),
             1,
+            None,
             None,
             None,
         )

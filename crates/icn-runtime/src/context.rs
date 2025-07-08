@@ -310,6 +310,7 @@ pub struct CreateProposalPayload {
     pub duration_secs: u64,
     pub quorum: Option<usize>,
     pub threshold: Option<f32>,
+    pub body: Option<Vec<u8>>, // raw proposal body stored in DAG
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1628,6 +1629,42 @@ impl RuntimeContext {
         };
 
         let mut gov = self.governance_module.lock().await;
+        let content_cid = if let Some(body) = payload.body.clone() {
+            let ts = self.time_provider.unix_seconds();
+            let author = self.current_identity.clone();
+            let signature = None;
+            let cid = icn_common::compute_merkle_cid(
+                0x55,
+                &body,
+                &[],
+                ts,
+                &author,
+                &signature,
+                &None,
+            );
+            let block = DagBlock {
+                cid: cid.clone(),
+                data: body,
+                links: vec![],
+                timestamp: ts,
+                author_did: author,
+                signature,
+                scope: None,
+            };
+            #[cfg(feature = "async")]
+            {
+                let mut store = self.dag_store.lock().await;
+                store.put(&block).await.map_err(HostAbiError::Common)?;
+            }
+            #[cfg(not(feature = "async"))]
+            {
+                let mut store = self.dag_store.lock().unwrap();
+                store.put(&block).map_err(HostAbiError::Common)?;
+            }
+            Some(cid)
+        } else {
+            None
+        };
         let pid = gov
             .submit_proposal(
                 self.current_identity.clone(),
@@ -1636,6 +1673,7 @@ impl RuntimeContext {
                 payload.duration_secs,
                 payload.quorum,
                 payload.threshold,
+                content_cid,
             )
             .map_err(HostAbiError::Common)?;
         let proposal = gov

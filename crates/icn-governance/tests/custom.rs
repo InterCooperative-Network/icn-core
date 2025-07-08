@@ -17,6 +17,7 @@ fn proposal_specific_quorum_and_threshold() {
             1,
             Some(3),
             Some(0.75),
+            None,
         )
         .unwrap();
 

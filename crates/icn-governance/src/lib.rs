@@ -8,7 +8,7 @@
 //! It handles proposal systems, voting procedures, quorum logic, and decision execution,
 //! focusing on transparency, fairness, and flexibility.
 
-use icn_common::{CommonError, Did, NodeInfo};
+use icn_common::{Cid, CommonError, Did, NodeInfo};
 #[cfg(feature = "federation")]
 #[allow(unused_imports)]
 use icn_network::{MeshNetworkError, NetworkService, PeerId, StubNetworkService};
@@ -88,6 +88,8 @@ pub struct Proposal {
     pub quorum: Option<usize>,
     /// Optional threshold override for this proposal
     pub threshold: Option<f32>,
+    /// CID of proposal body stored in the DAG
+    pub content_cid: Option<Cid>,
     // Potentially, threshold and quorum requirements could be part of the proposal type or global config
 }
 
@@ -184,6 +186,7 @@ impl GovernanceModule {
         duration_secs: u64,
         quorum: Option<usize>,
         threshold: Option<f32>,
+        content_cid: Option<Cid>,
     ) -> Result<ProposalId, CommonError> {
         metrics::SUBMIT_PROPOSAL_CALLS.inc();
         let now = std::time::SystemTime::now()
@@ -205,6 +208,7 @@ impl GovernanceModule {
             votes: HashMap::new(),
             quorum,
             threshold,
+            content_cid,
         };
 
         match &mut self.backend {
