@@ -49,6 +49,8 @@ tempfile = "3"
 serial_test = { version = "3", features = ["async"] }
 # Logging for integration tests
 env_logger = "0.11"
+# Benchmarking
+criterion = { version = "0.5", features = ["async"] }
 # temp-dir = "0.1"
 
 [features]

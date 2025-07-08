@@ -31,7 +31,7 @@ validate:
 
 # Run benchmarks for all crates
 bench:
-    cargo bench --all-features --workspace
+    cargo bench --workspace --all-features
 
 # Run federation health checks
 health-check:
