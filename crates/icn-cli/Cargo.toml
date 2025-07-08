@@ -12,6 +12,7 @@ icn-governance = { path = "../icn-governance" }
 icn-network = { path = "../icn-network" }
 icn-mesh = { path = "../icn-mesh" }
 icn-ccl = { path = "../../icn-ccl" }
+icn-dag = { path = "../icn-dag" }
 anyhow = "1.0"
 
 clap = { version = "4.0", features = ["derive"] }
