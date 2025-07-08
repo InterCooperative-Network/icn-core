@@ -17,7 +17,7 @@ async fn anchor_receipt_denied_by_policy() {
     let ctx = RuntimeContext::new_with_ledger_path(
         did.clone(),
         Arc::new(StubMeshNetworkService::new()),
-        Arc::new(StubSigner::new()),
+        Arc::new(StubSigner::new().unwrap()),
         Arc::new(icn_identity::KeyDidResolver),
         Arc::new(TokioMutex::new(StubDagStore::new())),
         PathBuf::from("./mana_ledger.sled"),

@@ -13,7 +13,7 @@ async fn compiled_policy_executes_via_host_abi() {
     let ctx = RuntimeContext::new_with_mana_ledger(
         Did::new("key", "tester"),
         Arc::new(StubMeshNetworkService::new()),
-        Arc::new(StubSigner::new()),
+        Arc::new(StubSigner::new().unwrap()),
         Arc::new(icn_identity::KeyDidResolver),
         dag_store.clone(),
         icn_runtime::context::SimpleManaLedger::default(),

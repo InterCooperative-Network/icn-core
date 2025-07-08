@@ -54,7 +54,7 @@ async fn wasm_executor_runs_wasm() {
         signature: SignatureBytes(vec![]),
     };
 
-    let signer = Arc::new(StubSigner::new_with_keys(sk, vk));
+    let signer = Arc::new(StubSigner::new_with_keys(sk, vk).unwrap());
     let exec = WasmExecutor::new(ctx.clone(), signer, WasmExecutorConfig::default());
     let receipt = exec.execute_job(&job).await.unwrap();
     assert_eq!(receipt.executor_did, node_did);
@@ -97,7 +97,7 @@ async fn wasm_executor_runs_compiled_ccl_contract() {
         signature: SignatureBytes(vec![]),
     };
 
-    let signer = Arc::new(StubSigner::new_with_keys(sk, vk));
+    let signer = Arc::new(StubSigner::new_with_keys(sk, vk).unwrap());
     let exec = WasmExecutor::new(ctx.clone(), signer, WasmExecutorConfig::default());
     let receipt = exec.execute_job(&job).await.unwrap();
     assert_eq!(receipt.executor_did, node_did);
@@ -171,7 +171,7 @@ async fn wasm_executor_host_submit_mesh_job_json() {
         signature: SignatureBytes(vec![]),
     };
 
-    let signer = Arc::new(StubSigner::new_with_keys(sk, vk));
+    let signer = Arc::new(StubSigner::new_with_keys(sk, vk).unwrap());
     let exec = WasmExecutor::new(ctx.clone(), signer, WasmExecutorConfig::default());
     let receipt = exec.execute_job(&job).await.unwrap();
 
@@ -238,7 +238,7 @@ async fn wasm_executor_host_anchor_receipt_json() {
         signature: SignatureBytes(vec![]),
     };
 
-    let signer = Arc::new(StubSigner::new_with_keys(node_sk, node_vk));
+    let signer = Arc::new(StubSigner::new_with_keys(node_sk, node_vk).unwrap());
     let exec = WasmExecutor::new(ctx.clone(), signer, WasmExecutorConfig::default());
     let _ = exec.execute_job(&job).await.unwrap();
 
@@ -367,7 +367,7 @@ async fn compiled_example_contract_file_runs() {
         max_execution_wait_ms: None,
         signature: SignatureBytes(vec![]),
     };
-    let signer = std::sync::Arc::new(StubSigner::new());
+    let signer = std::sync::Arc::new(StubSigner::new().unwrap());
     let exec = WasmExecutor::new(ctx.clone(), signer, WasmExecutorConfig::default());
     let receipt = exec.execute_job(&job).await.unwrap();
     let expected = Cid::new_v1_sha256(0x55, &11i64.to_le_bytes());
@@ -401,7 +401,7 @@ async fn wasm_executor_enforces_memory_limit() {
         max_execution_wait_ms: None,
         signature: SignatureBytes(vec![]),
     };
-    let signer = Arc::new(StubSigner::new());
+    let signer = Arc::new(StubSigner::new().unwrap());
     let config = WasmExecutorConfig {
         max_memory: 64 * 1024,
         fuel: 10_000,
@@ -437,7 +437,7 @@ async fn wasm_executor_enforces_fuel_limit() {
         max_execution_wait_ms: None,
         signature: SignatureBytes(vec![]),
     };
-    let signer = Arc::new(StubSigner::new());
+    let signer = Arc::new(StubSigner::new().unwrap());
     let config = WasmExecutorConfig {
         max_memory: 256 * 1024,
         fuel: 100,

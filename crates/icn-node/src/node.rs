@@ -446,7 +446,7 @@ pub async fn app_router_with_options(
     let node_did = Did::from_str(&node_did_string).expect("Failed to create test node DID");
     info!("Test/Embedded Node DID: {}", node_did);
 
-    let signer = Arc::new(RuntimeStubSigner::new_with_keys(sk, pk));
+    let signer = Arc::new(RuntimeStubSigner::new_with_keys(sk, pk).expect("stub signer"));
     let cfg = NodeConfig {
         storage_backend: storage_backend.unwrap_or(StorageBackendType::Memory),
         storage_path: storage_path
@@ -904,7 +904,7 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
         }
     } else {
         info!("Using local libp2p networking (P2P disabled)");
-        let signer = Arc::new(Ed25519Signer::new_with_keys(node_sk, node_pk));
+        let signer = Arc::new(Ed25519Signer::new_with_keys(node_sk, node_pk)?);
         let dag_store_for_rt = match config.init_dag_store() {
             Ok(store) => store,
             Err(e) => {
@@ -2563,7 +2563,9 @@ mod tests {
         let (sk, vk) = generate_ed25519_keypair();
         let exec_did = did_key_from_verifying_key(&vk);
         let exec_did = Did::from_str(&exec_did).unwrap();
-        let signer = std::sync::Arc::new(icn_runtime::context::StubSigner::new_with_keys(sk, vk));
+        let signer = std::sync::Arc::new(
+            icn_runtime::context::StubSigner::new_with_keys(sk, vk).expect("stub signer"),
+        );
         let executor = WasmExecutor::new(
             ctx.clone(),
             signer,

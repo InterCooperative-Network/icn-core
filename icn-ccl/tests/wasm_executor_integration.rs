@@ -17,7 +17,7 @@ fn ctx_with_temp_store(did: &str, mana: u64) -> Arc<RuntimeContext> {
     let ctx = RuntimeContext::new_with_ledger_path(
         icn_common::Did::from_str(did).unwrap(),
         Arc::new(StubMeshNetworkService::new()),
-        Arc::new(StubSigner::new()),
+        Arc::new(StubSigner::new().unwrap()),
         Arc::new(icn_identity::KeyDidResolver),
         dag_store,
         temp.path().join("mana"),
@@ -68,7 +68,7 @@ async fn wasm_executor_runs_compiled_ccl() {
         signature: SignatureBytes(vec![]),
     };
 
-    let signer = Arc::new(StubSigner::new_with_keys(sk, vk));
+    let signer = Arc::new(StubSigner::new_with_keys(sk, vk).unwrap());
     let exec = WasmExecutor::new(ctx.clone(), signer, WasmExecutorConfig::default());
     let job_clone = job.clone();
     let handle = thread::spawn(move || {
@@ -119,7 +119,7 @@ async fn wasm_executor_runs_compiled_addition() {
         signature: SignatureBytes(vec![]),
     };
 
-    let signer = Arc::new(StubSigner::new_with_keys(sk, vk));
+    let signer = Arc::new(StubSigner::new_with_keys(sk, vk).unwrap());
     let exec = WasmExecutor::new(ctx.clone(), signer, WasmExecutorConfig::default());
     let job_clone = job.clone();
     let handle = thread::spawn(move || {
@@ -170,7 +170,7 @@ async fn wasm_executor_fails_without_run() {
         signature: SignatureBytes(vec![]),
     };
 
-    let signer = Arc::new(StubSigner::new_with_keys(sk, vk));
+    let signer = Arc::new(StubSigner::new_with_keys(sk, vk).unwrap());
     let exec = WasmExecutor::new(ctx.clone(), signer, WasmExecutorConfig::default());
     let job_clone = job.clone();
     let handle = thread::spawn(move || {
@@ -218,7 +218,7 @@ async fn compile_and_execute_simple_contract() {
         signature: SignatureBytes(vec![]),
     };
 
-    let signer = Arc::new(StubSigner::new_with_keys(sk, vk));
+    let signer = Arc::new(StubSigner::new_with_keys(sk, vk).unwrap());
     let exec = WasmExecutor::new(ctx.clone(), signer, WasmExecutorConfig::default());
     let job_clone = job.clone();
     let handle = thread::spawn(move || {
@@ -271,7 +271,7 @@ async fn wasm_executor_runs_compiled_file() {
         signature: SignatureBytes(vec![]),
     };
 
-    let signer = Arc::new(StubSigner::new_with_keys(sk, vk));
+    let signer = Arc::new(StubSigner::new_with_keys(sk, vk).unwrap());
     let exec = WasmExecutor::new(ctx.clone(), signer, WasmExecutorConfig::default());
     let job_clone = job.clone();
     let handle = std::thread::spawn(move || {
@@ -321,7 +321,7 @@ async fn wasm_executor_runs_while_loop() {
         signature: SignatureBytes(vec![]),
     };
 
-    let signer = Arc::new(StubSigner::new_with_keys(sk, vk));
+    let signer = Arc::new(StubSigner::new_with_keys(sk, vk).unwrap());
     let exec = WasmExecutor::new(ctx.clone(), signer, WasmExecutorConfig::default());
     let job_clone = job.clone();
     let handle = std::thread::spawn(move || {
@@ -376,7 +376,7 @@ async fn contract_queries_reputation() {
         signature: SignatureBytes(vec![]),
     };
 
-    let signer = Arc::new(StubSigner::new_with_keys(sk, vk));
+    let signer = Arc::new(StubSigner::new_with_keys(sk, vk).unwrap());
     let exec = WasmExecutor::new(ctx.clone(), signer, WasmExecutorConfig::default());
     let job_clone = job.clone();
     let handle = std::thread::spawn(move || {

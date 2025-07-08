@@ -40,7 +40,7 @@ mod persistence_rocksdb {
         RuntimeContext::new_with_paths(
             id,
             mesh,
-            Arc::new(StubSigner::new()),
+            Arc::new(StubSigner::new().unwrap()),
             Arc::new(icn_identity::KeyDidResolver),
             dag,
             mana,

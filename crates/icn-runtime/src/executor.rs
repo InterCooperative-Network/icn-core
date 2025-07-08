@@ -279,10 +279,13 @@ impl JobExecutor for SimpleExecutor {
                         })?;
                 }
 
-                let signer = std::sync::Arc::new(crate::context::StubSigner::new_with_keys(
-                    self.signing_key.clone(),
-                    self.signing_key.verifying_key(),
-                )) as std::sync::Arc<dyn crate::context::Signer>;
+                let signer = std::sync::Arc::new(
+                    crate::context::StubSigner::new_with_keys(
+                        self.signing_key.clone(),
+                        self.signing_key.verifying_key(),
+                    )
+                    .unwrap(),
+                ) as std::sync::Arc<dyn crate::context::Signer>;
 
                 let wasm_exec =
                     WasmExecutor::new(ctx.clone(), signer, WasmExecutorConfig::default());
@@ -490,7 +493,9 @@ impl JobExecutor for WasmExecutor {
         info!(
             "WASM execution started: job_id={:?}, executor={}, max_time={}s",
             job.id,
-            self.signer.did(),
+            self.signer
+                .did()
+                .map_err(|e| CommonError::InternalError(format!("{:?}", e)))?,
             self.config.security_limits.max_execution_time_secs
         );
 
@@ -608,7 +613,10 @@ impl JobExecutor for WasmExecutor {
         let result_bytes = result.to_le_bytes();
         let result_cid = Cid::new_v1_sha256(0x55, &result_bytes);
 
-        let executor_did = self.signer.did();
+        let executor_did = self
+            .signer
+            .did()
+            .map_err(|e| CommonError::InternalError(format!("{:?}", e)))?;
         let mut msg = Vec::new();
         msg.extend_from_slice(job.id.to_string().as_bytes());
         msg.extend_from_slice(executor_did.to_string().as_bytes());
@@ -752,7 +760,7 @@ mod tests {
         };
         {
             let mut store = ctx.dag_store.lock().await;
-            store.put(&block).unwrap();
+            store.put(&block).await.unwrap();
         }
 
         let (sk, vk) = generate_keys_for_test();
@@ -794,6 +802,6 @@ mod tests {
 
         // Test with oversized module
         let oversized_wasm = vec![0u8; 51 * 1024 * 1024]; // 51MB
-        assert!(validator.validate_wasm_module(&oversized_wasm).is_err());
+        assert!(WasmModuleValidator::validate_wasm_module(&oversized_wasm).is_err());
     }
 }

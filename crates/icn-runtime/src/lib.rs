@@ -617,7 +617,7 @@ mod tests {
         RuntimeContext::new(
             test_did,
             Arc::new(StubMeshNetworkService::new()),
-            Arc::new(StubSigner::new()),
+            Arc::new(StubSigner::new().expect("create stub signer")),
             Arc::new(icn_identity::KeyDidResolver),
             Arc::new(tokio::sync::Mutex::new(StubDagStore::new())),
         )

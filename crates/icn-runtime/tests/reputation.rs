@@ -19,7 +19,7 @@ async fn anchor_receipt_updates_reputation() {
     let ctx = RuntimeContext::new_with_ledger_path(
         did.clone(),
         Arc::new(StubMeshNetworkService::new()),
-        Arc::new(StubSigner::new_with_keys(sk.clone(), vk)),
+        Arc::new(StubSigner::new_with_keys(sk.clone(), vk).unwrap()),
         Arc::new(icn_identity::KeyDidResolver),
         Arc::new(tokio::sync::Mutex::new(StubDagStore::new())),
         std::path::PathBuf::from("./mana_ledger.sled"),

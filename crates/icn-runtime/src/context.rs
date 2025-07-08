@@ -1,8 +1,6 @@
 //! Defines the `RuntimeContext`, `HostEnvironment`, and related types for the ICN runtime.
 
-use icn_common::{
-    Cid, CommonError, DagBlock, Did,
-};
+use icn_common::{Cid, CommonError, DagBlock, Did};
 use icn_identity::{ExecutionReceipt as IdentityExecutionReceipt, SignatureBytes};
 use icn_mesh::{ActualMeshJob, JobId, JobState, MeshJobBid, Resources};
 
@@ -34,13 +32,13 @@ use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
 use std::sync::atomic::AtomicU32;
 use std::sync::Arc;
+#[cfg(not(feature = "async"))]
+use std::sync::Mutex as SyncMutex;
 use std::time::{Duration as StdDuration, Instant as StdInstant};
 #[cfg(test)]
 use tempfile;
 #[cfg(feature = "async")]
 use tokio::sync::Mutex as TokioMutex;
-#[cfg(not(feature = "async"))]
-use std::sync::Mutex as SyncMutex;
 
 use async_trait::async_trait;
 
@@ -74,7 +72,7 @@ use icn_dag::rocksdb_store::RocksDagStore;
 #[cfg(feature = "async")]
 use icn_dag::{AsyncStorageService as DagStorageService, TokioFileDagStore};
 #[cfg(not(feature = "async"))]
-use icn_dag::{StorageService as DagStorageService, FileDagStore};
+use icn_dag::{FileDagStore, StorageService as DagStorageService};
 
 #[cfg(feature = "async")]
 type DagStoreMutex<T> = TokioMutex<T>;
@@ -112,7 +110,7 @@ pub trait Signer: Send + Sync + std::fmt::Debug {
         public_key_bytes: &[u8],
     ) -> Result<bool, HostAbiError>; // Added pk_bytes
     fn public_key_bytes(&self) -> Vec<u8>;
-    fn did(&self) -> Did;
+    fn did(&self) -> Result<Did, HostAbiError>;
     fn verifying_key_ref(&self) -> &VerifyingKey;
 }
 
@@ -437,7 +435,8 @@ impl MeshNetworkService for DefaultMeshNetworkService {
     ) -> Result<Vec<MeshJobBid>, HostAbiError> {
         log::debug!(
             "[DefaultMeshNetworkService] Collecting bids for job {:?} for {:?}",
-            job_id, duration
+            job_id,
+            duration
         );
         let mut bids = Vec::new();
         let mut receiver = self.inner.subscribe().await.map_err(|e| {
@@ -853,9 +852,9 @@ impl RuntimeContext {
         policy_enforcer: Option<Arc<dyn ScopedPolicyEnforcer>>,
     ) -> Result<Arc<Self>, CommonError> {
         #[cfg(feature = "persist-rocksdb")]
-        let dag_store = Arc::new(DagStoreMutex::new(icn_dag::rocksdb_store::RocksDagStore::new(
-            dag_path.clone(),
-        )?)) as Arc<DagStoreMutex<dyn DagStorageService<DagBlock> + Send>>;
+        let dag_store = Arc::new(DagStoreMutex::new(
+            icn_dag::rocksdb_store::RocksDagStore::new(dag_path.clone())?,
+        )) as Arc<DagStoreMutex<dyn DagStorageService<DagBlock> + Send>>;
 
         #[cfg(all(not(feature = "persist-rocksdb"), feature = "persist-sled"))]
         let dag_store = Arc::new(DagStoreMutex::new(icn_dag::sled_store::SledDagStore::new(
@@ -876,9 +875,9 @@ impl RuntimeContext {
             }
             #[cfg(not(feature = "async"))]
             {
-                Arc::new(DagStoreMutex::new(icn_dag::sqlite_store::SqliteDagStore::new(
-                    dag_path.clone(),
-                )?)) as Arc<DagStoreMutex<dyn DagStorageService<DagBlock> + Send>>
+                Arc::new(DagStoreMutex::new(
+                    icn_dag::sqlite_store::SqliteDagStore::new(dag_path.clone())?,
+                )) as Arc<DagStoreMutex<dyn DagStorageService<DagBlock> + Send>>
             }
         };
 
@@ -945,7 +944,9 @@ impl RuntimeContext {
         Ok(Self::new_with_ledger_path_and_time(
             current_identity,
             default_mesh_service,
-            Arc::new(StubSigner::new()),
+            Arc::new(
+                StubSigner::new().map_err(|e| CommonError::InternalError(format!("{:?}", e)))?,
+            ),
             Arc::new(icn_identity::KeyDidResolver),
             Arc::new(TokioMutex::new(StubDagStore::new())),
             PathBuf::from("./mana_ledger.sled"),
@@ -972,7 +973,9 @@ impl RuntimeContext {
         Ok(Self::new_with_ledger_path_and_time(
             current_identity,
             Arc::new(StubMeshNetworkService::new()),
-            Arc::new(StubSigner::new()),
+            Arc::new(
+                StubSigner::new().map_err(|e| CommonError::InternalError(format!("{:?}", e)))?,
+            ),
             Arc::new(icn_identity::KeyDidResolver),
             dag_store,
             PathBuf::from("./mana_ledger.sled"),
@@ -1002,7 +1005,9 @@ impl RuntimeContext {
         let ctx = Self::new_with_ledger_path_and_time(
             current_identity.clone(),
             Arc::new(StubMeshNetworkService::new()),
-            Arc::new(StubSigner::new()),
+            Arc::new(
+                StubSigner::new().map_err(|e| CommonError::InternalError(format!("{:?}", e)))?,
+            ),
             Arc::new(icn_identity::KeyDidResolver),
             dag_store,
             PathBuf::from("./mana_ledger.sled"),
@@ -1012,7 +1017,7 @@ impl RuntimeContext {
         );
         ctx.mana_ledger
             .set_balance(&current_identity, initial_mana)
-            .expect("set initial mana");
+            .map_err(|e| CommonError::InternalError(format!("{:?}", e)))?;
         Ok(ctx)
     }
 
@@ -1055,7 +1060,8 @@ impl RuntimeContext {
     ) -> Result<(), HostAbiError> {
         log::info!(
             "[JobManagerDetail] Waiting for receipt for job {:?} from executor {:?}",
-            job.id, assigned_executor_did
+            job.id,
+            assigned_executor_did
         );
         // Determine how long to wait for the execution receipt.
         let timeout_ms = job
@@ -1071,7 +1077,8 @@ impl RuntimeContext {
             Ok(Some(receipt)) => {
                 log::info!(
                     "[JobManagerDetail] Received receipt for job {:?}: {:?}",
-                    job.id, receipt
+                    job.id,
+                    receipt
                 );
 
                 // Resolve executor verifying key and verify the receipt.
@@ -1091,7 +1098,8 @@ impl RuntimeContext {
                     Err(e) => {
                         log::error!(
                             "[JobManagerDetail] Failed to resolve DID {:?}: {}",
-                            receipt.executor_did, e
+                            receipt.executor_did,
+                            e
                         );
                         return Err(HostAbiError::Common(e));
                     }
@@ -1101,7 +1109,8 @@ impl RuntimeContext {
                     Ok(receipt_cid) => {
                         log::info!(
                             "[JobManagerDetail] Receipt for job {:?} anchored successfully: {:?}",
-                            job.id, receipt_cid
+                            job.id,
+                            receipt_cid
                         );
                         let mut job_states_guard = self.job_states.lock().await;
                         job_states_guard.insert(
@@ -1131,7 +1140,8 @@ impl RuntimeContext {
                         if let Err(err) = self.credit_mana(&job.creator_did, job.cost_mana).await {
                             log::error!(
                                 "[JobManagerDetail] Failed to refund mana to {:?}: {}",
-                                job.creator_did, err
+                                job.creator_did,
+                                err
                             );
                         }
                         Err(HostAbiError::DagOperationFailed(format!(
@@ -1153,7 +1163,8 @@ impl RuntimeContext {
                 if let Err(err) = self.credit_mana(&job.creator_did, job.cost_mana).await {
                     log::error!(
                         "[JobManagerDetail] Failed to refund mana to {:?}: {}",
-                        job.creator_did, err
+                        job.creator_did,
+                        err
                     );
                 }
                 Err(HostAbiError::NetworkError(
@@ -1172,7 +1183,8 @@ impl RuntimeContext {
                 if let Err(err) = self.credit_mana(&job.creator_did, job.cost_mana).await {
                     log::error!(
                         "[JobManagerDetail] Failed to refund mana to {:?}: {}",
-                        job.creator_did, err
+                        job.creator_did,
+                        err
                     );
                 }
                 Err(e)
@@ -1214,7 +1226,8 @@ impl RuntimeContext {
 
                     log::info!(
                         "[JobManagerLoop] Processing job: {:?}, current state from map: {:?}",
-                        current_job_id, current_job_state
+                        current_job_id,
+                        current_job_state
                     );
 
                     match current_job_state {
@@ -1227,7 +1240,8 @@ impl RuntimeContext {
                             {
                                 log::error!(
                                     "[JobManagerLoop] Failed to announce job {:?}: {}. Re-queuing.",
-                                    current_job_id, e
+                                    current_job_id,
+                                    e
                                 );
                                 jobs_to_requeue.push_back(job); // Re-queue the ActualMeshJob
                                 continue;
@@ -1268,7 +1282,8 @@ impl RuntimeContext {
                                 {
                                     log::error!(
                                         "[JobManagerLoop] Failed to refund mana to {:?}: {}",
-                                        job.creator_did, e
+                                        job.creator_did,
+                                        e
                                     );
                                 }
                                 continue;
@@ -1340,7 +1355,8 @@ impl RuntimeContext {
                                 {
                                     log::error!(
                                         "[JobManagerLoop] Failed to refund mana to {:?}: {}",
-                                        job.creator_did, e
+                                        job.creator_did,
+                                        e
                                     );
                                 }
                                 continue;
@@ -1452,7 +1468,8 @@ impl RuntimeContext {
     pub async fn spend_mana(&self, account: &Did, amount: u64) -> Result<(), HostAbiError> {
         log::debug!(
             "[RuntimeContext] spend_mana called for account: {:?} amount: {}",
-            account, amount
+            account,
+            amount
         );
         if account != &self.current_identity {
             return Err(HostAbiError::InvalidParameters(
@@ -1466,7 +1483,8 @@ impl RuntimeContext {
     pub async fn credit_mana(&self, account: &Did, amount: u64) -> Result<(), HostAbiError> {
         log::debug!(
             "[RuntimeContext] credit_mana called for account: {:?} amount: {}",
-            account, amount
+            account,
+            amount
         );
         icn_economics::credit_mana(self.mana_ledger.clone(), account, amount)
             .map_err(|e| HostAbiError::InternalError(format!("{e:?}")))
@@ -1480,7 +1498,8 @@ impl RuntimeContext {
     ) -> Result<Cid, HostAbiError> {
         log::info!(
             "[CONTEXT] Attempting to anchor receipt for job {:?} from executor {:?}",
-            receipt.job_id, receipt.executor_did
+            receipt.job_id,
+            receipt.executor_did
         );
 
         // Resolve the executor's verifying key via the provided DidResolver.
@@ -1537,7 +1556,9 @@ impl RuntimeContext {
             }
             #[cfg(not(feature = "async"))]
             {
-                let mut store = self.dag_store.lock().unwrap();
+                let mut store = self.dag_store.lock().map_err(|e| {
+                    HostAbiError::InternalError(format!("Dag store lock poisoned: {e}"))
+                })?;
                 store.put(&block)
             }
         };
@@ -1631,7 +1652,9 @@ impl RuntimeContext {
         let proposal = gov
             .get_proposal(&pid)
             .map_err(HostAbiError::Common)?
-            .expect("Proposal just inserted should exist");
+            .ok_or_else(|| {
+                HostAbiError::InternalError("Proposal just inserted should exist".to_string())
+            })?;
         drop(gov);
         let encoded = bincode::serialize(&proposal).map_err(|e| {
             HostAbiError::InternalError(format!("Failed to serialize proposal: {}", e))
@@ -1691,7 +1714,9 @@ impl RuntimeContext {
         let proposal = gov
             .get_proposal(&proposal_id)
             .map_err(HostAbiError::Common)?
-            .expect("Proposal should exist after closing");
+            .ok_or_else(|| {
+                HostAbiError::InternalError("Proposal should exist after closing".to_string())
+            })?;
         drop(gov);
 
         let encoded = bincode::serialize(&proposal).map_err(|e| {
@@ -1801,7 +1826,10 @@ impl RuntimeContext {
 
         // Generate keys for this node
         let (sk, pk) = generate_ed25519_keypair();
-        let signer = Arc::new(Ed25519Signer::new_with_keys(sk, pk));
+        let signer = Arc::new(
+            Ed25519Signer::new_with_keys(sk, pk)
+                .map_err(|e| CommonError::InternalError(format!("{:?}", e)))?,
+        );
 
         // Create real libp2p network service with proper config
         let mut config = NetworkConfig {
@@ -1877,14 +1905,17 @@ impl RuntimeContext {
     }
 
     #[cfg(feature = "async")]
-    pub async fn host_anchor_receipt(&self, receipt: &IdentityExecutionReceipt) -> Result<(), HostAbiError> {
+    pub async fn host_anchor_receipt(
+        &self,
+        receipt: &IdentityExecutionReceipt,
+    ) -> Result<(), HostAbiError> {
         let receipt_data = serde_json::to_vec(receipt)
             .map_err(|e| HostAbiError::Common(CommonError::SerializationError(e.to_string())))?;
-        
+
         // Convert from icn_identity::SignatureBytes to icn_common::SignatureBytes
         let common_sig = icn_common::SignatureBytes(receipt.sig.0.clone());
         let signature_opt = Some(common_sig);
-        
+
         let block = DagBlock {
             cid: icn_common::compute_merkle_cid(
                 0x55, // DAG-CBOR codec
@@ -1902,7 +1933,7 @@ impl RuntimeContext {
             signature: signature_opt,
             scope: None,
         };
-        
+
         let result = {
             #[cfg(feature = "async")]
             {
@@ -1911,7 +1942,9 @@ impl RuntimeContext {
             }
             #[cfg(not(feature = "async"))]
             {
-                let mut store = self.dag_store.lock().unwrap();
+                let mut store = self.dag_store.lock().map_err(|e| {
+                    HostAbiError::InternalError(format!("Dag store lock poisoned: {e}"))
+                })?;
                 store.put(&block)
             }
         };
@@ -1919,20 +1952,25 @@ impl RuntimeContext {
         let cid = block.cid.clone();
         log::info!(
             "Anchored receipt for job {} from executor {} to DAG as {}",
-            receipt.job_id, receipt.executor_did, cid
+            receipt.job_id,
+            receipt.executor_did,
+            cid
         );
         Ok(())
     }
 
     #[cfg(not(feature = "async"))]
-    pub fn host_anchor_receipt(&self, receipt: &IdentityExecutionReceipt) -> Result<(), HostAbiError> {
+    pub fn host_anchor_receipt(
+        &self,
+        receipt: &IdentityExecutionReceipt,
+    ) -> Result<(), HostAbiError> {
         let receipt_data = serde_json::to_vec(receipt)
             .map_err(|e| HostAbiError::Common(CommonError::SerializationError(e.to_string())))?;
-        
+
         // Convert from icn_identity::SignatureBytes to icn_common::SignatureBytes
         let common_sig = icn_common::SignatureBytes(receipt.sig.0.clone());
         let signature_opt = Some(common_sig);
-        
+
         let block = DagBlock {
             cid: icn_common::compute_merkle_cid(
                 0x55, // DAG-CBOR codec
@@ -1950,7 +1988,7 @@ impl RuntimeContext {
             signature: signature_opt,
             scope: None,
         };
-        
+
         let result = {
             #[cfg(feature = "async")]
             {
@@ -1959,7 +1997,9 @@ impl RuntimeContext {
             }
             #[cfg(not(feature = "async"))]
             {
-                let mut store = self.dag_store.lock().unwrap();
+                let mut store = self.dag_store.lock().map_err(|e| {
+                    HostAbiError::InternalError(format!("Dag store lock poisoned: {e}"))
+                })?;
                 store.put(&block)
             }
         };
@@ -1976,10 +2016,11 @@ impl RuntimeContext {
         signer: StubSigner,
         mesh_network_service: Arc<StubMeshNetworkService>,
         dag_store: Arc<TokioMutex<StubDagStore>>,
-    ) -> Arc<Self> {
+    ) -> Result<Arc<Self>, HostAbiError> {
         let job_states = Arc::new(TokioMutex::new(HashMap::new()));
         let pending_mesh_jobs = Arc::new(TokioMutex::new(VecDeque::new()));
-        let temp_dir = tempfile::tempdir().expect("temp dir for mana ledger");
+        let temp_dir = tempfile::tempdir()
+            .map_err(|e| HostAbiError::InternalError(format!("temp dir for mana ledger: {e}")))?;
         let mana_ledger_path = temp_dir.path().join("mana.sled");
         let mana_ledger = SimpleManaLedger::new(mana_ledger_path);
         #[cfg(feature = "persist-sled")]
@@ -1995,7 +2036,7 @@ impl RuntimeContext {
         let did_resolver: Arc<dyn icn_identity::DidResolver> =
             Arc::new(icn_identity::KeyDidResolver);
 
-        Arc::new(Self {
+        Ok(Arc::new(Self {
             current_identity,
             mana_ledger,
             pending_mesh_jobs,
@@ -2009,7 +2050,7 @@ impl RuntimeContext {
             policy_enforcer: None,
             time_provider: Arc::new(icn_common::SystemTimeProvider),
             default_receipt_wait_ms: 60_000,
-        })
+        }))
     }
 }
 // --- End Supporting: RuntimeContext::new_for_test ---
@@ -2177,15 +2218,15 @@ pub struct StubSigner {
 }
 
 impl StubSigner {
-    pub fn new() -> Self {
+    pub fn new() -> Result<Self, HostAbiError> {
         let (sk, pk) = generate_ed25519_keypair();
         let did_string = did_key_from_verifying_key(&pk);
-        Self { sk, pk, did_string }
+        Ok(Self { sk, pk, did_string })
     }
 
-    pub fn new_with_keys(sk: SigningKey, pk: VerifyingKey) -> Self {
+    pub fn new_with_keys(sk: SigningKey, pk: VerifyingKey) -> Result<Self, HostAbiError> {
         let did_string = did_key_from_verifying_key(&pk);
-        Self { sk, pk, did_string }
+        Ok(Self { sk, pk, did_string })
     }
 
     // Added for wait_for_and_process_receipt helper
@@ -2233,9 +2274,12 @@ impl Signer for StubSigner {
         self.pk.as_bytes().to_vec()
     }
 
-    fn did(&self) -> Did {
-        // Assuming self.did_string is a valid DID string like "did:key:z..."
-        Did::from_str(&self.did_string).expect("Failed to parse internally generated DID string")
+    fn did(&self) -> Result<Did, HostAbiError> {
+        Did::from_str(&self.did_string).map_err(|e| {
+            HostAbiError::InternalError(format!(
+                "Failed to parse internally generated DID string: {e}"
+            ))
+        })
     }
 
     fn verifying_key_ref(&self) -> &VerifyingKey {
@@ -2253,18 +2297,20 @@ pub struct Ed25519Signer {
 
 impl Ed25519Signer {
     /// Create a signer from an Ed25519 [`SigningKey`].
-    pub fn new(sk: SigningKey) -> Self {
+    pub fn new(sk: SigningKey) -> Result<Self, HostAbiError> {
         let pk = sk.verifying_key();
-        let did = Did::from_str(&did_key_from_verifying_key(&pk))
-            .expect("Failed to construct DID from verifying key");
-        Self { sk, pk, did }
+        let did = Did::from_str(&did_key_from_verifying_key(&pk)).map_err(|e| {
+            HostAbiError::InternalError(format!("Failed to construct DID from verifying key: {e}"))
+        })?;
+        Ok(Self { sk, pk, did })
     }
 
     /// Create from a precomputed keypair.
-    pub fn new_with_keys(sk: SigningKey, pk: VerifyingKey) -> Self {
-        let did = Did::from_str(&did_key_from_verifying_key(&pk))
-            .expect("Failed to construct DID from verifying key");
-        Self { sk, pk, did }
+    pub fn new_with_keys(sk: SigningKey, pk: VerifyingKey) -> Result<Self, HostAbiError> {
+        let did = Did::from_str(&did_key_from_verifying_key(&pk)).map_err(|e| {
+            HostAbiError::InternalError(format!("Failed to construct DID from verifying key: {e}"))
+        })?;
+        Ok(Self { sk, pk, did })
     }
 
     /// Expose verifying key reference.
@@ -2310,8 +2356,8 @@ impl Signer for Ed25519Signer {
         self.pk.as_bytes().to_vec()
     }
 
-    fn did(&self) -> Did {
-        self.did.clone()
+    fn did(&self) -> Result<Did, HostAbiError> {
+        Ok(self.did.clone())
     }
 
     fn verifying_key_ref(&self) -> &VerifyingKey {
@@ -2496,7 +2542,8 @@ impl MeshNetworkService for StubMeshNetworkService {
     ) -> Result<(), HostAbiError> {
         log::debug!(
             "[StubMeshNetworkService] Broadcast assignment for job {:?} to executor {:?}",
-            notice.job_id, notice.executor_did
+            notice.job_id,
+            notice.executor_did
         );
         Ok(())
     }
@@ -2651,7 +2698,7 @@ mod tests {
     async fn test_wait_for_and_process_receipt_updates_mana_and_reputation() {
         let (sk, vk) = generate_ed25519_keypair();
         let did = did_key_from_verifying_key(&vk);
-        let signer = Arc::new(StubSigner::new_with_keys(sk.clone(), vk));
+        let signer = Arc::new(StubSigner::new_with_keys(sk.clone(), vk).unwrap());
         let ctx = RuntimeContext::new_with_ledger_path(
             Did::from_str(&did).unwrap(),
             Arc::new(StubMeshNetworkService::new()),
