@@ -178,8 +178,7 @@ async fn wasm_executor_host_submit_mesh_job_json() {
     let expected_cid = Cid::new_v1_sha256(0x55, &(40i64).to_le_bytes());
     assert_eq!(receipt.result_cid, expected_cid);
     assert_eq!(ctx.get_mana(&ctx.current_identity).await.unwrap(), 40);
-    let pending = ctx.pending_mesh_jobs.lock().await;
-    assert_eq!(pending.len(), 1);
+    assert_eq!(icn_mesh::metrics::PENDING_JOBS_GAUGE.get(), 1);
 }
 
 #[tokio::test(flavor = "multi_thread")]

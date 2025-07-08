@@ -30,7 +30,7 @@ use icn_economics::SledManaLedger;
 #[cfg(all(not(feature = "persist-sled"), feature = "persist-sqlite"))]
 // use icn_economics::SqliteManaLedger; // Unused import
 use log::{debug, error, info, warn};
-use std::collections::{HashMap, VecDeque};
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicU32;
 use std::sync::Arc;
@@ -38,7 +38,7 @@ use std::time::{Duration as StdDuration, Instant as StdInstant};
 #[cfg(test)]
 use tempfile;
 #[cfg(feature = "async")]
-use tokio::sync::Mutex as TokioMutex;
+use tokio::sync::{mpsc, Mutex as TokioMutex};
 #[cfg(not(feature = "async"))]
 use std::sync::Mutex as SyncMutex;
 
@@ -83,6 +83,8 @@ type DagStoreMutex<T> = SyncMutex<T>;
 
 // Counter for generating unique (within this runtime instance) job IDs for stubs
 pub static NEXT_JOB_ID: AtomicU32 = AtomicU32::new(1);
+/// Capacity of the pending mesh job channel.
+const PENDING_JOBS_CHANNEL_SIZE: usize = 100;
 
 /// Supported mana ledger persistence backends.
 #[cfg_attr(feature = "cli", derive(ValueEnum))]
@@ -655,7 +657,8 @@ impl From<CommonError> for HostAbiError {
 pub struct RuntimeContext {
     pub current_identity: Did,
     pub mana_ledger: SimpleManaLedger,
-    pub pending_mesh_jobs: Arc<DagStoreMutex<VecDeque<ActualMeshJob>>>,
+    pub pending_mesh_jobs_sender: mpsc::Sender<ActualMeshJob>,
+    pub pending_mesh_jobs_receiver: TokioMutex<mpsc::Receiver<ActualMeshJob>>,
     pub job_states: Arc<DagStoreMutex<HashMap<JobId, JobState>>>,
     pub governance_module: Arc<DagStoreMutex<GovernanceModule>>,
     pub mesh_network_service: Arc<dyn MeshNetworkService>, // Uses local MeshNetworkService trait
@@ -761,7 +764,9 @@ impl RuntimeContext {
         time_provider: Arc<dyn icn_common::TimeProvider>,
     ) -> Arc<Self> {
         let job_states = Arc::new(TokioMutex::new(HashMap::new()));
-        let pending_mesh_jobs = Arc::new(TokioMutex::new(VecDeque::new()));
+        let (pending_mesh_jobs_sender, pending_mesh_jobs_receiver) =
+            mpsc::channel(PENDING_JOBS_CHANNEL_SIZE);
+        let pending_mesh_jobs_receiver = TokioMutex::new(pending_mesh_jobs_receiver);
 
         #[cfg(feature = "persist-sled")]
         let governance_module = Arc::new(TokioMutex::new(
@@ -804,7 +809,8 @@ impl RuntimeContext {
         Arc::new(Self {
             current_identity,
             mana_ledger,
-            pending_mesh_jobs,
+            pending_mesh_jobs_sender,
+            pending_mesh_jobs_receiver,
             job_states,
             governance_module,
             mesh_network_service,
@@ -1020,8 +1026,11 @@ impl RuntimeContext {
         self: &Arc<Self>,
         job: ActualMeshJob,
     ) -> Result<(), HostAbiError> {
-        let mut queue = self.pending_mesh_jobs.lock().await;
-        queue.push_back(job.clone());
+        self
+            .pending_mesh_jobs_sender
+            .send(job.clone())
+            .await
+            .map_err(|e| HostAbiError::InternalError(format!("Queue send failed: {e}")))?;
         icn_mesh::metrics::PENDING_JOBS_GAUGE.inc();
         let mut states = self.job_states.lock().await;
         states.insert(job.id.clone(), JobState::Pending);
@@ -1185,26 +1194,9 @@ impl RuntimeContext {
         let self_clone = self.clone();
 
         tokio::spawn(async move {
-            let mut interval = tokio::time::interval(StdDuration::from_secs(5));
-            loop {
-                interval.tick().await;
-                log::debug!("[JobManagerLoop] Tick: Checking for pending jobs...");
-
-                let mut jobs_to_requeue = VecDeque::new();
-                let mut jobs_processed_in_cycle = 0;
-
-                // Process jobs from the pending queue
-                while let Some(job) = {
-                    // job here is ActualMeshJob
-                    let mut pending_jobs_guard = self_clone.pending_mesh_jobs.lock().await;
-                    let popped_job = pending_jobs_guard.pop_front();
-                    if popped_job.is_some() {
-                        icn_mesh::metrics::PENDING_JOBS_GAUGE.dec();
-                    }
-                    drop(pending_jobs_guard);
-                    popped_job
-                } {
-                    jobs_processed_in_cycle += 1;
+            let mut receiver = self_clone.pending_mesh_jobs_receiver.lock().await;
+            while let Some(job) = receiver.recv().await {
+                icn_mesh::metrics::PENDING_JOBS_GAUGE.dec();
                     let current_job_id = job.id.clone(); // Clone for use in logs and map keys
 
                     // Get current state from the central job_states map
@@ -1229,7 +1221,11 @@ impl RuntimeContext {
                                     "[JobManagerLoop] Failed to announce job {:?}: {}. Re-queuing.",
                                     current_job_id, e
                                 );
-                                jobs_to_requeue.push_back(job); // Re-queue the ActualMeshJob
+                                if let Err(send_err) = self_clone.pending_mesh_jobs_sender.send(job).await {
+                                    log::error!("[JobManagerLoop] Failed to requeue job {:?}: {}", current_job_id, send_err);
+                                } else {
+                                    icn_mesh::metrics::PENDING_JOBS_GAUGE.inc();
+                                }
                                 continue;
                             }
                             log::info!(
@@ -1247,7 +1243,11 @@ impl RuntimeContext {
                                 Ok(b) => b,
                                 Err(e) => {
                                     log::error!("[JobManagerLoop] Bid collection failed for job {:?}: {}. Re-queuing.", current_job_id, e);
-                                    jobs_to_requeue.push_back(job); // Re-queue the ActualMeshJob
+                                    if let Err(send_err) = self_clone.pending_mesh_jobs_sender.send(job).await {
+                                        log::error!("[JobManagerLoop] Failed to requeue job {:?}: {}", current_job_id, send_err);
+                                    } else {
+                                        icn_mesh::metrics::PENDING_JOBS_GAUGE.inc();
+                                    }
                                     continue;
                                 }
                             };
@@ -1309,7 +1309,11 @@ impl RuntimeContext {
                                     job_states_guard
                                         .insert(current_job_id.clone(), JobState::Pending); // Revert state in map
                                     drop(job_states_guard);
-                                    jobs_to_requeue.push_back(job); // Re-queue the ActualMeshJob
+                                    if let Err(send_err) = self_clone.pending_mesh_jobs_sender.send(job).await {
+                                        log::error!("[JobManagerLoop] Failed to requeue job {:?}: {}", current_job_id, send_err);
+                                    } else {
+                                        icn_mesh::metrics::PENDING_JOBS_GAUGE.inc();
+                                    }
                                     continue;
                                 }
 
@@ -1354,7 +1358,11 @@ impl RuntimeContext {
                             // to detect stale "Assigned" jobs and move them to Failed.
                             // For now, simply re-queueing means it will be picked up again.
                             // Consider adding a timestamp to JobState::Assigned for timeout logic here.
-                            jobs_to_requeue.push_back(job); // Re-queue ActualMeshJob
+                            if let Err(send_err) = self_clone.pending_mesh_jobs_sender.send(job).await {
+                                log::error!("[JobManagerLoop] Failed to requeue job {:?}: {}", current_job_id, send_err);
+                            } else {
+                                icn_mesh::metrics::PENDING_JOBS_GAUGE.inc();
+                            }
                         }
                         Some(JobState::Completed { .. }) | Some(JobState::Failed { .. }) => {
                             log::info!(
@@ -1370,28 +1378,7 @@ impl RuntimeContext {
                             // For safety, we probably shouldn't process it.
                         }
                     }
-                } // End while let Some(job)
-
-                // Re-queue jobs that need another attempt
-                if !jobs_to_requeue.is_empty() {
-                    let mut pending_jobs_guard = self_clone.pending_mesh_jobs.lock().await;
-                    for job_to_requeue in jobs_to_requeue {
-                        // Ensure it's added to the back for fairness
-                        pending_jobs_guard.push_back(job_to_requeue);
-                        icn_mesh::metrics::PENDING_JOBS_GAUGE.inc();
-                    }
-                    drop(pending_jobs_guard);
-                }
-
-                if jobs_processed_in_cycle == 0 {
-                    let pending_jobs_guard = self_clone.pending_mesh_jobs.lock().await;
-                    let is_empty = pending_jobs_guard.is_empty();
-                    drop(pending_jobs_guard);
-                    if is_empty {
-                        log::debug!("[JobManagerLoop] No jobs processed and no pending jobs. Manager is idle.");
-                    }
-                }
-            } // End loop
+            } // End while let Some(job)
         }); // End tokio::spawn
     }
 
@@ -1978,7 +1965,9 @@ impl RuntimeContext {
         dag_store: Arc<TokioMutex<StubDagStore>>,
     ) -> Arc<Self> {
         let job_states = Arc::new(TokioMutex::new(HashMap::new()));
-        let pending_mesh_jobs = Arc::new(TokioMutex::new(VecDeque::new()));
+        let (pending_mesh_jobs_sender, pending_mesh_jobs_receiver) =
+            mpsc::channel(PENDING_JOBS_CHANNEL_SIZE);
+        let pending_mesh_jobs_receiver = TokioMutex::new(pending_mesh_jobs_receiver);
         let temp_dir = tempfile::tempdir().expect("temp dir for mana ledger");
         let mana_ledger_path = temp_dir.path().join("mana.sled");
         let mana_ledger = SimpleManaLedger::new(mana_ledger_path);
@@ -1998,7 +1987,8 @@ impl RuntimeContext {
         Arc::new(Self {
             current_identity,
             mana_ledger,
-            pending_mesh_jobs,
+            pending_mesh_jobs_sender,
+            pending_mesh_jobs_receiver,
             job_states,
             governance_module,
             mesh_network_service,

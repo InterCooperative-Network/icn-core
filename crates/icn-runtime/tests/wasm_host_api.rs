@@ -120,9 +120,7 @@ async fn wasm_host_api_functions() {
     assert_eq!(mana_after, 35);
 
     // Build and anchor receipt
-    let pending = ctx.pending_mesh_jobs.lock().await;
-    let job_id = pending[0].id.clone();
-    drop(pending);
+    let job_id = JobId::from_str(&_job_id_str).unwrap();
 
     let (_sk, vk) = generate_ed25519_keypair();
     let node_did = icn_common::Did::from_str(&did_key_from_verifying_key(&vk)).unwrap();
