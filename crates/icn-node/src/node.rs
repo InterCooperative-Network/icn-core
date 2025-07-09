@@ -1071,6 +1071,9 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
         .route("/health", get(health_handler))
         .route("/ready", get(readiness_handler))
         .route("/metrics", get(metrics_handler))
+        .route("/network/local-peer-id", get(network_local_peer_id_handler))
+        .route("/network/peers", get(network_peers_handler))
+        .route("/network/connect", post(network_connect_handler))
         .route("/dag/put", post(dag_put_handler))
         .route("/dag/get", post(dag_get_handler))
         .route("/dag/meta", post(dag_meta_handler))
@@ -1081,20 +1084,25 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
         .route("/data/query", post(data_query_handler))
         .route("/governance/submit", post(gov_submit_handler))
         .route("/governance/vote", post(gov_vote_handler))
+        .route("/governance/delegate", post(gov_delegate_handler))
+        .route("/governance/revoke", post(gov_revoke_handler))
         .route("/governance/close", post(gov_close_handler))
         .route("/governance/execute", post(gov_execute_handler))
         .route("/governance/proposals", get(gov_list_proposals_handler))
         .route(
-            "/governance/proposal/{proposal_id}",
+            "/governance/proposal/:proposal_id",
             get(gov_get_proposal_handler),
         )
         .route("/mesh/submit", post(mesh_submit_job_handler))
         .route("/mesh/jobs", get(mesh_list_jobs_handler))
-        .route("/mesh/jobs/{job_id}", get(mesh_get_job_status_handler))
+        .route("/mesh/jobs/:job_id", get(mesh_get_job_status_handler))
         .route("/mesh/receipts", post(mesh_submit_receipt_handler))
         .route("/contracts", post(contracts_post_handler))
         .route("/federation/peers", get(federation_list_peers_handler))
         .route("/federation/peers", post(federation_add_peer_handler))
+        .route("/federation/join", post(federation_join_handler))
+        .route("/federation/leave", post(federation_leave_handler))
+        .route("/federation/status", get(federation_status_handler))
         .with_state(app_state.clone())
         .layer(middleware::from_fn_with_state(
             app_state.clone(),

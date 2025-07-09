@@ -7,7 +7,6 @@ use tokio::task;
 
 #[tokio::test]
 #[serial_test::serial]
-#[ignore] // Mesh networking flows fail pending router updates
 async fn mesh_network_and_ccl_commands() {
     let _ = std::fs::remove_dir_all("./mana_ledger.sled");
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
