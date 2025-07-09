@@ -980,6 +980,13 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
     rt_ctx.clone().spawn_mesh_job_manager().await;
     info!("ICN RuntimeContext initialized and JobManager spawned.");
 
+    // Initialize the node with some mana for job submission
+    rt_ctx
+        .credit_mana(&node_did, 1000)
+        .await
+        .expect("Failed to initialize node with mana");
+    info!("✅ Node initialized with 1000 mana");
+
     // --- Create AppState for Axum ---
     let rate_limiter =
         if config.api_key.is_none() && config.auth_token.is_none() && config.open_rate_limit > 0 {
