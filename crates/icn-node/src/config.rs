@@ -25,6 +25,7 @@ pub enum StorageBackendType {
     /// RocksDB database backend (requires `persist-rocksdb` feature).
     Rocksdb,
     /// Postgres database backend (requires `persist-postgres` feature).
+    #[cfg(feature = "persist-postgres")]
     Postgres,
 }
 
@@ -37,6 +38,7 @@ impl std::str::FromStr for StorageBackendType {
             "sqlite" => Ok(Self::Sqlite),
             "sled" => Ok(Self::Sled),
             "rocksdb" => Ok(Self::Rocksdb),
+            #[cfg(feature = "persist-postgres")]
             "postgres" => Ok(Self::Postgres),
             _ => Err(format!("invalid storage backend: {s}")),
         }
@@ -600,75 +602,69 @@ impl NodeConfig {
     /// Initialize a DAG store based on this configuration.
     pub fn init_dag_store(
         &self,
-    ) -> Result<std::sync::Arc<TokioMutex<dyn icn_dag::AsyncStorageService<DagBlock> + Send>>, CommonError> {
-        let store: std::sync::Arc<TokioMutex<dyn icn_dag::AsyncStorageService<DagBlock> + Send>> = match self
-            .storage_backend
-        {
-            StorageBackendType::Memory => std::sync::Arc::new(TokioMutex::new(
-                CompatAsyncStore::new(icn_dag::InMemoryDagStore::new()),
-            )) as std::sync::Arc<TokioMutex<_>>,
-            StorageBackendType::File => std::sync::Arc::new(TokioMutex::new(
-                TokioFileDagStore::new(self.storage_path.clone())?,
-            )) as std::sync::Arc<TokioMutex<_>>,
-            StorageBackendType::Sqlite => {
-                #[cfg(feature = "persist-sqlite")]
-                {
-                    std::sync::Arc::new(TokioMutex::new(CompatAsyncStore::new(
-                        SqliteDagStore::new(self.storage_path.clone())?,
-                    ))) as std::sync::Arc<TokioMutex<_>>
+    ) -> Result<
+        std::sync::Arc<TokioMutex<dyn icn_dag::AsyncStorageService<DagBlock> + Send>>,
+        CommonError,
+    > {
+        let store: std::sync::Arc<TokioMutex<dyn icn_dag::AsyncStorageService<DagBlock> + Send>> =
+            match self.storage_backend {
+                StorageBackendType::Memory => std::sync::Arc::new(TokioMutex::new(
+                    CompatAsyncStore::new(icn_dag::InMemoryDagStore::new()),
+                )) as std::sync::Arc<TokioMutex<_>>,
+                StorageBackendType::File => std::sync::Arc::new(TokioMutex::new(
+                    TokioFileDagStore::new(self.storage_path.clone())?,
+                )) as std::sync::Arc<TokioMutex<_>>,
+                StorageBackendType::Sqlite => {
+                    #[cfg(feature = "persist-sqlite")]
+                    {
+                        std::sync::Arc::new(TokioMutex::new(CompatAsyncStore::new(
+                            SqliteDagStore::new(self.storage_path.clone())?,
+                        ))) as std::sync::Arc<TokioMutex<_>>
+                    }
+                    #[cfg(not(feature = "persist-sqlite"))]
+                    {
+                        return Err(CommonError::ConfigError(
+                            "sqlite backend requires 'persist-sqlite' feature".into(),
+                        ));
+                    }
                 }
-                #[cfg(not(feature = "persist-sqlite"))]
-                {
-                    return Err(CommonError::ConfigError(
-                        "sqlite backend requires 'persist-sqlite' feature".into(),
-                    ));
+                StorageBackendType::Sled => {
+                    #[cfg(feature = "persist-sled")]
+                    {
+                        std::sync::Arc::new(TokioMutex::new(CompatAsyncStore::new(
+                            SledDagStore::new(self.storage_path.clone())?,
+                        ))) as std::sync::Arc<TokioMutex<_>>
+                    }
+                    #[cfg(not(feature = "persist-sled"))]
+                    {
+                        return Err(CommonError::ConfigError(
+                            "sled backend requires 'persist-sled' feature".into(),
+                        ));
+                    }
                 }
-            }
-            StorageBackendType::Sled => {
-                #[cfg(feature = "persist-sled")]
-                {
-                    std::sync::Arc::new(TokioMutex::new(CompatAsyncStore::new(
-                        SledDagStore::new(self.storage_path.clone())?,
-                    ))) as std::sync::Arc<TokioMutex<_>>
+                StorageBackendType::Rocksdb => {
+                    #[cfg(feature = "persist-rocksdb")]
+                    {
+                        std::sync::Arc::new(TokioMutex::new(CompatAsyncStore::new(
+                            RocksDagStore::new(self.storage_path.clone())?,
+                        ))) as std::sync::Arc<TokioMutex<_>>
+                    }
+                    #[cfg(not(feature = "persist-rocksdb"))]
+                    {
+                        return Err(CommonError::ConfigError(
+                            "rocksdb backend requires 'persist-rocksdb' feature".into(),
+                        ));
+                    }
                 }
-                #[cfg(not(feature = "persist-sled"))]
-                {
-                    return Err(CommonError::ConfigError(
-                        "sled backend requires 'persist-sled' feature".into(),
-                    ));
-                }
-            }
-            StorageBackendType::Rocksdb => {
-                #[cfg(feature = "persist-rocksdb")]
-                {
-                    std::sync::Arc::new(TokioMutex::new(CompatAsyncStore::new(
-                        RocksDagStore::new(self.storage_path.clone())?,
-                    ))) as std::sync::Arc<TokioMutex<_>>
-                }
-                #[cfg(not(feature = "persist-rocksdb"))]
-                {
-                    return Err(CommonError::ConfigError(
-                        "rocksdb backend requires 'persist-rocksdb' feature".into(),
-                    ));
-                }
-            }
-            StorageBackendType::Postgres => {
                 #[cfg(feature = "persist-postgres")]
-                {
+                StorageBackendType::Postgres => {
                     std::sync::Arc::new(TokioMutex::new(CompatAsyncStore::new(
                         icn_dag::postgres_store::PostgresDagStore::new(
                             &self.storage_path.to_string_lossy(),
                         )?,
                     ))) as std::sync::Arc<TokioMutex<_>>
                 }
-                #[cfg(not(feature = "persist-postgres"))]
-                {
-                    return Err(CommonError::ConfigError(
-                        "postgres backend requires 'persist-postgres' feature".into(),
-                    ));
-                }
-            }
-        };
+            };
         Ok(store)
     }
 
