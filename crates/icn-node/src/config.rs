@@ -181,7 +181,6 @@ struct HttpSection {
     tls_key_path: Option<PathBuf>,
     tls_min_version: Option<String>,
     key_rotation_days: Option<u64>,
-    tls_min_version: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -307,12 +306,7 @@ impl NodeConfig {
         if let Some(v) = file.tls_key_path {
             self.tls_key_path = Some(v);
         }
-        if let Some(v) = file.tls_min_version {
-            self.tls_min_version = Some(v);
-        }
-        if let Some(v) = file.key_rotation_days {
-            self.key_rotation_days = v;
-        }
+
 
         // nested sections
         let s = file.storage;
@@ -373,6 +367,9 @@ impl NodeConfig {
         }
         if let Some(v) = http.tls_min_version {
             self.tls_min_version = Some(v);
+        }
+        if let Some(v) = http.key_rotation_days {
+            self.key_rotation_days = v;
         }
 
         let p2p = file.p2p;
