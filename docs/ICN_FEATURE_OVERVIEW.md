@@ -391,6 +391,7 @@ ICN enables autonomous federated systems that support cooperative coordination w
 2. Explore the [API Documentation](API.md)
 3. Try the [Multi-Node Setup Guide](../MULTI_NODE_GUIDE.md)
 4. Join the [Community Discussion](https://github.com/InterCooperative/icn-core/discussions)
+5. Review the [10 Node Devnet Results](ten_node_results.md)
 
 ### **For Cooperatives**
 1. Review the [Governance Framework](governance-framework.md)
