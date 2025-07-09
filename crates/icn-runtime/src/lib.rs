@@ -113,9 +113,9 @@ pub async fn host_submit_mesh_job(
     let spec_bytes = serde_json::to_vec(&job_to_submit.spec)
         .map_err(|e| HostAbiError::InternalError(format!("Spec serialization failed: {e}")))?;
     hasher.update(&spec_bytes);
-    hasher.update(&job_to_submit.cost_mana.to_le_bytes());
+    hasher.update(job_to_submit.cost_mana.to_le_bytes());
     if let Some(ms) = job_to_submit.max_execution_wait_ms {
-        hasher.update(&ms.to_le_bytes());
+        hasher.update(ms.to_le_bytes());
     }
     hasher.update(ctx.current_identity.to_string().as_bytes());
     let digest = hasher.finalize();
@@ -162,7 +162,7 @@ pub async fn host_get_pending_mesh_jobs(
             drained.push(job);
         }
     }
-    for job in drained.iter().cloned() {
+    for job in drained.iter() {
         ctx.pending_mesh_jobs_tx
             .send(job.clone())
             .await

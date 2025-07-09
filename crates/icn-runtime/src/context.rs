@@ -67,9 +67,8 @@ use serde::{Deserialize, Serialize};
 
 // Duplicate imports removed - using the ones from the top of the file
 
-#[cfg(feature = "persist-rocksdb")]
 #[cfg(feature = "async")]
-use icn_dag::{AsyncStorageService as DagStorageService};
+use icn_dag::{AsyncStorageService as DagStorageService, TokioFileDagStore};
 #[cfg(not(feature = "async"))]
 use icn_dag::{FileDagStore, StorageService as DagStorageService};
 
@@ -861,15 +860,19 @@ impl RuntimeContext {
         reputation_store_path: PathBuf,
         policy_enforcer: Option<Arc<dyn ScopedPolicyEnforcer>>,
     ) -> Result<Arc<Self>, CommonError> {
-        #[cfg(feature = "persist-rocksdb")]
+        #[cfg(all(feature = "persist-rocksdb", not(feature = "async")))]
         let dag_store = Arc::new(DagStoreMutex::new(
             icn_dag::rocksdb_store::RocksDagStore::new(dag_path.clone())?,
         )) as Arc<DagStoreMutex<dyn DagStorageService<DagBlock> + Send>>;
 
-        #[cfg(all(not(feature = "persist-rocksdb"), feature = "persist-sled"))]
+        #[cfg(all(not(feature = "persist-rocksdb"), feature = "persist-sled", not(feature = "async")))]
         let dag_store = Arc::new(DagStoreMutex::new(icn_dag::sled_store::SledDagStore::new(
             dag_path.clone(),
         )?)) as Arc<DagStoreMutex<dyn DagStorageService<DagBlock> + Send>>;
+
+        #[cfg(all(feature = "async", any(feature = "persist-rocksdb", feature = "persist-sled")))]
+        let dag_store = Arc::new(DagStoreMutex::new(TokioFileDagStore::new(dag_path.clone())?))
+            as Arc<DagStoreMutex<dyn DagStorageService<DagBlock> + Send>>;
 
         #[cfg(all(
             not(feature = "persist-rocksdb"),
@@ -971,8 +974,12 @@ impl RuntimeContext {
                 e
             ))
         })?;
-        #[cfg(feature = "persist-sled")]
+        #[cfg(all(feature = "persist-sled", not(feature = "async")))]
         let dag_store = Arc::new(TokioMutex::new(icn_dag::sled_store::SledDagStore::new(
+            PathBuf::from("./dag.sled"),
+        )?));
+        #[cfg(all(feature = "persist-sled", feature = "async"))]
+        let dag_store = Arc::new(TokioMutex::new(TokioFileDagStore::new(
             PathBuf::from("./dag.sled"),
         )?));
         #[cfg(not(feature = "persist-sled"))]
@@ -1001,8 +1008,12 @@ impl RuntimeContext {
                 e
             ))
         })?;
-        #[cfg(feature = "persist-sled")]
+        #[cfg(all(feature = "persist-sled", not(feature = "async")))]
         let dag_store = Arc::new(TokioMutex::new(icn_dag::sled_store::SledDagStore::new(
+            PathBuf::from("./dag.sled"),
+        )?));
+        #[cfg(all(feature = "persist-sled", feature = "async"))]
+        let dag_store = Arc::new(TokioMutex::new(TokioFileDagStore::new(
             PathBuf::from("./dag.sled"),
         )?));
         #[cfg(not(feature = "persist-sled"))]
@@ -1755,8 +1766,8 @@ impl RuntimeContext {
             no,
             abstain,
         };
-        Ok(serde_json::to_string(&result)
-            .map_err(|e| HostAbiError::InternalError(format!("Failed to serialize tally: {e}")))?)
+        serde_json::to_string(&result)
+            .map_err(|e| HostAbiError::InternalError(format!("Failed to serialize tally: {e}")))
     }
 
     pub async fn execute_governance_proposal(
@@ -2171,9 +2182,9 @@ impl HostEnvironment for ConcreteHostEnvironment {
             let spec_bytes = serde_json::to_vec(&job.spec)
                 .map_err(|e| HostAbiError::InternalError(e.to_string()))?;
             h.update(&spec_bytes);
-            h.update(&job.cost_mana.to_le_bytes());
+            h.update(job.cost_mana.to_le_bytes());
             if let Some(ms) = job.max_execution_wait_ms {
-                h.update(&ms.to_le_bytes());
+                h.update(ms.to_le_bytes());
             }
             h.update(ctx_clone.current_identity.to_string().as_bytes());
             let digest = h.finalize();

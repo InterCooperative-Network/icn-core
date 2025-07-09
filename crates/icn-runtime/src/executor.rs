@@ -66,8 +66,11 @@ impl Default for WasmSecurityLimits {
 
 /// Resource limiter for WASM execution
 pub struct ICNResourceLimiter {
+    #[allow(dead_code)]
     timeout: Duration,
+    #[allow(dead_code)]
     memory_consumed: u64,
+    #[allow(dead_code)]
     table_elements: u64,
     max_memory_bytes: usize,
 }
@@ -142,13 +145,13 @@ impl WasmModuleValidator {
 
             match payload {
                 Payload::FunctionSection(reader) => {
-                    function_count = reader.count() as u32;
+                    function_count = reader.count();
                 }
                 Payload::GlobalSection(reader) => {
-                    global_count = reader.count() as u32;
+                    global_count = reader.count();
                 }
                 Payload::TableSection(reader) => {
-                    table_count = reader.count() as u32;
+                    table_count = reader.count();
                     // Fix: Use iterator instead of read() method
                     for table_result in reader {
                         let table =
