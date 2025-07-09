@@ -20,21 +20,12 @@ pub use mesh_network::{
     MeshJobStateChange, MeshNetworkService, SelectionPolicy, BidId,
     PROPOSAL_COST_MANA, VOTE_COST_MANA,
 };
-pub use runtime_context::RuntimeContext;
+pub use runtime_context::{
+    RuntimeContext, MeshNetworkServiceType, CreateProposalPayload, CastVotePayload, CloseProposalResult,
+};
 pub use signers::{Ed25519Signer, HsmKeyStore, Signer, StubSigner};
 pub use stubs::{RuntimeStubDagStore, StubDagStore, StubMeshNetworkService};
 
-// Conditional compilation helpers
-#[cfg(feature = "async")]
-use icn_dag::AsyncStorageService as DagStorageService;
-#[cfg(not(feature = "async"))]
-use icn_dag::StorageService as DagStorageService;
-
-#[cfg(feature = "async")]
-use tokio::sync::Mutex as DagStoreMutex;
-#[cfg(not(feature = "async"))]
-use std::sync::Mutex as DagStoreMutex;
-
-// Re-export conditional types
-pub use DagStorageService;
-pub type DagStoreMutexType<T> = DagStoreMutex<T>; 
+// Conditional compilation helpers for DAG storage service
+pub type DagStorageService = dyn icn_dag::StorageService<icn_common::DagBlock> + Send + Sync;
+pub type DagStoreMutexType<T> = std::sync::Mutex<T>; 

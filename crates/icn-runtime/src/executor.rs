@@ -270,16 +270,14 @@ impl JobExecutor for SimpleExecutor {
 
                 // Fetch metadata block from the DAG store
                 let meta_bytes = {
-                    let store = ctx.dag_store.lock().await;
+                    let store = ctx.dag_store.lock()
+                        .map_err(|e| CommonError::InternalError(format!("Failed to lock DAG store: {}", e)))?;
                     store
                         .get(&job.manifest_cid)
-                        .await
-                        .map_err(|e| CommonError::StorageError(format!("{e}")))?
-                }
-                .ok_or_else(|| {
-                    CommonError::ResourceNotFound("CCL contract metadata not found".to_string())
-                })?
-                .data;
+                        .map_err(|e| CommonError::InternalError(e.to_string()))?
+                        .ok_or_else(|| CommonError::ResourceNotFound("Metadata not found".into()))?
+                        .data
+                };
 
                 // Parse and validate metadata
                 let meta: ContractMetadata = serde_json::from_slice(&meta_bytes)
@@ -289,11 +287,11 @@ impl JobExecutor for SimpleExecutor {
 
                 // Ensure the referenced WASM module exists
                 {
-                    let store = ctx.dag_store.lock().await;
+                    let store = ctx.dag_store.lock()
+                        .map_err(|e| CommonError::InternalError(format!("Failed to lock DAG store: {}", e)))?;
                     store
                         .get(&wasm_cid)
-                        .await
-                        .map_err(|e| CommonError::StorageError(format!("{e}")))?
+                        .map_err(|e| CommonError::InternalError(e.to_string()))?
                         .ok_or_else(|| {
                             CommonError::ResourceNotFound(
                                 "Referenced WASM module not found".to_string(),
@@ -324,11 +322,11 @@ impl JobExecutor for SimpleExecutor {
                 })?;
 
                 let manifest_bytes = {
-                    let store = ctx.dag_store.lock().await;
+                    let store = ctx.dag_store.lock()
+                        .map_err(|e| CommonError::InternalError(format!("Failed to lock DAG store: {}", e)))?;
                     store
                         .get(&job.manifest_cid)
-                        .await
-                        .map_err(|e| CommonError::StorageError(format!("{e}")))?
+                        .map_err(|e| CommonError::InternalError(e.to_string()))?
                 }
                 .ok_or_else(|| CommonError::ResourceNotFound("Manifest not found".into()))?
                 .data;
@@ -451,16 +449,18 @@ impl JobExecutor for WasmExecutor {
             self.config.security_limits.max_execution_time_secs
         );
 
-        let wasm_bytes = self
-            .ctx
-            .dag_store
-            .lock()
-            .await
-            .get(&job.manifest_cid)
-            .await
-            .map_err(|e| CommonError::InternalError(e.to_string()))?
-            .ok_or_else(|| CommonError::ResourceNotFound("WASM module not found".into()))?
-            .data;
+        let wasm_bytes = {
+            let store = self
+                .ctx
+                .dag_store
+                .lock()
+                .map_err(|e| CommonError::InternalError(format!("Failed to lock DAG store: {}", e)))?;
+            let block = store
+                .get(&job.manifest_cid)
+                .map_err(|e| CommonError::InternalError(e.to_string()))?
+                .ok_or_else(|| CommonError::ResourceNotFound("WASM module not found".into()))?;
+            block.data
+        };
 
         // Security validation of the WASM module
         self.validator.validate(&wasm_bytes)?;

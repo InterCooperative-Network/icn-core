@@ -127,6 +127,9 @@ impl icn_dag::StorageService<DagBlock> for StubDagStore {
     }
 }
 
+// For now, we'll comment out the async implementation to avoid lifetime issues
+// in the future, we can implement it properly when needed
+/*
 #[cfg(feature = "async")]
 impl icn_dag::AsyncStorageService<DagBlock> for StubDagStore {
     async fn put(&mut self, block: &DagBlock) -> Result<(), CommonError> {
@@ -213,6 +216,7 @@ impl icn_dag::AsyncStorageService<DagBlock> for StubDagStore {
         self
     }
 }
+*/
 
 /// Stub mesh network service for testing.
 pub struct StubMeshNetworkService {

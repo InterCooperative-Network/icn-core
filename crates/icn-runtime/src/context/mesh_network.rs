@@ -1,16 +1,16 @@
 //! Mesh network service types and implementations for the ICN runtime.
 
 use super::errors::HostAbiError;
-use downcast_rs::{impl_downcast, DowncastSync};
 use icn_common::{CommonError, Did};
-use icn_identity::ExecutionReceipt as IdentityExecutionReceipt;
+use icn_identity::{ExecutionReceipt as IdentityExecutionReceipt, SignatureBytes};
 use icn_mesh::{ActualMeshJob, JobId, MeshJobBid};
 use icn_network::NetworkService;
-use icn_protocol::{MessagePayload, ProtocolMessage};
-use log::{debug, error, info, warn};
+use icn_protocol::{MessagePayload, ProtocolMessage, MeshJobAssignmentMessage, MeshJobAnnouncementMessage, GovernanceProposalMessage, GovernanceVoteMessage, ProposalType, VoteOption, JobSpec, ResourceRequirements, JobKind};
+use log::debug;
 use serde::{Deserialize, Serialize};
+use std::str::FromStr;
 use std::sync::Arc;
-use std::time::Duration as StdDuration;
+use std::time::{Duration as StdDuration, SystemTime, UNIX_EPOCH};
 
 #[cfg(feature = "enable-libp2p")]
 use icn_network::libp2p_service::Libp2pNetworkService as ActualLibp2pNetworkService;
@@ -78,7 +78,13 @@ pub trait MeshNetworkService: Send + Sync + std::fmt::Debug {
     fn as_any(&self) -> &dyn std::any::Any;
 }
 
-impl_downcast!(sync MeshNetworkService);
+/// Helper function to get current timestamp
+fn current_timestamp() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+}
 
 /// Default mesh network service implementation.
 pub struct DefaultMeshNetworkService {
@@ -100,8 +106,7 @@ impl DefaultMeshNetworkService {
     pub fn get_underlying_broadcast_service(
         &self,
     ) -> Result<Arc<ActualLibp2pNetworkService>, CommonError> {
-        self.inner
-            .as_any()
+        icn_network::NetworkService::as_any(&*self.inner)
             .downcast_ref::<ActualLibp2pNetworkService>()
             .map(|s| Arc::new(s.clone()))
             .ok_or_else(|| CommonError::InternalError("Failed to downcast to LibP2P service".to_string()))
@@ -122,11 +127,32 @@ impl MeshNetworkService for DefaultMeshNetworkService {
         })?;
         
         let message = ProtocolMessage {
-            payload: MessagePayload::MeshJob(job_bytes),
-            timestamp: chrono::Utc::now(),
+            payload: MessagePayload::MeshJobAnnouncement(MeshJobAnnouncementMessage {
+                job_id: job.id.clone().into(),
+                manifest_cid: job.manifest_cid.clone(),
+                creator_did: job.creator_did.clone(),
+                max_cost_mana: job.cost_mana,
+                job_spec: icn_protocol::JobSpec {
+                    kind: match &job.spec.kind {
+                        icn_mesh::JobKind::Echo { payload } => JobKind::Echo { payload: payload.clone() },
+                        icn_mesh::JobKind::CclWasm => JobKind::CclWasm,
+                        icn_mesh::JobKind::GenericPlaceholder => JobKind::Generic,
+                    },
+                    inputs: job.spec.inputs.clone(),
+                    outputs: job.spec.outputs.clone(),
+                    required_resources: ResourceRequirements {
+                        cpu_cores: job.spec.required_resources.cpu_cores,
+                        memory_mb: job.spec.required_resources.memory_mb,
+                        storage_mb: 0, // TODO: Add storage to mesh Resources
+                        max_execution_time_secs: job.max_execution_wait_ms.unwrap_or(3600000) / 1000,
+                    },
+                },
+                bid_deadline: current_timestamp() + 3600,
+            }),
+            timestamp: current_timestamp(),
             sender: job.creator_did.clone(),
             recipient: None,
-            signature: vec![],
+            signature: SignatureBytes(vec![0u8; 64]), // Stub signature
             version: 1,
         };
         
@@ -139,11 +165,18 @@ impl MeshNetworkService for DefaultMeshNetworkService {
         debug!("DefaultMeshNetworkService: announcing proposal");
         
         let message = ProtocolMessage {
-            payload: MessagePayload::Proposal(proposal_bytes),
-            timestamp: chrono::Utc::now(),
+            payload: MessagePayload::GovernanceProposalAnnouncement(GovernanceProposalMessage {
+                proposal_id: "proposal_id".to_string(), // TODO: Generate a real proposal ID
+                proposer_did: Did::from_str("did:example:system").unwrap(), // TODO: Use actual system identity
+                proposal_type: ProposalType::TextProposal,
+                description: "System governance proposal".to_string(),
+                voting_deadline: current_timestamp() + 3600,
+                proposal_data: proposal_bytes,
+            }),
+            timestamp: current_timestamp(),
             sender: Did::from_str("did:example:system").unwrap(), // TODO: Use actual system identity
             recipient: None,
-            signature: vec![],
+            signature: SignatureBytes(vec![0u8; 64]), // Stub signature
             version: 1,
         };
         
@@ -156,11 +189,17 @@ impl MeshNetworkService for DefaultMeshNetworkService {
         debug!("DefaultMeshNetworkService: announcing vote");
         
         let message = ProtocolMessage {
-            payload: MessagePayload::Vote(vote_bytes),
-            timestamp: chrono::Utc::now(),
+            payload: MessagePayload::GovernanceVoteAnnouncement(GovernanceVoteMessage {
+                proposal_id: "proposal_id".to_string(), // TODO: Generate a real proposal ID
+                voter_did: Did::from_str("did:example:system").unwrap(), // TODO: Use actual system identity
+                vote_option: VoteOption::Yes,
+                voted_at: current_timestamp(),
+                justification: Some("System vote".to_string()),
+            }),
+            timestamp: current_timestamp(),
             sender: Did::from_str("did:example:system").unwrap(), // TODO: Use actual system identity
             recipient: None,
-            signature: vec![],
+            signature: SignatureBytes(vec![0u8; 64]), // Stub signature
             version: 1,
         };
         
@@ -176,7 +215,7 @@ impl MeshNetworkService for DefaultMeshNetworkService {
     ) -> Result<Vec<MeshJobBid>, HostAbiError> {
         debug!("DefaultMeshNetworkService: collecting bids for job {:?}", job_id);
         
-        let mut bids = Vec::new();
+        let bids = Vec::new();
         let timeout = tokio::time::sleep(duration);
         tokio::pin!(timeout);
         
@@ -206,16 +245,20 @@ impl MeshNetworkService for DefaultMeshNetworkService {
             notice.executor_did, notice.job_id
         );
         
-        let assignment_bytes = bincode::serialize(notice).map_err(|e| {
-            HostAbiError::InternalError(format!("Failed to serialize assignment notice: {}", e))
-        })?;
+        let assignment_message = MeshJobAssignmentMessage {
+            job_id: notice.job_id.clone().into(),
+            executor_did: notice.executor_did.clone(),
+            agreed_cost_mana: 100, // TODO: Use actual agreed cost
+            completion_deadline: current_timestamp() + 3600,
+            manifest_cid: None,
+        };
         
         let message = ProtocolMessage {
-            payload: MessagePayload::MeshJobAssignment(assignment_bytes),
-            timestamp: chrono::Utc::now(),
+            payload: MessagePayload::MeshJobAssignment(assignment_message),
+            timestamp: current_timestamp(),
             sender: Did::from_str("did:example:system").unwrap(), // TODO: Use actual system identity
             recipient: Some(notice.executor_did.clone()),
-            signature: vec![],
+            signature: SignatureBytes(vec![0u8; 64]), // Stub signature
             version: 1,
         };
         
@@ -253,7 +296,4 @@ impl MeshNetworkService for DefaultMeshNetworkService {
             }
         }
     }
-}
-
-// Add std::str::FromStr import for Did::from_str
-use std::str::FromStr; 
+} 

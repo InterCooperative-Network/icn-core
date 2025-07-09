@@ -3,7 +3,7 @@
 use super::errors::HostAbiError;
 use icn_common::{CommonError, Did};
 use icn_identity::{
-    did_key_from_verifying_key, generate_ed25519_keypair, sign_message,
+    generate_ed25519_keypair, sign_message,
     verify_signature as identity_verify_signature, SigningKey, VerifyingKey,
 };
 use std::path::Path;
@@ -20,6 +20,15 @@ pub trait Signer: Send + Sync + std::fmt::Debug {
     fn public_key_bytes(&self) -> Vec<u8>;
     fn did(&self) -> Did;
     fn verifying_key_ref(&self) -> &VerifyingKey;
+}
+
+/// Helper function to create DID from verifying key
+fn create_did_from_verifying_key(vk: &VerifyingKey) -> Did {
+    // For now, create a simple DID string - in real implementation this would use proper DID:key format
+    let key_bytes = vk.to_bytes();
+    let key_hex = hex::encode(key_bytes);
+    Did::from_str(&format!("did:key:z{}", key_hex))
+        .unwrap_or_else(|_| Did::from_str("did:example:invalid").unwrap())
 }
 
 /// Stub signer for testing
@@ -42,7 +51,7 @@ impl StubSigner {
     }
 
     pub fn new_with_keys(sk: SigningKey, pk: VerifyingKey) -> Self {
-        let did = did_key_from_verifying_key(&pk);
+        let did = create_did_from_verifying_key(&pk);
         Self { sk, pk, did }
     }
 
@@ -119,13 +128,13 @@ impl Ed25519Signer {
     /// Create a new signer with the given signing key.
     pub fn new(sk: SigningKey) -> Self {
         let pk = sk.verifying_key();
-        let did = did_key_from_verifying_key(&pk);
+        let did = create_did_from_verifying_key(&pk);
         Self { sk, pk, did }
     }
 
     /// Create a new signer with explicit keys.
     pub fn new_with_keys(sk: SigningKey, pk: VerifyingKey) -> Self {
-        let did = did_key_from_verifying_key(&pk);
+        let did = create_did_from_verifying_key(&pk);
         Self { sk, pk, did }
     }
 
@@ -198,4 +207,7 @@ impl Signer for Ed25519Signer {
     fn verifying_key_ref(&self) -> &VerifyingKey {
         &self.pk
     }
-} 
+}
+
+// Add std::str::FromStr import for Did::from_str
+use std::str::FromStr; 
