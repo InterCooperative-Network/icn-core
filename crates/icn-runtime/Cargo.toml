@@ -1,6 +1,6 @@
 [package]
 name = "icn-runtime"
-version = "0.1.0"
+version.workspace = true
 edition = "2021"
 authors = ["ICN Contributors"]
 description = "Core runtime logic for ICN nodes, including Host ABI and job management."

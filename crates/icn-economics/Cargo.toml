@@ -1,6 +1,6 @@
 [package]
 name = "icn-economics"
-version = "0.1.0"
+version.workspace = true
 edition = "2021"
 authors = ["ICN Contributors"]
 description = "ICN economics module, managing mana, resource policies, and potentially token accounting."
