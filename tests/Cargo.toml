@@ -43,6 +43,10 @@ path = "integration/parameter_change.rs"
 name = "ccl_operator_precedence"
 path = "../icn-ccl/tests/operator_precedence.rs"
 
+[[test]]
+name = "ten_node_scale"
+path = "integration/ten_node_scale.rs"
+
 [dependencies]
 reqwest.workspace = true
 serde_json.workspace = true
