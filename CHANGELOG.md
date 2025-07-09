@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Summary
+The develop branch has been merged into `main`, launching the **v0.2.0 beta**
+cycle. This milestone focuses on stabilizing production deployments and lands
+several major components: reputation-based executor selection, cross-node job
+execution with signed receipts, an HTTP gateway, a containerized federation
+devnet, and expanded security guidance.
+
 ### Added
 - Initial project setup.
 - Basic scaffolding for all core crates.
