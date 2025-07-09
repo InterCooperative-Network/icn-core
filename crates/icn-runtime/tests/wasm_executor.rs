@@ -486,3 +486,78 @@ async fn wasm_executor_rejects_memory_growth() {
     let exec = WasmExecutor::new(ctx.clone(), signer, config);
     assert!(exec.execute_job(&job).await.is_err());
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn wasm_executor_errors_on_large_initial_memory() {
+    let ctx = RuntimeContext::new_with_stubs_and_mana("did:key:zMemInit", 1).unwrap();
+    let wasm = "(module (memory 3) (func (export \"run\") (result i64) i64.const 1))";
+    let wasm_bytes = wat::parse_str(wasm).unwrap();
+    let block = DagBlock {
+        cid: Cid::new_v1_sha256(0x71, &wasm_bytes),
+        data: wasm_bytes,
+        links: vec![],
+        timestamp: 0,
+        author_did: Did::new("key", "tester"),
+        signature: None,
+        scope: None,
+    };
+    {
+        let mut store = ctx.dag_store.lock().await;
+        store.put(&block).unwrap();
+    }
+    let job = ActualMeshJob {
+        id: JobId(Cid::new_v1_sha256(0x55, b"meminit")),
+        manifest_cid: block.cid.clone(),
+        spec: JobSpec::default(),
+        creator_did: ctx.current_identity.clone(),
+        cost_mana: 0,
+        max_execution_wait_ms: None,
+        signature: SignatureBytes(vec![]),
+    };
+    let signer = Arc::new(StubSigner::new());
+    let config = WasmExecutorConfig {
+        max_memory: 64 * 1024,
+        fuel: 10_000,
+    };
+    let exec = WasmExecutor::new(ctx.clone(), signer, config);
+    assert!(exec.execute_job(&job).await.is_err());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn wasm_executor_enforces_timeout() {
+    let ctx = RuntimeContext::new_with_stubs_and_mana("did:key:zTimeout", 1).unwrap();
+    let wasm = "(module (func (export \"run\") (result i64) (loop br 0) unreachable))";
+    let wasm_bytes = wat::parse_str(wasm).unwrap();
+    let block = DagBlock {
+        cid: Cid::new_v1_sha256(0x71, &wasm_bytes),
+        data: wasm_bytes,
+        links: vec![],
+        timestamp: 0,
+        author_did: Did::new("key", "tester"),
+        signature: None,
+        scope: None,
+    };
+    {
+        let mut store = ctx.dag_store.lock().await;
+        store.put(&block).unwrap();
+    }
+    let job = ActualMeshJob {
+        id: JobId(Cid::new_v1_sha256(0x55, b"timeout")),
+        manifest_cid: block.cid.clone(),
+        spec: JobSpec::default(),
+        creator_did: ctx.current_identity.clone(),
+        cost_mana: 0,
+        max_execution_wait_ms: None,
+        signature: SignatureBytes(vec![]),
+    };
+    let signer = Arc::new(StubSigner::new());
+    let mut limits = WasmSecurityLimits::default();
+    limits.max_execution_time_secs = 1;
+    let config = WasmExecutorConfig {
+        max_memory: 256 * 1024,
+        fuel: 1_000_000_000,
+        security_limits: limits,
+    };
+    let exec = WasmExecutor::new(ctx.clone(), signer, config);
+    assert!(exec.execute_job(&job).await.is_err());
+}

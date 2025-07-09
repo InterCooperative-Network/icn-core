@@ -468,9 +468,11 @@ impl JobExecutor for WasmExecutor {
         // Configure timeout and resource limits
         let timeout_duration =
             Duration::from_secs(self.config.security_limits.max_execution_time_secs);
-        // TODO: Fix ResourceLimiter lifetime issue
-        // let limiter = Box::leak(Box::new(ICNResourceLimiter::new(self.config.max_memory, timeout_duration)));
-        // store.limiter(move |_| limiter);
+        let limiter = Box::leak(Box::new(ICNResourceLimiter::new(
+            self.config.max_memory,
+            timeout_duration,
+        )));
+        store.limiter(move |_| limiter);
 
         store
             .set_fuel(self.config.fuel)
