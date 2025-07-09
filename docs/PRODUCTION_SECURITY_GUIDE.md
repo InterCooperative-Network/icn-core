@@ -189,6 +189,8 @@ node_name = "Production Federation Node"
 http_listen_addr = "0.0.0.0:8443"
 tls_cert_path = "/etc/letsencrypt/live/your-node.domain.com/fullchain.pem"
 tls_key_path = "/etc/letsencrypt/live/your-node.domain.com/privkey.pem"
+tls_min_version = "1.3"
+key_rotation_days = 90
 api_key = "production-api-key"
 auth_token = "production-bearer-token"
 ```
@@ -435,14 +437,14 @@ Grafana dashboard for ICN security monitoring:
 ### **Application Security**
 
 - [ ] **Authentication**: Enable both API key and bearer token auth
-- [ ] **TLS Configuration**: Use TLS 1.3 with strong ciphers
+- [x] **TLS Configuration**: Use TLS 1.3 with strong ciphers
 - [ ] **Rate Limiting**: Configure appropriate rate limits
-- [ ] **Audit Logging**: Enable comprehensive audit logging
+- [x] **Audit Logging**: Enable comprehensive audit logging
 - [ ] **Regular Updates**: Keep ICN software updated
 
 ### **Operational Security**
 
-- [ ] **Key Rotation**: Implement regular key rotation schedule
+- [x] **Key Rotation**: Implement regular key rotation schedule
 - [ ] **Backup Security**: Encrypt and secure backup data
 - [ ] **Incident Response**: Develop incident response procedures
 - [ ] **Security Monitoring**: Set up alerting for security events
@@ -552,6 +554,8 @@ mana_ledger_backend = "sled"
 mana_ledger_path = "/var/lib/icn/data/mana.sled"
 tls_cert_path = "/etc/letsencrypt/live/your-node.domain.com/fullchain.pem"
 tls_key_path = "/etc/letsencrypt/live/your-node.domain.com/privkey.pem"
+tls_min_version = "1.3"
+key_rotation_days = 90
 api_key = "$API_KEY"
 auth_token = "$BEARER_TOKEN"
 open_rate_limit = 0
@@ -569,5 +573,4 @@ curl -H "x-api-key: $API_KEY" -H "Authorization: Bearer $BEARER_TOKEN" \
 ```
 
 ---
-
 **🔒 Remember: Security is an ongoing process, not a one-time setup. Regularly review and update your security configuration as the ICN ecosystem evolves.** 

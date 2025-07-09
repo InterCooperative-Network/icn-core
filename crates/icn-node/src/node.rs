@@ -219,6 +219,12 @@ pub struct Cli {
 
     #[clap(long)]
     pub tls_key_path: Option<PathBuf>,
+
+    #[clap(long)]
+    pub tls_min_version: Option<String>,
+
+    #[clap(long)]
+    pub key_rotation_days: Option<u64>,
 }
 
 /// Load or generate the node identity based on the provided configuration.
@@ -340,6 +346,7 @@ async fn require_api_key(
             .unwrap_or(false);
         if !valid {
             warn!("Invalid API key attempt");
+            info!(target: "audit", "auth_failed reason=invalid_api_key");
             if let Some(ref limiter) = state.rate_limiter {
                 let mut data = limiter.lock().await;
                 let now = Instant::now();
@@ -359,6 +366,7 @@ async fn require_api_key(
             )
                 .into_response();
         }
+        info!(target: "audit", "auth_success method=api_key");
     }
 
     if let Some(ref token) = state.auth_token {
@@ -372,6 +380,7 @@ async fn require_api_key(
             .unwrap_or(false);
         if !valid {
             warn!("Invalid bearer token attempt");
+            info!(target: "audit", "auth_failed reason=invalid_bearer_token");
             if let Some(ref limiter) = state.rate_limiter {
                 let mut data = limiter.lock().await;
                 let now = Instant::now();
@@ -391,6 +400,7 @@ async fn require_api_key(
             )
                 .into_response();
         }
+        info!(target: "audit", "auth_success method=bearer");
     }
 
     next.run(req).await
@@ -410,6 +420,7 @@ async fn rate_limit_middleware(
             data.failed_attempts = 0;
         }
         if data.count >= data.limit {
+            info!(target: "audit", "rate_limit_exceeded" );
             return (
                 StatusCode::TOO_MANY_REQUESTS,
                 Json(JsonErrorResponse {
@@ -781,6 +792,7 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
     } else {
         NodeConfig::default()
     };
+    info!(target: "audit", "config_loaded path={:?}", config_path);
     let param_store_path = config_path.unwrap_or_else(|| PathBuf::from("node_config.toml"));
     let mut parameter_store = ParameterStore::load(param_store_path.clone()).unwrap_or_else(|e| {
         warn!(
@@ -829,6 +841,7 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
             std::process::exit(1);
         }
     };
+    info!(target: "audit", "node_identity did={}", node_did_string);
 
     let node_did = Did::from_str(&node_did_string).expect("Failed to create node DID");
 
@@ -1099,6 +1112,7 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
     info!("🌐 {} HTTP server listening on {}", node_name, addr);
 
     if let (Some(cert), Some(key)) = (&config.tls_cert_path, &config.tls_key_path) {
+        info!(target: "audit", "tls_enabled cert={:?} min_version={:?}", cert, config.tls_min_version);
         let tls_config = axum_server::tls_rustls::RustlsConfig::from_pem_file(cert, key)
             .await
             .expect("failed to load TLS certificate");
@@ -1107,6 +1121,7 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
             .await
             .unwrap();
     } else {
+        info!(target: "audit", "tls_disabled");
         let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
         axum::serve(listener, router.into_make_service())
             .await
