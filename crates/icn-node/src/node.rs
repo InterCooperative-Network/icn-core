@@ -727,7 +727,7 @@ pub async fn app_router_from_context(
         let rate_opt = rate_limiter.clone();
         let param_store_opt: Option<Arc<TokioMutex<ParameterStore>>> = None;
         let handle = tokio::runtime::Handle::current();
-        let mut gov = handle.block_on(async { gov_mod.lock().await });
+        let mut gov = gov_mod.lock().await;
         gov.set_callback(move |proposal| {
             if let icn_governance::ProposalType::SystemParameterChange(param, value) =
                 &proposal.proposal_type
