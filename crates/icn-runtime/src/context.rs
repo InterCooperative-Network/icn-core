@@ -670,6 +670,8 @@ pub struct RuntimeContext {
     pub did_resolver: Arc<dyn icn_identity::DidResolver>,
     pub dag_store: Arc<DagStoreMutex<dyn DagStorageService<DagBlock> + Send>>, // Storage backend
     pub reputation_store: Arc<dyn icn_reputation::ReputationStore>,
+    /// Runtime tunable parameters updated via governance.
+    pub parameters: Arc<DashMap<String, String>>,
     pub policy_enforcer: Option<Arc<dyn ScopedPolicyEnforcer>>,
     /// Source of time for timestamp generation.
     pub time_provider: Arc<dyn icn_common::TimeProvider>,
@@ -820,6 +822,7 @@ impl RuntimeContext {
             did_resolver,
             dag_store,
             reputation_store,
+            parameters: Arc::new(DashMap::new()),
             policy_enforcer,
             time_provider,
             default_receipt_wait_ms: 60_000,
@@ -1511,6 +1514,24 @@ impl RuntimeContext {
             .map_err(|e| HostAbiError::InternalError(format!("{e:?}")))
     }
 
+    /// Update a runtime parameter via governance.
+    pub async fn update_parameter(&self, key: String, value: String) -> Result<(), HostAbiError> {
+        self.parameters.insert(key, value);
+        Ok(())
+    }
+
+    /// Add a new federation member via governance.
+    pub async fn add_federation_member(&self, did: Did, _role: Option<String>) -> Result<(), HostAbiError> {
+        let mut gov = self.governance_module.lock().await;
+        gov.add_member(did);
+        Ok(())
+    }
+
+    /// Allocate mana for a specific budget purpose.
+    pub async fn allocate_mana_budget(&self, amount: u64, _purpose: String) -> Result<(), HostAbiError> {
+        self.credit_mana(&self.current_identity, amount).await
+    }
+
     /// Anchors an execution receipt to the DAG store and returns the content identifier (CID).
     /// This method is called by the Host ABI function `host_anchor_receipt`.
     pub async fn anchor_receipt(
@@ -1639,6 +1660,12 @@ impl RuntimeContext {
                     HostAbiError::InvalidParameters(format!("Failed to parse version: {}", e))
                 })?;
                 ProposalType::SoftwareUpgrade(version)
+            }
+            "budgetallocation" | "budget_allocation" => {
+                let tup: (u64, String) = serde_json::from_slice(&payload.type_specific_payload).map_err(|e| {
+                    HostAbiError::InvalidParameters(format!("Failed to parse budget payload: {}", e))
+                })?;
+                ProposalType::BudgetAllocation(tup.0, tup.1)
             }
             "generictext" | "generic_text" => {
                 let text = String::from_utf8(payload.type_specific_payload).map_err(|e| {
@@ -1795,6 +1822,18 @@ impl RuntimeContext {
         if let Some(proposal) = proposal_opt {
             match result {
                 Ok(()) => {
+                    match &proposal.proposal_type {
+                        ProposalType::SystemParameterChange(key, value) => {
+                            self.update_parameter(key.clone(), value.clone()).await?;
+                        }
+                        ProposalType::NewMemberInvitation(did) => {
+                            self.add_federation_member(did.clone(), None).await?;
+                        }
+                        ProposalType::BudgetAllocation(amount, purpose) => {
+                            self.allocate_mana_budget(*amount, purpose.clone()).await?;
+                        }
+                        _ => {}
+                    }
                     // reward proposer for successful execution
                     self.credit_mana(&proposal.proposer, 1).await?;
                     self.reputation_store
@@ -2172,6 +2211,7 @@ impl RuntimeContext {
             did_resolver,
             dag_store,
             reputation_store,
+            parameters: Arc::new(DashMap::new()),
             policy_enforcer: None,
             time_provider: Arc::new(icn_common::SystemTimeProvider),
             default_receipt_wait_ms: 60_000,
