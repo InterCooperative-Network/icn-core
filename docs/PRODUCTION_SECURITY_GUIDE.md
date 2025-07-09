@@ -59,6 +59,23 @@ let runtime_context = RuntimeContext::new_with_stub_signer(config).await?;
    icn-cli identity rotate-key --current-key-path ./current_key.pem
    ```
 
+### **Key Storage Configuration**
+
+Ed25519 private keys can be stored encrypted on disk or managed by a hardware security module.
+
+```toml
+[identity]
+# Encrypted key file path
+key_path = "/secrets/node.key.enc"
+# Passphrase is read from `ICN_KEY_PASSPHRASE`
+
+# HSM configuration (optional)
+hsm_library = "/usr/lib/softhsm/libsofthsm2.so"
+hsm_key_id = "icn-node-key"
+```
+
+Set the `ICN_KEY_PASSPHRASE` environment variable to decrypt the key file at startup. When `hsm_library` and `hsm_key_id` are provided, the runtime will attempt to load the key from the HSM instead of disk.
+
 ---
 
 ## 🔒 **API Authentication**
