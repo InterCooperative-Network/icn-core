@@ -102,6 +102,20 @@ icn-cli dag restore --path ./backups/sqlite
 icn-cli dag verify
 ```
 
+### Postgres
+
+```bash
+# Node configured with Postgres
+icn-node --storage-backend postgres --storage-path postgres://user:pass@localhost/icn_dag
+
+# Backup DAG data
+icn-cli dag backup --path ./backups/postgres
+
+# Restore and verify
+icn-cli dag restore --path ./backups/postgres
+icn-cli dag verify
+```
+
 ## Circuit Breaker and Retry
 
 The node automatically wraps outbound network calls in a circuit breaker and retry helper. These mechanisms prevent cascading failures when peers become unreachable.
