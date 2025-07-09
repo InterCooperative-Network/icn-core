@@ -174,20 +174,14 @@ impl MeshNetworkService for DefaultMeshNetworkService {
         debug!("DefaultMeshNetworkService: collecting bids for job {:?}", job_id);
         
         let bids = Vec::new();
-        let timeout = tokio::time::sleep(duration);
-        tokio::pin!(timeout);
-        
-        loop {
-            tokio::select! {
-                _ = &mut timeout => {
-                    debug!("Bid collection timeout for job {:?}", job_id);
-                    break;
-                }
-                // For now, just simulate waiting - in real implementation would listen for messages
-                _ = tokio::time::sleep(std::time::Duration::from_millis(100)) => {
-                    // Placeholder - real implementation would check for incoming bid messages
-                    break;
-                }
+
+        tokio::select! {
+            _ = tokio::time::sleep(duration) => {
+                debug!("Bid collection timeout for job {:?}", job_id);
+            }
+            // For now, just simulate waiting - in real implementation would listen for messages
+            _ = tokio::time::sleep(std::time::Duration::from_millis(100)) => {
+                // Placeholder - real implementation would check for incoming bid messages
             }
         }
         
@@ -237,21 +231,17 @@ impl MeshNetworkService for DefaultMeshNetworkService {
             job_id, expected_executor
         );
         
-        let timeout = tokio::time::sleep(timeout_duration);
-        tokio::pin!(timeout);
-        
-        loop {
-            tokio::select! {
-                _ = &mut timeout => {
-                    debug!("Receipt timeout for job {:?}", job_id);
-                    return Ok(None);
-                }
-                // For now, just simulate waiting - in real implementation would listen for messages
-                _ = tokio::time::sleep(std::time::Duration::from_millis(100)) => {
-                    // Placeholder - real implementation would check for incoming receipt messages
-                    return Ok(None);
-                }
+        let receipt = tokio::select! {
+            _ = tokio::time::sleep(timeout_duration) => {
+                debug!("Receipt timeout for job {:?}", job_id);
+                None
             }
-        }
-    }
-} 
+            // For now, just simulate waiting - in real implementation would listen for messages
+            _ = tokio::time::sleep(std::time::Duration::from_millis(100)) => {
+                // Placeholder - real implementation would check for incoming receipt messages
+                None
+            }
+        };
+
+        Ok(receipt)
+    }}
