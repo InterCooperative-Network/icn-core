@@ -40,8 +40,8 @@ use icn_protocol::{
 };
 use icn_protocol::{MessagePayload, ProtocolMessage};
 use icn_runtime::context::{
-    DefaultMeshNetworkService, Ed25519Signer, RuntimeContext, StubMeshNetworkService, Signer,
-    MeshNetworkServiceType,
+    DefaultMeshNetworkService, Ed25519Signer, MeshNetworkServiceType, RuntimeContext, Signer,
+    StubMeshNetworkService,
 };
 use icn_runtime::{host_anchor_receipt, host_submit_mesh_job, ReputationUpdater};
 use prometheus_client::{encoding::text::encode, registry::Registry};
@@ -535,7 +535,7 @@ pub async fn app_router_with_options(
         mana_ledger_path.unwrap_or_else(|| PathBuf::from("./mana_ledger.sqlite")),
         ledger_backend,
     );
-    let rt_ctx = RuntimeContext::new_with_mana_ledger_and_time(
+    let mut rt_ctx = RuntimeContext::new_with_mana_ledger_and_time(
         node_did.clone(),
         mesh_network_service,
         signer,
@@ -885,7 +885,7 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
     info!("Starting {} with DID: {}", node_name, node_did);
 
     // --- Create RuntimeContext with Networking ---
-    let rt_ctx = if config.enable_p2p {
+    let mut rt_ctx = if config.enable_p2p {
         #[cfg(feature = "enable-libp2p")]
         {
             info!(
@@ -1693,16 +1693,20 @@ async fn dag_meta_handler(
                 CommonError::StorageError(msg) => {
                     CommonError::StorageError(format!("API: Failed to retrieve DagBlock: {}", msg))
                 }
-                CommonError::DeserializationError(msg) => CommonError::DeserializationError(format!(
-                    "API: Deserialization error during get: {}",
-                    msg
+                CommonError::DeserializationError(msg) => CommonError::DeserializationError(
+                    format!("API: Deserialization error during get: {}", msg),
+                ),
+                CommonError::PolicyDenied(msg) => {
+                    CommonError::PolicyDenied(format!("API: {}", msg))
+                }
+                _ => CommonError::ApiError(format!(
+                    "API: Unexpected error during store.get: {:?}",
+                    e
                 )),
-                CommonError::PolicyDenied(msg) => CommonError::PolicyDenied(format!("API: {}", msg)),
-                _ => CommonError::ApiError(format!("API: Unexpected error during store.get: {:?}", e)),
             }),
         }
     };
-    
+
     match metadata_result {
         Ok(Some(meta)) => (StatusCode::OK, Json(meta)).into_response(),
         Ok(None) => map_rust_error_to_json_response("Block not found", StatusCode::NOT_FOUND)
