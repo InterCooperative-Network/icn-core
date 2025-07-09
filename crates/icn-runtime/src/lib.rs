@@ -18,18 +18,16 @@ pub mod executor;
 pub mod memory;
 pub mod metrics;
 
-use icn_common::{Cid, CommonError, Did};
-use icn_identity::ExecutionReceipt;
-use icn_mesh::{ActualMeshJob, JobId, JobKind, JobSpec};
+use icn_common::{CommonError, Did, Cid};
 use icn_reputation::ReputationStore;
 use log::{debug, error, info, warn};
 use std::str::FromStr;
-use std::sync::Arc;
 use thiserror::Error;
-use wasmtime::AsContextMut;
 
 pub use context::{
     RuntimeContext, HostAbiError, DefaultMeshNetworkService, MeshNetworkService,
+    MeshNetworkServiceType, SimpleManaLedger, Signer, Ed25519Signer, HostEnvironment,
+    ConcreteHostEnvironment, StubMeshNetworkService, JobAssignmentNotice,
     CreateProposalPayload, CastVotePayload, CloseProposalResult,
 };
 
@@ -319,7 +317,7 @@ pub async fn host_account_credit_mana(
 
 /// Get the reputation of a DID.
 pub async fn host_get_reputation(
-    ctx: &Arc<RuntimeContext>,
+    ctx: &std::sync::Arc<RuntimeContext>,
     did: &Did,
 ) -> Result<i64, HostAbiError> {
     let reputation = ctx.reputation_store.get_reputation(did) as i64;

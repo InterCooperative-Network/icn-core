@@ -7,7 +7,7 @@ use super::signers::Signer;
 use super::stubs::{StubDagStore, StubMeshNetworkService};
 use super::{DagStorageService, DagStoreMutexType};
 use dashmap::DashMap;
-use icn_common::{CommonError, Did, DagBlock, DagLink, Cid, SignatureBytes, NodeScope};
+use icn_common::{CommonError, Did, DagBlock, Cid};
 use icn_governance::GovernanceModule;
 use icn_identity::ExecutionReceipt as IdentityExecutionReceipt;
 use icn_mesh::{ActualMeshJob, JobId, JobState};
@@ -219,9 +219,9 @@ impl RuntimeContext {
         node_did_string: &str,
         listen_addrs: Vec<libp2p::Multiaddr>,
         bootstrap_peers: Option<Vec<(libp2p::PeerId, libp2p::Multiaddr)>>,
-        storage_path: PathBuf,
+        _storage_path: PathBuf,
         mana_ledger_path: PathBuf,
-        reputation_db_path: PathBuf,
+        _reputation_db_path: PathBuf,
         enable_mdns: bool,
     ) -> Result<Arc<Self>, CommonError> {
         use icn_network::libp2p_service::NetworkConfig;
@@ -369,8 +369,7 @@ impl RuntimeContext {
         
         // Store in DAG
         {
-            let mut dag_store = self.dag_store.lock()
-                .map_err(|e| HostAbiError::DagOperationFailed(format!("Failed to lock DAG store: {}", e)))?;
+            let mut dag_store = self.dag_store.lock().await;
             dag_store.put(&block)
                 .map_err(|e| HostAbiError::DagOperationFailed(format!("Failed to store receipt: {}", e)))?;
         }
@@ -435,8 +434,7 @@ impl RuntimeContext {
             }
         };
 
-        let mut gov = self.governance_module.lock()
-            .map_err(|e| HostAbiError::InternalError(format!("Failed to lock governance module: {}", e)))?;
+        let mut gov = self.governance_module.lock().await;
         let content_cid = if let Some(body) = payload.body.clone() {
             // Create a simple block with the proposal body
             let block = DagBlock {
@@ -449,8 +447,7 @@ impl RuntimeContext {
                 scope: None,
             };
             {
-                let mut dag_store = self.dag_store.lock()
-                    .map_err(|e| HostAbiError::DagOperationFailed(format!("Failed to lock DAG store: {}", e)))?;
+                let mut dag_store = self.dag_store.lock().await;
                 dag_store.put(&block)
                     .map_err(|e| HostAbiError::DagOperationFailed(format!("Failed to store proposal body: {}", e)))?;
             }
@@ -509,8 +506,7 @@ impl RuntimeContext {
             }
         };
         
-        let mut gov = self.governance_module.lock()
-            .map_err(|e| HostAbiError::InternalError(format!("Failed to lock governance module: {}", e)))?;
+        let mut gov = self.governance_module.lock().await;
         gov.cast_vote(self.current_identity.clone(), &proposal_id, vote_option)
             .map_err(|e| HostAbiError::InternalError(format!("Failed to cast vote: {}", e)))?;
         

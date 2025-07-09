@@ -28,4 +28,4 @@ pub use stubs::{RuntimeStubDagStore, StubDagStore, StubMeshNetworkService};
 
 // Conditional compilation helpers for DAG storage service
 pub type DagStorageService = dyn icn_dag::StorageService<icn_common::DagBlock> + Send + Sync;
-pub type DagStoreMutexType<T> = std::sync::Mutex<T>; 
+pub type DagStoreMutexType<T> = tokio::sync::Mutex<T>; 

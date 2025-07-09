@@ -35,6 +35,8 @@ pub enum HostAbiError {
     Common(CommonError),
     #[error("Network error: {0}")]
     NetworkError(String),
+    #[error("Serialization error: {0}")]
+    SerializationError(String),
 }
 
 impl From<CommonError> for HostAbiError {

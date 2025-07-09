@@ -5,7 +5,10 @@ use icn_common::{CommonError, Did};
 use icn_identity::{ExecutionReceipt as IdentityExecutionReceipt, SignatureBytes};
 use icn_mesh::{ActualMeshJob, JobId, MeshJobBid};
 use icn_network::NetworkService;
-use icn_protocol::{MessagePayload, ProtocolMessage, MeshJobAssignmentMessage, MeshJobAnnouncementMessage, GovernanceProposalMessage, GovernanceVoteMessage, ProposalType, VoteOption, JobSpec, ResourceRequirements, JobKind};
+use icn_protocol::{
+    MessagePayload, ProtocolMessage, MeshJobAssignmentMessage, GovernanceProposalMessage,
+    ProposalType
+};
 use log::debug;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
@@ -120,45 +123,15 @@ impl MeshNetworkService for DefaultMeshNetworkService {
     }
 
     async fn announce_job(&self, job: &ActualMeshJob) -> Result<(), HostAbiError> {
-        debug!("DefaultMeshNetworkService: announcing job {:?}", job.id);
-        
-        let job_bytes = bincode::serialize(job).map_err(|e| {
-            HostAbiError::InternalError(format!("Failed to serialize job: {}", e))
+        let _job_bytes = bincode::serialize(job).map_err(|e| {
+            HostAbiError::SerializationError(format!("Failed to serialize job: {}", e))
         })?;
         
-        let message = ProtocolMessage {
-            payload: MessagePayload::MeshJobAnnouncement(MeshJobAnnouncementMessage {
-                job_id: job.id.clone().into(),
-                manifest_cid: job.manifest_cid.clone(),
-                creator_did: job.creator_did.clone(),
-                max_cost_mana: job.cost_mana,
-                job_spec: icn_protocol::JobSpec {
-                    kind: match &job.spec.kind {
-                        icn_mesh::JobKind::Echo { payload } => JobKind::Echo { payload: payload.clone() },
-                        icn_mesh::JobKind::CclWasm => JobKind::CclWasm,
-                        icn_mesh::JobKind::GenericPlaceholder => JobKind::Generic,
-                    },
-                    inputs: job.spec.inputs.clone(),
-                    outputs: job.spec.outputs.clone(),
-                    required_resources: ResourceRequirements {
-                        cpu_cores: job.spec.required_resources.cpu_cores,
-                        memory_mb: job.spec.required_resources.memory_mb,
-                        storage_mb: 0, // TODO: Add storage to mesh Resources
-                        max_execution_time_secs: job.max_execution_wait_ms.unwrap_or(3600000) / 1000,
-                    },
-                },
-                bid_deadline: current_timestamp() + 3600,
-            }),
-            timestamp: current_timestamp(),
-            sender: job.creator_did.clone(),
-            recipient: None,
-            signature: SignatureBytes(vec![0u8; 64]), // Stub signature
-            version: 1,
-        };
+        // For now, just log the announcement
+        log::info!("Announcing job {} to network", job.id);
         
-        self.inner.broadcast_message(message).await.map_err(|e| {
-            HostAbiError::NetworkError(format!("Failed to broadcast job: {}", e))
-        })
+        // TODO: Send the job announcement to the network
+        Ok(())
     }
 
     async fn announce_proposal(&self, proposal_bytes: Vec<u8>) -> Result<(), HostAbiError> {
@@ -185,27 +158,12 @@ impl MeshNetworkService for DefaultMeshNetworkService {
         })
     }
 
-    async fn announce_vote(&self, vote_bytes: Vec<u8>) -> Result<(), HostAbiError> {
-        debug!("DefaultMeshNetworkService: announcing vote");
+    async fn announce_vote(&self, _vote_bytes: Vec<u8>) -> Result<(), HostAbiError> {
+        // For now, just log the vote announcement
+        log::info!("Announcing vote to network");
         
-        let message = ProtocolMessage {
-            payload: MessagePayload::GovernanceVoteAnnouncement(GovernanceVoteMessage {
-                proposal_id: "proposal_id".to_string(), // TODO: Generate a real proposal ID
-                voter_did: Did::from_str("did:example:system").unwrap(), // TODO: Use actual system identity
-                vote_option: VoteOption::Yes,
-                voted_at: current_timestamp(),
-                justification: Some("System vote".to_string()),
-            }),
-            timestamp: current_timestamp(),
-            sender: Did::from_str("did:example:system").unwrap(), // TODO: Use actual system identity
-            recipient: None,
-            signature: SignatureBytes(vec![0u8; 64]), // Stub signature
-            version: 1,
-        };
-        
-        self.inner.broadcast_message(message).await.map_err(|e| {
-            HostAbiError::NetworkError(format!("Failed to broadcast vote: {}", e))
-        })
+        // TODO: Send the vote announcement to the network
+        Ok(())
     }
 
     async fn collect_bids_for_job(

@@ -128,6 +128,7 @@ impl icn_dag::StorageService<DagBlock> for StubDagStore {
 }
 
 // AsyncStorageService implementation for StubDagStore
+#[async_trait::async_trait]
 impl icn_dag::AsyncStorageService<DagBlock> for StubDagStore {
     async fn put(&mut self, block: &DagBlock) -> Result<(), CommonError> {
         self.store.insert(block.cid.clone(), block.clone());

@@ -41,6 +41,7 @@ use icn_protocol::{
 use icn_protocol::{MessagePayload, ProtocolMessage};
 use icn_runtime::context::{
     DefaultMeshNetworkService, Ed25519Signer, RuntimeContext, StubMeshNetworkService, Signer,
+    MeshNetworkServiceType,
 };
 use icn_runtime::{host_anchor_receipt, host_submit_mesh_job, ReputationUpdater};
 use prometheus_client::{encoding::text::encode, registry::Registry};
@@ -516,10 +517,14 @@ pub async fn app_router_with_options(
             .await
             .expect("Failed to create libp2p service");
         let service_dyn: Arc<dyn NetworkService> = Arc::new(service);
-        Arc::new(DefaultMeshNetworkService::new(service_dyn))
+        let default_service = DefaultMeshNetworkService::new(service_dyn);
+        Arc::new(MeshNetworkServiceType::Default(default_service))
     };
     #[cfg(not(feature = "enable-libp2p"))]
-    let mesh_network_service = Arc::new(StubMeshNetworkService::new());
+    let mesh_network_service = {
+        let stub_service = StubMeshNetworkService::new();
+        Arc::new(MeshNetworkServiceType::Stub(stub_service))
+    };
     // GovernanceModule is initialized inside RuntimeContext::new
 
     let rep_path = reputation_db_path
@@ -722,7 +727,13 @@ pub async fn app_router_from_context(
         let rate_opt = rate_limiter.clone();
         let param_store_opt: Option<Arc<TokioMutex<ParameterStore>>> = None;
         let handle = tokio::runtime::Handle::current();
-        let mut gov = gov_mod.lock().await;
+        let mut gov = match gov_mod.lock() {
+            Ok(gov) => gov,
+            Err(e) => {
+                error!("Failed to lock governance module: {}", e);
+                return Err(format!("Failed to lock governance module: {}", e).into());
+            }
+        };
         gov.set_callback(move |proposal| {
             if let icn_governance::ProposalType::SystemParameterChange(param, value) =
                 &proposal.proposal_type
@@ -983,10 +994,14 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
                 .await
                 .expect("Failed to create libp2p service");
             let service_dyn: Arc<dyn NetworkService> = Arc::new(libp2p_service);
-            Arc::new(DefaultMeshNetworkService::new(service_dyn))
+            let default_service = DefaultMeshNetworkService::new(service_dyn);
+            Arc::new(MeshNetworkServiceType::Default(default_service))
         };
         #[cfg(not(feature = "enable-libp2p"))]
-        let mesh_network_service = Arc::new(StubMeshNetworkService::new());
+        let mesh_network_service = {
+            let stub_service = StubMeshNetworkService::new();
+            Arc::new(MeshNetworkServiceType::Stub(stub_service))
+        };
 
         let ledger = icn_runtime::context::SimpleManaLedger::new_with_backend(
             config.mana_ledger_path.clone(),
@@ -1074,7 +1089,13 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
         let gov_mod = rt_ctx.governance_module.clone();
         let rate_opt = rate_limiter.clone();
         let handle = tokio::runtime::Handle::current();
-        let mut gov = gov_mod.lock().await;
+        let mut gov = match gov_mod.lock() {
+            Ok(gov) => gov,
+            Err(e) => {
+                error!("Failed to lock governance module: {}", e);
+                return Err(format!("Failed to lock governance module: {}", e).into());
+            }
+        };
         gov.set_callback(move |proposal| {
             if let icn_governance::ProposalType::SystemParameterChange(param, value) =
                 &proposal.proposal_type

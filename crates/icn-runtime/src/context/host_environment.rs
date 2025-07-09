@@ -2,7 +2,6 @@
 
 use super::errors::HostAbiError;
 use super::runtime_context::RuntimeContext;
-use icn_common::Did;
 use std::sync::Arc;
 
 /// Host environment trait for WASM interaction.
