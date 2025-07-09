@@ -78,6 +78,20 @@
       "datasource": "Prometheus",
       "gridPos": {"h":8, "w":12, "x":12, "y":22},
       "targets": [{"expr": "economics_spend_mana_calls", "refId": "A"}]
+    },
+    {
+      "type": "timeseries",
+      "title": "wasm_memory_growth_denied_total",
+      "datasource": "Prometheus",
+      "gridPos": {"h":8, "w":12, "x":0, "y":30},
+      "targets": [{"expr": "wasm_memory_growth_denied_total", "refId": "A"}]
+    },
+    {
+      "type": "timeseries",
+      "title": "wasm_table_growth_denied_total",
+      "datasource": "Prometheus",
+      "gridPos": {"h":8, "w":12, "x":12, "y":30},
+      "targets": [{"expr": "wasm_table_growth_denied_total", "refId": "A"}]
     }
   ]
 }

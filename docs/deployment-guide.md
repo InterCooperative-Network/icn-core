@@ -171,4 +171,11 @@ Prometheus will be reachable at <http://localhost:9090> and Grafana at
 <http://localhost:3000> (`admin` / `icnfederation`). Import the dashboards from
 `icn-devnet/grafana/` to visualize node metrics.
 
+Runtime metrics now include counters for WASM resource limiter denials:
+
+```text
+wasm_memory_growth_denied_total - memory growth denied by the limiter
+wasm_table_growth_denied_total  - table growth denied by the limiter
+```
+
 

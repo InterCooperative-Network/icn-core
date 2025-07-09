@@ -27,3 +27,9 @@ pub static JOBS_ACTIVE_GAUGE: Lazy<Gauge<i64>> = Lazy::new(Gauge::default);
 
 /// Counts receipts anchored to the DAG.
 pub static RECEIPTS_ANCHORED: Lazy<Counter> = Lazy::new(Counter::default);
+
+/// Counts denied memory growth attempts inside the WASM resource limiter.
+pub static WASM_MEMORY_GROWTH_DENIED: Lazy<Counter> = Lazy::new(Counter::default);
+
+/// Counts denied table growth attempts inside the WASM resource limiter.
+pub static WASM_TABLE_GROWTH_DENIED: Lazy<Counter> = Lazy::new(Counter::default);
