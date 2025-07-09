@@ -177,6 +177,69 @@ cargo build --no-default-features --features "with-libp2p persist-rocksdb"
 ./target/debug/icn-cli federation list-peers
 ```
 
+## 🌐 Quick Start: Devnet Testing
+
+For the fastest way to test ICN features, use the containerized devnet that launches a 3-node federation:
+
+```bash
+# Launch complete devnet (from project root)
+just devnet
+
+# Or manually:
+cd icn-devnet && ./launch_federation.sh
+```
+
+This starts three nodes with automatic peer discovery and mana initialization. Each node gets **1000 mana** on startup.
+
+### Test Job Submission
+
+```bash
+# Submit a mesh job to the devnet
+curl -X POST http://localhost:5001/mesh/submit \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: devnet-a-key" \
+  -d '{
+    "manifest_cid": "bafybeiczsscdsbs7ffqz55asqdf3smv6klcw3gofszvwlyarci47bgf354",
+    "spec_json": {
+      "kind": {
+        "Echo": {
+          "payload": "Hello ICN!"
+        }
+      }
+    },
+    "cost_mana": 50
+  }'
+
+# Expected response:
+# {"job_id":"bafkrfz2acgrvhdag6q2rs7h5buh2i6omqqhffnrvatziwrlrnx3elqyp"}
+
+# Check job status
+curl -H "X-API-Key: devnet-a-key" http://localhost:5001/mesh/jobs
+
+# Access the different nodes:
+# Node A (bootstrap): http://localhost:5001
+# Node B (worker): http://localhost:5002  
+# Node C (worker): http://localhost:5003
+```
+
+**Important Notes:**
+- Use `X-API-Key` header (not `Authorization: Bearer`)
+- Jobs may show "failed - no bids" in single-node testing (expected behavior)
+- Mana is automatically refunded when jobs fail
+- See [icn-devnet/README.md](icn-devnet/README.md) for complete documentation
+
+### Recent Fix: Mana Initialization ✅
+
+A critical bug was recently fixed where nodes failed to initialize mana accounts, causing `"Account not found"` errors during job submission. This issue is now resolved - you should see `✅ Node initialized with 1000 mana` in startup logs.
+
+If you encounter mana-related errors:
+```bash
+# Check node startup logs for mana initialization
+docker-compose logs icn-node-a | grep -i "mana\|initialized"
+
+# Should show: "✅ Node initialized with 1000 mana"
+```
+
 ### Architecture Overview
 
 The following text diagrams from [docs/ONBOARDING.md](docs/ONBOARDING.md) illustrate how core components interact.
@@ -326,6 +389,7 @@ More detailed information can be found in the `README.md` file within each crate
 * Build docs locally with `cargo doc --workspace --no-deps` (or `just docs`) and open them from `target/doc`
 * [API Documentation](docs/API.md) – HTTP endpoints and programmatic interfaces
 * [Deployment Guide](docs/deployment-guide.md) – production deployment instructions (see [circuit breaker & retry settings](docs/deployment-guide.md#circuit-breaker-and-retry))
+* [Troubleshooting Guide](docs/TROUBLESHOOTING.md) – common issues and solutions
 
 ## Community & Contribution
 
@@ -368,6 +432,7 @@ This project is licensed under the Apache License 2.0. See the [LICENSE](LICENSE
 - ✅ Federation management and synchronization
 - ✅ Comprehensive monitoring and observability
 - ✅ Multi-node federation testing at scale
+- ✅ **Critical Mana Initialization Fix**: Resolved account not found errors
 - 🚧 Performance benchmarking and optimization
 
 ### **Upcoming Phases**
@@ -383,6 +448,9 @@ See [docs/ICN_FEATURE_OVERVIEW.md](docs/ICN_FEATURE_OVERVIEW.md) for the complet
 ```bash
 # Launch containerized three-node federation
 icn-devnet/launch_federation.sh
+
+# Or use just command
+just devnet
 
 # Manual Docker build (requires 64 MiB stack)
 export RUST_MIN_STACK=67108864
