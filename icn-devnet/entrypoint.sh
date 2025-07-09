@@ -29,6 +29,12 @@ if [ "${ICN_STORAGE_BACKEND}" = "file" ]; then
     ARGS+=(--storage-path "/app/data/node_store")
 fi
 
+# Always set storage path to avoid permission issues
+ARGS+=(--storage-path "/app/data/node_store")
+ARGS+=(--mana-ledger-path "/app/data/mana_ledger")
+ARGS+=(--reputation-db-path "/app/data/reputation_db")
+ARGS+=(--governance-db-path "/app/data/governance_db")
+
 # Enable P2P if requested
 if [ "${ICN_ENABLE_P2P}" = "true" ]; then
     ARGS+=(--enable-p2p)
@@ -43,6 +49,11 @@ if [ "${ICN_ENABLE_P2P}" = "true" ]; then
             fi
         done
     fi
+fi
+
+# Enable mDNS if requested
+if [ "${ICN_ENABLE_MDNS}" = "true" ]; then
+    ARGS+=(--enable-mdns)
 fi
 
 echo "🔧 Command: icn-node ${ARGS[*]}"
