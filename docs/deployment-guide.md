@@ -143,3 +143,18 @@ retry_max_delay_ms = 1000
 
 These values control the helper used across HTTP and P2P operations.
 
+## Monitoring with Prometheus & Grafana
+
+The devnet includes optional monitoring services. Launch the stack with the
+`monitoring` profile to enable Prometheus and Grafana:
+
+```bash
+cd icn-devnet
+docker-compose --profile monitoring up -d
+```
+
+Prometheus will be reachable at <http://localhost:9090> and Grafana at
+<http://localhost:3000> (`admin` / `icnfederation`). Import the dashboards from
+`icn-devnet/grafana/` to visualize node metrics.
+
+
