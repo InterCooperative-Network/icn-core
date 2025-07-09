@@ -36,6 +36,22 @@ Once running, you can access:
    if TLS is desired, provide `ICN_TLS_CERT_PATH` and `ICN_TLS_KEY_PATH`.
 5. **Launch the federation** with `./launch_federation.sh`.
 
+### 10-Node Load Test
+
+The repository includes a helper script for spinning up a **10 node** devnet
+and submitting a configurable number of test jobs:
+
+```bash
+# From the repository root
+NUM_JOBS=50 ./scripts/run_10node_devnet.sh
+```
+
+`NUM_JOBS` controls how many jobs are submitted to the first node (default
+`20`). The script automatically starts Prometheus and Grafana, so you can run
+`docker-compose --profile monitoring up -d` to visualize metrics. See the
+[deployment guide’s monitoring section](../docs/deployment-guide.md#monitoring-with-prometheus--grafana)
+for more details.
+
 ### Test Job Submission
 
 > **⚠️ Important**: Use `X-API-Key` header (not `Authorization: Bearer`)
