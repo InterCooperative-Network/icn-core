@@ -143,6 +143,20 @@ retry_max_delay_ms = 1000
 
 These values control the helper used across HTTP and P2P operations.
 
+Configuration values can be provided in the node's TOML file under the `[network]`
+section or via environment variables:
+
+```bash
+ICN_NETWORK_FAILURE_THRESHOLD=3
+ICN_NETWORK_OPEN_TIMEOUT_SECS=5
+ICN_NETWORK_RETRY_MAX_ATTEMPTS=3
+ICN_NETWORK_RETRY_INITIAL_DELAY_MS=100
+ICN_NETWORK_RETRY_MAX_DELAY_MS=1000
+```
+
+Environment variables override values from the config file, allowing quick tuning
+without editing files.
+
 ## Monitoring with Prometheus & Grafana
 
 The devnet includes optional monitoring services. Launch the stack with the

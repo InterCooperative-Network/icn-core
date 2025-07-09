@@ -75,6 +75,30 @@ static NETWORK_BREAKER: Lazy<tokio::sync::Mutex<CircuitBreaker<SystemTimeProvide
         ))
     });
 
+async fn with_resilience<F, Fut, T>(mut op: F) -> Result<T, MeshNetworkError>
+where
+    F: FnMut() -> Fut,
+    Fut: std::future::Future<Output = Result<T, MeshNetworkError>>,
+{
+    use std::time::Duration;
+    let mut breaker = NETWORK_BREAKER.lock().await;
+    breaker
+        .call(|| async {
+            retry_with_backoff(
+                &mut op,
+                3,
+                Duration::from_millis(100),
+                Duration::from_secs(2),
+            )
+            .await
+        })
+        .await
+        .map_err(|e| match e {
+            CircuitBreakerError::Open => MeshNetworkError::Timeout("circuit open".to_string()),
+            CircuitBreakerError::Inner(err) => err,
+        })
+}
+
 // --- Core Types ---
 
 /// Wrapper around a peer's stable identifier used within the network layer.
@@ -285,14 +309,20 @@ impl NetworkService for StubNetworkService {
         &self,
         target_peer_id_str: Option<String>,
     ) -> Result<Vec<PeerId>, MeshNetworkError> {
-        log::info!(
-            "[StubNetworkService] Discovering peers (target: {:?})... returning mock peers.",
-            target_peer_id_str
-        );
-        Ok(vec![
-            PeerId("mock_peer_1".to_string()),
-            PeerId("mock_peer_2".to_string()),
-        ])
+        with_resilience(|| {
+            let target = target_peer_id_str.clone();
+            async move {
+                log::info!(
+                    "[StubNetworkService] Discovering peers (target: {:?})... returning mock peers.",
+                    target
+                );
+                Ok(vec![
+                    PeerId("mock_peer_1".to_string()),
+                    PeerId("mock_peer_2".to_string()),
+                ])
+            }
+        })
+        .await
     }
 
     async fn send_message(
@@ -300,13 +330,16 @@ impl NetworkService for StubNetworkService {
         peer: &PeerId,
         message: ProtocolMessage,
     ) -> Result<(), MeshNetworkError> {
-        let mut breaker = NETWORK_BREAKER.lock().await;
-        breaker
-            .call(|| async {
+        let peer = peer.clone();
+        let msg = message.clone();
+        with_resilience(|| {
+            let peer = peer.clone();
+            let msg = msg.clone();
+            async move {
                 log::debug!(
                     "[StubNetworkService] Sending message to peer {:?}: {:?}",
                     peer,
-                    message
+                    msg
                 );
                 if peer.0 == "error_peer" {
                     return Err(MeshNetworkError::SendFailure(format!(
@@ -321,20 +354,18 @@ impl NetworkService for StubNetworkService {
                     )));
                 }
                 Ok(())
-            })
-            .await
-            .map_err(|e| match e {
-                CircuitBreakerError::Open => MeshNetworkError::Timeout("circuit open".to_string()),
-                CircuitBreakerError::Inner(err) => err,
-            })
+            }
+        })
+        .await
     }
 
     async fn broadcast_message(&self, message: ProtocolMessage) -> Result<(), MeshNetworkError> {
-        let mut breaker = NETWORK_BREAKER.lock().await;
-        breaker
-            .call(|| async {
-                log::debug!("[StubNetworkService] Broadcasting message: {:?}", message);
-                if let MessagePayload::GossipMessage(gossip) = &message.payload {
+        let msg = message.clone();
+        with_resilience(|| {
+            let m = msg.clone();
+            async move {
+                log::debug!("[StubNetworkService] Broadcasting message: {:?}", m);
+                if let MessagePayload::GossipMessage(gossip) = &m.payload {
                     if gossip.topic == "system_critical_error_topic" {
                         return Err(MeshNetworkError::Libp2p(
                             "Broadcast failed: system critical topic is currently down."
@@ -343,22 +374,24 @@ impl NetworkService for StubNetworkService {
                     }
                 }
                 Ok(())
-            })
-            .await
-            .map_err(|e| match e {
-                CircuitBreakerError::Open => MeshNetworkError::Timeout("circuit open".to_string()),
-                CircuitBreakerError::Inner(err) => err,
-            })
+            }
+        })
+        .await
     }
 
     async fn subscribe(&self) -> Result<Receiver<ProtocolMessage>, MeshNetworkError> {
-        log::info!("[StubNetworkService] Subscribing to messages... returning an empty channel.");
-        let (_tx, rx) = tokio::sync::mpsc::channel(1);
-        Ok(rx)
+        with_resilience(|| async {
+            log::info!(
+                "[StubNetworkService] Subscribing to messages... returning an empty channel."
+            );
+            let (_tx, rx) = tokio::sync::mpsc::channel(1);
+            Ok(rx)
+        })
+        .await
     }
 
     async fn get_network_stats(&self) -> Result<NetworkStats, MeshNetworkError> {
-        Ok(NetworkStats::default())
+        with_resilience(|| async { Ok(NetworkStats::default()) }).await
     }
 
     async fn send_signed_message(
@@ -396,41 +429,46 @@ impl NetworkService for StubNetworkService {
     }
 
     async fn store_record(&self, key: String, value: Vec<u8>) -> Result<(), MeshNetworkError> {
-        let mut breaker = NETWORK_BREAKER.lock().await;
-        breaker
-            .call(|| async {
+        let key_cl = key.clone();
+        let val_cl = value.clone();
+        with_resilience(|| {
+            let k = key_cl.clone();
+            let v = val_cl.clone();
+            async move {
                 let mut map = self.records.lock().await;
-                map.insert(key, value);
+                map.insert(k, v);
                 Ok(())
-            })
-            .await
-            .map_err(|e| match e {
-                CircuitBreakerError::Open => MeshNetworkError::Timeout("circuit open".to_string()),
-                CircuitBreakerError::Inner(err) => err,
-            })
+            }
+        })
+        .await
     }
 
     async fn get_record(&self, key: String) -> Result<Option<Vec<u8>>, MeshNetworkError> {
-        let mut breaker = NETWORK_BREAKER.lock().await;
-        breaker
-            .call(|| async {
+        let key_cl = key.clone();
+        with_resilience(|| {
+            let k = key_cl.clone();
+            async move {
                 let map = self.records.lock().await;
-                Ok(map.get(&key).cloned())
-            })
-            .await
-            .map_err(|e| match e {
-                CircuitBreakerError::Open => MeshNetworkError::Timeout("circuit open".to_string()),
-                CircuitBreakerError::Inner(err) => err,
-            })
+                Ok(map.get(&k).cloned())
+            }
+        })
+        .await
     }
 
     #[cfg(feature = "libp2p")]
     async fn connect_peer(&self, addr: libp2p::Multiaddr) -> Result<(), MeshNetworkError> {
-        log::info!(
-            "[StubNetworkService] Pretending to connect to peer at {}",
-            addr
-        );
-        Ok(())
+        let a = addr.clone();
+        with_resilience(|| {
+            let value = a.clone();
+            async move {
+                log::info!(
+                    "[StubNetworkService] Pretending to connect to peer at {}",
+                    value
+                );
+                Ok(())
+            }
+        })
+        .await
     }
 
     fn as_any(&self) -> &dyn Any {
