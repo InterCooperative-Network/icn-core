@@ -73,8 +73,10 @@ The project has achieved a significant milestone with a production-ready foundat
 - **Real Protocol Data Models**: DIDs, CIDs, DagBlocks, governance primitives
 - **Multiple Storage Backends**: SQLite, RocksDB, Sled, File-based persistence
 - **API Layer**: Comprehensive REST endpoints with authentication and TLS
-- **P2P Mesh Networking**: libp2p integration with Kademlia peer discovery
-- **Production Security**: Ed25519 cryptographic signing with memory protection
+- **P2P Mesh Networking**: real libp2p networking stack with Kademlia peer discovery
+- **PostgresDagStore**: scalable PostgreSQL backend for DAG storage
+- **WASM ResourceLimiter**: caps CPU and memory usage for mesh jobs
+- **Production Security**: `Ed25519Signer` with memory protection, encrypted key files and optional HSM integration
 - **Comprehensive Error Handling**: Robust error propagation and user feedback
 
 ### **✅ Governance & Economics**
@@ -455,6 +457,15 @@ just devnet
 # Manual Docker build (requires 64 MiB stack)
 export RUST_MIN_STACK=67108864
 docker build -f icn-devnet/Dockerfile .
+```
+
+#### 10-Node Devnet
+For larger scale testing you can spin up a ten node federation with load generation:
+
+```bash
+scripts/run_10node_devnet.sh --start-only   # launch containers
+scripts/run_10node_devnet.sh --jobs-only    # submit sample jobs
+scripts/run_10node_devnet.sh --stop-only    # tear down
 ```
 
 Future development and outstanding tasks are tracked on the [issue tracker](https://github.com/InterCooperative/icn-core/issues). Community feedback and contributions are always welcome!
