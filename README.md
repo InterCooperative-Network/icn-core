@@ -143,6 +143,10 @@ cargo build --no-default-features --features "with-libp2p persist-rocksdb"
   --storage-path ./icn_data/node1.sqlite \
   --mana-ledger-backend sled \
   --mana-ledger-path ./icn_data/mana1.sled \
+  --governance-db-path ./icn_data/gov.sqlite \
+  --node-did-path ./icn_data/node1.did \
+  --node-private-key-path ./icn_data/node1.key \
+  --http-listen-addr 127.0.0.1:7845 \
   --auth-token "secure-api-token" \
   --tls-cert-path ./certs/server.crt \
   --tls-key-path ./certs/server.key
@@ -160,14 +164,39 @@ cargo build --no-default-features --features "with-libp2p persist-rocksdb"
 # Interact with a node via the CLI
 ./target/debug/icn-cli info
 ./target/debug/icn-cli status
+./target/debug/icn-cli compile-ccl examples/simple.ccl
+./target/debug/icn-cli submit-job examples/echo-job.json
+./target/debug/icn-cli job-status <JOB_CID>
 ./target/debug/icn-cli governance propose "Increase mesh job timeout to 300 seconds"
-./target/debug/icn-cli mesh submit-job echo-job.json
+./target/debug/icn-cli network discover-peers
 
 # Federation management commands
 ./target/debug/icn-cli federation join <PEER_ID>
 ./target/debug/icn-cli federation status
 ./target/debug/icn-cli federation leave <PEER_ID>
 ./target/debug/icn-cli federation list-peers
+```
+
+### Architecture Overview
+
+The following text diagrams from [docs/ONBOARDING.md](docs/ONBOARDING.md) illustrate how core components interact.
+
+#### Block Storage
+
+```text
+Node Runtime -> DagStorageService: put(block)
+DagStorageService -> StorageBackend: persist block
+StorageBackend --> DagStorageService: CID
+DagStorageService --> Node Runtime: CID
+```
+
+#### Peer Messaging
+
+```text
+Node A -> NetworkService: send_message(Node B, msg)
+NetworkService -> Node B: deliver msg
+Node B -> NetworkService: optional response
+NetworkService -> Node A: response
 ```
 
 ### Justfile Commands
@@ -249,30 +278,30 @@ This approach ensures errors are not silently ignored and provides clear debuggi
 This workspace is organized into several crates, each with a specific focus:
 
 ### **Core Infrastructure**
-- **`icn-common`**: Shared data structures, types, utilities, and error definitions
-- **`icn-runtime`**: WASM execution environment, job orchestration, and host ABI
-- **`icn-api`**: API endpoints, DTOs, and service traits for external interfaces
+- **`icn-common`** – Shared types and error utilities used across crates
+- **`icn-runtime`** – Host runtime with WASM execution and job orchestration
+- **`icn-api`** – HTTP/gRPC API definitions and client helpers
 
-### **Identity & Security**  
-- **`icn-identity`**: Decentralized identity (DIDs), verifiable credentials, and cryptographic operations
-- **`icn-dag`**: Content-addressed DAG storage, manipulation, and receipt anchoring
+### **Identity & Security**
+- **`icn-identity`** – DID management and credential verification
+- **`icn-dag`** – Content-addressed storage and receipt anchoring
 
 ### **Governance & Economics**
-- **`icn-governance`**: Proposal systems, voting mechanisms, and policy execution
-- **`icn-economics`**: Mana accounting, scoped token management, and economic policies
-- **`icn-reputation`**: Reputation scoring, contribution tracking, and trust metrics
+- **`icn-governance`** – Proposals, voting, and policy execution
+- **`icn-economics`** – Mana accounting and economic policies
+- **`icn-reputation`** – Contribution tracking and trust metrics
 
 ### **Networking & Computation**
-- **`icn-network`**: P2P networking with libp2p, peer discovery, and federation sync
-- **`icn-mesh`**: Distributed job orchestration, scheduling, and execution management
+- **`icn-network`** – libp2p peer discovery and federation sync
+- **`icn-mesh`** – Distributed job scheduling and execution
 
 ### **Language & Protocol**
-- **[`icn-ccl`](icn-ccl/README.md)**: Cooperative Contract Language compiler producing WASM modules
-- **`icn-protocol`**: Core message formats, communication protocols, and serialization
+- **[`icn-ccl`](icn-ccl/README.md)** – Cooperative Contract Language compiler
+- **`icn-protocol`** – Core message formats and serialization
 
 ### **User Interfaces**
-- **`icn-cli`**: Command-line interface for users and administrators
-- **`icn-node`**: Main binary for running ICN daemon processes with HTTP API
+- **`icn-cli`** – Command-line interface for operators
+- **`icn-node`** – Main daemon binary exposing the HTTP API
 
 More detailed information can be found in the `README.md` file within each crate's directory.
 
