@@ -86,6 +86,7 @@ ICN enables autonomous federated systems that support cooperative coordination w
 - **Federation Management**: CLI commands for join, leave, status, list-peers
 - **Federation Handshake**: Join/response protocol for peer management
 - **Periodic Peer Discovery**: Automated Kademlia-based peer discovery
+- **libp2p Networking Stack**: Real peer-to-peer transport with Noise security
 
 ### **🚧 In Development**
 - **Interfederation Protocol**: Cross-federation credential validation
@@ -108,6 +109,7 @@ ICN enables autonomous federated systems that support cooperative coordination w
 - **Role-Based Access Control**: Programmable via CCL
 - **Cryptographic Linking**: All data cryptographically anchored
 - **Persistence Configuration**: Runtime backend selection via CLI
+- **PostgresDagStore**: High-performance PostgreSQL backend for DAG persistence
 
 ### **🚧 In Development**
 - **End-to-End Encryption**: All storage and transmission encrypted
@@ -130,6 +132,7 @@ ICN enables autonomous federated systems that support cooperative coordination w
 - **P2P Job Routing**: Peer-to-peer workload coordination
 - **Mana-Based Resource Management**: Economic enforcement for job execution
 - **Job Lifecycle Management**: Complete submission, bidding, execution, receipt flow
+- **ResourceLimiter**: CPU and memory caps for WASM job execution
 
 ### **🚧 In Development**
 - **Mesh Load Balancing**: Intelligent routing based on capacity and reputation
@@ -148,7 +151,8 @@ ICN enables autonomous federated systems that support cooperative coordination w
 
 ### **✅ Implemented**
 - **End-to-End Cryptography**: All proposals, votes, and jobs signed
-- **Ed25519 Production Signing**: Memory-protected cryptographic operations
+- **Ed25519 Production Signing**: Secure `Ed25519Signer` with memory-protected operations
+- **Encrypted Key Files & HSM Support**: See [PRODUCTION_SECURITY_GUIDE.md](PRODUCTION_SECURITY_GUIDE.md)
 - **API Authentication**: Bearer token authentication for HTTP endpoints
 - **TLS Support**: HTTPS-only API endpoints with certificate management
 - **Tamper-Evident Audit Logs**: Comprehensive action tracking
@@ -175,6 +179,7 @@ ICN enables autonomous federated systems that support cooperative coordination w
 - **HTTP API**: REST endpoints with authentication and TLS
 - **Multiple Storage Backends**: Flexible persistence options for DAG and mana
 - **Containerized Devnet**: Multi-node federation testing
+- **10-Node Devnet Script**: `scripts/run_10node_devnet.sh` for large scale tests
 - **Prometheus Metrics**: Built-in metrics collection and monitoring
 - **Audit Logging**: Comprehensive operational event tracking
 
