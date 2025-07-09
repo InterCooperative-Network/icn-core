@@ -40,8 +40,8 @@ use icn_protocol::{
 };
 use icn_protocol::{MessagePayload, ProtocolMessage};
 use icn_runtime::context::{
-    DefaultMeshNetworkService, Ed25519Signer, RuntimeContext, StubMeshNetworkService, Signer,
-    MeshNetworkServiceType,
+    DefaultMeshNetworkService, Ed25519Signer, MeshNetworkServiceType, RuntimeContext, Signer,
+    StubMeshNetworkService,
 };
 use icn_runtime::{host_anchor_receipt, host_submit_mesh_job, ReputationUpdater};
 use prometheus_client::{encoding::text::encode, registry::Registry};
@@ -607,7 +607,6 @@ pub async fn app_router_with_options(
         let gov_mod = rt_ctx.governance_module.clone();
         let rate_opt = rate_limiter.clone();
         let param_store_opt = parameter_store.clone();
-        let handle = tokio::runtime::Handle::current();
         let mut gov = gov_mod.lock().await;
         gov.set_callback(move |proposal| {
             if let icn_governance::ProposalType::SystemParameterChange(param, value) =
@@ -618,17 +617,13 @@ pub async fn app_router_with_options(
                         let new_lim: u64 = value
                             .parse::<u64>()
                             .map_err(|e| CommonError::InvalidInputError(e.to_string()))?;
-                        handle.block_on(async {
-                            let mut data = limiter.lock().await;
-                            data.limit = new_lim;
-                        });
+                        let mut data = limiter.blocking_lock();
+                        data.limit = new_lim;
                     }
                     if let Some(ref store) = param_store_opt {
                         let val = value.clone();
-                        handle.block_on(async {
-                            let mut ps = store.lock().await;
-                            let _ = ps.set_parameter(param, &val);
-                        });
+                        let mut ps = store.blocking_lock();
+                        let _ = ps.set_parameter(param, &val);
                     }
                 }
             }
@@ -726,8 +721,7 @@ pub async fn app_router_from_context(
         let gov_mod = ctx.governance_module.clone();
         let rate_opt = rate_limiter.clone();
         let param_store_opt: Option<Arc<TokioMutex<ParameterStore>>> = None;
-        let handle = tokio::runtime::Handle::current();
-        let mut gov = handle.block_on(async { gov_mod.lock().await });
+        let mut gov = gov_mod.lock().await;
         gov.set_callback(move |proposal| {
             if let icn_governance::ProposalType::SystemParameterChange(param, value) =
                 &proposal.proposal_type
@@ -737,17 +731,13 @@ pub async fn app_router_from_context(
                         let new_lim: u64 = value
                             .parse::<u64>()
                             .map_err(|e| CommonError::InvalidInputError(e.to_string()))?;
-                        handle.block_on(async {
-                            let mut data = limiter.lock().await;
-                            data.limit = new_lim;
-                        });
+                        let mut data = limiter.blocking_lock();
+                        data.limit = new_lim;
                     }
                     if let Some(ref store) = param_store_opt {
                         let val = value.clone();
-                        handle.block_on(async {
-                            let mut ps = store.lock().await;
-                            let _ = ps.set_parameter(param, &val);
-                        });
+                        let mut ps = store.blocking_lock();
+                        let _ = ps.set_parameter(param, &val);
                     }
                 }
             }
@@ -1082,14 +1072,7 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
     {
         let gov_mod = rt_ctx.governance_module.clone();
         let rate_opt = rate_limiter.clone();
-        let handle = tokio::runtime::Handle::current();
-        let mut gov = match gov_mod.lock() {
-            Ok(gov) => gov,
-            Err(e) => {
-                error!("Failed to lock governance module: {}", e);
-                return Err(format!("Failed to lock governance module: {}", e).into());
-            }
-        };
+        let mut gov = gov_mod.lock().await;
         gov.set_callback(move |proposal| {
             if let icn_governance::ProposalType::SystemParameterChange(param, value) =
                 &proposal.proposal_type
@@ -1099,10 +1082,8 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
                         let new_lim: u64 = value
                             .parse::<u64>()
                             .map_err(|e| CommonError::InvalidInputError(e.to_string()))?;
-                        handle.block_on(async {
-                            let mut data = limiter.lock().await;
-                            data.limit = new_lim;
-                        });
+                        let mut data = limiter.blocking_lock();
+                        data.limit = new_lim;
                     }
                 }
             }
@@ -1699,16 +1680,20 @@ async fn dag_meta_handler(
                 CommonError::StorageError(msg) => {
                     CommonError::StorageError(format!("API: Failed to retrieve DagBlock: {}", msg))
                 }
-                CommonError::DeserializationError(msg) => CommonError::DeserializationError(format!(
-                    "API: Deserialization error during get: {}",
-                    msg
+                CommonError::DeserializationError(msg) => CommonError::DeserializationError(
+                    format!("API: Deserialization error during get: {}", msg),
+                ),
+                CommonError::PolicyDenied(msg) => {
+                    CommonError::PolicyDenied(format!("API: {}", msg))
+                }
+                _ => CommonError::ApiError(format!(
+                    "API: Unexpected error during store.get: {:?}",
+                    e
                 )),
-                CommonError::PolicyDenied(msg) => CommonError::PolicyDenied(format!("API: {}", msg)),
-                _ => CommonError::ApiError(format!("API: Unexpected error during store.get: {:?}", e)),
             }),
         }
     };
-    
+
     match metadata_result {
         Ok(Some(meta)) => (StatusCode::OK, Json(meta)).into_response(),
         Ok(None) => map_rust_error_to_json_response("Block not found", StatusCode::NOT_FOUND)
@@ -2058,15 +2043,7 @@ async fn gov_revoke_handler(
 // GET /governance/proposals
 async fn gov_list_proposals_handler(State(state): State<AppState>) -> impl IntoResponse {
     debug!("Received /governance/proposals request");
-    let gov_mod = match state.runtime_context.governance_module.lock() {
-        Ok(gov) => gov,
-        Err(e) => {
-            return map_rust_error_to_json_response(
-                format!("Failed to lock governance module: {}", e),
-                StatusCode::INTERNAL_SERVER_ERROR,
-            ).into_response();
-        }
-    };
+    let gov_mod = state.runtime_context.governance_module.lock().await;
     match gov_mod.list_proposals() {
         Ok(props) => (StatusCode::OK, Json(props)).into_response(),
         Err(e) => map_rust_error_to_json_response(
@@ -2083,15 +2060,7 @@ async fn gov_get_proposal_handler(
     AxumPath(proposal_id_str): AxumPath<String>,
 ) -> impl IntoResponse {
     debug!("Received /governance/proposal/{} request", proposal_id_str);
-    let gov_mod = match state.runtime_context.governance_module.lock() {
-        Ok(gov) => gov,
-        Err(e) => {
-            return map_rust_error_to_json_response(
-                format!("Failed to lock governance module: {}", e),
-                StatusCode::INTERNAL_SERVER_ERROR,
-            ).into_response();
-        }
-    };
+    let gov_mod = state.runtime_context.governance_module.lock().await;
     let pid = icn_governance::ProposalId(proposal_id_str);
     match gov_mod.get_proposal(&pid) {
         Ok(Some(prop)) => (StatusCode::OK, Json(prop)).into_response(),
