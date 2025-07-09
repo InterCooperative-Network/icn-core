@@ -412,7 +412,8 @@ networks:
 volumes:
   node-a-data:
   node-b-data:
-  node-c-data:  node-d-data:
+  node-c-data:
+  node-d-data:
   node-e-data:
   node-f-data:
   node-g-data:
