@@ -32,7 +32,7 @@ Every cooperative feature follows ICN's established patterns:
 
 ### **3. Incremental Delivery**
 Ship features in functional modules that provide immediate value:
-- **Banking MVP** first (mutual credit, loans)
+- **Cooperative banking module** first (now part of *ICN Core v0.2 – Cooperative Infrastructure Engine (Beta)*, covering mutual credit and loans)
 - **Mutual aid tools** second (resource sharing, emergency response)
 - **Specialized systems** third (housing, education, climate)
 - **Advanced democracy** fourth (assemblies, budgeting, justice)
@@ -131,7 +131,7 @@ legal = []
 
 ## **📅 Implementation Timeline**
 
-### **Phase 1: Cooperative Banking MVP (Q1-Q2 2027)**
+### **Phase 1: Cooperative Banking Module – ICN Core v0.2 Beta (Q1-Q2 2027)**
 **Duration:** 6 months | **Team Size:** 3-4 developers
 
 #### **Deliverables:**
@@ -326,7 +326,7 @@ Each cooperative feature requires:
 ### **For Developers**
 1. **Review existing ICN architecture** - Understand current crate structure
 2. **Join Cooperative Working Group** - Participate in planning discussions
-3. **Contribute to Phase 1** - Start with banking MVP implementation
+3. **Contribute to Phase 1** - Start with the cooperative banking module included in **ICN Core v0.2 – Cooperative Infrastructure Engine (Beta)**
 4. **Write tests first** - Follow TDD approach for all cooperative features
 
 ### **For Cooperatives**
@@ -346,5 +346,4 @@ Each cooperative feature requires:
 **The future of digital infrastructure is cooperative. Let's build it together.**
 
 ---
-
 *For questions about cooperative feature implementation, join our [Cooperative Working Group](https://github.com/InterCooperative/icn-core/discussions/categories/cooperative-infrastructure) or contact us at [cooperatives@intercooperative.network](mailto:cooperatives@intercooperative.network).* 

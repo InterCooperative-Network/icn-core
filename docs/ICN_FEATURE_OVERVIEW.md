@@ -358,8 +358,8 @@ ICN enables autonomous federated systems that support cooperative coordination w
 - Supply chain and logistics management
 - Academic research partnerships
 
-### **Phase 10: Cooperative Infrastructure Foundation (Q1-Q2 2027)**
-- Cooperative banking MVP (mutual credit systems, loans)
+-### **Phase 10: Cooperative Infrastructure Foundation (Q1-Q2 2027)**
+- Cooperative banking module (included in **ICN Core v0.2 – Cooperative Infrastructure Engine (Beta)**, covering mutual credit systems and loans)
 - Mutual aid coordination tools (resource sharing, emergency response)
 - Worker cooperative tools (profit sharing, democratic workplace)
 - Consumer cooperative features (patronage, benefits management)
