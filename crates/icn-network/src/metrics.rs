@@ -13,3 +13,9 @@ pub static PING_MAX_RTT_MS: Lazy<Gauge<f64, AtomicU64>> = Lazy::new(Gauge::defau
 
 /// Average ping round-trip time in milliseconds.
 pub static PING_AVG_RTT_MS: Lazy<Gauge<f64, AtomicU64>> = Lazy::new(Gauge::default);
+
+/// Current number of connected peers.
+pub static CONNECTED_PEERS: Lazy<Gauge<f64, AtomicU64>> = Lazy::new(Gauge::default);
+
+/// Number of peers in the Kademlia routing table.
+pub static KADEMLIA_PEERS: Lazy<Gauge<f64, AtomicU64>> = Lazy::new(Gauge::default);

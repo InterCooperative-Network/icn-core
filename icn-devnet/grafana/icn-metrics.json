@@ -1,0 +1,15 @@
+{
+  "uid": "icn-metrics",
+  "title": "ICN Metrics",
+  "schemaVersion": 37,
+  "version": 1,
+  "panels": [
+    {"type": "stat", "title": "Jobs Queued", "id": 1, "datasource": "Prometheus", "targets": [{"expr": "jobs_queued_total"}], "gridPos": {"h":4, "w":8, "x":0, "y":0}},
+    {"type": "stat", "title": "Jobs Completed", "id": 2, "datasource": "Prometheus", "targets": [{"expr": "jobs_completed_total"}], "gridPos": {"h":4, "w":8, "x":8, "y":0}},
+    {"type": "stat", "title": "Jobs Failed", "id": 3, "datasource": "Prometheus", "targets": [{"expr": "jobs_failed_total"}], "gridPos": {"h":4, "w":8, "x":16, "y":0}},
+    {"type": "gauge", "title": "Connected Peers", "id": 4, "datasource": "Prometheus", "targets": [{"expr": "network_connected_peers"}], "gridPos": {"h":4, "w":8, "x":0, "y":4}},
+    {"type": "gauge", "title": "Kademlia Peers", "id": 5, "datasource": "Prometheus", "targets": [{"expr": "network_kademlia_peers"}], "gridPos": {"h":4, "w":8, "x":8, "y":4}},
+    {"type": "timeseries", "title": "DAG Put Calls", "id": 6, "datasource": "Prometheus", "targets": [{"expr": "dag_put_calls"}], "gridPos": {"h":6, "w":12, "x":0, "y":8}},
+    {"type": "timeseries", "title": "DAG Get Calls", "id": 7, "datasource": "Prometheus", "targets": [{"expr": "dag_get_calls"}], "gridPos": {"h":6, "w":12, "x":12, "y":8}}
+  ]
+}

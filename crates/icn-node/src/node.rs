@@ -1317,9 +1317,11 @@ async fn metrics_handler() -> impl IntoResponse {
     use icn_mesh::metrics::{
         JOB_PROCESS_TIME, PENDING_JOBS_GAUGE, SCHEDULE_MESH_JOB_CALLS, SELECT_EXECUTOR_CALLS,
     };
+    use icn_network::metrics::{CONNECTED_PEERS, KADEMLIA_PEERS};
     use icn_runtime::metrics::{
         HOST_ACCOUNT_GET_MANA_CALLS, HOST_ACCOUNT_SPEND_MANA_CALLS,
-        HOST_GET_PENDING_MESH_JOBS_CALLS, HOST_SUBMIT_MESH_JOB_CALLS,
+        HOST_GET_PENDING_MESH_JOBS_CALLS, HOST_SUBMIT_MESH_JOB_CALLS, JOBS_COMPLETED, JOBS_FAILED,
+        JOBS_QUEUED,
     };
     use prometheus_client::metrics::{counter::Counter, gauge::Gauge, histogram::Histogram};
 
@@ -1405,6 +1407,31 @@ async fn metrics_handler() -> impl IntoResponse {
         "mesh_job_process_time_seconds",
         "Time from job assignment to receipt",
         JOB_PROCESS_TIME.clone(),
+    );
+    registry.register(
+        "jobs_queued_total",
+        "Total jobs queued",
+        JOBS_QUEUED.clone(),
+    );
+    registry.register(
+        "jobs_completed_total",
+        "Total jobs completed successfully",
+        JOBS_COMPLETED.clone(),
+    );
+    registry.register(
+        "jobs_failed_total",
+        "Total jobs that failed",
+        JOBS_FAILED.clone(),
+    );
+    registry.register(
+        "network_connected_peers",
+        "Currently connected peers",
+        CONNECTED_PEERS.clone(),
+    );
+    registry.register(
+        "network_kademlia_peers",
+        "Peers in Kademlia table",
+        KADEMLIA_PEERS.clone(),
     );
 
     // Add system metrics

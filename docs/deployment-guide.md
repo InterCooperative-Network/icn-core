@@ -143,3 +143,15 @@ retry_max_delay_ms = 1000
 
 These values control the helper used across HTTP and P2P operations.
 
+## Monitoring with Prometheus and Grafana
+
+The devnet containers include optional monitoring services. Launch the stack with
+
+```bash
+docker-compose --profile monitoring up -d
+```
+
+This starts Prometheus scraping each node's `/metrics` endpoint and Grafana on <http://localhost:3000>.
+Dashboards from `icn-devnet/grafana/` can be imported into Grafana to view job lifecycle metrics, peer status, and DAG activity.
+
+

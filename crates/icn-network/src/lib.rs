@@ -595,6 +595,7 @@ pub mod libp2p_service {
 
         fn update_kademlia_peers(&mut self, count: usize) {
             self.kademlia_peers = count;
+            crate::metrics::KADEMLIA_PEERS.set(count as f64);
         }
 
         fn record_latency(&mut self, rtt: std::time::Duration) {
@@ -1286,6 +1287,7 @@ pub mod libp2p_service {
                     {
                         let mut stats_guard = stats.lock().unwrap();
                         stats_guard.peer_count += 1;
+                        crate::metrics::CONNECTED_PEERS.set(stats_guard.peer_count as f64);
                     }
                     log::info!("Connected to peer: {}", peer_id);
                 }
@@ -1293,6 +1295,7 @@ pub mod libp2p_service {
                     {
                         let mut stats_guard = stats.lock().unwrap();
                         stats_guard.peer_count = stats_guard.peer_count.saturating_sub(1);
+                        crate::metrics::CONNECTED_PEERS.set(stats_guard.peer_count as f64);
                     }
                     log::info!("Disconnected from peer: {}", peer_id);
                 }
