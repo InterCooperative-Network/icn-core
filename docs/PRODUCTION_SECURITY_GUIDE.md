@@ -147,6 +147,8 @@ ICN provides native TLS support using Rustls:
   --tls-key-path /etc/ssl/private/server.key \
   --api-key "your-api-key"
 ```
+Implementation note: the node loads these certificate paths and starts the
+Rustls server in [`crates/icn-node/src/node.rs`](../crates/icn-node/src/node.rs).
 
 ### **Certificate Management**
 
@@ -366,6 +368,9 @@ RUST_LOG=audit=info,icn_node=info
 // - Federation changes
 // - Configuration changes
 ```
+Implementation note: events are emitted using
+`info!(target = "audit", ...)` in
+[`crates/icn-node/src/node.rs`](../crates/icn-node/src/node.rs).
 
 ### **Log Monitoring Setup**
 
@@ -423,6 +428,8 @@ Grafana dashboard for ICN security monitoring:
 ### **Network Security**
 
 - [ ] **Firewall Configuration**: Only allow necessary ports (443, P2P port)
+  - Use `ufw` or `iptables` to permit HTTPS and the P2P port configured in
+    `node_config.toml`. Block all other inbound traffic.
 - [ ] **DDoS Protection**: Implement rate limiting and connection limits
 - [ ] **Network Segmentation**: Isolate ICN nodes in secure network zones
 - [ ] **VPN Access**: Require VPN for administrative access
@@ -445,8 +452,14 @@ Grafana dashboard for ICN security monitoring:
 ### **Operational Security**
 
 - [x] **Key Rotation**: Implement regular key rotation schedule
+  - The schedule is configured via `key_rotation_days` in
+    [`crates/icn-node/src/config.rs`](../crates/icn-node/src/config.rs).
 - [ ] **Backup Security**: Encrypt and secure backup data
+  - Encrypt backups with GPG or volume encryption and store them in restricted
+    offsite storage. Test restore procedures regularly.
 - [ ] **Incident Response**: Develop incident response procedures
+  - Create a runbook outlining detection, containment, and recovery steps.
+    Define on-call roles and escalation contacts.
 - [ ] **Security Monitoring**: Set up alerting for security events
 
 ### **Data Protection**
