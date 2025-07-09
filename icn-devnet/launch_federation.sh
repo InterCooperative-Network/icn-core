@@ -170,7 +170,15 @@ test_mesh_job_execution() {
         -H "x-api-key: $NODE_A_API_KEY" \
         -d '{
             "manifest_cid": "bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku",
-            "spec_json": { "Echo": { "payload": "ICN Devnet is working!" } },
+            "spec_json": {
+                "kind": { "Echo": { "payload": "ICN Devnet is working!" } },
+                "inputs": [],
+                "outputs": [],
+                "required_resources": {
+                    "cpu_cores": 0,
+                    "memory_mb": 0
+                }
+            },
             "cost_mana": 50
         }')
     
@@ -292,7 +300,7 @@ main() {
     echo -e "  curl -X POST $NODE_A_URL/mesh/submit \\"
     echo -e "    -H 'Content-Type: application/json' \\"
     echo -e "    -H 'x-api-key: $NODE_A_API_KEY' \\"
-    echo -e "    -d '{\"manifest_cid\": \"test\", \"spec_json\": {\"Echo\": {\"payload\": \"Hello ICN!\"}}, \"cost_mana\": 50}'"
+    echo -e "    -d '{\"manifest_cid\": \"test\", \"spec_json\": {\"kind\": {\"Echo\": {\"payload\": \"Hello ICN!\"}}, \"inputs\": [], \"outputs\": [], \"required_resources\": {\"cpu_cores\": 0, \"memory_mb\": 0}}, \"cost_mana\": 50}'"
     echo ""
     echo -e "${YELLOW}To stop the federation:${NC}"
     echo -e "  $DOCKER_COMPOSE -f $COMPOSE_FILE down"

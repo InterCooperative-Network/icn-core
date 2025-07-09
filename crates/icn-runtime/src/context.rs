@@ -2057,6 +2057,69 @@ impl RuntimeContext {
         result.map_err(HostAbiError::Common)?;
         Ok(())
     }
+
+    /// Create a new RuntimeContext with real libp2p networking and mDNS configuration.
+    #[cfg(feature = "enable-libp2p")]
+    pub async fn new_with_real_libp2p_and_mdns(
+        identity_str: &str,
+        listen_addresses: Vec<Multiaddr>,
+        bootstrap_peers: Option<Vec<(Libp2pPeerId, Multiaddr)>>,
+        dag_store_path: PathBuf,
+        mana_ledger_path: PathBuf,
+        reputation_store_path: PathBuf,
+        enable_mdns: bool,
+    ) -> Result<Arc<Self>, CommonError> {
+        log::info!("Initializing RuntimeContext with real libp2p networking and mDNS={}", enable_mdns);
+
+        // Parse the identity
+        let identity = Did::from_str(identity_str)
+            .map_err(|e| CommonError::InvalidInputError(format!("Invalid DID: {}", e)))?;
+
+        // Generate keys for this node
+        let (sk, pk) = generate_ed25519_keypair();
+        let signer = Arc::new(Ed25519Signer::new_with_keys(sk, pk));
+
+        // Create real libp2p network service with proper config
+        let mut config = NetworkConfig {
+            listen_addresses,
+            enable_mdns,
+            ..NetworkConfig::default()
+        };
+        if let Some(peers) = bootstrap_peers {
+            log::info!("Bootstrap peers provided: {} peers", peers.len());
+            config.bootstrap_peers = peers;
+        }
+
+        let libp2p_service =
+            Arc::new(ActualLibp2pNetworkService::new(config).await.map_err(|e| {
+                CommonError::NetworkError(format!("Failed to create libp2p service: {}", e))
+            })?);
+
+        log::info!(
+            "Libp2p service created with PeerID: {}",
+            libp2p_service.local_peer_id()
+        );
+
+        // Wrap in DefaultMeshNetworkService
+        let mesh_service = Arc::new(DefaultMeshNetworkService::new(
+            libp2p_service.clone() as Arc<dyn NetworkService>
+        ));
+
+        // Create RuntimeContext with real networking and persistent DAG storage
+        let ctx = Self::new_with_paths(
+            identity,
+            mesh_service,
+            signer,
+            Arc::new(KeyDidResolver),
+            dag_store_path,
+            mana_ledger_path,
+            reputation_store_path,
+            None,
+        )?;
+
+        log::info!("RuntimeContext with real libp2p networking created successfully");
+        Ok(ctx)
+    }
 }
 
 // --- Supporting: RuntimeContext::new_for_test ---

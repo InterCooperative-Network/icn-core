@@ -68,6 +68,7 @@ pub struct NodeConfig {
     pub listen_address: String,
     pub bootstrap_peers: Option<Vec<String>>,
     pub enable_p2p: bool,
+    pub enable_mdns: bool,
     pub api_key: Option<String>,
     /// Optional bearer token for Authorization header auth.
     pub auth_token: Option<String>,
@@ -127,6 +128,7 @@ impl Default for NodeConfig {
             listen_address: "/ip4/0.0.0.0/tcp/0".to_string(),
             bootstrap_peers: None,
             enable_p2p: cfg!(feature = "enable-libp2p"),
+            enable_mdns: true,  // Enable mDNS by default for local networks
             api_key: None,
             auth_token: None,
             auth_token_path: None,
@@ -175,6 +177,7 @@ struct P2pSection {
     listen_address: Option<String>,
     bootstrap_peers: Option<Vec<String>>,
     enable_p2p: Option<bool>,
+    enable_mdns: Option<bool>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -194,6 +197,7 @@ struct FileNodeConfig {
     listen_address: Option<String>,
     bootstrap_peers: Option<Vec<String>>,
     enable_p2p: Option<bool>,
+    enable_mdns: Option<bool>,
     api_key: Option<String>,
     auth_token: Option<String>,
     auth_token_path: Option<PathBuf>,
@@ -268,6 +272,9 @@ impl NodeConfig {
         }
         if let Some(v) = file.enable_p2p {
             self.enable_p2p = v;
+        }
+        if let Some(v) = file.enable_mdns {
+            self.enable_mdns = v;
         }
         if let Some(v) = file.api_key {
             self.api_key = Some(v);
@@ -353,6 +360,9 @@ impl NodeConfig {
         if let Some(v) = p2p.enable_p2p {
             self.enable_p2p = v;
         }
+        if let Some(v) = p2p.enable_mdns {
+            self.enable_mdns = v;
+        }
     }
 
     /// Override configuration values with `ICN_*` environment variables.
@@ -378,6 +388,7 @@ impl NodeConfig {
             v.parse::<StorageBackendType>()
         });
         set_from_env!(enable_p2p, "ICN_ENABLE_P2P", |v: &str| v.parse::<bool>());
+        set_from_env!(enable_mdns, "ICN_ENABLE_MDNS", |v: &str| v.parse::<bool>());
         set_from_env!(open_rate_limit, "ICN_OPEN_RATE_LIMIT", |v: &str| v
             .parse::<u64>());
 
@@ -476,6 +487,9 @@ impl NodeConfig {
         }
         if matches.contains_id("enable_p2p") {
             self.enable_p2p = true;
+        }
+        if matches.contains_id("enable_mdns") {
+            self.enable_mdns = true;
         }
         if let Some(v) = &cli.api_key {
             self.api_key = Some(v.clone());

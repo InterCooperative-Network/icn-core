@@ -198,6 +198,9 @@ pub struct Cli {
     #[clap(long, action)]
     pub enable_p2p: bool,
 
+    #[clap(long, action)]
+    pub enable_mdns: bool,
+
     #[clap(long)]
     pub api_key: Option<String>,
 
@@ -886,13 +889,14 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
                 .expect("Invalid p2p listen multiaddr");
             let listen_addrs = vec![listen_addr];
 
-            match RuntimeContext::new_with_real_libp2p(
+            match RuntimeContext::new_with_real_libp2p_and_mdns(
                 &node_did_string,
                 listen_addrs,
                 bootstrap_peers,
                 config.storage_path.clone(),
                 config.mana_ledger_path.clone(),
                 config.reputation_db_path.clone(),
+                config.enable_mdns,
             )
             .await
             {
