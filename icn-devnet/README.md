@@ -71,6 +71,28 @@ curl -H "X-API-Key: devnet-a-key" http://localhost:5001/mesh/jobs
 }
 ```
 
+## 10-Node Federation
+
+For extended testing you can spin up a larger federation using the helper
+`scripts/run_10node_devnet.sh` script. Run it from the repository root to start
+ten nodes and submit a batch of sample jobs:
+
+```bash
+scripts/run_10node_devnet.sh
+```
+
+Set the `NUM_JOBS` environment variable to control how many jobs are submitted.
+Prometheus and Grafana can be enabled by passing `--profile monitoring` to
+`docker-compose` before running the script:
+
+```bash
+docker-compose --profile monitoring up -d
+scripts/run_10node_devnet.sh
+```
+
+This exposes Prometheus at `http://localhost:9090` and Grafana at
+`http://localhost:3000`.
+
 ## 🏗️ Architecture
 
 ### Network Topology
