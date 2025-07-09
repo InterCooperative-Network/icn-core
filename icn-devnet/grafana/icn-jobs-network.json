@@ -1,0 +1,16 @@
+{
+  "uid": "icn-jobs-network",
+  "title": "ICN Jobs & Network",
+  "schemaVersion": 37,
+  "version": 1,
+  "panels": [
+    {"type": "stat", "title": "Jobs Submitted", "id": 1, "datasource": "Prometheus", "targets": [{"expr": "jobs_submitted_total"}], "gridPos": {"h":4,"w":6,"x":0,"y":0}},
+    {"type": "stat", "title": "Jobs Completed", "id": 2, "datasource": "Prometheus", "targets": [{"expr": "jobs_completed_total"}], "gridPos": {"h":4,"w":6,"x":6,"y":0}},
+    {"type": "stat", "title": "Jobs Failed", "id": 3, "datasource": "Prometheus", "targets": [{"expr": "jobs_failed_total"}], "gridPos": {"h":4,"w":6,"x":12,"y":0}},
+    {"type": "gauge", "title": "Active Jobs", "id": 4, "datasource": "Prometheus", "targets": [{"expr": "jobs_active"}], "gridPos": {"h":4,"w":6,"x":18,"y":0}},
+    {"type": "gauge", "title": "Connected Peers", "id": 5, "datasource": "Prometheus", "targets": [{"expr": "network_peer_count"}], "gridPos": {"h":4,"w":6,"x":0,"y":4}},
+    {"type": "gauge", "title": "Kademlia Peers", "id": 6, "datasource": "Prometheus", "targets": [{"expr": "network_kademlia_peers"}], "gridPos": {"h":4,"w":6,"x":6,"y":4}},
+    {"type": "timeseries", "title": "Bytes Sent", "id": 7, "datasource": "Prometheus", "targets": [{"expr": "network_bytes_sent_total"}], "gridPos": {"h":8,"w":12,"x":12,"y":4}},
+    {"type": "timeseries", "title": "Bytes Received", "id": 8, "datasource": "Prometheus", "targets": [{"expr": "network_bytes_received_total"}], "gridPos": {"h":8,"w":12,"x":0,"y":8}}
+  ]
+}

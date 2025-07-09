@@ -1053,6 +1053,8 @@ impl RuntimeContext {
             .await
             .map_err(|e| HostAbiError::InternalError(format!("{e:?}")))?;
         icn_mesh::metrics::PENDING_JOBS_GAUGE.inc();
+        crate::metrics::JOBS_SUBMITTED.inc();
+        crate::metrics::JOBS_ACTIVE_GAUGE.inc();
         self.job_states.insert(job.id.clone(), JobState::Pending);
         log::info!(
             "[RuntimeContext] Queued mesh job: id={:?}, state=Pending",
@@ -1162,6 +1164,8 @@ impl RuntimeContext {
                                 reason: format!("Failed to anchor receipt: {}", e),
                             },
                         );
+                        crate::metrics::JOBS_FAILED.inc();
+                        crate::metrics::JOBS_ACTIVE_GAUGE.dec();
                         if let Err(err) = self.credit_mana(&job.creator_did, job.cost_mana).await {
                             log::error!(
                                 "[JobManagerDetail] Failed to refund mana to {:?}: {}",
@@ -1184,6 +1188,8 @@ impl RuntimeContext {
                         reason: "No receipt received within timeout".to_string(),
                     },
                 );
+                crate::metrics::JOBS_FAILED.inc();
+                crate::metrics::JOBS_ACTIVE_GAUGE.dec();
                 if let Err(err) = self.credit_mana(&job.creator_did, job.cost_mana).await {
                     log::error!(
                         "[JobManagerDetail] Failed to refund mana to {:?}: {}",
@@ -1203,6 +1209,8 @@ impl RuntimeContext {
                         reason: format!("Error receiving receipt: {}", e),
                     },
                 );
+                crate::metrics::JOBS_FAILED.inc();
+                crate::metrics::JOBS_ACTIVE_GAUGE.dec();
                 if let Err(err) = self.credit_mana(&job.creator_did, job.cost_mana).await {
                     log::error!(
                         "[JobManagerDetail] Failed to refund mana to {:?}: {}",
@@ -1296,6 +1304,8 @@ impl RuntimeContext {
                                         reason: "No bids received".to_string(),
                                     },
                                 );
+                                crate::metrics::JOBS_FAILED.inc();
+                                crate::metrics::JOBS_ACTIVE_GAUGE.dec();
                                 if let Err(e) = self_clone
                                     .credit_mana(&job.creator_did, job.cost_mana)
                                     .await
@@ -1366,6 +1376,8 @@ impl RuntimeContext {
                                         reason: "No valid bid selected".to_string(),
                                     },
                                 );
+                                crate::metrics::JOBS_FAILED.inc();
+                                crate::metrics::JOBS_ACTIVE_GAUGE.dec();
                                 if let Err(e) = self_clone
                                     .credit_mana(&job.creator_did, job.cost_mana)
                                     .await
@@ -1597,6 +1609,9 @@ impl RuntimeContext {
                 receipt: receipt.clone(),
             },
         );
+        crate::metrics::JOBS_COMPLETED.inc();
+        crate::metrics::JOBS_ACTIVE_GAUGE.dec();
+        crate::metrics::RECEIPTS_ANCHORED.inc();
         log::debug!(
             "[RuntimeContext] Job {:?} state updated to Completed.",
             receipt.job_id

@@ -595,6 +595,7 @@ pub mod libp2p_service {
 
         fn update_kademlia_peers(&mut self, count: usize) {
             self.kademlia_peers = count;
+            crate::metrics::KADEMLIA_PEERS_GAUGE.set(count as i64);
         }
 
         fn record_latency(&mut self, rtt: std::time::Duration) {
@@ -962,6 +963,8 @@ pub mod libp2p_service {
 
             let (cmd_tx, mut cmd_rx) = mpsc::channel(256);
             let stats = Arc::new(Mutex::new(EnhancedNetworkStats::new()));
+            crate::metrics::PEER_COUNT_GAUGE.set(0);
+            crate::metrics::KADEMLIA_PEERS_GAUGE.set(0);
             let stats_clone = stats.clone();
 
             // Clone bootstrap_peers for use in the async task
@@ -1043,7 +1046,9 @@ pub mod libp2p_service {
                                         bincode::serialize(&message).map(|d| d.len()).unwrap_or(0) as u64;
                                     let mut stats_guard = stats_clone.lock().unwrap();
                                     stats_guard.bytes_sent += message_size;
+                                    crate::metrics::BYTES_SENT_TOTAL.inc_by(message_size);
                                     stats_guard.messages_sent += 1;
+                                    crate::metrics::MESSAGES_SENT_TOTAL.inc();
                                     let msg_type = message.payload.message_type().to_string();
                                     let type_stats = stats_guard.message_counts.entry(msg_type).or_default();
                                     type_stats.sent += 1;
@@ -1060,7 +1065,9 @@ pub mod libp2p_service {
                                         log::debug!("✅ [LIBP2P] Broadcast successful");
                                         let mut stats_guard = stats_clone.lock().unwrap();
                                         stats_guard.bytes_sent += data.len() as u64;
+                                        crate::metrics::BYTES_SENT_TOTAL.inc_by(data.len() as u64);
                                         stats_guard.messages_sent += 1;
+                                        crate::metrics::MESSAGES_SENT_TOTAL.inc();
 
                                         // Update message type statistics for broadcasts
                                         if let Ok(network_msg) = bincode::deserialize::<super::ProtocolMessage>(&data) {
@@ -1193,7 +1200,9 @@ pub mod libp2p_service {
                     {
                         let mut stats_guard = stats.lock().unwrap();
                         stats_guard.bytes_received += message_size;
+                        crate::metrics::BYTES_RECEIVED_TOTAL.inc_by(message_size);
                         stats_guard.messages_received += 1;
+                        crate::metrics::MESSAGES_RECEIVED_TOTAL.inc();
                     }
 
                     if let Ok(network_msg) =
@@ -1286,6 +1295,7 @@ pub mod libp2p_service {
                     {
                         let mut stats_guard = stats.lock().unwrap();
                         stats_guard.peer_count += 1;
+                        crate::metrics::PEER_COUNT_GAUGE.set(stats_guard.peer_count as i64);
                     }
                     log::info!("Connected to peer: {}", peer_id);
                 }
@@ -1293,6 +1303,7 @@ pub mod libp2p_service {
                     {
                         let mut stats_guard = stats.lock().unwrap();
                         stats_guard.peer_count = stats_guard.peer_count.saturating_sub(1);
+                        crate::metrics::PEER_COUNT_GAUGE.set(stats_guard.peer_count as i64);
                     }
                     log::info!("Disconnected from peer: {}", peer_id);
                 }
@@ -1317,7 +1328,9 @@ pub mod libp2p_service {
                                 {
                                     let mut stats_guard = stats.lock().unwrap();
                                     stats_guard.bytes_received += message_size;
+                                    crate::metrics::BYTES_RECEIVED_TOTAL.inc_by(message_size);
                                     stats_guard.messages_received += 1;
+                                    crate::metrics::MESSAGES_RECEIVED_TOTAL.inc();
                                     let msg_type = request.payload.message_type().to_string();
                                     let type_stats =
                                         stats_guard.message_counts.entry(msg_type).or_default();
@@ -1340,7 +1353,9 @@ pub mod libp2p_service {
                                 {
                                     let mut stats_guard = stats.lock().unwrap();
                                     stats_guard.bytes_received += message_size;
+                                    crate::metrics::BYTES_RECEIVED_TOTAL.inc_by(message_size);
                                     stats_guard.messages_received += 1;
+                                    crate::metrics::MESSAGES_RECEIVED_TOTAL.inc();
                                     let msg_type = response.payload.message_type().to_string();
                                     let type_stats =
                                         stats_guard.message_counts.entry(msg_type).or_default();

@@ -1317,9 +1317,15 @@ async fn metrics_handler() -> impl IntoResponse {
     use icn_mesh::metrics::{
         JOB_PROCESS_TIME, PENDING_JOBS_GAUGE, SCHEDULE_MESH_JOB_CALLS, SELECT_EXECUTOR_CALLS,
     };
+    use icn_network::metrics::{
+        BYTES_RECEIVED_TOTAL, BYTES_SENT_TOTAL, KADEMLIA_PEERS_GAUGE, MESSAGES_RECEIVED_TOTAL,
+        MESSAGES_SENT_TOTAL, PEER_COUNT_GAUGE, PING_AVG_RTT_MS, PING_LAST_RTT_MS, PING_MAX_RTT_MS,
+        PING_MIN_RTT_MS,
+    };
     use icn_runtime::metrics::{
         HOST_ACCOUNT_GET_MANA_CALLS, HOST_ACCOUNT_SPEND_MANA_CALLS,
-        HOST_GET_PENDING_MESH_JOBS_CALLS, HOST_SUBMIT_MESH_JOB_CALLS,
+        HOST_GET_PENDING_MESH_JOBS_CALLS, HOST_SUBMIT_MESH_JOB_CALLS, JOBS_ACTIVE_GAUGE,
+        JOBS_COMPLETED, JOBS_FAILED, JOBS_SUBMITTED, RECEIPTS_ANCHORED,
     };
     use prometheus_client::metrics::{counter::Counter, gauge::Gauge, histogram::Histogram};
 
@@ -1406,6 +1412,73 @@ async fn metrics_handler() -> impl IntoResponse {
         "Time from job assignment to receipt",
         JOB_PROCESS_TIME.clone(),
     );
+
+    // Runtime job lifecycle metrics
+    registry.register(
+        "jobs_submitted_total",
+        "Total jobs submitted",
+        JOBS_SUBMITTED.clone(),
+    );
+    registry.register(
+        "jobs_completed_total",
+        "Total jobs completed",
+        JOBS_COMPLETED.clone(),
+    );
+    registry.register(
+        "jobs_failed_total",
+        "Total jobs failed",
+        JOBS_FAILED.clone(),
+    );
+    registry.register(
+        "jobs_active",
+        "Jobs currently active",
+        JOBS_ACTIVE_GAUGE.clone(),
+    );
+    registry.register(
+        "receipts_anchored_total",
+        "Execution receipts anchored",
+        RECEIPTS_ANCHORED.clone(),
+    );
+
+    // Network metrics
+    registry.register(
+        "network_peer_count",
+        "Connected peers",
+        PEER_COUNT_GAUGE.clone(),
+    );
+    registry.register(
+        "network_kademlia_peers",
+        "Peers in Kademlia table",
+        KADEMLIA_PEERS_GAUGE.clone(),
+    );
+    registry.register(
+        "network_bytes_sent_total",
+        "Bytes sent over network",
+        BYTES_SENT_TOTAL.clone(),
+    );
+    registry.register(
+        "network_bytes_received_total",
+        "Bytes received over network",
+        BYTES_RECEIVED_TOTAL.clone(),
+    );
+    registry.register(
+        "network_messages_sent_total",
+        "Messages sent over network",
+        MESSAGES_SENT_TOTAL.clone(),
+    );
+    registry.register(
+        "network_messages_received_total",
+        "Messages received over network",
+        MESSAGES_RECEIVED_TOTAL.clone(),
+    );
+    registry.register(
+        "ping_last_rtt_ms",
+        "Last ping RTT",
+        PING_LAST_RTT_MS.clone(),
+    );
+    registry.register("ping_min_rtt_ms", "Min ping RTT", PING_MIN_RTT_MS.clone());
+    registry.register("ping_max_rtt_ms", "Max ping RTT", PING_MAX_RTT_MS.clone());
+    registry.register("ping_avg_rtt_ms", "Avg ping RTT", PING_AVG_RTT_MS.clone());
 
     // Add system metrics
     let now = SystemTime::now()
