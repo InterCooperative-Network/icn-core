@@ -159,6 +159,7 @@ fn validate_vote(voter: Did, proposal: Proposal, vote: Vote) -> Bool {
 - **Automatic Implementation**: CCL contracts execute decisions
 - **Monitoring**: Track implementation progress
 - **Compliance Checking**: Ensure proper execution
+- **Runtime Updates**: Parameters changed, members invited, and budgets allocated
 - **Feedback Collection**: Gather post-implementation insights
 
 ### **5. Amendment Process**

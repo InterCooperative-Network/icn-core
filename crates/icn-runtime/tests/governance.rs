@@ -5,6 +5,7 @@ use icn_runtime::{
     host_cast_governance_vote, host_close_governance_proposal_voting,
     host_create_governance_proposal, host_execute_governance_proposal,
 };
+use serde_json;
 use std::str::FromStr;
 
 #[tokio::test]
@@ -313,4 +314,62 @@ async fn proposal_body_is_stored_in_dag() {
     let store = ctx.dag_store.lock().await;
     let block = store.get(&cid).unwrap().expect("block stored");
     assert_eq!(block.data, b"full proposal text");
+}
+
+#[tokio::test]
+async fn parameter_change_execution_updates_runtime() {
+    let ctx = RuntimeContext::new_with_stubs("did:icn:test:param").unwrap();
+    {
+        let mut gov = ctx.governance_module.lock().await;
+        gov.add_member(Did::from_str("did:icn:test:param").unwrap());
+        gov.add_member(Did::from_str("did:icn:test:bob").unwrap());
+        gov.set_quorum(1);
+        gov.set_threshold(0.5);
+    }
+
+    let payload = serde_json::json!({
+        "proposal_type_str": "SystemParameterChange",
+        "type_specific_payload": serde_json::to_vec(&("test_limit", "10")).unwrap(),
+        "description": "update limit",
+        "duration_secs": 60
+    });
+    let pid_str = host_create_governance_proposal(&ctx, &payload.to_string()).await.unwrap();
+    let pid = ProposalId(pid_str.clone());
+    {
+        let mut gov = ctx.governance_module.lock().await;
+        gov.open_voting(&pid).unwrap();
+        gov.cast_vote(Did::from_str("did:icn:test:bob").unwrap(), &pid, VoteOption::Yes).unwrap();
+    }
+    host_close_governance_proposal_voting(&ctx, &pid_str).await.unwrap();
+    host_execute_governance_proposal(&ctx, &pid_str).await.unwrap();
+    assert_eq!(ctx.parameters.get("test_limit").unwrap().value().as_str(), "10");
+}
+
+#[tokio::test]
+async fn budget_allocation_credits_mana() {
+    let ctx = RuntimeContext::new_with_stubs_and_mana("did:icn:test:budget", 0).unwrap();
+    {
+        let mut gov = ctx.governance_module.lock().await;
+        gov.add_member(Did::from_str("did:icn:test:budget").unwrap());
+        gov.add_member(Did::from_str("did:icn:test:bob").unwrap());
+        gov.set_quorum(1);
+        gov.set_threshold(0.5);
+    }
+
+    let payload = serde_json::json!({
+        "proposal_type_str": "BudgetAllocation",
+        "type_specific_payload": serde_json::to_vec(&(50u64, "dev".to_string())).unwrap(),
+        "description": "fund dev",
+        "duration_secs": 60
+    });
+    let pid_str = host_create_governance_proposal(&ctx, &payload.to_string()).await.unwrap();
+    let pid = ProposalId(pid_str.clone());
+    {
+        let mut gov = ctx.governance_module.lock().await;
+        gov.open_voting(&pid).unwrap();
+        gov.cast_vote(Did::from_str("did:icn:test:bob").unwrap(), &pid, VoteOption::Yes).unwrap();
+    }
+    host_close_governance_proposal_voting(&ctx, &pid_str).await.unwrap();
+    host_execute_governance_proposal(&ctx, &pid_str).await.unwrap();
+    assert_eq!(ctx.mana_ledger.get_balance(&ctx.current_identity), 50);
 }
