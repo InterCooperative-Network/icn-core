@@ -13,7 +13,7 @@ pub use retry::retry_with_backoff;
 pub mod resilience;
 pub use resilience::{CircuitBreaker, CircuitBreakerError, CircuitState};
 
-pub const ICN_CORE_VERSION: &str = "0.1.0-dev-functional";
+pub const ICN_CORE_VERSION: &str = "0.2.0-beta";
 
 /// Basic metadata about an ICN node used for diagnostics and handshakes.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
