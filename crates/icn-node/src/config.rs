@@ -29,6 +29,8 @@ pub enum StorageBackendType {
     Sled,
     /// RocksDB database backend (requires `persist-rocksdb` feature).
     Rocksdb,
+    /// Postgres database backend (requires `persist-postgres` feature).
+    Postgres,
 }
 
 impl std::str::FromStr for StorageBackendType {
@@ -40,6 +42,7 @@ impl std::str::FromStr for StorageBackendType {
             "sqlite" => Ok(Self::Sqlite),
             "sled" => Ok(Self::Sled),
             "rocksdb" => Ok(Self::Rocksdb),
+            "postgres" => Ok(Self::Postgres),
             _ => Err(format!("invalid storage backend: {s}")),
         }
     }
@@ -128,7 +131,7 @@ impl Default for NodeConfig {
             listen_address: "/ip4/0.0.0.0/tcp/0".to_string(),
             bootstrap_peers: None,
             enable_p2p: cfg!(feature = "enable-libp2p"),
-            enable_mdns: true,  // Enable mDNS by default for local networks
+            enable_mdns: true, // Enable mDNS by default for local networks
             api_key: None,
             auth_token: None,
             auth_token_path: None,
@@ -589,6 +592,22 @@ impl NodeConfig {
                 {
                     return Err(CommonError::ConfigError(
                         "rocksdb backend requires 'persist-rocksdb' feature".into(),
+                    ));
+                }
+            }
+            StorageBackendType::Postgres => {
+                #[cfg(feature = "persist-postgres")]
+                {
+                    Arc::new(TokioMutex::new(
+                        icn_dag::postgres_store::PostgresDagStore::new(
+                            &self.storage_path.to_string_lossy(),
+                        )?,
+                    )) as Arc<_>
+                }
+                #[cfg(not(feature = "persist-postgres"))]
+                {
+                    return Err(CommonError::ConfigError(
+                        "postgres backend requires 'persist-postgres' feature".into(),
                     ));
                 }
             }

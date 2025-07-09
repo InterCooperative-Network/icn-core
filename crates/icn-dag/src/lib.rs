@@ -6,9 +6,9 @@
 //! storage and manipulation, crucial for the InterCooperative Network (ICN) data model.
 //! It handles DAG primitives, content addressing, storage abstraction, and serialization formats.
 
-use icn_common::{Cid, CommonError, DagBlock, DagLink, Did, NodeInfo, ICN_CORE_VERSION};
 #[cfg(test)]
 use icn_common::compute_merkle_cid;
+use icn_common::{Cid, CommonError, DagBlock, DagLink, Did, NodeInfo, ICN_CORE_VERSION};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs::{File, OpenOptions}; // For FileDagStore
@@ -21,6 +21,8 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 pub mod index;
 pub mod metrics;
+#[cfg(feature = "persist-postgres")]
+pub mod postgres_store;
 #[cfg(feature = "persist-rocksdb")]
 pub mod rocksdb_store;
 #[cfg(feature = "persist-sled")]
