@@ -74,3 +74,9 @@ required-features = ["enable-libp2p"]
 name = "cross_node_governance"
 path = "tests/integration/cross_node_governance.rs"
 required-features = ["enable-libp2p"]
+
+[[test]]
+name = "ten_node_propagation"
+path = "tests/integration/ten_node_propagation.rs"
+required-features = ["enable-libp2p"]
+
