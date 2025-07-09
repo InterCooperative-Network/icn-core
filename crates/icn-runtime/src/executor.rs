@@ -270,8 +270,7 @@ impl JobExecutor for SimpleExecutor {
 
                 // Fetch metadata block from the DAG store
                 let meta_bytes = {
-                    let store = ctx.dag_store.lock()
-                        .map_err(|e| CommonError::InternalError(format!("Failed to lock DAG store: {}", e)))?;
+                    let store = ctx.dag_store.lock().await;
                     store
                         .get(&job.manifest_cid)
                         .map_err(|e| CommonError::InternalError(e.to_string()))?
@@ -287,8 +286,7 @@ impl JobExecutor for SimpleExecutor {
 
                 // Ensure the referenced WASM module exists
                 {
-                    let store = ctx.dag_store.lock()
-                        .map_err(|e| CommonError::InternalError(format!("Failed to lock DAG store: {}", e)))?;
+                    let store = ctx.dag_store.lock().await;
                     store
                         .get(&wasm_cid)
                         .map_err(|e| CommonError::InternalError(e.to_string()))?
@@ -322,8 +320,7 @@ impl JobExecutor for SimpleExecutor {
                 })?;
 
                 let manifest_bytes = {
-                    let store = ctx.dag_store.lock()
-                        .map_err(|e| CommonError::InternalError(format!("Failed to lock DAG store: {}", e)))?;
+                    let store = ctx.dag_store.lock().await;
                     store
                         .get(&job.manifest_cid)
                         .map_err(|e| CommonError::InternalError(e.to_string()))?
@@ -450,11 +447,7 @@ impl JobExecutor for WasmExecutor {
         );
 
         let wasm_bytes = {
-            let store = self
-                .ctx
-                .dag_store
-                .lock()
-                .map_err(|e| CommonError::InternalError(format!("Failed to lock DAG store: {}", e)))?;
+            let store = self.ctx.dag_store.lock().await;
             let block = store
                 .get(&job.manifest_cid)
                 .map_err(|e| CommonError::InternalError(e.to_string()))?

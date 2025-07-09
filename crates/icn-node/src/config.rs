@@ -1,11 +1,3 @@
-use clap::ArgMatches;
-use serde::{Deserialize, Serialize};
-use std::fs;
-use std::path::Path;
-use std::path::PathBuf;
-use std::sync::Arc;
-use tokio::sync::Mutex as TokioMutex;
-
 use icn_common::{CommonError, DagBlock};
 #[cfg(feature = "persist-rocksdb")]
 use icn_dag::rocksdb_store::RocksDagStore;
@@ -13,8 +5,10 @@ use icn_dag::rocksdb_store::RocksDagStore;
 use icn_dag::sled_store::SledDagStore;
 #[cfg(feature = "persist-sqlite")]
 use icn_dag::sqlite_store::SqliteDagStore;
-use icn_dag::{AsyncStorageService, TokioFileDagStore};
-use icn_runtime::context::StubDagStore;
+use serde::{Deserialize, Serialize};
+use std::fs;
+use std::path::{Path, PathBuf};
+use tokio::sync::Mutex as TokioMutex;
 
 /// Storage backends supported by the node.
 #[derive(clap::ValueEnum, Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -493,7 +487,7 @@ impl NodeConfig {
     }
 
     /// Apply CLI overrides onto this configuration.
-    pub fn apply_cli_overrides(&mut self, cli: &super::node::Cli, matches: &ArgMatches) {
+    pub fn apply_cli_overrides(&mut self, cli: &super::node::Cli, matches: &clap::ArgMatches) {
         if let Some(v) = &cli.storage_backend {
             self.storage_backend = v.clone();
         }
@@ -605,20 +599,20 @@ impl NodeConfig {
     /// Initialize a DAG store based on this configuration.
     pub fn init_dag_store(
         &self,
-    ) -> Result<Arc<TokioMutex<dyn AsyncStorageService<DagBlock> + Send>>, CommonError> {
-        let store: Arc<TokioMutex<dyn AsyncStorageService<DagBlock> + Send>> = match self
+    ) -> Result<std::sync::Arc<TokioMutex<dyn icn_dag::StorageService<DagBlock> + Send + Sync>>, CommonError> {
+        let store: std::sync::Arc<TokioMutex<dyn icn_dag::StorageService<DagBlock> + Send + Sync>> = match self
             .storage_backend
         {
-            StorageBackendType::Memory => Arc::new(TokioMutex::new(StubDagStore::new())) as Arc<_>,
-            StorageBackendType::File => Arc::new(TokioMutex::new(TokioFileDagStore::new(
+            StorageBackendType::Memory => std::sync::Arc::new(TokioMutex::new(icn_dag::InMemoryDagStore::new())) as std::sync::Arc<TokioMutex<_>>,
+            StorageBackendType::File => std::sync::Arc::new(TokioMutex::new(icn_dag::FileDagStore::new(
                 self.storage_path.clone(),
-            )?)) as Arc<_>,
+            )?)) as std::sync::Arc<TokioMutex<_>>,
             StorageBackendType::Sqlite => {
                 #[cfg(feature = "persist-sqlite")]
                 {
-                    Arc::new(TokioMutex::new(SqliteDagStore::new(
+                    std::sync::Arc::new(TokioMutex::new(SqliteDagStore::new(
                         self.storage_path.clone(),
-                    )?)) as Arc<_>
+                    )?)) as std::sync::Arc<TokioMutex<_>>
                 }
                 #[cfg(not(feature = "persist-sqlite"))]
                 {
@@ -630,9 +624,9 @@ impl NodeConfig {
             StorageBackendType::Sled => {
                 #[cfg(feature = "persist-sled")]
                 {
-                    Arc::new(TokioMutex::new(SledDagStore::new(
+                    std::sync::Arc::new(TokioMutex::new(SledDagStore::new(
                         self.storage_path.clone(),
-                    )?)) as Arc<_>
+                    )?)) as std::sync::Arc<TokioMutex<_>>
                 }
                 #[cfg(not(feature = "persist-sled"))]
                 {
@@ -644,9 +638,9 @@ impl NodeConfig {
             StorageBackendType::Rocksdb => {
                 #[cfg(feature = "persist-rocksdb")]
                 {
-                    Arc::new(TokioMutex::new(RocksDagStore::new(
+                    std::sync::Arc::new(TokioMutex::new(RocksDagStore::new(
                         self.storage_path.clone(),
-                    )?)) as Arc<_>
+                    )?)) as std::sync::Arc<TokioMutex<_>>
                 }
                 #[cfg(not(feature = "persist-rocksdb"))]
                 {
@@ -658,11 +652,11 @@ impl NodeConfig {
             StorageBackendType::Postgres => {
                 #[cfg(feature = "persist-postgres")]
                 {
-                    Arc::new(TokioMutex::new(
+                    std::sync::Arc::new(TokioMutex::new(
                         icn_dag::postgres_store::PostgresDagStore::new(
                             &self.storage_path.to_string_lossy(),
                         )?,
-                    )) as Arc<_>
+                    )) as std::sync::Arc<TokioMutex<_>>
                 }
                 #[cfg(not(feature = "persist-postgres"))]
                 {

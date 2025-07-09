@@ -727,13 +727,7 @@ pub async fn app_router_from_context(
         let rate_opt = rate_limiter.clone();
         let param_store_opt: Option<Arc<TokioMutex<ParameterStore>>> = None;
         let handle = tokio::runtime::Handle::current();
-        let mut gov = match gov_mod.lock() {
-            Ok(gov) => gov,
-            Err(e) => {
-                error!("Failed to lock governance module: {}", e);
-                return Err(format!("Failed to lock governance module: {}", e).into());
-            }
-        };
+        let mut gov = handle.block_on(async { gov_mod.lock().await });
         gov.set_callback(move |proposal| {
             if let icn_governance::ProposalType::SystemParameterChange(param, value) =
                 &proposal.proposal_type
@@ -1632,7 +1626,7 @@ async fn dag_put_handler(
         scope: None,
     };
     let mut store = state.runtime_context.dag_store.lock().await;
-    match store.put(&dag_block).await {
+    match store.put(&dag_block) {
         Ok(()) => (StatusCode::CREATED, Json(dag_block.cid)).into_response(),
         Err(e) => map_rust_error_to_json_response(
             format!("DAG put error: {}", e),
@@ -1658,7 +1652,7 @@ async fn dag_get_handler(
         }
     };
     let store = state.runtime_context.dag_store.lock().await;
-    match store.get(&cid_to_get).await {
+    match store.get(&cid_to_get) {
         Ok(Some(block)) => (StatusCode::OK, Json(block.data)).into_response(),
         Ok(None) => map_rust_error_to_json_response("Block not found", StatusCode::NOT_FOUND)
             .into_response(),
@@ -1685,7 +1679,7 @@ async fn dag_meta_handler(
             .into_response();
         }
     };
-    let cid_json = match serde_json::to_string(&cid) {
+    let _cid_json = match serde_json::to_string(&cid) {
         Ok(j) => j,
         Err(e) => {
             return map_rust_error_to_json_response(
@@ -1696,7 +1690,26 @@ async fn dag_meta_handler(
         }
     };
 
-    match get_dag_metadata(state.runtime_context.dag_store.clone(), cid_json).await {
+    // Get metadata synchronously
+    let metadata_result: Result<Option<icn_dag::DagBlockMetadata>, CommonError> = {
+        let store = state.runtime_context.dag_store.lock().await;
+        match store.get(&cid) {
+            Ok(block_opt) => Ok(block_opt.map(|b| icn_dag::metadata_from_block(&b))),
+            Err(e) => Err(match e {
+                CommonError::StorageError(msg) => {
+                    CommonError::StorageError(format!("API: Failed to retrieve DagBlock: {}", msg))
+                }
+                CommonError::DeserializationError(msg) => CommonError::DeserializationError(format!(
+                    "API: Deserialization error during get: {}",
+                    msg
+                )),
+                CommonError::PolicyDenied(msg) => CommonError::PolicyDenied(format!("API: {}", msg)),
+                _ => CommonError::ApiError(format!("API: Unexpected error during store.get: {:?}", e)),
+            }),
+        }
+    };
+    
+    match metadata_result {
         Ok(Some(meta)) => (StatusCode::OK, Json(meta)).into_response(),
         Ok(None) => map_rust_error_to_json_response("Block not found", StatusCode::NOT_FOUND)
             .into_response(),
@@ -1724,14 +1737,14 @@ async fn dag_pin_handler(
         }
     };
     let mut store = state.runtime_context.dag_store.lock().await;
-    if let Err(e) = store.pin_block(&cid).await {
+    if let Err(e) = store.pin_block(&cid) {
         return map_rust_error_to_json_response(
             format!("Pin error: {e}"),
             StatusCode::INTERNAL_SERVER_ERROR,
         )
         .into_response();
     }
-    if let Err(e) = store.set_ttl(&cid, req.ttl).await {
+    if let Err(e) = store.set_ttl(&cid, req.ttl) {
         return map_rust_error_to_json_response(
             format!("Set TTL error: {e}"),
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -1757,7 +1770,7 @@ async fn dag_unpin_handler(
         }
     };
     let mut store = state.runtime_context.dag_store.lock().await;
-    match store.unpin_block(&cid).await {
+    match store.unpin_block(&cid) {
         Ok(()) => (StatusCode::OK, Json(cid)).into_response(),
         Err(e) => map_rust_error_to_json_response(
             format!("Unpin error: {e}"),
@@ -1771,7 +1784,7 @@ async fn dag_unpin_handler(
 async fn dag_prune_handler(State(state): State<AppState>) -> impl IntoResponse {
     let now = state.runtime_context.time_provider.unix_seconds();
     let mut store = state.runtime_context.dag_store.lock().await;
-    match store.prune_expired(now).await {
+    match store.prune_expired(now) {
         Ok(removed) => (
             StatusCode::OK,
             Json(serde_json::json!({"removed": removed.iter().map(|c| c.to_string()).collect::<Vec<_>>() })),

@@ -537,8 +537,7 @@ impl RuntimeContext {
         let proposal_id = ProposalId::from_str(proposal_id_str)
             .map_err(|e| HostAbiError::InvalidParameters(format!("Invalid proposal id: {}", e)))?;
 
-        let mut gov = self.governance_module.lock()
-            .map_err(|e| HostAbiError::InternalError(format!("Failed to lock governance module: {}", e)))?;
+        let mut gov = self.governance_module.lock().await;
         let (status, (yes, no, abstain)) = gov
             .close_voting_period(&proposal_id)
             .map_err(|e| HostAbiError::InternalError(format!("Failed to close voting: {}", e)))?;
@@ -577,8 +576,7 @@ impl RuntimeContext {
         let proposal_id = ProposalId::from_str(proposal_id_str)
             .map_err(|e| HostAbiError::InvalidParameters(format!("Invalid proposal id: {}", e)))?;
 
-        let mut gov = self.governance_module.lock()
-            .map_err(|e| HostAbiError::InternalError(format!("Failed to lock governance module: {}", e)))?;
+        let mut gov = self.governance_module.lock().await;
         let result = gov.execute_proposal(&proposal_id);
         let proposal_opt = gov
             .get_proposal(&proposal_id)
@@ -635,8 +633,7 @@ impl RuntimeContext {
             return Err(HostAbiError::PermissionDenied("Can only delegate your own vote".to_string()));
         }
 
-        let mut gov = self.governance_module.lock()
-            .map_err(|e| HostAbiError::InternalError(format!("Failed to lock governance module: {}", e)))?;
+        let mut gov = self.governance_module.lock().await;
         gov.delegate_vote(from, to)
             .map_err(|e| HostAbiError::InternalError(format!("Failed to delegate vote: {}", e)))?;
         
@@ -656,8 +653,7 @@ impl RuntimeContext {
             return Err(HostAbiError::PermissionDenied("Can only revoke your own delegation".to_string()));
         }
 
-        let mut gov = self.governance_module.lock()
-            .map_err(|e| HostAbiError::InternalError(format!("Failed to lock governance module: {}", e)))?;
+        let mut gov = self.governance_module.lock().await;
         gov.revoke_delegation(from);
         Ok(())
     }
