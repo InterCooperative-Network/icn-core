@@ -1,4 +1,4 @@
-# ICN Core
+# ICN Core v0.2 – Cooperative Infrastructure Engine (Beta)
 
 `icn-core` is the reference implementation of the InterCooperative Network (ICN) protocol, written in Rust.
 It provides the foundational crates for building ICN nodes, CLI tools, and other related infrastructure.
