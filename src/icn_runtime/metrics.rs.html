@@ -26,4 +26,10 @@
 <a href=#26 id=26 data-nosnippet>26</a></span><span class="kw">pub static </span>JOBS_ACTIVE_GAUGE: Lazy&lt;Gauge&lt;i64&gt;&gt; = Lazy::new(Gauge::default);
 <a href=#27 id=27 data-nosnippet>27</a>
 <a href=#28 id=28 data-nosnippet>28</a><span class="doccomment">/// Counts receipts anchored to the DAG.
-<a href=#29 id=29 data-nosnippet>29</a></span><span class="kw">pub static </span>RECEIPTS_ANCHORED: Lazy&lt;Counter&gt; = Lazy::new(Counter::default);</code></pre></div></section></main></body></html>
+<a href=#29 id=29 data-nosnippet>29</a></span><span class="kw">pub static </span>RECEIPTS_ANCHORED: Lazy&lt;Counter&gt; = Lazy::new(Counter::default);
+<a href=#30 id=30 data-nosnippet>30</a>
+<a href=#31 id=31 data-nosnippet>31</a><span class="doccomment">/// Counts denied memory growth attempts inside the WASM resource limiter.
+<a href=#32 id=32 data-nosnippet>32</a></span><span class="kw">pub static </span>WASM_MEMORY_GROWTH_DENIED: Lazy&lt;Counter&gt; = Lazy::new(Counter::default);
+<a href=#33 id=33 data-nosnippet>33</a>
+<a href=#34 id=34 data-nosnippet>34</a><span class="doccomment">/// Counts denied table growth attempts inside the WASM resource limiter.
+<a href=#35 id=35 data-nosnippet>35</a></span><span class="kw">pub static </span>WASM_TABLE_GROWTH_DENIED: Lazy&lt;Counter&gt; = Lazy::new(Counter::default);</code></pre></div></section></main></body></html>
