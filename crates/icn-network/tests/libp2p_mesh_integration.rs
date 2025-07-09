@@ -246,7 +246,6 @@ mod libp2p_mesh_integration {
     }
 
     #[tokio::test(flavor = "current_thread")]
-    #[ignore = "Single-threaded runtime test for debugging event loop issues"]
     async fn test_single_threaded_gossipsub() -> Result<(), anyhow::Error> {
         println!("🔧 [DEBUG] Single-threaded runtime gossipsub test starting...");
 
@@ -539,7 +538,6 @@ mod libp2p_mesh_integration {
     }
 
     #[tokio::test]
-    #[ignore = "Minimal event loop test to isolate hang issue"]
     async fn test_single_node_event_loop_startup() -> Result<(), anyhow::Error> {
         init_test_logger();
 
@@ -574,7 +572,6 @@ mod libp2p_mesh_integration {
     }
 
     #[tokio::test]
-    #[ignore = "Test without Kademlia to isolate bootstrap hang"]
     async fn test_without_kademlia_bootstrap() -> Result<(), anyhow::Error> {
         init_test_logger();
 
@@ -850,7 +847,6 @@ mod libp2p_mesh_integration {
     }
 
     #[tokio::test]
-    #[ignore = "Individual phase test: job announcement and bidding"]
     async fn test_job_announcement_and_bidding() -> Result<()> {
         init_test_logger();
         info!("🔧 [PHASE-TEST] Testing job announcement and bidding phase");
@@ -947,7 +943,6 @@ mod libp2p_mesh_integration {
     }
 
     #[tokio::test]
-    #[ignore = "Individual phase test: job execution with SimpleExecutor"]
     async fn test_job_execution_with_simple_executor() -> Result<()> {
         init_test_logger();
         info!("🔧 [PHASE-TEST] Testing job execution with SimpleExecutor");

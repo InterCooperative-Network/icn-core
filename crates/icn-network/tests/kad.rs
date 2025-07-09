@@ -14,7 +14,6 @@ mod kademlia_peer_discovery_tests {
     use tokio::time::sleep;
 
     #[tokio::test]
-    #[ignore]
     async fn test_kademlia_two_node_peer_discovery() {
         println!("Starting Kademlia two_node_peer_discovery test...");
 
@@ -86,7 +85,6 @@ mod kademlia_peer_discovery_tests {
     }
 
     #[tokio::test]
-    #[ignore]
     async fn test_kademlia_record_exchange() {
         let config1 = NetworkConfig::default();
         let node1_service = Libp2pNetworkService::new(config1).await.expect("n1");
