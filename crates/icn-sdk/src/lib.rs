@@ -4,6 +4,37 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
+#[derive(Debug, Clone, Deserialize)]
+pub struct HealthStatus {
+    pub status: String,
+    pub timestamp: u64,
+    pub uptime_seconds: u64,
+    pub checks: HealthChecks,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct HealthChecks {
+    pub runtime: String,
+    pub dag_store: String,
+    pub network: String,
+    pub mana_ledger: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ReadinessStatus {
+    pub ready: bool,
+    pub timestamp: u64,
+    pub checks: ReadinessChecks,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ReadinessChecks {
+    pub can_serve_requests: bool,
+    pub mana_ledger_available: bool,
+    pub dag_store_available: bool,
+    pub network_initialized: bool,
+}
+
 /// High-level client for interacting with an ICN HTTP node.
 #[derive(Clone)]
 pub struct IcnClient {
@@ -14,7 +45,10 @@ pub struct IcnClient {
 impl IcnClient {
     /// Create a new client pointing at the given base URL.
     pub fn new(base_url: &str) -> Result<Self, url::ParseError> {
-        Ok(Self { base_url: Url::parse(base_url)?, http: Client::new() })
+        Ok(Self {
+            base_url: Url::parse(base_url)?,
+            http: Client::new(),
+        })
     }
 
     /// Generic GET helper returning a deserialized type.
@@ -24,7 +58,11 @@ impl IcnClient {
     }
 
     /// Generic POST helper sending JSON and returning a deserialized type.
-    async fn post<Req: Serialize, Resp: DeserializeOwned>(&self, path: &str, body: &Req) -> Result<Resp, reqwest::Error> {
+    async fn post<Req: Serialize, Resp: DeserializeOwned>(
+        &self,
+        path: &str,
+        body: &Req,
+    ) -> Result<Resp, reqwest::Error> {
         let url = self.base_url.join(path).expect("valid url");
         self.http.post(url).json(body).send().await?.json().await
     }
@@ -40,21 +78,20 @@ impl IcnClient {
     }
 
     /// Health check.
-    pub async fn health(&self) -> Result<(), reqwest::Error> {
-        let url = self.base_url.join("/health").expect("valid url");
-        self.http.get(url).send().await?.error_for_status()?;
-        Ok(())
+    pub async fn health(&self) -> Result<HealthStatus, reqwest::Error> {
+        self.get("/health").await
     }
 
     /// Readiness probe.
-    pub async fn ready(&self) -> Result<(), reqwest::Error> {
-        let url = self.base_url.join("/ready").expect("valid url");
-        self.http.get(url).send().await?.error_for_status()?;
-        Ok(())
+    pub async fn ready(&self) -> Result<ReadinessStatus, reqwest::Error> {
+        self.get("/ready").await
     }
 
     /// Submit a mesh job. Returns JSON with the created job id.
-    pub async fn submit_mesh_job<B: Serialize>(&self, body: &B) -> Result<serde_json::Value, reqwest::Error> {
+    pub async fn submit_mesh_job<B: Serialize>(
+        &self,
+        body: &B,
+    ) -> Result<serde_json::Value, reqwest::Error> {
         self.post("/mesh/submit", body).await
     }
 
@@ -65,12 +102,15 @@ impl IcnClient {
 
     /// Get mesh job status.
     pub async fn mesh_job(&self, job_id: &str) -> Result<serde_json::Value, reqwest::Error> {
-        let path = format!("/mesh/jobs/{}", job_id);
+        let path = format!("/mesh/jobs/{job_id}");
         self.get(&path).await
     }
 
     /// Submit execution receipt.
-    pub async fn submit_mesh_receipt<B: Serialize>(&self, body: &B) -> Result<serde_json::Value, reqwest::Error> {
+    pub async fn submit_mesh_receipt<B: Serialize>(
+        &self,
+        body: &B,
+    ) -> Result<serde_json::Value, reqwest::Error> {
         self.post("/mesh/receipts", body).await
     }
 
@@ -81,67 +121,103 @@ impl IcnClient {
 
     /// Fetch a proposal by id.
     pub async fn proposal(&self, id: &str) -> Result<serde_json::Value, reqwest::Error> {
-        let path = format!("/governance/proposal/{}", id);
+        let path = format!("/governance/proposal/{id}");
         self.get(&path).await
     }
 
     /// Submit a governance proposal.
-    pub async fn submit_proposal<B: Serialize>(&self, body: &B) -> Result<serde_json::Value, reqwest::Error> {
+    pub async fn submit_proposal<B: Serialize>(
+        &self,
+        body: &B,
+    ) -> Result<serde_json::Value, reqwest::Error> {
         self.post("/governance/submit", body).await
     }
 
     /// Cast a vote.
-    pub async fn cast_vote<B: Serialize>(&self, body: &B) -> Result<serde_json::Value, reqwest::Error> {
+    pub async fn cast_vote<B: Serialize>(
+        &self,
+        body: &B,
+    ) -> Result<serde_json::Value, reqwest::Error> {
         self.post("/governance/vote", body).await
     }
 
     /// Delegate voting power.
-    pub async fn delegate<B: Serialize>(&self, body: &B) -> Result<serde_json::Value, reqwest::Error> {
+    pub async fn delegate<B: Serialize>(
+        &self,
+        body: &B,
+    ) -> Result<serde_json::Value, reqwest::Error> {
         self.post("/governance/delegate", body).await
     }
 
     /// Revoke a delegation.
-    pub async fn revoke<B: Serialize>(&self, body: &B) -> Result<serde_json::Value, reqwest::Error> {
+    pub async fn revoke<B: Serialize>(
+        &self,
+        body: &B,
+    ) -> Result<serde_json::Value, reqwest::Error> {
         self.post("/governance/revoke", body).await
     }
 
     /// Close voting.
-    pub async fn close_vote<B: Serialize>(&self, body: &B) -> Result<serde_json::Value, reqwest::Error> {
+    pub async fn close_vote<B: Serialize>(
+        &self,
+        body: &B,
+    ) -> Result<serde_json::Value, reqwest::Error> {
         self.post("/governance/close", body).await
     }
 
     /// Execute a proposal.
-    pub async fn execute<B: Serialize>(&self, body: &B) -> Result<serde_json::Value, reqwest::Error> {
+    pub async fn execute<B: Serialize>(
+        &self,
+        body: &B,
+    ) -> Result<serde_json::Value, reqwest::Error> {
         self.post("/governance/execute", body).await
     }
 
     /// Store data in the DAG.
-    pub async fn dag_put<B: Serialize>(&self, body: &B) -> Result<serde_json::Value, reqwest::Error> {
+    pub async fn dag_put<B: Serialize>(
+        &self,
+        body: &B,
+    ) -> Result<serde_json::Value, reqwest::Error> {
         self.post("/dag/put", body).await
     }
 
     /// Retrieve data from the DAG.
-    pub async fn dag_get<B: Serialize>(&self, body: &B) -> Result<serde_json::Value, reqwest::Error> {
+    pub async fn dag_get<B: Serialize>(
+        &self,
+        body: &B,
+    ) -> Result<serde_json::Value, reqwest::Error> {
         self.post("/dag/get", body).await
     }
 
     /// Retrieve DAG metadata.
-    pub async fn dag_meta<B: Serialize>(&self, body: &B) -> Result<serde_json::Value, reqwest::Error> {
+    pub async fn dag_meta<B: Serialize>(
+        &self,
+        body: &B,
+    ) -> Result<serde_json::Value, reqwest::Error> {
         self.post("/dag/meta", body).await
     }
 
     /// Pin a DAG block.
-    pub async fn dag_pin<B: Serialize>(&self, body: &B) -> Result<serde_json::Value, reqwest::Error> {
+    pub async fn dag_pin<B: Serialize>(
+        &self,
+        body: &B,
+    ) -> Result<serde_json::Value, reqwest::Error> {
         self.post("/dag/pin", body).await
     }
 
     /// Unpin a DAG block.
-    pub async fn dag_unpin<B: Serialize>(&self, body: &B) -> Result<serde_json::Value, reqwest::Error> {
+    pub async fn dag_unpin<B: Serialize>(
+        &self,
+        body: &B,
+    ) -> Result<serde_json::Value, reqwest::Error> {
         self.post("/dag/unpin", body).await
     }
 
     /// Prune the DAG store.
-    pub async fn dag_prune<B: Serialize>(&self, body: &B) -> Result<serde_json::Value, reqwest::Error> {
+    pub async fn dag_prune<B: Serialize>(
+        &self,
+        body: &B,
+    ) -> Result<serde_json::Value, reqwest::Error> {
         self.post("/dag/prune", body).await
     }
 
@@ -151,7 +227,10 @@ impl IcnClient {
     }
 
     /// Connect to a peer.
-    pub async fn connect_peer<B: Serialize>(&self, body: &B) -> Result<serde_json::Value, reqwest::Error> {
+    pub async fn connect_peer<B: Serialize>(
+        &self,
+        body: &B,
+    ) -> Result<serde_json::Value, reqwest::Error> {
         self.post("/network/connect", body).await
     }
 
@@ -161,17 +240,26 @@ impl IcnClient {
     }
 
     /// Submit a transaction.
-    pub async fn submit_transaction<B: Serialize>(&self, body: &B) -> Result<serde_json::Value, reqwest::Error> {
+    pub async fn submit_transaction<B: Serialize>(
+        &self,
+        body: &B,
+    ) -> Result<serde_json::Value, reqwest::Error> {
         self.post("/transaction/submit", body).await
     }
 
     /// Query data.
-    pub async fn data_query<B: Serialize>(&self, body: &B) -> Result<serde_json::Value, reqwest::Error> {
+    pub async fn data_query<B: Serialize>(
+        &self,
+        body: &B,
+    ) -> Result<serde_json::Value, reqwest::Error> {
         self.post("/data/query", body).await
     }
 
     /// Upload a WASM contract.
-    pub async fn upload_contract<B: Serialize>(&self, body: &B) -> Result<serde_json::Value, reqwest::Error> {
+    pub async fn upload_contract<B: Serialize>(
+        &self,
+        body: &B,
+    ) -> Result<serde_json::Value, reqwest::Error> {
         self.post("/contracts", body).await
     }
 
@@ -181,17 +269,26 @@ impl IcnClient {
     }
 
     /// Add a federation peer.
-    pub async fn add_federation_peer<B: Serialize>(&self, body: &B) -> Result<serde_json::Value, reqwest::Error> {
+    pub async fn add_federation_peer<B: Serialize>(
+        &self,
+        body: &B,
+    ) -> Result<serde_json::Value, reqwest::Error> {
         self.post("/federation/peers", body).await
     }
 
     /// Join a federation.
-    pub async fn federation_join<B: Serialize>(&self, body: &B) -> Result<serde_json::Value, reqwest::Error> {
+    pub async fn federation_join<B: Serialize>(
+        &self,
+        body: &B,
+    ) -> Result<serde_json::Value, reqwest::Error> {
         self.post("/federation/join", body).await
     }
 
     /// Leave the federation.
-    pub async fn federation_leave<B: Serialize>(&self, body: &B) -> Result<serde_json::Value, reqwest::Error> {
+    pub async fn federation_leave<B: Serialize>(
+        &self,
+        body: &B,
+    ) -> Result<serde_json::Value, reqwest::Error> {
         self.post("/federation/leave", body).await
     }
 
