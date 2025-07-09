@@ -82,6 +82,10 @@ pub struct NodeConfig {
     pub tls_cert_path: Option<std::path::PathBuf>,
     /// TLS private key path for HTTPS. Requires `tls_cert_path` as well.
     pub tls_key_path: Option<std::path::PathBuf>,
+    /// Minimum TLS version to accept (e.g. "1.3").
+    pub tls_min_version: Option<String>,
+    /// How many days between automatic key rotations.
+    pub key_rotation_days: u64,
     /// Peers this node has joined in a federation.
     pub federation_peers: Vec<String>,
 }
@@ -138,6 +142,8 @@ impl Default for NodeConfig {
             open_rate_limit: 60,
             tls_cert_path: None,
             tls_key_path: None,
+            tls_min_version: Some("1.3".into()),
+            key_rotation_days: 90,
             federation_peers: Vec::new(),
         }
     }
@@ -160,6 +166,7 @@ struct IdentitySection {
     node_private_key_bs58: Option<String>,
     node_did_path: Option<PathBuf>,
     node_private_key_path: Option<PathBuf>,
+    key_rotation_days: Option<u64>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -172,6 +179,9 @@ struct HttpSection {
     open_rate_limit: Option<u64>,
     tls_cert_path: Option<PathBuf>,
     tls_key_path: Option<PathBuf>,
+    tls_min_version: Option<String>,
+    key_rotation_days: Option<u64>,
+    tls_min_version: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -297,6 +307,12 @@ impl NodeConfig {
         if let Some(v) = file.tls_key_path {
             self.tls_key_path = Some(v);
         }
+        if let Some(v) = file.tls_min_version {
+            self.tls_min_version = Some(v);
+        }
+        if let Some(v) = file.key_rotation_days {
+            self.key_rotation_days = v;
+        }
 
         // nested sections
         let s = file.storage;
@@ -329,6 +345,9 @@ impl NodeConfig {
         if let Some(v) = id.node_private_key_path {
             self.node_private_key_path = v;
         }
+        if let Some(v) = id.key_rotation_days {
+            self.key_rotation_days = v;
+        }
 
         let http = file.http;
         if let Some(v) = http.listen_addr {
@@ -351,6 +370,9 @@ impl NodeConfig {
         }
         if let Some(v) = http.tls_key_path {
             self.tls_key_path = Some(v);
+        }
+        if let Some(v) = http.tls_min_version {
+            self.tls_min_version = Some(v);
         }
 
         let p2p = file.p2p;
@@ -442,6 +464,14 @@ impl NodeConfig {
         if let Ok(val) = std::env::var("ICN_TLS_KEY_PATH") {
             self.tls_key_path = Some(val.into());
         }
+        if let Ok(val) = std::env::var("ICN_TLS_MIN_VERSION") {
+            self.tls_min_version = Some(val);
+        }
+        if let Ok(val) = std::env::var("ICN_KEY_ROTATION_DAYS") {
+            if let Ok(days) = val.parse::<u64>() {
+                self.key_rotation_days = days;
+            }
+        }
     }
 
     /// Apply CLI overrides onto this configuration.
@@ -511,6 +541,12 @@ impl NodeConfig {
         }
         if let Some(v) = &cli.tls_key_path {
             self.tls_key_path = Some(v.clone());
+        }
+        if let Some(v) = &cli.tls_min_version {
+            self.tls_min_version = Some(v.clone());
+        }
+        if let Some(v) = cli.key_rotation_days {
+            self.key_rotation_days = v;
         }
     }
 

@@ -1533,14 +1533,22 @@ impl RuntimeContext {
     }
 
     /// Add a new federation member via governance.
-    pub async fn add_federation_member(&self, did: Did, _role: Option<String>) -> Result<(), HostAbiError> {
+    pub async fn add_federation_member(
+        &self,
+        did: Did,
+        _role: Option<String>,
+    ) -> Result<(), HostAbiError> {
         let mut gov = self.governance_module.lock().await;
         gov.add_member(did);
         Ok(())
     }
 
     /// Allocate mana for a specific budget purpose.
-    pub async fn allocate_mana_budget(&self, amount: u64, _purpose: String) -> Result<(), HostAbiError> {
+    pub async fn allocate_mana_budget(
+        &self,
+        amount: u64,
+        _purpose: String,
+    ) -> Result<(), HostAbiError> {
         self.credit_mana(&self.current_identity, amount).await
     }
 
@@ -1677,9 +1685,13 @@ impl RuntimeContext {
                 ProposalType::SoftwareUpgrade(version)
             }
             "budgetallocation" | "budget_allocation" => {
-                let tup: (u64, String) = serde_json::from_slice(&payload.type_specific_payload).map_err(|e| {
-                    HostAbiError::InvalidParameters(format!("Failed to parse budget payload: {}", e))
-                })?;
+                let tup: (u64, String) = serde_json::from_slice(&payload.type_specific_payload)
+                    .map_err(|e| {
+                        HostAbiError::InvalidParameters(format!(
+                            "Failed to parse budget payload: {}",
+                            e
+                        ))
+                    })?;
                 ProposalType::BudgetAllocation(tup.0, tup.1)
             }
             "generictext" | "generic_text" => {
@@ -2418,6 +2430,7 @@ impl StubSigner {
 // #[async_trait] // No longer async
 impl Signer for StubSigner {
     fn sign(&self, payload: &[u8]) -> Result<Vec<u8>, HostAbiError> {
+        log::info!(target: "audit", "sign_operation bytes={} ", payload.len());
         Ok(sign_message(&self.sk, payload).to_bytes().to_vec())
     }
 
@@ -2500,6 +2513,7 @@ impl Ed25519Signer {
         path: P,
         passphrase: &[u8],
     ) -> Result<Self, CommonError> {
+        log::info!(target: "audit", "signer_load_encrypted path={}" , path.as_ref().display());
         use aes_gcm::aead::{Aead, KeyInit};
         use aes_gcm::{Aes256Gcm, Nonce};
         use pbkdf2::pbkdf2_hmac;
@@ -2533,6 +2547,7 @@ impl Ed25519Signer {
 
     /// Load a signer from a hardware security module via an [`HsmKeyStore`].
     pub fn from_hsm(hsm: &dyn HsmKeyStore) -> Result<Self, CommonError> {
+        log::info!(target: "audit", "signer_load_hsm");
         let (sk, pk) = hsm.fetch_ed25519_keypair()?;
         Ok(Self::new_with_keys(sk, pk))
     }
@@ -2568,6 +2583,8 @@ impl Signer for Ed25519Signer {
             ))
         })?;
         let signature = EdSignature::from_bytes(&signature_array);
+
+        log::info!(target: "audit", "verify_operation bytes={}" , payload.len());
 
         Ok(identity_verify_signature(
             &verifying_key,
