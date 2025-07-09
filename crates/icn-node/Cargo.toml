@@ -43,6 +43,7 @@ enable-libp2p = []
 persist-sqlite = ["icn-dag/persist-sqlite", "icn-runtime/persist-sqlite", "icn-economics/persist-sqlite"]
 persist-sled = ["icn-dag/persist-sled", "icn-runtime/persist-sled", "icn-economics/persist-sled"]
 persist-rocksdb = ["icn-dag/persist-rocksdb", "icn-runtime/persist-rocksdb", "icn-economics/persist-rocksdb"]
+persist-postgres = ["icn-dag/persist-postgres", "icn-runtime/persist-postgres"]
 
 [dev-dependencies]
 reqwest = { version = "0.11", features = ["json", "rustls-tls"] }

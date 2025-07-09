@@ -1,10 +1,10 @@
 use crate::{BlockMetadata, Cid, CommonError, DagBlock, StorageService};
 use postgres::{Client, NoTls};
+use std::sync::Mutex;
 use std::collections::HashMap;
 
-#[derive(Debug)]
 pub struct PostgresDagStore {
-    client: Client,
+    client: Mutex<Client>,
     meta: HashMap<Cid, BlockMetadata>,
 }
 
@@ -18,7 +18,7 @@ impl PostgresDagStore {
             .batch_execute("CREATE TABLE IF NOT EXISTS blocks (cid TEXT PRIMARY KEY, data BYTEA)")
             .map_err(|e| CommonError::DatabaseError(format!("Failed to init table: {}", e)))?;
         Ok(Self {
-            client,
+            client: Mutex::new(client),
             meta: HashMap::new(),
         })
     }
@@ -34,6 +34,8 @@ impl StorageService<DagBlock> for PostgresDagStore {
             ))
         })?;
         self.client
+            .lock()
+            .expect("mutex poisoned")
             .execute(
                 "INSERT INTO blocks (cid, data) VALUES ($1, $2) ON CONFLICT (cid) DO UPDATE SET data = EXCLUDED.data",
                 &[&block.cid.to_string(), &encoded],
@@ -47,6 +49,8 @@ impl StorageService<DagBlock> for PostgresDagStore {
     fn get(&self, cid: &Cid) -> Result<Option<DagBlock>, CommonError> {
         let row_opt = self
             .client
+            .lock()
+            .expect("mutex poisoned")
             .query_opt(
                 "SELECT data FROM blocks WHERE cid = $1",
                 &[&cid.to_string()],
@@ -74,6 +78,8 @@ impl StorageService<DagBlock> for PostgresDagStore {
 
     fn delete(&mut self, cid: &Cid) -> Result<(), CommonError> {
         self.client
+            .lock()
+            .expect("mutex poisoned")
             .execute("DELETE FROM blocks WHERE cid = $1", &[&cid.to_string()])
             .map_err(|e| {
                 CommonError::DatabaseError(format!("Failed to delete block {}: {}", cid, e))
@@ -85,6 +91,8 @@ impl StorageService<DagBlock> for PostgresDagStore {
     fn contains(&self, cid: &Cid) -> Result<bool, CommonError> {
         let row = self
             .client
+            .lock()
+            .expect("mutex poisoned")
             .query_one(
                 "SELECT COUNT(1) FROM blocks WHERE cid = $1",
                 &[&cid.to_string()],
@@ -99,6 +107,8 @@ impl StorageService<DagBlock> for PostgresDagStore {
     fn list_blocks(&self) -> Result<Vec<DagBlock>, CommonError> {
         let rows = self
             .client
+            .lock()
+            .expect("mutex poisoned")
             .query("SELECT data FROM blocks", &[])
             .map_err(|e| CommonError::DatabaseError(format!("Query failed: {}", e)))?;
         let mut blocks = Vec::new();
@@ -147,7 +157,10 @@ impl StorageService<DagBlock> for PostgresDagStore {
             .map(|(c, _)| c.clone())
             .collect();
         for cid in &to_remove {
-            self.client
+            self
+                .client
+                .lock()
+                .expect("mutex poisoned")
                 .execute("DELETE FROM blocks WHERE cid = $1", &[&cid.to_string()])
                 .map_err(|e| {
                     CommonError::DatabaseError(format!("Failed to delete block {}: {}", cid, e))
