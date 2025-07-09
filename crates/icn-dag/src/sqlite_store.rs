@@ -1,10 +1,11 @@
 use crate::{BlockMetadata, Cid, CommonError, DagBlock, StorageService};
 use rusqlite::{params, Connection};
+use std::sync::{Arc, Mutex};
 use std::path::PathBuf;
 
 #[derive(Debug)]
 pub struct SqliteDagStore {
-    conn: Connection,
+    conn: Arc<Mutex<Connection>>,
     meta: std::collections::HashMap<Cid, BlockMetadata>,
 }
 
@@ -19,7 +20,7 @@ impl SqliteDagStore {
         )
         .map_err(|e| CommonError::DatabaseError(format!("Failed to create table: {}", e)))?;
         Ok(Self {
-            conn,
+            conn: Arc::new(Mutex::new(conn)),
             meta: std::collections::HashMap::new(),
         })
     }
@@ -34,22 +35,28 @@ impl StorageService<DagBlock> for SqliteDagStore {
                 block.cid, e
             ))
         })?;
-        self.conn
-            .execute(
-                "INSERT OR REPLACE INTO blocks (cid, data) VALUES (?1, ?2)",
-                params![block.cid.to_string(), encoded],
-            )
-            .map_err(|e| {
-                CommonError::DatabaseError(format!("Failed to store block {}: {}", block.cid, e))
-            })?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| CommonError::DatabaseError(format!("Mutex poisoned: {}", e)))?;
+        conn.execute(
+            "INSERT OR REPLACE INTO blocks (cid, data) VALUES (?1, ?2)",
+            params![block.cid.to_string(), encoded],
+        )
+        .map_err(|e| {
+            CommonError::DatabaseError(format!("Failed to store block {}: {}", block.cid, e))
+        })?;
         self.meta
             .insert(block.cid.clone(), BlockMetadata::default());
         Ok(())
     }
 
     fn get(&self, cid: &Cid) -> Result<Option<DagBlock>, CommonError> {
-        let mut stmt = self
+        let conn = self
             .conn
+            .lock()
+            .map_err(|e| CommonError::DatabaseError(format!("Mutex poisoned: {}", e)))?;
+        let mut stmt = conn
             .prepare("SELECT data FROM blocks WHERE cid = ?1")
             .map_err(|e| CommonError::DatabaseError(format!("Failed to prepare query: {}", e)))?;
         let mut rows = stmt
@@ -81,21 +88,27 @@ impl StorageService<DagBlock> for SqliteDagStore {
     }
 
     fn delete(&mut self, cid: &Cid) -> Result<(), CommonError> {
-        self.conn
-            .execute(
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| CommonError::DatabaseError(format!("Mutex poisoned: {}", e)))?;
+        conn.execute(
                 "DELETE FROM blocks WHERE cid = ?1",
                 params![cid.to_string()],
-            )
-            .map_err(|e| {
-                CommonError::DatabaseError(format!("Failed to delete block {}: {}", cid, e))
-            })?;
+        )
+        .map_err(|e| {
+            CommonError::DatabaseError(format!("Failed to delete block {}: {}", cid, e))
+        })?;
         self.meta.remove(cid);
         Ok(())
     }
 
     fn contains(&self, cid: &Cid) -> Result<bool, CommonError> {
-        let count: u32 = self
+        let conn = self
             .conn
+            .lock()
+            .map_err(|e| CommonError::DatabaseError(format!("Mutex poisoned: {}", e)))?;
+        let count: u32 = conn
             .query_row(
                 "SELECT COUNT(1) FROM blocks WHERE cid = ?1",
                 params![cid.to_string()],
@@ -108,8 +121,11 @@ impl StorageService<DagBlock> for SqliteDagStore {
     }
 
     fn list_blocks(&self) -> Result<Vec<DagBlock>, CommonError> {
-        let mut stmt = self
+        let conn = self
             .conn
+            .lock()
+            .map_err(|e| CommonError::DatabaseError(format!("Mutex poisoned: {}", e)))?;
+        let mut stmt = conn
             .prepare("SELECT data FROM blocks")
             .map_err(|e| CommonError::DatabaseError(format!("Prepare failed: {}", e)))?;
         let rows = stmt
@@ -161,8 +177,12 @@ impl StorageService<DagBlock> for SqliteDagStore {
             .filter(|(_, m)| !m.pinned && m.ttl.map(|t| t <= now).unwrap_or(false))
             .map(|(c, _)| c.clone())
             .collect();
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| CommonError::DatabaseError(format!("Mutex poisoned: {}", e)))?;
         for cid in &to_remove {
-            self.conn
+            conn
                 .execute(
                     "DELETE FROM blocks WHERE cid = ?1",
                     params![cid.to_string()],
