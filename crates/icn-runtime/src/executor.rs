@@ -273,6 +273,7 @@ impl JobExecutor for SimpleExecutor {
                     let store = ctx.dag_store.lock().await;
                     store
                         .get(&job.manifest_cid)
+                        .await
                         .map_err(|e| CommonError::InternalError(e.to_string()))?
                         .ok_or_else(|| CommonError::ResourceNotFound("Metadata not found".into()))?
                         .data
@@ -289,6 +290,7 @@ impl JobExecutor for SimpleExecutor {
                     let store = ctx.dag_store.lock().await;
                     store
                         .get(&wasm_cid)
+                        .await
                         .map_err(|e| CommonError::InternalError(e.to_string()))?
                         .ok_or_else(|| {
                             CommonError::ResourceNotFound(
@@ -323,6 +325,7 @@ impl JobExecutor for SimpleExecutor {
                     let store = ctx.dag_store.lock().await;
                     store
                         .get(&job.manifest_cid)
+                        .await
                         .map_err(|e| CommonError::InternalError(e.to_string()))?
                 }
                 .ok_or_else(|| CommonError::ResourceNotFound("Manifest not found".into()))?
@@ -450,6 +453,7 @@ impl JobExecutor for WasmExecutor {
             let store = self.ctx.dag_store.lock().await;
             let block = store
                 .get(&job.manifest_cid)
+                .await
                 .map_err(|e| CommonError::InternalError(e.to_string()))?
                 .ok_or_else(|| CommonError::ResourceNotFound("WASM module not found".into()))?;
             block.data
