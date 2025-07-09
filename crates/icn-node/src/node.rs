@@ -1083,13 +1083,7 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
         let gov_mod = rt_ctx.governance_module.clone();
         let rate_opt = rate_limiter.clone();
         let handle = tokio::runtime::Handle::current();
-        let mut gov = match gov_mod.lock() {
-            Ok(gov) => gov,
-            Err(e) => {
-                error!("Failed to lock governance module: {}", e);
-                return Err(format!("Failed to lock governance module: {}", e).into());
-            }
-        };
+        let mut gov = gov_mod.lock().await;
         gov.set_callback(move |proposal| {
             if let icn_governance::ProposalType::SystemParameterChange(param, value) =
                 &proposal.proposal_type
@@ -1626,7 +1620,7 @@ async fn dag_put_handler(
         scope: None,
     };
     let mut store = state.runtime_context.dag_store.lock().await;
-    match store.put(&dag_block) {
+    match store.put(&dag_block).await {
         Ok(()) => (StatusCode::CREATED, Json(dag_block.cid)).into_response(),
         Err(e) => map_rust_error_to_json_response(
             format!("DAG put error: {}", e),
@@ -1652,7 +1646,7 @@ async fn dag_get_handler(
         }
     };
     let store = state.runtime_context.dag_store.lock().await;
-    match store.get(&cid_to_get) {
+    match store.get(&cid_to_get).await {
         Ok(Some(block)) => (StatusCode::OK, Json(block.data)).into_response(),
         Ok(None) => map_rust_error_to_json_response("Block not found", StatusCode::NOT_FOUND)
             .into_response(),
@@ -1693,7 +1687,7 @@ async fn dag_meta_handler(
     // Get metadata synchronously
     let metadata_result: Result<Option<icn_dag::DagBlockMetadata>, CommonError> = {
         let store = state.runtime_context.dag_store.lock().await;
-        match store.get(&cid) {
+        match store.get(&cid).await {
             Ok(block_opt) => Ok(block_opt.map(|b| icn_dag::metadata_from_block(&b))),
             Err(e) => Err(match e {
                 CommonError::StorageError(msg) => {
@@ -1737,14 +1731,14 @@ async fn dag_pin_handler(
         }
     };
     let mut store = state.runtime_context.dag_store.lock().await;
-    if let Err(e) = store.pin_block(&cid) {
+    if let Err(e) = store.pin_block(&cid).await {
         return map_rust_error_to_json_response(
             format!("Pin error: {e}"),
             StatusCode::INTERNAL_SERVER_ERROR,
         )
         .into_response();
     }
-    if let Err(e) = store.set_ttl(&cid, req.ttl) {
+    if let Err(e) = store.set_ttl(&cid, req.ttl).await {
         return map_rust_error_to_json_response(
             format!("Set TTL error: {e}"),
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -1770,7 +1764,7 @@ async fn dag_unpin_handler(
         }
     };
     let mut store = state.runtime_context.dag_store.lock().await;
-    match store.unpin_block(&cid) {
+    match store.unpin_block(&cid).await {
         Ok(()) => (StatusCode::OK, Json(cid)).into_response(),
         Err(e) => map_rust_error_to_json_response(
             format!("Unpin error: {e}"),
@@ -1784,7 +1778,7 @@ async fn dag_unpin_handler(
 async fn dag_prune_handler(State(state): State<AppState>) -> impl IntoResponse {
     let now = state.runtime_context.time_provider.unix_seconds();
     let mut store = state.runtime_context.dag_store.lock().await;
-    match store.prune_expired(now) {
+    match store.prune_expired(now).await {
         Ok(removed) => (
             StatusCode::OK,
             Json(serde_json::json!({"removed": removed.iter().map(|c| c.to_string()).collect::<Vec<_>>() })),
@@ -2058,15 +2052,7 @@ async fn gov_revoke_handler(
 // GET /governance/proposals
 async fn gov_list_proposals_handler(State(state): State<AppState>) -> impl IntoResponse {
     debug!("Received /governance/proposals request");
-    let gov_mod = match state.runtime_context.governance_module.lock() {
-        Ok(gov) => gov,
-        Err(e) => {
-            return map_rust_error_to_json_response(
-                format!("Failed to lock governance module: {}", e),
-                StatusCode::INTERNAL_SERVER_ERROR,
-            ).into_response();
-        }
-    };
+    let gov_mod = state.runtime_context.governance_module.lock().await;
     match gov_mod.list_proposals() {
         Ok(props) => (StatusCode::OK, Json(props)).into_response(),
         Err(e) => map_rust_error_to_json_response(
@@ -2083,15 +2069,7 @@ async fn gov_get_proposal_handler(
     AxumPath(proposal_id_str): AxumPath<String>,
 ) -> impl IntoResponse {
     debug!("Received /governance/proposal/{} request", proposal_id_str);
-    let gov_mod = match state.runtime_context.governance_module.lock() {
-        Ok(gov) => gov,
-        Err(e) => {
-            return map_rust_error_to_json_response(
-                format!("Failed to lock governance module: {}", e),
-                StatusCode::INTERNAL_SERVER_ERROR,
-            ).into_response();
-        }
-    };
+    let gov_mod = state.runtime_context.governance_module.lock().await;
     let pid = icn_governance::ProposalId(proposal_id_str);
     match gov_mod.get_proposal(&pid) {
         Ok(Some(prop)) => (StatusCode::OK, Json(prop)).into_response(),

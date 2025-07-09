@@ -370,7 +370,9 @@ impl RuntimeContext {
         // Store in DAG
         {
             let mut dag_store = self.dag_store.lock().await;
-            dag_store.put(&block)
+            dag_store
+                .put(&block)
+                .await
                 .map_err(|e| HostAbiError::DagOperationFailed(format!("Failed to store receipt: {}", e)))?;
         }
         
@@ -448,8 +450,15 @@ impl RuntimeContext {
             };
             {
                 let mut dag_store = self.dag_store.lock().await;
-                dag_store.put(&block)
-                    .map_err(|e| HostAbiError::DagOperationFailed(format!("Failed to store proposal body: {}", e)))?;
+                dag_store
+                    .put(&block)
+                    .await
+                    .map_err(|e| {
+                        HostAbiError::DagOperationFailed(format!(
+                            "Failed to store proposal body: {}",
+                            e
+                        ))
+                    })?;
             }
             Some(block.cid.clone())
         } else {
