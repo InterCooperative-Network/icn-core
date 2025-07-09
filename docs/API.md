@@ -75,12 +75,20 @@ curl -X POST https://localhost:8080/dag/unpin \
   -d '{"cid": "your-cid-string"}'
 ```
 
+## Transaction Endpoints
+
+| Method | Path | Description | Auth Required |
+|--------|------|-------------|---------------|
+| POST | `/transaction/submit` | Submit a signed transaction to the runtime | Yes |
+
 ## Governance Endpoints
 
 | Method | Path | Description | Auth Required |
 |--------|------|-------------|---------------|
 | POST | `/governance/submit` | Submit a governance proposal | Yes |
 | POST | `/governance/vote` | Cast a vote on a proposal | Yes |
+| POST | `/governance/delegate` | Delegate voting power to another DID | Yes |
+| POST | `/governance/revoke` | Revoke a previous delegation | Yes |
 | GET | `/governance/proposals` | List all proposals | Yes |
 | GET | `/governance/proposal/:id` | Fetch a specific proposal | Yes |
 | POST | `/governance/close` | Close voting and return tally | Yes |
@@ -154,6 +162,9 @@ curl -X GET https://localhost:8080/mesh/jobs/job-uuid \
 |--------|------|-------------|---------------|
 | GET | `/federation/peers` | List known federation peers | Yes |
 | POST | `/federation/peers` | Add a new federation peer | Yes |
+| POST | `/federation/join` | Join a federation via peer ID | Yes |
+| POST | `/federation/leave` | Voluntarily leave the federation | Yes |
+| GET | `/federation/status` | Current federation status | Yes |
 
 ### Example Federation Operations
 ```bash
