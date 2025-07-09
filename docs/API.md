@@ -27,6 +27,8 @@ curl -X GET https://localhost:8080/info \
 |--------|------|-------------|---------------|
 | GET | `/info` | Node metadata including version and name | Optional |
 | GET | `/status` | Current node health and peer connectivity | Optional |
+| GET | `/health` | Basic health check | Optional |
+| GET | `/ready` | Readiness probe for orchestration | Optional |
 | GET | `/metrics` | Prometheus metrics for monitoring | Optional |
 
 ## DAG Storage Endpoints
@@ -36,6 +38,9 @@ curl -X GET https://localhost:8080/info \
 | POST | `/dag/put` | Store a content-addressed block | Yes |
 | POST | `/dag/get` | Retrieve a block by CID | Yes |
 | POST | `/dag/meta` | Retrieve metadata for a block | Yes |
+| POST | `/dag/pin` | Pin a block to prevent pruning | Yes |
+| POST | `/dag/unpin` | Unpin a previously pinned block | Yes |
+| POST | `/dag/prune` | Remove all unpinned blocks | Yes |
 
 ### Example DAG Operations
 ```bash
@@ -64,9 +69,12 @@ curl -X POST https://localhost:8080/dag/meta \
 |--------|------|-------------|---------------|
 | POST | `/governance/submit` | Submit a governance proposal | Yes |
 | POST | `/governance/vote` | Cast a vote on a proposal | Yes |
+| POST | `/governance/delegate` | Delegate voting power to another DID | Yes |
+| POST | `/governance/revoke` | Revoke a prior delegation | Yes |
+| POST | `/governance/close` | Close voting and return tally | Yes |
+| POST | `/governance/execute` | Execute an approved proposal | Yes |
 | GET | `/governance/proposals` | List all proposals | Yes |
 | GET | `/governance/proposal/:id` | Fetch a specific proposal | Yes |
-| POST | `/governance/close` | Close voting and return tally | Yes |
 
 ### Example Governance Operations
 ```bash
@@ -135,6 +143,7 @@ curl -X GET https://localhost:8080/mesh/jobs/job-uuid \
 | Method | Path | Description | Auth Required |
 |--------|------|-------------|---------------|
 | GET | `/federation/peers` | List known federation peers | Yes |
+| POST | `/federation/peers` | Add a peer to the federation | Yes |
 | POST | `/federation/join` | Join a federation by adding a peer | Yes |
 | POST | `/federation/leave` | Leave a federation by removing a peer | Yes |
 | GET | `/federation/status` | Get current federation status | Yes |
@@ -162,8 +171,7 @@ curl -X POST https://localhost:8080/federation/leave \
 
 | Method | Path | Description | Auth Required |
 |--------|------|-------------|---------------|
-| POST | `/network/discover-peers` | Trigger peer discovery | Yes |
-| POST | `/network/send-message` | Send a message to a specific peer | Yes |
+| GET | `/network/local-peer-id` | Return the local peer identifier | Yes |
 | POST | `/network/connect` | Connect to a peer by multiaddress | Yes |
 | GET | `/network/peers` | List currently connected peers | Yes |
 
@@ -180,7 +188,6 @@ curl -X POST https://localhost:8080/federation/leave \
 | Method | Path | Description | Auth Required |
 |--------|------|-------------|---------------|
 | POST | `/data/query` | Query stored data with filters | Yes |
-| GET | `/data/stats` | Get storage statistics | Yes |
 
 ## Error Responses
 
