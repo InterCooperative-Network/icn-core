@@ -22,6 +22,7 @@ async fn dag_persists_between_restarts_sled() {
         Some(dag_path.clone()),
         None,
         None,
+        None,
     )
     .await;
 
@@ -53,6 +54,7 @@ async fn dag_persists_between_restarts_sled() {
         Some(ledger_path.clone()),
         Some(StorageBackendType::Sled),
         Some(dag_path.clone()),
+        None,
         None,
         None,
     )

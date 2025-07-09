@@ -21,8 +21,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cross-node mesh job execution pipeline with signed receipts anchored to the DAG.
 - HTTP gateway enabling REST job submission and status queries.
 - Containerized 3-node federation devnet with Docker and integration tests.
+- `Ed25519Signer` replaces `StubSigner` for production runtime; tests may continue using `StubSigner`.
+- Comprehensive production security guide covering Ed25519 migration, TLS, and authentication.
+- Enhanced API documentation with all current endpoints, authentication, and TLS features.
+- Updated feature overview reflecting production-ready status and completed Phase 5 milestones.
+- Federation management CLI commands documentation and examples.
+- Production deployment architecture documentation with security best practices.
 
 ### Changed
+- Updated main README.md to reflect production-ready status with Phase 5 completion.
+- Revised onboarding guide with comprehensive federation management instructions.
+- Enhanced API documentation to include TLS, authentication, and all current endpoints.
+- Updated feature overview moving many items from "In Development" to "Implemented" status.
+- Improved quick start examples with production configuration options.
 
 ### Deprecated
 
@@ -37,6 +48,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - First version of crate skeletons.
 
-[Unreleased]: https://github.com/USERNAME/icn-core/compare/v0.2.0...HEAD
-[0.2.0]: https://github.com/USERNAME/icn-core/releases/tag/v0.2.0
-[0.1.0]: https://github.com/USERNAME/icn-core/releases/tag/v0.1.0 
+[Unreleased]: https://github.com/InterCooperative/icn-core/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/InterCooperative/icn-core/releases/tag/v0.2.0
+[0.1.0]: https://github.com/InterCooperative/icn-core/releases/tag/v0.1.0

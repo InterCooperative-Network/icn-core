@@ -5,7 +5,9 @@ use federation::{ensure_devnet, wait_for_federation_ready, NODE_A_URL, NODE_C_UR
 use reqwest::Client;
 use serde_json::Value;
 use std::process::Command;
+use std::time::Instant;
 use tokio::time::{sleep, Duration};
+use icn_common::retry_with_backoff;
 
 const RETRY_DELAY: Duration = Duration::from_secs(3);
 const MAX_RETRIES: u32 = 20;
@@ -106,5 +108,141 @@ async fn test_network_resilience() {
     }
 
     assert!(node_c_synced, "Node C did not sync job receipt after reconnect");
+}
+
+
+struct TestCircuitBreaker {
+    failures: u32,
+    threshold: u32,
+    open_until: Option<Instant>,
+    timeout: Duration,
+}
+
+impl TestCircuitBreaker {
+    fn new(threshold: u32, timeout: Duration) -> Self {
+        Self { failures: 0, threshold, open_until: None, timeout }
+    }
+
+    fn is_open(&self) -> bool {
+        matches!(self.open_until, Some(t) if t > Instant::now())
+    }
+
+    fn reset_if_needed(&mut self) {
+        if let Some(t) = self.open_until {
+            if Instant::now() >= t {
+                self.open_until = None;
+                self.failures = 0;
+            }
+        }
+    }
+
+    async fn call<F, Fut>(&mut self, op: F) -> Result<(), &'static str>
+    where
+        F: Fn() -> Fut,
+        Fut: std::future::Future<Output = Result<(), reqwest::Error>>,
+    {
+        self.reset_if_needed();
+        if self.is_open() {
+            return Err("circuit open");
+        }
+        match op().await {
+            Ok(_) => {
+                self.failures = 0;
+                Ok(())
+            }
+            Err(_) => {
+                self.failures += 1;
+                if self.failures >= self.threshold {
+                    self.open_until = Some(Instant::now() + self.timeout);
+                }
+                Err("operation failed")
+            }
+        }
+    }
+}
+
+#[tokio::test]
+async fn test_long_partition_circuit_breaker() {
+    let _devnet = ensure_devnet().await;
+
+    Command::new("docker-compose")
+        .args(&["-f", "icn-devnet/docker-compose.yml", "stop", "icn-node-c"])
+        .status()
+        .expect("failed to stop node c");
+
+    sleep(Duration::from_secs(5)).await;
+
+    let client = Client::new();
+    let mut breaker = TestCircuitBreaker::new(3, Duration::from_secs(5));
+    let url = format!("{}/info", NODE_C_URL);
+    let mut attempt_times: Vec<Instant> = Vec::new();
+
+    for _ in 0..3 {
+        let _ = breaker
+            .call(|| {
+                let c = &client;
+                let u = &url;
+                attempt_times.push(Instant::now());
+                async move {
+                    retry_with_backoff(
+                        || async { c.get(u).send().await.map(|_| ()) },
+                        3,
+                        Duration::from_millis(100),
+                        Duration::from_secs(1),
+                    )
+                    .await
+                }
+            })
+            .await;
+        sleep(Duration::from_secs(1)).await;
+    }
+
+    assert!(breaker.is_open(), "circuit breaker should open after failures");
+
+    let before = attempt_times.len();
+    let err = breaker
+        .call(|| async { Ok(()) })
+        .await
+        .expect_err("expected circuit open error");
+    assert_eq!(err, "circuit open");
+    assert_eq!(before, attempt_times.len(), "no request made when circuit open");
+
+    Command::new("docker-compose")
+        .args(&["-f", "icn-devnet/docker-compose.yml", "start", "icn-node-c"])
+        .status()
+        .expect("failed to start node c");
+
+    wait_for_federation_ready()
+        .await
+        .expect("federation not ready after restart");
+
+    sleep(Duration::from_secs(6)).await;
+
+    breaker
+        .call(|| {
+            let c = &client;
+            let u = &url;
+            attempt_times.push(Instant::now());
+            async move {
+                retry_with_backoff(
+                    || async { c.get(u).send().await.map(|_| ()) },
+                    3,
+                    Duration::from_millis(100),
+                    Duration::from_secs(1),
+                )
+                .await
+            }
+        })
+        .await
+        .expect("operation should succeed after reconnect");
+
+    assert!(!breaker.is_open(), "circuit breaker should reset after success");
+
+    assert!(attempt_times.len() >= 3);
+    if attempt_times.len() >= 3 {
+        let interval1 = attempt_times[1] - attempt_times[0];
+        let interval2 = attempt_times[2] - attempt_times[1];
+        assert!(interval2 >= interval1);
+    }
 }
 

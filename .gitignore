@@ -16,6 +16,8 @@ Cargo.lock
 *.log
 tmp/
 icn-ccl/governance_db/
-*.sled/
+*.sled
+icn_data/
 icn-devnet/certs/cert.pem
 icn-devnet/certs/key.pem
+rustc-ice-*.txt

@@ -114,6 +114,20 @@ services:
       - icn-federation
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./alert.rules.yml:/etc/prometheus/alert.rules.yml
+    profiles:
+      - monitoring
+
+  # Optional: Alertmanager for routing alerts
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: icn-alertmanager
+    ports:
+      - "9093:9093"
+    networks:
+      - icn-federation
+    volumes:
+      - ./alertmanager.yml:/etc/alertmanager/alertmanager.yml
     profiles:
       - monitoring
 

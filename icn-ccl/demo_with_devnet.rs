@@ -99,7 +99,7 @@ fn main() {
     println!("  ✨ Governance as Code - Write bylaws in CCL");
     println!("  ⚡ Deterministic Execution - WASM compilation ensures consistency");
     println!("  🏛️ Policy Templates - Reusable governance patterns");
-    println!("  🔗 Mesh Integration - Deploy and execute across ICN network");
+    println!("  🔗 Mesh Integration - Deploy and execute across the network");
     println!("  🔒 Security - Sandboxed execution with resource limits");
     println!("  📜 Auditability - Source code hashing and receipts");
 }

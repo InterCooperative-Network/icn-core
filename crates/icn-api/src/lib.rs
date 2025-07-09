@@ -11,16 +11,18 @@
 
 // Depending on icn_common crate
 use icn_common::{
-    compute_merkle_cid, Cid, CommonError, DagBlock, Did, NodeInfo, NodeStatus, ICN_CORE_VERSION,
+    compute_merkle_cid, retry_with_backoff, Cid, CircuitBreaker, CircuitBreakerError, CommonError,
+    DagBlock, Did, NodeInfo, NodeStatus, SystemTimeProvider, ICN_CORE_VERSION,
 };
 // Remove direct use of icn_dag::put_block and icn_dag::get_block which use global store
 // use icn_dag::{put_block as dag_put_block, get_block as dag_get_block};
-use icn_dag::StorageService; // Import the trait
+use icn_dag::AsyncStorageService; // Import the async storage trait
+use once_cell::sync::Lazy;
 use std::sync::{Arc, Mutex}; // To accept the storage service
-                             // Added imports for network functionality
-use icn_network::{NetworkService, PeerId, StubNetworkService};
-#[cfg(test)]
-use icn_protocol::MessagePayload;
+use tokio::sync::Mutex as AsyncMutex;
+// Added imports for network functionality
+use icn_network::{NetworkService, PeerId};
+
 use icn_protocol::ProtocolMessage;
 // Added imports for governance functionality
 use icn_governance::{
@@ -28,6 +30,15 @@ use icn_governance::{
     GovernanceModule, Proposal, ProposalId, ProposalType, VoteOption,
 };
 use std::str::FromStr;
+use std::time::Duration;
+
+static HTTP_BREAKER: Lazy<AsyncMutex<CircuitBreaker<SystemTimeProvider>>> = Lazy::new(|| {
+    AsyncMutex::new(CircuitBreaker::new(
+        SystemTimeProvider,
+        3,
+        Duration::from_secs(5),
+    ))
+});
 
 pub mod federation_trait;
 pub mod governance_trait;
@@ -71,7 +82,7 @@ pub fn submit_transaction(tx_json: String) -> Result<String, CommonError> {
 ///
 /// Returns the [`DagBlock`] if found, or `Ok(None)` if the block does not exist.
 pub async fn query_data(
-    storage: Arc<tokio::sync::Mutex<dyn StorageService<DagBlock> + Send>>,
+    storage: Arc<tokio::sync::Mutex<dyn AsyncStorageService<DagBlock> + Send>>,
     cid_json: String,
 ) -> Result<Option<DagBlock>, CommonError> {
     let cid: Cid = serde_json::from_str(&cid_json).map_err(|e| {
@@ -82,7 +93,7 @@ pub async fn query_data(
     })?;
 
     let store_guard = storage.lock().await;
-    store_guard.get(&cid).map_err(|e| match e {
+    store_guard.get(&cid).await.map_err(|e| match e {
         CommonError::StorageError(msg) => {
             CommonError::StorageError(format!("API: Failed to query DagBlock: {}", msg))
         }
@@ -123,7 +134,7 @@ pub fn get_node_status(is_simulated_online: bool) -> Result<NodeStatus, CommonEr
 /// Submits a DagBlock to the provided DAG store.
 /// Returns the CID of the stored block upon success.
 pub async fn submit_dag_block(
-    storage: Arc<tokio::sync::Mutex<dyn StorageService<DagBlock> + Send>>,
+    storage: Arc<tokio::sync::Mutex<dyn AsyncStorageService<DagBlock> + Send>>,
     block_data_json: String,
     policy_enforcer: Option<Arc<dyn ScopedPolicyEnforcer>>,
     actor: Did,
@@ -158,7 +169,7 @@ pub async fn submit_dag_block(
 
     let mut store = storage.lock().await;
 
-    store.put(&block).map_err(|e| match e {
+    store.put(&block).await.map_err(|e| match e {
         CommonError::StorageError(msg) => {
             CommonError::StorageError(format!("API: Failed to store DagBlock: {}", msg))
         }
@@ -181,7 +192,7 @@ pub async fn submit_dag_block(
 /// Retrieves a DagBlock from the provided DAG store by its CID.
 /// The result is an Option<DagBlock> to indicate if the block was found.
 pub async fn retrieve_dag_block(
-    storage: Arc<tokio::sync::Mutex<dyn StorageService<DagBlock> + Send>>,
+    storage: Arc<tokio::sync::Mutex<dyn AsyncStorageService<DagBlock> + Send>>,
     cid_json: String,
 ) -> Result<Option<DagBlock>, CommonError> {
     let cid: Cid = serde_json::from_str(&cid_json).map_err(|e| {
@@ -193,7 +204,7 @@ pub async fn retrieve_dag_block(
 
     let store = storage.lock().await;
 
-    store.get(&cid).map_err(|e| match e {
+    store.get(&cid).await.map_err(|e| match e {
         CommonError::StorageError(msg) => {
             CommonError::StorageError(format!("API: Failed to retrieve DagBlock: {}", msg))
         }
@@ -205,6 +216,34 @@ pub async fn retrieve_dag_block(
         // Note: get typically shouldn't cause SerializationError or DagValidationError unless the store is corrupted
         _ => CommonError::ApiError(format!("API: Unexpected error during store.get: {:?}", e)),
     })
+}
+
+/// Retrieve [`DagBlock`] metadata by CID.
+pub async fn get_dag_metadata(
+    storage: Arc<tokio::sync::Mutex<dyn AsyncStorageService<DagBlock> + Send>>,
+    cid_json: String,
+) -> Result<Option<icn_dag::DagBlockMetadata>, CommonError> {
+    let cid: Cid = serde_json::from_str(&cid_json).map_err(|e| {
+        CommonError::DeserializationError(format!(
+            "Failed to parse CID JSON for metadata retrieval: {} (Input: '{}')",
+            e, cid_json
+        ))
+    })?;
+
+    let store = storage.lock().await;
+    let block_opt = store.get(&cid).await.map_err(|e| match e {
+        CommonError::StorageError(msg) => {
+            CommonError::StorageError(format!("API: Failed to retrieve DagBlock: {}", msg))
+        }
+        CommonError::DeserializationError(msg) => CommonError::DeserializationError(format!(
+            "API: Deserialization error during get: {}",
+            msg
+        )),
+        CommonError::PolicyDenied(msg) => CommonError::PolicyDenied(format!("API: {}", msg)),
+        _ => CommonError::ApiError(format!("API: Unexpected error during store.get: {:?}", e)),
+    })?;
+
+    Ok(block_opt.map(|b| icn_dag::metadata_from_block(&b)))
 }
 
 // pub fn add(left: u64, right: u64) -> u64 {
@@ -253,6 +292,15 @@ impl GovernanceApi for GovernanceApiImpl {
                 })?;
                 ProposalType::NewMemberInvitation(member_did)
             }
+            ProposalInputType::RemoveMember { did } => {
+                let member_did = Did::from_str(&did).map_err(|e| {
+                    CommonError::InvalidInputError(format!(
+                        "Invalid member DID format for removal: {}. Error: {:?}",
+                        did, e
+                    ))
+                })?;
+                ProposalType::RemoveMember(member_did)
+            }
             ProposalInputType::SoftwareUpgrade { version } => {
                 ProposalType::SoftwareUpgrade(version)
             }
@@ -265,14 +313,15 @@ impl GovernanceApi for GovernanceApiImpl {
             )
         })?;
 
-        module.submit_proposal(
-            proposer_did,
-            core_proposal_type,
-            request.description,
-            request.duration_secs,
-            request.quorum,
-            request.threshold,
-        )
+        module.submit_proposal(icn_governance::ProposalSubmission {
+            proposer: proposer_did,
+            proposal_type: core_proposal_type,
+            description: request.description,
+            duration_secs: request.duration_secs,
+            quorum: request.quorum,
+            threshold: request.threshold,
+            content_cid: None,
+        })
     }
 
     fn cast_vote(&self, request: GovernanceCastVoteRequest) -> Result<(), CommonError> {
@@ -384,12 +433,13 @@ impl GovernanceApi for GovernanceApiImpl {
 
 // --- Network API Functions ---
 
-/// API endpoint to discover network peers (currently uses StubNetworkService).
-/// Takes a list of bootstrap node addresses (currently ignored by stub but good for API design).
+/// API endpoint to discover network peers. The caller supplies a [`NetworkService`]
+/// implementation, allowing either the default stub or a real libp2p service.
+/// `bootstrap_nodes_str` are optional bootstrap addresses for discovery.
 pub async fn discover_peers_api(
+    network_service: Arc<dyn NetworkService>,
     bootstrap_nodes_str: Vec<String>,
 ) -> Result<Vec<PeerId>, CommonError> {
-    let network_service = StubNetworkService::default();
     // In a real scenario, bootstrap_nodes_str might need parsing into a more specific type.
     // For discover_peers, we might want to pass a single optional peer, or handle multiple if the underlying service supports it.
     // For now, let's take the first bootstrap node as an example if provided, or None.
@@ -405,14 +455,15 @@ pub async fn discover_peers_api(
         })
 }
 
-/// API endpoint to send a message to a specific peer (currently uses StubNetworkService).
-/// `peer_id_str` is the string representation of the target PeerId.
+/// API endpoint to send a message to a specific peer. The caller supplies a [`NetworkService`]
+/// implementation (stub or libp2p).
+/// `peer_id_str` is the string representation of the target [`PeerId`].
 /// `message_json` is a JSON string representation of the [`ProtocolMessage`].
 pub async fn send_network_message_api(
+    network_service: Arc<dyn NetworkService>,
     peer_id_str: String,
     message_json: String,
 ) -> Result<(), CommonError> {
-    let network_service = StubNetworkService::default();
     let peer_id = PeerId(peer_id_str); // Assuming PeerId is a simple wrapper around String for now.
 
     // Deserialize the ProtocolMessage from JSON.
@@ -438,9 +489,29 @@ pub async fn send_network_message_api(
 /// Retrieve the local peer ID from an ICN node via HTTP.
 pub async fn http_get_local_peer_id(api_url: &str) -> Result<String, CommonError> {
     let url = format!("{}/network/local-peer-id", api_url.trim_end_matches('/'));
-    let res = reqwest::get(&url)
-        .await
-        .map_err(|e| CommonError::ApiError(format!("Failed to send request: {}", e)))?;
+    use std::time::Duration;
+    let res = {
+        let mut breaker = HTTP_BREAKER.lock().await;
+        breaker
+            .call(|| async {
+                retry_with_backoff(
+                    || async {
+                        reqwest::get(&url).await.map_err(|e| {
+                            CommonError::ApiError(format!("Failed to send request: {}", e))
+                        })
+                    },
+                    3,
+                    Duration::from_millis(100),
+                    Duration::from_secs(2),
+                )
+                .await
+            })
+            .await
+    };
+    let res = res.map_err(|e| match e {
+        CircuitBreakerError::Open => CommonError::NetworkUnhealthy("circuit open".to_string()),
+        CircuitBreakerError::Inner(err) => err,
+    })?;
     if res.status().is_success() {
         res.json::<serde_json::Value>()
             .await
@@ -466,9 +537,29 @@ pub async fn http_get_local_peer_id(api_url: &str) -> Result<String, CommonError
 /// Retrieve the list of peers from an ICN node via HTTP.
 pub async fn http_get_peer_list(api_url: &str) -> Result<Vec<String>, CommonError> {
     let url = format!("{}/network/peers", api_url.trim_end_matches('/'));
-    let res = reqwest::get(&url)
-        .await
-        .map_err(|e| CommonError::ApiError(format!("Failed to send request: {}", e)))?;
+    use std::time::Duration;
+    let res = {
+        let mut breaker = HTTP_BREAKER.lock().await;
+        breaker
+            .call(|| async {
+                retry_with_backoff(
+                    || async {
+                        reqwest::get(&url).await.map_err(|e| {
+                            CommonError::ApiError(format!("Failed to send request: {}", e))
+                        })
+                    },
+                    3,
+                    Duration::from_millis(100),
+                    Duration::from_secs(2),
+                )
+                .await
+            })
+            .await
+    };
+    let res = res.map_err(|e| match e {
+        CircuitBreakerError::Open => CommonError::NetworkUnhealthy("circuit open".to_string()),
+        CircuitBreakerError::Inner(err) => err,
+    })?;
     if res.status().is_success() {
         res.json::<Vec<String>>()
             .await
@@ -487,13 +578,18 @@ pub async fn http_get_peer_list(api_url: &str) -> Result<Vec<String>, CommonErro
 mod tests {
     use super::*;
     use icn_common::DagLink; // For test setup
-    use icn_dag::InMemoryDagStore; // For creating test stores, removed FileDagStore
+    use icn_dag::TokioFileDagStore; // Async file-based store for tests
     use icn_governance::GovernanceModule; // For governance tests
+    use icn_network::StubNetworkService; // For network tests
     use icn_protocol::{DagBlockRequestMessage, GossipMessage, MessagePayload, ProtocolMessage};
+    use tempfile::tempdir;
 
     // Helper to create a default in-memory store for tests
-    fn new_test_storage() -> Arc<tokio::sync::Mutex<dyn StorageService<DagBlock> + Send>> {
-        Arc::new(tokio::sync::Mutex::new(InMemoryDagStore::new()))
+    fn new_test_storage() -> Arc<tokio::sync::Mutex<dyn AsyncStorageService<DagBlock> + Send>> {
+        let dir = tempdir().unwrap();
+        Arc::new(tokio::sync::Mutex::new(
+            TokioFileDagStore::new(dir.keep()).unwrap(),
+        ))
     }
 
     // Helper to create a default governance module for tests
@@ -699,6 +795,9 @@ mod tests {
             },
             description: "Test description".to_string(),
             duration_secs: 3600,
+            quorum: None,
+            threshold: None,
+            body: None,
         };
 
         let proposal_id_res = api.submit_proposal(submit_req);
@@ -741,6 +840,9 @@ mod tests {
             },
             description: "Voting test".to_string(),
             duration_secs: 3600,
+            quorum: None,
+            threshold: None,
+            body: None,
         };
         let proposal_id = api
             .submit_proposal(submit_req)
@@ -762,7 +864,8 @@ mod tests {
     async fn test_discover_peers_api() {
         // Made async
         let bootstrap_nodes = vec!["/ip4/127.0.0.1/tcp/12345/p2p/QmSimulatedPeer".to_string()];
-        match discover_peers_api(bootstrap_nodes).await {
+        let service = Arc::new(StubNetworkService::default()) as Arc<dyn NetworkService>;
+        match discover_peers_api(service, bootstrap_nodes).await {
             Ok(peers) => {
                 assert!(
                     !peers.is_empty(),
@@ -790,7 +893,8 @@ mod tests {
         );
         let message_json = serde_json::to_string(&message_to_send).unwrap();
 
-        let result = send_network_message_api(peer_id_str, message_json).await;
+        let service = Arc::new(StubNetworkService::default()) as Arc<dyn NetworkService>;
+        let result = send_network_message_api(service, peer_id_str, message_json).await;
         assert!(
             result.is_ok(),
             "send_network_message_api failed: {:?}",
@@ -813,7 +917,8 @@ mod tests {
         );
         let message_json = serde_json::to_string(&message_to_send).unwrap();
 
-        let result = send_network_message_api(peer_id_str, message_json).await;
+        let service = Arc::new(StubNetworkService::default()) as Arc<dyn NetworkService>;
+        let result = send_network_message_api(service, peer_id_str, message_json).await;
         assert!(result.is_err());
         match result.err().unwrap() {
             CommonError::ApiError(msg) => assert!(
@@ -830,7 +935,9 @@ mod tests {
         let peer_id_str = "QmTestPeerInvalidJson".to_string();
         let invalid_message_json = "this is not valid json for a network message";
 
-        match send_network_message_api(peer_id_str, invalid_message_json.to_string()).await {
+        let service = Arc::new(StubNetworkService::default()) as Arc<dyn NetworkService>;
+        match send_network_message_api(service, peer_id_str, invalid_message_json.to_string()).await
+        {
             Err(CommonError::DeserializationError(msg)) => {
                 assert!(msg.contains("Failed to parse ProtocolMessage JSON"));
             }
@@ -852,8 +959,8 @@ mod tests {
             payload_type: "test".to_string(),
             payload: b"hello".to_vec(),
             nonce: 0,
-            gas_limit: 100,
-            gas_price: 1,
+            mana_limit: 100,
+            mana_price: 1,
             signature: None,
         };
         let tx_json = serde_json::to_string(&tx).unwrap();
@@ -863,10 +970,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_query_data() {
-        use icn_dag::InMemoryDagStore;
+        use icn_dag::TokioFileDagStore;
+        use tempfile::tempdir;
 
-        let store: Arc<tokio::sync::Mutex<dyn StorageService<DagBlock> + Send>> =
-            Arc::new(tokio::sync::Mutex::new(InMemoryDagStore::new()));
+        let dir = tempdir().unwrap();
+        let store: Arc<tokio::sync::Mutex<dyn AsyncStorageService<DagBlock> + Send>> = Arc::new(
+            tokio::sync::Mutex::new(TokioFileDagStore::new(dir.keep()).unwrap()),
+        );
         let data = b"query block".to_vec();
         let ts = 0u64;
         let author = Did::new("key", "tester");
@@ -883,7 +993,7 @@ mod tests {
         };
         {
             let mut guard = store.lock().await;
-            guard.put(&block).unwrap();
+            guard.put(&block).await.unwrap();
         }
 
         let cid_json = serde_json::to_string(&cid).unwrap();
@@ -893,27 +1003,60 @@ mod tests {
 
     struct DenyAllStore;
 
-    impl StorageService<DagBlock> for DenyAllStore {
-        fn put(&mut self, _block: &DagBlock) -> Result<(), CommonError> {
+    #[async_trait::async_trait]
+    impl AsyncStorageService<DagBlock> for DenyAllStore {
+        async fn put(&mut self, _block: &DagBlock) -> Result<(), CommonError> {
             Err(CommonError::PolicyDenied("put blocked".to_string()))
         }
 
-        fn get(&self, _cid: &Cid) -> Result<Option<DagBlock>, CommonError> {
+        async fn get(&self, _cid: &Cid) -> Result<Option<DagBlock>, CommonError> {
             Err(CommonError::PolicyDenied("get blocked".to_string()))
         }
 
-        fn delete(&mut self, _cid: &Cid) -> Result<(), CommonError> {
+        async fn delete(&mut self, _cid: &Cid) -> Result<(), CommonError> {
             Err(CommonError::PolicyDenied("delete blocked".to_string()))
         }
 
-        fn contains(&self, _cid: &Cid) -> Result<bool, CommonError> {
+        async fn contains(&self, _cid: &Cid) -> Result<bool, CommonError> {
             Err(CommonError::PolicyDenied("contains blocked".to_string()))
+        }
+
+        async fn list_blocks(&self) -> Result<Vec<DagBlock>, CommonError> {
+            Err(CommonError::PolicyDenied("list blocked".to_string()))
+        }
+
+        async fn pin_block(&mut self, _cid: &Cid) -> Result<(), CommonError> {
+            Err(CommonError::PolicyDenied("pin blocked".to_string()))
+        }
+
+        async fn unpin_block(&mut self, _cid: &Cid) -> Result<(), CommonError> {
+            Err(CommonError::PolicyDenied("unpin blocked".to_string()))
+        }
+
+        async fn prune_expired(&mut self, _now: u64) -> Result<Vec<Cid>, CommonError> {
+            Err(CommonError::PolicyDenied("prune blocked".to_string()))
+        }
+
+        async fn set_ttl(&mut self, _cid: &Cid, _ttl: Option<u64>) -> Result<(), CommonError> {
+            Err(CommonError::PolicyDenied("set_ttl blocked".to_string()))
+        }
+
+        async fn get_metadata(&self, _cid: &Cid) -> Result<Option<icn_dag::BlockMetadata>, CommonError> {
+            Err(CommonError::PolicyDenied("get_metadata blocked".to_string()))
+        }
+
+        fn as_any(&self) -> &(dyn std::any::Any + 'static) {
+            self
+        }
+
+        fn as_any_mut(&mut self) -> &mut (dyn std::any::Any + 'static) {
+            self
         }
     }
 
     #[tokio::test]
     async fn policy_error_propagates_on_put() {
-        let store: Arc<tokio::sync::Mutex<dyn StorageService<DagBlock> + Send>> =
+        let store: Arc<tokio::sync::Mutex<dyn AsyncStorageService<DagBlock> + Send>> =
             Arc::new(tokio::sync::Mutex::new(DenyAllStore));
 
         let data = b"block".to_vec();
@@ -939,7 +1082,7 @@ mod tests {
 
     #[tokio::test]
     async fn policy_error_propagates_on_get() {
-        let store: Arc<tokio::sync::Mutex<dyn StorageService<DagBlock> + Send>> =
+        let store: Arc<tokio::sync::Mutex<dyn AsyncStorageService<DagBlock> + Send>> =
             Arc::new(tokio::sync::Mutex::new(DenyAllStore));
 
         let cid = Cid::new_v1_sha256(0x71, b"a");
@@ -952,7 +1095,7 @@ mod tests {
 
     #[tokio::test]
     async fn policy_error_propagates_on_query() {
-        let store: Arc<tokio::sync::Mutex<dyn StorageService<DagBlock> + Send>> =
+        let store: Arc<tokio::sync::Mutex<dyn AsyncStorageService<DagBlock> + Send>> =
             Arc::new(tokio::sync::Mutex::new(DenyAllStore));
 
         let cid = Cid::new_v1_sha256(0x71, b"a");

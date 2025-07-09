@@ -8,7 +8,7 @@
 //! It handles proposal systems, voting procedures, quorum logic, and decision execution,
 //! focusing on transparency, fairness, and flexibility.
 
-use icn_common::{CommonError, Did, NodeInfo};
+use icn_common::{Cid, CommonError, Did, NodeInfo};
 #[cfg(feature = "federation")]
 #[allow(unused_imports)]
 use icn_network::{MeshNetworkError, NetworkService, PeerId, StubNetworkService};
@@ -24,6 +24,7 @@ use std::path::PathBuf;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
+pub mod metrics;
 pub mod scoped_policy;
 
 // --- Proposal System ---
@@ -87,6 +88,8 @@ pub struct Proposal {
     pub quorum: Option<usize>,
     /// Optional threshold override for this proposal
     pub threshold: Option<f32>,
+    /// CID of proposal body stored in the DAG
+    pub content_cid: Option<Cid>,
     // Potentially, threshold and quorum requirements could be part of the proposal type or global config
 }
 
@@ -129,10 +132,23 @@ enum Backend {
 pub struct GovernanceModule {
     backend: Backend,
     members: HashSet<Did>,
+    delegations: HashMap<Did, Did>,
     quorum: usize,
     threshold: f32,
     #[allow(clippy::type_complexity)]
     proposal_callback: Option<Box<dyn Fn(&Proposal) -> Result<(), CommonError> + Send + Sync>>,
+}
+
+/// Parameters for submitting a new proposal
+#[derive(Debug, Clone)]
+pub struct ProposalSubmission {
+    pub proposer: Did,
+    pub proposal_type: ProposalType,
+    pub description: String,
+    pub duration_secs: u64,
+    pub quorum: Option<usize>,
+    pub threshold: Option<f32>,
+    pub content_cid: Option<Cid>,
 }
 
 impl GovernanceModule {
@@ -143,6 +159,7 @@ impl GovernanceModule {
                 proposals: HashMap::new(),
             },
             members: HashSet::new(),
+            delegations: HashMap::new(),
             quorum: 1,
             threshold: 0.5,
             proposal_callback: None,
@@ -165,6 +182,7 @@ impl GovernanceModule {
                 proposals_tree_name,
             },
             members: HashSet::new(),
+            delegations: HashMap::new(),
             quorum: 1,
             threshold: 0.5,
             proposal_callback: None,
@@ -174,32 +192,34 @@ impl GovernanceModule {
     /// Create and store a new proposal in the governance module.
     pub fn submit_proposal(
         &mut self,
-        proposer: Did,
-        proposal_type: ProposalType,
-        description: String,
-        duration_secs: u64,
-        quorum: Option<usize>,
-        threshold: Option<f32>,
+        submission: ProposalSubmission,
     ) -> Result<ProposalId, CommonError> {
+        metrics::SUBMIT_PROPOSAL_CALLS.inc();
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs();
-        let desc_hash_part = description.chars().take(10).collect::<String>();
-        let proposal_id_str = format!("prop:{}:{}:{}", proposer.to_string(), desc_hash_part, now);
+        let desc_hash_part = submission.description.chars().take(10).collect::<String>();
+        let proposal_id_str = format!(
+            "prop:{}:{}:{}",
+            submission.proposer.to_string(),
+            desc_hash_part,
+            now
+        );
         let proposal_id = ProposalId(proposal_id_str);
 
         let proposal = Proposal {
             id: proposal_id.clone(),
-            proposer,
-            proposal_type,
-            description,
+            proposer: submission.proposer,
+            proposal_type: submission.proposal_type,
+            description: submission.description,
             created_at: now,
-            voting_deadline: now + duration_secs,
+            voting_deadline: now + submission.duration_secs,
             status: ProposalStatus::Pending,
             votes: HashMap::new(),
-            quorum,
-            threshold,
+            quorum: submission.quorum,
+            threshold: submission.threshold,
+            content_cid: submission.content_cid,
         };
 
         match &mut self.backend {
@@ -344,6 +364,7 @@ impl GovernanceModule {
         proposal_id: &ProposalId,
         option: VoteOption,
     ) -> Result<(), CommonError> {
+        metrics::CAST_VOTE_CALLS.inc();
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
@@ -545,6 +566,22 @@ impl GovernanceModule {
         self.members.remove(did);
     }
 
+    /// Delegate `from` member's vote to `to` member.
+    pub fn delegate_vote(&mut self, from: Did, to: Did) -> Result<(), CommonError> {
+        if !self.members.contains(&from) || !self.members.contains(&to) {
+            return Err(CommonError::InvalidInputError(
+                "Both delegator and delegatee must be members".to_string(),
+            ));
+        }
+        self.delegations.insert(from, to);
+        Ok(())
+    }
+
+    /// Revoke any delegation for `from`.
+    pub fn revoke_delegation(&mut self, from: Did) {
+        self.delegations.remove(&from);
+    }
+
     /// Returns a reference to the current member set.
     pub fn members(&self) -> &HashSet<Did> {
         &self.members
@@ -694,17 +731,29 @@ impl GovernanceModule {
 
     /// Counts yes/no/abstain votes for a proposal, considering only current members.
     pub fn tally_votes(&self, proposal: &Proposal) -> (usize, usize, usize) {
+        Self::tally_votes_static(&self.members, &self.delegations, proposal)
+    }
+
+    fn tally_votes_static(
+        members: &HashSet<Did>,
+        delegations: &HashMap<Did, Did>,
+        proposal: &Proposal,
+    ) -> (usize, usize, usize) {
         let mut yes = 0;
         let mut no = 0;
         let mut abstain = 0;
-        for (did, vote) in &proposal.votes {
-            if !self.members.contains(did) {
-                continue;
+        for member in members {
+            let mut option = proposal.votes.get(member).map(|v| v.option);
+            if option.is_none() {
+                if let Some(delegate) = delegations.get(member) {
+                    option = proposal.votes.get(delegate).map(|v| v.option);
+                }
             }
-            match vote.option {
-                VoteOption::Yes => yes += 1,
-                VoteOption::No => no += 1,
-                VoteOption::Abstain => abstain += 1,
+            match option {
+                Some(VoteOption::Yes) => yes += 1,
+                Some(VoteOption::No) => no += 1,
+                Some(VoteOption::Abstain) => abstain += 1,
+                None => {}
             }
         }
         (yes, no, abstain)
@@ -844,7 +893,7 @@ impl GovernanceModule {
     pub fn close_voting_period(
         &mut self,
         proposal_id: &ProposalId,
-    ) -> Result<ProposalStatus, CommonError> {
+    ) -> Result<(ProposalStatus, (usize, usize, usize)), CommonError> {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
@@ -861,31 +910,13 @@ impl GovernanceModule {
                         proposal_id.0
                     ))
                 })?;
-                if now < proposal.voting_deadline {
-                    return Err(CommonError::InvalidInputError(format!(
-                        "Voting period for proposal {} has not closed yet.",
-                        proposal_id.0
-                    )));
-                }
+                // Allow early closing of the voting period
                 if proposal.status != ProposalStatus::VotingOpen {
-                    return Ok(proposal.status.clone());
+                    return Ok((proposal.status.clone(), (0, 0, 0)));
                 }
-                let (yes, no, abstain) = {
-                    let mut yes = 0;
-                    let mut no = 0;
-                    let mut abstain = 0;
-                    for (did, vote) in &proposal.votes {
-                        if !self.members.contains(did) {
-                            continue;
-                        }
-                        match vote.option {
-                            VoteOption::Yes => yes += 1,
-                            VoteOption::No => no += 1,
-                            VoteOption::Abstain => abstain += 1,
-                        }
-                    }
-                    (yes, no, abstain)
-                };
+                let members = self.members.clone();
+                let delegations = self.delegations.clone();
+                let (yes, no, abstain) = Self::tally_votes_static(&members, &delegations, proposal);
                 let total = yes + no + abstain;
                 let quorum = proposal.quorum.unwrap_or(self.quorum);
                 let threshold = proposal.threshold.unwrap_or(self.threshold);
@@ -896,7 +927,7 @@ impl GovernanceModule {
                 } else {
                     proposal.status = ProposalStatus::Rejected;
                 }
-                Ok(proposal.status.clone())
+                Ok((proposal.status.clone(), (yes, no, abstain)))
             }
             #[cfg(feature = "persist-sled")]
             Backend::Sled {
@@ -931,31 +962,14 @@ impl GovernanceModule {
                             proposal_id.0, e
                         ))
                     })?;
-                if now < proposal.voting_deadline {
-                    return Err(CommonError::InvalidInputError(format!(
-                        "Voting period for proposal {} has not closed yet.",
-                        proposal_id.0
-                    )));
-                }
+                // Allow early closing of the voting period
                 if proposal.status != ProposalStatus::VotingOpen {
-                    return Ok(proposal.status.clone());
+                    return Ok((proposal.status.clone(), (0, 0, 0)));
                 }
-                let (yes, no, abstain) = {
-                    let mut yes = 0;
-                    let mut no = 0;
-                    let mut abstain = 0;
-                    for (did, vote) in &proposal.votes {
-                        if !self.members.contains(did) {
-                            continue;
-                        }
-                        match vote.option {
-                            VoteOption::Yes => yes += 1,
-                            VoteOption::No => no += 1,
-                            VoteOption::Abstain => abstain += 1,
-                        }
-                    }
-                    (yes, no, abstain)
-                };
+                let members = self.members.clone();
+                let delegations = self.delegations.clone();
+                let (yes, no, abstain) =
+                    Self::tally_votes_static(&members, &delegations, &proposal);
                 let total = yes + no + abstain;
                 let quorum = proposal.quorum.unwrap_or(self.quorum);
                 let threshold = proposal.threshold.unwrap_or(self.threshold);
@@ -984,13 +998,14 @@ impl GovernanceModule {
                         proposal_id.0, e
                     ))
                 })?;
-                Ok(proposal.status)
+                Ok((proposal.status, (yes, no, abstain)))
             }
         }
     }
 
     /// Executes an accepted proposal. New members are added when executed.
     pub fn execute_proposal(&mut self, proposal_id: &ProposalId) -> Result<(), CommonError> {
+        metrics::EXECUTE_PROPOSAL_CALLS.inc();
         match &mut self.backend {
             Backend::InMemory { proposals } => {
                 let proposal = proposals.get_mut(proposal_id).ok_or_else(|| {
@@ -1125,6 +1140,7 @@ impl fmt::Debug for GovernanceModule {
         f.debug_struct("GovernanceModule")
             .field("backend", &self.backend)
             .field("members", &self.members)
+            .field("delegations", &self.delegations)
             .field("quorum", &self.quorum)
             .field("threshold", &self.threshold)
             .finish()

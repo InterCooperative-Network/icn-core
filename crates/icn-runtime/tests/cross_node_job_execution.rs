@@ -23,6 +23,7 @@ mod runtime_host_abi_tests {
     use log::{debug, info};
     use std::str::FromStr;
     use std::sync::Arc;
+    use tempfile::tempdir;
     use tokio::time::{sleep, timeout, Duration};
 
     /// Helper to create a RuntimeContext with real libp2p networking
@@ -34,10 +35,20 @@ mod runtime_host_abi_tests {
         let identity_did_str = format!("did:key:z6Mkv{}", identity_name);
         let identity_did = Did::from_str(&identity_did_str)?;
 
-        let runtime_ctx =
-            RuntimeContext::new_with_libp2p_network(&identity_did_str, bootstrap_peers)
-                .await
-                .map_err(|e| anyhow::anyhow!("Failed to create runtime context: {}", e))?;
+        let tmp = tempdir()?;
+        let base = tmp.into_path();
+        let listen: Vec<Multiaddr> = vec!["/ip4/0.0.0.0/tcp/0".parse().unwrap()];
+
+        let runtime_ctx = RuntimeContext::new_with_real_libp2p(
+            &identity_did_str,
+            listen,
+            bootstrap_peers,
+            base.join("dag"),
+            base.join("mana"),
+            base.join("reputation"),
+        )
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to create runtime context: {}", e))?;
 
         // Set initial mana balance
         runtime_ctx
@@ -77,7 +88,6 @@ mod runtime_host_abi_tests {
     }
 
     #[tokio::test]
-    #[ignore = "Runtime-driven cross-node job execution using Host ABI"]
     async fn test_runtime_host_abi_cross_node_execution() -> Result<()> {
         info!("🚀 [RUNTIME-INTEGRATION] Starting Host ABI cross-node job execution test");
 
@@ -144,8 +154,11 @@ mod runtime_host_abi_tests {
         for attempt in 1..=20 {
             sleep(Duration::from_millis(500)).await;
 
-            let job_states = submitter_node.job_states.lock().await;
-            if let Some(job_state) = job_states.get(&submitted_job_id) {
+            if let Some(job_state) = submitter_node
+                .job_states
+                .get(&submitted_job_id)
+                .map(|s| s.value().clone())
+            {
                 match job_state {
                     icn_mesh::JobState::Assigned { executor } => {
                         info!(
@@ -188,8 +201,11 @@ mod runtime_host_abi_tests {
         for attempt in 1..=30 {
             sleep(Duration::from_millis(1000)).await;
 
-            let job_states = submitter_node.job_states.lock().await;
-            if let Some(job_state) = job_states.get(&submitted_job_id) {
+            if let Some(job_state) = submitter_node
+                .job_states
+                .get(&submitted_job_id)
+                .map(|s| s.value().clone())
+            {
                 match job_state {
                     icn_mesh::JobState::Completed { receipt } => {
                         info!("🎉 [RUNTIME-INTEGRATION] Job completed! Receipt job_id: {} (attempt {})", receipt.job_id, attempt);
@@ -287,9 +303,10 @@ mod runtime_host_abi_tests {
         info!("✅ [HOST-ABI-TEST] Job submitted successfully: {}", job_id);
 
         // Verify job appears in pending state
-        let job_states = runtime_ctx.job_states.lock().await;
-        let job_state = job_states
+        let job_state = runtime_ctx
+            .job_states
             .get(&job_id)
+            .map(|s| s.value().clone())
             .ok_or_else(|| anyhow::anyhow!("Job not found in runtime state"))?;
 
         match job_state {

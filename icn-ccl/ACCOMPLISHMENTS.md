@@ -196,7 +196,7 @@ fn calculate_final_mana_cost(
 1. **Hot Deployment**: Live contract updates through governance
 2. **Cross-Contract Calls**: Inter-contract communication
 3. **Standard Library**: Common governance patterns
-4. **Gas Metering**: Mana consumption tracking
+4. **Mana Metering**: Mana consumption tracking
 
 ---
 

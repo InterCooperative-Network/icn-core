@@ -4,7 +4,8 @@ This crate provides the main binary for running a long-lived InterCooperative Ne
 It integrates various core components to operate a functional ICN node, handling initialization,
 lifecycle, configuration, service hosting, and persistence.
 
-See [CONTEXT.md](../CONTEXT.md) for ICN Core design philosophy and crate roles.
+See [CONTEXT.md](../../CONTEXT.md) for ICN Core design philosophy and crate roles.
+See [docs/ASYNC_OVERVIEW.md](../../docs/ASYNC_OVERVIEW.md) for async API guidelines.
 
 ## Purpose
 
@@ -23,6 +24,7 @@ The `main.rs` in this crate currently serves as a demonstration of integrating a
 
 1.  **Node Information & Status:** Calls `icn-api` functions (`get_node_info`, `get_node_status`) to retrieve and display node details. It demonstrates handling both successful calls and simulated error conditions (e.g., node offline).
 2.  **DAG Operations:** Demonstrates submitting a sample `DagBlock` to the local DAG store (via `icn-api` which uses `icn-dag`) and then retrieving it.
+    Additional endpoints allow pinning or unpinning blocks and pruning expired content based on TTL metadata.
 3.  **Network Operations:**
     *   When built with `with-libp2p`, the node spawns a real `Libp2pNetworkService` and discovers peers via bootstrap addresses.
     *   Demonstrates submitting another `DagBlock` and broadcasting its announcement using `broadcast_message`.
@@ -51,7 +53,7 @@ node_name = "Local Node"
 http_listen_addr = "127.0.0.1:8080"
 storage_backend = "rocksdb"
 storage_path = "./icn_data/node_store"
-mana_ledger_path = "./mana_ledger.sled"
+mana_ledger_path = "./mana_ledger.sqlite"
 node_did_path = "./icn_data/node_did.txt"
 node_private_key_path = "./icn_data/node_sk.bs58"
 ```

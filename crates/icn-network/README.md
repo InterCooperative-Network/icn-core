@@ -1,9 +1,10 @@
-# ICN Network (`icn-network`)
+# Networking for ICN (`icn-network`)
 
 This crate manages peer-to-peer (P2P) networking aspects for the InterCooperative Network (ICN).
 It defines the core networking abstractions, message types, and service interfaces. A lightweight stub service is available for tests, while production builds enable a libp2p-based implementation via the `libp2p` feature.
 
-See [CONTEXT.md](../CONTEXT.md) for ICN Core design philosophy and crate roles.
+See [CONTEXT.md](../../CONTEXT.md) for ICN Core design philosophy and crate roles.
+See [docs/ASYNC_OVERVIEW.md](../../docs/ASYNC_OVERVIEW.md) for async API guidelines.
 
 ## Purpose
 
@@ -77,6 +78,17 @@ This crate provides:
 
 The API aims for modularity, allowing different P2P backends to be integrated by implementing the `NetworkService` trait.
 
+## Examples
+
+The `tests` directory provides runnable examples that use the real libp2p
+networking stack. The [`handshake_pubsub.rs`](tests/handshake_pubsub.rs) test
+spawns two `Libp2pNetworkService` instances, performs a handshake, and
+exchanges a gossipsub message. Run it with:
+
+```bash
+cargo test -p icn-network --features libp2p handshake_pubsub
+```
+
 ## Contributing
 
 Please refer to the main `CONTRIBUTING.md` in the root of the `icn-core` repository.
@@ -88,5 +100,4 @@ Key areas for future contributions:
 *   Adding support for various transport protocols.
 
 ## License
-
 This crate is licensed under the Apache 2.0 license, as is the entire `icn-core` repository. 

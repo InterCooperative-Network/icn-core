@@ -16,6 +16,7 @@ use std::process::exit; // Added for reading from stdin
 // Types from our ICN crates that CLI will interact with (serialize/deserialize)
 // These types are expected to be sent to/received from the icn-node HTTP API.
 use icn_common::{Cid, DagBlock, NodeInfo, NodeStatus};
+use icn_dag::DagBlockMetadata;
 // Using aliased request structs from icn-api for clarity, these are what the node expects
 use icn_api::governance_trait::{
     CastVoteRequest as ApiCastVoteRequest, SubmitProposalRequest as ApiSubmitProposalRequest,
@@ -118,6 +119,40 @@ enum DagCommands {
         #[clap(help = "CID of the block to retrieve, as a JSON string")]
         cid_json: String,
     },
+    /// Retrieve metadata for a DAG block by CID
+    Meta {
+        #[clap(help = "CID of the block to inspect, as a JSON string")]
+        cid_json: String,
+    },
+    /// Backup the DAG store to the specified directory
+    Backup {
+        #[clap(help = "Path to store the backup data")]
+        path: String,
+    },
+    /// Restore the DAG store from the specified directory
+    Restore {
+        #[clap(help = "Path of the backup to restore from")]
+        path: String,
+    },
+    /// Verify blocks in the DAG store
+    Verify {
+        #[clap(long, help = "Verify all blocks, not just a sample")]
+        full: bool,
+    },
+    /// Pin a DAG block with optional TTL
+    Pin {
+        #[clap(help = "CID of the block to pin as JSON string")]
+        cid_json: String,
+        #[clap(long, help = "Optional TTL in seconds")]
+        ttl: Option<u64>,
+    },
+    /// Unpin a DAG block
+    Unpin {
+        #[clap(help = "CID of the block to unpin as JSON string")]
+        cid_json: String,
+    },
+    /// Prune expired blocks
+    Prune,
 }
 
 #[derive(Subcommand, Debug)]
@@ -233,6 +268,15 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
                 block_json_or_stdin,
             } => handle_dag_put(cli, client, block_json_or_stdin).await?,
             DagCommands::Get { cid_json } => handle_dag_get(cli, client, cid_json).await?,
+            DagCommands::Meta { cid_json } => handle_dag_meta(cli, client, cid_json).await?,
+            DagCommands::Backup { path } => handle_dag_backup(path)?,
+            DagCommands::Restore { path } => handle_dag_restore(path)?,
+            DagCommands::Verify { full } => handle_dag_verify(*full)?,
+            DagCommands::Pin { cid_json, ttl } => {
+                handle_dag_pin(cli, client, cid_json, *ttl).await?
+            }
+            DagCommands::Unpin { cid_json } => handle_dag_unpin(cli, client, cid_json).await?,
+            DagCommands::Prune => handle_dag_prune(cli, client).await?,
         },
         Commands::Governance { command } => match command {
             GovernanceCommands::Submit {
@@ -283,7 +327,19 @@ async fn get_request<T: for<'de> Deserialize<'de>>(
     path: &str,
 ) -> Result<T, anyhow::Error> {
     let url = format!("{}{}", api_url, path);
-    let res = client.get(&url).send().await?;
+    let res = icn_common::retry_with_backoff(
+        || async {
+            client
+                .get(&url)
+                .send()
+                .await
+                .map_err(|e| anyhow::anyhow!(e))
+        },
+        3,
+        std::time::Duration::from_millis(100),
+        std::time::Duration::from_secs(2),
+    )
+    .await?;
 
     if res.status().is_success() {
         let body = res.json::<T>().await?;
@@ -310,7 +366,20 @@ async fn post_request<S: Serialize, T: for<'de> Deserialize<'de>>(
     body: &S,
 ) -> Result<T, anyhow::Error> {
     let url = format!("{}{}", api_url, path);
-    let res = client.post(&url).json(body).send().await?;
+    let res = icn_common::retry_with_backoff(
+        || async {
+            client
+                .post(&url)
+                .json(body)
+                .send()
+                .await
+                .map_err(|e| anyhow::anyhow!(e))
+        },
+        3,
+        std::time::Duration::from_millis(100),
+        std::time::Duration::from_secs(2),
+    )
+    .await?;
 
     if res.status().is_success() {
         let response_body = res.json::<T>().await?;
@@ -355,7 +424,19 @@ async fn handle_status(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> 
 
 async fn handle_metrics(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
     let url = format!("{}{}", &cli.api_url, "/metrics");
-    let res = client.get(&url).send().await?;
+    let res = icn_common::retry_with_backoff(
+        || async {
+            client
+                .get(&url)
+                .send()
+                .await
+                .map_err(|e| anyhow::anyhow!(e))
+        },
+        3,
+        std::time::Duration::from_millis(100),
+        std::time::Duration::from_secs(2),
+    )
+    .await?;
     if res.status().is_success() {
         let body = res.text().await?;
         println!("{}", body);
@@ -405,6 +486,94 @@ async fn handle_dag_get(cli: &Cli, client: &Client, cid_json: &str) -> Result<()
     println!("--- Retrieved DAG Block ---");
     println!("{}", serde_json::to_string_pretty(&response_block)?);
     println!("-------------------------");
+    Ok(())
+}
+
+async fn handle_dag_meta(cli: &Cli, client: &Client, cid_json: &str) -> Result<(), anyhow::Error> {
+    let cid: Cid = serde_json::from_str(cid_json)
+        .map_err(|e| anyhow::anyhow!("Invalid CID JSON provided: {}. Error: {}", cid_json, e))?;
+    let meta: icn_dag::DagBlockMetadata =
+        post_request(&cli.api_url, client, "/dag/meta", &cid).await?;
+    println!("--- DAG Block Metadata ---");
+    println!("{}", serde_json::to_string_pretty(&meta)?);
+    println!("--------------------------");
+    Ok(())
+}
+
+fn handle_dag_backup(path: &str) -> Result<(), anyhow::Error> {
+    let src = PathBuf::from("./icn_data/node_store");
+    let dest = PathBuf::from(path);
+    std::fs::create_dir_all(&dest)?;
+    for entry in std::fs::read_dir(&src)? {
+        let entry = entry?;
+        if entry.file_type()?.is_file() {
+            let target = dest.join(entry.file_name());
+            std::fs::copy(entry.path(), target)?;
+        }
+    }
+    println!("Backup created at {}", dest.display());
+    Ok(())
+}
+
+fn handle_dag_restore(path: &str) -> Result<(), anyhow::Error> {
+    let src = PathBuf::from(path);
+    let dest = PathBuf::from("./icn_data/node_store");
+    std::fs::create_dir_all(&dest)?;
+    for entry in std::fs::read_dir(&src)? {
+        let entry = entry?;
+        if entry.file_type()?.is_file() {
+            let target = dest.join(entry.file_name());
+            std::fs::copy(entry.path(), target)?;
+        }
+    }
+    println!("Restored DAG store from {}", src.display());
+    Ok(())
+}
+
+fn handle_dag_verify(full: bool) -> Result<(), anyhow::Error> {
+    let store_path = PathBuf::from("./icn_data/node_store");
+    let mut verified = 0usize;
+    for entry in std::fs::read_dir(&store_path)? {
+        let entry = entry?;
+        if entry.file_type()?.is_file() {
+            let content = std::fs::read_to_string(entry.path())?;
+            let block: DagBlock = serde_json::from_str(&content)?;
+            icn_common::verify_block_integrity(&block)?;
+            verified += 1;
+            if !full {
+                break;
+            }
+        }
+    }
+    println!("Verified {verified} block(s)");
+    Ok(())
+}
+
+async fn handle_dag_pin(
+    cli: &Cli,
+    client: &Client,
+    cid_json: &str,
+    ttl: Option<u64>,
+) -> Result<(), anyhow::Error> {
+    let cid: Cid = serde_json::from_str(cid_json)
+        .map_err(|e| anyhow::anyhow!("Invalid CID JSON: {cid_json}. Error: {e}"))?;
+    let body = serde_json::json!({ "cid": cid, "ttl": ttl });
+    let _: JsonValue = post_request(&cli.api_url, client, "/dag/pin", &body).await?;
+    println!("Pinned block {cid_json}");
+    Ok(())
+}
+
+async fn handle_dag_unpin(cli: &Cli, client: &Client, cid_json: &str) -> Result<(), anyhow::Error> {
+    let cid: Cid = serde_json::from_str(cid_json)
+        .map_err(|e| anyhow::anyhow!("Invalid CID JSON: {cid_json}. Error: {e}"))?;
+    let _: JsonValue = post_request(&cli.api_url, client, "/dag/unpin", &cid).await?;
+    println!("Unpinned block {cid_json}");
+    Ok(())
+}
+
+async fn handle_dag_prune(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
+    let _: JsonValue = post_request(&cli.api_url, client, "/dag/prune", &()).await?;
+    println!("Prune triggered");
     Ok(())
 }
 
@@ -460,8 +629,12 @@ async fn handle_gov_tally(
     proposal_id: &str,
 ) -> Result<(), anyhow::Error> {
     let req = serde_json::json!({ "proposal_id": proposal_id });
-    let status: String = post_request(&cli.api_url, client, "/governance/close", &req).await?;
-    println!("Tally result: {}", status);
+    let result: icn_api::governance_trait::CloseProposalResponse =
+        post_request(&cli.api_url, client, "/governance/close", &req).await?;
+    println!(
+        "Tally result: yes={} no={} abstain={} status={}",
+        result.yes, result.no, result.abstain, result.status
+    );
     Ok(())
 }
 

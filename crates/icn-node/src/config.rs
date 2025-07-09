@@ -13,7 +13,8 @@ use icn_dag::rocksdb_store::RocksDagStore;
 use icn_dag::sled_store::SledDagStore;
 #[cfg(feature = "persist-sqlite")]
 use icn_dag::sqlite_store::SqliteDagStore;
-use icn_dag::{FileDagStore, InMemoryDagStore, StorageService};
+use icn_dag::{AsyncStorageService, TokioFileDagStore};
+use icn_runtime::context::StubDagStore;
 
 /// Storage backends supported by the node.
 #[derive(clap::ValueEnum, Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -114,7 +115,7 @@ impl Default for NodeConfig {
             storage_backend: StorageBackendType::Memory,
             storage_path: "./icn_data/node_store".into(),
             mana_ledger_backend: default_ledger_backend(),
-            mana_ledger_path: "./mana_ledger.sled".into(),
+            mana_ledger_path: "./mana_ledger.sqlite".into(),
             reputation_db_path: "./reputation.sled".into(),
             governance_db_path: "./governance_db".into(),
             http_listen_addr: "127.0.0.1:7845".to_string(),
@@ -125,7 +126,7 @@ impl Default for NodeConfig {
             node_name: "ICN Node".to_string(),
             listen_address: "/ip4/0.0.0.0/tcp/0".to_string(),
             bootstrap_peers: None,
-            enable_p2p: false,
+            enable_p2p: cfg!(feature = "enable-libp2p"),
             api_key: None,
             auth_token: None,
             auth_token_path: None,
@@ -527,13 +528,12 @@ impl NodeConfig {
     /// Initialize a DAG store based on this configuration.
     pub fn init_dag_store(
         &self,
-    ) -> Result<Arc<TokioMutex<dyn StorageService<DagBlock> + Send>>, CommonError> {
-        let store: Arc<TokioMutex<dyn StorageService<DagBlock> + Send>> = match self.storage_backend
+    ) -> Result<Arc<TokioMutex<dyn AsyncStorageService<DagBlock> + Send>>, CommonError> {
+        let store: Arc<TokioMutex<dyn AsyncStorageService<DagBlock> + Send>> = match self
+            .storage_backend
         {
-            StorageBackendType::Memory => {
-                Arc::new(TokioMutex::new(InMemoryDagStore::new())) as Arc<_>
-            }
-            StorageBackendType::File => Arc::new(TokioMutex::new(FileDagStore::new(
+            StorageBackendType::Memory => Arc::new(TokioMutex::new(StubDagStore::new())) as Arc<_>,
+            StorageBackendType::File => Arc::new(TokioMutex::new(TokioFileDagStore::new(
                 self.storage_path.clone(),
             )?)) as Arc<_>,
             StorageBackendType::Sqlite => {
@@ -580,5 +580,15 @@ impl NodeConfig {
             }
         };
         Ok(store)
+    }
+
+    /// Persist this configuration to the given path in TOML format.
+    pub fn save_to_file(&self, path: &std::path::Path) -> std::io::Result<()> {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        let toml_str = toml::to_string_pretty(self)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+        std::fs::write(path, toml_str)
     }
 }

@@ -177,6 +177,24 @@ Planned features include:
   * `make localnet-start NODES=3`
   * `make localnet-stop`
   * `make localnet-logs NODE_ID=1`
+## Libp2p Integration Tests
+
+To verify cross-node job announcements, bidding, and the runtime pipeline you can run the workspace tests with libp2p enabled.
+
+1. **Build the full workspace** with libp2p support:
+
+```bash
+cargo build --workspace --features with-libp2p
+```
+
+2. **Run integration tests** that exercise multi-node messaging and execution:
+
+```bash
+cargo test --features enable-libp2p --workspace
+```
+
+Set `RUST_LOG=info` to see verbose logs. Tests that interact with the containerized devnet check the `ICN_DEVNET_RUNNING` environment variable. If it is unset, the test harness will automatically start `icn-devnet/launch_federation.sh`.
+
 
 ## Roadmap for Multi-Node Networking
 

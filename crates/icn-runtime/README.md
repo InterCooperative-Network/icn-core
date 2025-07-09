@@ -2,17 +2,18 @@
 
 This crate provides the execution environment for InterCooperative Network (ICN) logic, possibly including WebAssembly (WASM) runtimes and host interaction capabilities.
 
-See [CONTEXT.md](../CONTEXT.md) for ICN Core design philosophy and crate roles.
+See [CONTEXT.md](../../CONTEXT.md) for ICN Core design philosophy and crate roles.
+See [docs/ASYNC_OVERVIEW.md](../../docs/ASYNC_OVERVIEW.md) for async API guidelines.
 
 ## Purpose
 
 The `icn-runtime` crate is responsible for:
 
 *   **Execution Environment:** Defining and managing the environment where ICN's core logic or user-defined contracts/scripts run.
-*   **WASM Runtime (if applicable):** If ICN uses WebAssembly for smart contracts or extensible logic, this crate would host and manage the WASM execution engine (e.g., Wasmer, Wasmtime).
+*   **WASM Runtime (if applicable):** If ICN uses WebAssembly for CCL contracts or extensible logic, this crate would host and manage the WASM execution engine (e.g., Wasmer, Wasmtime).
 *   **Host Functions:** Providing a set of functions (host calls) that WASM modules or other sandboxed code can use to interact with the ICN node's capabilities (e.g., accessing storage, sending network messages, interacting with ledgers).
 *   **Sandboxing and Security:** Ensuring that executed code is properly isolated and cannot compromise the host node or the network.
-*   **Metering and Resource Limits:** Potentially implementing mechanisms to measure and limit the computational resources (e.g., gas) consumed by executed code.
+*   **Metering and Resource Limits:** Potentially implementing mechanisms to measure and limit the computational resources (e.g., mana) consumed by executed code.
 
 This crate is key to enabling safe and extensible functionality within ICN nodes.
 
@@ -101,10 +102,18 @@ async fn finalize_proposal(ctx: &RuntimeContext, pid: &str) -> Result<(), icn_ru
 `spawn_mana_regenerator` to start a background task that credits every
 account with a fixed amount on a configurable interval.
 
+## DAG Integrity Checker
+
+To detect storage corruption, call `spawn_integrity_checker` with a check
+interval. The task runs `icn_dag::verify_all` over the configured DAG store
+and logs an error if verification fails. You may adjust the interval and
+implement a custom repair strategy if desired.
+
 ## DAG Storage
 
 `RuntimeContext` selects a storage backend for receipts and other DAG data. When
-compiled with the `async` feature, use `TokioFileDagStore`:
+compiled with the `async` feature, use `TokioFileDagStore` (requires the Tokio
+runtime):
 
 ```rust
 use icn_runtime::context::{RuntimeContext, StubMeshNetworkService, StubSigner};

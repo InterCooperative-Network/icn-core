@@ -1,23 +1,24 @@
 use icn_common::Did;
-use icn_governance::{GovernanceModule, ProposalStatus, ProposalType, VoteOption};
+use icn_governance::{GovernanceModule, ProposalStatus, ProposalSubmission, ProposalType, VoteOption};
 use std::str::FromStr;
 
 #[test]
-fn proposal_specific_quorum_and_threshold() {
+fn custom_quorum_and_threshold() {
     let mut gov = GovernanceModule::new();
     gov.add_member(Did::from_str("did:example:alice").unwrap());
     gov.add_member(Did::from_str("did:example:bob").unwrap());
     gov.add_member(Did::from_str("did:example:charlie").unwrap());
 
     let pid = gov
-        .submit_proposal(
-            Did::from_str("did:example:alice").unwrap(),
-            ProposalType::GenericText("custom".into()),
-            "desc".into(),
-            60,
-            Some(3),
-            Some(0.75),
-        )
+        .submit_proposal(ProposalSubmission {
+            proposer: Did::from_str("did:example:alice").unwrap(),
+            proposal_type: ProposalType::GenericText("custom".into()),
+            description: "desc".into(),
+            duration_secs: 60,
+            quorum: Some(2),
+            threshold: Some(0.75),
+            content_cid: None,
+        })
         .unwrap();
 
     gov.open_voting(&pid).unwrap();
@@ -34,6 +35,6 @@ fn proposal_specific_quorum_and_threshold() {
     )
     .unwrap();
 
-    let status = gov.close_voting_period(&pid).unwrap();
+    let (status, _) = gov.close_voting_period(&pid).unwrap();
     assert_eq!(status, ProposalStatus::Rejected);
 }

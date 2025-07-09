@@ -47,10 +47,13 @@ async fn proposal_can_be_closed_and_executed() {
         .unwrap();
     }
     // close voting
-    let status = host_close_governance_proposal_voting(&ctx, &pid_str)
+    let result_json = host_close_governance_proposal_voting(&ctx, &pid_str)
         .await
         .expect("close voting");
-    assert_eq!(status, format!("{:?}", ProposalStatus::Accepted));
+    let result: icn_api::governance_trait::CloseProposalResponse =
+        serde_json::from_str(&result_json).unwrap();
+    assert_eq!(result.status, format!("{:?}", ProposalStatus::Accepted));
+    assert_eq!((result.yes, result.no, result.abstain), (2, 0, 0));
     // execute proposal
     host_execute_governance_proposal(&ctx, &pid_str)
         .await
@@ -175,10 +178,13 @@ async fn lifecycle_with_member_add_and_remove() {
         )
         .unwrap();
     }
-    let status = host_close_governance_proposal_voting(&ctx, &pid_str)
+    let res_json = host_close_governance_proposal_voting(&ctx, &pid_str)
         .await
         .expect("close voting");
-    assert_eq!(status, format!("{:?}", ProposalStatus::Accepted));
+    let res: icn_api::governance_trait::CloseProposalResponse =
+        serde_json::from_str(&res_json).unwrap();
+    assert_eq!(res.status, format!("{:?}", ProposalStatus::Accepted));
+    assert_eq!((res.yes, res.no, res.abstain), (1, 0, 0));
 
     host_execute_governance_proposal(&ctx, &pid_str)
         .await
@@ -226,9 +232,12 @@ async fn execution_rewards_proposer() {
         )
         .unwrap();
     }
-    host_close_governance_proposal_voting(&ctx, &pid_str)
+    let res_json = host_close_governance_proposal_voting(&ctx, &pid_str)
         .await
         .expect("close voting");
+    let res: icn_api::governance_trait::CloseProposalResponse =
+        serde_json::from_str(&res_json).unwrap();
+    assert_eq!((res.yes, res.no, res.abstain), (1, 0, 0));
 
     let mana_before = ctx.mana_ledger.get_balance(&ctx.current_identity);
     let rep_before = ctx.reputation_store.get_reputation(&ctx.current_identity);
@@ -276,4 +285,32 @@ async fn failed_execution_no_rewards() {
 
     assert_eq!(mana_after, mana_before);
     assert!(rep_after < rep_before);
+}
+
+#[tokio::test]
+async fn proposal_body_is_stored_in_dag() {
+    let ctx = RuntimeContext::new_with_stubs("did:icn:test:cid").unwrap();
+    {
+        let mut gov = ctx.governance_module.lock().await;
+        gov.add_member(Did::from_str("did:icn:test:cid").unwrap());
+    }
+    let body_bytes = b"full proposal text".to_vec();
+    let payload = serde_json::json!({
+        "proposal_type_str": "GenericText",
+        "type_specific_payload": b"short".to_vec(),
+        "description": "with body",
+        "duration_secs": 60,
+        "body": body_bytes,
+    });
+    let pid_str = host_create_governance_proposal(&ctx, &payload.to_string())
+        .await
+        .expect("create proposal");
+    let pid = ProposalId(pid_str);
+    let gov = ctx.governance_module.lock().await;
+    let prop = gov.get_proposal(&pid).unwrap().unwrap();
+    let cid = prop.content_cid.expect("cid stored");
+    drop(gov);
+    let store = ctx.dag_store.lock().await;
+    let block = store.get(&cid).unwrap().expect("block stored");
+    assert_eq!(block.data, b"full proposal text");
 }

@@ -23,17 +23,20 @@ serde_json = "1.0"
 tokio = { version = "1", features = ["full", "test-util"] }
 async-trait = "0.1.77"
 log = "0.4"
-thiserror = "2.0"
-libp2p = { version = "0.53.2", optional = true }
+thiserror = "1.0"
+libp2p = { version = "0.56", optional = true }
 downcast-rs = "1.2.0"
 futures = "0.3"
-wasmtime = { version = "34", features = ["async"] }
+wasmtime = { version = "15", features = ["async"] }
+wasmparser = "0.121"
 bincode = "1.3"
 once_cell = "1.21"
 prometheus-client = "0.22"
 clap = { version = "4.0", features = ["derive"], optional = true }
 icn-ccl = { path = "../../icn-ccl" }
 sha2 = "0.10"
+anyhow = "1.0"
+dashmap = "5"
 
 [dev-dependencies]
 anyhow = "1.0.75"
@@ -47,13 +50,14 @@ serial_test = { version = "3", features = ["async"] }
 # Logging for integration tests
 env_logger = "0.11"
 # temp-dir = "0.1"
+criterion = { version = "0.5", features = ["async"] }
 
 [features]
 default = []
 enable-libp2p = ["dep:libp2p"]
 persist-sled = ["icn-governance/persist-sled", "icn-reputation/persist-sled"]
-persist-sqlite = ["icn-governance/persist-sled", "icn-reputation/persist-sqlite", "icn-economics/persist-sqlite"]
-persist-rocksdb = ["icn-governance/persist-sled", "icn-reputation/persist-rocksdb", "icn-economics/persist-rocksdb"]
+persist-sqlite = ["icn-governance/persist-sled", "icn-reputation/persist-sqlite", "icn-economics/persist-sqlite", "icn-dag/persist-sqlite"]
+persist-rocksdb = ["icn-governance/persist-sled", "icn-reputation/persist-rocksdb", "icn-economics/persist-rocksdb", "icn-dag/persist-rocksdb"]
 cli = ["dep:clap"]
 async = ["icn-dag/async"]
 

@@ -19,12 +19,9 @@ name = "test_parameter_fix"
 path = "test_parameter_fix.rs"
 
 [[bin]]
-name = "test_enhanced_features"
-path = "test_enhanced_features.rs"
-
-[[bin]]
 name = "test_working_features"
 path = "test_working_features.rs"
+
 
 [dependencies]
 pest = "2.7" # Or the version you intend to use
@@ -47,7 +44,7 @@ icn-common = { path = "../crates/icn-common" } # Adjust path as necessary
 [dev-dependencies]
 tempfile = "3.10"
 # Needed to execute compiled WASM in tests
-icn-runtime = { path = "../crates/icn-runtime" }
+icn-runtime = { path = "../crates/icn-runtime", features = ["async"] }
 # Additional crates used in tests
 icn-identity = { path = "../crates/icn-identity" }
 icn-mesh = { path = "../crates/icn-mesh" }

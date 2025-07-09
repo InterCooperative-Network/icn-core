@@ -19,6 +19,7 @@ mod libp2p_integration_tests {
             node_identity,
             listen,
             None,  // No bootstrap peers for this simple test
+            std::path::PathBuf::from("./dag_demo"),
             std::path::PathBuf::from("./mana_ledger.sled"),
             std::path::PathBuf::from("./reputation.sled"),
         )
@@ -74,6 +75,7 @@ mod libp2p_integration_tests {
             node_identity,
             listen,
             Some(bootstrap_peers),
+            std::path::PathBuf::from("./dag_demo"),
             std::path::PathBuf::from("./mana_ledger.sled"),
             std::path::PathBuf::from("./reputation.sled"),
         )

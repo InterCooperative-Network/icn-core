@@ -10,13 +10,18 @@ readme = "README.md"
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0" # For examples and potentially some utils
-thiserror = "2.0" # For idiomatic error definitions
+thiserror = "1.0" # For idiomatic error definitions
 sha2 = "0.10"
 ed25519-dalek = { version = "2.0.0-pre.3", features = ["rand_core"] }
 serde_bytes = "0.11"
+log = "0.4"
+tokio = { version = "1.0", features = ["time"] }
+fastrand = "1"
 multibase = "0.9"
 multicodec = "0.1"
-unsigned-varint = { version = "0.8", default-features = false }
+unsigned-varint = { version = "0.7", default-features = false }
+once_cell = "1.21"
 
 [dev-dependencies]
 rand_core = { version = "0.6", features = ["getrandom"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

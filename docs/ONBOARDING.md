@@ -6,10 +6,10 @@ Before jumping into the setup steps below, please read [CONTEXT.md](../CONTEXT.m
 
 ## 1. Prerequisites
 
-*   **Rust:** Install the nightly Rust toolchain using [rustup.rs](https://rustup.rs/).
-    *   Run `rustup toolchain install nightly` if you don't already have it.
-    *   Set the override for this repository with `rustup override set nightly`.
-    *   The project requires the `nightly` channel, as defined in `rust-toolchain.toml`.
+*   **Rust:** Install the stable Rust toolchain using [rustup.rs](https://rustup.rs/).
+    *   Run `rustup toolchain install stable` if you don't already have it.
+    *   Set the override for this repository with `rustup override set stable`.
+    *   The project uses the `stable` channel, as defined in `rust-toolchain.toml`.
 *   **Git:** For version control.
 *   **EditorConfig Plugin:** (Recommended) For your IDE/editor to maintain consistent coding styles across the project (uses `.editorconfig`).
 *   **Basic Familiarity:** With Rust programming, `cargo`, and decentralized systems concepts (DIDs, CIDs, P2P) will be helpful.
@@ -85,6 +85,19 @@ Binaries will be placed in the `target/debug/` or `target/release/` directory at
     # Or just part of the name
     cargo test <partial_test_name>
     ```
+*   **Run persistence tests for DAG backends:**
+    ```bash
+    # sled backend (enabled by default)
+    cargo test -p icn-dag --features persist-sled --test sled_backend
+
+    # SQLite backend
+    cargo test -p icn-dag --no-default-features --features persist-sqlite \
+      --test sqlite_backend
+
+    # RocksDB backend
+    cargo test -p icn-dag --no-default-features --features persist-rocksdb \
+      --test rocks_backend
+    ```
 
 ### 3.3. Linting & Formatting
 
@@ -106,17 +119,48 @@ The project uses `cargo fmt` for code formatting and `cargo clippy` for linting.
 ### 3.4. Running Binaries
 
 *   **`icn-node` (HTTP Server):**
-    The `icn-node` now runs as a persistent HTTP server exposing API endpoints. It manages DAG storage and governance state.
+    The `icn-node` runs as a persistent HTTP server exposing API endpoints. It manages DAG storage, governance state, mana accounting, and P2P networking.
     To run the node (defaults to in-memory storage and listens on `127.0.0.1:7845`):
     ```bash
     cargo run -p icn-node
     ```
-    You can specify the listen address and storage backend:
+    
+    **Common Configuration Options:**
     ```bash
-    cargo run -p icn-node -- --listen-addr 0.0.0.0:8000 \
-        --storage-backend file --storage-path ./my_node_data \
+    # Basic node with persistent storage
+    cargo run -p icn-node -- --http-listen-addr 0.0.0.0:8000 \
+        --storage-backend sqlite --storage-path ./my_node_data.sqlite \
         --mana-ledger-backend sled --mana-ledger-path ./ledger.sled
+    
+    # Node with P2P networking enabled
+    cargo run -p icn-node -- --enable-p2p \
+        --p2p-listen-addr /ip4/0.0.0.0/tcp/4001 \
+        --storage-backend sqlite --storage-path ./node.sqlite
+    
+    # Production node with authentication and TLS
+    cargo run -p icn-node -- --http-listen-addr 0.0.0.0:8443 \
+        --storage-backend sqlite --storage-path ./node.sqlite \
+        --mana-ledger-backend sled --mana-ledger-path ./mana.sled \
+        --api-key "secure-api-key" \
+        --auth-token "bearer-token" \
+        --tls-cert-path ./certs/server.crt \
+        --tls-key-path ./certs/server.key
     ```
+    
+    **Available Storage Backends:**
+    - `--storage-backend sqlite|sled|rocksdb|file` (for DAG storage)
+    - `--mana-ledger-backend sled|sqlite|rocksdb|file` (for mana accounting)
+    
+    **Security Options:**
+    - `--api-key` - Require x-api-key header for authentication
+    - `--auth-token` - Require Bearer token authentication
+    - `--tls-cert-path` / `--tls-key-path` - Enable HTTPS-only mode
+    
+    **P2P Networking:**
+    - `--enable-p2p` - Enable libp2p networking
+    - `--p2p-listen-addr` - P2P listening address
+    - `--bootstrap-peers` - Connect to existing federation
+    
     The server will print a message indicating it's listening and then run until stopped (e.g., with Ctrl+C).
 
 *   **`icn-cli` (HTTP Client):**
@@ -243,7 +287,48 @@ This section provides examples for all major `icn-cli` commands. Ensure an `icn-
       cargo run -p icn-cli -- governance proposal "did:example:proposer123:Increase ma:1678886400"
       ```
 
-(Note: Early examples relied on a stub network service. These were removed once real libp2p networking became available.)
+**5. Federation Management:**
+
+   The ICN CLI provides comprehensive federation management commands:
+
+   *   **Join a Federation (`federation join <peer_id>`):**
+      ```sh
+      cargo run -p icn-cli -- federation join "/ip4/127.0.0.1/tcp/4001/p2p/12D3KooW..."
+      ```
+
+   *   **Get Federation Status (`federation status`):**
+      ```sh
+      cargo run -p icn-cli -- federation status
+      ```
+
+   *   **Leave a Federation (`federation leave <peer_id>`):**
+      ```sh
+      cargo run -p icn-cli -- federation leave "/ip4/127.0.0.1/tcp/4001/p2p/12D3KooW..."
+      ```
+
+   *   **List Federation Peers (`federation list-peers`):**
+      ```sh
+      cargo run -p icn-cli -- federation list-peers
+      ```
+
+**6. Network Operations:**
+
+   *   **Discover Peers (`network discover-peers`):**
+      ```sh
+      cargo run -p icn-cli -- network discover-peers
+      ```
+
+   *   **List Connected Peers (`network peers`):**
+      ```sh
+      cargo run -p icn-cli -- network peers
+      ```
+
+   *   **Send Direct Message (`network send-message`):**
+      ```sh
+      cargo run -p icn-cli -- network send-message <peer_id> '{"message": "hello"}'
+      ```
+
+(Note: P2P networking features require the node to be started with `--enable-p2p`.)
 
 ### 3.6. Example `icn-node` Configuration with TLS and API Keys
 
@@ -255,11 +340,18 @@ Caddy).
 ```toml
 # node_config.toml
 node_name = "Federation Node"
-http_listen_addr = "0.0.0.0:7845"        # Behind a TLS proxy
-storage_backend = "sled"
-storage_path = "./icn_data/node.sled"
-api_key = "mysecretkey"
-open_rate_limit = 0
+http_listen_addr = "0.0.0.0:7845"        # HTTP address
+storage_backend = "sqlite"                # DAG storage backend
+storage_path = "./icn_data/node.sqlite"   # DAG storage path
+mana_ledger_backend = "sled"              # Mana accounting backend
+mana_ledger_path = "./icn_data/mana.sled" # Mana ledger path
+api_key = "mysecretkey"                   # API key for authentication
+auth_token = "bearer-token-here"          # Bearer token for auth
+open_rate_limit = 60                      # Requests per minute without auth
+enable_p2p = true                         # Enable P2P networking
+p2p_listen_addr = "/ip4/0.0.0.0/tcp/4001" # P2P listening address
+tls_cert_path = "./certs/server.crt"      # TLS certificate (optional)
+tls_key_path = "./certs/server.key"       # TLS private key (optional)
 ```
 
 Start the node with:
@@ -268,10 +360,19 @@ Start the node with:
 ./target/debug/icn-node --config node_config.toml
 ```
 
-For TLS, run a reverse proxy on port `443` that forwards requests to
-`http://localhost:7845` while presenting your certificate. A minimal Nginx
-snippet looks like:
+For TLS, you can either:
+1. **Use built-in TLS** by providing `tls_cert_path` and `tls_key_path` in the configuration
+2. **Use a reverse proxy** on port `443` that forwards requests to the HTTP server
 
+**Option 1: Built-in TLS (Recommended)**
+```bash
+./target/debug/icn-node --http-listen-addr 0.0.0.0:8443 \
+  --tls-cert-path ./certs/server.crt \
+  --tls-key-path ./certs/server.key \
+  --api-key "mysecretkey"
+```
+
+**Option 2: Reverse Proxy (Nginx)**
 ```nginx
 server {
     listen 443 ssl;
@@ -280,12 +381,12 @@ server {
     location / {
         proxy_pass http://127.0.0.1:7845;
         proxy_set_header x-api-key mysecretkey;
+        proxy_set_header Authorization "Bearer bearer-token-here";
     }
 }
 ```
 
-This secures the HTTP API with TLS and passes the required `x-api-key` header to
-`icn-node`.
+Both approaches secure the HTTP API with TLS and handle authentication appropriately.
 
 ### 3.7. Environment Variables
 
@@ -311,13 +412,16 @@ and set `storage_backend = "rocksdb"` in your configuration.
 *   **Workspace Root (`Cargo.toml`):** Defines the workspace members (all the crates).
 *   **`crates/` directory:** Contains all individual library and binary crates.
     *   **`icn-common`**: Core data structures (CIDs, DIDs, `DagBlock`, `NodeStatus`, etc.) and the central `CommonError` enum used throughout the workspace.
-    *   **`icn-api`**: Defines functions that act as the API layer for node interactions. Currently, these are direct function calls but are designed to be adaptable for RPC.
-    *   **`icn-dag`**: Implements L1 DAG block storage (currently an in-memory `HashMap`).
-    *   **`icn-network`**: Contains networking abstractions (`NetworkService` trait, `ProtocolMessage` and `MessagePayload` types) and a `StubNetworkService` for testing.
-    *   **`icn-identity`**: Provides an initial module for DID management and cryptographic functions.
-    *   **`icn-node`**: The main binary executable that runs a persistent HTTP server for the ICN node API.
-    *   **`icn-cli`**: The command-line interface client that interacts with `icn-node` via HTTP.
-    *   Other crates (`icn-economics`, `icn-governance`, etc.) are placeholders for future development.
+    *   **`icn-api`**: Defines HTTP API endpoints and request/response types for external consumption.
+    *   **`icn-dag`**: Implements content-addressed DAG storage with multiple backend support (SQLite, Sled, RocksDB, File).
+    *   **`icn-network`**: P2P networking via libp2p with Kademlia DHT and Gossipsub protocols.
+    *   **`icn-identity`**: DID management, Ed25519 cryptographic signing, and execution receipt verification.
+    *   **`icn-governance`**: Proposal creation, voting mechanisms, and governance state management.
+    *   **`icn-economics`**: Mana accounting system with multiple ledger backends and resource policies.
+    *   **`icn-mesh`**: Distributed mesh computing with job submission, bidding, and execution.
+    *   **`icn-reputation`**: Reputation scoring and validation for network participants.
+    *   **`icn-node`**: The main binary executable that runs a persistent HTTP server with P2P networking.
+    *   **`icn-cli`**: The command-line interface client that interacts with `icn-node` via HTTP API.
 *   **`docs/` directory:** Contains this onboarding guide and potentially other architectural documents.
 *   **`.github/` directory:** CI workflows, issue templates, Dependabot configuration.
 
@@ -364,15 +468,22 @@ This makes the system more predictable and easier to debug.
 
 ## 7. Next Steps for the Project (and areas for contribution)
 
-The system now has a foundational HTTP API and CLI client.
-Immediate next steps from the original prompt include:
+The system now has a production-ready foundation with comprehensive features.
+Current areas for contribution include:
 
-*   **Persistence Backends:** Durable storage is already available. `SledDagStore` persists DAG blocks on disk and `GovernanceModule` ships with a sled backend. Build `icn-node` with the `persist-sled` feature and run with `--storage-backend sled` to enable these stores. See `crates/icn-dag/README.md` and `crates/icn-governance/README.md` for details.
-*   **Networking (Libp2p):** libp2p support is now available. Future work focuses on refining peer discovery and federation protocols.
-*   **Configuration:** Advanced configuration file support for `icn-node` (beyond CLI args).
-*   **Identity Implementation:** Further flesh out DID methods and cryptographic primitives in `icn-identity`.
-*   **Testing:** Enhance test coverage, especially integration tests for the node-cli interaction and endpoint tests for `icn-node`.
+*   **✅ Persistence Backends:** Multiple storage backends (SQLite, Sled, RocksDB, File) are implemented for both DAG and mana storage.
+*   **✅ Networking (Libp2p):** Full libp2p support with Kademlia DHT and Gossipsub protocols is implemented.
+*   **✅ Federation Management:** Complete federation join/leave/status functionality is available.
+*   **✅ Security:** Ed25519 cryptographic signing, API authentication, and TLS support are implemented.
+*   **✅ Configuration:** Comprehensive configuration file support is available.
 
+**Active Development Areas:**
+*   **Performance Optimization:** Benchmarking and performance improvements for large-scale federations.
+*   **Advanced CCL Features:** Enhanced Cooperative Contract Language capabilities.
+*   **Testing:** Expand test coverage, especially for federation scenarios and security edge cases.
+*   **Documentation:** User guides for specific deployment scenarios and federation setup.
+*   **Monitoring:** Enhanced metrics and observability features beyond basic Prometheus support.
+*   **UI/UX:** Web interfaces for federation management and governance participation.
 
 Look for `TODO:` comments in the code and open GitHub issues for good places to start contributing.
 

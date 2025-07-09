@@ -7,9 +7,9 @@
 #![allow(clippy::let_unit_value)]
 #![allow(clippy::clone_on_copy)]
 
-//! # ICN Network Crate - Production-Ready P2P Networking
-//! This crate manages peer-to-peer (P2P) networking aspects for the InterCooperative Network (ICN),
-//! using libp2p for distributed communication between ICN nodes.
+//! # Networking Crate for ICN - Production-Ready P2P Networking
+//! This crate manages peer-to-peer (P2P) networking aspects for ICN,
+//! using libp2p for distributed communication between nodes.
 
 pub mod error;
 pub use error::MeshNetworkError;
@@ -17,7 +17,9 @@ pub mod metrics;
 
 use async_trait::async_trait;
 use downcast_rs::{impl_downcast, DowncastSync};
-use icn_common::{Cid, Did, NodeInfo};
+use icn_common::{
+    retry_with_backoff, Cid, CircuitBreaker, CircuitBreakerError, Did, NodeInfo, SystemTimeProvider,
+};
 use icn_protocol::{MessagePayload, ProtocolMessage};
 #[cfg(feature = "libp2p")]
 use libp2p::PeerId as Libp2pPeerId;
@@ -63,6 +65,15 @@ static MESSAGE_CACHE: Lazy<Mutex<LruCache<Vec<u8>, ()>>> = Lazy::new(|| {
     use std::num::NonZeroUsize;
     Mutex::new(LruCache::new(NonZeroUsize::new(1024).unwrap()))
 });
+
+static NETWORK_BREAKER: Lazy<tokio::sync::Mutex<CircuitBreaker<SystemTimeProvider>>> =
+    Lazy::new(|| {
+        tokio::sync::Mutex::new(CircuitBreaker::new(
+            SystemTimeProvider,
+            3,
+            std::time::Duration::from_secs(5),
+        ))
+    });
 
 // --- Core Types ---
 
@@ -247,6 +258,9 @@ pub trait NetworkService: Send + Sync + Debug + DowncastSync + 'static {
     /// Retrieve a record previously stored via [`store_record`].
     /// Keys use the `/icn/service/<id>` format.
     async fn get_record(&self, key: String) -> Result<Option<Vec<u8>>, MeshNetworkError>;
+    /// Connect to a peer at the given multiaddress.
+    #[cfg(feature = "libp2p")]
+    async fn connect_peer(&self, addr: libp2p::Multiaddr) -> Result<(), MeshNetworkError>;
     fn as_any(&self) -> &dyn Any;
 }
 impl_downcast!(sync NetworkService);
@@ -286,36 +300,55 @@ impl NetworkService for StubNetworkService {
         peer: &PeerId,
         message: ProtocolMessage,
     ) -> Result<(), MeshNetworkError> {
-        log::debug!(
-            "[StubNetworkService] Sending message to peer {:?}: {:?}",
-            peer,
-            message
-        );
-        if peer.0 == "error_peer" {
-            return Err(MeshNetworkError::SendFailure(format!(
-                "Failed to send message to peer: {}",
-                peer.0
-            )));
-        }
-        if peer.0 == "unknown_peer_id" {
-            return Err(MeshNetworkError::PeerNotFound(format!(
-                "Peer with ID {} not found.",
-                peer.0
-            )));
-        }
-        Ok(())
+        let mut breaker = NETWORK_BREAKER.lock().await;
+        breaker
+            .call(|| async {
+                log::debug!(
+                    "[StubNetworkService] Sending message to peer {:?}: {:?}",
+                    peer,
+                    message
+                );
+                if peer.0 == "error_peer" {
+                    return Err(MeshNetworkError::SendFailure(format!(
+                        "Failed to send message to peer: {}",
+                        peer.0
+                    )));
+                }
+                if peer.0 == "unknown_peer_id" {
+                    return Err(MeshNetworkError::PeerNotFound(format!(
+                        "Peer with ID {} not found.",
+                        peer.0
+                    )));
+                }
+                Ok(())
+            })
+            .await
+            .map_err(|e| match e {
+                CircuitBreakerError::Open => MeshNetworkError::Timeout("circuit open".to_string()),
+                CircuitBreakerError::Inner(err) => err,
+            })
     }
 
     async fn broadcast_message(&self, message: ProtocolMessage) -> Result<(), MeshNetworkError> {
-        log::debug!("[StubNetworkService] Broadcasting message: {:?}", message);
-        if let MessagePayload::GossipMessage(gossip) = &message.payload {
-            if gossip.topic == "system_critical_error_topic" {
-                return Err(MeshNetworkError::Libp2p(
-                    "Broadcast failed: system critical topic is currently down.".to_string(),
-                ));
-            }
-        }
-        Ok(())
+        let mut breaker = NETWORK_BREAKER.lock().await;
+        breaker
+            .call(|| async {
+                log::debug!("[StubNetworkService] Broadcasting message: {:?}", message);
+                if let MessagePayload::GossipMessage(gossip) = &message.payload {
+                    if gossip.topic == "system_critical_error_topic" {
+                        return Err(MeshNetworkError::Libp2p(
+                            "Broadcast failed: system critical topic is currently down."
+                                .to_string(),
+                        ));
+                    }
+                }
+                Ok(())
+            })
+            .await
+            .map_err(|e| match e {
+                CircuitBreakerError::Open => MeshNetworkError::Timeout("circuit open".to_string()),
+                CircuitBreakerError::Inner(err) => err,
+            })
     }
 
     async fn subscribe(&self) -> Result<Receiver<ProtocolMessage>, MeshNetworkError> {
@@ -363,14 +396,41 @@ impl NetworkService for StubNetworkService {
     }
 
     async fn store_record(&self, key: String, value: Vec<u8>) -> Result<(), MeshNetworkError> {
-        let mut map = self.records.lock().await;
-        map.insert(key, value);
-        Ok(())
+        let mut breaker = NETWORK_BREAKER.lock().await;
+        breaker
+            .call(|| async {
+                let mut map = self.records.lock().await;
+                map.insert(key, value);
+                Ok(())
+            })
+            .await
+            .map_err(|e| match e {
+                CircuitBreakerError::Open => MeshNetworkError::Timeout("circuit open".to_string()),
+                CircuitBreakerError::Inner(err) => err,
+            })
     }
 
     async fn get_record(&self, key: String) -> Result<Option<Vec<u8>>, MeshNetworkError> {
-        let map = self.records.lock().await;
-        Ok(map.get(&key).cloned())
+        let mut breaker = NETWORK_BREAKER.lock().await;
+        breaker
+            .call(|| async {
+                let map = self.records.lock().await;
+                Ok(map.get(&key).cloned())
+            })
+            .await
+            .map_err(|e| match e {
+                CircuitBreakerError::Open => MeshNetworkError::Timeout("circuit open".to_string()),
+                CircuitBreakerError::Inner(err) => err,
+            })
+    }
+
+    #[cfg(feature = "libp2p")]
+    async fn connect_peer(&self, addr: libp2p::Multiaddr) -> Result<(), MeshNetworkError> {
+        log::info!(
+            "[StubNetworkService] Pretending to connect to peer at {}",
+            addr
+        );
+        Ok(())
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -397,9 +457,29 @@ pub async fn send_network_ping(
         None,
     );
 
-    let _ = service
-        .send_message(&PeerId(target_peer.to_string()), ping_message)
-        .await?;
+    use std::time::Duration;
+    {
+        let mut breaker = NETWORK_BREAKER.lock().await;
+        breaker
+            .call(|| async {
+                retry_with_backoff(
+                    || async {
+                        service
+                            .send_message(&PeerId(target_peer.to_string()), ping_message.clone())
+                            .await
+                    },
+                    3,
+                    Duration::from_millis(100),
+                    Duration::from_secs(2),
+                )
+                .await
+            })
+            .await
+            .map_err(|e| match e {
+                CircuitBreakerError::Open => MeshNetworkError::Timeout("circuit open".to_string()),
+                CircuitBreakerError::Inner(err) => err,
+            })?;
+    }
     Ok(format!(
         "Sent (stubbed) ping to {} from node: {} (v{})",
         target_peer, info.name, info.version
@@ -613,6 +693,10 @@ pub mod libp2p_service {
             value: Vec<u8>,
             rsp: oneshot::Sender<Result<(), MeshNetworkError>>,
         },
+        ConnectPeer {
+            addr: Multiaddr,
+            rsp: oneshot::Sender<Result<(), MeshNetworkError>>,
+        },
         Shutdown,
     }
 
@@ -716,7 +800,9 @@ pub mod libp2p_service {
     // --- Network Behaviour Definition ---
 
     use libp2p::swarm::behaviour::toggle::Toggle;
+
     #[derive(NetworkBehaviour)]
+    #[behaviour(to_swarm = "CombinedBehaviourEvent")]
     pub struct CombinedBehaviour {
         gossipsub: gossipsub::Behaviour,
         ping: ping::Behaviour,
@@ -725,7 +811,52 @@ pub mod libp2p_service {
         mdns: Toggle<libp2p::mdns::tokio::Behaviour>,
     }
 
-    // CombinedEvent removed - using auto-generated CombinedBehaviourEvent instead
+    // Define the combined event type manually with proper From implementations
+    #[derive(Debug)]
+    pub enum CombinedBehaviourEvent {
+        Gossipsub(gossipsub::Event),
+        Ping(ping::Event),
+        Kademlia(kad::Event),
+        RequestResponse(
+            libp2p::request_response::Event<super::ProtocolMessage, super::ProtocolMessage>,
+        ),
+        Mdns(libp2p::mdns::Event),
+    }
+
+    // Implement From traits for each event type
+    impl From<gossipsub::Event> for CombinedBehaviourEvent {
+        fn from(event: gossipsub::Event) -> Self {
+            CombinedBehaviourEvent::Gossipsub(event)
+        }
+    }
+
+    impl From<ping::Event> for CombinedBehaviourEvent {
+        fn from(event: ping::Event) -> Self {
+            CombinedBehaviourEvent::Ping(event)
+        }
+    }
+
+    impl From<kad::Event> for CombinedBehaviourEvent {
+        fn from(event: kad::Event) -> Self {
+            CombinedBehaviourEvent::Kademlia(event)
+        }
+    }
+
+    impl From<libp2p::request_response::Event<super::ProtocolMessage, super::ProtocolMessage>>
+        for CombinedBehaviourEvent
+    {
+        fn from(
+            event: libp2p::request_response::Event<super::ProtocolMessage, super::ProtocolMessage>,
+        ) -> Self {
+            CombinedBehaviourEvent::RequestResponse(event)
+        }
+    }
+
+    impl From<libp2p::mdns::Event> for CombinedBehaviourEvent {
+        fn from(event: libp2p::mdns::Event) -> Self {
+            CombinedBehaviourEvent::Mdns(event)
+        }
+    }
 
     impl Libp2pNetworkService {
         /// Spawn the networking service using the given configuration.
@@ -985,6 +1116,17 @@ pub mod libp2p_service {
                                         }
                                         Err(e) => {
                                             let _ = rsp.send(Err(MeshNetworkError::Libp2p(format!("put_record error: {}", e))));
+                                        }
+                                    }
+                                }
+                                Command::ConnectPeer { addr, rsp } => {
+                                    match swarm.dial(addr.clone()) {
+                                        Ok(_) => {
+                                            log::info!("Dialing peer at {}", addr);
+                                            let _ = rsp.send(Ok(()));
+                                        }
+                                        Err(e) => {
+                                            let _ = rsp.send(Err(MeshNetworkError::Libp2p(format!("dial error: {}", e))));
                                         }
                                     }
                                 }
@@ -1293,6 +1435,17 @@ pub mod libp2p_service {
             rx.await
                 .map_err(|e| MeshNetworkError::Libp2p(format!("response dropped: {}", e)))?
         }
+
+        /// Attempt to connect to the given peer multiaddress.
+        pub async fn connect_peer(&self, addr: Multiaddr) -> Result<(), MeshNetworkError> {
+            let (tx, rx) = oneshot::channel();
+            self.cmd_tx
+                .send(Command::ConnectPeer { addr, rsp: tx })
+                .await
+                .map_err(|e| MeshNetworkError::Libp2p(format!("command send failed: {}", e)))?;
+            rx.await
+                .map_err(|e| MeshNetworkError::Libp2p(format!("response dropped: {}", e)))?
+        }
     }
 
     #[async_trait]
@@ -1405,6 +1558,16 @@ pub mod libp2p_service {
                 MeshNetworkError::Libp2p(format!("Get record response failed: {}", e))
             })??;
             Ok(record_opt.map(|rec| rec.value))
+        }
+
+        async fn connect_peer(&self, addr: Multiaddr) -> Result<(), MeshNetworkError> {
+            let (tx, rx) = oneshot::channel();
+            self.cmd_tx
+                .send(Command::ConnectPeer { addr, rsp: tx })
+                .await
+                .map_err(|e| MeshNetworkError::Libp2p(format!("Connect send failed: {}", e)))?;
+            rx.await
+                .map_err(|e| MeshNetworkError::Libp2p(format!("Connect response failed: {}", e)))?
         }
 
         fn as_any(&self) -> &dyn Any {

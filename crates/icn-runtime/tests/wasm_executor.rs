@@ -178,7 +178,7 @@ async fn wasm_executor_host_submit_mesh_job_json() {
     let expected_cid = Cid::new_v1_sha256(0x55, &(40i64).to_le_bytes());
     assert_eq!(receipt.result_cid, expected_cid);
     assert_eq!(ctx.get_mana(&ctx.current_identity).await.unwrap(), 40);
-    let pending = ctx.pending_mesh_jobs.lock().await;
+    let pending = icn_runtime::host_get_pending_mesh_jobs(&ctx).await.unwrap();
     assert_eq!(pending.len(), 1);
 }
 
@@ -284,8 +284,9 @@ async fn submit_compiled_ccl_runs_via_executor() {
     let job_json = serde_json::to_string(&job).unwrap();
     let job_id = host_submit_mesh_job(&ctx, &job_json).await.unwrap();
     tokio::time::sleep(std::time::Duration::from_millis(200)).await;
-    let states = ctx.job_states.lock().await;
-    if let Some(icn_mesh::JobState::Completed { receipt }) = states.get(&job_id) {
+    if let Some(icn_mesh::JobState::Completed { receipt }) =
+        ctx.job_states.get(&job_id).map(|s| s.value().clone())
+    {
         let expected = Cid::new_v1_sha256(0x55, &9i64.to_le_bytes());
         assert_eq!(receipt.result_cid, expected);
     } else {
@@ -327,8 +328,9 @@ async fn queued_compiled_ccl_executes() {
     };
     ctx.internal_queue_mesh_job(job.clone()).await.unwrap();
     tokio::time::sleep(std::time::Duration::from_millis(200)).await;
-    let states = ctx.job_states.lock().await;
-    if let Some(icn_mesh::JobState::Completed { receipt }) = states.get(&job.id) {
+    if let Some(icn_mesh::JobState::Completed { receipt }) =
+        ctx.job_states.get(&job.id).map(|s| s.value().clone())
+    {
         let expected = Cid::new_v1_sha256(0x55, &4i64.to_le_bytes());
         assert_eq!(receipt.result_cid, expected);
     } else {
@@ -441,6 +443,45 @@ async fn wasm_executor_enforces_fuel_limit() {
     let config = WasmExecutorConfig {
         max_memory: 256 * 1024,
         fuel: 100,
+    };
+    let exec = WasmExecutor::new(ctx.clone(), signer, config);
+    assert!(exec.execute_job(&job).await.is_err());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn wasm_executor_rejects_memory_growth() {
+    let ctx = RuntimeContext::new_with_stubs_and_mana("did:key:zMemGrow", 1).unwrap();
+    let wasm = "(module (memory 1) (func (export \"run\") (result i64) \
+                i32.const 1 memory.grow drop \
+                i32.const 65536 i32.const 0 i32.store \
+                i64.const 0))";
+    let wasm_bytes = wat::parse_str(wasm).unwrap();
+    let block = DagBlock {
+        cid: Cid::new_v1_sha256(0x71, &wasm_bytes),
+        data: wasm_bytes,
+        links: vec![],
+        timestamp: 0,
+        author_did: Did::new("key", "tester"),
+        signature: None,
+        scope: None,
+    };
+    {
+        let mut store = ctx.dag_store.lock().await;
+        store.put(&block).unwrap();
+    }
+    let job = ActualMeshJob {
+        id: JobId(Cid::new_v1_sha256(0x55, b"memgrow")),
+        manifest_cid: block.cid.clone(),
+        spec: JobSpec::default(),
+        creator_did: ctx.current_identity.clone(),
+        cost_mana: 0,
+        max_execution_wait_ms: None,
+        signature: SignatureBytes(vec![]),
+    };
+    let signer = Arc::new(StubSigner::new());
+    let config = WasmExecutorConfig {
+        max_memory: 64 * 1024,
+        fuel: 10_000,
     };
     let exec = WasmExecutor::new(ctx.clone(), signer, config);
     assert!(exec.execute_job(&job).await.is_err());

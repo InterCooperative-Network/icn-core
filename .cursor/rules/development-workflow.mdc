@@ -12,7 +12,7 @@ alwaysApply: true
 ## 1 · Development Environment Setup
 
 ### Prerequisites
-- Rust nightly (see `rust-toolchain.toml`)
+- Rust stable (see `rust-toolchain.toml`)
 - `just` command runner
 - Git with pre-commit hooks enabled
 - IDE with rust-analyzer support
@@ -270,12 +270,17 @@ error!("Critical failures");
 
 ### Metrics Collection
 ```rust
-// Use metrics for performance tracking
-use metrics::{counter, histogram, gauge};
+// Use prometheus_client for performance tracking
+use once_cell::sync::Lazy;
+use prometheus_client::metrics::{counter::Counter, gauge::Gauge, histogram::Histogram};
 
-counter!("mesh.jobs.submitted").increment(1);
-histogram!("mesh.job.execution_time").record(duration);
-gauge!("mesh.pending_jobs").set(pending_count as f64);
+static JOBS_SUBMITTED: Lazy<Counter> = Lazy::new(Counter::default);
+static JOB_EXEC_TIME: Lazy<Histogram> = Lazy::new(Histogram::default);
+static PENDING_JOBS: Lazy<Gauge<f64>> = Lazy::new(Gauge::default);
+
+JOBS_SUBMITTED.inc();
+JOB_EXEC_TIME.observe(duration.as_secs_f64());
+PENDING_JOBS.set(pending_count as f64);
 ```
 
 ---

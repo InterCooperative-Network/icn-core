@@ -1,0 +1,83 @@
+{
+  "uid": "icn-devnet",
+  "title": "ICN Devnet Overview",
+  "schemaVersion": 37,
+  "version": 1,
+  "refresh": "10s",
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "host_submit_mesh_job_calls",
+      "datasource": "Prometheus",
+      "gridPos": {"h":8, "w":12, "x":0, "y":0},
+      "targets": [{"expr": "host_submit_mesh_job_calls", "refId": "A"}]
+    },
+    {
+      "type": "timeseries",
+      "title": "host_get_pending_mesh_jobs_calls",
+      "datasource": "Prometheus",
+      "gridPos": {"h":8, "w":12, "x":12, "y":0},
+      "targets": [{"expr": "host_get_pending_mesh_jobs_calls", "refId": "A"}]
+    },
+    {
+      "type": "timeseries",
+      "title": "host_account_get_mana_calls",
+      "datasource": "Prometheus",
+      "gridPos": {"h":8, "w":12, "x":0, "y":8},
+      "targets": [{"expr": "host_account_get_mana_calls", "refId": "A"}]
+    },
+    {
+      "type": "timeseries",
+      "title": "host_account_spend_mana_calls",
+      "datasource": "Prometheus",
+      "gridPos": {"h":8, "w":12, "x":12, "y":8},
+      "targets": [{"expr": "host_account_spend_mana_calls", "refId": "A"}]
+    },
+    {
+      "type": "gauge",
+      "title": "Ping Last RTT (ms)",
+      "datasource": "Prometheus",
+      "gridPos": {"h":6, "w":6, "x":0, "y":16},
+      "fieldConfig": {"defaults": {"unit": "ms"}},
+      "targets": [{"expr": "ping_last_rtt_ms", "refId": "A"}]
+    },
+    {
+      "type": "gauge",
+      "title": "Ping Min RTT (ms)",
+      "datasource": "Prometheus",
+      "gridPos": {"h":6, "w":6, "x":6, "y":16},
+      "fieldConfig": {"defaults": {"unit": "ms"}},
+      "targets": [{"expr": "ping_min_rtt_ms", "refId": "A"}]
+    },
+    {
+      "type": "gauge",
+      "title": "Ping Max RTT (ms)",
+      "datasource": "Prometheus",
+      "gridPos": {"h":6, "w":6, "x":12, "y":16},
+      "fieldConfig": {"defaults": {"unit": "ms"}},
+      "targets": [{"expr": "ping_max_rtt_ms", "refId": "A"}]
+    },
+    {
+      "type": "gauge",
+      "title": "Ping Avg RTT (ms)",
+      "datasource": "Prometheus",
+      "gridPos": {"h":6, "w":6, "x":18, "y":16},
+      "fieldConfig": {"defaults": {"unit": "ms"}},
+      "targets": [{"expr": "ping_avg_rtt_ms", "refId": "A"}]
+    },
+    {
+      "type": "timeseries",
+      "title": "credit_mana_calls",
+      "datasource": "Prometheus",
+      "gridPos": {"h":8, "w":12, "x":0, "y":22},
+      "targets": [{"expr": "economics_credit_mana_calls", "refId": "A"}]
+    },
+    {
+      "type": "timeseries",
+      "title": "spend_mana_calls",
+      "datasource": "Prometheus",
+      "gridPos": {"h":8, "w":12, "x":12, "y":22},
+      "targets": [{"expr": "economics_spend_mana_calls", "refId": "A"}]
+    }
+  ]
+}

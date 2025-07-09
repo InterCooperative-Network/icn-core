@@ -6,30 +6,59 @@
 //! storage and manipulation, crucial for the InterCooperative Network (ICN) data model.
 //! It handles DAG primitives, content addressing, storage abstraction, and serialization formats.
 
+use icn_common::{Cid, CommonError, DagBlock, DagLink, Did, NodeInfo, ICN_CORE_VERSION};
 #[cfg(test)]
 use icn_common::compute_merkle_cid;
-#[cfg(test)]
-use icn_common::DagLink;
-#[cfg(test)]
-use icn_common::Did;
-use icn_common::{Cid, CommonError, DagBlock, NodeInfo, ICN_CORE_VERSION};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs::{File, OpenOptions}; // For FileDagStore
 use std::io::{Read, Write}; // Removed Seek, SeekFrom
-use std::path::PathBuf; // For FileDagStore
+use std::path::{Path, PathBuf}; // For FileDagStore and backup/restore
 #[cfg(feature = "async")]
 use tokio::fs::{self, File as TokioFile, OpenOptions as TokioOpenOptions};
 #[cfg(feature = "async")]
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 pub mod index;
+pub mod metrics;
 #[cfg(feature = "persist-rocksdb")]
 pub mod rocksdb_store;
 #[cfg(feature = "persist-sled")]
 pub mod sled_store;
 #[cfg(feature = "persist-sqlite")]
 pub mod sqlite_store;
+
+/// Metadata associated with a stored DAG block.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct BlockMetadata {
+    /// Whether the block is pinned and should not be pruned.
+    pub pinned: bool,
+    /// Optional expiration timestamp (seconds since epoch).
+    pub ttl: Option<u64>,
+}
+
+/// Basic metadata describing a [`DagBlock`].
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DagBlockMetadata {
+    /// Size of the block's data payload in bytes.
+    pub size: u64,
+    /// Creation timestamp of the block.
+    pub timestamp: u64,
+    /// DID of the block author.
+    pub author_did: Did,
+    /// Links contained in the block.
+    pub links: Vec<DagLink>,
+}
+
+/// Create [`DagBlockMetadata`] from a [`DagBlock`].
+pub fn metadata_from_block(block: &DagBlock) -> DagBlockMetadata {
+    DagBlockMetadata {
+        size: block.data.len() as u64,
+        timestamp: block.timestamp,
+        author_did: block.author_did.clone(),
+        links: block.links.clone(),
+    }
+}
 
 // --- Storage Service Trait ---
 
@@ -53,6 +82,36 @@ pub trait StorageService<B: Clone + Serialize + for<'de> Deserialize<'de>> {
     /// Checks if a block with the given CID exists in the store.
     /// Returns `Ok(true)` if it exists, `Ok(false)` if not, or `Err` on storage failure.
     fn contains(&self, cid: &Cid) -> Result<bool, CommonError>;
+
+    /// Retrieve all blocks stored in the backend. The default implementation
+    /// indicates the operation is not implemented.
+    fn list_blocks(&self) -> Result<Vec<B>, CommonError> {
+        Err(CommonError::NotImplemented(
+            "list_blocks not supported".to_string(),
+        ))
+    }
+
+    /// Mark the block as pinned, preventing pruning.
+    fn pin_block(&mut self, cid: &Cid) -> Result<(), CommonError>;
+
+    /// Remove the pinned flag from the block.
+    fn unpin_block(&mut self, cid: &Cid) -> Result<(), CommonError>;
+
+    /// Remove blocks whose TTL has expired and are not pinned. Returns the list
+    /// of deleted CIDs.
+    fn prune_expired(&mut self, now: u64) -> Result<Vec<Cid>, CommonError>;
+
+    /// Update the TTL metadata for the given block.
+    fn set_ttl(&mut self, cid: &Cid, ttl: Option<u64>) -> Result<(), CommonError>;
+
+    /// Get metadata for a block if present.
+    fn get_metadata(&self, cid: &Cid) -> Result<Option<BlockMetadata>, CommonError>;
+
+    /// Cast to [`Any`] for downcasting when the concrete type is needed.
+    fn as_any(&self) -> &dyn std::any::Any;
+
+    /// Mutable variant of [`as_any`].
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any;
 }
 
 /// Asynchronous version of [`StorageService`].
@@ -73,6 +132,33 @@ where
 
     /// Checks if a block with the given CID exists in the store.
     async fn contains(&self, cid: &Cid) -> Result<bool, CommonError>;
+
+    /// Retrieve all blocks stored in the backend.
+    async fn list_blocks(&self) -> Result<Vec<B>, CommonError> {
+        Err(CommonError::NotImplemented(
+            "list_blocks not supported".to_string(),
+        ))
+    }
+
+    /// Mark the block as pinned.
+    async fn pin_block(&mut self, cid: &Cid) -> Result<(), CommonError>;
+
+    /// Remove the pinned flag.
+    async fn unpin_block(&mut self, cid: &Cid) -> Result<(), CommonError>;
+
+    /// Delete expired blocks that are not pinned.
+    async fn prune_expired(&mut self, now: u64) -> Result<Vec<Cid>, CommonError>;
+
+    /// Update TTL metadata for a block.
+    async fn set_ttl(&mut self, cid: &Cid, ttl: Option<u64>) -> Result<(), CommonError>;
+
+    /// Retrieve metadata for a block.
+    async fn get_metadata(&self, cid: &Cid) -> Result<Option<BlockMetadata>, CommonError>;
+
+    /// Cast to [`Any`] for downcasting.
+    fn as_any(&self) -> &dyn std::any::Any;
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any;
 }
 
 // --- In-Memory DAG Store ---
@@ -81,6 +167,7 @@ where
 #[derive(Debug, Default)]
 pub struct InMemoryDagStore {
     store: HashMap<Cid, DagBlock>,
+    meta: HashMap<Cid, BlockMetadata>,
 }
 
 impl InMemoryDagStore {
@@ -88,28 +175,105 @@ impl InMemoryDagStore {
     pub fn new() -> Self {
         InMemoryDagStore {
             store: HashMap::new(),
+            meta: HashMap::new(),
         }
     }
 }
 
 impl StorageService<DagBlock> for InMemoryDagStore {
     fn put(&mut self, block: &DagBlock) -> Result<(), CommonError> {
+        metrics::DAG_PUT_CALLS.inc();
         icn_common::verify_block_integrity(block)?;
         self.store.insert(block.cid.clone(), block.clone());
+        self.meta
+            .insert(block.cid.clone(), BlockMetadata::default());
         Ok(())
     }
 
     fn get(&self, cid: &Cid) -> Result<Option<DagBlock>, CommonError> {
+        metrics::DAG_GET_CALLS.inc();
         Ok(self.store.get(cid).cloned())
     }
 
     fn delete(&mut self, cid: &Cid) -> Result<(), CommonError> {
         self.store.remove(cid);
+        self.meta.remove(cid);
         Ok(())
     }
 
     fn contains(&self, cid: &Cid) -> Result<bool, CommonError> {
         Ok(self.store.contains_key(cid))
+    }
+
+    fn list_blocks(&self) -> Result<Vec<DagBlock>, CommonError> {
+        Ok(self.store.values().cloned().collect())
+    }
+
+    fn pin_block(&mut self, cid: &Cid) -> Result<(), CommonError> {
+        match self.meta.get_mut(cid) {
+            Some(m) => {
+                m.pinned = true;
+                Ok(())
+            }
+            None => Err(CommonError::ResourceNotFound(format!(
+                "Block {} not found",
+                cid
+            ))),
+        }
+    }
+
+    fn unpin_block(&mut self, cid: &Cid) -> Result<(), CommonError> {
+        match self.meta.get_mut(cid) {
+            Some(m) => {
+                m.pinned = false;
+                Ok(())
+            }
+            None => Err(CommonError::ResourceNotFound(format!(
+                "Block {} not found",
+                cid
+            ))),
+        }
+    }
+
+    fn prune_expired(&mut self, now: u64) -> Result<Vec<Cid>, CommonError> {
+        let mut removed = Vec::new();
+        let to_remove: Vec<Cid> = self
+            .meta
+            .iter()
+            .filter(|(_, meta)| !meta.pinned && meta.ttl.map(|t| t <= now).unwrap_or(false))
+            .map(|(cid, _)| cid.clone())
+            .collect();
+        for cid in to_remove {
+            self.store.remove(&cid);
+            self.meta.remove(&cid);
+            removed.push(cid);
+        }
+        Ok(removed)
+    }
+
+    fn set_ttl(&mut self, cid: &Cid, ttl: Option<u64>) -> Result<(), CommonError> {
+        match self.meta.get_mut(cid) {
+            Some(m) => {
+                m.ttl = ttl;
+                Ok(())
+            }
+            None => Err(CommonError::ResourceNotFound(format!(
+                "Block {} not found",
+                cid
+            ))),
+        }
+    }
+
+    fn get_metadata(&self, cid: &Cid) -> Result<Option<BlockMetadata>, CommonError> {
+        Ok(self.meta.get(cid).cloned())
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
     }
 }
 
@@ -121,6 +285,7 @@ pub struct FileDagStore {
     storage_path: PathBuf,
     // Optional: In-memory index for faster lookups, synced with files
     // index: HashMap<Cid, PathBuf>, // Or some offset/length info if storing in a single large file
+    meta: HashMap<Cid, BlockMetadata>,
 }
 
 impl FileDagStore {
@@ -140,7 +305,10 @@ impl FileDagStore {
                 storage_path
             )));
         }
-        Ok(FileDagStore { storage_path })
+        Ok(FileDagStore {
+            storage_path,
+            meta: HashMap::new(),
+        })
     }
 
     // Renamed from get_block_path in apply model changes, reverting to original name for clarity
@@ -230,20 +398,118 @@ impl FileDagStore {
 
 impl StorageService<DagBlock> for FileDagStore {
     fn put(&mut self, block: &DagBlock) -> Result<(), CommonError> {
-        self.put_block_to_file(block)
+        metrics::DAG_PUT_CALLS.inc();
+        self.put_block_to_file(block)?;
+        self.meta
+            .insert(block.cid.clone(), BlockMetadata::default());
+        Ok(())
     }
 
     fn get(&self, cid: &Cid) -> Result<Option<DagBlock>, CommonError> {
+        metrics::DAG_GET_CALLS.inc();
         self.get_block_from_file(cid)
     }
 
     fn delete(&mut self, cid: &Cid) -> Result<(), CommonError> {
-        self.delete_block_file(cid)
+        self.delete_block_file(cid)?;
+        self.meta.remove(cid);
+        Ok(())
     }
 
     fn contains(&self, cid: &Cid) -> Result<bool, CommonError> {
         let path = self.block_path(cid);
         Ok(path.exists())
+    }
+
+    fn list_blocks(&self) -> Result<Vec<DagBlock>, CommonError> {
+        let mut blocks = Vec::new();
+        for entry in std::fs::read_dir(&self.storage_path).map_err(|e| {
+            CommonError::IoError(format!("Failed to read dir {:?}: {}", self.storage_path, e))
+        })? {
+            let path = entry
+                .map_err(|e| CommonError::IoError(format!("Dir entry error: {}", e)))?
+                .path();
+            if path.is_file() {
+                let contents = std::fs::read_to_string(&path).map_err(|e| {
+                    CommonError::IoError(format!("Failed to read file {:?}: {}", path, e))
+                })?;
+                let block: DagBlock = serde_json::from_str(&contents).map_err(|e| {
+                    CommonError::DeserializationError(format!(
+                        "Failed to deserialize {:?}: {}",
+                        path, e
+                    ))
+                })?;
+                blocks.push(block);
+            }
+        }
+        Ok(blocks)
+    }
+
+    fn pin_block(&mut self, cid: &Cid) -> Result<(), CommonError> {
+        match self.meta.get_mut(cid) {
+            Some(m) => {
+                m.pinned = true;
+                Ok(())
+            }
+            None => Err(CommonError::ResourceNotFound(format!(
+                "Block {} not found",
+                cid
+            ))),
+        }
+    }
+
+    fn unpin_block(&mut self, cid: &Cid) -> Result<(), CommonError> {
+        match self.meta.get_mut(cid) {
+            Some(m) => {
+                m.pinned = false;
+                Ok(())
+            }
+            None => Err(CommonError::ResourceNotFound(format!(
+                "Block {} not found",
+                cid
+            ))),
+        }
+    }
+
+    fn prune_expired(&mut self, now: u64) -> Result<Vec<Cid>, CommonError> {
+        let mut removed = Vec::new();
+        let to_remove: Vec<Cid> = self
+            .meta
+            .iter()
+            .filter(|(_, m)| !m.pinned && m.ttl.map(|t| t <= now).unwrap_or(false))
+            .map(|(c, _)| c.clone())
+            .collect();
+        for cid in to_remove {
+            self.delete_block_file(&cid)?;
+            self.meta.remove(&cid);
+            removed.push(cid);
+        }
+        Ok(removed)
+    }
+
+    fn set_ttl(&mut self, cid: &Cid, ttl: Option<u64>) -> Result<(), CommonError> {
+        match self.meta.get_mut(cid) {
+            Some(m) => {
+                m.ttl = ttl;
+                Ok(())
+            }
+            None => Err(CommonError::ResourceNotFound(format!(
+                "Block {} not found",
+                cid
+            ))),
+        }
+    }
+
+    fn get_metadata(&self, cid: &Cid) -> Result<Option<BlockMetadata>, CommonError> {
+        Ok(self.meta.get(cid).cloned())
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
     }
 }
 
@@ -254,6 +520,7 @@ impl StorageService<DagBlock> for FileDagStore {
 #[derive(Debug)]
 pub struct TokioFileDagStore {
     storage_path: PathBuf,
+    meta: HashMap<Cid, BlockMetadata>,
 }
 
 #[cfg(feature = "async")]
@@ -274,7 +541,10 @@ impl TokioFileDagStore {
                 storage_path
             )));
         }
-        Ok(TokioFileDagStore { storage_path })
+        Ok(TokioFileDagStore {
+            storage_path,
+            meta: HashMap::new(),
+        })
     }
 
     fn block_path(&self, cid: &Cid) -> PathBuf {
@@ -316,6 +586,8 @@ impl AsyncStorageService<DagBlock> for TokioFileDagStore {
                     block.cid, file_path, e
                 ))
             })?;
+        self.meta
+            .insert(block.cid.clone(), BlockMetadata::default());
         Ok(())
     }
 
@@ -363,11 +635,115 @@ impl AsyncStorageService<DagBlock> for TokioFileDagStore {
                 CommonError::IoError(format!("Failed to delete file {:?}: {}", file_path, e))
             })?;
         }
+        self.meta.remove(cid);
         Ok(())
     }
 
     async fn contains(&self, cid: &Cid) -> Result<bool, CommonError> {
         Ok(fs::metadata(self.block_path(cid)).await.is_ok())
+    }
+
+    async fn list_blocks(&self) -> Result<Vec<DagBlock>, CommonError> {
+        let mut blocks = Vec::new();
+        let mut dir = fs::read_dir(&self.storage_path).await.map_err(|e| {
+            CommonError::IoError(format!("Failed to read dir {:?}: {}", self.storage_path, e))
+        })?;
+        while let Some(entry) = dir
+            .next_entry()
+            .await
+            .map_err(|e| CommonError::IoError(format!("Dir entry error: {}", e)))?
+        {
+            let path = entry.path();
+            if path.is_file() {
+                let mut file = TokioFile::open(&path).await.map_err(|e| {
+                    CommonError::IoError(format!("Failed to open file {:?}: {}", path, e))
+                })?;
+                let mut contents = String::new();
+                file.read_to_string(&mut contents).await.map_err(|e| {
+                    CommonError::IoError(format!("Failed to read file {:?}: {}", path, e))
+                })?;
+                let block: DagBlock = serde_json::from_str(&contents).map_err(|e| {
+                    CommonError::DeserializationError(format!(
+                        "Failed to deserialize {:?}: {}",
+                        path, e
+                    ))
+                })?;
+                blocks.push(block);
+            }
+        }
+        Ok(blocks)
+    }
+
+    async fn pin_block(&mut self, cid: &Cid) -> Result<(), CommonError> {
+        match self.meta.get_mut(cid) {
+            Some(m) => {
+                m.pinned = true;
+                Ok(())
+            }
+            None => Err(CommonError::ResourceNotFound(format!(
+                "Block {} not found",
+                cid
+            ))),
+        }
+    }
+
+    async fn unpin_block(&mut self, cid: &Cid) -> Result<(), CommonError> {
+        match self.meta.get_mut(cid) {
+            Some(m) => {
+                m.pinned = false;
+                Ok(())
+            }
+            None => Err(CommonError::ResourceNotFound(format!(
+                "Block {} not found",
+                cid
+            ))),
+        }
+    }
+
+    async fn prune_expired(&mut self, now: u64) -> Result<Vec<Cid>, CommonError> {
+        let mut removed = Vec::new();
+        let to_remove: Vec<Cid> = self
+            .meta
+            .iter()
+            .filter(|(_, m)| !m.pinned && m.ttl.map(|t| t <= now).unwrap_or(false))
+            .map(|(c, _)| c.clone())
+            .collect();
+        for cid in to_remove {
+            let file_path = self.block_path(&cid);
+            if fs::metadata(&file_path).await.is_ok() {
+                fs::remove_file(&file_path).await.map_err(|e| {
+                    CommonError::IoError(format!("Failed to delete file {:?}: {}", file_path, e))
+                })?;
+            }
+            self.meta.remove(&cid);
+            removed.push(cid);
+        }
+        Ok(removed)
+    }
+
+    async fn set_ttl(&mut self, cid: &Cid, ttl: Option<u64>) -> Result<(), CommonError> {
+        match self.meta.get_mut(cid) {
+            Some(m) => {
+                m.ttl = ttl;
+                Ok(())
+            }
+            None => Err(CommonError::ResourceNotFound(format!(
+                "Block {} not found",
+                cid
+            ))),
+        }
+    }
+
+    async fn get_metadata(&self, cid: &Cid) -> Result<Option<BlockMetadata>, CommonError> {
+        Ok(self.meta.get(cid).cloned())
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
     }
 }
 
@@ -386,6 +762,155 @@ pub fn process_dag_related_data(info: &NodeInfo) -> Result<String, CommonError> 
     }
 }
 
+/// Backup all DAG blocks from `store` into files under `path`.
+pub fn backup<S>(store: &S, path: &Path) -> Result<(), CommonError>
+where
+    S: StorageService<DagBlock> + ?Sized,
+{
+    if !path.exists() {
+        std::fs::create_dir_all(path).map_err(|e| {
+            CommonError::IoError(format!("Failed to create backup dir {:?}: {}", path, e))
+        })?;
+    }
+    for block in store.list_blocks()? {
+        let serialized = serde_json::to_string(&block).map_err(|e| {
+            CommonError::SerializationError(format!(
+                "Failed to serialize block {}: {}",
+                block.cid, e
+            ))
+        })?;
+        let file_path = path.join(block.cid.to_string());
+        std::fs::write(&file_path, serialized).map_err(|e| {
+            CommonError::IoError(format!(
+                "Failed to write block {} to {:?}: {}",
+                block.cid, file_path, e
+            ))
+        })?;
+    }
+    Ok(())
+}
+
+/// Restore DAG blocks into `store` from files under `path`.
+pub fn restore<S>(store: &mut S, path: &Path) -> Result<(), CommonError>
+where
+    S: StorageService<DagBlock> + ?Sized,
+{
+    if !path.is_dir() {
+        return Err(CommonError::IoError(format!(
+            "Restore path {:?} is not a directory",
+            path
+        )));
+    }
+    for entry in std::fs::read_dir(path)
+        .map_err(|e| CommonError::IoError(format!("Failed to read backup dir {:?}: {}", path, e)))?
+    {
+        let entry = entry.map_err(|e| CommonError::IoError(format!("Dir entry error: {}", e)))?;
+        let file_path = entry.path();
+        if file_path.is_file() {
+            let contents = std::fs::read_to_string(&file_path).map_err(|e| {
+                CommonError::IoError(format!("Failed to read file {:?}: {}", file_path, e))
+            })?;
+            let block: DagBlock = serde_json::from_str(&contents).map_err(|e| {
+                CommonError::DeserializationError(format!(
+                    "Failed to deserialize {:?}: {}",
+                    file_path, e
+                ))
+            })?;
+            store.put(&block)?;
+        }
+    }
+    Ok(())
+}
+
+/// Verify integrity of every block in the given store.
+pub fn verify_all<S>(store: &S) -> Result<(), CommonError>
+where
+    S: StorageService<DagBlock> + ?Sized,
+{
+    for block in store.list_blocks()? {
+        icn_common::verify_block_integrity(&block)?;
+    }
+    Ok(())
+}
+
+#[cfg(feature = "async")]
+/// Asynchronous variant of [`backup`].
+pub async fn backup_async<S>(store: &S, path: &Path) -> Result<(), CommonError>
+where
+    S: AsyncStorageService<DagBlock> + Sync + ?Sized,
+{
+    if !path.exists() {
+        fs::create_dir_all(path).await.map_err(|e| {
+            CommonError::IoError(format!("Failed to create backup dir {:?}: {}", path, e))
+        })?;
+    }
+    for block in store.list_blocks().await? {
+        let serialized = serde_json::to_string(&block).map_err(|e| {
+            CommonError::SerializationError(format!(
+                "Failed to serialize block {}: {}",
+                block.cid, e
+            ))
+        })?;
+        let file_path = path.join(block.cid.to_string());
+        fs::write(&file_path, serialized).await.map_err(|e| {
+            CommonError::IoError(format!(
+                "Failed to write block {} to {:?}: {}",
+                block.cid, file_path, e
+            ))
+        })?;
+    }
+    Ok(())
+}
+
+#[cfg(feature = "async")]
+/// Asynchronous variant of [`restore`].
+pub async fn restore_async<S>(store: &mut S, path: &Path) -> Result<(), CommonError>
+where
+    S: AsyncStorageService<DagBlock> + Send + ?Sized,
+{
+    if !path.is_dir() {
+        return Err(CommonError::IoError(format!(
+            "Restore path {:?} is not a directory",
+            path
+        )));
+    }
+    let mut entries = fs::read_dir(path).await.map_err(|e| {
+        CommonError::IoError(format!("Failed to read backup dir {:?}: {}", path, e))
+    })?;
+    while let Some(entry) = entries
+        .next_entry()
+        .await
+        .map_err(|e| CommonError::IoError(format!("Dir entry error: {}", e)))?
+    {
+        let file_path = entry.path();
+        if file_path.is_file() {
+            let contents = fs::read_to_string(&file_path).await.map_err(|e| {
+                CommonError::IoError(format!("Failed to read file {:?}: {}", file_path, e))
+            })?;
+            let block: DagBlock = serde_json::from_str(&contents).map_err(|e| {
+                CommonError::DeserializationError(format!(
+                    "Failed to deserialize {:?}: {}",
+                    file_path, e
+                ))
+            })?;
+            store.put(&block).await?;
+        }
+    }
+    Ok(())
+}
+
+#[cfg(feature = "async")]
+/// Asynchronous variant of [`verify_all`].
+pub async fn verify_all_async<S>(store: &S) -> Result<(), CommonError>
+where
+    S: AsyncStorageService<DagBlock> + Sync + ?Sized,
+{
+    for block in store.list_blocks().await? {
+        icn_common::verify_block_integrity(&block)?;
+    }
+    Ok(())
+}
+
 // pub fn add(left: u64, right: u64) -> u64 {
 //     left + right
 // }
@@ -396,6 +921,7 @@ mod tests {
     // For test setup
     use tempfile::tempdir; // For FileDagStore tests
     #[cfg(feature = "async")]
+    #[allow(unused_imports)]
     use tokio::fs; // For async file operations
 
     // Helper function to create a test block
@@ -433,13 +959,13 @@ mod tests {
         }
         assert!(store.get(&block2.cid).unwrap().is_none());
 
-        // Test put overwrite (assuming implementations overwrite)
+        // Test putting a different block (content-addressed storage doesn't allow overwriting with different content)
         let modified_block1_data =
             format!("modified data for {}", "block1_service_test").into_bytes();
         let timestamp = 1u64;
         let author = Did::new("key", "tester");
         let sig = None;
-        let cid = compute_merkle_cid(
+        let modified_cid = compute_merkle_cid(
             0x71,
             &modified_block1_data,
             &[],
@@ -449,8 +975,8 @@ mod tests {
             &None,
         );
         let modified_block1 = DagBlock {
-            cid,
-            data: modified_block1_data,
+            cid: modified_cid.clone(),
+            data: modified_block1_data.clone(),
             links: vec![],
             timestamp,
             author_did: author,
@@ -458,14 +984,23 @@ mod tests {
             scope: None,
         };
         assert!(store.put(&modified_block1).is_ok());
+
+        // Original block should still be retrievable by its CID
         match store.get(&block1.cid) {
             Ok(Some(retrieved_block)) => {
                 assert_eq!(retrieved_block.cid, block1.cid);
-                // Ensure data was actually modified
-                assert_ne!(retrieved_block.data, block1.data);
-                assert_eq!(retrieved_block.data, modified_block1.data);
+                assert_eq!(retrieved_block.data, block1.data);
             }
-            _ => panic!("Failed to get modified block1 after overwrite"),
+            _ => panic!("Failed to get original block1"),
+        }
+
+        // Modified block should be retrievable by its CID
+        match store.get(&modified_cid) {
+            Ok(Some(retrieved_block)) => {
+                assert_eq!(retrieved_block.cid, modified_cid);
+                assert_eq!(retrieved_block.data, modified_block1_data);
+            }
+            _ => panic!("Failed to get modified block"),
         }
 
         // Test delete
@@ -506,10 +1041,10 @@ mod tests {
         let timestamp = 1u64;
         let author = Did::new("key", "tester");
         let sig = None;
-        let cid = compute_merkle_cid(0x71, &mod_data, &[], timestamp, &author, &sig, &None);
+        let mod_cid = compute_merkle_cid(0x71, &mod_data, &[], timestamp, &author, &sig, &None);
         let mod_block = DagBlock {
-            cid,
-            data: mod_data,
+            cid: mod_cid.clone(),
+            data: mod_data.clone(),
             links: vec![],
             timestamp,
             author_did: author,
@@ -517,12 +1052,23 @@ mod tests {
             scope: None,
         };
         store.put(&mod_block).await.unwrap();
+
+        // Original block should still be retrievable
         match store.get(&block1.cid).await {
             Ok(Some(retrieved)) => {
                 assert_eq!(retrieved.cid, block1.cid);
-                assert_eq!(retrieved.data, mod_block.data);
+                assert_eq!(retrieved.data, block1.data);
             }
-            _ => panic!("Failed to get modified block1"),
+            _ => panic!("Failed to get original block1"),
+        }
+
+        // Modified block should be retrievable by its CID
+        match store.get(&mod_cid).await {
+            Ok(Some(retrieved)) => {
+                assert_eq!(retrieved.cid, mod_cid);
+                assert_eq!(retrieved.data, mod_data);
+            }
+            _ => panic!("Failed to get modified block"),
         }
 
         store.delete(&block1.cid).await.unwrap();
@@ -533,14 +1079,12 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_in_memory_dag_store_service() {
         let mut store = InMemoryDagStore::new(); // Make store mutable
         test_storage_service_suite(&mut store); // Pass as mutable reference
     }
 
     #[test]
-    #[ignore]
     fn test_file_dag_store_service() {
         let dir = tempdir().unwrap();
         let mut store = FileDagStore::new(dir.path().to_path_buf()).unwrap();
@@ -587,7 +1131,6 @@ mod tests {
 
     #[cfg(feature = "async")]
     #[tokio::test]
-    #[ignore]
     async fn test_tokio_file_dag_store_service() {
         let dir = tempdir().unwrap();
         let mut store = TokioFileDagStore::new(dir.path().to_path_buf()).unwrap();
@@ -613,13 +1156,11 @@ mod tests {
         let block_x_path = store2.block_path(&block_x.cid);
 
         // Corrupt the stored CID to simulate a mismatch
-        let mut file_contents = tokio::fs::read_to_string(&block_x_path).await.unwrap();
+        let mut file_contents = fs::read_to_string(&block_x_path).await.unwrap();
         let mut corrupted_block: DagBlock = serde_json::from_str(&file_contents).unwrap();
         corrupted_block.cid.hash_bytes[0] ^= 0xFF;
         file_contents = serde_json::to_string(&corrupted_block).unwrap();
-        tokio::fs::write(&block_x_path, file_contents)
-            .await
-            .unwrap();
+        fs::write(&block_x_path, file_contents).await.unwrap();
 
         match store2.get(&block_x.cid).await {
             Err(CommonError::InvalidInputError(msg)) => {
@@ -633,7 +1174,6 @@ mod tests {
 
     #[cfg(feature = "persist-sled")]
     #[test]
-    #[ignore]
     fn test_sled_dag_store_service() {
         let dir = tempdir().unwrap();
         let mut store = sled_store::SledDagStore::new(dir.path().to_path_buf()).unwrap();
@@ -649,7 +1189,6 @@ mod tests {
 
     #[cfg(feature = "persist-sqlite")]
     #[test]
-    #[ignore]
     fn test_sqlite_dag_store_service() {
         let dir = tempdir().unwrap();
         let db_path = dir.path().join("dag.sqlite");
@@ -666,7 +1205,6 @@ mod tests {
 
     #[cfg(feature = "persist-rocksdb")]
     #[test]
-    #[ignore]
     fn test_rocks_dag_store_service() {
         let dir = tempdir().unwrap();
         let db_path = dir.path().join("rocks");
@@ -682,7 +1220,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_process_dag_data() {
         let node_info = NodeInfo {
             name: "TestDAGNode".to_string(),
@@ -703,7 +1240,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_traversal_index() {
         use crate::index::DagTraversalIndex;
         let mut index = DagTraversalIndex::new();

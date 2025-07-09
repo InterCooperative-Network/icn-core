@@ -59,13 +59,20 @@ async fn assert_job_state(
     tokio::task::yield_now().await;
     sleep(Duration::from_millis(100)).await; // Increased delay slightly for job manager processing
 
-    let states = ctx.job_states.lock().await;
-    let job_state = states.get(job_id).unwrap_or_else(|| {
-        panic!(
-            "Job ID {:?} not found in states map. States: {:?}",
-            job_id, states
-        )
-    });
+    let job_state = ctx
+        .job_states
+        .get(job_id)
+        .map(|s| s.value().clone())
+        .unwrap_or_else(|| {
+            panic!(
+                "Job ID {:?} not found in states map. States: {:?}",
+                job_id,
+                ctx.job_states
+                    .iter()
+                    .map(|kv| (*kv.key(), kv.value().clone()))
+                    .collect::<Vec<_>>()
+            )
+        });
 
     match (job_state, &expected_state_variant) {
         (JobState::Pending, JobStateVariant::Pending) => {}
@@ -521,8 +528,11 @@ async fn test_job_manager_refunds_on_no_valid_bid() {
     let mana_after = ctx.get_mana(&submitter_did).await.unwrap();
     assert_eq!(mana_after, 50);
 
-    let states = ctx.job_states.lock().await;
-    let state = states.get(&job_id).expect("job state");
+    let state = ctx
+        .job_states
+        .get(&job_id)
+        .map(|s| s.value().clone())
+        .expect("job state");
     match state {
         JobState::Failed { .. } => {}
         other => panic!("Unexpected state {:?}", other),
@@ -624,8 +634,7 @@ async fn assign_job_to_executor_directly(
         "Test util: Directly assigning job {:?} to executor {:?}",
         job_id, assigned_executor_did
     );
-    let mut states = job_manager_ctx.job_states.lock().await;
-    states.insert(
+    job_manager_ctx.job_states.insert(
         JobId(job_id),
         JobState::Assigned {
             executor: assigned_executor_did.clone(),
@@ -785,6 +794,7 @@ async fn test_full_mesh_job_cycle_libp2p() -> Result<(), anyhow::Error> {
             &identity_str,
             listen,
             bootstrap_peers,
+            std::path::PathBuf::from("./dag_store"),
             std::path::PathBuf::from("./mana_ledger.sled"),
             std::path::PathBuf::from("./reputation.sled"),
         )

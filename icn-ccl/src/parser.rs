@@ -1,7 +1,7 @@
 // icn-ccl/src/parser.rs
 use crate::ast::{
     ActionNode, AstNode, BinaryOperator, BlockNode, ExpressionNode, ParameterNode,
-    PolicyStatementNode, StatementNode, TypeAnnotationNode,
+    PolicyStatementNode, StatementNode, TypeAnnotationNode, UnaryOperator,
 };
 use crate::error::CclError;
 use pest::iterators::Pair;
@@ -11,6 +11,30 @@ use pest_derive::Parser;
 #[derive(Parser)]
 #[grammar = "grammar/ccl.pest"] // Path to your Pest grammar file
 pub struct CclParser;
+
+/// Convert escaped sequences like `\n` or `\"` into their actual characters.
+pub fn unescape_string(s: &str) -> Result<String, CclError> {
+    let mut result = String::new();
+    let mut chars = s.chars();
+    while let Some(c) = chars.next() {
+        if c == '\\' {
+            let next = chars
+                .next()
+                .ok_or_else(|| CclError::ParsingError("Incomplete escape sequence".to_string()))?;
+            match next {
+                'n' => result.push('\n'),
+                't' => result.push('\t'),
+                'r' => result.push('\r'),
+                '\\' => result.push('\\'),
+                '"' => result.push('"'),
+                other => result.push(other),
+            }
+        } else {
+            result.push(c);
+        }
+    }
+    Ok(result)
+}
 
 // Parse a simple literal or identifier expression
 pub(crate) fn parse_literal_expression(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
@@ -30,15 +54,14 @@ pub(crate) fn parse_literal_expression(pair: Pair<Rule>) -> Result<ExpressionNod
             )),
         },
         Rule::string_literal => {
-            // Need to strip quotes from string_literal if they are part of the pair's string value
             let s = pair.as_str();
-            if s.starts_with('"') && s.ends_with('"') && s.len() >= 2 {
-                Ok(ExpressionNode::StringLiteral(s[1..s.len() - 1].to_string()))
+            let inner = if s.starts_with('"') && s.ends_with('"') && s.len() >= 2 {
+                &s[1..s.len() - 1]
             } else {
-                // This case should ideally not be hit if Pest grammar for string_literal is correct e.g. `"\"" ~ inner_chars ~ "\""`
-                // If `string_literal = @{ "\"" ~ inner ~ "\"" }` then `as_str()` includes quotes.
-                Ok(ExpressionNode::StringLiteral(s.to_string())) // Fallback, or error
-            }
+                s
+            };
+            let unescaped = unescape_string(inner)?;
+            Ok(ExpressionNode::StringLiteral(unescaped))
         }
         Rule::identifier => Ok(ExpressionNode::Identifier(pair.as_str().to_string())),
         _ => Err(CclError::ParsingError(format!(
@@ -66,23 +89,74 @@ pub(crate) fn parse_function_call(pair: Pair<Rule>) -> Result<ExpressionNode, Cc
     })
 }
 
+pub(crate) fn parse_array_literal(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
+    let elements = pair
+        .into_inner()
+        .map(parse_expression)
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(ExpressionNode::ArrayLiteral(elements))
+}
+
 pub(crate) fn parse_primary(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
     match pair.as_rule() {
+        Rule::primary => {
+            let mut inner = pair.into_inner();
+            let base = inner.next().ok_or_else(|| {
+                CclError::ParsingError("Primary expression missing base".to_string())
+            })?;
+            let mut expr = parse_primary(base)?;
+            for index_pair in inner {
+                let index_expr = parse_expression(index_pair)?;
+                expr = ExpressionNode::ArrayAccess {
+                    array: Box::new(expr),
+                    index: Box::new(index_expr),
+                };
+            }
+            Ok(expr)
+        }
+        Rule::atom => {
+            let inner = pair
+                .into_inner()
+                .next()
+                .ok_or_else(|| CclError::ParsingError("Atom missing inner".to_string()))?;
+            parse_primary(inner)
+        }
+        Rule::array_literal => parse_array_literal(pair),
         Rule::integer_literal | Rule::boolean_literal | Rule::string_literal | Rule::identifier => {
             parse_literal_expression(pair)
         }
         Rule::function_call => parse_function_call(pair),
         Rule::expression => parse_expression(pair),
-        Rule::primary => {
-            let inner = pair.into_inner().next().ok_or_else(|| {
-                CclError::ParsingError("Primary expression missing inner".to_string())
-            })?;
-            parse_primary(inner)
-        }
         _ => Err(CclError::ParsingError(format!(
             "Unsupported primary expression: {:?}",
             pair.as_rule()
         ))),
+    }
+}
+
+pub(crate) fn parse_unary(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
+    if pair.as_rule() != Rule::unary {
+        return Err(CclError::ParsingError(format!(
+            "Expected unary expression, got {:?}",
+            pair.as_rule()
+        )));
+    }
+
+    let mut inner = pair.into_inner();
+    let first = inner
+        .next()
+        .ok_or_else(|| CclError::ParsingError("Unary rule missing first element".to_string()))?;
+
+    match first.as_rule() {
+        Rule::NOT_OP => Ok(ExpressionNode::UnaryOp {
+            operator: UnaryOperator::Not,
+            operand: Box::new(parse_unary(inner.next().unwrap())?),
+        }),
+        Rule::SUB_OP => Ok(ExpressionNode::UnaryOp {
+            operator: UnaryOperator::Neg,
+            operand: Box::new(parse_unary(inner.next().unwrap())?),
+        }),
+        _ => parse_primary(first),
     }
 }
 
@@ -203,12 +277,14 @@ pub(crate) fn parse_expression(pair: Pair<Rule>) -> Result<ExpressionNode, CclEr
             }
             Ok(expr)
         }
+        Rule::unary => parse_unary(pair),
         Rule::primary => parse_primary(pair),
         Rule::function_call
         | Rule::integer_literal
         | Rule::boolean_literal
         | Rule::string_literal
-        | Rule::identifier => parse_primary(pair),
+        | Rule::identifier
+        | Rule::array_literal => parse_primary(pair),
         _ => Err(CclError::ParsingError(format!(
             "Unsupported expression rule: {:?}",
             pair.as_rule()
@@ -254,7 +330,9 @@ pub(crate) fn parse_statement(pair: Pair<Rule>) -> Result<StatementNode, CclErro
             let expr_pair = actual_statement_pair.into_inner().next().ok_or_else(|| {
                 CclError::ParsingError("Expression statement missing expression".to_string())
             })?;
-            Ok(StatementNode::ExpressionStatement(parse_expression(expr_pair)?))
+            Ok(StatementNode::ExpressionStatement(parse_expression(
+                expr_pair,
+            )?))
         }
         Rule::if_statement => {
             let mut inner = actual_statement_pair.into_inner();
@@ -436,9 +514,9 @@ pub(crate) fn parse_policy_statement(pair: Pair<Rule>) -> Result<PolicyStatement
         .next()
         .ok_or_else(|| CclError::ParsingError("Empty policy statement".to_string()))?;
     match stmt_pair.as_rule() {
-        Rule::rule_definition => Ok(PolicyStatementNode::RuleDef(
-            parse_rule_definition(stmt_pair)?,
-        )),
+        Rule::rule_definition => Ok(PolicyStatementNode::RuleDef(parse_rule_definition(
+            stmt_pair,
+        )?)),
         Rule::import_statement => {
             let mut i = stmt_pair.into_inner();
             let path_pair = i

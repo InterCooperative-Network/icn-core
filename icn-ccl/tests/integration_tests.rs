@@ -422,7 +422,11 @@ async fn test_wasm_executor_runs_proposal_flow() {
     };
 
     let signer = std::sync::Arc::new(icn_runtime::context::StubSigner::new_with_keys(sk, vk));
-    let exec = WasmExecutor::new(ctx.clone(), signer, icn_runtime::executor::WasmExecutorConfig::default());
+    let exec = WasmExecutor::new(
+        ctx.clone(),
+        signer,
+        icn_runtime::executor::WasmExecutorConfig::default(),
+    );
     let receipt = exec.execute_job(&job).await.unwrap();
     assert_eq!(receipt.executor_did, node_did);
     let expected_cid = Cid::new_v1_sha256(0x55, &3i64.to_le_bytes());
@@ -480,7 +484,11 @@ async fn test_wasm_executor_runs_voting_logic() {
     };
 
     let signer = std::sync::Arc::new(icn_runtime::context::StubSigner::new_with_keys(sk, vk));
-    let exec = WasmExecutor::new(ctx.clone(), signer, icn_runtime::executor::WasmExecutorConfig::default());
+    let exec = WasmExecutor::new(
+        ctx.clone(),
+        signer,
+        icn_runtime::executor::WasmExecutorConfig::default(),
+    );
     let receipt = exec.execute_job(&job).await.unwrap();
     assert_eq!(receipt.executor_did, node_did);
     let expected_cid = Cid::new_v1_sha256(0x55, &6i64.to_le_bytes());

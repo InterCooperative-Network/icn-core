@@ -28,3 +28,27 @@ devnet:
 # Run the complete validation suite (format, lint, test)
 validate:
     just format && just lint && just test
+
+# Run benchmarks for all crates
+bench:
+    cargo bench --workspace --all-features
+
+# Run federation health checks
+health-check:
+    cargo test --test federation -- --exact test_federation_node_health --nocapture
+
+# Show node status via CLI
+status:
+    cargo run -p icn-cli -- status
+
+# View recent devnet logs (if running via Docker)
+logs:
+    cd icn-devnet && docker-compose logs --tail=50
+
+# Fetch Prometheus metrics from the default node
+metrics:
+    cargo run -p icn-cli -- metrics
+
+# Build documentation for all crates
+docs:
+    cargo doc --workspace --no-deps

@@ -77,6 +77,7 @@ curl http://localhost:5001/mesh/jobs
 - **ICN Nodes**: 3 containerized nodes with HTTP APIs and P2P networking
 - **Prometheus**: Metrics collection (optional, with `--profile monitoring`)
 - **Grafana**: Dashboard visualization (optional, with `--profile monitoring`)
+- **Alertmanager**: Alert routing (optional, with `--profile monitoring`)
 
 ## 📋 Configuration
 
@@ -105,6 +106,7 @@ Each node is configured via environment variables:
 | Node C P2P | 4003 | 4001 | libp2p networking |
 | Prometheus | 9090 | 9090 | Metrics (optional) |
 | Grafana | 3000 | 3000 | Dashboard (optional) |
+| Alertmanager | 9093 | 9093 | Alert routing (optional) |
 
 ### Example `docker-compose.yml`
 
@@ -151,13 +153,32 @@ docker-compose down --volumes --remove-orphans
 ### With Monitoring
 
 ```bash
-# Start with Prometheus and Grafana
+# Start with Prometheus, Grafana, and Alertmanager
 docker-compose --profile monitoring up -d
 
 # Access monitoring
 # Prometheus: http://localhost:9090
 # Grafana: http://localhost:3000 (admin/icnfederation)
+# Alertmanager: http://localhost:9093
 ```
+
+The default Alertmanager configuration sends emails to
+`alerts@intercooperative.network`. Modify `alertmanager.yml` to customize
+receivers or routing rules. Sample alert rules live in `alert.rules.yml` and
+cover basic node availability. Extend these rules or hook Alertmanager into your
+own notification channels as needed.
+
+### Grafana Dashboards
+
+Pre-built dashboards are available under `grafana/`.
+
+1. Start the monitoring profile with `docker-compose --profile monitoring up -d`.
+2. Open Grafana at [http://localhost:3000](http://localhost:3000) (admin/icnfederation).
+3. Navigate to **Dashboards → Import** and upload `grafana/icn-devnet-overview.json`.
+
+### Grafana Dashboards
+Dashboard JSON files are located in `grafana/`. After launching with monitoring, open Grafana at `http://localhost:3000`, click **Import**, and upload `grafana/icn-devnet-dashboard.json`.
+
 
 ### Development Mode
 
@@ -214,6 +235,8 @@ curl http://localhost:5001/mesh/jobs/$job_id
 - Ensure all ICN crates compile: `cargo build --release`
 - Check Dockerfile dependencies
 - Clear Docker build cache: `docker system prune -a`
+
+For persistent deployments see the [DAG Backup and Restore guide](../docs/deployment-guide.md#dag-backup-and-restore).
 
 ### Logs
 

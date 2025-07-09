@@ -88,10 +88,7 @@ pub async fn host_submit_mesh_job(
 
     // 2. Adjust cost based on the submitter's reputation and spend mana.
     let rep = ctx.reputation_store.get_reputation(&ctx.current_identity);
-    job_to_submit.cost_mana = icn_economics::price_by_reputation(
-        job_to_submit.cost_mana,
-        rep,
-    );
+    job_to_submit.cost_mana = icn_economics::price_by_reputation(job_to_submit.cost_mana, rep);
 
     ctx.spend_mana(&ctx.current_identity, job_to_submit.cost_mana)
         .await
@@ -116,9 +113,9 @@ pub async fn host_submit_mesh_job(
     let spec_bytes = serde_json::to_vec(&job_to_submit.spec)
         .map_err(|e| HostAbiError::InternalError(format!("Spec serialization failed: {e}")))?;
     hasher.update(&spec_bytes);
-    hasher.update(&job_to_submit.cost_mana.to_le_bytes());
+    hasher.update(job_to_submit.cost_mana.to_le_bytes());
     if let Some(ms) = job_to_submit.max_execution_wait_ms {
-        hasher.update(&ms.to_le_bytes());
+        hasher.update(ms.to_le_bytes());
     }
     hasher.update(ctx.current_identity.to_string().as_bytes());
     let digest = hasher.finalize();
@@ -157,13 +154,21 @@ pub async fn host_get_pending_mesh_jobs(
     // Directly clone the jobs from the queue. This provides a snapshot.
     // Depending on WASM interface, this might need to be serialized (e.g., to JSON).
     // Need to acquire the lock and then await its resolution.
-    let jobs = ctx
-        .pending_mesh_jobs
-        .lock()
-        .await
-        .iter()
-        .cloned()
-        .collect::<Vec<icn_mesh::ActualMeshJob>>();
+    let mut jobs = Vec::new();
+    let mut drained = Vec::new();
+    {
+        let mut rx = ctx.pending_mesh_jobs_rx.lock().await;
+        while let Ok(job) = rx.try_recv() {
+            drained.push(job);
+        }
+    }
+    for job in drained.iter() {
+        ctx.pending_mesh_jobs_tx
+            .send(job.clone())
+            .await
+            .map_err(|e| HostAbiError::InternalError(format!("{e:?}")))?;
+    }
+    jobs.extend(drained);
 
     debug!(
         "[host_get_pending_mesh_jobs] Returning {} pending jobs.",
@@ -285,8 +290,18 @@ pub async fn host_account_credit_mana(
     ctx.credit_mana(&account_did, amount).await
 }
 
+/// ABI Index: (defined in `abi::ABI_HOST_GET_REPUTATION`)
+/// Returns the reputation score for the provided DID.
+pub async fn host_get_reputation(
+    ctx: &Arc<RuntimeContext>,
+    did: &Did,
+) -> Result<i64, HostAbiError> {
+    Ok(ctx.reputation_store.get_reputation(did) as i64)
+}
+
 // Placeholder for a reputation updater service/struct
 use icn_reputation::ReputationStore;
+use std::sync::Arc;
 
 /// Helper used by host functions to update executor reputation.
 pub struct ReputationUpdater;
@@ -574,6 +589,23 @@ pub async fn host_execute_governance_proposal(
     ctx.execute_governance_proposal(proposal_id).await
 }
 
+/// Delegate voting power from one DID to another.
+pub async fn host_delegate_vote(
+    ctx: &RuntimeContext,
+    from_did: &str,
+    to_did: &str,
+) -> Result<(), HostAbiError> {
+    ctx.delegate_vote(from_did, to_did).await
+}
+
+/// Revoke any vote delegation for the given DID.
+pub async fn host_revoke_delegation(
+    ctx: &RuntimeContext,
+    from_did: &str,
+) -> Result<(), HostAbiError> {
+    ctx.revoke_delegation(from_did).await
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -583,7 +615,7 @@ mod tests {
     };
     use icn_common::{Cid, Did, ICN_CORE_VERSION};
     use icn_identity::SignatureBytes;
-    use icn_mesh::{ActualMeshJob, JobId, JobSpec};
+    use icn_mesh::{ActualMeshJob, JobId, JobKind, JobSpec};
     use std::str::FromStr;
     use std::sync::Arc;
 

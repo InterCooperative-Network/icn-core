@@ -29,8 +29,8 @@ The quickest way to spin up a local federation is the **icn-devnet** Docker
 environment contained in this repository. You will need:
 
 1. **Docker** and **Docker Compose** installed and running.
-2. The **nightly Rust toolchain** if you intend to build the crates locally
-   (`rustup toolchain install nightly` and `rustup override set nightly`).
+2. The **stable Rust toolchain** if you intend to build the crates locally
+   (`rustup toolchain install stable` and `rustup override set stable`).
 
 Launch the federation from the repo root:
 

@@ -1,4 +1,4 @@
-#[cfg(feature = "persist-sled")]
+#[cfg(all(feature = "persist-sled", feature = "enable-libp2p"))]
 mod reputation_persistence {
     use icn_common::{Cid, Did};
     use icn_identity::{did_key_from_verifying_key, generate_ed25519_keypair, SignatureBytes};
@@ -6,9 +6,14 @@ mod reputation_persistence {
     use icn_reputation::sled_store::SledReputationStore;
     use icn_reputation::ReputationStore;
     use icn_runtime::{
-        context::{RuntimeContext, SimpleManaLedger, StubMeshNetworkService, StubSigner},
+        context::{DefaultMeshNetworkService, RuntimeContext, SimpleManaLedger, StubSigner},
         host_anchor_receipt, ReputationUpdater,
     };
+    use icn_network::libp2p_service::{Libp2pNetworkService, NetworkConfig};
+    use icn_network::NetworkService;
+    use std::path::PathBuf;
+    use std::sync::Arc;
+    use std::sync::Arc;
     use std::str::FromStr;
     use tempfile::tempdir;
 
@@ -63,6 +68,25 @@ mod reputation_persistence {
         assert_eq!(selected, did_a);
     }
 
+    async fn create_ctx(id: Did, dag: PathBuf, mana: PathBuf, rep: PathBuf) -> Arc<RuntimeContext> {
+        let service = Arc::new(
+            Libp2pNetworkService::new(NetworkConfig::default())
+                .await
+                .unwrap(),
+        ) as Arc<dyn NetworkService>;
+        let mesh = Arc::new(DefaultMeshNetworkService::new(service));
+        RuntimeContext::new_with_paths(
+            id,
+            mesh,
+            Arc::new(StubSigner::new()),
+            Arc::new(icn_identity::KeyDidResolver),
+            dag,
+            mana,
+            rep,
+        )
+        .unwrap()
+    }
+
     #[tokio::test]
     async fn reputation_survives_restart() {
         let dir = tempdir().unwrap();
@@ -71,16 +95,8 @@ mod reputation_persistence {
         let rep_path = dir.path().join("rep.sled");
 
         let did = Did::new("key", "tester");
-        let ctx1 = RuntimeContext::new_with_paths(
-            did.clone(),
-            Arc::new(StubMeshNetworkService::new()),
-            Arc::new(StubSigner::new()),
-            Arc::new(icn_identity::KeyDidResolver),
-            dag_path.clone(),
-            mana_path.clone(),
-            rep_path.clone(),
-        )
-        .unwrap();
+
+        let ctx1 = create_ctx(did.clone(), dag_path.clone(), mana_path.clone(), rep_path.clone()).await;
 
         let mut receipt = icn_identity::ExecutionReceipt {
             job_id: Cid::new_v1_sha256(0x55, b"r"),
@@ -106,22 +122,25 @@ mod reputation_persistence {
             .unwrap();
         drop(ctx1);
 
-        let ctx2 = RuntimeContext::new_with_paths(
-            did.clone(),
-            Arc::new(StubMeshNetworkService::new()),
-            Arc::new(StubSigner::new()),
-            Arc::new(icn_identity::KeyDidResolver),
-            dag_path,
-            mana_path,
-            rep_path,
-        )
-        .unwrap();
+        let ctx2 = create_ctx(did.clone(), dag_path, mana_path, rep_path).await;
 
         assert_eq!(ctx2.reputation_store.get_reputation(&did), 2);
     }
 }
 
-#[cfg(feature = "persist-sqlite")]
+#[cfg(all(feature = "persist-sqlite", not(feature = "enable-libp2p")))]
+#[tokio::test]
+async fn libp2p_feature_disabled_stub_sqlite() {
+    println!("libp2p feature disabled; skipping sqlite reputation persistence test");
+}
+
+#[cfg(all(feature = "persist-sled", not(feature = "enable-libp2p")))]
+#[tokio::test]
+async fn libp2p_feature_disabled_stub_sled() {
+    println!("libp2p feature disabled; skipping sled reputation persistence test");
+}
+
+#[cfg(all(feature = "persist-sqlite", feature = "enable-libp2p"))]
 mod reputation_persistence_sqlite {
     use icn_common::{Cid, Did};
     use icn_identity::{did_key_from_verifying_key, generate_ed25519_keypair, SignatureBytes};
@@ -129,9 +148,12 @@ mod reputation_persistence_sqlite {
     use icn_reputation::sqlite_store::SqliteReputationStore;
     use icn_reputation::ReputationStore;
     use icn_runtime::{
-        context::{RuntimeContext, SimpleManaLedger, StubMeshNetworkService, StubSigner},
+        context::{DefaultMeshNetworkService, RuntimeContext, SimpleManaLedger, StubSigner},
         host_anchor_receipt, ReputationUpdater,
     };
+    use icn_network::libp2p_service::{Libp2pNetworkService, NetworkConfig};
+    use icn_network::NetworkService;
+    use std::path::PathBuf;
     use std::str::FromStr;
     use tempfile::tempdir;
 
@@ -194,16 +216,7 @@ mod reputation_persistence_sqlite {
         let rep_path = dir.path().join("rep.sqlite");
 
         let did = Did::new("key", "tester");
-        let ctx1 = RuntimeContext::new_with_paths(
-            did.clone(),
-            Arc::new(StubMeshNetworkService::new()),
-            Arc::new(StubSigner::new()),
-            Arc::new(icn_identity::KeyDidResolver),
-            dag_path.clone(),
-            mana_path.clone(),
-            rep_path.clone(),
-        )
-        .unwrap();
+        let ctx1 = create_ctx(did.clone(), dag_path.clone(), mana_path.clone(), rep_path.clone()).await;
 
         let mut receipt = icn_identity::ExecutionReceipt {
             job_id: Cid::new_v1_sha256(0x55, b"r"),
@@ -229,22 +242,13 @@ mod reputation_persistence_sqlite {
             .unwrap();
         drop(ctx1);
 
-        let ctx2 = RuntimeContext::new_with_paths(
-            did.clone(),
-            Arc::new(StubMeshNetworkService::new()),
-            Arc::new(StubSigner::new()),
-            Arc::new(icn_identity::KeyDidResolver),
-            dag_path,
-            mana_path,
-            rep_path,
-        )
-        .unwrap();
+        let ctx2 = create_ctx(did.clone(), dag_path, mana_path, rep_path).await;
 
         assert_eq!(ctx2.reputation_store.get_reputation(&did), 2);
     }
 }
 
-#[cfg(feature = "persist-rocksdb")]
+#[cfg(all(feature = "persist-rocksdb", feature = "enable-libp2p"))]
 mod reputation_persistence_rocks {
     use icn_common::{Cid, Did};
     use icn_identity::{did_key_from_verifying_key, generate_ed25519_keypair, SignatureBytes};
@@ -305,4 +309,10 @@ mod reputation_persistence_rocks {
 
         assert_eq!(selected, did_a);
     }
+}
+
+#[cfg(all(feature = "persist-rocksdb", not(feature = "enable-libp2p")))]
+#[tokio::test]
+async fn libp2p_feature_disabled_stub_rocks() {
+    println!("libp2p feature disabled; skipping rocksdb reputation persistence test");
 }

@@ -12,6 +12,7 @@ use icn_network::{NetworkService, PeerId, StubNetworkService};
 use icn_protocol::GossipMessage;
 use icn_protocol::{MessagePayload, ProtocolMessage};
 
+use dashmap::DashMap;
 #[cfg(not(any(
     feature = "persist-sled",
     feature = "persist-sqlite",
@@ -26,16 +27,18 @@ use icn_economics::RocksdbManaLedger;
 #[cfg(feature = "persist-sled")]
 use icn_economics::SledManaLedger;
 #[cfg(all(not(feature = "persist-sled"), feature = "persist-sqlite"))]
-use icn_economics::SqliteManaLedger;
+// use icn_economics::SqliteManaLedger; // Unused import
 use log::{debug, error, info, warn};
 use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
 use std::sync::atomic::AtomicU32;
 use std::sync::Arc;
+#[cfg(not(feature = "async"))]
+use std::sync::Mutex as SyncMutex;
 use std::time::{Duration as StdDuration, Instant as StdInstant};
 #[cfg(test)]
 use tempfile;
-use tokio::sync::Mutex as TokioMutex;
+use tokio::sync::{mpsc, Mutex as TokioMutex};
 
 use async_trait::async_trait;
 
@@ -61,6 +64,18 @@ use icn_identity::{
     SIGNATURE_LENGTH,
 };
 use serde::{Deserialize, Serialize};
+
+// Duplicate imports removed - using the ones from the top of the file
+
+#[cfg(feature = "async")]
+use icn_dag::{AsyncStorageService as DagStorageService, TokioFileDagStore};
+#[cfg(not(feature = "async"))]
+use icn_dag::{FileDagStore, StorageService as DagStorageService};
+
+#[cfg(feature = "async")]
+type DagStoreMutex<T> = TokioMutex<T>;
+#[cfg(not(feature = "async"))]
+type DagStoreMutex<T> = SyncMutex<T>;
 
 // Counter for generating unique (within this runtime instance) job IDs for stubs
 pub static NEXT_JOB_ID: AtomicU32 = AtomicU32::new(1);
@@ -96,21 +111,6 @@ pub trait Signer: Send + Sync + std::fmt::Debug {
     fn did(&self) -> Did;
     fn verifying_key_ref(&self) -> &VerifyingKey;
 }
-
-#[cfg(feature = "persist-rocksdb")]
-use icn_dag::rocksdb_store::RocksDagStore;
-#[cfg(feature = "async")]
-use icn_dag::AsyncStorageService as DagStorageService;
-#[cfg(not(any(
-    feature = "persist-rocksdb",
-    feature = "persist-sled",
-    feature = "persist-sqlite"
-)))]
-use icn_dag::FileDagStore;
-#[cfg(not(feature = "async"))]
-use icn_dag::StorageService as DagStorageService;
-#[cfg(feature = "async")]
-use icn_dag::TokioFileDagStore;
 
 // Placeholder for icn_economics::ManaRepository
 pub trait ManaRepository: Send + Sync + std::fmt::Debug {
@@ -308,12 +308,21 @@ pub struct CreateProposalPayload {
     pub duration_secs: u64,
     pub quorum: Option<usize>,
     pub threshold: Option<f32>,
+    pub body: Option<Vec<u8>>, // raw proposal body stored in DAG
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CastVotePayload {
     pub proposal_id_str: String,
     pub vote_option_str: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CloseProposalResult {
+    pub status: String,
+    pub yes: usize,
+    pub no: usize,
+    pub abstain: usize,
 }
 
 /// Mana cost deducted when creating a governance proposal.
@@ -431,9 +440,10 @@ impl MeshNetworkService for DefaultMeshNetworkService {
         job_id: &JobId,
         duration: StdDuration,
     ) -> Result<Vec<MeshJobBid>, HostAbiError> {
-        debug!(
+        log::debug!(
             "[DefaultMeshNetworkService] Collecting bids for job {:?} for {:?}",
-            job_id, duration
+            job_id,
+            duration
         );
         let mut bids = Vec::new();
         let mut receiver = self.inner.subscribe().await.map_err(|e| {
@@ -452,7 +462,7 @@ impl MeshNetworkService for DefaultMeshNetworkService {
                         Some(message) => {
                             if let MessagePayload::MeshBidSubmission(bid) = &message.payload {
                                 if &JobId::from(bid.job_id.clone()) == job_id {
-                                    debug!("Received relevant bid: {:?}", bid);
+                                    log::debug!("Received relevant bid: {:?}", bid);
                                     bids.push(MeshJobBid {
                                         job_id: JobId::from(bid.job_id.clone()),
                                         executor_did: bid.executor_did.clone(),
@@ -464,10 +474,10 @@ impl MeshNetworkService for DefaultMeshNetworkService {
                                         signature: SignatureBytes(vec![]),
                                     });
                                 } else {
-                                    debug!("Received bid for different job: {:?}", bid.job_id);
+                                    log::debug!("Received bid for different job: {:?}", bid.job_id);
                                 }
                             } else {
-                                debug!(
+                                log::debug!(
                                     "Received other network message during bid collection: {:?}",
                                     message
                                 );
@@ -475,7 +485,7 @@ impl MeshNetworkService for DefaultMeshNetworkService {
                         }
                         None => {
                             // Channel closed
-                            warn!(
+                            log::warn!(
                                 "Network channel closed while collecting bids for job {:?}",
                                 job_id
                             );
@@ -485,7 +495,7 @@ impl MeshNetworkService for DefaultMeshNetworkService {
                 }
                 Err(_timeout_error) => {
                     // Timeout
-                    debug!("Bid collection timeout for job {:?}", job_id);
+                    log::debug!("Bid collection timeout for job {:?}", job_id);
                     break;
                 }
             }
@@ -497,7 +507,7 @@ impl MeshNetworkService for DefaultMeshNetworkService {
         &self,
         notice: &JobAssignmentNotice,
     ) -> Result<(), HostAbiError> {
-        debug!(
+        log::debug!(
             "[DefaultMeshNetworkService] Broadcasting assignment for job {:?}",
             notice.job_id
         );
@@ -527,7 +537,7 @@ impl MeshNetworkService for DefaultMeshNetworkService {
         expected_executor: &Did,
         timeout_duration: StdDuration,
     ) -> Result<Option<IdentityExecutionReceipt>, HostAbiError> {
-        debug!("[DefaultMeshNetworkService] Waiting for receipt for job {:?} from executor {:?} for {:?}", job_id, expected_executor, timeout_duration);
+        log::debug!("[DefaultMeshNetworkService] Waiting for receipt for job {:?} from executor {:?} for {:?}", job_id, expected_executor, timeout_duration);
         let mut receiver = self.inner.subscribe().await.map_err(|e| {
             HostAbiError::NetworkError(format!("Failed to subscribe for receipts: {}", e))
         })?;
@@ -547,17 +557,17 @@ impl MeshNetworkService for DefaultMeshNetworkService {
                                 if &JobId::from(receipt_msg.receipt.job_id.clone()) == job_id
                                     && &receipt_msg.receipt.executor_did == expected_executor
                                 {
-                                    debug!("Received relevant receipt: {:?}", receipt_msg);
+                                    log::debug!("Received relevant receipt: {:?}", receipt_msg);
                                     return Ok(Some(receipt_msg.receipt.clone()));
                                 } else {
-                                    debug!(
+                                    log::debug!(
                                         "Received receipt for different job/executor: job_id={:?}, executor={:?}",
                                         receipt_msg.receipt.job_id,
                                         receipt_msg.receipt.executor_did
                                     );
                                 }
                             } else {
-                                debug!(
+                                log::debug!(
                                     "Received other network message during receipt collection: {:?}",
                                     message
                                 );
@@ -565,7 +575,7 @@ impl MeshNetworkService for DefaultMeshNetworkService {
                         }
                         None => {
                             // Channel closed
-                            warn!(
+                            log::warn!(
                                 "Network channel closed while waiting for receipt for job {:?}",
                                 job_id
                             );
@@ -575,7 +585,7 @@ impl MeshNetworkService for DefaultMeshNetworkService {
                 }
                 Err(_timeout_error) => {
                     // Timeout
-                    debug!("Receipt wait timeout for job {:?}", job_id);
+                    log::debug!("Receipt wait timeout for job {:?}", job_id);
                     break;
                 }
             }
@@ -651,13 +661,14 @@ impl From<CommonError> for HostAbiError {
 pub struct RuntimeContext {
     pub current_identity: Did,
     pub mana_ledger: SimpleManaLedger,
-    pub pending_mesh_jobs: Arc<TokioMutex<VecDeque<ActualMeshJob>>>,
-    pub job_states: Arc<TokioMutex<HashMap<JobId, JobState>>>,
-    pub governance_module: Arc<TokioMutex<GovernanceModule>>,
+    pub pending_mesh_jobs_tx: mpsc::Sender<ActualMeshJob>,
+    pub pending_mesh_jobs_rx: TokioMutex<mpsc::Receiver<ActualMeshJob>>,
+    pub job_states: Arc<DashMap<JobId, JobState>>,
+    pub governance_module: Arc<DagStoreMutex<GovernanceModule>>,
     pub mesh_network_service: Arc<dyn MeshNetworkService>, // Uses local MeshNetworkService trait
     pub signer: Arc<dyn Signer>,
     pub did_resolver: Arc<dyn icn_identity::DidResolver>,
-    pub dag_store: Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>, // Storage backend
+    pub dag_store: Arc<DagStoreMutex<dyn DagStorageService<DagBlock> + Send>>, // Storage backend
     pub reputation_store: Arc<dyn icn_reputation::ReputationStore>,
     pub policy_enforcer: Option<Arc<dyn ScopedPolicyEnforcer>>,
     /// Source of time for timestamp generation.
@@ -756,8 +767,8 @@ impl RuntimeContext {
         policy_enforcer: Option<Arc<dyn ScopedPolicyEnforcer>>,
         time_provider: Arc<dyn icn_common::TimeProvider>,
     ) -> Arc<Self> {
-        let job_states = Arc::new(TokioMutex::new(HashMap::new()));
-        let pending_mesh_jobs = Arc::new(TokioMutex::new(VecDeque::new()));
+        let job_states = Arc::new(DashMap::new());
+        let (tx, rx) = mpsc::channel(128);
 
         #[cfg(feature = "persist-sled")]
         let governance_module = Arc::new(TokioMutex::new(
@@ -800,7 +811,8 @@ impl RuntimeContext {
         Arc::new(Self {
             current_identity,
             mana_ledger,
-            pending_mesh_jobs,
+            pending_mesh_jobs_tx: tx,
+            pending_mesh_jobs_rx: TokioMutex::new(rx),
             job_states,
             governance_module,
             mesh_network_service,
@@ -848,35 +860,57 @@ impl RuntimeContext {
         reputation_store_path: PathBuf,
         policy_enforcer: Option<Arc<dyn ScopedPolicyEnforcer>>,
     ) -> Result<Arc<Self>, CommonError> {
-        #[cfg(feature = "persist-rocksdb")]
-        let dag_store = Arc::new(TokioMutex::new(RocksDagStore::new(dag_path)?))
-            as Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>;
+        #[cfg(all(feature = "persist-rocksdb", not(feature = "async")))]
+        let dag_store = Arc::new(DagStoreMutex::new(
+            icn_dag::rocksdb_store::RocksDagStore::new(dag_path.clone())?,
+        )) as Arc<DagStoreMutex<dyn DagStorageService<DagBlock> + Send>>;
 
-        #[cfg(all(not(feature = "persist-rocksdb"), feature = "persist-sled"))]
-        let dag_store = Arc::new(TokioMutex::new(icn_dag::sled_store::SledDagStore::new(
-            dag_path,
-        )?)) as Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>;
+        #[cfg(all(not(feature = "persist-rocksdb"), feature = "persist-sled", not(feature = "async")))]
+        let dag_store = Arc::new(DagStoreMutex::new(icn_dag::sled_store::SledDagStore::new(
+            dag_path.clone(),
+        )?)) as Arc<DagStoreMutex<dyn DagStorageService<DagBlock> + Send>>;
+
+        #[cfg(all(feature = "async", any(feature = "persist-rocksdb", feature = "persist-sled")))]
+        let dag_store = Arc::new(DagStoreMutex::new(TokioFileDagStore::new(dag_path.clone())?))
+            as Arc<DagStoreMutex<dyn DagStorageService<DagBlock> + Send>>;
 
         #[cfg(all(
             not(feature = "persist-rocksdb"),
             not(feature = "persist-sled"),
             feature = "persist-sqlite"
         ))]
-        let dag_store = Arc::new(TokioMutex::new(icn_dag::sqlite_store::SqliteDagStore::new(
-            dag_path,
-        )?)) as Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>;
+        let dag_store = {
+            #[cfg(feature = "async")]
+            {
+                Arc::new(DagStoreMutex::new(TokioFileDagStore::new(
+                    dag_path.clone(),
+                )?)) as Arc<DagStoreMutex<dyn DagStorageService<DagBlock> + Send>>
+            }
+            #[cfg(not(feature = "async"))]
+            {
+                Arc::new(DagStoreMutex::new(
+                    icn_dag::sqlite_store::SqliteDagStore::new(dag_path.clone())?,
+                )) as Arc<DagStoreMutex<dyn DagStorageService<DagBlock> + Send>>
+            }
+        };
 
         #[cfg(not(any(
             feature = "persist-rocksdb",
             feature = "persist-sled",
             feature = "persist-sqlite"
         )))]
-        #[cfg(feature = "async")]
-        let dag_store = Arc::new(TokioMutex::new(icn_dag::TokioFileDagStore::new(dag_path)?))
-            as Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>;
-        #[cfg(not(feature = "async"))]
-        let dag_store = Arc::new(TokioMutex::new(FileDagStore::new(dag_path)?))
-            as Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>;
+        let dag_store = {
+            #[cfg(feature = "async")]
+            {
+                Arc::new(DagStoreMutex::new(TokioFileDagStore::new(dag_path)?))
+                    as Arc<DagStoreMutex<dyn DagStorageService<DagBlock> + Send>>
+            }
+            #[cfg(not(feature = "async"))]
+            {
+                Arc::new(DagStoreMutex::new(icn_dag::FileDagStore::new(dag_path)?))
+                    as Arc<DagStoreMutex<dyn DagStorageService<DagBlock> + Send>>
+            }
+        };
 
         Ok(Self::new_with_ledger_path_and_time(
             current_identity,
@@ -940,8 +974,12 @@ impl RuntimeContext {
                 e
             ))
         })?;
-        #[cfg(feature = "persist-sled")]
+        #[cfg(all(feature = "persist-sled", not(feature = "async")))]
         let dag_store = Arc::new(TokioMutex::new(icn_dag::sled_store::SledDagStore::new(
+            PathBuf::from("./dag.sled"),
+        )?));
+        #[cfg(all(feature = "persist-sled", feature = "async"))]
+        let dag_store = Arc::new(TokioMutex::new(TokioFileDagStore::new(
             PathBuf::from("./dag.sled"),
         )?));
         #[cfg(not(feature = "persist-sled"))]
@@ -970,8 +1008,12 @@ impl RuntimeContext {
                 e
             ))
         })?;
-        #[cfg(feature = "persist-sled")]
+        #[cfg(all(feature = "persist-sled", not(feature = "async")))]
         let dag_store = Arc::new(TokioMutex::new(icn_dag::sled_store::SledDagStore::new(
+            PathBuf::from("./dag.sled"),
+        )?));
+        #[cfg(all(feature = "persist-sled", feature = "async"))]
+        let dag_store = Arc::new(TokioMutex::new(TokioFileDagStore::new(
             PathBuf::from("./dag.sled"),
         )?));
         #[cfg(not(feature = "persist-sled"))]
@@ -998,11 +1040,13 @@ impl RuntimeContext {
         self: &Arc<Self>,
         job: ActualMeshJob,
     ) -> Result<(), HostAbiError> {
-        let mut queue = self.pending_mesh_jobs.lock().await;
-        queue.push_back(job.clone());
-        let mut states = self.job_states.lock().await;
-        states.insert(job.id.clone(), JobState::Pending);
-        info!(
+        self.pending_mesh_jobs_tx
+            .send(job.clone())
+            .await
+            .map_err(|e| HostAbiError::InternalError(format!("{e:?}")))?;
+        icn_mesh::metrics::PENDING_JOBS_GAUGE.inc();
+        self.job_states.insert(job.id.clone(), JobState::Pending);
+        log::info!(
             "[RuntimeContext] Queued mesh job: id={:?}, state=Pending",
             job.id
         );
@@ -1030,9 +1074,11 @@ impl RuntimeContext {
         job: ActualMeshJob,
         assigned_executor_did: Did,
     ) -> Result<(), HostAbiError> {
-        info!(
+        let start_time = StdInstant::now();
+        log::info!(
             "[JobManagerDetail] Waiting for receipt for job {:?} from executor {:?}",
-            job.id, assigned_executor_did
+            job.id,
+            assigned_executor_did
         );
         // Determine how long to wait for the execution receipt.
         let timeout_ms = job
@@ -1046,16 +1092,17 @@ impl RuntimeContext {
             .await
         {
             Ok(Some(receipt)) => {
-                info!(
+                log::info!(
                     "[JobManagerDetail] Received receipt for job {:?}: {:?}",
-                    job.id, receipt
+                    job.id,
+                    receipt
                 );
 
                 // Resolve executor verifying key and verify the receipt.
                 match self.did_resolver.resolve(&receipt.executor_did) {
                     Ok(vk) => {
                         if let Err(e) = receipt.verify_against_key(&vk) {
-                            error!(
+                            log::error!(
                                 "[JobManagerDetail] Receipt signature VERIFICATION FAILED for job {:?}: {}",
                                 job.id, e
                             );
@@ -1066,22 +1113,25 @@ impl RuntimeContext {
                         }
                     }
                     Err(e) => {
-                        error!(
+                        log::error!(
                             "[JobManagerDetail] Failed to resolve DID {:?}: {}",
-                            receipt.executor_did, e
+                            receipt.executor_did,
+                            e
                         );
                         return Err(HostAbiError::Common(e));
                     }
                 }
 
+                icn_mesh::metrics::JOB_PROCESS_TIME.observe(start_time.elapsed().as_secs_f64());
+
                 match self.anchor_receipt(&receipt).await {
                     Ok(receipt_cid) => {
-                        info!(
+                        log::info!(
                             "[JobManagerDetail] Receipt for job {:?} anchored successfully: {:?}",
-                            job.id, receipt_cid
+                            job.id,
+                            receipt_cid
                         );
-                        let mut job_states_guard = self.job_states.lock().await;
-                        job_states_guard.insert(
+                        self.job_states.insert(
                             job.id.clone(),
                             JobState::Completed {
                                 receipt: receipt.clone(),
@@ -1097,18 +1147,18 @@ impl RuntimeContext {
                         Ok(())
                     }
                     Err(e) => {
-                        error!("[JobManagerDetail] Failed to anchor receipt for job {:?}: {}. Marking as Failed (AnchorFailed).", job.id, e);
-                        let mut job_states_guard = self.job_states.lock().await;
-                        job_states_guard.insert(
+                        log::error!("[JobManagerDetail] Failed to anchor receipt for job {:?}: {}. Marking as Failed (AnchorFailed).", job.id, e);
+                        self.job_states.insert(
                             job.id.clone(),
                             JobState::Failed {
                                 reason: format!("Failed to anchor receipt: {}", e),
                             },
                         );
                         if let Err(err) = self.credit_mana(&job.creator_did, job.cost_mana).await {
-                            error!(
+                            log::error!(
                                 "[JobManagerDetail] Failed to refund mana to {:?}: {}",
-                                job.creator_did, err
+                                job.creator_did,
+                                err
                             );
                         }
                         Err(HostAbiError::DagOperationFailed(format!(
@@ -1119,18 +1169,18 @@ impl RuntimeContext {
                 }
             }
             Ok(None) => {
-                warn!("[JobManagerDetail] No receipt received for job {:?} within timeout. Marking as Failed (NoReceipt).", job.id);
-                let mut job_states_guard = self.job_states.lock().await;
-                job_states_guard.insert(
+                log::warn!("[JobManagerDetail] No receipt received for job {:?} within timeout. Marking as Failed (NoReceipt).", job.id);
+                self.job_states.insert(
                     job.id.clone(),
                     JobState::Failed {
                         reason: "No receipt received within timeout".to_string(),
                     },
                 );
                 if let Err(err) = self.credit_mana(&job.creator_did, job.cost_mana).await {
-                    error!(
+                    log::error!(
                         "[JobManagerDetail] Failed to refund mana to {:?}: {}",
-                        job.creator_did, err
+                        job.creator_did,
+                        err
                     );
                 }
                 Err(HostAbiError::NetworkError(
@@ -1138,18 +1188,18 @@ impl RuntimeContext {
                 ))
             }
             Err(e) => {
-                error!("[JobManagerDetail] Error while trying to receive receipt for job {:?}: {}. Marking as Failed (ReceiptError).", job.id, e);
-                let mut job_states_guard = self.job_states.lock().await;
-                job_states_guard.insert(
+                log::error!("[JobManagerDetail] Error while trying to receive receipt for job {:?}: {}. Marking as Failed (ReceiptError).", job.id, e);
+                self.job_states.insert(
                     job.id.clone(),
                     JobState::Failed {
                         reason: format!("Error receiving receipt: {}", e),
                     },
                 );
                 if let Err(err) = self.credit_mana(&job.creator_did, job.cost_mana).await {
-                    error!(
+                    log::error!(
                         "[JobManagerDetail] Failed to refund mana to {:?}: {}",
-                        job.creator_did, err
+                        job.creator_did,
+                        err
                     );
                 }
                 Err(e)
@@ -1158,55 +1208,59 @@ impl RuntimeContext {
     }
 
     pub async fn spawn_mesh_job_manager(self: Arc<Self>) {
-        info!("[JobManager] Starting background mesh job manager task...");
+        log::info!("[JobManager] Starting background mesh job manager task...");
         let self_clone = self.clone();
 
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(StdDuration::from_secs(5));
             loop {
                 interval.tick().await;
-                debug!("[JobManagerLoop] Tick: Checking for pending jobs...");
+                log::debug!("[JobManagerLoop] Tick: Checking for pending jobs...");
 
                 let mut jobs_to_requeue = VecDeque::new();
                 let mut jobs_processed_in_cycle = 0;
 
                 // Process jobs from the pending queue
                 while let Some(job) = {
-                    // job here is ActualMeshJob
-                    let mut pending_jobs_guard = self_clone.pending_mesh_jobs.lock().await;
-                    let popped_job = pending_jobs_guard.pop_front();
-                    drop(pending_jobs_guard);
-                    popped_job
+                    let mut rx = self_clone.pending_mesh_jobs_rx.lock().await;
+                    let job = rx.recv().await;
+                    if job.is_some() {
+                        icn_mesh::metrics::PENDING_JOBS_GAUGE.dec();
+                    }
+                    job
                 } {
                     jobs_processed_in_cycle += 1;
                     let current_job_id = job.id.clone(); // Clone for use in logs and map keys
 
                     // Get current state from the central job_states map
-                    let job_states_guard = self_clone.job_states.lock().await;
-                    let current_job_state = job_states_guard.get(&current_job_id).cloned();
-                    drop(job_states_guard); // Release lock quickly
+                    let current_job_state = self_clone
+                        .job_states
+                        .get(&current_job_id)
+                        .map(|s| s.value().clone());
 
-                    info!(
+                    log::info!(
                         "[JobManagerLoop] Processing job: {:?}, current state from map: {:?}",
-                        current_job_id, current_job_state
+                        current_job_id,
+                        current_job_state
                     );
 
                     match current_job_state {
                         Some(JobState::Pending) => {
-                            info!(
+                            log::info!(
                                 "[JobManagerLoop] Job {:?} is Pending. Announcing...",
                                 current_job_id
                             );
                             if let Err(e) = self_clone.mesh_network_service.announce_job(&job).await
                             {
-                                error!(
+                                log::error!(
                                     "[JobManagerLoop] Failed to announce job {:?}: {}. Re-queuing.",
-                                    current_job_id, e
+                                    current_job_id,
+                                    e
                                 );
                                 jobs_to_requeue.push_back(job); // Re-queue the ActualMeshJob
                                 continue;
                             }
-                            info!(
+                            log::info!(
                                 "[JobManagerLoop] Job {:?} announced. Collecting bids...",
                                 current_job_id
                             );
@@ -1220,35 +1274,34 @@ impl RuntimeContext {
                             let bids = match bids_result {
                                 Ok(b) => b,
                                 Err(e) => {
-                                    error!("[JobManagerLoop] Bid collection failed for job {:?}: {}. Re-queuing.", current_job_id, e);
+                                    log::error!("[JobManagerLoop] Bid collection failed for job {:?}: {}. Re-queuing.", current_job_id, e);
                                     jobs_to_requeue.push_back(job); // Re-queue the ActualMeshJob
                                     continue;
                                 }
                             };
 
                             if bids.is_empty() {
-                                warn!("[JobManagerLoop] No bids received for job {:?}. Marking as Failed (NoBids).", current_job_id);
-                                let mut job_states_guard = self_clone.job_states.lock().await;
-                                job_states_guard.insert(
+                                log::warn!("[JobManagerLoop] No bids received for job {:?}. Marking as Failed (NoBids).", current_job_id);
+                                self_clone.job_states.insert(
                                     current_job_id.clone(),
                                     JobState::Failed {
                                         reason: "No bids received".to_string(),
                                     },
                                 );
-                                drop(job_states_guard);
                                 if let Err(e) = self_clone
                                     .credit_mana(&job.creator_did, job.cost_mana)
                                     .await
                                 {
-                                    error!(
+                                    log::error!(
                                         "[JobManagerLoop] Failed to refund mana to {:?}: {}",
-                                        job.creator_did, e
+                                        job.creator_did,
+                                        e
                                     );
                                 }
                                 continue;
                             }
 
-                            info!("[JobManagerLoop] Received {} bids for job {:?}. Selecting executor...", bids.len(), current_job_id);
+                            log::info!("[JobManagerLoop] Received {} bids for job {:?}. Selecting executor...", bids.len(), current_job_id);
                             let policy = icn_mesh::SelectionPolicy::default();
                             let maybe_exec = icn_mesh::select_executor(
                                 &current_job_id,
@@ -1262,11 +1315,11 @@ impl RuntimeContext {
                                 let new_state = JobState::Assigned {
                                     executor: selected_exec.clone(),
                                 };
-                                info!("[JobManagerLoop] Job {:?} assigned to executor {:?}. Notifying...", current_job_id, selected_exec);
+                                log::info!("[JobManagerLoop] Job {:?} assigned to executor {:?}. Notifying...", current_job_id, selected_exec);
 
-                                let mut job_states_guard = self_clone.job_states.lock().await;
-                                job_states_guard.insert(current_job_id.clone(), new_state);
-                                drop(job_states_guard);
+                                self_clone
+                                    .job_states
+                                    .insert(current_job_id.clone(), new_state);
 
                                 let notice = JobAssignmentNotice {
                                     job_id: current_job_id.clone(),
@@ -1278,16 +1331,15 @@ impl RuntimeContext {
                                     .notify_executor_of_assignment(&notice)
                                     .await
                                 {
-                                    error!("[JobManagerLoop] Failed to notify executor for job {:?}: {}. Reverting to Pending.", current_job_id, e);
-                                    let mut job_states_guard = self_clone.job_states.lock().await;
-                                    job_states_guard
+                                    log::error!("[JobManagerLoop] Failed to notify executor for job {:?}: {}. Reverting to Pending.", current_job_id, e);
+                                    self_clone
+                                        .job_states
                                         .insert(current_job_id.clone(), JobState::Pending); // Revert state in map
-                                    drop(job_states_guard);
                                     jobs_to_requeue.push_back(job); // Re-queue the ActualMeshJob
                                     continue;
                                 }
 
-                                info!("[JobManagerLoop] Job {:?} successfully assigned. Spawning receipt monitor.", current_job_id);
+                                log::info!("[JobManagerLoop] Job {:?} successfully assigned. Spawning receipt monitor.", current_job_id);
                                 // self_clone is Arc<RuntimeContext> here
                                 let task_ctx = self_clone.clone(); // Clone the Arc for the new task
                                 tokio::spawn(async move {
@@ -1295,33 +1347,32 @@ impl RuntimeContext {
                                         .wait_for_and_process_receipt(job, selected_exec)
                                         .await
                                     {
-                                        error!("[JobManagerDetail] Error in wait_for_and_process_receipt for job {:?}: {:?}", current_job_id, e);
+                                        log::error!("[JobManagerDetail] Error in wait_for_and_process_receipt for job {:?}: {:?}", current_job_id, e);
                                     }
                                 });
                             } else {
-                                warn!("[JobManagerLoop] No valid bid selected for job {:?}. Marking as Failed.", current_job_id);
-                                let mut job_states_guard = self_clone.job_states.lock().await;
-                                job_states_guard.insert(
+                                log::warn!("[JobManagerLoop] No valid bid selected for job {:?}. Marking as Failed.", current_job_id);
+                                self_clone.job_states.insert(
                                     current_job_id.clone(),
                                     JobState::Failed {
                                         reason: "No valid bid selected".to_string(),
                                     },
                                 );
-                                drop(job_states_guard);
                                 if let Err(e) = self_clone
                                     .credit_mana(&job.creator_did, job.cost_mana)
                                     .await
                                 {
-                                    error!(
+                                    log::error!(
                                         "[JobManagerLoop] Failed to refund mana to {:?}: {}",
-                                        job.creator_did, e
+                                        job.creator_did,
+                                        e
                                     );
                                 }
                                 continue;
                             }
                         }
                         Some(JobState::Assigned { ref executor }) => {
-                            debug!("[JobManagerLoop] Job {:?} is Assigned to {:?}. Receipt handling in separate task. Re-queuing for later check.", current_job_id, executor);
+                            log::debug!("[JobManagerLoop] Job {:?} is Assigned to {:?}. Receipt handling in separate task. Re-queuing for later check.", current_job_id, executor);
                             // This job will be re-added to pending_mesh_jobs. Its state in job_states is still Assigned.
                             // The wait_for_and_process_receipt task is responsible for updating it to Completed or Failed.
                             // If that task fails or the job times out, we might need an additional mechanism here
@@ -1331,7 +1382,7 @@ impl RuntimeContext {
                             jobs_to_requeue.push_back(job); // Re-queue ActualMeshJob
                         }
                         Some(JobState::Completed { .. }) | Some(JobState::Failed { .. }) => {
-                            info!(
+                            log::info!(
                                 "[JobManagerLoop] Job {:?} is in a terminal state. No action.",
                                 current_job_id
                             );
@@ -1339,7 +1390,7 @@ impl RuntimeContext {
                         }
                         None => {
                             // Job was in pending_mesh_jobs but not in job_states map
-                            error!("[JobManagerLoop] Job {:?} found in pending queue but not in job_states map! This should not happen. Discarding.", current_job_id);
+                            log::error!("[JobManagerLoop] Job {:?} found in pending queue but not in job_states map! This should not happen. Discarding.", current_job_id);
                             // This indicates an inconsistency. The job object exists but its state is unknown.
                             // For safety, we probably shouldn't process it.
                         }
@@ -1348,20 +1399,25 @@ impl RuntimeContext {
 
                 // Re-queue jobs that need another attempt
                 if !jobs_to_requeue.is_empty() {
-                    let mut pending_jobs_guard = self_clone.pending_mesh_jobs.lock().await;
                     for job_to_requeue in jobs_to_requeue {
-                        // Ensure it's added to the back for fairness
-                        pending_jobs_guard.push_back(job_to_requeue);
+                        if self_clone
+                            .pending_mesh_jobs_tx
+                            .send(job_to_requeue)
+                            .await
+                            .is_ok()
+                        {
+                            icn_mesh::metrics::PENDING_JOBS_GAUGE.inc();
+                        }
                     }
-                    drop(pending_jobs_guard);
                 }
 
                 if jobs_processed_in_cycle == 0 {
-                    let pending_jobs_guard = self_clone.pending_mesh_jobs.lock().await;
-                    let is_empty = pending_jobs_guard.is_empty();
-                    drop(pending_jobs_guard);
-                    if is_empty {
-                        debug!("[JobManagerLoop] No jobs processed and no pending jobs. Manager is idle.");
+                    let rx_len = {
+                        let rx = self_clone.pending_mesh_jobs_rx.lock().await;
+                        rx.len()
+                    };
+                    if rx_len == 0 {
+                        log::debug!("[JobManagerLoop] No jobs processed and no pending jobs. Manager is idle.");
                     }
                 }
             } // End loop
@@ -1382,14 +1438,40 @@ impl RuntimeContext {
                 if let Err(e) =
                     icn_economics::credit_by_reputation(&ledger, reputation.as_ref(), amount)
                 {
-                    error!("[ManaRegenerator] Failed to credit accounts: {:?}", e);
+                    log::error!("[ManaRegenerator] Failed to credit accounts: {:?}", e);
+                }
+            }
+        });
+    }
+
+    /// Verify integrity of all DAG blocks once.
+    pub async fn integrity_check_once(&self) -> Result<(), CommonError> {
+        let store = self.dag_store.lock().await;
+        #[cfg(feature = "async")]
+        {
+            icn_dag::verify_all_async(&*store).await
+        }
+        #[cfg(not(feature = "async"))]
+        {
+            icn_dag::verify_all(&*store)
+        }
+    }
+
+    /// Spawn a background task that periodically checks DAG integrity.
+    pub async fn spawn_integrity_checker(self: Arc<Self>, interval: StdDuration) {
+        tokio::spawn(async move {
+            let mut ticker = tokio::time::interval(interval);
+            loop {
+                ticker.tick().await;
+                if let Err(e) = self.integrity_check_once().await {
+                    log::error!("[IntegrityChecker] DAG verification failed: {:?}", e);
                 }
             }
         });
     }
 
     pub async fn get_mana(&self, account: &Did) -> Result<u64, HostAbiError> {
-        debug!(
+        log::debug!(
             "[RuntimeContext] get_mana called for account: {:?}",
             account
         );
@@ -1397,9 +1479,10 @@ impl RuntimeContext {
     }
 
     pub async fn spend_mana(&self, account: &Did, amount: u64) -> Result<(), HostAbiError> {
-        debug!(
+        log::debug!(
             "[RuntimeContext] spend_mana called for account: {:?} amount: {}",
-            account, amount
+            account,
+            amount
         );
         if account != &self.current_identity {
             return Err(HostAbiError::InvalidParameters(
@@ -1411,9 +1494,10 @@ impl RuntimeContext {
     }
 
     pub async fn credit_mana(&self, account: &Did, amount: u64) -> Result<(), HostAbiError> {
-        debug!(
+        log::debug!(
             "[RuntimeContext] credit_mana called for account: {:?} amount: {}",
-            account, amount
+            account,
+            amount
         );
         icn_economics::credit_mana(self.mana_ledger.clone(), account, amount)
             .map_err(|e| HostAbiError::InternalError(format!("{e:?}")))
@@ -1425,9 +1509,10 @@ impl RuntimeContext {
         &self,
         receipt: &IdentityExecutionReceipt,
     ) -> Result<Cid, HostAbiError> {
-        info!(
+        log::info!(
             "[CONTEXT] Attempting to anchor receipt for job {:?} from executor {:?}",
-            receipt.job_id, receipt.executor_did
+            receipt.job_id,
+            receipt.executor_did
         );
 
         // Resolve the executor's verifying key via the provided DidResolver.
@@ -1476,10 +1561,21 @@ impl RuntimeContext {
                 return Err(HostAbiError::PermissionDenied(reason));
             }
         }
-        let mut store = self.dag_store.lock().await;
-        store.put(&block).map_err(HostAbiError::Common)?;
+        let result = {
+            #[cfg(feature = "async")]
+            {
+                let mut store = self.dag_store.lock().await;
+                store.put(&block).await
+            }
+            #[cfg(not(feature = "async"))]
+            {
+                let mut store = self.dag_store.lock().unwrap();
+                store.put(&block)
+            }
+        };
+        result.map_err(HostAbiError::Common)?;
         let cid = block.cid.clone();
-        info!(
+        log::info!(
             "[RuntimeContext] Anchored receipt for job_id {:?} with CID: {:?}. Executor: {:?}. Receipt cost {}ms.",
             receipt.job_id,
             cid,
@@ -1487,20 +1583,17 @@ impl RuntimeContext {
             receipt.cpu_ms
         );
 
-        {
-            let mut job_states_guard = self.job_states.lock().await;
-            job_states_guard.insert(
-                JobId::from(receipt.job_id.clone()),
-                JobState::Completed {
-                    receipt: receipt.clone(),
-                },
-            );
-            debug!(
-                "[RuntimeContext] Job {:?} state updated to Completed.",
-                receipt.job_id
-            );
-        }
-        debug!(
+        self.job_states.insert(
+            JobId::from(receipt.job_id.clone()),
+            JobState::Completed {
+                receipt: receipt.clone(),
+            },
+        );
+        log::debug!(
+            "[RuntimeContext] Job {:?} state updated to Completed.",
+            receipt.job_id
+        );
+        log::debug!(
             "[RuntimeContext] Placeholder: Reputation update needed for executor {:?} for job {:?}.",
             receipt.executor_did,
             receipt.job_id
@@ -1554,15 +1647,45 @@ impl RuntimeContext {
         };
 
         let mut gov = self.governance_module.lock().await;
+        let content_cid = if let Some(body) = payload.body.clone() {
+            let ts = self.time_provider.unix_seconds();
+            let author = self.current_identity.clone();
+            let signature = None;
+            let cid =
+                icn_common::compute_merkle_cid(0x55, &body, &[], ts, &author, &signature, &None);
+            let block = DagBlock {
+                cid: cid.clone(),
+                data: body,
+                links: vec![],
+                timestamp: ts,
+                author_did: author,
+                signature,
+                scope: None,
+            };
+            #[cfg(feature = "async")]
+            {
+                let mut store = self.dag_store.lock().await;
+                store.put(&block).await.map_err(HostAbiError::Common)?;
+            }
+            #[cfg(not(feature = "async"))]
+            {
+                let mut store = self.dag_store.lock().unwrap();
+                store.put(&block).map_err(HostAbiError::Common)?;
+            }
+            Some(cid)
+        } else {
+            None
+        };
         let pid = gov
-            .submit_proposal(
-                self.current_identity.clone(),
+            .submit_proposal(icn_governance::ProposalSubmission {
+                proposer: self.current_identity.clone(),
                 proposal_type,
-                payload.description,
-                payload.duration_secs,
-                payload.quorum,
-                payload.threshold,
-            )
+                description: payload.description,
+                duration_secs: payload.duration_secs,
+                quorum: payload.quorum,
+                threshold: payload.threshold,
+                content_cid,
+            })
             .map_err(HostAbiError::Common)?;
         let proposal = gov
             .get_proposal(&pid)
@@ -1573,7 +1696,7 @@ impl RuntimeContext {
             HostAbiError::InternalError(format!("Failed to serialize proposal: {}", e))
         })?;
         if let Err(e) = self.mesh_network_service.announce_proposal(encoded).await {
-            warn!("Failed to broadcast proposal {:?}: {}", pid, e);
+            log::warn!("Failed to broadcast proposal {:?}: {}", pid, e);
         }
         Ok(pid.0)
     }
@@ -1608,7 +1731,7 @@ impl RuntimeContext {
         let encoded = bincode::serialize(&vote)
             .map_err(|e| HostAbiError::InternalError(format!("Failed to serialize vote: {}", e)))?;
         if let Err(e) = self.mesh_network_service.announce_vote(encoded).await {
-            warn!("Failed to broadcast vote for {:?}: {}", proposal_id, e);
+            log::warn!("Failed to broadcast vote for {:?}: {}", proposal_id, e);
         }
         Ok(())
     }
@@ -1621,7 +1744,7 @@ impl RuntimeContext {
             .map_err(|e| HostAbiError::InvalidParameters(format!("Invalid proposal id: {e}")))?;
 
         let mut gov = self.governance_module.lock().await;
-        let status = gov
+        let (status, (yes, no, abstain)) = gov
             .close_voting_period(&proposal_id)
             .map_err(HostAbiError::Common)?;
         let proposal = gov
@@ -1634,10 +1757,17 @@ impl RuntimeContext {
             HostAbiError::InternalError(format!("Failed to serialize proposal: {e}"))
         })?;
         if let Err(e) = self.mesh_network_service.announce_proposal(encoded).await {
-            warn!("Failed to broadcast proposal {:?}: {}", proposal_id, e);
+            log::warn!("Failed to broadcast proposal {:?}: {}", proposal_id, e);
         }
 
-        Ok(format!("{:?}", status))
+        let result = CloseProposalResult {
+            status: format!("{:?}", status),
+            yes,
+            no,
+            abstain,
+        };
+        serde_json::to_string(&result)
+            .map_err(|e| HostAbiError::InternalError(format!("Failed to serialize tally: {e}")))
     }
 
     pub async fn execute_governance_proposal(
@@ -1666,7 +1796,7 @@ impl RuntimeContext {
                         HostAbiError::InternalError(format!("Failed to serialize proposal: {e}"))
                     })?;
                     if let Err(e) = self.mesh_network_service.announce_proposal(encoded).await {
-                        warn!("Failed to broadcast proposal {:?}: {}", proposal_id, e);
+                        log::warn!("Failed to broadcast proposal {:?}: {}", proposal_id, e);
                     }
                     Ok(())
                 }
@@ -1681,6 +1811,23 @@ impl RuntimeContext {
             // Proposal not found
             result.map_err(HostAbiError::Common)
         }
+    }
+
+    pub async fn delegate_vote(&self, from_did: &str, to_did: &str) -> Result<(), HostAbiError> {
+        let from = Did::from_str(from_did)
+            .map_err(|e| HostAbiError::InvalidParameters(format!("Invalid DID: {}", e)))?;
+        let to = Did::from_str(to_did)
+            .map_err(|e| HostAbiError::InvalidParameters(format!("Invalid DID: {}", e)))?;
+        let mut gov = self.governance_module.lock().await;
+        gov.delegate_vote(from, to).map_err(HostAbiError::Common)
+    }
+
+    pub async fn revoke_delegation(&self, from_did: &str) -> Result<(), HostAbiError> {
+        let from = Did::from_str(from_did)
+            .map_err(|e| HostAbiError::InvalidParameters(format!("Invalid DID: {}", e)))?;
+        let mut gov = self.governance_module.lock().await;
+        gov.revoke_delegation(from);
+        Ok(())
     }
 
     /// Inserts a proposal received from the network into the local GovernanceModule.
@@ -1725,10 +1872,11 @@ impl RuntimeContext {
         identity_str: &str,
         listen_addresses: Vec<Multiaddr>,
         bootstrap_peers: Option<Vec<(Libp2pPeerId, Multiaddr)>>,
+        dag_store_path: PathBuf,
         mana_ledger_path: PathBuf,
         reputation_store_path: PathBuf,
     ) -> Result<Arc<Self>, CommonError> {
-        info!("Initializing RuntimeContext with real libp2p networking");
+        log::info!("Initializing RuntimeContext with real libp2p networking");
 
         // Parse the identity
         let identity = Did::from_str(identity_str)
@@ -1736,7 +1884,7 @@ impl RuntimeContext {
 
         // Generate keys for this node
         let (sk, pk) = generate_ed25519_keypair();
-        let signer = Arc::new(StubSigner::new_with_keys(sk, pk));
+        let signer = Arc::new(Ed25519Signer::new_with_keys(sk, pk));
 
         // Create real libp2p network service with proper config
         let mut config = NetworkConfig {
@@ -1744,7 +1892,7 @@ impl RuntimeContext {
             ..NetworkConfig::default()
         };
         if let Some(peers) = bootstrap_peers {
-            info!("Bootstrap peers provided: {} peers", peers.len());
+            log::info!("Bootstrap peers provided: {} peers", peers.len());
             config.bootstrap_peers = peers;
         }
 
@@ -1753,7 +1901,7 @@ impl RuntimeContext {
                 CommonError::NetworkError(format!("Failed to create libp2p service: {}", e))
             })?);
 
-        info!(
+        log::info!(
             "Libp2p service created with PeerID: {}",
             libp2p_service.local_peer_id()
         );
@@ -1763,22 +1911,19 @@ impl RuntimeContext {
             libp2p_service.clone() as Arc<dyn NetworkService>
         ));
 
-        // Create stub DAG store for now (can be enhanced later)
-        let dag_store = Arc::new(TokioMutex::new(StubDagStore::new()));
-
-        // Create RuntimeContext with real networking - this returns Arc<Self>
-        let ctx = Self::new_with_ledger_path(
+        // Create RuntimeContext with real networking and persistent DAG storage
+        let ctx = Self::new_with_paths(
             identity,
             mesh_service,
             signer,
             Arc::new(KeyDidResolver),
-            dag_store,
+            dag_store_path,
             mana_ledger_path,
             reputation_store_path,
             None,
-        );
+        )?;
 
-        info!("RuntimeContext with real libp2p networking created successfully");
+        log::info!("RuntimeContext with real libp2p networking created successfully");
         Ok(ctx)
     }
 
@@ -1813,6 +1958,105 @@ impl RuntimeContext {
             Ok(())
         }
     }
+
+    #[cfg(feature = "async")]
+    pub async fn host_anchor_receipt(
+        &self,
+        receipt: &IdentityExecutionReceipt,
+    ) -> Result<(), HostAbiError> {
+        let receipt_data = serde_json::to_vec(receipt)
+            .map_err(|e| HostAbiError::Common(CommonError::SerializationError(e.to_string())))?;
+
+        // Convert from icn_identity::SignatureBytes to icn_common::SignatureBytes
+        let common_sig = icn_common::SignatureBytes(receipt.sig.0.clone());
+        let signature_opt = Some(common_sig);
+
+        let block = DagBlock {
+            cid: icn_common::compute_merkle_cid(
+                0x55, // DAG-CBOR codec
+                &receipt_data,
+                &[],
+                self.time_provider.unix_seconds(),
+                &receipt.executor_did,
+                &signature_opt,
+                &None,
+            ),
+            data: receipt_data,
+            links: vec![],
+            timestamp: self.time_provider.unix_seconds(),
+            author_did: receipt.executor_did.clone(),
+            signature: signature_opt,
+            scope: None,
+        };
+
+        let result = {
+            #[cfg(feature = "async")]
+            {
+                let mut store = self.dag_store.lock().await;
+                store.put(&block).await
+            }
+            #[cfg(not(feature = "async"))]
+            {
+                let mut store = self.dag_store.lock().unwrap();
+                store.put(&block)
+            }
+        };
+        result.map_err(HostAbiError::Common)?;
+        let cid = block.cid.clone();
+        log::info!(
+            "Anchored receipt for job {} from executor {} to DAG as {}",
+            receipt.job_id,
+            receipt.executor_did,
+            cid
+        );
+        Ok(())
+    }
+
+    #[cfg(not(feature = "async"))]
+    pub fn host_anchor_receipt(
+        &self,
+        receipt: &IdentityExecutionReceipt,
+    ) -> Result<(), HostAbiError> {
+        let receipt_data = serde_json::to_vec(receipt)
+            .map_err(|e| HostAbiError::Common(CommonError::SerializationError(e.to_string())))?;
+
+        // Convert from icn_identity::SignatureBytes to icn_common::SignatureBytes
+        let common_sig = icn_common::SignatureBytes(receipt.sig.0.clone());
+        let signature_opt = Some(common_sig);
+
+        let block = DagBlock {
+            cid: icn_common::compute_merkle_cid(
+                0x55, // DAG-CBOR codec
+                &receipt_data,
+                &[],
+                self.time_provider.unix_seconds(),
+                &receipt.executor_did,
+                &signature_opt,
+                &None,
+            ),
+            data: receipt_data,
+            links: vec![],
+            timestamp: self.time_provider.unix_seconds(),
+            author_did: receipt.executor_did.clone(),
+            signature: signature_opt,
+            scope: None,
+        };
+
+        let result = {
+            #[cfg(feature = "async")]
+            {
+                let mut store = self.dag_store.lock().await;
+                store.put(&block).await
+            }
+            #[cfg(not(feature = "async"))]
+            {
+                let mut store = self.dag_store.lock().unwrap();
+                store.put(&block)
+            }
+        };
+        result.map_err(HostAbiError::Common)?;
+        Ok(())
+    }
 }
 
 // --- Supporting: RuntimeContext::new_for_test ---
@@ -1824,8 +2068,8 @@ impl RuntimeContext {
         mesh_network_service: Arc<StubMeshNetworkService>,
         dag_store: Arc<TokioMutex<StubDagStore>>,
     ) -> Arc<Self> {
-        let job_states = Arc::new(TokioMutex::new(HashMap::new()));
-        let pending_mesh_jobs = Arc::new(TokioMutex::new(VecDeque::new()));
+        let job_states = Arc::new(DashMap::new());
+        let (tx, rx) = mpsc::channel(128);
         let temp_dir = tempfile::tempdir().expect("temp dir for mana ledger");
         let mana_ledger_path = temp_dir.path().join("mana.sled");
         let mana_ledger = SimpleManaLedger::new(mana_ledger_path);
@@ -1845,7 +2089,8 @@ impl RuntimeContext {
         Arc::new(Self {
             current_identity,
             mana_ledger,
-            pending_mesh_jobs,
+            pending_mesh_jobs_tx: tx,
+            pending_mesh_jobs_rx: TokioMutex::new(rx),
             job_states,
             governance_module,
             mesh_network_service,
@@ -1937,9 +2182,9 @@ impl HostEnvironment for ConcreteHostEnvironment {
             let spec_bytes = serde_json::to_vec(&job.spec)
                 .map_err(|e| HostAbiError::InternalError(e.to_string()))?;
             h.update(&spec_bytes);
-            h.update(&job.cost_mana.to_le_bytes());
+            h.update(job.cost_mana.to_le_bytes());
             if let Some(ms) = job.max_execution_wait_ms {
-                h.update(&ms.to_le_bytes());
+                h.update(ms.to_le_bytes());
             }
             h.update(ctx_clone.current_identity.to_string().as_bytes());
             let digest = h.finalize();
@@ -2090,15 +2335,97 @@ impl Signer for StubSigner {
     }
 }
 
+/// Production signer using an Ed25519 keypair with memory zeroization.
+#[derive(Debug)]
+pub struct Ed25519Signer {
+    sk: SigningKey,
+    pk: VerifyingKey,
+    did: Did,
+}
+
+impl Ed25519Signer {
+    /// Create a signer from an Ed25519 [`SigningKey`].
+    pub fn new(sk: SigningKey) -> Self {
+        let pk = sk.verifying_key();
+        let did = Did::from_str(&did_key_from_verifying_key(&pk))
+            .expect("Failed to construct DID from verifying key");
+        Self { sk, pk, did }
+    }
+
+    /// Create from a precomputed keypair.
+    pub fn new_with_keys(sk: SigningKey, pk: VerifyingKey) -> Self {
+        let did = Did::from_str(&did_key_from_verifying_key(&pk))
+            .expect("Failed to construct DID from verifying key");
+        Self { sk, pk, did }
+    }
+
+    /// Expose verifying key reference.
+    pub fn verifying_key_ref(&self) -> &VerifyingKey {
+        &self.pk
+    }
+}
+
+impl Signer for Ed25519Signer {
+    fn sign(&self, payload: &[u8]) -> Result<Vec<u8>, HostAbiError> {
+        Ok(sign_message(&self.sk, payload).to_bytes().to_vec())
+    }
+
+    fn verify(
+        &self,
+        payload: &[u8],
+        signature_bytes: &[u8],
+        public_key_bytes: &[u8],
+    ) -> Result<bool, HostAbiError> {
+        let pk_array: [u8; 32] = public_key_bytes.try_into().map_err(|_| {
+            HostAbiError::InvalidParameters("Public key bytes not 32 bytes long".to_string())
+        })?;
+        let verifying_key = VerifyingKey::from_bytes(&pk_array).map_err(|e| {
+            HostAbiError::CryptoError(format!("Failed to create verifying key: {e}"))
+        })?;
+
+        let signature_array: [u8; SIGNATURE_LENGTH] = signature_bytes.try_into().map_err(|_| {
+            HostAbiError::InvalidParameters(format!(
+                "Signature not {} bytes long",
+                SIGNATURE_LENGTH
+            ))
+        })?;
+        let signature = EdSignature::from_bytes(&signature_array);
+
+        Ok(identity_verify_signature(
+            &verifying_key,
+            payload,
+            &signature,
+        ))
+    }
+
+    fn public_key_bytes(&self) -> Vec<u8> {
+        self.pk.as_bytes().to_vec()
+    }
+
+    fn did(&self) -> Did {
+        self.did.clone()
+    }
+
+    fn verifying_key_ref(&self) -> &VerifyingKey {
+        &self.pk
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct StubDagStore {
     store: HashMap<Cid, DagBlock>,
+    meta: HashMap<Cid, icn_dag::BlockMetadata>,
 }
 impl StubDagStore {
     pub fn new() -> Self {
         Self {
             store: HashMap::new(),
+            meta: HashMap::new(),
         }
+    }
+
+    pub fn get_mut(&mut self, cid: &Cid) -> Option<&mut DagBlock> {
+        self.store.get_mut(cid)
     }
     pub fn all(&self) -> HashMap<Cid, DagBlock> {
         self.store.clone()
@@ -2112,9 +2439,13 @@ impl Default for StubDagStore {
 }
 
 pub type RuntimeStubDagStore = StubDagStore;
-impl DagStorageService<DagBlock> for StubDagStore {
+
+#[cfg(not(feature = "async"))]
+impl icn_dag::StorageService<DagBlock> for StubDagStore {
     fn put(&mut self, block: &DagBlock) -> Result<(), CommonError> {
         self.store.insert(block.cid.clone(), block.clone());
+        self.meta
+            .insert(block.cid.clone(), icn_dag::BlockMetadata::default());
         Ok(())
     }
 
@@ -2124,11 +2455,83 @@ impl DagStorageService<DagBlock> for StubDagStore {
 
     fn delete(&mut self, cid: &Cid) -> Result<(), CommonError> {
         self.store.remove(cid);
+        self.meta.remove(cid);
         Ok(())
     }
 
     fn contains(&self, cid: &Cid) -> Result<bool, CommonError> {
         Ok(self.store.contains_key(cid))
+    }
+
+    fn list_blocks(&self) -> Result<Vec<DagBlock>, CommonError> {
+        Ok(self.store.values().cloned().collect())
+    }
+
+    fn pin_block(&mut self, cid: &Cid) -> Result<(), CommonError> {
+        match self.meta.get_mut(cid) {
+            Some(m) => {
+                m.pinned = true;
+                Ok(())
+            }
+            None => Err(CommonError::ResourceNotFound(format!(
+                "Block {} not found",
+                cid
+            ))),
+        }
+    }
+
+    fn unpin_block(&mut self, cid: &Cid) -> Result<(), CommonError> {
+        match self.meta.get_mut(cid) {
+            Some(m) => {
+                m.pinned = false;
+                Ok(())
+            }
+            None => Err(CommonError::ResourceNotFound(format!(
+                "Block {} not found",
+                cid
+            ))),
+        }
+    }
+
+    fn prune_expired(&mut self, now: u64) -> Result<Vec<Cid>, CommonError> {
+        let mut removed = Vec::new();
+        let to_remove: Vec<Cid> = self
+            .meta
+            .iter()
+            .filter(|(_, m)| !m.pinned && m.ttl.map(|t| t <= now).unwrap_or(false))
+            .map(|(c, _)| c.clone())
+            .collect();
+        for cid in to_remove {
+            self.store.remove(&cid);
+            self.meta.remove(&cid);
+            removed.push(cid);
+        }
+        Ok(removed)
+    }
+
+    fn set_ttl(&mut self, cid: &Cid, ttl: Option<u64>) -> Result<(), CommonError> {
+        match self.meta.get_mut(cid) {
+            Some(m) => {
+                m.ttl = ttl;
+                Ok(())
+            }
+            None => Err(CommonError::ResourceNotFound(format!(
+                "Block {} not found",
+                cid
+            ))),
+        }
+    }
+
+    fn get_metadata(&self, cid: &Cid) -> Result<Option<icn_dag::BlockMetadata>, CommonError> {
+        Ok(self.meta.get(cid).cloned())
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
     }
 }
 
@@ -2137,6 +2540,8 @@ impl DagStorageService<DagBlock> for StubDagStore {
 impl icn_dag::AsyncStorageService<DagBlock> for StubDagStore {
     async fn put(&mut self, block: &DagBlock) -> Result<(), CommonError> {
         self.store.insert(block.cid.clone(), block.clone());
+        self.meta
+            .insert(block.cid.clone(), icn_dag::BlockMetadata::default());
         Ok(())
     }
 
@@ -2146,11 +2551,83 @@ impl icn_dag::AsyncStorageService<DagBlock> for StubDagStore {
 
     async fn delete(&mut self, cid: &Cid) -> Result<(), CommonError> {
         self.store.remove(cid);
+        self.meta.remove(cid);
         Ok(())
     }
 
     async fn contains(&self, cid: &Cid) -> Result<bool, CommonError> {
         Ok(self.store.contains_key(cid))
+    }
+
+    async fn list_blocks(&self) -> Result<Vec<DagBlock>, CommonError> {
+        Ok(self.store.values().cloned().collect())
+    }
+
+    async fn pin_block(&mut self, cid: &Cid) -> Result<(), CommonError> {
+        match self.meta.get_mut(cid) {
+            Some(m) => {
+                m.pinned = true;
+                Ok(())
+            }
+            None => Err(CommonError::ResourceNotFound(format!(
+                "Block {} not found",
+                cid
+            ))),
+        }
+    }
+
+    async fn unpin_block(&mut self, cid: &Cid) -> Result<(), CommonError> {
+        match self.meta.get_mut(cid) {
+            Some(m) => {
+                m.pinned = false;
+                Ok(())
+            }
+            None => Err(CommonError::ResourceNotFound(format!(
+                "Block {} not found",
+                cid
+            ))),
+        }
+    }
+
+    async fn prune_expired(&mut self, now: u64) -> Result<Vec<Cid>, CommonError> {
+        let mut removed = Vec::new();
+        let to_remove: Vec<Cid> = self
+            .meta
+            .iter()
+            .filter(|(_, m)| !m.pinned && m.ttl.map(|t| t <= now).unwrap_or(false))
+            .map(|(c, _)| c.clone())
+            .collect();
+        for cid in to_remove {
+            self.store.remove(&cid);
+            self.meta.remove(&cid);
+            removed.push(cid);
+        }
+        Ok(removed)
+    }
+
+    async fn set_ttl(&mut self, cid: &Cid, ttl: Option<u64>) -> Result<(), CommonError> {
+        match self.meta.get_mut(cid) {
+            Some(m) => {
+                m.ttl = ttl;
+                Ok(())
+            }
+            None => Err(CommonError::ResourceNotFound(format!(
+                "Block {} not found",
+                cid
+            ))),
+        }
+    }
+
+    async fn get_metadata(&self, cid: &Cid) -> Result<Option<icn_dag::BlockMetadata>, CommonError> {
+        Ok(self.meta.get(cid).cloned())
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
     }
 }
 
@@ -2190,17 +2667,17 @@ impl MeshNetworkService for StubMeshNetworkService {
     }
 
     async fn announce_job(&self, job: &ActualMeshJob) -> Result<(), HostAbiError> {
-        debug!("[StubMeshNetworkService] Announced job: {:?}", job.id);
+        log::debug!("[StubMeshNetworkService] Announced job: {:?}", job.id);
         Ok(())
     }
 
     async fn announce_proposal(&self, _proposal_bytes: Vec<u8>) -> Result<(), HostAbiError> {
-        debug!("[StubMeshNetworkService] Announced proposal (stub)");
+        log::debug!("[StubMeshNetworkService] Announced proposal (stub)");
         Ok(())
     }
 
     async fn announce_vote(&self, _vote_bytes: Vec<u8>) -> Result<(), HostAbiError> {
-        debug!("[StubMeshNetworkService] Announced vote (stub)");
+        log::debug!("[StubMeshNetworkService] Announced vote (stub)");
         Ok(())
     }
 
@@ -2209,21 +2686,21 @@ impl MeshNetworkService for StubMeshNetworkService {
         job_id: &JobId,
         _duration: StdDuration,
     ) -> Result<Vec<MeshJobBid>, HostAbiError> {
-        debug!(
+        log::debug!(
             "[StubMeshNetworkService] Collecting bids for job {:?}.",
             job_id
         );
         let mut bids_map = self.staged_bids.lock().await;
         if let Some(job_bids_queue) = bids_map.get_mut(job_id) {
             let bids: Vec<MeshJobBid> = job_bids_queue.drain(..).collect();
-            debug!(
+            log::debug!(
                 "[StubMeshNetworkService] Found {} staged bids for job {:?}",
                 bids.len(),
                 job_id
             );
             Ok(bids)
         } else {
-            debug!(
+            log::debug!(
                 "[StubMeshNetworkService] No staged bids found for job {:?}. Returning empty vec.",
                 job_id
             );
@@ -2235,9 +2712,10 @@ impl MeshNetworkService for StubMeshNetworkService {
         &self,
         notice: &JobAssignmentNotice,
     ) -> Result<(), HostAbiError> {
-        debug!(
+        log::debug!(
             "[StubMeshNetworkService] Broadcast assignment for job {:?} to executor {:?}",
-            notice.job_id, notice.executor_did
+            notice.job_id,
+            notice.executor_did
         );
         Ok(())
     }
@@ -2250,7 +2728,7 @@ impl MeshNetworkService for StubMeshNetworkService {
     ) -> Result<Option<IdentityExecutionReceipt>, HostAbiError> {
         let mut receipts_queue = self.staged_receipts.lock().await;
         if let Some(receipt_msg) = receipts_queue.pop_front() {
-            debug!(
+            log::debug!(
                 "[StubMeshNetworkService] try_receive_receipt: Popped staged receipt for job {:?}",
                 receipt_msg.receipt.job_id
             );
@@ -2274,7 +2752,7 @@ impl MeshNetworkService for StubMeshNetworkService {
 //         pub fn new() -> Self { Self }
 //         pub fn submit(&self, _receipt: &IdentityExecutionReceipt) {
 //             // Placeholder for reputation update logic
-//             log::info!("[ReputationUpdater STUB] Submitted receipt: {:?}", _receipt.job_id);
+//             log::log::info!("[ReputationUpdater STUB] Submitted receipt: {:?}", _receipt.job_id);
 //         }
 //     }
 // }
@@ -2314,8 +2792,10 @@ mod tests {
         let mana_after =
             futures::executor::block_on(ctx_arc.get_mana(&ctx_arc.current_identity)).unwrap();
         assert_eq!(mana_after, 90);
-        let pending_len =
-            futures::executor::block_on(async { ctx_arc.pending_mesh_jobs.lock().await.len() });
+        let pending_len = futures::executor::block_on(async {
+            let rx = ctx_arc.pending_mesh_jobs_rx.lock().await;
+            rx.len()
+        });
         assert_eq!(pending_len, 1);
     }
 

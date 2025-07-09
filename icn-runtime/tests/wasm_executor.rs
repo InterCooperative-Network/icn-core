@@ -60,8 +60,11 @@ async fn compiled_policy_executes_via_host_abi() {
     let job_id = host_submit_mesh_job(&ctx, &job_json).await.unwrap();
 
     tokio::time::sleep(std::time::Duration::from_millis(200)).await;
-    let states = ctx.job_states.lock().await;
-    if let Some(icn_mesh::JobState::Completed { receipt }) = states.get(&job_id) {
+    if let Some(icn_mesh::JobState::Completed { receipt }) = ctx
+        .job_states
+        .get(&job_id)
+        .map(|s| s.value().clone())
+    {
         let expected = Cid::new_v1_sha256(0x55, &2i64.to_le_bytes());
         assert_eq!(receipt.result_cid, expected);
     } else {

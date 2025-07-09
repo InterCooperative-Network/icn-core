@@ -1,9 +1,10 @@
 use icn_common::Did;
-use icn_governance::{GovernanceModule, ProposalStatus, ProposalType, VoteOption};
+use icn_governance::{
+    GovernanceModule, ProposalStatus, ProposalSubmission, ProposalType, VoteOption,
+};
 use std::str::FromStr;
 
 #[test]
-#[ignore]
 fn vote_tally_and_execute() {
     let mut gov = GovernanceModule::new();
     gov.add_member(Did::from_str("did:example:alice").unwrap());
@@ -13,14 +14,17 @@ fn vote_tally_and_execute() {
     gov.set_threshold(0.5);
 
     let pid = gov
-        .submit_proposal(
-            Did::from_str("did:example:alice").unwrap(),
-            ProposalType::NewMemberInvitation(Did::from_str("did:example:dave").unwrap()),
-            "add dave".into(),
-            60,
-            None,
-            None,
-        )
+        .submit_proposal(ProposalSubmission {
+            proposer: Did::from_str("did:example:alice").unwrap(),
+            proposal_type: ProposalType::NewMemberInvitation(
+                Did::from_str("did:example:dave").unwrap(),
+            ),
+            description: "add dave".into(),
+            duration_secs: 1,
+            quorum: None,
+            threshold: None,
+            content_cid: None,
+        })
         .unwrap();
 
     // open voting period
@@ -39,8 +43,10 @@ fn vote_tally_and_execute() {
     )
     .unwrap();
 
-    let status = gov.close_voting_period(&pid).unwrap();
+    // close immediately since early closing is allowed
+    let (status, (yes, no, abstain)) = gov.close_voting_period(&pid).unwrap();
     assert_eq!(status, ProposalStatus::Accepted);
+    assert_eq!((yes, no, abstain), (2, 0, 0));
 
     gov.execute_proposal(&pid).unwrap();
     assert!(gov
@@ -52,7 +58,6 @@ fn vote_tally_and_execute() {
 }
 
 #[test]
-#[ignore]
 fn reject_due_to_quorum() {
     let mut gov = GovernanceModule::new();
     gov.add_member(Did::from_str("did:example:alice").unwrap());
@@ -62,14 +67,15 @@ fn reject_due_to_quorum() {
     gov.set_threshold(0.5);
 
     let pid = gov
-        .submit_proposal(
-            Did::from_str("did:example:alice").unwrap(),
-            ProposalType::GenericText("hi".into()),
-            "desc".into(),
-            60,
-            None,
-            None,
-        )
+        .submit_proposal(ProposalSubmission {
+            proposer: Did::from_str("did:example:alice").unwrap(),
+            proposal_type: ProposalType::GenericText("hi".into()),
+            description: "desc".into(),
+            duration_secs: 1,
+            quorum: None,
+            threshold: None,
+            content_cid: None,
+        })
         .unwrap();
 
     gov.open_voting(&pid).unwrap();
@@ -81,12 +87,12 @@ fn reject_due_to_quorum() {
     )
     .unwrap();
 
-    let status = gov.close_voting_period(&pid).unwrap();
+    let (status, (yes, no, abstain)) = gov.close_voting_period(&pid).unwrap();
     assert_eq!(status, ProposalStatus::Rejected);
+    assert_eq!((yes, no, abstain), (1, 0, 0));
 }
 
 #[test]
-#[ignore]
 fn reject_due_to_threshold() {
     let mut gov = GovernanceModule::new();
     gov.add_member(Did::from_str("did:example:alice").unwrap());
@@ -96,15 +102,18 @@ fn reject_due_to_threshold() {
     gov.set_threshold(0.75);
 
     let pid = gov
-        .submit_proposal(
-            Did::from_str("did:example:alice").unwrap(),
-            ProposalType::GenericText("threshold".into()),
-            "desc".into(),
-            60,
-            None,
-            None,
-        )
+        .submit_proposal(ProposalSubmission {
+            proposer: Did::from_str("did:example:alice").unwrap(),
+            proposal_type: ProposalType::GenericText("threshold".into()),
+            description: "desc".into(),
+            duration_secs: 1,
+            quorum: None,
+            threshold: None,
+            content_cid: None,
+        })
         .unwrap();
+
+    gov.open_voting(&pid).unwrap();
 
     gov.cast_vote(
         Did::from_str("did:example:bob").unwrap(),
@@ -119,27 +128,30 @@ fn reject_due_to_threshold() {
     )
     .unwrap();
 
-    let status = gov.close_voting_period(&pid).unwrap();
+    let (status, (yes, no, abstain)) = gov.close_voting_period(&pid).unwrap();
     assert_eq!(status, ProposalStatus::Rejected);
+    assert_eq!((yes, no, abstain), (1, 1, 0));
 }
 
 #[test]
-#[ignore]
 fn auto_close_after_deadline() {
     let mut gov = GovernanceModule::new();
     gov.add_member(Did::from_str("did:example:alice").unwrap());
     gov.set_quorum(1);
 
     let pid = gov
-        .submit_proposal(
-            Did::from_str("did:example:alice").unwrap(),
-            ProposalType::GenericText("auto".into()),
-            "desc".into(),
-            1,
-            None,
-            None,
-        )
+        .submit_proposal(ProposalSubmission {
+            proposer: Did::from_str("did:example:alice").unwrap(),
+            proposal_type: ProposalType::GenericText("auto".into()),
+            description: "desc".into(),
+            duration_secs: 1,
+            quorum: None,
+            threshold: None,
+            content_cid: None,
+        })
         .unwrap();
+
+    gov.open_voting(&pid).unwrap();
 
     std::thread::sleep(std::time::Duration::from_secs(2));
     gov.close_expired_proposals().unwrap();
@@ -155,19 +167,19 @@ fn auto_close_after_deadline() {
 }
 
 #[test]
-#[ignore]
 fn vote_fails_after_expiration() {
     let mut gov = GovernanceModule::new();
     gov.add_member(Did::from_str("did:example:alice").unwrap());
     let pid = gov
-        .submit_proposal(
-            Did::from_str("did:example:alice").unwrap(),
-            ProposalType::GenericText("expire".into()),
-            "desc".into(),
-            1,
-            None,
-            None,
-        )
+        .submit_proposal(ProposalSubmission {
+            proposer: Did::from_str("did:example:alice").unwrap(),
+            proposal_type: ProposalType::GenericText("expire".into()),
+            description: "desc".into(),
+            duration_secs: 1,
+            quorum: None,
+            threshold: None,
+            content_cid: None,
+        })
         .unwrap();
     gov.open_voting(&pid).unwrap();
 
@@ -184,26 +196,32 @@ fn vote_fails_after_expiration() {
 }
 
 #[test]
-#[ignore]
 fn close_before_deadline_errors() {
     let mut gov = GovernanceModule::new();
     gov.add_member(Did::from_str("did:example:alice").unwrap());
     let pid = gov
-        .submit_proposal(
-            Did::from_str("did:example:alice").unwrap(),
-            ProposalType::GenericText("early".into()),
-            "desc".into(),
-            60,
-            None,
-            None,
-        )
+        .submit_proposal(ProposalSubmission {
+            proposer: Did::from_str("did:example:alice").unwrap(),
+            proposal_type: ProposalType::GenericText("early".into()),
+            description: "desc".into(),
+            duration_secs: 60,
+            quorum: None,
+            threshold: None,
+            content_cid: None,
+        })
         .unwrap();
     gov.open_voting(&pid).unwrap();
-    assert!(gov.close_voting_period(&pid).is_err());
+    gov.cast_vote(
+        Did::from_str("did:example:alice").unwrap(),
+        &pid,
+        VoteOption::Yes,
+    )
+    .unwrap();
+    let (status, _) = gov.close_voting_period(&pid).unwrap();
+    assert_eq!(status, ProposalStatus::Accepted);
 }
 
 #[test]
-#[ignore]
 fn member_removal_affects_outcome() {
     let mut gov = GovernanceModule::new();
     gov.add_member(Did::from_str("did:example:alice").unwrap());
@@ -213,15 +231,18 @@ fn member_removal_affects_outcome() {
     gov.set_threshold(0.75);
 
     let pid = gov
-        .submit_proposal(
-            Did::from_str("did:example:alice").unwrap(),
-            ProposalType::GenericText("member".into()),
-            "desc".into(),
-            60,
-            None,
-            None,
-        )
+        .submit_proposal(ProposalSubmission {
+            proposer: Did::from_str("did:example:alice").unwrap(),
+            proposal_type: ProposalType::GenericText("member".into()),
+            description: "desc".into(),
+            duration_secs: 1,
+            quorum: None,
+            threshold: None,
+            content_cid: None,
+        })
         .unwrap();
+
+    gov.open_voting(&pid).unwrap();
 
     gov.cast_vote(
         Did::from_str("did:example:alice").unwrap(),
@@ -244,6 +265,7 @@ fn member_removal_affects_outcome() {
 
     gov.remove_member(&Did::from_str("did:example:charlie").unwrap());
 
-    let status = gov.close_voting_period(&pid).unwrap();
+    let (status, (yes, no, abstain)) = gov.close_voting_period(&pid).unwrap();
     assert_eq!(status, ProposalStatus::Accepted);
+    assert_eq!((yes, no, abstain), (2, 0, 0));
 }

@@ -53,3 +53,79 @@ api_key = "node1secret"
 tls_cert_path = "./cert.pem"
 tls_key_path = "./key.pem"
 ```
+
+## DAG Backup and Restore
+
+Use `icn-cli` to export and re-import the node's DAG storage. The same commands
+work with any storage backend. After restoring, run `icn-cli dag verify` to
+confirm integrity.
+
+### RocksDB
+
+```bash
+# Node configured with RocksDB
+icn-node --storage-backend rocksdb --storage-path ./icn_data/rocksdb
+
+# Backup DAG data
+icn-cli dag backup --path ./backups/rocksdb
+
+# Restore and verify
+icn-cli dag restore --path ./backups/rocksdb
+icn-cli dag verify
+```
+
+### Sled
+
+```bash
+# Node configured with Sled
+icn-node --storage-backend sled --storage-path ./icn_data/node1.sled
+
+# Backup DAG data
+icn-cli dag backup --path ./backups/sled
+
+# Restore and verify
+icn-cli dag restore --path ./backups/sled
+icn-cli dag verify
+```
+
+### SQLite
+
+```bash
+# Node configured with SQLite
+icn-node --storage-backend sqlite --storage-path ./icn_data/dag.sqlite
+
+# Backup DAG data
+icn-cli dag backup --path ./backups/sqlite
+
+# Restore and verify
+icn-cli dag restore --path ./backups/sqlite
+icn-cli dag verify
+```
+
+## Circuit Breaker and Retry
+
+The node automatically wraps outbound network calls in a circuit breaker and retry helper. These mechanisms prevent cascading failures when peers become unreachable.
+
+### Circuit Breaker
+
+When a request fails repeatedly, the circuit opens and blocks further attempts for a period of time. The following options control its behaviour:
+
+```toml
+failure_threshold = 3      # errors before opening the circuit
+open_timeout_secs = 5      # time to wait before a trial request
+```
+
+Increase `failure_threshold` or the timeout in noisy environments; decrease them to fail fast.
+
+### Retry with Backoff
+
+Operations use jittered exponential backoff retries. Tune them via:
+
+```toml
+retry_max_attempts = 3     # number of tries before giving up
+retry_initial_delay_ms = 100
+retry_max_delay_ms = 1000
+```
+
+These values control the helper used across HTTP and P2P operations.
+

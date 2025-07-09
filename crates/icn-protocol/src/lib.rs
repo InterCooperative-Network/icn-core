@@ -1,13 +1,13 @@
 #![doc = include_str!("../README.md")]
 
 //! # ICN Protocol Crate
-//! This crate defines core message formats and protocol definitions for the ICN,
+//! This crate defines core message formats and protocol definitions for ICN,
 //! ensuring interoperability between different components and nodes.
-//! 
-//! This is the single source of truth for all ICN network protocol messages,
+//!
+//! This is the single source of truth for all network protocol messages,
 //! including mesh computing, governance, DAG operations, and federation management.
 
-use icn_common::{Cid, Did, DagBlock, CommonError, NodeInfo};
+use icn_common::{Cid, CommonError, DagBlock, Did, NodeInfo};
 use icn_identity::{ExecutionReceipt, SignatureBytes};
 use serde::{Deserialize, Serialize};
 
@@ -16,7 +16,7 @@ pub const ICN_PROTOCOL_VERSION: u32 = 1;
 
 // === Core Protocol Message Envelope ===
 
-/// Main protocol message envelope that wraps all ICN network communications
+/// Main protocol message envelope that wraps all ICN communications
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProtocolMessage {
     /// Protocol version for compatibility checking
@@ -45,7 +45,7 @@ pub enum MessagePayload {
     MeshJobAssignment(MeshJobAssignmentMessage),
     /// Submit execution receipt with results
     MeshReceiptSubmission(MeshReceiptSubmissionMessage),
-    
+
     // === DAG and Storage Messages ===
     /// Announce availability of a new DAG block
     DagBlockAnnouncement(DagBlockAnnouncementMessage),
@@ -53,7 +53,7 @@ pub enum MessagePayload {
     DagBlockRequest(DagBlockRequestMessage),
     /// Response with requested DAG block data
     DagBlockResponse(DagBlockResponseMessage),
-    
+
     // === Governance Messages ===
     /// Announce a new governance proposal
     GovernanceProposalAnnouncement(GovernanceProposalMessage),
@@ -61,7 +61,7 @@ pub enum MessagePayload {
     GovernanceVoteAnnouncement(GovernanceVoteMessage),
     /// Request governance state synchronization
     GovernanceStateSyncRequest(GovernanceStateSyncRequestMessage),
-    
+
     // === Federation Management ===
     /// Request to join a federation
     FederationJoinRequest(FederationJoinRequestMessage),
@@ -69,7 +69,7 @@ pub enum MessagePayload {
     FederationJoinResponse(FederationJoinResponseMessage),
     /// Request federation state synchronization
     FederationSyncRequest(FederationSyncRequestMessage),
-    
+
     // === Network Management ===
     /// Generic gossip message for flexible communication
     GossipMessage(GossipMessage),
@@ -247,7 +247,10 @@ pub struct GovernanceProposalMessage {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ProposalType {
     /// Change a system parameter
-    ParameterChange { parameter: String, new_value: String },
+    ParameterChange {
+        parameter: String,
+        new_value: String,
+    },
     /// Add a new member to governance
     MembershipInvitation { new_member: Did },
     /// Remove a member from governance
@@ -469,7 +472,7 @@ impl MessagePayload {
     pub fn message_type(&self) -> &'static str {
         match self {
             MessagePayload::MeshJobAnnouncement(_) => "MeshJobAnnouncement",
-            MessagePayload::MeshBidSubmission(_) => "MeshBidSubmission", 
+            MessagePayload::MeshBidSubmission(_) => "MeshBidSubmission",
             MessagePayload::MeshJobAssignment(_) => "MeshJobAssignment",
             MessagePayload::MeshReceiptSubmission(_) => "MeshReceiptSubmission",
             MessagePayload::DagBlockAnnouncement(_) => "DagBlockAnnouncement",
@@ -585,7 +588,9 @@ mod tests {
             creator_did: Did::from_str("did:key:creator").unwrap(),
             max_cost_mana: 100,
             job_spec: JobSpec {
-                kind: JobKind::Echo { payload: "test".to_string() },
+                kind: JobKind::Echo {
+                    payload: "test".to_string(),
+                },
                 inputs: vec![],
                 outputs: vec!["result".to_string()],
                 required_resources: ResourceRequirements::default(),

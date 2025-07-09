@@ -206,6 +206,7 @@ mod libp2p_job_pipeline {
             "did:key:z6MktestA",
             listen.clone(),
             None,
+            std::path::PathBuf::from("./dag_a"),
             std::path::PathBuf::from("./mana_a.sled"),
             std::path::PathBuf::from("./rep_a.sled"),
         )
@@ -228,6 +229,7 @@ mod libp2p_job_pipeline {
             "did:key:z6MktestB",
             listen,
             Some(vec![(peer_a, addr_a.clone())]),
+            std::path::PathBuf::from("./dag_b"),
             std::path::PathBuf::from("./mana_b.sled"),
             std::path::PathBuf::from("./rep_b.sled"),
         )
@@ -249,8 +251,13 @@ mod libp2p_job_pipeline {
         let job_id = host_submit_mesh_job(&node_a, &job_json).await?;
 
         {
-            let states = node_a.job_states.lock().await;
-            assert!(matches!(states.get(&job_id), Some(JobState::Pending)));
+            assert!(matches!(
+                node_a
+                    .job_states
+                    .get(&job_id)
+                    .map(|s| s.value().clone()),
+                Some(JobState::Pending)
+            ));
         }
 
         mesh_a.announce_job(&job).await?;
@@ -318,8 +325,7 @@ mod libp2p_job_pipeline {
         service_a.broadcast_message(msg).await?;
 
         {
-            let mut states = node_a.job_states.lock().await;
-            states.insert(
+            node_a.job_states.insert(
                 job_id.clone(),
                 JobState::Assigned {
                     executor: node_b.current_identity.clone(),
@@ -374,8 +380,7 @@ mod libp2p_job_pipeline {
         let cid = host_anchor_receipt(&node_a, &receipt_json, &ReputationUpdater::new()).await?;
 
         {
-            let states = node_a.job_states.lock().await;
-            match states.get(&job_id) {
+            match node_a.job_states.get(&job_id).map(|s| s.value().clone()) {
                 Some(JobState::Completed { .. }) => {}
                 other => panic!("Job not completed: {:?}", other),
             }

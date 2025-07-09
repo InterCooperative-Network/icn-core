@@ -67,6 +67,36 @@ fn main() {
         println!("⚠️  Example file not found at {}", example_path.display());
     }
 
+    // Test 4: Control flow with if/else and a while loop
+    println!("=== Test 4: Control Flow ===");
+    let control_flow_contract = r#"
+        fn run() -> Integer {
+            let count = 0;
+            let sum = 0;
+            while count < 5 {
+                if count < 3 {
+                    let sum = sum + count;
+                } else {
+                    let sum = sum + 1;
+                }
+                let count = count + 1;
+            }
+            return sum;
+        }
+    "#;
+    match compile_ccl_source_to_wasm(control_flow_contract) {
+        Ok((wasm_bytes, metadata)) => {
+            println!("✅ Successfully compiled control flow contract!");
+            println!("📦 WASM size: {} bytes", wasm_bytes.len());
+            println!("🔍 CID: {}", metadata.cid);
+            println!("📋 Exports: {:?}", metadata.exports);
+            println!("🔐 Source hash: {}\n", metadata.source_hash);
+        }
+        Err(e) => {
+            println!("❌ Compilation failed: {:?}\n", e);
+        }
+    }
+
     println!("\n🎉 CCL Demo Complete!");
     println!("🔗 CCL enables:");
     println!("   • Governance as Code");

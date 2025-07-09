@@ -9,12 +9,13 @@ license.workspace = true
 icn-common = { path = "../icn-common" }
 icn-api = { path = "../icn-api", default-features = false, features = ["types-only"] }
 icn-network = { path = "../icn-network", default-features = false }
-icn-dag = { path = "../icn-dag" }
+icn-dag = { path = "../icn-dag", features = ["async"] }
 icn-governance = { path = "../icn-governance", features = ["serde"] }
-icn-runtime = { path = "../icn-runtime", features = ["cli"] }
+icn-runtime = { path = "../icn-runtime", features = ["cli", "async"] }
 icn-identity = { path = "../icn-identity" }
 icn-mesh = { path = "../icn-mesh" }
 icn-reputation = { path = "../icn-reputation" }
+icn-economics = { path = "../icn-economics" }
 icn-ccl = { path = "../../icn-ccl" }
 icn-protocol = { path = "../icn-protocol" }
 log = "0.4"
@@ -30,7 +31,7 @@ axum-server = { version = "0.7", features = ["tls-rustls"] }
 tower = { version = "0.4", features = ["full"] }
 hex = "0.4"
 bs58 = "0.5"
-libp2p = { version = "0.53.2", optional = true }
+libp2p = { version = "0.56", optional = true }
 async-trait = "0.1"
 prometheus-client = "0.22"
 subtle = "2"
@@ -39,9 +40,9 @@ subtle = "2"
 default = ["icn-network/default"]
 with-libp2p = ["icn-network/libp2p", "icn-runtime/enable-libp2p", "enable-libp2p", "dep:libp2p"]
 enable-libp2p = []
-persist-sqlite = ["icn-dag/persist-sqlite"]
-persist-sled = ["icn-dag/persist-sled"]
-persist-rocksdb = ["icn-dag/persist-rocksdb"]
+persist-sqlite = ["icn-dag/persist-sqlite", "icn-runtime/persist-sqlite", "icn-economics/persist-sqlite"]
+persist-sled = ["icn-dag/persist-sled", "icn-runtime/persist-sled", "icn-economics/persist-sled"]
+persist-rocksdb = ["icn-dag/persist-rocksdb", "icn-runtime/persist-rocksdb", "icn-economics/persist-rocksdb"]
 
 [dev-dependencies]
 reqwest = { version = "0.11", features = ["json", "rustls-tls"] }

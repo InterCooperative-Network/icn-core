@@ -18,6 +18,7 @@ mod cross_node_governance {
             &id,
             listen,
             bootstrap,
+            std::path::PathBuf::from("./dag_store"),
             std::path::PathBuf::from("./mana_ledger.sled"),
             std::path::PathBuf::from("./reputation.sled"),
         )

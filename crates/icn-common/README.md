@@ -2,7 +2,8 @@
 
 This crate provides common data structures, types, utilities, and error definitions shared across multiple InterCooperative Network (ICN) core crates.
 
-See [CONTEXT.md](../CONTEXT.md) for ICN Core design philosophy and crate roles.
+See [CONTEXT.md](../../CONTEXT.md) for ICN Core design philosophy and crate roles.
+See [docs/ASYNC_OVERVIEW.md](../../docs/ASYNC_OVERVIEW.md) for async API guidelines.
 
 ## Purpose
 

@@ -134,24 +134,22 @@ pub async fn execute_governance_proposal(
 **Production-Grade Monitoring Stack**
 ```rust
 // Add comprehensive metrics throughout codebase
-use metrics::{counter, histogram, gauge};
+use once_cell::sync::Lazy;
+use prometheus_client::metrics::{counter::Counter, histogram::Histogram};
+
+static JOBS_SUBMITTED: Lazy<Counter> = Lazy::new(Counter::default);
+static JOB_SUBMIT_DURATION: Lazy<Histogram> = Lazy::new(Histogram::default);
 
 // Example integration points:
 impl MeshJobManager {
     pub async fn submit_job(&self, job: MeshJob) -> Result<JobId, Error> {
-        counter!("icn.jobs.submitted").increment(1);
+        JOBS_SUBMITTED.inc();
         let start_time = Instant::now();
-        
+
         let result = self.internal_submit_job(job).await;
-        
-        histogram!("icn.job.submission_duration")
-            .record(start_time.elapsed().as_secs_f64());
-            
-        match &result {
-            Ok(_) => counter!("icn.jobs.submission.success").increment(1),
-            Err(_) => counter!("icn.jobs.submission.error").increment(1),
-        }
-        
+
+        JOB_SUBMIT_DURATION.observe(start_time.elapsed().as_secs_f64());
+
         result
     }
 }
@@ -251,7 +249,7 @@ where
 - [ ] ✅ Monitoring runbook and alert response procedures
 - [ ] ✅ Security audit and penetration testing report
 - [ ] ✅ Performance benchmarking results
-- [ ] ✅ Disaster recovery and backup procedures
+- [ ] ✅ Disaster recovery and backup procedures ([DAG backup docs](docs/deployment-guide.md#dag-backup-and-restore))
 
 ---
 
@@ -284,7 +282,7 @@ where
 ### **Technical Risks**
 1. **Performance Degradation**: Replace stubs incrementally, benchmark each change
 2. **Security Vulnerabilities**: Security review for each major component
-3. **Data Loss**: Implement backup/restore before persistence changes
+3. **Data Loss**: Implement backup/restore before persistence changes. See the [DAG Backup and Restore guide](docs/deployment-guide.md#dag-backup-and-restore).
 4. **Network Partitions**: Test split-brain scenarios extensively
 
 ### **Project Risks**

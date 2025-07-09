@@ -35,6 +35,14 @@ path = "integration/cli_node.rs"
 name = "policy_enforcer"
 path = "integration/policy_enforcer.rs"
 
+[[test]]
+name = "parameter_change"
+path = "integration/parameter_change.rs"
+
+[[test]]
+name = "ccl_operator_precedence"
+path = "../icn-ccl/tests/operator_precedence.rs"
+
 [dependencies]
 reqwest.workspace = true
 serde_json.workspace = true
@@ -43,6 +51,6 @@ once_cell = "1"
 assert_cmd = "2.0"
 predicates = "3.1"
 axum = { version = "0.7", features = ["json"] }
-icn-node = { path = "../crates/icn-node" }
-icn-runtime = { path = "../crates/icn-runtime" }
+icn-node = { path = "../crates/icn-node", features = ["with-libp2p"] }
+icn-runtime = { path = "../crates/icn-runtime", features = ["async"] }
 icn-governance = { path = "../crates/icn-governance" }
