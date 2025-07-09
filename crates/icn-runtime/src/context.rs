@@ -865,14 +865,22 @@ impl RuntimeContext {
             icn_dag::rocksdb_store::RocksDagStore::new(dag_path.clone())?,
         )) as Arc<DagStoreMutex<dyn DagStorageService<DagBlock> + Send>>;
 
-        #[cfg(all(not(feature = "persist-rocksdb"), feature = "persist-sled", not(feature = "async")))]
+        #[cfg(all(
+            not(feature = "persist-rocksdb"),
+            feature = "persist-sled",
+            not(feature = "async")
+        ))]
         let dag_store = Arc::new(DagStoreMutex::new(icn_dag::sled_store::SledDagStore::new(
             dag_path.clone(),
         )?)) as Arc<DagStoreMutex<dyn DagStorageService<DagBlock> + Send>>;
 
-        #[cfg(all(feature = "async", any(feature = "persist-rocksdb", feature = "persist-sled")))]
-        let dag_store = Arc::new(DagStoreMutex::new(TokioFileDagStore::new(dag_path.clone())?))
-            as Arc<DagStoreMutex<dyn DagStorageService<DagBlock> + Send>>;
+        #[cfg(all(
+            feature = "async",
+            any(feature = "persist-rocksdb", feature = "persist-sled")
+        ))]
+        let dag_store = Arc::new(DagStoreMutex::new(TokioFileDagStore::new(
+            dag_path.clone(),
+        )?)) as Arc<DagStoreMutex<dyn DagStorageService<DagBlock> + Send>>;
 
         #[cfg(all(
             not(feature = "persist-rocksdb"),
@@ -979,9 +987,9 @@ impl RuntimeContext {
             PathBuf::from("./dag.sled"),
         )?));
         #[cfg(all(feature = "persist-sled", feature = "async"))]
-        let dag_store = Arc::new(TokioMutex::new(TokioFileDagStore::new(
-            PathBuf::from("./dag.sled"),
-        )?));
+        let dag_store = Arc::new(TokioMutex::new(TokioFileDagStore::new(PathBuf::from(
+            "./dag.sled",
+        ))?));
         #[cfg(not(feature = "persist-sled"))]
         let dag_store = Arc::new(TokioMutex::new(StubDagStore::new()));
 
@@ -1013,9 +1021,9 @@ impl RuntimeContext {
             PathBuf::from("./dag.sled"),
         )?));
         #[cfg(all(feature = "persist-sled", feature = "async"))]
-        let dag_store = Arc::new(TokioMutex::new(TokioFileDagStore::new(
-            PathBuf::from("./dag.sled"),
-        )?));
+        let dag_store = Arc::new(TokioMutex::new(TokioFileDagStore::new(PathBuf::from(
+            "./dag.sled",
+        ))?));
         #[cfg(not(feature = "persist-sled"))]
         let dag_store = Arc::new(TokioMutex::new(StubDagStore::new()));
 
@@ -2069,7 +2077,10 @@ impl RuntimeContext {
         reputation_store_path: PathBuf,
         enable_mdns: bool,
     ) -> Result<Arc<Self>, CommonError> {
-        log::info!("Initializing RuntimeContext with real libp2p networking and mDNS={}", enable_mdns);
+        log::info!(
+            "Initializing RuntimeContext with real libp2p networking and mDNS={}",
+            enable_mdns
+        );
 
         // Parse the identity
         let identity = Did::from_str(identity_str)
@@ -2398,6 +2409,12 @@ impl Signer for StubSigner {
     }
 }
 
+/// Abstract interface to load Ed25519 key material from a hardware security module.
+pub trait HsmKeyStore: Send + Sync {
+    /// Fetch the Ed25519 keypair used for signing.
+    fn fetch_ed25519_keypair(&self) -> Result<(SigningKey, VerifyingKey), CommonError>;
+}
+
 /// Production signer using an Ed25519 keypair with memory zeroization.
 #[derive(Debug)]
 pub struct Ed25519Signer {
@@ -2420,6 +2437,49 @@ impl Ed25519Signer {
         let did = Did::from_str(&did_key_from_verifying_key(&pk))
             .expect("Failed to construct DID from verifying key");
         Self { sk, pk, did }
+    }
+
+    /// Load a signer from an encrypted private key file. The file must contain
+    /// a 12-byte nonce followed by AES-GCM ciphertext of the 32-byte private key.
+    pub fn from_encrypted_file<P: AsRef<std::path::Path>>(
+        path: P,
+        passphrase: &[u8],
+    ) -> Result<Self, CommonError> {
+        use aes_gcm::aead::{Aead, KeyInit};
+        use aes_gcm::{Aes256Gcm, Nonce};
+        use pbkdf2::pbkdf2_hmac;
+        use sha2::Sha256;
+        use zeroize::Zeroize;
+
+        let data = std::fs::read(path).map_err(|e| CommonError::IoError(e.to_string()))?;
+        if data.len() < 12 {
+            return Err(CommonError::InvalidInputError(
+                "encrypted key missing nonce".into(),
+            ));
+        }
+        let (nonce_bytes, ciphertext) = data.split_at(12);
+
+        let mut key = [0u8; 32];
+        pbkdf2_hmac::<Sha256>(passphrase, b"icn-ed25519", 100_000, &mut key);
+        let cipher =
+            Aes256Gcm::new_from_slice(&key).map_err(|e| CommonError::CryptoError(e.to_string()))?;
+        let plaintext = cipher
+            .decrypt(Nonce::from_slice(nonce_bytes), ciphertext)
+            .map_err(|e| CommonError::CryptoError(e.to_string()))?;
+        key.zeroize();
+
+        let sk_bytes: [u8; 32] = plaintext
+            .as_slice()
+            .try_into()
+            .map_err(|_| CommonError::InvalidInputError("decrypted key wrong length".into()))?;
+        let sk = SigningKey::from_bytes(&sk_bytes);
+        Ok(Self::new(sk))
+    }
+
+    /// Load a signer from a hardware security module via an [`HsmKeyStore`].
+    pub fn from_hsm(hsm: &dyn HsmKeyStore) -> Result<Self, CommonError> {
+        let (sk, pk) = hsm.fetch_ed25519_keypair()?;
+        Ok(Self::new_with_keys(sk, pk))
     }
 
     /// Expose verifying key reference.

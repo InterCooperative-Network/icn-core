@@ -116,8 +116,9 @@ compiled with the `async` feature, use `TokioFileDagStore` (requires the Tokio
 runtime):
 
 ```rust
-use icn_runtime::context::{RuntimeContext, StubMeshNetworkService, StubSigner};
+use icn_runtime::context::{RuntimeContext, StubMeshNetworkService, Ed25519Signer};
 use icn_common::Did;
+use icn_identity::generate_ed25519_keypair;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -129,7 +130,7 @@ let dag_store = Arc::new(Mutex::new(icn_dag::FileDagStore::new("./dag".into()).u
 let ctx = RuntimeContext::new(
     Did::new("key", "node"),
     Arc::new(StubMeshNetworkService::new()),
-    Arc::new(StubSigner::new()),
+    Arc::new(Ed25519Signer::new(generate_ed25519_keypair().0)),
     Arc::new(icn_identity::KeyDidResolver),
     dag_store,
 );
