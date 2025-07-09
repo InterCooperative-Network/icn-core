@@ -7,7 +7,7 @@ use tokio::task;
 
 #[tokio::test]
 #[serial_test::serial]
-#[ignore]
+#[ignore] // Exercises mesh & CCL via CLI; slow and unstable
 async fn mesh_network_and_ccl_commands() {
     let _ = std::fs::remove_dir_all("./mana_ledger.sled");
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
