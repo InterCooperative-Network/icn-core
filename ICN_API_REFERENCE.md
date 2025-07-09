@@ -12,17 +12,32 @@
 |----------|---------|-------------|--------|
 | `/info` | GET | Node information and DID | ✅ Working |
 | `/status` | GET | Real-time node status | ✅ Working |
-| `/health` | GET | Health check endpoint | ⚠️ Empty |
+| `/health` | GET | Health check endpoint | ✅ Working |
+| `/ready` | GET | Readiness probe | ✅ Working |
+| `/mesh/submit` | POST | Submit a mesh job | ✅ Working |
 | `/mesh/jobs` | GET | List mesh computing jobs | ✅ Working |
-| `/mesh/bids` | GET | List mesh job bids | ✅ Working |
+| `/mesh/jobs/:job_id` | GET | Get specific job status | ✅ Working |
+| `/mesh/receipts` | POST | Submit execution receipt | ✅ Working |
 | `/governance/proposals` | GET | List governance proposals | ✅ Working |
-| `/governance/votes` | GET | List governance votes | ✅ Working |
+| `/governance/proposal/:id` | GET | Fetch a proposal | ✅ Working |
+| `/governance/submit` | POST | Submit a proposal | ✅ Working |
+| `/governance/vote` | POST | Cast a vote | ✅ Working |
+| `/governance/close` | POST | Close voting | ✅ Working |
+| `/governance/execute` | POST | Execute proposal | ✅ Working |
 | `/dag/put` | POST | Store data in DAG | ✅ Working |
-| `/dag/get` | POST | Retrieve data from DAG | ⚠️ Format issue |
-| `/dag/blocks` | GET | List DAG blocks | ⚠️ Empty |
-| `/dag/info` | GET | DAG information | ⚠️ Empty |
-| `/network/peers` | GET | List network peers | ⚠️ Empty |
-| `/account/{did}` | GET | Account information | ⚠️ Empty |
+| `/dag/get` | POST | Retrieve data from DAG | ✅ Working |
+| `/dag/meta` | POST | Retrieve DAG metadata | ✅ Working |
+| `/dag/pin` | POST | Pin a DAG block | ✅ Working |
+| `/dag/unpin` | POST | Unpin a DAG block | ✅ Working |
+| `/dag/prune` | POST | Prune unpinned blocks | ✅ Working |
+| `/network/local-peer-id` | GET | Show local peer ID | ✅ Working |
+| `/network/connect` | POST | Connect to a peer | ✅ Working |
+| `/network/peers` | GET | List network peers | ✅ Working |
+| `/transaction/submit` | POST | Submit a transaction | ✅ Working |
+| `/data/query` | POST | Query data | ✅ Working |
+| `/contracts` | POST | Upload WASM contract | ✅ Working |
+| `/federation/peers` | GET | List federation peers | ✅ Working |
+| `/federation/peers` | POST | Add federation peer | ✅ Working |
 | `/metrics` | GET | Prometheus metrics | ✅ Working |
 
 ---
@@ -100,19 +115,6 @@ curl -s http://127.0.0.1:7845/mesh/jobs | jq .
 }
 ```
 
-### List Mesh Job Bids
-**Endpoint:** `GET /mesh/bids`  
-**Description:** Returns a list of all bids for mesh computing jobs.
-
-**Example Request:**
-```bash
-curl -s http://127.0.0.1:7845/mesh/bids | jq .
-```
-
-**Example Response:**
-```
-(Empty response - no bids currently)
-```
 
 ---
 
@@ -132,19 +134,6 @@ curl -s http://127.0.0.1:7845/governance/proposals | jq .
 []
 ```
 
-### List Governance Votes
-**Endpoint:** `GET /governance/votes`  
-**Description:** Returns a list of all votes cast on governance proposals.
-
-**Example Request:**
-```bash
-curl -s http://127.0.0.1:7845/governance/votes | jq .
-```
-
-**Example Response:**
-```
-(Empty response - no votes currently)
-```
 
 ---
 
@@ -192,40 +181,13 @@ curl -X POST -H "Content-Type: application/json" \
   http://127.0.0.1:7845/dag/get
 ```
 
-### List DAG Blocks
-**Endpoint:** `GET /dag/blocks`  
-**Description:** Returns a list of all blocks stored in the DAG.
-
-**Example Request:**
-```bash
-curl -s http://127.0.0.1:7845/dag/blocks | jq .
-```
-
-**Example Response:**
-```
-(Empty response - no blocks or endpoint not implemented)
-```
-
-### DAG Information
-**Endpoint:** `GET /dag/info`  
-**Description:** Returns information about the DAG storage system.
-
-**Example Request:**
-```bash
-curl -s http://127.0.0.1:7845/dag/info | jq .
-```
-
-**Example Response:**
-```
-(Empty response - endpoint not implemented)
-```
 
 ---
 
 ## 🌐 **Network & Identity**
 
 ### List Network Peers
-**Endpoint:** `GET /network/peers`  
+**Endpoint:** `GET /network/peers`
 **Description:** Returns a list of connected network peers.
 
 **Example Request:**
@@ -238,19 +200,13 @@ curl -s http://127.0.0.1:7845/network/peers | jq .
 (Empty response - no P2P peers without libp2p feature)
 ```
 
-### Get Account Information
-**Endpoint:** `GET /account/{did}`  
-**Description:** Returns account information for a specific DID.
+### Local Peer ID
+**Endpoint:** `GET /network/local-peer-id`
+**Description:** Returns the node's own peer identifier.
 
-**Example Request:**
-```bash
-curl -s "http://127.0.0.1:7845/account/did:key:z6Mkou2jwqcofqj6FC4MpRpQjPQh1Neyo2v9jcgJNNfMzdof" | jq .
-```
-
-**Example Response:**
-```
-(Empty response - endpoint not fully implemented)
-```
+### Connect to a Peer
+**Endpoint:** `POST /network/connect`
+**Description:** Connect to another peer using a multiaddr string.
 
 ---
 
@@ -384,11 +340,10 @@ curl -s http://127.0.0.1:7845/metrics | grep -E "host_.*_total"
 - `POST /mesh/jobs` - Submit a new mesh job
 - `GET /mesh/jobs/{id}` - Get specific job details
 - `DELETE /mesh/jobs/{id}` - Cancel a job
-- `POST /mesh/bids` - Submit a bid for a job
 
 ### Governance
 - `POST /governance/proposals` - Create a new proposal
-- `POST /governance/votes` - Cast a vote on a proposal
+- `POST /governance/vote` - Cast a vote on a proposal
 - `GET /governance/proposals/{id}` - Get specific proposal details
 
 ### Identity & Accounts
@@ -399,5 +354,4 @@ curl -s http://127.0.0.1:7845/metrics | grep -E "host_.*_total"
 ---
 
 **API Reference Generated:** December 2024  
-**Node Version:** 0.1.0-dev-functional  
-**Documentation Status:** ✅ Complete for working endpoints 
+**Node Version:** 0.1.0-dev-functional  **Documentation Status:** ✅ Complete for working endpoints 
