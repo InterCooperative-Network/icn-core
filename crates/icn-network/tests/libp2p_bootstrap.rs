@@ -13,7 +13,6 @@ mod libp2p_bootstrap_tests {
     use std::time::Duration;
     use tokio::time::sleep;
     #[tokio::test]
-    #[ignore]
     async fn test_two_nodes_discover_each_other() {
         println!("Starting test_two_nodes_discover_each_other...");
 
