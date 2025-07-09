@@ -2,6 +2,8 @@
 
 The ICN node exposes a REST interface for all functionality. This document describes the complete API surface, authentication requirements, and security features.
 
+An OpenAPI specification is available at [docs/openapi.yaml](openapi.yaml) for automatic client generation.
+
 ## Authentication & Security
 
 ### API Authentication
@@ -292,6 +294,28 @@ icn-cli dag meta '{"cid":"bafy..."}'
 
 ### HTTP Clients
 Standard HTTP clients can interact with the API. See the examples above for curl usage patterns.
+
+### Rust SDK
+The `icn-sdk` crate provides a typed client for interacting with the node. Add it to your `Cargo.toml`:
+
+```toml
+icn-sdk = { path = "../crates/icn-sdk" }
+tokio = { version = "1", features = ["full"] }
+```
+
+Example usage:
+
+```rust
+use icn_sdk::IcnClient;
+
+# #[tokio::main] // for a real application
+async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    let client = IcnClient::new("http://127.0.0.1:7845")?;
+    let info = client.info().await?;
+    println!("node name {}", info.name);
+    Ok(())
+}
+```
 
 ## Security Considerations
 
