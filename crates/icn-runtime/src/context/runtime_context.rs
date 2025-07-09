@@ -215,25 +215,47 @@ impl RuntimeContext {
 
     /// Create a new context with real libp2p and mDNS services.
     #[cfg(feature = "enable-libp2p")]
-    pub fn new_with_real_libp2p_and_mdns(
-        current_identity: Did,
-        signer: Arc<dyn Signer>,
-        did_resolver: Arc<dyn icn_identity::DidResolver>,
-        dag_store: Arc<DagStoreMutexType<DagStorageService>>,
-        mana_ledger: SimpleManaLedger,
+    pub async fn new_with_real_libp2p_and_mdns(
+        node_did_string: &str,
+        listen_addrs: Vec<libp2p::Multiaddr>,
+        bootstrap_peers: Option<Vec<(libp2p::PeerId, libp2p::Multiaddr)>>,
+        storage_path: PathBuf,
+        mana_ledger_path: PathBuf,
+        reputation_db_path: PathBuf,
         enable_mdns: bool,
     ) -> Result<Arc<Self>, CommonError> {
-        let network_service = if enable_mdns {
-            Arc::new(icn_network::libp2p_service::Libp2pNetworkService::new_with_mdns()
-                .map_err(|e| CommonError::NetworkError(format!("Failed to create libp2p service: {}", e)))?)
-        } else {
-            Arc::new(icn_network::libp2p_service::Libp2pNetworkService::new()
-                .map_err(|e| CommonError::NetworkError(format!("Failed to create libp2p service: {}", e)))?)
+        use icn_network::libp2p_service::NetworkConfig;
+        use std::str::FromStr;
+        
+        // Parse DID from string
+        let current_identity = Did::from_str(node_did_string)
+            .map_err(|e| CommonError::InternalError(format!("Invalid DID: {}", e)))?;
+            
+        // Create libp2p network config
+        let config = NetworkConfig {
+            listen_addresses: listen_addrs,
+            bootstrap_peers: bootstrap_peers.unwrap_or_default(),
+            enable_mdns,
+            ..Default::default()
         };
+        
+        // Create libp2p network service
+        let network_service = Arc::new(icn_network::libp2p_service::Libp2pNetworkService::new(config).await
+            .map_err(|e| CommonError::NetworkError(format!("Failed to create libp2p service: {}", e)))?);
         
         let mesh_network_service = Arc::new(MeshNetworkServiceType::Default(
             DefaultMeshNetworkService::new(network_service)
         ));
+        
+        // For now, create stub signer and did resolver - in real implementation these would be created from config
+        let signer = Arc::new(super::signers::StubSigner::new());
+        let did_resolver = Arc::new(icn_identity::KeyDidResolver);
+        
+        // Create DAG store - for now use stub, but could be created from storage_path in real implementation
+        let dag_store = Arc::new(DagStoreMutexType::new(super::stubs::StubDagStore::new())) as Arc<DagStoreMutexType<DagStorageService>>;
+        
+        // Create mana ledger
+        let mana_ledger = SimpleManaLedger::new(mana_ledger_path);
 
         let (tx, rx) = mpsc::channel(128);
         let job_states = Arc::new(DashMap::new());
@@ -265,19 +287,20 @@ impl RuntimeContext {
     /// Create a new context with custom mana ledger and time provider.
     pub fn new_with_mana_ledger_and_time(
         current_identity: Did,
-        mana_ledger: SimpleManaLedger,
-        time_provider: Arc<dyn icn_common::TimeProvider>,
+        mesh_network_service: Arc<MeshNetworkServiceType>,
         signer: Arc<dyn Signer>,
         did_resolver: Arc<dyn icn_identity::DidResolver>,
         dag_store: Arc<DagStoreMutexType<DagStorageService>>,
+        mana_ledger: SimpleManaLedger,
+        _reputation_path: PathBuf, // Currently unused
+        _policy_enforcer: Option<Arc<dyn icn_governance::scoped_policy::ScopedPolicyEnforcer>>,
+        time_provider: Arc<dyn icn_common::TimeProvider>,
     ) -> Arc<Self> {
-        let mesh_network_service = Arc::new(MeshNetworkServiceType::Stub(StubMeshNetworkService::new()));
         let (tx, rx) = mpsc::channel(128);
         let job_states = Arc::new(DashMap::new());
         let governance_module = Arc::new(DagStoreMutexType::new(GovernanceModule::new()));
         let reputation_store = Arc::new(icn_reputation::InMemoryReputationStore::new());
         let parameters = Arc::new(DashMap::new());
-        let policy_enforcer = None;
 
         Arc::new(Self {
             current_identity,
@@ -292,7 +315,7 @@ impl RuntimeContext {
             dag_store,
             reputation_store,
             parameters,
-            policy_enforcer,
+            policy_enforcer: _policy_enforcer,
             time_provider,
             default_receipt_wait_ms: 30000,
         })
@@ -650,15 +673,30 @@ impl RuntimeContext {
         Ok(())
     }
 
-    /// Get the underlying libp2p service if available.
+    /// Spawn the mesh job manager task.
+    pub async fn spawn_mesh_job_manager(self: Arc<Self>) {
+        // For now, this is a stub implementation
+        // In a full implementation, this would spawn a background task to manage job lifecycle
+        log::info!("Mesh job manager spawned (stub implementation)");
+    }
+
+    /// Shutdown network services.
+    pub async fn shutdown_network(&self) -> Result<(), CommonError> {
+        // For now, this is a stub implementation
+        // In a full implementation, this would properly shutdown the network service
+        log::info!("Network shutdown requested (stub implementation)");
+        Ok(())
+    }
+
+    /// Get access to the underlying libp2p service if available.
     #[cfg(feature = "enable-libp2p")]
     pub fn get_libp2p_service(&self) -> Result<Arc<icn_network::libp2p_service::Libp2pNetworkService>, CommonError> {
         match &*self.mesh_network_service {
-            MeshNetworkServiceType::Default(service) => {
-                service.get_underlying_broadcast_service()
+            MeshNetworkServiceType::Default(default_service) => {
+                default_service.get_underlying_broadcast_service()
             }
             MeshNetworkServiceType::Stub(_) => {
-                Err(CommonError::InternalError("No libp2p service available in stub mode".to_string()))
+                Err(CommonError::InternalError("Cannot get libp2p service from stub implementation".to_string()))
             }
         }
     }
