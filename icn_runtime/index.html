@@ -90,8 +90,9 @@ implement a custom repair strategy if desired.</p>
 compiled with the <code>async</code> feature, use <code>TokioFileDagStore</code> (requires the Tokio
 runtime):</p>
 
-<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>icn_runtime::context::{RuntimeContext, StubMeshNetworkService, StubSigner};
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>icn_runtime::context::{RuntimeContext, StubMeshNetworkService, Ed25519Signer};
 <span class="kw">use </span>icn_common::Did;
+<span class="kw">use </span>icn_identity::generate_ed25519_keypair;
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>tokio::sync::Mutex;
 
@@ -103,7 +104,7 @@ runtime):</p>
 <span class="kw">let </span>ctx = RuntimeContext::new(
     Did::new(<span class="string">"key"</span>, <span class="string">"node"</span>),
     Arc::new(StubMeshNetworkService::new()),
-    Arc::new(StubSigner::new()),
+    Arc::new(Ed25519Signer::new(generate_ed25519_keypair().<span class="number">0</span>)),
     Arc::new(icn_identity::KeyDidResolver),
     dag_store,
 );</code></pre></div>
