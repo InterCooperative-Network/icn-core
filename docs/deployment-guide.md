@@ -29,6 +29,20 @@ tls_key_path = "./key.pem"
 To use RocksDB as the persistence layer, build `icn-node` with the
 `persist-rocksdb` feature and set `storage_backend = "rocksdb"`.
 
+## Identity
+
+ICN nodes generate a new DID and key on first launch. To supply an encrypted
+key, set the path and passphrase environment variable name:
+
+```toml
+[identity]
+key_path = "/secrets/node.key.enc"
+key_passphrase_env = "ICN_KEY_PASSPHRASE"
+```
+
+The passphrase is read from the environment variable referenced by
+`key_passphrase_env`.
+
 ## Small Federation
 
 For a small group of cooperating nodes, each node may use a persistent store and

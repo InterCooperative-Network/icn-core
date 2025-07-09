@@ -67,6 +67,10 @@ pub struct NodeConfig {
     pub node_did_path: std::path::PathBuf,
     /// Path where the node's private key will be stored/loaded (bs58 encoded).
     pub node_private_key_path: std::path::PathBuf,
+    /// Encrypted private key file for the node identity.
+    pub key_path: Option<std::path::PathBuf>,
+    /// Environment variable name containing the passphrase for `key_path`.
+    pub key_passphrase_env: Option<String>,
     pub node_name: String,
     pub listen_address: String,
     pub bootstrap_peers: Option<Vec<String>>,
@@ -131,6 +135,8 @@ impl Default for NodeConfig {
             node_private_key_bs58: None,
             node_did_path: "./icn_data/node_did.txt".into(),
             node_private_key_path: "./icn_data/node_sk.bs58".into(),
+            key_path: None,
+            key_passphrase_env: None,
             node_name: "ICN Node".to_string(),
             listen_address: "/ip4/0.0.0.0/tcp/0".to_string(),
             bootstrap_peers: None,
@@ -166,6 +172,8 @@ struct IdentitySection {
     node_private_key_bs58: Option<String>,
     node_did_path: Option<PathBuf>,
     node_private_key_path: Option<PathBuf>,
+    key_path: Option<PathBuf>,
+    key_passphrase_env: Option<String>,
     key_rotation_days: Option<u64>,
 }
 
@@ -206,6 +214,8 @@ struct FileNodeConfig {
     node_private_key_bs58: Option<String>,
     node_did_path: Option<PathBuf>,
     node_private_key_path: Option<PathBuf>,
+    key_path: Option<PathBuf>,
+    key_passphrase_env: Option<String>,
     listen_address: Option<String>,
     bootstrap_peers: Option<Vec<String>>,
     enable_p2p: Option<bool>,
@@ -307,7 +317,6 @@ impl NodeConfig {
             self.tls_key_path = Some(v);
         }
 
-
         // nested sections
         let s = file.storage;
         if let Some(v) = s.backend {
@@ -338,6 +347,12 @@ impl NodeConfig {
         }
         if let Some(v) = id.node_private_key_path {
             self.node_private_key_path = v;
+        }
+        if let Some(v) = id.key_path {
+            self.key_path = Some(v);
+        }
+        if let Some(v) = id.key_passphrase_env {
+            self.key_passphrase_env = Some(v);
         }
         if let Some(v) = id.key_rotation_days {
             self.key_rotation_days = v;
@@ -441,6 +456,12 @@ impl NodeConfig {
         if let Ok(val) = std::env::var("ICN_NODE_PRIVATE_KEY_PATH") {
             self.node_private_key_path = val.into();
         }
+        if let Ok(val) = std::env::var("ICN_KEY_PATH") {
+            self.key_path = Some(val.into());
+        }
+        if let Ok(val) = std::env::var("ICN_KEY_PASSPHRASE_ENV") {
+            self.key_passphrase_env = Some(val);
+        }
         if let Ok(val) = std::env::var("ICN_NODE_NAME") {
             self.node_name = val;
         }
@@ -505,6 +526,12 @@ impl NodeConfig {
         }
         if let Some(v) = &cli.node_private_key_path {
             self.node_private_key_path = v.clone();
+        }
+        if let Some(v) = &cli.key_path {
+            self.key_path = Some(v.clone());
+        }
+        if let Some(v) = &cli.key_passphrase_env {
+            self.key_passphrase_env = Some(v.clone());
         }
         if let Some(v) = &cli.node_name {
             self.node_name = v.clone();

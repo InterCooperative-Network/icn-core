@@ -178,6 +178,14 @@ pub struct Cli {
     #[clap(long)]
     pub node_private_key_path: Option<PathBuf>,
 
+    /// Encrypted private key file for the node identity.
+    #[clap(long)]
+    pub key_path: Option<PathBuf>,
+
+    /// Environment variable name containing the passphrase for `key_path`.
+    #[clap(long)]
+    pub key_passphrase_env: Option<String>,
+
     #[clap(
         long,
         help = "Human-readable name for this node (for logging and identification)"
@@ -230,7 +238,21 @@ pub struct Cli {
 /// Load or generate the node identity based on the provided configuration.
 pub fn load_or_generate_identity(
     config: &mut NodeConfig,
-) -> Result<(icn_identity::SigningKey, icn_identity::VerifyingKey, String), CommonError> {
+) -> Result<(icn_runtime::context::Ed25519Signer, String), CommonError> {
+    if let Some(path) = &config.key_path {
+        let env_name = config
+            .key_passphrase_env
+            .as_deref()
+            .unwrap_or("ICN_KEY_PASSPHRASE");
+        let passphrase = std::env::var(env_name).map_err(|_| {
+            CommonError::ConfigError(format!("missing key passphrase env {env_name}"))
+        })?;
+        let signer =
+            icn_runtime::context::Ed25519Signer::from_encrypted_file(path, passphrase.as_bytes())?;
+        let did_str = signer.did().to_string();
+        config.node_did = Some(did_str.clone());
+        return Ok((signer, did_str));
+    }
     if let (Some(did_str), Some(sk_bs58)) = (
         config.node_did.clone(),
         config.node_private_key_bs58.clone(),
@@ -243,7 +265,10 @@ pub fn load_or_generate_identity(
             .map_err(|_| CommonError::IdentityError("Invalid private key length".into()))?;
         let sk = icn_identity::SigningKey::from_bytes(&sk_array);
         let pk = sk.verifying_key();
-        Ok((sk, pk, did_str))
+        Ok((
+            icn_runtime::context::Ed25519Signer::new_with_keys(sk, pk),
+            did_str,
+        ))
     } else if config.node_did_path.exists() && config.node_private_key_path.exists() {
         let did_str = fs::read_to_string(&config.node_did_path)
             .map_err(|e| CommonError::IoError(format!("Failed to read DID file: {e}")))?
@@ -263,7 +288,10 @@ pub fn load_or_generate_identity(
         let pk = sk.verifying_key();
         config.node_did = Some(did_str.clone());
         config.node_private_key_bs58 = Some(sk_bs58);
-        Ok((sk, pk, did_str))
+        Ok((
+            icn_runtime::context::Ed25519Signer::new_with_keys(sk, pk),
+            did_str,
+        ))
     } else {
         let (sk, pk) = generate_ed25519_keypair();
         let did_str = did_key_from_verifying_key(&pk);
@@ -276,7 +304,10 @@ pub fn load_or_generate_identity(
         }
         config.node_did = Some(did_str.clone());
         config.node_private_key_bs58 = Some(sk_bs58);
-        Ok((sk, pk, did_str))
+        Ok((
+            icn_runtime::context::Ed25519Signer::new_with_keys(sk, pk),
+            did_str,
+        ))
     }
 }
 
@@ -834,7 +865,7 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // --- Initialize Node Identity ---
-    let (node_sk, node_pk, node_did_string) = match load_or_generate_identity(&mut config) {
+    let (signer, node_did_string) = match load_or_generate_identity(&mut config) {
         Ok(ids) => ids,
         Err(e) => {
             error!("Failed to initialize node identity: {}", e);
@@ -936,7 +967,7 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
         }
     } else {
         info!("Using local libp2p networking (P2P disabled)");
-        let signer = Arc::new(Ed25519Signer::new_with_keys(node_sk, node_pk));
+        let signer = Arc::new(signer);
         let dag_store_for_rt = match config.init_dag_store() {
             Ok(store) => store,
             Err(e) => {
