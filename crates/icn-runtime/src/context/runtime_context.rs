@@ -213,6 +213,91 @@ impl RuntimeContext {
         })
     }
 
+    /// Create a new context with real libp2p and mDNS services.
+    #[cfg(feature = "enable-libp2p")]
+    pub fn new_with_real_libp2p_and_mdns(
+        current_identity: Did,
+        signer: Arc<dyn Signer>,
+        did_resolver: Arc<dyn icn_identity::DidResolver>,
+        dag_store: Arc<DagStoreMutexType<DagStorageService>>,
+        mana_ledger: SimpleManaLedger,
+        enable_mdns: bool,
+    ) -> Result<Arc<Self>, CommonError> {
+        let network_service = if enable_mdns {
+            Arc::new(icn_network::libp2p_service::Libp2pNetworkService::new_with_mdns()
+                .map_err(|e| CommonError::NetworkError(format!("Failed to create libp2p service: {}", e)))?)
+        } else {
+            Arc::new(icn_network::libp2p_service::Libp2pNetworkService::new()
+                .map_err(|e| CommonError::NetworkError(format!("Failed to create libp2p service: {}", e)))?)
+        };
+        
+        let mesh_network_service = Arc::new(MeshNetworkServiceType::Default(
+            DefaultMeshNetworkService::new(network_service)
+        ));
+
+        let (tx, rx) = mpsc::channel(128);
+        let job_states = Arc::new(DashMap::new());
+        let governance_module = Arc::new(DagStoreMutexType::new(GovernanceModule::new()));
+        let reputation_store = Arc::new(icn_reputation::InMemoryReputationStore::new());
+        let parameters = Arc::new(DashMap::new());
+        let policy_enforcer = None;
+        let time_provider = Arc::new(icn_common::SystemTimeProvider);
+
+        Ok(Arc::new(Self {
+            current_identity,
+            mana_ledger,
+            pending_mesh_jobs_tx: tx,
+            pending_mesh_jobs_rx: TokioMutex::new(rx),
+            job_states,
+            governance_module,
+            mesh_network_service,
+            signer,
+            did_resolver,
+            dag_store,
+            reputation_store,
+            parameters,
+            policy_enforcer,
+            time_provider,
+            default_receipt_wait_ms: 30000,
+        }))
+    }
+
+    /// Create a new context with custom mana ledger and time provider.
+    pub fn new_with_mana_ledger_and_time(
+        current_identity: Did,
+        mana_ledger: SimpleManaLedger,
+        time_provider: Arc<dyn icn_common::TimeProvider>,
+        signer: Arc<dyn Signer>,
+        did_resolver: Arc<dyn icn_identity::DidResolver>,
+        dag_store: Arc<DagStoreMutexType<DagStorageService>>,
+    ) -> Arc<Self> {
+        let mesh_network_service = Arc::new(MeshNetworkServiceType::Stub(StubMeshNetworkService::new()));
+        let (tx, rx) = mpsc::channel(128);
+        let job_states = Arc::new(DashMap::new());
+        let governance_module = Arc::new(DagStoreMutexType::new(GovernanceModule::new()));
+        let reputation_store = Arc::new(icn_reputation::InMemoryReputationStore::new());
+        let parameters = Arc::new(DashMap::new());
+        let policy_enforcer = None;
+
+        Arc::new(Self {
+            current_identity,
+            mana_ledger,
+            pending_mesh_jobs_tx: tx,
+            pending_mesh_jobs_rx: TokioMutex::new(rx),
+            job_states,
+            governance_module,
+            mesh_network_service,
+            signer,
+            did_resolver,
+            dag_store,
+            reputation_store,
+            parameters,
+            policy_enforcer,
+            time_provider,
+            default_receipt_wait_ms: 30000,
+        })
+    }
+
     /// Internal queue mesh job method.
     pub async fn internal_queue_mesh_job(
         self: &Arc<Self>,
@@ -563,5 +648,23 @@ impl RuntimeContext {
         self.parameters.insert(key.clone(), value.clone());
         log::info!("Updated parameter {} to {}", key, value);
         Ok(())
+    }
+
+    /// Get the underlying libp2p service if available.
+    #[cfg(feature = "enable-libp2p")]
+    pub fn get_libp2p_service(&self) -> Result<Arc<icn_network::libp2p_service::Libp2pNetworkService>, CommonError> {
+        match &*self.mesh_network_service {
+            MeshNetworkServiceType::Default(service) => {
+                service.get_underlying_broadcast_service()
+            }
+            MeshNetworkServiceType::Stub(_) => {
+                Err(CommonError::InternalError("No libp2p service available in stub mode".to_string()))
+            }
+        }
+    }
+
+    #[cfg(not(feature = "enable-libp2p"))]
+    pub fn get_libp2p_service(&self) -> Result<(), CommonError> {
+        Err(CommonError::InternalError("libp2p feature not enabled".to_string()))
     }
 } 

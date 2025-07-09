@@ -40,7 +40,7 @@ use icn_protocol::{
 };
 use icn_protocol::{MessagePayload, ProtocolMessage};
 use icn_runtime::context::{
-    DefaultMeshNetworkService, Ed25519Signer, RuntimeContext, StubMeshNetworkService,
+    DefaultMeshNetworkService, Ed25519Signer, RuntimeContext, StubMeshNetworkService, Signer,
 };
 use icn_runtime::{host_anchor_receipt, host_submit_mesh_job, ReputationUpdater};
 use prometheus_client::{encoding::text::encode, registry::Registry};
@@ -2024,7 +2024,15 @@ async fn gov_revoke_handler(
 // GET /governance/proposals
 async fn gov_list_proposals_handler(State(state): State<AppState>) -> impl IntoResponse {
     debug!("Received /governance/proposals request");
-    let gov_mod = state.runtime_context.governance_module.lock().await;
+    let gov_mod = match state.runtime_context.governance_module.lock() {
+        Ok(gov) => gov,
+        Err(e) => {
+            return map_rust_error_to_json_response(
+                format!("Failed to lock governance module: {}", e),
+                StatusCode::INTERNAL_SERVER_ERROR,
+            ).into_response();
+        }
+    };
     match gov_mod.list_proposals() {
         Ok(props) => (StatusCode::OK, Json(props)).into_response(),
         Err(e) => map_rust_error_to_json_response(
@@ -2041,7 +2049,15 @@ async fn gov_get_proposal_handler(
     AxumPath(proposal_id_str): AxumPath<String>,
 ) -> impl IntoResponse {
     debug!("Received /governance/proposal/{} request", proposal_id_str);
-    let gov_mod = state.runtime_context.governance_module.lock().await;
+    let gov_mod = match state.runtime_context.governance_module.lock() {
+        Ok(gov) => gov,
+        Err(e) => {
+            return map_rust_error_to_json_response(
+                format!("Failed to lock governance module: {}", e),
+                StatusCode::INTERNAL_SERVER_ERROR,
+            ).into_response();
+        }
+    };
     let pid = icn_governance::ProposalId(proposal_id_str);
     match gov_mod.get_proposal(&pid) {
         Ok(Some(prop)) => (StatusCode::OK, Json(prop)).into_response(),
