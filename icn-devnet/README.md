@@ -404,5 +404,5 @@ This devnet serves as the foundation for:
 ## 📚 Related Documentation
 
 - [Phase 3 HTTP Gateway](../PHASE_3_HTTP_GATEWAY_SUCCESS.md)
-- [Phase 2B Cross-Node Execution](../PHASE_2B_SUCCESS.md)
-- [ICN Core Architecture](../README.md) 
+- [Phase 2B Cross-Node Execution](../PHASE_2B_SUCCESS.md)- [ICN Core Architecture](../README.md)
+- [10 Node Devnet Results](../docs/ten_node_results.md)
