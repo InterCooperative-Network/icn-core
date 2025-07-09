@@ -981,11 +981,26 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
     info!("ICN RuntimeContext initialized and JobManager spawned.");
 
     // Initialize the node with some mana for job submission
-    rt_ctx
-        .credit_mana(&node_did, 1000)
-        .await
-        .expect("Failed to initialize node with mana");
-    info!("✅ Node initialized with 1000 mana");
+    match rt_ctx.credit_mana(&node_did, 1000).await {
+        Ok(()) => {
+            info!("✅ Node initialized with 1000 mana");
+        }
+        Err(e) => {
+            error!("❌ Failed to initialize node with mana: {:?}", e);
+            error!("Node DID: {:?}", node_did);
+            error!("Mana ledger type: {:?}", rt_ctx.mana_ledger);
+            // Try to get the current balance to see if account exists
+            match rt_ctx.get_mana(&node_did).await {
+                Ok(balance) => {
+                    error!("Current mana balance for node: {}", balance);
+                }
+                Err(balance_err) => {
+                    error!("Failed to get mana balance: {:?}", balance_err);
+                }
+            }
+            return Err(Box::new(e));
+        }
+    }
 
     // --- Create AppState for Axum ---
     let rate_limiter =
