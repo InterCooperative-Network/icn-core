@@ -1,0 +1,1 @@
+{"version":"0.2.0-beta","name":"Federation-Node-A","status_message":"Node DID: did:key:z6MknA1JhdDU69g8Ptj8tvrPtyqQ3nzJqAAgqZf29NhPzfd3, Mana: 0"}

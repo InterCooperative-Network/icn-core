@@ -24,12 +24,12 @@ DOCKER_COMPOSE=""
 MAX_WAIT_TIME=180  # 3 minutes max wait
 HEALTH_CHECK_INTERVAL=5
 
-# Node endpoints
+# Node configuration
 NODE_A_URL="http://localhost:5001"
 NODE_B_URL="http://localhost:5002"
 NODE_C_URL="http://localhost:5003"
 
-# API keys for each node (must match docker-compose.yml)
+# API keys for accessing the nodes
 NODE_A_API_KEY="devnet-a-key"
 NODE_B_API_KEY="devnet-b-key"
 NODE_C_API_KEY="devnet-c-key"

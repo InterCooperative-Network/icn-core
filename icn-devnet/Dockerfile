@@ -32,8 +32,8 @@ COPY tests/ ./tests/
 
 # Build the ICN node binary
 # Increase rustc stack size to avoid segfaults during optimized builds
-# 64 MiB is required for some build steps
-ENV RUST_MIN_STACK=67108864
+# 128 MiB is required for some build steps (as suggested by rustc error)
+ENV RUST_MIN_STACK=134217728
 RUN cargo build --release -p icn-node --features with-libp2p
 
 # Runtime stage

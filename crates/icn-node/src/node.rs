@@ -2001,14 +2001,19 @@ async fn mesh_submit_job_handler(
         }
     };
 
-    // Build minimal JSON; runtime fills in missing fields
-    let minimal_job_json = serde_json::json!({
-        "manifest_cid": manifest_cid,
-        "spec": job_spec,
-        "cost_mana": request.cost_mana,
-    });
+    // Build complete ActualMeshJob structure with placeholder values
+    // The runtime will override id, creator_did, and signature
+    let complete_job = icn_mesh::ActualMeshJob {
+        id: icn_mesh::JobId::from(manifest_cid.clone()), // Placeholder, will be overridden
+        manifest_cid: manifest_cid,
+        spec: job_spec,
+        creator_did: icn_common::Did::from_str("did:placeholder:creator").unwrap(), // Placeholder, will be overridden
+        cost_mana: request.cost_mana,
+        max_execution_wait_ms: None,
+        signature: icn_identity::SignatureBytes(vec![]), // Placeholder, will be overridden
+    };
 
-    let job_json = match serde_json::to_string(&minimal_job_json) {
+    let job_json = match serde_json::to_string(&complete_job) {
         Ok(json) => json,
         Err(e) => {
             return map_rust_error_to_json_response(

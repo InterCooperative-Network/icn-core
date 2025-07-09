@@ -1,0 +1,4 @@
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0100   812  100   521  100   291   627k   350k --:--:-- --:--:-- --:--:--  792k
+{"error":"Mesh job submission failed: Invalid parameters: Failed to deserialize ActualMeshJob: missing field `id` at line 1 column 344. Input: {\"cost_mana\":50,\"manifest_cid\":{\"codec\":85,\"hash_alg\":18,\"hash_bytes\":[32,227,176,196,66,152,252,28,20,154,251,244,200,153,111,185,36,39,174,65,228,100,155,147,76,164,149,153,27,120,82,184,85],\"version\":1},\"spec\":{\"inputs\":[],\"kind\":{\"Echo\":{\"payload\":\"ICN Devnet is working!\"}},\"outputs\":[],\"required_resources\":{\"cpu_cores\":0,\"memory_mb\":0}}}"}
