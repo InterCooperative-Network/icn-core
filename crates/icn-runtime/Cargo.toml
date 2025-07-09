@@ -63,6 +63,7 @@ enable-libp2p = ["dep:libp2p"]
 persist-sled = ["icn-governance/persist-sled", "icn-reputation/persist-sled"]
 persist-sqlite = ["icn-governance/persist-sled", "icn-reputation/persist-sqlite", "icn-economics/persist-sqlite", "icn-dag/persist-sqlite"]
 persist-rocksdb = ["icn-governance/persist-sled", "icn-reputation/persist-rocksdb", "icn-economics/persist-rocksdb", "icn-dag/persist-rocksdb"]
+persist-postgres = ["icn-governance/persist-sled", "icn-dag/persist-postgres"]
 cli = ["dep:clap"]
 async = ["icn-dag/async"]
 
