@@ -1,0 +1,430 @@
+openapi: 3.0.0
+info:
+  title: InterCooperative Network API
+  version: 0.1.0-dev-functional
+servers:
+  - url: http://127.0.0.1:7845
+paths:
+  /info:
+    get:
+      summary: Node information and DID
+      responses:
+        '200':
+          description: Node metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NodeInfo'
+  /status:
+    get:
+      summary: Real-time node status
+      responses:
+        '200':
+          description: Status details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NodeStatus'
+  /health:
+    get:
+      summary: Health check endpoint
+      responses:
+        '200':
+          description: Node is healthy
+  /ready:
+    get:
+      summary: Readiness probe
+      responses:
+        '200':
+          description: Node is ready
+  /mesh/submit:
+    post:
+      summary: Submit a mesh job
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Job created
+          content:
+            application/json:
+              schema:
+                type: object
+  /mesh/jobs:
+    get:
+      summary: List mesh computing jobs
+      responses:
+        '200':
+          description: Job list
+          content:
+            application/json:
+              schema:
+                type: object
+  /mesh/jobs/{job_id}:
+    get:
+      summary: Get specific job status
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Job status
+          content:
+            application/json:
+              schema:
+                type: object
+  /mesh/receipts:
+    post:
+      summary: Submit execution receipt
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Receipt accepted
+  /governance/proposals:
+    get:
+      summary: List governance proposals
+      responses:
+        '200':
+          description: Proposal list
+          content:
+            application/json:
+              schema:
+                type: object
+  /governance/proposal/{id}:
+    get:
+      summary: Fetch a proposal
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Proposal info
+          content:
+            application/json:
+              schema:
+                type: object
+  /governance/submit:
+    post:
+      summary: Submit a proposal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Proposal id
+  /governance/vote:
+    post:
+      summary: Cast a vote
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Vote accepted
+  /governance/delegate:
+    post:
+      summary: Delegate voting power
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Delegation recorded
+  /governance/revoke:
+    post:
+      summary: Revoke a delegation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Delegation revoked
+  /governance/close:
+    post:
+      summary: Close voting
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Vote closed
+  /governance/execute:
+    post:
+      summary: Execute proposal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Execution result
+  /dag/put:
+    post:
+      summary: Store data in DAG
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Cid
+  /dag/get:
+    post:
+      summary: Retrieve data from DAG
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Data block
+          content:
+            application/json:
+              schema:
+                type: object
+  /dag/meta:
+    post:
+      summary: Retrieve DAG metadata
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Metadata
+          content:
+            application/json:
+              schema:
+                type: object
+  /dag/pin:
+    post:
+      summary: Pin a DAG block
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Pinned
+  /dag/unpin:
+    post:
+      summary: Unpin a DAG block
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Unpinned
+  /dag/prune:
+    post:
+      summary: Prune unpinned blocks
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Pruned
+  /network/local-peer-id:
+    get:
+      summary: Show local peer ID
+      responses:
+        '200':
+          description: Peer ID
+          content:
+            application/json:
+              schema:
+                type: object
+  /network/connect:
+    post:
+      summary: Connect to a peer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Connection result
+  /network/peers:
+    get:
+      summary: List network peers
+      responses:
+        '200':
+          description: Peer list
+          content:
+            application/json:
+              schema:
+                type: object
+  /transaction/submit:
+    post:
+      summary: Submit a transaction
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Transaction id
+  /data/query:
+    post:
+      summary: Query data
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Query results
+          content:
+            application/json:
+              schema:
+                type: object
+  /contracts:
+    post:
+      summary: Upload WASM contract
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Upload result
+  /federation/peers:
+    get:
+      summary: List federation peers
+      responses:
+        '200':
+          description: Peers
+          content:
+            application/json:
+              schema:
+                type: object
+    post:
+      summary: Add federation peer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Added
+  /federation/join:
+    post:
+      summary: Join a federation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Joined
+  /federation/leave:
+    post:
+      summary: Leave the federation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Left
+  /federation/status:
+    get:
+      summary: Current federation status
+      responses:
+        '200':
+          description: Status
+          content:
+            application/json:
+              schema:
+                type: object
+  /metrics:
+    get:
+      summary: Prometheus metrics
+      responses:
+        '200':
+          description: Metrics
+          content:
+            text/plain:
+              schema:
+                type: string
+components:
+  schemas:
+    NodeInfo:
+      type: object
+      properties:
+        version:
+          type: string
+        name:
+          type: string
+        status_message:
+          type: string
+    NodeStatus:
+      type: object
+      properties:
+        is_online:
+          type: boolean
+        peer_count:
+          type: integer
+        current_block_height:
+          type: integer
+        version:
+          type: string
