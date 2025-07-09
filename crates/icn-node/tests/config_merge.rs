@@ -5,7 +5,7 @@ use std::fs;
 use tempfile::NamedTempFile;
 
 #[test]
-#[ignore]
+
 fn merge_file_env_cli() {
     // create a temp config file with nested sections
     let file = NamedTempFile::new().unwrap();

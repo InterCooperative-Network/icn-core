@@ -819,7 +819,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_policy_price_weight_overrides_reputation() {
         let job_id = dummy_job_id("job_weight");
         let high_rep = Did::from_str("did:icn:test:highrep").unwrap();
