@@ -27,5 +27,5 @@
 <a href=#27 id=27 data-nosnippet>27</a><span class="kw">pub use </span>stubs::{RuntimeStubDagStore, StubDagStore, StubMeshNetworkService};
 <a href=#28 id=28 data-nosnippet>28</a>
 <a href=#29 id=29 data-nosnippet>29</a><span class="comment">// Conditional compilation helpers for DAG storage service
-<a href=#30 id=30 data-nosnippet>30</a></span><span class="kw">pub type </span>DagStorageService = <span class="kw">dyn </span>icn_dag::StorageService&lt;icn_common::DagBlock&gt; + Send + Sync;
-<a href=#31 id=31 data-nosnippet>31</a><span class="kw">pub type </span>DagStoreMutexType&lt;T&gt; = tokio::sync::Mutex&lt;T&gt;; </code></pre></div></section></main></body></html>
+<a href=#30 id=30 data-nosnippet>30</a></span><span class="kw">pub type </span>DagStorageService =
+<a href=#31 id=31 data-nosnippet>31</a>    <span class="kw">dyn </span>icn_dag::AsyncStorageService&lt;icn_common::DagBlock&gt; + Send;<span class="kw">pub type </span>DagStoreMutexType&lt;T&gt; = tokio::sync::Mutex&lt;T&gt;; </code></pre></div></section></main></body></html>
