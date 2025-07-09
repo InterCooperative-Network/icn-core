@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["MeshNetworkServiceType"],"struct":["CastVotePayload","CloseProposalResult","CreateProposalPayload","RuntimeContext"]};
