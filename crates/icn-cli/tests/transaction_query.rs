@@ -5,7 +5,7 @@ use tokio::task;
 
 #[tokio::test]
 #[serial_test::serial]
-#[ignore] // Integration flow via HTTP; runs slowly
+#[ignore] // HTTP integration broken until router paths are fixed
 async fn submit_transaction_and_query_data() {
     let _ = std::fs::remove_dir_all("./mana_ledger.sled");
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
