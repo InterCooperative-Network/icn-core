@@ -40,8 +40,8 @@ use icn_protocol::{
 };
 use icn_protocol::{MessagePayload, ProtocolMessage};
 use icn_runtime::context::{
-    DefaultMeshNetworkService, Ed25519Signer, RuntimeContext, StubMeshNetworkService, Signer,
-    MeshNetworkServiceType,
+    DefaultMeshNetworkService, Ed25519Signer, MeshNetworkServiceType, RuntimeContext, Signer,
+    StubMeshNetworkService,
 };
 use icn_runtime::{host_anchor_receipt, host_submit_mesh_job, ReputationUpdater};
 use prometheus_client::{encoding::text::encode, registry::Registry};
@@ -535,17 +535,18 @@ pub async fn app_router_with_options(
         mana_ledger_path.unwrap_or_else(|| PathBuf::from("./mana_ledger.sqlite")),
         ledger_backend,
     );
-    let rt_ctx = RuntimeContext::new_with_mana_ledger_and_time(
-        node_did.clone(),
+    let rt_params = icn_runtime::context::RuntimeContextParams {
+        current_identity: node_did.clone(),
         mesh_network_service,
         signer,
-        Arc::new(icn_identity::KeyDidResolver),
-        dag_store_for_rt,
-        ledger,
-        rep_path.clone(),
-        None,
-        Arc::new(icn_common::SystemTimeProvider),
-    );
+        did_resolver: Arc::new(icn_identity::KeyDidResolver),
+        dag_store: dag_store_for_rt,
+        mana_ledger: ledger,
+        reputation_path: rep_path.clone(),
+        policy_enforcer: None,
+        time_provider: Arc::new(icn_common::SystemTimeProvider),
+    };
+    let rt_ctx = RuntimeContext::new_with_mana_ledger_and_time(rt_params);
 
     #[cfg(feature = "persist-sled")]
     {
@@ -1001,17 +1002,18 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
             config.mana_ledger_path.clone(),
             config.mana_ledger_backend,
         );
-        RuntimeContext::new_with_mana_ledger_and_time(
-            node_did.clone(),
+        let rt_params = icn_runtime::context::RuntimeContextParams {
+            current_identity: node_did.clone(),
             mesh_network_service,
             signer,
-            Arc::new(icn_identity::KeyDidResolver),
-            dag_store_for_rt,
-            ledger,
-            config.reputation_db_path.clone(),
-            None,
-            Arc::new(icn_common::SystemTimeProvider),
-        )
+            did_resolver: Arc::new(icn_identity::KeyDidResolver),
+            dag_store: dag_store_for_rt,
+            mana_ledger: ledger,
+            reputation_path: config.reputation_db_path.clone(),
+            policy_enforcer: None,
+            time_provider: Arc::new(icn_common::SystemTimeProvider),
+        };
+        RuntimeContext::new_with_mana_ledger_and_time(rt_params)
     };
 
     #[cfg(feature = "persist-sled")]
@@ -1693,16 +1695,20 @@ async fn dag_meta_handler(
                 CommonError::StorageError(msg) => {
                     CommonError::StorageError(format!("API: Failed to retrieve DagBlock: {}", msg))
                 }
-                CommonError::DeserializationError(msg) => CommonError::DeserializationError(format!(
-                    "API: Deserialization error during get: {}",
-                    msg
+                CommonError::DeserializationError(msg) => CommonError::DeserializationError(
+                    format!("API: Deserialization error during get: {}", msg),
+                ),
+                CommonError::PolicyDenied(msg) => {
+                    CommonError::PolicyDenied(format!("API: {}", msg))
+                }
+                _ => CommonError::ApiError(format!(
+                    "API: Unexpected error during store.get: {:?}",
+                    e
                 )),
-                CommonError::PolicyDenied(msg) => CommonError::PolicyDenied(format!("API: {}", msg)),
-                _ => CommonError::ApiError(format!("API: Unexpected error during store.get: {:?}", e)),
             }),
         }
     };
-    
+
     match metadata_result {
         Ok(Some(meta)) => (StatusCode::OK, Json(meta)).into_response(),
         Ok(None) => map_rust_error_to_json_response("Block not found", StatusCode::NOT_FOUND)
