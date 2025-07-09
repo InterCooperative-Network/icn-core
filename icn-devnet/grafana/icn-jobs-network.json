@@ -12,5 +12,7 @@
     {"type": "gauge", "title": "Kademlia Peers", "id": 6, "datasource": "Prometheus", "targets": [{"expr": "network_kademlia_peers"}], "gridPos": {"h":4,"w":6,"x":6,"y":4}},
     {"type": "timeseries", "title": "Bytes Sent", "id": 7, "datasource": "Prometheus", "targets": [{"expr": "network_bytes_sent_total"}], "gridPos": {"h":8,"w":12,"x":12,"y":4}},
     {"type": "timeseries", "title": "Bytes Received", "id": 8, "datasource": "Prometheus", "targets": [{"expr": "network_bytes_received_total"}], "gridPos": {"h":8,"w":12,"x":0,"y":8}}
+    ,{"type": "stat", "title": "WASM Memory Denials", "id": 9, "datasource": "Prometheus", "targets": [{"expr": "wasm_memory_growth_denied_total"}], "gridPos": {"h":4,"w":6,"x":12,"y":12}}
+    ,{"type": "stat", "title": "WASM Table Denials", "id": 10, "datasource": "Prometheus", "targets": [{"expr": "wasm_table_growth_denied_total"}], "gridPos": {"h":4,"w":6,"x":18,"y":12}}
   ]
 }

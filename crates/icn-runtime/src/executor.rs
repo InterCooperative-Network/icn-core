@@ -1,6 +1,7 @@
 //! This module provides executor-side functionality for running mesh jobs.
 
 use crate::context::RuntimeContext;
+use crate::metrics::{WASM_MEMORY_GROWTH_DENIED, WASM_TABLE_GROWTH_DENIED};
 use crate::{host_account_get_mana, host_get_reputation};
 use icn_ccl::ContractMetadata;
 use icn_common::{Cid, CommonError, Did};
@@ -99,6 +100,7 @@ impl ResourceLimiter for ICNResourceLimiter {
                 "WASM memory limit exceeded: {} bytes > {} bytes",
                 desired, self.max_memory_bytes
             );
+            WASM_MEMORY_GROWTH_DENIED.inc();
             return Ok(false); // Deny the growth
         }
         Ok(true)
@@ -113,6 +115,7 @@ impl ResourceLimiter for ICNResourceLimiter {
         // Limit table growth (simple check)
         if desired > 1000 {
             warn!("WASM table size limit exceeded: {} > {}", desired, 1000);
+            WASM_TABLE_GROWTH_DENIED.inc();
             return Ok(false); // Deny the growth
         }
         Ok(true)

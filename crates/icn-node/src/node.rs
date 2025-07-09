@@ -1340,7 +1340,8 @@ async fn metrics_handler() -> impl IntoResponse {
     use icn_runtime::metrics::{
         HOST_ACCOUNT_GET_MANA_CALLS, HOST_ACCOUNT_SPEND_MANA_CALLS,
         HOST_GET_PENDING_MESH_JOBS_CALLS, HOST_SUBMIT_MESH_JOB_CALLS, JOBS_ACTIVE_GAUGE,
-        JOBS_COMPLETED, JOBS_FAILED, JOBS_SUBMITTED, RECEIPTS_ANCHORED,
+        JOBS_COMPLETED, JOBS_FAILED, JOBS_SUBMITTED, RECEIPTS_ANCHORED, WASM_MEMORY_GROWTH_DENIED,
+        WASM_TABLE_GROWTH_DENIED,
     };
     use prometheus_client::metrics::{counter::Counter, gauge::Gauge, histogram::Histogram};
 
@@ -1453,6 +1454,16 @@ async fn metrics_handler() -> impl IntoResponse {
         "receipts_anchored_total",
         "Execution receipts anchored",
         RECEIPTS_ANCHORED.clone(),
+    );
+    registry.register(
+        "wasm_memory_growth_denied_total",
+        "WASM memory growth denials",
+        WASM_MEMORY_GROWTH_DENIED.clone(),
+    );
+    registry.register(
+        "wasm_table_growth_denied_total",
+        "WASM table growth denials",
+        WASM_TABLE_GROWTH_DENIED.clone(),
     );
 
     // Network metrics
