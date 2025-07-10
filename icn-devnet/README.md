@@ -241,7 +241,7 @@ Pre-built dashboards are available under `grafana/`.
 
 1. Start the monitoring profile with `docker-compose --profile monitoring up -d`.
 2. Open Grafana at [http://localhost:3000](http://localhost:3000) (admin/icnfederation).
-3. Navigate to **Dashboards → Import** and upload `grafana/icn-devnet-overview.json`.
+3. Navigate to **Dashboards → Import** and upload any of the JSON files from `grafana/` such as `icn-devnet-overview.json`, `icn-jobs-network.json`, or `icn-governance.json`.
 
 ### Development Mode
 

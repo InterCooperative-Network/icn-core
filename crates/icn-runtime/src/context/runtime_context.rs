@@ -6,10 +6,12 @@ use super::mesh_network::{DefaultMeshNetworkService, JobAssignmentNotice, MeshNe
 use super::signers::Signer;
 use super::stubs::{StubDagStore, StubMeshNetworkService};
 use super::{DagStorageService, DagStoreMutexType};
+use crate::metrics::{JOBS_ACTIVE_GAUGE, JOBS_COMPLETED, JOBS_FAILED, JOBS_SUBMITTED};
 use dashmap::DashMap;
 use icn_common::{Cid, CommonError, DagBlock, Did};
 use icn_governance::GovernanceModule;
 use icn_identity::ExecutionReceipt as IdentityExecutionReceipt;
+use icn_mesh::metrics::{JOB_PROCESS_TIME, PENDING_JOBS_GAUGE};
 use icn_mesh::{ActualMeshJob, JobId, JobState};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -354,6 +356,8 @@ impl RuntimeContext {
         self: &Arc<Self>,
         job: ActualMeshJob,
     ) -> Result<(), HostAbiError> {
+        JOBS_SUBMITTED.inc();
+        PENDING_JOBS_GAUGE.inc();
         self.pending_mesh_jobs_tx
             .send(job)
             .await
@@ -714,45 +718,63 @@ impl RuntimeContext {
     /// Spawn the mesh job manager task.
     pub async fn spawn_mesh_job_manager(self: Arc<Self>) {
         let ctx = self.clone();
-        
+
         tokio::spawn(async move {
             log::info!("Starting mesh job manager background task");
-            
+
             // Get exclusive access to the receiver
             let mut rx = ctx.pending_mesh_jobs_rx.lock().await;
-            
+
             loop {
                 match rx.recv().await {
                     Some(job) => {
                         let job_id = job.id.clone();
                         log::info!("Job manager received job: {:?}", job_id);
-                        
+
                         // Store the job in the job_states map with Pending state
                         ctx.job_states.insert(job_id.clone(), JobState::Pending);
-                        
+                        PENDING_JOBS_GAUGE.dec();
+
                         // For now, just handle CCL WASM jobs with auto-execution
                         // Regular mesh jobs would go through the full lifecycle (announce, bid, etc.)
                         if job.spec.kind.is_ccl_wasm() {
+                            JOBS_ACTIVE_GAUGE.inc();
+                            let start = std::time::Instant::now();
                             log::info!("Auto-executing CCL WASM job: {:?}", job_id);
-                            
+
                             // Spawn a task to handle CCL WASM execution
                             let ctx_clone = ctx.clone();
                             let job_clone = job.clone();
-                            
+
                             tokio::spawn(async move {
                                 match Self::execute_ccl_wasm_job(&ctx_clone, &job_clone).await {
                                     Ok(receipt) => {
-                                        log::info!("CCL WASM job {:?} completed successfully", job_clone.id);
+                                        log::info!(
+                                            "CCL WASM job {:?} completed successfully",
+                                            job_clone.id
+                                        );
+                                        JOBS_COMPLETED.inc();
+                                        JOB_PROCESS_TIME.observe(start.elapsed().as_secs_f64());
+                                        JOBS_ACTIVE_GAUGE.dec();
                                         ctx_clone.job_states.insert(
                                             job_clone.id.clone(),
-                                            JobState::Completed { receipt }
+                                            JobState::Completed { receipt },
                                         );
                                     }
                                     Err(e) => {
-                                        log::error!("CCL WASM job {:?} failed: {}", job_clone.id, e);
+                                        log::error!(
+                                            "CCL WASM job {:?} failed: {}",
+                                            job_clone.id,
+                                            e
+                                        );
+                                        JOBS_FAILED.inc();
+                                        JOB_PROCESS_TIME.observe(start.elapsed().as_secs_f64());
+                                        JOBS_ACTIVE_GAUGE.dec();
                                         ctx_clone.job_states.insert(
                                             job_clone.id.clone(),
-                                            JobState::Failed { reason: e.to_string() }
+                                            JobState::Failed {
+                                                reason: e.to_string(),
+                                            },
                                         );
                                     }
                                 }
@@ -769,34 +791,36 @@ impl RuntimeContext {
                     }
                 }
             }
-            
+
             log::info!("Mesh job manager background task stopped");
         });
-        
+
         log::info!("Mesh job manager spawned successfully");
     }
-    
+
     /// Execute a CCL WASM job using the built-in executor
     async fn execute_ccl_wasm_job(
         ctx: &Arc<RuntimeContext>,
         job: &ActualMeshJob,
     ) -> Result<icn_identity::ExecutionReceipt, HostAbiError> {
-        use crate::executor::{WasmExecutor, WasmExecutorConfig, JobExecutor};
-        
+        use crate::executor::{JobExecutor, WasmExecutor, WasmExecutorConfig};
+
         // Create a WASM executor
         let executor = WasmExecutor::new(
             ctx.clone(),
             ctx.signer.clone(),
             WasmExecutorConfig::default(),
         );
-        
+
         // Execute the job and anchor the receipt
         let _receipt_cid = executor.execute_and_anchor_job(job).await?;
-        
+
         // Get the receipt by executing the job directly
-        let receipt = executor.execute_job(job).await
+        let receipt = executor
+            .execute_job(job)
+            .await
             .map_err(|e| HostAbiError::InternalError(format!("WASM execution failed: {}", e)))?;
-        
+
         Ok(receipt)
     }
 
@@ -828,4 +852,5 @@ impl RuntimeContext {
         Err(CommonError::InternalError(
             "libp2p feature not enabled".to_string(),
         ))
-    }}
+    }
+}

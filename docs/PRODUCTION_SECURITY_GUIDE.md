@@ -372,6 +372,11 @@ Implementation note: events are emitted using
 `info!(target = "audit", ...)` in
 [`crates/icn-node/src/node.rs`](../crates/icn-node/src/node.rs).
 
+All requests include a `X-Correlation-ID` header for traceability. If a client
+does not supply one, the node generates a UUID and returns it in the response.
+Logs emitted during request handling include this value on the `request` target
+so events across services can be correlated.
+
 ### **Log Monitoring Setup**
 
 ```bash
