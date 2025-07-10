@@ -2,6 +2,8 @@
 
 use super::errors::HostAbiError;
 use icn_common::Did;
+#[cfg(feature = "enable-libp2p")]
+use icn_common::CommonError;
 use icn_identity::{ExecutionReceipt as IdentityExecutionReceipt, SignatureBytes};
 use icn_mesh::{ActualMeshJob, JobId, MeshJobBid};
 use icn_network::NetworkService;

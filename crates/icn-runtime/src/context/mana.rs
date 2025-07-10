@@ -121,8 +121,14 @@ impl SimpleManaLedger {
 
     /// Spend mana from an account.
     pub fn spend(&self, account: &Did, amount: u64) -> Result<(), HostAbiError> {
-        self.ledger.spend(account, amount)?;
-        Ok(())
+        self.ledger.spend(account, amount).map_err(|err| {
+            match err {
+                CommonError::PolicyDenied(msg) if msg.contains("Insufficient mana") => {
+                    HostAbiError::InsufficientMana
+                }
+                other => HostAbiError::from(other),
+            }
+        })
     }
 
     /// Credit mana to an account.

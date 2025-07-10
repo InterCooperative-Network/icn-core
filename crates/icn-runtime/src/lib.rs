@@ -632,8 +632,7 @@ mod tests {
     use super::*;
 
     use super::context::{
-        HostAbiError, RuntimeContext, StubDagStore, StubMeshNetworkService, StubSigner,
-        MeshNetworkServiceType,
+        HostAbiError, RuntimeContext,
     };
     use icn_common::{Cid, Did, ICN_CORE_VERSION};
     use icn_identity::SignatureBytes;
