@@ -1,3 +1,5 @@
+#![allow(clippy::uninlined_format_args)]
+#![allow(clippy::manual_flatten)]
 use icn_ccl::*;
 use std::fs;
 
@@ -28,7 +30,8 @@ fn main() {
         let ccl_source = match fs::read_to_string(contract_file) {
             Ok(source) => source,
             Err(e) => {
-                println!("❌ Failed to readw            continue;
+                println!("❌ Failed to read {}: {}", contract_file, e);
+                continue;
             }
         };
         

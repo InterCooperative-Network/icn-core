@@ -52,3 +52,7 @@ metrics:
 # Build documentation for all crates
 docs:
     cargo doc --workspace --no-deps
+
+# Run CCL property tests
+test-ccl:
+    cargo test -p icn-ccl

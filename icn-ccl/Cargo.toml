@@ -68,6 +68,8 @@ icn-mesh = { path = "../crates/icn-mesh" }
 tokio = { version = "1.0", features = ["full"] }
 # For temporary DAG stores in integration tests
 icn-dag = { path = "../crates/icn-dag" }
+# Property testing
+proptest = "1.4"
 # Add test dependencies
 
 

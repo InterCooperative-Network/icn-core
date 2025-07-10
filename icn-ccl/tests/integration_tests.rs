@@ -180,7 +180,8 @@ async fn test_wasm_executor_with_ccl() {
 
     use icn_common::DagBlock;
 
-    let ctx = RuntimeContext::new_with_stubs_and_mana("did:key:zTestExec", 10).unwrap();
+    let ctx = RuntimeContext::new_with_stubs("did:key:zTestExec").unwrap();
+    ctx.mana_ledger.set_balance(&ctx.current_identity, 10).unwrap();
     let ts = 0u64;
     let author = icn_common::Did::new("key", "tester");
     let sig_opt = None;
@@ -196,7 +197,7 @@ async fn test_wasm_executor_with_ccl() {
     };
     {
         let mut store = ctx.dag_store.lock().await;
-        store.put(&block).unwrap();
+        store.put(&block).await.unwrap();
     }
     let cid = block.cid.clone();
 
@@ -327,7 +328,8 @@ async fn test_wasm_executor_runs_addition() {
 
     use icn_common::DagBlock;
 
-    let ctx = RuntimeContext::new_with_stubs_and_mana("did:key:zAddExecInt", 10).unwrap();
+    let ctx = RuntimeContext::new_with_stubs("did:key:zAddExecInt").unwrap();
+    ctx.mana_ledger.set_balance(&ctx.current_identity, 10).unwrap();
     let ts = 0u64;
     let author = icn_common::Did::new("key", "tester");
     let sig_opt = None;
@@ -343,7 +345,7 @@ async fn test_wasm_executor_runs_addition() {
     };
     {
         let mut store = ctx.dag_store.lock().await;
-        store.put(&block).unwrap();
+        store.put(&block).await.unwrap();
     }
     let cid = block.cid.clone();
 
@@ -384,7 +386,8 @@ async fn test_wasm_executor_runs_proposal_flow() {
         .join("tests/contracts/proposal_flow.ccl");
     let (wasm, _) = compile_ccl_file_to_wasm(&contract_path).expect("compile file");
 
-    let ctx = RuntimeContext::new_with_stubs_and_mana("did:key:zPropFlow", 10).unwrap();
+    let ctx = RuntimeContext::new_with_stubs("did:key:zPropFlow").unwrap();
+    ctx.mana_ledger.set_balance(&ctx.current_identity, 10).unwrap();
     let ts = 0u64;
     let author = icn_common::Did::new("key", "tester");
     let sig_opt = None;
@@ -400,7 +403,7 @@ async fn test_wasm_executor_runs_proposal_flow() {
     };
     {
         let mut store = ctx.dag_store.lock().await;
-        store.put(&block).unwrap();
+        store.put(&block).await.unwrap();
     }
     let cid = block.cid.clone();
 
@@ -446,7 +449,8 @@ async fn test_wasm_executor_runs_voting_logic() {
         .join("tests/contracts/voting_logic.ccl");
     let (wasm, _) = compile_ccl_file_to_wasm(&contract_path).expect("compile file");
 
-    let ctx = RuntimeContext::new_with_stubs_and_mana("did:key:zVoteLogic", 10).unwrap();
+    let ctx = RuntimeContext::new_with_stubs("did:key:zVoteLogic").unwrap();
+    ctx.mana_ledger.set_balance(&ctx.current_identity, 10).unwrap();
     let ts = 0u64;
     let author = icn_common::Did::new("key", "tester");
     let sig_opt = None;
@@ -462,7 +466,7 @@ async fn test_wasm_executor_runs_voting_logic() {
     };
     {
         let mut store = ctx.dag_store.lock().await;
-        store.put(&block).unwrap();
+        store.put(&block).await.unwrap();
     }
     let cid = block.cid.clone();
 
