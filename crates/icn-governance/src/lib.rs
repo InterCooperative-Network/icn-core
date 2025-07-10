@@ -113,6 +113,18 @@ pub struct Vote {
     pub voted_at: u64, // Timestamp
 }
 
+/// Record of an executed proposal persisted to the DAG.
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct ExecutedProposal {
+    /// The proposal that was executed with final status set to [`ProposalStatus::Executed`].
+    pub proposal: Proposal,
+    /// Timestamp of when the proposal was executed.
+    pub executed_at: u64,
+    /// DID of the node that performed the execution.
+    pub executor: Did,
+}
+
 // Define the Backend enum
 #[derive(Debug)]
 enum Backend {
