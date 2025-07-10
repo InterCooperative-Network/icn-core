@@ -1,0 +1,433 @@
+// ICN Cooperative Contract: Treasury Management System
+// This contract manages cooperative financial operations including:
+// - Reserve fund management and allocation
+// - Investment decision-making and risk assessment
+// - Emergency fund usage authorization
+// - Financial policy enforcement and compliance
+
+fn calculate_reserve_allocation(
+    total_revenue: Integer,
+    operating_expenses: Integer,
+    emergency_fund_target: Integer,
+    current_emergency_fund: Integer,
+    growth_fund_target: Integer,
+    current_growth_fund: Integer,
+    member_dividend_percentage: Integer
+) -> Integer {
+    // Returns the amount to allocate to reserves (emergency + growth funds)
+    
+    let net_income = total_revenue - operating_expenses;
+    
+    // Ensure we have positive income to allocate
+    if net_income <= 0 {
+        return 0;
+    }
+    
+    // Calculate emergency fund needs
+    let emergency_fund_deficit = 0;
+    if current_emergency_fund < emergency_fund_target {
+        let emergency_fund_deficit = emergency_fund_target - current_emergency_fund;
+    }
+    
+    // Calculate growth fund needs
+    let growth_fund_deficit = 0;
+    if current_growth_fund < growth_fund_target {
+        let growth_fund_deficit = growth_fund_target - current_growth_fund;
+    }
+    
+    // Calculate member dividend allocation
+    let member_dividend_amount = net_income * member_dividend_percentage / 100;
+    
+    // Calculate available for reserves after dividend
+    let available_for_reserves = net_income - member_dividend_amount;
+    
+    // Priority allocation: Emergency fund first, then growth fund
+    let total_deficit = emergency_fund_deficit + growth_fund_deficit;
+    let reserve_allocation = available_for_reserves;
+    
+    // Cap allocation at total deficit needed
+    if available_for_reserves > total_deficit {
+        let reserve_allocation = total_deficit;
+    }
+    
+    return reserve_allocation;
+}
+
+fn evaluate_emergency_fund_request(
+    request_amount: Integer,
+    current_emergency_fund: Integer,
+    urgency_level: Integer,
+    impact_on_operations: Integer,
+    alternative_funding_available: Integer,
+    approval_votes: Integer,
+    total_voting_members: Integer
+) -> Integer {
+    // Returns: 0 = denied, 1 = approved, 2 = approved with conditions
+    
+    let evaluation_score = 0;
+    
+    // Check if request exceeds available funds
+    if request_amount > current_emergency_fund {
+        return 0; // Denied - insufficient funds
+    }
+    
+    // Check voting threshold (requires 2/3 majority for emergency fund access)
+    let required_votes = total_voting_members * 67 / 100; // 67% threshold
+    if approval_votes < required_votes {
+        return 0; // Denied - insufficient votes
+    }
+    
+    // Urgency assessment (0-35 points)
+    let urgency_points = 0;
+    if urgency_level >= 90 {
+        let urgency_points = 35;
+    } else if urgency_level >= 75 {
+        let urgency_points = 28;
+    } else if urgency_level >= 60 {
+        let urgency_points = 21;
+    } else if urgency_level >= 45 {
+        let urgency_points = 14;
+    } else {
+        let urgency_points = 7;
+    }
+    
+    // Impact on operations (0-30 points)
+    let impact_points = 0;
+    if impact_on_operations >= 90 {
+        let impact_points = 30;
+    } else if impact_on_operations >= 75 {
+        let impact_points = 24;
+    } else if impact_on_operations >= 60 {
+        let impact_points = 18;
+    } else if impact_on_operations >= 45 {
+        let impact_points = 12;
+    } else {
+        let impact_points = 6;
+    }
+    
+    // Alternative funding availability (0-20 points)
+    let alternative_points = 0;
+    if alternative_funding_available == 0 {
+        let alternative_points = 20; // No alternatives available
+    } else if alternative_funding_available == 1 {
+        let alternative_points = 10; // Limited alternatives
+    } else {
+        let alternative_points = 0; // Good alternatives exist
+    }
+    
+    // Amount reasonableness (0-15 points)
+    let amount_points = 0;
+    let fund_percentage = request_amount * 100 / current_emergency_fund;
+    if fund_percentage <= 25 {
+        let amount_points = 15;
+    } else if fund_percentage <= 50 {
+        let amount_points = 12;
+    } else if fund_percentage <= 75 {
+        let amount_points = 8;
+    } else {
+        let amount_points = 4;
+    }
+    
+    let evaluation_score = urgency_points + impact_points + alternative_points + amount_points;
+    
+    // Determine approval status
+    let approval_status = 0;
+    if evaluation_score >= 80 {
+        let approval_status = 1; // Approved
+    } else if evaluation_score >= 60 {
+        let approval_status = 2; // Approved with conditions (staged release)
+    } else {
+        let approval_status = 0; // Denied
+    }
+    
+    return approval_status;
+}
+
+fn assess_investment_opportunity(
+    investment_amount: Integer,
+    expected_return_percentage: Integer,
+    risk_level: Integer,
+    investment_duration_months: Integer,
+    liquidity_requirements: Integer,
+    due_diligence_score: Integer,
+    alignment_with_values: Integer
+) -> Integer {
+    // Returns: 0 = reject, 1 = approve, 2 = approve with reduced amount
+    
+    let investment_score = 0;
+    
+    // Expected return assessment (0-25 points)
+    let return_points = 0;
+    if expected_return_percentage >= 12 {
+        let return_points = 25;
+    } else if expected_return_percentage >= 8 {
+        let return_points = 20;
+    } else if expected_return_percentage >= 6 {
+        let return_points = 15;
+    } else if expected_return_percentage >= 4 {
+        let return_points = 10;
+    } else {
+        let return_points = 5;
+    }
+    
+    // Risk assessment (0-25 points, lower risk = higher points)
+    let risk_points = 0;
+    if risk_level <= 2 {
+        let risk_points = 25; // Low risk
+    } else if risk_level <= 4 {
+        let risk_points = 20; // Medium-low risk
+    } else if risk_level <= 6 {
+        let risk_points = 15; // Medium risk
+    } else if risk_level <= 8 {
+        let risk_points = 10; // Medium-high risk
+    } else {
+        let risk_points = 0; // High risk
+    }
+    
+    // Duration suitability (0-20 points)
+    let duration_points = 0;
+    if investment_duration_months <= 12 {
+        let duration_points = 20;
+    } else if investment_duration_months <= 24 {
+        let duration_points = 15;
+    } else if investment_duration_months <= 36 {
+        let duration_points = 10;
+    } else if investment_duration_months <= 60 {
+        let duration_points = 5;
+    } else {
+        let duration_points = 0;
+    }
+    
+    // Liquidity requirements (0-15 points)
+    let liquidity_points = 0;
+    if liquidity_requirements <= 2 {
+        let liquidity_points = 15; // Low liquidity needs
+    } else if liquidity_requirements <= 4 {
+        let liquidity_points = 12;
+    } else if liquidity_requirements <= 6 {
+        let liquidity_points = 8;
+    } else if liquidity_requirements <= 8 {
+        let liquidity_points = 4;
+    } else {
+        let liquidity_points = 0; // High liquidity needs
+    }
+    
+    // Due diligence quality (0-10 points)
+    let diligence_points = 0;
+    if due_diligence_score >= 90 {
+        let diligence_points = 10;
+    } else if due_diligence_score >= 80 {
+        let diligence_points = 8;
+    } else if due_diligence_score >= 70 {
+        let diligence_points = 6;
+    } else if due_diligence_score >= 60 {
+        let diligence_points = 4;
+    } else {
+        let diligence_points = 0;
+    }
+    
+    // Values alignment (0-5 points)
+    let values_points = 0;
+    if alignment_with_values >= 80 {
+        let values_points = 5;
+    } else if alignment_with_values >= 60 {
+        let values_points = 3;
+    } else if alignment_with_values >= 40 {
+        let values_points = 1;
+    } else {
+        let values_points = 0;
+    }
+    
+    let investment_score = return_points + risk_points + duration_points + liquidity_points + diligence_points + values_points;
+    
+    // Determine investment decision
+    let decision = 0;
+    if investment_score >= 75 {
+        let decision = 1; // Approve full amount
+    } else if investment_score >= 60 {
+        let decision = 2; // Approve with reduced amount (50% allocation)
+    } else {
+        let decision = 0; // Reject
+    }
+    
+    return decision;
+}
+
+fn calculate_expense_approval_limit(
+    expense_category: Integer,
+    member_authority_level: Integer,
+    expense_amount: Integer,
+    budget_remaining: Integer,
+    expense_urgency: Integer
+) -> Integer {
+    // Returns: 0 = denied, 1 = approved, 2 = requires additional approval
+    // expense_category: 1 = operations, 2 = equipment, 3 = marketing, 4 = development, 5 = emergency
+    
+    let approval_limit = 0;
+    
+    // Set base approval limits by member authority level
+    if member_authority_level == 1 { // Junior member
+        let approval_limit = 500;
+    } else if member_authority_level == 2 { // Full member
+        let approval_limit = 1500;
+    } else if member_authority_level == 3 { // Senior member
+        let approval_limit = 3000;
+    } else if member_authority_level == 4 { // Treasurer/Lead
+        let approval_limit = 7500;
+    } else if member_authority_level == 5 { // Board member
+        let approval_limit = 15000;
+    } else {
+        let approval_limit = 0; // No authority
+    }
+    
+    // Category-specific adjustments
+    if expense_category == 1 { // Operations - standard limit
+        // No adjustment
+    } else if expense_category == 2 { // Equipment - 50% higher limit
+        let approval_limit = approval_limit * 150 / 100;
+    } else if expense_category == 3 { // Marketing - 25% lower limit
+        let approval_limit = approval_limit * 75 / 100;
+    } else if expense_category == 4 { // Development - 25% higher limit
+        let approval_limit = approval_limit * 125 / 100;
+    } else if expense_category == 5 { // Emergency - 200% higher limit
+        let approval_limit = approval_limit * 300 / 100;
+    }
+    
+    // Urgency adjustments
+    if expense_urgency >= 90 {
+        let approval_limit = approval_limit * 125 / 100; // 25% increase for urgent
+    } else if expense_urgency <= 30 {
+        let approval_limit = approval_limit * 75 / 100; // 25% decrease for non-urgent
+    }
+    
+    // Check budget availability
+    if expense_amount > budget_remaining {
+        return 0; // Denied - insufficient budget
+    }
+    
+    // Determine approval status
+    let approval_status = 0;
+    if expense_amount <= approval_limit {
+        let approval_status = 1; // Approved
+    } else if expense_amount <= approval_limit * 2 {
+        let approval_status = 2; // Requires additional approval
+    } else {
+        let approval_status = 0; // Denied - exceeds limits
+    }
+    
+    return approval_status;
+}
+
+fn calculate_financial_health_score(
+    current_cash: Integer,
+    monthly_expenses: Integer,
+    emergency_fund: Integer,
+    outstanding_debt: Integer,
+    monthly_revenue: Integer,
+    accounts_receivable: Integer
+) -> Integer {
+    // Returns financial health score (0-100)
+    
+    let health_score = 0;
+    
+    // Cash runway (0-25 points)
+    let cash_runway_months = current_cash / monthly_expenses;
+    let runway_points = 0;
+    if cash_runway_months >= 12 {
+        let runway_points = 25;
+    } else if cash_runway_months >= 6 {
+        let runway_points = 20;
+    } else if cash_runway_months >= 3 {
+        let runway_points = 15;
+    } else if cash_runway_months >= 1 {
+        let runway_points = 10;
+    } else {
+        let runway_points = 0;
+    }
+    
+    // Emergency fund adequacy (0-20 points)
+    let emergency_fund_months = emergency_fund / monthly_expenses;
+    let emergency_points = 0;
+    if emergency_fund_months >= 6 {
+        let emergency_points = 20;
+    } else if emergency_fund_months >= 3 {
+        let emergency_points = 15;
+    } else if emergency_fund_months >= 1 {
+        let emergency_points = 10;
+    } else {
+        let emergency_points = 0;
+    }
+    
+    // Debt to revenue ratio (0-20 points)
+    let annual_revenue = monthly_revenue * 12;
+    let debt_ratio = outstanding_debt * 100 / annual_revenue;
+    let debt_points = 0;
+    if debt_ratio <= 10 {
+        let debt_points = 20;
+    } else if debt_ratio <= 25 {
+        let debt_points = 15;
+    } else if debt_ratio <= 50 {
+        let debt_points = 10;
+    } else if debt_ratio <= 75 {
+        let debt_points = 5;
+    } else {
+        let debt_points = 0;
+    }
+    
+    // Revenue stability (0-20 points)
+    let revenue_stability = 20; // Placeholder - would need historical data
+    
+    // Accounts receivable management (0-15 points)
+    let receivables_ratio = accounts_receivable * 100 / monthly_revenue;
+    let receivables_points = 0;
+    if receivables_ratio <= 30 {
+        let receivables_points = 15;
+    } else if receivables_ratio <= 60 {
+        let receivables_points = 12;
+    } else if receivables_ratio <= 90 {
+        let receivables_points = 8;
+    } else if receivables_ratio <= 120 {
+        let receivables_points = 4;
+    } else {
+        let receivables_points = 0;
+    }
+    
+    let health_score = runway_points + emergency_points + debt_points + revenue_stability + receivables_points;
+    
+    return health_score;
+}
+
+// Main entry point - Example treasury management scenario
+fn run() -> Integer {
+    // Example: Evaluating emergency fund request
+    let request_amount = 8000;           // $8,000 emergency request
+    let current_emergency_fund = 25000;  // $25,000 in emergency fund
+    let urgency_level = 88;              // High urgency
+    let impact_on_operations = 92;       // Critical impact
+    let alternative_funding_available = 0; // No alternatives
+    let approval_votes = 8;              // 8 votes in favor
+    let total_voting_members = 10;       // 10 total voting members
+    
+    // Evaluate emergency fund request
+    let emergency_approval = evaluate_emergency_fund_request(
+        request_amount, current_emergency_fund, urgency_level,
+        impact_on_operations, alternative_funding_available,
+        approval_votes, total_voting_members
+    );
+    
+    // If emergency request approved, also calculate financial health impact
+    if emergency_approval >= 1 {
+        let financial_health = calculate_financial_health_score(
+            35000, // $35,000 current cash
+            12000, // $12,000 monthly expenses
+            25000 - request_amount, // Emergency fund after withdrawal
+            15000, // $15,000 outstanding debt
+            18000, // $18,000 monthly revenue
+            8000   // $8,000 accounts receivable
+        );
+        
+        return financial_health; // Return financial health score
+    }
+    
+    return emergency_approval; // Return emergency approval status
+} 

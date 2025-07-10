@@ -1,0 +1,324 @@
+// ICN Cooperative Contract: Banking and Credit Union System
+// This contract manages cooperative banking services including:
+// - Member loan applications and approval
+// - Mutual credit system and local currency
+// - Interest rate calculation and risk assessment
+// - Credit scoring and member financial health
+
+fn calculate_credit_score(
+    income_stability: Integer,
+    debt_to_income_ratio: Integer,
+    cooperative_participation: Integer,
+    payment_history: Integer,
+    years_membership: Integer
+) -> Integer {
+    // Returns credit score 0-850 (standard credit scoring range)
+    let base_score = 300; // Minimum credit score
+    
+    // Income stability factor (0-150 points)
+    let income_points = 0;
+    let excellent_income_check = income_stability / 90; // 1 if >= 90
+    let good_income_check = income_stability / 70; // 1 if >= 70
+    let fair_income_check = income_stability / 50; // 1 if >= 50
+    
+    let income_points = 150 * excellent_income_check + 
+                       100 * (good_income_check - excellent_income_check) + 
+                       50 * (fair_income_check - good_income_check);
+    
+    // Debt-to-income ratio (0-200 points) - lower is better
+    let debt_ratio_points = 0;
+    let low_debt_check = 40 / debt_to_income_ratio; // 1 if ratio <= 40%
+    let medium_debt_check = 60 / debt_to_income_ratio; // 1 if ratio <= 60%
+    let high_debt_check = 80 / debt_to_income_ratio; // 1 if ratio <= 80%
+    
+    let debt_ratio_points = 200 * low_debt_check + 
+                           120 * (medium_debt_check - low_debt_check) + 
+                           60 * (high_debt_check - medium_debt_check);
+    
+    // Cooperative participation (0-100 points)
+    let participation_points = 0;
+    let high_participation_check = cooperative_participation / 80;
+    let medium_participation_check = cooperative_participation / 60;
+    let low_participation_check = cooperative_participation / 40;
+    
+    let participation_points = 100 * high_participation_check + 
+                              70 * (medium_participation_check - high_participation_check) + 
+                              40 * (low_participation_check - medium_participation_check);
+    
+    // Payment history (0-150 points)
+    let payment_points = 0;
+    let excellent_payment_check = payment_history / 95;
+    let good_payment_check = payment_history / 85;
+    let fair_payment_check = payment_history / 70;
+    
+    let payment_points = 150 * excellent_payment_check + 
+                        100 * (good_payment_check - excellent_payment_check) + 
+                        50 * (fair_payment_check - good_payment_check);
+    
+    // Membership length bonus (0-50 points)
+    let membership_bonus = 0;
+    let long_member_check = years_membership / 5;
+    let medium_member_check = years_membership / 3;
+    let short_member_check = years_membership / 1;
+    
+    let membership_bonus = 50 * long_member_check + 
+                          30 * (medium_member_check - long_member_check) + 
+                          15 * (short_member_check - medium_member_check);
+    
+    let total_score = base_score + income_points + debt_ratio_points + 
+                     participation_points + payment_points + membership_bonus;
+    
+    // Cap at 850
+    let over_cap = total_score / 851; // 1 if > 850
+    let final_score = total_score * (1 - over_cap) + 850 * over_cap;
+    
+    return final_score;
+}
+
+fn calculate_loan_interest_rate(
+    credit_score: Integer,
+    loan_amount: Integer,
+    loan_term_months: Integer,
+    cooperative_base_rate: Integer,
+    member_discount_rate: Integer
+) -> Integer {
+    // Returns interest rate in basis points (e.g., 500 = 5.00%)
+    let base_rate = cooperative_base_rate;
+    
+    // Credit score adjustment
+    let credit_adjustment = 0;
+    let excellent_credit_check = credit_score / 750; // 1 if >= 750
+    let good_credit_check = credit_score / 650; // 1 if >= 650
+    let fair_credit_check = credit_score / 550; // 1 if >= 550
+    
+    let credit_adjustment = (0 - 100) * excellent_credit_check + 
+                           50 * (good_credit_check - excellent_credit_check) + 
+                           150 * (fair_credit_check - good_credit_check) + 
+                           300 * (1 - fair_credit_check);
+    
+    // Loan amount adjustment (larger loans get better rates)
+    let amount_adjustment = 0;
+    let large_loan_check = loan_amount / 50000; // 1 if >= $50,000
+    let medium_loan_check = loan_amount / 20000; // 1 if >= $20,000
+    let small_loan_check = loan_amount / 5000; // 1 if >= $5,000
+    
+    let amount_adjustment = (0 - 50) * large_loan_check + 
+                           (0 - 25) * (medium_loan_check - large_loan_check) + 
+                           25 * (small_loan_check - medium_loan_check) + 
+                           50 * (1 - small_loan_check);
+    
+    // Loan term adjustment (longer terms = higher rates)
+    let term_adjustment = 0;
+    let long_term_check = loan_term_months / 60; // 1 if >= 60 months
+    let medium_term_check = loan_term_months / 36; // 1 if >= 36 months
+    let short_term_check = loan_term_months / 12; // 1 if >= 12 months
+    
+    let term_adjustment = 200 * long_term_check + 
+                         100 * (medium_term_check - long_term_check) + 
+                         50 * (short_term_check - medium_term_check);
+    
+    // Apply member discount
+    let member_discount = member_discount_rate;
+    
+    let final_rate = base_rate + credit_adjustment + amount_adjustment + 
+                    term_adjustment - member_discount;
+    
+    // Minimum rate floor (don't go below 1%)
+    let below_minimum = 100 / final_rate; // 1 if final_rate < 100
+    let adjusted_rate = final_rate * (1 - below_minimum) + 100 * below_minimum;
+    
+    return adjusted_rate;
+}
+
+fn evaluate_loan_application(
+    loan_amount: Integer,
+    monthly_income: Integer,
+    existing_debt: Integer,
+    credit_score: Integer,
+    loan_purpose: Integer,
+    collateral_value: Integer
+) -> Integer {
+    // loan_purpose: 1 = home, 2 = education, 3 = business, 4 = personal
+    // Returns: 0 = rejected, 1 = approved, 2 = approved with conditions
+    
+    let approval_score = 0;
+    
+    // Debt-to-income ratio check (0-30 points)
+    let monthly_debt_payment = existing_debt / 60; // Assume 60 month average
+    let total_debt_payment = monthly_debt_payment + (loan_amount / 60);
+    let debt_to_income = total_debt_payment * 100 / monthly_income;
+    
+    let low_dti_check = 35 / debt_to_income; // 1 if DTI <= 35%
+    let medium_dti_check = 45 / debt_to_income; // 1 if DTI <= 45%
+    let high_dti_check = 55 / debt_to_income; // 1 if DTI <= 55%
+    
+    let dti_points = 30 * low_dti_check + 
+                    20 * (medium_dti_check - low_dti_check) + 
+                    10 * (high_dti_check - medium_dti_check);
+    
+    // Credit score evaluation (0-35 points)
+    let credit_points = 0;
+    let excellent_credit_check = credit_score / 750;
+    let good_credit_check = credit_score / 650;
+    let fair_credit_check = credit_score / 550;
+    
+    let credit_points = 35 * excellent_credit_check + 
+                       25 * (good_credit_check - excellent_credit_check) + 
+                       15 * (fair_credit_check - good_credit_check);
+    
+    // Loan purpose evaluation (0-20 points)
+    let purpose_points = 0;
+    let home_check = loan_purpose / 1 - loan_purpose / 2; // 1 if purpose == 1
+    let education_check = loan_purpose / 2 - loan_purpose / 3; // 1 if purpose == 2
+    let business_check = loan_purpose / 3 - loan_purpose / 4; // 1 if purpose == 3
+    let personal_check = loan_purpose / 4 - loan_purpose / 5; // 1 if purpose == 4
+    
+    let purpose_points = 20 * home_check + 18 * education_check + 
+                        15 * business_check + 10 * personal_check;
+    
+    // Collateral evaluation (0-15 points)
+    let collateral_points = 0;
+    let loan_to_value = loan_amount * 100 / collateral_value;
+    
+    let low_ltv_check = 80 / loan_to_value; // 1 if LTV <= 80%
+    let medium_ltv_check = 90 / loan_to_value; // 1 if LTV <= 90%
+    let high_ltv_check = 100 / loan_to_value; // 1 if LTV <= 100%
+    
+    let collateral_points = 15 * low_ltv_check + 
+                           10 * (medium_ltv_check - low_ltv_check) + 
+                           5 * (high_ltv_check - medium_ltv_check);
+    
+    let approval_score = dti_points + credit_points + purpose_points + collateral_points;
+    
+    // Decision thresholds
+    let approved_check = approval_score / 75; // 1 if >= 75 points
+    let conditional_check = approval_score / 50; // 1 if >= 50 points
+    
+    let decision = 1 * approved_check + 
+                  2 * (conditional_check - approved_check) + 
+                  0 * (1 - conditional_check);
+    
+    return decision;
+}
+
+fn calculate_mutual_credit_limit(
+    member_status: Integer,
+    monthly_income: Integer,
+    cooperative_participation: Integer,
+    credit_history: Integer,
+    endorsements_count: Integer
+) -> Integer {
+    // Returns mutual credit limit in local currency units
+    let base_limit = 1000; // Base $1000 limit
+    
+    // Member status multiplier
+    let status_multiplier = 100; // Default 100%
+    let full_member_check = member_status / 1; // 1 if >= 1 (full member)
+    let senior_member_check = member_status / 2; // 1 if >= 2 (senior member)
+    let board_member_check = member_status / 3; // 1 if >= 3 (board member)
+    
+    let status_multiplier = 100 * (1 - full_member_check) + 
+                           150 * (full_member_check - senior_member_check) + 
+                           200 * (senior_member_check - board_member_check) + 
+                           250 * board_member_check;
+    
+    // Income-based adjustment
+    let income_multiplier = 100; // Default 100%
+    let high_income_check = monthly_income / 5000; // 1 if >= $5000
+    let medium_income_check = monthly_income / 3000; // 1 if >= $3000
+    let low_income_check = monthly_income / 1500; // 1 if >= $1500
+    
+    let income_multiplier = 200 * high_income_check + 
+                           150 * (medium_income_check - high_income_check) + 
+                           100 * (low_income_check - medium_income_check) + 
+                           50 * (1 - low_income_check);
+    
+    // Participation bonus
+    let participation_bonus = cooperative_participation / 10; // 1% per 10 points
+    
+    // Credit history factor
+    let credit_factor = 100; // Default 100%
+    let excellent_credit_check = credit_history / 90;
+    let good_credit_check = credit_history / 75;
+    let fair_credit_check = credit_history / 60;
+    
+    let credit_factor = 150 * excellent_credit_check + 
+                       125 * (good_credit_check - excellent_credit_check) + 
+                       100 * (fair_credit_check - good_credit_check) + 
+                       75 * (1 - fair_credit_check);
+    
+    // Endorsements bonus
+    let endorsement_bonus = endorsements_count * 10; // 10% per endorsement
+    
+    // Calculate final limit
+    let status_adjusted = base_limit * status_multiplier / 100;
+    let income_adjusted = status_adjusted * income_multiplier / 100;
+    let participation_adjusted = income_adjusted * (100 + participation_bonus) / 100;
+    let credit_adjusted = participation_adjusted * credit_factor / 100;
+    let final_limit = credit_adjusted * (100 + endorsement_bonus) / 100;
+    
+    // Cap at reasonable maximum
+    let max_limit = 25000; // $25,000 maximum
+    let over_max = final_limit / max_limit; // 1 if > max_limit
+    let capped_limit = final_limit * (1 - over_max) + max_limit * over_max;
+    
+    return capped_limit;
+}
+
+// Main entry point - Example loan application evaluation
+fn run() -> Integer {
+    // Example: Worker Cooperative Member Loan Application
+    let loan_amount = 15000;        // $15,000 loan request
+    let monthly_income = 4200;      // $4,200 monthly income
+    let existing_debt = 8000;       // $8,000 existing debt
+    let years_membership = 3;       // 3 years cooperative membership
+    let debt_to_income_ratio = 30;  // 30% debt-to-income ratio
+    let cooperative_participation = 85; // 85% participation score
+    let payment_history = 92;       // 92% payment history
+    let loan_purpose = 2;          // Education loan
+    let collateral_value = 20000;  // $20,000 collateral
+    let income_stability = 80;      // 80% income stability
+    
+    // Calculate credit score
+    let credit_score = calculate_credit_score(
+        income_stability,
+        debt_to_income_ratio,
+        cooperative_participation,
+        payment_history,
+        years_membership
+    );
+    
+    // Evaluate loan application
+    let loan_decision = evaluate_loan_application(
+        loan_amount,
+        monthly_income,
+        existing_debt,
+        credit_score,
+        loan_purpose,
+        collateral_value
+    );
+    
+    // Calculate interest rate if approved
+    let interest_rate = calculate_loan_interest_rate(
+        credit_score,
+        loan_amount,
+        60, // 60 month term
+        450, // 4.5% base rate
+        75   // 0.75% member discount
+    );
+    
+    // Calculate mutual credit limit
+    let mutual_credit_limit = calculate_mutual_credit_limit(
+        2, // Senior member status
+        monthly_income,
+        cooperative_participation,
+        payment_history,
+        3  // 3 endorsements
+    );
+    
+    // Return composite result (encoding multiple values)
+    // Format: loan_decision * 10000 + interest_rate * 10 + mutual_credit_limit / 100
+    let composite_result = loan_decision * 10000 + interest_rate * 10 + mutual_credit_limit / 100;
+    
+    return composite_result;
+} 

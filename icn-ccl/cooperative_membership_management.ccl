@@ -1,0 +1,266 @@
+// ICN Cooperative Contract: Membership Management System
+// This contract manages cooperative membership lifecycle including:
+// - Application and screening process
+// - Probationary member evaluation
+// - Full member status progression
+// - Member status changes and governance participation
+
+fn evaluate_membership_application(
+    sponsor_reputation: Integer,
+    sponsor_tenure: Integer,
+    applicant_skills_score: Integer,
+    applicant_values_alignment: Integer,
+    background_check_passed: Integer,
+    financial_contribution: Integer,
+    required_minimum_contribution: Integer
+) -> Integer {
+    // Returns: 0 = rejected, 1 = approved for probationary status
+    let evaluation_score = 0;
+    
+    // Sponsor evaluation (0-30 points)
+    let sponsor_score = 0;
+    let high_rep_check = sponsor_reputation / 80; // 1 if >= 80, 0 otherwise
+    let med_rep_check = sponsor_reputation / 60; // 1 if >= 60, 0 otherwise
+    let sponsor_score = sponsor_score + 20 * high_rep_check;
+    let sponsor_score = sponsor_score + 10 * (med_rep_check - high_rep_check);
+    
+    let long_tenure_check = sponsor_tenure / 2; // 1 if >= 2, 0 otherwise
+    let short_tenure_check = sponsor_tenure / 1; // 1 if >= 1, 0 otherwise
+    let sponsor_score = sponsor_score + 10 * long_tenure_check;
+    let sponsor_score = sponsor_score + 5 * (short_tenure_check - long_tenure_check);
+    
+    // Applicant evaluation (0-40 points)
+    let applicant_score = 0;
+    let high_skills_check = applicant_skills_score / 80; // 1 if >= 80, 0 otherwise
+    let med_skills_check = applicant_skills_score / 60; // 1 if >= 60, 0 otherwise
+    let applicant_score = applicant_score + 20 * high_skills_check;
+    let applicant_score = applicant_score + 10 * (med_skills_check - high_skills_check);
+    
+    let high_values_check = applicant_values_alignment / 80; // 1 if >= 80, 0 otherwise
+    let med_values_check = applicant_values_alignment / 60; // 1 if >= 60, 0 otherwise
+    let applicant_score = applicant_score + 20 * high_values_check;
+    let applicant_score = applicant_score + 10 * (med_values_check - high_values_check);
+    
+    // Background check (0-20 points)
+    let background_score = background_check_passed * 20;
+    
+    // Financial contribution (0-10 points)
+    let financial_meets_req = financial_contribution / required_minimum_contribution;
+    let financial_score = financial_meets_req * 10;
+    
+    let evaluation_score = sponsor_score + applicant_score + background_score + financial_score;
+    
+    // Require minimum 70/100 points for approval
+    let approved = evaluation_score / 70; // 1 if >= 70, 0 otherwise
+    
+    return approved;
+}
+
+fn calculate_probationary_progress(
+    work_hours_completed: Integer,
+    work_quality_average: Integer,
+    collaboration_rating: Integer,
+    attendance_percentage: Integer,
+    months_in_probation: Integer,
+    minimum_probation_months: Integer
+) -> Integer {
+    // Returns: 0 = continue probation, 1 = ready for full membership, 2 = dismissal recommended
+    
+    // Check minimum probation period
+    let min_period_met = months_in_probation / minimum_probation_months;
+    if min_period_met == 0 {
+        return 0; // Continue probation
+    }
+    
+    let progress_score = 0;
+    
+    // Work hours requirement (0-25 points)
+    let hours_160_check = work_hours_completed / 160;
+    let hours_120_check = work_hours_completed / 120;
+    let hours_80_check = work_hours_completed / 80;
+    let hours_score = 25 * hours_160_check + 15 * (hours_120_check - hours_160_check) + 10 * (hours_80_check - hours_120_check);
+    
+    // Work quality (0-30 points)
+    let quality_85_check = work_quality_average / 85;
+    let quality_75_check = work_quality_average / 75;
+    let quality_65_check = work_quality_average / 65;
+    let quality_score = 30 * quality_85_check + 20 * (quality_75_check - quality_85_check) + 10 * (quality_65_check - quality_75_check);
+    
+    // Collaboration (0-25 points)
+    let collab_85_check = collaboration_rating / 85;
+    let collab_75_check = collaboration_rating / 75;
+    let collab_65_check = collaboration_rating / 65;
+    let collaboration_score = 25 * collab_85_check + 15 * (collab_75_check - collab_85_check) + 10 * (collab_65_check - collab_75_check);
+    
+    // Attendance (0-20 points)
+    let attend_90_check = attendance_percentage / 90;
+    let attend_80_check = attendance_percentage / 80;
+    let attend_70_check = attendance_percentage / 70;
+    let attendance_score = 20 * attend_90_check + 15 * (attend_80_check - attend_90_check) + 10 * (attend_70_check - attend_80_check);
+    
+    let progress_score = hours_score + quality_score + collaboration_score + attendance_score;
+    
+    // Determine outcome
+    let excellent_check = progress_score / 80; // 1 if >= 80
+    let good_check = progress_score / 50; // 1 if >= 50
+    
+    let outcome = 1 * excellent_check + 0 * (good_check - excellent_check) + 2 * (1 - good_check);
+    
+    return outcome;
+}
+
+fn calculate_voting_weight(
+    member_status: Integer,
+    years_of_membership: Integer,
+    contribution_level: Integer,
+    leadership_roles: Integer,
+    attendance_record: Integer
+) -> Integer {
+    // member_status: 0 = probationary, 1 = full member, 2 = senior member
+    // Returns voting weight as percentage (0-150)
+    
+    let base_weight = 0;
+    
+    // Base weight by member status
+    let prob_check = 1 - member_status; // 1 if probationary (0), 0 otherwise
+    let full_check = member_status * (2 - member_status); // 1 if full member (1), 0 otherwise
+    let senior_check = member_status / 2; // 1 if senior member (2), 0 otherwise
+    
+    let base_weight = 0 * prob_check + 100 * full_check + 110 * senior_check;
+    
+    // Seniority bonus (up to +20%)
+    let years_5_check = years_of_membership / 5;
+    let years_3_check = years_of_membership / 3;
+    let years_1_check = years_of_membership / 1;
+    let seniority_bonus = 20 * years_5_check + 15 * (years_3_check - years_5_check) + 10 * (years_1_check - years_3_check);
+    
+    // Contribution bonus (up to +15%)
+    let contrib_90_check = contribution_level / 90;
+    let contrib_80_check = contribution_level / 80;
+    let contrib_70_check = contribution_level / 70;
+    let contribution_bonus = 15 * contrib_90_check + 10 * (contrib_80_check - contrib_90_check) + 5 * (contrib_70_check - contrib_80_check);
+    
+    // Leadership bonus (up to +10%)
+    let lead_3_check = leadership_roles / 3;
+    let lead_2_check = leadership_roles / 2;
+    let lead_1_check = leadership_roles / 1;
+    let leadership_bonus = 10 * lead_3_check + 7 * (lead_2_check - lead_3_check) + 5 * (lead_1_check - lead_2_check);
+    
+    // Attendance adjustment (-20% to +5%)
+    let attend_95_check = attendance_record / 95;
+    let attend_85_check = attendance_record / 85;
+    let attend_75_check = attendance_record / 75;
+    let attend_65_check = attendance_record / 65;
+    
+    let attendance_adjustment = 5 * attend_95_check + 0 * (attend_85_check - attend_95_check) + 
+                               (0 - 5) * (attend_75_check - attend_85_check) + 
+                               (0 - 10) * (attend_65_check - attend_75_check) + 
+                               (0 - 20) * (1 - attend_65_check);
+    
+    let final_weight = base_weight + seniority_bonus + contribution_bonus + leadership_bonus + attendance_adjustment;
+    
+    // Cap at 150%
+    let over_cap = final_weight / 151; // 1 if > 150
+    let capped_weight = final_weight * (1 - over_cap) + 150 * over_cap;
+    
+    // Ensure non-negative
+    let negative_check = 1; // Assume positive for simplicity
+    let result = capped_weight * negative_check;
+    
+    return result;
+}
+
+fn evaluate_member_status_change(
+    current_status: Integer,
+    years_of_membership: Integer,
+    performance_score: Integer,
+    leadership_contributions: Integer,
+    community_nominations: Integer,
+    disciplinary_actions: Integer
+) -> Integer {
+    // Returns: 0 = no change, 1 = promotion, 2 = demotion, 3 = probation, 4 = dismissal
+    
+    // Check for dismissal conditions
+    if disciplinary_actions >= 3 {
+        return 4; // Dismissal
+    }
+    
+    if performance_score < 40 {
+        return 4; // Dismissal for poor performance
+    }
+    
+    // Check for probation conditions
+    if performance_score < 60 {
+        return 3; // Probation
+    }
+    
+    // Check for demotion conditions
+    if current_status == 2 && performance_score < 70 {
+        return 2; // Demotion from senior to full member
+    }
+    
+    // Check for promotion conditions
+    if current_status == 1 && years_of_membership >= 3 {
+        let promotion_score = 0;
+        
+        // Performance requirement
+        if performance_score >= 85 {
+            let promotion_score = promotion_score + 40;
+        } else if performance_score >= 80 {
+            let promotion_score = promotion_score + 30;
+        }
+        
+        // Leadership requirement
+        if leadership_contributions >= 5 {
+            let promotion_score = promotion_score + 30;
+        } else if leadership_contributions >= 3 {
+            let promotion_score = promotion_score + 20;
+        }
+        
+        // Community support requirement
+        if community_nominations >= 3 {
+            let promotion_score = promotion_score + 30;
+        } else if community_nominations >= 2 {
+            let promotion_score = promotion_score + 20;
+        }
+        
+        if promotion_score >= 80 {
+            return 1; // Promotion to senior member
+        }
+    }
+    
+    return 0; // No change
+}
+
+// Main entry point - Example membership evaluation
+fn run() -> Integer {
+    // Example: Evaluating a probationary member for full membership
+    let work_hours_completed = 180;     // 180 hours of work
+    let work_quality_average = 82;      // 82% quality rating
+    let collaboration_rating = 88;      // 88% collaboration rating
+    let attendance_percentage = 92;     // 92% attendance
+    let months_in_probation = 6;        // 6 months in probation
+    let minimum_probation_months = 6;   // 6 month minimum
+    
+    // Evaluate probationary progress
+    let progress_result = calculate_probationary_progress(
+        work_hours_completed, work_quality_average, collaboration_rating,
+        attendance_percentage, months_in_probation, minimum_probation_months
+    );
+    
+    // If ready for full membership, calculate voting weight
+    let ready_for_full = progress_result * (2 - progress_result); // 1 if progress_result == 1, 0 otherwise
+    if ready_for_full == 1 {
+        let voting_weight = calculate_voting_weight(
+            1, // Full member status
+            0, // 0 years (new full member)
+            82, // Contribution level matches work quality
+            0, // No leadership roles yet
+            92  // Attendance record
+        );
+        
+        return voting_weight; // Return voting weight as success indicator
+    }
+    
+    return progress_result; // Return progress result (0 = continue, 2 = dismissal)
+} 

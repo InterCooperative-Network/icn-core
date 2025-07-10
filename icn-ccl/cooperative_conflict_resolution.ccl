@@ -1,0 +1,447 @@
+// ICN Cooperative Contract: Conflict Resolution and Mediation System
+// This contract manages cooperative conflict resolution including:
+// - Mediation process coordination and mediator selection
+// - Restorative justice circles and accountability processes  
+// - Community healing and relationship repair
+// - Conflict prevention and early intervention
+
+fn assess_conflict_severity(
+    parties_involved: Integer,
+    emotional_impact: Integer,
+    operational_disruption: Integer,
+    value_misalignment: Integer,
+    escalation_risk: Integer,
+    community_impact: Integer
+) -> Integer {
+    // Returns severity score 0-100
+    let severity_score = 0;
+    
+    // Parties involved factor (more parties = more complex)
+    let parties_points = 0;
+    let many_parties_check = parties_involved / 5; // 1 if >= 5 parties
+    let several_parties_check = parties_involved / 3; // 1 if >= 3 parties
+    let two_parties_check = parties_involved / 2; // 1 if >= 2 parties
+    
+    let parties_points = 20 * many_parties_check + 
+                        15 * (several_parties_check - many_parties_check) + 
+                        10 * (two_parties_check - several_parties_check);
+    
+    // Emotional impact assessment (0-25 points)
+    let emotional_points = 0;
+    let high_emotional_check = emotional_impact / 80;
+    let medium_emotional_check = emotional_impact / 60;
+    let low_emotional_check = emotional_impact / 40;
+    
+    let emotional_points = 25 * high_emotional_check + 
+                          18 * (medium_emotional_check - high_emotional_check) + 
+                          12 * (low_emotional_check - medium_emotional_check);
+    
+    // Operational disruption (0-20 points)
+    let operational_points = 0;
+    let high_disruption_check = operational_disruption / 75;
+    let medium_disruption_check = operational_disruption / 50;
+    let low_disruption_check = operational_disruption / 25;
+    
+    let operational_points = 20 * high_disruption_check + 
+                            15 * (medium_disruption_check - high_disruption_check) + 
+                            10 * (low_disruption_check - medium_disruption_check);
+    
+    // Value misalignment (0-15 points)
+    let values_points = 0;
+    let high_misalignment_check = value_misalignment / 80;
+    let medium_misalignment_check = value_misalignment / 60;
+    let low_misalignment_check = value_misalignment / 40;
+    
+    let values_points = 15 * high_misalignment_check + 
+                       12 * (medium_misalignment_check - high_misalignment_check) + 
+                       8 * (low_misalignment_check - medium_misalignment_check);
+    
+    // Escalation risk (0-10 points)
+    let escalation_points = 0;
+    let high_risk_check = escalation_risk / 80;
+    let medium_risk_check = escalation_risk / 60;
+    let low_risk_check = escalation_risk / 40;
+    
+    let escalation_points = 10 * high_risk_check + 
+                           8 * (medium_risk_check - high_risk_check) + 
+                           5 * (low_risk_check - medium_risk_check);
+    
+    // Community impact (0-10 points)
+    let community_points = 0;
+    let high_impact_check = community_impact / 70;
+    let medium_impact_check = community_impact / 50;
+    let low_impact_check = community_impact / 30;
+    
+    let community_points = 10 * high_impact_check + 
+                          8 * (medium_impact_check - high_impact_check) + 
+                          5 * (low_impact_check - medium_impact_check);
+    
+    let total_severity = parties_points + emotional_points + operational_points + 
+                        values_points + escalation_points + community_points;
+    
+    return total_severity;
+}
+
+fn select_mediator(
+    conflict_type: Integer,
+    mediator_experience: Integer,
+    mediator_training: Integer,
+    cultural_competency: Integer,
+    availability: Integer,
+    neutrality_score: Integer,
+    community_trust: Integer
+) -> Integer {
+    // conflict_type: 1=interpersonal, 2=resource, 3=governance, 4=values
+    // Returns mediator suitability score 0-100
+    let suitability_score = 0;
+    
+    // Experience matching (0-25 points)
+    let experience_points = 0;
+    let extensive_exp_check = mediator_experience / 80;
+    let moderate_exp_check = mediator_experience / 60;
+    let basic_exp_check = mediator_experience / 40;
+    
+    let experience_points = 25 * extensive_exp_check + 
+                           20 * (moderate_exp_check - extensive_exp_check) + 
+                           15 * (basic_exp_check - moderate_exp_check);
+    
+    // Training qualifications (0-20 points)
+    let training_points = 0;
+    let advanced_training_check = mediator_training / 90;
+    let intermediate_training_check = mediator_training / 70;
+    let basic_training_check = mediator_training / 50;
+    
+    let training_points = 20 * advanced_training_check + 
+                         15 * (intermediate_training_check - advanced_training_check) + 
+                         10 * (basic_training_check - intermediate_training_check);
+    
+    // Cultural competency (0-15 points)
+    let cultural_points = 0;
+    let high_competency_check = cultural_competency / 85;
+    let medium_competency_check = cultural_competency / 70;
+    let basic_competency_check = cultural_competency / 55;
+    
+    let cultural_points = 15 * high_competency_check + 
+                         12 * (medium_competency_check - high_competency_check) + 
+                         8 * (basic_competency_check - medium_competency_check);
+    
+    // Availability (0-15 points)
+    let availability_points = 0;
+    let immediately_available_check = availability / 90;
+    let soon_available_check = availability / 70;
+    let eventually_available_check = availability / 50;
+    
+    let availability_points = 15 * immediately_available_check + 
+                             12 * (soon_available_check - immediately_available_check) + 
+                             8 * (eventually_available_check - soon_available_check);
+    
+    // Neutrality score (0-15 points)
+    let neutrality_points = 0;
+    let highly_neutral_check = neutrality_score / 90;
+    let moderately_neutral_check = neutrality_score / 75;
+    let somewhat_neutral_check = neutrality_score / 60;
+    
+    let neutrality_points = 15 * highly_neutral_check + 
+                           12 * (moderately_neutral_check - highly_neutral_check) + 
+                           8 * (somewhat_neutral_check - moderately_neutral_check);
+    
+    // Community trust (0-10 points)
+    let trust_points = 0;
+    let high_trust_check = community_trust / 85;
+    let medium_trust_check = community_trust / 70;
+    let basic_trust_check = community_trust / 55;
+    
+    let trust_points = 10 * high_trust_check + 
+                      8 * (medium_trust_check - high_trust_check) + 
+                      5 * (basic_trust_check - medium_trust_check);
+    
+    let total_suitability = experience_points + training_points + cultural_points + 
+                           availability_points + neutrality_points + trust_points;
+    
+    return total_suitability;
+}
+
+fn design_restorative_process(
+    harm_level: Integer,
+    relationship_importance: Integer,
+    community_involvement: Integer,
+    accountability_needed: Integer,
+    healing_priority: Integer,
+    power_dynamics: Integer
+) -> Integer {
+    // Returns process design score indicating complexity and resource needs
+    let process_complexity = 0;
+    
+    // Harm level assessment (0-25 points)
+    let harm_points = 0;
+    let severe_harm_check = harm_level / 80;
+    let moderate_harm_check = harm_level / 60;
+    let minor_harm_check = harm_level / 40;
+    
+    let harm_points = 25 * severe_harm_check + 
+                     20 * (moderate_harm_check - severe_harm_check) + 
+                     15 * (minor_harm_check - moderate_harm_check);
+    
+    // Relationship importance (0-20 points)
+    let relationship_points = 0;
+    let critical_relationship_check = relationship_importance / 85;
+    let important_relationship_check = relationship_importance / 70;
+    let casual_relationship_check = relationship_importance / 50;
+    
+    let relationship_points = 20 * critical_relationship_check + 
+                             15 * (important_relationship_check - critical_relationship_check) + 
+                             10 * (casual_relationship_check - important_relationship_check);
+    
+    // Community involvement needed (0-20 points)
+    let community_points = 0;
+    let high_involvement_check = community_involvement / 75;
+    let medium_involvement_check = community_involvement / 50;
+    let low_involvement_check = community_involvement / 25;
+    
+    let community_points = 20 * high_involvement_check + 
+                          15 * (medium_involvement_check - high_involvement_check) + 
+                          10 * (low_involvement_check - medium_involvement_check);
+    
+    // Accountability requirements (0-15 points)
+    let accountability_points = 0;
+    let high_accountability_check = accountability_needed / 80;
+    let medium_accountability_check = accountability_needed / 60;
+    let low_accountability_check = accountability_needed / 40;
+    
+    let accountability_points = 15 * high_accountability_check + 
+                               12 * (medium_accountability_check - high_accountability_check) + 
+                               8 * (low_accountability_check - medium_accountability_check);
+    
+    // Healing priority (0-10 points)
+    let healing_points = 0;
+    let high_healing_check = healing_priority / 80;
+    let medium_healing_check = healing_priority / 60;
+    let low_healing_check = healing_priority / 40;
+    
+    let healing_points = 10 * high_healing_check + 
+                        8 * (medium_healing_check - high_healing_check) + 
+                        5 * (low_healing_check - medium_healing_check);
+    
+    // Power dynamics consideration (0-10 points)
+    let power_points = 0;
+    let complex_power_check = power_dynamics / 70;
+    let moderate_power_check = power_dynamics / 50;
+    let simple_power_check = power_dynamics / 30;
+    
+    let power_points = 10 * complex_power_check + 
+                      8 * (moderate_power_check - complex_power_check) + 
+                      5 * (simple_power_check - moderate_power_check);
+    
+    let total_complexity = harm_points + relationship_points + community_points + 
+                          accountability_points + healing_points + power_points;
+    
+    return total_complexity;
+}
+
+fn calculate_intervention_urgency(
+    escalation_rate: Integer,
+    deadline_pressure: Integer,
+    resource_availability: Integer,
+    stakeholder_readiness: Integer,
+    seasonal_factors: Integer
+) -> Integer {
+    // Returns urgency score 0-100
+    let urgency_score = 0;
+    
+    // Escalation rate (0-35 points)
+    let escalation_points = 0;
+    let rapid_escalation_check = escalation_rate / 80;
+    let moderate_escalation_check = escalation_rate / 60;
+    let slow_escalation_check = escalation_rate / 40;
+    
+    let escalation_points = 35 * rapid_escalation_check + 
+                           25 * (moderate_escalation_check - rapid_escalation_check) + 
+                           15 * (slow_escalation_check - moderate_escalation_check);
+    
+    // Deadline pressure (0-25 points)
+    let deadline_points = 0;
+    let immediate_deadline_check = deadline_pressure / 90;
+    let urgent_deadline_check = deadline_pressure / 70;
+    let moderate_deadline_check = deadline_pressure / 50;
+    
+    let deadline_points = 25 * immediate_deadline_check + 
+                         20 * (urgent_deadline_check - immediate_deadline_check) + 
+                         15 * (moderate_deadline_check - urgent_deadline_check);
+    
+    // Resource availability (0-20 points) - higher availability = more urgent intervention possible
+    let resource_points = 0;
+    let high_resources_check = resource_availability / 80;
+    let medium_resources_check = resource_availability / 60;
+    let low_resources_check = resource_availability / 40;
+    
+    let resource_points = 20 * high_resources_check + 
+                         15 * (medium_resources_check - high_resources_check) + 
+                         10 * (low_resources_check - medium_resources_check);
+    
+    // Stakeholder readiness (0-15 points)
+    let readiness_points = 0;
+    let high_readiness_check = stakeholder_readiness / 75;
+    let medium_readiness_check = stakeholder_readiness / 55;
+    let low_readiness_check = stakeholder_readiness / 35;
+    
+    let readiness_points = 15 * high_readiness_check + 
+                          12 * (medium_readiness_check - high_readiness_check) + 
+                          8 * (low_readiness_check - medium_readiness_check);
+    
+    // Seasonal factors (0-5 points) - timing considerations
+    let seasonal_points = 0;
+    let optimal_timing_check = seasonal_factors / 80;
+    let good_timing_check = seasonal_factors / 60;
+    let poor_timing_check = seasonal_factors / 40;
+    
+    let seasonal_points = 5 * optimal_timing_check + 
+                         3 * (good_timing_check - optimal_timing_check) + 
+                         1 * (poor_timing_check - good_timing_check);
+    
+    let total_urgency = escalation_points + deadline_points + resource_points + 
+                       readiness_points + seasonal_points;
+    
+    return total_urgency;
+}
+
+fn evaluate_resolution_success(
+    agreement_reached: Integer,
+    relationship_repair: Integer,
+    behavioral_change: Integer,
+    community_healing: Integer,
+    learning_outcomes: Integer,
+    sustainability: Integer
+) -> Integer {
+    // Returns success score 0-100
+    let success_score = 0;
+    
+    // Agreement reached (0-20 points)
+    let agreement_points = 0;
+    let full_agreement_check = agreement_reached / 1; // 1 if agreement reached
+    let partial_agreement_check = agreement_reached / 2; // 1 if partial agreement
+    
+    let agreement_points = 20 * full_agreement_check + 
+                          12 * (partial_agreement_check - full_agreement_check);
+    
+    // Relationship repair (0-25 points)
+    let repair_points = 0;
+    let excellent_repair_check = relationship_repair / 85;
+    let good_repair_check = relationship_repair / 70;
+    let fair_repair_check = relationship_repair / 55;
+    
+    let repair_points = 25 * excellent_repair_check + 
+                       20 * (good_repair_check - excellent_repair_check) + 
+                       15 * (fair_repair_check - good_repair_check);
+    
+    // Behavioral change (0-20 points)
+    let behavior_points = 0;
+    let significant_change_check = behavioral_change / 80;
+    let moderate_change_check = behavioral_change / 65;
+    let minor_change_check = behavioral_change / 50;
+    
+    let behavior_points = 20 * significant_change_check + 
+                         15 * (moderate_change_check - significant_change_check) + 
+                         10 * (minor_change_check - moderate_change_check);
+    
+    // Community healing (0-15 points)
+    let healing_points = 0;
+    let strong_healing_check = community_healing / 75;
+    let moderate_healing_check = community_healing / 60;
+    let weak_healing_check = community_healing / 45;
+    
+    let healing_points = 15 * strong_healing_check + 
+                        12 * (moderate_healing_check - strong_healing_check) + 
+                        8 * (weak_healing_check - moderate_healing_check);
+    
+    // Learning outcomes (0-10 points)
+    let learning_points = 0;
+    let excellent_learning_check = learning_outcomes / 80;
+    let good_learning_check = learning_outcomes / 65;
+    let fair_learning_check = learning_outcomes / 50;
+    
+    let learning_points = 10 * excellent_learning_check + 
+                         8 * (good_learning_check - excellent_learning_check) + 
+                         5 * (fair_learning_check - good_learning_check);
+    
+    // Sustainability (0-10 points)
+    let sustainability_points = 0;
+    let highly_sustainable_check = sustainability / 85;
+    let moderately_sustainable_check = sustainability / 70;
+    let somewhat_sustainable_check = sustainability / 55;
+    
+    let sustainability_points = 10 * highly_sustainable_check + 
+                               8 * (moderately_sustainable_check - highly_sustainable_check) + 
+                               5 * (somewhat_sustainable_check - moderately_sustainable_check);
+    
+    let total_success = agreement_points + repair_points + behavior_points + 
+                       healing_points + learning_points + sustainability_points;
+    
+    return total_success;
+}
+
+// Main entry point - Example conflict resolution scenario
+fn run() -> Integer {
+    // Example: Worker Cooperative Interpersonal Conflict Resolution
+    let parties_involved = 3;           // 3 people involved
+    let emotional_impact = 75;          // High emotional impact
+    let operational_disruption = 60;    // Moderate operational disruption
+    let value_misalignment = 40;        // Low value misalignment
+    let escalation_risk = 70;           // High escalation risk
+    let community_impact = 55;          // Moderate community impact
+    
+    // Assess conflict severity
+    let severity = assess_conflict_severity(
+        parties_involved,
+        emotional_impact,
+        operational_disruption,
+        value_misalignment,
+        escalation_risk,
+        community_impact
+    );
+    
+    // Select mediator
+    let mediator_suitability = select_mediator(
+        1, // Interpersonal conflict type
+        85, // High mediator experience
+        80, // Good training
+        75, // Good cultural competency
+        90, // High availability
+        85, // High neutrality
+        80  // Good community trust
+    );
+    
+    // Design restorative process
+    let process_complexity = design_restorative_process(
+        65, // Moderate harm level
+        85, // Important relationship
+        70, // Moderate community involvement
+        75, // High accountability needed
+        80, // High healing priority
+        60  // Moderate power dynamics
+    );
+    
+    // Calculate intervention urgency
+    let urgency = calculate_intervention_urgency(
+        75, // High escalation rate
+        60, // Moderate deadline pressure
+        85, // High resource availability
+        70, // Good stakeholder readiness
+        80  // Good seasonal factors
+    );
+    
+    // Evaluate potential resolution success
+    let success_potential = evaluate_resolution_success(
+        1,  // Agreement reached
+        75, // Good relationship repair
+        80, // Good behavioral change
+        70, // Moderate community healing
+        85, // Excellent learning outcomes
+        75  // Good sustainability
+    );
+    
+    // Return composite result encoding multiple metrics
+    // Format: severity + mediator_suitability * 1000 + process_complexity * 10000 + urgency * 100000 + success_potential * 1000000
+    let composite_result = severity + mediator_suitability * 1000 + process_complexity * 10000 + urgency * 100000 + success_potential * 1000000;
+    
+    return composite_result;
+} 

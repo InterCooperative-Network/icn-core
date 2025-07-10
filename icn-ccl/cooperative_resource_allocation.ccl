@@ -1,0 +1,410 @@
+// ICN Cooperative Contract: Resource Allocation System
+// This contract manages fair distribution of cooperative resources including:
+// - Workspace allocation and scheduling
+// - Equipment and tool sharing
+// - Budget allocation for projects
+// - Time allocation for shared activities
+
+fn calculate_workspace_priority(
+    project_urgency: Integer,
+    project_revenue_potential: Integer,
+    team_size: Integer,
+    equipment_needs: Integer,
+    member_seniority: Integer,
+    last_allocation_days_ago: Integer
+) -> Integer {
+    // Returns priority score (0-100) for workspace allocation
+    let priority_score = 0;
+    
+    // Project urgency (0-25 points)
+    let urgency_score = 0;
+    if project_urgency >= 90 {
+        let urgency_score = 25;
+    } else if project_urgency >= 75 {
+        let urgency_score = 20;
+    } else if project_urgency >= 60 {
+        let urgency_score = 15;
+    } else if project_urgency >= 45 {
+        let urgency_score = 10;
+    }
+    
+    // Revenue potential (0-20 points)
+    let revenue_score = 0;
+    if project_revenue_potential >= 10000 {
+        let revenue_score = 20;
+    } else if project_revenue_potential >= 5000 {
+        let revenue_score = 15;
+    } else if project_revenue_potential >= 2000 {
+        let revenue_score = 10;
+    } else if project_revenue_potential >= 1000 {
+        let revenue_score = 5;
+    }
+    
+    // Team size consideration (0-15 points)
+    let team_score = 0;
+    if team_size >= 5 {
+        let team_score = 15;
+    } else if team_size >= 3 {
+        let team_score = 10;
+    } else if team_size >= 2 {
+        let team_score = 7;
+    } else {
+        let team_score = 3;
+    }
+    
+    // Equipment needs (0-15 points)
+    let equipment_score = 0;
+    if equipment_needs >= 4 {
+        let equipment_score = 15;
+    } else if equipment_needs >= 3 {
+        let equipment_score = 12;
+    } else if equipment_needs >= 2 {
+        let equipment_score = 8;
+    } else {
+        let equipment_score = 4;
+    }
+    
+    // Member seniority (0-10 points)
+    let seniority_score = 0;
+    if member_seniority >= 5 {
+        let seniority_score = 10;
+    } else if member_seniority >= 3 {
+        let seniority_score = 7;
+    } else if member_seniority >= 1 {
+        let seniority_score = 5;
+    } else {
+        let seniority_score = 2;
+    }
+    
+    // Fairness adjustment - bonus for waiting longer (0-15 points)
+    let fairness_score = 0;
+    if last_allocation_days_ago >= 30 {
+        let fairness_score = 15;
+    } else if last_allocation_days_ago >= 21 {
+        let fairness_score = 12;
+    } else if last_allocation_days_ago >= 14 {
+        let fairness_score = 8;
+    } else if last_allocation_days_ago >= 7 {
+        let fairness_score = 4;
+    }
+    
+    let priority_score = urgency_score + revenue_score + team_score + equipment_score + seniority_score + fairness_score;
+    
+    return priority_score;
+}
+
+fn allocate_project_budget(
+    total_budget: Integer,
+    project_count: Integer,
+    project_impact_score: Integer,
+    project_feasibility: Integer,
+    member_contribution_hours: Integer,
+    project_innovation_level: Integer,
+    community_support_votes: Integer
+) -> Integer {
+    // Returns allocated budget amount for a specific project
+    
+    // Calculate base allocation (equal share)
+    let base_allocation = total_budget / project_count;
+    
+    // Calculate project score multiplier
+    let project_score = 0;
+    
+    // Impact score (0-30 points)
+    let impact_points = 0;
+    if project_impact_score >= 90 {
+        let impact_points = 30;
+    } else if project_impact_score >= 80 {
+        let impact_points = 25;
+    } else if project_impact_score >= 70 {
+        let impact_points = 20;
+    } else if project_impact_score >= 60 {
+        let impact_points = 15;
+    } else {
+        let impact_points = 10;
+    }
+    
+    // Feasibility score (0-25 points)
+    let feasibility_points = 0;
+    if project_feasibility >= 90 {
+        let feasibility_points = 25;
+    } else if project_feasibility >= 80 {
+        let feasibility_points = 20;
+    } else if project_feasibility >= 70 {
+        let feasibility_points = 15;
+    } else if project_feasibility >= 60 {
+        let feasibility_points = 10;
+    } else {
+        let feasibility_points = 5;
+    }
+    
+    // Member contribution (0-20 points)
+    let contribution_points = 0;
+    if member_contribution_hours >= 200 {
+        let contribution_points = 20;
+    } else if member_contribution_hours >= 150 {
+        let contribution_points = 15;
+    } else if member_contribution_hours >= 100 {
+        let contribution_points = 10;
+    } else if member_contribution_hours >= 50 {
+        let contribution_points = 5;
+    }
+    
+    // Innovation level (0-15 points)
+    let innovation_points = 0;
+    if project_innovation_level >= 4 {
+        let innovation_points = 15;
+    } else if project_innovation_level >= 3 {
+        let innovation_points = 12;
+    } else if project_innovation_level >= 2 {
+        let innovation_points = 8;
+    } else {
+        let innovation_points = 4;
+    }
+    
+    // Community support (0-10 points)
+    let community_points = 0;
+    if community_support_votes >= 10 {
+        let community_points = 10;
+    } else if community_support_votes >= 7 {
+        let community_points = 8;
+    } else if community_support_votes >= 5 {
+        let community_points = 6;
+    } else if community_support_votes >= 3 {
+        let community_points = 4;
+    } else {
+        let community_points = 2;
+    }
+    
+    let project_score = impact_points + feasibility_points + contribution_points + innovation_points + community_points;
+    
+    // Calculate multiplier (0.5x to 2.0x based on score)
+    let multiplier = 50 + project_score; // 50-150 range
+    let adjusted_allocation = base_allocation * multiplier / 100;
+    
+    return adjusted_allocation;
+}
+
+fn schedule_equipment_usage(
+    equipment_type: Integer,
+    request_priority: Integer,
+    requested_duration_hours: Integer,
+    user_training_level: Integer,
+    maintenance_due_days: Integer,
+    current_usage_hours: Integer,
+    max_daily_usage: Integer
+) -> Integer {
+    // Returns: 0 = denied, 1 = approved, 2 = approved with conditions
+    // equipment_type: 1 = 3D printer, 2 = laser cutter, 3 = CNC machine, 4 = recording studio
+    
+    let approval_score = 0;
+    
+    // Check maintenance requirements
+    if maintenance_due_days <= 0 {
+        return 0; // Denied - equipment needs maintenance
+    }
+    
+    // Check daily usage limits
+    if current_usage_hours + requested_duration_hours > max_daily_usage {
+        return 0; // Denied - would exceed daily limit
+    }
+    
+    // Priority evaluation (0-30 points)
+    let priority_points = 0;
+    if request_priority >= 90 {
+        let priority_points = 30;
+    } else if request_priority >= 75 {
+        let priority_points = 25;
+    } else if request_priority >= 60 {
+        let priority_points = 20;
+    } else if request_priority >= 45 {
+        let priority_points = 15;
+    } else {
+        let priority_points = 10;
+    }
+    
+    // Training level requirements (0-25 points)
+    let training_points = 0;
+    let required_training = 0;
+    
+    if equipment_type == 1 { // 3D printer
+        let required_training = 2;
+    } else if equipment_type == 2 { // Laser cutter
+        let required_training = 3;
+    } else if equipment_type == 3 { // CNC machine
+        let required_training = 4;
+    } else if equipment_type == 4 { // Recording studio
+        let required_training = 3;
+    }
+    
+    if user_training_level >= required_training {
+        let training_points = 25;
+    } else if user_training_level >= required_training - 1 {
+        let training_points = 15; // Conditional approval
+    } else {
+        let training_points = 0; // Insufficient training
+    }
+    
+    // Duration reasonableness (0-25 points)
+    let duration_points = 0;
+    if requested_duration_hours <= 2 {
+        let duration_points = 25;
+    } else if requested_duration_hours <= 4 {
+        let duration_points = 20;
+    } else if requested_duration_hours <= 6 {
+        let duration_points = 15;
+    } else if requested_duration_hours <= 8 {
+        let duration_points = 10;
+    } else {
+        let duration_points = 5;
+    }
+    
+    // Equipment availability (0-20 points)
+    let availability_points = 0;
+    let usage_percentage = current_usage_hours * 100 / max_daily_usage;
+    if usage_percentage <= 25 {
+        let availability_points = 20;
+    } else if usage_percentage <= 50 {
+        let availability_points = 15;
+    } else if usage_percentage <= 75 {
+        let availability_points = 10;
+    } else {
+        let availability_points = 5;
+    }
+    
+    let approval_score = priority_points + training_points + duration_points + availability_points;
+    
+    // Determine approval status
+    let approval_status = 0;
+    if approval_score >= 80 {
+        let approval_status = 1; // Approved
+    } else if approval_score >= 60 && user_training_level >= required_training - 1 {
+        let approval_status = 2; // Approved with conditions (supervision required)
+    } else {
+        let approval_status = 0; // Denied
+    }
+    
+    return approval_status;
+}
+
+fn calculate_time_allocation_for_meetings(
+    meeting_importance: Integer,
+    estimated_duration_minutes: Integer,
+    attendee_count: Integer,
+    meeting_frequency: Integer,
+    alternative_methods_available: Integer
+) -> Integer {
+    // Returns: 0 = reject meeting, 1 = approve as requested, 2 = approve with shorter duration
+    
+    let allocation_score = 0;
+    
+    // Importance assessment (0-35 points)
+    let importance_points = 0;
+    if meeting_importance >= 90 {
+        let importance_points = 35;
+    } else if meeting_importance >= 75 {
+        let importance_points = 28;
+    } else if meeting_importance >= 60 {
+        let importance_points = 21;
+    } else if meeting_importance >= 45 {
+        let importance_points = 14;
+    } else {
+        let importance_points = 7;
+    }
+    
+    // Duration efficiency (0-25 points)
+    let duration_points = 0;
+    if estimated_duration_minutes <= 30 {
+        let duration_points = 25;
+    } else if estimated_duration_minutes <= 60 {
+        let duration_points = 20;
+    } else if estimated_duration_minutes <= 90 {
+        let duration_points = 15;
+    } else if estimated_duration_minutes <= 120 {
+        let duration_points = 10;
+    } else {
+        let duration_points = 5;
+    }
+    
+    // Attendee impact (0-20 points)
+    let attendee_points = 0;
+    if attendee_count >= 8 {
+        let attendee_points = 5; // Large meetings less efficient
+    } else if attendee_count >= 5 {
+        let attendee_points = 10;
+    } else if attendee_count >= 3 {
+        let attendee_points = 20;
+    } else {
+        let attendee_points = 15;
+    }
+    
+    // Frequency consideration (0-10 points)
+    let frequency_points = 0;
+    if meeting_frequency == 1 { // One-time meeting
+        let frequency_points = 10;
+    } else if meeting_frequency == 2 { // Weekly
+        let frequency_points = 5;
+    } else if meeting_frequency == 3 { // Daily
+        let frequency_points = 0;
+    } else {
+        let frequency_points = 8; // Monthly or less frequent
+    }
+    
+    // Alternative methods penalty (0-10 points)
+    let alternative_points = 0;
+    if alternative_methods_available == 0 {
+        let alternative_points = 10; // Must meet in person
+    } else if alternative_methods_available == 1 {
+        let alternative_points = 5; // Could use alternative but in-person preferred
+    } else {
+        let alternative_points = 0; // Should use alternative methods
+    }
+    
+    let allocation_score = importance_points + duration_points + attendee_points + frequency_points + alternative_points;
+    
+    // Determine allocation decision
+    let decision = 0;
+    if allocation_score >= 70 {
+        let decision = 1; // Approve as requested
+    } else if allocation_score >= 50 {
+        let decision = 2; // Approve with shorter duration
+    } else {
+        let decision = 0; // Reject - use alternative methods
+    }
+    
+    return decision;
+}
+
+// Main entry point - Example resource allocation scenario
+fn run() -> Integer {
+    // Example: Allocating workspace for urgent project
+    let project_urgency = 85;           // High urgency project
+    let project_revenue_potential = 7500; // $7,500 potential revenue
+    let team_size = 4;                  // 4 person team
+    let equipment_needs = 3;            // Needs 3 pieces of equipment
+    let member_seniority = 2;           // 2 years seniority
+    let last_allocation_days_ago = 18;  // 18 days since last allocation
+    
+    // Calculate workspace priority
+    let workspace_priority = calculate_workspace_priority(
+        project_urgency, project_revenue_potential, team_size,
+        equipment_needs, member_seniority, last_allocation_days_ago
+    );
+    
+    // If workspace priority is high enough, also allocate budget
+    if workspace_priority >= 70 {
+        let budget_allocation = allocate_project_budget(
+            10000, // $10,000 total budget
+            3,     // 3 projects competing
+            82,    // 82% impact score
+            78,    // 78% feasibility
+            160,   // 160 hours member contribution
+            3,     // Innovation level 3
+            8      // 8 community support votes
+        );
+        
+        return budget_allocation; // Return allocated budget
+    }
+    
+    return workspace_priority; // Return workspace priority score
+} 
