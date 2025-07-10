@@ -77,6 +77,16 @@ impl TypeAnnotationNode {
                 | TypeAnnotationNode::Did
         )
     }
+
+    /// Returns true if values of this type live in guest memory rather than
+    /// being passed directly on the stack. Strings and arrays are reference
+    /// types and therefore require memory management in the generated WASM.
+    pub fn requires_memory(&self) -> bool {
+        matches!(
+            self,
+            TypeAnnotationNode::String | TypeAnnotationNode::Array(_)
+        )
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
