@@ -246,6 +246,8 @@ impl RuntimeContext {
         mana_ledger_path: PathBuf,
         _reputation_db_path: PathBuf,
         enable_mdns: bool,
+        signer: Arc<dyn Signer>,
+        did_resolver: Arc<dyn icn_identity::DidResolver>,
     ) -> Result<Arc<Self>, CommonError> {
         use icn_network::libp2p_service::NetworkConfig;
         use std::str::FromStr;
@@ -272,12 +274,8 @@ impl RuntimeContext {
         );
 
         let mesh_network_service = Arc::new(MeshNetworkServiceType::Default(
-            DefaultMeshNetworkService::new(network_service),
+            DefaultMeshNetworkService::new(network_service, signer.clone()),
         ));
-
-        // For now, create stub signer and did resolver - in real implementation these would be created from config
-        let signer = Arc::new(super::signers::StubSigner::new());
-        let did_resolver = Arc::new(icn_identity::KeyDidResolver);
 
         // Use provided DAG store
         let dag_store = dag_store;

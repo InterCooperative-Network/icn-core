@@ -41,6 +41,7 @@ aes-gcm = "0.10"
 pbkdf2 = "0.12"
 zeroize = "1.5"
 hex = "0.4"
+bs58 = "0.5"
 chrono = { version = "0.4", features = ["serde"] }
 
 [dev-dependencies]

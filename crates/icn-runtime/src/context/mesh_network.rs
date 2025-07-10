@@ -1,13 +1,13 @@
 //! Mesh network service types and implementations for the ICN runtime.
 
 use super::errors::HostAbiError;
-use icn_common::{CommonError, Did};
+use icn_common::Did;
 use icn_identity::{ExecutionReceipt as IdentityExecutionReceipt, SignatureBytes};
 use icn_mesh::{ActualMeshJob, JobId, MeshJobBid};
 use icn_network::NetworkService;
 use icn_protocol::{
-    MessagePayload, ProtocolMessage, MeshJobAssignmentMessage, GovernanceProposalMessage,
-    ProposalType
+    GossipMessage, GovernanceProposalMessage, MeshJobAssignmentMessage, MessagePayload,
+    ProposalType, ProtocolMessage,
 };
 use log::debug;
 use serde::{Deserialize, Serialize};
@@ -92,6 +92,7 @@ fn current_timestamp() -> u64 {
 /// Default mesh network service implementation.
 pub struct DefaultMeshNetworkService {
     inner: Arc<dyn NetworkService>,
+    signer: Arc<dyn super::signers::Signer>,
 }
 
 impl std::fmt::Debug for DefaultMeshNetworkService {
@@ -101,8 +102,27 @@ impl std::fmt::Debug for DefaultMeshNetworkService {
 }
 
 impl DefaultMeshNetworkService {
-    pub fn new(service: Arc<dyn NetworkService>) -> Self {
-        Self { inner: service }
+    pub fn new(service: Arc<dyn NetworkService>, signer: Arc<dyn super::signers::Signer>) -> Self {
+        Self {
+            inner: service,
+            signer,
+        }
+    }
+
+    fn sign_message(
+        &self,
+        message: &ProtocolMessage,
+    ) -> Result<icn_network::SignedMessage, HostAbiError> {
+        let mut bytes = self.signer.did().to_string().into_bytes();
+        let msg_bytes = bincode::serialize(message)
+            .map_err(|e| HostAbiError::SerializationError(e.to_string()))?;
+        bytes.extend_from_slice(&msg_bytes);
+        let sig = self.signer.sign(&bytes)?;
+        Ok(icn_network::SignedMessage {
+            message: message.clone(),
+            sender: self.signer.did(),
+            signature: SignatureBytes(sig),
+        })
     }
 
     #[cfg(feature = "enable-libp2p")]
@@ -112,7 +132,9 @@ impl DefaultMeshNetworkService {
         icn_network::NetworkService::as_any(&*self.inner)
             .downcast_ref::<ActualLibp2pNetworkService>()
             .map(|s| Arc::new(s.clone()))
-            .ok_or_else(|| CommonError::InternalError("Failed to downcast to LibP2P service".to_string()))
+            .ok_or_else(|| {
+                CommonError::InternalError("Failed to downcast to LibP2P service".to_string())
+            })
     }
 }
 
@@ -126,17 +148,32 @@ impl MeshNetworkService for DefaultMeshNetworkService {
         let _job_bytes = bincode::serialize(job).map_err(|e| {
             HostAbiError::SerializationError(format!("Failed to serialize job: {}", e))
         })?;
-        
-        // For now, just log the announcement
+
         log::info!("Announcing job {} to network", job.id);
-        
-        // TODO: Send the job announcement to the network
-        Ok(())
+
+        let message = ProtocolMessage {
+            payload: MessagePayload::GossipMessage(GossipMessage {
+                topic: "mesh".into(),
+                payload: format!("announce_job:{}", job.id).into_bytes(),
+                ttl: 1,
+            }),
+            timestamp: current_timestamp(),
+            sender: self.signer.did(),
+            recipient: None,
+            signature: SignatureBytes(Vec::new()),
+            version: 1,
+        };
+
+        let signed = self.sign_message(&message)?;
+        self.inner
+            .broadcast_signed_message(signed)
+            .await
+            .map_err(|e| HostAbiError::NetworkError(format!("Failed to broadcast job: {}", e)))
     }
 
     async fn announce_proposal(&self, proposal_bytes: Vec<u8>) -> Result<(), HostAbiError> {
         debug!("DefaultMeshNetworkService: announcing proposal");
-        
+
         let message = ProtocolMessage {
             payload: MessagePayload::GovernanceProposalAnnouncement(GovernanceProposalMessage {
                 proposal_id: "proposal_id".to_string(), // TODO: Generate a real proposal ID
@@ -147,23 +184,37 @@ impl MeshNetworkService for DefaultMeshNetworkService {
                 proposal_data: proposal_bytes,
             }),
             timestamp: current_timestamp(),
-            sender: Did::from_str("did:example:system").unwrap(), // TODO: Use actual system identity
+            sender: self.signer.did(),
             recipient: None,
-            signature: SignatureBytes(vec![0u8; 64]), // Stub signature
+            signature: SignatureBytes(Vec::new()),
             version: 1,
         };
-        
-        self.inner.broadcast_message(message).await.map_err(|e| {
-            HostAbiError::NetworkError(format!("Failed to broadcast proposal: {}", e))
-        })
+        let signed = self.sign_message(&message)?;
+        self.inner
+            .broadcast_signed_message(signed)
+            .await
+            .map_err(|e| HostAbiError::NetworkError(format!("Failed to broadcast proposal: {}", e)))
     }
 
     async fn announce_vote(&self, _vote_bytes: Vec<u8>) -> Result<(), HostAbiError> {
-        // For now, just log the vote announcement
         log::info!("Announcing vote to network");
-        
-        // TODO: Send the vote announcement to the network
-        Ok(())
+        let message = ProtocolMessage {
+            payload: MessagePayload::GossipMessage(GossipMessage {
+                topic: "vote".into(),
+                payload: Vec::new(),
+                ttl: 1,
+            }),
+            timestamp: current_timestamp(),
+            sender: self.signer.did(),
+            recipient: None,
+            signature: SignatureBytes(Vec::new()),
+            version: 1,
+        };
+        let signed = self.sign_message(&message)?;
+        self.inner
+            .broadcast_signed_message(signed)
+            .await
+            .map_err(|e| HostAbiError::NetworkError(format!("Failed to broadcast vote: {}", e)))
     }
 
     async fn collect_bids_for_job(
@@ -171,8 +222,11 @@ impl MeshNetworkService for DefaultMeshNetworkService {
         job_id: &JobId,
         duration: StdDuration,
     ) -> Result<Vec<MeshJobBid>, HostAbiError> {
-        debug!("DefaultMeshNetworkService: collecting bids for job {:?}", job_id);
-        
+        debug!(
+            "DefaultMeshNetworkService: collecting bids for job {:?}",
+            job_id
+        );
+
         let bids = Vec::new();
 
         tokio::select! {
@@ -184,7 +238,7 @@ impl MeshNetworkService for DefaultMeshNetworkService {
                 // Placeholder - real implementation would check for incoming bid messages
             }
         }
-        
+
         Ok(bids)
     }
 
@@ -196,7 +250,7 @@ impl MeshNetworkService for DefaultMeshNetworkService {
             "DefaultMeshNetworkService: notifying executor {:?} of assignment for job {:?}",
             notice.executor_did, notice.job_id
         );
-        
+
         let assignment_message = MeshJobAssignmentMessage {
             job_id: notice.job_id.clone().into(),
             executor_did: notice.executor_did.clone(),
@@ -204,20 +258,22 @@ impl MeshNetworkService for DefaultMeshNetworkService {
             completion_deadline: current_timestamp() + 3600,
             manifest_cid: None,
         };
-        
+
         let message = ProtocolMessage {
             payload: MessagePayload::MeshJobAssignment(assignment_message),
             timestamp: current_timestamp(),
-            sender: Did::from_str("did:example:system").unwrap(), // TODO: Use actual system identity
+            sender: self.signer.did(),
             recipient: Some(notice.executor_did.clone()),
-            signature: SignatureBytes(vec![0u8; 64]), // Stub signature
+            signature: SignatureBytes(Vec::new()),
             version: 1,
         };
-        
-        // For now, just broadcast - in real implementation would send directly
-        self.inner.broadcast_message(message).await.map_err(|e| {
-            HostAbiError::NetworkError(format!("Failed to send assignment notice: {}", e))
-        })
+        let signed = self.sign_message(&message)?;
+        self.inner
+            .broadcast_signed_message(signed)
+            .await
+            .map_err(|e| {
+                HostAbiError::NetworkError(format!("Failed to send assignment notice: {}", e))
+            })
     }
 
     async fn try_receive_receipt(
@@ -230,7 +286,7 @@ impl MeshNetworkService for DefaultMeshNetworkService {
             "DefaultMeshNetworkService: waiting for receipt for job {:?} from executor {:?}",
             job_id, expected_executor
         );
-        
+
         let receipt = tokio::select! {
             _ = tokio::time::sleep(timeout_duration) => {
                 debug!("Receipt timeout for job {:?}", job_id);
@@ -244,4 +300,5 @@ impl MeshNetworkService for DefaultMeshNetworkService {
         };
 
         Ok(receipt)
-    }}
+    }
+}
