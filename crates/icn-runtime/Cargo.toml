@@ -44,14 +44,14 @@ zeroize = "1.5"
 hex = "0.4"
 bs58 = "0.5"
 chrono = { version = "0.4", features = ["serde"] }
+tempfile = "3"
 
 [dev-dependencies]
 anyhow = "1.0.75"
 wat = "1.0"
 # Needed for integration tests compiling CCL contracts
 icn-ccl = { path = "../../icn-ccl" }
-# For temporary ledger storage during tests
-tempfile = "3"
+# For temporary ledger storage during tests (now in main dependencies)
 # Ensure sequential execution for metrics tests
 serial_test = { version = "3", features = ["async"] }
 # Logging for integration tests

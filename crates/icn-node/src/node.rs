@@ -250,7 +250,7 @@ pub fn load_or_generate_identity(
     config: &mut NodeConfig,
 ) -> Result<(icn_runtime::context::Ed25519Signer, String), CommonError> {
     if let (Some(lib), Some(key_id)) = (&config.hsm_library, &config.hsm_key_id) {
-        let hsm = icn_runtime::context::ExampleHsm::with_key(lib, key_id.clone());
+        let hsm = icn_runtime::context::signers::ExampleHsm::with_key(lib, key_id.clone());
         let signer = icn_runtime::context::Ed25519Signer::from_hsm(&hsm)?;
         let did_str = signer.did().to_string();
         config.node_did = Some(did_str.clone());
@@ -533,7 +533,7 @@ pub async fn app_router_with_options(
     let node_did = Did::from_str(&node_did_string).expect("Failed to create test node DID");
     info!("Test/Embedded Node DID: {}", node_did);
 
-    let signer = Arc::new(Ed25519Signer::new_with_keys(sk, pk));
+    let _signer = Arc::new(Ed25519Signer::new_with_keys(sk, pk)); // Not used with stubs
     let cfg = NodeConfig {
         storage_backend: storage_backend.unwrap_or(StorageBackendType::Memory),
         storage_path: storage_path
@@ -567,26 +567,12 @@ pub async fn app_router_with_options(
     };
     // GovernanceModule is initialized inside RuntimeContext::new
 
-    let rep_path = reputation_db_path
-        .clone()
-        .unwrap_or_else(|| PathBuf::from("./reputation.sled"));
-    let ledger_backend = mana_ledger_backend.unwrap_or_else(crate::config::default_ledger_backend);
-    let ledger = icn_runtime::context::SimpleManaLedger::new_with_backend(
-        mana_ledger_path.unwrap_or_else(|| PathBuf::from("./mana_ledger.sqlite")),
-        ledger_backend,
-    );
-    let params = icn_runtime::context::RuntimeContextParams {
-        current_identity: node_did.clone(),
-        mesh_network_service,
-        signer,
-        did_resolver: Arc::new(icn_identity::KeyDidResolver),
-        dag_store: dag_store_for_rt,
-        mana_ledger: ledger,
-        reputation_path: rep_path.clone(),
-        policy_enforcer: None,
-        time_provider: Arc::new(icn_common::SystemTimeProvider),
-    };
-    let mut rt_ctx = RuntimeContext::new_with_mana_ledger_and_time(params);
+    // Use the new configuration API for testing - use stubs to avoid file system conflicts
+    let node_did_string = node_did.to_string();
+    let mut rt_ctx = RuntimeContext::new_with_stubs_and_mana(
+        &node_did_string,
+        1000, // Initial mana for testing
+    ).expect("Failed to create RuntimeContext for testing");
 
     #[cfg(feature = "persist-sled")]
     {
@@ -603,12 +589,7 @@ pub async fn app_router_with_options(
         }
     }
 
-    // Initialize the test node with some mana for testing
-    rt_ctx
-        .credit_mana(&node_did, 1000)
-        .await
-        .expect("Failed to initialize test node with mana");
-    info!("✅ Test node initialized with 1000 mana");
+    info!("✅ Test node initialized with 1000 mana (via stubs)");
 
     rt_ctx.clone().spawn_mesh_job_manager().await; // Start the job manager
 
@@ -994,31 +975,23 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
                 }
             };
 
-            match RuntimeContext::new_with_real_libp2p_and_mdns(
+            // TODO: P2P networking needs to be handled with a new method in the clean configuration API
+            // For now, use the basic ledger path method and configure P2P separately if needed
+            match RuntimeContext::new_with_ledger_path(
                 &node_did_string,
-                listen_addrs,
-                bootstrap_peers,
-                dag_store_for_rt.clone(),
                 config.mana_ledger_path.clone(),
-                config.reputation_db_path.clone(),
-                config.enable_mdns,
                 signer.clone(),
-                Arc::new(icn_identity::KeyDidResolver),
-            )
-            .await
-            {
+            ) {
                 Ok(ctx) => {
-                    info!("✅ RuntimeContext created with real libp2p networking");
-
-                    // Get libp2p service info for logging
-                    if let Ok(libp2p_service) = ctx.get_libp2p_service() {
-                        info!("📟 Local Peer ID: {}", libp2p_service.local_peer_id());
-                    }
-
+                    info!("✅ RuntimeContext created (P2P networking configuration pending)");
+                    
+                    // TODO: Configure P2P networking here if needed
+                    // This would require extending the clean configuration API to support P2P setup
+                    
                     ctx
                 }
                 Err(e) => {
-                    error!("Failed to create RuntimeContext with libp2p: {}", e);
+                    error!("Failed to create RuntimeContext: {}", e);
                     std::process::exit(1);
                 }
             }
@@ -1056,23 +1029,14 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
             Arc::new(MeshNetworkServiceType::Stub(stub_service))
         };
 
-        let ledger = icn_runtime::context::SimpleManaLedger::new_with_backend(
-            config.mana_ledger_path.clone(),
-            config.mana_ledger_backend,
-        );
         {
-            let params = icn_runtime::context::RuntimeContextParams {
-                current_identity: node_did.clone(),
-                mesh_network_service,
+            // Use the new configuration API for production
+            let node_did_string = node_did.to_string();
+            RuntimeContext::new_with_ledger_path(
+                &node_did_string,
+                config.mana_ledger_path.clone(),
                 signer,
-                did_resolver: Arc::new(icn_identity::KeyDidResolver),
-                dag_store: dag_store_for_rt,
-                mana_ledger: ledger,
-                reputation_path: config.reputation_db_path.clone(),
-                policy_enforcer: None,
-                time_provider: Arc::new(icn_common::SystemTimeProvider),
-            };
-            RuntimeContext::new_with_mana_ledger_and_time(params)
+            ).expect("Failed to create RuntimeContext for production")
         }
     };
 
