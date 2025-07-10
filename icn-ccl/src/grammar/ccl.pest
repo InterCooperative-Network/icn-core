@@ -32,7 +32,8 @@ statement = { let_statement | expression_statement | return_statement | if_state
 let_statement = { "let" ~ identifier ~ "=" ~ expression ~ ";" }
 expression_statement = { expression ~ ";" }
 return_statement = { "return" ~ expression ~ ";" }
-if_statement = { "if" ~ expression ~ block ~ ("else" ~ block)? }
+if_statement = { "if" ~ expression ~ block ~ else_part? }
+else_part = { "else" ~ (if_statement | block) }
 while_statement = { "while" ~ expression ~ block }
 
 // Example: Expressions with proper precedence and unary operators

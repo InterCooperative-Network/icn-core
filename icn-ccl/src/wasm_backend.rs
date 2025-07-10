@@ -630,17 +630,24 @@ impl WasmBackend {
             ));
         }
 
-        if else_block.is_some() {
+        if let Some(else_blk) = else_block {
             instrs.push(Instruction::If(wasm_encoder::BlockType::Empty));
             self.emit_block(then_block, instrs, locals, return_ty, indices)?;
             instrs.push(Instruction::Else);
-            self.emit_block(
-                else_block.as_ref().unwrap(),
-                instrs,
-                locals,
-                return_ty,
-                indices,
-            )?;
+            if else_blk.statements.len() == 1 {
+                if let StatementNode::If {
+                    condition: c,
+                    then_block: t,
+                    else_block: e,
+                } = &else_blk.statements[0]
+                {
+                    self.emit_if_statement(c, t, e, instrs, locals, return_ty, indices)?;
+                } else {
+                    self.emit_block(else_blk, instrs, locals, return_ty, indices)?;
+                }
+            } else {
+                self.emit_block(else_blk, instrs, locals, return_ty, indices)?;
+            }
             instrs.push(Instruction::End);
         } else {
             instrs.push(Instruction::If(wasm_encoder::BlockType::Empty));
