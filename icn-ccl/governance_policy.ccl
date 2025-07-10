@@ -1,0 +1,42 @@
+// ICN Governance Policy: Dynamic Mana Pricing
+// This policy calculates mana costs based on network congestion and user reputation
+
+fn calculate_base_cost(cpu_cores: Integer, memory_mb: Integer) -> Mana {
+    let cpu_cost = cpu_cores * 10;
+    let memory_cost = memory_mb * 2;
+    let base_total = cpu_cost + memory_cost;
+    return base_total;
+}
+
+fn apply_congestion_multiplier(base_cost: Mana, network_load: Integer) -> Mana {
+    if network_load < 50 {
+        return base_cost;
+    } else {
+        let multiplier = network_load / 25;
+        let additional_cost = base_cost * multiplier / 100;
+        return base_cost + additional_cost;
+    }
+}
+
+fn apply_reputation_discount(cost: Mana, reputation: Integer) -> Mana {
+    if reputation >= 80 {
+        let discount = cost * 20 / 100;  // 20% discount for high reputation
+        return cost - discount;
+    } else {
+        if reputation >= 60 {
+            let discount = cost * 10 / 100;  // 10% discount for good reputation
+            return cost - discount;
+        } else {
+            return cost;  // No discount for low reputation
+        }
+    }
+}
+
+// Main policy entry point
+fn run() -> Mana {
+    // Example: Calculate cost for 2 CPU cores, 512 MB RAM, 75% network load, 85 reputation
+    let base = calculate_base_cost(2, 512);
+    let with_congestion = apply_congestion_multiplier(base, 75);
+    let final_cost = apply_reputation_discount(with_congestion, 85);
+    return final_cost;
+} 

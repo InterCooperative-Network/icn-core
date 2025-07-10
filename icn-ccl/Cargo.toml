@@ -22,6 +22,14 @@ path = "test_parameter_fix.rs"
 name = "test_working_features"
 path = "test_working_features.rs"
 
+[[bin]]
+name = "test_governance_policy"
+path = "test_governance_policy.rs"
+
+[[bin]]
+name = "test_ccl_devnet_integration" 
+path = "test_ccl_devnet_integration.rs"
+
 
 [dependencies]
 pest = "2.7" # Or the version you intend to use

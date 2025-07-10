@@ -1,0 +1,11 @@
+// Simple ICN governance policy for testing
+fn calculate_basic_mana(cpu: Integer, memory: Integer) -> Mana {
+    let cpu_cost = cpu * 10;
+    let mem_cost = memory * 2; 
+    let total = cpu_cost + mem_cost;
+    return total;
+}
+
+fn run() -> Mana {
+    return calculate_basic_mana(2, 64);
+}
