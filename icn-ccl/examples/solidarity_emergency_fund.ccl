@@ -1,0 +1,21 @@
+// Example ICN policy: Solidarity emergency fund distribution
+// Calculates a grant for members based on urgency and available budget.
+
+fn calculate_grant(needs: Integer, budget: Integer) -> Integer {
+    let portion = budget / 10;
+    let grant = needs * portion / 100;
+    if grant > portion {
+        return portion;
+    } else {
+        return grant;
+    }
+}
+
+rule fund_request when needs > 0 then allow
+
+fn run() -> Integer {
+    let needs = 75;   // urgency percent
+    let budget = 1000;
+    let grant = calculate_grant(needs, budget);
+    return grant;
+}

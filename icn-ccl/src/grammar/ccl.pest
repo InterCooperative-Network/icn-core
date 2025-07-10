@@ -1,4 +1,10 @@
 // icn-ccl/src/grammar/ccl.pest
+//
+// This grammar defines the Cooperative Contract Language (CCL) syntax used by
+// the compiler. It supports function definitions, policy `rule` statements with
+// actions (`allow`, `deny`, `charge`), standard control flow and basic
+// expressions. See `docs/CCL_LANGUAGE_REFERENCE.md` for an explanation of each
+// construct and examples.
 
 // Define whitespace and comments (parsed but ignored by default)
 WHITESPACE = _{ " " | "\t" | NEWLINE }

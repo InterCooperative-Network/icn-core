@@ -384,6 +384,7 @@ More detailed information can be found in the `README.md` file within each crate
 * [RFC 0010: ICN Governance Core](icn-docs/rfcs/0010-governance-core.md) – governance framework
 * [Mana Policies](docs/mana_policies.md) – economic policy examples
 * [CCL Examples](icn-ccl/tests/contracts/) – governance contract templates
+* [CCL Language Reference](docs/CCL_LANGUAGE_REFERENCE.md) – complete syntax guide
 
 ### **Development Resources**
 * Crate documentation: [icn-common](crates/icn-common/README.md), [icn-dag](crates/icn-dag/README.md), [icn-identity](crates/icn-identity/README.md), [icn-mesh](crates/icn-mesh/README.md), [icn-governance](crates/icn-governance/README.md), [icn-runtime](crates/icn-runtime/README.md), [icn-network](crates/icn-network/README.md)

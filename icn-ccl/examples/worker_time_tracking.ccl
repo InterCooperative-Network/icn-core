@@ -1,0 +1,23 @@
+// Example ICN policy: Worker time tracking and remuneration
+// Totals work hours and computes pay based on an hourly rate.
+
+fn total_hours(hours: Array<Integer>, count: Integer) -> Integer {
+    let sum = 0;
+    let i = 0;
+    while i < count {
+        let sum = sum + hours[i];
+        let i = i + 1;
+    }
+    return sum;
+}
+
+fn calculate_pay(hours: Integer, rate: Integer) -> Mana {
+    return hours * rate;
+}
+
+fn run() -> Mana {
+    let week = [8, 7, 8, 6, 5];
+    let hours = total_hours(week, 5);
+    let pay = calculate_pay(hours, 15);
+    return pay;
+}

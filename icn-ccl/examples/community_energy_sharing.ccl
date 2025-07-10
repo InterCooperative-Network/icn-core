@@ -1,0 +1,21 @@
+// Example ICN policy: Community energy credit distribution
+// Members who produce more electricity than they consume
+// receive credits based on the surplus amount.
+
+fn calculate_share(production: Integer, consumption: Integer) -> Integer {
+    let surplus = production - consumption;
+    if surplus > 0 {
+        return surplus;
+    } else {
+        return 0;
+    }
+}
+
+rule credit_surplus when production > consumption then charge calculate_share(production, consumption)
+
+fn run() -> Integer {
+    let production = 120;
+    let consumption = 80;
+    let credit = calculate_share(production, consumption);
+    return credit;
+}

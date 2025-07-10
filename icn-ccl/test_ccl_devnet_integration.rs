@@ -1,4 +1,5 @@
 #![allow(clippy::uninlined_format_args)]
+#![allow(unused_imports)]
 
 use icn_ccl::{compile_ccl_file_to_wasm, compile_ccl_source_to_wasm};
 use std::path::Path;

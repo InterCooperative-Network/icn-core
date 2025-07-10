@@ -39,6 +39,8 @@ let (wasm, meta) = compile_ccl_source_to_wasm(source)?;
 
 CLI-oriented helpers live in the `cli` module for tools like `icn-cli` to compile `.ccl` files from disk.
 
+Real-world sample contracts are available under [`examples/`](examples/) and demonstrate features like `rule` statements and `while` loops.
+
 ### End-to-End Workflow
 
 1. **Write a CCL policy** – author a `.ccl` file describing the desired logic.
@@ -78,6 +80,10 @@ Several example contracts live in `tests/contracts/`:
 
 These files can be compiled with `compile_ccl_file_to_wasm` and executed using
 the `WasmExecutor` as shown in the integration tests.
+
+Additional real‑world policies are provided in [`examples/`](examples/). The
+`worker_time_tracking.ccl` file illustrates loops and array usage while
+`community_energy_sharing.ccl` demonstrates `rule` actions such as `charge`.
 
 ## Mana Policies
 
