@@ -46,11 +46,12 @@ curl -X GET https://localhost:8080/info \
 
 ### Example DAG Operations
 ```bash
-# Store a DAG block
+# Store a DAG block and receive a CID string
 curl -X POST https://localhost:8080/dag/put \
   -H "Content-Type: application/json" \
   -H "x-api-key: your-api-key" \
-  -d '{"data": "your-data", "links": []}'
+  -d '{"data": "your-data"}'
+# => "bafy...cid-string"
 
 # Retrieve a DAG block
 curl -X POST https://localhost:8080/dag/get \

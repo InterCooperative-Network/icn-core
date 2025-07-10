@@ -1666,7 +1666,7 @@ async fn dag_put_handler(
     };
     let mut store = state.runtime_context.dag_store.lock().await;
     match store.put(&dag_block).await {
-        Ok(()) => (StatusCode::CREATED, Json(dag_block.cid)).into_response(),
+        Ok(()) => (StatusCode::CREATED, Json(dag_block.cid.to_string())).into_response(),
         Err(e) => map_rust_error_to_json_response(
             format!("DAG put error: {}", e),
             StatusCode::INTERNAL_SERVER_ERROR,
