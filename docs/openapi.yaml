@@ -227,11 +227,11 @@ paths:
               $ref: '#/components/schemas/DagBlockPayload'
       responses:
         '200':
-          description: Cid
+          description: CID string
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Cid'
+                type: string
   /dag/get:
     post:
       summary: Retrieve data from DAG

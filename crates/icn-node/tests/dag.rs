@@ -1,4 +1,4 @@
-use icn_common::Cid;
+use icn_common::{parse_cid_from_string, Cid};
 use icn_node::app_router;
 use reqwest::Client;
 use tokio::task;
@@ -19,7 +19,8 @@ async fn dag_put_and_get_round_trip() {
         .await
         .unwrap();
     assert_eq!(put_resp.status(), reqwest::StatusCode::CREATED);
-    let cid: Cid = put_resp.json().await.unwrap();
+    let cid_str: String = put_resp.json().await.unwrap();
+    let cid = parse_cid_from_string(&cid_str).expect("invalid cid returned");
 
     let get_resp = client
         .post(format!("http://{addr}/dag/get"))
