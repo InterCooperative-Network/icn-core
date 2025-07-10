@@ -1,0 +1,6 @@
+// Example generated from icn-governance-templates crate
+// Simplified treasury management template
+fn request_funds(amount: Mana) -> Mana { return amount; }
+fn approve_request(v: Mana) -> Mana { return v; }
+fn execute_transfer(v: Mana) -> Mana { return v; }
+fn run() -> Mana { return execute_transfer(approve_request(request_funds(100))); }

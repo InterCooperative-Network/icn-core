@@ -1,3 +1,4 @@
+#![allow(clippy::while_let_on_iterator)]
 // icn-ccl/src/parser.rs
 use crate::ast::{
     ActionNode, AstNode, BinaryOperator, BlockNode, ExpressionNode, ParameterNode,

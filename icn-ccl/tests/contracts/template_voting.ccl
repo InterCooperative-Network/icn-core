@@ -1,0 +1,6 @@
+// Example generated from icn-governance-templates crate
+// Basic voting workflow template
+fn open_vote() -> Integer { return 0; }
+fn cast_vote(v: Integer) -> Integer { return v + 1; }
+fn close_vote(v: Integer) -> Integer { return v; }
+fn run() -> Integer { return close_vote(cast_vote(open_vote())); }

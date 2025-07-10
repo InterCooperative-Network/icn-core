@@ -1,9 +1,10 @@
 #![allow(clippy::uninlined_format_args)]
+#![allow(unused_imports)]
 
 use icn_ccl::{compile_ccl_file_to_wasm, compile_ccl_source_to_wasm};
+use std::fs;
 use std::path::Path;
 use std::process::Command;
-use std::fs;
 
 fn main() {
     println!("🚀 ICN CCL → Devnet Integration Test 🚀\n");
@@ -38,7 +39,8 @@ fn main() {
 
             // Test 2: Show what a CCL WASM job submission would look like
             println!("\n=== Step 2: CCL WASM Job Specification ===");
-            let ccl_job_spec = format!(r#"{{
+            let ccl_job_spec = format!(
+                r#"{{
     "manifest_cid": "{}",
     "spec_json": {{
         "kind": {{
@@ -52,7 +54,9 @@ fn main() {
         }}
     }},
     "cost_mana": 100
-}}"#, metadata.cid);
+}}"#,
+                metadata.cid
+            );
 
             println!("📋 CCL WASM Job Specification:");
             println!("{}", ccl_job_spec);
@@ -81,16 +85,13 @@ fn main() {
   }'"#;
 
             println!("🌐 Submitting Echo job to test devnet connectivity...");
-            let output = Command::new("bash")
-                .arg("-c")
-                .arg(echo_job_cmd)
-                .output();
+            let output = Command::new("bash").arg("-c").arg(echo_job_cmd).output();
 
             match output {
                 Ok(result) => {
                     let stdout = String::from_utf8_lossy(&result.stdout);
                     let stderr = String::from_utf8_lossy(&result.stderr);
-                    
+
                     if result.status.success() {
                         println!("✅ Echo job submitted successfully!");
                         println!("📋 Response: {}", stdout);
@@ -112,13 +113,12 @@ fn main() {
             println!("   • 🔍 Content ID (CID) calculated for addressing");
             println!("   • 📊 Job specification formatted for mesh submission");
             println!("   • 🌐 Devnet connectivity verified");
-            
+
             println!("\n🎯 **Next Steps for Full CCL Integration:**");
             println!("   • 🔧 Implement CclWasm job kind in mesh system");
             println!("   • 🏃 Add WASM executor for CCL policies");
             println!("   • 📊 Test end-to-end CCL policy execution");
             println!("   • 🏛️  Deploy governance policies via CCL WASM");
-
         }
         Err(e) => {
             println!("❌ CCL compilation failed: {:?}", e);
@@ -126,4 +126,4 @@ fn main() {
     }
 
     println!("\n🎉 CCL → Devnet Integration Test Complete!");
-} 
+}

@@ -16,6 +16,7 @@ members = [
     "icn-ccl",
     "tests",
     "crates/icn-sdk",
+    "crates/icn-governance-templates",
 ]
 resolver = "2"
 

@@ -1,0 +1,10 @@
+[package]
+name = "icn-governance-templates"
+version.workspace = true
+edition.workspace = true
+authors = ["InterCooperative Network <dev@intercooperative.network>"]
+license = "Apache-2.0"
+readme = "README.md"
+
+[dependencies]
+
