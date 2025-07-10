@@ -2,7 +2,7 @@
     bid: &amp;<a class="struct" href="struct.MeshJobBid.html" title="struct icn_mesh::MeshJobBid">MeshJobBid</a>,
     job_spec: &amp;<a class="struct" href="struct.JobSpec.html" title="struct icn_mesh::JobSpec">JobSpec</a>,
     policy: &amp;<a class="struct" href="struct.SelectionPolicy.html" title="struct icn_mesh::SelectionPolicy">SelectionPolicy</a>,
-    reputation_store: &amp;dyn <a class="trait" href="../icn_reputation/trait.ReputationStore.html" title="trait icn_reputation::ReputationStore">ReputationStore</a>,
+    reputation_store: &amp;dyn ReputationStore,
     available_mana: <a class="primitive" href="https://doc.rust-lang.org/1.88.0/std/primitive.u64.html">u64</a>,
 ) -&gt; <a class="primitive" href="https://doc.rust-lang.org/1.88.0/std/primitive.u64.html">u64</a></code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Scores a single bid according to a <a href="struct.SelectionPolicy.html" title="struct icn_mesh::SelectionPolicy"><code>SelectionPolicy</code></a>.</p>
 <p>The resulting value combines three components:
