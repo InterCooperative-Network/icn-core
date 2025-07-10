@@ -20,7 +20,7 @@ use icn_common::{Cid, DagBlock, NodeInfo, NodeStatus};
 use icn_api::governance_trait::{
     CastVoteRequest as ApiCastVoteRequest, SubmitProposalRequest as ApiSubmitProposalRequest,
 };
-use icn_ccl::{compile_ccl_file, compile_ccl_file_to_wasm};
+use icn_ccl::{check_ccl_file, compile_ccl_file, compile_ccl_file_to_wasm, explain_ccl_policy};
 use icn_governance::{Proposal, ProposalId};
 
 fn anyhow_to_common(e: anyhow::Error) -> CommonError {
@@ -233,6 +233,18 @@ enum CclCommands {
         #[clap(help = "Path to the CCL source file")]
         file: String,
     },
+    /// Lint a CCL source file for errors
+    Lint {
+        #[clap(help = "Path to the CCL source file")]
+        file: String,
+    },
+    /// Explain constructs within a CCL policy
+    Explain {
+        #[clap(help = "Path to the CCL source file")]
+        file: String,
+        #[clap(long, help = "Specific function or rule to explain")]
+        target: Option<String>,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -350,6 +362,8 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
         },
         Commands::Ccl { command } => match command {
             CclCommands::Compile { file } => handle_ccl_compile(file)?,
+            CclCommands::Lint { file } => handle_ccl_lint(file)?,
+            CclCommands::Explain { file, target } => handle_ccl_explain(file, target).await?,
         },
         Commands::CompileCcl { file } => handle_compile_ccl_upload(cli, client, file).await?,
         Commands::SubmitJob {
@@ -811,6 +825,21 @@ fn handle_ccl_compile(file: &str) -> Result<(), anyhow::Error> {
     let meta =
         compile_ccl_file(&source_path, &wasm_path, &meta_path).map_err(|e| anyhow::anyhow!(e))?;
     println!("{}", serde_json::to_string_pretty(&meta)?);
+    Ok(())
+}
+
+fn handle_ccl_lint(file: &str) -> Result<(), anyhow::Error> {
+    let source_path = PathBuf::from(file);
+    check_ccl_file(&source_path).map_err(|e| anyhow::anyhow!(e))?;
+    println!("{} passed linting", file);
+    Ok(())
+}
+
+async fn handle_ccl_explain(file: &str, target: &Option<String>) -> Result<(), anyhow::Error> {
+    let source_path = PathBuf::from(file);
+    let explanation =
+        explain_ccl_policy(&source_path, target.clone()).map_err(|e| anyhow::anyhow!(e))?;
+    println!("{}", explanation);
     Ok(())
 }
 
