@@ -628,6 +628,16 @@ impl WasmBackend {
                 instrs.push(Instruction::End);
                 instrs.push(Instruction::End);
             }
+            StatementNode::ForLoop { .. } => {
+                return Err(CclError::WasmGenerationError(
+                    "For loops not yet supported in WASM backend".to_string(),
+                ));
+            }
+            StatementNode::Break | StatementNode::Continue => {
+                return Err(CclError::WasmGenerationError(
+                    "Loop control not yet supported in WASM backend".to_string(),
+                ));
+            }
         }
         Ok(())
     }

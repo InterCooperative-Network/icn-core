@@ -118,7 +118,13 @@ pub enum StatementNode {
         condition: ExpressionNode,
         body: BlockNode,
     },
-    // ... other statement types (loop, etc.)
+    ForLoop {
+        iterator: String,
+        iterable: ExpressionNode,
+        body: BlockNode,
+    },
+    Break,
+    Continue,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

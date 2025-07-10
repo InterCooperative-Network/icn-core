@@ -376,6 +376,25 @@ pub(crate) fn parse_statement(pair: Pair<Rule>) -> Result<StatementNode, CclErro
                 body: parse_block(body_pair)?,
             })
         }
+        Rule::for_statement => {
+            let mut inner = actual_statement_pair.into_inner();
+            let ident_pair = inner.next().ok_or_else(|| {
+                CclError::ParsingError("For statement missing identifier".to_string())
+            })?;
+            let expr_pair = inner.next().ok_or_else(|| {
+                CclError::ParsingError("For statement missing iterable".to_string())
+            })?;
+            let body_pair = inner
+                .next()
+                .ok_or_else(|| CclError::ParsingError("For statement missing body".to_string()))?;
+            Ok(StatementNode::ForLoop {
+                iterator: ident_pair.as_str().to_string(),
+                iterable: parse_expression(expr_pair)?,
+                body: parse_block(body_pair)?,
+            })
+        }
+        Rule::break_statement => Ok(StatementNode::Break),
+        Rule::continue_statement => Ok(StatementNode::Continue),
         _ => Err(CclError::ParsingError(format!(
             "Unsupported statement type: {:?}",
             actual_statement_pair.as_rule()
@@ -526,7 +545,7 @@ pub(crate) fn parse_struct_definition(pair: Pair<Rule>) -> Result<AstNode, CclEr
         .next()
         .ok_or_else(|| CclError::ParsingError("Struct missing name".to_string()))?;
     let mut fields = Vec::new();
-    while let Some(p) = inner.next() {
+    for p in inner {
         let mut p_inner = p.into_inner();
         let id_pair = p_inner
             .next()
