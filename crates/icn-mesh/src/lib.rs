@@ -13,6 +13,7 @@ use icn_identity::{
     VerifyingKey as IdentityVerifyingKey,
 };
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 pub mod metrics;
 
 /// Unique identifier for a mesh job.
@@ -150,6 +151,9 @@ pub struct JobSpec {
     /// CIDs of input data necessary to run the job.
     #[serde(default)]
     pub inputs: Vec<Cid>,
+    /// Additional compiled modules required for execution.
+    #[serde(default)]
+    pub modules: BTreeMap<String, Cid>,
     /// Logical names for outputs that the executor is expected to produce.
     #[serde(default)]
     pub outputs: Vec<String>,
@@ -163,6 +167,7 @@ impl Default for JobSpec {
         Self {
             kind: JobKind::GenericPlaceholder,
             inputs: Vec::new(),
+            modules: BTreeMap::new(),
             outputs: Vec::new(),
             required_resources: Resources::default(),
         }

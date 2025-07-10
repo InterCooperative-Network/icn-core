@@ -224,6 +224,8 @@ impl SemanticAnalyzer {
             crate::ast::PolicyStatementNode::StructDef(def) => {
                 self.visit_node(def)?;
             }
+            crate::ast::PolicyStatementNode::Export { .. } => {}
+            crate::ast::PolicyStatementNode::Module { .. } => {}
         }
         Ok(())
     }
@@ -395,7 +397,11 @@ impl SemanticAnalyzer {
                     name
                 ))),
             },
-            ExpressionNode::FunctionCall { name, arguments } => {
+            ExpressionNode::FunctionCall {
+                module: _,
+                name,
+                arguments,
+            } => {
                 let symbol = self.lookup_symbol(name).cloned();
                 match symbol {
                     Some(Symbol::Function {

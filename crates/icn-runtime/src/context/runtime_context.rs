@@ -17,6 +17,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration as StdDuration;
 use tokio::sync::{mpsc, Mutex as TokioMutex};
+use wasmtime::Module;
 
 /// Enumeration of mesh network service types to work around async trait issues
 #[derive(Debug)]
@@ -112,6 +113,7 @@ pub struct RuntimeContext {
     pub policy_enforcer: Option<Arc<dyn icn_governance::scoped_policy::ScopedPolicyEnforcer>>,
     pub time_provider: Arc<dyn icn_common::TimeProvider>,
     pub default_receipt_wait_ms: u64,
+    pub loaded_modules: Arc<DashMap<Cid, wasmtime::Module>>,
 }
 
 // Import std::str::FromStr for Did::from_str
@@ -197,6 +199,7 @@ impl RuntimeContext {
             policy_enforcer,
             time_provider,
             default_receipt_wait_ms: 30000,
+            loaded_modules: Arc::new(DashMap::new()),
         }))
     }
 
@@ -233,6 +236,7 @@ impl RuntimeContext {
             policy_enforcer,
             time_provider,
             default_receipt_wait_ms: 30000,
+            loaded_modules: Arc::new(DashMap::new()),
         })
     }
 
@@ -307,6 +311,7 @@ impl RuntimeContext {
             policy_enforcer,
             time_provider,
             default_receipt_wait_ms: 30000,
+            loaded_modules: Arc::new(DashMap::new()),
         }))
     }
 
@@ -345,6 +350,7 @@ impl RuntimeContext {
             policy_enforcer,
             time_provider,
             default_receipt_wait_ms: 30000,
+            loaded_modules: Arc::new(DashMap::new()),
         })
     }
 
@@ -406,6 +412,30 @@ impl RuntimeContext {
         }
 
         Ok(cid)
+    }
+
+    /// Load a compiled WASM module from the DAG store and cache it.
+    pub async fn load_wasm_module(
+        &self,
+        cid: &Cid,
+        engine: &wasmtime::Engine,
+    ) -> Result<(Module, Vec<u8>), HostAbiError> {
+        if let Some(m) = self.loaded_modules.get(cid) {
+            return Ok((m.clone(), Vec::new()));
+        }
+        let bytes = {
+            let store = self.dag_store.lock().await;
+            store
+                .get(cid)
+                .await
+                .map_err(|e| HostAbiError::DagOperationFailed(format!("{}", e)))?
+                .ok_or_else(|| HostAbiError::DagOperationFailed("Module not found".to_string()))?
+                .data
+        };
+        let module = Module::new(engine, &bytes)
+            .map_err(|e| HostAbiError::InternalError(format!("WASM error: {e}")))?;
+        self.loaded_modules.insert(cid.clone(), module.clone());
+        Ok((module, bytes))
     }
 
     /// Create a governance proposal.

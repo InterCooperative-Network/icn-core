@@ -76,7 +76,29 @@ pub(crate) fn parse_function_call(pair: Pair<Rule>) -> Result<ExpressionNode, Cc
     let name_pair = inner
         .next()
         .ok_or_else(|| CclError::ParsingError("Function call missing name".to_string()))?;
-    let name = name_pair.as_str().to_string();
+    let (module, name) = match name_pair.as_rule() {
+        Rule::identifier => (None, name_pair.as_str().to_string()),
+        Rule::module_path => {
+            let mut parts = name_pair.into_inner();
+            let module = parts
+                .next()
+                .ok_or_else(|| CclError::ParsingError("Missing module".to_string()))?
+                .as_str()
+                .to_string();
+            let func = parts
+                .next()
+                .ok_or_else(|| CclError::ParsingError("Missing function".to_string()))?
+                .as_str()
+                .to_string();
+            (Some(module), func)
+        }
+        _ => {
+            return Err(CclError::ParsingError(format!(
+                "Unexpected token in function call: {:?}",
+                name_pair.as_rule()
+            )));
+        }
+    };
     let mut args = Vec::new();
     for arg_pair in inner {
         if arg_pair.as_rule() == Rule::expression {
@@ -84,6 +106,7 @@ pub(crate) fn parse_function_call(pair: Pair<Rule>) -> Result<ExpressionNode, Cc
         }
     }
     Ok(ExpressionNode::FunctionCall {
+        module,
         name,
         arguments: args,
     })
@@ -504,7 +527,7 @@ pub(crate) fn parse_struct_definition(pair: Pair<Rule>) -> Result<AstNode, CclEr
         .next()
         .ok_or_else(|| CclError::ParsingError("Struct missing name".to_string()))?;
     let mut fields = Vec::new();
-    while let Some(p) = inner.next() {
+    for p in inner {
         let mut p_inner = p.into_inner();
         let id_pair = p_inner
             .next()
@@ -587,6 +610,24 @@ pub(crate) fn parse_policy_statement(pair: Pair<Rule>) -> Result<PolicyStatement
             let alias = alias_pair.as_str().to_string();
             Ok(PolicyStatementNode::Import { path, alias })
         }
+        Rule::export_statement => {
+            let name = stmt_pair
+                .into_inner()
+                .next()
+                .ok_or_else(|| CclError::ParsingError("Export missing name".to_string()))?
+                .as_str()
+                .to_string();
+            Ok(PolicyStatementNode::Export { name })
+        }
+        Rule::module_statement => {
+            let name = stmt_pair
+                .into_inner()
+                .next()
+                .ok_or_else(|| CclError::ParsingError("Module missing name".to_string()))?
+                .as_str()
+                .to_string();
+            Ok(PolicyStatementNode::Module { name })
+        }
         _ => Err(CclError::ParsingError(format!(
             "Unknown policy statement: {:?}",
             stmt_pair.as_rule()
@@ -615,7 +656,7 @@ pub fn parse_ccl_source(source: &str) -> Result<AstNode, CclError> {
                             parse_struct_definition(pair_in_policy)?,
                         ));
                     }
-                    Rule::policy_statement => {
+                    Rule::policy_statement | Rule::export_statement | Rule::module_statement => {
                         ast_nodes_for_policy.push(parse_policy_statement(pair_in_policy)?);
                     }
                     Rule::EOI => (),

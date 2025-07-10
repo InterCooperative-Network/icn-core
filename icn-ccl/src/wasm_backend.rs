@@ -266,7 +266,11 @@ impl WasmBackend {
                 instrs.push(Instruction::LocalGet(idx));
                 Ok(ty)
             }
-            ExpressionNode::FunctionCall { name, arguments } => {
+            ExpressionNode::FunctionCall {
+                module: _,
+                name,
+                arguments,
+            } => {
                 match name.as_str() {
                     "array_len" => {
                         let ptr_ty =

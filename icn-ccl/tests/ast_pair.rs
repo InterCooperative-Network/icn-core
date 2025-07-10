@@ -129,6 +129,30 @@ fn test_pair_to_ast_policy_statement_import() {
 }
 
 #[test]
+fn test_pair_to_ast_export_statement() {
+    let src = "export run;";
+    let mut pairs = CclParser::parse(Rule::export_statement, src).unwrap();
+    let pair = pairs.next().unwrap();
+    let ast = ast::pair_to_ast(pair).unwrap();
+    let expected = AstNode::Policy(vec![PolicyStatementNode::Export {
+        name: "run".to_string(),
+    }]);
+    assert_eq!(ast, expected);
+}
+
+#[test]
+fn test_pair_to_ast_module_statement() {
+    let src = "module mymod;";
+    let mut pairs = CclParser::parse(Rule::module_statement, src).unwrap();
+    let pair = pairs.next().unwrap();
+    let ast = ast::pair_to_ast(pair).unwrap();
+    let expected = AstNode::Policy(vec![PolicyStatementNode::Module {
+        name: "mymod".to_string(),
+    }]);
+    assert_eq!(ast, expected);
+}
+
+#[test]
 fn test_pair_to_ast_statement_return() {
     let src = "return 5;";
     let mut pairs = CclParser::parse(Rule::statement, src).unwrap();

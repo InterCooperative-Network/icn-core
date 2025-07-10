@@ -182,6 +182,8 @@ fn policy_stmt_to_string(stmt: &PolicyStatementNode, indent: usize) -> String {
         PolicyStatementNode::Import { path, alias } => {
             format!("import \"{}\" as {};", path, alias)
         }
+        PolicyStatementNode::Export { name } => format!("export {};", name),
+        PolicyStatementNode::Module { name } => format!("module {};", name),
         PolicyStatementNode::StructDef(_) => "struct".to_string(),
     }
 }
@@ -247,13 +249,21 @@ fn expr_to_string(expr: &ExpressionNode) -> String {
             format!("[{}]", items)
         }
         ExpressionNode::Identifier(s) => s.clone(),
-        ExpressionNode::FunctionCall { name, arguments } => {
+        ExpressionNode::FunctionCall {
+            module,
+            name,
+            arguments,
+        } => {
             let args = arguments
                 .iter()
                 .map(expr_to_string)
                 .collect::<Vec<_>>()
                 .join(", ");
-            format!("{}({})", name, args)
+            if let Some(m) = module {
+                format!("{}::{}({})", m, name, args)
+            } else {
+                format!("{}({})", name, args)
+            }
         }
         ExpressionNode::BinaryOp {
             left,
@@ -364,6 +374,16 @@ fn explain_ast(ast: &AstNode, target: Option<&str>) -> String {
                     PolicyStatementNode::Import { path, alias } => {
                         if target.is_none() {
                             lines.push(format!("Imports `{}` as `{}`.", path, alias));
+                        }
+                    }
+                    PolicyStatementNode::Export { name } => {
+                        if target.is_none() {
+                            lines.push(format!("Exports `{}`.", name));
+                        }
+                    }
+                    PolicyStatementNode::Module { name } => {
+                        if target.is_none() {
+                            lines.push(format!("Module `{}` declared.", name));
                         }
                     }
                     PolicyStatementNode::StructDef(_) => {

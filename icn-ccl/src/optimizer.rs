@@ -59,6 +59,8 @@ impl Optimizer {
                 PolicyStatementNode::Import { path, alias }
             }
             PolicyStatementNode::StructDef(s) => PolicyStatementNode::StructDef(self.fold_ast(s)),
+            PolicyStatementNode::Export { name } => PolicyStatementNode::Export { name },
+            PolicyStatementNode::Module { name } => PolicyStatementNode::Module { name },
         }
     }
 
@@ -156,7 +158,12 @@ impl Optimizer {
                     right: Box::new(r),
                 }
             }
-            ExpressionNode::FunctionCall { name, arguments } => ExpressionNode::FunctionCall {
+            ExpressionNode::FunctionCall {
+                module,
+                name,
+                arguments,
+            } => ExpressionNode::FunctionCall {
+                module,
                 name,
                 arguments: arguments.into_iter().map(|a| self.fold_expr(a)).collect(),
             },

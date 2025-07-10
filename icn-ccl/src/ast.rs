@@ -31,6 +31,8 @@ pub enum PolicyStatementNode {
     RuleDef(AstNode),     // Using AstNode::RuleDefinition
     StructDef(AstNode),
     Import { path: String, alias: String },
+    Export { name: String },
+    Module { name: String },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -129,6 +131,7 @@ pub enum ExpressionNode {
     ArrayLiteral(Vec<ExpressionNode>), // [1, 2, 3] or ["a", "b", "c"]
     Identifier(String),
     FunctionCall {
+        module: Option<String>,
         name: String,
         arguments: Vec<ExpressionNode>,
     },
@@ -229,6 +232,28 @@ pub fn pair_to_ast(
                                 let alias = alias_pair.as_str().to_string();
                                 items.push(PolicyStatementNode::Import { path, alias });
                             }
+                            Rule::export_statement => {
+                                let name = stmt
+                                    .into_inner()
+                                    .next()
+                                    .ok_or_else(|| {
+                                        CclError::ParsingError("Export missing name".to_string())
+                                    })?
+                                    .as_str()
+                                    .to_string();
+                                items.push(PolicyStatementNode::Export { name });
+                            }
+                            Rule::module_statement => {
+                                let name = stmt
+                                    .into_inner()
+                                    .next()
+                                    .ok_or_else(|| {
+                                        CclError::ParsingError("Module missing name".to_string())
+                                    })?
+                                    .as_str()
+                                    .to_string();
+                                items.push(PolicyStatementNode::Module { name });
+                            }
                             _ => {
                                 return Err(CclError::ParsingError(format!(
                                     "Unexpected policy statement: {:?}",
@@ -275,6 +300,12 @@ pub fn pair_to_ast(
                     path,
                     alias,
                 }]))
+            }
+            PolicyStatementNode::Export { name } => {
+                Ok(AstNode::Policy(vec![PolicyStatementNode::Export { name }]))
+            }
+            PolicyStatementNode::Module { name } => {
+                Ok(AstNode::Policy(vec![PolicyStatementNode::Module { name }]))
             }
             PolicyStatementNode::FunctionDef(func) => Ok(func),
             PolicyStatementNode::StructDef(def) => Ok(def),

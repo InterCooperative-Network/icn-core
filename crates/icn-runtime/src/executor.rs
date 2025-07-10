@@ -449,18 +449,15 @@ impl JobExecutor for WasmExecutor {
             self.config.security_limits.max_execution_time_secs
         );
 
-        let wasm_bytes = {
-            let store = self.ctx.dag_store.lock().await;
-            let block = store
-                .get(&job.manifest_cid)
-                .await
-                .map_err(|e| CommonError::InternalError(e.to_string()))?
-                .ok_or_else(|| CommonError::ResourceNotFound("WASM module not found".into()))?;
-            block.data
-        };
+        // Load primary module
+        let (main_module, main_bytes) = self
+            .ctx
+            .load_wasm_module(&job.manifest_cid, &self.engine)
+            .await
+            .map_err(|e| CommonError::InternalError(e.to_string()))?;
 
         // Security validation of the WASM module
-        self.validator.validate(&wasm_bytes)?;
+        self.validator.validate(&main_bytes)?;
 
         // Create store with resource limiter
         let mut store = Store::new(&self.engine, self.ctx.clone());
@@ -483,6 +480,19 @@ impl JobExecutor for WasmExecutor {
         store.set_epoch_deadline(1);
 
         let mut linker = Linker::new(&self.engine);
+
+        // Load additional modules and register them
+        for (alias, cid) in &job.spec.modules {
+            let (module, bytes) = self
+                .ctx
+                .load_wasm_module(cid, &self.engine)
+                .await
+                .map_err(|e| CommonError::InternalError(e.to_string()))?;
+            self.validator.validate(&bytes)?;
+            linker
+                .module(alias, &module)
+                .map_err(|e| CommonError::InternalError(e.to_string()))?;
+        }
 
         let ctx_clone = self.ctx.clone();
         linker
@@ -527,10 +537,8 @@ impl JobExecutor for WasmExecutor {
             )
             .map_err(|e| CommonError::InternalError(e.to_string()))?;
 
-        let module = Module::new(&self.engine, &wasm_bytes)
-            .map_err(|e| CommonError::DeserError(e.to_string()))?;
         let instance = linker
-            .instantiate(&mut store, &module)
+            .instantiate(&mut store, &main_module)
             .map_err(|e| CommonError::InternalError(e.to_string()))?;
         let func = instance
             .get_typed_func::<(), i64>(&mut store, "run")
