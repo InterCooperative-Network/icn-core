@@ -3,6 +3,7 @@
 use super::errors::HostAbiError;
 use super::mana::SimpleManaLedger;
 use super::mesh_network::{DefaultMeshNetworkService, JobAssignmentNotice, MeshNetworkService};
+use super::service_config::ServiceConfig;
 use super::signers::Signer;
 use super::stubs::{StubDagStore, StubMeshNetworkService};
 use super::{DagStorageService, DagStoreMutexType};
@@ -219,6 +220,13 @@ impl RuntimeContext {
     }
 
     /// Create a new context with ledger path (convenience method for tests).
+    /// 
+    /// **⚠️ DEPRECATED**: This method uses stub services and should not be used in production.
+    /// Use `RuntimeContext::new_production()` or `RuntimeContext::from_service_config()` instead.
+    #[deprecated(
+        since = "0.1.0",
+        note = "Use `new_production()` or `from_service_config()` instead. This method uses stub services."
+    )]
     pub fn new_with_ledger_path(
         current_identity_str: &str,
         ledger_path: PathBuf,
@@ -259,6 +267,13 @@ impl RuntimeContext {
     }
 
     /// Create a new context with ledger path and time provider (convenience method for tests).
+    /// 
+    /// **⚠️ DEPRECATED**: This method uses stub services and should not be used in production.
+    /// Use `RuntimeContext::new_production()` or `RuntimeContext::from_service_config()` instead.
+    #[deprecated(
+        since = "0.1.0",
+        note = "Use `new_production()` or `from_service_config()` instead. This method uses stub services."
+    )]
     pub fn new_with_ledger_path_and_time(
         current_identity_str: &str,
         ledger_path: PathBuf,
@@ -334,7 +349,91 @@ impl RuntimeContext {
         ).await
     }
 
-                // === CLEAN CONFIGURATION METHODS ===
+                // === NEW CLEAN SERVICE CONFIGURATION API ===
+
+    /// Create a new RuntimeContext from a service configuration.
+    /// This is the preferred method as it ensures type-safe service mapping.
+    pub fn from_service_config(config: ServiceConfig) -> Result<Arc<Self>, CommonError> {
+        // Validate the configuration before using it
+        config.validate()?;
+
+        let (tx, rx) = mpsc::channel(128);
+        let job_states = Arc::new(DashMap::new());
+        let governance_module = Arc::new(DagStoreMutexType::new(GovernanceModule::new()));
+        let parameters = Arc::new(DashMap::new());
+
+        Ok(Arc::new(Self {
+            current_identity: config.current_identity,
+            mana_ledger: config.mana_ledger,
+            pending_mesh_jobs_tx: tx,
+            pending_mesh_jobs_rx: TokioMutex::new(rx),
+            job_states,
+            governance_module,
+            mesh_network_service: config.mesh_network_service,
+            signer: config.signer,
+            did_resolver: config.did_resolver,
+            dag_store: config.dag_store,
+            reputation_store: config.reputation_store,
+            parameters,
+            policy_enforcer: config.policy_enforcer,
+            time_provider: config.time_provider,
+            default_receipt_wait_ms: 30000,
+        }))
+    }
+
+    /// Create a production RuntimeContext with all production services.
+    /// This method ensures no stub services are used.
+    pub fn new_production(
+        current_identity: Did,
+        network_service: Arc<dyn icn_network::NetworkService>,
+        signer: Arc<dyn Signer>,
+        did_resolver: Arc<dyn icn_identity::DidResolver>,
+        dag_store: Arc<DagStoreMutexType<DagStorageService>>,
+        mana_ledger: SimpleManaLedger,
+        reputation_store: Arc<dyn icn_reputation::ReputationStore>,
+        policy_enforcer: Option<Arc<dyn icn_governance::scoped_policy::ScopedPolicyEnforcer>>,
+    ) -> Result<Arc<Self>, CommonError> {
+        let config = ServiceConfig::production(
+            current_identity,
+            network_service,
+            signer,
+            did_resolver,
+            dag_store,
+            mana_ledger,
+            reputation_store,
+            policy_enforcer,
+        )?;
+        Self::from_service_config(config)
+    }
+
+    /// Create a development RuntimeContext with mixed services.
+    pub fn new_development(
+        current_identity: Did,
+        signer: Arc<dyn Signer>,
+        mana_ledger: SimpleManaLedger,
+        network_service: Option<Arc<dyn icn_network::NetworkService>>,
+        dag_store: Option<Arc<DagStoreMutexType<DagStorageService>>>,
+    ) -> Result<Arc<Self>, CommonError> {
+        let config = ServiceConfig::development(
+            current_identity,
+            signer,
+            mana_ledger,
+            network_service,
+            dag_store,
+        )?;
+        Self::from_service_config(config)
+    }
+
+    /// Create a testing RuntimeContext with all stub services.
+    pub fn new_testing(
+        current_identity: Did,
+        initial_mana: Option<u64>,
+    ) -> Result<Arc<Self>, CommonError> {
+        let config = ServiceConfig::testing(current_identity, initial_mana)?;
+        Self::from_service_config(config)
+    }
+
+                // === LEGACY CONFIGURATION METHODS (DEPRECATED) ===
 
     /// Create a new context for production with all production services.
     pub fn new_for_production(

@@ -68,6 +68,8 @@ persist-rocksdb = ["icn-governance/persist-sled", "icn-reputation/persist-rocksd
 persist-postgres = ["icn-dag/persist-postgres"]
 cli = ["dep:clap"]
 async = ["icn-dag/async"]
+production = []
+allow-stubs = []
 
 # Integration tests for cross-node functionality
 [[test]]
