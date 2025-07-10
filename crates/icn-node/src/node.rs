@@ -663,12 +663,12 @@ pub async fn app_router_with_options(
             .route("/governance/execute", post(gov_execute_handler))
             .route("/governance/proposals", get(gov_list_proposals_handler)) // Uses RT context's Gov mod
             .route(
-                "/governance/proposal/:proposal_id",
+                "/governance/proposal/{proposal_id}",
                 get(gov_get_proposal_handler),
             ) // Uses RT context's Gov mod
             .route("/mesh/submit", post(mesh_submit_job_handler)) // Job submission
             .route("/mesh/jobs", get(mesh_list_jobs_handler)) // List all jobs
-            .route("/mesh/jobs/:job_id", get(mesh_get_job_status_handler)) // Get specific job status
+            .route("/mesh/jobs/{job_id}", get(mesh_get_job_status_handler)) // Get specific job status
             .route("/mesh/receipts", post(mesh_submit_receipt_handler)) // Submit execution receipt
             .route("/contracts", post(contracts_post_handler))
             .route("/federation/peers", get(federation_list_peers_handler))
@@ -781,12 +781,12 @@ pub async fn app_router_from_context(
         .route("/governance/execute", post(gov_execute_handler))
         .route("/governance/proposals", get(gov_list_proposals_handler))
         .route(
-            "/governance/proposal/:proposal_id",
+            "/governance/proposal/{proposal_id}",
             get(gov_get_proposal_handler),
         )
         .route("/mesh/submit", post(mesh_submit_job_handler))
         .route("/mesh/jobs", get(mesh_list_jobs_handler))
-        .route("/mesh/jobs/:job_id", get(mesh_get_job_status_handler))
+        .route("/mesh/jobs/{job_id}", get(mesh_get_job_status_handler))
         .route("/mesh/receipts", post(mesh_submit_receipt_handler))
         .route("/contracts", post(contracts_post_handler))
         .route("/federation/peers", get(federation_list_peers_handler))
@@ -1134,12 +1134,12 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
         .route("/governance/execute", post(gov_execute_handler))
         .route("/governance/proposals", get(gov_list_proposals_handler))
         .route(
-            "/governance/proposal/:proposal_id",
+            "/governance/proposal/{proposal_id}",
             get(gov_get_proposal_handler),
         )
         .route("/mesh/submit", post(mesh_submit_job_handler))
         .route("/mesh/jobs", get(mesh_list_jobs_handler))
-        .route("/mesh/jobs/:job_id", get(mesh_get_job_status_handler))
+        .route("/mesh/jobs/{job_id}", get(mesh_get_job_status_handler))
         .route("/mesh/receipts", post(mesh_submit_receipt_handler))
         .route("/contracts", post(contracts_post_handler))
         .route("/federation/peers", get(federation_list_peers_handler))

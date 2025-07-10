@@ -21,7 +21,7 @@ pub use mesh_network::{
     PROPOSAL_COST_MANA, VOTE_COST_MANA,
 };
 pub use runtime_context::{
-    RuntimeContext, MeshNetworkServiceType, CreateProposalPayload, CastVotePayload, CloseProposalResult,
+    RuntimeContext, RuntimeContextParams, MeshNetworkServiceType, CreateProposalPayload, CastVotePayload, CloseProposalResult,
 };
 pub use signers::{Ed25519Signer, HsmKeyStore, Signer, StubSigner};
 pub use stubs::{RuntimeStubDagStore, StubDagStore, StubMeshNetworkService};
