@@ -1,0 +1,11 @@
+{
+  "uid": "icn-governance",
+  "title": "ICN Governance",
+  "schemaVersion": 37,
+  "version": 1,
+  "panels": [
+    {"type": "stat", "title": "Proposals Submitted", "id": 1, "datasource": "Prometheus", "targets": [{"expr": "governance_submit_proposal_calls"}], "gridPos": {"h":4,"w":8,"x":0,"y":0}},
+    {"type": "stat", "title": "Votes Cast", "id": 2, "datasource": "Prometheus", "targets": [{"expr": "governance_cast_vote_calls"}], "gridPos": {"h":4,"w":8,"x":8,"y":0}},
+    {"type": "stat", "title": "Proposals Executed", "id": 3, "datasource": "Prometheus", "targets": [{"expr": "governance_execute_proposal_calls"}], "gridPos": {"h":4,"w":8,"x":16,"y":0}}
+  ]
+}

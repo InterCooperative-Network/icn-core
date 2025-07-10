@@ -69,6 +69,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use subtle::ConstantTimeEq;
 use tokio::sync::{Mutex as AsyncMutex, Mutex as TokioMutex};
+use uuid::Uuid;
 
 use crate::config::{NodeConfig, StorageBackendType};
 
@@ -466,6 +467,30 @@ async fn rate_limit_middleware(
     next.run(req).await
 }
 
+async fn correlation_id_middleware(
+    mut req: axum::http::Request<axum::body::Body>,
+    next: Next,
+) -> impl IntoResponse {
+    let method = req.method().clone();
+    let path = req.uri().path().to_string();
+    let cid = req
+        .headers()
+        .get("x-correlation-id")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| Uuid::new_v4().to_string());
+    req.extensions_mut().insert(cid.clone());
+    info!(target: "request", "start cid={} {} {}", cid, method, path);
+    let start = Instant::now();
+    let mut res = next.run(req).await.into_response();
+    res.headers_mut()
+        .insert("x-correlation-id", cid.parse().unwrap());
+    let latency = start.elapsed().as_millis();
+    let status = res.status().as_u16();
+    info!(target: "request", "end cid={} status={} latency_ms={}", cid, status, latency);
+    res
+}
+
 // --- Public App Constructor (for tests or embedding) ---
 pub async fn app_router() -> Router {
     app_router_with_options(None, None, None, None, None, None, None, None, None, None)
@@ -677,6 +702,7 @@ pub async fn app_router_with_options(
             .route("/federation/leave", post(federation_leave_handler))
             .route("/federation/status", get(federation_status_handler))
             .with_state(app_state.clone())
+            .layer(middleware::from_fn(correlation_id_middleware))
             .layer(middleware::from_fn_with_state(
                 app_state.clone(),
                 require_api_key,
@@ -798,6 +824,7 @@ pub async fn app_router_from_context(
         .route("/federation/leave", post(federation_leave_handler))
         .route("/federation/status", get(federation_status_handler))
         .with_state(app_state.clone())
+        .layer(middleware::from_fn(correlation_id_middleware))
         .layer(middleware::from_fn_with_state(
             app_state.clone(),
             require_api_key,
