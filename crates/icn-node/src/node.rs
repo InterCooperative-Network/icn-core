@@ -672,6 +672,9 @@ pub async fn app_router_with_options(
             .route("/network/local-peer-id", get(network_local_peer_id_handler))
             .route("/network/peers", get(network_peers_handler))
             .route("/network/connect", post(network_connect_handler))
+            .route("/account/{did}/mana", get(account_mana_handler))
+            .route("/keys", get(keys_handler))
+            .route("/reputation/{did}", get(reputation_handler))
             .route("/dag/put", post(dag_put_handler)) // These will use RT context's DAG store
             .route("/dag/get", post(dag_get_handler)) // These will use RT context's DAG store
             .route("/dag/meta", post(dag_meta_handler))
@@ -791,6 +794,9 @@ pub async fn app_router_from_context(
         .route("/network/local-peer-id", get(network_local_peer_id_handler))
         .route("/network/peers", get(network_peers_handler))
         .route("/network/connect", post(network_connect_handler))
+        .route("/account/{did}/mana", get(account_mana_handler))
+        .route("/keys", get(keys_handler))
+        .route("/reputation/{did}", get(reputation_handler))
         .route("/dag/put", post(dag_put_handler))
         .route("/dag/get", post(dag_get_handler))
         .route("/dag/meta", post(dag_meta_handler))
@@ -2697,6 +2703,58 @@ async fn network_connect_handler(
             Json(serde_json::json!({ "connected": payload.peer })),
         )
             .into_response()
+    }
+}
+
+// GET /account/:did/mana - return mana balance for an account
+async fn account_mana_handler(
+    AxumPath(did_str): AxumPath<String>,
+    State(state): State<AppState>,
+) -> impl IntoResponse {
+    match Did::from_str(&did_str) {
+        Ok(did) => match state.runtime_context.get_mana(&did).await {
+            Ok(balance) => (
+                StatusCode::OK,
+                Json(serde_json::json!({ "balance": balance })),
+            )
+                .into_response(),
+            Err(e) => map_rust_error_to_json_response(
+                format!("Query error: {e}"),
+                StatusCode::INTERNAL_SERVER_ERROR,
+            )
+            .into_response(),
+        },
+        Err(e) => {
+            map_rust_error_to_json_response(format!("Invalid DID: {e}"), StatusCode::BAD_REQUEST)
+                .into_response()
+        }
+    }
+}
+
+// GET /keys - return node DID and public key
+async fn keys_handler(State(state): State<AppState>) -> impl IntoResponse {
+    let did = state.runtime_context.current_identity.to_string();
+    let pk_bs58 = bs58::encode(state.runtime_context.signer.public_key_bytes()).into_string();
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({ "did": did, "public_key_bs58": pk_bs58 })),
+    )
+}
+
+// GET /reputation/:did - fetch reputation score
+async fn reputation_handler(
+    AxumPath(did_str): AxumPath<String>,
+    State(state): State<AppState>,
+) -> impl IntoResponse {
+    match Did::from_str(&did_str) {
+        Ok(did) => {
+            let score = state.runtime_context.reputation_store.get_reputation(&did);
+            (StatusCode::OK, Json(serde_json::json!({ "score": score }))).into_response()
+        }
+        Err(e) => {
+            map_rust_error_to_json_response(format!("Invalid DID: {e}"), StatusCode::BAD_REQUEST)
+                .into_response()
+        }
     }
 }
 
