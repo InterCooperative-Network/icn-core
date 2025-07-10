@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["errors","host_environment","mana","mesh_network","runtime_context","signers","stubs"],"type":["DagStorageService","DagStoreMutexType"]};
+window.SIDEBAR_ITEMS = {"mod":["compile_checks","errors","host_environment","mana","mesh_network","runtime_context","service_config","signers","stubs"],"type":["DagStorageService","DagStoreMutexType"]};
