@@ -37,6 +37,35 @@ impl SemanticAnalyzer {
                 return_type: TypeAnnotationNode::Integer,
             },
         );
+        // Built-in helpers for array manipulation
+        let _ = analyzer.insert_symbol(
+            "array_len".to_string(),
+            Symbol::Function {
+                params: vec![TypeAnnotationNode::Array(Box::new(
+                    TypeAnnotationNode::Integer,
+                ))],
+                return_type: TypeAnnotationNode::Integer,
+            },
+        );
+        let _ = analyzer.insert_symbol(
+            "array_push".to_string(),
+            Symbol::Function {
+                params: vec![
+                    TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Integer)),
+                    TypeAnnotationNode::Integer,
+                ],
+                return_type: TypeAnnotationNode::Integer,
+            },
+        );
+        let _ = analyzer.insert_symbol(
+            "array_pop".to_string(),
+            Symbol::Function {
+                params: vec![TypeAnnotationNode::Array(Box::new(
+                    TypeAnnotationNode::Integer,
+                ))],
+                return_type: TypeAnnotationNode::Integer,
+            },
+        );
         analyzer
     }
 

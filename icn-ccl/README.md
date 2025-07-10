@@ -79,6 +79,28 @@ Several example contracts live in `tests/contracts/`:
 These files can be compiled with `compile_ccl_file_to_wasm` and executed using
 the `WasmExecutor` as shown in the integration tests.
 
+## Array and String Operations
+
+The runtime now supports dynamic arrays and UTF-8 strings. Arrays are heap
+allocated and can be manipulated using the helper functions:
+
+```ccl
+let items = [1, 2, 3];
+array_push(items, 4);
+let count = array_len(items); // returns 4
+let last = array_pop(items);  // returns 4
+```
+
+Strings are stored in memory and concatenation returns a new allocation:
+
+```ccl
+fn run() -> String {
+    let hello = "Hello ";
+    let world = "ICN";
+    return hello + world;
+}
+```
+
 ## Mana Policies
 
 The repository includes example economic logic that manipulates mana balances. A
