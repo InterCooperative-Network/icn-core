@@ -39,10 +39,8 @@ ENV RUST_MIN_STACK=268435456
 ENV CARGO_NET_RETRY=10
 ENV CARGO_NET_TIMEOUT=300
 
-# Set ulimit for stack size during build
-RUN ulimit -s 262144
-
-RUN cargo build --release -p icn-node --features with-libp2p
+# Build with increased stack size and memory limits
+RUN bash -c "ulimit -s 262144 && cargo build --release -p icn-node --features with-libp2p"
 
 # Runtime stage
 FROM debian:bookworm-slim
