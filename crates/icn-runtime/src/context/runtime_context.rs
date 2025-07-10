@@ -242,7 +242,7 @@ impl RuntimeContext {
         node_did_string: &str,
         listen_addrs: Vec<libp2p::Multiaddr>,
         bootstrap_peers: Option<Vec<(libp2p::PeerId, libp2p::Multiaddr)>>,
-        _storage_path: PathBuf,
+        dag_store: Arc<DagStoreMutexType<DagStorageService>>,
         mana_ledger_path: PathBuf,
         _reputation_db_path: PathBuf,
         enable_mdns: bool,
@@ -279,9 +279,8 @@ impl RuntimeContext {
         let signer = Arc::new(super::signers::StubSigner::new());
         let did_resolver = Arc::new(icn_identity::KeyDidResolver);
 
-        // Create DAG store - for now use stub, but could be created from storage_path in real implementation
-        let dag_store = Arc::new(DagStoreMutexType::new(super::stubs::StubDagStore::new()))
-            as Arc<DagStoreMutexType<DagStorageService>>;
+        // Use provided DAG store
+        let dag_store = dag_store;
 
         // Create mana ledger
         let mana_ledger = SimpleManaLedger::new(mana_ledger_path);

@@ -1,7 +1,7 @@
 use crate::{BlockMetadata, Cid, CommonError, DagBlock, StorageService};
 use postgres::{Client, NoTls};
-use std::sync::Mutex;
 use std::collections::HashMap;
+use std::sync::Mutex;
 
 pub struct PostgresDagStore {
     client: Mutex<Client>,
@@ -15,11 +15,38 @@ impl PostgresDagStore {
             CommonError::DatabaseError(format!("Failed to connect to postgres: {}", e))
         })?;
         client
-            .batch_execute("CREATE TABLE IF NOT EXISTS blocks (cid TEXT PRIMARY KEY, data BYTEA)")
+            .batch_execute(
+                "CREATE TABLE IF NOT EXISTS blocks (
+                    cid TEXT PRIMARY KEY,
+                    data BYTEA NOT NULL,
+                    pinned BOOLEAN NOT NULL DEFAULT FALSE,
+                    ttl BIGINT
+                )",
+            )
             .map_err(|e| CommonError::DatabaseError(format!("Failed to init table: {}", e)))?;
+
+        // Load existing metadata
+        let mut meta = HashMap::new();
+        let rows = client
+            .query("SELECT cid, pinned, ttl FROM blocks", &[])
+            .map_err(|e| CommonError::DatabaseError(format!("Failed to load metadata: {}", e)))?;
+        for row in rows {
+            let cid_str: String = row.get(0);
+            let pinned: bool = row.get(1);
+            let ttl: Option<i64> = row.get(2);
+            let cid = icn_common::parse_cid_from_string(&cid_str)?;
+            meta.insert(
+                cid,
+                BlockMetadata {
+                    pinned,
+                    ttl: ttl.map(|t| t as u64),
+                },
+            );
+        }
+
         Ok(Self {
             client: Mutex::new(client),
-            meta: HashMap::new(),
+            meta,
         })
     }
 }
@@ -33,16 +60,29 @@ impl StorageService<DagBlock> for PostgresDagStore {
                 block.cid, e
             ))
         })?;
-        self.client
+        let meta = self
+            .meta
+            .get(&block.cid)
+            .cloned()
+            .unwrap_or_default();
+
+        self
+            .client
             .lock()
             .expect("mutex poisoned")
             .execute(
-                "INSERT INTO blocks (cid, data) VALUES ($1, $2) ON CONFLICT (cid) DO UPDATE SET data = EXCLUDED.data",
-                &[&block.cid.to_string(), &encoded],
+                "INSERT INTO blocks (cid, data, pinned, ttl) VALUES ($1, $2, $3, $4)
+                 ON CONFLICT (cid) DO UPDATE SET data = EXCLUDED.data, pinned = EXCLUDED.pinned, ttl = EXCLUDED.ttl",
+                &[
+                    &block.cid.to_string(),
+                    &encoded,
+                    &meta.pinned,
+                    &meta.ttl.map(|t| t as i64),
+                ],
             )
             .map_err(|e| CommonError::DatabaseError(format!("Failed to store block {}: {}", block.cid, e)))?;
-        self.meta
-            .insert(block.cid.clone(), BlockMetadata::default());
+
+        self.meta.insert(block.cid.clone(), meta);
         Ok(())
     }
 
@@ -126,6 +166,18 @@ impl StorageService<DagBlock> for PostgresDagStore {
         match self.meta.get_mut(cid) {
             Some(m) => {
                 m.pinned = true;
+                self
+                    .client
+                    .lock()
+                    .expect("mutex poisoned")
+                    .execute(
+                        "UPDATE blocks SET pinned = true WHERE cid = $1",
+                        &[&cid.to_string()],
+                    )
+                    .map_err(|e| CommonError::DatabaseError(format!(
+                        "Failed to pin block {}: {}",
+                        cid, e
+                    )))?;
                 Ok(())
             }
             None => Err(CommonError::ResourceNotFound(format!(
@@ -139,6 +191,18 @@ impl StorageService<DagBlock> for PostgresDagStore {
         match self.meta.get_mut(cid) {
             Some(m) => {
                 m.pinned = false;
+                self
+                    .client
+                    .lock()
+                    .expect("mutex poisoned")
+                    .execute(
+                        "UPDATE blocks SET pinned = false WHERE cid = $1",
+                        &[&cid.to_string()],
+                    )
+                    .map_err(|e| CommonError::DatabaseError(format!(
+                        "Failed to unpin block {}: {}",
+                        cid, e
+                    )))?;
                 Ok(())
             }
             None => Err(CommonError::ResourceNotFound(format!(
@@ -150,26 +214,32 @@ impl StorageService<DagBlock> for PostgresDagStore {
 
     fn prune_expired(&mut self, now: u64) -> Result<Vec<Cid>, CommonError> {
         let mut removed = Vec::new();
-        let to_remove: Vec<Cid> = self
-            .meta
-            .iter()
-            .filter(|(_, m)| !m.pinned && m.ttl.map(|t| t <= now).unwrap_or(false))
-            .map(|(c, _)| c.clone())
-            .collect();
-        for cid in &to_remove {
+
+        let rows = self
+            .client
+            .lock()
+            .expect("mutex poisoned")
+            .query(
+                "SELECT cid FROM blocks WHERE pinned = false AND ttl IS NOT NULL AND ttl <= $1",
+                &[&(now as i64)],
+            )
+            .map_err(|e| CommonError::DatabaseError(format!("GC query failed: {}", e)))?;
+
+        for row in rows {
+            let cid_str: String = row.get(0);
+            let cid = icn_common::parse_cid_from_string(&cid_str)?;
             self
                 .client
                 .lock()
                 .expect("mutex poisoned")
-                .execute("DELETE FROM blocks WHERE cid = $1", &[&cid.to_string()])
+                .execute("DELETE FROM blocks WHERE cid = $1", &[&cid_str])
                 .map_err(|e| {
                     CommonError::DatabaseError(format!("Failed to delete block {}: {}", cid, e))
                 })?;
-        }
-        for cid in to_remove {
             self.meta.remove(&cid);
             removed.push(cid);
         }
+
         Ok(removed)
     }
 
@@ -177,6 +247,18 @@ impl StorageService<DagBlock> for PostgresDagStore {
         match self.meta.get_mut(cid) {
             Some(m) => {
                 m.ttl = ttl;
+                self
+                    .client
+                    .lock()
+                    .expect("mutex poisoned")
+                    .execute(
+                        "UPDATE blocks SET ttl = $1 WHERE cid = $2",
+                        &[&ttl.map(|t| t as i64), &cid.to_string()],
+                    )
+                    .map_err(|e| CommonError::DatabaseError(format!(
+                        "Failed to update TTL for block {}: {}",
+                        cid, e
+                    )))?;
                 Ok(())
             }
             None => Err(CommonError::ResourceNotFound(format!(

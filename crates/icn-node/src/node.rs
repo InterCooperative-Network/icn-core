@@ -965,11 +965,19 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
                 .expect("Invalid p2p listen multiaddr");
             let listen_addrs = vec![listen_addr];
 
+            let dag_store_for_rt = match config.init_dag_store() {
+                Ok(store) => store,
+                Err(e) => {
+                    error!("Failed to initialize DAG store: {}", e);
+                    std::process::exit(1);
+                }
+            };
+
             match RuntimeContext::new_with_real_libp2p_and_mdns(
                 &node_did_string,
                 listen_addrs,
                 bootstrap_peers,
-                config.storage_path.clone(),
+                dag_store_for_rt.clone(),
                 config.mana_ledger_path.clone(),
                 config.reputation_db_path.clone(),
                 config.enable_mdns,
