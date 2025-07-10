@@ -76,6 +76,21 @@ enum Commands {
         #[clap(subcommand)]
         command: NetworkCommands,
     },
+    /// Account queries
+    Accounts {
+        #[clap(subcommand)]
+        command: AccountCommands,
+    },
+    /// Key management
+    Keys {
+        #[clap(subcommand)]
+        command: KeyCommands,
+    },
+    /// Reputation queries
+    Reputation {
+        #[clap(subcommand)]
+        command: ReputationCommands,
+    },
     /// Cooperative Contract Language operations
     Ccl {
         #[clap(subcommand)]
@@ -242,6 +257,30 @@ enum FederationCommands {
     Status,
 }
 
+#[derive(Subcommand, Debug)]
+enum AccountCommands {
+    /// Get mana balance for an account
+    Balance {
+        #[clap(help = "Target account DID")]
+        did: String,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum KeyCommands {
+    /// Show node DID and public key
+    Show,
+}
+
+#[derive(Subcommand, Debug)]
+enum ReputationCommands {
+    /// Get reputation score for an identity
+    Get {
+        #[clap(help = "Target DID")]
+        did: String,
+    },
+}
+
 // --- Main CLI Logic ---
 
 #[tokio::main]
@@ -299,6 +338,15 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
             NetworkCommands::Stats => handle_network_stats(cli, client).await?,
             NetworkCommands::Ping { peer_id } => handle_network_ping(cli, client, peer_id).await?,
             NetworkCommands::Peers => handle_network_peers(cli, client).await?,
+        },
+        Commands::Accounts { command } => match command {
+            AccountCommands::Balance { did } => handle_account_balance(cli, client, did).await?,
+        },
+        Commands::Keys { command } => match command {
+            KeyCommands::Show => handle_keys_show(cli, client).await?,
+        },
+        Commands::Reputation { command } => match command {
+            ReputationCommands::Get { did } => handle_reputation_get(cli, client, did).await?,
         },
         Commands::Ccl { command } => match command {
             CclCommands::Compile { file } => handle_ccl_compile(file)?,
@@ -820,6 +868,30 @@ async fn handle_fed_leave(cli: &Cli, client: &Client, peer: &str) -> Result<(), 
 async fn handle_fed_status(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
     let status: serde_json::Value = get_request(&cli.api_url, client, "/federation/status").await?;
     println!("{}", serde_json::to_string_pretty(&status)?);
+    Ok(())
+}
+
+async fn handle_account_balance(
+    cli: &Cli,
+    client: &Client,
+    did: &str,
+) -> Result<(), anyhow::Error> {
+    let path = format!("/account/{}/mana", did);
+    let v: serde_json::Value = get_request(&cli.api_url, client, &path).await?;
+    println!("{}", serde_json::to_string_pretty(&v)?);
+    Ok(())
+}
+
+async fn handle_keys_show(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
+    let v: serde_json::Value = get_request(&cli.api_url, client, "/keys").await?;
+    println!("{}", serde_json::to_string_pretty(&v)?);
+    Ok(())
+}
+
+async fn handle_reputation_get(cli: &Cli, client: &Client, did: &str) -> Result<(), anyhow::Error> {
+    let path = format!("/reputation/{}", did);
+    let v: serde_json::Value = get_request(&cli.api_url, client, &path).await?;
+    println!("{}", serde_json::to_string_pretty(&v)?);
     Ok(())
 }
 
