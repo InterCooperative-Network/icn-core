@@ -1,0 +1,13 @@
+// Example contract generated from TREASURY_TEMPLATE
+fn deposit(balance: Integer, amount: Integer) -> Integer {
+    return balance + amount;
+}
+
+fn spend(balance: Integer, amount: Integer) -> Integer {
+    return balance - amount;
+}
+
+fn run() -> Integer {
+    let bal = deposit(100, 50);
+    return spend(bal, 20);
+}

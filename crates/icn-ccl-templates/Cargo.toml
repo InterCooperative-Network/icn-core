@@ -1,0 +1,11 @@
+[package]
+name = "icn-ccl-templates"
+edition.workspace = true
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+
+[package.metadata]
+# optional custom

@@ -1,0 +1,14 @@
+// Simple treasury accounting template
+// Adjust deposit and spend rules for your cooperative
+fn deposit(balance: Integer, amount: Integer) -> Integer {
+    return balance + amount;
+}
+
+fn spend(balance: Integer, amount: Integer) -> Integer {
+    return balance - amount;
+}
+
+fn run() -> Integer {
+    let bal = deposit(0, 10);
+    return spend(bal, 4);
+}
