@@ -386,7 +386,7 @@ More detailed information can be found in the `README.md` file within each crate
 * [CCL Examples](icn-ccl/tests/contracts/) – governance contract templates
 
 ### **Development Resources**
-* Crate documentation: [icn-common](crates/icn-common/README.md), [icn-dag](crates/icn-dag/README.md), [icn-identity](crates/icn-identity/README.md), [icn-mesh](crates/icn-mesh/README.md), [icn-governance](crates/icn-governance/README.md), [icn-runtime](crates/icn-runtime/README.md), [icn-network](crates/icn-network/README.md)
+* Crate documentation: [icn-common](crates/icn-common/README.md), [icn-dag](crates/icn-dag/README.md), [icn-identity](crates/icn-identity/README.md), [icn-mesh](crates/icn-mesh/README.md), [icn-governance](crates/icn-governance/README.md), [icn-runtime](crates/icn-runtime/README.md), [icn-network](crates/icn-network/README.md), [icn-templates](crates/icn-templates/README.md)
 * [Rust API Documentation](https://intercooperative-network.github.io/icn-core/) – automatically built by [docs.yml](.github/workflows/docs.yml)
 * Build docs locally with `cargo doc --workspace --no-deps` (or `just docs`) and open them from `target/doc`
 * [API Documentation](docs/API.md) – HTTP endpoints and programmatic interfaces

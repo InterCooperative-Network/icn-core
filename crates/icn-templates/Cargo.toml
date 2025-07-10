@@ -1,0 +1,12 @@
+[package]
+name = "icn-templates"
+version.workspace = true
+edition.workspace = true
+license = "Apache-2.0"
+authors = ["ICN Contributors"]
+description = "Reusable CCL templates for cooperative governance"
+readme = "README.md"
+
+[dependencies]
+
+[dev-dependencies]

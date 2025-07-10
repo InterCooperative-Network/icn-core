@@ -1,0 +1,4 @@
+// Provided by icn-templates crate
+fn request_funds(amount: Mana) -> Mana { return amount; }
+fn approve(amount: Mana) -> Mana { return amount; }
+fn run() -> Mana { return approve(request_funds(10)); }
