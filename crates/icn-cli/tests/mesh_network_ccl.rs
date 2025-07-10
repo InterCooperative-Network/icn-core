@@ -124,6 +124,32 @@ async fn mesh_network_and_ccl_commands() {
     .await
     .unwrap();
 
+    // ccl lint command
+    let bin = env!("CARGO_BIN_EXE_icn-cli");
+    let lint_file = file_path.to_str().unwrap().to_string();
+    tokio::task::spawn_blocking(move || {
+        Command::new(bin)
+            .args(["ccl", "lint", &lint_file])
+            .assert()
+            .success()
+            .stdout(predicates::str::contains("passed linting"));
+    })
+    .await
+    .unwrap();
+
+    // ccl explain command
+    let bin = env!("CARGO_BIN_EXE_icn-cli");
+    let explain_file = file_path.to_str().unwrap().to_string();
+    tokio::task::spawn_blocking(move || {
+        Command::new(bin)
+            .args(["ccl", "explain", &explain_file])
+            .assert()
+            .success()
+            .stdout(predicates::str::contains("Function"));
+    })
+    .await
+    .unwrap();
+
     // federation join, status, leave commands
     let bin = env!("CARGO_BIN_EXE_icn-cli");
     let base = format!("http://{addr}");

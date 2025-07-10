@@ -1,0 +1,48 @@
+{
+  "name": "icn-ccl-tools",
+  "displayName": "ICN CCL Tools",
+  "description": "Syntax highlighting and build tasks for Cooperative Contract Language (CCL)",
+  "version": "0.1.0",
+  "publisher": "icn",
+  "engines": { "vscode": "^1.80.0" },
+  "categories": ["Programming Languages"],
+  "activationEvents": [
+    "onLanguage:ccl"
+  ],
+  "main": "extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "ccl",
+        "aliases": ["CCL", "ccl"],
+        "extensions": [".ccl"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "ccl",
+        "scopeName": "source.ccl",
+        "path": "./syntaxes/ccl.tmLanguage.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "icn-ccl.compile",
+        "title": "Compile CCL File"
+      }
+    ],
+    "taskDefinitions": [
+      {
+        "type": "ccl",
+        "required": [],
+        "properties": {
+          "file": {
+            "type": "string",
+            "description": "CCL file to compile"
+          }
+        }
+      }
+    ]
+  }
+}

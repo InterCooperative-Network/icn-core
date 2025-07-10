@@ -1,0 +1,9 @@
+{
+  "scopeName": "source.ccl",
+  "patterns": [
+    {"match": "\\b(fn|rule|when|then|allow|deny|charge|let|if|else|while|return)\\b", "name": "keyword.control.ccl"},
+    {"match": "\\b(true|false)\\b", "name": "constant.language.ccl"},
+    {"match": "\"[^\"]*\"", "name": "string.quoted.double.ccl"},
+    {"match": "//.*$", "name": "comment.line.ccl"}
+  ]
+}
