@@ -312,7 +312,7 @@ async fn proposal_body_is_stored_in_dag() {
     let cid = prop.content_cid.expect("cid stored");
     drop(gov);
     let store = ctx.dag_store.lock().await;
-    let block = store.get(&cid).unwrap().expect("block stored");
+    let block = store.get(&cid).await.unwrap().expect("block stored");
     assert_eq!(block.data, b"full proposal text");
 }
 

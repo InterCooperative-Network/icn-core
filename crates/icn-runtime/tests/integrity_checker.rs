@@ -24,10 +24,7 @@ async fn integrity_checker_detects_corruption() {
     let block = create_block("good");
     {
         let mut store = ctx.dag_store.lock().await;
-        #[cfg(feature = "async")]
         store.put(&block).await.unwrap();
-        #[cfg(not(feature = "async"))]
-        store.put(&block).unwrap();
     }
     assert!(ctx.integrity_check_once().await.is_ok());
     {

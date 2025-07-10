@@ -4,7 +4,7 @@ use icn_identity::{
 };
 use icn_reputation::ReputationStore;
 use icn_runtime::{
-    context::{RuntimeContext, StubDagStore, StubMeshNetworkService, StubSigner},
+    context::{RuntimeContext, StubSigner},
     host_anchor_receipt, ReputationUpdater,
 };
 use std::str::FromStr;
@@ -15,17 +15,14 @@ async fn anchor_receipt_updates_reputation() {
     let (sk, vk) = generate_ed25519_keypair();
     let did_str = did_key_from_verifying_key(&vk);
     let did = icn_common::Did::from_str(&did_str).unwrap();
+    let signer = Arc::new(StubSigner::new_with_keys(sk.clone(), vk));
 
     let ctx = RuntimeContext::new_with_ledger_path(
-        did.clone(),
-        Arc::new(StubMeshNetworkService::new()),
-        Arc::new(StubSigner::new_with_keys(sk.clone(), vk)),
-        Arc::new(icn_identity::KeyDidResolver),
-        Arc::new(tokio::sync::Mutex::new(StubDagStore::new())),
+        &did_str,
         std::path::PathBuf::from("./mana_ledger.sled"),
-        std::path::PathBuf::from("./reputation.sled"),
-        None,
-    );
+        signer.clone(),
+    ).unwrap();
+    
     let job_id = Cid::new_v1_sha256(0x55, b"rep_job");
     let result_cid = Cid::new_v1_sha256(0x55, b"res");
 
@@ -57,6 +54,7 @@ async fn anchor_receipt_updates_reputation() {
 
     assert_eq!(ctx.reputation_store.get_reputation(&did), 3);
 }
+
 #[test]
 fn reputation_updater_increments_store() {
     let store = icn_reputation::InMemoryReputationStore::new();

@@ -2,8 +2,7 @@ use icn_common::{Cid, DagBlock, Did};
 use icn_identity::SignatureBytes;
 use icn_mesh::{ActualMeshJob, JobId, JobKind, JobSpec};
 use icn_runtime::context::RuntimeContext;
-use icn_runtime::executor::{WasmExecutor, WasmExecutorConfig, WasmSecurityLimits};
-use std::str::FromStr;
+use icn_runtime::executor::{JobExecutor, WasmExecutor, WasmExecutorConfig, WasmSecurityLimits};
 use std::sync::Arc;
 
 #[tokio::test]
@@ -22,7 +21,7 @@ async fn validator_enforces_memory_pages() {
     };
     {
         let mut store = ctx.dag_store.lock().await;
-        store.put(&block).unwrap();
+        store.put(&block).await.unwrap();
     }
     let job = ActualMeshJob {
         id: JobId(Cid::new_v1_sha256(0x55, b"mem_pages")),
@@ -68,7 +67,7 @@ async fn validator_enforces_function_limit() {
     };
     {
         let mut store = ctx.dag_store.lock().await;
-        store.put(&block).unwrap();
+        store.put(&block).await.unwrap();
     }
     let job = ActualMeshJob {
         id: JobId(Cid::new_v1_sha256(0x55, b"func_limit")),
@@ -114,7 +113,7 @@ async fn resource_limiter_blocks_growth() {
     };
     {
         let mut store = ctx.dag_store.lock().await;
-        store.put(&block).unwrap();
+        store.put(&block).await.unwrap();
     }
     let job = ActualMeshJob {
         id: JobId(Cid::new_v1_sha256(0x55, b"grow")),

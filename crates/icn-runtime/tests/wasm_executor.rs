@@ -2,7 +2,7 @@ use icn_common::{compute_merkle_cid, Cid, DagBlock, Did};
 use icn_identity::{did_key_from_verifying_key, generate_ed25519_keypair, SignatureBytes};
 use icn_mesh::{ActualMeshJob, JobId, JobKind, JobSpec};
 use icn_runtime::context::{RuntimeContext, StubSigner};
-use icn_runtime::executor::WasmExecutorConfig;
+use icn_runtime::executor::{WasmExecutorConfig, WasmSecurityLimits};
 use icn_runtime::executor::{JobExecutor, WasmExecutor};
 use icn_runtime::host_submit_mesh_job;
 use std::str::FromStr;
@@ -37,7 +37,7 @@ async fn wasm_executor_runs_wasm() {
     };
     {
         let mut store = ctx.dag_store.lock().await;
-        store.put(&block).unwrap();
+        store.put(&block).await.unwrap();
     }
     let cid = block.cid.clone();
 
@@ -83,7 +83,7 @@ async fn wasm_executor_runs_compiled_ccl_contract() {
     };
     {
         let mut store = ctx.dag_store.lock().await;
-        store.put(&block).unwrap();
+        store.put(&block).await.unwrap();
     }
     let cid = block.cid.clone();
 
@@ -158,7 +158,7 @@ async fn wasm_executor_host_submit_mesh_job_json() {
     };
     {
         let mut store = ctx.dag_store.lock().await;
-        store.put(&block).unwrap();
+        store.put(&block).await.unwrap();
     }
 
     let job = ActualMeshJob {
@@ -225,7 +225,7 @@ async fn wasm_executor_host_anchor_receipt_json() {
     };
     {
         let mut store = ctx.dag_store.lock().await;
-        store.put(&block).unwrap();
+        store.put(&block).await.unwrap();
     }
 
     let job = ActualMeshJob {
@@ -245,7 +245,7 @@ async fn wasm_executor_host_anchor_receipt_json() {
     let rec_bytes = serde_json::to_vec(&receipt).unwrap();
     let expected = Cid::new_v1_sha256(0x71, &rec_bytes);
     let store = ctx.dag_store.lock().await;
-    assert!(store.get(&expected).unwrap().is_some());
+    assert!(store.get(&expected).await.unwrap().is_some());
     assert!(ctx.reputation_store.get_reputation(&executor_did) > 0);
 }
 
@@ -269,7 +269,7 @@ async fn submit_compiled_ccl_runs_via_executor() {
     };
     {
         let mut store = ctx.dag_store.lock().await;
-        store.put(&block).unwrap();
+        store.put(&block).await.unwrap();
     }
     let cid = block.cid.clone();
     let job = ActualMeshJob {
@@ -314,7 +314,7 @@ async fn queued_compiled_ccl_executes() {
     };
     {
         let mut store = ctx.dag_store.lock().await;
-        store.put(&block).unwrap();
+        store.put(&block).await.unwrap();
     }
     let cid = block.cid.clone();
     let job = ActualMeshJob {
@@ -357,7 +357,7 @@ async fn compiled_example_contract_file_runs() {
     };
     {
         let mut store = ctx.dag_store.lock().await;
-        store.put(&block).unwrap();
+        store.put(&block).await.unwrap();
     }
     let cid = block.cid.clone();
     let job = ActualMeshJob {
@@ -392,7 +392,7 @@ async fn wasm_executor_enforces_memory_limit() {
     };
     {
         let mut store = ctx.dag_store.lock().await;
-        store.put(&block).unwrap();
+        store.put(&block).await.unwrap();
     }
     let job = ActualMeshJob {
         id: JobId(Cid::new_v1_sha256(0x55, b"mem")),
@@ -407,6 +407,7 @@ async fn wasm_executor_enforces_memory_limit() {
     let config = WasmExecutorConfig {
         max_memory: 64 * 1024,
         fuel: 10_000,
+        security_limits: WasmSecurityLimits::default(),
     };
     let exec = WasmExecutor::new(ctx.clone(), signer, config);
     assert!(exec.execute_job(&job).await.is_err());
@@ -428,7 +429,7 @@ async fn wasm_executor_enforces_fuel_limit() {
     };
     {
         let mut store = ctx.dag_store.lock().await;
-        store.put(&block).unwrap();
+        store.put(&block).await.unwrap();
     }
     let job = ActualMeshJob {
         id: JobId(Cid::new_v1_sha256(0x55, b"fuel")),
@@ -443,6 +444,7 @@ async fn wasm_executor_enforces_fuel_limit() {
     let config = WasmExecutorConfig {
         max_memory: 256 * 1024,
         fuel: 100,
+        security_limits: WasmSecurityLimits::default(),
     };
     let exec = WasmExecutor::new(ctx.clone(), signer, config);
     assert!(exec.execute_job(&job).await.is_err());
@@ -467,7 +469,7 @@ async fn wasm_executor_rejects_memory_growth() {
     };
     {
         let mut store = ctx.dag_store.lock().await;
-        store.put(&block).unwrap();
+        store.put(&block).await.unwrap();
     }
     let job = ActualMeshJob {
         id: JobId(Cid::new_v1_sha256(0x55, b"memgrow")),
@@ -482,6 +484,7 @@ async fn wasm_executor_rejects_memory_growth() {
     let config = WasmExecutorConfig {
         max_memory: 64 * 1024,
         fuel: 10_000,
+        security_limits: WasmSecurityLimits::default(),
     };
     let exec = WasmExecutor::new(ctx.clone(), signer, config);
     assert!(exec.execute_job(&job).await.is_err());
@@ -503,7 +506,7 @@ async fn wasm_executor_errors_on_large_initial_memory() {
     };
     {
         let mut store = ctx.dag_store.lock().await;
-        store.put(&block).unwrap();
+        store.put(&block).await.unwrap();
     }
     let job = ActualMeshJob {
         id: JobId(Cid::new_v1_sha256(0x55, b"meminit")),
@@ -518,6 +521,7 @@ async fn wasm_executor_errors_on_large_initial_memory() {
     let config = WasmExecutorConfig {
         max_memory: 64 * 1024,
         fuel: 10_000,
+        security_limits: WasmSecurityLimits::default(),
     };
     let exec = WasmExecutor::new(ctx.clone(), signer, config);
     assert!(exec.execute_job(&job).await.is_err());
@@ -539,7 +543,7 @@ async fn wasm_executor_enforces_timeout() {
     };
     {
         let mut store = ctx.dag_store.lock().await;
-        store.put(&block).unwrap();
+        store.put(&block).await.unwrap();
     }
     let job = ActualMeshJob {
         id: JobId(Cid::new_v1_sha256(0x55, b"timeout")),

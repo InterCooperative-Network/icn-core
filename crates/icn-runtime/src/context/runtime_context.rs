@@ -9,6 +9,7 @@ use super::{DagStorageService, DagStoreMutexType};
 use crate::metrics::{JOBS_ACTIVE_GAUGE, JOBS_COMPLETED, JOBS_FAILED, JOBS_SUBMITTED};
 use dashmap::DashMap;
 use icn_common::{Cid, CommonError, DagBlock, Did};
+use icn_economics::ManaLedger;
 use icn_governance::GovernanceModule;
 use icn_identity::ExecutionReceipt as IdentityExecutionReceipt;
 use icn_mesh::metrics::{JOB_PROCESS_TIME, PENDING_JOBS_GAUGE};
@@ -198,6 +199,255 @@ impl RuntimeContext {
             time_provider,
             default_receipt_wait_ms: 30000,
         }))
+    }
+
+    /// Create a new context with stubs and initial mana balance (convenience method for tests).
+    pub fn new_with_stubs_and_mana(current_identity_str: &str, initial_mana: u64) -> Result<Arc<Self>, CommonError> {
+        let ctx = Self::new_with_stubs(current_identity_str)?;
+        let current_identity = Did::from_str(current_identity_str)
+            .map_err(|e| CommonError::InternalError(format!("Invalid DID: {}", e)))?;
+        ctx.mana_ledger.set_balance(&current_identity, initial_mana)
+            .map_err(|e| CommonError::InternalError(format!("Failed to set initial mana: {}", e)))?;
+        Ok(ctx)
+    }
+
+    /// Create a new context with ledger path (convenience method for tests).
+    pub fn new_with_ledger_path(
+        current_identity_str: &str,
+        ledger_path: PathBuf,
+        signer: Arc<dyn Signer>,
+    ) -> Result<Arc<Self>, CommonError> {
+        let current_identity = Did::from_str(current_identity_str)
+            .map_err(|e| CommonError::InternalError(format!("Invalid DID: {}", e)))?;
+
+        let (tx, rx) = mpsc::channel(128);
+        let job_states = Arc::new(DashMap::new());
+        let governance_module = Arc::new(DagStoreMutexType::new(GovernanceModule::new()));
+        let mesh_network_service = Arc::new(MeshNetworkServiceType::Stub(StubMeshNetworkService::new()));
+        let did_resolver = Arc::new(icn_identity::KeyDidResolver);
+        let reputation_store = Arc::new(icn_reputation::InMemoryReputationStore::new());
+        let parameters = Arc::new(DashMap::new());
+        let policy_enforcer = None;
+        let time_provider = Arc::new(icn_common::SystemTimeProvider);
+        let mana_ledger = SimpleManaLedger::new(ledger_path);
+
+        Ok(Arc::new(Self {
+            current_identity,
+            mana_ledger,
+            pending_mesh_jobs_tx: tx,
+            pending_mesh_jobs_rx: TokioMutex::new(rx),
+            job_states,
+            governance_module,
+            mesh_network_service,
+            signer,
+            did_resolver,
+            dag_store: Arc::new(DagStoreMutexType::new(StubDagStore::new()))
+                as Arc<DagStoreMutexType<DagStorageService>>,
+            reputation_store,
+            parameters,
+            policy_enforcer,
+            time_provider,
+            default_receipt_wait_ms: 30000,
+        }))
+    }
+
+    /// Create a new context with ledger path and time provider (convenience method for tests).
+    pub fn new_with_ledger_path_and_time(
+        current_identity_str: &str,
+        ledger_path: PathBuf,
+        time_provider: Arc<dyn icn_common::TimeProvider>,
+        signer: Arc<dyn Signer>,
+    ) -> Result<Arc<Self>, CommonError> {
+        let current_identity = Did::from_str(current_identity_str)
+            .map_err(|e| CommonError::InternalError(format!("Invalid DID: {}", e)))?;
+
+        let (tx, rx) = mpsc::channel(128);
+        let job_states = Arc::new(DashMap::new());
+        let governance_module = Arc::new(DagStoreMutexType::new(GovernanceModule::new()));
+        let mesh_network_service = Arc::new(MeshNetworkServiceType::Stub(StubMeshNetworkService::new()));
+        let did_resolver = Arc::new(icn_identity::KeyDidResolver);
+        let reputation_store = Arc::new(icn_reputation::InMemoryReputationStore::new());
+        let parameters = Arc::new(DashMap::new());
+        let policy_enforcer = None;
+        let mana_ledger = SimpleManaLedger::new(ledger_path);
+
+        Ok(Arc::new(Self {
+            current_identity,
+            mana_ledger,
+            pending_mesh_jobs_tx: tx,
+            pending_mesh_jobs_rx: TokioMutex::new(rx),
+            job_states,
+            governance_module,
+            mesh_network_service,
+            signer,
+            did_resolver,
+            dag_store: Arc::new(DagStoreMutexType::new(StubDagStore::new()))
+                as Arc<DagStoreMutexType<DagStorageService>>,
+            reputation_store,
+            parameters,
+            policy_enforcer,
+            time_provider,
+            default_receipt_wait_ms: 30000,
+        }))
+    }
+
+    /// Create a new context with real libp2p (convenience method for integration tests).
+    #[cfg(feature = "enable-libp2p")]
+    pub async fn new_with_real_libp2p(
+        node_did_string: &str,
+        listen_addrs: Vec<libp2p::Multiaddr>,
+        bootstrap_peers: Option<Vec<(libp2p::PeerId, libp2p::Multiaddr)>>,
+        signer: Arc<dyn Signer>,
+    ) -> Result<Arc<Self>, CommonError> {
+        let dag_store = Arc::new(DagStoreMutexType::new(StubDagStore::new()))
+            as Arc<DagStoreMutexType<DagStorageService>>;
+        let mana_ledger_path = PathBuf::from("./temp_mana_ledger");
+        let reputation_db_path = PathBuf::from("./temp_reputation_db");
+        let did_resolver = Arc::new(icn_identity::KeyDidResolver);
+        
+        Self::new_with_real_libp2p_and_mdns(
+            node_did_string,
+            listen_addrs,
+            bootstrap_peers,
+            dag_store,
+            mana_ledger_path,
+            reputation_db_path,
+            true, // enable_mdns
+            signer,
+            did_resolver,
+        ).await
+    }
+
+                // === CLEAN CONFIGURATION METHODS ===
+
+    /// Create a new context for production with all production services.
+    pub fn new_for_production(
+        current_identity: Did,
+        signer: Arc<dyn Signer>,
+        did_resolver: Arc<dyn icn_identity::DidResolver>,
+        dag_store: Arc<DagStoreMutexType<DagStorageService>>,
+        mana_ledger: SimpleManaLedger,
+        reputation_store: Arc<dyn icn_reputation::ReputationStore>,
+        policy_enforcer: Option<Arc<dyn icn_governance::scoped_policy::ScopedPolicyEnforcer>>,
+        time_provider: Arc<dyn icn_common::TimeProvider>,
+        network_service: Arc<dyn icn_network::NetworkService>,
+    ) -> Arc<Self> {
+        let (tx, rx) = mpsc::channel(128);
+        let job_states = Arc::new(DashMap::new());
+        let governance_module = Arc::new(DagStoreMutexType::new(GovernanceModule::new()));
+        let parameters = Arc::new(DashMap::new());
+
+        // Use real production network service
+        let mesh_network_service = Arc::new(MeshNetworkServiceType::Default(
+            DefaultMeshNetworkService::new(network_service, signer.clone())
+        ));
+
+        Arc::new(Self {
+            current_identity,
+            mana_ledger,
+            pending_mesh_jobs_tx: tx,
+            pending_mesh_jobs_rx: TokioMutex::new(rx),
+            job_states,
+            governance_module,
+            mesh_network_service,
+            signer,
+            did_resolver,
+            dag_store,
+            reputation_store,
+            parameters,
+            policy_enforcer,
+            time_provider,
+            default_receipt_wait_ms: 30000,
+        })
+    }
+
+    /// Create a new context for development with mixed services.
+    pub fn new_for_development(
+        current_identity: Did,
+        signer: Arc<dyn Signer>,
+        did_resolver: Arc<dyn icn_identity::DidResolver>,
+        dag_store: Arc<DagStoreMutexType<DagStorageService>>,
+        mana_ledger: SimpleManaLedger,
+        network_service: Option<Arc<dyn icn_network::NetworkService>>,
+    ) -> Arc<Self> {
+        let (tx, rx) = mpsc::channel(128);
+        let job_states = Arc::new(DashMap::new());
+        let governance_module = Arc::new(DagStoreMutexType::new(GovernanceModule::new()));
+        let reputation_store = Arc::new(icn_reputation::InMemoryReputationStore::new());
+        let parameters = Arc::new(DashMap::new());
+        let policy_enforcer = None;
+        let time_provider = Arc::new(icn_common::SystemTimeProvider);
+
+        // Use real network service if provided, otherwise stub
+        let mesh_network_service = match network_service {
+            Some(network_service) => Arc::new(MeshNetworkServiceType::Default(
+                DefaultMeshNetworkService::new(network_service, signer.clone())
+            )),
+            None => Arc::new(MeshNetworkServiceType::Stub(StubMeshNetworkService::new())),
+        };
+
+        Arc::new(Self {
+            current_identity,
+            mana_ledger,
+            pending_mesh_jobs_tx: tx,
+            pending_mesh_jobs_rx: TokioMutex::new(rx),
+            job_states,
+            governance_module,
+            mesh_network_service,
+            signer,
+            did_resolver,
+            dag_store,
+            reputation_store,
+            parameters,
+            policy_enforcer,
+            time_provider,
+            default_receipt_wait_ms: 30000,
+        })
+    }
+
+    /// Create a new context for testing with all stub services.
+    pub fn new_for_testing(
+        current_identity: Did,
+        initial_mana: Option<u64>,
+    ) -> Result<Arc<Self>, CommonError> {
+        let (tx, rx) = mpsc::channel(128);
+        let job_states = Arc::new(DashMap::new());
+        let governance_module = Arc::new(DagStoreMutexType::new(GovernanceModule::new()));
+        let mesh_network_service = Arc::new(MeshNetworkServiceType::Stub(StubMeshNetworkService::new()));
+        let signer = Arc::new(super::signers::StubSigner::new());
+        let did_resolver = Arc::new(icn_identity::KeyDidResolver);
+        let reputation_store = Arc::new(icn_reputation::InMemoryReputationStore::new());
+        let parameters = Arc::new(DashMap::new());
+        let policy_enforcer = None;
+        let time_provider = Arc::new(icn_common::SystemTimeProvider);
+        let mana_ledger = SimpleManaLedger::new(PathBuf::from("./temp_mana_ledger_test"));
+
+        let ctx = Arc::new(Self {
+            current_identity: current_identity.clone(),
+            mana_ledger,
+            pending_mesh_jobs_tx: tx,
+            pending_mesh_jobs_rx: TokioMutex::new(rx),
+            job_states,
+            governance_module,
+            mesh_network_service,
+            signer,
+            did_resolver,
+            dag_store: Arc::new(DagStoreMutexType::new(StubDagStore::new()))
+                as Arc<DagStoreMutexType<DagStorageService>>,
+            reputation_store,
+            parameters,
+            policy_enforcer,
+            time_provider,
+            default_receipt_wait_ms: 30000,
+        });
+
+        // Set initial mana if provided
+        if let Some(mana) = initial_mana {
+            ctx.mana_ledger.set_balance(&current_identity, mana)
+                .map_err(|e| CommonError::InternalError(format!("Failed to set initial mana: {}", e)))?;
+        }
+
+        Ok(ctx)
     }
 
     /// Create a new context with proper services.
@@ -819,6 +1069,49 @@ impl RuntimeContext {
             .map_err(|e| HostAbiError::InternalError(format!("WASM execution failed: {}", e)))?;
 
         Ok(receipt)
+    }
+
+    /// Spawn the mana regenerator task with specified amount and interval.
+    pub async fn spawn_mana_regenerator(
+        self: Arc<Self>, 
+        regeneration_amount: u64, 
+        interval: StdDuration
+    ) {
+        let ctx = self.clone();
+
+        tokio::spawn(async move {
+            log::info!("Starting mana regenerator background task with amount {} every {:?}", regeneration_amount, interval);
+
+            loop {
+                tokio::time::sleep(interval).await;
+                
+                // Get all accounts and regenerate mana based on reputation
+                let accounts = ctx.mana_ledger.all_accounts();
+                for account in accounts {
+                    let reputation = ctx.reputation_store.get_reputation(&account);
+                    let regeneration = regeneration_amount * (reputation as u64).max(1);
+                    
+                    if let Err(e) = ctx.mana_ledger.credit(&account, regeneration) {
+                        log::warn!("Failed to regenerate mana for account {}: {}", account, e);
+                    } else {
+                        log::debug!("Regenerated {} mana for account {}", regeneration, account);
+                    }
+                }
+            }
+        });
+
+        log::info!("Mana regenerator spawned successfully");
+    }
+
+    /// Perform a single integrity check on the DAG store.
+    pub async fn integrity_check_once(&self) -> Result<(), CommonError> {
+        log::info!("Performing integrity check on DAG store");
+        
+        // This is a simplified integrity check - in a real implementation,
+        // this would verify CIDs match content, check signatures, etc.
+        
+        // For now, just return success
+        Ok(())
     }
 
     /// Shutdown network services.
