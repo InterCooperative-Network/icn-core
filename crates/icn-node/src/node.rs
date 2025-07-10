@@ -535,17 +535,18 @@ pub async fn app_router_with_options(
         mana_ledger_path.unwrap_or_else(|| PathBuf::from("./mana_ledger.sqlite")),
         ledger_backend,
     );
-    let mut rt_ctx = RuntimeContext::new_with_mana_ledger_and_time(
-        node_did.clone(),
+    let params = icn_runtime::context::RuntimeContextParams {
+        current_identity: node_did.clone(),
         mesh_network_service,
         signer,
-        Arc::new(icn_identity::KeyDidResolver),
-        dag_store_for_rt,
-        ledger,
-        rep_path.clone(),
-        None,
-        Arc::new(icn_common::SystemTimeProvider),
-    );
+        did_resolver: Arc::new(icn_identity::KeyDidResolver),
+        dag_store: dag_store_for_rt,
+        mana_ledger: ledger,
+        reputation_path: rep_path.clone(),
+        policy_enforcer: None,
+        time_provider: Arc::new(icn_common::SystemTimeProvider),
+    };
+    let mut rt_ctx = RuntimeContext::new_with_mana_ledger_and_time(params);
 
     #[cfg(feature = "persist-sled")]
     {
@@ -1001,17 +1002,20 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
             config.mana_ledger_path.clone(),
             config.mana_ledger_backend,
         );
-        RuntimeContext::new_with_mana_ledger_and_time(
-            node_did.clone(),
-            mesh_network_service,
-            signer,
-            Arc::new(icn_identity::KeyDidResolver),
-            dag_store_for_rt,
-            ledger,
-            config.reputation_db_path.clone(),
-            None,
-            Arc::new(icn_common::SystemTimeProvider),
-        )
+        {
+            let params = icn_runtime::context::RuntimeContextParams {
+                current_identity: node_did.clone(),
+                mesh_network_service,
+                signer,
+                did_resolver: Arc::new(icn_identity::KeyDidResolver),
+                dag_store: dag_store_for_rt,
+                mana_ledger: ledger,
+                reputation_path: config.reputation_db_path.clone(),
+                policy_enforcer: None,
+                time_provider: Arc::new(icn_common::SystemTimeProvider),
+            };
+            RuntimeContext::new_with_mana_ledger_and_time(params)
+        }
     };
 
     #[cfg(feature = "persist-sled")]

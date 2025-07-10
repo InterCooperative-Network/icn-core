@@ -7,7 +7,7 @@ use super::signers::Signer;
 use super::stubs::{StubDagStore, StubMeshNetworkService};
 use super::{DagStorageService, DagStoreMutexType};
 use dashmap::DashMap;
-use icn_common::{CommonError, Did, DagBlock, Cid};
+use icn_common::{Cid, CommonError, DagBlock, Did};
 use icn_governance::GovernanceModule;
 use icn_identity::ExecutionReceipt as IdentityExecutionReceipt;
 use icn_mesh::{ActualMeshJob, JobId, JobState};
@@ -81,8 +81,14 @@ impl MeshNetworkService for MeshNetworkServiceType {
         timeout: StdDuration,
     ) -> Result<Option<IdentityExecutionReceipt>, HostAbiError> {
         match self {
-            MeshNetworkServiceType::Stub(s) => s.try_receive_receipt(job_id, expected_executor, timeout).await,
-            MeshNetworkServiceType::Default(s) => s.try_receive_receipt(job_id, expected_executor, timeout).await,
+            MeshNetworkServiceType::Stub(s) => {
+                s.try_receive_receipt(job_id, expected_executor, timeout)
+                    .await
+            }
+            MeshNetworkServiceType::Default(s) => {
+                s.try_receive_receipt(job_id, expected_executor, timeout)
+                    .await
+            }
         }
     }
 }
@@ -110,9 +116,9 @@ pub struct RuntimeContext {
 use std::str::FromStr;
 
 // Add governance-specific types
-use icn_governance::{ProposalId, ProposalType, VoteOption, ProposalSubmission};
-use serde::{Deserialize, Serialize};
 use super::mesh_network::{PROPOSAL_COST_MANA, VOTE_COST_MANA};
+use icn_governance::{ProposalId, ProposalSubmission, ProposalType, VoteOption};
+use serde::{Deserialize, Serialize};
 
 /// Governance payload types
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -140,16 +146,30 @@ pub struct CloseProposalResult {
     pub abstain: usize,
 }
 
+/// Parameters for [`RuntimeContext`] construction.
+pub struct RuntimeContextParams {
+    pub current_identity: Did,
+    pub mesh_network_service: Arc<MeshNetworkServiceType>,
+    pub signer: Arc<dyn Signer>,
+    pub did_resolver: Arc<dyn icn_identity::DidResolver>,
+    pub dag_store: Arc<DagStoreMutexType<DagStorageService>>,
+    pub mana_ledger: SimpleManaLedger,
+    pub reputation_path: PathBuf,
+    pub policy_enforcer: Option<Arc<dyn icn_governance::scoped_policy::ScopedPolicyEnforcer>>,
+    pub time_provider: Arc<dyn icn_common::TimeProvider>,
+}
+
 impl RuntimeContext {
     /// Create a new context with stubs for testing.
     pub fn new_with_stubs(current_identity_str: &str) -> Result<Arc<Self>, CommonError> {
         let current_identity = Did::from_str(current_identity_str)
             .map_err(|e| CommonError::InternalError(format!("Invalid DID: {}", e)))?;
-        
+
         let (tx, rx) = mpsc::channel(128);
         let job_states = Arc::new(DashMap::new());
         let governance_module = Arc::new(DagStoreMutexType::new(GovernanceModule::new()));
-        let mesh_network_service = Arc::new(MeshNetworkServiceType::Stub(StubMeshNetworkService::new()));
+        let mesh_network_service =
+            Arc::new(MeshNetworkServiceType::Stub(StubMeshNetworkService::new()));
         let signer = Arc::new(super::signers::StubSigner::new());
         let did_resolver = Arc::new(icn_identity::KeyDidResolver);
         let reputation_store = Arc::new(icn_reputation::InMemoryReputationStore::new());
@@ -168,7 +188,8 @@ impl RuntimeContext {
             mesh_network_service,
             signer,
             did_resolver,
-            dag_store: Arc::new(DagStoreMutexType::new(StubDagStore::new())) as Arc<DagStoreMutexType<DagStorageService>>,
+            dag_store: Arc::new(DagStoreMutexType::new(StubDagStore::new()))
+                as Arc<DagStoreMutexType<DagStorageService>>,
             reputation_store,
             parameters,
             policy_enforcer,
@@ -226,11 +247,11 @@ impl RuntimeContext {
     ) -> Result<Arc<Self>, CommonError> {
         use icn_network::libp2p_service::NetworkConfig;
         use std::str::FromStr;
-        
+
         // Parse DID from string
         let current_identity = Did::from_str(node_did_string)
             .map_err(|e| CommonError::InternalError(format!("Invalid DID: {}", e)))?;
-            
+
         // Create libp2p network config
         let config = NetworkConfig {
             listen_addresses: listen_addrs,
@@ -238,22 +259,28 @@ impl RuntimeContext {
             enable_mdns,
             ..Default::default()
         };
-        
+
         // Create libp2p network service
-        let network_service = Arc::new(icn_network::libp2p_service::Libp2pNetworkService::new(config).await
-            .map_err(|e| CommonError::NetworkError(format!("Failed to create libp2p service: {}", e)))?);
-        
+        let network_service = Arc::new(
+            icn_network::libp2p_service::Libp2pNetworkService::new(config)
+                .await
+                .map_err(|e| {
+                    CommonError::NetworkError(format!("Failed to create libp2p service: {}", e))
+                })?,
+        );
+
         let mesh_network_service = Arc::new(MeshNetworkServiceType::Default(
-            DefaultMeshNetworkService::new(network_service)
+            DefaultMeshNetworkService::new(network_service),
         ));
-        
+
         // For now, create stub signer and did resolver - in real implementation these would be created from config
         let signer = Arc::new(super::signers::StubSigner::new());
         let did_resolver = Arc::new(icn_identity::KeyDidResolver);
-        
+
         // Create DAG store - for now use stub, but could be created from storage_path in real implementation
-        let dag_store = Arc::new(DagStoreMutexType::new(super::stubs::StubDagStore::new())) as Arc<DagStoreMutexType<DagStorageService>>;
-        
+        let dag_store = Arc::new(DagStoreMutexType::new(super::stubs::StubDagStore::new()))
+            as Arc<DagStoreMutexType<DagStorageService>>;
+
         // Create mana ledger
         let mana_ledger = SimpleManaLedger::new(mana_ledger_path);
 
@@ -285,17 +312,18 @@ impl RuntimeContext {
     }
 
     /// Create a new context with custom mana ledger and time provider.
-    pub fn new_with_mana_ledger_and_time(
-        current_identity: Did,
-        mesh_network_service: Arc<MeshNetworkServiceType>,
-        signer: Arc<dyn Signer>,
-        did_resolver: Arc<dyn icn_identity::DidResolver>,
-        dag_store: Arc<DagStoreMutexType<DagStorageService>>,
-        mana_ledger: SimpleManaLedger,
-        _reputation_path: PathBuf, // Currently unused
-        _policy_enforcer: Option<Arc<dyn icn_governance::scoped_policy::ScopedPolicyEnforcer>>,
-        time_provider: Arc<dyn icn_common::TimeProvider>,
-    ) -> Arc<Self> {
+    pub fn new_with_mana_ledger_and_time(params: RuntimeContextParams) -> Arc<Self> {
+        let RuntimeContextParams {
+            current_identity,
+            mesh_network_service,
+            signer,
+            did_resolver,
+            dag_store,
+            mana_ledger,
+            reputation_path: _reputation_path,
+            policy_enforcer,
+            time_provider,
+        } = params;
         let (tx, rx) = mpsc::channel(128);
         let job_states = Arc::new(DashMap::new());
         let governance_module = Arc::new(DagStoreMutexType::new(GovernanceModule::new()));
@@ -315,7 +343,7 @@ impl RuntimeContext {
             dag_store,
             reputation_store,
             parameters,
-            policy_enforcer: _policy_enforcer,
+            policy_enforcer,
             time_provider,
             default_receipt_wait_ms: 30000,
         })
@@ -353,9 +381,10 @@ impl RuntimeContext {
         receipt: &IdentityExecutionReceipt,
     ) -> Result<Cid, HostAbiError> {
         // Create a DAG block for the receipt
-        let receipt_bytes = bincode::serialize(receipt)
-            .map_err(|e| HostAbiError::DagOperationFailed(format!("Failed to serialize receipt: {}", e)))?;
-        
+        let receipt_bytes = bincode::serialize(receipt).map_err(|e| {
+            HostAbiError::DagOperationFailed(format!("Failed to serialize receipt: {}", e))
+        })?;
+
         let block = DagBlock {
             cid: receipt.result_cid.clone(),
             data: receipt_bytes,
@@ -366,16 +395,15 @@ impl RuntimeContext {
             scope: None,
         };
         let cid = block.cid.clone();
-        
+
         // Store in DAG
         {
             let mut dag_store = self.dag_store.lock().await;
-            dag_store
-                .put(&block)
-                .await
-                .map_err(|e| HostAbiError::DagOperationFailed(format!("Failed to store receipt: {}", e)))?;
+            dag_store.put(&block).await.map_err(|e| {
+                HostAbiError::DagOperationFailed(format!("Failed to store receipt: {}", e))
+            })?;
         }
-        
+
         Ok(cid)
     }
 
@@ -386,7 +414,7 @@ impl RuntimeContext {
     ) -> Result<String, HostAbiError> {
         self.spend_mana(&self.current_identity, PROPOSAL_COST_MANA)
             .await?;
-        
+
         let proposal_type = match payload.proposal_type_str.to_lowercase().as_str() {
             "systemparameterchange" | "system_parameter_change" => {
                 let tup: (String, String) = serde_json::from_slice(&payload.type_specific_payload)
@@ -450,21 +478,18 @@ impl RuntimeContext {
             };
             {
                 let mut dag_store = self.dag_store.lock().await;
-                dag_store
-                    .put(&block)
-                    .await
-                    .map_err(|e| {
-                        HostAbiError::DagOperationFailed(format!(
-                            "Failed to store proposal body: {}",
-                            e
-                        ))
-                    })?;
+                dag_store.put(&block).await.map_err(|e| {
+                    HostAbiError::DagOperationFailed(format!(
+                        "Failed to store proposal body: {}",
+                        e
+                    ))
+                })?;
             }
             Some(block.cid.clone())
         } else {
             None
         };
-        
+
         let pid = gov
             .submit_proposal(ProposalSubmission {
                 proposer: self.current_identity.clone(),
@@ -475,23 +500,27 @@ impl RuntimeContext {
                 threshold: payload.threshold,
                 content_cid,
             })
-            .map_err(|e| HostAbiError::InternalError(format!("Failed to submit proposal: {}", e)))?;
-        
+            .map_err(|e| {
+                HostAbiError::InternalError(format!("Failed to submit proposal: {}", e))
+            })?;
+
         let proposal = gov
             .get_proposal(&pid)
             .map_err(|e| HostAbiError::InternalError(format!("Failed to get proposal: {}", e)))?
-            .ok_or_else(|| HostAbiError::InternalError("Proposal just inserted should exist".to_string()))?;
-        
+            .ok_or_else(|| {
+                HostAbiError::InternalError("Proposal just inserted should exist".to_string())
+            })?;
+
         drop(gov);
-        
+
         let encoded = bincode::serialize(&proposal).map_err(|e| {
             HostAbiError::InternalError(format!("Failed to serialize proposal: {}", e))
         })?;
-        
+
         if let Err(e) = self.mesh_network_service.announce_proposal(encoded).await {
             log::warn!("Failed to broadcast proposal {:?}: {}", pid, e);
         }
-        
+
         Ok(pid.0.clone())
     }
 
@@ -499,10 +528,10 @@ impl RuntimeContext {
     pub async fn cast_governance_vote(&self, payload: CastVotePayload) -> Result<(), HostAbiError> {
         self.spend_mana(&self.current_identity, VOTE_COST_MANA)
             .await?;
-        
+
         let proposal_id = ProposalId::from_str(&payload.proposal_id_str)
             .map_err(|e| HostAbiError::InvalidParameters(format!("Invalid proposal id: {}", e)))?;
-        
+
         let vote_option = match payload.vote_option_str.to_lowercase().as_str() {
             "yes" => VoteOption::Yes,
             "no" => VoteOption::No,
@@ -514,27 +543,27 @@ impl RuntimeContext {
                 )))
             }
         };
-        
+
         let mut gov = self.governance_module.lock().await;
         gov.cast_vote(self.current_identity.clone(), &proposal_id, vote_option)
             .map_err(|e| HostAbiError::InternalError(format!("Failed to cast vote: {}", e)))?;
-        
+
         let vote = icn_governance::Vote {
             voter: self.current_identity.clone(),
             proposal_id: proposal_id.clone(),
             option: vote_option,
             voted_at: self.time_provider.unix_seconds(),
         };
-        
+
         drop(gov);
-        
+
         let encoded = bincode::serialize(&vote)
             .map_err(|e| HostAbiError::InternalError(format!("Failed to serialize vote: {}", e)))?;
-        
+
         if let Err(e) = self.mesh_network_service.announce_vote(encoded).await {
             log::warn!("Failed to broadcast vote for {:?}: {}", proposal_id, e);
         }
-        
+
         Ok(())
     }
 
@@ -550,18 +579,20 @@ impl RuntimeContext {
         let (status, (yes, no, abstain)) = gov
             .close_voting_period(&proposal_id)
             .map_err(|e| HostAbiError::InternalError(format!("Failed to close voting: {}", e)))?;
-        
+
         let proposal = gov
             .get_proposal(&proposal_id)
             .map_err(|e| HostAbiError::InternalError(format!("Failed to get proposal: {}", e)))?
-            .ok_or_else(|| HostAbiError::InternalError("Proposal should exist after closing".to_string()))?;
-        
+            .ok_or_else(|| {
+                HostAbiError::InternalError("Proposal should exist after closing".to_string())
+            })?;
+
         drop(gov);
 
         let encoded = bincode::serialize(&proposal).map_err(|e| {
             HostAbiError::InternalError(format!("Failed to serialize proposal: {}", e))
         })?;
-        
+
         if let Err(e) = self.mesh_network_service.announce_proposal(encoded).await {
             log::warn!("Failed to broadcast proposal {:?}: {}", proposal_id, e);
         }
@@ -572,7 +603,7 @@ impl RuntimeContext {
             no,
             abstain,
         };
-        
+
         serde_json::to_string(&result)
             .map_err(|e| HostAbiError::InternalError(format!("Failed to serialize tally: {}", e)))
     }
@@ -590,7 +621,7 @@ impl RuntimeContext {
         let proposal_opt = gov
             .get_proposal(&proposal_id)
             .map_err(|e| HostAbiError::InternalError(format!("Failed to get proposal: {}", e)))?;
-        
+
         drop(gov);
 
         if let Some(proposal) = proposal_opt {
@@ -605,33 +636,38 @@ impl RuntimeContext {
                             log::info!("Executed proposal {:?}", proposal_id);
                         }
                     }
-                    
+
                     // Broadcast updated proposal
                     let encoded = bincode::serialize(&proposal).map_err(|e| {
                         HostAbiError::InternalError(format!("Failed to serialize proposal: {}", e))
                     })?;
-                    
+
                     if let Err(e) = self.mesh_network_service.announce_proposal(encoded).await {
-                        log::warn!("Failed to broadcast executed proposal {:?}: {}", proposal_id, e);
+                        log::warn!(
+                            "Failed to broadcast executed proposal {:?}: {}",
+                            proposal_id,
+                            e
+                        );
                     }
                 }
                 Err(e) => {
-                    return Err(HostAbiError::InternalError(format!("Failed to execute proposal: {}", e)));
+                    return Err(HostAbiError::InternalError(format!(
+                        "Failed to execute proposal: {}",
+                        e
+                    )));
                 }
             }
         } else {
-            return Err(HostAbiError::InvalidParameters("Proposal not found".to_string()));
+            return Err(HostAbiError::InvalidParameters(
+                "Proposal not found".to_string(),
+            ));
         }
-        
+
         Ok(())
     }
 
     /// Delegate vote to another DID.
-    pub async fn delegate_vote(
-        &self,
-        from_did: &str,
-        to_did: &str,
-    ) -> Result<(), HostAbiError> {
+    pub async fn delegate_vote(&self, from_did: &str, to_did: &str) -> Result<(), HostAbiError> {
         let from = Did::from_str(from_did)
             .map_err(|e| HostAbiError::InvalidParameters(format!("Invalid from DID: {}", e)))?;
         let to = Did::from_str(to_did)
@@ -639,27 +675,28 @@ impl RuntimeContext {
 
         // Only allow delegating your own vote
         if from != self.current_identity {
-            return Err(HostAbiError::PermissionDenied("Can only delegate your own vote".to_string()));
+            return Err(HostAbiError::PermissionDenied(
+                "Can only delegate your own vote".to_string(),
+            ));
         }
 
         let mut gov = self.governance_module.lock().await;
         gov.delegate_vote(from, to)
             .map_err(|e| HostAbiError::InternalError(format!("Failed to delegate vote: {}", e)))?;
-        
+
         Ok(())
     }
 
     /// Revoke vote delegation.
-    pub async fn revoke_delegation(
-        &self,
-        from_did: &str,
-    ) -> Result<(), HostAbiError> {
+    pub async fn revoke_delegation(&self, from_did: &str) -> Result<(), HostAbiError> {
         let from = Did::from_str(from_did)
             .map_err(|e| HostAbiError::InvalidParameters(format!("Invalid from DID: {}", e)))?;
 
         // Only allow revoking your own delegation
         if from != self.current_identity {
-            return Err(HostAbiError::PermissionDenied("Can only revoke your own delegation".to_string()));
+            return Err(HostAbiError::PermissionDenied(
+                "Can only revoke your own delegation".to_string(),
+            ));
         }
 
         let mut gov = self.governance_module.lock().await;
@@ -691,19 +728,22 @@ impl RuntimeContext {
 
     /// Get access to the underlying libp2p service if available.
     #[cfg(feature = "enable-libp2p")]
-    pub fn get_libp2p_service(&self) -> Result<Arc<icn_network::libp2p_service::Libp2pNetworkService>, CommonError> {
+    pub fn get_libp2p_service(
+        &self,
+    ) -> Result<Arc<icn_network::libp2p_service::Libp2pNetworkService>, CommonError> {
         match &*self.mesh_network_service {
             MeshNetworkServiceType::Default(default_service) => {
                 default_service.get_underlying_broadcast_service()
             }
-            MeshNetworkServiceType::Stub(_) => {
-                Err(CommonError::InternalError("Cannot get libp2p service from stub implementation".to_string()))
-            }
+            MeshNetworkServiceType::Stub(_) => Err(CommonError::InternalError(
+                "Cannot get libp2p service from stub implementation".to_string(),
+            )),
         }
     }
 
     #[cfg(not(feature = "enable-libp2p"))]
     pub fn get_libp2p_service(&self) -> Result<(), CommonError> {
-        Err(CommonError::InternalError("libp2p feature not enabled".to_string()))
-    }
-} 
+        Err(CommonError::InternalError(
+            "libp2p feature not enabled".to_string(),
+        ))
+    }}
