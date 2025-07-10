@@ -292,6 +292,50 @@ pub(crate) fn parse_expression(pair: Pair<Rule>) -> Result<ExpressionNode, CclEr
     }
 }
 
+pub(crate) fn parse_if_statement(pair: Pair<Rule>) -> Result<StatementNode, CclError> {
+    if pair.as_rule() != Rule::if_statement {
+        return Err(CclError::ParsingError(format!(
+            "Expected if_statement, got {:?}",
+            pair.as_rule()
+        )));
+    }
+
+    let mut inner = pair.into_inner();
+    let cond_pair = inner.next().ok_or_else(|| {
+        CclError::ParsingError("If statement missing condition".to_string())
+    })?;
+    let then_block_pair = inner.next().ok_or_else(|| {
+        CclError::ParsingError("If statement missing then block".to_string())
+    })?;
+
+    let else_pair = inner.next();
+    let else_block = if let Some(p) = else_pair {
+        match p.as_rule() {
+            Rule::if_statement => {
+                let nested_if = parse_if_statement(p)?;
+                Some(BlockNode {
+                    statements: vec![nested_if],
+                })
+            }
+            Rule::block => Some(parse_block(p)?),
+            other => {
+                return Err(CclError::ParsingError(format!(
+                    "Unexpected rule in else clause: {:?}",
+                    other
+                )));
+            }
+        }
+    } else {
+        None
+    };
+
+    Ok(StatementNode::If {
+        condition: parse_expression(cond_pair)?,
+        then_block: parse_block(then_block_pair)?,
+        else_block,
+    })
+}
+
 pub(crate) fn parse_statement(pair: Pair<Rule>) -> Result<StatementNode, CclError> {
     if pair.as_rule() != Rule::statement {
         return Err(CclError::ParsingError(format!(
@@ -334,26 +378,7 @@ pub(crate) fn parse_statement(pair: Pair<Rule>) -> Result<StatementNode, CclErro
                 expr_pair,
             )?))
         }
-        Rule::if_statement => {
-            let mut inner = actual_statement_pair.into_inner();
-            let cond_pair = inner.next().ok_or_else(|| {
-                CclError::ParsingError("If statement missing condition".to_string())
-            })?;
-            let then_block_pair = inner.next().ok_or_else(|| {
-                CclError::ParsingError("If statement missing then block".to_string())
-            })?;
-            let else_block_pair = inner.next();
-            let else_block = if let Some(p) = else_block_pair {
-                Some(parse_block(p)?)
-            } else {
-                None
-            };
-            Ok(StatementNode::If {
-                condition: parse_expression(cond_pair)?,
-                then_block: parse_block(then_block_pair)?,
-                else_block,
-            })
-        }
+        Rule::if_statement => parse_if_statement(actual_statement_pair),
         Rule::while_statement => {
             let mut inner = actual_statement_pair.into_inner();
             let cond_pair = inner.next().ok_or_else(|| {

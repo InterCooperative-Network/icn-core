@@ -138,3 +138,24 @@ fn compile_comparison_operators() {
     let (wasm, _meta) = compile_ccl_source_to_wasm(src).expect("compile");
     assert!(wasm.starts_with(b"\0asm"));
 }
+
+#[test]
+fn compile_else_if_chain() {
+    let src = r#"
+        fn classify(x: Integer) -> Integer {
+            if x < 5 {
+                return 1;
+            } else if x < 10 {
+                return 2;
+            } else {
+                return 3;
+            }
+        }
+
+        fn run() -> Integer {
+            return classify(7);
+        }
+    "#;
+    let (wasm, _meta) = compile_ccl_source_to_wasm(src).expect("compile");
+    assert!(wasm.starts_with(b"\0asm"));
+}

@@ -139,3 +139,25 @@ fn test_pair_to_ast_statement_return() {
     });
     assert_eq!(ast, expected);
 }
+
+#[test]
+fn test_pair_to_ast_else_if() {
+    let src = r#"
+        if 1 < 2 {
+            return 1;
+        } else if 2 < 3 {
+            return 2;
+        } else {
+            return 3;
+        }
+    "#;
+    let mut pairs = CclParser::parse(Rule::statement, src).unwrap();
+    let pair = pairs.next().unwrap();
+    let ast = ast::pair_to_ast(pair).unwrap();
+    match ast {
+        AstNode::Block(BlockNode { statements }) => {
+            assert!(matches!(statements[0], StatementNode::If { .. }));
+        }
+        _ => panic!("Expected block AST"),
+    }
+}
