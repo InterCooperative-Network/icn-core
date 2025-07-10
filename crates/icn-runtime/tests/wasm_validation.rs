@@ -2,13 +2,17 @@ use icn_common::{Cid, DagBlock, Did};
 use icn_identity::SignatureBytes;
 use icn_mesh::{ActualMeshJob, JobId, JobKind, JobSpec};
 use icn_runtime::context::RuntimeContext;
-use icn_runtime::executor::{WasmExecutor, WasmExecutorConfig, WasmSecurityLimits};
+use icn_runtime::executor::{JobExecutor, WasmExecutor, WasmExecutorConfig, WasmSecurityLimits};
 use std::str::FromStr;
 use std::sync::Arc;
 
 #[tokio::test]
 async fn validator_enforces_memory_pages() {
-    let ctx = RuntimeContext::new_with_stubs_and_mana("did:key:zMemPages", 1).unwrap();
+    let ctx = RuntimeContext::new_with_stubs("did:key:zMemPages").unwrap();
+    {
+        let did = ctx.current_identity.clone();
+        ctx.mana_ledger.set_balance(&did, 1).unwrap();
+    }
     let wasm = "(module (memory 2) (func (export \"run\") (result i64) i64.const 1))";
     let wasm_bytes = wat::parse_str(wasm).unwrap();
     let block = DagBlock {
@@ -50,7 +54,11 @@ async fn validator_enforces_memory_pages() {
 
 #[tokio::test]
 async fn validator_enforces_function_limit() {
-    let ctx = RuntimeContext::new_with_stubs_and_mana("did:key:zFuncLimit", 1).unwrap();
+    let ctx = RuntimeContext::new_with_stubs("did:key:zFuncLimit").unwrap();
+    {
+        let did = ctx.current_identity.clone();
+        ctx.mana_ledger.set_balance(&did, 1).unwrap();
+    }
     let wasm = r#"(module
         (func $f1 (result i64) i64.const 1)
         (func $f2 (result i64) i64.const 2)
@@ -96,7 +104,11 @@ async fn validator_enforces_function_limit() {
 
 #[tokio::test]
 async fn resource_limiter_blocks_growth() {
-    let ctx = RuntimeContext::new_with_stubs_and_mana("did:key:zGrow", 1).unwrap();
+    let ctx = RuntimeContext::new_with_stubs("did:key:zGrow").unwrap();
+    {
+        let did = ctx.current_identity.clone();
+        ctx.mana_ledger.set_balance(&did, 1).unwrap();
+    }
     let wasm = r#"(module
         (memory 1)
         (func (export \"run\") (result i64)
