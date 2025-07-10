@@ -61,3 +61,15 @@ fn test_charge_rule() {
     let res = analyze_ok(src);
     assert!(res.is_ok());
 }
+
+#[test]
+fn test_option_result_match() {
+    let src = r#"
+        fn run() -> Integer {
+            let v = Some(1);
+            match v { 1 => 2, _ => 0 }
+        }
+    "#;
+    let res = analyze_ok(src);
+    assert!(res.is_ok());
+}

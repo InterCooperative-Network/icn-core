@@ -525,6 +525,27 @@ impl WasmBackend {
                 }));
                 Ok(ValType::I64)
             }
+            ExpressionNode::SomeExpr(inner) => {
+                self.emit_expression(inner, instrs, locals, indices)?;
+                Ok(ValType::I64)
+            }
+            ExpressionNode::NoneExpr => {
+                instrs.push(Instruction::I64Const(0));
+                Ok(ValType::I64)
+            }
+            ExpressionNode::OkExpr(inner) | ExpressionNode::ErrExpr(inner) => {
+                self.emit_expression(inner, instrs, locals, indices)?;
+                Ok(ValType::I64)
+            }
+            ExpressionNode::Match { value, arms } => {
+                self.emit_expression(value, instrs, locals, indices)?;
+                // Simplified: execute first arm
+                let (_pat, expr) = arms
+                    .first()
+                    .ok_or_else(|| CclError::WasmGenerationError("Empty match".to_string()))?
+                    .clone();
+                self.emit_expression(&expr, instrs, locals, indices)
+            }
             ExpressionNode::UnaryOp { operator, operand } => {
                 let operand_ty = self.emit_expression(operand, instrs, locals, indices)?;
                 match (operator, operand_ty) {
@@ -680,6 +701,7 @@ fn map_val_type(ty: &TypeAnnotationNode) -> Result<ValType, CclError> {
             // Governance types represented as i64 handles
             Ok(ValType::I64)
         }
+        TypeAnnotationNode::Option | TypeAnnotationNode::Result => Ok(ValType::I64),
         TypeAnnotationNode::Custom(name) => Err(CclError::WasmGenerationError(format!(
             "Unsupported type {}",
             name
