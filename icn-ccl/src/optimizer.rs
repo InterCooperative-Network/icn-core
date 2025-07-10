@@ -95,6 +95,17 @@ impl Optimizer {
                 condition: self.fold_expr(condition),
                 body: self.fold_block(body),
             },
+            StatementNode::ForLoop {
+                iterator,
+                iterable,
+                body,
+            } => StatementNode::ForLoop {
+                iterator,
+                iterable: self.fold_expr(iterable),
+                body: self.fold_block(body),
+            },
+            StatementNode::Break => StatementNode::Break,
+            StatementNode::Continue => StatementNode::Continue,
         }
     }
 

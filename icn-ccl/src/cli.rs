@@ -230,6 +230,22 @@ fn stmt_to_string(stmt: &StatementNode, indent: usize) -> String {
             s.push_str(&block_to_string(body, indent));
             s
         }
+        StatementNode::ForLoop {
+            iterator,
+            iterable,
+            body,
+        } => {
+            let mut s = String::new();
+            s.push_str(&format!(
+                "for {} in {} ",
+                iterator,
+                expr_to_string(iterable)
+            ));
+            s.push_str(&block_to_string(body, indent));
+            s
+        }
+        StatementNode::Break => "break;".to_string(),
+        StatementNode::Continue => "continue;".to_string(),
     }
 }
 

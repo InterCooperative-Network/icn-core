@@ -29,12 +29,15 @@ import_statement = { "import" ~ string_literal ~ "as" ~ identifier ~ ";" }
 
 // Example: Block of statements
 block = { "{" ~ statement* ~ "}" }
-statement = { let_statement | expression_statement | return_statement | if_statement | while_statement }
+statement = { let_statement | expression_statement | return_statement | if_statement | while_statement | for_statement | break_statement | continue_statement }
 let_statement = { "let" ~ identifier ~ "=" ~ expression ~ ";" }
 expression_statement = { expression ~ ";" }
 return_statement = { "return" ~ expression ~ ";" }
 if_statement = { "if" ~ expression ~ block ~ ("else" ~ block)? }
 while_statement = { "while" ~ expression ~ block }
+for_statement = { "for" ~ identifier ~ "in" ~ expression ~ block }
+break_statement = { "break" ~ ";" }
+continue_statement = { "continue" ~ ";" }
 
 // Example: Expressions with proper precedence and unary operators
 expression = { match_expression | logical_or }

@@ -296,6 +296,28 @@ impl SemanticAnalyzer {
                 }
                 self.visit_block(body, found_return)?;
             }
+            StatementNode::ForLoop {
+                iterator,
+                iterable,
+                body,
+            } => {
+                let iter_ty = self.evaluate_expression(iterable)?;
+                let elem_ty = match iter_ty {
+                    TypeAnnotationNode::Array(inner) => *inner,
+                    _ => {
+                        return Err(CclError::TypeError(
+                            "For loop iterable must be an Array".to_string(),
+                        ))
+                    }
+                };
+                self.push_scope();
+                self.insert_symbol(iterator.clone(), Symbol::Variable { type_ann: elem_ty })?;
+                self.visit_block(body, found_return)?;
+                self.pop_scope();
+            }
+            StatementNode::Break | StatementNode::Continue => {
+                // Validity checked during parsing; nothing else to do
+            }
         }
         Ok(())
     }
