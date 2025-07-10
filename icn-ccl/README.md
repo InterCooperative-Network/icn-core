@@ -71,13 +71,35 @@ cargo run -p icn-cli -- --api-url http://localhost:7845 submit-job \
 
 ### Included Governance Examples
 
-Several example contracts live in `tests/contracts/`:
+Several example contracts live in `examples/`:
 
 * `proposal_flow.ccl` – illustrates proposal creation, voting and finalization.
 * `voting_logic.ccl` – demonstrates an open/cast/close voting sequence.
 
 These files can be compiled with `compile_ccl_file_to_wasm` and executed using
 the `WasmExecutor` as shown in the integration tests.
+
+## Option and Result Handling
+
+CCL includes `Option` and `Result` types for nullable values and explicit error
+handling. Pattern matching can inspect these variants:
+
+```ccl
+fn lookup(id: Integer) -> Option<Integer> {
+    if id == 1 { return Some(100); }
+    return None;
+}
+
+fn safe_div(a: Integer, b: Integer) -> Result<Integer> {
+    if b == 0 { return Err(1); }
+    return Ok(a / b);
+}
+
+match safe_div(10, 2) {
+    Ok(v) => log_success(v),
+    Err(e) => log_error(e),
+}
+```
 
 ## Array and String Operations
 

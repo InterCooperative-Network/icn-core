@@ -1,0 +1,25 @@
+// Cooperative Housing Maintenance Example
+// Demonstrates struct usage and simple result handling
+
+struct Request { unit: Integer, urgent: Bool, cost: Integer }
+
+fn find_slot(urgent: Bool) -> Option<Integer> {
+    if urgent { return Some(0); }
+    return None;
+}
+
+fn schedule_repair(req: Request) -> Result<Integer> {
+    let slot = find_slot(req.urgent);
+    match slot {
+        Some(day) => Ok(day),
+        None => Err(1), // no slot available
+    }
+}
+
+fn run() -> Integer {
+    let req = Request { unit: 5, urgent: true, cost: 200 };
+    match schedule_repair(req) {
+        Ok(day) => return day,
+        Err(_) => return -1,
+    }
+}

@@ -1,0 +1,15 @@
+// Childcare Cooperative Scheduling Example
+// Demonstrates Option handling and simple control flow
+
+fn find_slot(day: Integer) -> Option<Integer> {
+    if day % 2 == 0 { return Some(day); }
+    return None;
+}
+
+fn run() -> Integer {
+    let slot = find_slot(3);
+    match slot {
+        Some(d) => return d,
+        None => return -1,
+    }
+}
