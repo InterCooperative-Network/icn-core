@@ -68,6 +68,10 @@ pub struct NodeConfig {
     pub key_path: Option<std::path::PathBuf>,
     /// Environment variable name containing the passphrase for `key_path`.
     pub key_passphrase_env: Option<String>,
+    /// Optional path to an HSM library or connection string.
+    pub hsm_library: Option<std::path::PathBuf>,
+    /// Identifier of the key within the HSM.
+    pub hsm_key_id: Option<String>,
     pub node_name: String,
     pub listen_address: String,
     pub bootstrap_peers: Option<Vec<String>>,
@@ -134,6 +138,8 @@ impl Default for NodeConfig {
             node_private_key_path: "./icn_data/node_sk.bs58".into(),
             key_path: None,
             key_passphrase_env: None,
+            hsm_library: None,
+            hsm_key_id: None,
             node_name: "ICN Node".to_string(),
             listen_address: "/ip4/0.0.0.0/tcp/0".to_string(),
             bootstrap_peers: None,
@@ -171,6 +177,8 @@ struct IdentitySection {
     node_private_key_path: Option<PathBuf>,
     key_path: Option<PathBuf>,
     key_passphrase_env: Option<String>,
+    hsm_library: Option<PathBuf>,
+    hsm_key_id: Option<String>,
     key_rotation_days: Option<u64>,
 }
 
@@ -213,6 +221,8 @@ struct FileNodeConfig {
     node_private_key_path: Option<PathBuf>,
     key_path: Option<PathBuf>,
     key_passphrase_env: Option<String>,
+    hsm_library: Option<PathBuf>,
+    hsm_key_id: Option<String>,
     listen_address: Option<String>,
     bootstrap_peers: Option<Vec<String>>,
     enable_p2p: Option<bool>,
@@ -351,6 +361,12 @@ impl NodeConfig {
         if let Some(v) = id.key_passphrase_env {
             self.key_passphrase_env = Some(v);
         }
+        if let Some(v) = id.hsm_library {
+            self.hsm_library = Some(v);
+        }
+        if let Some(v) = id.hsm_key_id {
+            self.hsm_key_id = Some(v);
+        }
         if let Some(v) = id.key_rotation_days {
             self.key_rotation_days = v;
         }
@@ -459,6 +475,12 @@ impl NodeConfig {
         if let Ok(val) = std::env::var("ICN_KEY_PASSPHRASE_ENV") {
             self.key_passphrase_env = Some(val);
         }
+        if let Ok(val) = std::env::var("ICN_HSM_LIBRARY") {
+            self.hsm_library = Some(val.into());
+        }
+        if let Ok(val) = std::env::var("ICN_HSM_KEY_ID") {
+            self.hsm_key_id = Some(val);
+        }
         if let Ok(val) = std::env::var("ICN_NODE_NAME") {
             self.node_name = val;
         }
@@ -529,6 +551,12 @@ impl NodeConfig {
         }
         if let Some(v) = &cli.key_passphrase_env {
             self.key_passphrase_env = Some(v.clone());
+        }
+        if let Some(v) = &cli.hsm_library {
+            self.hsm_library = Some(v.clone());
+        }
+        if let Some(v) = &cli.hsm_key_id {
+            self.hsm_key_id = Some(v.clone());
         }
         if let Some(v) = &cli.node_name {
             self.node_name = v.clone();
@@ -657,13 +685,11 @@ impl NodeConfig {
                     }
                 }
                 #[cfg(feature = "persist-postgres")]
-                StorageBackendType::Postgres => {
-                    std::sync::Arc::new(TokioMutex::new(CompatAsyncStore::new(
-                        icn_dag::postgres_store::PostgresDagStore::new(
-                            &self.storage_path.to_string_lossy(),
-                        )?,
-                    ))) as std::sync::Arc<TokioMutex<_>>
-                }
+                StorageBackendType::Postgres => std::sync::Arc::new(TokioMutex::new(
+                    CompatAsyncStore::new(icn_dag::postgres_store::PostgresDagStore::new(
+                        &self.storage_path.to_string_lossy(),
+                    )?),
+                )) as std::sync::Arc<TokioMutex<_>>,
             };
         Ok(store)
     }

@@ -188,6 +188,14 @@ pub struct Cli {
     #[clap(long)]
     pub key_passphrase_env: Option<String>,
 
+    /// Path to an HSM library for key retrieval.
+    #[clap(long)]
+    pub hsm_library: Option<PathBuf>,
+
+    /// Identifier of the key within the HSM.
+    #[clap(long)]
+    pub hsm_key_id: Option<String>,
+
     #[clap(
         long,
         help = "Human-readable name for this node (for logging and identification)"
@@ -241,6 +249,13 @@ pub struct Cli {
 pub fn load_or_generate_identity(
     config: &mut NodeConfig,
 ) -> Result<(icn_runtime::context::Ed25519Signer, String), CommonError> {
+    if let (Some(lib), Some(key_id)) = (&config.hsm_library, &config.hsm_key_id) {
+        let hsm = icn_runtime::context::ExampleHsm::with_key(lib, key_id.clone());
+        let signer = icn_runtime::context::Ed25519Signer::from_hsm(&hsm)?;
+        let did_str = signer.did().to_string();
+        config.node_did = Some(did_str.clone());
+        return Ok((signer, did_str));
+    }
     if let Some(path) = &config.key_path {
         let env_name = config
             .key_passphrase_env
@@ -987,6 +1002,8 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
                 config.mana_ledger_path.clone(),
                 config.reputation_db_path.clone(),
                 config.enable_mdns,
+                signer.clone(),
+                Arc::new(icn_identity::KeyDidResolver),
             )
             .await
             {
