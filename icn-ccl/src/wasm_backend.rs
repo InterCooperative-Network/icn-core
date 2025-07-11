@@ -508,8 +508,133 @@ impl WasmBackend {
                         Ok(ValType::I32)
                     }
                     (ValType::I32, ValType::I32, BinaryOperator::Concat) => {
-                        // String concatenation - simplified: combine pointers
+                        // Runtime string concatenation. Strings are stored as
+                        // [len: u32][bytes]. Allocate new memory and copy bytes.
+
+                        let left_ptr = locals.get_or_add("__concat_left", ValType::I32);
+                        instrs.push(Instruction::LocalTee(left_ptr));
+                        let right_ptr = locals.get_or_add("__concat_right", ValType::I32);
+                        instrs.push(Instruction::LocalTee(right_ptr));
+                        instrs.push(Instruction::Drop);
+                        instrs.push(Instruction::Drop);
+
+                        let left_len = locals.get_or_add("__concat_left_len", ValType::I32);
+                        instrs.push(Instruction::LocalGet(left_ptr));
+                        instrs.push(Instruction::I32Load(wasm_encoder::MemArg {
+                            offset: 0,
+                            align: 0,
+                            memory_index: 0,
+                        }));
+                        instrs.push(Instruction::LocalSet(left_len));
+
+                        let right_len = locals.get_or_add("__concat_right_len", ValType::I32);
+                        instrs.push(Instruction::LocalGet(right_ptr));
+                        instrs.push(Instruction::I32Load(wasm_encoder::MemArg {
+                            offset: 0,
+                            align: 0,
+                            memory_index: 0,
+                        }));
+                        instrs.push(Instruction::LocalSet(right_len));
+
+                        let total_len = locals.get_or_add("__concat_total_len", ValType::I32);
+                        instrs.push(Instruction::LocalGet(left_len));
+                        instrs.push(Instruction::LocalGet(right_len));
                         instrs.push(Instruction::I32Add);
+                        instrs.push(Instruction::LocalSet(total_len));
+
+                        let out_ptr = locals.get_or_add("__concat_out_ptr", ValType::I32);
+                        instrs.push(Instruction::GlobalGet(0));
+                        instrs.push(Instruction::LocalTee(out_ptr));
+                        instrs.push(Instruction::LocalGet(total_len));
+                        instrs.push(Instruction::I32Const(4));
+                        instrs.push(Instruction::I32Add);
+                        instrs.push(Instruction::I32Add);
+                        instrs.push(Instruction::GlobalSet(0));
+
+                        instrs.push(Instruction::LocalGet(out_ptr));
+                        instrs.push(Instruction::LocalGet(total_len));
+                        instrs.push(Instruction::I32Store(wasm_encoder::MemArg {
+                            offset: 0,
+                            align: 0,
+                            memory_index: 0,
+                        }));
+
+                        let idx = locals.get_or_add("__concat_idx", ValType::I32);
+
+                        instrs.push(Instruction::I32Const(0));
+                        instrs.push(Instruction::LocalSet(idx));
+                        instrs.push(Instruction::Block(wasm_encoder::BlockType::Empty));
+                        instrs.push(Instruction::Loop(wasm_encoder::BlockType::Empty));
+                        instrs.push(Instruction::LocalGet(idx));
+                        instrs.push(Instruction::LocalGet(left_len));
+                        instrs.push(Instruction::I32GeU);
+                        instrs.push(Instruction::BrIf(1));
+                        instrs.push(Instruction::LocalGet(out_ptr));
+                        instrs.push(Instruction::I32Const(4));
+                        instrs.push(Instruction::LocalGet(idx));
+                        instrs.push(Instruction::I32Add);
+                        instrs.push(Instruction::I32Add);
+                        instrs.push(Instruction::LocalGet(left_ptr));
+                        instrs.push(Instruction::I32Const(4));
+                        instrs.push(Instruction::LocalGet(idx));
+                        instrs.push(Instruction::I32Add);
+                        instrs.push(Instruction::I32Add);
+                        instrs.push(Instruction::I32Load8U(wasm_encoder::MemArg {
+                            offset: 0,
+                            align: 0,
+                            memory_index: 0,
+                        }));
+                        instrs.push(Instruction::I32Store8(wasm_encoder::MemArg {
+                            offset: 0,
+                            align: 0,
+                            memory_index: 0,
+                        }));
+                        instrs.push(Instruction::LocalGet(idx));
+                        instrs.push(Instruction::I32Const(1));
+                        instrs.push(Instruction::I32Add);
+                        instrs.push(Instruction::LocalSet(idx));
+                        instrs.push(Instruction::Br(0));
+                        instrs.push(Instruction::End);
+                        instrs.push(Instruction::End);
+
+                        instrs.push(Instruction::I32Const(0));
+                        instrs.push(Instruction::LocalSet(idx));
+                        instrs.push(Instruction::Block(wasm_encoder::BlockType::Empty));
+                        instrs.push(Instruction::Loop(wasm_encoder::BlockType::Empty));
+                        instrs.push(Instruction::LocalGet(idx));
+                        instrs.push(Instruction::LocalGet(right_len));
+                        instrs.push(Instruction::I32GeU);
+                        instrs.push(Instruction::BrIf(1));
+                        instrs.push(Instruction::LocalGet(out_ptr));
+                        instrs.push(Instruction::I32Const(4));
+                        instrs.push(Instruction::LocalGet(left_len));
+                        instrs.push(Instruction::I32Add);
+                        instrs.push(Instruction::LocalGet(idx));
+                        instrs.push(Instruction::I32Add);
+                        instrs.push(Instruction::LocalGet(right_ptr));
+                        instrs.push(Instruction::I32Const(4));
+                        instrs.push(Instruction::LocalGet(idx));
+                        instrs.push(Instruction::I32Add);
+                        instrs.push(Instruction::I32Add);
+                        instrs.push(Instruction::I32Load8U(wasm_encoder::MemArg {
+                            offset: 0,
+                            align: 0,
+                            memory_index: 0,
+                        }));
+                        instrs.push(Instruction::I32Store8(wasm_encoder::MemArg {
+                            offset: 0,
+                            align: 0,
+                            memory_index: 0,
+                        }));
+                        instrs.push(Instruction::LocalGet(idx));
+                        instrs.push(Instruction::I32Const(1));
+                        instrs.push(Instruction::I32Add);
+                        instrs.push(Instruction::LocalSet(idx));
+                        instrs.push(Instruction::Br(0));
+                        instrs.push(Instruction::End);
+                        instrs.push(Instruction::End);
+
+                        instrs.push(Instruction::LocalGet(out_ptr));
                         Ok(ValType::I32)
                     }
                     _ => Err(CclError::WasmGenerationError(
