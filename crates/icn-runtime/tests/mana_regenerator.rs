@@ -1,9 +1,10 @@
-use icn_runtime::context::RuntimeContext;
+use icn_runtime::context::{RuntimeContext, MANA_MAX_CAPACITY_KEY};
 use std::time::Duration;
 
 #[tokio::test]
 async fn balances_increase_when_regenerator_runs() {
     let ctx = RuntimeContext::new_with_stubs_and_mana("did:icn:test:regen", 0).unwrap();
+    ctx.parameters.insert(MANA_MAX_CAPACITY_KEY.into(), "100".into());
     
     // Set up some reputation for the test account
     ctx.reputation_store
@@ -24,7 +25,11 @@ async fn balances_increase_when_regenerator_runs() {
     let base_regeneration = 10u64;
     let reputation_multiplier = (reputation as f64 / 100.0).max(0.1).min(2.0);
     let regeneration_amount = (base_regeneration as f64 * reputation_multiplier) as u64;
-    let max_capacity = 1000u64;
+    let max_capacity: u64 = ctx
+        .parameters
+        .get(MANA_MAX_CAPACITY_KEY)
+        .and_then(|v| v.value().parse().ok())
+        .unwrap();
     
     let actual_regen = if current_balance < max_capacity {
         let actual_regen = std::cmp::min(regeneration_amount, max_capacity - current_balance);
@@ -38,4 +43,58 @@ async fn balances_increase_when_regenerator_runs() {
     // With reputation of 2, we should get at least some mana
     assert!(final_balance > 0);
     assert!(final_balance >= actual_regen);
+    assert!(final_balance <= max_capacity);
+}
+
+#[tokio::test]
+async fn capacity_updates_allow_more_mana() {
+    let ctx = RuntimeContext::new_with_stubs_and_mana("did:icn:test:cap_var", 0).unwrap();
+    ctx.parameters.insert(MANA_MAX_CAPACITY_KEY.into(), "20".into());
+    ctx.reputation_store
+        .record_execution(&ctx.current_identity, true, 0);
+
+    // first regeneration with small capacity
+    let current_balance = ctx.mana_ledger.get_balance(&ctx.current_identity);
+    let reputation = ctx.reputation_store.get_reputation(&ctx.current_identity);
+    let base_regeneration = 10u64;
+    let reputation_multiplier = (reputation as f64 / 100.0).max(0.1).min(2.0);
+    let regen_amount = (base_regeneration as f64 * reputation_multiplier) as u64;
+    let cap1: u64 = ctx
+        .parameters
+        .get(MANA_MAX_CAPACITY_KEY)
+        .and_then(|v| v.value().parse().ok())
+        .unwrap();
+    let apply1 = if current_balance < cap1 {
+        let val = std::cmp::min(regen_amount, cap1 - current_balance);
+        ctx.mana_ledger
+            .set_balance(&ctx.current_identity, current_balance + val)
+            .unwrap();
+        val
+    } else {
+        0
+    };
+    let bal1 = ctx.mana_ledger.get_balance(&ctx.current_identity);
+    assert!(bal1 <= cap1);
+
+    // increase capacity
+    ctx.parameters.insert(MANA_MAX_CAPACITY_KEY.into(), "80".into());
+
+    let current_balance = ctx.mana_ledger.get_balance(&ctx.current_identity);
+    let cap2: u64 = ctx
+        .parameters
+        .get(MANA_MAX_CAPACITY_KEY)
+        .and_then(|v| v.value().parse().ok())
+        .unwrap();
+    let _ = if current_balance < cap2 {
+        let val = std::cmp::min(regen_amount, cap2 - current_balance);
+        ctx.mana_ledger
+            .set_balance(&ctx.current_identity, current_balance + val)
+            .unwrap();
+        val
+    } else {
+        0
+    };
+    let bal2 = ctx.mana_ledger.get_balance(&ctx.current_identity);
+    assert!(bal2 <= cap2);
+    assert!(bal2 > bal1 || cap2 == cap1);
 }

@@ -20,6 +20,11 @@ use std::sync::Arc;
 use std::time::Duration as StdDuration;
 use tokio::sync::{mpsc, Mutex as TokioMutex};
 
+/// Parameter key for the mana capacity limit managed via governance.
+pub const MANA_MAX_CAPACITY_KEY: &str = "mana_max_capacity";
+/// Default capacity used when no parameter is set.
+pub const DEFAULT_MANA_MAX_CAPACITY: u64 = 10000;
+
 /// Enumeration of mesh network service types to work around async trait issues
 #[derive(Debug)]
 pub enum MeshNetworkServiceType {
@@ -164,6 +169,16 @@ pub struct RuntimeContextParams {
 }
 
 impl RuntimeContext {
+    /// Initialize the default runtime parameters.
+    fn default_parameters() -> Arc<DashMap<String, String>> {
+        let map = DashMap::new();
+        map.insert(
+            MANA_MAX_CAPACITY_KEY.to_string(),
+            DEFAULT_MANA_MAX_CAPACITY.to_string(),
+        );
+        Arc::new(map)
+    }
+
     /// Create a new context with stubs for testing.
     pub fn new_with_stubs(current_identity_str: &str) -> Result<Arc<Self>, CommonError> {
         let current_identity = Did::from_str(current_identity_str)
@@ -177,7 +192,7 @@ impl RuntimeContext {
         let signer = Arc::new(super::signers::StubSigner::new());
         let did_resolver = Arc::new(icn_identity::KeyDidResolver);
         let reputation_store = Arc::new(icn_reputation::InMemoryReputationStore::new());
-        let parameters = Arc::new(DashMap::new());
+        let parameters = Self::default_parameters();
         let policy_enforcer = None;
         let time_provider = Arc::new(icn_common::SystemTimeProvider);
         
@@ -241,7 +256,7 @@ impl RuntimeContext {
         let mesh_network_service = Arc::new(MeshNetworkServiceType::Stub(StubMeshNetworkService::new()));
         let did_resolver = Arc::new(icn_identity::KeyDidResolver);
         let reputation_store = Arc::new(icn_reputation::InMemoryReputationStore::new());
-        let parameters = Arc::new(DashMap::new());
+        let parameters = Self::default_parameters();
         let policy_enforcer = None;
         let time_provider = Arc::new(icn_common::SystemTimeProvider);
         let mana_ledger = SimpleManaLedger::new(ledger_path);
@@ -289,7 +304,7 @@ impl RuntimeContext {
         let mesh_network_service = Arc::new(MeshNetworkServiceType::Stub(StubMeshNetworkService::new()));
         let did_resolver = Arc::new(icn_identity::KeyDidResolver);
         let reputation_store = Arc::new(icn_reputation::InMemoryReputationStore::new());
-        let parameters = Arc::new(DashMap::new());
+        let parameters = Self::default_parameters();
         let policy_enforcer = None;
         let mana_ledger = SimpleManaLedger::new(ledger_path);
 
@@ -360,7 +375,7 @@ impl RuntimeContext {
         let (tx, rx) = mpsc::channel(128);
         let job_states = Arc::new(DashMap::new());
         let governance_module = Arc::new(DagStoreMutexType::new(GovernanceModule::new()));
-        let parameters = Arc::new(DashMap::new());
+        let parameters = Self::default_parameters();
 
         Ok(Arc::new(Self {
             current_identity: config.current_identity,
@@ -450,7 +465,7 @@ impl RuntimeContext {
         let (tx, rx) = mpsc::channel(128);
         let job_states = Arc::new(DashMap::new());
         let governance_module = Arc::new(DagStoreMutexType::new(GovernanceModule::new()));
-        let parameters = Arc::new(DashMap::new());
+        let parameters = Self::default_parameters();
 
         // Use real production network service
         let mesh_network_service = Arc::new(MeshNetworkServiceType::Default(
@@ -489,7 +504,7 @@ impl RuntimeContext {
         let job_states = Arc::new(DashMap::new());
         let governance_module = Arc::new(DagStoreMutexType::new(GovernanceModule::new()));
         let reputation_store = Arc::new(icn_reputation::InMemoryReputationStore::new());
-        let parameters = Arc::new(DashMap::new());
+        let parameters = Self::default_parameters();
         let policy_enforcer = None;
         let time_provider = Arc::new(icn_common::SystemTimeProvider);
 
@@ -532,7 +547,7 @@ impl RuntimeContext {
         let signer = Arc::new(super::signers::StubSigner::new());
         let did_resolver = Arc::new(icn_identity::KeyDidResolver);
         let reputation_store = Arc::new(icn_reputation::InMemoryReputationStore::new());
-        let parameters = Arc::new(DashMap::new());
+        let parameters = Self::default_parameters();
         let policy_enforcer = None;
         let time_provider = Arc::new(icn_common::SystemTimeProvider);
         
@@ -583,7 +598,7 @@ impl RuntimeContext {
         let job_states = Arc::new(DashMap::new());
         let governance_module = Arc::new(DagStoreMutexType::new(GovernanceModule::new()));
         let reputation_store = Arc::new(icn_reputation::InMemoryReputationStore::new());
-        let parameters = Arc::new(DashMap::new());
+        let parameters = Self::default_parameters();
         let policy_enforcer = None;
         let time_provider = Arc::new(icn_common::SystemTimeProvider);
         
@@ -664,7 +679,7 @@ impl RuntimeContext {
         let job_states = Arc::new(DashMap::new());
         let governance_module = Arc::new(DagStoreMutexType::new(GovernanceModule::new()));
         let reputation_store = Arc::new(icn_reputation::InMemoryReputationStore::new());
-        let parameters = Arc::new(DashMap::new());
+        let parameters = Self::default_parameters();
         let policy_enforcer = None;
         let time_provider = Arc::new(icn_common::SystemTimeProvider);
 
@@ -704,7 +719,7 @@ impl RuntimeContext {
         let job_states = Arc::new(DashMap::new());
         let governance_module = Arc::new(DagStoreMutexType::new(GovernanceModule::new()));
         let reputation_store = Arc::new(icn_reputation::InMemoryReputationStore::new());
-        let parameters = Arc::new(DashMap::new());
+        let parameters = Self::default_parameters();
 
         Arc::new(Self {
             current_identity,
@@ -1224,8 +1239,12 @@ impl RuntimeContext {
                     let reputation_multiplier = (reputation as f64 / 100.0).max(0.1).min(2.0); // 0.1x to 2x based on reputation
                     let regeneration_amount = (base_regeneration as f64 * reputation_multiplier) as u64;
                     
-                    // Apply regeneration up to capacity limit
-                    let max_capacity = 1000u64; // TODO: Make this configurable via governance
+                    // Apply regeneration up to capacity limit controlled by governance
+                    let max_capacity = ctx
+                        .parameters
+                        .get(MANA_MAX_CAPACITY_KEY)
+                        .and_then(|v| v.value().parse::<u64>().ok())
+                        .unwrap_or(DEFAULT_MANA_MAX_CAPACITY);
                     if current_balance < max_capacity {
                         let actual_regen = std::cmp::min(regeneration_amount, max_capacity - current_balance);
                         if actual_regen > 0 {
