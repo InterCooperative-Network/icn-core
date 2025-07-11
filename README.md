@@ -393,6 +393,7 @@ More detailed information can be found in the `README.md` file within each crate
 * [Mana Policies](docs/mana_policies.md) – economic policy examples
 * [CCL Language Reference](docs/CCL_LANGUAGE_REFERENCE.md) – full syntax guide
 * [CCL Examples](icn-ccl/examples/) – governance contract templates
+* [Contract Creation Guide](docs/howto-create-contract.md) – compile and submit CCL jobs
 
 ### **Development Resources**
 * Crate documentation: [icn-common](crates/icn-common/README.md), [icn-dag](crates/icn-dag/README.md), [icn-identity](crates/icn-identity/README.md), [icn-mesh](crates/icn-mesh/README.md), [icn-governance](crates/icn-governance/README.md), [icn-runtime](crates/icn-runtime/README.md), [icn-network](crates/icn-network/README.md), [icn-templates](crates/icn-templates/README.md)
