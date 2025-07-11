@@ -218,6 +218,9 @@ pub struct Cli {
     #[clap(long, action)]
     pub enable_mdns: bool,
 
+    #[clap(long, action)]
+    pub test_mode: bool,
+
     #[clap(long)]
     pub api_key: Option<String>,
 
@@ -504,6 +507,36 @@ async fn correlation_id_middleware(
     let status = res.status().as_u16();
     info!(target: "request", "end cid={} status={} latency_ms={}", cid, status, latency);
     res
+}
+
+/// Select the appropriate network service based on `NodeConfig`.
+pub async fn build_network_service(
+    config: &NodeConfig,
+) -> Result<Arc<dyn NetworkService>, CommonError> {
+    if config.test_mode {
+        return Ok(Arc::new(icn_network::StubNetworkService::default()));
+    }
+
+    if config.enable_p2p {
+        #[cfg(feature = "enable-libp2p")]
+        {
+            let net_cfg = config.libp2p_config()?;
+            let service = icn_network::libp2p_service::Libp2pNetworkService::new(net_cfg)
+                .await
+                .map_err(|e| {
+                    CommonError::NetworkError(format!("Failed to create libp2p service: {}", e))
+                })?;
+            return Ok(Arc::new(service));
+        }
+        #[cfg(not(feature = "enable-libp2p"))]
+        {
+            return Err(CommonError::ConfigError(
+                "libp2p support not compiled".into(),
+            ));
+        }
+    }
+
+    Ok(Arc::new(icn_network::StubNetworkService::default()))
 }
 
 // --- Public App Constructor (for tests or embedding) ---
@@ -927,48 +960,30 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
     let mana_ledger = icn_runtime::context::SimpleManaLedger::new(config.mana_ledger_path.clone());
     let signer = Arc::new(signer);
 
-    let network_service: Arc<dyn NetworkService> = if config.enable_p2p {
-        #[cfg(feature = "enable-libp2p")]
-        {
-            info!(
-                "Enabling libp2p networking with P2P listen address: {}",
-                config.listen_address
-            );
-
-            let net_cfg = match config.libp2p_config() {
-                Ok(cfg) => cfg,
-                Err(e) => {
-                    error!("Invalid libp2p configuration: {}", e);
-                    std::process::exit(1);
-                }
-            };
-            let libp2p_service = icn_network::libp2p_service::Libp2pNetworkService::new(net_cfg)
-                .await
-                .expect("Failed to create libp2p service");
-            Arc::new(libp2p_service)
-        }
-        #[cfg(not(feature = "enable-libp2p"))]
-        {
-            error!("--enable-p2p flag requires the 'with-libp2p' feature to be compiled");
-            error!("Please recompile with: cargo build --features with-libp2p");
+    let network_service = match build_network_service(&config).await {
+        Ok(svc) => svc,
+        Err(e) => {
+            error!("Network service initialization failed: {}", e);
             std::process::exit(1);
         }
-    } else {
-        info!("Using local stub networking (P2P disabled)");
-        Arc::new(icn_network::StubNetworkService::default()) as Arc<dyn NetworkService>
     };
 
-    let mut rt_ctx = RuntimeContext::new_production(
-        node_did.clone(),
-        network_service,
-        signer,
-        Arc::new(icn_identity::KeyDidResolver),
-        dag_store_for_rt,
-        mana_ledger,
-        Arc::new(icn_reputation::InMemoryReputationStore::new()),
-        None,
-    )
-    .expect("Failed to create RuntimeContext for production");
+    let mut rt_ctx = if config.test_mode {
+        RuntimeContext::new_testing(node_did.clone(), Some(1000))
+            .expect("Failed to create RuntimeContext for testing")
+    } else {
+        RuntimeContext::new_production(
+            node_did.clone(),
+            network_service,
+            signer,
+            Arc::new(icn_identity::KeyDidResolver),
+            dag_store_for_rt,
+            mana_ledger,
+            Arc::new(icn_reputation::InMemoryReputationStore::new()),
+            None,
+        )
+        .expect("Failed to create RuntimeContext for production")
+    };
 
     #[cfg(feature = "persist-sled")]
     {

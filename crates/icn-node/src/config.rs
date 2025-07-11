@@ -77,6 +77,8 @@ pub struct NodeConfig {
     pub bootstrap_peers: Option<Vec<String>>,
     pub enable_p2p: bool,
     pub enable_mdns: bool,
+    /// Force stub services for development and testing
+    pub test_mode: bool,
     pub api_key: Option<String>,
     /// Optional bearer token for Authorization header auth.
     pub auth_token: Option<String>,
@@ -145,6 +147,7 @@ impl Default for NodeConfig {
             bootstrap_peers: None,
             enable_p2p: cfg!(feature = "enable-libp2p"),
             enable_mdns: true, // Enable mDNS by default for local networks
+            test_mode: false,
             api_key: None,
             auth_token: None,
             auth_token_path: None,
@@ -227,6 +230,7 @@ struct FileNodeConfig {
     bootstrap_peers: Option<Vec<String>>,
     enable_p2p: Option<bool>,
     enable_mdns: Option<bool>,
+    test_mode: Option<bool>,
     api_key: Option<String>,
     auth_token: Option<String>,
     auth_token_path: Option<PathBuf>,
@@ -304,6 +308,9 @@ impl NodeConfig {
         }
         if let Some(v) = file.enable_mdns {
             self.enable_mdns = v;
+        }
+        if let Some(v) = file.test_mode {
+            self.test_mode = v;
         }
         if let Some(v) = file.api_key {
             self.api_key = Some(v);
@@ -439,6 +446,7 @@ impl NodeConfig {
         });
         set_from_env!(enable_p2p, "ICN_ENABLE_P2P", |v: &str| v.parse::<bool>());
         set_from_env!(enable_mdns, "ICN_ENABLE_MDNS", |v: &str| v.parse::<bool>());
+        set_from_env!(test_mode, "ICN_TEST_MODE", |v: &str| v.parse::<bool>());
         set_from_env!(open_rate_limit, "ICN_OPEN_RATE_LIMIT", |v: &str| v
             .parse::<u64>());
 
@@ -572,6 +580,9 @@ impl NodeConfig {
         }
         if matches.contains_id("enable_mdns") {
             self.enable_mdns = true;
+        }
+        if cli.test_mode || matches.contains_id("test_mode") {
+            self.test_mode = true;
         }
         if let Some(v) = &cli.api_key {
             self.api_key = Some(v.clone());
