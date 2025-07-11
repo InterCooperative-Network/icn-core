@@ -291,7 +291,7 @@ async fn test_mesh_job_full_lifecycle_happy_path() {
     let receipt_msg = LocalMeshSubmitReceiptMessage {
         receipt: signed_receipt.clone(),
     };
-    job_manager_network_stub.stage_receipt(receipt_msg).await;
+    job_manager_network_stub.stage_receipt(submitted_job_id.clone(), receipt_msg).await;
 
     // Test receipt retrieval
     let retrieved_receipt = job_manager_network_stub
@@ -521,9 +521,7 @@ async fn test_job_manager_refunds_on_no_valid_bid() {
         .await
         .expect("Job submission failed");
 
-    let ctx_clone = ctx.clone();
-    ctx_clone.spawn_mesh_job_manager().await;
-
+    // No need to spawn job manager since new path directly handles lifecycle
     sleep(Duration::from_secs(12)).await;
 
     let mana_after = ctx.get_mana(&submitter_did).await.unwrap();
