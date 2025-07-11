@@ -1,14 +1,25 @@
 #!/bin/bash
-# Copilot-compatible wrapper for ICN environment setup
-
 set -euo pipefail
-cd /workspace/icn-core || exit 1
 
-# Run the main setup script (already fully robust)
-if [ -f "./scripts/setup.sh" ]; then
-  chmod +x ./scripts/setup.sh
-  ./scripts/setup.sh
-else
-  echo "❌ scripts/setup.sh not found!"
-  exit 1
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+SETUP_SCRIPT="$REPO_ROOT/scripts/setup.sh"
+LOG_PATH="/tmp/icn-setup.log"
+
+echo "🧠 Copilot setup starting from $0"
+echo "📁 Repo root: $REPO_ROOT"
+
+cd "$REPO_ROOT"
+
+if [ ! -x "$SETUP_SCRIPT" ]; then
+  echo "🔧 Making setup script executable"
+  chmod +x "$SETUP_SCRIPT"
+fi
+
+echo "🚀 Running ICN setup script..."
+"$SETUP_SCRIPT"
+
+if [ -f "$LOG_PATH" ]; then
+  echo "📄 Setup log tail:"
+  tail -n 20 "$LOG_PATH"
 fi
