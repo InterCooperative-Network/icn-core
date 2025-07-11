@@ -2,6 +2,8 @@
 
 Welcome to the InterCooperative Network (ICN) Core project! This guide will help you get set up, understand the codebase, and start contributing.
 
+If you just want the minimal steps, start with [beginner/README.md](beginner/README.md) first.
+
 Before jumping into the setup steps below, please read [CONTEXT.md](../CONTEXT.md) at the repository root. It explains the project's goals, rules, and terminology that all contributors should understand.
 
 ## 1. Prerequisites

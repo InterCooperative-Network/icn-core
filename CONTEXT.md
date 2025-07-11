@@ -131,7 +131,7 @@
 ## Developer Experience & Community
 
 ### Development Infrastructure
-- See `docs/ONBOARDING.md` for setup instructions and comprehensive walkthroughs
+- See `docs/beginner/README.md` for a minimal quickstart, then `docs/ONBOARDING.md` for setup instructions and comprehensive walkthroughs
 - The `justfile` provides common tasks (`just build`, `just test`, `just devnet`)
 - Containerized devnet (`icn-devnet`) demonstrates multi-node federation with HTTP APIs
 - Rich error messages, observability hooks, and CLI/HTTP tools enable rapid debugging

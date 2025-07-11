@@ -123,7 +123,7 @@ rustup override set stable
 
 ## Getting Started
 
-Refer to `docs/ONBOARDING.md` for detailed instructions on prerequisites, setup, building, testing, and running the components. The latest API documentation is available at [https://intercooperative.network/docs](https://intercooperative.network/docs).
+Start with `docs/beginner/README.md` for the quickest setup steps. Then see `docs/ONBOARDING.md` for a comprehensive walkthrough. The latest API documentation is available at [https://intercooperative.network/docs](https://intercooperative.network/docs).
 
 ### Quick CLI Examples:
 
@@ -381,9 +381,10 @@ More detailed information can be found in the `README.md` file within each crate
 ## Further Reading
 
 ### **Architecture & Design**
+* [Beginner Quickstart](docs/beginner/README.md) – minimal setup steps
 * [Complete Feature Overview](docs/ICN_FEATURE_OVERVIEW.md) – comprehensive feature breakdown
 * [Context & Philosophy](CONTEXT.md) – core principles and architectural vision
-* [Development Workflow](docs/ONBOARDING.md) – getting started guide
+* [Development Workflow](docs/ONBOARDING.md) – full onboarding guide
 * [Async Overview](docs/ASYNC_OVERVIEW.md) – networking and storage concurrency
 * [Multi-Node Setup](MULTI_NODE_GUIDE.md) – federation deployment guide
 
