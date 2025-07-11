@@ -81,7 +81,7 @@ where
     Fut: std::future::Future<Output = Result<T, MeshNetworkError>>,
 {
     use std::time::Duration;
-    let mut breaker = NETWORK_BREAKER.lock().await;
+    let breaker = NETWORK_BREAKER.lock().await;
     breaker
         .call(|| async {
             retry_with_backoff(
@@ -497,7 +497,7 @@ pub async fn send_network_ping(
 
     use std::time::Duration;
     {
-        let mut breaker = NETWORK_BREAKER.lock().await;
+        let breaker = NETWORK_BREAKER.lock().await;
         breaker
             .call(|| async {
                 retry_with_backoff(
