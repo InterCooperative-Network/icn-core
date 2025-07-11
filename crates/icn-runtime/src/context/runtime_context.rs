@@ -1195,6 +1195,52 @@ impl RuntimeContext {
         &self,
         receipt: &IdentityExecutionReceipt,
     ) -> Result<Cid, HostAbiError> {
+        // 1. Validate that the job exists and was assigned to this executor
+        let job_id = JobId::from(receipt.job_id.clone());
+        
+        // Check if the job was assigned to this executor
+        let job_state = self.job_states.get(&job_id);
+        if let Some(state) = job_state {
+            match state.value() {
+                JobState::Assigned { executor } => {
+                    if executor != &receipt.executor_did {
+                        return Err(HostAbiError::PermissionDenied(format!(
+                            "Receipt executor {} does not match assigned executor {}",
+                            receipt.executor_did, executor
+                        )));
+                    }
+                }
+                JobState::Completed { .. } => {
+                    return Err(HostAbiError::InvalidParameters(
+                        "Job already completed".to_string()
+                    ));
+                }
+                JobState::Failed { .. } => {
+                    return Err(HostAbiError::InvalidParameters(
+                        "Cannot submit receipt for failed job".to_string()
+                    ));
+                }
+                JobState::Pending => {
+                    return Err(HostAbiError::InvalidParameters(
+                        "Cannot submit receipt for unassigned job".to_string()
+                    ));
+                }
+            }
+        } else {
+            return Err(HostAbiError::InvalidParameters(
+                "Job not found".to_string()
+            ));
+        }
+
+        // 2. Verify the receipt signature
+        // Note: In a full implementation, we would resolve the executor's verifying key
+        // and verify the signature. For now, we just check that a signature exists.
+        if receipt.sig.0.is_empty() {
+            return Err(HostAbiError::PermissionDenied(
+                "Receipt signature is required".to_string()
+            ));
+        }
+
         // Create a DAG block for the receipt
         let receipt_bytes = bincode::serialize(receipt).map_err(|e| {
             HostAbiError::DagOperationFailed(format!("Failed to serialize receipt: {}", e))
