@@ -704,3 +704,47 @@ impl NodeConfig {
         std::fs::write(path, toml_str)
     }
 }
+
+#[cfg(feature = "enable-libp2p")]
+use icn_network::libp2p_service::NetworkConfig;
+#[cfg(feature = "enable-libp2p")]
+use libp2p::{Multiaddr, PeerId as Libp2pPeerId};
+
+impl NodeConfig {
+    #[cfg(feature = "enable-libp2p")]
+    pub fn libp2p_config(&self) -> Result<NetworkConfig, CommonError> {
+        let listen_addr = self
+            .listen_address
+            .parse::<Multiaddr>()
+            .map_err(|e| CommonError::ConfigError(format!("invalid p2p listen address: {e}")))?;
+
+        let bootstrap_peers = if let Some(peers) = &self.bootstrap_peers {
+            let mut parsed = Vec::new();
+            for peer_str in peers {
+                let addr = peer_str.parse::<Multiaddr>().map_err(|e| {
+                    CommonError::ConfigError(format!("invalid bootstrap peer '{peer_str}': {e}"))
+                })?;
+                if let Some(libp2p::core::multiaddr::Protocol::P2p(pid)) = addr.iter().last() {
+                    let id: Libp2pPeerId = pid
+                        .try_into()
+                        .map_err(|_| CommonError::ConfigError("invalid peer id".into()))?;
+                    parsed.push((id, addr));
+                } else {
+                    return Err(CommonError::ConfigError(format!(
+                        "bootstrap peer missing peer id: {peer_str}"
+                    )));
+                }
+            }
+            parsed
+        } else {
+            Vec::new()
+        };
+
+        Ok(NetworkConfig {
+            listen_addresses: vec![listen_addr],
+            bootstrap_peers,
+            enable_mdns: self.enable_mdns,
+            ..Default::default()
+        })
+    }
+}
