@@ -202,6 +202,425 @@ curl -X GET https://localhost:8080/federation/peers \
 |--------|------|-------------|---------------|
 | POST | `/data/query` | Query stored data with filters | Yes |
 
+## Example Requests & Responses
+
+### GET `/info`
+```bash
+curl -i http://localhost:8080/info
+```
+Response `200 OK`
+```json
+{
+  "version": "0.1.0-dev-functional",
+  "name": "ICN Node",
+  "status_message": "ready"
+}
+```
+
+### GET `/status`
+```bash
+curl -i http://localhost:8080/status
+```
+Response `200 OK`
+```json
+{
+  "is_online": true,
+  "peer_count": 3,
+  "current_block_height": 42,
+  "version": "0.1.0-dev-functional"
+}
+```
+
+### GET `/health`
+```bash
+curl -i http://localhost:8080/health
+```
+Response `200 OK`
+```json
+{
+  "status": "ok",
+  "timestamp": 1728000000,
+  "uptime_seconds": 3600,
+  "checks": {
+    "runtime": "ok",
+    "dag_store": "ok",
+    "network": "ok",
+    "mana_ledger": "ok"
+  }
+}
+```
+
+### GET `/ready`
+```bash
+curl -i http://localhost:8080/ready
+```
+Response `200 OK`
+```json
+{
+  "ready": true,
+  "timestamp": 1728000000,
+  "checks": {
+    "can_serve_requests": true,
+    "mana_ledger_available": true,
+    "dag_store_available": true,
+    "network_initialized": true
+  }
+}
+```
+
+### GET `/metrics`
+```bash
+curl -i http://localhost:8080/metrics
+```
+Response `200 OK`
+```text
+# HELP icn_requests_total Total HTTP requests
+icn_requests_total{path="/info"} 5
+```
+
+### POST `/dag/put`
+```bash
+curl -X POST http://localhost:8080/dag/put \
+  -H "Content-Type: application/json" \
+  -d '{"data":"aGVsbG8="}'
+```
+Response `200 OK`
+```json
+"bafyblockcid"
+```
+
+### POST `/dag/get`
+```bash
+curl -X POST http://localhost:8080/dag/get \
+  -H "Content-Type: application/json" \
+  -d '{"cid":"bafyblockcid"}'
+```
+Response `200 OK`
+```json
+"aGVsbG8="
+```
+
+### POST `/dag/meta`
+```bash
+curl -X POST http://localhost:8080/dag/meta \
+  -H "Content-Type: application/json" \
+  -d '{"cid":"bafyblockcid"}'
+```
+Response `200 OK`
+```json
+{
+  "size": 1024,
+  "timestamp": 1728000000,
+  "author_did": "did:key:alice",
+  "links": []
+}
+```
+
+### POST `/dag/pin`
+```bash
+curl -X POST http://localhost:8080/dag/pin \
+  -H "Content-Type: application/json" \
+  -d '{"cid":"bafyblockcid","ttl":3600}'
+```
+Response `200 OK`
+```json
+{
+  "version": 1,
+  "codec": 0,
+  "hash_alg": 1,
+  "hash_bytes": "AAEC"
+}
+```
+
+### POST `/dag/unpin`
+```bash
+curl -X POST http://localhost:8080/dag/unpin \
+  -H "Content-Type: application/json" \
+  -d '{"cid":"bafyblockcid"}'
+```
+Response `200 OK`
+```json
+{
+  "version": 1,
+  "codec": 0,
+  "hash_alg": 1,
+  "hash_bytes": "AAEC"
+}
+```
+
+### POST `/dag/prune`
+```bash
+curl -X POST http://localhost:8080/dag/prune -H "Content-Type: application/json" -d '{}'
+```
+Response `200 OK`
+```json
+{"pruned": true}
+```
+
+### POST `/transaction/submit`
+```bash
+curl -X POST http://localhost:8080/transaction/submit \
+  -H "Content-Type: application/json" \
+  -d '{"id":"tx-1","payload_type":"Transfer"}'
+```
+Response `200 OK`
+```json
+"tx-1"
+```
+
+### POST `/governance/submit`
+```bash
+curl -X POST http://localhost:8080/governance/submit \
+  -H "Content-Type: application/json" \
+  -d '{"proposer_did":"did:key:alice","proposal":{}}'
+```
+Response `200 OK`
+```json
+"prop-1"
+```
+
+### POST `/governance/vote`
+```bash
+curl -X POST http://localhost:8080/governance/vote \
+  -H "Content-Type: application/json" \
+  -d '{"voter_did":"did:key:alice","proposal_id":"prop-1","vote_option":"Yes"}'
+```
+Response `200 OK`
+```json
+{"accepted": true}
+```
+
+### POST `/governance/delegate`
+```bash
+curl -X POST http://localhost:8080/governance/delegate \
+  -H "Content-Type: application/json" \
+  -d '{"from_did":"did:key:alice","to_did":"did:key:bob"}'
+```
+Response `200 OK`
+```json
+{"delegated": true}
+```
+
+### POST `/governance/revoke`
+```bash
+curl -X POST http://localhost:8080/governance/revoke \
+  -H "Content-Type: application/json" \
+  -d '{"from_did":"did:key:alice"}'
+```
+Response `200 OK`
+```json
+{"revoked": true}
+```
+
+### GET `/governance/proposals`
+```bash
+curl -i http://localhost:8080/governance/proposals
+```
+Response `200 OK`
+```json
+[
+  {"proposal_id":"prop-1","description":"Increase timeout"}
+]
+```
+
+### GET `/governance/proposal/:id`
+```bash
+curl -i http://localhost:8080/governance/proposal/prop-1
+```
+Response `200 OK`
+```json
+{
+  "proposal_id": "prop-1",
+  "description": "Increase timeout",
+  "status": "Open"
+}
+```
+
+### POST `/governance/close`
+```bash
+curl -X POST http://localhost:8080/governance/close \
+  -H "Content-Type: application/json" \
+  -d '{"proposal_id":"prop-1"}'
+```
+Response `200 OK`
+```json
+{
+  "status": "Accepted",
+  "yes": 2,
+  "no": 0,
+  "abstain": 1
+}
+```
+
+### POST `/governance/execute`
+```bash
+curl -X POST http://localhost:8080/governance/execute \
+  -H "Content-Type: application/json" \
+  -d '{"proposal_id":"prop-1"}'
+```
+Response `200 OK`
+```json
+{"executed": true}
+```
+
+### POST `/mesh/submit`
+```bash
+curl -X POST http://localhost:8080/mesh/submit \
+  -H "Content-Type: application/json" \
+  -d '{"manifest_cid":"bafyjobmanifest","spec_json":{"command":"echo"}}'
+```
+Response `200 OK`
+```json
+{"job_id":"job-123"}
+```
+
+### GET `/mesh/jobs`
+```bash
+curl -i http://localhost:8080/mesh/jobs
+```
+Response `200 OK`
+```json
+{
+  "jobs": [
+    {"job_id":"job-123","status":"Running"}
+  ]
+}
+```
+
+### GET `/mesh/jobs/:job_id`
+```bash
+curl -i http://localhost:8080/mesh/jobs/job-123
+```
+Response `200 OK`
+```json
+{"job_id":"job-123","status":"Completed"}
+```
+
+### POST `/mesh/receipts`
+```bash
+curl -X POST http://localhost:8080/mesh/receipts \
+  -H "Content-Type: application/json" \
+  -d '{"job_id":"job-123","executor_did":"did:key:executor","success":true}'
+```
+Response `200 OK`
+```json
+{"accepted": true}
+```
+
+### GET `/federation/peers`
+```bash
+curl -i http://localhost:8080/federation/peers
+```
+Response `200 OK`
+```json
+[
+  "12D3KooWpeer1",
+  "12D3KooWpeer2"
+]
+```
+
+### POST `/federation/peers`
+```bash
+curl -X POST http://localhost:8080/federation/peers \
+  -H "Content-Type: application/json" \
+  -d '{"peer":"/ip4/127.0.0.1/tcp/4001/p2p/12D3KooW..."}'
+```
+Response `200 OK`
+```json
+{"peer":"/ip4/127.0.0.1/tcp/4001/p2p/12D3KooW..."}
+```
+
+### POST `/federation/join`
+```bash
+curl -X POST http://localhost:8080/federation/join \
+  -H "Content-Type: application/json" \
+  -d '{"peer":"/ip4/127.0.0.1/tcp/4001/p2p/12D3KooW..."}'
+```
+Response `200 OK`
+```json
+{"joined":"/ip4/127.0.0.1/tcp/4001/p2p/12D3KooW..."}
+```
+
+### POST `/federation/leave`
+```bash
+curl -X POST http://localhost:8080/federation/leave \
+  -H "Content-Type: application/json" \
+  -d '{"peer":"/ip4/127.0.0.1/tcp/4001/p2p/12D3KooW..."}'
+```
+Response `200 OK`
+```json
+{"left":"/ip4/127.0.0.1/tcp/4001/p2p/12D3KooW..."}
+```
+
+### GET `/federation/status`
+```bash
+curl -i http://localhost:8080/federation/status
+```
+Response `200 OK`
+```json
+{
+  "peer_count": 3,
+  "peers": ["12D3KooWpeer1","12D3KooWpeer2","12D3KooWpeer3"]
+}
+```
+
+### POST `/network/connect`
+```bash
+curl -X POST http://localhost:8080/network/connect \
+  -H "Content-Type: application/json" \
+  -d '{"peer":"/ip4/127.0.0.1/tcp/4001/p2p/12D3KooW..."}'
+```
+Response `200 OK`
+```json
+{"connected": true}
+```
+
+### GET `/network/local-peer-id`
+```bash
+curl -i http://localhost:8080/network/local-peer-id
+```
+Response `200 OK`
+```json
+{"peer_id":"12D3KooW..."}
+```
+
+### GET `/network/peers`
+```bash
+curl -i http://localhost:8080/network/peers
+```
+Response `200 OK`
+```json
+[
+  "12D3KooWpeer1",
+  "12D3KooWpeer2"
+]
+```
+
+### POST `/data/query`
+```bash
+curl -X POST http://localhost:8080/data/query \
+  -H "Content-Type: application/json" \
+  -d '{"cid":"bafyblockcid"}'
+```
+Response `200 OK`
+```json
+{
+  "cid": {"version":1,"codec":0,"hash_alg":1,"hash_bytes":"AAEC"},
+  "data": "aGVsbG8="
+}
+```
+
+### POST `/contracts`
+```bash
+curl -X POST http://localhost:8080/contracts \
+  -H "Content-Type: application/json" \
+  -d '{"source":"(module ...)"}'
+```
+Response `200 OK`
+```json
+{"manifest_cid":"bafycontractmanifest"}
+```
+
 ## Error Responses
 
 All endpoints return structured error responses in JSON format:
