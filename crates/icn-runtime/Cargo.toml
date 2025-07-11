@@ -21,6 +21,7 @@ icn-reputation = { path = "../icn-reputation" }
 
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+toml = "0.8"
 tokio = { version = "1", features = ["full", "test-util"] }
 async-trait = "0.1.77"
 log = "0.4"

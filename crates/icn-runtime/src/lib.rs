@@ -13,6 +13,7 @@
 //! - The node runtime integration for libp2p networking.
 
 pub mod abi;
+pub mod config;
 pub mod context;
 pub mod executor;
 pub mod memory;
@@ -24,6 +25,7 @@ use log::{debug, error, info, warn};
 use std::str::FromStr;
 use thiserror::Error;
 
+pub use config::{RuntimeConfig, EnvironmentConfig, IdentityConfig, NetworkConfig, StorageConfig, GovernanceConfig, RuntimeParametersConfig};
 pub use context::{
     RuntimeContext, HostAbiError, DefaultMeshNetworkService, MeshNetworkService,
     MeshNetworkServiceType, SimpleManaLedger, Signer, Ed25519Signer, HostEnvironment,

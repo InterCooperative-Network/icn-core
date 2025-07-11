@@ -1,0 +1,72 @@
+# ICN Runtime Development Configuration
+# This file contains development-friendly settings for an ICN node
+
+[environment]
+environment_type = "development"
+debug = true
+log_level = "debug"
+metrics = true
+
+[identity]
+node_did = "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK"
+
+[identity.key_store]
+store_type = "stub"
+
+[identity.did_resolver]
+resolver_type = "key"
+
+[network]
+listen_addresses = [
+    "/ip4/127.0.0.1/tcp/4001"
+]
+bootstrap_peers = []
+enable_mdns = true
+
+[network.timeouts]
+connection_timeout_ms = 5000
+request_timeout_ms = 15000
+keep_alive_interval_ms = 30000
+
+[network.connection_limits]
+max_incoming_connections = 50
+max_outgoing_connections = 50
+max_connections_per_peer = 3
+
+[storage]
+data_dir = "./dev-data"
+
+[storage.dag_store]
+store_type = "memory"
+cache_size_mb = 64
+
+[storage.mana_ledger]
+ledger_path = "./dev-data/mana.db"
+initial_mana = 10000
+regeneration_rate = 2.0
+max_capacity = 50000
+
+[storage.reputation_store]
+store_type = "memory"
+decay_rate = 0.001
+
+[governance]
+enabled = true
+
+[governance.voting]
+min_voting_power = 10
+vote_cost_mana = 1
+voting_period_seconds = 300  # 5 minutes
+
+[governance.proposals]
+min_proposal_mana = 100
+proposal_cost_mana = 10
+min_quorum = 0.05
+passing_threshold = 0.5
+
+[runtime]
+default_receipt_wait_ms = 10000
+max_job_queue_size = 100
+max_concurrent_jobs = 5
+job_execution_timeout_ms = 60000  # 1 minute
+cleanup_interval_ms = 30000 
