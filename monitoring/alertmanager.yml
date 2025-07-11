@@ -1,0 +1,6 @@
+route:
+  receiver: 'icn-default'
+receivers:
+  - name: 'icn-default'
+    email_configs:
+      - to: alerts@example.com

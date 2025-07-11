@@ -512,11 +512,15 @@ The repository includes a containerized devnet for quickly spinning up a three-n
    ```
 3. **Run with monitoring (Prometheus & Grafana):**
    ```bash
-   cd icn-devnet
-   docker-compose --profile monitoring up -d
+  cd icn-devnet
+  docker-compose --profile monitoring up -d
+  ```
+  Prometheus will be available at <http://localhost:9090> and Grafana at
+  <http://localhost:3000> (login `admin` / `icnfederation`).
+   Alternatively, run the standalone monitoring stack:
+   ```bash
+   docker compose -f docker-compose-monitoring.yml up -d
    ```
-   Prometheus will be available at <http://localhost:9090> and Grafana at
-   <http://localhost:3000> (login `admin` / `icnfederation`).
 4. **Submit your own job:**
    ```bash
    curl -X POST http://localhost:5001/mesh/submit \

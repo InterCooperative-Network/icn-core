@@ -1,0 +1,15 @@
+{
+  "uid": "icn-overview",
+  "title": "ICN Overview",
+  "schemaVersion": 37,
+  "version": 1,
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Jobs Submitted",
+      "datasource": "Prometheus",
+      "targets": [{"expr": "jobs_submitted_total"}],
+      "gridPos": {"h":4,"w":6,"x":0,"y":0}
+    }
+  ]
+}
