@@ -42,6 +42,8 @@ static HTTP_BREAKER: Lazy<AsyncMutex<CircuitBreaker<SystemTimeProvider>>> = Lazy
 
 pub mod federation_trait;
 pub mod governance_trait;
+/// Prometheus metrics helpers
+pub mod metrics;
 use crate::governance_trait::{
     CastVoteRequest as GovernanceCastVoteRequest, // Renamed to avoid conflict
     GovernanceApi,
@@ -491,7 +493,7 @@ pub async fn http_get_local_peer_id(api_url: &str) -> Result<String, CommonError
     let url = format!("{}/network/local-peer-id", api_url.trim_end_matches('/'));
     use std::time::Duration;
     let res = {
-        let mut breaker = HTTP_BREAKER.lock().await;
+        let breaker = HTTP_BREAKER.lock().await;
         breaker
             .call(|| async {
                 retry_with_backoff(
@@ -539,7 +541,7 @@ pub async fn http_get_peer_list(api_url: &str) -> Result<Vec<String>, CommonErro
     let url = format!("{}/network/peers", api_url.trim_end_matches('/'));
     use std::time::Duration;
     let res = {
-        let mut breaker = HTTP_BREAKER.lock().await;
+        let breaker = HTTP_BREAKER.lock().await;
         breaker
             .call(|| async {
                 retry_with_backoff(

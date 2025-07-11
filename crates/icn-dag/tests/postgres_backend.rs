@@ -66,7 +66,7 @@ mod tests {
         let persist = create_block("persist");
         store.put(&persist).unwrap();
         drop(store);
-        let mut store2 = match PostgresDagStore::new(&url) {
+        let store2 = match PostgresDagStore::new(&url) {
             Ok(s) => s,
             Err(e) => {
                 eprintln!("Postgres unavailable on reopen: {e:?}");
