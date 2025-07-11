@@ -331,7 +331,7 @@ mod cross_node_tests {
             MessagePayload::MeshJobAssignment(MeshJobAssignmentMessage {
                 job_id: test_job.id.clone(),
                 executor_did: executor_did.clone(),
-                agreed_cost_mana: 0,
+                agreed_cost_mana: test_job.cost_mana,
                 completion_deadline: 0,
                 manifest_cid: None,
             }),
@@ -353,9 +353,12 @@ mod cross_node_tests {
                 if let Some(message) = node_b_receiver.recv().await {
                     debug!("Node B received message: {:?}", message);
                     if let MessagePayload::MeshJobAssignment(assign) = &message.payload {
-                        if assign.job_id == test_job.id && assign.executor_did == executor_did {
+                        if assign.job_id == test_job.id
+                            && assign.executor_did == executor_did
+                            && assign.agreed_cost_mana == test_job.cost_mana
+                        {
                             info!("✓ Node B received assignment for job {:?}", assign.job_id);
-                            return Some((assign.job_id.clone(), assign.executor_did.clone()));
+                            return Some(assign.clone());
                         }
                     }
                 }
@@ -363,9 +366,10 @@ mod cross_node_tests {
         }).await;
         
         assert!(assignment_received.is_ok(), "Assignment notification did not reach Node B");
-        let (assigned_job_id, assigned_executor) = assignment_received.unwrap().unwrap();
-        assert_eq!(assigned_job_id, test_job.id);
-        assert_eq!(assigned_executor, executor_did);
+        let received_assign = assignment_received.unwrap().unwrap();
+        assert_eq!(received_assign.job_id, test_job.id);
+        assert_eq!(received_assign.executor_did, executor_did);
+        assert_eq!(received_assign.agreed_cost_mana, test_job.cost_mana);
         
         // Node B: Execute the job using SimpleExecutor
         info!("Node B: Executing assigned job...");
@@ -610,11 +614,13 @@ mod cross_node_tests {
         // Phase 5: Assignment and Execution
         info!("Phase 5: Node A assigns job, Node B executes");
         
+        let received_bid = received_bid.unwrap().unwrap();
+
         let assignment_message = ProtocolMessage::new(
             MessagePayload::MeshJobAssignment(MeshJobAssignmentMessage {
                 job_id: test_job.id.clone(),
                 executor_did: executor_did.clone(),
-                agreed_cost_mana: 0,
+                agreed_cost_mana: received_bid.price_mana,
                 completion_deadline: 0,
                 manifest_cid: None,
             }),
@@ -630,8 +636,11 @@ mod cross_node_tests {
             loop {
                 if let Some(message) = node_b_receiver.recv().await {
                     if let MessagePayload::MeshJobAssignment(assign) = &message.payload {
-                        if assign.job_id == test_job.id && assign.executor_did == executor_did {
-                            return Some((assign.job_id.clone(), assign.executor_did.clone()));
+                        if assign.job_id == test_job.id
+                            && assign.executor_did == executor_did
+                            && assign.agreed_cost_mana == received_bid.price_mana
+                        {
+                            return Some(assign.clone());
                         }
                     }
                 }
@@ -639,6 +648,8 @@ mod cross_node_tests {
         }).await;
         
         assert!(assignment_received.is_ok(), "Assignment notification did not reach Node B");
+        let received_assign = assignment_received.unwrap().unwrap();
+        assert_eq!(received_assign.agreed_cost_mana, received_bid.price_mana);
         info!("✓ Assignment received by Node B");
         
         // Node B: Execute job

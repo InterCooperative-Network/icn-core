@@ -296,9 +296,10 @@ impl MeshNetworkService for StubMeshNetworkService {
         notice: &JobAssignmentNotice,
     ) -> Result<(), HostAbiError> {
         log::debug!(
-            "StubMeshNetworkService: notify_executor_of_assignment called for job {:?} -> executor {}",
+            "StubMeshNetworkService: notify_executor_of_assignment called for job {:?} -> executor {} with cost {}",
             notice.job_id,
-            notice.executor_did
+            notice.executor_did,
+            notice.agreed_cost_mana
         );
         Ok(())
     }
