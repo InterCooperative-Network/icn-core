@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["check_production_ready","validate_development_build"],"trait":["ProductionReady"]};

@@ -1,1 +1,0 @@
-searchState.loadedDescShard("test_ccl_devnet_integration", 0, "")

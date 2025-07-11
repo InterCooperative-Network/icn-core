@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["analyze_contract_features","main"]};
