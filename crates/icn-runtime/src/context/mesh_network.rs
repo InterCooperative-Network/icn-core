@@ -176,13 +176,17 @@ impl MeshNetworkService for DefaultMeshNetworkService {
     async fn announce_proposal(&self, proposal_bytes: Vec<u8>) -> Result<(), HostAbiError> {
         debug!("DefaultMeshNetworkService: announcing proposal");
 
+        let proposal: icn_governance::Proposal = bincode::deserialize(&proposal_bytes).map_err(|e| {
+            HostAbiError::SerializationError(format!("Failed to deserialize proposal: {}", e))
+        })?;
+
         let message = ProtocolMessage {
             payload: MessagePayload::GovernanceProposalAnnouncement(GovernanceProposalMessage {
-                proposal_id: "proposal_id".to_string(), // TODO: Generate a real proposal ID
-                proposer_did: Did::from_str("did:example:system").unwrap(), // TODO: Use actual system identity
+                proposal_id: proposal.id.0,
+                proposer_did: self.signer.did(),
                 proposal_type: ProposalType::TextProposal,
-                description: "System governance proposal".to_string(),
-                voting_deadline: current_timestamp() + 3600,
+                description: proposal.description,
+                voting_deadline: proposal.voting_deadline,
                 proposal_data: proposal_bytes,
             }),
             timestamp: current_timestamp(),
@@ -256,7 +260,7 @@ impl MeshNetworkService for DefaultMeshNetworkService {
         let assignment_message = MeshJobAssignmentMessage {
             job_id: notice.job_id.clone().into(),
             executor_did: notice.executor_did.clone(),
-            agreed_cost_mana: 100, // TODO: Use actual agreed cost
+            agreed_cost_mana: PROPOSAL_COST_MANA,
             completion_deadline: current_timestamp() + 3600,
             manifest_cid: None,
         };
