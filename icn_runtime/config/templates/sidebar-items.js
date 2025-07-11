@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["high_performance","isolated_testing","local_development","minimal_resources","production_server"]};

@@ -1,1 +1,0 @@
-searchState.loadedDescShard("test_individual_contracts", 0, "")

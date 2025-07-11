@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"constant":["SIMPLE_VOTING","TREASURY_RULES"]};

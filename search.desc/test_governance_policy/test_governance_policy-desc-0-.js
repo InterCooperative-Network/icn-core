@@ -1,1 +1,0 @@
-searchState.loadedDescShard("test_governance_policy", 0, "")
