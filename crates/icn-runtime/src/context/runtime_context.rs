@@ -19,6 +19,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration as StdDuration;
 use tokio::sync::{mpsc, Mutex as TokioMutex};
+use sysinfo::{System, SystemExt};
 
 /// Parameter key for the mana capacity limit managed via governance.
 pub const MANA_MAX_CAPACITY_KEY: &str = "mana_max_capacity";
@@ -197,6 +198,16 @@ impl RuntimeContext {
             DEFAULT_MANA_MAX_CAPACITY.to_string(),
         );
         Arc::new(map)
+    }
+
+    /// Query CPU core count and available memory in MB using sysinfo.
+    fn available_system_resources() -> (u32, u32) {
+        let mut sys = System::new();
+        sys.refresh_cpu();
+        sys.refresh_memory();
+        let cpu = sys.cpus().len() as u32;
+        let memory_mb = (sys.available_memory() / 1024) as u32;
+        (cpu, memory_mb)
     }
 
     /// Create a new context with stubs for testing.
@@ -2077,8 +2088,7 @@ impl RuntimeContext {
         
         // Check if we have the required resources
         let required = &announcement.job_spec.required_resources;
-        let available_cpu = 4; // TODO: Get from system info
-        let available_memory = 2048; // TODO: Get from system info
+        let (available_cpu, available_memory) = Self::available_system_resources();
         
         if required.cpu_cores > available_cpu || required.memory_mb > available_memory {
             log::debug!("[ExecutorManager] Insufficient resources for job {}: need {}cpu/{}mb, have {}cpu/{}mb", 
@@ -2234,8 +2244,7 @@ impl RuntimeContext {
         
         // Check if we have the required resources
         let required = &job.spec.required_resources;
-        let available_cpu = 4; // TODO: Get from system info
-        let available_memory = 2048; // TODO: Get from system info
+        let (available_cpu, available_memory) = Self::available_system_resources();
         
         if required.cpu_cores > available_cpu || required.memory_mb > available_memory {
             log::debug!("[Executor] Insufficient resources for job {:?}: need {}cpu/{}mb, have {}cpu/{}mb", 
