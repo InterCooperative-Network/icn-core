@@ -25,12 +25,7 @@ mod persistence_rocksdb {
         }
     }
 
-    async fn create_ctx(
-        id: Did,
-        dag: PathBuf,
-        mana: PathBuf,
-        rep: PathBuf,
-    ) -> Arc<RuntimeContext> {
+    async fn create_ctx(id: Did, dag: PathBuf, mana: PathBuf, rep: PathBuf) -> Arc<RuntimeContext> {
         let service = Arc::new(
             Libp2pNetworkService::new(NetworkConfig::default())
                 .await
@@ -57,7 +52,13 @@ mod persistence_rocksdb {
         let rep_path = dir.path().join("rep.rocks");
 
         let id = Did::new("key", "tester");
-        let ctx1 = create_ctx(id.clone(), dag_path.clone(), mana_path.clone(), rep_path.clone()).await;
+        let ctx1 = create_ctx(
+            id.clone(),
+            dag_path.clone(),
+            mana_path.clone(),
+            rep_path.clone(),
+        )
+        .await;
 
         ctx1.credit_mana(&id, 42).await.unwrap();
         let block = sample_block();

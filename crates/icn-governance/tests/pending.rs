@@ -1,5 +1,7 @@
 use icn_common::Did;
-use icn_governance::{GovernanceModule, ProposalStatus, ProposalSubmission, ProposalType, VoteOption};
+use icn_governance::{
+    GovernanceModule, ProposalStatus, ProposalSubmission, ProposalType, VoteOption,
+};
 use std::str::FromStr;
 
 #[test]

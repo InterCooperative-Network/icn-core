@@ -2,12 +2,12 @@
 mod federation;
 
 use federation::{ensure_devnet, wait_for_federation_ready, NODE_A_URL, NODE_C_URL};
+use icn_common::retry_with_backoff;
 use reqwest::Client;
 use serde_json::Value;
 use std::process::Command;
 use std::time::Instant;
 use tokio::time::{sleep, Duration};
-use icn_common::retry_with_backoff;
 
 const RETRY_DELAY: Duration = Duration::from_secs(3);
 const MAX_RETRIES: u32 = 20;
@@ -107,9 +107,11 @@ async fn test_network_resilience() {
         sleep(RETRY_DELAY).await;
     }
 
-    assert!(node_c_synced, "Node C did not sync job receipt after reconnect");
+    assert!(
+        node_c_synced,
+        "Node C did not sync job receipt after reconnect"
+    );
 }
-
 
 struct TestCircuitBreaker {
     failures: u32,
@@ -120,7 +122,12 @@ struct TestCircuitBreaker {
 
 impl TestCircuitBreaker {
     fn new(threshold: u32, timeout: Duration) -> Self {
-        Self { failures: 0, threshold, open_until: None, timeout }
+        Self {
+            failures: 0,
+            threshold,
+            open_until: None,
+            timeout,
+        }
     }
 
     fn is_open(&self) -> bool {
@@ -197,7 +204,10 @@ async fn test_long_partition_circuit_breaker() {
         sleep(Duration::from_secs(1)).await;
     }
 
-    assert!(breaker.is_open(), "circuit breaker should open after failures");
+    assert!(
+        breaker.is_open(),
+        "circuit breaker should open after failures"
+    );
 
     let before = attempt_times.len();
     let err = breaker
@@ -205,7 +215,11 @@ async fn test_long_partition_circuit_breaker() {
         .await
         .expect_err("expected circuit open error");
     assert_eq!(err, "circuit open");
-    assert_eq!(before, attempt_times.len(), "no request made when circuit open");
+    assert_eq!(
+        before,
+        attempt_times.len(),
+        "no request made when circuit open"
+    );
 
     Command::new("docker-compose")
         .args(&["-f", "icn-devnet/docker-compose.yml", "start", "icn-node-c"])
@@ -236,7 +250,10 @@ async fn test_long_partition_circuit_breaker() {
         .await
         .expect("operation should succeed after reconnect");
 
-    assert!(!breaker.is_open(), "circuit breaker should reset after success");
+    assert!(
+        !breaker.is_open(),
+        "circuit breaker should reset after success"
+    );
 
     assert!(attempt_times.len() >= 3);
     if attempt_times.len() >= 3 {
@@ -245,4 +262,3 @@ async fn test_long_partition_circuit_breaker() {
         assert!(interval2 >= interval1);
     }
 }
-

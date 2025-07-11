@@ -252,10 +252,7 @@ mod libp2p_job_pipeline {
 
         {
             assert!(matches!(
-                node_a
-                    .job_states
-                    .get(&job_id)
-                    .map(|s| s.value().clone()),
+                node_a.job_states.get(&job_id).map(|s| s.value().clone()),
                 Some(JobState::Pending)
             ));
         }

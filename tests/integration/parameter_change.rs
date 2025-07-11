@@ -35,7 +35,10 @@ async fn system_parameter_change_updates_rate_limit() {
         let pid = gov
             .submit_proposal(ProposalSubmission {
                 proposer: Did::from_str("did:example:alice").unwrap(),
-                proposal_type: ProposalType::SystemParameterChange("open_rate_limit".into(), "5".into()),
+                proposal_type: ProposalType::SystemParameterChange(
+                    "open_rate_limit".into(),
+                    "5".into(),
+                ),
                 description: "increase limit".into(),
                 duration_secs: 60,
                 quorum: None,

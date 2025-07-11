@@ -359,7 +359,7 @@ impl_downcast!(sync MeshNetworkService);
 
 // --- DefaultMeshNetworkService Implementation ---
 /// Production-grade mesh network service that replaces StubMeshNetworkService.
-/// 
+///
 /// This is a core Phase 5 improvement that enables true cross-federation mesh computing
 /// by integrating with libp2p for real peer-to-peer networking. When libp2p is enabled,
 /// ICN nodes can participate in genuine distributed mesh job execution across the federation.
@@ -889,14 +889,22 @@ impl RuntimeContext {
             icn_dag::rocksdb_store::RocksDagStore::new(dag_path.clone())?,
         )) as Arc<DagStoreMutex<dyn DagStorageService<DagBlock> + Send>>;
 
-        #[cfg(all(not(feature = "persist-rocksdb"), feature = "persist-sled", not(feature = "async")))]
+        #[cfg(all(
+            not(feature = "persist-rocksdb"),
+            feature = "persist-sled",
+            not(feature = "async")
+        ))]
         let dag_store = Arc::new(DagStoreMutex::new(icn_dag::sled_store::SledDagStore::new(
             dag_path.clone(),
         )?)) as Arc<DagStoreMutex<dyn DagStorageService<DagBlock> + Send>>;
 
-        #[cfg(all(feature = "async", any(feature = "persist-rocksdb", feature = "persist-sled")))]
-        let dag_store = Arc::new(DagStoreMutex::new(TokioFileDagStore::new(dag_path.clone())?))
-            as Arc<DagStoreMutex<dyn DagStorageService<DagBlock> + Send>>;
+        #[cfg(all(
+            feature = "async",
+            any(feature = "persist-rocksdb", feature = "persist-sled")
+        ))]
+        let dag_store = Arc::new(DagStoreMutex::new(TokioFileDagStore::new(
+            dag_path.clone(),
+        )?)) as Arc<DagStoreMutex<dyn DagStorageService<DagBlock> + Send>>;
 
         #[cfg(all(
             not(feature = "persist-rocksdb"),
@@ -998,31 +1006,39 @@ impl RuntimeContext {
                 e
             ))
         })?;
-        
+
         // Use real persistent DAG storage for production-grade data integrity (Phase 5)
         #[cfg(all(feature = "persist-sled", not(feature = "async")))]
         let dag_store = Arc::new(TokioMutex::new(icn_dag::sled_store::SledDagStore::new(
             PathBuf::from("./dag.sled"),
         )?));
         #[cfg(all(feature = "persist-sled", feature = "async"))]
-        let dag_store = Arc::new(TokioMutex::new(TokioFileDagStore::new(
-            PathBuf::from("./dag.sled"),
-        )?));
+        let dag_store = Arc::new(TokioMutex::new(TokioFileDagStore::new(PathBuf::from(
+            "./dag.sled",
+        ))?));
         #[cfg(all(not(feature = "persist-sled"), feature = "persist-rocksdb"))]
         let dag_store = {
             log::info!("🗄️ [RuntimeContext] Using RocksDB for production-grade DAG persistence");
-            Arc::new(TokioMutex::new(icn_dag::rocksdb_store::RocksdbDagStore::new(
-                PathBuf::from("./dag.rocksdb"),
-            )?))
+            Arc::new(TokioMutex::new(
+                icn_dag::rocksdb_store::RocksdbDagStore::new(PathBuf::from("./dag.rocksdb"))?,
+            ))
         };
-        #[cfg(all(not(feature = "persist-sled"), not(feature = "persist-rocksdb"), feature = "persist-sqlite"))]
+        #[cfg(all(
+            not(feature = "persist-sled"),
+            not(feature = "persist-rocksdb"),
+            feature = "persist-sqlite"
+        ))]
         let dag_store = {
             log::info!("🗄️ [RuntimeContext] Using SQLite for production-grade DAG persistence");
             Arc::new(TokioMutex::new(icn_dag::sqlite_store::SqliteDagStore::new(
                 PathBuf::from("./dag.sqlite"),
             )?))
         };
-        #[cfg(not(any(feature = "persist-sled", feature = "persist-rocksdb", feature = "persist-sqlite")))]
+        #[cfg(not(any(
+            feature = "persist-sled",
+            feature = "persist-rocksdb",
+            feature = "persist-sqlite"
+        )))]
         let dag_store = {
             log::warn!("⚠️ [RuntimeContext] No persistence features enabled, falling back to StubDagStore for development only");
             Arc::new(TokioMutex::new(StubDagStore::new()))
@@ -1032,24 +1048,29 @@ impl RuntimeContext {
         #[cfg(feature = "enable-libp2p")]
         let mesh_network_service = {
             // Create libp2p network service with default configuration
-            let libp2p_service = Arc::new(ActualLibp2pNetworkService::new(
-                NetworkConfig::default_with_identity(&current_identity).map_err(|e| {
+            let libp2p_service = Arc::new(
+                ActualLibp2pNetworkService::new(
+                    NetworkConfig::default_with_identity(&current_identity).map_err(|e| {
+                        CommonError::NetworkError(format!(
+                            "Failed to create NetworkConfig for new_with_stubs: {}",
+                            e
+                        ))
+                    })?,
+                )
+                .map_err(|e| {
                     CommonError::NetworkError(format!(
-                        "Failed to create NetworkConfig for new_with_stubs: {}",
+                        "Failed to create libp2p service for new_with_stubs: {}",
                         e
                     ))
                 })?,
-            ).map_err(|e| {
-                CommonError::NetworkError(format!(
-                    "Failed to create libp2p service for new_with_stubs: {}",
-                    e
-                ))
-            })?);
+            );
             let libp2p_service_dyn: Arc<dyn NetworkService> = libp2p_service;
-            Arc::new(DefaultMeshNetworkService::new(libp2p_service_dyn)) as Arc<dyn MeshNetworkService>
+            Arc::new(DefaultMeshNetworkService::new(libp2p_service_dyn))
+                as Arc<dyn MeshNetworkService>
         };
         #[cfg(not(feature = "enable-libp2p"))]
-        let mesh_network_service = Arc::new(StubMeshNetworkService::new()) as Arc<dyn MeshNetworkService>;
+        let mesh_network_service =
+            Arc::new(StubMeshNetworkService::new()) as Arc<dyn MeshNetworkService>;
 
         // Use real cryptographic signing in production contexts for Phase 5 security
         let signer = Arc::new(DefaultSigner::new_for_did(&current_identity).map_err(|e| {
@@ -1088,24 +1109,32 @@ impl RuntimeContext {
             PathBuf::from("./dag.sled"),
         )?));
         #[cfg(all(feature = "persist-sled", feature = "async"))]
-        let dag_store = Arc::new(TokioMutex::new(TokioFileDagStore::new(
-            PathBuf::from("./dag.sled"),
-        )?));
+        let dag_store = Arc::new(TokioMutex::new(TokioFileDagStore::new(PathBuf::from(
+            "./dag.sled",
+        ))?));
         #[cfg(all(not(feature = "persist-sled"), feature = "persist-rocksdb"))]
         let dag_store = {
             log::info!("🗄️ [RuntimeContext] Using RocksDB for production-grade DAG persistence");
-            Arc::new(TokioMutex::new(icn_dag::rocksdb_store::RocksdbDagStore::new(
-                PathBuf::from("./dag.rocksdb"),
-            )?))
+            Arc::new(TokioMutex::new(
+                icn_dag::rocksdb_store::RocksdbDagStore::new(PathBuf::from("./dag.rocksdb"))?,
+            ))
         };
-        #[cfg(all(not(feature = "persist-sled"), not(feature = "persist-rocksdb"), feature = "persist-sqlite"))]
+        #[cfg(all(
+            not(feature = "persist-sled"),
+            not(feature = "persist-rocksdb"),
+            feature = "persist-sqlite"
+        ))]
         let dag_store = {
             log::info!("🗄️ [RuntimeContext] Using SQLite for production-grade DAG persistence");
             Arc::new(TokioMutex::new(icn_dag::sqlite_store::SqliteDagStore::new(
                 PathBuf::from("./dag.sqlite"),
             )?))
         };
-        #[cfg(not(any(feature = "persist-sled", feature = "persist-rocksdb", feature = "persist-sqlite")))]
+        #[cfg(not(any(
+            feature = "persist-sled",
+            feature = "persist-rocksdb",
+            feature = "persist-sqlite"
+        )))]
         let dag_store = {
             log::warn!("⚠️ [RuntimeContext] No persistence features enabled, falling back to StubDagStore for development only");
             Arc::new(TokioMutex::new(StubDagStore::new()))
@@ -1115,24 +1144,29 @@ impl RuntimeContext {
         #[cfg(feature = "enable-libp2p")]
         let mesh_network_service = {
             // Create libp2p network service with default configuration
-            let libp2p_service = Arc::new(ActualLibp2pNetworkService::new(
-                NetworkConfig::default_with_identity(&current_identity).map_err(|e| {
+            let libp2p_service = Arc::new(
+                ActualLibp2pNetworkService::new(
+                    NetworkConfig::default_with_identity(&current_identity).map_err(|e| {
+                        CommonError::NetworkError(format!(
+                            "Failed to create NetworkConfig for new_with_stubs_and_mana: {}",
+                            e
+                        ))
+                    })?,
+                )
+                .map_err(|e| {
                     CommonError::NetworkError(format!(
-                        "Failed to create NetworkConfig for new_with_stubs_and_mana: {}",
+                        "Failed to create libp2p service for new_with_stubs_and_mana: {}",
                         e
                     ))
                 })?,
-            ).map_err(|e| {
-                CommonError::NetworkError(format!(
-                    "Failed to create libp2p service for new_with_stubs_and_mana: {}",
-                    e
-                ))
-            })?);
+            );
             let libp2p_service_dyn: Arc<dyn NetworkService> = libp2p_service;
-            Arc::new(DefaultMeshNetworkService::new(libp2p_service_dyn)) as Arc<dyn MeshNetworkService>
+            Arc::new(DefaultMeshNetworkService::new(libp2p_service_dyn))
+                as Arc<dyn MeshNetworkService>
         };
         #[cfg(not(feature = "enable-libp2p"))]
-        let mesh_network_service = Arc::new(StubMeshNetworkService::new()) as Arc<dyn MeshNetworkService>;
+        let mesh_network_service =
+            Arc::new(StubMeshNetworkService::new()) as Arc<dyn MeshNetworkService>;
 
         // Use real cryptographic signing in production contexts for Phase 5 security
         let signer = Arc::new(DefaultSigner::new_for_did(&current_identity).map_err(|e| {
@@ -2410,7 +2444,7 @@ impl StubSigner {
 }
 
 /// Production-grade signer implementation for ICN Phase 5.
-/// 
+///
 /// This replaces StubSigner in production contexts and provides:
 /// - Deterministic key derivation from DID
 /// - Enhanced error handling and validation
@@ -2427,12 +2461,15 @@ impl DefaultSigner {
     /// Creates a new production signer for the given DID.
     /// In Phase 5, this generates keys deterministically from the DID for consistency.
     pub fn new_for_did(did: &Did) -> Result<Self, CommonError> {
-        log::info!("🔐 [DefaultSigner] Initializing production-grade signer for DID: {}", did);
-        
+        log::info!(
+            "🔐 [DefaultSigner] Initializing production-grade signer for DID: {}",
+            did
+        );
+
         // For Phase 5, we generate deterministic keys based on DID
         // In future phases, this could load from secure key storage
         let (sk, pk) = generate_ed25519_keypair();
-        
+
         Ok(Self {
             sk,
             pk,
@@ -2442,7 +2479,10 @@ impl DefaultSigner {
 
     /// Creates a signer with specific keys (for testing or key restoration)
     pub fn new_with_keys(sk: SigningKey, pk: VerifyingKey, did: Did) -> Self {
-        log::debug!("🔐 [DefaultSigner] Creating signer with provided keys for DID: {}", did);
+        log::debug!(
+            "🔐 [DefaultSigner] Creating signer with provided keys for DID: {}",
+            did
+        );
         Self { sk, pk, did }
     }
 
@@ -2450,12 +2490,12 @@ impl DefaultSigner {
     pub fn validate_key_did_consistency(&self) -> Result<(), CommonError> {
         let expected_did = did_key_from_verifying_key(&self.pk);
         let actual_did = self.did.to_string();
-        
+
         if expected_did == actual_did {
             Ok(())
         } else {
             Err(CommonError::IdentityError(format!(
-                "Key-DID mismatch: expected {}, got {}", 
+                "Key-DID mismatch: expected {}, got {}",
                 expected_did, actual_did
             )))
         }
@@ -2518,7 +2558,11 @@ impl Signer for StubSigner {
 /// Production-grade Signer implementation for Phase 5
 impl Signer for DefaultSigner {
     fn sign(&self, payload: &[u8]) -> Result<Vec<u8>, HostAbiError> {
-        log::trace!("🔐 [DefaultSigner] Signing payload of {} bytes for DID: {}", payload.len(), self.did);
+        log::trace!(
+            "🔐 [DefaultSigner] Signing payload of {} bytes for DID: {}",
+            payload.len(),
+            self.did
+        );
         Ok(sign_message(&self.sk, payload).to_bytes().to_vec())
     }
 
@@ -2528,12 +2572,17 @@ impl Signer for DefaultSigner {
         signature_bytes: &[u8],
         public_key_bytes: &[u8],
     ) -> Result<bool, HostAbiError> {
-        log::trace!("🔐 [DefaultSigner] Verifying signature for payload of {} bytes", payload.len());
-        
+        log::trace!(
+            "🔐 [DefaultSigner] Verifying signature for payload of {} bytes",
+            payload.len()
+        );
+
         let pk_array: [u8; 32] = public_key_bytes.try_into().map_err(|_| {
-            HostAbiError::InvalidParameters("Public key bytes must be exactly 32 bytes long".to_string())
+            HostAbiError::InvalidParameters(
+                "Public key bytes must be exactly 32 bytes long".to_string(),
+            )
         })?;
-        
+
         let verifying_key = VerifyingKey::from_bytes(&pk_array).map_err(|e| {
             HostAbiError::CryptoError(format!("Failed to create verifying key: {}", e))
         })?;
@@ -2545,12 +2594,15 @@ impl Signer for DefaultSigner {
                 signature_bytes.len()
             ))
         })?;
-        
+
         let signature = EdSignature::from_bytes(&signature_array);
 
         let is_valid = identity_verify_signature(&verifying_key, payload, &signature);
-        
-        log::trace!("🔐 [DefaultSigner] Signature verification result: {}", is_valid);
+
+        log::trace!(
+            "🔐 [DefaultSigner] Signature verification result: {}",
+            is_valid
+        );
         Ok(is_valid)
     }
 
