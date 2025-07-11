@@ -653,6 +653,11 @@ pub async fn app_router_with_options(
     info!("✅ Node initialized with 1000 mana (testing services without libp2p)");
 
     rt_ctx.clone().spawn_mesh_job_manager().await; // Start the job manager
+    
+    // Start the executor manager so this node can act as an executor
+    rt_ctx.clone().spawn_mesh_executor_manager().await;
+    
+    info!("ICN RuntimeContext initialized and JobManager + ExecutorManager spawned.");
 
     let config = Arc::new(TokioMutex::new(cfg.clone()));
 
@@ -1028,7 +1033,11 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
 
     // Start the job manager
     rt_ctx.clone().spawn_mesh_job_manager().await;
-    info!("ICN RuntimeContext initialized and JobManager spawned.");
+    
+    // Start the executor manager so this node can act as an executor
+    rt_ctx.clone().spawn_mesh_executor_manager().await;
+    
+    info!("ICN RuntimeContext initialized and JobManager + ExecutorManager spawned.");
 
     // Initialize the node with some mana for job submission
     match rt_ctx.credit_mana(&node_did, 1000).await {
