@@ -1,7 +1,7 @@
 //! Mesh network service types and implementations for the ICN runtime.
 
 use super::errors::HostAbiError;
-use icn_common::Did;
+use icn_common::{CommonError, Did};
 use icn_identity::{ExecutionReceipt as IdentityExecutionReceipt, SignatureBytes};
 use icn_mesh::{ActualMeshJob, JobId, MeshJobBid};
 use icn_network::NetworkService;

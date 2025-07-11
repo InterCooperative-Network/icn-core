@@ -14,7 +14,7 @@ string_literal = @{ "\"" ~ string_inner* ~ "\"" }
 boolean_literal = { "true" | "false" }
 
 // Top-level: A CCL policy is a sequence of statements or definitions
-policy = { SOI ~ (function_definition | struct_definition | policy_statement)* ~ EOI }
+policy = { SOI ~ (module_definition | function_definition | struct_definition | policy_statement)* ~ EOI }
 
 // Example: Function Definition
 function_definition = { "fn" ~ identifier ~ "(" ~ (parameter ~ ("," ~ parameter)*)? ~ ")" ~ "->" ~ type_annotation ~ block }
@@ -22,10 +22,13 @@ struct_definition = { "struct" ~ identifier ~ "{" ~ (parameter ~ ("," ~ paramete
 parameter = { identifier ~ ":" ~ type_annotation }
 type_annotation = { identifier }
 
-// Example: Policy Statement (e.g., a rule)
-policy_statement = { rule_definition | import_statement }
+// Example: Policy Statement (e.g., a rule or import/export)
+policy_statement = { rule_definition | import_statement | export_statement }
 rule_definition = { "rule" ~ identifier ~ "when" ~ expression ~ "then" ~ action }
 import_statement = { "import" ~ string_literal ~ "as" ~ identifier ~ ";" }
+export_statement = { "export" ~ identifier ~ ";" }
+
+module_definition = { "module" ~ identifier ~ "{" ~ (function_definition | struct_definition | policy_statement)* ~ "}" }
 
 // Example: Block of statements
 block = { "{" ~ statement* ~ "}" }

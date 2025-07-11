@@ -112,6 +112,7 @@ pub struct RuntimeContext {
     pub policy_enforcer: Option<Arc<dyn icn_governance::scoped_policy::ScopedPolicyEnforcer>>,
     pub time_provider: Arc<dyn icn_common::TimeProvider>,
     pub default_receipt_wait_ms: u64,
+    pub modules: Arc<DashMap<String, Vec<u8>>>,
 }
 
 // Import std::str::FromStr for Did::from_str
@@ -197,6 +198,7 @@ impl RuntimeContext {
             policy_enforcer,
             time_provider,
             default_receipt_wait_ms: 30000,
+            modules: Arc::new(DashMap::new()),
         }))
     }
 
@@ -233,6 +235,7 @@ impl RuntimeContext {
             policy_enforcer,
             time_provider,
             default_receipt_wait_ms: 30000,
+            modules: Arc::new(DashMap::new()),
         })
     }
 
@@ -307,6 +310,7 @@ impl RuntimeContext {
             policy_enforcer,
             time_provider,
             default_receipt_wait_ms: 30000,
+            modules: Arc::new(DashMap::new()),
         }))
     }
 
@@ -345,6 +349,7 @@ impl RuntimeContext {
             policy_enforcer,
             time_provider,
             default_receipt_wait_ms: 30000,
+            modules: Arc::new(DashMap::new()),
         })
     }
 
@@ -374,6 +379,21 @@ impl RuntimeContext {
     /// Credit mana to an account.
     pub async fn credit_mana(&self, account: &Did, amount: u64) -> Result<(), HostAbiError> {
         self.mana_ledger.credit(account, amount)
+    }
+
+    /// Load or replace a compiled WASM module by name.
+    pub fn load_module(&self, name: &str, wasm: Vec<u8>) {
+        self.modules.insert(name.to_string(), wasm);
+    }
+
+    /// Remove a loaded module.
+    pub fn unload_module(&self, name: &str) {
+        self.modules.remove(name);
+    }
+
+    /// Retrieve module bytes if loaded.
+    pub fn module_bytes(&self, name: &str) -> Option<Vec<u8>> {
+        self.modules.get(name).map(|e| e.value().clone())
     }
 
     /// Anchor an execution receipt.
