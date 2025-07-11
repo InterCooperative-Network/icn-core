@@ -246,6 +246,7 @@ async fn test_mesh_job_full_lifecycle_happy_path() {
     let assignment_notice = JobAssignmentNotice {
         job_id: submitted_job_id.clone(),
         executor_did: executor_did.clone(),
+        agreed_cost_mana: job_cost,
     };
     let assignment_result = job_manager_network_stub
         .notify_executor_of_assignment(&assignment_notice)
@@ -877,7 +878,7 @@ async fn test_full_mesh_job_cycle_libp2p() -> Result<(), anyhow::Error> {
         MessagePayload::MeshJobAssignment(MeshJobAssignmentMessage {
             job_id: job_id.clone(),
             executor_did: executor_did.clone(),
-            agreed_cost_mana: 0,
+            agreed_cost_mana: test_job.cost_mana,
             completion_deadline: 0,
             manifest_cid: None,
         }),
@@ -891,6 +892,7 @@ async fn test_full_mesh_job_cycle_libp2p() -> Result<(), anyhow::Error> {
             if let Some(message) = recv_b.recv().await {
                 if let MessagePayload::MeshJobAssignment(assign) = &message.payload {
                     if assign.job_id == job_id && assign.executor_did == executor_did {
+                        assert_eq!(assign.agreed_cost_mana, test_job.cost_mana);
                         break;
                     }
                 }
