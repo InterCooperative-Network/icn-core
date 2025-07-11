@@ -550,6 +550,177 @@ impl SubmitReceiptMessage {
     }
 }
 
+// --- DAG Lifecycle Structs ---
+
+/// Represents a mesh job stored in the DAG for lifecycle tracking.
+/// This is the authoritative record of a job submission event.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Job {
+    /// Unique identifier for this job (matches the DAG CID).
+    pub id: JobId,
+    /// Content Identifier (CID) of the job's executable or data package.
+    pub manifest_cid: Cid,
+    /// Detailed specification of the job.
+    pub spec_json: String, // JSON-serialized JobSpec for DAG storage
+    /// Decentralized Identifier (DID) of the entity that submitted the job.
+    pub submitter_did: Did,
+    /// The amount of mana allocated for this job's execution.
+    pub cost_mana: u64,
+    /// Timestamp when the job was submitted.
+    pub submitted_at: u64,
+    /// Current status of the job.
+    pub status: JobLifecycleStatus,
+    /// Optional resource requirements for the job.
+    pub resource_requirements: Resources,
+}
+
+/// Represents a bid stored in the DAG, linked to a specific job.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct JobBid {
+    /// The ID of the job this bid is for.
+    pub job_id: JobId,
+    /// Unique identifier for this bid.
+    pub bid_id: String,
+    /// Decentralized Identifier (DID) of the executor submitting the bid.
+    pub executor_did: Did,
+    /// The price (in mana) the executor is charging for the job.
+    pub price_mana: u64,
+    /// The resources the executor is committing for this job.
+    pub resources: Resources,
+    /// Timestamp when the bid was submitted.
+    pub submitted_at: u64,
+    /// Signature from the executor over the bid fields.
+    pub signature: SignatureBytes,
+}
+
+/// Represents a job assignment stored in the DAG.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct JobAssignment {
+    /// The ID of the job that has been assigned.
+    pub job_id: JobId,
+    /// The ID of the winning bid.
+    pub winning_bid_id: String,
+    /// The DID of the executor that has been assigned the job.
+    pub assigned_executor_did: Did,
+    /// Timestamp when the assignment was made.
+    pub assigned_at: u64,
+    /// Final negotiated price for the job.
+    pub final_price_mana: u64,
+    /// Resources committed by the assigned executor.
+    pub committed_resources: Resources,
+}
+
+/// Represents an execution receipt stored in the DAG.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct JobReceipt {
+    /// The ID of the job that was executed.
+    pub job_id: JobId,
+    /// The executor that completed the job.
+    pub executor_did: Did,
+    /// Whether the job executed successfully.
+    pub success: bool,
+    /// CPU time used in milliseconds.
+    pub cpu_ms: u64,
+    /// CID of the result data.
+    pub result_cid: Cid,
+    /// Timestamp when execution completed.
+    pub completed_at: u64,
+    /// Any error message if execution failed.
+    pub error_message: Option<String>,
+    /// Signature from the executor.
+    pub signature: SignatureBytes,
+}
+
+/// Status of a job in its lifecycle.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum JobLifecycleStatus {
+    /// Job has been submitted and is awaiting bids.
+    Submitted,
+    /// Job is collecting bids from executors.
+    BiddingOpen,
+    /// Bidding period has closed, selection in progress.
+    BiddingClosed,
+    /// Job has been assigned to an executor.
+    Assigned,
+    /// Job is currently being executed.
+    Executing,
+    /// Job has completed successfully.
+    Completed,
+    /// Job execution failed.
+    Failed,
+    /// Job was cancelled before completion.
+    Cancelled,
+}
+
+impl JobLifecycleStatus {
+    /// Returns true if the job is in a terminal state.
+    pub fn is_terminal(&self) -> bool {
+        matches!(self, JobLifecycleStatus::Completed | JobLifecycleStatus::Failed | JobLifecycleStatus::Cancelled)
+    }
+    
+    /// Returns true if the job is active (can still change state).
+    pub fn is_active(&self) -> bool {
+        !self.is_terminal()
+    }
+}
+
+/// Complete lifecycle information for a job, reconstructed from DAG traversal.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct JobLifecycle {
+    /// The core job information.
+    pub job: Job,
+    /// All bids received for this job.
+    pub bids: Vec<JobBid>,
+    /// Assignment information if the job was assigned.
+    pub assignment: Option<JobAssignment>,
+    /// Execution receipt if the job was completed.
+    pub receipt: Option<JobReceipt>,
+}
+
+impl JobLifecycle {
+    /// Create a new lifecycle from just the job.
+    pub fn new(job: Job) -> Self {
+        Self {
+            job,
+            bids: Vec::new(),
+            assignment: None,
+            receipt: None,
+        }
+    }
+    
+    /// Add a bid to this lifecycle.
+    pub fn add_bid(&mut self, bid: JobBid) {
+        self.bids.push(bid);
+    }
+    
+    /// Set the assignment for this lifecycle.
+    pub fn set_assignment(&mut self, assignment: JobAssignment) {
+        self.assignment = Some(assignment);
+    }
+    
+    /// Set the receipt for this lifecycle.
+    pub fn set_receipt(&mut self, receipt: JobReceipt) {
+        self.receipt = Some(receipt);
+    }
+    
+    /// Get the current status based on what lifecycle events exist.
+    pub fn current_status(&self) -> JobLifecycleStatus {
+        if let Some(receipt) = &self.receipt {
+            if receipt.success {
+                JobLifecycleStatus::Completed
+            } else {
+                JobLifecycleStatus::Failed
+            }
+        } else if self.assignment.is_some() {
+            JobLifecycleStatus::Executing
+        } else if !self.bids.is_empty() {
+            JobLifecycleStatus::BiddingClosed // Could be more nuanced
+        } else {
+            self.job.status.clone()
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
