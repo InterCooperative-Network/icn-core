@@ -991,14 +991,16 @@ impl RuntimeContext {
         };
         
         // 6. Find the winning bid
-        let winning_bid = bids.iter()
-            .find(|bid| bid.executor_did == selected_executor)
+        let (winning_index, winning_bid) = bids
+            .iter()
+            .enumerate()
+            .find(|(_, bid)| bid.executor_did == selected_executor)
             .ok_or_else(|| HostAbiError::InternalError("Selected executor bid not found".to_string()))?;
         
         // 7. Create and store assignment
         let assignment = JobAssignment {
             job_id: job_id.clone(),
-            winning_bid_id: "winning_bid".to_string(), // TODO: Use actual bid ID
+            winning_bid_id: format!("bid_{}", winning_index),
             assigned_executor_did: selected_executor.clone(),
             assigned_at: self.time_provider.unix_seconds(),
             final_price_mana: winning_bid.price_mana,
