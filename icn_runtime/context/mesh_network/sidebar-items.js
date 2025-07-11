@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["PROPOSAL_COST_MANA","VOTE_COST_MANA"],"struct":["BidId","DefaultMeshNetworkService","JobAssignmentNotice","LocalMeshSubmitReceiptMessage","MeshJobStateChange","SelectionPolicy"],"trait":["MeshNetworkService"]};
