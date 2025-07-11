@@ -267,11 +267,24 @@ impl JobExecutor for SimpleExecutor {
 
                 // Fetch metadata block from the DAG store
                 let meta_bytes = {
+                    #[cfg(feature = "async")]
                     let store = ctx.dag_store.lock().await;
-                    store
-                        .get(&job.manifest_cid)
-                        .await
-                        .map_err(|e| CommonError::StorageError(format!("{e}")))?
+                    #[cfg(not(feature = "async"))]
+                    let store = ctx.dag_store.lock().unwrap();
+                    
+                    #[cfg(feature = "async")]
+                    {
+                        store
+                            .get(&job.manifest_cid)
+                            .await
+                            .map_err(|e| CommonError::StorageError(format!("{e}")))?
+                    }
+                    #[cfg(not(feature = "async"))]
+                    {
+                        store
+                            .get(&job.manifest_cid)
+                            .map_err(|e| CommonError::StorageError(format!("{e}")))?
+                    }
                 }
                 .ok_or_else(|| {
                     CommonError::ResourceNotFound("CCL contract metadata not found".to_string())
@@ -286,16 +299,34 @@ impl JobExecutor for SimpleExecutor {
 
                 // Ensure the referenced WASM module exists
                 {
+                    #[cfg(feature = "async")]
                     let store = ctx.dag_store.lock().await;
-                    store
-                        .get(&wasm_cid)
-                        .await
-                        .map_err(|e| CommonError::StorageError(format!("{e}")))?
-                        .ok_or_else(|| {
-                            CommonError::ResourceNotFound(
-                                "Referenced WASM module not found".to_string(),
-                            )
-                        })?;
+                    #[cfg(not(feature = "async"))]
+                    let store = ctx.dag_store.lock().unwrap();
+                    
+                    #[cfg(feature = "async")]
+                    {
+                        store
+                            .get(&wasm_cid)
+                            .await
+                            .map_err(|e| CommonError::StorageError(format!("{e}")))?
+                            .ok_or_else(|| {
+                                CommonError::ResourceNotFound(
+                                    "Referenced WASM module not found".to_string(),
+                                )
+                            })?;
+                    }
+                    #[cfg(not(feature = "async"))]
+                    {
+                        store
+                            .get(&wasm_cid)
+                            .map_err(|e| CommonError::StorageError(format!("{e}")))?
+                            .ok_or_else(|| {
+                                CommonError::ResourceNotFound(
+                                    "Referenced WASM module not found".to_string(),
+                                )
+                            })?;
+                    }
                 }
 
                 let signer = std::sync::Arc::new(crate::context::StubSigner::new_with_keys(
@@ -321,11 +352,24 @@ impl JobExecutor for SimpleExecutor {
                 })?;
 
                 let manifest_bytes = {
+                    #[cfg(feature = "async")]
                     let store = ctx.dag_store.lock().await;
-                    store
-                        .get(&job.manifest_cid)
-                        .await
-                        .map_err(|e| CommonError::StorageError(format!("{e}")))?
+                    #[cfg(not(feature = "async"))]
+                    let store = ctx.dag_store.lock().unwrap();
+                    
+                    #[cfg(feature = "async")]
+                    {
+                        store
+                            .get(&job.manifest_cid)
+                            .await
+                            .map_err(|e| CommonError::StorageError(format!("{e}")))?
+                    }
+                    #[cfg(not(feature = "async"))]
+                    {
+                        store
+                            .get(&job.manifest_cid)
+                            .map_err(|e| CommonError::StorageError(format!("{e}")))?
+                    }
                 }
                 .ok_or_else(|| CommonError::ResourceNotFound("Manifest not found".into()))?
                 .data;
@@ -709,8 +753,16 @@ mod tests {
             scope: None,
         };
         {
-            let mut store = ctx.dag_store.lock().await;
-            store.put(&block).await.unwrap();
+            #[cfg(feature = "async")]
+            {
+                let mut store = ctx.dag_store.lock().await;
+                store.put(&block).await.unwrap();
+            }
+            #[cfg(not(feature = "async"))]
+            {
+                let mut store = ctx.dag_store.lock().unwrap();
+                store.put(&block).unwrap();
+            }
         }
 
         let (sk, vk) = generate_keys_for_test();

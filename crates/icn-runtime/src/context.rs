@@ -709,7 +709,7 @@ impl RuntimeContext {
         mesh_network_service: Arc<dyn MeshNetworkService>,
         signer: Arc<dyn Signer>,
         did_resolver: Arc<dyn icn_identity::DidResolver>,
-        dag_store: Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>,
+        dag_store: Arc<DagStoreMutex<dyn DagStorageService<DagBlock> + Send>>,
         mana_ledger_path: PathBuf,
         reputation_store_path: PathBuf,
         policy_enforcer: Option<Arc<dyn ScopedPolicyEnforcer>>,
@@ -734,7 +734,7 @@ impl RuntimeContext {
         mesh_network_service: Arc<dyn MeshNetworkService>,
         signer: Arc<dyn Signer>,
         did_resolver: Arc<dyn icn_identity::DidResolver>,
-        dag_store: Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>,
+        dag_store: Arc<DagStoreMutex<dyn DagStorageService<DagBlock> + Send>>,
         mana_ledger_path: PathBuf,
         reputation_store_path: PathBuf,
         policy_enforcer: Option<Arc<dyn ScopedPolicyEnforcer>>,
@@ -760,7 +760,7 @@ impl RuntimeContext {
         mesh_network_service: Arc<dyn MeshNetworkService>,
         signer: Arc<dyn Signer>,
         did_resolver: Arc<dyn icn_identity::DidResolver>,
-        dag_store: Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>,
+        dag_store: Arc<DagStoreMutex<dyn DagStorageService<DagBlock> + Send>>,
         mana_ledger: SimpleManaLedger,
         reputation_store_path: PathBuf,
         policy_enforcer: Option<Arc<dyn ScopedPolicyEnforcer>>,
@@ -785,7 +785,7 @@ impl RuntimeContext {
         mesh_network_service: Arc<dyn MeshNetworkService>,
         signer: Arc<dyn Signer>,
         did_resolver: Arc<dyn icn_identity::DidResolver>,
-        dag_store: Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>,
+        dag_store: Arc<DagStoreMutex<dyn DagStorageService<DagBlock> + Send>>,
         mana_ledger: SimpleManaLedger,
         _reputation_store_path: PathBuf,
         policy_enforcer: Option<Arc<dyn ScopedPolicyEnforcer>>,
@@ -856,7 +856,7 @@ impl RuntimeContext {
         mesh_network_service: Arc<dyn MeshNetworkService>,
         signer: Arc<dyn Signer>,
         did_resolver: Arc<dyn icn_identity::DidResolver>,
-        dag_store: Arc<TokioMutex<dyn DagStorageService<DagBlock> + Send>>,
+        dag_store: Arc<DagStoreMutex<dyn DagStorageService<DagBlock> + Send>>,
     ) -> Arc<Self> {
         Self::new_with_ledger_path_and_time(
             current_identity,
@@ -1048,21 +1048,16 @@ impl RuntimeContext {
         #[cfg(feature = "enable-libp2p")]
         let mesh_network_service = {
             // Create libp2p network service with default configuration
+            let config = NetworkConfig::default();
             let libp2p_service = Arc::new(
-                ActualLibp2pNetworkService::new(
-                    NetworkConfig::default_with_identity(&current_identity).map_err(|e| {
+                ActualLibp2pNetworkService::new(config)
+                    .await
+                    .map_err(|e| {
                         CommonError::NetworkError(format!(
-                            "Failed to create NetworkConfig for new_with_stubs: {}",
+                            "Failed to create libp2p service for new_with_stubs: {}",
                             e
                         ))
                     })?,
-                )
-                .map_err(|e| {
-                    CommonError::NetworkError(format!(
-                        "Failed to create libp2p service for new_with_stubs: {}",
-                        e
-                    ))
-                })?,
             );
             let libp2p_service_dyn: Arc<dyn NetworkService> = libp2p_service;
             Arc::new(DefaultMeshNetworkService::new(libp2p_service_dyn))
@@ -1144,21 +1139,16 @@ impl RuntimeContext {
         #[cfg(feature = "enable-libp2p")]
         let mesh_network_service = {
             // Create libp2p network service with default configuration
+            let config = NetworkConfig::default();
             let libp2p_service = Arc::new(
-                ActualLibp2pNetworkService::new(
-                    NetworkConfig::default_with_identity(&current_identity).map_err(|e| {
+                ActualLibp2pNetworkService::new(config)
+                    .await
+                    .map_err(|e| {
                         CommonError::NetworkError(format!(
-                            "Failed to create NetworkConfig for new_with_stubs_and_mana: {}",
+                            "Failed to create libp2p service for new_with_stubs_and_mana: {}",
                             e
                         ))
                     })?,
-                )
-                .map_err(|e| {
-                    CommonError::NetworkError(format!(
-                        "Failed to create libp2p service for new_with_stubs_and_mana: {}",
-                        e
-                    ))
-                })?,
             );
             let libp2p_service_dyn: Arc<dyn NetworkService> = libp2p_service;
             Arc::new(DefaultMeshNetworkService::new(libp2p_service_dyn))
@@ -1603,13 +1593,14 @@ impl RuntimeContext {
 
     /// Verify integrity of all DAG blocks once.
     pub async fn integrity_check_once(&self) -> Result<(), CommonError> {
-        let store = self.dag_store.lock().await;
         #[cfg(feature = "async")]
         {
+            let store = self.dag_store.lock().await;
             icn_dag::verify_all_async(&*store).await
         }
         #[cfg(not(feature = "async"))]
         {
+            let store = self.dag_store.lock().unwrap();
             icn_dag::verify_all(&*store)
         }
     }
