@@ -27,3 +27,12 @@ This document summarizes performance metrics and key lessons learned from runnin
 - Stress test with 100 nodes using the same script.
 - Automate Grafana dashboard setup for reproducible monitoring.
 - Document recommended resource limits in the deployment guide.
+
+## ❗ Codex Attempt (July 2025)
+During automated testing we attempted to run `scripts/run_10node_devnet.sh --full` to deploy the federation. Docker failed to start inside the environment:
+
+```
+failed to start daemon: Error initializing network controller: failed to register "bridge" driver: iptables -t nat -N DOCKER: Permission denied
+```
+
+As a result, the federation containers never launched and no jobs were submitted. No peer counts or completion times were recorded.
