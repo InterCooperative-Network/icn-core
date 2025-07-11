@@ -40,8 +40,8 @@ use icn_protocol::{
 };
 use icn_protocol::{MessagePayload, ProtocolMessage};
 use icn_runtime::context::{
-    DefaultMeshNetworkService, Ed25519Signer, RuntimeContext, StubMeshNetworkService,
-    StubSigner as RuntimeStubSigner,
+    DefaultMeshNetworkService, Ed25519Signer, MeshNetworkServiceType, RuntimeContext, Signer,
+    StubMeshNetworkService,
 };
 use icn_runtime::{host_anchor_receipt, host_submit_mesh_job, ReputationUpdater};
 use prometheus_client::{encoding::text::encode, registry::Registry};
@@ -69,13 +69,14 @@ use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use subtle::ConstantTimeEq;
 use tokio::sync::{Mutex as AsyncMutex, Mutex as TokioMutex};
+use uuid::Uuid;
 
 use crate::config::{NodeConfig, StorageBackendType};
 
 #[cfg(feature = "enable-libp2p")]
 use icn_network::libp2p_service::{Libp2pNetworkService, NetworkConfig};
 #[cfg(feature = "enable-libp2p")]
-use libp2p::{Multiaddr, PeerId as Libp2pPeerId};
+use libp2p::Multiaddr;
 
 static NODE_START_TIME: AtomicU64 = AtomicU64::new(0);
 
@@ -179,6 +180,22 @@ pub struct Cli {
     #[clap(long)]
     pub node_private_key_path: Option<PathBuf>,
 
+    /// Encrypted private key file for the node identity.
+    #[clap(long)]
+    pub key_path: Option<PathBuf>,
+
+    /// Environment variable name containing the passphrase for `key_path`.
+    #[clap(long)]
+    pub key_passphrase_env: Option<String>,
+
+    /// Path to an HSM library for key retrieval.
+    #[clap(long)]
+    pub hsm_library: Option<PathBuf>,
+
+    /// Identifier of the key within the HSM.
+    #[clap(long)]
+    pub hsm_key_id: Option<String>,
+
     #[clap(
         long,
         help = "Human-readable name for this node (for logging and identification)"
@@ -197,6 +214,9 @@ pub struct Cli {
 
     #[clap(long, action)]
     pub enable_p2p: bool,
+
+    #[clap(long, action)]
+    pub enable_mdns: bool,
 
     #[clap(long)]
     pub api_key: Option<String>,
@@ -217,12 +237,39 @@ pub struct Cli {
 
     #[clap(long)]
     pub tls_key_path: Option<PathBuf>,
+
+    #[clap(long)]
+    pub tls_min_version: Option<String>,
+
+    #[clap(long)]
+    pub key_rotation_days: Option<u64>,
 }
 
 /// Load or generate the node identity based on the provided configuration.
 pub fn load_or_generate_identity(
     config: &mut NodeConfig,
-) -> Result<(icn_identity::SigningKey, icn_identity::VerifyingKey, String), CommonError> {
+) -> Result<(icn_runtime::context::Ed25519Signer, String), CommonError> {
+    if let (Some(lib), Some(key_id)) = (&config.hsm_library, &config.hsm_key_id) {
+        let hsm = icn_runtime::context::signers::ExampleHsm::with_key(lib, key_id.clone());
+        let signer = icn_runtime::context::Ed25519Signer::from_hsm(&hsm)?;
+        let did_str = signer.did().to_string();
+        config.node_did = Some(did_str.clone());
+        return Ok((signer, did_str));
+    }
+    if let Some(path) = &config.key_path {
+        let env_name = config
+            .key_passphrase_env
+            .as_deref()
+            .unwrap_or("ICN_KEY_PASSPHRASE");
+        let passphrase = std::env::var(env_name).map_err(|_| {
+            CommonError::ConfigError(format!("missing key passphrase env {env_name}"))
+        })?;
+        let signer =
+            icn_runtime::context::Ed25519Signer::from_encrypted_file(path, passphrase.as_bytes())?;
+        let did_str = signer.did().to_string();
+        config.node_did = Some(did_str.clone());
+        return Ok((signer, did_str));
+    }
     if let (Some(did_str), Some(sk_bs58)) = (
         config.node_did.clone(),
         config.node_private_key_bs58.clone(),
@@ -235,7 +282,10 @@ pub fn load_or_generate_identity(
             .map_err(|_| CommonError::IdentityError("Invalid private key length".into()))?;
         let sk = icn_identity::SigningKey::from_bytes(&sk_array);
         let pk = sk.verifying_key();
-        Ok((sk, pk, did_str))
+        Ok((
+            icn_runtime::context::Ed25519Signer::new_with_keys(sk, pk),
+            did_str,
+        ))
     } else if config.node_did_path.exists() && config.node_private_key_path.exists() {
         let did_str = fs::read_to_string(&config.node_did_path)
             .map_err(|e| CommonError::IoError(format!("Failed to read DID file: {e}")))?
@@ -255,7 +305,10 @@ pub fn load_or_generate_identity(
         let pk = sk.verifying_key();
         config.node_did = Some(did_str.clone());
         config.node_private_key_bs58 = Some(sk_bs58);
-        Ok((sk, pk, did_str))
+        Ok((
+            icn_runtime::context::Ed25519Signer::new_with_keys(sk, pk),
+            did_str,
+        ))
     } else {
         let (sk, pk) = generate_ed25519_keypair();
         let did_str = did_key_from_verifying_key(&pk);
@@ -268,7 +321,10 @@ pub fn load_or_generate_identity(
         }
         config.node_did = Some(did_str.clone());
         config.node_private_key_bs58 = Some(sk_bs58);
-        Ok((sk, pk, did_str))
+        Ok((
+            icn_runtime::context::Ed25519Signer::new_with_keys(sk, pk),
+            did_str,
+        ))
     }
 }
 
@@ -338,6 +394,7 @@ async fn require_api_key(
             .unwrap_or(false);
         if !valid {
             warn!("Invalid API key attempt");
+            info!(target: "audit", "auth_failed reason=invalid_api_key");
             if let Some(ref limiter) = state.rate_limiter {
                 let mut data = limiter.lock().await;
                 let now = Instant::now();
@@ -357,6 +414,7 @@ async fn require_api_key(
             )
                 .into_response();
         }
+        info!(target: "audit", "auth_success method=api_key");
     }
 
     if let Some(ref token) = state.auth_token {
@@ -370,6 +428,7 @@ async fn require_api_key(
             .unwrap_or(false);
         if !valid {
             warn!("Invalid bearer token attempt");
+            info!(target: "audit", "auth_failed reason=invalid_bearer_token");
             if let Some(ref limiter) = state.rate_limiter {
                 let mut data = limiter.lock().await;
                 let now = Instant::now();
@@ -389,6 +448,7 @@ async fn require_api_key(
             )
                 .into_response();
         }
+        info!(target: "audit", "auth_success method=bearer");
     }
 
     next.run(req).await
@@ -408,6 +468,7 @@ async fn rate_limit_middleware(
             data.failed_attempts = 0;
         }
         if data.count >= data.limit {
+            info!(target: "audit", "rate_limit_exceeded" );
             return (
                 StatusCode::TOO_MANY_REQUESTS,
                 Json(JsonErrorResponse {
@@ -419,6 +480,30 @@ async fn rate_limit_middleware(
         data.count += 1;
     }
     next.run(req).await
+}
+
+async fn correlation_id_middleware(
+    mut req: axum::http::Request<axum::body::Body>,
+    next: Next,
+) -> impl IntoResponse {
+    let method = req.method().clone();
+    let path = req.uri().path().to_string();
+    let cid = req
+        .headers()
+        .get("x-correlation-id")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| Uuid::new_v4().to_string());
+    req.extensions_mut().insert(cid.clone());
+    info!(target: "request", "start cid={} {} {}", cid, method, path);
+    let start = Instant::now();
+    let mut res = next.run(req).await.into_response();
+    res.headers_mut()
+        .insert("x-correlation-id", cid.parse().unwrap());
+    let latency = start.elapsed().as_millis();
+    let status = res.status().as_u16();
+    info!(target: "request", "end cid={} status={} latency_ms={}", cid, status, latency);
+    res
 }
 
 // --- Public App Constructor (for tests or embedding) ---
@@ -448,7 +533,7 @@ pub async fn app_router_with_options(
     let node_did = Did::from_str(&node_did_string).expect("Failed to create test node DID");
     info!("Test/Embedded Node DID: {}", node_did);
 
-    let signer = Arc::new(RuntimeStubSigner::new_with_keys(sk, pk));
+    let _signer = Arc::new(Ed25519Signer::new_with_keys(sk, pk)); // Not used with stubs
     let cfg = NodeConfig {
         storage_backend: storage_backend.unwrap_or(StorageBackendType::Memory),
         storage_path: storage_path
@@ -472,31 +557,23 @@ pub async fn app_router_with_options(
             .await
             .expect("Failed to create libp2p service");
         let service_dyn: Arc<dyn NetworkService> = Arc::new(service);
-        Arc::new(DefaultMeshNetworkService::new(service_dyn))
+        let default_service = DefaultMeshNetworkService::new(service_dyn);
+        Arc::new(MeshNetworkServiceType::Default(default_service))
     };
     #[cfg(not(feature = "enable-libp2p"))]
-    let mesh_network_service = Arc::new(StubMeshNetworkService::new());
+    let mesh_network_service = {
+        let stub_service = StubMeshNetworkService::new();
+        Arc::new(MeshNetworkServiceType::Stub(stub_service))
+    };
     // GovernanceModule is initialized inside RuntimeContext::new
 
-    let rep_path = reputation_db_path
-        .clone()
-        .unwrap_or_else(|| PathBuf::from("./reputation.sled"));
-    let ledger_backend = mana_ledger_backend.unwrap_or_else(crate::config::default_ledger_backend);
-    let ledger = icn_runtime::context::SimpleManaLedger::new_with_backend(
-        mana_ledger_path.unwrap_or_else(|| PathBuf::from("./mana_ledger.sqlite")),
-        ledger_backend,
-    );
-    let rt_ctx = RuntimeContext::new_with_mana_ledger_and_time(
-        node_did.clone(),
-        mesh_network_service,
-        signer,
-        Arc::new(icn_identity::KeyDidResolver),
-        dag_store_for_rt,
-        ledger,
-        rep_path.clone(),
-        None,
-        Arc::new(icn_common::SystemTimeProvider),
-    );
+    // Use the new configuration API for testing - use stubs to avoid file system conflicts
+    let node_did_string = node_did.to_string();
+    let mut rt_ctx = RuntimeContext::new_with_stubs_and_mana(
+        &node_did_string,
+        1000, // Initial mana for testing
+    )
+    .expect("Failed to create RuntimeContext for testing");
 
     #[cfg(feature = "persist-sled")]
     {
@@ -513,12 +590,7 @@ pub async fn app_router_with_options(
         }
     }
 
-    // Initialize the test node with some mana for testing
-    rt_ctx
-        .credit_mana(&node_did, 1000)
-        .await
-        .expect("Failed to initialize test node with mana");
-    info!("✅ Test node initialized with 1000 mana");
+    info!("✅ Test node initialized with 1000 mana (via stubs)");
 
     rt_ctx.clone().spawn_mesh_job_manager().await; // Start the job manager
 
@@ -597,6 +669,9 @@ pub async fn app_router_with_options(
             .route("/network/local-peer-id", get(network_local_peer_id_handler))
             .route("/network/peers", get(network_peers_handler))
             .route("/network/connect", post(network_connect_handler))
+            .route("/account/{did}/mana", get(account_mana_handler))
+            .route("/keys", get(keys_handler))
+            .route("/reputation/{did}", get(reputation_handler))
             .route("/dag/put", post(dag_put_handler)) // These will use RT context's DAG store
             .route("/dag/get", post(dag_get_handler)) // These will use RT context's DAG store
             .route("/dag/meta", post(dag_meta_handler))
@@ -613,12 +688,12 @@ pub async fn app_router_with_options(
             .route("/governance/execute", post(gov_execute_handler))
             .route("/governance/proposals", get(gov_list_proposals_handler)) // Uses RT context's Gov mod
             .route(
-                "/governance/proposal/:proposal_id",
+                "/governance/proposal/{proposal_id}",
                 get(gov_get_proposal_handler),
             ) // Uses RT context's Gov mod
             .route("/mesh/submit", post(mesh_submit_job_handler)) // Job submission
             .route("/mesh/jobs", get(mesh_list_jobs_handler)) // List all jobs
-            .route("/mesh/jobs/:job_id", get(mesh_get_job_status_handler)) // Get specific job status
+            .route("/mesh/jobs/{job_id}", get(mesh_get_job_status_handler)) // Get specific job status
             .route("/mesh/receipts", post(mesh_submit_receipt_handler)) // Submit execution receipt
             .route("/contracts", post(contracts_post_handler))
             .route("/federation/peers", get(federation_list_peers_handler))
@@ -627,6 +702,7 @@ pub async fn app_router_with_options(
             .route("/federation/leave", post(federation_leave_handler))
             .route("/federation/status", get(federation_status_handler))
             .with_state(app_state.clone())
+            .layer(middleware::from_fn(correlation_id_middleware))
             .layer(middleware::from_fn_with_state(
                 app_state.clone(),
                 require_api_key,
@@ -715,6 +791,9 @@ pub async fn app_router_from_context(
         .route("/network/local-peer-id", get(network_local_peer_id_handler))
         .route("/network/peers", get(network_peers_handler))
         .route("/network/connect", post(network_connect_handler))
+        .route("/account/{did}/mana", get(account_mana_handler))
+        .route("/keys", get(keys_handler))
+        .route("/reputation/{did}", get(reputation_handler))
         .route("/dag/put", post(dag_put_handler))
         .route("/dag/get", post(dag_get_handler))
         .route("/dag/meta", post(dag_meta_handler))
@@ -731,12 +810,12 @@ pub async fn app_router_from_context(
         .route("/governance/execute", post(gov_execute_handler))
         .route("/governance/proposals", get(gov_list_proposals_handler))
         .route(
-            "/governance/proposal/:proposal_id",
+            "/governance/proposal/{proposal_id}",
             get(gov_get_proposal_handler),
         )
         .route("/mesh/submit", post(mesh_submit_job_handler))
         .route("/mesh/jobs", get(mesh_list_jobs_handler))
-        .route("/mesh/jobs/:job_id", get(mesh_get_job_status_handler))
+        .route("/mesh/jobs/{job_id}", get(mesh_get_job_status_handler))
         .route("/mesh/receipts", post(mesh_submit_receipt_handler))
         .route("/contracts", post(contracts_post_handler))
         .route("/federation/peers", get(federation_list_peers_handler))
@@ -748,6 +827,7 @@ pub async fn app_router_from_context(
         .route("/federation/leave", post(federation_leave_handler))
         .route("/federation/status", get(federation_status_handler))
         .with_state(app_state.clone())
+        .layer(middleware::from_fn(correlation_id_middleware))
         .layer(middleware::from_fn_with_state(
             app_state.clone(),
             require_api_key,
@@ -779,6 +859,7 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
     } else {
         NodeConfig::default()
     };
+    info!(target: "audit", "config_loaded path={:?}", config_path);
     let param_store_path = config_path.unwrap_or_else(|| PathBuf::from("node_config.toml"));
     let mut parameter_store = ParameterStore::load(param_store_path.clone()).unwrap_or_else(|e| {
         warn!(
@@ -820,13 +901,14 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // --- Initialize Node Identity ---
-    let (node_sk, node_pk, node_did_string) = match load_or_generate_identity(&mut config) {
+    let (signer, node_did_string) = match load_or_generate_identity(&mut config) {
         Ok(ids) => ids,
         Err(e) => {
             error!("Failed to initialize node identity: {}", e);
             std::process::exit(1);
         }
     };
+    info!(target: "audit", "node_identity did={}", node_did_string);
 
     let node_did = Did::from_str(&node_did_string).expect("Failed to create node DID");
 
@@ -834,7 +916,18 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
     info!("Starting {} with DID: {}", node_name, node_did);
 
     // --- Create RuntimeContext with Networking ---
-    let rt_ctx = if config.enable_p2p {
+    let dag_store_for_rt = match config.init_dag_store() {
+        Ok(store) => store,
+        Err(e) => {
+            error!("Failed to initialize DAG store: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    let mana_ledger = icn_runtime::context::SimpleManaLedger::new(config.mana_ledger_path.clone());
+    let signer = Arc::new(signer);
+
+    let network_service: Arc<dyn NetworkService> = if config.enable_p2p {
         #[cfg(feature = "enable-libp2p")]
         {
             info!(
@@ -842,75 +935,17 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
                 config.listen_address
             );
 
-            // Parse bootstrap peers if provided
-            let bootstrap_peers = if let Some(peer_strings) = &config.bootstrap_peers {
-                let mut parsed_peers = Vec::new();
-                for peer_str in peer_strings {
-                    match peer_str.parse::<Multiaddr>() {
-                        Ok(multiaddr) => {
-                            // Extract PeerID from multiaddr if present
-                            if let Some(libp2p::core::multiaddr::Protocol::P2p(peer_id)) =
-                                multiaddr.iter().last()
-                            {
-                                if let Ok(peer_id) = peer_id.try_into() {
-                                    parsed_peers.push((peer_id, multiaddr));
-                                    info!("Added bootstrap peer: {}", peer_str);
-                                } else {
-                                    warn!("Failed to parse PeerID from multiaddr: {}", peer_str);
-                                }
-                            } else {
-                                warn!("Multiaddr missing PeerID component: {}", peer_str);
-                            }
-                        }
-                        Err(e) => {
-                            error!(
-                                "Failed to parse bootstrap peer multiaddr '{}': {}",
-                                peer_str, e
-                            );
-                            std::process::exit(1);
-                        }
-                    }
-                }
-                if parsed_peers.is_empty() {
-                    None
-                } else {
-                    Some(parsed_peers)
-                }
-            } else {
-                None
-            };
-
-            let listen_addr = config
-                .listen_address
-                .parse::<Multiaddr>()
-                .expect("Invalid p2p listen multiaddr");
-            let listen_addrs = vec![listen_addr];
-
-            match RuntimeContext::new_with_real_libp2p(
-                &node_did_string,
-                listen_addrs,
-                bootstrap_peers,
-                config.storage_path.clone(),
-                config.mana_ledger_path.clone(),
-                config.reputation_db_path.clone(),
-            )
-            .await
-            {
-                Ok(ctx) => {
-                    info!("✅ RuntimeContext created with real libp2p networking");
-
-                    // Get libp2p service info for logging
-                    if let Ok(libp2p_service) = ctx.get_libp2p_service() {
-                        info!("📟 Local Peer ID: {}", libp2p_service.local_peer_id());
-                    }
-
-                    ctx
-                }
+            let net_cfg = match config.libp2p_config() {
+                Ok(cfg) => cfg,
                 Err(e) => {
-                    error!("Failed to create RuntimeContext with libp2p: {}", e);
+                    error!("Invalid libp2p configuration: {}", e);
                     std::process::exit(1);
                 }
-            }
+            };
+            let libp2p_service = icn_network::libp2p_service::Libp2pNetworkService::new(net_cfg)
+                .await
+                .expect("Failed to create libp2p service");
+            Arc::new(libp2p_service)
         }
         #[cfg(not(feature = "enable-libp2p"))]
         {
@@ -919,44 +954,21 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
             std::process::exit(1);
         }
     } else {
-        info!("Using local libp2p networking (P2P disabled)");
-        let signer = Arc::new(Ed25519Signer::new_with_keys(node_sk, node_pk));
-        let dag_store_for_rt = match config.init_dag_store() {
-            Ok(store) => store,
-            Err(e) => {
-                error!("Failed to initialize DAG store: {}", e);
-                std::process::exit(1);
-            }
-        };
-
-        #[cfg(feature = "enable-libp2p")]
-        let mesh_network_service = {
-            let net_cfg = icn_network::libp2p_service::NetworkConfig::default();
-            let libp2p_service = icn_network::libp2p_service::Libp2pNetworkService::new(net_cfg)
-                .await
-                .expect("Failed to create libp2p service");
-            let service_dyn: Arc<dyn NetworkService> = Arc::new(libp2p_service);
-            Arc::new(DefaultMeshNetworkService::new(service_dyn))
-        };
-        #[cfg(not(feature = "enable-libp2p"))]
-        let mesh_network_service = Arc::new(StubMeshNetworkService::new());
-
-        let ledger = icn_runtime::context::SimpleManaLedger::new_with_backend(
-            config.mana_ledger_path.clone(),
-            config.mana_ledger_backend,
-        );
-        RuntimeContext::new_with_mana_ledger_and_time(
-            node_did.clone(),
-            mesh_network_service,
-            signer,
-            Arc::new(icn_identity::KeyDidResolver),
-            dag_store_for_rt,
-            ledger,
-            config.reputation_db_path.clone(),
-            None,
-            Arc::new(icn_common::SystemTimeProvider),
-        )
+        info!("Using local stub networking (P2P disabled)");
+        Arc::new(icn_network::StubNetworkService::default()) as Arc<dyn NetworkService>
     };
+
+    let mut rt_ctx = RuntimeContext::new_production(
+        node_did.clone(),
+        network_service,
+        signer,
+        Arc::new(icn_identity::KeyDidResolver),
+        dag_store_for_rt,
+        mana_ledger,
+        Arc::new(icn_reputation::InMemoryReputationStore::new()),
+        None,
+    )
+    .expect("Failed to create RuntimeContext for production");
 
     #[cfg(feature = "persist-sled")]
     {
@@ -975,6 +987,28 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
     // Start the job manager
     rt_ctx.clone().spawn_mesh_job_manager().await;
     info!("ICN RuntimeContext initialized and JobManager spawned.");
+
+    // Initialize the node with some mana for job submission
+    match rt_ctx.credit_mana(&node_did, 1000).await {
+        Ok(()) => {
+            info!("✅ Node initialized with 1000 mana");
+        }
+        Err(e) => {
+            error!("❌ Failed to initialize node with mana: {:?}", e);
+            error!("Node DID: {:?}", node_did);
+            error!("Mana ledger type: {:?}", rt_ctx.mana_ledger);
+            // Try to get the current balance to see if account exists
+            match rt_ctx.get_mana(&node_did).await {
+                Ok(balance) => {
+                    error!("Current mana balance for node: {}", balance);
+                }
+                Err(balance_err) => {
+                    error!("Failed to get mana balance: {:?}", balance_err);
+                }
+            }
+            return Err(Box::new(e));
+        }
+    }
 
     // --- Create AppState for Axum ---
     let rate_limiter =
@@ -1033,6 +1067,9 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
         .route("/health", get(health_handler))
         .route("/ready", get(readiness_handler))
         .route("/metrics", get(metrics_handler))
+        .route("/network/local-peer-id", get(network_local_peer_id_handler))
+        .route("/network/peers", get(network_peers_handler))
+        .route("/network/connect", post(network_connect_handler))
         .route("/dag/put", post(dag_put_handler))
         .route("/dag/get", post(dag_get_handler))
         .route("/dag/meta", post(dag_meta_handler))
@@ -1043,20 +1080,25 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
         .route("/data/query", post(data_query_handler))
         .route("/governance/submit", post(gov_submit_handler))
         .route("/governance/vote", post(gov_vote_handler))
+        .route("/governance/delegate", post(gov_delegate_handler))
+        .route("/governance/revoke", post(gov_revoke_handler))
         .route("/governance/close", post(gov_close_handler))
         .route("/governance/execute", post(gov_execute_handler))
         .route("/governance/proposals", get(gov_list_proposals_handler))
         .route(
-            "/governance/proposal/:proposal_id",
+            "/governance/proposal/{proposal_id}",
             get(gov_get_proposal_handler),
         )
         .route("/mesh/submit", post(mesh_submit_job_handler))
         .route("/mesh/jobs", get(mesh_list_jobs_handler))
-        .route("/mesh/jobs/:job_id", get(mesh_get_job_status_handler))
+        .route("/mesh/jobs/{job_id}", get(mesh_get_job_status_handler))
         .route("/mesh/receipts", post(mesh_submit_receipt_handler))
         .route("/contracts", post(contracts_post_handler))
         .route("/federation/peers", get(federation_list_peers_handler))
         .route("/federation/peers", post(federation_add_peer_handler))
+        .route("/federation/join", post(federation_join_handler))
+        .route("/federation/leave", post(federation_leave_handler))
+        .route("/federation/status", get(federation_status_handler))
         .with_state(app_state.clone())
         .layer(middleware::from_fn_with_state(
             app_state.clone(),
@@ -1074,6 +1116,7 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
     info!("🌐 {} HTTP server listening on {}", node_name, addr);
 
     if let (Some(cert), Some(key)) = (&config.tls_cert_path, &config.tls_key_path) {
+        info!(target: "audit", "tls_enabled cert={:?} min_version={:?}", cert, config.tls_min_version);
         let tls_config = axum_server::tls_rustls::RustlsConfig::from_pem_file(cert, key)
             .await
             .expect("failed to load TLS certificate");
@@ -1082,6 +1125,7 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
             .await
             .unwrap();
     } else {
+        info!(target: "audit", "tls_disabled");
         let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
         axum::serve(listener, router.into_make_service())
             .await
@@ -1292,9 +1336,16 @@ async fn metrics_handler() -> impl IntoResponse {
     use icn_mesh::metrics::{
         JOB_PROCESS_TIME, PENDING_JOBS_GAUGE, SCHEDULE_MESH_JOB_CALLS, SELECT_EXECUTOR_CALLS,
     };
+    use icn_network::metrics::{
+        BYTES_RECEIVED_TOTAL, BYTES_SENT_TOTAL, KADEMLIA_PEERS_GAUGE, MESSAGES_RECEIVED_TOTAL,
+        MESSAGES_SENT_TOTAL, PEER_COUNT_GAUGE, PING_AVG_RTT_MS, PING_LAST_RTT_MS, PING_MAX_RTT_MS,
+        PING_MIN_RTT_MS,
+    };
     use icn_runtime::metrics::{
         HOST_ACCOUNT_GET_MANA_CALLS, HOST_ACCOUNT_SPEND_MANA_CALLS,
-        HOST_GET_PENDING_MESH_JOBS_CALLS, HOST_SUBMIT_MESH_JOB_CALLS,
+        HOST_GET_PENDING_MESH_JOBS_CALLS, HOST_SUBMIT_MESH_JOB_CALLS, JOBS_ACTIVE_GAUGE,
+        JOBS_COMPLETED, JOBS_FAILED, JOBS_SUBMITTED, RECEIPTS_ANCHORED, WASM_MEMORY_GROWTH_DENIED,
+        WASM_TABLE_GROWTH_DENIED,
     };
     use prometheus_client::metrics::{counter::Counter, gauge::Gauge, histogram::Histogram};
 
@@ -1382,6 +1433,83 @@ async fn metrics_handler() -> impl IntoResponse {
         JOB_PROCESS_TIME.clone(),
     );
 
+    // Runtime job lifecycle metrics
+    registry.register(
+        "jobs_submitted_total",
+        "Total jobs submitted",
+        JOBS_SUBMITTED.clone(),
+    );
+    registry.register(
+        "jobs_completed_total",
+        "Total jobs completed",
+        JOBS_COMPLETED.clone(),
+    );
+    registry.register(
+        "jobs_failed_total",
+        "Total jobs failed",
+        JOBS_FAILED.clone(),
+    );
+    registry.register(
+        "jobs_active",
+        "Jobs currently active",
+        JOBS_ACTIVE_GAUGE.clone(),
+    );
+    registry.register(
+        "receipts_anchored_total",
+        "Execution receipts anchored",
+        RECEIPTS_ANCHORED.clone(),
+    );
+    registry.register(
+        "wasm_memory_growth_denied_total",
+        "WASM memory growth denials",
+        WASM_MEMORY_GROWTH_DENIED.clone(),
+    );
+    registry.register(
+        "wasm_table_growth_denied_total",
+        "WASM table growth denials",
+        WASM_TABLE_GROWTH_DENIED.clone(),
+    );
+
+    // Network metrics
+    registry.register(
+        "network_peer_count",
+        "Connected peers",
+        PEER_COUNT_GAUGE.clone(),
+    );
+    registry.register(
+        "network_kademlia_peers",
+        "Peers in Kademlia table",
+        KADEMLIA_PEERS_GAUGE.clone(),
+    );
+    registry.register(
+        "network_bytes_sent_total",
+        "Bytes sent over network",
+        BYTES_SENT_TOTAL.clone(),
+    );
+    registry.register(
+        "network_bytes_received_total",
+        "Bytes received over network",
+        BYTES_RECEIVED_TOTAL.clone(),
+    );
+    registry.register(
+        "network_messages_sent_total",
+        "Messages sent over network",
+        MESSAGES_SENT_TOTAL.clone(),
+    );
+    registry.register(
+        "network_messages_received_total",
+        "Messages received over network",
+        MESSAGES_RECEIVED_TOTAL.clone(),
+    );
+    registry.register(
+        "ping_last_rtt_ms",
+        "Last ping RTT",
+        PING_LAST_RTT_MS.clone(),
+    );
+    registry.register("ping_min_rtt_ms", "Min ping RTT", PING_MIN_RTT_MS.clone());
+    registry.register("ping_max_rtt_ms", "Max ping RTT", PING_MAX_RTT_MS.clone());
+    registry.register("ping_avg_rtt_ms", "Avg ping RTT", PING_AVG_RTT_MS.clone());
+
     // Add system metrics
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -1449,7 +1577,7 @@ async fn dag_put_handler(
     };
     let mut store = state.runtime_context.dag_store.lock().await;
     match store.put(&dag_block).await {
-        Ok(()) => (StatusCode::CREATED, Json(dag_block.cid)).into_response(),
+        Ok(()) => (StatusCode::CREATED, Json(dag_block.cid.to_string())).into_response(),
         Err(e) => map_rust_error_to_json_response(
             format!("DAG put error: {}", e),
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -1501,7 +1629,7 @@ async fn dag_meta_handler(
             .into_response();
         }
     };
-    let cid_json = match serde_json::to_string(&cid) {
+    let _cid_json = match serde_json::to_string(&cid) {
         Ok(j) => j,
         Err(e) => {
             return map_rust_error_to_json_response(
@@ -1512,7 +1640,30 @@ async fn dag_meta_handler(
         }
     };
 
-    match get_dag_metadata(state.runtime_context.dag_store.clone(), cid_json).await {
+    // Get metadata synchronously
+    let metadata_result: Result<Option<icn_dag::DagBlockMetadata>, CommonError> = {
+        let store = state.runtime_context.dag_store.lock().await;
+        match store.get(&cid).await {
+            Ok(block_opt) => Ok(block_opt.map(|b| icn_dag::metadata_from_block(&b))),
+            Err(e) => Err(match e {
+                CommonError::StorageError(msg) => {
+                    CommonError::StorageError(format!("API: Failed to retrieve DagBlock: {}", msg))
+                }
+                CommonError::DeserializationError(msg) => CommonError::DeserializationError(
+                    format!("API: Deserialization error during get: {}", msg),
+                ),
+                CommonError::PolicyDenied(msg) => {
+                    CommonError::PolicyDenied(format!("API: {}", msg))
+                }
+                _ => CommonError::ApiError(format!(
+                    "API: Unexpected error during store.get: {:?}",
+                    e
+                )),
+            }),
+        }
+    };
+
+    match metadata_result {
         Ok(Some(meta)) => (StatusCode::OK, Json(meta)).into_response(),
         Ok(None) => map_rust_error_to_json_response("Block not found", StatusCode::NOT_FOUND)
             .into_response(),
@@ -1997,14 +2148,19 @@ async fn mesh_submit_job_handler(
         }
     };
 
-    // Build minimal JSON; runtime fills in missing fields
-    let minimal_job_json = serde_json::json!({
-        "manifest_cid": manifest_cid,
-        "spec": job_spec,
-        "cost_mana": request.cost_mana,
-    });
+    // Build complete ActualMeshJob structure with placeholder values
+    // The runtime will override id, creator_did, and signature
+    let complete_job = icn_mesh::ActualMeshJob {
+        id: icn_mesh::JobId::from(manifest_cid.clone()), // Placeholder, will be overridden
+        manifest_cid: manifest_cid,
+        spec: job_spec,
+        creator_did: icn_common::Did::from_str("did:placeholder:creator").unwrap(), // Placeholder, will be overridden
+        cost_mana: request.cost_mana,
+        max_execution_wait_ms: None,
+        signature: icn_identity::SignatureBytes(vec![]), // Placeholder, will be overridden
+    };
 
-    let job_json = match serde_json::to_string(&minimal_job_json) {
+    let job_json = match serde_json::to_string(&complete_job) {
         Ok(json) => json,
         Err(e) => {
             return map_rust_error_to_json_response(
@@ -2461,6 +2617,58 @@ async fn network_connect_handler(
     }
 }
 
+// GET /account/:did/mana - return mana balance for an account
+async fn account_mana_handler(
+    AxumPath(did_str): AxumPath<String>,
+    State(state): State<AppState>,
+) -> impl IntoResponse {
+    match Did::from_str(&did_str) {
+        Ok(did) => match state.runtime_context.get_mana(&did).await {
+            Ok(balance) => (
+                StatusCode::OK,
+                Json(serde_json::json!({ "balance": balance })),
+            )
+                .into_response(),
+            Err(e) => map_rust_error_to_json_response(
+                format!("Query error: {e}"),
+                StatusCode::INTERNAL_SERVER_ERROR,
+            )
+            .into_response(),
+        },
+        Err(e) => {
+            map_rust_error_to_json_response(format!("Invalid DID: {e}"), StatusCode::BAD_REQUEST)
+                .into_response()
+        }
+    }
+}
+
+// GET /keys - return node DID and public key
+async fn keys_handler(State(state): State<AppState>) -> impl IntoResponse {
+    let did = state.runtime_context.current_identity.to_string();
+    let pk_bs58 = bs58::encode(state.runtime_context.signer.public_key_bytes()).into_string();
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({ "did": did, "public_key_bs58": pk_bs58 })),
+    )
+}
+
+// GET /reputation/:did - fetch reputation score
+async fn reputation_handler(
+    AxumPath(did_str): AxumPath<String>,
+    State(state): State<AppState>,
+) -> impl IntoResponse {
+    match Did::from_str(&did_str) {
+        Ok(did) => {
+            let score = state.runtime_context.reputation_store.get_reputation(&did);
+            (StatusCode::OK, Json(serde_json::json!({ "score": score }))).into_response()
+        }
+        Err(e) => {
+            map_rust_error_to_json_response(format!("Invalid DID: {e}"), StatusCode::BAD_REQUEST)
+                .into_response()
+        }
+    }
+}
+
 // --- Test module (can be expanded later) ---
 #[cfg(test)]
 mod tests {
@@ -2475,7 +2683,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
     async fn info_endpoint_works() {
         let app = test_app().await;
         let response = app
@@ -2496,7 +2703,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
     async fn mesh_submit_job_endpoint_basic() {
         let app = test_app().await;
 
@@ -2535,7 +2741,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
     async fn complete_http_to_mesh_pipeline() {
         let app = test_app().await;
 
@@ -2674,7 +2879,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
     async fn test_simple_job_submission_and_listing() {
         let app = test_app().await;
 
@@ -2733,7 +2937,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
     async fn wasm_contract_execution_via_http() {
         use icn_ccl::compile_ccl_source_to_wasm;
         use icn_identity::{did_key_from_verifying_key, generate_ed25519_keypair};
@@ -2793,7 +2996,8 @@ mod tests {
         let (sk, vk) = generate_ed25519_keypair();
         let exec_did = did_key_from_verifying_key(&vk);
         let exec_did = Did::from_str(&exec_did).unwrap();
-        let signer = std::sync::Arc::new(icn_runtime::context::StubSigner::new_with_keys(sk, vk));
+        let signer =
+            std::sync::Arc::new(icn_runtime::context::Ed25519Signer::new_with_keys(sk, vk));
         let executor = WasmExecutor::new(
             ctx.clone(),
             signer,

@@ -14,14 +14,16 @@ members = [
     "crates/icn-cli",
     "crates/icn-node",
     "icn-ccl",
+    "crates/icn-templates",
     "tests",
+    "crates/icn-sdk",
 ]
 resolver = "2"
 
 # Optional: centralize workspace-wide settings
 [workspace.package]
 edition = "2021"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["InterCooperative Network <dev@intercooperative.network>"]
 license = "Apache-2.0"
 

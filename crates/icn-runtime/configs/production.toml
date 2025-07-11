@@ -1,0 +1,79 @@
+# ICN Runtime Production Configuration
+# This file contains production-ready settings for an ICN node
+
+[environment]
+environment_type = "production"
+debug = false
+log_level = "info"
+metrics = true
+
+[identity]
+node_did = "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK"
+
+[identity.key_store]
+store_type = "file"
+key_file_path = "~/.icn/keys/node.key"
+
+[identity.did_resolver]
+resolver_type = "key"
+
+[network]
+listen_addresses = [
+    "/ip4/0.0.0.0/tcp/4001",
+    "/ip6/::/tcp/4001"
+]
+bootstrap_peers = [
+    # Add your bootstrap peers here
+    # { peer_id = "12D3KooWBootstrap...", address = "/ip4/bootstrap.icn.example.com/tcp/4001/p2p/12D3KooWBootstrap..." }
+]
+enable_mdns = false
+
+[network.timeouts]
+connection_timeout_ms = 10000
+request_timeout_ms = 30000
+keep_alive_interval_ms = 60000
+
+[network.connection_limits]
+max_incoming_connections = 100
+max_outgoing_connections = 100
+max_connections_per_peer = 5
+
+[storage]
+data_dir = "~/.icn/data"
+
+[storage.dag_store]
+store_type = "rocksdb"
+storage_path = "~/.icn/data/dag"
+cache_size_mb = 256
+
+[storage.mana_ledger]
+ledger_path = "~/.icn/data/mana.db"
+initial_mana = 1000
+regeneration_rate = 1.0
+max_capacity = 10000
+
+[storage.reputation_store]
+store_type = "file"
+storage_path = "~/.icn/data/reputation.db"
+decay_rate = 0.01
+
+[governance]
+enabled = true
+
+[governance.voting]
+min_voting_power = 100
+vote_cost_mana = 10
+voting_period_seconds = 604800  # 1 week
+
+[governance.proposals]
+min_proposal_mana = 1000
+proposal_cost_mana = 100
+min_quorum = 0.1
+passing_threshold = 0.6
+
+[runtime]
+default_receipt_wait_ms = 30000
+max_job_queue_size = 1000
+max_concurrent_jobs = 10
+job_execution_timeout_ms = 300000  # 5 minutes
+cleanup_interval_ms = 60000 

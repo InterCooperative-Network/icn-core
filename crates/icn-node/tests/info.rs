@@ -23,7 +23,7 @@ async fn info_endpoint_returns_expected_json() {
         .unwrap();
 
     assert!(json["name"].as_str().unwrap().contains("ICN"));
-    assert!(json["version"].as_str().unwrap().contains("0.1.0"));
+    assert!(json["version"].as_str().unwrap().contains("0.2.0-beta"));
     assert!(json["status_message"].as_str().unwrap().contains("did:"));
 
     server.abort(); // shut the axum task down

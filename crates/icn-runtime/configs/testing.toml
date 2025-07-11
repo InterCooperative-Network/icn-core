@@ -1,0 +1,70 @@
+# ICN Runtime Testing Configuration
+# This file contains test-friendly settings for an ICN node
+
+[environment]
+environment_type = "testing"
+debug = true
+log_level = "trace"
+metrics = false
+
+[identity]
+node_did = "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK"
+
+[identity.key_store]
+store_type = "stub"
+
+[identity.did_resolver]
+resolver_type = "key"
+
+[network]
+listen_addresses = []
+bootstrap_peers = []
+enable_mdns = false
+
+[network.timeouts]
+connection_timeout_ms = 1000
+request_timeout_ms = 5000
+keep_alive_interval_ms = 10000
+
+[network.connection_limits]
+max_incoming_connections = 10
+max_outgoing_connections = 10
+max_connections_per_peer = 2
+
+[storage]
+data_dir = "/tmp/icn-test"
+
+[storage.dag_store]
+store_type = "memory"
+cache_size_mb = 16
+
+[storage.mana_ledger]
+ledger_path = "/tmp/icn-test/mana.db"
+initial_mana = 100000
+regeneration_rate = 10.0
+max_capacity = 1000000
+
+[storage.reputation_store]
+store_type = "memory"
+decay_rate = 0.0001
+
+[governance]
+enabled = true
+
+[governance.voting]
+min_voting_power = 1
+vote_cost_mana = 1
+voting_period_seconds = 10  # 10 seconds
+
+[governance.proposals]
+min_proposal_mana = 10
+proposal_cost_mana = 1
+min_quorum = 0.01
+passing_threshold = 0.5
+
+[runtime]
+default_receipt_wait_ms = 1000
+max_job_queue_size = 10
+max_concurrent_jobs = 2
+job_execution_timeout_ms = 5000  # 5 seconds
+cleanup_interval_ms = 5000 

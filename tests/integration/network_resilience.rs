@@ -262,3 +262,51 @@ async fn test_long_partition_circuit_breaker() {
         assert!(interval2 >= interval1);
     }
 }
+<<<<<<< HEAD
+=======
+
+#[tokio::test]
+async fn test_stub_network_breaker_open_close() {
+    use icn_common::Did;
+    use icn_network::{PeerId, StubNetworkService};
+    use icn_protocol::{GossipMessage, MessagePayload, ProtocolMessage};
+    use std::time::Duration;
+    use tokio::time::sleep;
+
+    let service = StubNetworkService::default();
+    let msg = ProtocolMessage::new(
+        MessagePayload::GossipMessage(GossipMessage {
+            topic: "cb_test".to_string(),
+            payload: vec![],
+            ttl: 1,
+        }),
+        Did::new("key", "stub"),
+        None,
+    );
+
+    for _ in 0..3 {
+        let _ = service
+            .send_message(&PeerId("error_peer".into()), msg.clone())
+            .await;
+    }
+
+    let err = service
+        .send_message(&PeerId("error_peer".into()), msg.clone())
+        .await
+        .expect_err("breaker should be open");
+    assert!(matches!(err, icn_network::MeshNetworkError::Timeout(_)));
+
+    sleep(Duration::from_secs(5)).await;
+
+    service
+        .send_message(&PeerId("ok_peer".into()), msg.clone())
+        .await
+        .expect("breaker should allow after timeout");
+
+    let err2 = service
+        .send_message(&PeerId("error_peer".into()), msg)
+        .await
+        .expect_err("expected send failure");
+    assert!(!matches!(err2, icn_network::MeshNetworkError::Timeout(_)));
+}
+>>>>>>> develop

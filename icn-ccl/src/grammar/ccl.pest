@@ -14,12 +14,13 @@ string_literal = @{ "\"" ~ string_inner* ~ "\"" }
 boolean_literal = { "true" | "false" }
 
 // Top-level: A CCL policy is a sequence of statements or definitions
-policy = { SOI ~ (function_definition | policy_statement)* ~ EOI }
+policy = { SOI ~ (function_definition | struct_definition | policy_statement)* ~ EOI }
 
 // Example: Function Definition
 function_definition = { "fn" ~ identifier ~ "(" ~ (parameter ~ ("," ~ parameter)*)? ~ ")" ~ "->" ~ type_annotation ~ block }
+struct_definition = { "struct" ~ identifier ~ "{" ~ (parameter ~ ("," ~ parameter)*)? ~ "}" }
 parameter = { identifier ~ ":" ~ type_annotation }
-type_annotation = { identifier } // NEW - type will be validated in Rust code
+type_annotation = { identifier }
 
 // Example: Policy Statement (e.g., a rule)
 policy_statement = { rule_definition | import_statement }
@@ -28,15 +29,22 @@ import_statement = { "import" ~ string_literal ~ "as" ~ identifier ~ ";" }
 
 // Example: Block of statements
 block = { "{" ~ statement* ~ "}" }
-statement = { let_statement | expression_statement | return_statement | if_statement | while_statement }
+statement = { let_statement | expression_statement | return_statement | if_statement | while_statement | for_statement | break_statement | continue_statement }
 let_statement = { "let" ~ identifier ~ "=" ~ expression ~ ";" }
 expression_statement = { expression ~ ";" }
 return_statement = { "return" ~ expression ~ ";" }
-if_statement = { "if" ~ expression ~ block ~ ("else" ~ block)? }
+if_statement = { "if" ~ expression ~ block ~ else_part? }
+else_part = { "else" ~ (if_statement | block) }
 while_statement = { "while" ~ expression ~ block }
+for_statement = { "for" ~ identifier ~ "in" ~ expression ~ block }
+break_statement = { "break" ~ ";" }
+continue_statement = { "continue" ~ ";" }
 
 // Example: Expressions with proper precedence and unary operators
-expression = { logical_or }
+expression = { match_expression | logical_or }
+match_expression = { "match" ~ logical_or ~ "{" ~ match_arm+ ~ "}" }
+match_arm = { match_pattern ~ "=>" ~ expression ~ (","? ) }
+match_pattern = { integer_literal | boolean_literal | identifier | "_" }
 logical_or = { logical_and ~ (OR_OP ~ logical_and)* }
 logical_and = { equality ~ (AND_OP ~ equality)* }
 equality = { comparison ~ ((EQ_OP | NEQ_OP) ~ comparison)* }
@@ -45,7 +53,11 @@ addition = { multiplication ~ ((ADD_OP | SUB_OP) ~ multiplication)* }
 multiplication = { unary ~ ((MUL_OP | DIV_OP) ~ unary)* }
 unary = { (NOT_OP | SUB_OP) ~ unary | primary }
 primary = { atom ~ ("[" ~ expression ~ "]")* }
-atom = { integer_literal | boolean_literal | string_literal | function_call | identifier | array_literal | "(" ~ expression ~ ")" }
+atom = { integer_literal | boolean_literal | string_literal | some_expr | none_expr | ok_expr | err_expr | function_call | identifier | array_literal | "(" ~ expression ~ ")" }
+some_expr = { "Some" ~ "(" ~ expression ~ ")" }
+none_expr = { "None" }
+ok_expr = { "Ok" ~ "(" ~ expression ~ ")" }
+err_expr = { "Err" ~ "(" ~ expression ~ ")" }
 array_literal = { "[" ~ expression ~ ("," ~ expression)* ~ "]" }
 function_call = { identifier ~ "(" ~ (expression ~ ("," ~ expression)*)? ~ ")" }
 

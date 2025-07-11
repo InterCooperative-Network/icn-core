@@ -1,6 +1,6 @@
 [package]
 name = "icn-runtime"
-version = "0.1.0"
+version.workspace = true
 edition = "2021"
 authors = ["ICN Contributors"]
 description = "Core runtime logic for ICN nodes, including Host ABI and job management."
@@ -14,16 +14,18 @@ icn-economics = { path = "../icn-economics" }
 icn-mesh = { path = "../icn-mesh" }
 icn-network = { path = "../icn-network", features = ["libp2p"] }
 icn-protocol = { path = "../icn-protocol" }
-icn-dag = { path = "../icn-dag" }
+icn-dag = { path = "../icn-dag", features = ["async"] }
+icn-api = { path = "../icn-api" }
 icn-governance = { path = "../icn-governance", default-features = false, features = ["serde"] }
 icn-reputation = { path = "../icn-reputation" }
 
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+toml = "0.8"
 tokio = { version = "1", features = ["full", "test-util"] }
 async-trait = "0.1.77"
 log = "0.4"
-thiserror = "1.0"
+thiserror = "2.0"
 libp2p = { version = "0.56", optional = true }
 downcast-rs = "1.2.0"
 futures = "0.3"
@@ -37,14 +39,20 @@ icn-ccl = { path = "../../icn-ccl" }
 sha2 = "0.10"
 anyhow = "1.0"
 dashmap = "5"
+aes-gcm = "0.10"
+pbkdf2 = "0.12"
+zeroize = "1.5"
+hex = "0.4"
+bs58 = "0.5"
+chrono = { version = "0.4", features = ["serde"] }
+tempfile = "3"
 
 [dev-dependencies]
 anyhow = "1.0.75"
 wat = "1.0"
 # Needed for integration tests compiling CCL contracts
 icn-ccl = { path = "../../icn-ccl" }
-# For temporary ledger storage during tests
-tempfile = "3"
+# For temporary ledger storage during tests (now in main dependencies)
 # Ensure sequential execution for metrics tests
 serial_test = { version = "3", features = ["async"] }
 # Logging for integration tests
@@ -58,8 +66,11 @@ enable-libp2p = ["dep:libp2p"]
 persist-sled = ["icn-governance/persist-sled", "icn-reputation/persist-sled"]
 persist-sqlite = ["icn-governance/persist-sled", "icn-reputation/persist-sqlite", "icn-economics/persist-sqlite", "icn-dag/persist-sqlite"]
 persist-rocksdb = ["icn-governance/persist-sled", "icn-reputation/persist-rocksdb", "icn-economics/persist-rocksdb", "icn-dag/persist-rocksdb"]
+persist-postgres = ["icn-dag/persist-postgres"]
 cli = ["dep:clap"]
 async = ["icn-dag/async"]
+production = []
+allow-stubs = []
 
 # Integration tests for cross-node functionality
 [[test]]
@@ -71,3 +82,9 @@ required-features = ["enable-libp2p"]
 name = "cross_node_governance"
 path = "tests/integration/cross_node_governance.rs"
 required-features = ["enable-libp2p"]
+
+[[test]]
+name = "ten_node_propagation"
+path = "tests/integration/ten_node_propagation.rs"
+required-features = ["enable-libp2p"]
+

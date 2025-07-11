@@ -203,39 +203,16 @@ This section provides examples for all major `icn-cli` commands. Ensure an `icn-
 **3. DAG Operations:**
 
    *   **Store a DAG Block (`dag put`):**
-      Requires a JSON string representing the `DagBlock`.
-      Example `DagBlock` JSON (note: CIDs are complex; this is illustrative):
-      ```json
-      {
-        "cid": {
-          "version": 1,
-          "codec": 85, // dag-cbor
-          "hash_alg": 18, // sha2-256
-          "hash_bytes": [72,101,108,108,111,87,111,114,108,100,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0] // Example hash
-        },
-        "data": [72,101,108,108,111,32,87,111,114,108,100,33], // "Hello World!" in bytes
-        "links": []
-      }
-      ```
-      CLI command (pass the JSON as a single string argument):
+      Provide JSON containing the block data. The endpoint returns the CID as a base32 string.
       ```sh
-      cargo run -p icn-cli -- dag put '{ "cid": { "version": 1, "codec": 85, "hash_alg": 18, "hash_bytes": [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32] }, "data": [104,101,108,108,111], "links": [] }'
+      cargo run -p icn-cli -- dag put '{ "data": [104,101,108,108,111] }'
+      # => "bafy...cid-string"
       ```
 
    *   **Retrieve a DAG Block (`dag get`):**
-      Requires a JSON string representing the `Cid`.
-      Example `Cid` JSON (matching the one above):
-      ```json
-      {
-        "version": 1,
-        "codec": 85,
-        "hash_alg": 18,
-        "hash_bytes": [72,101,108,108,111,87,111,114,108,100,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
-      }
-      ```
-      CLI command:
+      Send the CID string returned from `dag put`.
       ```sh
-      cargo run -p icn-cli -- dag get '{ "version": 1, "codec": 85, "hash_alg": 18, "hash_bytes": [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32] }'
+      cargo run -p icn-cli -- dag get '{ "cid": "bafy...cid-string" }'
       ```
 
 **4. Governance Operations:**
@@ -535,11 +512,15 @@ The repository includes a containerized devnet for quickly spinning up a three-n
    ```
 3. **Run with monitoring (Prometheus & Grafana):**
    ```bash
-   cd icn-devnet
-   docker-compose --profile monitoring up -d
+  cd icn-devnet
+  docker-compose --profile monitoring up -d
+  ```
+  Prometheus will be available at <http://localhost:9090> and Grafana at
+  <http://localhost:3000> (login `admin` / `icnfederation`).
+   Alternatively, run the standalone monitoring stack:
+   ```bash
+   docker compose -f docker-compose-monitoring.yml up -d
    ```
-   Prometheus will be available at <http://localhost:9090> and Grafana at
-   <http://localhost:3000> (login `admin` / `icnfederation`).
 4. **Submit your own job:**
    ```bash
    curl -X POST http://localhost:5001/mesh/submit \

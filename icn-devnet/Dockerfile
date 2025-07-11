@@ -32,9 +32,19 @@ COPY tests/ ./tests/
 
 # Build the ICN node binary
 # Increase rustc stack size to avoid segfaults during optimized builds
-# 64 MiB is required for some build steps
-ENV RUST_MIN_STACK=67108864
-RUN cargo build --release -p icn-node --features with-libp2p
+# 512 MiB is required for some build steps (as suggested by rustc error)
+ENV RUST_MIN_STACK=536870912
+
+# Additional memory optimizations for the build
+ENV CARGO_NET_RETRY=10
+ENV CARGO_NET_TIMEOUT=300
+
+# Reduce optimization for C dependencies to avoid GCC crashes
+ENV CFLAGS="-O1"
+ENV CXXFLAGS="-O1"
+
+# Build with increased stack size and memory limits
+RUN bash -c "cargo build --release -p icn-node --features with-libp2p"
 
 # Runtime stage
 FROM debian:bookworm-slim

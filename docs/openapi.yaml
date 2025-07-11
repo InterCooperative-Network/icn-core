@@ -1,0 +1,737 @@
+openapi: 3.0.0
+info:
+  title: InterCooperative Network API
+  version: 0.1.0-dev-functional
+servers:
+  - url: http://127.0.0.1:7845
+paths:
+  /info:
+    get:
+      summary: Node information and DID
+      responses:
+        '200':
+          description: Node metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NodeInfo'
+  /status:
+    get:
+      summary: Real-time node status
+      responses:
+        '200':
+          description: Status details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NodeStatus'
+  /health:
+    get:
+      summary: Health check endpoint
+      responses:
+        '200':
+          description: Node is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+  /ready:
+    get:
+      summary: Readiness probe
+      responses:
+        '200':
+          description: Node is ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadinessStatus'
+  /mesh/submit:
+    post:
+      summary: Submit a mesh job
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitJobRequest'
+      responses:
+        '200':
+          description: Job created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  job_id:
+                    type: string
+  /mesh/jobs:
+    get:
+      summary: List mesh computing jobs
+      responses:
+        '200':
+          description: Job list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  jobs:
+                    type: array
+                    items:
+                      type: object
+  /mesh/jobs/{job_id}:
+    get:
+      summary: Get specific job status
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Job status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  job_id:
+                    type: string
+                  status:
+                    type: string
+  /mesh/receipts:
+    post:
+      summary: Submit execution receipt
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitReceiptRequest'
+      responses:
+        '200':
+          description: Receipt accepted
+  /governance/proposals:
+    get:
+      summary: List governance proposals
+      responses:
+        '200':
+          description: Proposal list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+  /governance/proposal/{id}:
+    get:
+      summary: Fetch a proposal
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Proposal info
+          content:
+            application/json:
+              schema:
+                type: object
+  /governance/submit:
+    post:
+      summary: Submit a proposal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitProposalRequest'
+      responses:
+        '200':
+          description: Proposal id
+          content:
+            application/json:
+              schema:
+                type: string
+  /governance/vote:
+    post:
+      summary: Cast a vote
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CastVoteRequest'
+      responses:
+        '200':
+          description: Vote accepted
+  /governance/delegate:
+    post:
+      summary: Delegate voting power
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DelegateRequest'
+      responses:
+        '200':
+          description: Delegation recorded
+  /governance/revoke:
+    post:
+      summary: Revoke a delegation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RevokeDelegationRequest'
+      responses:
+        '200':
+          description: Delegation revoked
+  /governance/close:
+    post:
+      summary: Close voting
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProposalIdPayload'
+      responses:
+        '200':
+          description: Vote closed
+  /governance/execute:
+    post:
+      summary: Execute proposal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProposalIdPayload'
+      responses:
+        '200':
+          description: Execution result
+  /dag/put:
+    post:
+      summary: Store data in DAG
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DagBlockPayload'
+      responses:
+        '200':
+          description: CID string
+          content:
+            application/json:
+              schema:
+                type: string
+  /dag/get:
+    post:
+      summary: Retrieve data from DAG
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CidRequest'
+      responses:
+        '200':
+          description: Data block
+          content:
+            application/json:
+              schema:
+                type: string
+  /dag/meta:
+    post:
+      summary: Retrieve DAG metadata
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CidRequest'
+      responses:
+        '200':
+          description: Metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DagBlockMetadata'
+  /dag/pin:
+    post:
+      summary: Pin a DAG block
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PinRequest'
+      responses:
+        '200':
+          description: Pinned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cid'
+  /dag/unpin:
+    post:
+      summary: Unpin a DAG block
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CidRequest'
+      responses:
+        '200':
+          description: Unpinned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cid'
+  /dag/prune:
+    post:
+      summary: Prune unpinned blocks
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Pruned
+  /network/local-peer-id:
+    get:
+      summary: Show local peer ID
+      responses:
+        '200':
+          description: Peer ID
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  peer_id:
+                    type: string
+  /network/connect:
+    post:
+      summary: Connect to a peer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PeerPayload'
+      responses:
+        '200':
+          description: Connection result
+  /network/peers:
+    get:
+      summary: List network peers
+      responses:
+        '200':
+          description: Peer list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+  /transaction/submit:
+    post:
+      summary: Submit a transaction
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Transaction'
+      responses:
+        '200':
+          description: Transaction id
+          content:
+            application/json:
+              schema:
+                type: string
+  /data/query:
+    post:
+      summary: Query data
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CidRequest'
+      responses:
+        '200':
+          description: Query results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DagBlock'
+  /contracts:
+    post:
+      summary: Upload WASM contract
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContractSourcePayload'
+      responses:
+        '200':
+          description: Upload result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  manifest_cid:
+                    type: string
+  /federation/peers:
+    get:
+      summary: List federation peers
+      responses:
+        '200':
+          description: Peers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+    post:
+      summary: Add federation peer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddPeerPayload'
+      responses:
+        '200':
+          description: Added
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  peer:
+                    type: string
+  /federation/join:
+    post:
+      summary: Join a federation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PeerPayload'
+      responses:
+        '200':
+          description: Joined
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  joined:
+                    type: string
+  /federation/leave:
+    post:
+      summary: Leave the federation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PeerPayload'
+      responses:
+        '200':
+          description: Left
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  left:
+                    type: string
+  /federation/status:
+    get:
+      summary: Current federation status
+      responses:
+        '200':
+          description: Status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FederationStatus'
+  /metrics:
+    get:
+      summary: Prometheus metrics
+      responses:
+        '200':
+          description: Metrics
+          content:
+            text/plain:
+              schema:
+                type: string
+components:
+  schemas:
+    NodeInfo:
+      type: object
+      properties:
+        version:
+          type: string
+        name:
+          type: string
+        status_message:
+          type: string
+    NodeStatus:
+      type: object
+      properties:
+        is_online:
+          type: boolean
+        peer_count:
+          type: integer
+        current_block_height:
+          type: integer
+        version:
+          type: string
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+        timestamp:
+          type: integer
+        uptime_seconds:
+          type: integer
+        checks:
+          $ref: '#/components/schemas/HealthChecks'
+    HealthChecks:
+      type: object
+      properties:
+        runtime:
+          type: string
+        dag_store:
+          type: string
+        network:
+          type: string
+        mana_ledger:
+          type: string
+    ReadinessStatus:
+      type: object
+      properties:
+        ready:
+          type: boolean
+        timestamp:
+          type: integer
+        checks:
+          $ref: '#/components/schemas/ReadinessChecks'
+    ReadinessChecks:
+      type: object
+      properties:
+        can_serve_requests:
+          type: boolean
+        mana_ledger_available:
+          type: boolean
+        dag_store_available:
+          type: boolean
+        network_initialized:
+          type: boolean
+    SubmitJobRequest:
+      type: object
+      properties:
+        manifest_cid:
+          type: string
+        spec_json:
+          type: object
+        cost_mana:
+          type: integer
+    SubmitReceiptRequest:
+      type: object
+      properties:
+        job_id:
+          type: string
+        executor_did:
+          type: string
+        result_cid:
+          type: string
+        cpu_ms:
+          type: integer
+        success:
+          type: boolean
+        signature_hex:
+          type: string
+    CastVoteRequest:
+      type: object
+      properties:
+        voter_did:
+          type: string
+        proposal_id:
+          type: string
+        vote_option:
+          type: string
+    DelegateRequest:
+      type: object
+      properties:
+        from_did:
+          type: string
+        to_did:
+          type: string
+    RevokeDelegationRequest:
+      type: object
+      properties:
+        from_did:
+          type: string
+    SubmitProposalRequest:
+      type: object
+      properties:
+        proposer_did:
+          type: string
+        proposal:
+          type: object
+        description:
+          type: string
+        duration_secs:
+          type: integer
+        quorum:
+          type: integer
+        threshold:
+          type: number
+        body:
+          type: string
+          format: byte
+          nullable: true
+    ProposalIdPayload:
+      type: object
+      properties:
+        proposal_id:
+          type: string
+    DagBlockPayload:
+      type: object
+      properties:
+        data:
+          type: string
+          format: byte
+    CidRequest:
+      type: object
+      properties:
+        cid:
+          type: string
+    PinRequest:
+      type: object
+      properties:
+        cid:
+          type: string
+        ttl:
+          type: integer
+          nullable: true
+    Cid:
+      type: object
+      properties:
+        version:
+          type: integer
+        codec:
+          type: integer
+        hash_alg:
+          type: integer
+        hash_bytes:
+          type: string
+          format: byte
+    DagBlock:
+      type: object
+      properties:
+        cid:
+          $ref: '#/components/schemas/Cid'
+        data:
+          type: string
+          format: byte
+        links:
+          type: array
+          items:
+            type: object
+        timestamp:
+          type: integer
+        author_did:
+          type: string
+        signature:
+          type: string
+          format: byte
+          nullable: true
+        scope:
+          type: string
+          nullable: true
+    DagBlockMetadata:
+      type: object
+      properties:
+        size:
+          type: integer
+        timestamp:
+          type: integer
+        author_did:
+          type: string
+        links:
+          type: array
+          items:
+            type: object
+    ContractSourcePayload:
+      type: object
+      properties:
+        source:
+          type: string
+    PeerPayload:
+      type: object
+      properties:
+        peer:
+          type: string
+    AddPeerPayload:
+      type: object
+      properties:
+        peer:
+          type: string
+    FederationStatus:
+      type: object
+      properties:
+        peer_count:
+          type: integer
+        peers:
+          type: array
+          items:
+            type: string
+    Transaction:
+      type: object
+      properties:
+        id:
+          type: string
+        timestamp:
+          type: integer
+        sender_did:
+          type: string
+        recipient_did:
+          type: string
+          nullable: true
+        payload_type:
+          type: string
+        payload:
+          type: string
+          format: byte
+        nonce:
+          type: integer
+        mana_limit:
+          type: integer
+        mana_price:
+          type: integer
+        signature:
+          type: string
+          format: byte
+          nullable: true

@@ -1,0 +1,483 @@
+// ICN Cooperative Contract: Reputation-Based Access Control System
+// This contract manages access to cooperative resources and privileges based on:
+// - Member reputation scores and history
+// - Role-based permissions with reputation requirements
+// - Dynamic privilege escalation and revocation
+// - Trust-based resource sharing and delegation
+
+fn calculate_reputation_score(
+    work_quality_average: Integer,
+    collaboration_rating: Integer,
+    leadership_contributions: Integer,
+    community_participation: Integer,
+    reliability_score: Integer,
+    innovation_contributions: Integer,
+    conflict_resolution_score: Integer,
+    mentorship_activities: Integer
+) -> Integer {
+    // Returns overall reputation score (0-100)
+    
+    let reputation_score = 0;
+    
+    // Work quality weight: 25%
+    let quality_points = work_quality_average * 25 / 100;
+    
+    // Collaboration weight: 20%
+    let collaboration_points = collaboration_rating * 20 / 100;
+    
+    // Leadership weight: 15%
+    let leadership_points = 0;
+    if leadership_contributions >= 10 {
+        let leadership_points = 15;
+    } else if leadership_contributions >= 7 {
+        let leadership_points = 12;
+    } else if leadership_contributions >= 5 {
+        let leadership_points = 10;
+    } else if leadership_contributions >= 3 {
+        let leadership_points = 8;
+    } else if leadership_contributions >= 1 {
+        let leadership_points = 5;
+    } else {
+        let leadership_points = 0;
+    }
+    
+    // Community participation weight: 10%
+    let participation_points = 0;
+    if community_participation >= 90 {
+        let participation_points = 10;
+    } else if community_participation >= 75 {
+        let participation_points = 8;
+    } else if community_participation >= 60 {
+        let participation_points = 6;
+    } else if community_participation >= 45 {
+        let participation_points = 4;
+    } else if community_participation >= 30 {
+        let participation_points = 2;
+    } else {
+        let participation_points = 0;
+    }
+    
+    // Reliability weight: 10%
+    let reliability_points = reliability_score * 10 / 100;
+    
+    // Innovation weight: 10%
+    let innovation_points = 0;
+    if innovation_contributions >= 5 {
+        let innovation_points = 10;
+    } else if innovation_contributions >= 3 {
+        let innovation_points = 8;
+    } else if innovation_contributions >= 2 {
+        let innovation_points = 6;
+    } else if innovation_contributions >= 1 {
+        let innovation_points = 4;
+    } else {
+        let innovation_points = 0;
+    }
+    
+    // Conflict resolution weight: 5%
+    let conflict_points = conflict_resolution_score * 5 / 100;
+    
+    // Mentorship weight: 5%
+    let mentorship_points = 0;
+    if mentorship_activities >= 5 {
+        let mentorship_points = 5;
+    } else if mentorship_activities >= 3 {
+        let mentorship_points = 4;
+    } else if mentorship_activities >= 2 {
+        let mentorship_points = 3;
+    } else if mentorship_activities >= 1 {
+        let mentorship_points = 2;
+    } else {
+        let mentorship_points = 0;
+    }
+    
+    let reputation_score = quality_points + collaboration_points + leadership_points + participation_points + reliability_points + innovation_points + conflict_points + mentorship_points;
+    
+    return reputation_score;
+}
+
+fn evaluate_resource_access_permission(
+    requested_resource_type: Integer,
+    member_reputation: Integer,
+    member_tenure_months: Integer,
+    resource_sensitivity_level: Integer,
+    historical_violations: Integer,
+    supervisor_endorsement: Integer,
+    emergency_override: Integer
+) -> Integer {
+    // Returns: 0 = denied, 1 = approved, 2 = approved with supervision, 3 = approved with conditions
+    // resource_type: 1 = basic tools, 2 = advanced equipment, 3 = financial systems, 4 = member data, 5 = governance systems
+    
+    let access_score = 0;
+    
+    // Base reputation requirements by resource type
+    let required_reputation = 0;
+    if requested_resource_type == 1 {
+        let required_reputation = 60; // Basic tools
+    } else if requested_resource_type == 2 {
+        let required_reputation = 75; // Advanced equipment
+    } else if requested_resource_type == 3 {
+        let required_reputation = 85; // Financial systems
+    } else if requested_resource_type == 4 {
+        let required_reputation = 90; // Member data
+    } else if requested_resource_type == 5 {
+        let required_reputation = 95; // Governance systems
+    } else {
+        return 0; // Unknown resource type
+    }
+    
+    // Emergency override check
+    if emergency_override == 1 && member_reputation >= 70 {
+        return 3; // Approved with conditions
+    }
+    
+    // Basic reputation check
+    if member_reputation < required_reputation {
+        return 0; // Denied - insufficient reputation
+    }
+    
+    // Reputation score (0-40 points)
+    let reputation_points = 0;
+    if member_reputation >= required_reputation + 10 {
+        let reputation_points = 40;
+    } else if member_reputation >= required_reputation + 5 {
+        let reputation_points = 35;
+    } else if member_reputation >= required_reputation {
+        let reputation_points = 30;
+    } else {
+        let reputation_points = 20;
+    }
+    
+    // Tenure consideration (0-25 points)
+    let tenure_points = 0;
+    if member_tenure_months >= 24 {
+        let tenure_points = 25;
+    } else if member_tenure_months >= 18 {
+        let tenure_points = 20;
+    } else if member_tenure_months >= 12 {
+        let tenure_points = 15;
+    } else if member_tenure_months >= 6 {
+        let tenure_points = 10;
+    } else {
+        let tenure_points = 5;
+    }
+    
+    // Resource sensitivity adjustment (0-20 points)
+    let sensitivity_points = 0;
+    if resource_sensitivity_level <= 3 {
+        let sensitivity_points = 20;
+    } else if resource_sensitivity_level <= 5 {
+        let sensitivity_points = 15;
+    } else if resource_sensitivity_level <= 7 {
+        let sensitivity_points = 10;
+    } else if resource_sensitivity_level <= 9 {
+        let sensitivity_points = 5;
+    } else {
+        let sensitivity_points = 0;
+    }
+    
+    // Historical violations penalty (0-10 points)
+    let violations_points = 0;
+    if historical_violations == 0 {
+        let violations_points = 10;
+    } else if historical_violations == 1 {
+        let violations_points = 7;
+    } else if historical_violations == 2 {
+        let violations_points = 4;
+    } else if historical_violations == 3 {
+        let violations_points = 1;
+    } else {
+        let violations_points = 0;
+    }
+    
+    // Supervisor endorsement (0-5 points)
+    let endorsement_points = 0;
+    if supervisor_endorsement == 1 {
+        let endorsement_points = 5;
+    }
+    
+    let access_score = reputation_points + tenure_points + sensitivity_points + violations_points + endorsement_points;
+    
+    // Determine access level
+    let access_level = 0;
+    if access_score >= 85 {
+        let access_level = 1; // Approved
+    } else if access_score >= 70 {
+        let access_level = 2; // Approved with supervision
+    } else if access_score >= 55 {
+        let access_level = 3; // Approved with conditions
+    } else {
+        let access_level = 0; // Denied
+    }
+    
+    return access_level;
+}
+
+fn calculate_delegation_authority(
+    delegator_reputation: Integer,
+    delegator_role_level: Integer,
+    delegatee_reputation: Integer,
+    delegatee_relationship_score: Integer,
+    task_complexity: Integer,
+    task_risk_level: Integer,
+    oversight_available: Integer
+) -> Integer {
+    // Returns delegation authority level (0-100)
+    
+    let delegation_score = 0;
+    
+    // Delegator reputation requirement (0-30 points)
+    let delegator_points = 0;
+    if delegator_reputation >= 90 {
+        let delegator_points = 30;
+    } else if delegator_reputation >= 80 {
+        let delegator_points = 25;
+    } else if delegator_reputation >= 70 {
+        let delegator_points = 20;
+    } else if delegator_reputation >= 60 {
+        let delegator_points = 15;
+    } else {
+        let delegator_points = 10;
+    }
+    
+    // Delegator role level (0-20 points)
+    let role_points = 0;
+    if delegator_role_level >= 5 {
+        let role_points = 20; // Senior leadership
+    } else if delegator_role_level >= 4 {
+        let role_points = 16; // Team lead
+    } else if delegator_role_level >= 3 {
+        let role_points = 12; // Senior member
+    } else if delegator_role_level >= 2 {
+        let role_points = 8; // Full member
+    } else {
+        let role_points = 4; // Junior member
+    }
+    
+    // Delegatee reputation (0-25 points)
+    let delegatee_points = 0;
+    if delegatee_reputation >= 85 {
+        let delegatee_points = 25;
+    } else if delegatee_reputation >= 75 {
+        let delegatee_points = 20;
+    } else if delegatee_reputation >= 65 {
+        let delegatee_points = 15;
+    } else if delegatee_reputation >= 55 {
+        let delegatee_points = 10;
+    } else {
+        let delegatee_points = 5;
+    }
+    
+    // Relationship score (0-10 points)
+    let relationship_points = 0;
+    if delegatee_relationship_score >= 80 {
+        let relationship_points = 10;
+    } else if delegatee_relationship_score >= 60 {
+        let relationship_points = 8;
+    } else if delegatee_relationship_score >= 40 {
+        let relationship_points = 6;
+    } else if delegatee_relationship_score >= 20 {
+        let relationship_points = 4;
+    } else {
+        let relationship_points = 2;
+    }
+    
+    // Task complexity adjustment (0-10 points)
+    let complexity_points = 0;
+    if task_complexity <= 3 {
+        let complexity_points = 10;
+    } else if task_complexity <= 5 {
+        let complexity_points = 8;
+    } else if task_complexity <= 7 {
+        let complexity_points = 6;
+    } else if task_complexity <= 9 {
+        let complexity_points = 4;
+    } else {
+        let complexity_points = 2;
+    }
+    
+    // Risk level adjustment (0-10 points)
+    let risk_points = 0;
+    if task_risk_level <= 2 {
+        let risk_points = 10;
+    } else if task_risk_level <= 4 {
+        let risk_points = 8;
+    } else if task_risk_level <= 6 {
+        let risk_points = 6;
+    } else if task_risk_level <= 8 {
+        let risk_points = 4;
+    } else {
+        let risk_points = 2;
+    }
+    
+    // Oversight availability (0-5 points)
+    let oversight_points = 0;
+    if oversight_available == 1 {
+        let oversight_points = 5;
+    }
+    
+    let delegation_score = delegator_points + role_points + delegatee_points + relationship_points + complexity_points + risk_points + oversight_points;
+    
+    return delegation_score;
+}
+
+fn evaluate_privilege_escalation(
+    current_privilege_level: Integer,
+    requested_privilege_level: Integer,
+    member_reputation: Integer,
+    recent_performance_score: Integer,
+    endorsements_count: Integer,
+    time_in_current_role_months: Integer,
+    training_completed: Integer
+) -> Integer {
+    // Returns: 0 = denied, 1 = approved, 2 = approved with probation, 3 = requires additional review
+    
+    let escalation_score = 0;
+    
+    // Check if escalation is reasonable (max 2 levels at once)
+    let privilege_jump = requested_privilege_level - current_privilege_level;
+    if privilege_jump <= 0 {
+        return 0; // No escalation needed or invalid request
+    }
+    
+    if privilege_jump > 2 {
+        return 0; // Too large a jump
+    }
+    
+    // Reputation threshold for each level
+    let required_reputation = 0;
+    if requested_privilege_level == 2 {
+        let required_reputation = 70; // Basic privileges
+    } else if requested_privilege_level == 3 {
+        let required_reputation = 80; // Enhanced privileges
+    } else if requested_privilege_level == 4 {
+        let required_reputation = 85; // Advanced privileges
+    } else if requested_privilege_level == 5 {
+        let required_reputation = 90; // Senior privileges
+    } else {
+        return 0; // Invalid privilege level
+    }
+    
+    if member_reputation < required_reputation {
+        return 0; // Insufficient reputation
+    }
+    
+    // Reputation score (0-30 points)
+    let reputation_points = 0;
+    if member_reputation >= required_reputation + 10 {
+        let reputation_points = 30;
+    } else if member_reputation >= required_reputation + 5 {
+        let reputation_points = 25;
+    } else if member_reputation >= required_reputation {
+        let reputation_points = 20;
+    } else {
+        let reputation_points = 15;
+    }
+    
+    // Recent performance (0-25 points)
+    let performance_points = 0;
+    if recent_performance_score >= 90 {
+        let performance_points = 25;
+    } else if recent_performance_score >= 80 {
+        let performance_points = 20;
+    } else if recent_performance_score >= 70 {
+        let performance_points = 15;
+    } else if recent_performance_score >= 60 {
+        let performance_points = 10;
+    } else {
+        let performance_points = 5;
+    }
+    
+    // Endorsements (0-20 points)
+    let endorsement_points = 0;
+    if endorsements_count >= 5 {
+        let endorsement_points = 20;
+    } else if endorsements_count >= 3 {
+        let endorsement_points = 15;
+    } else if endorsements_count >= 2 {
+        let endorsement_points = 10;
+    } else if endorsements_count >= 1 {
+        let endorsement_points = 5;
+    } else {
+        let endorsement_points = 0;
+    }
+    
+    // Time in current role (0-15 points)
+    let tenure_points = 0;
+    if time_in_current_role_months >= 12 {
+        let tenure_points = 15;
+    } else if time_in_current_role_months >= 8 {
+        let tenure_points = 12;
+    } else if time_in_current_role_months >= 6 {
+        let tenure_points = 10;
+    } else if time_in_current_role_months >= 3 {
+        let tenure_points = 7;
+    } else {
+        let tenure_points = 3;
+    }
+    
+    // Training completion (0-10 points)
+    let training_points = 0;
+    if training_completed == 1 {
+        let training_points = 10;
+    }
+    
+    let escalation_score = reputation_points + performance_points + endorsement_points + tenure_points + training_points;
+    
+    // Determine escalation decision
+    let decision = 0;
+    if escalation_score >= 80 {
+        let decision = 1; // Approved
+    } else if escalation_score >= 65 {
+        let decision = 2; // Approved with probation
+    } else if escalation_score >= 50 {
+        let decision = 3; // Requires additional review
+    } else {
+        let decision = 0; // Denied
+    }
+    
+    return decision;
+}
+
+// Main entry point - Example reputation-based access control scenario
+fn run() -> Integer {
+    // Example: Evaluating access to advanced financial systems
+    let member_reputation = calculate_reputation_score(
+        88, // Work quality average
+        92, // Collaboration rating
+        6,  // Leadership contributions
+        85, // Community participation
+        90, // Reliability score
+        3,  // Innovation contributions
+        78, // Conflict resolution score
+        2   // Mentorship activities
+    );
+    
+    // Check access to financial systems (resource type 3)
+    let access_permission = evaluate_resource_access_permission(
+        3,  // Financial systems
+        member_reputation,
+        18, // 18 months tenure
+        6,  // Medium-high sensitivity
+        0,  // No historical violations
+        1,  // Supervisor endorsement
+        0   // No emergency override
+    );
+    
+    // If access granted, also evaluate privilege escalation
+    if access_permission >= 1 {
+        let privilege_escalation = evaluate_privilege_escalation(
+            2,  // Current privilege level
+            4,  // Requested privilege level (advanced)
+            member_reputation,
+            85, // Recent performance score
+            4,  // 4 endorsements
+            12, // 12 months in current role
+            1   // Training completed
+        );
+        
+        return privilege_escalation; // Return escalation decision
+    }
+    
+    return access_permission; // Return access permission level
+} 

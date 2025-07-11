@@ -1,6 +1,6 @@
 [package]
 name = "icn-ccl"
-version = "0.1.0"
+version.workspace = true
 edition = "2021" # Assuming 2021 edition, adjust if needed
 authors = ["InterCooperative Network <dev@intercooperative.network>"]
 license = "Apache-2.0"
@@ -22,6 +22,22 @@ path = "test_parameter_fix.rs"
 name = "test_working_features"
 path = "test_working_features.rs"
 
+[[bin]]
+name = "test_governance_policy"
+path = "test_governance_policy.rs"
+
+[[bin]]
+name = "test_ccl_devnet_integration" 
+path = "test_ccl_devnet_integration.rs"
+
+[[bin]]
+name = "test_cooperative_contracts"
+path = "test_cooperative_contracts.rs"
+
+[[bin]]
+name = "test_individual_contracts"
+path = "test_individual_contracts.rs"
+
 
 [dependencies]
 pest = "2.7" # Or the version you intend to use
@@ -36,6 +52,7 @@ log = "0.4"
 sha2 = "0.10"
 # WASM generation
 wasm-encoder = "0.233"
+wasmparser = "0.121"
 # wasm-tools = "1.208"  # Example, for WASM manipulation/validation
 
 # Dependency for icn-common if metadata uses Did, Cid etc.

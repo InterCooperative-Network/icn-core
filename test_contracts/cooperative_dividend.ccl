@@ -1,0 +1,71 @@
+// Cooperative Dividend Distribution Policy
+// Calculates fair dividend distribution based on member contributions
+
+fn calculate_base_dividend(total_surplus: Integer, total_members: Integer) -> Integer {
+    let base_amount = total_surplus / total_members;
+    return base_amount;
+}
+
+fn apply_contribution_bonus(base_dividend: Integer, member_contribution_hours: Integer, avg_contribution: Integer) -> Integer {
+    let contribution_ratio = member_contribution_hours * 100 / avg_contribution;
+    let bonus_multiplier = 100 + contribution_ratio; // Base 100% + contribution percentage
+    let final_dividend = base_dividend * bonus_multiplier / 100;
+    return final_dividend;
+}
+
+fn apply_tenure_bonus(dividend: Integer, months_as_member: Integer) -> Integer {
+    let tenure_bonus = months_as_member * 2; // 2% per month
+    let max_bonus = 50; // Cap at 50%
+    let actual_bonus = tenure_bonus;
+    
+    // Cap the bonus
+    let capped_bonus = actual_bonus;
+    if actual_bonus > max_bonus {
+        capped_bonus = max_bonus;
+    }
+    
+    let bonus_multiplier = 100 + capped_bonus;
+    return dividend * bonus_multiplier / 100;
+}
+
+fn validate_member_eligibility(months_as_member: Integer, contribution_hours: Integer) -> Integer {
+    let min_months = 3;
+    let min_hours = 10;
+    
+    let tenure_valid = months_as_member / min_months; // 1 if valid, 0 if not
+    let contribution_valid = contribution_hours / min_hours; // 1 if valid, 0 if not
+    
+    return tenure_valid * contribution_valid; // 1 only if both valid
+}
+
+fn calculate_member_dividend(
+    total_surplus: Integer,
+    total_members: Integer,
+    member_contribution_hours: Integer,
+    avg_contribution_hours: Integer,
+    months_as_member: Integer
+) -> Integer {
+    // Check eligibility
+    let eligible = validate_member_eligibility(months_as_member, member_contribution_hours);
+    
+    // Calculate base dividend
+    let base_dividend = calculate_base_dividend(total_surplus, total_members);
+    
+    // Apply contribution bonus
+    let contribution_adjusted = apply_contribution_bonus(base_dividend, member_contribution_hours, avg_contribution_hours);
+    
+    // Apply tenure bonus
+    let final_dividend = apply_tenure_bonus(contribution_adjusted, months_as_member);
+    
+    // Return dividend only if eligible
+    return final_dividend * eligible;
+}
+
+fn run() -> Integer {
+    // Example: Calculate dividend for a member with:
+    // - Cooperative surplus: 10000 tokens
+    // - Total members: 20
+    // - Member contributed 120 hours (vs avg 80 hours)
+    // - Member tenure: 18 months
+    return calculate_member_dividend(10000, 20, 120, 80, 18);
+} 

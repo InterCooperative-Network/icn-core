@@ -24,12 +24,12 @@ DOCKER_COMPOSE=""
 MAX_WAIT_TIME=180  # 3 minutes max wait
 HEALTH_CHECK_INTERVAL=5
 
-# Node endpoints
+# Node configuration
 NODE_A_URL="http://localhost:5001"
 NODE_B_URL="http://localhost:5002"
 NODE_C_URL="http://localhost:5003"
 
-# API keys for each node (must match docker-compose.yml)
+# API keys for accessing the nodes
 NODE_A_API_KEY="devnet-a-key"
 NODE_B_API_KEY="devnet-b-key"
 NODE_C_API_KEY="devnet-c-key"
@@ -170,7 +170,15 @@ test_mesh_job_execution() {
         -H "x-api-key: $NODE_A_API_KEY" \
         -d '{
             "manifest_cid": "bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku",
-            "spec_json": { "Echo": { "payload": "ICN Devnet is working!" } },
+            "spec_json": {
+                "kind": { "Echo": { "payload": "ICN Devnet is working!" } },
+                "inputs": [],
+                "outputs": [],
+                "required_resources": {
+                    "cpu_cores": 0,
+                    "memory_mb": 0
+                }
+            },
             "cost_mana": 50
         }')
     
@@ -292,7 +300,7 @@ main() {
     echo -e "  curl -X POST $NODE_A_URL/mesh/submit \\"
     echo -e "    -H 'Content-Type: application/json' \\"
     echo -e "    -H 'x-api-key: $NODE_A_API_KEY' \\"
-    echo -e "    -d '{\"manifest_cid\": \"test\", \"spec_json\": {\"Echo\": {\"payload\": \"Hello ICN!\"}}, \"cost_mana\": 50}'"
+    echo -e "    -d '{\"manifest_cid\": \"test\", \"spec_json\": {\"kind\": {\"Echo\": {\"payload\": \"Hello ICN!\"}}, \"inputs\": [], \"outputs\": [], \"required_resources\": {\"cpu_cores\": 0, \"memory_mb\": 0}}, \"cost_mana\": 50}'"
     echo ""
     echo -e "${YELLOW}To stop the federation:${NC}"
     echo -e "  $DOCKER_COMPOSE -f $COMPOSE_FILE down"

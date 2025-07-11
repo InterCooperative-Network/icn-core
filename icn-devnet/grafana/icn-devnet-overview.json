@@ -43,6 +43,22 @@
       "datasource": "Prometheus",
       "targets": [{ "expr": "economics_credit_mana_calls" }],
       "gridPos": { "h": 4, "w": 6, "x": 12, "y": 4 }
+    },
+    {
+      "type": "stat",
+      "title": "WASM Memory Denials",
+      "id": 6,
+      "datasource": "Prometheus",
+      "targets": [{ "expr": "wasm_memory_growth_denied_total" }],
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 8 }
+    },
+    {
+      "type": "stat",
+      "title": "WASM Table Denials",
+      "id": 7,
+      "datasource": "Prometheus",
+      "targets": [{ "expr": "wasm_table_growth_denied_total" }],
+      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 8 }
     }
   ]
 }

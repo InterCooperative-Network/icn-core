@@ -46,11 +46,17 @@ impl LocalEnv {
 
 const IMPORT_COUNT: u32 = 4;
 
-pub struct WasmBackend {}
+pub struct WasmBackend {
+    data: wasm_encoder::DataSection,
+    data_offset: u32,
+}
 
 impl WasmBackend {
     pub fn new() -> Self {
-        WasmBackend {}
+        WasmBackend {
+            data: wasm_encoder::DataSection::new(),
+            data_offset: 0,
+        }
     }
 
     pub fn compile_to_wasm(
@@ -64,6 +70,7 @@ impl WasmBackend {
         let mut exports = ExportSection::new();
         let mut export_names = Vec::new();
         let mut memories = wasm_encoder::MemorySection::new();
+        let mut globals = wasm_encoder::GlobalSection::new();
         memories.memory(wasm_encoder::MemoryType {
             minimum: 1,
             maximum: None,
@@ -201,11 +208,23 @@ impl WasmBackend {
             exports.export("memory", ExportKind::Memory, 0);
             export_names.push("memory".to_string());
         }
+        globals.global(
+            wasm_encoder::GlobalType {
+                val_type: ValType::I32,
+                mutable: true,
+                shared: false,
+            },
+            &wasm_encoder::ConstExpr::i32_const(self.data_offset as i32),
+        );
+        module.section(&globals);
         if exports.len() > 0 {
             module.section(&exports);
         }
         if codes.len() > 0 {
             module.section(&codes);
+        }
+        if self.data.len() > 0 {
+            module.section(&self.data);
         }
 
         let wasm_bytes = module.finish();
@@ -225,7 +244,7 @@ impl WasmBackend {
     }
 
     fn emit_expression(
-        &self,
+        &mut self,
         expr: &ExpressionNode,
         instrs: &mut Vec<Instruction>,
         locals: &mut LocalEnv,
@@ -248,19 +267,119 @@ impl WasmBackend {
                 Ok(ty)
             }
             ExpressionNode::FunctionCall { name, arguments } => {
-                let idx = indices.get(name).ok_or_else(|| {
-                    CclError::WasmGenerationError(format!("Unknown function {}", name))
-                })?;
-                for arg in arguments {
-                    self.emit_expression(arg, instrs, locals, indices)?;
+                match name.as_str() {
+                    "array_len" => {
+                        let ptr_ty =
+                            self.emit_expression(&arguments[0], instrs, locals, indices)?;
+                        let _ = ptr_ty;
+                        instrs.push(Instruction::I32Load(wasm_encoder::MemArg {
+                            offset: 0,
+                            align: 0,
+                            memory_index: 0,
+                        }));
+                        Ok(ValType::I32)
+                    }
+                    "array_push" => {
+                        let arr_ptr = locals.get_or_add("__push_ptr", ValType::I32);
+                        self.emit_expression(&arguments[0], instrs, locals, indices)?;
+                        instrs.push(Instruction::LocalTee(arr_ptr));
+                        let val_ty =
+                            self.emit_expression(&arguments[1], instrs, locals, indices)?;
+                        let val_is_i64 = val_ty == ValType::I64;
+                        // load length
+                        instrs.push(Instruction::LocalGet(arr_ptr));
+                        instrs.push(Instruction::I32Load(wasm_encoder::MemArg {
+                            offset: 0,
+                            align: 0,
+                            memory_index: 0,
+                        }));
+                        let len_local = locals.get_or_add("__push_len", ValType::I32);
+                        instrs.push(Instruction::LocalTee(len_local));
+                        // store value
+                        instrs.push(Instruction::LocalGet(arr_ptr));
+                        instrs.push(Instruction::I32Const(4));
+                        instrs.push(Instruction::LocalGet(len_local));
+                        instrs.push(Instruction::I32Const(8));
+                        instrs.push(Instruction::I32Mul);
+                        instrs.push(Instruction::I32Add);
+                        if !val_is_i64 {
+                            instrs.push(Instruction::I64ExtendI32U);
+                        }
+                        instrs.push(Instruction::I64Store(wasm_encoder::MemArg {
+                            offset: 0,
+                            align: 0,
+                            memory_index: 0,
+                        }));
+                        // len + 1
+                        instrs.push(Instruction::LocalGet(arr_ptr));
+                        instrs.push(Instruction::LocalGet(len_local));
+                        instrs.push(Instruction::I32Const(1));
+                        instrs.push(Instruction::I32Add);
+                        instrs.push(Instruction::LocalTee(len_local));
+                        instrs.push(Instruction::I32Store(wasm_encoder::MemArg {
+                            offset: 0,
+                            align: 0,
+                            memory_index: 0,
+                        }));
+                        instrs.push(Instruction::LocalGet(len_local));
+                        Ok(ValType::I32)
+                    }
+                    "array_pop" => {
+                        let arr_ptr = locals.get_or_add("__pop_ptr", ValType::I32);
+                        self.emit_expression(&arguments[0], instrs, locals, indices)?;
+                        instrs.push(Instruction::LocalTee(arr_ptr));
+                        // len
+                        instrs.push(Instruction::LocalGet(arr_ptr));
+                        instrs.push(Instruction::I32Load(wasm_encoder::MemArg {
+                            offset: 0,
+                            align: 0,
+                            memory_index: 0,
+                        }));
+                        let len_local = locals.get_or_add("__pop_len", ValType::I32);
+                        instrs.push(Instruction::LocalTee(len_local));
+                        // len - 1
+                        instrs.push(Instruction::LocalGet(len_local));
+                        instrs.push(Instruction::I32Const(1));
+                        instrs.push(Instruction::I32Sub);
+                        instrs.push(Instruction::LocalTee(len_local));
+                        // store new len
+                        instrs.push(Instruction::LocalGet(arr_ptr));
+                        instrs.push(Instruction::LocalGet(len_local));
+                        instrs.push(Instruction::I32Store(wasm_encoder::MemArg {
+                            offset: 0,
+                            align: 0,
+                            memory_index: 0,
+                        }));
+                        // load value
+                        instrs.push(Instruction::LocalGet(arr_ptr));
+                        instrs.push(Instruction::I32Const(4));
+                        instrs.push(Instruction::LocalGet(len_local));
+                        instrs.push(Instruction::I32Const(8));
+                        instrs.push(Instruction::I32Mul);
+                        instrs.push(Instruction::I32Add);
+                        instrs.push(Instruction::I64Load(wasm_encoder::MemArg {
+                            offset: 0,
+                            align: 0,
+                            memory_index: 0,
+                        }));
+                        Ok(ValType::I64)
+                    }
+                    _ => {
+                        let idx = indices.get(name).ok_or_else(|| {
+                            CclError::WasmGenerationError(format!("Unknown function {}", name))
+                        })?;
+                        for arg in arguments {
+                            self.emit_expression(arg, instrs, locals, indices)?;
+                        }
+                        instrs.push(Instruction::Call(*idx));
+                        let ret = match name.as_str() {
+                            "host_account_get_mana" | "host_get_reputation" => ValType::I64,
+                            "host_submit_mesh_job" | "host_anchor_receipt" => ValType::I32,
+                            _ => ValType::I64,
+                        };
+                        Ok(ret)
+                    }
                 }
-                instrs.push(Instruction::Call(*idx));
-                let ret = match name.as_str() {
-                    "host_account_get_mana" | "host_get_reputation" => ValType::I64,
-                    "host_submit_mesh_job" | "host_anchor_receipt" => ValType::I32,
-                    _ => ValType::I64,
-                };
-                Ok(ret)
             }
             ExpressionNode::BinaryOp {
                 left,
@@ -326,11 +445,10 @@ impl WasmBackend {
                         instrs.push(Instruction::I32Ne);
                         Ok(ValType::I32)
                     }
-                    (ValType::I64, ValType::I64, BinaryOperator::Concat) => {
-                        // String concatenation - simplified: just add the handles
-                        // Real implementation would manage string memory
-                        instrs.push(Instruction::I64Add);
-                        Ok(ValType::I64)
+                    (ValType::I32, ValType::I32, BinaryOperator::Concat) => {
+                        // String concatenation - simplified: combine pointers
+                        instrs.push(Instruction::I32Add);
+                        Ok(ValType::I32)
                     }
                     _ => Err(CclError::WasmGenerationError(
                         "Unsupported binary operation".to_string(),
@@ -338,24 +456,95 @@ impl WasmBackend {
                 }
             }
             ExpressionNode::StringLiteral(s) => {
-                // For now, string literals will be represented as memory offsets
-                // This is a simplified implementation - real strings need memory management
-                let str_handle = s.len() as i64; // Simplified: use length as handle
-                instrs.push(Instruction::I64Const(str_handle));
-                Ok(ValType::I64)
+                // Allocate a data segment for the string and push the pointer
+                let mut bytes = (s.len() as u32).to_le_bytes().to_vec();
+                bytes.extend_from_slice(s.as_bytes());
+                let ptr = self.data_offset;
+                let len = bytes.len() as u32;
+                let offset = wasm_encoder::ConstExpr::i32_const(ptr as i32);
+                self.data.active(0, &offset, bytes.into_boxed_slice());
+                self.data_offset += len;
+                instrs.push(Instruction::I32Const(ptr as i32));
+                Ok(ValType::I32)
             }
             ExpressionNode::ArrayLiteral(elements) => {
-                // For now, arrays will be represented as their length
-                // Real implementation would allocate memory and store elements
-                let array_handle = elements.len() as i64;
-                instrs.push(Instruction::I64Const(array_handle));
+                // Allocate array in guest memory: [len][elements]
+                let size = 4 + elements.len() * 8;
+                instrs.push(Instruction::GlobalGet(0));
+                let tmp = locals.get_or_add("__arr_ptr", ValType::I32);
+                instrs.push(Instruction::LocalTee(tmp));
+                instrs.push(Instruction::GlobalGet(0));
+                instrs.push(Instruction::I32Const(size as i32));
+                instrs.push(Instruction::I32Add);
+                instrs.push(Instruction::GlobalSet(0));
+
+                // store length
+                instrs.push(Instruction::LocalGet(tmp));
+                instrs.push(Instruction::I32Const(elements.len() as i32));
+                instrs.push(Instruction::I32Store(wasm_encoder::MemArg {
+                    offset: 0,
+                    align: 0,
+                    memory_index: 0,
+                }));
+
+                for (i, el) in elements.iter().enumerate() {
+                    self.emit_expression(el, instrs, locals, indices)?;
+                    instrs.push(Instruction::LocalGet(tmp));
+                    instrs.push(Instruction::I32Const(4 + (i as i32) * 8));
+                    instrs.push(Instruction::I64Store(wasm_encoder::MemArg {
+                        offset: 0,
+                        align: 0,
+                        memory_index: 0,
+                    }));
+                }
+
+                instrs.push(Instruction::LocalGet(tmp));
+                Ok(ValType::I32)
+            }
+            ExpressionNode::ArrayAccess { array, index } => {
+                let arr_ty = self.emit_expression(array, instrs, locals, indices)?;
+                let arr_local = locals.get_or_add("__arr", ValType::I32);
+                instrs.push(Instruction::LocalTee(arr_local));
+                let _ = arr_ty;
+                let idx_ty = self.emit_expression(index, instrs, locals, indices)?;
+                if idx_ty == ValType::I64 {
+                    instrs.push(Instruction::I32WrapI64);
+                }
+                let idx_local = locals.get_or_add("__idx", ValType::I32);
+                instrs.push(Instruction::LocalTee(idx_local));
+                instrs.push(Instruction::I32Const(8));
+                instrs.push(Instruction::I32Mul);
+                instrs.push(Instruction::LocalGet(arr_local));
+                instrs.push(Instruction::I32Const(4));
+                instrs.push(Instruction::I32Add);
+                instrs.push(Instruction::I32Add);
+                instrs.push(Instruction::I64Load(wasm_encoder::MemArg {
+                    offset: 0,
+                    align: 0,
+                    memory_index: 0,
+                }));
                 Ok(ValType::I64)
             }
-            ExpressionNode::ArrayAccess { array, index: _ } => {
-                // Simplified: just emit the array and ignore index for now
-                // Real implementation would do bounds checking and memory access
-                self.emit_expression(array, instrs, locals, indices)?;
-                Ok(ValType::I64) // Assume accessing an integer array
+            ExpressionNode::SomeExpr(inner) => {
+                self.emit_expression(inner, instrs, locals, indices)?;
+                Ok(ValType::I64)
+            }
+            ExpressionNode::NoneExpr => {
+                instrs.push(Instruction::I64Const(0));
+                Ok(ValType::I64)
+            }
+            ExpressionNode::OkExpr(inner) | ExpressionNode::ErrExpr(inner) => {
+                self.emit_expression(inner, instrs, locals, indices)?;
+                Ok(ValType::I64)
+            }
+            ExpressionNode::Match { value, arms } => {
+                self.emit_expression(value, instrs, locals, indices)?;
+                // Simplified: execute first arm
+                let (_pat, expr) = arms
+                    .first()
+                    .ok_or_else(|| CclError::WasmGenerationError("Empty match".to_string()))?
+                    .clone();
+                self.emit_expression(&expr, instrs, locals, indices)
             }
             ExpressionNode::UnaryOp { operator, operand } => {
                 let operand_ty = self.emit_expression(operand, instrs, locals, indices)?;
@@ -439,6 +628,16 @@ impl WasmBackend {
                 instrs.push(Instruction::End);
                 instrs.push(Instruction::End);
             }
+            StatementNode::ForLoop { .. } => {
+                return Err(CclError::WasmGenerationError(
+                    "For loops not yet supported in WASM backend".to_string(),
+                ));
+            }
+            StatementNode::Break | StatementNode::Continue => {
+                return Err(CclError::WasmGenerationError(
+                    "Loop control not yet supported in WASM backend".to_string(),
+                ));
+            }
         }
         Ok(())
     }
@@ -462,17 +661,24 @@ impl WasmBackend {
             ));
         }
 
-        if else_block.is_some() {
+        if let Some(else_blk) = else_block {
             instrs.push(Instruction::If(wasm_encoder::BlockType::Empty));
             self.emit_block(then_block, instrs, locals, return_ty, indices)?;
             instrs.push(Instruction::Else);
-            self.emit_block(
-                else_block.as_ref().unwrap(),
-                instrs,
-                locals,
-                return_ty,
-                indices,
-            )?;
+            if else_blk.statements.len() == 1 {
+                if let StatementNode::If {
+                    condition: c,
+                    then_block: t,
+                    else_block: e,
+                } = &else_blk.statements[0]
+                {
+                    self.emit_if_statement(c, t, e, instrs, locals, return_ty, indices)?;
+                } else {
+                    self.emit_block(else_blk, instrs, locals, return_ty, indices)?;
+                }
+            } else {
+                self.emit_block(else_blk, instrs, locals, return_ty, indices)?;
+            }
             instrs.push(Instruction::End);
         } else {
             instrs.push(Instruction::If(wasm_encoder::BlockType::Empty));
@@ -503,15 +709,16 @@ fn map_val_type(ty: &TypeAnnotationNode) -> Result<ValType, CclError> {
             Ok(ValType::I64)
         }
         TypeAnnotationNode::Bool => Ok(ValType::I32),
-        TypeAnnotationNode::String => Ok(ValType::I64),
+        TypeAnnotationNode::String => Ok(ValType::I32),
         TypeAnnotationNode::Array(_) => {
-            // Arrays represented as i64 (memory offset to array metadata)
-            Ok(ValType::I64)
+            // Arrays represented as i32 pointer to array metadata
+            Ok(ValType::I32)
         }
         TypeAnnotationNode::Proposal | TypeAnnotationNode::Vote => {
             // Governance types represented as i64 handles
             Ok(ValType::I64)
         }
+        TypeAnnotationNode::Option | TypeAnnotationNode::Result => Ok(ValType::I64),
         TypeAnnotationNode::Custom(name) => Err(CclError::WasmGenerationError(format!(
             "Unsupported type {}",
             name

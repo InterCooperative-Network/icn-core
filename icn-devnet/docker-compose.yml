@@ -13,6 +13,7 @@ services:
       - ICN_HTTP_LISTEN_ADDR=0.0.0.0:7845
       - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
       - ICN_ENABLE_P2P=true
+      - ICN_ENABLE_MDNS=true
       - ICN_STORAGE_BACKEND=memory
       - ICN_HTTP_API_KEY=devnet-a-key
 
@@ -44,6 +45,7 @@ services:
       - ICN_HTTP_LISTEN_ADDR=0.0.0.0:7845
       - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
       - ICN_ENABLE_P2P=true
+      - ICN_ENABLE_MDNS=true
       - ICN_BOOTSTRAP_PEERS=/ip4/172.20.0.2/tcp/4001
       - ICN_STORAGE_BACKEND=memory
       - ICN_HTTP_API_KEY=devnet-b-key
@@ -77,6 +79,7 @@ services:
       - ICN_HTTP_LISTEN_ADDR=0.0.0.0:7845
       - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
       - ICN_ENABLE_P2P=true
+      - ICN_ENABLE_MDNS=true
       - ICN_BOOTSTRAP_PEERS=/ip4/172.20.0.2/tcp/4001
       - ICN_STORAGE_BACKEND=memory
       - ICN_HTTP_API_KEY=devnet-c-key
@@ -93,6 +96,244 @@ services:
       - icn-node-a
     healthcheck:
       test: ["CMD", "curl", "-f", "-H", "X-API-Key: devnet-c-key", "http://localhost:7845/info"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Node D - Worker node
+  icn-node-d:
+    build:
+      context: ..
+      dockerfile: icn-devnet/Dockerfile
+    container_name: icn-node-d
+    hostname: icn-node-d
+    environment:
+      - ICN_NODE_NAME=Federation-Node-D
+      - ICN_HTTP_LISTEN_ADDR=0.0.0.0:7845
+      - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
+      - ICN_ENABLE_P2P=true
+      - ICN_ENABLE_MDNS=true
+      - ICN_BOOTSTRAP_PEERS=/ip4/172.20.0.2/tcp/4001
+      - ICN_STORAGE_BACKEND=memory
+      - ICN_HTTP_API_KEY=devnet-d-key
+      - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
+    ports:
+      - "5004:7845"  # HTTP API
+      - "4004:4001"  # P2P networking
+    networks:
+      - icn-federation
+    volumes:
+      - node-d-data:/app/data
+      - ./certs:/app/certs:ro
+    depends_on:
+      - icn-node-a
+    healthcheck:
+      test: ["CMD", "curl", "-f", "-H", "X-API-Key: devnet-d-key", "http://localhost:7845/info"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Node E - Worker node
+  icn-node-e:
+    build:
+      context: ..
+      dockerfile: icn-devnet/Dockerfile
+    container_name: icn-node-e
+    hostname: icn-node-e
+    environment:
+      - ICN_NODE_NAME=Federation-Node-E
+      - ICN_HTTP_LISTEN_ADDR=0.0.0.0:7845
+      - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
+      - ICN_ENABLE_P2P=true
+      - ICN_ENABLE_MDNS=true
+      - ICN_BOOTSTRAP_PEERS=/ip4/172.20.0.2/tcp/4001
+      - ICN_STORAGE_BACKEND=memory
+      - ICN_HTTP_API_KEY=devnet-e-key
+      - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
+    ports:
+      - "5005:7845"  # HTTP API
+      - "4005:4001"  # P2P networking
+    networks:
+      - icn-federation
+    volumes:
+      - node-e-data:/app/data
+      - ./certs:/app/certs:ro
+    depends_on:
+      - icn-node-a
+    healthcheck:
+      test: ["CMD", "curl", "-f", "-H", "X-API-Key: devnet-e-key", "http://localhost:7845/info"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Node F - Worker node
+  icn-node-f:
+    build:
+      context: ..
+      dockerfile: icn-devnet/Dockerfile
+    container_name: icn-node-f
+    hostname: icn-node-f
+    environment:
+      - ICN_NODE_NAME=Federation-Node-F
+      - ICN_HTTP_LISTEN_ADDR=0.0.0.0:7845
+      - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
+      - ICN_ENABLE_P2P=true
+      - ICN_ENABLE_MDNS=true
+      - ICN_BOOTSTRAP_PEERS=/ip4/172.20.0.2/tcp/4001
+      - ICN_STORAGE_BACKEND=memory
+      - ICN_HTTP_API_KEY=devnet-f-key
+      - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
+    ports:
+      - "5006:7845"  # HTTP API
+      - "4006:4001"  # P2P networking
+    networks:
+      - icn-federation
+    volumes:
+      - node-f-data:/app/data
+      - ./certs:/app/certs:ro
+    depends_on:
+      - icn-node-a
+    healthcheck:
+      test: ["CMD", "curl", "-f", "-H", "X-API-Key: devnet-f-key", "http://localhost:7845/info"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Node G - Worker node
+  icn-node-g:
+    build:
+      context: ..
+      dockerfile: icn-devnet/Dockerfile
+    container_name: icn-node-g
+    hostname: icn-node-g
+    environment:
+      - ICN_NODE_NAME=Federation-Node-G
+      - ICN_HTTP_LISTEN_ADDR=0.0.0.0:7845
+      - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
+      - ICN_ENABLE_P2P=true
+      - ICN_ENABLE_MDNS=true
+      - ICN_BOOTSTRAP_PEERS=/ip4/172.20.0.2/tcp/4001
+      - ICN_STORAGE_BACKEND=memory
+      - ICN_HTTP_API_KEY=devnet-g-key
+      - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
+    ports:
+      - "5007:7845"  # HTTP API
+      - "4007:4001"  # P2P networking
+    networks:
+      - icn-federation
+    volumes:
+      - node-g-data:/app/data
+      - ./certs:/app/certs:ro
+    depends_on:
+      - icn-node-a
+    healthcheck:
+      test: ["CMD", "curl", "-f", "-H", "X-API-Key: devnet-g-key", "http://localhost:7845/info"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Node H - Worker node
+  icn-node-h:
+    build:
+      context: ..
+      dockerfile: icn-devnet/Dockerfile
+    container_name: icn-node-h
+    hostname: icn-node-h
+    environment:
+      - ICN_NODE_NAME=Federation-Node-H
+      - ICN_HTTP_LISTEN_ADDR=0.0.0.0:7845
+      - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
+      - ICN_ENABLE_P2P=true
+      - ICN_ENABLE_MDNS=true
+      - ICN_BOOTSTRAP_PEERS=/ip4/172.20.0.2/tcp/4001
+      - ICN_STORAGE_BACKEND=memory
+      - ICN_HTTP_API_KEY=devnet-h-key
+      - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
+    ports:
+      - "5008:7845"  # HTTP API
+      - "4008:4001"  # P2P networking
+    networks:
+      - icn-federation
+    volumes:
+      - node-h-data:/app/data
+      - ./certs:/app/certs:ro
+    depends_on:
+      - icn-node-a
+    healthcheck:
+      test: ["CMD", "curl", "-f", "-H", "X-API-Key: devnet-h-key", "http://localhost:7845/info"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Node I - Worker node
+  icn-node-i:
+    build:
+      context: ..
+      dockerfile: icn-devnet/Dockerfile
+    container_name: icn-node-i
+    hostname: icn-node-i
+    environment:
+      - ICN_NODE_NAME=Federation-Node-I
+      - ICN_HTTP_LISTEN_ADDR=0.0.0.0:7845
+      - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
+      - ICN_ENABLE_P2P=true
+      - ICN_ENABLE_MDNS=true
+      - ICN_BOOTSTRAP_PEERS=/ip4/172.20.0.2/tcp/4001
+      - ICN_STORAGE_BACKEND=memory
+      - ICN_HTTP_API_KEY=devnet-i-key
+      - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
+    ports:
+      - "5009:7845"  # HTTP API
+      - "4009:4001"  # P2P networking
+    networks:
+      - icn-federation
+    volumes:
+      - node-i-data:/app/data
+      - ./certs:/app/certs:ro
+    depends_on:
+      - icn-node-a
+    healthcheck:
+      test: ["CMD", "curl", "-f", "-H", "X-API-Key: devnet-i-key", "http://localhost:7845/info"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Node J - Worker node
+  icn-node-j:
+    build:
+      context: ..
+      dockerfile: icn-devnet/Dockerfile
+    container_name: icn-node-j
+    hostname: icn-node-j
+    environment:
+      - ICN_NODE_NAME=Federation-Node-J
+      - ICN_HTTP_LISTEN_ADDR=0.0.0.0:7845
+      - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
+      - ICN_ENABLE_P2P=true
+      - ICN_ENABLE_MDNS=true
+      - ICN_BOOTSTRAP_PEERS=/ip4/172.20.0.2/tcp/4001
+      - ICN_STORAGE_BACKEND=memory
+      - ICN_HTTP_API_KEY=devnet-j-key
+      - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
+    ports:
+      - "5010:7845"  # HTTP API
+      - "4010:4001"  # P2P networking
+    networks:
+      - icn-federation
+    volumes:
+      - node-j-data:/app/data
+      - ./certs:/app/certs:ro
+    depends_on:
+      - icn-node-a
+    healthcheck:
+      test: ["CMD", "curl", "-f", "-H", "X-API-Key: devnet-j-key", "http://localhost:7845/info"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -146,6 +387,21 @@ services:
     profiles:
       - monitoring
 
+  # Shared Postgres database for persistence testing
+  postgres:
+    image: postgres:15
+    container_name: icn-postgres
+    environment:
+      - POSTGRES_USER=icn
+      - POSTGRES_PASSWORD=icn_devnet
+      - POSTGRES_DB=icn_devnet
+    ports:
+      - "5432:5432"
+    networks:
+      - icn-federation
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
 networks:
   icn-federation:
     driver: bridge
@@ -157,4 +413,12 @@ volumes:
   node-a-data:
   node-b-data:
   node-c-data:
-  grafana-data: 
+  node-d-data:
+  node-e-data:
+  node-f-data:
+  node-g-data:
+  node-h-data:
+  node-i-data:
+  node-j-data:
+  postgres-data:
+  grafana-data:

@@ -71,13 +71,57 @@ cargo run -p icn-cli -- --api-url http://localhost:7845 submit-job \
 
 ### Included Governance Examples
 
-Several example contracts live in `tests/contracts/`:
+Several example contracts live in `examples/`:
 
 * `proposal_flow.ccl` – illustrates proposal creation, voting and finalization.
 * `voting_logic.ccl` – demonstrates an open/cast/close voting sequence.
 
 These files can be compiled with `compile_ccl_file_to_wasm` and executed using
 the `WasmExecutor` as shown in the integration tests.
+
+## Option and Result Handling
+
+CCL includes `Option` and `Result` types for nullable values and explicit error
+handling. Pattern matching can inspect these variants:
+
+```ccl
+fn lookup(id: Integer) -> Option<Integer> {
+    if id == 1 { return Some(100); }
+    return None;
+}
+
+fn safe_div(a: Integer, b: Integer) -> Result<Integer> {
+    if b == 0 { return Err(1); }
+    return Ok(a / b);
+}
+
+match safe_div(10, 2) {
+    Ok(v) => log_success(v),
+    Err(e) => log_error(e),
+}
+```
+
+## Array and String Operations
+
+The runtime now supports dynamic arrays and UTF-8 strings. Arrays are heap
+allocated and can be manipulated using the helper functions:
+
+```ccl
+let items = [1, 2, 3];
+array_push(items, 4);
+let count = array_len(items); // returns 4
+let last = array_pop(items);  // returns 4
+```
+
+Strings are stored in memory and concatenation returns a new allocation:
+
+```ccl
+fn run() -> String {
+    let hello = "Hello ";
+    let world = "ICN";
+    return hello + world;
+}
+```
 
 ## Mana Policies
 

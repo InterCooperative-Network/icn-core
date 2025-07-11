@@ -1,11 +1,3 @@
-use clap::ArgMatches;
-use serde::{Deserialize, Serialize};
-use std::fs;
-use std::path::Path;
-use std::path::PathBuf;
-use std::sync::Arc;
-use tokio::sync::Mutex as TokioMutex;
-
 use icn_common::{CommonError, DagBlock};
 #[cfg(feature = "persist-rocksdb")]
 use icn_dag::rocksdb_store::RocksDagStore;
@@ -13,8 +5,11 @@ use icn_dag::rocksdb_store::RocksDagStore;
 use icn_dag::sled_store::SledDagStore;
 #[cfg(feature = "persist-sqlite")]
 use icn_dag::sqlite_store::SqliteDagStore;
-use icn_dag::{AsyncStorageService, TokioFileDagStore};
-use icn_runtime::context::StubDagStore;
+use icn_dag::{CompatAsyncStore, TokioFileDagStore};
+use serde::{Deserialize, Serialize};
+use std::fs;
+use std::path::{Path, PathBuf};
+use tokio::sync::Mutex as TokioMutex;
 
 /// Storage backends supported by the node.
 #[derive(clap::ValueEnum, Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -29,6 +24,9 @@ pub enum StorageBackendType {
     Sled,
     /// RocksDB database backend (requires `persist-rocksdb` feature).
     Rocksdb,
+    /// Postgres database backend (requires `persist-postgres` feature).
+    #[cfg(feature = "persist-postgres")]
+    Postgres,
 }
 
 impl std::str::FromStr for StorageBackendType {
@@ -40,6 +38,8 @@ impl std::str::FromStr for StorageBackendType {
             "sqlite" => Ok(Self::Sqlite),
             "sled" => Ok(Self::Sled),
             "rocksdb" => Ok(Self::Rocksdb),
+            #[cfg(feature = "persist-postgres")]
+            "postgres" => Ok(Self::Postgres),
             _ => Err(format!("invalid storage backend: {s}")),
         }
     }
@@ -64,10 +64,19 @@ pub struct NodeConfig {
     pub node_did_path: std::path::PathBuf,
     /// Path where the node's private key will be stored/loaded (bs58 encoded).
     pub node_private_key_path: std::path::PathBuf,
+    /// Encrypted private key file for the node identity.
+    pub key_path: Option<std::path::PathBuf>,
+    /// Environment variable name containing the passphrase for `key_path`.
+    pub key_passphrase_env: Option<String>,
+    /// Optional path to an HSM library or connection string.
+    pub hsm_library: Option<std::path::PathBuf>,
+    /// Identifier of the key within the HSM.
+    pub hsm_key_id: Option<String>,
     pub node_name: String,
     pub listen_address: String,
     pub bootstrap_peers: Option<Vec<String>>,
     pub enable_p2p: bool,
+    pub enable_mdns: bool,
     pub api_key: Option<String>,
     /// Optional bearer token for Authorization header auth.
     pub auth_token: Option<String>,
@@ -78,6 +87,10 @@ pub struct NodeConfig {
     pub tls_cert_path: Option<std::path::PathBuf>,
     /// TLS private key path for HTTPS. Requires `tls_cert_path` as well.
     pub tls_key_path: Option<std::path::PathBuf>,
+    /// Minimum TLS version to accept (e.g. "1.3").
+    pub tls_min_version: Option<String>,
+    /// How many days between automatic key rotations.
+    pub key_rotation_days: u64,
     /// Peers this node has joined in a federation.
     pub federation_peers: Vec<String>,
 }
@@ -123,16 +136,23 @@ impl Default for NodeConfig {
             node_private_key_bs58: None,
             node_did_path: "./icn_data/node_did.txt".into(),
             node_private_key_path: "./icn_data/node_sk.bs58".into(),
+            key_path: None,
+            key_passphrase_env: None,
+            hsm_library: None,
+            hsm_key_id: None,
             node_name: "ICN Node".to_string(),
             listen_address: "/ip4/0.0.0.0/tcp/0".to_string(),
             bootstrap_peers: None,
             enable_p2p: cfg!(feature = "enable-libp2p"),
+            enable_mdns: true, // Enable mDNS by default for local networks
             api_key: None,
             auth_token: None,
             auth_token_path: None,
             open_rate_limit: 60,
             tls_cert_path: None,
             tls_key_path: None,
+            tls_min_version: Some("1.3".into()),
+            key_rotation_days: 90,
             federation_peers: Vec::new(),
         }
     }
@@ -155,6 +175,11 @@ struct IdentitySection {
     node_private_key_bs58: Option<String>,
     node_did_path: Option<PathBuf>,
     node_private_key_path: Option<PathBuf>,
+    key_path: Option<PathBuf>,
+    key_passphrase_env: Option<String>,
+    hsm_library: Option<PathBuf>,
+    hsm_key_id: Option<String>,
+    key_rotation_days: Option<u64>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -167,6 +192,8 @@ struct HttpSection {
     open_rate_limit: Option<u64>,
     tls_cert_path: Option<PathBuf>,
     tls_key_path: Option<PathBuf>,
+    tls_min_version: Option<String>,
+    key_rotation_days: Option<u64>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -175,6 +202,7 @@ struct P2pSection {
     listen_address: Option<String>,
     bootstrap_peers: Option<Vec<String>>,
     enable_p2p: Option<bool>,
+    enable_mdns: Option<bool>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -191,9 +219,14 @@ struct FileNodeConfig {
     node_private_key_bs58: Option<String>,
     node_did_path: Option<PathBuf>,
     node_private_key_path: Option<PathBuf>,
+    key_path: Option<PathBuf>,
+    key_passphrase_env: Option<String>,
+    hsm_library: Option<PathBuf>,
+    hsm_key_id: Option<String>,
     listen_address: Option<String>,
     bootstrap_peers: Option<Vec<String>>,
     enable_p2p: Option<bool>,
+    enable_mdns: Option<bool>,
     api_key: Option<String>,
     auth_token: Option<String>,
     auth_token_path: Option<PathBuf>,
@@ -269,6 +302,9 @@ impl NodeConfig {
         if let Some(v) = file.enable_p2p {
             self.enable_p2p = v;
         }
+        if let Some(v) = file.enable_mdns {
+            self.enable_mdns = v;
+        }
         if let Some(v) = file.api_key {
             self.api_key = Some(v);
         }
@@ -319,6 +355,21 @@ impl NodeConfig {
         if let Some(v) = id.node_private_key_path {
             self.node_private_key_path = v;
         }
+        if let Some(v) = id.key_path {
+            self.key_path = Some(v);
+        }
+        if let Some(v) = id.key_passphrase_env {
+            self.key_passphrase_env = Some(v);
+        }
+        if let Some(v) = id.hsm_library {
+            self.hsm_library = Some(v);
+        }
+        if let Some(v) = id.hsm_key_id {
+            self.hsm_key_id = Some(v);
+        }
+        if let Some(v) = id.key_rotation_days {
+            self.key_rotation_days = v;
+        }
 
         let http = file.http;
         if let Some(v) = http.listen_addr {
@@ -342,6 +393,12 @@ impl NodeConfig {
         if let Some(v) = http.tls_key_path {
             self.tls_key_path = Some(v);
         }
+        if let Some(v) = http.tls_min_version {
+            self.tls_min_version = Some(v);
+        }
+        if let Some(v) = http.key_rotation_days {
+            self.key_rotation_days = v;
+        }
 
         let p2p = file.p2p;
         if let Some(v) = p2p.listen_address {
@@ -352,6 +409,9 @@ impl NodeConfig {
         }
         if let Some(v) = p2p.enable_p2p {
             self.enable_p2p = v;
+        }
+        if let Some(v) = p2p.enable_mdns {
+            self.enable_mdns = v;
         }
     }
 
@@ -378,6 +438,7 @@ impl NodeConfig {
             v.parse::<StorageBackendType>()
         });
         set_from_env!(enable_p2p, "ICN_ENABLE_P2P", |v: &str| v.parse::<bool>());
+        set_from_env!(enable_mdns, "ICN_ENABLE_MDNS", |v: &str| v.parse::<bool>());
         set_from_env!(open_rate_limit, "ICN_OPEN_RATE_LIMIT", |v: &str| v
             .parse::<u64>());
 
@@ -408,6 +469,18 @@ impl NodeConfig {
         if let Ok(val) = std::env::var("ICN_NODE_PRIVATE_KEY_PATH") {
             self.node_private_key_path = val.into();
         }
+        if let Ok(val) = std::env::var("ICN_KEY_PATH") {
+            self.key_path = Some(val.into());
+        }
+        if let Ok(val) = std::env::var("ICN_KEY_PASSPHRASE_ENV") {
+            self.key_passphrase_env = Some(val);
+        }
+        if let Ok(val) = std::env::var("ICN_HSM_LIBRARY") {
+            self.hsm_library = Some(val.into());
+        }
+        if let Ok(val) = std::env::var("ICN_HSM_KEY_ID") {
+            self.hsm_key_id = Some(val);
+        }
         if let Ok(val) = std::env::var("ICN_NODE_NAME") {
             self.node_name = val;
         }
@@ -428,10 +501,18 @@ impl NodeConfig {
         if let Ok(val) = std::env::var("ICN_TLS_KEY_PATH") {
             self.tls_key_path = Some(val.into());
         }
+        if let Ok(val) = std::env::var("ICN_TLS_MIN_VERSION") {
+            self.tls_min_version = Some(val);
+        }
+        if let Ok(val) = std::env::var("ICN_KEY_ROTATION_DAYS") {
+            if let Ok(days) = val.parse::<u64>() {
+                self.key_rotation_days = days;
+            }
+        }
     }
 
     /// Apply CLI overrides onto this configuration.
-    pub fn apply_cli_overrides(&mut self, cli: &super::node::Cli, matches: &ArgMatches) {
+    pub fn apply_cli_overrides(&mut self, cli: &super::node::Cli, matches: &clap::ArgMatches) {
         if let Some(v) = &cli.storage_backend {
             self.storage_backend = v.clone();
         }
@@ -465,6 +546,18 @@ impl NodeConfig {
         if let Some(v) = &cli.node_private_key_path {
             self.node_private_key_path = v.clone();
         }
+        if let Some(v) = &cli.key_path {
+            self.key_path = Some(v.clone());
+        }
+        if let Some(v) = &cli.key_passphrase_env {
+            self.key_passphrase_env = Some(v.clone());
+        }
+        if let Some(v) = &cli.hsm_library {
+            self.hsm_library = Some(v.clone());
+        }
+        if let Some(v) = &cli.hsm_key_id {
+            self.hsm_key_id = Some(v.clone());
+        }
         if let Some(v) = &cli.node_name {
             self.node_name = v.clone();
         }
@@ -476,6 +569,9 @@ impl NodeConfig {
         }
         if matches.contains_id("enable_p2p") {
             self.enable_p2p = true;
+        }
+        if matches.contains_id("enable_mdns") {
+            self.enable_mdns = true;
         }
         if let Some(v) = &cli.api_key {
             self.api_key = Some(v.clone());
@@ -494,6 +590,12 @@ impl NodeConfig {
         }
         if let Some(v) = &cli.tls_key_path {
             self.tls_key_path = Some(v.clone());
+        }
+        if let Some(v) = &cli.tls_min_version {
+            self.tls_min_version = Some(v.clone());
+        }
+        if let Some(v) = cli.key_rotation_days {
+            self.key_rotation_days = v;
         }
     }
 
@@ -528,57 +630,67 @@ impl NodeConfig {
     /// Initialize a DAG store based on this configuration.
     pub fn init_dag_store(
         &self,
-    ) -> Result<Arc<TokioMutex<dyn AsyncStorageService<DagBlock> + Send>>, CommonError> {
-        let store: Arc<TokioMutex<dyn AsyncStorageService<DagBlock> + Send>> = match self
-            .storage_backend
-        {
-            StorageBackendType::Memory => Arc::new(TokioMutex::new(StubDagStore::new())) as Arc<_>,
-            StorageBackendType::File => Arc::new(TokioMutex::new(TokioFileDagStore::new(
-                self.storage_path.clone(),
-            )?)) as Arc<_>,
-            StorageBackendType::Sqlite => {
-                #[cfg(feature = "persist-sqlite")]
-                {
-                    Arc::new(TokioMutex::new(SqliteDagStore::new(
-                        self.storage_path.clone(),
-                    )?)) as Arc<_>
+    ) -> Result<
+        std::sync::Arc<TokioMutex<dyn icn_dag::AsyncStorageService<DagBlock> + Send>>,
+        CommonError,
+    > {
+        let store: std::sync::Arc<TokioMutex<dyn icn_dag::AsyncStorageService<DagBlock> + Send>> =
+            match self.storage_backend {
+                StorageBackendType::Memory => std::sync::Arc::new(TokioMutex::new(
+                    CompatAsyncStore::new(icn_dag::InMemoryDagStore::new()),
+                )) as std::sync::Arc<TokioMutex<_>>,
+                StorageBackendType::File => std::sync::Arc::new(TokioMutex::new(
+                    TokioFileDagStore::new(self.storage_path.clone())?,
+                )) as std::sync::Arc<TokioMutex<_>>,
+                StorageBackendType::Sqlite => {
+                    #[cfg(feature = "persist-sqlite")]
+                    {
+                        std::sync::Arc::new(TokioMutex::new(CompatAsyncStore::new(
+                            SqliteDagStore::new(self.storage_path.clone())?,
+                        ))) as std::sync::Arc<TokioMutex<_>>
+                    }
+                    #[cfg(not(feature = "persist-sqlite"))]
+                    {
+                        return Err(CommonError::ConfigError(
+                            "sqlite backend requires 'persist-sqlite' feature".into(),
+                        ));
+                    }
                 }
-                #[cfg(not(feature = "persist-sqlite"))]
-                {
-                    return Err(CommonError::ConfigError(
-                        "sqlite backend requires 'persist-sqlite' feature".into(),
-                    ));
+                StorageBackendType::Sled => {
+                    #[cfg(feature = "persist-sled")]
+                    {
+                        std::sync::Arc::new(TokioMutex::new(CompatAsyncStore::new(
+                            SledDagStore::new(self.storage_path.clone())?,
+                        ))) as std::sync::Arc<TokioMutex<_>>
+                    }
+                    #[cfg(not(feature = "persist-sled"))]
+                    {
+                        return Err(CommonError::ConfigError(
+                            "sled backend requires 'persist-sled' feature".into(),
+                        ));
+                    }
                 }
-            }
-            StorageBackendType::Sled => {
-                #[cfg(feature = "persist-sled")]
-                {
-                    Arc::new(TokioMutex::new(SledDagStore::new(
-                        self.storage_path.clone(),
-                    )?)) as Arc<_>
+                StorageBackendType::Rocksdb => {
+                    #[cfg(feature = "persist-rocksdb")]
+                    {
+                        std::sync::Arc::new(TokioMutex::new(CompatAsyncStore::new(
+                            RocksDagStore::new(self.storage_path.clone())?,
+                        ))) as std::sync::Arc<TokioMutex<_>>
+                    }
+                    #[cfg(not(feature = "persist-rocksdb"))]
+                    {
+                        return Err(CommonError::ConfigError(
+                            "rocksdb backend requires 'persist-rocksdb' feature".into(),
+                        ));
+                    }
                 }
-                #[cfg(not(feature = "persist-sled"))]
-                {
-                    return Err(CommonError::ConfigError(
-                        "sled backend requires 'persist-sled' feature".into(),
-                    ));
-                }
-            }
-            StorageBackendType::Rocksdb => {
-                #[cfg(feature = "persist-rocksdb")]
-                {
-                    Arc::new(TokioMutex::new(RocksDagStore::new(
-                        self.storage_path.clone(),
-                    )?)) as Arc<_>
-                }
-                #[cfg(not(feature = "persist-rocksdb"))]
-                {
-                    return Err(CommonError::ConfigError(
-                        "rocksdb backend requires 'persist-rocksdb' feature".into(),
-                    ));
-                }
-            }
-        };
+                #[cfg(feature = "persist-postgres")]
+                StorageBackendType::Postgres => std::sync::Arc::new(TokioMutex::new(
+                    CompatAsyncStore::new(icn_dag::postgres_store::PostgresDagStore::new(
+                        &self.storage_path.to_string_lossy(),
+                    )?),
+                )) as std::sync::Arc<TokioMutex<_>>,
+            };
         Ok(store)
     }
 
@@ -590,5 +702,49 @@ impl NodeConfig {
         let toml_str = toml::to_string_pretty(self)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
         std::fs::write(path, toml_str)
+    }
+}
+
+#[cfg(feature = "enable-libp2p")]
+use icn_network::libp2p_service::NetworkConfig;
+#[cfg(feature = "enable-libp2p")]
+use libp2p::{Multiaddr, PeerId as Libp2pPeerId};
+
+impl NodeConfig {
+    #[cfg(feature = "enable-libp2p")]
+    pub fn libp2p_config(&self) -> Result<NetworkConfig, CommonError> {
+        let listen_addr = self
+            .listen_address
+            .parse::<Multiaddr>()
+            .map_err(|e| CommonError::ConfigError(format!("invalid p2p listen address: {e}")))?;
+
+        let bootstrap_peers = if let Some(peers) = &self.bootstrap_peers {
+            let mut parsed = Vec::new();
+            for peer_str in peers {
+                let addr = peer_str.parse::<Multiaddr>().map_err(|e| {
+                    CommonError::ConfigError(format!("invalid bootstrap peer '{peer_str}': {e}"))
+                })?;
+                if let Some(libp2p::core::multiaddr::Protocol::P2p(pid)) = addr.iter().last() {
+                    let id: Libp2pPeerId = pid
+                        .try_into()
+                        .map_err(|_| CommonError::ConfigError("invalid peer id".into()))?;
+                    parsed.push((id, addr));
+                } else {
+                    return Err(CommonError::ConfigError(format!(
+                        "bootstrap peer missing peer id: {peer_str}"
+                    )));
+                }
+            }
+            parsed
+        } else {
+            Vec::new()
+        };
+
+        Ok(NetworkConfig {
+            listen_addresses: vec![listen_addr],
+            bootstrap_peers,
+            enable_mdns: self.enable_mdns,
+            ..Default::default()
+        })
     }
 }

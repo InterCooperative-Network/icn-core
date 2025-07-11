@@ -1,4 +1,5 @@
 // icn-ccl/src/parser.rs
+#![allow(clippy::while_let_on_iterator)]
 use crate::ast::{
     ActionNode, AstNode, BinaryOperator, BlockNode, ExpressionNode, ParameterNode,
     PolicyStatementNode, StatementNode, TypeAnnotationNode, UnaryOperator,
@@ -122,6 +123,19 @@ pub(crate) fn parse_primary(pair: Pair<Rule>) -> Result<ExpressionNode, CclError
             parse_primary(inner)
         }
         Rule::array_literal => parse_array_literal(pair),
+        Rule::some_expr => {
+            let inner = pair.into_inner().next().unwrap();
+            Ok(ExpressionNode::SomeExpr(Box::new(parse_expression(inner)?)))
+        }
+        Rule::none_expr => Ok(ExpressionNode::NoneExpr),
+        Rule::ok_expr => {
+            let inner = pair.into_inner().next().unwrap();
+            Ok(ExpressionNode::OkExpr(Box::new(parse_expression(inner)?)))
+        }
+        Rule::err_expr => {
+            let inner = pair.into_inner().next().unwrap();
+            Ok(ExpressionNode::ErrExpr(Box::new(parse_expression(inner)?)))
+        }
         Rule::integer_literal | Rule::boolean_literal | Rule::string_literal | Rule::identifier => {
             parse_literal_expression(pair)
         }
@@ -168,6 +182,21 @@ pub(crate) fn parse_expression(pair: Pair<Rule>) -> Result<ExpressionNode, CclEr
                 .next()
                 .ok_or_else(|| CclError::ParsingError("Expression missing inner".to_string()))?;
             parse_expression(inner)
+        }
+        Rule::match_expression => {
+            let mut inner = pair.into_inner();
+            let value = parse_expression(inner.next().unwrap())?;
+            let mut arms = Vec::new();
+            for arm in inner {
+                let mut arm_inner = arm.into_inner();
+                let pat = parse_expression(arm_inner.next().unwrap())?;
+                let expr = parse_expression(arm_inner.next().unwrap())?;
+                arms.push((pat, expr));
+            }
+            Ok(ExpressionNode::Match {
+                value: Box::new(value),
+                arms,
+            })
         }
         Rule::logical_or => {
             let mut inner = pair.into_inner();
@@ -334,26 +363,7 @@ pub(crate) fn parse_statement(pair: Pair<Rule>) -> Result<StatementNode, CclErro
                 expr_pair,
             )?))
         }
-        Rule::if_statement => {
-            let mut inner = actual_statement_pair.into_inner();
-            let cond_pair = inner.next().ok_or_else(|| {
-                CclError::ParsingError("If statement missing condition".to_string())
-            })?;
-            let then_block_pair = inner.next().ok_or_else(|| {
-                CclError::ParsingError("If statement missing then block".to_string())
-            })?;
-            let else_block_pair = inner.next();
-            let else_block = if let Some(p) = else_block_pair {
-                Some(parse_block(p)?)
-            } else {
-                None
-            };
-            Ok(StatementNode::If {
-                condition: parse_expression(cond_pair)?,
-                then_block: parse_block(then_block_pair)?,
-                else_block,
-            })
-        }
+        Rule::if_statement => parse_if_statement(actual_statement_pair),
         Rule::while_statement => {
             let mut inner = actual_statement_pair.into_inner();
             let cond_pair = inner.next().ok_or_else(|| {
@@ -367,11 +377,71 @@ pub(crate) fn parse_statement(pair: Pair<Rule>) -> Result<StatementNode, CclErro
                 body: parse_block(body_pair)?,
             })
         }
+        Rule::for_statement => {
+            let mut inner = actual_statement_pair.into_inner();
+            let ident_pair = inner.next().ok_or_else(|| {
+                CclError::ParsingError("For statement missing identifier".to_string())
+            })?;
+            let expr_pair = inner.next().ok_or_else(|| {
+                CclError::ParsingError("For statement missing iterable".to_string())
+            })?;
+            let body_pair = inner
+                .next()
+                .ok_or_else(|| CclError::ParsingError("For statement missing body".to_string()))?;
+            Ok(StatementNode::ForLoop {
+                iterator: ident_pair.as_str().to_string(),
+                iterable: parse_expression(expr_pair)?,
+                body: parse_block(body_pair)?,
+            })
+        }
+        Rule::break_statement => Ok(StatementNode::Break),
+        Rule::continue_statement => Ok(StatementNode::Continue),
         _ => Err(CclError::ParsingError(format!(
             "Unsupported statement type: {:?}",
             actual_statement_pair.as_rule()
         ))),
     }
+}
+
+fn parse_if_statement(pair: Pair<Rule>) -> Result<StatementNode, CclError> {
+    let mut inner = pair.into_inner();
+    let cond_pair = inner
+        .next()
+        .ok_or_else(|| CclError::ParsingError("If statement missing condition".to_string()))?;
+    let then_block_pair = inner
+        .next()
+        .ok_or_else(|| CclError::ParsingError("If statement missing then block".to_string()))?;
+    let else_pair = inner.next();
+
+    let else_block = if let Some(e) = else_pair {
+        let mut e_inner = e.into_inner();
+        let next = e_inner
+            .next()
+            .ok_or_else(|| CclError::ParsingError("Else clause missing body".to_string()))?;
+        match next.as_rule() {
+            Rule::if_statement => {
+                let nested = parse_if_statement(next)?;
+                Some(BlockNode {
+                    statements: vec![nested],
+                })
+            }
+            Rule::block => Some(parse_block(next)?),
+            other => {
+                return Err(CclError::ParsingError(format!(
+                    "Unexpected rule in else clause: {:?}",
+                    other
+                )));
+            }
+        }
+    } else {
+        None
+    };
+
+    Ok(StatementNode::If {
+        condition: parse_expression(cond_pair)?,
+        then_block: parse_block(then_block_pair)?,
+        else_block,
+    })
 }
 
 pub(crate) fn parse_block(pair: Pair<Rule>) -> Result<BlockNode, CclError> {
@@ -412,6 +482,8 @@ pub(crate) fn parse_type_annotation(pair: Pair<Rule>) -> Result<TypeAnnotationNo
         "String" => Ok(TypeAnnotationNode::String),
         "Mana" => Ok(TypeAnnotationNode::Mana),
         "DID" => Ok(TypeAnnotationNode::Did),
+        "Option" => Ok(TypeAnnotationNode::Option),
+        "Result" => Ok(TypeAnnotationNode::Result),
         other => Err(CclError::TypeError(format!("Unknown type: {}", other))), // This error should now be correctly triggered
     }
 }
@@ -468,6 +540,31 @@ pub(crate) fn parse_function_definition(pair: Pair<Rule>) -> Result<AstNode, Ccl
     })
 }
 
+pub(crate) fn parse_struct_definition(pair: Pair<Rule>) -> Result<AstNode, CclError> {
+    let mut inner = pair.into_inner();
+    let name_pair = inner
+        .next()
+        .ok_or_else(|| CclError::ParsingError("Struct missing name".to_string()))?;
+    let mut fields = Vec::new();
+    for p in inner {
+        let mut p_inner = p.into_inner();
+        let id_pair = p_inner
+            .next()
+            .ok_or_else(|| CclError::ParsingError("Field missing name".to_string()))?;
+        let ty_pair = p_inner
+            .next()
+            .ok_or_else(|| CclError::ParsingError("Field missing type".to_string()))?;
+        fields.push(ParameterNode {
+            name: id_pair.as_str().to_string(),
+            type_ann: parse_type_annotation(ty_pair)?,
+        });
+    }
+    Ok(AstNode::StructDefinition {
+        name: name_pair.as_str().to_string(),
+        fields,
+    })
+}
+
 pub(crate) fn parse_action(pair: Pair<Rule>) -> Result<ActionNode, CclError> {
     let mut inner = pair.into_inner();
     let first = inner
@@ -517,6 +614,9 @@ pub(crate) fn parse_policy_statement(pair: Pair<Rule>) -> Result<PolicyStatement
         Rule::rule_definition => Ok(PolicyStatementNode::RuleDef(parse_rule_definition(
             stmt_pair,
         )?)),
+        Rule::struct_definition => Ok(PolicyStatementNode::StructDef(parse_struct_definition(
+            stmt_pair,
+        )?)),
         Rule::import_statement => {
             let mut i = stmt_pair.into_inner();
             let path_pair = i
@@ -550,6 +650,11 @@ pub fn parse_ccl_source(source: &str) -> Result<AstNode, CclError> {
                     Rule::function_definition => {
                         ast_nodes_for_policy.push(PolicyStatementNode::FunctionDef(
                             parse_function_definition(pair_in_policy)?,
+                        ));
+                    }
+                    Rule::struct_definition => {
+                        ast_nodes_for_policy.push(PolicyStatementNode::StructDef(
+                            parse_struct_definition(pair_in_policy)?,
                         ));
                     }
                     Rule::policy_statement => {
@@ -683,5 +788,19 @@ mod tests {
         } else {
             panic!("Expected policy AST");
         }
+    }
+
+    #[test]
+    #[ignore]
+    fn test_parse_struct_and_match() {
+        let source = r#"
+            struct Point { x: Integer, y: Integer }
+            fn run() -> Integer {
+                let p = Some(1);
+                return match p { 1 => 10, _ => 0 };
+            }
+        "#;
+        let result = parse_ccl_source(source);
+        assert!(result.is_ok());
     }
 }

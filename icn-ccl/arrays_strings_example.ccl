@@ -1,0 +1,7 @@
+fn run() -> Integer {
+    let nums = [1,2,3];
+    array_push(nums, 10);
+    let len = array_len(nums);
+    let last = array_pop(nums);
+    return len + last;
+}

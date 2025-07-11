@@ -1,0 +1,15 @@
+{
+  "uid": "governance-activity",
+  "title": "Governance Activity",
+  "schemaVersion": 37,
+  "version": 1,
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Proposals Submitted",
+      "datasource": "Prometheus",
+      "targets": [{"expr": "governance_submit_proposal_calls"}],
+      "gridPos": {"h":4,"w":6,"x":0,"y":0}
+    }
+  ]
+}

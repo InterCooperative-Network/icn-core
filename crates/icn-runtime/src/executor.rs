@@ -1,6 +1,7 @@
 //! This module provides executor-side functionality for running mesh jobs.
 
 use crate::context::RuntimeContext;
+use crate::metrics::{WASM_MEMORY_GROWTH_DENIED, WASM_TABLE_GROWTH_DENIED};
 use crate::{host_account_get_mana, host_get_reputation};
 use icn_ccl::ContractMetadata;
 use icn_common::{Cid, CommonError, Did};
@@ -99,6 +100,7 @@ impl ResourceLimiter for ICNResourceLimiter {
                 "WASM memory limit exceeded: {} bytes > {} bytes",
                 desired, self.max_memory_bytes
             );
+            WASM_MEMORY_GROWTH_DENIED.inc();
             return Ok(false); // Deny the growth
         }
         Ok(true)
@@ -113,6 +115,7 @@ impl ResourceLimiter for ICNResourceLimiter {
         // Limit table growth (simple check)
         if desired > 1000 {
             warn!("WASM table size limit exceeded: {} > {}", desired, 1000);
+            WASM_TABLE_GROWTH_DENIED.inc();
             return Ok(false); // Deny the growth
         }
         Ok(true)
@@ -269,6 +272,7 @@ impl JobExecutor for SimpleExecutor {
                 let meta_bytes = {
                     #[cfg(feature = "async")]
                     let store = ctx.dag_store.lock().await;
+<<<<<<< HEAD
                     #[cfg(not(feature = "async"))]
                     let store = ctx.dag_store.lock().unwrap();
 
@@ -290,6 +294,15 @@ impl JobExecutor for SimpleExecutor {
                     CommonError::ResourceNotFound("CCL contract metadata not found".to_string())
                 })?
                 .data;
+=======
+                    store
+                        .get(&job.manifest_cid)
+                        .await
+                        .map_err(|e| CommonError::InternalError(e.to_string()))?
+                        .ok_or_else(|| CommonError::ResourceNotFound("Metadata not found".into()))?
+                        .data
+                };
+>>>>>>> develop
 
                 // Parse and validate metadata
                 let meta: ContractMetadata = serde_json::from_slice(&meta_bytes)
@@ -301,6 +314,7 @@ impl JobExecutor for SimpleExecutor {
                 {
                     #[cfg(feature = "async")]
                     let store = ctx.dag_store.lock().await;
+<<<<<<< HEAD
                     #[cfg(not(feature = "async"))]
                     let store = ctx.dag_store.lock().unwrap();
 
@@ -327,6 +341,17 @@ impl JobExecutor for SimpleExecutor {
                                 )
                             })?;
                     }
+=======
+                    store
+                        .get(&wasm_cid)
+                        .await
+                        .map_err(|e| CommonError::InternalError(e.to_string()))?
+                        .ok_or_else(|| {
+                            CommonError::ResourceNotFound(
+                                "Referenced WASM module not found".to_string(),
+                            )
+                        })?;
+>>>>>>> develop
                 }
 
                 let signer = std::sync::Arc::new(crate::context::StubSigner::new_with_keys(
@@ -354,6 +379,7 @@ impl JobExecutor for SimpleExecutor {
                 let manifest_bytes = {
                     #[cfg(feature = "async")]
                     let store = ctx.dag_store.lock().await;
+<<<<<<< HEAD
                     #[cfg(not(feature = "async"))]
                     let store = ctx.dag_store.lock().unwrap();
 
@@ -370,6 +396,12 @@ impl JobExecutor for SimpleExecutor {
                             .get(&job.manifest_cid)
                             .map_err(|e| CommonError::StorageError(format!("{e}")))?
                     }
+=======
+                    store
+                        .get(&job.manifest_cid)
+                        .await
+                        .map_err(|e| CommonError::InternalError(e.to_string()))?
+>>>>>>> develop
                 }
                 .ok_or_else(|| CommonError::ResourceNotFound("Manifest not found".into()))?
                 .data;
@@ -493,6 +525,7 @@ impl JobExecutor for WasmExecutor {
         );
 
         let wasm_bytes = {
+<<<<<<< HEAD
             #[cfg(feature = "async")]
             let store = self.ctx.dag_store.lock().await;
             #[cfg(not(feature = "async"))]
@@ -515,6 +548,15 @@ impl JobExecutor for WasmExecutor {
                     .ok_or_else(|| CommonError::ResourceNotFound("WASM module not found".into()))?
                     .data
             }
+=======
+            let store = self.ctx.dag_store.lock().await;
+            let block = store
+                .get(&job.manifest_cid)
+                .await
+                .map_err(|e| CommonError::InternalError(e.to_string()))?
+                .ok_or_else(|| CommonError::ResourceNotFound("WASM module not found".into()))?;
+            block.data
+>>>>>>> develop
         };
 
         // Security validation of the WASM module
@@ -526,9 +568,11 @@ impl JobExecutor for WasmExecutor {
         // Configure timeout and resource limits
         let timeout_duration =
             Duration::from_secs(self.config.security_limits.max_execution_time_secs);
-        // TODO: Fix ResourceLimiter lifetime issue
-        // let limiter = Box::leak(Box::new(ICNResourceLimiter::new(self.config.max_memory, timeout_duration)));
-        // store.limiter(move |_| limiter);
+        let max_mem = self.config.max_memory;
+        store.limiter(move |_| {
+            Box::leak(Box::new(ICNResourceLimiter::new(max_mem, timeout_duration)))
+                as &'static mut dyn ResourceLimiter
+        });
 
         store
             .set_fuel(self.config.fuel)

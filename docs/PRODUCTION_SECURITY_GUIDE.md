@@ -59,6 +59,23 @@ let runtime_context = RuntimeContext::new_with_stub_signer(config).await?;
    icn-cli identity rotate-key --current-key-path ./current_key.pem
    ```
 
+### **Key Storage Configuration**
+
+Ed25519 private keys can be stored encrypted on disk or managed by a hardware security module.
+
+```toml
+[identity]
+# Encrypted key file path
+key_path = "/secrets/node.key.enc"
+# Passphrase is read from `ICN_KEY_PASSPHRASE`
+
+# HSM configuration (optional)
+hsm_library = "/usr/lib/softhsm/libsofthsm2.so"
+hsm_key_id = "icn-node-key"
+```
+
+Set the `ICN_KEY_PASSPHRASE` environment variable to decrypt the key file at startup. When `hsm_library` and `hsm_key_id` are provided, the runtime will attempt to load the key from the HSM instead of disk.
+
 ---
 
 ## 🔒 **API Authentication**
@@ -130,6 +147,8 @@ ICN provides native TLS support using Rustls:
   --tls-key-path /etc/ssl/private/server.key \
   --api-key "your-api-key"
 ```
+Implementation note: the node loads these certificate paths and starts the
+Rustls server in [`crates/icn-node/src/node.rs`](../crates/icn-node/src/node.rs).
 
 ### **Certificate Management**
 
@@ -172,6 +191,8 @@ node_name = "Production Federation Node"
 http_listen_addr = "0.0.0.0:8443"
 tls_cert_path = "/etc/letsencrypt/live/your-node.domain.com/fullchain.pem"
 tls_key_path = "/etc/letsencrypt/live/your-node.domain.com/privkey.pem"
+tls_min_version = "1.3"
+key_rotation_days = 90
 api_key = "production-api-key"
 auth_token = "production-bearer-token"
 ```
@@ -347,6 +368,14 @@ RUST_LOG=audit=info,icn_node=info
 // - Federation changes
 // - Configuration changes
 ```
+Implementation note: events are emitted using
+`info!(target = "audit", ...)` in
+[`crates/icn-node/src/node.rs`](../crates/icn-node/src/node.rs).
+
+All requests include a `X-Correlation-ID` header for traceability. If a client
+does not supply one, the node generates a UUID and returns it in the response.
+Logs emitted during request handling include this value on the `request` target
+so events across services can be correlated.
 
 ### **Log Monitoring Setup**
 
@@ -404,6 +433,8 @@ Grafana dashboard for ICN security monitoring:
 ### **Network Security**
 
 - [ ] **Firewall Configuration**: Only allow necessary ports (443, P2P port)
+  - Use `ufw` or `iptables` to permit HTTPS and the P2P port configured in
+    `node_config.toml`. Block all other inbound traffic.
 - [ ] **DDoS Protection**: Implement rate limiting and connection limits
 - [ ] **Network Segmentation**: Isolate ICN nodes in secure network zones
 - [ ] **VPN Access**: Require VPN for administrative access
@@ -418,16 +449,22 @@ Grafana dashboard for ICN security monitoring:
 ### **Application Security**
 
 - [ ] **Authentication**: Enable both API key and bearer token auth
-- [ ] **TLS Configuration**: Use TLS 1.3 with strong ciphers
+- [x] **TLS Configuration**: Use TLS 1.3 with strong ciphers
 - [ ] **Rate Limiting**: Configure appropriate rate limits
-- [ ] **Audit Logging**: Enable comprehensive audit logging
+- [x] **Audit Logging**: Enable comprehensive audit logging
 - [ ] **Regular Updates**: Keep ICN software updated
 
 ### **Operational Security**
 
-- [ ] **Key Rotation**: Implement regular key rotation schedule
+- [x] **Key Rotation**: Implement regular key rotation schedule
+  - The schedule is configured via `key_rotation_days` in
+    [`crates/icn-node/src/config.rs`](../crates/icn-node/src/config.rs).
 - [ ] **Backup Security**: Encrypt and secure backup data
+  - Encrypt backups with GPG or volume encryption and store them in restricted
+    offsite storage. Test restore procedures regularly.
 - [ ] **Incident Response**: Develop incident response procedures
+  - Create a runbook outlining detection, containment, and recovery steps.
+    Define on-call roles and escalation contacts.
 - [ ] **Security Monitoring**: Set up alerting for security events
 
 ### **Data Protection**
@@ -535,6 +572,8 @@ mana_ledger_backend = "sled"
 mana_ledger_path = "/var/lib/icn/data/mana.sled"
 tls_cert_path = "/etc/letsencrypt/live/your-node.domain.com/fullchain.pem"
 tls_key_path = "/etc/letsencrypt/live/your-node.domain.com/privkey.pem"
+tls_min_version = "1.3"
+key_rotation_days = 90
 api_key = "$API_KEY"
 auth_token = "$BEARER_TOKEN"
 open_rate_limit = 0
@@ -552,5 +591,4 @@ curl -H "x-api-key: $API_KEY" -H "Authorization: Bearer $BEARER_TOKEN" \
 ```
 
 ---
-
 **🔒 Remember: Security is an ongoing process, not a one-time setup. Regularly review and update your security configuration as the ICN ecosystem evolves.** 

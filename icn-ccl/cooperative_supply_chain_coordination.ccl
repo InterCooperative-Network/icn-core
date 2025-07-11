@@ -1,0 +1,358 @@
+// ICN Cooperative Contract: Supply Chain Coordination System
+// This contract manages cooperative supply chain operations including:
+// - Bulk purchasing coordination and cost distribution
+// - Quality assessment and supplier evaluation
+// - Inventory management and resource sharing
+// - Distribution logistics and fair allocation
+
+fn calculate_bulk_purchase_savings(
+    individual_price: Integer,
+    bulk_price: Integer,
+    quantity_ordered: Integer,
+    shipping_cost: Integer,
+    coordination_fee: Integer
+) -> Integer {
+    // Returns savings per unit in cents
+    let individual_total = individual_price * quantity_ordered;
+    let bulk_total = bulk_price * quantity_ordered;
+    let bulk_with_costs = bulk_total + shipping_cost + coordination_fee;
+    
+    let total_savings = individual_total - bulk_with_costs;
+    let savings_per_unit = total_savings / quantity_ordered;
+    
+    // Ensure non-negative savings
+    let negative_check = 0 / savings_per_unit; // 1 if negative, 0 if positive
+    let final_savings = savings_per_unit * (1 - negative_check);
+    
+    return final_savings;
+}
+
+fn evaluate_supplier_quality(
+    price_competitiveness: Integer,
+    delivery_reliability: Integer,
+    product_quality: Integer,
+    ethical_practices: Integer,
+    cooperative_values_alignment: Integer,
+    environmental_impact: Integer
+) -> Integer {
+    // Returns supplier score 0-100
+    let score = 0;
+    
+    // Price competitiveness (0-15 points)
+    let price_points = 0;
+    let excellent_price_check = price_competitiveness / 90;
+    let good_price_check = price_competitiveness / 75;
+    let fair_price_check = price_competitiveness / 60;
+    
+    let price_points = 15 * excellent_price_check + 
+                      12 * (good_price_check - excellent_price_check) + 
+                      8 * (fair_price_check - good_price_check);
+    
+    // Delivery reliability (0-20 points)
+    let delivery_points = 0;
+    let excellent_delivery_check = delivery_reliability / 95;
+    let good_delivery_check = delivery_reliability / 85;
+    let fair_delivery_check = delivery_reliability / 70;
+    
+    let delivery_points = 20 * excellent_delivery_check + 
+                         15 * (good_delivery_check - excellent_delivery_check) + 
+                         10 * (fair_delivery_check - good_delivery_check);
+    
+    // Product quality (0-20 points)
+    let quality_points = 0;
+    let excellent_quality_check = product_quality / 90;
+    let good_quality_check = product_quality / 80;
+    let fair_quality_check = product_quality / 65;
+    
+    let quality_points = 20 * excellent_quality_check + 
+                        15 * (good_quality_check - excellent_quality_check) + 
+                        10 * (fair_quality_check - good_quality_check);
+    
+    // Ethical practices (0-15 points)
+    let ethics_points = 0;
+    let excellent_ethics_check = ethical_practices / 90;
+    let good_ethics_check = ethical_practices / 75;
+    let fair_ethics_check = ethical_practices / 60;
+    
+    let ethics_points = 15 * excellent_ethics_check + 
+                       12 * (good_ethics_check - excellent_ethics_check) + 
+                       8 * (fair_ethics_check - good_ethics_check);
+    
+    // Cooperative values alignment (0-15 points)
+    let values_points = 0;
+    let excellent_values_check = cooperative_values_alignment / 85;
+    let good_values_check = cooperative_values_alignment / 70;
+    let fair_values_check = cooperative_values_alignment / 55;
+    
+    let values_points = 15 * excellent_values_check + 
+                       12 * (good_values_check - excellent_values_check) + 
+                       8 * (fair_values_check - good_values_check);
+    
+    // Environmental impact (0-15 points)
+    let environmental_points = 0;
+    let excellent_env_check = environmental_impact / 85;
+    let good_env_check = environmental_impact / 70;
+    let fair_env_check = environmental_impact / 55;
+    
+    let environmental_points = 15 * excellent_env_check + 
+                              12 * (good_env_check - excellent_env_check) + 
+                              8 * (fair_env_check - good_env_check);
+    
+    let total_score = price_points + delivery_points + quality_points + 
+                     ethics_points + values_points + environmental_points;
+    
+    return total_score;
+}
+
+fn calculate_fair_allocation(
+    total_quantity: Integer,
+    member_request: Integer,
+    member_contribution: Integer,
+    member_size: Integer,
+    priority_level: Integer,
+    historical_usage: Integer
+) -> Integer {
+    // Returns allocated quantity for this member
+    let base_allocation = member_request;
+    
+    // Contribution adjustment (members who contribute more get preference)
+    let contribution_factor = 100; // Default 100%
+    let high_contrib_check = member_contribution / 80;
+    let medium_contrib_check = member_contribution / 60;
+    let low_contrib_check = member_contribution / 40;
+    
+    let contribution_factor = 120 * high_contrib_check + 
+                             100 * (medium_contrib_check - high_contrib_check) + 
+                             80 * (low_contrib_check - medium_contrib_check) + 
+                             60 * (1 - low_contrib_check);
+    
+    // Size adjustment (larger organizations get some preference)
+    let size_factor = 100; // Default 100%
+    let large_org_check = member_size / 50; // 1 if >= 50 members
+    let medium_org_check = member_size / 20; // 1 if >= 20 members
+    let small_org_check = member_size / 5; // 1 if >= 5 members
+    
+    let size_factor = 110 * large_org_check + 
+                     105 * (medium_org_check - large_org_check) + 
+                     100 * (small_org_check - medium_org_check) + 
+                     95 * (1 - small_org_check);
+    
+    // Priority adjustment (urgent needs get preference)
+    let priority_factor = 100; // Default 100%
+    let urgent_check = priority_level / 3; // 1 if priority >= 3
+    let high_check = priority_level / 2; // 1 if priority >= 2
+    let normal_check = priority_level / 1; // 1 if priority >= 1
+    
+    let priority_factor = 150 * urgent_check + 
+                         125 * (high_check - urgent_check) + 
+                         100 * (normal_check - high_check) + 
+                         75 * (1 - normal_check);
+    
+    // Historical usage adjustment (balance newcomers vs. regular users)
+    let history_factor = 100; // Default 100%
+    let regular_user_check = historical_usage / 80;
+    let occasional_user_check = historical_usage / 40;
+    let new_user_check = historical_usage / 10;
+    
+    let history_factor = 105 * regular_user_check + 
+                        100 * (occasional_user_check - regular_user_check) + 
+                        110 * (new_user_check - occasional_user_check) + 
+                        95 * (1 - new_user_check);
+    
+    // Apply all factors
+    let adjusted_allocation = base_allocation * contribution_factor / 100;
+    let size_adjusted = adjusted_allocation * size_factor / 100;
+    let priority_adjusted = size_adjusted * priority_factor / 100;
+    let final_allocation = priority_adjusted * history_factor / 100;
+    
+    // Ensure we don't exceed request or available quantity
+    let over_request = final_allocation / member_request; // 1 if > request
+    let capped_allocation = final_allocation * (1 - over_request) + member_request * over_request;
+    
+    let over_available = capped_allocation / total_quantity; // 1 if > available
+    let final_capped = capped_allocation * (1 - over_available) + total_quantity * over_available;
+    
+    return final_capped;
+}
+
+fn calculate_distribution_cost(
+    distance_km: Integer,
+    package_weight: Integer,
+    delivery_urgency: Integer,
+    shared_route: Integer,
+    cooperative_discount: Integer
+) -> Integer {
+    // Returns distribution cost in cents
+    let base_cost = 500; // $5.00 base cost
+    
+    // Distance cost (linear with distance)
+    let distance_cost = distance_km * 15; // 15 cents per km
+    
+    // Weight cost (for heavy packages)
+    let weight_cost = 0;
+    let heavy_check = package_weight / 20; // 1 if >= 20 kg
+    let medium_check = package_weight / 10; // 1 if >= 10 kg
+    let light_check = package_weight / 5; // 1 if >= 5 kg
+    
+    let weight_cost = 300 * heavy_check + 
+                     150 * (medium_check - heavy_check) + 
+                     50 * (light_check - medium_check);
+    
+    // Urgency surcharge
+    let urgency_cost = 0;
+    let same_day_check = delivery_urgency / 1; // 1 if same day
+    let next_day_check = delivery_urgency / 2; // 1 if next day
+    let standard_check = delivery_urgency / 3; // 1 if standard
+    
+    let urgency_cost = 1000 * same_day_check + 
+                      500 * (next_day_check - same_day_check) + 
+                      100 * (standard_check - next_day_check);
+    
+    // Shared route discount
+    let route_discount = 0;
+    let shared_check = shared_route / 1; // 1 if shared route available
+    let route_discount = 200 * shared_check; // $2.00 discount for shared routes
+    
+    // Cooperative member discount
+    let member_discount = cooperative_discount; // Direct discount amount
+    
+    let total_cost = base_cost + distance_cost + weight_cost + urgency_cost - route_discount - member_discount;
+    
+    // Minimum cost floor
+    let minimum_cost = 100; // $1.00 minimum
+    let below_minimum = minimum_cost / total_cost; // 1 if total_cost < minimum
+    let final_cost = total_cost * (1 - below_minimum) + minimum_cost * below_minimum;
+    
+    return final_cost;
+}
+
+fn assess_inventory_sharing_opportunity(
+    item_demand: Integer,
+    item_supply: Integer,
+    member_proximity: Integer,
+    item_urgency: Integer,
+    sharing_history: Integer,
+    trust_level: Integer
+) -> Integer {
+    // Returns opportunity score 0-100
+    let score = 0;
+    
+    // Supply-demand mismatch (higher mismatch = better opportunity)
+    let mismatch_score = 0;
+    let surplus_check = item_supply / item_demand; // 1 if surplus
+    let shortage_check = item_demand / item_supply; // 1 if shortage
+    
+    let mismatch_score = 25 * surplus_check + 30 * shortage_check;
+    
+    // Proximity factor (closer members = better opportunity)
+    let proximity_score = 0;
+    let very_close_check = member_proximity / 90; // 1 if >= 90% proximity
+    let close_check = member_proximity / 70; // 1 if >= 70% proximity
+    let nearby_check = member_proximity / 50; // 1 if >= 50% proximity
+    
+    let proximity_score = 25 * very_close_check + 
+                         20 * (close_check - very_close_check) + 
+                         15 * (nearby_check - close_check);
+    
+    // Urgency factor (urgent needs = better opportunity)
+    let urgency_score = 0;
+    let critical_check = item_urgency / 90;
+    let high_check = item_urgency / 70;
+    let medium_check = item_urgency / 50;
+    
+    let urgency_score = 20 * critical_check + 
+                       15 * (high_check - critical_check) + 
+                       10 * (medium_check - high_check);
+    
+    // Sharing history (good sharing track record = better opportunity)
+    let history_score = 0;
+    let excellent_history_check = sharing_history / 85;
+    let good_history_check = sharing_history / 70;
+    let fair_history_check = sharing_history / 55;
+    
+    let history_score = 15 * excellent_history_check + 
+                       12 * (good_history_check - excellent_history_check) + 
+                       8 * (fair_history_check - good_history_check);
+    
+    // Trust level (high trust = better opportunity)
+    let trust_score = 0;
+    let high_trust_check = trust_level / 80;
+    let medium_trust_check = trust_level / 60;
+    let basic_trust_check = trust_level / 40;
+    
+    let trust_score = 15 * high_trust_check + 
+                     12 * (medium_trust_check - high_trust_check) + 
+                     8 * (basic_trust_check - medium_trust_check);
+    
+    let total_score = mismatch_score + proximity_score + urgency_score + history_score + trust_score;
+    
+    // Cap at 100
+    let over_cap = total_score / 101; // 1 if > 100
+    let final_score = total_score * (1 - over_cap) + 100 * over_cap;
+    
+    return final_score;
+}
+
+// Main entry point - Example supply chain coordination scenario
+fn run() -> Integer {
+    // Example: Regional Food Cooperative Bulk Purchase
+    let individual_price = 1250;       // $12.50 per unit individual price
+    let bulk_price = 950;              // $9.50 per unit bulk price
+    let quantity_ordered = 500;        // 500 units ordered
+    let shipping_cost = 15000;         // $150 shipping cost
+    let coordination_fee = 5000;       // $50 coordination fee
+    
+    // Calculate bulk purchase savings
+    let savings_per_unit = calculate_bulk_purchase_savings(
+        individual_price,
+        bulk_price,
+        quantity_ordered,
+        shipping_cost,
+        coordination_fee
+    );
+    
+    // Evaluate supplier quality
+    let supplier_score = evaluate_supplier_quality(
+        85, // Price competitiveness
+        92, // Delivery reliability
+        88, // Product quality
+        95, // Ethical practices
+        90, // Cooperative values alignment
+        82  // Environmental impact
+    );
+    
+    // Calculate fair allocation for a member
+    let member_allocation = calculate_fair_allocation(
+        500, // Total quantity
+        75,  // Member request
+        80,  // Member contribution score
+        25,  // Member organization size
+        2,   // Priority level (high)
+        70   // Historical usage
+    );
+    
+    // Calculate distribution cost
+    let distribution_cost = calculate_distribution_cost(
+        45,  // Distance in km
+        150, // Package weight in kg
+        3,   // Standard delivery
+        1,   // Shared route available
+        100  // $1.00 cooperative discount
+    );
+    
+    // Assess inventory sharing opportunity
+    let sharing_opportunity = assess_inventory_sharing_opportunity(
+        120, // Item demand
+        80,  // Item supply
+        85,  // Member proximity
+        75,  // Item urgency
+        88,  // Sharing history
+        92   // Trust level
+    );
+    
+    // Return composite result encoding multiple metrics
+    // Format: savings_per_unit + supplier_score * 1000 + member_allocation * 10000 + distribution_cost * 100000
+    let composite_result = savings_per_unit + supplier_score * 1000 + member_allocation * 10000 + distribution_cost * 100000;
+    
+    return composite_result;
+} 

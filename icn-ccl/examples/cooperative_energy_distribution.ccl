@@ -1,0 +1,19 @@
+// Community Energy Distribution Example
+// Uses loops and array operations
+
+fn distribute(total_kw: Integer, houses: Array<Integer>) -> Array<Integer> {
+    let count = array_len(houses);
+    let per = total_kw / count;
+    let i = 0;
+    while i < count {
+        houses[i] = houses[i] + per;
+        let i = i + 1;
+    }
+    return houses;
+}
+
+fn run() -> Integer {
+    let households = [10, 12, 15];
+    let final = distribute(30, households);
+    return array_len(final);
+}

@@ -58,6 +58,7 @@ pub enum ProposalType {
     RemoveMember(Did),                     // DID of the member to remove
     SoftwareUpgrade(String),               // Version or identifier for the upgrade
     GenericText(String),                   // For general purpose proposals
+    BudgetAllocation(u64, String),         // amount, purpose
 }
 
 /// Current lifecycle state of a proposal.
@@ -1205,7 +1206,7 @@ mod tests {
     fn test_submit_governance_proposal() {
         let node_info = NodeInfo {
             name: "TestNode".to_string(),
-            version: "0.1.0".to_string(),
+            version: "0.2.0-beta".to_string(),
             status_message: "Testing".to_string(),
         };
         let result = submit_governance_proposal(&node_info, 123);

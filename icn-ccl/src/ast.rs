@@ -12,6 +12,10 @@ pub enum AstNode {
         return_type: TypeAnnotationNode,
         body: BlockNode,
     },
+    StructDefinition {
+        name: String,
+        fields: Vec<ParameterNode>,
+    },
     RuleDefinition {
         name: String,
         condition: ExpressionNode,
@@ -25,6 +29,7 @@ pub enum AstNode {
 pub enum PolicyStatementNode {
     FunctionDef(AstNode), // Using AstNode::FunctionDefinition
     RuleDef(AstNode),     // Using AstNode::RuleDefinition
+    StructDef(AstNode),
     Import { path: String, alias: String },
 }
 
@@ -44,7 +49,9 @@ pub enum TypeAnnotationNode {
     Array(Box<TypeAnnotationNode>), // Arrays of any type, e.g., Array<Integer>
     Proposal,                       // Governance proposal type
     Vote,                           // Vote type for governance
-    Custom(String),                 // For user-defined types or imported ones
+    Option,
+    Result,
+    Custom(String), // For user-defined types or imported ones
 }
 
 impl TypeAnnotationNode {
@@ -77,6 +84,16 @@ impl TypeAnnotationNode {
                 | TypeAnnotationNode::Did
         )
     }
+
+    /// Returns true if values of this type live in guest memory rather than
+    /// being passed directly on the stack. Strings and arrays are reference
+    /// types and therefore require memory management in the generated WASM.
+    pub fn requires_memory(&self) -> bool {
+        matches!(
+            self,
+            TypeAnnotationNode::String | TypeAnnotationNode::Array(_)
+        )
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -101,7 +118,13 @@ pub enum StatementNode {
         condition: ExpressionNode,
         body: BlockNode,
     },
-    // ... other statement types (loop, etc.)
+    ForLoop {
+        iterator: String,
+        iterable: ExpressionNode,
+        body: BlockNode,
+    },
+    Break,
+    Continue,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -127,6 +150,14 @@ pub enum ExpressionNode {
     ArrayAccess {
         array: Box<ExpressionNode>,
         index: Box<ExpressionNode>,
+    },
+    SomeExpr(Box<ExpressionNode>),
+    NoneExpr,
+    OkExpr(Box<ExpressionNode>),
+    ErrExpr(Box<ExpressionNode>),
+    Match {
+        value: Box<ExpressionNode>,
+        arms: Vec<(ExpressionNode, ExpressionNode)>,
     },
     // ... other expression types (member access, etc.)
 }
@@ -178,6 +209,11 @@ pub fn pair_to_ast(
                             parser::parse_function_definition(inner)?,
                         ));
                     }
+                    Rule::struct_definition => {
+                        items.push(PolicyStatementNode::StructDef(
+                            parser::parse_struct_definition(inner)?,
+                        ));
+                    }
                     Rule::policy_statement => {
                         let mut stmt_inner = inner.into_inner();
                         let stmt = stmt_inner.next().ok_or_else(|| {
@@ -219,6 +255,7 @@ pub fn pair_to_ast(
             Ok(AstNode::Policy(items))
         }
         Rule::function_definition => parser::parse_function_definition(pair),
+        Rule::struct_definition => parser::parse_struct_definition(pair),
         Rule::rule_definition => parser::parse_rule_definition(pair),
         Rule::import_statement => {
             let mut i = pair.into_inner();
@@ -246,6 +283,7 @@ pub fn pair_to_ast(
                 }]))
             }
             PolicyStatementNode::FunctionDef(func) => Ok(func),
+            PolicyStatementNode::StructDef(def) => Ok(def),
         },
         Rule::statement => Ok(AstNode::Block(BlockNode {
             statements: vec![parser::parse_statement(pair)?],

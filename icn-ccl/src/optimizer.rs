@@ -45,6 +45,7 @@ impl Optimizer {
                 action: self.fold_action(action),
             },
             AstNode::Block(b) => AstNode::Block(self.fold_block(b)),
+            AstNode::StructDefinition { .. } => ast,
         }
     }
 
@@ -57,6 +58,7 @@ impl Optimizer {
             PolicyStatementNode::Import { path, alias } => {
                 PolicyStatementNode::Import { path, alias }
             }
+            PolicyStatementNode::StructDef(s) => PolicyStatementNode::StructDef(self.fold_ast(s)),
         }
     }
 
@@ -93,6 +95,17 @@ impl Optimizer {
                 condition: self.fold_expr(condition),
                 body: self.fold_block(body),
             },
+            StatementNode::ForLoop {
+                iterator,
+                iterable,
+                body,
+            } => StatementNode::ForLoop {
+                iterator,
+                iterable: self.fold_expr(iterable),
+                body: self.fold_block(body),
+            },
+            StatementNode::Break => StatementNode::Break,
+            StatementNode::Continue => StatementNode::Continue,
         }
     }
 

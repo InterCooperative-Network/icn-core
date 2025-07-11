@@ -1,0 +1,176 @@
+// ICN Cooperative Contract: Dividend Distribution System
+// This contract calculates profit distribution for cooperative members based on:
+// - Member contribution level (work hours, quality, leadership)
+// - Seniority and membership duration
+// - Democratic adjustments and special circumstances
+// - Cooperative bylaws and policies
+
+fn calculate_base_dividend(total_profit: Integer, member_count: Integer) -> Integer {
+    let equal_share = total_profit / member_count;
+    return equal_share;
+}
+
+fn apply_contribution_multiplier(base_dividend: Integer, work_hours: Integer, quality_score: Integer, leadership_points: Integer) -> Integer {
+    // Contribution scoring system (0-200 scale)
+    let hours_factor = work_hours / 10; // 10 hours = 1 point
+    let quality_factor = quality_score; // Direct quality score (0-100)
+    let leadership_factor = leadership_points * 2; // Leadership worth 2x
+    
+    let total_contribution = hours_factor + quality_factor + leadership_factor;
+    
+    // Apply multiplier (base 100% + contribution bonus up to 100%)
+    let multiplier = 100 + total_contribution;
+    let adjusted_dividend = base_dividend * multiplier / 100;
+    
+    return adjusted_dividend;
+}
+
+fn apply_seniority_bonus(base_dividend: Integer, years_of_membership: Integer) -> Integer {
+    // Seniority bonus: 5% per year, capped at 50% (10 years)
+    let max_years = 10;
+    let capped_years = years_of_membership;
+    if capped_years > max_years {
+        let capped_years = max_years;
+    }
+    
+    let bonus_percentage = capped_years * 5; // 5% per year
+    let bonus_amount = base_dividend * bonus_percentage / 100;
+    let total_with_bonus = base_dividend + bonus_amount;
+    
+    return total_with_bonus;
+}
+
+fn apply_democratic_adjustment(base_dividend: Integer, special_circumstances: Integer, community_vote_weight: Integer) -> Integer {
+    // Democratic adjustment based on member vote
+    // special_circumstances: 0 = none, 1 = hardship, 2 = exceptional contribution, 3 = sabbatical
+    // community_vote_weight: 0-100 representing community support
+    
+    let adjustment_factor = 0;
+    
+    // Hardship support: +25% with strong community support
+    if special_circumstances == 1 {
+        let hardship_bonus = base_dividend * 25 / 100;
+        let community_factor = community_vote_weight / 100;
+        let adjustment_factor = hardship_bonus * community_factor;
+    }
+    
+    // Exceptional contribution: +50% with strong community support
+    if special_circumstances == 2 {
+        let exceptional_bonus = base_dividend * 50 / 100;
+        let community_factor = community_vote_weight / 100;
+        let adjustment_factor = exceptional_bonus * community_factor;
+    }
+    
+    // Sabbatical: -50% (reduced but not eliminated)
+    if special_circumstances == 3 {
+        let sabbatical_reduction = base_dividend * 50 / 100;
+        let adjustment_factor = 0 - sabbatical_reduction;
+    }
+    
+    let final_dividend = base_dividend + adjustment_factor;
+    return final_dividend;
+}
+
+fn enforce_minimum_wage(calculated_dividend: Integer, hours_worked: Integer, minimum_hourly_rate: Integer) -> Integer {
+    // Ensure no member receives less than minimum wage equivalent
+    let minimum_payment = hours_worked * minimum_hourly_rate;
+    
+    let final_dividend = calculated_dividend;
+    if calculated_dividend < minimum_payment {
+        let final_dividend = minimum_payment;
+    }
+    
+    return final_dividend;
+}
+
+fn calculate_member_dividend(
+    total_profit: Integer,
+    member_count: Integer,
+    work_hours: Integer,
+    quality_score: Integer,
+    leadership_points: Integer,
+    years_of_membership: Integer,
+    special_circumstances: Integer,
+    community_vote_weight: Integer,
+    minimum_hourly_rate: Integer
+) -> Integer {
+    // Step 1: Calculate base equal share
+    let base_dividend = calculate_base_dividend(total_profit, member_count);
+    
+    // Step 2: Apply contribution multiplier
+    let contribution_adjusted = apply_contribution_multiplier(base_dividend, work_hours, quality_score, leadership_points);
+    
+    // Step 3: Apply seniority bonus
+    let seniority_adjusted = apply_seniority_bonus(contribution_adjusted, years_of_membership);
+    
+    // Step 4: Apply democratic adjustments
+    let democracy_adjusted = apply_democratic_adjustment(seniority_adjusted, special_circumstances, community_vote_weight);
+    
+    // Step 5: Enforce minimum wage floor
+    let final_dividend = enforce_minimum_wage(democracy_adjusted, work_hours, minimum_hourly_rate);
+    
+    return final_dividend;
+}
+
+fn validate_distribution_parameters(
+    total_profit: Integer,
+    member_count: Integer,
+    work_hours: Integer,
+    quality_score: Integer,
+    leadership_points: Integer,
+    years_of_membership: Integer,
+    special_circumstances: Integer,
+    community_vote_weight: Integer,
+    minimum_hourly_rate: Integer
+) -> Integer {
+    // Validate all parameters are within acceptable ranges
+    let validation_passed = 1;
+    
+    // Check basic constraints
+    if total_profit < 0 { let validation_passed = 0; }
+    if member_count < 1 { let validation_passed = 0; }
+    if work_hours < 0 { let validation_passed = 0; }
+    if quality_score < 0 { let validation_passed = 0; }
+    if quality_score > 100 { let validation_passed = 0; }
+    if leadership_points < 0 { let validation_passed = 0; }
+    if years_of_membership < 0 { let validation_passed = 0; }
+    if special_circumstances < 0 { let validation_passed = 0; }
+    if special_circumstances > 3 { let validation_passed = 0; }
+    if community_vote_weight < 0 { let validation_passed = 0; }
+    if community_vote_weight > 100 { let validation_passed = 0; }
+    if minimum_hourly_rate < 0 { let validation_passed = 0; }
+    
+    return validation_passed;
+}
+
+// Main entry point - Example calculation for a cooperative member
+fn run() -> Integer {
+    // Example: Tech Cooperative Quarterly Dividend Distribution
+    let total_profit = 50000;      // $50,000 quarterly profit
+    let member_count = 8;          // 8 members in cooperative
+    let work_hours = 480;          // 480 hours this quarter (40 hours/week * 12 weeks)
+    let quality_score = 85;        // 85/100 quality rating
+    let leadership_points = 3;     // 3 leadership points (mentoring, project lead)
+    let years_of_membership = 2;   // 2 years in cooperative
+    let special_circumstances = 0; // No special circumstances
+    let community_vote_weight = 0; // No community vote needed
+    let minimum_hourly_rate = 25;  // $25/hour minimum wage
+    
+    // Validate parameters
+    let validation_result = validate_distribution_parameters(
+        total_profit, member_count, work_hours, quality_score, leadership_points,
+        years_of_membership, special_circumstances, community_vote_weight, minimum_hourly_rate
+    );
+    
+    if validation_result == 0 {
+        return 0; // Invalid parameters
+    }
+    
+    // Calculate dividend
+    let member_dividend = calculate_member_dividend(
+        total_profit, member_count, work_hours, quality_score, leadership_points,
+        years_of_membership, special_circumstances, community_vote_weight, minimum_hourly_rate
+    );
+    
+    return member_dividend;
+} 

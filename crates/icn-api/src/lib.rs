@@ -698,7 +698,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
     async fn test_submit_and_retrieve_dag_block_api() {
         let storage = new_test_storage();
         let data = b"api test block data for error refinement".to_vec();
@@ -827,7 +826,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_cast_vote_api() {
         let gov_module = new_test_governance_module();
         let api = GovernanceApiImpl::new(gov_module.clone());

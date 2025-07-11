@@ -13,6 +13,7 @@
 //! - The node runtime integration for libp2p networking.
 
 pub mod abi;
+pub mod config;
 pub mod context;
 pub mod executor;
 pub mod memory;
@@ -28,19 +29,54 @@ pub use icn_dag::StorageService;
 // Re-export ABI constants
 pub use abi::*;
 use icn_common::{Cid, CommonError, Did, NodeInfo};
-use log::{debug, info, warn};
+use icn_reputation::ReputationStore;
+use log::{debug, error, info, warn};
 use std::str::FromStr;
+use thiserror::Error;
 
-/// Maximum allowed size of a submitted job JSON payload in bytes (1 MiB).
-const MAX_JOB_JSON_SIZE: usize = 1_048_576;
+pub use config::{RuntimeConfig, RuntimeConfigBuilder, EnvironmentConfig, IdentityConfig, NetworkConfig, StorageConfig, GovernanceConfig, RuntimeParametersConfig, templates};
+pub use context::{
+    RuntimeContext, HostAbiError, DefaultMeshNetworkService, MeshNetworkService,
+    MeshNetworkServiceType, SimpleManaLedger, Signer, Ed25519Signer, HostEnvironment,
+    ConcreteHostEnvironment, StubMeshNetworkService, JobAssignmentNotice,
+    CreateProposalPayload, CastVotePayload, CloseProposalResult,
+};
 
-/// Placeholder function demonstrating use of common types for runtime operations.
-/// This function is not directly part of the Host ABI layer discussed below but serves as an example.
+#[derive(Debug, Error)]
+pub enum RuntimeError {
+    #[error("Host ABI error: {0}")]
+    HostAbi(HostAbiError),
+    #[error("Common error: {0}")]
+    Common(CommonError),
+}
+
+impl From<HostAbiError> for RuntimeError {
+    fn from(err: HostAbiError) -> Self {
+        RuntimeError::HostAbi(err)
+    }
+}
+
+impl From<CommonError> for RuntimeError {
+    fn from(err: CommonError) -> Self {
+        RuntimeError::Common(err)
+    }
+}
+
+pub const MAX_JOB_JSON_SIZE: usize = 1024 * 1024; // 1MB
+
 pub fn execute_icn_script(info: &NodeInfo, script_id: &str) -> Result<String, CommonError> {
+    // Stub implementation
     Ok(format!(
-        "Executed script {} for node: {} (v{})",
-        script_id, info.name, info.version
+        "Script executed on node {} ({}): {}",
+        info.name, info.version, script_id
     ))
+}
+
+#[derive(Debug, Clone)]
+pub struct NodeInfo {
+    pub name: String,
+    pub version: String,
+    pub status_message: String,
 }
 
 // --- Host ABI Functions ---
@@ -290,20 +326,16 @@ pub async fn host_account_credit_mana(
     ctx.credit_mana(&account_did, amount).await
 }
 
-/// ABI Index: (defined in `abi::ABI_HOST_GET_REPUTATION`)
-/// Returns the reputation score for the provided DID.
+/// Get the reputation of a DID.
 pub async fn host_get_reputation(
-    ctx: &Arc<RuntimeContext>,
+    ctx: &std::sync::Arc<RuntimeContext>,
     did: &Did,
 ) -> Result<i64, HostAbiError> {
-    Ok(ctx.reputation_store.get_reputation(did) as i64)
+    let reputation = ctx.reputation_store.get_reputation(did) as i64;
+    Ok(reputation)
 }
 
-// Placeholder for a reputation updater service/struct
-use icn_reputation::ReputationStore;
-use std::sync::Arc;
-
-/// Helper used by host functions to update executor reputation.
+/// Reputation updater for handling execution receipts.
 pub struct ReputationUpdater;
 
 impl ReputationUpdater {
@@ -529,7 +561,7 @@ pub async fn host_create_governance_proposal(
     ctx: &RuntimeContext,
     payload_json: &str,
 ) -> Result<String, HostAbiError> {
-    let payload: context::CreateProposalPayload =
+    let payload: CreateProposalPayload =
         serde_json::from_str(payload_json).map_err(|e| {
             HostAbiError::InvalidParameters(format!(
                 "Failed to parse CreateProposalPayload JSON: {}",
@@ -544,7 +576,7 @@ pub async fn host_cast_governance_vote(
     ctx: &RuntimeContext,
     payload_json: &str,
 ) -> Result<(), HostAbiError> {
-    let payload: context::CastVotePayload = serde_json::from_str(payload_json).map_err(|e| {
+    let payload: CastVotePayload = serde_json::from_str(payload_json).map_err(|e| {
         HostAbiError::InvalidParameters(format!("Failed to parse CastVotePayload JSON: {}", e))
     })?;
     ctx.cast_governance_vote(payload).await
@@ -611,7 +643,7 @@ mod tests {
     use super::*;
 
     use super::context::{
-        HostAbiError, RuntimeContext, StubDagStore, StubMeshNetworkService, StubSigner,
+        HostAbiError, RuntimeContext,
     };
     use icn_common::{Cid, Did, ICN_CORE_VERSION};
     use icn_identity::SignatureBytes;
@@ -636,8 +668,8 @@ mod tests {
     }
 
     // Helper function to create a RuntimeContext with stubbed services for testing.
-    // This function is NOT async because new_with_stubs is not async.
     fn create_test_context() -> Arc<RuntimeContext> {
+<<<<<<< HEAD
         let test_did = Did::from_str(TEST_IDENTITY_DID_STR).expect("Failed to create test DID");
         RuntimeContext::new(
             test_did,
@@ -646,6 +678,10 @@ mod tests {
             Arc::new(icn_identity::KeyDidResolver),
             Arc::new(DagStoreMutex::new(StubDagStore::new())),
         )
+=======
+        RuntimeContext::new_with_stubs(TEST_IDENTITY_DID_STR)
+            .expect("Failed to create test context")
+>>>>>>> develop
     }
 
     fn create_test_context_with_mana(initial_mana: u64) -> Arc<RuntimeContext> {

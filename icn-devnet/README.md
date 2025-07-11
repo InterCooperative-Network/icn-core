@@ -36,24 +36,78 @@ Once running, you can access:
    if TLS is desired, provide `ICN_TLS_CERT_PATH` and `ICN_TLS_KEY_PATH`.
 5. **Launch the federation** with `./launch_federation.sh`.
 
+### 10-Node Load Test
+
+The repository includes a helper script for spinning up a **10 node** devnet
+and submitting a configurable number of test jobs:
+
+```bash
+# From the repository root
+NUM_JOBS=50 ./scripts/run_10node_devnet.sh
+```
+
+`NUM_JOBS` controls how many jobs are submitted to the first node (default
+`20`). The script automatically starts Prometheus and Grafana, so you can run
+`docker-compose --profile monitoring up -d` to visualize metrics. See the
+[deployment guide’s monitoring section](../docs/deployment-guide.md#monitoring-with-prometheus--grafana)
+for more details.
+
 ### Test Job Submission
+
+> **⚠️ Important**: Use `X-API-Key` header (not `Authorization: Bearer`)
 
 ```bash
 # Submit a mesh job to any node
 curl -X POST http://localhost:5001/mesh/submit \
   -H "Content-Type: application/json" \
+  -H "X-API-Key: devnet-a-key" \
   -d '{
-    "manifest_cid": "cidv1-85-20-test_manifest",
-    "spec_json": { "Echo": { "payload": "Hello Federation!" } },
+    "manifest_cid": "bafybeiczsscdsbs7ffqz55asqdf3smv6klcw3gofszvwlyarci47bgf354",
+    "spec_json": {
+      "kind": {
+        "Echo": {
+          "payload": "Hello Federation!"
+        }
+      }
+    },
     "cost_mana": 100
   }'
 
 # Check job status (replace JOB_ID with actual ID from response)
-curl http://localhost:5001/mesh/jobs/JOB_ID
+curl -H "X-API-Key: devnet-a-key" http://localhost:5001/mesh/jobs/JOB_ID
 
 # List all jobs
-curl http://localhost:5001/mesh/jobs
+curl -H "X-API-Key: devnet-a-key" http://localhost:5001/mesh/jobs
 ```
+
+**Expected Response:**
+```json
+{
+  "job_id": "bafkrfz2acgrvhdag6q2rs7h5buh2i6omqqhffnrvatziwrlrnx3elqyp"
+}
+```
+
+## 10-Node Federation
+
+For extended testing you can spin up a larger federation using the helper
+`scripts/run_10node_devnet.sh` script. Run it from the repository root to start
+ten nodes and submit a batch of sample jobs:
+
+```bash
+scripts/run_10node_devnet.sh
+```
+
+Set the `NUM_JOBS` environment variable to control how many jobs are submitted.
+Prometheus and Grafana can be enabled by passing `--profile monitoring` to
+`docker-compose` before running the script:
+
+```bash
+docker-compose --profile monitoring up -d
+scripts/run_10node_devnet.sh
+```
+
+This exposes Prometheus at `http://localhost:9090` and Grafana at
+`http://localhost:3000`.
 
 ## 🏗️ Architecture
 
@@ -69,7 +123,7 @@ curl http://localhost:5001/mesh/jobs
        └───────────────────┼───────────────────┘
                            │
                   P2P Mesh Network
-                  (libp2p gossipsub)
+                  (libp2p gossipsub + mDNS)
 ```
 
 ### Services
@@ -78,6 +132,15 @@ curl http://localhost:5001/mesh/jobs
 - **Prometheus**: Metrics collection (optional, with `--profile monitoring`)
 - **Grafana**: Dashboard visualization (optional, with `--profile monitoring`)
 - **Alertmanager**: Alert routing (optional, with `--profile monitoring`)
+
+### Mana System
+
+Each node is automatically initialized with **1000 mana** on startup. This enables:
+- Job submission and execution
+- Network participation
+- Resource usage tracking
+
+Mana is automatically refunded if jobs fail (e.g., no bids received).
 
 ## 📋 Configuration
 
@@ -91,8 +154,10 @@ Each node is configured via environment variables:
 | `ICN_HTTP_LISTEN_ADDR` | HTTP API bind address | `0.0.0.0:7845` |
 | `ICN_P2P_LISTEN_ADDR` | P2P networking bind address | `/ip4/0.0.0.0/tcp/4001` |
 | `ICN_ENABLE_P2P` | Enable P2P networking | `true` |
+| `ICN_ENABLE_MDNS` | Enable mDNS peer discovery | `true` |
 | `ICN_BOOTSTRAP_PEERS` | Comma-separated bootstrap peers | `/ip4/node-a/tcp/4001/p2p/...` |
 | `ICN_STORAGE_BACKEND` | Storage backend type | `memory` or `file` |
+| `ICN_HTTP_API_KEY` | API authentication key | `devnet-a-key` |
 
 ### Ports
 
@@ -118,6 +183,7 @@ services:
       - ICN_HTTP_LISTEN_ADDR=0.0.0.0:7845
       - ICN_STORAGE_BACKEND=file
       - ICN_HTTP_API_KEY=devnet-a-key
+      - ICN_ENABLE_MDNS=true
     volumes:
       - ./data/node-a:/app/data
 
@@ -127,6 +193,7 @@ services:
       - ICN_HTTP_LISTEN_ADDR=0.0.0.0:7845
       - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-a/tcp/4001/p2p/<NODE_A_PEER_ID>
       - ICN_HTTP_API_KEY=devnet-b-key
+      - ICN_ENABLE_MDNS=true
 ```
 
 ## 🛠️ Advanced Usage
@@ -174,11 +241,7 @@ Pre-built dashboards are available under `grafana/`.
 
 1. Start the monitoring profile with `docker-compose --profile monitoring up -d`.
 2. Open Grafana at [http://localhost:3000](http://localhost:3000) (admin/icnfederation).
-3. Navigate to **Dashboards → Import** and upload `grafana/icn-devnet-overview.json`.
-
-### Grafana Dashboards
-Dashboard JSON files are located in `grafana/`. After launching with monitoring, open Grafana at `http://localhost:3000`, click **Import**, and upload `grafana/icn-devnet-dashboard.json`.
-
+3. Navigate to **Dashboards → Import** and upload any of the JSON files from `grafana/` such as `icn-devnet-overview.json`, `icn-jobs-network.json`, or `icn-governance.json`.
 
 ### Development Mode
 
@@ -203,52 +266,105 @@ The launch script includes automated tests:
 
 ```bash
 # Check node info
-curl http://localhost:5001/info
+curl -H "X-API-Key: devnet-a-key" http://localhost:5001/info
 
 # Check node status and peer count
-curl http://localhost:5001/status
+curl -H "X-API-Key: devnet-a-key" http://localhost:5001/status
 
 # Submit and track a job
 job_id=$(curl -s -X POST http://localhost:5001/mesh/submit \
   -H "Content-Type: application/json" \
-  -d '{"manifest_cid":"test","spec_json":{"Echo":{"payload":"test"}},"cost_mana":50}' \
-  | jq -r '.job_id')
+  -H "X-API-Key: devnet-a-key" \
+  -d '{
+    "manifest_cid": "bafybeiczsscdsbs7ffqz55asqdf3smv6klcw3gofszvwlyarci47bgf354",
+    "spec_json": {
+      "kind": {
+        "Echo": {
+          "payload": "test message"
+        }
+      }
+    },
+    "cost_mana": 50
+  }' | jq -r '.job_id')
 
-curl http://localhost:5001/mesh/jobs/$job_id
+curl -H "X-API-Key: devnet-a-key" http://localhost:5001/mesh/jobs/$job_id
 ```
 
 ## 🐛 Troubleshooting
 
 ### Common Issues
 
+**"Account not found" Error during Job Submission:**
+
+This was a critical bug that has been **FIXED** in the current version. If you encounter this error:
+
+1. **Check node startup logs** for mana initialization:
+   ```bash
+   docker-compose logs icn-node-a | grep -i "mana\|initialized"
+   ```
+   
+   You should see: `✅ Node initialized with 1000 mana`
+
+2. **If mana initialization failed**, check for detailed error messages in logs:
+   ```bash
+   docker-compose logs icn-node-a | grep -i "error\|failed"
+   ```
+
+3. **Restart the node** if mana initialization failed:
+   ```bash
+   docker-compose restart icn-node-a
+   ```
+
+**Wrong API Key Header:**
+- Use `X-API-Key: devnet-a-key` (not `Authorization: Bearer`)
+- Each node has its own API key: `devnet-a-key`, `devnet-b-key`, `devnet-c-key`
+
+**Invalid JSON Structure:**
+The job submission requires this exact structure:
+```json
+{
+  "manifest_cid": "string",
+  "spec_json": {
+    "kind": {
+      "Echo": {
+        "payload": "your message"
+      }
+    }
+  },
+  "cost_mana": 50
+}
+```
+
 **Nodes not connecting:**
 - Check Docker network connectivity
 - Verify P2P ports are not blocked
+- mDNS should automatically discover peers
 - Check container logs: `docker-compose logs icn-node-a`
 
-**Job submission failing:**
-- Ensure nodes have mana (auto-initialized in devnet)
-- Check job specification format
-- Verify HTTP API is responding
+**Job stuck in "pending" or "failed - no bids":**
+- This is expected in single-node testing (no other executors available)
+- Mana is automatically refunded when jobs fail
+- For multi-node execution, ensure all nodes are running and connected
 
 **Build failures:**
 - Ensure all ICN crates compile: `cargo build --release`
 - Check Dockerfile dependencies
 - Clear Docker build cache: `docker system prune -a`
 
-For persistent deployments see the [DAG Backup and Restore guide](../docs/deployment-guide.md#dag-backup-and-restore).
-
-### Logs
+### Debugging Commands
 
 ```bash
-# View all logs
-docker-compose logs
+# View all logs with timestamps
+docker-compose logs -t
 
 # View specific node logs
 docker-compose logs icn-node-a
 
-# Follow logs in real-time
-docker-compose logs -f
+# Follow logs in real-time with grep filter
+docker-compose logs -f | grep -E "(ERROR|WARN|mana|job)"
+
+# Check mana balance and job states
+curl -H "X-API-Key: devnet-a-key" http://localhost:5001/mesh/jobs
 ```
 
 ### Reset Environment
@@ -257,7 +373,24 @@ docker-compose logs -f
 # Complete cleanup
 docker-compose down --volumes --remove-orphans
 docker system prune -f
+
+# Rebuild and restart
+docker-compose up --build -d
 ```
+
+For persistent deployments see the [DAG Backup and Restore guide](../docs/deployment-guide.md#dag-backup-and-restore).
+
+## 🔧 Recent Fixes
+
+### Mana Initialization Fix (v1.0.1)
+
+**Issue**: Nodes were failing to initialize mana accounts, causing `"Account not found"` errors during job submission.
+
+**Root Cause**: Silent panic in `crates/icn-node/src/node.rs` when mana initialization failed due to improper error handling.
+
+**Solution**: Replaced `.expect()` call with proper error handling that logs detailed error information and gracefully handles initialization failures.
+
+**Verification**: Look for `✅ Node initialized with 1000 mana` in startup logs.
 
 ## 🎯 Next Steps
 
@@ -271,5 +404,5 @@ This devnet serves as the foundation for:
 ## 📚 Related Documentation
 
 - [Phase 3 HTTP Gateway](../PHASE_3_HTTP_GATEWAY_SUCCESS.md)
-- [Phase 2B Cross-Node Execution](../PHASE_2B_SUCCESS.md)
-- [ICN Core Architecture](../README.md) 
+- [Phase 2B Cross-Node Execution](../PHASE_2B_SUCCESS.md)- [ICN Core Architecture](../README.md)
+- [10 Node Devnet Results](../docs/ten_node_results.md)

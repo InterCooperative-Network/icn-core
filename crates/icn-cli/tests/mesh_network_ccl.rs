@@ -7,7 +7,6 @@ use tokio::task;
 
 #[tokio::test]
 #[serial_test::serial]
-#[ignore]
 async fn mesh_network_and_ccl_commands() {
     let _ = std::fs::remove_dir_all("./mana_ledger.sled");
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -121,6 +120,32 @@ async fn mesh_network_and_ccl_commands() {
             .assert()
             .success()
             .stdout(predicates::str::contains("cid"));
+    })
+    .await
+    .unwrap();
+
+    // ccl lint command
+    let bin = env!("CARGO_BIN_EXE_icn-cli");
+    let lint_file = file_path.to_str().unwrap().to_string();
+    tokio::task::spawn_blocking(move || {
+        Command::new(bin)
+            .args(["ccl", "lint", &lint_file])
+            .assert()
+            .success()
+            .stdout(predicates::str::contains("passed linting"));
+    })
+    .await
+    .unwrap();
+
+    // ccl explain command
+    let bin = env!("CARGO_BIN_EXE_icn-cli");
+    let explain_file = file_path.to_str().unwrap().to_string();
+    tokio::task::spawn_blocking(move || {
+        Command::new(bin)
+            .args(["ccl", "explain", &explain_file])
+            .assert()
+            .success()
+            .stdout(predicates::str::contains("Function"));
     })
     .await
     .unwrap();

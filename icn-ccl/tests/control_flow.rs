@@ -1,4 +1,5 @@
 use icn_ccl::compile_ccl_source_to_wasm;
+use icn_ccl::{ast::StatementNode, parser::parse_ccl_source};
 
 #[test]
 fn compile_simple_if() {
@@ -31,6 +32,27 @@ fn compile_if_else() {
 
         fn run() -> Mana {
             return calculate_discount(1000, true);
+        }
+    "#;
+    let (wasm, _meta) = compile_ccl_source_to_wasm(src).expect("compile");
+    assert!(wasm.starts_with(b"\0asm"));
+}
+
+#[test]
+fn compile_else_if_chain() {
+    let src = r#"
+        fn classify(x: Integer) -> Integer {
+            if x < 0 {
+                return 0;
+            } else if x == 0 {
+                return 1;
+            } else {
+                return 2;
+            }
+        }
+
+        fn run() -> Integer {
+            return classify(5);
         }
     "#;
     let (wasm, _meta) = compile_ccl_source_to_wasm(src).expect("compile");
@@ -137,4 +159,35 @@ fn compile_comparison_operators() {
     "#;
     let (wasm, _meta) = compile_ccl_source_to_wasm(src).expect("compile");
     assert!(wasm.starts_with(b"\0asm"));
+}
+
+#[test]
+fn parse_else_if_chain() {
+    let src = "fn test(x: Integer) -> Integer { if x < 0 { return 0; } else if x == 0 { return 1; } else { return 2; } }";
+    let ast = parse_ccl_source(src).expect("parse");
+    if let icn_ccl::ast::AstNode::Policy(items) = ast {
+        if let icn_ccl::ast::PolicyStatementNode::FunctionDef(
+            icn_ccl::ast::AstNode::FunctionDefinition { body, .. },
+        ) = &items[0]
+        {
+            match &body.statements[0] {
+                StatementNode::If {
+                    else_block: Some(b),
+                    ..
+                } => {
+                    assert_eq!(b.statements.len(), 1);
+                    if let StatementNode::If { .. } = b.statements[0].clone() {
+                        // success
+                    } else {
+                        panic!("expected nested if in else block");
+                    }
+                }
+                _ => panic!("expected if"),
+            }
+        } else {
+            panic!("unexpected ast");
+        }
+    } else {
+        panic!("unexpected root");
+    }
 }

@@ -1,0 +1,419 @@
+// ICN Cooperative Contract: Work Assignment System
+// This contract manages fair distribution of work tasks including:
+// - Task matching based on skills and availability
+// - Workload balancing across members
+// - Priority assignment for urgent tasks
+// - Skill development and learning opportunities
+
+fn calculate_task_match_score(
+    task_required_skills: Integer,
+    member_skill_level: Integer,
+    member_experience_years: Integer,
+    task_complexity: Integer,
+    member_availability_hours: Integer,
+    task_estimated_hours: Integer,
+    member_interest_level: Integer
+) -> Integer {
+    // Returns match score (0-100) for task assignment
+    
+    let match_score = 0;
+    
+    // Skill level match (0-30 points)
+    let skill_points = 0;
+    let skill_difference = member_skill_level - task_required_skills;
+    
+    if skill_difference >= 2 {
+        let skill_points = 30; // Overqualified - good for mentoring
+    } else if skill_difference >= 0 {
+        let skill_points = 25; // Perfect match
+    } else if skill_difference >= -1 {
+        let skill_points = 20; // Slight stretch - good for learning
+    } else if skill_difference >= -2 {
+        let skill_points = 10; // Significant stretch
+    } else {
+        let skill_points = 0; // Too challenging
+    }
+    
+    // Experience consideration (0-20 points)
+    let experience_points = 0;
+    if member_experience_years >= 5 {
+        let experience_points = 20;
+    } else if member_experience_years >= 3 {
+        let experience_points = 16;
+    } else if member_experience_years >= 1 {
+        let experience_points = 12;
+    } else {
+        let experience_points = 8;
+    }
+    
+    // Complexity appropriateness (0-20 points)
+    let complexity_points = 0;
+    if task_complexity <= 3 {
+        let complexity_points = 20; // Simple task
+    } else if task_complexity <= 5 {
+        let complexity_points = 15; // Moderate complexity
+    } else if task_complexity <= 7 {
+        let complexity_points = 10; // Complex task
+    } else {
+        let complexity_points = 5; // Very complex
+    }
+    
+    // Availability match (0-20 points)
+    let availability_points = 0;
+    if member_availability_hours >= task_estimated_hours * 2 {
+        let availability_points = 20; // Plenty of time
+    } else if member_availability_hours >= task_estimated_hours {
+        let availability_points = 15; // Adequate time
+    } else if member_availability_hours >= task_estimated_hours * 80 / 100 {
+        let availability_points = 10; // Tight but possible
+    } else {
+        let availability_points = 0; // Insufficient time
+    }
+    
+    // Interest level (0-10 points)
+    let interest_points = 0;
+    if member_interest_level >= 80 {
+        let interest_points = 10;
+    } else if member_interest_level >= 60 {
+        let interest_points = 8;
+    } else if member_interest_level >= 40 {
+        let interest_points = 6;
+    } else if member_interest_level >= 20 {
+        let interest_points = 4;
+    } else {
+        let interest_points = 2;
+    }
+    
+    let match_score = skill_points + experience_points + complexity_points + availability_points + interest_points;
+    
+    return match_score;
+}
+
+fn calculate_workload_balance_score(
+    member_current_tasks: Integer,
+    member_total_hours_assigned: Integer,
+    member_capacity_hours: Integer,
+    average_team_workload: Integer,
+    member_recent_overtime: Integer
+) -> Integer {
+    // Returns workload balance score (0-100) - higher is better for assignment
+    
+    let balance_score = 0;
+    
+    // Current task count (0-25 points)
+    let task_count_points = 0;
+    if member_current_tasks <= 2 {
+        let task_count_points = 25; // Light load
+    } else if member_current_tasks <= 4 {
+        let task_count_points = 20; // Moderate load
+    } else if member_current_tasks <= 6 {
+        let task_count_points = 15; // Heavy load
+    } else if member_current_tasks <= 8 {
+        let task_count_points = 10; // Very heavy load
+    } else {
+        let task_count_points = 0; // Overloaded
+    }
+    
+    // Hours capacity utilization (0-30 points)
+    let capacity_utilization = member_total_hours_assigned * 100 / member_capacity_hours;
+    let capacity_points = 0;
+    if capacity_utilization <= 60 {
+        let capacity_points = 30; // Underutilized
+    } else if capacity_utilization <= 80 {
+        let capacity_points = 25; // Good utilization
+    } else if capacity_utilization <= 90 {
+        let capacity_points = 20; // High utilization
+    } else if capacity_utilization <= 100 {
+        let capacity_points = 10; // At capacity
+    } else {
+        let capacity_points = 0; // Over capacity
+    }
+    
+    // Relative to team average (0-25 points)
+    let relative_workload = member_total_hours_assigned * 100 / average_team_workload;
+    let relative_points = 0;
+    if relative_workload <= 80 {
+        let relative_points = 25; // Below average
+    } else if relative_workload <= 100 {
+        let relative_points = 20; // Average
+    } else if relative_workload <= 120 {
+        let relative_points = 15; // Above average
+    } else if relative_workload <= 140 {
+        let relative_points = 10; // Well above average
+    } else {
+        let relative_points = 0; // Significantly overloaded
+    }
+    
+    // Recent overtime consideration (0-20 points)
+    let overtime_points = 0;
+    if member_recent_overtime == 0 {
+        let overtime_points = 20; // No recent overtime
+    } else if member_recent_overtime <= 5 {
+        let overtime_points = 15; // Minimal overtime
+    } else if member_recent_overtime <= 10 {
+        let overtime_points = 10; // Moderate overtime
+    } else if member_recent_overtime <= 20 {
+        let overtime_points = 5; // Significant overtime
+    } else {
+        let overtime_points = 0; // Excessive overtime
+    }
+    
+    let balance_score = task_count_points + capacity_points + relative_points + overtime_points;
+    
+    return balance_score;
+}
+
+fn evaluate_learning_opportunity(
+    task_learning_potential: Integer,
+    member_career_goals: Integer,
+    task_skill_stretch: Integer,
+    member_learning_preference: Integer,
+    mentorship_available: Integer,
+    task_failure_tolerance: Integer
+) -> Integer {
+    // Returns learning opportunity score (0-100)
+    
+    let learning_score = 0;
+    
+    // Learning potential of task (0-25 points)
+    let potential_points = 0;
+    if task_learning_potential >= 80 {
+        let potential_points = 25;
+    } else if task_learning_potential >= 60 {
+        let potential_points = 20;
+    } else if task_learning_potential >= 40 {
+        let potential_points = 15;
+    } else if task_learning_potential >= 20 {
+        let potential_points = 10;
+    } else {
+        let potential_points = 5;
+    }
+    
+    // Career goals alignment (0-20 points)
+    let career_points = 0;
+    if member_career_goals >= 80 {
+        let career_points = 20;
+    } else if member_career_goals >= 60 {
+        let career_points = 15;
+    } else if member_career_goals >= 40 {
+        let career_points = 10;
+    } else if member_career_goals >= 20 {
+        let career_points = 5;
+    } else {
+        let career_points = 0;
+    }
+    
+    // Skill stretch appropriateness (0-20 points)
+    let stretch_points = 0;
+    if task_skill_stretch >= 1 && task_skill_stretch <= 2 {
+        let stretch_points = 20; // Optimal stretch
+    } else if task_skill_stretch >= 1 && task_skill_stretch <= 3 {
+        let stretch_points = 15; // Good stretch
+    } else if task_skill_stretch >= 1 && task_skill_stretch <= 4 {
+        let stretch_points = 10; // Significant stretch
+    } else if task_skill_stretch < 1 {
+        let stretch_points = 5; // Too easy
+    } else {
+        let stretch_points = 0; // Too difficult
+    }
+    
+    // Learning preference match (0-15 points)
+    let preference_points = 0;
+    if member_learning_preference >= 80 {
+        let preference_points = 15;
+    } else if member_learning_preference >= 60 {
+        let preference_points = 12;
+    } else if member_learning_preference >= 40 {
+        let preference_points = 8;
+    } else if member_learning_preference >= 20 {
+        let preference_points = 4;
+    } else {
+        let preference_points = 0;
+    }
+    
+    // Mentorship availability (0-10 points)
+    let mentorship_points = 0;
+    if mentorship_available == 1 {
+        let mentorship_points = 10;
+    } else {
+        let mentorship_points = 0;
+    }
+    
+    // Task failure tolerance (0-10 points)
+    let tolerance_points = 0;
+    if task_failure_tolerance >= 80 {
+        let tolerance_points = 10; // High tolerance - good for learning
+    } else if task_failure_tolerance >= 60 {
+        let tolerance_points = 8;
+    } else if task_failure_tolerance >= 40 {
+        let tolerance_points = 6;
+    } else if task_failure_tolerance >= 20 {
+        let tolerance_points = 4;
+    } else {
+        let tolerance_points = 0; // Low tolerance - not good for learning
+    }
+    
+    let learning_score = potential_points + career_points + stretch_points + preference_points + mentorship_points + tolerance_points;
+    
+    return learning_score;
+}
+
+fn calculate_task_priority_urgency(
+    task_deadline_days: Integer,
+    task_business_impact: Integer,
+    task_blocking_others: Integer,
+    task_client_visibility: Integer,
+    task_revenue_impact: Integer
+) -> Integer {
+    // Returns priority urgency score (0-100)
+    
+    let urgency_score = 0;
+    
+    // Deadline pressure (0-25 points)
+    let deadline_points = 0;
+    if task_deadline_days <= 1 {
+        let deadline_points = 25; // Due tomorrow or overdue
+    } else if task_deadline_days <= 3 {
+        let deadline_points = 20; // Due within 3 days
+    } else if task_deadline_days <= 7 {
+        let deadline_points = 15; // Due within a week
+    } else if task_deadline_days <= 14 {
+        let deadline_points = 10; // Due within 2 weeks
+    } else {
+        let deadline_points = 5; // More than 2 weeks
+    }
+    
+    // Business impact (0-25 points)
+    let impact_points = 0;
+    if task_business_impact >= 90 {
+        let impact_points = 25;
+    } else if task_business_impact >= 75 {
+        let impact_points = 20;
+    } else if task_business_impact >= 60 {
+        let impact_points = 15;
+    } else if task_business_impact >= 45 {
+        let impact_points = 10;
+    } else {
+        let impact_points = 5;
+    }
+    
+    // Blocking others (0-20 points)
+    let blocking_points = 0;
+    if task_blocking_others >= 5 {
+        let blocking_points = 20; // Blocking many people
+    } else if task_blocking_others >= 3 {
+        let blocking_points = 15; // Blocking several people
+    } else if task_blocking_others >= 1 {
+        let blocking_points = 10; // Blocking someone
+    } else {
+        let blocking_points = 0; // Not blocking anyone
+    }
+    
+    // Client visibility (0-15 points)
+    let visibility_points = 0;
+    if task_client_visibility >= 90 {
+        let visibility_points = 15;
+    } else if task_client_visibility >= 70 {
+        let visibility_points = 12;
+    } else if task_client_visibility >= 50 {
+        let visibility_points = 8;
+    } else if task_client_visibility >= 30 {
+        let visibility_points = 4;
+    } else {
+        let visibility_points = 0;
+    }
+    
+    // Revenue impact (0-15 points)
+    let revenue_points = 0;
+    if task_revenue_impact >= 10000 {
+        let revenue_points = 15;
+    } else if task_revenue_impact >= 5000 {
+        let revenue_points = 12;
+    } else if task_revenue_impact >= 2000 {
+        let revenue_points = 8;
+    } else if task_revenue_impact >= 500 {
+        let revenue_points = 4;
+    } else {
+        let revenue_points = 0;
+    }
+    
+    let urgency_score = deadline_points + impact_points + blocking_points + visibility_points + revenue_points;
+    
+    return urgency_score;
+}
+
+fn select_optimal_assignee(
+    task_match_score_1: Integer,
+    task_match_score_2: Integer,
+    task_match_score_3: Integer,
+    workload_balance_score_1: Integer,
+    workload_balance_score_2: Integer,
+    workload_balance_score_3: Integer,
+    learning_opportunity_score_1: Integer,
+    learning_opportunity_score_2: Integer,
+    learning_opportunity_score_3: Integer,
+    member_preference_1: Integer,
+    member_preference_2: Integer,
+    member_preference_3: Integer
+) -> Integer {
+    // Returns: 1 = assign to member 1, 2 = assign to member 2, 3 = assign to member 3
+    
+    // Calculate weighted scores for each member
+    let member_1_score = task_match_score_1 * 40 / 100 + workload_balance_score_1 * 30 / 100 + learning_opportunity_score_1 * 20 / 100 + member_preference_1 * 10 / 100;
+    let member_2_score = task_match_score_2 * 40 / 100 + workload_balance_score_2 * 30 / 100 + learning_opportunity_score_2 * 20 / 100 + member_preference_2 * 10 / 100;
+    let member_3_score = task_match_score_3 * 40 / 100 + workload_balance_score_3 * 30 / 100 + learning_opportunity_score_3 * 20 / 100 + member_preference_3 * 10 / 100;
+    
+    // Select member with highest score
+    let selected_member = 1;
+    if member_2_score > member_1_score && member_2_score > member_3_score {
+        let selected_member = 2;
+    } else if member_3_score > member_1_score && member_3_score > member_2_score {
+        let selected_member = 3;
+    }
+    
+    return selected_member;
+}
+
+// Main entry point - Example work assignment scenario
+fn run() -> Integer {
+    // Example: Assigning a complex development task
+    
+    // Task parameters
+    let task_required_skills = 7;      // High skill requirement
+    let task_complexity = 6;           // Complex task
+    let task_estimated_hours = 40;     // 40 hours estimated
+    let task_learning_potential = 85;  // High learning potential
+    let task_deadline_days = 5;        // Due in 5 days
+    let task_business_impact = 80;     // High business impact
+    
+    // Member 1 parameters
+    let member_1_skill_level = 8;      // Skilled member
+    let member_1_experience = 4;       // 4 years experience
+    let member_1_availability = 45;    // 45 hours available
+    let member_1_interest = 90;        // Very interested
+    let member_1_current_tasks = 3;    // 3 current tasks
+    let member_1_hours_assigned = 35;  // 35 hours assigned
+    let member_1_capacity = 40;        // 40 hour capacity
+    
+    // Calculate scores for Member 1
+    let match_score_1 = calculate_task_match_score(
+        task_required_skills, member_1_skill_level, member_1_experience,
+        task_complexity, member_1_availability, task_estimated_hours, member_1_interest
+    );
+    
+    let workload_score_1 = calculate_workload_balance_score(
+        member_1_current_tasks, member_1_hours_assigned, member_1_capacity, 30, 2
+    );
+    
+    let learning_score_1 = evaluate_learning_opportunity(
+        task_learning_potential, 75, 1, 80, 1, 70
+    );
+    
+    // Calculate task priority
+    let task_priority = calculate_task_priority_urgency(
+        task_deadline_days, task_business_impact, 2, 70, 5000
+    );
+    
+    // For demo, return the match score which should be high for this scenario
+    return match_score_1;
+} 

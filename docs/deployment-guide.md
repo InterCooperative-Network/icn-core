@@ -29,6 +29,20 @@ tls_key_path = "./key.pem"
 To use RocksDB as the persistence layer, build `icn-node` with the
 `persist-rocksdb` feature and set `storage_backend = "rocksdb"`.
 
+## Identity
+
+ICN nodes generate a new DID and key on first launch. To supply an encrypted
+key, set the path and passphrase environment variable name:
+
+```toml
+[identity]
+key_path = "/secrets/node.key.enc"
+key_passphrase_env = "ICN_KEY_PASSPHRASE"
+```
+
+The passphrase is read from the environment variable referenced by
+`key_passphrase_env`.
+
 ## Small Federation
 
 For a small group of cooperating nodes, each node may use a persistent store and
@@ -102,6 +116,20 @@ icn-cli dag restore --path ./backups/sqlite
 icn-cli dag verify
 ```
 
+### Postgres
+
+```bash
+# Node configured with Postgres
+icn-node --storage-backend postgres --storage-path postgres://user:pass@localhost/icn_dag
+
+# Backup DAG data
+icn-cli dag backup --path ./backups/postgres
+
+# Restore and verify
+icn-cli dag restore --path ./backups/postgres
+icn-cli dag verify
+```
+
 ## Circuit Breaker and Retry
 
 The node automatically wraps outbound network calls in a circuit breaker and retry helper. These mechanisms prevent cascading failures when peers become unreachable.
@@ -128,4 +156,45 @@ retry_max_delay_ms = 1000
 ```
 
 These values control the helper used across HTTP and P2P operations.
+
+Configuration values can be provided in the node's TOML file under the `[network]`
+section or via environment variables:
+
+```bash
+ICN_NETWORK_FAILURE_THRESHOLD=3
+ICN_NETWORK_OPEN_TIMEOUT_SECS=5
+ICN_NETWORK_RETRY_MAX_ATTEMPTS=3
+ICN_NETWORK_RETRY_INITIAL_DELAY_MS=100
+ICN_NETWORK_RETRY_MAX_DELAY_MS=1000
+```
+
+Environment variables override values from the config file, allowing quick tuning
+without editing files.
+
+## Monitoring with Prometheus & Grafana
+
+The devnet includes optional monitoring services. Launch the stack with the
+`monitoring` profile to enable Prometheus and Grafana:
+
+```bash
+cd icn-devnet
+docker-compose --profile monitoring up -d
+```
+
+To monitor existing nodes without the devnet, run the standalone stack:
+```bash
+docker compose -f docker-compose-monitoring.yml up -d
+```
+
+Prometheus will be reachable at <http://localhost:9090> and Grafana at
+<http://localhost:3000> (`admin` / `icnfederation`). Import the dashboards from
+`icn-devnet/grafana/` to visualize node metrics.
+
+Runtime metrics now include counters for WASM resource limiter denials:
+
+```text
+wasm_memory_growth_denied_total - memory growth denied by the limiter
+wasm_table_growth_denied_total  - table growth denied by the limiter
+```
+
 

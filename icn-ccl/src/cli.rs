@@ -170,6 +170,7 @@ fn ast_to_string(ast: &AstNode, indent: usize) -> String {
             )
         }
         AstNode::Block(b) => block_to_string(b, indent),
+        AstNode::StructDefinition { .. } => "struct".to_string(),
     }
 }
 
@@ -181,6 +182,7 @@ fn policy_stmt_to_string(stmt: &PolicyStatementNode, indent: usize) -> String {
         PolicyStatementNode::Import { path, alias } => {
             format!("import \"{}\" as {};", path, alias)
         }
+        PolicyStatementNode::StructDef(_) => "struct".to_string(),
     }
 }
 
@@ -228,6 +230,22 @@ fn stmt_to_string(stmt: &StatementNode, indent: usize) -> String {
             s.push_str(&block_to_string(body, indent));
             s
         }
+        StatementNode::ForLoop {
+            iterator,
+            iterable,
+            body,
+        } => {
+            let mut s = String::new();
+            s.push_str(&format!(
+                "for {} in {} ",
+                iterator,
+                expr_to_string(iterable)
+            ));
+            s.push_str(&block_to_string(body, indent));
+            s
+        }
+        StatementNode::Break => "break;".to_string(),
+        StatementNode::Continue => "continue;".to_string(),
     }
 }
 
@@ -290,6 +308,11 @@ fn expr_to_string(expr: &ExpressionNode) -> String {
         ExpressionNode::ArrayAccess { array, index } => {
             format!("{}[{}]", expr_to_string(array), expr_to_string(index))
         }
+        ExpressionNode::SomeExpr(inner) => format!("Some({})", expr_to_string(inner)),
+        ExpressionNode::NoneExpr => "None".to_string(),
+        ExpressionNode::OkExpr(inner) => format!("Ok({})", expr_to_string(inner)),
+        ExpressionNode::ErrExpr(inner) => format!("Err({})", expr_to_string(inner)),
+        ExpressionNode::Match { value, .. } => format!("match {} ...", expr_to_string(value)),
     }
 }
 
@@ -304,6 +327,8 @@ fn type_to_string(ty: &TypeAnnotationNode) -> String {
         TypeAnnotationNode::Proposal => "Proposal".to_string(),
         TypeAnnotationNode::Vote => "Vote".to_string(),
         TypeAnnotationNode::Custom(s) => s.clone(),
+        TypeAnnotationNode::Option => "Option".to_string(),
+        TypeAnnotationNode::Result => "Result".to_string(),
     }
 }
 
@@ -355,6 +380,11 @@ fn explain_ast(ast: &AstNode, target: Option<&str>) -> String {
                     PolicyStatementNode::Import { path, alias } => {
                         if target.is_none() {
                             lines.push(format!("Imports `{}` as `{}`.", path, alias));
+                        }
+                    }
+                    PolicyStatementNode::StructDef(_) => {
+                        if target.is_none() {
+                            lines.push("Struct definition".to_string());
                         }
                     }
                 }

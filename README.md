@@ -1,4 +1,4 @@
-# ICN Core
+# ICN Core v0.2 – Cooperative Infrastructure Engine (Beta)
 
 `icn-core` is the reference implementation of the InterCooperative Network (ICN) protocol, written in Rust.
 It provides the foundational crates for building ICN nodes, CLI tools, and other related infrastructure.
@@ -73,8 +73,10 @@ The project has achieved a significant milestone with a production-ready foundat
 - **Real Protocol Data Models**: DIDs, CIDs, DagBlocks, governance primitives
 - **Multiple Storage Backends**: SQLite, RocksDB, Sled, File-based persistence
 - **API Layer**: Comprehensive REST endpoints with authentication and TLS
-- **P2P Mesh Networking**: libp2p integration with Kademlia peer discovery
-- **Production Security**: Ed25519 cryptographic signing with memory protection
+- **P2P Mesh Networking**: real libp2p networking stack with Kademlia peer discovery
+- **PostgresDagStore**: scalable PostgreSQL backend for DAG storage
+- **WASM ResourceLimiter**: caps CPU and memory usage for mesh jobs
+- **Production Security**: `Ed25519Signer` with memory protection, encrypted key files and optional HSM integration
 - **Comprehensive Error Handling**: Robust error propagation and user feedback
 
 ### **✅ Governance & Economics**
@@ -143,6 +145,10 @@ cargo build --no-default-features --features "with-libp2p persist-rocksdb"
   --storage-path ./icn_data/node1.sqlite \
   --mana-ledger-backend sled \
   --mana-ledger-path ./icn_data/mana1.sled \
+  --governance-db-path ./icn_data/gov.sqlite \
+  --node-did-path ./icn_data/node1.did \
+  --node-private-key-path ./icn_data/node1.key \
+  --http-listen-addr 127.0.0.1:7845 \
   --auth-token "secure-api-token" \
   --tls-cert-path ./certs/server.crt \
   --tls-key-path ./certs/server.key
@@ -160,14 +166,102 @@ cargo build --no-default-features --features "with-libp2p persist-rocksdb"
 # Interact with a node via the CLI
 ./target/debug/icn-cli info
 ./target/debug/icn-cli status
+./target/debug/icn-cli compile-ccl examples/simple.ccl
+./target/debug/icn-cli submit-job examples/echo-job.json
+./target/debug/icn-cli job-status <JOB_CID>
 ./target/debug/icn-cli governance propose "Increase mesh job timeout to 300 seconds"
-./target/debug/icn-cli mesh submit-job echo-job.json
+./target/debug/icn-cli network discover-peers
 
 # Federation management commands
 ./target/debug/icn-cli federation join <PEER_ID>
 ./target/debug/icn-cli federation status
 ./target/debug/icn-cli federation leave <PEER_ID>
 ./target/debug/icn-cli federation list-peers
+```
+
+## 🌐 Quick Start: Devnet Testing
+
+For the fastest way to test ICN features, use the containerized devnet that launches a 3-node federation:
+
+```bash
+# Launch complete devnet (from project root)
+just devnet
+
+# Or manually:
+cd icn-devnet && ./launch_federation.sh
+```
+
+This starts three nodes with automatic peer discovery and mana initialization. Each node gets **1000 mana** on startup.
+
+### Test Job Submission
+
+```bash
+# Submit a mesh job to the devnet
+curl -X POST http://localhost:5001/mesh/submit \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: devnet-a-key" \
+  -d '{
+    "manifest_cid": "bafybeiczsscdsbs7ffqz55asqdf3smv6klcw3gofszvwlyarci47bgf354",
+    "spec_json": {
+      "kind": {
+        "Echo": {
+          "payload": "Hello ICN!"
+        }
+      }
+    },
+    "cost_mana": 50
+  }'
+
+# Expected response:
+# {"job_id":"bafkrfz2acgrvhdag6q2rs7h5buh2i6omqqhffnrvatziwrlrnx3elqyp"}
+
+# Check job status
+curl -H "X-API-Key: devnet-a-key" http://localhost:5001/mesh/jobs
+
+# Access the different nodes:
+# Node A (bootstrap): http://localhost:5001
+# Node B (worker): http://localhost:5002  
+# Node C (worker): http://localhost:5003
+```
+
+**Important Notes:**
+- Use `X-API-Key` header (not `Authorization: Bearer`)
+- Jobs may show "failed - no bids" in single-node testing (expected behavior)
+- Mana is automatically refunded when jobs fail
+- See [icn-devnet/README.md](icn-devnet/README.md) for complete documentation
+
+### Recent Fix: Mana Initialization ✅
+
+A critical bug was recently fixed where nodes failed to initialize mana accounts, causing `"Account not found"` errors during job submission. This issue is now resolved - you should see `✅ Node initialized with 1000 mana` in startup logs.
+
+If you encounter mana-related errors:
+```bash
+# Check node startup logs for mana initialization
+docker-compose logs icn-node-a | grep -i "mana\|initialized"
+
+# Should show: "✅ Node initialized with 1000 mana"
+```
+
+### Architecture Overview
+
+The following text diagrams from [docs/ONBOARDING.md](docs/ONBOARDING.md) illustrate how core components interact.
+
+#### Block Storage
+
+```text
+Node Runtime -> DagStorageService: put(block)
+DagStorageService -> StorageBackend: persist block
+StorageBackend --> DagStorageService: CID
+DagStorageService --> Node Runtime: CID
+```
+
+#### Peer Messaging
+
+```text
+Node A -> NetworkService: send_message(Node B, msg)
+NetworkService -> Node B: deliver msg
+Node B -> NetworkService: optional response
+NetworkService -> Node A: response
 ```
 
 ### Justfile Commands
@@ -249,30 +343,30 @@ This approach ensures errors are not silently ignored and provides clear debuggi
 This workspace is organized into several crates, each with a specific focus:
 
 ### **Core Infrastructure**
-- **`icn-common`**: Shared data structures, types, utilities, and error definitions
-- **`icn-runtime`**: WASM execution environment, job orchestration, and host ABI
-- **`icn-api`**: API endpoints, DTOs, and service traits for external interfaces
+- **`icn-common`** – Shared types and error utilities used across crates
+- **`icn-runtime`** – Host runtime with WASM execution and job orchestration
+- **`icn-api`** – HTTP/gRPC API definitions and client helpers
 
-### **Identity & Security**  
-- **`icn-identity`**: Decentralized identity (DIDs), verifiable credentials, and cryptographic operations
-- **`icn-dag`**: Content-addressed DAG storage, manipulation, and receipt anchoring
+### **Identity & Security**
+- **`icn-identity`** – DID management and credential verification
+- **`icn-dag`** – Content-addressed storage and receipt anchoring
 
 ### **Governance & Economics**
-- **`icn-governance`**: Proposal systems, voting mechanisms, and policy execution
-- **`icn-economics`**: Mana accounting, scoped token management, and economic policies
-- **`icn-reputation`**: Reputation scoring, contribution tracking, and trust metrics
+- **`icn-governance`** – Proposals, voting, and policy execution
+- **`icn-economics`** – Mana accounting and economic policies
+- **`icn-reputation`** – Contribution tracking and trust metrics
 
 ### **Networking & Computation**
-- **`icn-network`**: P2P networking with libp2p, peer discovery, and federation sync
-- **`icn-mesh`**: Distributed job orchestration, scheduling, and execution management
+- **`icn-network`** – libp2p peer discovery and federation sync
+- **`icn-mesh`** – Distributed job scheduling and execution
 
 ### **Language & Protocol**
-- **[`icn-ccl`](icn-ccl/README.md)**: Cooperative Contract Language compiler producing WASM modules
-- **`icn-protocol`**: Core message formats, communication protocols, and serialization
+- **[`icn-ccl`](icn-ccl/README.md)** – Cooperative Contract Language compiler
+- **`icn-protocol`** – Core message formats and serialization
 
 ### **User Interfaces**
-- **`icn-cli`**: Command-line interface for users and administrators
-- **`icn-node`**: Main binary for running ICN daemon processes with HTTP API
+- **`icn-cli`** – Command-line interface for operators
+- **`icn-node`** – Main daemon binary exposing the HTTP API
 
 More detailed information can be found in the `README.md` file within each crate's directory.
 
@@ -289,12 +383,16 @@ More detailed information can be found in the `README.md` file within each crate
 * [RFC Index](icn-docs/rfcs/README.md) – design proposals and specifications
 * [RFC 0010: ICN Governance Core](icn-docs/rfcs/0010-governance-core.md) – governance framework
 * [Mana Policies](docs/mana_policies.md) – economic policy examples
-* [CCL Examples](icn-ccl/tests/contracts/) – governance contract templates
+* [CCL Language Reference](docs/CCL_LANGUAGE_REFERENCE.md) – full syntax guide
+* [CCL Examples](icn-ccl/examples/) – governance contract templates
 
 ### **Development Resources**
-* Crate documentation: [icn-common](crates/icn-common/README.md), [icn-dag](crates/icn-dag/README.md), [icn-identity](crates/icn-identity/README.md), [icn-mesh](crates/icn-mesh/README.md), [icn-governance](crates/icn-governance/README.md), [icn-runtime](crates/icn-runtime/README.md), [icn-network](crates/icn-network/README.md)
+* Crate documentation: [icn-common](crates/icn-common/README.md), [icn-dag](crates/icn-dag/README.md), [icn-identity](crates/icn-identity/README.md), [icn-mesh](crates/icn-mesh/README.md), [icn-governance](crates/icn-governance/README.md), [icn-runtime](crates/icn-runtime/README.md), [icn-network](crates/icn-network/README.md), [icn-templates](crates/icn-templates/README.md)
+* [Rust API Documentation](https://intercooperative-network.github.io/icn-core/) – automatically built by [docs.yml](.github/workflows/docs.yml)
+* Build docs locally with `cargo doc --workspace --no-deps` (or `just docs`) and open them from `target/doc`
 * [API Documentation](docs/API.md) – HTTP endpoints and programmatic interfaces
 * [Deployment Guide](docs/deployment-guide.md) – production deployment instructions (see [circuit breaker & retry settings](docs/deployment-guide.md#circuit-breaker-and-retry))
+* [Troubleshooting Guide](docs/TROUBLESHOOTING.md) – common issues and solutions
 
 ## Community & Contribution
 
@@ -337,6 +435,7 @@ This project is licensed under the Apache License 2.0. See the [LICENSE](LICENSE
 - ✅ Federation management and synchronization
 - ✅ Comprehensive monitoring and observability
 - ✅ Multi-node federation testing at scale
+- ✅ **Critical Mana Initialization Fix**: Resolved account not found errors
 - 🚧 Performance benchmarking and optimization
 
 ### **Upcoming Phases**
@@ -353,9 +452,21 @@ See [docs/ICN_FEATURE_OVERVIEW.md](docs/ICN_FEATURE_OVERVIEW.md) for the complet
 # Launch containerized three-node federation
 icn-devnet/launch_federation.sh
 
+# Or use just command
+just devnet
+
 # Manual Docker build (requires 64 MiB stack)
 export RUST_MIN_STACK=67108864
 docker build -f icn-devnet/Dockerfile .
+```
+
+#### 10-Node Devnet
+For larger scale testing you can spin up a ten node federation with load generation:
+
+```bash
+scripts/run_10node_devnet.sh --start-only   # launch containers
+scripts/run_10node_devnet.sh --jobs-only    # submit sample jobs
+scripts/run_10node_devnet.sh --stop-only    # tear down
 ```
 
 Future development and outstanding tasks are tracked on the [issue tracker](https://github.com/InterCooperative/icn-core/issues). Community feedback and contributions are always welcome!

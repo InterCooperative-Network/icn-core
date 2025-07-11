@@ -37,6 +37,35 @@ impl SemanticAnalyzer {
                 return_type: TypeAnnotationNode::Integer,
             },
         );
+        // Built-in helpers for array manipulation
+        let _ = analyzer.insert_symbol(
+            "array_len".to_string(),
+            Symbol::Function {
+                params: vec![TypeAnnotationNode::Array(Box::new(
+                    TypeAnnotationNode::Integer,
+                ))],
+                return_type: TypeAnnotationNode::Integer,
+            },
+        );
+        let _ = analyzer.insert_symbol(
+            "array_push".to_string(),
+            Symbol::Function {
+                params: vec![
+                    TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Integer)),
+                    TypeAnnotationNode::Integer,
+                ],
+                return_type: TypeAnnotationNode::Integer,
+            },
+        );
+        let _ = analyzer.insert_symbol(
+            "array_pop".to_string(),
+            Symbol::Function {
+                params: vec![TypeAnnotationNode::Array(Box::new(
+                    TypeAnnotationNode::Integer,
+                ))],
+                return_type: TypeAnnotationNode::Integer,
+            },
+        );
         analyzer
     }
 
@@ -130,6 +159,24 @@ impl SemanticAnalyzer {
                 self.pop_scope();
                 self.current_return_type = prev_return;
             }
+            AstNode::StructDefinition { name, fields } => {
+                self.insert_symbol(
+                    name.clone(),
+                    Symbol::Variable {
+                        type_ann: TypeAnnotationNode::Custom("struct".to_string()),
+                    },
+                )?;
+                self.push_scope();
+                for field in fields {
+                    self.insert_symbol(
+                        field.name.clone(),
+                        Symbol::Variable {
+                            type_ann: field.type_ann.clone(),
+                        },
+                    )?;
+                }
+                self.pop_scope();
+            }
             AstNode::RuleDefinition {
                 name,
                 condition,
@@ -173,6 +220,9 @@ impl SemanticAnalyzer {
                         type_ann: TypeAnnotationNode::Custom(format!("import<{path}>",)),
                     },
                 )?
+            }
+            crate::ast::PolicyStatementNode::StructDef(def) => {
+                self.visit_node(def)?;
             }
         }
         Ok(())
@@ -246,6 +296,28 @@ impl SemanticAnalyzer {
                 }
                 self.visit_block(body, found_return)?;
             }
+            StatementNode::ForLoop {
+                iterator,
+                iterable,
+                body,
+            } => {
+                let iter_ty = self.evaluate_expression(iterable)?;
+                let elem_ty = match iter_ty {
+                    TypeAnnotationNode::Array(inner) => *inner,
+                    _ => {
+                        return Err(CclError::TypeError(
+                            "For loop iterable must be an Array".to_string(),
+                        ))
+                    }
+                };
+                self.push_scope();
+                self.insert_symbol(iterator.clone(), Symbol::Variable { type_ann: elem_ty })?;
+                self.visit_block(body, found_return)?;
+                self.pop_scope();
+            }
+            StatementNode::Break | StatementNode::Continue => {
+                // Validity checked during parsing; nothing else to do
+            }
         }
         Ok(())
     }
@@ -309,6 +381,30 @@ impl SemanticAnalyzer {
                         array_type
                     ))),
                 }
+            }
+            ExpressionNode::SomeExpr(inner) => {
+                let _ = self.evaluate_expression(inner)?;
+                Ok(TypeAnnotationNode::Option)
+            }
+            ExpressionNode::NoneExpr => Ok(TypeAnnotationNode::Option),
+            ExpressionNode::OkExpr(inner) | ExpressionNode::ErrExpr(inner) => {
+                let _ = self.evaluate_expression(inner)?;
+                Ok(TypeAnnotationNode::Result)
+            }
+            ExpressionNode::Match { value, arms } => {
+                let _ = self.evaluate_expression(value)?;
+                let mut branch_ty: Option<TypeAnnotationNode> = None;
+                for (_, expr) in arms {
+                    let t = self.evaluate_expression(expr)?;
+                    if let Some(existing) = &branch_ty {
+                        if !existing.compatible_with(&t) {
+                            return Err(CclError::TypeError("Match arm type mismatch".to_string()));
+                        }
+                    } else {
+                        branch_ty = Some(t);
+                    }
+                }
+                Ok(branch_ty.unwrap_or(TypeAnnotationNode::Integer))
             }
             ExpressionNode::Identifier(name) => match self.lookup_symbol(name) {
                 Some(Symbol::Variable { type_ann }) => Ok(type_ann.clone()),

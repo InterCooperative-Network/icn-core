@@ -1,0 +1,13 @@
+{
+  "manifest_cid": "bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku",
+  "spec_json": {
+    "kind": { "Echo": { "payload": "ICN Devnet is working!" } },
+    "inputs": [],
+    "outputs": [],
+    "required_resources": {
+      "cpu_cores": 0,
+      "memory_mb": 0
+    }
+  },
+  "cost_mana": 50
+}

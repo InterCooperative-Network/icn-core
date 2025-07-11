@@ -2,6 +2,8 @@
 
 The ICN node exposes a REST interface for all functionality. This document describes the complete API surface, authentication requirements, and security features.
 
+An OpenAPI specification is available at [docs/openapi.yaml](openapi.yaml) for automatic client generation.
+
 ## Authentication & Security
 
 ### API Authentication
@@ -26,7 +28,9 @@ curl -X GET https://localhost:8080/info \
 | Method | Path | Description | Auth Required |
 |--------|------|-------------|---------------|
 | GET | `/info` | Node metadata including version and name | Optional |
-| GET | `/status` | Current node health and peer connectivity | Optional |
+| GET | `/status` | Current node status information | Optional |
+| GET | `/health` | Basic health check | Optional |
+| GET | `/ready` | Readiness probe for orchestration | Optional |
 | GET | `/metrics` | Prometheus metrics for monitoring | Optional |
 
 ## DAG Storage Endpoints
@@ -36,14 +40,18 @@ curl -X GET https://localhost:8080/info \
 | POST | `/dag/put` | Store a content-addressed block | Yes |
 | POST | `/dag/get` | Retrieve a block by CID | Yes |
 | POST | `/dag/meta` | Retrieve metadata for a block | Yes |
+| POST | `/dag/pin` | Pin a block to prevent pruning | Yes |
+| POST | `/dag/unpin` | Remove a pin from a block | Yes |
+| POST | `/dag/prune` | Garbage collect unpinned blocks | Yes |
 
 ### Example DAG Operations
 ```bash
-# Store a DAG block
+# Store a DAG block and receive a CID string
 curl -X POST https://localhost:8080/dag/put \
   -H "Content-Type: application/json" \
   -H "x-api-key: your-api-key" \
-  -d '{"data": "your-data", "links": []}'
+  -d '{"data": "your-data"}'
+# => "bafy...cid-string"
 
 # Retrieve a DAG block
 curl -X POST https://localhost:8080/dag/get \
@@ -56,7 +64,25 @@ curl -X POST https://localhost:8080/dag/meta \
   -H "Content-Type: application/json" \
   -H "x-api-key: your-api-key" \
   -d '{"cid": "your-cid-string"}'
+
+# Pin a DAG block
+curl -X POST https://localhost:8080/dag/pin \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: your-api-key" \
+  -d '{"cid": "your-cid-string"}'
+
+# Unpin a DAG block
+curl -X POST https://localhost:8080/dag/unpin \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: your-api-key" \
+  -d '{"cid": "your-cid-string"}'
 ```
+
+## Transaction Endpoints
+
+| Method | Path | Description | Auth Required |
+|--------|------|-------------|---------------|
+| POST | `/transaction/submit` | Submit a signed transaction to the runtime | Yes |
 
 ## Governance Endpoints
 
@@ -64,9 +90,12 @@ curl -X POST https://localhost:8080/dag/meta \
 |--------|------|-------------|---------------|
 | POST | `/governance/submit` | Submit a governance proposal | Yes |
 | POST | `/governance/vote` | Cast a vote on a proposal | Yes |
+| POST | `/governance/delegate` | Delegate voting power to another DID | Yes |
+| POST | `/governance/revoke` | Revoke a previous delegation | Yes |
 | GET | `/governance/proposals` | List all proposals | Yes |
 | GET | `/governance/proposal/:id` | Fetch a specific proposal | Yes |
 | POST | `/governance/close` | Close voting and return tally | Yes |
+| POST | `/governance/execute` | Execute an accepted proposal | Yes |
 
 ### Example Governance Operations
 ```bash
@@ -135,35 +164,29 @@ curl -X GET https://localhost:8080/mesh/jobs/job-uuid \
 | Method | Path | Description | Auth Required |
 |--------|------|-------------|---------------|
 | GET | `/federation/peers` | List known federation peers | Yes |
-| POST | `/federation/join` | Join a federation by adding a peer | Yes |
-| POST | `/federation/leave` | Leave a federation by removing a peer | Yes |
-| GET | `/federation/status` | Get current federation status | Yes |
+| POST | `/federation/peers` | Add a new federation peer | Yes |
+| POST | `/federation/join` | Join a federation via peer ID | Yes |
+| POST | `/federation/leave` | Voluntarily leave the federation | Yes |
+| GET | `/federation/status` | Current federation status | Yes |
 
 ### Example Federation Operations
 ```bash
-# Join a federation
-curl -X POST https://localhost:8080/federation/join \
+# Add a federation peer
+curl -X POST https://localhost:8080/federation/peers \
   -H "Content-Type: application/json" \
   -H "x-api-key: your-api-key" \
   -d '{"peer_id": "/ip4/127.0.0.1/tcp/4001/p2p/12D3KooW..."}'
 
-# Get federation status
-curl -X GET https://localhost:8080/federation/status \
+# List federation peers
+curl -X GET https://localhost:8080/federation/peers \
   -H "x-api-key: your-api-key"
-
-# Leave a federation
-curl -X POST https://localhost:8080/federation/leave \
-  -H "Content-Type: application/json" \
-  -H "x-api-key: your-api-key" \
-  -d '{"peer_id": "/ip4/127.0.0.1/tcp/4001/p2p/12D3KooW..."}'
 ```
 
 ## Network & Discovery Endpoints
 
 | Method | Path | Description | Auth Required |
 |--------|------|-------------|---------------|
-| POST | `/network/discover-peers` | Trigger peer discovery | Yes |
-| POST | `/network/send-message` | Send a message to a specific peer | Yes |
+| GET | `/network/local-peer-id` | Return the node's peer ID | Yes |
 | POST | `/network/connect` | Connect to a peer by multiaddress | Yes |
 | GET | `/network/peers` | List currently connected peers | Yes |
 
@@ -172,15 +195,12 @@ curl -X POST https://localhost:8080/federation/leave \
 | Method | Path | Description | Auth Required |
 |--------|------|-------------|---------------|
 | POST | `/contracts` | Upload or update a WASM contract | Yes |
-| GET | `/contracts` | List deployed contracts | Yes |
-| POST | `/contracts/execute` | Execute a WASM contract | Yes |
 
 ## Data Query Endpoints
 
 | Method | Path | Description | Auth Required |
 |--------|------|-------------|---------------|
 | POST | `/data/query` | Query stored data with filters | Yes |
-| GET | `/data/stats` | Get storage statistics | Yes |
 
 ## Error Responses
 
@@ -268,13 +288,35 @@ export ICN_AUTH_TOKEN="your-bearer-token"
 
 # Use CLI commands
 icn-cli info
-icn-cli federation status
+icn-cli federation peers
 icn-cli governance propose "Increase timeout to 300s"
 icn-cli dag meta '{"cid":"bafy..."}'
 ```
 
 ### HTTP Clients
 Standard HTTP clients can interact with the API. See the examples above for curl usage patterns.
+
+### Rust SDK
+The `icn-sdk` crate provides a typed client for interacting with the node. Add it to your `Cargo.toml`:
+
+```toml
+icn-sdk = { path = "../crates/icn-sdk" }
+tokio = { version = "1", features = ["full"] }
+```
+
+Example usage:
+
+```rust
+use icn_sdk::IcnClient;
+
+# #[tokio::main] // for a real application
+async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    let client = IcnClient::new("http://127.0.0.1:7845")?;
+    let info = client.info().await?;
+    println!("node name {}", info.name);
+    Ok(())
+}
+```
 
 ## Security Considerations
 

@@ -61,3 +61,31 @@ fn test_charge_rule() {
     let res = analyze_ok(src);
     assert!(res.is_ok());
 }
+
+#[test]
+fn test_option_result_match() {
+    let src = r#"
+        fn run() -> Integer {
+            let v = Some(1);
+            match v { 1 => 2, _ => 0 }
+        }
+    "#;
+    let res = analyze_ok(src);
+    assert!(res.is_ok());
+}
+
+#[test]
+fn test_for_loop_semantics() {
+    let src = r#"
+        fn run() -> Integer {
+            let nums = [1,2,3];
+            let total = 0;
+            for n in nums {
+                let total = total + n;
+            }
+            return total;
+        }
+    "#;
+    let res = analyze_ok(src);
+    assert!(res.is_ok());
+}

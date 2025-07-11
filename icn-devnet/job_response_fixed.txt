@@ -1,0 +1,4 @@
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0100   420  100   129  100   291   132k   298k --:--:-- --:--:-- --:--:--  410k
+{"error":"Mesh job submission failed: Internal runtime error: Error spending mana: Common(DatabaseError(\"Account not found\"))"}

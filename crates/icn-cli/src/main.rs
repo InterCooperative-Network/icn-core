@@ -20,7 +20,7 @@ use icn_common::{Cid, DagBlock, NodeInfo, NodeStatus};
 use icn_api::governance_trait::{
     CastVoteRequest as ApiCastVoteRequest, SubmitProposalRequest as ApiSubmitProposalRequest,
 };
-use icn_ccl::{compile_ccl_file, compile_ccl_file_to_wasm};
+use icn_ccl::{check_ccl_file, compile_ccl_file, compile_ccl_file_to_wasm, explain_ccl_policy};
 use icn_governance::{Proposal, ProposalId};
 
 fn anyhow_to_common(e: anyhow::Error) -> CommonError {
@@ -75,6 +75,21 @@ enum Commands {
     Network {
         #[clap(subcommand)]
         command: NetworkCommands,
+    },
+    /// Account queries
+    Accounts {
+        #[clap(subcommand)]
+        command: AccountCommands,
+    },
+    /// Key management
+    Keys {
+        #[clap(subcommand)]
+        command: KeyCommands,
+    },
+    /// Reputation queries
+    Reputation {
+        #[clap(subcommand)]
+        command: ReputationCommands,
     },
     /// Cooperative Contract Language operations
     Ccl {
@@ -218,6 +233,18 @@ enum CclCommands {
         #[clap(help = "Path to the CCL source file")]
         file: String,
     },
+    /// Lint a CCL source file for errors
+    Lint {
+        #[clap(help = "Path to the CCL source file")]
+        file: String,
+    },
+    /// Explain constructs within a CCL policy
+    Explain {
+        #[clap(help = "Path to the CCL source file")]
+        file: String,
+        #[clap(long, help = "Specific function or rule to explain")]
+        target: Option<String>,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -240,6 +267,30 @@ enum FederationCommands {
     /// Show federation status
     #[clap(name = "status")]
     Status,
+}
+
+#[derive(Subcommand, Debug)]
+enum AccountCommands {
+    /// Get mana balance for an account
+    Balance {
+        #[clap(help = "Target account DID")]
+        did: String,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum KeyCommands {
+    /// Show node DID and public key
+    Show,
+}
+
+#[derive(Subcommand, Debug)]
+enum ReputationCommands {
+    /// Get reputation score for an identity
+    Get {
+        #[clap(help = "Target DID")]
+        did: String,
+    },
 }
 
 // --- Main CLI Logic ---
@@ -300,8 +351,19 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
             NetworkCommands::Ping { peer_id } => handle_network_ping(cli, client, peer_id).await?,
             NetworkCommands::Peers => handle_network_peers(cli, client).await?,
         },
+        Commands::Accounts { command } => match command {
+            AccountCommands::Balance { did } => handle_account_balance(cli, client, did).await?,
+        },
+        Commands::Keys { command } => match command {
+            KeyCommands::Show => handle_keys_show(cli, client).await?,
+        },
+        Commands::Reputation { command } => match command {
+            ReputationCommands::Get { did } => handle_reputation_get(cli, client, did).await?,
+        },
         Commands::Ccl { command } => match command {
             CclCommands::Compile { file } => handle_ccl_compile(file)?,
+            CclCommands::Lint { file } => handle_ccl_lint(file)?,
+            CclCommands::Explain { file, target } => handle_ccl_explain(file, target).await?,
         },
         Commands::CompileCcl { file } => handle_compile_ccl_upload(cli, client, file).await?,
         Commands::SubmitJob {
@@ -766,6 +828,21 @@ fn handle_ccl_compile(file: &str) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
+fn handle_ccl_lint(file: &str) -> Result<(), anyhow::Error> {
+    let source_path = PathBuf::from(file);
+    check_ccl_file(&source_path).map_err(|e| anyhow::anyhow!(e))?;
+    println!("{} passed linting", file);
+    Ok(())
+}
+
+async fn handle_ccl_explain(file: &str, target: &Option<String>) -> Result<(), anyhow::Error> {
+    let source_path = PathBuf::from(file);
+    let explanation =
+        explain_ccl_policy(&source_path, target.clone()).map_err(|e| anyhow::anyhow!(e))?;
+    println!("{}", explanation);
+    Ok(())
+}
+
 #[derive(Serialize)]
 struct DagBlockPayload {
     data: Vec<u8>,
@@ -820,6 +897,30 @@ async fn handle_fed_leave(cli: &Cli, client: &Client, peer: &str) -> Result<(), 
 async fn handle_fed_status(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
     let status: serde_json::Value = get_request(&cli.api_url, client, "/federation/status").await?;
     println!("{}", serde_json::to_string_pretty(&status)?);
+    Ok(())
+}
+
+async fn handle_account_balance(
+    cli: &Cli,
+    client: &Client,
+    did: &str,
+) -> Result<(), anyhow::Error> {
+    let path = format!("/account/{}/mana", did);
+    let v: serde_json::Value = get_request(&cli.api_url, client, &path).await?;
+    println!("{}", serde_json::to_string_pretty(&v)?);
+    Ok(())
+}
+
+async fn handle_keys_show(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
+    let v: serde_json::Value = get_request(&cli.api_url, client, "/keys").await?;
+    println!("{}", serde_json::to_string_pretty(&v)?);
+    Ok(())
+}
+
+async fn handle_reputation_get(cli: &Cli, client: &Client, did: &str) -> Result<(), anyhow::Error> {
+    let path = format!("/reputation/{}", did);
+    let v: serde_json::Value = get_request(&cli.api_url, client, &path).await?;
+    println!("{}", serde_json::to_string_pretty(&v)?);
     Ok(())
 }
 

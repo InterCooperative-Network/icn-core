@@ -1,0 +1,4 @@
+// Provided by icn-templates crate
+fn vote_yes(count: Integer) -> Integer { return count + 1; }
+fn vote_no(count: Integer) -> Integer { return count; }
+fn run() -> Integer { return vote_yes(0); }

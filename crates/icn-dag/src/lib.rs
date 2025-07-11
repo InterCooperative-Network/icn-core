@@ -21,6 +21,8 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 pub mod index;
 pub mod metrics;
+#[cfg(feature = "persist-postgres")]
+pub mod postgres_store;
 #[cfg(feature = "persist-rocksdb")]
 pub mod rocksdb_store;
 #[cfg(feature = "persist-sled")]
@@ -159,6 +161,78 @@ where
     fn as_any(&self) -> &dyn std::any::Any;
 
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any;
+}
+
+/// Wrapper to adapt synchronous [`StorageService`] implementations to the async interface.
+#[cfg(feature = "async")]
+pub struct CompatAsyncStore<S> {
+    inner: S,
+}
+
+#[cfg(feature = "async")]
+impl<S> CompatAsyncStore<S> {
+    pub fn new(inner: S) -> Self {
+        Self { inner }
+    }
+    pub fn into_inner(self) -> S {
+        self.inner
+    }
+}
+
+#[cfg(feature = "async")]
+#[async_trait::async_trait]
+impl<B, S> AsyncStorageService<B> for CompatAsyncStore<S>
+where
+    B: Clone + serde::Serialize + for<'de> serde::Deserialize<'de> + Send + Sync,
+    S: StorageService<B> + Send + Sync,
+{
+    async fn put(&mut self, block: &B) -> Result<(), CommonError> {
+        self.inner.put(block)
+    }
+
+    async fn get(&self, cid: &Cid) -> Result<Option<B>, CommonError> {
+        self.inner.get(cid)
+    }
+
+    async fn delete(&mut self, cid: &Cid) -> Result<(), CommonError> {
+        self.inner.delete(cid)
+    }
+
+    async fn contains(&self, cid: &Cid) -> Result<bool, CommonError> {
+        self.inner.contains(cid)
+    }
+
+    async fn list_blocks(&self) -> Result<Vec<B>, CommonError> {
+        self.inner.list_blocks()
+    }
+
+    async fn pin_block(&mut self, cid: &Cid) -> Result<(), CommonError> {
+        self.inner.pin_block(cid)
+    }
+
+    async fn unpin_block(&mut self, cid: &Cid) -> Result<(), CommonError> {
+        self.inner.unpin_block(cid)
+    }
+
+    async fn prune_expired(&mut self, now: u64) -> Result<Vec<Cid>, CommonError> {
+        self.inner.prune_expired(now)
+    }
+
+    async fn set_ttl(&mut self, cid: &Cid, ttl: Option<u64>) -> Result<(), CommonError> {
+        self.inner.set_ttl(cid, ttl)
+    }
+
+    async fn get_metadata(&self, cid: &Cid) -> Result<Option<BlockMetadata>, CommonError> {
+        self.inner.get_metadata(cid)
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self.inner.as_any()
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self.inner.as_any_mut()
+    }
 }
 
 // --- In-Memory DAG Store ---
