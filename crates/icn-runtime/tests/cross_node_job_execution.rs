@@ -39,13 +39,12 @@ mod runtime_host_abi_tests {
         let base = tmp.into_path();
         let listen: Vec<Multiaddr> = vec!["/ip4/0.0.0.0/tcp/0".parse().unwrap()];
 
+        let signer = Arc::new(icn_runtime::context::StubSigner::new());
         let runtime_ctx = RuntimeContext::new_with_real_libp2p(
             &identity_did_str,
             listen,
             bootstrap_peers,
-            base.join("dag"),
-            base.join("mana"),
-            base.join("reputation"),
+            signer,
         )
         .await
         .map_err(|e| anyhow::anyhow!("Failed to create runtime context: {}", e))?;

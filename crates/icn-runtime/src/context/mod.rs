@@ -25,6 +25,7 @@ pub use mesh_network::{
 };
 pub use runtime_context::{
     RuntimeContext, RuntimeContextParams, MeshNetworkServiceType, CreateProposalPayload, CastVotePayload, CloseProposalResult,
+    MANA_MAX_CAPACITY_KEY,
 };
 pub use service_config::{ServiceConfig, ServiceConfigBuilder, ServiceEnvironment};
 pub use signers::{Ed25519Signer, HsmKeyStore, Signer, StubSigner};

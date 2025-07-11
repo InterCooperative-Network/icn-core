@@ -49,19 +49,18 @@ mod cross_node_tests {
 
     /// Helper to create RuntimeContext with real libp2p networking
     async fn create_libp2p_runtime_context(
-        identity_suffix: &str, 
+        identity_suffix: &str,
         bootstrap_peers: Option<Vec<(Libp2pPeerId, Multiaddr)>>,
         initial_mana: u64
     ) -> Result<Arc<RuntimeContext>, anyhow::Error> {
         let identity_str = format!("did:key:z6Mkv{}", identity_suffix);
         let listen: Vec<Multiaddr> = vec!["/ip4/0.0.0.0/tcp/0".parse().unwrap()];
+        let signer = Arc::new(icn_runtime::context::StubSigner::new());
         let ctx = RuntimeContext::new_with_real_libp2p(
             &identity_str,
             listen,
             bootstrap_peers,
-            std::path::PathBuf::from("./dag_store"),
-            std::path::PathBuf::from("./mana_ledger.sled"),
-            std::path::PathBuf::from("./reputation.sled"),
+            signer,
         )
         .await?;
         
@@ -331,7 +330,7 @@ mod cross_node_tests {
             MessagePayload::MeshJobAssignment(MeshJobAssignmentMessage {
                 job_id: test_job.id.clone(),
                 executor_did: executor_did.clone(),
-                agreed_cost_mana: 0,
+                agreed_cost_mana: test_job.cost_mana,
                 completion_deadline: 0,
                 manifest_cid: None,
             }),
@@ -355,7 +354,11 @@ mod cross_node_tests {
                     if let MessagePayload::MeshJobAssignment(assign) = &message.payload {
                         if assign.job_id == test_job.id && assign.executor_did == executor_did {
                             info!("✓ Node B received assignment for job {:?}", assign.job_id);
-                            return Some((assign.job_id.clone(), assign.executor_did.clone()));
+                            return Some((
+                                assign.job_id.clone(),
+                                assign.executor_did.clone(),
+                                assign.agreed_cost_mana,
+                            ));
                         }
                     }
                 }
@@ -363,9 +366,10 @@ mod cross_node_tests {
         }).await;
         
         assert!(assignment_received.is_ok(), "Assignment notification did not reach Node B");
-        let (assigned_job_id, assigned_executor) = assignment_received.unwrap().unwrap();
+        let (assigned_job_id, assigned_executor, assignment_cost) = assignment_received.unwrap().unwrap();
         assert_eq!(assigned_job_id, test_job.id);
         assert_eq!(assigned_executor, executor_did);
+        assert_eq!(assignment_cost, test_job.cost_mana);
         
         // Node B: Execute the job using SimpleExecutor
         info!("Node B: Executing assigned job...");
@@ -614,7 +618,7 @@ mod cross_node_tests {
             MessagePayload::MeshJobAssignment(MeshJobAssignmentMessage {
                 job_id: test_job.id.clone(),
                 executor_did: executor_did.clone(),
-                agreed_cost_mana: 0,
+                agreed_cost_mana: test_job.cost_mana,
                 completion_deadline: 0,
                 manifest_cid: None,
             }),
@@ -631,7 +635,11 @@ mod cross_node_tests {
                 if let Some(message) = node_b_receiver.recv().await {
                     if let MessagePayload::MeshJobAssignment(assign) = &message.payload {
                         if assign.job_id == test_job.id && assign.executor_did == executor_did {
-                            return Some((assign.job_id.clone(), assign.executor_did.clone()));
+                            return Some((
+                                assign.job_id.clone(),
+                                assign.executor_did.clone(),
+                                assign.agreed_cost_mana,
+                            ));
                         }
                     }
                 }
@@ -639,6 +647,10 @@ mod cross_node_tests {
         }).await;
         
         assert!(assignment_received.is_ok(), "Assignment notification did not reach Node B");
+        let (assigned_id, assigned_exec, assignment_cost) = assignment_received.unwrap().unwrap();
+        assert_eq!(assigned_id, test_job.id);
+        assert_eq!(assigned_exec, executor_did);
+        assert_eq!(assignment_cost, test_job.cost_mana);
         info!("✓ Assignment received by Node B");
         
         // Node B: Execute job
