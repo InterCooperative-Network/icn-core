@@ -1,9 +1,10 @@
 //! Test to validate that RuntimeContext properly uses DefaultMeshNetworkService 
 //! when libp2p is enabled, instead of StubMeshNetworkService.
-//! This addresses the core Phase 5 improvement of replacing stub implementations.
+//! Also tests the DefaultSigner implementation for Phase 5 cryptographic improvements.
+//! This addresses core Phase 5 improvements of replacing stub implementations.
 
 use icn_common::Did;
-use icn_runtime::context::{MeshNetworkService, RuntimeContext};
+use icn_runtime::context::{MeshNetworkService, RuntimeContext, Signer};
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -99,6 +100,59 @@ async fn test_default_mesh_network_service_connectivity_validation() {
             assert!(result.is_ok(), "Connectivity validation should succeed");
         }
     }
+    
+    // Clean up
+    let _ = std::fs::remove_file("./mana_ledger.sled");
+    let _ = std::fs::remove_file("./reputation.sled");
+    let _ = std::fs::remove_file("./dag.sled");
+}
+
+#[test]
+fn test_default_signer_functionality() {
+    // Test that DefaultSigner provides real cryptographic capabilities
+    use icn_runtime::context::DefaultSigner;
+    
+    let did_str = "did:icn:test:default_signer";
+    let did = Did::from_str(did_str).unwrap();
+    
+    // Create a DefaultSigner
+    let signer = DefaultSigner::new_for_did(&did).unwrap();
+    
+    // Test signing and verification
+    let test_payload = b"Hello, ICN Phase 5!";
+    let signature = signer.sign(test_payload).unwrap();
+    let public_key_bytes = signer.public_key_bytes();
+    
+    // Verify the signature
+    let is_valid = signer.verify(test_payload, &signature, &public_key_bytes).unwrap();
+    assert!(is_valid, "DefaultSigner should produce valid signatures");
+    
+    // Test that DID is properly maintained
+    assert_eq!(signer.did(), did);
+    
+    // Test invalid signature detection
+    let mut invalid_signature = signature.clone();
+    invalid_signature[0] = invalid_signature[0].wrapping_add(1); // Corrupt one byte
+    let is_invalid = signer.verify(test_payload, &invalid_signature, &public_key_bytes).unwrap();
+    assert!(!is_invalid, "DefaultSigner should detect invalid signatures");
+}
+
+#[test]
+fn test_runtime_context_uses_default_signer() {
+    // Test that RuntimeContext now uses DefaultSigner instead of StubSigner
+    let did_str = "did:icn:test:runtime_signer";
+    let ctx = RuntimeContext::new_with_stubs(did_str).unwrap();
+    
+    // Test that we can access the signer and it works
+    let test_payload = b"Test runtime signer";
+    let signature = ctx.signer.sign(test_payload).unwrap();
+    let public_key_bytes = ctx.signer.public_key_bytes();
+    
+    let is_valid = ctx.signer.verify(test_payload, &signature, &public_key_bytes).unwrap();
+    assert!(is_valid, "RuntimeContext signer should provide valid cryptography");
+    
+    // Test that the signer's DID matches the context's identity
+    assert_eq!(ctx.signer.did(), ctx.current_identity);
     
     // Clean up
     let _ = std::fs::remove_file("./mana_ledger.sled");
