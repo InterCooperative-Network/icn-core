@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["collect_metrics","register_core_metrics"]};
