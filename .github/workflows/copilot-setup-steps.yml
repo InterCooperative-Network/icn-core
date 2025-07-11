@@ -21,13 +21,18 @@ jobs:
       contents: read
 
     steps:
-      - name: 📦 Checkout code
+      - name: 📦 Checkout repository
         uses: actions/checkout@v4
         with:
           lfs: true
 
-      - name: 🛠 Make setup scripts executable
-        run: chmod +x ./scripts/copilot-env-setup.sh
-
       - name: 🚀 Run ICN environment setup
         run: ./scripts/copilot-env-setup.sh
+        working-directory: ${{ github.workspace }}
+
+      - name: 📤 Upload setup log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: icn-setup-log
+          path: /tmp/icn-setup.log
