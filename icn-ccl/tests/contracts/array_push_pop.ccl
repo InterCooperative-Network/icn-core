@@ -1,0 +1,8 @@
+fn run() -> Integer {
+    let nums = [1, 2];
+    array_push(nums, 3);
+    array_push(nums, 4);
+    let first = array_pop(nums);
+    let second = array_pop(nums);
+    return first + second + array_len(nums);
+}
