@@ -47,6 +47,14 @@ path = "../icn-ccl/tests/operator_precedence.rs"
 name = "ten_node_scale"
 path = "integration/ten_node_scale.rs"
 
+[[test]]
+name = "comprehensive_e2e"
+path = "integration/comprehensive_e2e.rs"
+
+[features]
+default = []
+enable-libp2p = ["icn-node/with-libp2p", "icn-runtime/enable-libp2p"]
+
 [dependencies]
 reqwest.workspace = true
 serde_json.workspace = true
@@ -55,6 +63,13 @@ once_cell = "1"
 assert_cmd = "2.0"
 predicates = "3.1"
 axum = { version = "0.7", features = ["json"] }
+chrono = { version = "0.4", features = ["serde"] }
+anyhow = "1.0"
 icn-node = { path = "../crates/icn-node", features = ["with-libp2p"] }
 icn-runtime = { path = "../crates/icn-runtime", features = ["async"] }
 icn-governance = { path = "../crates/icn-governance" }
+icn-mesh = { path = "../crates/icn-mesh" }
+icn-common = { path = "../crates/icn-common" }
+icn-protocol = { path = "../crates/icn-protocol" }
+icn-identity = { path = "../crates/icn-identity" }
+icn-network = { path = "../crates/icn-network" }
