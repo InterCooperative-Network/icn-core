@@ -62,7 +62,7 @@ async fn parameter_persists_between_restarts() {
     drop(ctx);
 
     let cfg = NodeConfig::from_file(&param_path).unwrap();
-    assert_eq!(cfg.open_rate_limit, 5);
+    assert_eq!(cfg.http.open_rate_limit, 5);
 
     let (_r2, _ctx2) = app_router_with_options(
         None,
@@ -78,5 +78,5 @@ async fn parameter_persists_between_restarts() {
     )
     .await;
     let cfg2 = NodeConfig::from_file(&param_path).unwrap();
-    assert_eq!(cfg2.open_rate_limit, 5);
+    assert_eq!(cfg2.http.open_rate_limit, 5);
 }

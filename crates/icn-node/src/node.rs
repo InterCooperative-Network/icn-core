@@ -40,8 +40,8 @@ use icn_protocol::{
 };
 use icn_protocol::{MessagePayload, ProtocolMessage};
 use icn_runtime::context::{
-    DefaultMeshNetworkService, Ed25519Signer, LocalMeshSubmitReceiptMessage, MeshNetworkServiceType, RuntimeContext, Signer,
-    StubMeshNetworkService,
+    DefaultMeshNetworkService, Ed25519Signer, LocalMeshSubmitReceiptMessage,
+    MeshNetworkServiceType, RuntimeContext, Signer, StubMeshNetworkService,
 };
 use icn_runtime::{host_anchor_receipt, host_submit_mesh_job, ReputationUpdater};
 use prometheus_client::{encoding::text::encode, registry::Registry};
@@ -591,23 +591,30 @@ pub async fn app_router_with_options(
             .expect("Failed to create libp2p service");
         let service_dyn: Arc<dyn NetworkService> = Arc::new(service);
         let default_service = DefaultMeshNetworkService::new(service_dyn.clone(), _signer.clone());
-        (Arc::new(MeshNetworkServiceType::Default(default_service)), Some(service_dyn))
+        (
+            Arc::new(MeshNetworkServiceType::Default(default_service)),
+            Some(service_dyn),
+        )
     };
     #[cfg(not(feature = "enable-libp2p"))]
     let (mesh_network_service, service_dyn) = {
         let stub_service = StubMeshNetworkService::new();
-        (Arc::new(MeshNetworkServiceType::Stub(stub_service)), None::<Arc<dyn icn_network::NetworkService>>)
+        (
+            Arc::new(MeshNetworkServiceType::Stub(stub_service)),
+            None::<Arc<dyn icn_network::NetworkService>>,
+        )
     };
     // GovernanceModule is initialized inside RuntimeContext::new
 
     // Create production-ready RuntimeContext with proper services
     let node_did_string = node_did.to_string();
-    
+
     // Create mana ledger with initial balance
     let mana_ledger = icn_runtime::context::SimpleManaLedger::new(
-        mana_ledger_path.unwrap_or_else(|| PathBuf::from("./tests/fixtures/mana_ledger.json"))
+        mana_ledger_path.unwrap_or_else(|| PathBuf::from("./tests/fixtures/mana_ledger.json")),
     );
-    mana_ledger.set_balance(&node_did, 1000)
+    mana_ledger
+        .set_balance(&node_did, 1000)
         .expect("Failed to set initial mana balance");
 
     // Create production RuntimeContext using the mesh network service we created above
@@ -653,10 +660,10 @@ pub async fn app_router_with_options(
     info!("✅ Node initialized with 1000 mana (testing services without libp2p)");
 
     rt_ctx.clone().spawn_mesh_job_manager().await; // Start the job manager
-    
+
     // Start the executor manager so this node can act as an executor
     rt_ctx.clone().spawn_mesh_executor_manager().await;
-    
+
     info!("ICN RuntimeContext initialized and JobManager + ExecutorManager spawned.");
 
     let config = Arc::new(TokioMutex::new(cfg.clone()));
@@ -940,11 +947,11 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
         panic!("Failed to create parameter store")
     });
     // Start with persisted parameter values
-    config.open_rate_limit = parameter_store.open_rate_limit();
+    config.http.open_rate_limit = parameter_store.open_rate_limit();
     config.apply_env_overrides();
     config.apply_cli_overrides(&cli, &matches);
     if let Err(e) =
-        parameter_store.set_parameter("open_rate_limit", &config.open_rate_limit.to_string())
+        parameter_store.set_parameter("open_rate_limit", &config.http.open_rate_limit.to_string())
     {
         warn!("Failed to update parameter store: {}", e);
     }
@@ -956,11 +963,11 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
     let shared_config = Arc::new(TokioMutex::new(config.clone()));
     let parameter_store = Arc::new(TokioMutex::new(parameter_store));
 
-    if config.auth_token.is_none() {
-        if let Some(path) = &config.auth_token_path {
+    if config.http.auth_token.is_none() {
+        if let Some(path) = &config.http.auth_token_path {
             match fs::read_to_string(path) {
                 Ok(tok) => {
-                    config.auth_token = Some(tok.trim().to_string());
+                    config.http.auth_token = Some(tok.trim().to_string());
                 }
                 Err(e) => {
                     error!("Failed to read auth token file {}: {}", path.display(), e);
@@ -1037,10 +1044,10 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
 
     // Start the job manager
     rt_ctx.clone().spawn_mesh_job_manager().await;
-    
+
     // Start the executor manager so this node can act as an executor
     rt_ctx.clone().spawn_mesh_executor_manager().await;
-    
+
     info!("ICN RuntimeContext initialized and JobManager + ExecutorManager spawned.");
 
     // Initialize the node with some mana for job submission
@@ -1066,24 +1073,26 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // --- Create AppState for Axum ---
-    let rate_limiter =
-        if config.api_key.is_none() && config.auth_token.is_none() && config.open_rate_limit > 0 {
-            Some(Arc::new(AsyncMutex::new(RateLimitData {
-                last: Instant::now(),
-                count: 0,
-                limit: config.open_rate_limit,
-                failed_attempts: 0,
-            })))
-        } else {
-            None
-        };
+    let rate_limiter = if config.http.api_key.is_none()
+        && config.http.auth_token.is_none()
+        && config.http.open_rate_limit > 0
+    {
+        Some(Arc::new(AsyncMutex::new(RateLimitData {
+            last: Instant::now(),
+            count: 0,
+            limit: config.http.open_rate_limit,
+            failed_attempts: 0,
+        })))
+    } else {
+        None
+    };
 
     let app_state = AppState {
         runtime_context: rt_ctx.clone(),
         node_name: node_name.clone(),
         node_version: ICN_CORE_VERSION.to_string(),
-        api_key: config.api_key.clone(),
-        auth_token: config.auth_token.clone(),
+        api_key: config.http.api_key.clone(),
+        auth_token: config.http.auth_token.clone(),
         rate_limiter: rate_limiter.clone(),
         peers: Arc::new(TokioMutex::new(Vec::new())),
         config: shared_config.clone(),
@@ -2329,20 +2338,23 @@ async fn mesh_stub_bid_handler(
     Json(request): Json<StubBidRequest>,
 ) -> impl IntoResponse {
     use icn_runtime::context::MeshNetworkServiceType;
-    
+
     // Parse job ID - create a CID from the string
     let cid = icn_common::Cid::new_v1_sha256(0x55, request.job_id.as_bytes());
     let job_id = icn_mesh::JobId(cid);
-    
+
     // Parse executor DID
     let executor_did = match icn_common::Did::from_str(&request.executor_id) {
         Ok(did) => did,
-        Err(_) => return map_rust_error_to_json_response(
-            "Invalid executor DID format",
-            StatusCode::BAD_REQUEST,
-        ).into_response(),
+        Err(_) => {
+            return map_rust_error_to_json_response(
+                "Invalid executor DID format",
+                StatusCode::BAD_REQUEST,
+            )
+            .into_response()
+        }
     };
-    
+
     // Create a bid
     let bid = icn_mesh::MeshJobBid {
         job_id: job_id.clone(),
@@ -2354,23 +2366,28 @@ async fn mesh_stub_bid_handler(
         },
         signature: icn_identity::SignatureBytes(vec![0; 64]), // Dummy signature for testing
     };
-    
+
     // Check if using stub network service
     match &*state.runtime_context.mesh_network_service {
         MeshNetworkServiceType::Stub(stub_service) => {
             stub_service.stage_bid(job_id, bid).await;
-            (StatusCode::OK, Json(serde_json::json!({
-                "success": true,
-                "message": "Bid staged successfully",
-                "job_id": request.job_id,
-                "executor_id": request.executor_id,
-                "estimated_cost": request.estimated_cost
-            }))).into_response()
+            (
+                StatusCode::OK,
+                Json(serde_json::json!({
+                    "success": true,
+                    "message": "Bid staged successfully",
+                    "job_id": request.job_id,
+                    "executor_id": request.executor_id,
+                    "estimated_cost": request.estimated_cost
+                })),
+            )
+                .into_response()
         }
         _ => map_rust_error_to_json_response(
             "Stub bid injection only works with stub network service",
             StatusCode::BAD_REQUEST,
-        ).into_response(),
+        )
+        .into_response(),
     }
 }
 
@@ -2379,24 +2396,27 @@ async fn mesh_stub_receipt_handler(
     State(state): State<AppState>,
     Json(request): Json<StubReceiptRequest>,
 ) -> impl IntoResponse {
-    use icn_runtime::context::{MeshNetworkServiceType, LocalMeshSubmitReceiptMessage};
-    
+    use icn_runtime::context::{LocalMeshSubmitReceiptMessage, MeshNetworkServiceType};
+
     // Parse job ID - create a CID from the string
     let cid = icn_common::Cid::new_v1_sha256(0x55, request.job_id.as_bytes());
     let job_id = icn_mesh::JobId(cid);
-    
+
     // Parse executor DID
     let executor_did = match icn_common::Did::from_str(&request.executor_id) {
         Ok(did) => did,
-        Err(_) => return map_rust_error_to_json_response(
-            "Invalid executor DID format",
-            StatusCode::BAD_REQUEST,
-        ).into_response(),
+        Err(_) => {
+            return map_rust_error_to_json_response(
+                "Invalid executor DID format",
+                StatusCode::BAD_REQUEST,
+            )
+            .into_response()
+        }
     };
-    
+
     // Create a dummy result CID
     let result_cid = icn_common::Cid::new_v1_sha256(0x55, b"test_result");
-    
+
     // Create execution receipt
     let receipt = icn_identity::ExecutionReceipt {
         job_id: job_id.clone().into(),
@@ -2406,28 +2426,33 @@ async fn mesh_stub_receipt_handler(
         success: true,
         sig: icn_identity::SignatureBytes(vec![0; 64]), // Dummy signature for testing
     };
-    
+
     // Create receipt message
     let receipt_message = LocalMeshSubmitReceiptMessage {
         receipt: receipt.clone(),
     };
-    
+
     // Check if using stub network service
     match &*state.runtime_context.mesh_network_service {
         MeshNetworkServiceType::Stub(stub_service) => {
             stub_service.stage_receipt(job_id, receipt_message).await;
-            (StatusCode::OK, Json(serde_json::json!({
-                "success": true,
-                "message": "Receipt staged successfully",
-                "job_id": request.job_id,
-                "executor_id": request.executor_id,
-                "result_cid": result_cid.to_string()
-            }))).into_response()
+            (
+                StatusCode::OK,
+                Json(serde_json::json!({
+                    "success": true,
+                    "message": "Receipt staged successfully",
+                    "job_id": request.job_id,
+                    "executor_id": request.executor_id,
+                    "result_cid": result_cid.to_string()
+                })),
+            )
+                .into_response()
         }
         _ => map_rust_error_to_json_response(
             "Stub receipt injection only works with stub network service",
             StatusCode::BAD_REQUEST,
-        ).into_response(),
+        )
+        .into_response(),
     }
 }
 

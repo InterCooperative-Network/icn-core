@@ -23,7 +23,7 @@ impl ParameterStore {
     }
 
     pub fn open_rate_limit(&self) -> u64 {
-        self.config.open_rate_limit
+        self.config.http.open_rate_limit
     }
 
     /// Update a parameter and persist changes to disk.
@@ -33,7 +33,7 @@ impl ParameterStore {
                 let val = value
                     .parse::<u64>()
                     .map_err(|e| CommonError::InvalidInputError(e.to_string()))?;
-                self.config.open_rate_limit = val;
+                self.config.http.open_rate_limit = val;
                 log::info!(target: "audit", "parameter_changed name=open_rate_limit value={}" , val);
                 self.save()?;
                 Ok(())
