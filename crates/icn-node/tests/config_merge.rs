@@ -40,9 +40,9 @@ listen_addr = "1.2.3.4:1111"
     cfg.apply_env_overrides();
     cfg.apply_cli_overrides(&cli, &matches);
 
-    assert_eq!(cfg.storage_backend, StorageBackendType::Sqlite);
-    assert_eq!(cfg.storage_path.to_str().unwrap(), "cli_path");
-    assert_eq!(cfg.http_listen_addr, "5.6.7.8:2222");
+    assert_eq!(cfg.storage.storage_backend, StorageBackendType::Sqlite);
+    assert_eq!(cfg.storage.storage_path.to_str().unwrap(), "cli_path");
+    assert_eq!(cfg.http.http_listen_addr, "5.6.7.8:2222");
 
     // cleanup
     std::env::remove_var("ICN_STORAGE_BACKEND");

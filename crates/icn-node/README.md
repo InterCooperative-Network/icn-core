@@ -82,6 +82,9 @@ listen_addr = "127.0.0.1:8080"
 [identity]
 node_did_path = "./icn_data/node_did.txt"
 node_private_key_path = "./icn_data/node_sk.bs58"
+
+[p2p]
+listen_address = "/ip4/0.0.0.0/tcp/0"
 ```
 
 Every option can also be set via environment variables prefixed with `ICN_`.
