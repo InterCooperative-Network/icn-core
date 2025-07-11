@@ -76,7 +76,7 @@ use crate::config::{NodeConfig, StorageBackendType};
 #[cfg(feature = "enable-libp2p")]
 use icn_network::libp2p_service::{Libp2pNetworkService, NetworkConfig};
 #[cfg(feature = "enable-libp2p")]
-use libp2p::{Multiaddr, PeerId as Libp2pPeerId};
+use libp2p::Multiaddr;
 
 static NODE_START_TIME: AtomicU64 = AtomicU64::new(0);
 
@@ -572,7 +572,8 @@ pub async fn app_router_with_options(
     let mut rt_ctx = RuntimeContext::new_with_stubs_and_mana(
         &node_did_string,
         1000, // Initial mana for testing
-    ).expect("Failed to create RuntimeContext for testing");
+    )
+    .expect("Failed to create RuntimeContext for testing");
 
     #[cfg(feature = "persist-sled")]
     {
@@ -923,49 +924,13 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
                 config.listen_address
             );
 
-            // Parse bootstrap peers if provided
-            let bootstrap_peers = if let Some(peer_strings) = &config.bootstrap_peers {
-                let mut parsed_peers = Vec::new();
-                for peer_str in peer_strings {
-                    match peer_str.parse::<Multiaddr>() {
-                        Ok(multiaddr) => {
-                            // Extract PeerID from multiaddr if present
-                            if let Some(libp2p::core::multiaddr::Protocol::P2p(peer_id)) =
-                                multiaddr.iter().last()
-                            {
-                                if let Ok(peer_id) = peer_id.try_into() {
-                                    parsed_peers.push((peer_id, multiaddr));
-                                    info!("Added bootstrap peer: {}", peer_str);
-                                } else {
-                                    warn!("Failed to parse PeerID from multiaddr: {}", peer_str);
-                                }
-                            } else {
-                                warn!("Multiaddr missing PeerID component: {}", peer_str);
-                            }
-                        }
-                        Err(e) => {
-                            error!(
-                                "Failed to parse bootstrap peer multiaddr '{}': {}",
-                                peer_str, e
-                            );
-                            std::process::exit(1);
-                        }
-                    }
+            let net_cfg = match config.libp2p_config() {
+                Ok(cfg) => cfg,
+                Err(e) => {
+                    error!("Invalid libp2p configuration: {}", e);
+                    std::process::exit(1);
                 }
-                if parsed_peers.is_empty() {
-                    None
-                } else {
-                    Some(parsed_peers)
-                }
-            } else {
-                None
             };
-
-            let listen_addr = config
-                .listen_address
-                .parse::<Multiaddr>()
-                .expect("Invalid p2p listen multiaddr");
-            let listen_addrs = vec![listen_addr];
 
             let dag_store_for_rt = match config.init_dag_store() {
                 Ok(store) => store,
@@ -975,19 +940,21 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
                 }
             };
 
-            // TODO: P2P networking needs to be handled with a new method in the clean configuration API
-            // For now, use the basic ledger path method and configure P2P separately if needed
-            match RuntimeContext::new_with_ledger_path(
+            match RuntimeContext::new_with_real_libp2p_and_mdns(
                 &node_did_string,
+                net_cfg.listen_addresses,
+                Some(net_cfg.bootstrap_peers),
+                dag_store_for_rt,
                 config.mana_ledger_path.clone(),
+                config.reputation_db_path.clone(),
+                net_cfg.enable_mdns,
                 signer.clone(),
-            ) {
+                Arc::new(icn_identity::KeyDidResolver),
+            )
+            .await
+            {
                 Ok(ctx) => {
-                    info!("✅ RuntimeContext created (P2P networking configuration pending)");
-                    
-                    // TODO: Configure P2P networking here if needed
-                    // This would require extending the clean configuration API to support P2P setup
-                    
+                    info!("✅ RuntimeContext created with libp2p networking");
                     ctx
                 }
                 Err(e) => {
@@ -1036,7 +1003,8 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
                 &node_did_string,
                 config.mana_ledger_path.clone(),
                 signer,
-            ).expect("Failed to create RuntimeContext for production")
+            )
+            .expect("Failed to create RuntimeContext for production")
         }
     };
 
