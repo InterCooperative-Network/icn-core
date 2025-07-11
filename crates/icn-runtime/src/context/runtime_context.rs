@@ -972,7 +972,23 @@ impl RuntimeContext {
         }
         
         // 5. Select best executor
-        let job_spec = icn_mesh::JobSpec::default(); // TODO: Reconstruct from DAG
+        let lifecycle = self.get_job_status(&job_id).await?;
+        let job_spec = if let Some(lifecycle) = lifecycle {
+            serde_json::from_str(&lifecycle.job.spec_json).map_err(|e| {
+                HostAbiError::DagOperationFailed(format!(
+                    "Failed to deserialize job spec: {}",
+                    e
+                ))
+            })?
+        } else {
+            log::error!(
+                "[manage_job_lifecycle] Job {} not found in DAG during executor selection",
+                job_id
+            );
+            return Err(HostAbiError::InternalError(
+                "Job spec not found in DAG".to_string(),
+            ));
+        };
         let selection_policy = icn_mesh::SelectionPolicy::default();
         let selected_executor = icn_mesh::select_executor(
             &job_id,

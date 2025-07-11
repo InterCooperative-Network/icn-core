@@ -601,6 +601,29 @@ fn create_test_bid(job_id: &Cid, executor_ctx: &Arc<RuntimeContext>, price: u64)
     }
 }
 
+fn create_test_bid_with_resources(
+    job_id: &JobId,
+    executor_ctx: &Arc<RuntimeContext>,
+    price: u64,
+    resources: Resources,
+) -> MeshJobBid {
+    let unsigned = MeshJobBid {
+        job_id: job_id.clone(),
+        executor_did: executor_ctx.current_identity.clone(),
+        price_mana: price,
+        resources,
+        signature: SignatureBytes(vec![]),
+    };
+    let sig = executor_ctx
+        .signer
+        .sign(&unsigned.to_signable_bytes().unwrap())
+        .unwrap();
+    MeshJobBid {
+        signature: SignatureBytes(sig),
+        ..unsigned
+    }
+}
+
 async fn assign_job_to_executor_directly(
     job_manager_ctx: &Arc<RuntimeContext>,
     job_id: Cid,
@@ -726,6 +749,84 @@ async fn test_submit_mesh_job_with_custom_timeout() {
     } else {
         panic!("Job not found in DAG after submission");
     }
+}
+
+#[tokio::test]
+async fn test_executor_selection_uses_job_spec_from_dag() {
+    let submitter_ctx = create_test_context("did:icn:test:spec_submitter", 100);
+    let executor1_ctx = create_test_context("did:icn:test:spec_exec1", 0);
+    let executor2_ctx = create_test_context("did:icn:test:spec_exec2", 0);
+
+    submitter_ctx
+        .mana_ledger
+        .set_balance(&executor1_ctx.current_identity, 50)
+        .unwrap();
+    submitter_ctx
+        .mana_ledger
+        .set_balance(&executor2_ctx.current_identity, 50)
+        .unwrap();
+
+    let manifest_cid = Cid::new_v1_sha256(0x55, b"spec_job_manifest");
+    let spec = JobSpec {
+        kind: JobKind::GenericPlaceholder,
+        inputs: vec![],
+        outputs: vec![],
+        required_resources: Resources {
+            cpu_cores: 2,
+            memory_mb: 1024,
+        },
+    };
+    let job = ActualMeshJob {
+        id: JobId(Cid::new_v1_sha256(0x55, b"ignored")),
+        manifest_cid,
+        spec: spec.clone(),
+        creator_did: submitter_ctx.current_identity.clone(),
+        cost_mana: 10,
+        max_execution_wait_ms: None,
+        signature: SignatureBytes(vec![]),
+    };
+    let job_json = serde_json::to_string(&job).unwrap();
+    let job_id = host_submit_mesh_job(&submitter_ctx, &job_json)
+        .await
+        .expect("Job submission failed");
+
+    let bid1 = create_test_bid_with_resources(
+        &job_id,
+        &executor1_ctx,
+        5,
+        Resources { cpu_cores: 1, memory_mb: 512 },
+    );
+    let bid2 = create_test_bid_with_resources(
+        &job_id,
+        &executor2_ctx,
+        5,
+        Resources { cpu_cores: 4, memory_mb: 2048 },
+    );
+
+    if let MeshNetworkServiceType::Stub(stub) = submitter_ctx.mesh_network_service.as_ref() {
+        stub.stage_bid(job_id.clone(), bid1).await;
+        stub.stage_bid(job_id.clone(), bid2).await;
+    } else {
+        panic!("expected stub network service");
+    }
+
+    let mut selected: Option<Did> = None;
+    for _ in 0..20 {
+        if let Some(state) = submitter_ctx
+            .job_states
+            .get(&job_id)
+            .map(|s| s.value().clone())
+        {
+            if let JobState::Assigned { executor } = state {
+                selected = Some(executor);
+                break;
+            }
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+
+    let selected = selected.expect("job not assigned");
+    assert_eq!(selected, executor2_ctx.current_identity);
 }
 
 // Helper to create a plausible (but potentially invalidly signed) ExecutionReceipt for testing.
