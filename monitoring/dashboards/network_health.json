@@ -1,0 +1,15 @@
+{
+  "uid": "network-health",
+  "title": "Network Health",
+  "schemaVersion": 37,
+  "version": 1,
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Peer Count",
+      "datasource": "Prometheus",
+      "targets": [{"expr": "network_peer_count"}],
+      "gridPos": {"h":4,"w":6,"x":0,"y":0}
+    }
+  ]
+}

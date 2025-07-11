@@ -181,6 +181,11 @@ cd icn-devnet
 docker-compose --profile monitoring up -d
 ```
 
+To monitor existing nodes without the devnet, run the standalone stack:
+```bash
+docker compose -f docker-compose-monitoring.yml up -d
+```
+
 Prometheus will be reachable at <http://localhost:9090> and Grafana at
 <http://localhost:3000> (`admin` / `icnfederation`). Import the dashboards from
 `icn-devnet/grafana/` to visualize node metrics.
