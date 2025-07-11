@@ -703,4 +703,48 @@
 <a href=#703 id=703 data-nosnippet>703</a>            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))<span class="question-mark">?</span>;
 <a href=#704 id=704 data-nosnippet>704</a>        std::fs::write(path, toml_str)
 <a href=#705 id=705 data-nosnippet>705</a>    }
-<a href=#706 id=706 data-nosnippet>706</a>}</code></pre></div></section></main></body></html>
+<a href=#706 id=706 data-nosnippet>706</a>}
+<a href=#707 id=707 data-nosnippet>707</a>
+<a href=#708 id=708 data-nosnippet>708</a><span class="attr">#[cfg(feature = <span class="string">"enable-libp2p"</span>)]
+<a href=#709 id=709 data-nosnippet>709</a></span><span class="kw">use </span>icn_network::libp2p_service::NetworkConfig;
+<a href=#710 id=710 data-nosnippet>710</a><span class="attr">#[cfg(feature = <span class="string">"enable-libp2p"</span>)]
+<a href=#711 id=711 data-nosnippet>711</a></span><span class="kw">use </span>libp2p::{Multiaddr, PeerId <span class="kw">as </span>Libp2pPeerId};
+<a href=#712 id=712 data-nosnippet>712</a>
+<a href=#713 id=713 data-nosnippet>713</a><span class="kw">impl </span>NodeConfig {
+<a href=#714 id=714 data-nosnippet>714</a>    <span class="attr">#[cfg(feature = <span class="string">"enable-libp2p"</span>)]
+<a href=#715 id=715 data-nosnippet>715</a>    </span><span class="kw">pub fn </span>libp2p_config(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;NetworkConfig, CommonError&gt; {
+<a href=#716 id=716 data-nosnippet>716</a>        <span class="kw">let </span>listen_addr = <span class="self">self
+<a href=#717 id=717 data-nosnippet>717</a>            </span>.listen_address
+<a href=#718 id=718 data-nosnippet>718</a>            .parse::&lt;Multiaddr&gt;()
+<a href=#719 id=719 data-nosnippet>719</a>            .map_err(|e| CommonError::ConfigError(<span class="macro">format!</span>(<span class="string">"invalid p2p listen address: {e}"</span>)))<span class="question-mark">?</span>;
+<a href=#720 id=720 data-nosnippet>720</a>
+<a href=#721 id=721 data-nosnippet>721</a>        <span class="kw">let </span>bootstrap_peers = <span class="kw">if let </span><span class="prelude-val">Some</span>(peers) = <span class="kw-2">&amp;</span><span class="self">self</span>.bootstrap_peers {
+<a href=#722 id=722 data-nosnippet>722</a>            <span class="kw">let </span><span class="kw-2">mut </span>parsed = Vec::new();
+<a href=#723 id=723 data-nosnippet>723</a>            <span class="kw">for </span>peer_str <span class="kw">in </span>peers {
+<a href=#724 id=724 data-nosnippet>724</a>                <span class="kw">let </span>addr = peer_str.parse::&lt;Multiaddr&gt;().map_err(|e| {
+<a href=#725 id=725 data-nosnippet>725</a>                    CommonError::ConfigError(<span class="macro">format!</span>(<span class="string">"invalid bootstrap peer '{peer_str}': {e}"</span>))
+<a href=#726 id=726 data-nosnippet>726</a>                })<span class="question-mark">?</span>;
+<a href=#727 id=727 data-nosnippet>727</a>                <span class="kw">if let </span><span class="prelude-val">Some</span>(libp2p::core::multiaddr::Protocol::P2p(pid)) = addr.iter().last() {
+<a href=#728 id=728 data-nosnippet>728</a>                    <span class="kw">let </span>id: Libp2pPeerId = pid
+<a href=#729 id=729 data-nosnippet>729</a>                        .try_into()
+<a href=#730 id=730 data-nosnippet>730</a>                        .map_err(|<span class="kw">_</span>| CommonError::ConfigError(<span class="string">"invalid peer id"</span>.into()))<span class="question-mark">?</span>;
+<a href=#731 id=731 data-nosnippet>731</a>                    parsed.push((id, addr));
+<a href=#732 id=732 data-nosnippet>732</a>                } <span class="kw">else </span>{
+<a href=#733 id=733 data-nosnippet>733</a>                    <span class="kw">return </span><span class="prelude-val">Err</span>(CommonError::ConfigError(<span class="macro">format!</span>(
+<a href=#734 id=734 data-nosnippet>734</a>                        <span class="string">"bootstrap peer missing peer id: {peer_str}"
+<a href=#735 id=735 data-nosnippet>735</a>                    </span>)));
+<a href=#736 id=736 data-nosnippet>736</a>                }
+<a href=#737 id=737 data-nosnippet>737</a>            }
+<a href=#738 id=738 data-nosnippet>738</a>            parsed
+<a href=#739 id=739 data-nosnippet>739</a>        } <span class="kw">else </span>{
+<a href=#740 id=740 data-nosnippet>740</a>            Vec::new()
+<a href=#741 id=741 data-nosnippet>741</a>        };
+<a href=#742 id=742 data-nosnippet>742</a>
+<a href=#743 id=743 data-nosnippet>743</a>        <span class="prelude-val">Ok</span>(NetworkConfig {
+<a href=#744 id=744 data-nosnippet>744</a>            listen_addresses: <span class="macro">vec!</span>[listen_addr],
+<a href=#745 id=745 data-nosnippet>745</a>            bootstrap_peers,
+<a href=#746 id=746 data-nosnippet>746</a>            enable_mdns: <span class="self">self</span>.enable_mdns,
+<a href=#747 id=747 data-nosnippet>747</a>            ..Default::default()
+<a href=#748 id=748 data-nosnippet>748</a>        })
+<a href=#749 id=749 data-nosnippet>749</a>    }
+<a href=#750 id=750 data-nosnippet>750</a>}</code></pre></div></section></main></body></html>
