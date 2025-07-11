@@ -7,11 +7,12 @@ These instructions tell GitHub Copilot how to understand, navigate, and contribu
 ---
 
 ## 🛠️ Development Context
+## 🛠️ Development Context
 
-- **Primary development occurs on the `develop` branch.**
-  - Copilot should assume all operations (e.g., issue resolution, code suggestions, PR creation) happen against the `develop` branch unless explicitly told otherwise.
-  - All merges to `main` are release-grade and follow strict testing protocols.
-  
+- **All primary work happens on the `origin/develop` branch.**
+  - Copilot should assume all operations—code suggestions, PRs, issue work, reviews—apply to the `origin/develop` branch unless a different one is explicitly named.
+  - `main` is used only for production-grade release candidates after full testing.
+
 ---
 
 ## 🧱 Project Structure & Tech Stack
