@@ -46,6 +46,7 @@ hex = "0.4"
 bs58 = "0.5"
 chrono = { version = "0.4", features = ["serde"] }
 tempfile = "3"
+fastrand = "2.0"
 
 [dev-dependencies]
 anyhow = "1.0.75"

@@ -13,7 +13,7 @@ use icn_protocol::{
 };
 use log::debug;
 use serde::{Deserialize, Serialize};
-use std::str::FromStr;
+// use std::str::FromStr; // Not needed currently
 use std::sync::Arc;
 use std::time::{Duration as StdDuration, SystemTime, UNIX_EPOCH};
 
@@ -81,6 +81,14 @@ pub trait MeshNetworkService: Send + Sync + std::fmt::Debug {
         expected_executor: &Did,
         timeout: StdDuration,
     ) -> Result<Option<IdentityExecutionReceipt>, HostAbiError>;
+    async fn submit_bid_for_job(
+        &self,
+        bid: &icn_mesh::MeshJobBid,
+    ) -> Result<(), HostAbiError>;
+    async fn submit_execution_receipt(
+        &self,
+        receipt: &icn_identity::ExecutionReceipt,
+    ) -> Result<(), HostAbiError>;
     fn as_any(&self) -> &dyn std::any::Any;
 }
 
@@ -94,7 +102,7 @@ fn current_timestamp() -> u64 {
 
 /// Default mesh network service implementation.
 pub struct DefaultMeshNetworkService {
-    inner: Arc<dyn NetworkService>,
+    pub inner: Arc<dyn NetworkService>,
     signer: Arc<dyn super::signers::Signer>,
 }
 
@@ -266,7 +274,7 @@ impl MeshNetworkService for DefaultMeshNetworkService {
             match tokio::time::timeout(remaining, receiver.recv()).await {
                 Ok(Some(signed_message)) => {
                     // Check if this is a bid for our job
-                    if let MessagePayload::MeshBidSubmission(bid_message) = &signed_message.message.payload {
+                    if let MessagePayload::MeshBidSubmission(bid_message) = &signed_message.payload {
                         let protocol_job_id = icn_common::Cid::from(job_id.clone());
                         if bid_message.job_id == protocol_job_id {
                             log::info!("[MeshNetwork] Received bid from {} for job {:?}: {} mana",
@@ -306,7 +314,7 @@ impl MeshNetworkService for DefaultMeshNetworkService {
     }
 
     /// Submit a bid for a job (used by executor nodes)
-    pub async fn submit_bid_for_job(
+    async fn submit_bid_for_job(
         &self,
         bid: &icn_mesh::MeshJobBid,
     ) -> Result<(), HostAbiError> {
@@ -345,7 +353,7 @@ impl MeshNetworkService for DefaultMeshNetworkService {
     }
 
     /// Submit an execution receipt (used by executor nodes)
-    pub async fn submit_execution_receipt(
+    async fn submit_execution_receipt(
         &self,
         receipt: &icn_identity::ExecutionReceipt,
     ) -> Result<(), HostAbiError> {
@@ -439,7 +447,7 @@ impl MeshNetworkService for DefaultMeshNetworkService {
             match tokio::time::timeout(remaining, receiver.recv()).await {
                 Ok(Some(signed_message)) => {
                     // Check if this is a receipt for our job
-                    if let MessagePayload::MeshReceiptSubmission(receipt_message) = &signed_message.message.payload {
+                    if let MessagePayload::MeshReceiptSubmission(receipt_message) = &signed_message.payload {
                         let receipt = &receipt_message.receipt;
                         
                         if receipt.job_id == job_id.clone().into() && receipt.executor_did == *expected_executor {

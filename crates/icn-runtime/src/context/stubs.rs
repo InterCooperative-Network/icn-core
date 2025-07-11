@@ -363,4 +363,32 @@ impl MeshNetworkService for StubMeshNetworkService {
         log::info!("[StubMeshNetwork] No receipt found from {} for job {:?}", expected_executor, job_id);
         Ok(None)
     }
+
+    async fn submit_bid_for_job(
+        &self,
+        bid: &icn_mesh::MeshJobBid,
+    ) -> Result<(), HostAbiError> {
+        log::info!("[StubMeshNetwork] Submitting bid for job {:?}: {} mana", bid.job_id, bid.price_mana);
+        
+        // For stub implementation, we'll just stage the bid
+        self.stage_bid(bid.job_id.clone(), bid.clone()).await;
+        
+        Ok(())
+    }
+
+    async fn submit_execution_receipt(
+        &self,
+        receipt: &icn_identity::ExecutionReceipt,
+    ) -> Result<(), HostAbiError> {
+        log::info!("[StubMeshNetwork] Submitting execution receipt for job {:?}", receipt.job_id);
+        
+        // For stub implementation, we'll stage the receipt
+        let receipt_message = LocalMeshSubmitReceiptMessage {
+            receipt: receipt.clone(),
+        };
+        
+        self.stage_receipt(icn_mesh::JobId::from(receipt.job_id.clone()), receipt_message).await;
+        
+        Ok(())
+    }
 } 

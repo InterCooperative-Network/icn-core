@@ -20,7 +20,7 @@ pub mod memory;
 pub mod metrics;
 
 // Re-export important types for convenience
-pub use context::{DagStoreMutex, HostAbiError, RuntimeContext, Signer};
+pub use context::{DagStoreMutexType, HostAbiError, RuntimeContext, Signer};
 #[cfg(feature = "async")]
 pub use icn_dag::AsyncStorageService as StorageService;
 #[cfg(not(feature = "async"))]
@@ -36,8 +36,8 @@ use thiserror::Error;
 
 pub use config::{RuntimeConfig, RuntimeConfigBuilder, EnvironmentConfig, IdentityConfig, NetworkConfig, StorageConfig, GovernanceConfig, RuntimeParametersConfig, templates};
 pub use context::{
-    RuntimeContext, HostAbiError, DefaultMeshNetworkService, MeshNetworkService,
-    MeshNetworkServiceType, SimpleManaLedger, Signer, Ed25519Signer, HostEnvironment,
+    DefaultMeshNetworkService, MeshNetworkService,
+    MeshNetworkServiceType, SimpleManaLedger, Ed25519Signer, HostEnvironment,
     ConcreteHostEnvironment, StubMeshNetworkService, JobAssignmentNotice,
     CreateProposalPayload, CastVotePayload, CloseProposalResult,
 };
@@ -72,12 +72,7 @@ pub fn execute_icn_script(info: &NodeInfo, script_id: &str) -> Result<String, Co
     ))
 }
 
-#[derive(Debug, Clone)]
-pub struct NodeInfo {
-    pub name: String,
-    pub version: String,
-    pub status_message: String,
-}
+// NodeInfo is now imported from icn_common
 
 // --- Host ABI Functions ---
 // These functions are intended to be callable from a WASM environment,

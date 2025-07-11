@@ -40,7 +40,7 @@ use icn_protocol::{
 };
 use icn_protocol::{MessagePayload, ProtocolMessage};
 use icn_runtime::context::{
-    DefaultMeshNetworkService, Ed25519Signer, MeshNetworkServiceType, RuntimeContext, Signer,
+    DefaultMeshNetworkService, Ed25519Signer, LocalMeshSubmitReceiptMessage, MeshNetworkServiceType, RuntimeContext, Signer,
     StubMeshNetworkService,
 };
 use icn_runtime::{host_anchor_receipt, host_submit_mesh_job, ReputationUpdater};
@@ -596,7 +596,7 @@ pub async fn app_router_with_options(
     #[cfg(not(feature = "enable-libp2p"))]
     let (mesh_network_service, service_dyn) = {
         let stub_service = StubMeshNetworkService::new();
-        (Arc::new(MeshNetworkServiceType::Stub(stub_service)), None)
+        (Arc::new(MeshNetworkServiceType::Stub(stub_service)), None::<Arc<dyn icn_network::NetworkService>>)
     };
     // GovernanceModule is initialized inside RuntimeContext::new
 
@@ -759,7 +759,9 @@ pub async fn app_router_with_options(
             .route("/mesh/submit", post(mesh_submit_job_handler)) // Job submission
             .route("/mesh/jobs", get(mesh_list_jobs_handler)) // List all jobs
             .route("/mesh/jobs/{job_id}", get(mesh_get_job_status_handler)) // Get specific job status
-            .route("/mesh/receipts", post(mesh_submit_receipt_handler)) // Submit execution receipt
+            .route("/mesh/receipt", post(mesh_submit_receipt_handler)) // Submit execution receipt
+            .route("/mesh/stub/bid", post(mesh_stub_bid_handler)) // Stub: inject bid for testing
+            .route("/mesh/stub/receipt", post(mesh_stub_receipt_handler)) // Stub: inject receipt for testing
             .route("/contracts", post(contracts_post_handler))
             .route("/federation/peers", get(federation_list_peers_handler))
             .route("/federation/peers", post(federation_add_peer_handler))
@@ -881,7 +883,9 @@ pub async fn app_router_from_context(
         .route("/mesh/submit", post(mesh_submit_job_handler))
         .route("/mesh/jobs", get(mesh_list_jobs_handler))
         .route("/mesh/jobs/{job_id}", get(mesh_get_job_status_handler))
-        .route("/mesh/receipts", post(mesh_submit_receipt_handler))
+        .route("/mesh/receipt", post(mesh_submit_receipt_handler))
+        .route("/mesh/stub/bid", post(mesh_stub_bid_handler))
+        .route("/mesh/stub/receipt", post(mesh_stub_receipt_handler))
         .route("/contracts", post(contracts_post_handler))
         .route("/federation/peers", get(federation_list_peers_handler))
         .route("/federation/peers", post(federation_add_peer_handler))
@@ -1000,7 +1004,7 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    let mut rt_ctx = if config.test_mode {
+    let rt_ctx = if config.test_mode {
         RuntimeContext::new_testing(node_did.clone(), Some(1000))
             .expect("Failed to create RuntimeContext for testing")
     } else {
@@ -1143,7 +1147,7 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
         .route("/mesh/submit", post(mesh_submit_job_handler))
         .route("/mesh/jobs", get(mesh_list_jobs_handler))
         .route("/mesh/jobs/{job_id}", get(mesh_get_job_status_handler))
-        .route("/mesh/receipts", post(mesh_submit_receipt_handler))
+        .route("/mesh/receipt", post(mesh_submit_receipt_handler))
         .route("/contracts", post(contracts_post_handler))
         .route("/federation/peers", get(federation_list_peers_handler))
         .route("/federation/peers", post(federation_add_peer_handler))
@@ -2473,6 +2477,130 @@ async fn mesh_submit_receipt_handler(
             )
             .into_response()
         }
+    }
+}
+
+// Stub endpoints for testing mesh job lifecycle
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct StubBidRequest {
+    pub job_id: String,
+    pub executor_id: String,
+    pub estimated_cost: u64,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct StubReceiptRequest {
+    pub job_id: String,
+    pub executor_id: String,
+    pub result: serde_json::Value,
+}
+
+// POST /mesh/stub/bid - inject a bid for testing
+async fn mesh_stub_bid_handler(
+    State(state): State<AppState>,
+    Json(request): Json<StubBidRequest>,
+) -> impl IntoResponse {
+    use icn_runtime::context::MeshNetworkServiceType;
+    
+    // Parse job ID - create a CID from the string
+    let cid = icn_common::Cid::new_v1_sha256(0x55, request.job_id.as_bytes());
+    let job_id = icn_mesh::JobId(cid);
+    
+    // Parse executor DID
+    let executor_did = match icn_common::Did::from_str(&request.executor_id) {
+        Ok(did) => did,
+        Err(_) => return map_rust_error_to_json_response(
+            "Invalid executor DID format",
+            StatusCode::BAD_REQUEST,
+        ).into_response(),
+    };
+    
+    // Create a bid
+    let bid = icn_mesh::MeshJobBid {
+        job_id: job_id.clone(),
+        executor_did: executor_did.clone(),
+        price_mana: request.estimated_cost,
+        resources: icn_mesh::Resources {
+            cpu_cores: 1,
+            memory_mb: 128,
+        },
+        signature: icn_identity::SignatureBytes(vec![0; 64]), // Dummy signature for testing
+    };
+    
+    // Check if using stub network service
+    match &*state.runtime_context.mesh_network_service {
+        MeshNetworkServiceType::Stub(stub_service) => {
+            stub_service.stage_bid(job_id, bid).await;
+            (StatusCode::OK, Json(serde_json::json!({
+                "success": true,
+                "message": "Bid staged successfully",
+                "job_id": request.job_id,
+                "executor_id": request.executor_id,
+                "estimated_cost": request.estimated_cost
+            }))).into_response()
+        }
+        _ => map_rust_error_to_json_response(
+            "Stub bid injection only works with stub network service",
+            StatusCode::BAD_REQUEST,
+        ).into_response(),
+    }
+}
+
+// POST /mesh/stub/receipt - inject a receipt for testing
+async fn mesh_stub_receipt_handler(
+    State(state): State<AppState>,
+    Json(request): Json<StubReceiptRequest>,
+) -> impl IntoResponse {
+    use icn_runtime::context::{MeshNetworkServiceType, LocalMeshSubmitReceiptMessage};
+    
+    // Parse job ID - create a CID from the string
+    let cid = icn_common::Cid::new_v1_sha256(0x55, request.job_id.as_bytes());
+    let job_id = icn_mesh::JobId(cid);
+    
+    // Parse executor DID
+    let executor_did = match icn_common::Did::from_str(&request.executor_id) {
+        Ok(did) => did,
+        Err(_) => return map_rust_error_to_json_response(
+            "Invalid executor DID format",
+            StatusCode::BAD_REQUEST,
+        ).into_response(),
+    };
+    
+    // Create a dummy result CID
+    let result_cid = icn_common::Cid::new_v1_sha256(0x55, b"test_result");
+    
+    // Create execution receipt
+    let receipt = icn_identity::ExecutionReceipt {
+        job_id: job_id.clone().into(),
+        executor_did: executor_did.clone(),
+        result_cid: result_cid.clone(),
+        cpu_ms: 100,
+        success: true,
+        sig: icn_identity::SignatureBytes(vec![0; 64]), // Dummy signature for testing
+    };
+    
+    // Create receipt message
+    let receipt_message = LocalMeshSubmitReceiptMessage {
+        receipt: receipt.clone(),
+    };
+    
+    // Check if using stub network service
+    match &*state.runtime_context.mesh_network_service {
+        MeshNetworkServiceType::Stub(stub_service) => {
+            stub_service.stage_receipt(job_id, receipt_message).await;
+            (StatusCode::OK, Json(serde_json::json!({
+                "success": true,
+                "message": "Receipt staged successfully",
+                "job_id": request.job_id,
+                "executor_id": request.executor_id,
+                "result_cid": result_cid.to_string()
+            }))).into_response()
+        }
+        _ => map_rust_error_to_json_response(
+            "Stub receipt injection only works with stub network service",
+            StatusCode::BAD_REQUEST,
+        ).into_response(),
     }
 }
 

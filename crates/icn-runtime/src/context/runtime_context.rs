@@ -100,6 +100,26 @@ impl MeshNetworkService for MeshNetworkServiceType {
             }
         }
     }
+
+    async fn submit_bid_for_job(
+        &self,
+        bid: &icn_mesh::MeshJobBid,
+    ) -> Result<(), HostAbiError> {
+        match self {
+            MeshNetworkServiceType::Stub(s) => s.submit_bid_for_job(bid).await,
+            MeshNetworkServiceType::Default(s) => s.submit_bid_for_job(bid).await,
+        }
+    }
+
+    async fn submit_execution_receipt(
+        &self,
+        receipt: &icn_identity::ExecutionReceipt,
+    ) -> Result<(), HostAbiError> {
+        match self {
+            MeshNetworkServiceType::Stub(s) => s.submit_execution_receipt(receipt).await,
+            MeshNetworkServiceType::Default(s) => s.submit_execution_receipt(receipt).await,
+        }
+    }
 }
 
 /// Core runtime context for the ICN node.
@@ -1408,7 +1428,7 @@ impl RuntimeContext {
                         loop {
                             match receiver.recv().await {
                                 Some(signed_message) => {
-                                    if let Err(e) = Self::handle_executor_message(&ctx, &signed_message.message).await {
+                                    if let Err(e) = Self::handle_executor_message(&ctx, &signed_message).await {
                                         log::error!("[ExecutorManager] Error handling message: {}", e);
                                     }
                                 }
@@ -1474,7 +1494,7 @@ impl RuntimeContext {
                     log::info!("[ExecutorManager] Received job assignment for job {}", assignment.job_id);
                     
                     // Convert job ID back to our format
-                    let job_id = icn_mesh::JobId(assignment.job_id.clone());
+                    let _job_id = icn_mesh::JobId(assignment.job_id.clone());
                     
                     // Execute the job
                     let ctx_clone = ctx.clone();
@@ -1624,7 +1644,7 @@ impl RuntimeContext {
         // For now, we'll create a minimal job structure for execution
         let job = ActualMeshJob {
             id: icn_mesh::JobId(assignment.job_id.clone()),
-            manifest_cid: assignment.manifest_cid.unwrap_or_else(|| assignment.job_id.clone()),
+            manifest_cid: assignment.manifest_cid.clone().unwrap_or_else(|| assignment.job_id.clone()),
             spec: icn_mesh::JobSpec {
                 kind: icn_mesh::JobKind::Echo { payload: "Assigned job execution".to_string() }, // Placeholder
                 inputs: vec![],
@@ -1811,8 +1831,14 @@ impl RuntimeContext {
         };
         
         // Sign the receipt
-        let signed_receipt = receipt.sign_with_signer(ctx.signer.as_ref())
-            .map_err(|e| HostAbiError::InternalError(format!("Failed to sign receipt: {}", e)))?;
+        let signable_bytes = receipt.to_signable_bytes()
+            .map_err(|e| HostAbiError::InternalError(format!("Failed to create signable bytes: {}", e)))?;
+        let signature = ctx.signer.sign(&signable_bytes)?;
+        
+        let signed_receipt = icn_identity::ExecutionReceipt {
+            sig: icn_identity::SignatureBytes(signature),
+            ..receipt
+        };
         
         log::info!("[Executor] Created execution receipt for job {:?}", job_id);
         
@@ -1885,7 +1911,7 @@ impl RuntimeContext {
     }
 
     /// Process executor tasks in polling mode (fallback when network subscription fails).
-    async fn process_executor_tasks(ctx: &Arc<RuntimeContext>) -> Result<(), HostAbiError> {
+    async fn process_executor_tasks(_ctx: &Arc<RuntimeContext>) -> Result<(), HostAbiError> {
         // This is a fallback mode for when network message subscription fails
         // In a real implementation, this could poll for work or check local state
         // For now, it's mostly a placeholder
