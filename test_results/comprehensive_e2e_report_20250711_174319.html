@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ICN Comprehensive E2E Test Report</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .success { color: green; }
+        .error { color: red; }
+        .warning { color: orange; }
+        .info { color: blue; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .metrics { background-color: #f9f9f9; }
+        pre { background-color: #f0f0f0; padding: 10px; border-radius: 3px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>ICN Comprehensive E2E Test Report</h1>
+    <p><strong>Test Date:</strong> Fri Jul 11 05:43:19 PM UTC 2025</p>
+    <p><strong>Test Duration:</strong> View log file for details</p>
+    
+    <div class="section">
+        <h2>Test Overview</h2>
+        <p>This comprehensive end-to-end test validates the complete ICN mesh job lifecycle including:</p>
+        <ul>
+            <li>Multi-node federation setup and convergence</li>
+            <li>Complete mesh job lifecycle (submit → bid → execute → complete)</li>
+            <li>DAG receipt anchoring and queries</li>
+            <li>Mana balance tracking and automatic refunds</li>
+            <li>Prometheus metrics collection</li>
+            <li>Performance under load</li>
+        </ul>
+    </div>
+    
+    <div class="section success">
+        <h2>✅ Test Result: SUCCESS</h2>
+        <p>All test phases completed successfully.</p>
+    </div>
+    
+    <div class="section metrics">
+        <h2>📊 Key Metrics</h2>
+        <p>Access the following URLs to view detailed metrics:</p>
+        <ul>
+            <li><a href="http://localhost:9090" target="_blank">Prometheus</a> - Raw metrics and queries</li>
+            <li><a href="http://localhost:3000" target="_blank">Grafana</a> - Dashboards and visualizations</li>
+            <li><a href="http://localhost:5001/metrics" target="_blank">Node A Metrics</a> - Node-specific metrics</li>
+        </ul>
+    </div>
+    
+    <div class="section">
+        <h2>🔍 Detailed Results</h2>
+        <p>See the full test log: <code>/home/faherty.network.matt/dev/icn/icn-core/test_results/comprehensive_e2e_20250711_173743.log</code></p>
+        <p>Test artifacts are available in: <code>/home/faherty.network.matt/dev/icn/icn-core/test_results/</code></p>
+    </div>
+    
+    <div class="section">
+        <h2>🐛 Troubleshooting</h2>
+        <p>If you encounter issues:</p>
+        <ul>
+            <li>Check the Docker containers are running: <code>docker-compose -f icn-devnet/docker-compose.yml --profile monitoring ps</code></li>
+            <li>View container logs: <code>docker-compose -f icn-devnet/docker-compose.yml --profile monitoring logs [service-name]</code></li>
+            <li>Ensure ports are available: 5001-5003 (nodes), 9090 (prometheus), 3000 (grafana)</li>
+            <li>Check the troubleshooting guide in the documentation</li>
+        </ul>
+    </div>
+    
+</body>
+</html>
