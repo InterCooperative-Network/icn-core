@@ -669,19 +669,8 @@ mod tests {
 
     // Helper function to create a RuntimeContext with stubbed services for testing.
     fn create_test_context() -> Arc<RuntimeContext> {
-<<<<<<< HEAD
-        let test_did = Did::from_str(TEST_IDENTITY_DID_STR).expect("Failed to create test DID");
-        RuntimeContext::new(
-            test_did,
-            Arc::new(StubMeshNetworkService::new()),
-            Arc::new(StubSigner::new()),
-            Arc::new(icn_identity::KeyDidResolver),
-            Arc::new(DagStoreMutex::new(StubDagStore::new())),
-        )
-=======
         RuntimeContext::new_with_stubs(TEST_IDENTITY_DID_STR)
             .expect("Failed to create test context")
->>>>>>> develop
     }
 
     fn create_test_context_with_mana(initial_mana: u64) -> Arc<RuntimeContext> {
