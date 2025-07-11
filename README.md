@@ -9,6 +9,7 @@ For full architecture, philosophy, and comprehensive feature overview, see:
 - [CONTEXT.md](CONTEXT.md) - Core philosophy and architectural principles
 - [docs/ICN_FEATURE_OVERVIEW.md](docs/ICN_FEATURE_OVERVIEW.md) - Complete feature set (current and planned)
 - [docs/ASYNC_OVERVIEW.md](docs/ASYNC_OVERVIEW.md) - Async APIs and concurrency model
+- [ICN_MISSION_AND_STRATEGY.md](ICN_MISSION_AND_STRATEGY.md) - Mission and strategic overview
 
 ## Overview
 
