@@ -1041,8 +1041,13 @@ mod tests {
             Err(CommonError::PolicyDenied("set_ttl blocked".to_string()))
         }
 
-        async fn get_metadata(&self, _cid: &Cid) -> Result<Option<icn_dag::BlockMetadata>, CommonError> {
-            Err(CommonError::PolicyDenied("get_metadata blocked".to_string()))
+        async fn get_metadata(
+            &self,
+            _cid: &Cid,
+        ) -> Result<Option<icn_dag::BlockMetadata>, CommonError> {
+            Err(CommonError::PolicyDenied(
+                "get_metadata blocked".to_string(),
+            ))
         }
 
         fn as_any(&self) -> &(dyn std::any::Any + 'static) {

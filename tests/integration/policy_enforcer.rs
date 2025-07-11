@@ -2,17 +2,16 @@ use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 
 use icn_common::{compute_merkle_cid, DagBlock, DagLink, Did, NodeScope};
-use icn_runtime::context::RuntimeContext;
 use icn_governance::scoped_policy::{
     DagPayloadOp, InMemoryPolicyEnforcer, PolicyCheckResult, ScopedPolicyEnforcer,
 };
+use icn_runtime::context::RuntimeContext;
 
 #[derive(Debug, PartialEq, Eq)]
 enum PolicyError {
     Unauthorized,
     InvalidParent,
 }
-
 
 async fn anchor_block_with_policy<E: ScopedPolicyEnforcer>(
     ctx: &RuntimeContext,
@@ -23,8 +22,7 @@ async fn anchor_block_with_policy<E: ScopedPolicyEnforcer>(
         DagPayloadOp::SubmitBlock,
         &block.author_did,
         block.scope.as_ref(),
-    )
-    {
+    ) {
         return Err(PolicyError::Unauthorized);
     }
 
@@ -162,4 +160,3 @@ async fn scope_membership_enforced() {
         .await
         .expect("scoped write succeeds");
 }
-

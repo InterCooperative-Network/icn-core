@@ -1,6 +1,6 @@
 use assert_cmd::prelude::*;
-use icn_node::app_router;
 use icn_common::{compute_merkle_cid, Cid, DagBlock, Did};
+use icn_node::app_router;
 use std::process::Command;
 use tokio::task;
 use tokio::time::{sleep, Duration};
