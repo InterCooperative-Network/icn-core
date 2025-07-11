@@ -25,6 +25,7 @@ use icn_network::libp2p_service::Libp2pNetworkService as ActualLibp2pNetworkServ
 pub struct JobAssignmentNotice {
     pub job_id: JobId,
     pub executor_did: Did,
+    pub agreed_cost_mana: u64,
 }
 
 /// Local mesh submit receipt message.
@@ -260,7 +261,7 @@ impl MeshNetworkService for DefaultMeshNetworkService {
         let assignment_message = MeshJobAssignmentMessage {
             job_id: notice.job_id.clone().into(),
             executor_did: notice.executor_did.clone(),
-            agreed_cost_mana: PROPOSAL_COST_MANA,
+            agreed_cost_mana: notice.agreed_cost_mana,
             completion_deadline: current_timestamp() + 3600,
             manifest_cid: None,
         };
