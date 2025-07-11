@@ -103,8 +103,10 @@ match safe_div(10, 2) {
 
 ## Array and String Operations
 
-The runtime now supports dynamic arrays and UTF-8 strings. Arrays are heap
-allocated and can be manipulated using the helper functions:
+Arrays and UTF-8 strings are now supported. Arrays are heap allocated but have
+a fixed capacity. The `array_push` and `array_pop` helpers operate on this
+preallocated memory—no dynamic growth occurs at runtime. Strings are stored in
+memory and each concatenation allocates a new buffer:
 
 ```ccl
 let items = [1, 2, 3];
@@ -113,8 +115,6 @@ let count = array_len(items); // returns 4
 let last = array_pop(items);  // returns 4
 ```
 
-Strings are stored in memory and concatenation returns a new allocation:
-
 ```ccl
 fn run() -> String {
     let hello = "Hello ";
@@ -122,6 +122,10 @@ fn run() -> String {
     return hello + world;
 }
 ```
+
+### Remaining Limitations
+
+- `for` loops are not yet implemented; only `while` loops are available.
 
 ## Mana Policies
 
