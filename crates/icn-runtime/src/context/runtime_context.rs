@@ -904,8 +904,9 @@ impl RuntimeContext {
     async fn manage_job_lifecycle(&self, job_id: JobId) -> Result<(), HostAbiError> {
         log::info!("[manage_job_lifecycle] Starting lifecycle management for job: {}", job_id);
         
-        // 1. Open bidding period
+        // 1. Open bidding period  
         self.update_job_status(&job_id, JobLifecycleStatus::BiddingOpen).await?;
+        self.job_states.insert(job_id.clone(), JobState::Pending); // Keep as pending during bidding
         JOBS_BIDDING_GAUGE.inc();
         
         // 2. Collect bids for a defined period
@@ -945,8 +946,16 @@ impl RuntimeContext {
         JOBS_BIDDING_GAUGE.dec();
         
         if bids.is_empty() {
-            log::warn!("[manage_job_lifecycle] No bids received for job {}", job_id);
+            log::warn!("[manage_job_lifecycle] No bids received for job {}, refunding mana", job_id);
+            
+            // Refund mana since job couldn't be executed due to no bids
+            if let Ok(Some(lifecycle)) = self.get_job_status(&job_id).await {
+                self.credit_mana(&lifecycle.job.submitter_did, lifecycle.job.cost_mana).await?;
+                log::info!("[manage_job_lifecycle] Refunded {} mana to {}", lifecycle.job.cost_mana, lifecycle.job.submitter_did);
+            }
+            
             self.update_job_status(&job_id, JobLifecycleStatus::Failed).await?;
+            self.job_states.insert(job_id.clone(), JobState::Failed { reason: "No bids received".to_string() });
             JOBS_FAILED_TOTAL.inc();
             return Ok(());
         }
@@ -966,8 +975,16 @@ impl RuntimeContext {
         let selected_executor = match selected_executor {
             Some(executor) => executor,
             None => {
-                log::warn!("[manage_job_lifecycle] No suitable executor selected for job {}", job_id);
+                log::warn!("[manage_job_lifecycle] No suitable executor selected for job {}, refunding mana", job_id);
+                
+                // Refund mana since no suitable executor was found
+                if let Ok(Some(lifecycle)) = self.get_job_status(&job_id).await {
+                    self.credit_mana(&lifecycle.job.submitter_did, lifecycle.job.cost_mana).await?;
+                    log::info!("[manage_job_lifecycle] Refunded {} mana to {}", lifecycle.job.cost_mana, lifecycle.job.submitter_did);
+                }
+                
                 self.update_job_status(&job_id, JobLifecycleStatus::Failed).await?;
+                self.job_states.insert(job_id.clone(), JobState::Failed { reason: "No suitable executor found".to_string() });
                 JOBS_FAILED_TOTAL.inc();
                 return Ok(());
             }
@@ -1059,14 +1076,28 @@ impl RuntimeContext {
                 log::info!("[manage_job_lifecycle] Job {} completed successfully: {}", job_id, receipt.success);
             }
             Ok(None) => {
-                log::warn!("[manage_job_lifecycle] No receipt received for job {} within timeout", job_id);
+                log::warn!("[manage_job_lifecycle] No receipt received for job {} within timeout, refunding mana", job_id);
+                
+                // Refund mana since job timed out
+                if let Ok(Some(lifecycle)) = self.get_job_status(&job_id).await {
+                    self.credit_mana(&lifecycle.job.submitter_did, lifecycle.job.cost_mana).await?;
+                    log::info!("[manage_job_lifecycle] Refunded {} mana to {}", lifecycle.job.cost_mana, lifecycle.job.submitter_did);
+                }
+                
                 self.update_job_status(&job_id, JobLifecycleStatus::Failed).await?;
                 self.job_states.insert(job_id.clone(), JobState::Failed { reason: "Receipt timeout".to_string() });
                 JOBS_EXECUTING_GAUGE.dec();
                 JOBS_FAILED_TOTAL.inc();
             }
             Err(e) => {
-                log::error!("[manage_job_lifecycle] Error waiting for receipt for job {}: {}", job_id, e);
+                log::error!("[manage_job_lifecycle] Error waiting for receipt for job {}: {}, refunding mana", job_id, e);
+                
+                // Refund mana since job failed due to error
+                if let Ok(Some(lifecycle)) = self.get_job_status(&job_id).await {
+                    self.credit_mana(&lifecycle.job.submitter_did, lifecycle.job.cost_mana).await?;
+                    log::info!("[manage_job_lifecycle] Refunded {} mana to {}", lifecycle.job.cost_mana, lifecycle.job.submitter_did);
+                }
+                
                 self.update_job_status(&job_id, JobLifecycleStatus::Failed).await?;
                 self.job_states.insert(job_id.clone(), JobState::Failed { reason: format!("Receipt error: {}", e) });
                 JOBS_EXECUTING_GAUGE.dec();
@@ -1164,6 +1195,52 @@ impl RuntimeContext {
         &self,
         receipt: &IdentityExecutionReceipt,
     ) -> Result<Cid, HostAbiError> {
+        // 1. Validate that the job exists and was assigned to this executor
+        let job_id = JobId::from(receipt.job_id.clone());
+        
+        // Check if the job was assigned to this executor
+        let job_state = self.job_states.get(&job_id);
+        if let Some(state) = job_state {
+            match state.value() {
+                JobState::Assigned { executor } => {
+                    if executor != &receipt.executor_did {
+                        return Err(HostAbiError::PermissionDenied(format!(
+                            "Receipt executor {} does not match assigned executor {}",
+                            receipt.executor_did, executor
+                        )));
+                    }
+                }
+                JobState::Completed { .. } => {
+                    return Err(HostAbiError::InvalidParameters(
+                        "Job already completed".to_string()
+                    ));
+                }
+                JobState::Failed { .. } => {
+                    return Err(HostAbiError::InvalidParameters(
+                        "Cannot submit receipt for failed job".to_string()
+                    ));
+                }
+                JobState::Pending => {
+                    return Err(HostAbiError::InvalidParameters(
+                        "Cannot submit receipt for unassigned job".to_string()
+                    ));
+                }
+            }
+        } else {
+            return Err(HostAbiError::InvalidParameters(
+                "Job not found".to_string()
+            ));
+        }
+
+        // 2. Verify the receipt signature
+        // Note: In a full implementation, we would resolve the executor's verifying key
+        // and verify the signature. For now, we just check that a signature exists.
+        if receipt.sig.0.is_empty() {
+            return Err(HostAbiError::PermissionDenied(
+                "Receipt signature is required".to_string()
+            ));
+        }
+
         // Create a DAG block for the receipt
         let receipt_bytes = bincode::serialize(receipt).map_err(|e| {
             HostAbiError::DagOperationFailed(format!("Failed to serialize receipt: {}", e))
