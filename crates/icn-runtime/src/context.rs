@@ -998,6 +998,8 @@ impl RuntimeContext {
                 e
             ))
         })?;
+        
+        // Use real persistent DAG storage for production-grade data integrity (Phase 5)
         #[cfg(all(feature = "persist-sled", not(feature = "async")))]
         let dag_store = Arc::new(TokioMutex::new(icn_dag::sled_store::SledDagStore::new(
             PathBuf::from("./dag.sled"),
@@ -1006,8 +1008,25 @@ impl RuntimeContext {
         let dag_store = Arc::new(TokioMutex::new(TokioFileDagStore::new(
             PathBuf::from("./dag.sled"),
         )?));
-        #[cfg(not(feature = "persist-sled"))]
-        let dag_store = Arc::new(TokioMutex::new(StubDagStore::new()));
+        #[cfg(all(not(feature = "persist-sled"), feature = "persist-rocksdb"))]
+        let dag_store = {
+            log::info!("🗄️ [RuntimeContext] Using RocksDB for production-grade DAG persistence");
+            Arc::new(TokioMutex::new(icn_dag::rocksdb_store::RocksdbDagStore::new(
+                PathBuf::from("./dag.rocksdb"),
+            )?))
+        };
+        #[cfg(all(not(feature = "persist-sled"), not(feature = "persist-rocksdb"), feature = "persist-sqlite"))]
+        let dag_store = {
+            log::info!("🗄️ [RuntimeContext] Using SQLite for production-grade DAG persistence");
+            Arc::new(TokioMutex::new(icn_dag::sqlite_store::SqliteDagStore::new(
+                PathBuf::from("./dag.sqlite"),
+            )?))
+        };
+        #[cfg(not(any(feature = "persist-sled", feature = "persist-rocksdb", feature = "persist-sqlite")))]
+        let dag_store = {
+            log::warn!("⚠️ [RuntimeContext] No persistence features enabled, falling back to StubDagStore for development only");
+            Arc::new(TokioMutex::new(StubDagStore::new()))
+        };
 
         // Use real mesh networking when libp2p is enabled for production-grade capabilities
         #[cfg(feature = "enable-libp2p")]
@@ -1063,6 +1082,7 @@ impl RuntimeContext {
                 e
             ))
         })?;
+        // Use real persistent DAG storage for production-grade data integrity (Phase 5)
         #[cfg(all(feature = "persist-sled", not(feature = "async")))]
         let dag_store = Arc::new(TokioMutex::new(icn_dag::sled_store::SledDagStore::new(
             PathBuf::from("./dag.sled"),
@@ -1071,8 +1091,25 @@ impl RuntimeContext {
         let dag_store = Arc::new(TokioMutex::new(TokioFileDagStore::new(
             PathBuf::from("./dag.sled"),
         )?));
-        #[cfg(not(feature = "persist-sled"))]
-        let dag_store = Arc::new(TokioMutex::new(StubDagStore::new()));
+        #[cfg(all(not(feature = "persist-sled"), feature = "persist-rocksdb"))]
+        let dag_store = {
+            log::info!("🗄️ [RuntimeContext] Using RocksDB for production-grade DAG persistence");
+            Arc::new(TokioMutex::new(icn_dag::rocksdb_store::RocksdbDagStore::new(
+                PathBuf::from("./dag.rocksdb"),
+            )?))
+        };
+        #[cfg(all(not(feature = "persist-sled"), not(feature = "persist-rocksdb"), feature = "persist-sqlite"))]
+        let dag_store = {
+            log::info!("🗄️ [RuntimeContext] Using SQLite for production-grade DAG persistence");
+            Arc::new(TokioMutex::new(icn_dag::sqlite_store::SqliteDagStore::new(
+                PathBuf::from("./dag.sqlite"),
+            )?))
+        };
+        #[cfg(not(any(feature = "persist-sled", feature = "persist-rocksdb", feature = "persist-sqlite")))]
+        let dag_store = {
+            log::warn!("⚠️ [RuntimeContext] No persistence features enabled, falling back to StubDagStore for development only");
+            Arc::new(TokioMutex::new(StubDagStore::new()))
+        };
 
         // Use real mesh networking when libp2p is enabled for production-grade capabilities
         #[cfg(feature = "enable-libp2p")]

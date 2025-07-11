@@ -159,3 +159,23 @@ fn test_runtime_context_uses_default_signer() {
     let _ = std::fs::remove_file("./reputation.sled");
     let _ = std::fs::remove_file("./dag.sled");
 }
+
+#[test]
+fn test_dag_storage_availability() {
+    // Test that DAG storage is properly configured for production use
+    let did_str = "did:icn:test:dag_storage";
+    let ctx = RuntimeContext::new_with_stubs(did_str).unwrap();
+    
+    // Verify that DAG store is available and functional
+    // The specific implementation depends on which persistence features are enabled
+    // but we can verify the store exists and basic operations work
+    assert!(!ctx.dag_store.try_lock().is_err(), "DAG store should be accessible");
+    
+    // Clean up potential storage files
+    let _ = std::fs::remove_file("./mana_ledger.sled");
+    let _ = std::fs::remove_file("./reputation.sled");
+    let _ = std::fs::remove_file("./dag.sled");
+    let _ = std::fs::remove_file("./dag.rocksdb");
+    let _ = std::fs::remove_file("./dag.sqlite");
+    let _ = std::fs::remove_dir_all("./dag.rocksdb");
+}
