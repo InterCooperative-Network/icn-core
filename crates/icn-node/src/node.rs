@@ -916,7 +916,18 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
     info!("Starting {} with DID: {}", node_name, node_did);
 
     // --- Create RuntimeContext with Networking ---
-    let mut rt_ctx = if config.enable_p2p {
+    let dag_store_for_rt = match config.init_dag_store() {
+        Ok(store) => store,
+        Err(e) => {
+            error!("Failed to initialize DAG store: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    let mana_ledger = icn_runtime::context::SimpleManaLedger::new(config.mana_ledger_path.clone());
+    let signer = Arc::new(signer);
+
+    let network_service: Arc<dyn NetworkService> = if config.enable_p2p {
         #[cfg(feature = "enable-libp2p")]
         {
             info!(
@@ -931,37 +942,10 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
                     std::process::exit(1);
                 }
             };
-
-            let dag_store_for_rt = match config.init_dag_store() {
-                Ok(store) => store,
-                Err(e) => {
-                    error!("Failed to initialize DAG store: {}", e);
-                    std::process::exit(1);
-                }
-            };
-
-            match RuntimeContext::new_with_real_libp2p_and_mdns(
-                &node_did_string,
-                net_cfg.listen_addresses,
-                Some(net_cfg.bootstrap_peers),
-                dag_store_for_rt,
-                config.mana_ledger_path.clone(),
-                config.reputation_db_path.clone(),
-                net_cfg.enable_mdns,
-                signer.clone(),
-                Arc::new(icn_identity::KeyDidResolver),
-            )
-            .await
-            {
-                Ok(ctx) => {
-                    info!("✅ RuntimeContext created with libp2p networking");
-                    ctx
-                }
-                Err(e) => {
-                    error!("Failed to create RuntimeContext: {}", e);
-                    std::process::exit(1);
-                }
-            }
+            let libp2p_service = icn_network::libp2p_service::Libp2pNetworkService::new(net_cfg)
+                .await
+                .expect("Failed to create libp2p service");
+            Arc::new(libp2p_service)
         }
         #[cfg(not(feature = "enable-libp2p"))]
         {
@@ -970,43 +954,21 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
             std::process::exit(1);
         }
     } else {
-        info!("Using local libp2p networking (P2P disabled)");
-        let signer = Arc::new(signer);
-        let dag_store_for_rt = match config.init_dag_store() {
-            Ok(store) => store,
-            Err(e) => {
-                error!("Failed to initialize DAG store: {}", e);
-                std::process::exit(1);
-            }
-        };
-
-        #[cfg(feature = "enable-libp2p")]
-        let mesh_network_service = {
-            let net_cfg = icn_network::libp2p_service::NetworkConfig::default();
-            let libp2p_service = icn_network::libp2p_service::Libp2pNetworkService::new(net_cfg)
-                .await
-                .expect("Failed to create libp2p service");
-            let service_dyn: Arc<dyn NetworkService> = Arc::new(libp2p_service);
-            let default_service = DefaultMeshNetworkService::new(service_dyn);
-            Arc::new(MeshNetworkServiceType::Default(default_service))
-        };
-        #[cfg(not(feature = "enable-libp2p"))]
-        let mesh_network_service = {
-            let stub_service = StubMeshNetworkService::new();
-            Arc::new(MeshNetworkServiceType::Stub(stub_service))
-        };
-
-        {
-            // Use the new configuration API for production
-            let node_did_string = node_did.to_string();
-            RuntimeContext::new_with_ledger_path(
-                &node_did_string,
-                config.mana_ledger_path.clone(),
-                signer,
-            )
-            .expect("Failed to create RuntimeContext for production")
-        }
+        info!("Using local stub networking (P2P disabled)");
+        Arc::new(icn_network::StubNetworkService::default()) as Arc<dyn NetworkService>
     };
+
+    let mut rt_ctx = RuntimeContext::new_production(
+        node_did.clone(),
+        network_service,
+        signer,
+        Arc::new(icn_identity::KeyDidResolver),
+        dag_store_for_rt,
+        mana_ledger,
+        Arc::new(icn_reputation::InMemoryReputationStore::new()),
+        None,
+    )
+    .expect("Failed to create RuntimeContext for production");
 
     #[cfg(feature = "persist-sled")]
     {
