@@ -13,8 +13,8 @@ use icn_common::{Cid, CommonError, DagBlock, Did};
 use icn_economics::ManaLedger;
 use icn_governance::GovernanceModule;
 use icn_identity::ExecutionReceipt as IdentityExecutionReceipt;
-use icn_mesh::metrics::{JOB_PROCESS_TIME, PENDING_JOBS_GAUGE};
-use icn_mesh::{ActualMeshJob, JobId, JobState};
+use icn_mesh::metrics::{JOB_PROCESS_TIME, PENDING_JOBS_GAUGE, JOBS_SUBMITTED_TOTAL, BIDS_RECEIVED_TOTAL, JOBS_COMPLETED_TOTAL, JOBS_FAILED_TOTAL, JOBS_ASSIGNED_TOTAL, JOBS_BIDDING_GAUGE, JOBS_EXECUTING_GAUGE};
+use icn_mesh::{ActualMeshJob, JobId, JobState, Job, JobBid, JobAssignment, JobReceipt, JobLifecycle, JobLifecycleStatus};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration as StdDuration;
@@ -664,17 +664,484 @@ impl RuntimeContext {
         })
     }
 
-    /// Internal queue mesh job method.
+    /// Submit a mesh job with complete DAG lifecycle integration.
+    /// This replaces the simple internal_queue_mesh_job with full lifecycle management.
+    pub async fn handle_submit_job(
+        self: &Arc<Self>,
+        manifest_cid: Cid,
+        spec_json: String,
+        cost_mana: u64,
+    ) -> Result<JobId, HostAbiError> {
+        log::info!("[handle_submit_job] Starting job submission: manifest_cid={}, cost_mana={}", manifest_cid, cost_mana);
+        
+        // Increment submission metrics
+        JOBS_SUBMITTED_TOTAL.inc();
+        JOBS_SUBMITTED.inc();
+        PENDING_JOBS_GAUGE.inc();
+        
+        // 1. Parse and validate the job spec
+        let job_spec: icn_mesh::JobSpec = serde_json::from_str(&spec_json)
+            .map_err(|e| HostAbiError::InvalidParameters(format!("Invalid job spec JSON: {}", e)))?;
+        
+        // 2. Apply reputation-based pricing
+        let reputation = self.reputation_store.get_reputation(&self.current_identity);
+        let adjusted_cost = icn_economics::price_by_reputation(cost_mana, reputation);
+        
+        log::debug!("[handle_submit_job] Reputation-adjusted cost: {} -> {} (reputation: {})", cost_mana, adjusted_cost, reputation);
+        
+        // 3. Spend mana
+        self.spend_mana(&self.current_identity, adjusted_cost).await?;
+        
+        // 4. Generate job ID from deterministic hash
+        use sha2::{Digest, Sha256};
+        let mut hasher = Sha256::new();
+        hasher.update(manifest_cid.to_string().as_bytes());
+        hasher.update(spec_json.as_bytes());
+        hasher.update(self.current_identity.to_string().as_bytes());
+        hasher.update(adjusted_cost.to_le_bytes());
+        hasher.update(self.time_provider.unix_seconds().to_le_bytes());
+        let job_id_cid = Cid::new_v1_sha256(0x55, &hasher.finalize());
+        let job_id = JobId::from(job_id_cid);
+        
+        log::debug!("[handle_submit_job] Generated job ID: {}", job_id);
+        
+        // 5. Create the Job DAG node
+        let job = Job {
+            id: job_id.clone(),
+            manifest_cid: manifest_cid.clone(),
+            spec_json: spec_json.clone(),
+            submitter_did: self.current_identity.clone(),
+            cost_mana: adjusted_cost,
+            submitted_at: self.time_provider.unix_seconds(),
+            status: JobLifecycleStatus::Submitted,
+            resource_requirements: job_spec.required_resources.clone(),
+        };
+        
+        // 6. Store job in DAG
+        let job_dag_cid = self.store_job_in_dag(&job).await?;
+        log::info!("[handle_submit_job] Job stored in DAG with CID: {}", job_dag_cid);
+        
+        // 7. Update job state tracking
+        self.job_states.insert(job_id.clone(), JobState::Pending);
+        
+        // 8. Create ActualMeshJob for network announcement
+        let actual_job = ActualMeshJob {
+            id: job_id.clone(),
+            manifest_cid,
+            spec: job_spec,
+            creator_did: self.current_identity.clone(),
+            cost_mana: adjusted_cost,
+            max_execution_wait_ms: Some(self.default_receipt_wait_ms),
+            signature: icn_identity::SignatureBytes(vec![]), // Will be signed by mesh service
+        };
+        
+        // 9. Announce job to mesh network for bidding
+        if let Err(e) = self.mesh_network_service.announce_job(&actual_job).await {
+            log::warn!("[handle_submit_job] Failed to announce job to mesh network: {}", e);
+        } else {
+            log::info!("[handle_submit_job] Job announced to mesh network");
+        }
+        
+        // 10. Start the async job lifecycle management
+        let ctx = Arc::clone(self);
+        let job_id_for_task = job_id.clone();
+        tokio::spawn(async move {
+            if let Err(e) = ctx.manage_job_lifecycle(job_id_for_task).await {
+                log::error!("[handle_submit_job] Job lifecycle management failed: {}", e);
+            }
+        });
+        
+        log::info!("[handle_submit_job] Job submission completed successfully: {}", job_id);
+        Ok(job_id)
+    }
+
+    /// Internal queue mesh job method (DEPRECATED - use handle_submit_job instead).
+    /// Kept for backward compatibility with existing tests.
+    #[deprecated(since = "0.2.0", note = "Use handle_submit_job instead for full DAG integration")]
     pub async fn internal_queue_mesh_job(
         self: &Arc<Self>,
         job: ActualMeshJob,
     ) -> Result<(), HostAbiError> {
         JOBS_SUBMITTED.inc();
         PENDING_JOBS_GAUGE.inc();
+        
+        log::warn!("[internal_queue_mesh_job] Using deprecated method - consider migrating to handle_submit_job");
+        
         self.pending_mesh_jobs_tx
             .send(job)
             .await
             .map_err(|e| HostAbiError::InternalError(format!("Failed to queue job: {}", e)))
+    }
+
+    /// Store a job in the DAG and return its CID.
+    async fn store_job_in_dag(&self, job: &Job) -> Result<Cid, HostAbiError> {
+        let job_bytes = serde_json::to_vec(job)
+            .map_err(|e| HostAbiError::DagOperationFailed(format!("Failed to serialize job: {}", e)))?;
+        
+        let dag_block = DagBlock {
+            cid: job.id.0.clone(), // Use job ID as the CID
+            data: job_bytes,
+            links: vec![], // Job nodes have no parents initially
+            timestamp: job.submitted_at,
+            author_did: job.submitter_did.clone(),
+            signature: None,
+            scope: None,
+        };
+        
+        let mut dag_store = self.dag_store.lock().await;
+        dag_store.put(&dag_block).await
+            .map_err(|e| HostAbiError::DagOperationFailed(format!("Failed to store job DAG block: {}", e)))?;
+        
+        Ok(dag_block.cid)
+    }
+
+    /// Store a job bid in the DAG with a link to the parent job.
+    async fn store_bid_in_dag(&self, bid: &JobBid) -> Result<Cid, HostAbiError> {
+        let bid_bytes = serde_json::to_vec(bid)
+            .map_err(|e| HostAbiError::DagOperationFailed(format!("Failed to serialize bid: {}", e)))?;
+        
+        // Create CID for this bid
+        use sha2::{Digest, Sha256};
+        let mut hasher = Sha256::new();
+        hasher.update(&bid_bytes);
+        let bid_cid = Cid::new_v1_sha256(0x55, &hasher.finalize());
+        
+        // Create link to parent job
+        let job_link = icn_common::DagLink {
+            cid: bid.job_id.0.clone(),
+            name: "parent_job".to_string(),
+            size: 0, // Size will be calculated by DAG store
+        };
+        
+        let dag_block = DagBlock {
+            cid: bid_cid.clone(),
+            data: bid_bytes,
+            links: vec![job_link],
+            timestamp: bid.submitted_at,
+            author_did: bid.executor_did.clone(),
+            signature: None,
+            scope: None,
+        };
+        
+        let mut dag_store = self.dag_store.lock().await;
+        dag_store.put(&dag_block).await
+            .map_err(|e| HostAbiError::DagOperationFailed(format!("Failed to store bid DAG block: {}", e)))?;
+        
+        Ok(bid_cid)
+    }
+
+    /// Store a job assignment in the DAG with a link to the parent job.
+    async fn store_assignment_in_dag(&self, assignment: &JobAssignment) -> Result<Cid, HostAbiError> {
+        let assignment_bytes = serde_json::to_vec(assignment)
+            .map_err(|e| HostAbiError::DagOperationFailed(format!("Failed to serialize assignment: {}", e)))?;
+        
+        // Create CID for this assignment
+        use sha2::{Digest, Sha256};
+        let mut hasher = Sha256::new();
+        hasher.update(&assignment_bytes);
+        let assignment_cid = Cid::new_v1_sha256(0x55, &hasher.finalize());
+        
+        // Create link to parent job
+        let job_link = icn_common::DagLink {
+            cid: assignment.job_id.0.clone(),
+            name: "parent_job".to_string(),
+            size: 0,
+        };
+        
+        let dag_block = DagBlock {
+            cid: assignment_cid.clone(),
+            data: assignment_bytes,
+            links: vec![job_link],
+            timestamp: assignment.assigned_at,
+            author_did: self.current_identity.clone(), // Job manager assigns
+            signature: None,
+            scope: None,
+        };
+        
+        let mut dag_store = self.dag_store.lock().await;
+        dag_store.put(&dag_block).await
+            .map_err(|e| HostAbiError::DagOperationFailed(format!("Failed to store assignment DAG block: {}", e)))?;
+        
+        Ok(assignment_cid)
+    }
+
+    /// Store a job receipt in the DAG with a link to the parent job.
+    async fn store_receipt_in_dag(&self, receipt: &JobReceipt) -> Result<Cid, HostAbiError> {
+        let receipt_bytes = serde_json::to_vec(receipt)
+            .map_err(|e| HostAbiError::DagOperationFailed(format!("Failed to serialize receipt: {}", e)))?;
+        
+        // Create CID for this receipt
+        use sha2::{Digest, Sha256};
+        let mut hasher = Sha256::new();
+        hasher.update(&receipt_bytes);
+        let receipt_cid = Cid::new_v1_sha256(0x55, &hasher.finalize());
+        
+        // Create link to parent job
+        let job_link = icn_common::DagLink {
+            cid: receipt.job_id.0.clone(),
+            name: "parent_job".to_string(),
+            size: 0,
+        };
+        
+        let dag_block = DagBlock {
+            cid: receipt_cid.clone(),
+            data: receipt_bytes,
+            links: vec![job_link],
+            timestamp: receipt.completed_at,
+            author_did: receipt.executor_did.clone(),
+            signature: None,
+            scope: None,
+        };
+        
+        let mut dag_store = self.dag_store.lock().await;
+        dag_store.put(&dag_block).await
+            .map_err(|e| HostAbiError::DagOperationFailed(format!("Failed to store receipt DAG block: {}", e)))?;
+        
+        Ok(receipt_cid)
+    }
+
+    /// Manage the complete lifecycle of a job through bidding, assignment, and execution.
+    async fn manage_job_lifecycle(&self, job_id: JobId) -> Result<(), HostAbiError> {
+        log::info!("[manage_job_lifecycle] Starting lifecycle management for job: {}", job_id);
+        
+        // 1. Open bidding period
+        self.update_job_status(&job_id, JobLifecycleStatus::BiddingOpen).await?;
+        JOBS_BIDDING_GAUGE.inc();
+        
+        // 2. Collect bids for a defined period
+        let bidding_duration = StdDuration::from_secs(30); // Configurable
+        log::info!("[manage_job_lifecycle] Collecting bids for {} seconds", bidding_duration.as_secs());
+        
+        let bids = self.mesh_network_service
+            .collect_bids_for_job(&job_id, bidding_duration)
+            .await
+            .unwrap_or_else(|e| {
+                log::warn!("[manage_job_lifecycle] Failed to collect bids: {}", e);
+                vec![]
+            });
+        
+        log::info!("[manage_job_lifecycle] Collected {} bids for job {}", bids.len(), job_id);
+        BIDS_RECEIVED_TOTAL.inc_by(bids.len() as u64);
+        
+        // 3. Store all bids in DAG
+        for (i, mesh_bid) in bids.iter().enumerate() {
+            let job_bid = JobBid {
+                job_id: job_id.clone(),
+                bid_id: format!("bid_{}", i),
+                executor_did: mesh_bid.executor_did.clone(),
+                price_mana: mesh_bid.price_mana,
+                resources: mesh_bid.resources.clone(),
+                submitted_at: self.time_provider.unix_seconds(),
+                signature: mesh_bid.signature.clone(),
+            };
+            
+            if let Err(e) = self.store_bid_in_dag(&job_bid).await {
+                log::warn!("[manage_job_lifecycle] Failed to store bid in DAG: {}", e);
+            }
+        }
+        
+        // 4. Close bidding and select executor
+        self.update_job_status(&job_id, JobLifecycleStatus::BiddingClosed).await?;
+        JOBS_BIDDING_GAUGE.dec();
+        
+        if bids.is_empty() {
+            log::warn!("[manage_job_lifecycle] No bids received for job {}", job_id);
+            self.update_job_status(&job_id, JobLifecycleStatus::Failed).await?;
+            JOBS_FAILED_TOTAL.inc();
+            return Ok(());
+        }
+        
+        // 5. Select best executor
+        let job_spec = icn_mesh::JobSpec::default(); // TODO: Reconstruct from DAG
+        let selection_policy = icn_mesh::SelectionPolicy::default();
+        let selected_executor = icn_mesh::select_executor(
+            &job_id,
+            &job_spec,
+            bids.clone(),
+            &selection_policy,
+            self.reputation_store.as_ref(),
+            &self.mana_ledger,
+        );
+        
+        let selected_executor = match selected_executor {
+            Some(executor) => executor,
+            None => {
+                log::warn!("[manage_job_lifecycle] No suitable executor selected for job {}", job_id);
+                self.update_job_status(&job_id, JobLifecycleStatus::Failed).await?;
+                JOBS_FAILED_TOTAL.inc();
+                return Ok(());
+            }
+        };
+        
+        // 6. Find the winning bid
+        let winning_bid = bids.iter()
+            .find(|bid| bid.executor_did == selected_executor)
+            .ok_or_else(|| HostAbiError::InternalError("Selected executor bid not found".to_string()))?;
+        
+        // 7. Create and store assignment
+        let assignment = JobAssignment {
+            job_id: job_id.clone(),
+            winning_bid_id: "winning_bid".to_string(), // TODO: Use actual bid ID
+            assigned_executor_did: selected_executor.clone(),
+            assigned_at: self.time_provider.unix_seconds(),
+            final_price_mana: winning_bid.price_mana,
+            committed_resources: winning_bid.resources.clone(),
+        };
+        
+        if let Err(e) = self.store_assignment_in_dag(&assignment).await {
+            log::error!("[manage_job_lifecycle] Failed to store assignment in DAG: {}", e);
+            return Err(e);
+        }
+        
+        // 8. Update job status and metrics
+        self.update_job_status(&job_id, JobLifecycleStatus::Assigned).await?;
+        self.job_states.insert(job_id.clone(), JobState::Assigned { executor: selected_executor.clone() });
+        JOBS_ASSIGNED_TOTAL.inc();
+        JOBS_EXECUTING_GAUGE.inc();
+        
+        // 9. Notify executor of assignment
+        let assignment_notice = JobAssignmentNotice {
+            job_id: job_id.clone(),
+            executor_did: selected_executor.clone(),
+            agreed_cost_mana: winning_bid.price_mana,
+        };
+        
+        if let Err(e) = self.mesh_network_service.notify_executor_of_assignment(&assignment_notice).await {
+            log::warn!("[manage_job_lifecycle] Failed to notify executor of assignment: {}", e);
+        }
+        
+        // 10. Wait for execution receipt
+        let receipt_timeout = StdDuration::from_millis(self.default_receipt_wait_ms);
+        log::info!("[manage_job_lifecycle] Waiting for execution receipt (timeout: {}ms)", self.default_receipt_wait_ms);
+        
+        let execution_receipt = self.mesh_network_service
+            .try_receive_receipt(&job_id, &selected_executor, receipt_timeout)
+            .await;
+        
+        match execution_receipt {
+            Ok(Some(receipt)) => {
+                log::info!("[manage_job_lifecycle] Received execution receipt for job {}", job_id);
+                
+                // 11. Create and store job receipt
+                let job_receipt = JobReceipt {
+                    job_id: job_id.clone(),
+                    executor_did: receipt.executor_did.clone(),
+                    success: receipt.success,
+                    cpu_ms: receipt.cpu_ms,
+                    result_cid: receipt.result_cid.clone(),
+                    completed_at: self.time_provider.unix_seconds(),
+                    error_message: if receipt.success { None } else { Some("Execution failed".to_string()) },
+                    signature: receipt.sig.clone(),
+                };
+                
+                if let Err(e) = self.store_receipt_in_dag(&job_receipt).await {
+                    log::error!("[manage_job_lifecycle] Failed to store receipt in DAG: {}", e);
+                    return Err(e);
+                }
+                
+                // 12. Update final status
+                let final_status = if receipt.success {
+                    JobLifecycleStatus::Completed
+                } else {
+                    JobLifecycleStatus::Failed
+                };
+                
+                self.update_job_status(&job_id, final_status.clone()).await?;
+                self.job_states.insert(job_id.clone(), JobState::Completed { receipt: receipt.clone() });
+                
+                JOBS_EXECUTING_GAUGE.dec();
+                if receipt.success {
+                    JOBS_COMPLETED_TOTAL.inc();
+                } else {
+                    JOBS_FAILED_TOTAL.inc();
+                }
+                
+                log::info!("[manage_job_lifecycle] Job {} completed successfully: {}", job_id, receipt.success);
+            }
+            Ok(None) => {
+                log::warn!("[manage_job_lifecycle] No receipt received for job {} within timeout", job_id);
+                self.update_job_status(&job_id, JobLifecycleStatus::Failed).await?;
+                self.job_states.insert(job_id.clone(), JobState::Failed { reason: "Receipt timeout".to_string() });
+                JOBS_EXECUTING_GAUGE.dec();
+                JOBS_FAILED_TOTAL.inc();
+            }
+            Err(e) => {
+                log::error!("[manage_job_lifecycle] Error waiting for receipt for job {}: {}", job_id, e);
+                self.update_job_status(&job_id, JobLifecycleStatus::Failed).await?;
+                self.job_states.insert(job_id.clone(), JobState::Failed { reason: format!("Receipt error: {}", e) });
+                JOBS_EXECUTING_GAUGE.dec();
+                JOBS_FAILED_TOTAL.inc();
+            }
+        }
+        
+        Ok(())
+    }
+
+    /// Update the status of a job (this would update the DAG node in a real implementation).
+    async fn update_job_status(&self, _job_id: &JobId, _status: JobLifecycleStatus) -> Result<(), HostAbiError> {
+        // TODO: In a full implementation, this would update the job node in the DAG
+        // For now, we just log the status change
+        log::info!("[update_job_status] Job {} status updated to {:?}", _job_id, _status);
+        Ok(())
+    }
+
+    /// Get the complete lifecycle of a job by reconstructing it from DAG traversal.
+    pub async fn get_job_status(&self, job_id: &JobId) -> Result<Option<JobLifecycle>, HostAbiError> {
+        log::debug!("[get_job_status] Reconstructing job lifecycle for: {}", job_id);
+        
+        let dag_store = self.dag_store.lock().await;
+        
+        // 1. Get the job node
+        let job_block = dag_store.get(&job_id.0).await
+            .map_err(|e| HostAbiError::DagOperationFailed(format!("Failed to get job from DAG: {}", e)))?;
+        
+        let job_block = match job_block {
+            Some(block) => block,
+            None => {
+                log::debug!("[get_job_status] Job {} not found in DAG", job_id);
+                return Ok(None);
+            }
+        };
+        
+        // 2. Deserialize the job
+        let job: Job = serde_json::from_slice(&job_block.data)
+            .map_err(|e| HostAbiError::DagOperationFailed(format!("Failed to deserialize job: {}", e)))?;
+        
+        // 3. Create lifecycle and populate it
+        let mut lifecycle = JobLifecycle::new(job);
+        
+        // 4. Find all child nodes (bids, assignments, receipts) by traversing the DAG
+        // This is a simplified implementation - a real one would use DAG traversal indices
+        let all_blocks = dag_store.list_blocks().await
+            .map_err(|e| HostAbiError::DagOperationFailed(format!("Failed to list DAG blocks: {}", e)))?;
+        
+        for block in all_blocks {
+            // Check if this block links to our job
+            let links_to_job = block.links.iter().any(|link| link.cid == job_id.0);
+            if !links_to_job {
+                continue;
+            }
+            
+            // Try to deserialize as different lifecycle types
+            if let Ok(bid) = serde_json::from_slice::<JobBid>(&block.data) {
+                if bid.job_id == *job_id {
+                    lifecycle.add_bid(bid);
+                }
+            } else if let Ok(assignment) = serde_json::from_slice::<JobAssignment>(&block.data) {
+                if assignment.job_id == *job_id {
+                    lifecycle.set_assignment(assignment);
+                }
+            } else if let Ok(receipt) = serde_json::from_slice::<JobReceipt>(&block.data) {
+                if receipt.job_id == *job_id {
+                    lifecycle.set_receipt(receipt);
+                }
+            }
+        }
+        
+        log::debug!("[get_job_status] Reconstructed lifecycle for job {}: {} bids, assignment: {}, receipt: {}", 
+                   job_id, lifecycle.bids.len(), lifecycle.assignment.is_some(), lifecycle.receipt.is_some());
+        
+        Ok(Some(lifecycle))
     }
 
     /// Get mana for an account.
@@ -1755,14 +2222,14 @@ impl RuntimeContext {
     pub async fn execute_assigned_job(
         ctx: &Arc<RuntimeContext>,
         job: &ActualMeshJob,
-        agreed_cost: u64,
+        _agreed_cost: u64, // Marked as unused for now
     ) -> Result<icn_identity::ExecutionReceipt, HostAbiError> {
         let job_id = &job.id;
         let executor_did = ctx.current_identity.clone();
         
         log::info!("[Executor] Starting execution of assigned job {:?}", job_id);
         
-        let start_time = std::time::SystemTime::now();
+        let _start_time = std::time::SystemTime::now(); // Marked as unused for now
         let execution_start = std::time::Instant::now();
         
         // Execute the job based on its type
