@@ -66,6 +66,8 @@ impl TypeAnnotationNode {
                 (TypeAnnotationNode::Mana, TypeAnnotationNode::Integer)
                     | (TypeAnnotationNode::Integer, TypeAnnotationNode::Mana)
             )
+            || matches!(self, TypeAnnotationNode::Custom(t) if t == "Any")
+            || matches!(other, TypeAnnotationNode::Custom(t) if t == "Any")
     }
 
     /// Returns true if this type behaves like an integer number.
