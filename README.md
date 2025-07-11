@@ -306,6 +306,14 @@ running `icn-node` with the embedded HTTP server enabled, scrape metrics at the
 `/metrics` endpoint. Counters such as `host_submit_mesh_job_calls` and gauges for
 network latency are collected automatically.
 
+To spin up the full Prometheus and Grafana stack locally run:
+
+```bash
+docker compose -f docker-compose-monitoring.yml up -d
+```
+
+Grafana will be available at <http://localhost:3000> (login `admin`/`admin`) and Prometheus at <http://localhost:9090>.
+
 ## ICN Philosophy & Design Principles
 
 ### **Core Values**
