@@ -605,7 +605,7 @@ pub async fn app_router_with_options(
     
     // Create mana ledger with initial balance
     let mana_ledger = icn_runtime::context::SimpleManaLedger::new(
-        mana_ledger_path.unwrap_or_else(|| PathBuf::from("./mana_ledger.sqlite"))
+        mana_ledger_path.unwrap_or_else(|| PathBuf::from("./tests/fixtures/mana_ledger.json"))
     );
     mana_ledger.set_balance(&node_did, 1000)
         .expect("Failed to set initial mana balance");
