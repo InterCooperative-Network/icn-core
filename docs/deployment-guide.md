@@ -197,4 +197,36 @@ wasm_memory_growth_denied_total - memory growth denied by the limiter
 wasm_table_growth_denied_total  - table growth denied by the limiter
 ```
 
+## Runtime Configuration Templates
+
+`RuntimeConfigBuilder` offers a fluent way to construct configuration files in
+code. The builder can start from predefined templates found in the
+`templates` module.
+
+### Production Configuration
+
+```rust
+use icn_runtime::{RuntimeConfigBuilder, templates};
+
+let prod_config = RuntimeConfigBuilder::new()
+    .apply_template(templates::production_server)
+    .node_did("did:key:z6MkProdNode01")
+    .build_unchecked();
+prod_config.to_file("production.toml")?;
+```
+
+### Isolated Testing Configuration
+
+```rust
+use icn_runtime::{RuntimeConfigBuilder, templates};
+
+let test_config = RuntimeConfigBuilder::new()
+    .apply_template(templates::isolated_testing)
+    .build_unchecked();
+test_config.to_file("testing.toml")?;
+```
+
+For more advanced composition patterns, see
+[`config_builder.rs`](../crates/icn-runtime/examples/config_builder.rs).
+
 
