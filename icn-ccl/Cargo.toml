@@ -38,6 +38,10 @@ path = "test_cooperative_contracts.rs"
 name = "test_individual_contracts"
 path = "test_individual_contracts.rs"
 
+[[bin]]
+name = "generate_ccl_job_spec"
+path = "src/bin/generate_ccl_job_spec.rs"
+
 
 [dependencies]
 pest = "2.7" # Or the version you intend to use
@@ -53,6 +57,8 @@ sha2 = "0.10"
 # WASM generation
 wasm-encoder = "0.233"
 wasmparser = "0.121"
+# HTTP client for job spec generator
+reqwest = { workspace = true, features = ["blocking"] }
 # wasm-tools = "1.208"  # Example, for WASM manipulation/validation
 
 # Dependency for icn-common if metadata uses Did, Cid etc.

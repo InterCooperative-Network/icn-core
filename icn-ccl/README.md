@@ -69,6 +69,18 @@ cargo run -p icn-cli -- --api-url http://localhost:7845 submit-job \
   '{"manifest_cid":"CID_FROM_UPLOAD","spec_json":{},"cost_mana":0}'
 ```
 
+### Utility: `generate_ccl_job_spec`
+
+For quick testing you can upload a compiled `.wasm` file and produce a
+`ccl_job_spec.json` in one step:
+
+```bash
+cargo run -p icn-ccl --bin generate_ccl_job_spec -- path/to/policy.wasm http://localhost:7845
+```
+
+The file will contain a job specification referencing the returned CID and
+requesting minimal resources.
+
 ### Included Governance Examples
 
 Several example contracts live in `examples/`:
