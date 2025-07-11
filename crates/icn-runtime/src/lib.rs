@@ -25,7 +25,7 @@ use log::{debug, error, info, warn};
 use std::str::FromStr;
 use thiserror::Error;
 
-pub use config::{RuntimeConfig, EnvironmentConfig, IdentityConfig, NetworkConfig, StorageConfig, GovernanceConfig, RuntimeParametersConfig};
+pub use config::{RuntimeConfig, RuntimeConfigBuilder, EnvironmentConfig, IdentityConfig, NetworkConfig, StorageConfig, GovernanceConfig, RuntimeParametersConfig, templates};
 pub use context::{
     RuntimeContext, HostAbiError, DefaultMeshNetworkService, MeshNetworkService,
     MeshNetworkServiceType, SimpleManaLedger, Signer, Ed25519Signer, HostEnvironment,
