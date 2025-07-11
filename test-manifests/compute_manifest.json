@@ -1,0 +1,21 @@
+{
+  "version": "1.0",
+  "type": "mesh_job_manifest",
+  "metadata": {
+    "created_at": "2025-07-11T07:38:42Z",
+    "job_type": "compute",
+    "description": "Fibonacci computation job"
+  },
+  "job_specification": {
+    "kind": {"Compute": {"program": "fibonacci", "args": ["10"]}},
+    "inputs": [],
+    "outputs": [],
+    "required_resources": {"cpu_cores": 1, "memory_mb": 128}
+  },
+  "dependencies": [],
+  "execution_parameters": {
+    "timeout_seconds": 600,
+    "retry_count": 2,
+    "priority": "high"
+  }
+}

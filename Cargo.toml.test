@@ -1,0 +1,15 @@
+[package]
+name = "stub_endpoints_test"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "test_stub_endpoints"
+path = "test_stub_endpoints.rs"
+
+[dependencies]
+icn-node = { path = "crates/icn-node" }
+tokio = { version = "1.0", features = ["full"] }
+reqwest = { version = "0.12", features = ["json"] }
+serde_json = "1.0"
+axum = "0.7" 

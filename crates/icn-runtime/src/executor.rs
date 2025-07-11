@@ -272,29 +272,6 @@ impl JobExecutor for SimpleExecutor {
                 let meta_bytes = {
                     #[cfg(feature = "async")]
                     let store = ctx.dag_store.lock().await;
-<<<<<<< HEAD
-                    #[cfg(not(feature = "async"))]
-                    let store = ctx.dag_store.lock().unwrap();
-
-                    #[cfg(feature = "async")]
-                    {
-                        store
-                            .get(&job.manifest_cid)
-                            .await
-                            .map_err(|e| CommonError::StorageError(format!("{e}")))?
-                    }
-                    #[cfg(not(feature = "async"))]
-                    {
-                        store
-                            .get(&job.manifest_cid)
-                            .map_err(|e| CommonError::StorageError(format!("{e}")))?
-                    }
-                }
-                .ok_or_else(|| {
-                    CommonError::ResourceNotFound("CCL contract metadata not found".to_string())
-                })?
-                .data;
-=======
                     store
                         .get(&job.manifest_cid)
                         .await
@@ -302,7 +279,6 @@ impl JobExecutor for SimpleExecutor {
                         .ok_or_else(|| CommonError::ResourceNotFound("Metadata not found".into()))?
                         .data
                 };
->>>>>>> develop
 
                 // Parse and validate metadata
                 let meta: ContractMetadata = serde_json::from_slice(&meta_bytes)
@@ -314,34 +290,6 @@ impl JobExecutor for SimpleExecutor {
                 {
                     #[cfg(feature = "async")]
                     let store = ctx.dag_store.lock().await;
-<<<<<<< HEAD
-                    #[cfg(not(feature = "async"))]
-                    let store = ctx.dag_store.lock().unwrap();
-
-                    #[cfg(feature = "async")]
-                    {
-                        store
-                            .get(&wasm_cid)
-                            .await
-                            .map_err(|e| CommonError::StorageError(format!("{e}")))?
-                            .ok_or_else(|| {
-                                CommonError::ResourceNotFound(
-                                    "Referenced WASM module not found".to_string(),
-                                )
-                            })?;
-                    }
-                    #[cfg(not(feature = "async"))]
-                    {
-                        store
-                            .get(&wasm_cid)
-                            .map_err(|e| CommonError::StorageError(format!("{e}")))?
-                            .ok_or_else(|| {
-                                CommonError::ResourceNotFound(
-                                    "Referenced WASM module not found".to_string(),
-                                )
-                            })?;
-                    }
-=======
                     store
                         .get(&wasm_cid)
                         .await
@@ -351,7 +299,6 @@ impl JobExecutor for SimpleExecutor {
                                 "Referenced WASM module not found".to_string(),
                             )
                         })?;
->>>>>>> develop
                 }
 
                 let signer = std::sync::Arc::new(crate::context::StubSigner::new_with_keys(
@@ -379,29 +326,10 @@ impl JobExecutor for SimpleExecutor {
                 let manifest_bytes = {
                     #[cfg(feature = "async")]
                     let store = ctx.dag_store.lock().await;
-<<<<<<< HEAD
-                    #[cfg(not(feature = "async"))]
-                    let store = ctx.dag_store.lock().unwrap();
-
-                    #[cfg(feature = "async")]
-                    {
-                        store
-                            .get(&job.manifest_cid)
-                            .await
-                            .map_err(|e| CommonError::StorageError(format!("{e}")))?
-                    }
-                    #[cfg(not(feature = "async"))]
-                    {
-                        store
-                            .get(&job.manifest_cid)
-                            .map_err(|e| CommonError::StorageError(format!("{e}")))?
-                    }
-=======
                     store
                         .get(&job.manifest_cid)
                         .await
                         .map_err(|e| CommonError::InternalError(e.to_string()))?
->>>>>>> develop
                 }
                 .ok_or_else(|| CommonError::ResourceNotFound("Manifest not found".into()))?
                 .data;
@@ -525,30 +453,6 @@ impl JobExecutor for WasmExecutor {
         );
 
         let wasm_bytes = {
-<<<<<<< HEAD
-            #[cfg(feature = "async")]
-            let store = self.ctx.dag_store.lock().await;
-            #[cfg(not(feature = "async"))]
-            let store = self.ctx.dag_store.lock().unwrap();
-
-            #[cfg(feature = "async")]
-            {
-                store
-                    .get(&job.manifest_cid)
-                    .await
-                    .map_err(|e| CommonError::InternalError(e.to_string()))?
-                    .ok_or_else(|| CommonError::ResourceNotFound("WASM module not found".into()))?
-                    .data
-            }
-            #[cfg(not(feature = "async"))]
-            {
-                store
-                    .get(&job.manifest_cid)
-                    .map_err(|e| CommonError::InternalError(e.to_string()))?
-                    .ok_or_else(|| CommonError::ResourceNotFound("WASM module not found".into()))?
-                    .data
-            }
-=======
             let store = self.ctx.dag_store.lock().await;
             let block = store
                 .get(&job.manifest_cid)
@@ -556,7 +460,6 @@ impl JobExecutor for WasmExecutor {
                 .map_err(|e| CommonError::InternalError(e.to_string()))?
                 .ok_or_else(|| CommonError::ResourceNotFound("WASM module not found".into()))?;
             block.data
->>>>>>> develop
         };
 
         // Security validation of the WASM module
