@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["LedgerBackend"],"struct":["SimpleManaLedger"],"trait":["ManaRepository"]};
