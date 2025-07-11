@@ -67,10 +67,10 @@ use serde::{Deserialize, Serialize};
 
 // Duplicate imports removed - using the ones from the top of the file
 
+#[cfg(not(feature = "async"))]
+use icn_dag::StorageService as DagStorageService;
 #[cfg(feature = "async")]
 use icn_dag::{AsyncStorageService as DagStorageService, TokioFileDagStore};
-#[cfg(not(feature = "async"))]
-use icn_dag::{StorageService as DagStorageService};
 
 #[cfg(feature = "async")]
 pub type DagStoreMutex<T> = TokioMutex<T>;
@@ -1030,9 +1030,9 @@ impl RuntimeContext {
         ))]
         let dag_store = {
             log::info!("🗄️ [RuntimeContext] Using SQLite for production-grade DAG persistence");
-            Arc::new(DagStoreMutex::new(icn_dag::sqlite_store::SqliteDagStore::new(
-                PathBuf::from("./dag.sqlite"),
-            )?))
+            Arc::new(DagStoreMutex::new(
+                icn_dag::sqlite_store::SqliteDagStore::new(PathBuf::from("./dag.sqlite"))?,
+            ))
         };
         #[cfg(not(any(
             feature = "persist-sled",
@@ -1102,9 +1102,9 @@ impl RuntimeContext {
         ))]
         let dag_store = {
             log::info!("🗄️ [RuntimeContext] Using SQLite for production-grade DAG persistence");
-            Arc::new(DagStoreMutex::new(icn_dag::sqlite_store::SqliteDagStore::new(
-                PathBuf::from("./dag.sqlite"),
-            )?))
+            Arc::new(DagStoreMutex::new(
+                icn_dag::sqlite_store::SqliteDagStore::new(PathBuf::from("./dag.sqlite"))?,
+            ))
         };
         #[cfg(not(any(
             feature = "persist-sled",
@@ -3025,7 +3025,6 @@ mod tests {
     use icn_identity::KeyDidResolver;
     use std::path::PathBuf;
     use std::sync::Arc;
-
 
     #[test]
     fn test_env_submit_mesh_job_success() {

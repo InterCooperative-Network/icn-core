@@ -271,7 +271,7 @@ impl JobExecutor for SimpleExecutor {
                     let store = ctx.dag_store.lock().await;
                     #[cfg(not(feature = "async"))]
                     let store = ctx.dag_store.lock().unwrap();
-                    
+
                     #[cfg(feature = "async")]
                     {
                         store
@@ -303,7 +303,7 @@ impl JobExecutor for SimpleExecutor {
                     let store = ctx.dag_store.lock().await;
                     #[cfg(not(feature = "async"))]
                     let store = ctx.dag_store.lock().unwrap();
-                    
+
                     #[cfg(feature = "async")]
                     {
                         store
@@ -356,7 +356,7 @@ impl JobExecutor for SimpleExecutor {
                     let store = ctx.dag_store.lock().await;
                     #[cfg(not(feature = "async"))]
                     let store = ctx.dag_store.lock().unwrap();
-                    
+
                     #[cfg(feature = "async")]
                     {
                         store
@@ -497,7 +497,7 @@ impl JobExecutor for WasmExecutor {
             let store = self.ctx.dag_store.lock().await;
             #[cfg(not(feature = "async"))]
             let store = self.ctx.dag_store.lock().unwrap();
-            
+
             #[cfg(feature = "async")]
             {
                 store
