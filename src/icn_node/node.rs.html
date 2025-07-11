@@ -605,7 +605,7 @@
 <a href=#605 id=605 data-nosnippet>605</a>    
 <a href=#606 id=606 data-nosnippet>606</a>    <span class="comment">// Create mana ledger with initial balance
 <a href=#607 id=607 data-nosnippet>607</a>    </span><span class="kw">let </span>mana_ledger = icn_runtime::context::SimpleManaLedger::new(
-<a href=#608 id=608 data-nosnippet>608</a>        mana_ledger_path.unwrap_or_else(|| PathBuf::from(<span class="string">"./mana_ledger.sqlite"</span>))
+<a href=#608 id=608 data-nosnippet>608</a>        mana_ledger_path.unwrap_or_else(|| PathBuf::from(<span class="string">"./tests/fixtures/mana_ledger.json"</span>))
 <a href=#609 id=609 data-nosnippet>609</a>    );
 <a href=#610 id=610 data-nosnippet>610</a>    mana_ledger.set_balance(<span class="kw-2">&amp;</span>node_did, <span class="number">1000</span>)
 <a href=#611 id=611 data-nosnippet>611</a>        .expect(<span class="string">"Failed to set initial mana balance"</span>);
