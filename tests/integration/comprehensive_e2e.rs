@@ -360,10 +360,18 @@ impl E2ETestHarness {
         
         // Submit a real computational job using Echo format (proven to work)
         let job_request = json!({
-            "manifest_cid": format!("cidv1-e2e-test-{}", self.test_id),
+            "manifest_cid": "bafybeigdyrztktx5b5m2y4sogf2hf5uq3k5knv5c5k2pvx7aq5w3sh7g5e", // Valid CID format
             "spec_json": {
-                "Echo": {
-                    "payload": format!("E2E test job - Fibonacci calculation simulation - {}", self.test_id)
+                "kind": {
+                    "Echo": {
+                        "payload": format!("E2E test job - Fibonacci calculation simulation - {}", self.test_id)
+                    }
+                },
+                "inputs": [],
+                "outputs": ["result"],
+                "required_resources": {
+                    "cpu_cores": 1,
+                    "memory_mb": 128
                 }
             },
             "cost_mana": 200
