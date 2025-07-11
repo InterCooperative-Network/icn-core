@@ -975,21 +975,31 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
                 }
             };
 
-            // TODO: P2P networking needs to be handled with a new method in the clean configuration API
-            // For now, use the basic ledger path method and configure P2P separately if needed
-            match RuntimeContext::new_with_ledger_path(
-                &node_did_string,
-                config.mana_ledger_path.clone(),
-                signer.clone(),
+            let network_config = NetworkConfig {
+                listen_addresses: listen_addrs,
+                bootstrap_peers: bootstrap_peers.unwrap_or_default(),
+                enable_mdns: config.enable_mdns,
+                ..Default::default()
+            };
+            let libp2p_service = Libp2pNetworkService::new(network_config)
+                .await
+                .expect("Failed to create libp2p service");
+            let network_service: Arc<dyn NetworkService> = Arc::new(libp2p_service);
+
+            match RuntimeContext::new_production(
+                node_did.clone(),
+                network_service,
+                Arc::new(signer.clone()),
+                Arc::new(icn_identity::KeyDidResolver),
+                dag_store_for_rt,
+                SimpleManaLedger::new_with_backend(
+                    config.mana_ledger_path.clone(),
+                    config.mana_ledger_backend,
+                ),
+                Arc::new(icn_reputation::InMemoryReputationStore::new()),
+                None,
             ) {
-                Ok(ctx) => {
-                    info!("✅ RuntimeContext created (P2P networking configuration pending)");
-                    
-                    // TODO: Configure P2P networking here if needed
-                    // This would require extending the clean configuration API to support P2P setup
-                    
-                    ctx
-                }
+                Ok(ctx) => ctx,
                 Err(e) => {
                     error!("Failed to create RuntimeContext: {}", e);
                     std::process::exit(1);
