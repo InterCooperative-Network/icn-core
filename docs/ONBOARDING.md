@@ -538,6 +538,32 @@ The repository includes a containerized devnet for quickly spinning up a three-n
      -d '{"cid":"RESULT_CID"}'
    ```
 
+## 9. Submitting a CCL WASM Job
+
+The devnet can execute Cooperative Contract Language (CCL) policies compiled to WebAssembly.
+Follow these steps to run your own module:
+
+1. **Compile the contract:**
+   ```bash
+   icn-cli ccl compile ./my_policy.ccl ./my_policy.wasm
+   ```
+2. **Store the WASM in the DAG:** the returned CID is base32 and begins with `bafy`.
+   ```bash
+   curl -X POST http://localhost:5001/dag/put \
+     --data-binary '@my_policy.wasm'
+   # => "bafy...base32-cid"
+   ```
+3. **Generate the job spec:**
+   ```bash
+   generate_ccl_job_spec --wasm-cid bafy...base32-cid --output ccl_job_spec.json
+   ```
+4. **Submit the job:**
+   ```bash
+   curl -X POST http://localhost:5001/mesh/submit \
+     -H 'Content-Type: application/json' \
+     -d @ccl_job_spec.json
+   ```
+
 Refer to `MULTI_NODE_GUIDE.md` for more details on manual multi-node setups.
 
 --- 
