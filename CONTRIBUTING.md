@@ -7,7 +7,7 @@ This document provides a roadmap of good first issues, guidance on setting up yo
 ## Getting Started
 
 *   **Project Overview**: Start with the main `README.md` (if available at the root, otherwise check individual crate READMEs) for a general understanding of the project structure and goals.
-*   **Onboarding**: Refer to `docs/ONBOARDING.md` (if it exists, otherwise the primary README) for detailed instructions on building, testing, and the general development workflow.
+*   **Onboarding**: Begin with `docs/beginner/README.md` for the quick setup, then see `docs/ONBOARDING.md` for detailed workflows.
 *   **Multi-Node Testing**: Check out the `MULTI_NODE_GUIDE.md` for a comprehensive guide on running local ICN clusters.
 *   **Testnet Script**: The `scripts/run_local_testnet.sh` script provides a starting point for launching multiple nodes for testing.
 
