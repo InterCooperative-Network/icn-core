@@ -126,10 +126,10 @@ fn calculate_final_mana_cost(
 | **Type Checking** | ✅ **WORKING** | Static type validation |
 | **Mana Type Support** | ✅ **WORKING** | Economic calculations |
 | **WASM Generation** | ✅ **WORKING** | Compact, efficient bytecode |
-| **String Literals** | 🔄 **PARTIAL** | Basic support, needs parser work |
-| **Array Operations** | 🔄 **PARTIAL** | Types added, needs parser work |
+| **String Literals** | ✅ **WORKING** | Parsing and concatenation supported |
+| **Array Operations** | ✅ **WORKING** | Push/pop and indexing implemented |
 | **Comparison Ops** | 🔄 **PARTIAL** | `>=`, `<=` need parser support |
-| **If/Else Statements** | 🚧 **PLANNED** | WASM generation needed |
+| **If/Else Statements** | ✅ **WORKING** | Nested blocks compile to WASM |
 | **Loops** | 🚧 **PLANNED** | While loop WASM exists |
 
 ---
