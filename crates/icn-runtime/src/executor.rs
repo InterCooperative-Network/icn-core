@@ -492,16 +492,30 @@ impl JobExecutor for WasmExecutor {
             self.config.security_limits.max_execution_time_secs
         );
 
-        let wasm_bytes = self
-            .ctx
-            .dag_store
-            .lock()
-            .await
-            .get(&job.manifest_cid)
-            .await
-            .map_err(|e| CommonError::InternalError(e.to_string()))?
-            .ok_or_else(|| CommonError::ResourceNotFound("WASM module not found".into()))?
-            .data;
+        let wasm_bytes = {
+            #[cfg(feature = "async")]
+            let store = self.ctx.dag_store.lock().await;
+            #[cfg(not(feature = "async"))]
+            let store = self.ctx.dag_store.lock().unwrap();
+            
+            #[cfg(feature = "async")]
+            {
+                store
+                    .get(&job.manifest_cid)
+                    .await
+                    .map_err(|e| CommonError::InternalError(e.to_string()))?
+                    .ok_or_else(|| CommonError::ResourceNotFound("WASM module not found".into()))?
+                    .data
+            }
+            #[cfg(not(feature = "async"))]
+            {
+                store
+                    .get(&job.manifest_cid)
+                    .map_err(|e| CommonError::InternalError(e.to_string()))?
+                    .ok_or_else(|| CommonError::ResourceNotFound("WASM module not found".into()))?
+                    .data
+            }
+        };
 
         // Security validation of the WASM module
         self.validator.validate(&wasm_bytes)?;

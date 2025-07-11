@@ -19,7 +19,7 @@ pub mod memory;
 pub mod metrics;
 
 // Re-export important types for convenience
-pub use context::{HostAbiError, RuntimeContext, Signer};
+pub use context::{DagStoreMutex, HostAbiError, RuntimeContext, Signer};
 #[cfg(feature = "async")]
 pub use icn_dag::AsyncStorageService as StorageService;
 #[cfg(not(feature = "async"))]
@@ -644,7 +644,7 @@ mod tests {
             Arc::new(StubMeshNetworkService::new()),
             Arc::new(StubSigner::new()),
             Arc::new(icn_identity::KeyDidResolver),
-            Arc::new(tokio::sync::Mutex::new(StubDagStore::new())),
+            Arc::new(DagStoreMutex::new(StubDagStore::new())),
         )
     }
 

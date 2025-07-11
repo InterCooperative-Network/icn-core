@@ -70,12 +70,12 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "async")]
 use icn_dag::{AsyncStorageService as DagStorageService, TokioFileDagStore};
 #[cfg(not(feature = "async"))]
-use icn_dag::{FileDagStore, StorageService as DagStorageService};
+use icn_dag::{StorageService as DagStorageService};
 
 #[cfg(feature = "async")]
-type DagStoreMutex<T> = TokioMutex<T>;
+pub type DagStoreMutex<T> = TokioMutex<T>;
 #[cfg(not(feature = "async"))]
-type DagStoreMutex<T> = SyncMutex<T>;
+pub type DagStoreMutex<T> = SyncMutex<T>;
 
 // Counter for generating unique (within this runtime instance) job IDs for stubs
 pub static NEXT_JOB_ID: AtomicU32 = AtomicU32::new(1);
@@ -795,12 +795,12 @@ impl RuntimeContext {
         let (tx, rx) = mpsc::channel(128);
 
         #[cfg(feature = "persist-sled")]
-        let governance_module = Arc::new(TokioMutex::new(
+        let governance_module = Arc::new(DagStoreMutex::new(
             GovernanceModule::new_sled(std::path::PathBuf::from("./governance_db"))
                 .unwrap_or_else(|_| GovernanceModule::new()),
         ));
         #[cfg(not(feature = "persist-sled"))]
-        let governance_module = Arc::new(TokioMutex::new(GovernanceModule::new()));
+        let governance_module = Arc::new(DagStoreMutex::new(GovernanceModule::new()));
 
         #[cfg(feature = "persist-sled")]
         let reputation_store: Arc<dyn icn_reputation::ReputationStore> =
@@ -991,7 +991,7 @@ impl RuntimeContext {
             default_mesh_service,
             Arc::new(StubSigner::new()),
             Arc::new(icn_identity::KeyDidResolver),
-            Arc::new(TokioMutex::new(StubDagStore::new())),
+            Arc::new(DagStoreMutex::new(StubDagStore::new())),
             PathBuf::from("./mana_ledger.sled"),
             PathBuf::from("./reputation.sled"),
             None,
@@ -1009,17 +1009,17 @@ impl RuntimeContext {
 
         // Use real persistent DAG storage for production-grade data integrity (Phase 5)
         #[cfg(all(feature = "persist-sled", not(feature = "async")))]
-        let dag_store = Arc::new(TokioMutex::new(icn_dag::sled_store::SledDagStore::new(
+        let dag_store = Arc::new(DagStoreMutex::new(icn_dag::sled_store::SledDagStore::new(
             PathBuf::from("./dag.sled"),
         )?));
         #[cfg(all(feature = "persist-sled", feature = "async"))]
-        let dag_store = Arc::new(TokioMutex::new(TokioFileDagStore::new(PathBuf::from(
+        let dag_store = Arc::new(DagStoreMutex::new(TokioFileDagStore::new(PathBuf::from(
             "./dag.sled",
         ))?));
         #[cfg(all(not(feature = "persist-sled"), feature = "persist-rocksdb"))]
         let dag_store = {
             log::info!("🗄️ [RuntimeContext] Using RocksDB for production-grade DAG persistence");
-            Arc::new(TokioMutex::new(
+            Arc::new(DagStoreMutex::new(
                 icn_dag::rocksdb_store::RocksdbDagStore::new(PathBuf::from("./dag.rocksdb"))?,
             ))
         };
@@ -1030,7 +1030,7 @@ impl RuntimeContext {
         ))]
         let dag_store = {
             log::info!("🗄️ [RuntimeContext] Using SQLite for production-grade DAG persistence");
-            Arc::new(TokioMutex::new(icn_dag::sqlite_store::SqliteDagStore::new(
+            Arc::new(DagStoreMutex::new(icn_dag::sqlite_store::SqliteDagStore::new(
                 PathBuf::from("./dag.sqlite"),
             )?))
         };
@@ -1041,29 +1041,10 @@ impl RuntimeContext {
         )))]
         let dag_store = {
             log::warn!("⚠️ [RuntimeContext] No persistence features enabled, falling back to StubDagStore for development only");
-            Arc::new(TokioMutex::new(StubDagStore::new()))
+            Arc::new(DagStoreMutex::new(StubDagStore::new()))
         };
 
-        // Use real mesh networking when libp2p is enabled for production-grade capabilities
-        #[cfg(feature = "enable-libp2p")]
-        let mesh_network_service = {
-            // Create libp2p network service with default configuration
-            let config = NetworkConfig::default();
-            let libp2p_service = Arc::new(
-                ActualLibp2pNetworkService::new(config)
-                    .await
-                    .map_err(|e| {
-                        CommonError::NetworkError(format!(
-                            "Failed to create libp2p service for new_with_stubs: {}",
-                            e
-                        ))
-                    })?,
-            );
-            let libp2p_service_dyn: Arc<dyn NetworkService> = libp2p_service;
-            Arc::new(DefaultMeshNetworkService::new(libp2p_service_dyn))
-                as Arc<dyn MeshNetworkService>
-        };
-        #[cfg(not(feature = "enable-libp2p"))]
+        // Always use stub mesh networking since this is new_with_stubs
         let mesh_network_service =
             Arc::new(StubMeshNetworkService::new()) as Arc<dyn MeshNetworkService>;
 
@@ -1100,17 +1081,17 @@ impl RuntimeContext {
         })?;
         // Use real persistent DAG storage for production-grade data integrity (Phase 5)
         #[cfg(all(feature = "persist-sled", not(feature = "async")))]
-        let dag_store = Arc::new(TokioMutex::new(icn_dag::sled_store::SledDagStore::new(
+        let dag_store = Arc::new(DagStoreMutex::new(icn_dag::sled_store::SledDagStore::new(
             PathBuf::from("./dag.sled"),
         )?));
         #[cfg(all(feature = "persist-sled", feature = "async"))]
-        let dag_store = Arc::new(TokioMutex::new(TokioFileDagStore::new(PathBuf::from(
+        let dag_store = Arc::new(DagStoreMutex::new(TokioFileDagStore::new(PathBuf::from(
             "./dag.sled",
         ))?));
         #[cfg(all(not(feature = "persist-sled"), feature = "persist-rocksdb"))]
         let dag_store = {
             log::info!("🗄️ [RuntimeContext] Using RocksDB for production-grade DAG persistence");
-            Arc::new(TokioMutex::new(
+            Arc::new(DagStoreMutex::new(
                 icn_dag::rocksdb_store::RocksdbDagStore::new(PathBuf::from("./dag.rocksdb"))?,
             ))
         };
@@ -1121,7 +1102,7 @@ impl RuntimeContext {
         ))]
         let dag_store = {
             log::info!("🗄️ [RuntimeContext] Using SQLite for production-grade DAG persistence");
-            Arc::new(TokioMutex::new(icn_dag::sqlite_store::SqliteDagStore::new(
+            Arc::new(DagStoreMutex::new(icn_dag::sqlite_store::SqliteDagStore::new(
                 PathBuf::from("./dag.sqlite"),
             )?))
         };
@@ -1132,29 +1113,10 @@ impl RuntimeContext {
         )))]
         let dag_store = {
             log::warn!("⚠️ [RuntimeContext] No persistence features enabled, falling back to StubDagStore for development only");
-            Arc::new(TokioMutex::new(StubDagStore::new()))
+            Arc::new(DagStoreMutex::new(StubDagStore::new()))
         };
 
-        // Use real mesh networking when libp2p is enabled for production-grade capabilities
-        #[cfg(feature = "enable-libp2p")]
-        let mesh_network_service = {
-            // Create libp2p network service with default configuration
-            let config = NetworkConfig::default();
-            let libp2p_service = Arc::new(
-                ActualLibp2pNetworkService::new(config)
-                    .await
-                    .map_err(|e| {
-                        CommonError::NetworkError(format!(
-                            "Failed to create libp2p service for new_with_stubs_and_mana: {}",
-                            e
-                        ))
-                    })?,
-            );
-            let libp2p_service_dyn: Arc<dyn NetworkService> = libp2p_service;
-            Arc::new(DefaultMeshNetworkService::new(libp2p_service_dyn))
-                as Arc<dyn MeshNetworkService>
-        };
-        #[cfg(not(feature = "enable-libp2p"))]
+        // Always use stub mesh networking since this is new_with_stubs_and_mana
         let mesh_network_service =
             Arc::new(StubMeshNetworkService::new()) as Arc<dyn MeshNetworkService>;
 
@@ -1794,7 +1756,10 @@ impl RuntimeContext {
             }
         };
 
+        #[cfg(feature = "async")]
         let mut gov = self.governance_module.lock().await;
+        #[cfg(not(feature = "async"))]
+        let mut gov = self.governance_module.lock().unwrap();
         let content_cid = if let Some(body) = payload.body.clone() {
             let ts = self.time_provider.unix_seconds();
             let author = self.current_identity.clone();
@@ -1866,7 +1831,10 @@ impl RuntimeContext {
             }
         };
         let now = self.time_provider.unix_seconds();
+        #[cfg(feature = "async")]
         let mut gov = self.governance_module.lock().await;
+        #[cfg(not(feature = "async"))]
+        let mut gov = self.governance_module.lock().unwrap();
         gov.cast_vote(self.current_identity.clone(), &proposal_id, vote_option)
             .map_err(HostAbiError::Common)?;
         let vote = icn_governance::Vote {
@@ -1891,7 +1859,10 @@ impl RuntimeContext {
         let proposal_id = ProposalId::from_str(proposal_id_str)
             .map_err(|e| HostAbiError::InvalidParameters(format!("Invalid proposal id: {e}")))?;
 
+        #[cfg(feature = "async")]
         let mut gov = self.governance_module.lock().await;
+        #[cfg(not(feature = "async"))]
+        let mut gov = self.governance_module.lock().unwrap();
         let (status, (yes, no, abstain)) = gov
             .close_voting_period(&proposal_id)
             .map_err(HostAbiError::Common)?;
@@ -1925,7 +1896,10 @@ impl RuntimeContext {
         let proposal_id = ProposalId::from_str(proposal_id_str)
             .map_err(|e| HostAbiError::InvalidParameters(format!("Invalid proposal id: {e}")))?;
 
+        #[cfg(feature = "async")]
         let mut gov = self.governance_module.lock().await;
+        #[cfg(not(feature = "async"))]
+        let mut gov = self.governance_module.lock().unwrap();
         let result = gov.execute_proposal(&proposal_id);
         let proposal_opt = gov
             .get_proposal(&proposal_id)
@@ -1966,14 +1940,20 @@ impl RuntimeContext {
             .map_err(|e| HostAbiError::InvalidParameters(format!("Invalid DID: {}", e)))?;
         let to = Did::from_str(to_did)
             .map_err(|e| HostAbiError::InvalidParameters(format!("Invalid DID: {}", e)))?;
+        #[cfg(feature = "async")]
         let mut gov = self.governance_module.lock().await;
+        #[cfg(not(feature = "async"))]
+        let mut gov = self.governance_module.lock().unwrap();
         gov.delegate_vote(from, to).map_err(HostAbiError::Common)
     }
 
     pub async fn revoke_delegation(&self, from_did: &str) -> Result<(), HostAbiError> {
         let from = Did::from_str(from_did)
             .map_err(|e| HostAbiError::InvalidParameters(format!("Invalid DID: {}", e)))?;
+        #[cfg(feature = "async")]
         let mut gov = self.governance_module.lock().await;
+        #[cfg(not(feature = "async"))]
+        let mut gov = self.governance_module.lock().unwrap();
         gov.revoke_delegation(from);
         Ok(())
     }
@@ -1987,7 +1967,10 @@ impl RuntimeContext {
             bincode::deserialize(proposal_bytes).map_err(|e| {
                 HostAbiError::InternalError(format!("Failed to decode proposal: {}", e))
             })?;
+        #[cfg(feature = "async")]
         let mut gov = self.governance_module.lock().await;
+        #[cfg(not(feature = "async"))]
+        let mut gov = self.governance_module.lock().unwrap();
         if gov
             .get_proposal(&proposal.id)
             .map_err(HostAbiError::Common)?
@@ -2003,7 +1986,10 @@ impl RuntimeContext {
     pub async fn ingest_external_vote(&self, vote_bytes: &[u8]) -> Result<(), HostAbiError> {
         let vote: icn_governance::Vote = bincode::deserialize(vote_bytes)
             .map_err(|e| HostAbiError::InternalError(format!("Failed to decode vote: {}", e)))?;
+        #[cfg(feature = "async")]
         let mut gov = self.governance_module.lock().await;
+        #[cfg(not(feature = "async"))]
+        let mut gov = self.governance_module.lock().unwrap();
         if gov
             .get_proposal(&vote.proposal_id)
             .map_err(HostAbiError::Common)?
@@ -2214,7 +2200,7 @@ impl RuntimeContext {
         current_identity: Did,
         signer: StubSigner,
         mesh_network_service: Arc<StubMeshNetworkService>,
-        dag_store: Arc<TokioMutex<StubDagStore>>,
+        dag_store: Arc<DagStoreMutex<StubDagStore>>,
     ) -> Arc<Self> {
         let job_states = Arc::new(DashMap::new());
         let (tx, rx) = mpsc::channel(128);
@@ -2222,12 +2208,12 @@ impl RuntimeContext {
         let mana_ledger_path = temp_dir.path().join("mana.sled");
         let mana_ledger = SimpleManaLedger::new(mana_ledger_path);
         #[cfg(feature = "persist-sled")]
-        let governance_module = Arc::new(TokioMutex::new(
+        let governance_module = Arc::new(DagStoreMutex::new(
             GovernanceModule::new_sled(std::path::PathBuf::from("./governance_db_test"))
                 .unwrap_or_else(|_| GovernanceModule::new()),
         ));
         #[cfg(not(feature = "persist-sled"))]
-        let governance_module = Arc::new(TokioMutex::new(GovernanceModule::new()));
+        let governance_module = Arc::new(DagStoreMutex::new(GovernanceModule::new()));
 
         let reputation_store: Arc<dyn icn_reputation::ReputationStore> =
             Arc::new(icn_reputation::InMemoryReputationStore::new());
@@ -3039,7 +3025,7 @@ mod tests {
     use icn_identity::KeyDidResolver;
     use std::path::PathBuf;
     use std::sync::Arc;
-    use tokio::sync::Mutex as TokioMutex;
+
 
     #[test]
     fn test_env_submit_mesh_job_success() {
@@ -3153,7 +3139,7 @@ mod tests {
             Arc::new(StubMeshNetworkService::new()),
             signer.clone(),
             Arc::new(KeyDidResolver),
-            Arc::new(TokioMutex::new(StubDagStore::new())),
+            Arc::new(DagStoreMutex::new(StubDagStore::new())),
             PathBuf::from("./mana_ledger.sled"),
             PathBuf::from("./reputation.sled"),
             None,
