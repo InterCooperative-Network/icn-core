@@ -551,29 +551,53 @@ pub async fn app_router_with_options(
         .expect("Failed to init DAG store for test context");
 
     #[cfg(feature = "enable-libp2p")]
-    let mesh_network_service = {
+    let (mesh_network_service, service_dyn) = {
         let cfg = NetworkConfig::default();
         let service = Libp2pNetworkService::new(cfg)
             .await
             .expect("Failed to create libp2p service");
         let service_dyn: Arc<dyn NetworkService> = Arc::new(service);
-        let default_service = DefaultMeshNetworkService::new(service_dyn);
-        Arc::new(MeshNetworkServiceType::Default(default_service))
+        let default_service = DefaultMeshNetworkService::new(service_dyn.clone(), _signer.clone());
+        (Arc::new(MeshNetworkServiceType::Default(default_service)), Some(service_dyn))
     };
     #[cfg(not(feature = "enable-libp2p"))]
-    let mesh_network_service = {
+    let (mesh_network_service, service_dyn) = {
         let stub_service = StubMeshNetworkService::new();
-        Arc::new(MeshNetworkServiceType::Stub(stub_service))
+        (Arc::new(MeshNetworkServiceType::Stub(stub_service)), None)
     };
     // GovernanceModule is initialized inside RuntimeContext::new
 
-    // Use the new configuration API for testing - use stubs to avoid file system conflicts
+    // Create production-ready RuntimeContext with proper services
     let node_did_string = node_did.to_string();
-    let mut rt_ctx = RuntimeContext::new_with_stubs_and_mana(
-        &node_did_string,
-        1000, // Initial mana for testing
-    )
-    .expect("Failed to create RuntimeContext for testing");
+    
+    // Create mana ledger with initial balance
+    let mana_ledger = icn_runtime::context::SimpleManaLedger::new(
+        mana_ledger_path.unwrap_or_else(|| PathBuf::from("./mana_ledger.sqlite"))
+    );
+    mana_ledger.set_balance(&node_did, 1000)
+        .expect("Failed to set initial mana balance");
+
+    // Create production RuntimeContext using the mesh network service we created above
+    let mut rt_ctx = {
+        #[cfg(feature = "enable-libp2p")]
+        {
+            // For production/development with real networking
+            RuntimeContext::new_development(
+                node_did.clone(),
+                _signer.clone(),
+                mana_ledger,
+                service_dyn,
+                Some(dag_store_for_rt.clone()),
+            )
+            .expect("Failed to create production RuntimeContext")
+        }
+        #[cfg(not(feature = "enable-libp2p"))]
+        {
+            // For testing without networking - use stub services
+            RuntimeContext::new_testing(node_did.clone(), Some(1000))
+                .expect("Failed to create testing RuntimeContext")
+        }
+    };
 
     #[cfg(feature = "persist-sled")]
     {
@@ -590,7 +614,10 @@ pub async fn app_router_with_options(
         }
     }
 
-    info!("✅ Test node initialized with 1000 mana (via stubs)");
+    #[cfg(feature = "enable-libp2p")]
+    info!("✅ Node initialized with 1000 mana (production services with libp2p)");
+    #[cfg(not(feature = "enable-libp2p"))]
+    info!("✅ Node initialized with 1000 mana (testing services without libp2p)");
 
     rt_ctx.clone().spawn_mesh_job_manager().await; // Start the job manager
 
