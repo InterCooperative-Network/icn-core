@@ -1,6 +1,6 @@
 use icn_common::Did;
 use icn_identity::{did_key_from_verifying_key, generate_ed25519_keypair, SignatureBytes};
-use icn_mesh::{score_bid, JobSpec, MeshJobBid, Resources, SelectionPolicy};
+use icn_mesh::{score_bid, JobSpec, MeshJobBid, Resources, SelectionPolicy, LatencyStore};
 use icn_economics::ManaLedger;
 use icn_reputation::InMemoryReputationStore;
 use std::collections::HashMap;

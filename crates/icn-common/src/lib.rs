@@ -601,7 +601,8 @@ mod tests {
 
     #[test]
     fn version_is_set() {
-        assert!(ICN_CORE_VERSION.contains("functional"));
+        assert!(!ICN_CORE_VERSION.is_empty());
+        assert!(ICN_CORE_VERSION.contains("0.2.0"));
     }
 
     #[test]
