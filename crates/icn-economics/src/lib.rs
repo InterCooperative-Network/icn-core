@@ -5,8 +5,11 @@
 //! It manages token models, ledger interactions, transaction logic, and incentive mechanisms,
 //! aiming for security, accuracy, and interoperability.
 
-use icn_common::{CommonError, Did, NodeInfo};
+use icn_common::{Cid, CommonError, DagBlock, Did, NodeInfo, NodeScope, TimeProvider};
+use icn_identity::{MembershipPolicyEnforcer, MembershipResolver};
 use log::{debug, info};
+use serde::{Deserialize, Serialize};
+use serde_json;
 pub mod ledger;
 pub mod metrics;
 pub use ledger::FileManaLedger;
@@ -44,6 +47,46 @@ pub trait ManaLedger: Send + Sync {
     /// underlying ledger does not support account iteration.
     fn all_accounts(&self) -> Vec<Did> {
         Vec::new()
+    }
+}
+
+/// Ledger abstraction for scoped resource tokens.
+pub trait ResourceLedger: Send + Sync {
+    /// Retrieve the token balance for a DID within a scope.
+    fn get_balance(&self, did: &Did, token: &str) -> u64;
+    /// Persist a new balance for a DID.
+    fn set_balance(&self, did: &Did, token: &str, amount: u64) -> Result<(), CommonError>;
+    /// Credit tokens to the account.
+    fn credit(&self, did: &Did, token: &str, amount: u64) -> Result<(), CommonError>;
+    /// Debit tokens from the account.
+    fn debit(&self, did: &Did, token: &str, amount: u64) -> Result<(), CommonError>;
+}
+
+/// Adapter exposing convenience helpers around a [`ResourceLedger`].
+#[derive(Debug)]
+pub struct ResourceRepositoryAdapter<L: ResourceLedger> {
+    ledger: L,
+}
+
+impl<L: ResourceLedger> ResourceRepositoryAdapter<L> {
+    /// Create a new adapter.
+    pub fn new(ledger: L) -> Self {
+        Self { ledger }
+    }
+
+    /// Credit tokens to an account.
+    pub fn credit_tokens(&self, did: &Did, token: &str, amount: u64) -> Result<(), CommonError> {
+        self.ledger.credit(did, token, amount)
+    }
+
+    /// Debit tokens from an account.
+    pub fn debit_tokens(&self, did: &Did, token: &str, amount: u64) -> Result<(), CommonError> {
+        self.ledger.debit(did, token, amount)
+    }
+
+    /// Get the balance for a token.
+    pub fn get_balance(&self, did: &Did, token: &str) -> u64 {
+        self.ledger.get_balance(did, token)
     }
 }
 
@@ -172,6 +215,167 @@ pub fn process_economic_event(info: &NodeInfo, event_details: &str) -> Result<St
         "Processed economic event '{} ' for node: {} (v{})",
         event_details, info.name, info.version
     ))
+}
+
+// --- Scoped Token Operations ---
+
+#[derive(Debug, Serialize, Deserialize)]
+struct TokenEvent {
+    event_type: String,
+    token: String,
+    issuer: Did,
+    recipient: Option<Did>,
+    amount: u64,
+    scope: NodeScope,
+}
+
+fn validate_token_scope(token: &str, scope: &NodeScope) -> Result<(), CommonError> {
+    if token.starts_with(&scope.0) {
+        Ok(())
+    } else {
+        Err(CommonError::PolicyDenied(format!(
+            "token {token} not in scope {}",
+            scope.0
+        )))
+    }
+}
+
+fn record_event<S: icn_dag::StorageService<DagBlock>, T: icn_common::TimeProvider>(
+    dag: &mut S,
+    author: &Did,
+    scope: &NodeScope,
+    event: &TokenEvent,
+    time: &T,
+) -> Result<Cid, CommonError> {
+    let data =
+        serde_json::to_vec(event).map_err(|e| CommonError::SerializationError(format!("{e}")))?;
+    let ts = time.unix_seconds();
+    let cid =
+        icn_common::compute_merkle_cid(0x71, &data, &[], ts, author, &None, &Some(scope.clone()));
+    let block = DagBlock {
+        cid: cid.clone(),
+        data,
+        links: vec![],
+        timestamp: ts,
+        author_did: author.clone(),
+        signature: None,
+        scope: Some(scope.clone()),
+    };
+    dag.put(&block)?;
+    Ok(cid)
+}
+
+/// Mint new scoped tokens for `recipient`.
+pub fn mint_tokens<RL, ML, R, S, T>(
+    resource_ledger: &RL,
+    mana_ledger: ML,
+    membership: &MembershipPolicyEnforcer<R>,
+    dag: &mut S,
+    issuer: &Did,
+    recipient: &Did,
+    token: &str,
+    scope: &NodeScope,
+    amount: u64,
+    mana_fee: u64,
+    time: &T,
+) -> Result<Cid, CommonError>
+where
+    RL: ResourceLedger,
+    ML: ManaLedger,
+    R: MembershipResolver,
+    S: icn_dag::StorageService<DagBlock>,
+    T: icn_common::TimeProvider,
+{
+    membership.check_permission(issuer, scope)?;
+    validate_token_scope(token, scope)?;
+    charge_mana(mana_ledger, issuer, mana_fee)?;
+    resource_ledger.credit(recipient, token, amount)?;
+
+    let event = TokenEvent {
+        event_type: "mint".into(),
+        token: token.to_string(),
+        issuer: issuer.clone(),
+        recipient: Some(recipient.clone()),
+        amount,
+        scope: scope.clone(),
+    };
+    record_event(dag, issuer, scope, &event, time)
+}
+
+/// Burn scoped tokens from `holder`.
+pub fn burn_tokens<RL, ML, R, S, T>(
+    resource_ledger: &RL,
+    mana_ledger: ML,
+    membership: &MembershipPolicyEnforcer<R>,
+    dag: &mut S,
+    issuer: &Did,
+    holder: &Did,
+    token: &str,
+    scope: &NodeScope,
+    amount: u64,
+    mana_fee: u64,
+    time: &T,
+) -> Result<Cid, CommonError>
+where
+    RL: ResourceLedger,
+    ML: ManaLedger,
+    R: MembershipResolver,
+    S: icn_dag::StorageService<DagBlock>,
+    T: icn_common::TimeProvider,
+{
+    membership.check_permission(issuer, scope)?;
+    validate_token_scope(token, scope)?;
+    charge_mana(mana_ledger, issuer, mana_fee)?;
+    resource_ledger.debit(holder, token, amount)?;
+
+    let event = TokenEvent {
+        event_type: "burn".into(),
+        token: token.to_string(),
+        issuer: issuer.clone(),
+        recipient: Some(holder.clone()),
+        amount,
+        scope: scope.clone(),
+    };
+    record_event(dag, issuer, scope, &event, time)
+}
+
+/// Transfer scoped tokens between accounts.
+pub fn transfer_tokens<RL, ML, R, S, T>(
+    resource_ledger: &RL,
+    mana_ledger: ML,
+    membership: &MembershipPolicyEnforcer<R>,
+    dag: &mut S,
+    issuer: &Did,
+    from: &Did,
+    to: &Did,
+    token: &str,
+    scope: &NodeScope,
+    amount: u64,
+    mana_fee: u64,
+    time: &T,
+) -> Result<Cid, CommonError>
+where
+    RL: ResourceLedger,
+    ML: ManaLedger,
+    R: MembershipResolver,
+    S: icn_dag::StorageService<DagBlock>,
+    T: icn_common::TimeProvider,
+{
+    membership.check_permission(issuer, scope)?;
+    validate_token_scope(token, scope)?;
+    charge_mana(mana_ledger, issuer, mana_fee)?;
+    resource_ledger.debit(from, token, amount)?;
+    resource_ledger.credit(to, token, amount)?;
+
+    let event = TokenEvent {
+        event_type: "transfer".into(),
+        token: token.to_string(),
+        issuer: issuer.clone(),
+        recipient: Some(to.clone()),
+        amount,
+        scope: scope.clone(),
+    };
+    record_event(dag, issuer, scope, &event, time)
 }
 
 #[cfg(test)]
