@@ -262,9 +262,6 @@ async fn test_long_partition_circuit_breaker() {
         assert!(interval2 >= interval1);
     }
 }
-<<<<<<< HEAD
-=======
-
 #[tokio::test]
 async fn test_stub_network_breaker_open_close() {
     use icn_common::Did;
@@ -309,4 +306,3 @@ async fn test_stub_network_breaker_open_close() {
         .expect_err("expected send failure");
     assert!(!matches!(err2, icn_network::MeshNetworkError::Timeout(_)));
 }
->>>>>>> develop
