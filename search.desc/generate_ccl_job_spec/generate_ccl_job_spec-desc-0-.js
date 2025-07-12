@@ -1,0 +1,1 @@
+searchState.loadedDescShard("generate_ccl_job_spec", 0, "Returns the argument unchanged.\nCalls <code>U::from(self)</code>.")

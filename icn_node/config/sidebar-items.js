@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["StorageBackendType"],"struct":["NodeConfig"]};
+window.SIDEBAR_ITEMS = {"enum":["StorageBackendType"],"struct":["HttpConfig","IdentityConfig","NodeConfig","P2pConfig","StorageConfig"]};
