@@ -285,6 +285,43 @@ impl IcnClient {
         self.post("/transaction/submit", body).await
     }
 
+    /// List available token classes.
+    pub async fn token_classes(&self) -> Result<serde_json::Value, reqwest::Error> {
+        self.get("/tokens/classes").await
+    }
+
+    /// Create a new token class.
+    pub async fn create_token_class<B: Serialize>(
+        &self,
+        body: &B,
+    ) -> Result<serde_json::Value, reqwest::Error> {
+        self.post("/tokens/class", body).await
+    }
+
+    /// Mint resource tokens.
+    pub async fn mint_tokens<B: Serialize>(
+        &self,
+        body: &B,
+    ) -> Result<serde_json::Value, reqwest::Error> {
+        self.post("/tokens/mint", body).await
+    }
+
+    /// Transfer resource tokens between accounts.
+    pub async fn transfer_tokens<B: Serialize>(
+        &self,
+        body: &B,
+    ) -> Result<serde_json::Value, reqwest::Error> {
+        self.post("/tokens/transfer", body).await
+    }
+
+    /// Burn resource tokens from an account.
+    pub async fn burn_tokens<B: Serialize>(
+        &self,
+        body: &B,
+    ) -> Result<serde_json::Value, reqwest::Error> {
+        self.post("/tokens/burn", body).await
+    }
+
     /// Query data.
     pub async fn data_query<B: Serialize>(
         &self,
