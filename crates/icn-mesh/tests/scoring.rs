@@ -11,6 +11,25 @@ struct InMemoryLedger {
     balances: Mutex<HashMap<Did, u64>>,
 }
 
+struct InMemoryLatencyStore {
+    latencies: Mutex<HashMap<Did, u64>>,
+}
+
+impl InMemoryLatencyStore {
+    fn new() -> Self {
+        Self { latencies: Mutex::new(HashMap::new()) }
+    }
+    fn set_latency(&self, did: Did, latency: u64) {
+        self.latencies.lock().unwrap().insert(did, latency);
+    }
+}
+
+impl icn_mesh::LatencyStore for InMemoryLatencyStore {
+    fn get_latency(&self, did: &Did) -> Option<u64> {
+        self.latencies.lock().unwrap().get(did).cloned()
+    }
+}
+
 impl InMemoryLedger {
     fn new() -> Self {
         Self { balances: Mutex::new(HashMap::new()) }
@@ -82,9 +101,26 @@ fn resource_weight_affects_score() {
     .sign(&sk_slow)
     .unwrap();
 
-    let policy = SelectionPolicy { weight_price: 1.0, weight_reputation: 0.0, weight_resources: 10.0 };
+    let policy = SelectionPolicy { weight_price: 1.0, weight_reputation: 0.0, weight_resources: 10.0, weight_latency: 1.0 };
+    let latency = InMemoryLatencyStore::new();
+    latency.set_latency(fast.clone(), 5);
+    latency.set_latency(slow.clone(), 50);
 
-    let fast_score = score_bid(&bid_fast, &spec, &policy, &rep_store, ledger.get_balance(&fast));
-    let slow_score = score_bid(&bid_slow, &spec, &policy, &rep_store, ledger.get_balance(&slow));
+    let fast_score = score_bid(
+        &bid_fast,
+        &spec,
+        &policy,
+        &rep_store,
+        ledger.get_balance(&fast),
+        latency.get_latency(&fast),
+    );
+    let slow_score = score_bid(
+        &bid_slow,
+        &spec,
+        &policy,
+        &rep_store,
+        ledger.get_balance(&slow),
+        latency.get_latency(&slow),
+    );
     assert!(fast_score > slow_score);
 }

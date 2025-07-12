@@ -136,6 +136,7 @@ pub struct RuntimeContext {
     pub did_resolver: Arc<dyn icn_identity::DidResolver>,
     pub dag_store: Arc<DagStoreMutexType<DagStorageService>>,
     pub reputation_store: Arc<dyn icn_reputation::ReputationStore>,
+    pub latency_store: Arc<dyn icn_mesh::LatencyStore>,
     pub parameters: Arc<DashMap<String, String>>,
     pub policy_enforcer: Option<Arc<dyn icn_governance::scoped_policy::ScopedPolicyEnforcer>>,
     pub time_provider: Arc<dyn icn_common::TimeProvider>,
@@ -185,6 +186,7 @@ pub struct RuntimeContextParams {
     pub dag_store: Arc<DagStoreMutexType<DagStorageService>>,
     pub mana_ledger: SimpleManaLedger,
     pub reputation_path: PathBuf,
+    pub latency_store: Arc<dyn icn_mesh::LatencyStore>,
     pub policy_enforcer: Option<Arc<dyn icn_governance::scoped_policy::ScopedPolicyEnforcer>>,
     pub time_provider: Arc<dyn icn_common::TimeProvider>,
 }
@@ -223,6 +225,7 @@ impl RuntimeContext {
         let signer = Arc::new(super::signers::StubSigner::new());
         let did_resolver = Arc::new(icn_identity::KeyDidResolver);
         let reputation_store = Arc::new(icn_reputation::InMemoryReputationStore::new());
+        let latency_store = Arc::new(icn_mesh::NoOpLatencyStore) as Arc<dyn icn_mesh::LatencyStore>;
         let parameters = Self::default_parameters();
         let policy_enforcer = None;
         let time_provider = Arc::new(icn_common::SystemTimeProvider);
@@ -248,6 +251,7 @@ impl RuntimeContext {
             dag_store: Arc::new(DagStoreMutexType::new(StubDagStore::new()))
                 as Arc<DagStoreMutexType<DagStorageService>>,
             reputation_store,
+            latency_store,
             parameters,
             policy_enforcer,
             time_provider,
@@ -287,6 +291,7 @@ impl RuntimeContext {
         let mesh_network_service = Arc::new(MeshNetworkServiceType::Stub(StubMeshNetworkService::new()));
         let did_resolver = Arc::new(icn_identity::KeyDidResolver);
         let reputation_store = Arc::new(icn_reputation::InMemoryReputationStore::new());
+        let latency_store = Arc::new(icn_mesh::NoOpLatencyStore) as Arc<dyn icn_mesh::LatencyStore>;
         let parameters = Self::default_parameters();
         let policy_enforcer = None;
         let time_provider = Arc::new(icn_common::SystemTimeProvider);
@@ -305,6 +310,7 @@ impl RuntimeContext {
             dag_store: Arc::new(DagStoreMutexType::new(StubDagStore::new()))
                 as Arc<DagStoreMutexType<DagStorageService>>,
             reputation_store,
+            latency_store,
             parameters,
             policy_enforcer,
             time_provider,
@@ -335,6 +341,7 @@ impl RuntimeContext {
         let mesh_network_service = Arc::new(MeshNetworkServiceType::Stub(StubMeshNetworkService::new()));
         let did_resolver = Arc::new(icn_identity::KeyDidResolver);
         let reputation_store = Arc::new(icn_reputation::InMemoryReputationStore::new());
+        let latency_store = Arc::new(icn_mesh::NoOpLatencyStore) as Arc<dyn icn_mesh::LatencyStore>;
         let parameters = Self::default_parameters();
         let policy_enforcer = None;
         let mana_ledger = SimpleManaLedger::new(ledger_path);
@@ -352,6 +359,7 @@ impl RuntimeContext {
             dag_store: Arc::new(DagStoreMutexType::new(StubDagStore::new()))
                 as Arc<DagStoreMutexType<DagStorageService>>,
             reputation_store,
+            latency_store,
             parameters,
             policy_enforcer,
             time_provider,
@@ -533,6 +541,7 @@ impl RuntimeContext {
         let job_states = Arc::new(DashMap::new());
         let governance_module = Arc::new(DagStoreMutexType::new(GovernanceModule::new()));
         let reputation_store = Arc::new(icn_reputation::InMemoryReputationStore::new());
+        let latency_store = Arc::new(icn_mesh::NoOpLatencyStore) as Arc<dyn icn_mesh::LatencyStore>;
         let parameters = Self::default_parameters();
         let policy_enforcer = None;
         let time_provider = Arc::new(icn_common::SystemTimeProvider);
@@ -556,6 +565,7 @@ impl RuntimeContext {
             did_resolver,
             dag_store,
             reputation_store,
+            latency_store,
             parameters,
             policy_enforcer,
             time_provider,
@@ -630,6 +640,7 @@ impl RuntimeContext {
             did_resolver,
             dag_store,
             reputation_store,
+            latency_store,
             parameters,
             policy_enforcer,
             time_provider,
@@ -647,6 +658,7 @@ impl RuntimeContext {
             dag_store,
             mana_ledger,
             reputation_path: _reputation_path,
+            latency_store,
             policy_enforcer,
             time_provider,
         } = params;
@@ -668,6 +680,7 @@ impl RuntimeContext {
             did_resolver,
             dag_store,
             reputation_store,
+            latency_store,
             parameters,
             policy_enforcer,
             time_provider,
@@ -997,6 +1010,7 @@ impl RuntimeContext {
             &selection_policy,
             self.reputation_store.as_ref(),
             &self.mana_ledger,
+            self.latency_store.as_ref(),
         );
         
         let selected_executor = match selected_executor {
@@ -1763,6 +1777,7 @@ impl RuntimeContext {
             &selection_policy,
             ctx.reputation_store.as_ref(),
             &ctx.mana_ledger,
+            ctx.latency_store.as_ref(),
         );
         
         let executor_did = match selected_executor {

@@ -26,6 +26,7 @@ devnet, and expanded security guidance.
 - Introduced `icn-reputation` crate providing `ReputationStore` trait and in-memory implementation.
 - Multi-node CLI with libp2p networking and bootstrap peer discovery.
 - Cross-node mesh job execution pipeline with signed receipts anchored to the DAG.
+- Latency-aware executor selection via `LatencyStore` and updated `select_executor`.
 - HTTP gateway enabling REST job submission and status queries.
 - Containerized 3-node federation devnet with Docker and integration tests.
 - `Ed25519Signer` replaces `StubSigner` for production runtime; tests may continue using `StubSigner`.

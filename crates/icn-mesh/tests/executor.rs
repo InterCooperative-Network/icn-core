@@ -42,6 +42,25 @@ impl icn_economics::ManaLedger for InMemoryLedger {
     }
 }
 
+struct InMemoryLatencyStore {
+    latencies: Mutex<HashMap<Did, u64>>,
+}
+
+impl InMemoryLatencyStore {
+    fn new() -> Self {
+        Self { latencies: Mutex::new(HashMap::new()) }
+    }
+    fn set_latency(&self, did: Did, latency: u64) {
+        self.latencies.lock().unwrap().insert(did, latency);
+    }
+}
+
+impl icn_mesh::LatencyStore for InMemoryLatencyStore {
+    fn get_latency(&self, did: &Did) -> Option<u64> {
+        self.latencies.lock().unwrap().get(did).cloned()
+    }
+}
+
 #[test]
 fn executor_selection_prefers_reputation() {
     let job_id = JobId(icn_common::Cid::new_v1_sha256(0x55, b"job"));
@@ -78,6 +97,9 @@ fn executor_selection_prefers_reputation() {
     .unwrap();
 
     let policy = SelectionPolicy::default();
+    let latency = InMemoryLatencyStore::new();
+    latency.set_latency(high.clone(), 5);
+    latency.set_latency(low.clone(), 15);
     let spec = JobSpec::default();
     let selected = select_executor(
         &job_id,
@@ -86,6 +108,7 @@ fn executor_selection_prefers_reputation() {
         &policy,
         &rep_store,
         &ledger,
+        &latency,
     );
     assert_eq!(selected.unwrap(), high);
 }

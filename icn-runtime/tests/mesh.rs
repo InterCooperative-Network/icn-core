@@ -125,6 +125,23 @@ struct InMemoryManaLedger {
     balances: StdMutex<std::collections::HashMap<Did, u64>>,
 }
 
+#[derive(Default)]
+struct InMemoryLatencyStore {
+    latencies: StdMutex<std::collections::HashMap<Did, u64>>,
+}
+
+impl InMemoryLatencyStore {
+    fn set_latency(&self, did: Did, latency: u64) {
+        self.latencies.lock().unwrap().insert(did, latency);
+    }
+}
+
+impl icn_mesh::LatencyStore for InMemoryLatencyStore {
+    fn get_latency(&self, did: &Did) -> Option<u64> {
+        self.latencies.lock().unwrap().get(did).cloned()
+    }
+}
+
 impl icn_economics::ManaLedger for InMemoryManaLedger {
     fn get_balance(&self, did: &Did) -> u64 {
         *self.balances.lock().unwrap().get(did).unwrap_or(&0)
@@ -167,8 +184,8 @@ impl icn_economics::ManaLedger for InMemoryManaLedger {
 // For now, host functions take ctx, and some mocks might be passed directly to them.
 fn create_test_runtime_context(did_str: &str, initial_mana: u64) -> RuntimeContext {
     let did = Did::from_str(did_str).expect("Invalid DID for test context");
-    let mut ctx = RuntimeContext::new(did.clone());
-    ctx.mana_ledger.set_balance(&did, initial_mana);
+    let ctx_arc = RuntimeContext::new_with_stubs_and_mana(did_str, initial_mana).unwrap();
+    let ctx = Arc::try_unwrap(ctx_arc).expect("only ref");
     // `pending_mesh_jobs` is Arc<TokioMutex<VecDeque<ActualMeshJob>>>
     // `governance_module` is default.
     // If RuntimeContext needs to hold Arc<InMemoryDagStore> or Arc<MockReputationSystem>, add them here.
@@ -453,6 +470,7 @@ async fn executor_recheck_failure_after_selection() {
         &SelectionPolicy::default(),
         &rep_store,
         &ledger,
+        &InMemoryLatencyStore::default(),
     )
     .expect("selection");
     assert_eq!(selected, exec);
@@ -523,6 +541,7 @@ async fn test_executor_selection_bidder_loses_mana() {
         &SelectionPolicy::default(),
         &rep_store,
         &ledger,
+        &InMemoryLatencyStore::default(),
     )
     .expect("selection");
     assert_eq!(selected, exec_a);
