@@ -28,9 +28,24 @@ The `icn-cli` is the primary tool for users to interact with an ICN node from th
     *   `icn-cli federation leave <PEER_ID>`: Leave a federation or remove the peer.
     *   `icn-cli federation list-peers`: List peers known to the node.
     *   `icn-cli federation status`: Display federation status including peer count.
+*   **Identity Operations:**
+    *   `icn-cli identity generate-proof <PROOF_REQUEST_JSON>`: Produce a zero-knowledge proof from the supplied request JSON.
+    *   `icn-cli identity verify-proof <PROOF_JSON>`: Verify a proof and print whether it is valid.
 *   **Miscellaneous:**
     *   `icn-cli hello`: A simple command to check if the CLI is responsive.
     *   `icn-cli help` or `icn-cli --help`: Displays usage information.
+
+### Example: Generate and Verify a Proof
+
+```bash
+# Generate a proof for a membership credential
+cargo run -p icn-cli -- identity generate-proof '{"member_did":"did:example:123"}'
+# => '{"proof":"base64string","backend":"Groth16"}'
+
+# Verify the returned proof
+cargo run -p icn-cli -- identity verify-proof '{"proof":"base64string","backend":"Groth16"}'
+# => "verified: true"
+```
 
 ## Error Handling
 
