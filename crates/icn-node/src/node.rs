@@ -55,7 +55,7 @@ use axum::{
     Json, Router,
 };
 use axum_server::tls_rustls::RustlsConfig;
-use base64::{self, Engine};
+use base64::{self, prelude::BASE64_STANDARD, Engine};
 use bincode;
 use bs58;
 use clap::{ArgMatches, CommandFactory, FromArgMatches, Parser};
@@ -554,11 +554,12 @@ pub async fn app_router_with_options(
     api_key: Option<String>,
     auth_token: Option<String>,
     rate_limit: Option<u64>,
-    mana_ledger_backend: Option<icn_runtime::context::LedgerBackend>,
+    _mana_ledger_backend: Option<icn_runtime::context::LedgerBackend>,
     mana_ledger_path: Option<PathBuf>,
     storage_backend: Option<StorageBackendType>,
     storage_path: Option<PathBuf>,
     _governance_db_path: Option<PathBuf>,
+    #[cfg_attr(not(feature = "persist-sled"), allow(unused_variables))]
     reputation_db_path: Option<PathBuf>,
     parameter_store_path: Option<PathBuf>,
 ) -> (Router, Arc<RuntimeContext>) {
@@ -591,7 +592,7 @@ pub async fn app_router_with_options(
         .expect("Failed to init DAG store for test context");
 
     #[cfg(feature = "enable-libp2p")]
-    let (mesh_network_service, service_dyn) = {
+    let (_mesh_network_service, service_dyn) = {
         let cfg = NetworkConfig::default();
         let service = Libp2pNetworkService::new(cfg)
             .await
@@ -604,7 +605,7 @@ pub async fn app_router_with_options(
         )
     };
     #[cfg(not(feature = "enable-libp2p"))]
-    let (mesh_network_service, service_dyn) = {
+    let (_mesh_network_service, service_dyn) = {
         let stub_service = StubMeshNetworkService::new();
         (
             Arc::new(MeshNetworkServiceType::Stub(stub_service)),
@@ -614,7 +615,7 @@ pub async fn app_router_with_options(
     // GovernanceModule is initialized inside RuntimeContext::new
 
     // Create production-ready RuntimeContext with proper services
-    let node_did_string = node_did.to_string();
+    let _node_did_string = node_did.to_string();
 
     // Create mana ledger with initial balance
     let mana_ledger = icn_runtime::context::SimpleManaLedger::new(
@@ -625,6 +626,7 @@ pub async fn app_router_with_options(
         .expect("Failed to set initial mana balance");
 
     // Create production RuntimeContext using the mesh network service we created above
+    #[cfg_attr(not(feature = "persist-sled"), allow(unused_mut))]
     let mut rt_ctx = {
         #[cfg(feature = "enable-libp2p")]
         {
@@ -962,7 +964,7 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
     if let Err(e) =
         parameter_store.set_parameter("open_rate_limit", &config.http.open_rate_limit.to_string())
     {
-        warn!("Failed to update parameter store: {}", e);
+        warn!("Failed to update parammter store: {}", e);
     }
     let _ = parameter_store.save();
     if let Err(e) = config.prepare_paths() {
@@ -1020,7 +1022,8 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    let rt_ctx = if config.test_mode {
+    #[cfg_attr(not(feature = "persist-sled"), allow(unused_mut))]
+    let mut rt_ctx = if config.test_mode {
         RuntimeContext::new_testing(node_did.clone(), Some(1000))
             .expect("Failed to create RuntimeContext for testing")
     } else {
@@ -1039,12 +1042,12 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
 
     #[cfg(feature = "persist-sled")]
     {
-        let gov_mod = icn_governance::GovernanceModule::new_sled(config.governance_db_path.clone())
+        let gov_mod = icn_governance::GovernanceModule::new_sled(config.storage.governance_db_path.clone())
             .unwrap_or_else(|_| icn_governance::GovernanceModule::new());
         if let Some(ctx) = Arc::get_mut(&mut rt_ctx) {
             ctx.governance_module = Arc::new(TokioMutex::new(gov_mod));
             if let Ok(store) =
-                icn_reputation::SledReputationStore::new(config.reputation_db_path.clone())
+                icn_reputation::SledReputationStore::new(config.storage.reputation_db_path.clone())
             {
                 ctx.reputation_store = Arc::new(store);
             }
@@ -2802,7 +2805,7 @@ mod tests {
         };
         let job_req = SubmitJobRequest {
             manifest_cid: Cid::new_v1_sha256(0x55, b"test_manifest").to_string(),
-            spec_bytes: Some(base64::encode(bincode::serialize(&spec).unwrap())),
+            spec_bytes: Some(BASE64_STANDARD.encode(bincode::serialize(&spec).unwrap())),
             spec_json: None,
             cost_mana: 50,
         };
@@ -2842,7 +2845,7 @@ mod tests {
         };
         let job_req = SubmitJobRequest {
             manifest_cid: Cid::new_v1_sha256(0x55, b"pipeline_test_manifest").to_string(),
-            spec_bytes: Some(base64::encode(bincode::serialize(&spec).unwrap())),
+            spec_bytes: Some(BASE64_STANDARD.encode(bincode::serialize(&spec).unwrap())),
             spec_json: None,
             cost_mana: 100,
         };
@@ -2981,7 +2984,7 @@ mod tests {
         };
         let job_req = SubmitJobRequest {
             manifest_cid: Cid::new_v1_sha256(0x55, b"simple_test").to_string(),
-            spec_bytes: Some(base64::encode(bincode::serialize(&spec).unwrap())),
+            spec_bytes: Some(BASE64_STANDARD.encode(bincode::serialize(&spec).unwrap())),
             spec_json: None,
             cost_mana: 50,
         };
@@ -3060,7 +3063,7 @@ mod tests {
         // Submit job referencing the WASM CID
         let job_req = SubmitJobRequest {
             manifest_cid: wasm_cid.to_string(),
-            spec_bytes: Some(base64::encode(
+            spec_bytes: Some(BASE64_STANDARD.encode(
                 bincode::serialize(&icn_mesh::JobSpec::default()).unwrap(),
             )),
             spec_json: None,

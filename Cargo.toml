@@ -28,6 +28,16 @@ version = "0.2.0"
 authors = ["InterCooperative Network <dev@intercooperative.network>"]
 license = "Apache-2.0"
 
+# Profile configurations to fix linking issues
+[profile.dev]
+debug = 1  # Reduced debug info to fix wasmtime-cranelift linking issues
+split-debuginfo = "unpacked"
+
+[profile.release]
+debug = 1  # Some debug info for better error reporting
+lto = "thin"  # Use thin LTO instead of full LTO to avoid compiler crashes
+codegen-units = 4  # Increase codegen units to reduce memory pressure
+
 # Dependencies for integration tests
 [workspace.dependencies]
 reqwest = { version = "0.11", features = ["json", "blocking"] }

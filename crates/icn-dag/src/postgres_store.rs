@@ -1,5 +1,5 @@
 use crate::{AsyncStorageService, BlockMetadata, Cid, CommonError, DagBlock};
-use deadpool_postgres::{Config as PoolConfig, ManagerConfig, Pool, RecyclingMethod};
+use deadpool_postgres::{ManagerConfig, Pool, RecyclingMethod};
 use std::collections::HashMap;
 use tokio_postgres::NoTls;
 
