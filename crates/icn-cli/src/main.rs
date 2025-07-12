@@ -17,7 +17,7 @@ use std::process::exit; // Added for reading from stdin
 
 // Types from our ICN crates that CLI will interact with (serialize/deserialize)
 // These types are expected to be sent to/received from the icn-node HTTP API.
-use icn_common::{Cid, DagBlock, NodeInfo, NodeStatus};
+use icn_common::{Cid, DagBlock, NodeInfo, NodeStatus, ZkCredentialProof};
 // Using aliased request structs from icn-api for clarity, these are what the node expects
 use icn_api::governance_trait::{
     CastVoteRequest as ApiCastVoteRequest, SubmitProposalRequest as ApiSubmitProposalRequest,
@@ -105,6 +105,11 @@ enum Commands {
     Reputation {
         #[clap(subcommand)]
         command: ReputationCommands,
+    },
+    /// Identity operations
+    Identity {
+        #[clap(subcommand)]
+        command: IdentityCommands,
     },
     /// Cooperative Contract Language operations
     Ccl {
@@ -308,6 +313,15 @@ enum ReputationCommands {
     },
 }
 
+#[derive(Subcommand, Debug)]
+enum IdentityCommands {
+    /// Verify a zero-knowledge credential proof (JSON string or '-' for stdin)
+    VerifyProof {
+        #[clap(help = "ZkCredentialProof JSON or '-' for stdin")]
+        proof_json_or_stdin: String,
+    },
+}
+
 // --- Main CLI Logic ---
 
 #[tokio::main]
@@ -374,6 +388,11 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
         },
         Commands::Reputation { command } => match command {
             ReputationCommands::Get { did } => handle_reputation_get(cli, client, did).await?,
+        },
+        Commands::Identity { command } => match command {
+            IdentityCommands::VerifyProof { proof_json_or_stdin } => {
+                handle_identity_verify(cli, client, proof_json_or_stdin).await?
+            }
         },
         Commands::Ccl { command } => match command {
             CclCommands::Compile { file } => handle_ccl_compile(file)?,
@@ -934,6 +953,28 @@ async fn handle_reputation_get(cli: &Cli, client: &Client, did: &str) -> Result<
     let path = format!("/reputation/{}", did);
     let v: serde_json::Value = get_request(&cli.api_url, client, &path).await?;
     println!("{}", serde_json::to_string_pretty(&v)?);
+    Ok(())
+}
+
+async fn handle_identity_verify(
+    cli: &Cli,
+    client: &Client,
+    proof_json_or_stdin: &str,
+) -> Result<(), anyhow::Error> {
+    let proof_json_content = if proof_json_or_stdin == "-" {
+        let mut buffer = String::new();
+        io::stdin().read_to_string(&mut buffer)?;
+        buffer
+    } else {
+        proof_json_or_stdin.to_string()
+    };
+
+    let proof: ZkCredentialProof = serde_json::from_str(&proof_json_content)
+        .map_err(|e| anyhow::anyhow!("Invalid ZkCredentialProof JSON: {}", e))?;
+
+    let resp: serde_json::Value =
+        post_request(&cli.api_url, client, "/identity/verify", &proof).await?;
+    println!("{}", serde_json::to_string_pretty(&resp)?);
     Ok(())
 }
 
