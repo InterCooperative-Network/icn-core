@@ -985,6 +985,31 @@ where
     Ok(())
 }
 
+#[cfg(feature = "async")]
+/// Determine the current root CID of the DAG.
+///
+/// The root is the block that is not referenced by any other block's links.
+pub async fn current_root<S>(store: &S) -> Result<Option<Cid>, CommonError>
+where
+    S: AsyncStorageService<DagBlock> + Sync + ?Sized,
+{
+    use std::collections::HashSet;
+
+    let blocks = store.list_blocks().await?;
+    let mut referenced: HashSet<Cid> = HashSet::new();
+    for block in &blocks {
+        for link in &block.links {
+            referenced.insert(link.cid.clone());
+        }
+    }
+    for block in &blocks {
+        if !referenced.contains(&block.cid) {
+            return Ok(Some(block.cid.clone()));
+        }
+    }
+    Ok(None)
+}
+
 // pub fn add(left: u64, right: u64) -> u64 {
 //     left + right
 // }

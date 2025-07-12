@@ -40,10 +40,12 @@ static HTTP_BREAKER: Lazy<AsyncMutex<CircuitBreaker<SystemTimeProvider>>> = Lazy
     ))
 });
 
+pub mod dag_trait;
 pub mod federation_trait;
 pub mod governance_trait;
 /// Prometheus metrics helpers
 pub mod metrics;
+use crate::dag_trait::DagApi;
 use crate::governance_trait::{
     CastVoteRequest as GovernanceCastVoteRequest, // Renamed to avoid conflict
     GovernanceApi,
@@ -375,6 +377,28 @@ impl GovernanceApi for GovernanceApiImpl {
             )
         })?;
         module.list_proposals()
+    }
+}
+
+/// Concrete implementation for DAG API operations.
+pub struct DagApiImpl<S> {
+    pub store: Arc<AsyncMutex<S>>,
+}
+
+impl<S> DagApiImpl<S> {
+    pub fn new(store: Arc<AsyncMutex<S>>) -> Self {
+        Self { store }
+    }
+}
+
+#[async_trait::async_trait]
+impl<S> dag_trait::DagApi for DagApiImpl<S>
+where
+    S: AsyncStorageService<DagBlock> + Send,
+{
+    async fn get_dag_root(&self) -> Result<Option<Cid>, CommonError> {
+        let store = self.store.lock().await;
+        icn_dag::current_root(&*store).await
     }
 }
 
