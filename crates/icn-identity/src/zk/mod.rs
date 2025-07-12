@@ -1,4 +1,7 @@
+use bulletproofs::{BulletproofGens, PedersenGens, RangeProof};
+use curve25519_dalek::scalar::Scalar;
 use icn_common::{ZkCredentialProof, ZkProofType};
+use merlin::Transcript;
 use thiserror::Error;
 
 /// Errors that can occur when verifying zero-knowledge proofs.
@@ -34,8 +37,16 @@ impl ZkVerifier for BulletproofsVerifier {
         if proof.proof.is_empty() {
             return Err(ZkError::InvalidProof);
         }
-        // TODO: integrate real Bulletproofs verification once available.
-        Ok(true)
+        let range_proof =
+            RangeProof::from_bytes(&proof.proof).map_err(|_| ZkError::InvalidProof)?;
+        let pc_gens = PedersenGens::default();
+        let bp_gens = BulletproofGens::new(64, 1);
+        let commitment = pc_gens.commit(Scalar::from(42u64), Scalar::ZERO).compress();
+        let mut transcript = Transcript::new(b"icn-bulletproof");
+        range_proof
+            .verify_single(&bp_gens, &pc_gens, &mut transcript, &commitment, 64)
+            .map(|_| true)
+            .map_err(|_| ZkError::VerificationFailed)
     }
 }
 
@@ -58,16 +69,37 @@ mod tests {
     use super::*;
     use icn_common::{Cid, Did};
 
+    fn make_bulletproof(value: u64) -> Vec<u8> {
+        let pc_gens = PedersenGens::default();
+        let bp_gens = BulletproofGens::new(64, 1);
+        let mut transcript = Transcript::new(b"icn-bulletproof");
+        let (proof, _) = RangeProof::prove_single(
+            &bp_gens,
+            &pc_gens,
+            &mut transcript,
+            value,
+            &Scalar::ZERO,
+            64,
+        )
+        .unwrap();
+        proof.to_bytes()
+    }
+
     fn dummy_cid(s: &str) -> Cid {
         Cid::new_v1_sha256(0x55, s.as_bytes())
     }
 
     fn dummy_proof(backend: ZkProofType) -> ZkCredentialProof {
+        let proof = if backend == ZkProofType::Bulletproofs {
+            make_bulletproof(42)
+        } else {
+            vec![1, 2, 3]
+        };
         ZkCredentialProof {
             issuer: Did::new("key", "issuer"),
             holder: Did::new("key", "holder"),
             claim_type: "test".into(),
-            proof: vec![1, 2, 3],
+            proof,
             schema: dummy_cid("schema"),
             disclosed_fields: Vec::new(),
             challenge: None,
@@ -97,6 +129,14 @@ mod tests {
         let proof = dummy_proof(ZkProofType::Bulletproofs);
         let verifier = BulletproofsVerifier;
         assert!(verifier.verify(&proof).unwrap());
+    }
+
+    #[test]
+    fn bulletproofs_wrong_value_fails() {
+        let mut proof = dummy_proof(ZkProofType::Bulletproofs);
+        proof.proof = make_bulletproof(7);
+        let verifier = BulletproofsVerifier;
+        assert_eq!(verifier.verify(&proof), Err(ZkError::VerificationFailed));
     }
 
     #[test]

@@ -83,3 +83,6 @@ icn-common = { path = "../crates/icn-common" }
 icn-protocol = { path = "../crates/icn-protocol" }
 icn-identity = { path = "../crates/icn-identity" }
 icn-network = { path = "../crates/icn-network" }
+bulletproofs = "5.0"
+curve25519-dalek = "4.2"
+merlin = "3.0"
