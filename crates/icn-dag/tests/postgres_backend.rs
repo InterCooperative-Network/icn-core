@@ -2,7 +2,7 @@
 mod tests {
     use icn_common::{compute_merkle_cid, DagBlock, Did};
     use icn_dag::postgres_store::PostgresDagStore;
-    use icn_dag::StorageService;
+    use icn_dag::AsyncStorageService;
 
     fn create_block(id: &str) -> DagBlock {
         let data = format!("data {id}").into_bytes();
@@ -21,14 +21,14 @@ mod tests {
         }
     }
 
-    fn run_suite<S: StorageService<DagBlock>>(store: &mut S) {
+    async fn run_suite<S: AsyncStorageService<DagBlock>>(store: &mut S) {
         let b1 = create_block("b1");
         let b2 = create_block("b2");
-        assert!(store.put(&b1).is_ok());
-        assert!(store.contains(&b1.cid).unwrap());
-        assert!(!store.contains(&b2.cid).unwrap());
-        assert_eq!(store.get(&b1.cid).unwrap().unwrap().cid, b1.cid);
-        assert!(store.get(&b2.cid).unwrap().is_none());
+        store.put(&b1).await.unwrap();
+        assert!(store.contains(&b1.cid).await.unwrap());
+        assert!(!store.contains(&b2.cid).await.unwrap());
+        assert_eq!(store.get(&b1.cid).await.unwrap().unwrap().cid, b1.cid);
+        assert!(store.get(&b2.cid).await.unwrap().is_none());
         let mod_data = b"mod".to_vec();
         let ts = 1u64;
         let author = Did::new("key", "tester");
@@ -43,36 +43,39 @@ mod tests {
             signature: sig,
             scope: None,
         };
-        assert!(store.put(&mod_block).is_ok());
-        assert_eq!(store.get(&b1.cid).unwrap().unwrap().data, b"mod".to_vec());
-        assert!(store.delete(&b1.cid).is_ok());
-        assert!(!store.contains(&b1.cid).unwrap());
-        assert!(store.delete(&b2.cid).is_ok());
+        store.put(&mod_block).await.unwrap();
+        assert_eq!(
+            store.get(&b1.cid).await.unwrap().unwrap().data,
+            b"mod".to_vec()
+        );
+        store.delete(&b1.cid).await.unwrap();
+        assert!(!store.contains(&b1.cid).await.unwrap());
+        store.delete(&b2.cid).await.unwrap();
     }
 
-    #[test]
-    fn postgres_round_trip() {
+    #[tokio::test]
+    async fn postgres_round_trip() {
         // Requires a running Postgres instance accessible at $ICN_TEST_PG_URL or default
         let url = std::env::var("ICN_TEST_PG_URL")
             .unwrap_or_else(|_| "postgres://postgres@localhost/icn_test".to_string());
-        let mut store = match PostgresDagStore::new(&url) {
+        let mut store = match PostgresDagStore::new(&url).await {
             Ok(s) => s,
             Err(e) => {
                 eprintln!("Postgres unavailable: {e:?}");
                 return;
             }
         };
-        run_suite(&mut store);
+        run_suite(&mut store).await;
         let persist = create_block("persist");
-        store.put(&persist).unwrap();
+        store.put(&persist).await.unwrap();
         drop(store);
-        let store2 = match PostgresDagStore::new(&url) {
+        let store2 = match PostgresDagStore::new(&url).await {
             Ok(s) => s,
             Err(e) => {
                 eprintln!("Postgres unavailable on reopen: {e:?}");
                 return;
             }
         };
-        assert!(store2.get(&persist.cid).unwrap().is_some());
+        assert!(store2.get(&persist.cid).await.unwrap().is_some());
     }
 }

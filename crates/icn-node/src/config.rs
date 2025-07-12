@@ -446,7 +446,7 @@ impl NodeConfig {
     }
 
     /// Initialize a DAG store based on this configuration.
-    pub fn init_dag_store(
+    pub async fn init_dag_store(
         &self,
     ) -> Result<
         std::sync::Arc<TokioMutex<dyn icn_dag::AsyncStorageService<DagBlock> + Send>>,
@@ -503,11 +503,13 @@ impl NodeConfig {
                     }
                 }
                 #[cfg(feature = "persist-postgres")]
-                StorageBackendType::Postgres => std::sync::Arc::new(TokioMutex::new(
-                    CompatAsyncStore::new(icn_dag::postgres_store::PostgresDagStore::new(
+                StorageBackendType::Postgres => {
+                    let store = icn_dag::postgres_store::PostgresDagStore::new(
                         &self.storage.storage_path.to_string_lossy(),
-                    )?),
-                )) as std::sync::Arc<TokioMutex<_>>,
+                    )
+                    .await?;
+                    std::sync::Arc::new(TokioMutex::new(store)) as std::sync::Arc<TokioMutex<_>>
+                }
             };
         Ok(store)
     }
