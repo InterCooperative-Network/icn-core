@@ -7,6 +7,7 @@
 
 use icn_common::{CommonError, Did, NodeInfo};
 use log::{debug, info};
+use serde::{Deserialize, Serialize};
 pub mod ledger;
 pub mod metrics;
 pub use ledger::FileManaLedger;
@@ -16,6 +17,33 @@ pub use ledger::RocksdbManaLedger;
 pub use ledger::SledManaLedger;
 #[cfg(feature = "persist-sqlite")]
 pub use ledger::SqliteManaLedger;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum LedgerEvent {
+    Credit { did: Did, amount: u64 },
+    Debit { did: Did, amount: u64 },
+    SetBalance { did: Did, amount: u64 },
+}
+
+pub fn balances_from_events(events: &[LedgerEvent]) -> std::collections::HashMap<Did, u64> {
+    use std::collections::HashMap;
+    let mut bal = HashMap::new();
+    for e in events {
+        match e {
+            LedgerEvent::Credit { did, amount } => {
+                *bal.entry(did.clone()).or_insert(0) += *amount;
+            }
+            LedgerEvent::Debit { did, amount } => {
+                let entry = bal.entry(did.clone()).or_insert(0);
+                *entry = entry.saturating_sub(*amount);
+            }
+            LedgerEvent::SetBalance { did, amount } => {
+                bal.insert(did.clone(), *amount);
+            }
+        }
+    }
+    bal
+}
 
 /// Abstraction over the persistence layer storing account balances.
 pub trait ManaLedger: Send + Sync {
@@ -48,21 +76,44 @@ pub trait ManaLedger: Send + Sync {
 }
 
 /// Thin wrapper exposing convenience methods over a [`ManaLedger`].
-#[derive(Debug)]
 pub struct ManaRepositoryAdapter<L: ManaLedger> {
     ledger: L,
+    #[allow(clippy::type_complexity)]
+    event_store: Option<std::sync::Mutex<Box<dyn icn_eventstore::EventStore<LedgerEvent>>>>,
 }
 
 impl<L: ManaLedger> ManaRepositoryAdapter<L> {
     /// Construct a new adapter around the provided ledger implementation.
     pub fn new(ledger: L) -> Self {
-        ManaRepositoryAdapter { ledger }
+        ManaRepositoryAdapter {
+            ledger,
+            event_store: None,
+        }
+    }
+
+    pub fn with_event_store(
+        ledger: L,
+        store: Box<dyn icn_eventstore::EventStore<LedgerEvent>>,
+    ) -> Self {
+        ManaRepositoryAdapter {
+            ledger,
+            event_store: Some(std::sync::Mutex::new(store)),
+        }
     }
 
     /// Deduct mana from an account via the underlying ledger.
     pub fn spend_mana(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
         metrics::SPEND_MANA_CALLS.inc();
-        self.ledger.spend(did, amount)
+        let res = self.ledger.spend(did, amount);
+        if res.is_ok() {
+            if let Some(store) = &self.event_store {
+                let _ = store.lock().unwrap().append(&LedgerEvent::Debit {
+                    did: did.clone(),
+                    amount,
+                });
+            }
+        }
+        res
     }
 
     /// Retrieve the account balance.
@@ -74,12 +125,39 @@ impl<L: ManaLedger> ManaRepositoryAdapter<L> {
     /// Credits the specified account with additional mana.
     pub fn credit_mana(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
         metrics::CREDIT_MANA_CALLS.inc();
-        self.ledger.credit(did, amount)
+        let res = self.ledger.credit(did, amount);
+        if res.is_ok() {
+            if let Some(store) = &self.event_store {
+                let _ = store.lock().unwrap().append(&LedgerEvent::Credit {
+                    did: did.clone(),
+                    amount,
+                });
+            }
+        }
+        res
+    }
+
+    pub fn set_balance(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
+        let res = self.ledger.set_balance(did, amount);
+        if res.is_ok() {
+            if let Some(store) = &self.event_store {
+                let _ = store.lock().unwrap().append(&LedgerEvent::SetBalance {
+                    did: did.clone(),
+                    amount,
+                });
+            }
+        }
+        res
+    }
+
+    pub fn event_store(
+        &self,
+    ) -> Option<&std::sync::Mutex<Box<dyn icn_eventstore::EventStore<LedgerEvent>>>> {
+        self.event_store.as_ref()
     }
 }
 
 /// Enforces spending limits and forwards to a [`ManaRepositoryAdapter`].
-#[derive(Debug)]
 pub struct ResourcePolicyEnforcer<L: ManaLedger> {
     adapter: ManaRepositoryAdapter<L>,
 }
