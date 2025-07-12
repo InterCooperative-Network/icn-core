@@ -1,0 +1,7 @@
+{
+  "proof": "0xdeadbeef",
+  "public_inputs": {
+    "statement": "age_over_18",
+    "year": 2020
+  }
+}

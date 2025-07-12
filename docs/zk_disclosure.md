@@ -23,3 +23,12 @@ This document provides a short overview of when zero-knowledge proofs (ZKPs) are
 4. **Verifier** checks the proof. If valid, it accepts that the holder is over 18 without ever seeing the actual birthdate.
 
 See [`docs/examples/zk_example.json`](examples/zk_example.json) for a minimal JSON representation of a proof.
+
+## Available Circuits
+The `icn-zk` crate exposes reusable circuits that can be compiled into proofs:
+
+- `AgeOver18Circuit` – proves a birth year is at least 18 years in the past.
+- `MembershipCircuit` – proves the subject is a registered member.
+- `ReputationCircuit` – proves a reputation score meets a required threshold.
+
+See [`docs/examples/zk_age_over_18.json`](examples/zk_age_over_18.json) for a sample proof payload.
