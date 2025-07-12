@@ -13,9 +13,12 @@ async fn enable_p2p_uses_libp2p() {
 
     let svc = build_network_service(&cfg).await.unwrap();
     #[cfg(feature = "enable-libp2p")]
-    assert!(svc
-        .as_any()
-        .is::<icn_network::libp2p_service::Libp2pNetworkService>());
+    {
+        use icn_network::NetworkService;
+        assert!(svc
+            .as_any()
+            .is::<icn_network::libp2p_service::Libp2pNetworkService>());
+    }
 }
 
 #[tokio::test]
@@ -28,5 +31,8 @@ async fn test_mode_forces_stub() {
     cfg.apply_cli_overrides(&cli, &matches);
 
     let svc = build_network_service(&cfg).await.unwrap();
-    assert!(svc.as_any().is::<icn_network::StubNetworkService>());
+    {
+        use icn_network::NetworkService;
+        assert!(svc.as_any().is::<icn_network::StubNetworkService>());
+    }
 }

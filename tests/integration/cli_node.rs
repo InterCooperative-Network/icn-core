@@ -14,7 +14,7 @@ async fn dag_storage_via_cli() {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let server = task::spawn(async move {
-        axum::serve(listener, app_router().await).await.unwrap();
+        axum::serve(listener, app_router().await.into_make_service()).await.unwrap();
     });
     sleep(Duration::from_millis(100)).await;
 
@@ -71,7 +71,7 @@ async fn governance_proposal_via_cli() {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let server = task::spawn(async move {
-        axum::serve(listener, app_router().await).await.unwrap();
+        axum::serve(listener, app_router().await.into_make_service()).await.unwrap();
     });
     sleep(Duration::from_millis(100)).await;
 
@@ -165,7 +165,7 @@ async fn mesh_job_via_cli() {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let server = task::spawn(async move {
-        axum::serve(listener, app_router().await).await.unwrap();
+        axum::serve(listener, app_router().await.into_make_service()).await.unwrap();
     });
     sleep(Duration::from_millis(100)).await;
 
