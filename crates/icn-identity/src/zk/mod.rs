@@ -1,4 +1,5 @@
 use icn_common::{ZkCredentialProof, ZkProofType};
+use core::convert::TryInto;
 use thiserror::Error;
 
 /// Errors that can occur when verifying zero-knowledge proofs.
@@ -34,8 +35,26 @@ impl ZkVerifier for BulletproofsVerifier {
         if proof.proof.is_empty() {
             return Err(ZkError::InvalidProof);
         }
-        // TODO: integrate real Bulletproofs verification once available.
-        Ok(true)
+        if proof.proof.len() < 32 {
+            return Err(ZkError::InvalidProof);
+        }
+
+        use bulletproofs::{BulletproofGens, PedersenGens, RangeProof};
+        use curve25519_dalek::ristretto::CompressedRistretto;
+        use merlin::Transcript;
+
+        let (proof_bytes, commitment_bytes) = proof.proof.split_at(proof.proof.len() - 32);
+        let range_proof = RangeProof::from_bytes(proof_bytes).map_err(|_| ZkError::InvalidProof)?;
+        let commitment = CompressedRistretto(commitment_bytes.try_into().unwrap());
+
+        let pc_gens = PedersenGens::default();
+        let bp_gens = BulletproofGens::new(64, 1);
+        let mut transcript = Transcript::new(b"ZkCredentialProof");
+
+        range_proof
+            .verify_single(&bp_gens, &pc_gens, &mut transcript, &commitment, 64)
+            .map(|_| true)
+            .map_err(|_| ZkError::VerificationFailed)
     }
 }
 
@@ -62,12 +81,43 @@ mod tests {
         Cid::new_v1_sha256(0x55, s.as_bytes())
     }
 
+    fn bulletproof_bytes() -> Vec<u8> {
+        use bulletproofs::{BulletproofGens, PedersenGens, RangeProof};
+        use curve25519_dalek::scalar::Scalar;
+        use merlin::Transcript;
+        use rand_core::OsRng;
+
+        let pc_gens = PedersenGens::default();
+        let bp_gens = BulletproofGens::new(64, 1);
+        let blinding = Scalar::random(&mut OsRng);
+        let mut transcript = Transcript::new(b"ZkCredentialProof");
+        let (proof, commit) = RangeProof::prove_single(
+            &bp_gens,
+            &pc_gens,
+            &mut transcript,
+            42u64,
+            &blinding,
+            64,
+        )
+        .expect("range proof generation should succeed");
+
+        let mut bytes = proof.to_bytes();
+        bytes.extend_from_slice(commit.as_bytes());
+        bytes
+    }
+
     fn dummy_proof(backend: ZkProofType) -> ZkCredentialProof {
+        let proof_bytes = if backend == ZkProofType::Bulletproofs {
+            bulletproof_bytes()
+        } else {
+            vec![1, 2, 3]
+        };
+
         ZkCredentialProof {
             issuer: Did::new("key", "issuer"),
             holder: Did::new("key", "holder"),
             claim_type: "test".into(),
-            proof: vec![1, 2, 3],
+            proof: proof_bytes,
             schema: dummy_cid("schema"),
             disclosed_fields: Vec::new(),
             challenge: None,

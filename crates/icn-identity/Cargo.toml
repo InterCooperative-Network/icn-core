@@ -20,6 +20,9 @@ multibase      = "0.9"          # base-58btc ("z...") encoder/decoder
 unsigned-varint = { version = "0.8", default-features = false } 
 serde_bytes = "0.11" # For SignatureBytes serialization
 reqwest.workspace = true
+bulletproofs = "5"
+curve25519-dalek = "4"
+merlin = "3"
 
 # Ensure old ones are removed if they conflict or are replaced
 # ed25519-dalek = { version = "2.0", features = ["serde"] } # Old, replaced by specific version
@@ -31,3 +34,5 @@ reqwest.workspace = true
 # rand is still useful for general tests if needed, but OsRng from rand_core is for dalek
 rand = "0.8"
 serde_json = "1.0"
+curve25519-dalek = "4"
+merlin = "3"
