@@ -1,0 +1,7 @@
+{
+  "proof": "0x123456789abcdef",
+  "public_inputs": {
+    "statement": "age_over_18",
+    "verification_key": "0xdeadbeef"
+  }
+}
