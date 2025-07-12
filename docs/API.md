@@ -23,6 +23,12 @@ curl -X GET https://localhost:8080/info \
   -H "Authorization: Bearer your-auth-token"
 ```
 
+### API Versioning
+
+All endpoints use a versioned base path. The current prefix is `/api/v1`. When
+breaking changes are introduced, a new prefix will be added (e.g. `/api/v2`).
+Clients should include this prefix when making requests.
+
 ## Core Node Endpoints
 
 | Method | Path | Description | Auth Required |
