@@ -52,6 +52,17 @@ let store = TokioFileDagStore::new(PathBuf::from("./dag")).unwrap();
 let dag_store = Mutex::new(store); // implement AsyncStorageService
 ```
 
+## File Storage Layout
+
+File-based stores shard blocks into subdirectories derived from the CID string.
+Given a CID like `bafy...`, the block will be stored at:
+
+```
+<storage>/<ba>/<fy>/<cid>
+```
+
+This prevents directories from growing unbounded.
+
 ## Running Persistence Tests
 
 Integration tests for each storage backend are gated by their corresponding

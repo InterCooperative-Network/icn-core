@@ -587,6 +587,7 @@ pub async fn app_router_with_options(
     });
     let dag_store_for_rt = cfg
         .init_dag_store()
+        .await
         .expect("Failed to init DAG store for test context");
 
     #[cfg(feature = "enable-libp2p")]
@@ -1000,7 +1001,7 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
     info!("Starting {} with DID: {}", node_name, node_did);
 
     // --- Create RuntimeContext with Networking ---
-    let dag_store_for_rt = match config.init_dag_store() {
+    let dag_store_for_rt = match config.init_dag_store().await {
         Ok(store) => store,
         Err(e) => {
             error!("Failed to initialize DAG store: {}", e);

@@ -33,6 +33,19 @@ fn anyhow_to_common(e: anyhow::Error) -> CommonError {
     }
 }
 
+fn collect_block_files(dir: &std::path::Path, out: &mut Vec<PathBuf>) -> std::io::Result<()> {
+    for entry in std::fs::read_dir(dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        if entry.file_type()?.is_dir() {
+            collect_block_files(&path, out)?;
+        } else if entry.file_type()?.is_file() {
+            out.push(path);
+        }
+    }
+    Ok(())
+}
+
 // --- CLI Argument Parsing ---
 
 #[derive(Parser, Debug)]
@@ -567,12 +580,11 @@ fn handle_dag_backup(path: &str) -> Result<(), anyhow::Error> {
     let src = PathBuf::from("./icn_data/node_store");
     let dest = PathBuf::from(path);
     std::fs::create_dir_all(&dest)?;
-    for entry in std::fs::read_dir(&src)? {
-        let entry = entry?;
-        if entry.file_type()?.is_file() {
-            let target = dest.join(entry.file_name());
-            std::fs::copy(entry.path(), target)?;
-        }
+    let mut files = Vec::new();
+    collect_block_files(&src, &mut files)?;
+    for file in files {
+        let target = dest.join(file.file_name().unwrap());
+        std::fs::copy(&file, target)?;
     }
     println!("Backup created at {}", dest.display());
     Ok(())
@@ -582,12 +594,11 @@ fn handle_dag_restore(path: &str) -> Result<(), anyhow::Error> {
     let src = PathBuf::from(path);
     let dest = PathBuf::from("./icn_data/node_store");
     std::fs::create_dir_all(&dest)?;
-    for entry in std::fs::read_dir(&src)? {
-        let entry = entry?;
-        if entry.file_type()?.is_file() {
-            let target = dest.join(entry.file_name());
-            std::fs::copy(entry.path(), target)?;
-        }
+    let mut files = Vec::new();
+    collect_block_files(&src, &mut files)?;
+    for file in files {
+        let target = dest.join(file.file_name().unwrap());
+        std::fs::copy(&file, target)?;
     }
     println!("Restored DAG store from {}", src.display());
     Ok(())
@@ -596,16 +607,15 @@ fn handle_dag_restore(path: &str) -> Result<(), anyhow::Error> {
 fn handle_dag_verify(full: bool) -> Result<(), anyhow::Error> {
     let store_path = PathBuf::from("./icn_data/node_store");
     let mut verified = 0usize;
-    for entry in std::fs::read_dir(&store_path)? {
-        let entry = entry?;
-        if entry.file_type()?.is_file() {
-            let content = std::fs::read_to_string(entry.path())?;
-            let block: DagBlock = serde_json::from_str(&content)?;
-            icn_common::verify_block_integrity(&block)?;
-            verified += 1;
-            if !full {
-                break;
-            }
+    let mut files = Vec::new();
+    collect_block_files(&store_path, &mut files)?;
+    for file in files {
+        let content = std::fs::read_to_string(&file)?;
+        let block: DagBlock = serde_json::from_str(&content)?;
+        icn_common::verify_block_integrity(&block)?;
+        verified += 1;
+        if !full {
+            break;
         }
     }
     println!("Verified {verified} block(s)");
