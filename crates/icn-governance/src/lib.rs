@@ -187,7 +187,7 @@ impl GovernanceModule {
 
     /// Rebuild module state by replaying events from the store.
     pub fn from_event_store(
-        mut store: Box<dyn icn_eventstore::EventStore<GovernanceEvent>>,
+        store: Box<dyn icn_eventstore::EventStore<GovernanceEvent>>,
     ) -> Result<Self, CommonError> {
         let events = store.query(None)?;
         let mut g = Self::with_event_store(store);

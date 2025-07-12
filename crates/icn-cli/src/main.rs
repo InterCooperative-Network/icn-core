@@ -4,7 +4,7 @@
 //! # ICN CLI Crate
 //! This crate provides a command-line interface (CLI) for interacting with an ICN HTTP node.
 
-use base64;
+use base64::{self, Engine};
 use bincode;
 use clap::{Parser, Subcommand};
 use icn_common::CommonError;
@@ -780,7 +780,7 @@ async fn handle_mesh_submit(
                 let bytes = bincode::serialize(&spec).unwrap();
                 obj.insert(
                     "spec_bytes".to_string(),
-                    serde_json::json!(base64::encode(bytes)),
+                    serde_json::json!(base64::engine::general_purpose::STANDARD.encode(bytes)),
                 );
             }
         }

@@ -302,7 +302,7 @@ impl ReputationExecutorSelector {
                 (bid, balance)
             })
             .max_by_key(|(bid, balance)| {
-                score_bid(bid, job_spec, policy, reputation_store, *balance)
+                score_bid(bid, job_spec, policy, reputation_store, *balance, None)
             })
             .map(|(bid, _)| bid.executor_did.clone())
     }

@@ -444,6 +444,7 @@ impl RuntimeContext {
             did_resolver: config.did_resolver,
             dag_store: config.dag_store,
             reputation_store: config.reputation_store,
+            latency_store: Arc::new(icn_mesh::NoOpLatencyStore) as Arc<dyn icn_mesh::LatencyStore>,
             parameters,
             policy_enforcer: config.policy_enforcer,
             time_provider: config.time_provider,
@@ -532,6 +533,7 @@ impl RuntimeContext {
             dag_store: Arc::new(DagStoreMutexType::new(StubDagStore::new()))
                 as Arc<DagStoreMutexType<DagStorageService>>,
             reputation_store,
+            latency_store: Arc::new(icn_mesh::NoOpLatencyStore) as Arc<dyn icn_mesh::LatencyStore>,
             parameters,
             policy_enforcer,
             time_provider,
@@ -645,6 +647,7 @@ impl RuntimeContext {
         let job_states = Arc::new(DashMap::new());
         let governance_module = Arc::new(DagStoreMutexType::new(GovernanceModule::new()));
         let reputation_store = Arc::new(icn_reputation::InMemoryReputationStore::new());
+        let latency_store = Arc::new(icn_mesh::NoOpLatencyStore) as Arc<dyn icn_mesh::LatencyStore>;
         let parameters = Self::default_parameters();
         let policy_enforcer = None;
         let time_provider = Arc::new(icn_common::SystemTimeProvider);

@@ -45,7 +45,6 @@ pub mod federation_trait;
 pub mod governance_trait;
 /// Prometheus metrics helpers
 pub mod metrics;
-use crate::dag_trait::DagApi;
 use crate::governance_trait::{
     CastVoteRequest as GovernanceCastVoteRequest, // Renamed to avoid conflict
     GovernanceApi,
