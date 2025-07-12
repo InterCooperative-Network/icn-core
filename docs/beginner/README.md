@@ -25,3 +25,4 @@ just validate                 # format, lint and test
 - [Developer Onboarding Guide](../ONBOARDING.md)
 - [ICN Feature Overview](../ICN_FEATURE_OVERVIEW.md)
 - [Project Context](../../CONTEXT.md)
+- [Resource Tokens](../resource_tokens.md)

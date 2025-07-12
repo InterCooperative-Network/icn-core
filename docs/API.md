@@ -84,6 +84,16 @@ curl -X POST https://localhost:8080/dag/unpin \
 |--------|------|-------------|---------------|
 | POST | `/transaction/submit` | Submit a signed transaction to the runtime | Yes |
 
+## Resource Token Endpoints
+
+| Method | Path | Description | Auth Required |
+|--------|------|-------------|---------------|
+| GET | `/tokens/classes` | List available token classes | Yes |
+| POST | `/tokens/class` | Create a new token class | Yes |
+| POST | `/tokens/mint` | Mint resource tokens | Yes |
+| POST | `/tokens/transfer` | Transfer resource tokens | Yes |
+| POST | `/tokens/burn` | Burn resource tokens | Yes |
+
 ## Governance Endpoints
 
 | Method | Path | Description | Auth Required |
