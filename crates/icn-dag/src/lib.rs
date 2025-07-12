@@ -21,7 +21,7 @@ use tokio::fs::{self, File as TokioFile, OpenOptions as TokioOpenOptions};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 /// Helper crate for encoding/decoding root hashes
-use hex;
+use hex::{decode, encode};
 
 pub mod index;
 pub mod metrics;
@@ -424,7 +424,7 @@ impl FileDagStore {
             .map(|b| b.cid.clone())
             .collect();
         let root = compute_dag_root(&top);
-        std::fs::write(self.root_file(), hex::encode(root))
+        std::fs::write(self.root_file(), encode(root))
             .map_err(|e| CommonError::IoError(format!("Failed to write root file: {}", e)))?;
         Ok(())
     }
@@ -437,7 +437,7 @@ impl FileDagStore {
         }
         let contents = std::fs::read_to_string(&path)
             .map_err(|e| CommonError::IoError(format!("Failed to read root file: {}", e)))?;
-        let bytes = hex::decode(contents.trim())
+        let bytes = decode(contents.trim())
             .map_err(|e| CommonError::DeserializationError(format!("Invalid root hex: {}", e)))?;
         if bytes.len() != 32 {
             return Err(CommonError::DeserializationError(
@@ -736,7 +736,7 @@ impl TokioFileDagStore {
             .map(|b| b.cid.clone())
             .collect();
         let root = compute_dag_root(&top);
-        fs::write(self.root_file(), hex::encode(root))
+        fs::write(self.root_file(), encode(root))
             .await
             .map_err(|e| CommonError::IoError(format!("Failed to write root file: {}", e)))?;
         Ok(())
@@ -751,7 +751,7 @@ impl TokioFileDagStore {
         let contents = fs::read_to_string(&path)
             .await
             .map_err(|e| CommonError::IoError(format!("Failed to read root file: {}", e)))?;
-        let bytes = hex::decode(contents.trim())
+        let bytes = decode(contents.trim())
             .map_err(|e| CommonError::DeserializationError(format!("Invalid root hex: {}", e)))?;
         if bytes.len() != 32 {
             return Err(CommonError::DeserializationError(

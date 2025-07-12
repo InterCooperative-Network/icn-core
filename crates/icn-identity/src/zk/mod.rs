@@ -1,3 +1,4 @@
+use crate::Credential;
 use icn_common::{ZkCredentialProof, ZkProofType};
 use thiserror::Error;
 
@@ -22,6 +23,16 @@ pub trait ZkVerifier: Send + Sync {
     fn verify(&self, proof: &ZkCredentialProof) -> Result<bool, ZkError>;
 }
 
+/// Trait for generating zero-knowledge proofs from credentials.
+pub trait ZkProver: Send + Sync {
+    /// Produce a [`ZkCredentialProof`] proving selective fields of `credential`.
+    fn prove(
+        &self,
+        credential: &Credential,
+        disclosed_fields: &[String],
+    ) -> Result<ZkCredentialProof, ZkError>;
+}
+
 /// Verifier implementation for the Bulletproofs proving system.
 #[derive(Debug, Default)]
 pub struct BulletproofsVerifier;
@@ -39,6 +50,30 @@ impl ZkVerifier for BulletproofsVerifier {
     }
 }
 
+/// Prover implementation using the Bulletproofs proving system.
+#[derive(Debug, Default)]
+pub struct BulletproofsProver;
+
+impl ZkProver for BulletproofsProver {
+    fn prove(
+        &self,
+        credential: &Credential,
+        disclosed_fields: &[String],
+    ) -> Result<ZkCredentialProof, ZkError> {
+        // TODO: integrate real Bulletproofs proof generation once available.
+        Ok(ZkCredentialProof {
+            issuer: credential.issuer.clone(),
+            holder: credential.holder.clone(),
+            claim_type: credential.claim_type.clone(),
+            proof: vec![42],
+            schema: credential.schema.clone(),
+            disclosed_fields: disclosed_fields.to_vec(),
+            challenge: None,
+            backend: ZkProofType::Bulletproofs,
+        })
+    }
+}
+
 /// Simple verifier used for testing that always returns `true` when the proof
 /// structure is well formed.
 #[derive(Debug, Default)]
@@ -50,6 +85,29 @@ impl ZkVerifier for DummyVerifier {
             return Err(ZkError::InvalidProof);
         }
         Ok(true)
+    }
+}
+
+/// Simple prover used for testing that produces placeholder proofs.
+#[derive(Debug, Default)]
+pub struct DummyProver;
+
+impl ZkProver for DummyProver {
+    fn prove(
+        &self,
+        credential: &Credential,
+        disclosed_fields: &[String],
+    ) -> Result<ZkCredentialProof, ZkError> {
+        Ok(ZkCredentialProof {
+            issuer: credential.issuer.clone(),
+            holder: credential.holder.clone(),
+            claim_type: credential.claim_type.clone(),
+            proof: vec![1, 2, 3],
+            schema: credential.schema.clone(),
+            disclosed_fields: disclosed_fields.to_vec(),
+            challenge: None,
+            backend: ZkProofType::Groth16,
+        })
     }
 }
 

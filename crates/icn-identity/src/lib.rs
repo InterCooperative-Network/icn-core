@@ -6,7 +6,7 @@
 // use icn_common::{NodeInfo, CommonError, Did, ICN_CORE_VERSION, Cid};
 // use serde::{Serialize, Deserialize};
 
-use icn_common::{Cid, CommonError, Did, NodeInfo, NodeScope};
+use icn_common::{Cid, CommonError, Did, NodeInfo, NodeScope, ZkCredentialProof};
 use serde::{Deserialize, Serialize}; // Keep serde for ExecutionReceipt
 
 pub use ed25519_dalek::{
@@ -19,7 +19,10 @@ use std::str::FromStr;
 use unsigned_varint::encode as varint_encode;
 
 pub mod zk;
-pub use zk::{BulletproofsVerifier, DummyVerifier, ZkError, ZkVerifier};
+pub use zk::{
+    BulletproofsProver, BulletproofsVerifier, DummyProver, DummyVerifier, ZkError, ZkProver,
+    ZkVerifier,
+};
 
 // --- Core Cryptographic Operations & DID:key generation ---
 
@@ -464,6 +467,46 @@ impl SignatureBytes {
     }
 }
 
+/// Simple verifiable credential used for demonstration purposes.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Credential {
+    /// DID of the credential issuer.
+    pub issuer: Did,
+    /// DID of the credential holder.
+    pub holder: Did,
+    /// Type or semantic tag describing the claim.
+    pub claim_type: String,
+    /// CID of the credential schema.
+    pub schema: Cid,
+    /// Arbitrary key/value fields encoded in the credential.
+    pub fields: HashMap<String, String>,
+}
+
+/// Issues [`Credential`] instances and optionally generates zero-knowledge proofs.
+pub struct CredentialIssuer<P: zk::ZkProver> {
+    prover: Option<P>,
+}
+
+impl<P: zk::ZkProver> CredentialIssuer<P> {
+    /// Create a new issuer with an optional [`ZkProver`].
+    pub fn new(prover: Option<P>) -> Self {
+        Self { prover }
+    }
+
+    /// Issue `credential` and return a proof if configured.
+    pub fn issue(
+        &self,
+        credential: Credential,
+        disclose: &[String],
+    ) -> Result<(Credential, Option<ZkCredentialProof>), zk::ZkError> {
+        let proof = match &self.prover {
+            Some(p) => Some(p.prove(&credential, disclose)?),
+            None => None,
+        };
+        Ok((credential, proof))
+    }
+}
+
 /// Represents a verifiable proof that a job was executed.
 /// This structure is signed by the Executor and anchored to the DAG.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -570,11 +613,10 @@ pub fn register_identity(info: &NodeInfo, did_method: &str) -> Result<String, Co
 #[cfg(test)]
 mod tests {
     use super::*;
-    use icn_common::ICN_CORE_VERSION; // Moved import here
-                                      // For ExecutionReceipt tests, we might need a way to generate CIDs if not already available.
-                                      // use icn_common::generate_cid; // Temporarily commented out due to unresolved import
-    use icn_common::Cid;
-    use std::str::FromStr; // Ensure FromStr is in scope for Did::from_str // Make sure Cid is in scope
+    use icn_common::{Cid, ZkProofType, ICN_CORE_VERSION};
+    // For ExecutionReceipt tests, we might need a way to generate CIDs if not already available.
+    // use icn_common::generate_cid; // Temporarily commented out due to unresolved import
+    use std::str::FromStr; // Ensure FromStr is in scope for Did::from_str
 
     // Helper to create a dummy Cid for tests
     fn dummy_cid_for_test(s: &str) -> Cid {
@@ -888,5 +930,47 @@ mod tests {
 
         let outsider = Did::from_str("did:icn:test:bob").unwrap();
         assert!(enforcer.check_permission(&outsider, &scope).is_err());
+    }
+
+    #[test]
+    fn credential_proof_roundtrip_dummy() {
+        let issuer_did = Did::new("key", "issuer");
+        let holder_did = Did::new("key", "holder");
+        let schema = dummy_cid_for_test("cred_schema");
+        let cred = Credential {
+            issuer: issuer_did.clone(),
+            holder: holder_did.clone(),
+            claim_type: "member".into(),
+            schema: schema.clone(),
+            fields: HashMap::new(),
+        };
+
+        let issuer = CredentialIssuer::new(Some(DummyProver));
+        let (_cred, proof_opt) = issuer.issue(cred.clone(), &["member".into()]).unwrap();
+        let proof = proof_opt.expect("proof");
+        let verifier = DummyVerifier;
+        assert!(verifier.verify(&proof).unwrap());
+        assert_eq!(proof.issuer, cred.issuer);
+    }
+
+    #[test]
+    fn credential_proof_roundtrip_bulletproofs() {
+        let issuer_did = Did::new("key", "issuer");
+        let holder_did = Did::new("key", "holder");
+        let schema = dummy_cid_for_test("cred_schema_bp");
+        let cred = Credential {
+            issuer: issuer_did.clone(),
+            holder: holder_did.clone(),
+            claim_type: "member".into(),
+            schema: schema.clone(),
+            fields: HashMap::new(),
+        };
+
+        let issuer = CredentialIssuer::new(Some(BulletproofsProver));
+        let (_cred, proof_opt) = issuer.issue(cred.clone(), &[]).unwrap();
+        let proof = proof_opt.expect("proof");
+        let verifier = BulletproofsVerifier;
+        assert!(verifier.verify(&proof).unwrap());
+        assert_eq!(proof.backend, ZkProofType::Bulletproofs);
     }
 }
