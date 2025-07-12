@@ -2,6 +2,7 @@
 
 **Base URL:** `http://127.0.0.1:7845`
 **Version:** 0.1.0-dev-functional
+**Base Path:** `/api/v1`
 **Content-Type:** `application/json`
 
 ---

@@ -51,6 +51,82 @@ use crate::governance_trait::{
     SubmitProposalRequest as GovernanceSubmitProposalRequest, // Renamed to avoid conflict
 };
 
+// -----------------------------------------------------------------------------
+// Token & Balance DTOs and Service Traits
+// -----------------------------------------------------------------------------
+use serde::{Deserialize, Serialize};
+
+/// Request body for creating a new token class.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateTokenClassRequest {
+    pub id: String,
+    pub name: String,
+    pub symbol: String,
+    pub decimals: u8,
+}
+
+/// Representation of a token class.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TokenClass {
+    pub id: String,
+    pub name: String,
+    pub symbol: String,
+    pub decimals: u8,
+}
+
+/// Request to mint new tokens.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MintTokensRequest {
+    pub class_id: String,
+    pub to_did: String,
+    pub amount: u64,
+}
+
+/// Request to burn tokens from an account.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BurnTokensRequest {
+    pub class_id: String,
+    pub from_did: String,
+    pub amount: u64,
+}
+
+/// Request to transfer tokens between accounts.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TransferTokensRequest {
+    pub class_id: String,
+    pub from_did: String,
+    pub to_did: String,
+    pub amount: u64,
+}
+
+/// Balance information for a single token class.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TokenBalance {
+    pub class_id: String,
+    pub amount: u64,
+}
+
+/// API surface for token management and balance queries.
+pub trait TokensApi {
+    /// Create a new token class.
+    fn create_class(&self, request: CreateTokenClassRequest) -> Result<TokenClass, CommonError>;
+
+    /// Fetch details about a specific token class by ID.
+    fn get_class(&self, id: String) -> Result<Option<TokenClass>, CommonError>;
+
+    /// Mint tokens to the given DID account.
+    fn mint(&self, request: MintTokensRequest) -> Result<(), CommonError>;
+
+    /// Burn tokens from the given DID account.
+    fn burn(&self, request: BurnTokensRequest) -> Result<(), CommonError>;
+
+    /// Transfer tokens between accounts.
+    fn transfer(&self, request: TransferTokensRequest) -> Result<(), CommonError>;
+
+    /// List token balances for the specified DID.
+    fn list_balances(&self, did: String) -> Result<Vec<TokenBalance>, CommonError>;
+}
+
 /// Planned: Define a trait for the ICN API service for RPC implementation.
 // pub trait IcnApiService {
 //    async fn get_node_info(&self) -> Result<NodeInfo, CommonError>;
