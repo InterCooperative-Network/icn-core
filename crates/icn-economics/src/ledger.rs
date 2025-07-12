@@ -7,6 +7,38 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Mutex;
 
+/// Identifier for a particular token class stored in a [`ResourceLedger`].
+pub type TokenClassId = String;
+
+/// Basic metadata for a token class.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TokenClass {
+    /// Human readable name for the token.
+    pub name: String,
+}
+
+/// Trait defining generic token accounting behaviour.
+pub trait ResourceLedger: Send + Sync {
+    /// Create a new token class with the given id and metadata.
+    fn create_class(&self, class_id: &TokenClassId, class: TokenClass) -> Result<(), CommonError>;
+    /// Fetch metadata for a token class if it exists.
+    fn get_class(&self, class_id: &TokenClassId) -> Option<TokenClass>;
+    /// Increase the balance of `owner` in the given class by `amount`.
+    fn mint(&self, class_id: &TokenClassId, owner: &Did, amount: u64) -> Result<(), CommonError>;
+    /// Decrease the balance of `owner` in the given class by `amount`.
+    fn burn(&self, class_id: &TokenClassId, owner: &Did, amount: u64) -> Result<(), CommonError>;
+    /// Transfer tokens between accounts within the same class.
+    fn transfer(
+        &self,
+        class_id: &TokenClassId,
+        from: &Did,
+        to: &Did,
+        amount: u64,
+    ) -> Result<(), CommonError>;
+    /// Retrieve the balance for `owner` in the specified class.
+    fn get_balance(&self, class_id: &TokenClassId, owner: &Did) -> u64;
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 struct LedgerFileFormat {
     balances: HashMap<String, u64>,
@@ -180,6 +212,130 @@ impl crate::ManaLedger for FileManaLedger {
     }
 }
 
+// --- File based Resource Ledger -------------------------------------------------
+
+#[derive(Debug, Serialize, Deserialize, Default)]
+struct ResourceLedgerFileFormat {
+    classes: HashMap<TokenClassId, TokenClass>,
+    balances: HashMap<TokenClassId, HashMap<String, u64>>, // did string
+}
+
+#[derive(Debug)]
+pub struct FileResourceLedger {
+    path: PathBuf,
+    data: Mutex<ResourceLedgerFileFormat>,
+}
+
+impl FileResourceLedger {
+    /// Create or load a ledger persisted on disk at `path`.
+    pub fn new(path: PathBuf) -> Result<Self, CommonError> {
+        let data = if path.exists() {
+            let mut file = File::open(&path).map_err(|e| {
+                CommonError::IoError(format!("Failed to open resource ledger file {path:?}: {e}"))
+            })?;
+            let mut contents = String::new();
+            file.read_to_string(&mut contents).map_err(|e| {
+                CommonError::IoError(format!("Failed to read resource ledger file {path:?}: {e}"))
+            })?;
+            if contents.trim().is_empty() {
+                ResourceLedgerFileFormat::default()
+            } else {
+                serde_json::from_str(&contents).map_err(|e| {
+                    CommonError::DeserializationError(format!(
+                        "Failed to parse resource ledger {path:?}: {e}"
+                    ))
+                })?
+            }
+        } else {
+            ResourceLedgerFileFormat::default()
+        };
+        Ok(Self {
+            path,
+            data: Mutex::new(data),
+        })
+    }
+
+    fn persist_locked(&self, data: &ResourceLedgerFileFormat) -> Result<(), CommonError> {
+        let serialized = serde_json::to_string(data).map_err(|e| {
+            CommonError::SerializationError(format!("Failed to serialize ledger: {e}"))
+        })?;
+        let tmp_path = self.path.with_extension("tmp");
+        let mut file = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(&tmp_path)
+            .map_err(|e| CommonError::IoError(format!("Failed to open ledger file {tmp_path:?}: {e}")))?;
+        file.write_all(serialized.as_bytes()).map_err(|e| {
+            CommonError::IoError(format!("Failed to write ledger file {tmp_path:?}: {e}"))
+        })?;
+        file.sync_all().map_err(|e| {
+            CommonError::IoError(format!("Failed to sync ledger file {tmp_path:?}: {e}"))
+        })?;
+        drop(file);
+        rename(&tmp_path, &self.path).map_err(|e| {
+            CommonError::IoError(format!(
+                "Failed to rename ledger file {:?} -> {:?}: {e}",
+                tmp_path, self.path
+            ))
+        })?;
+        Ok(())
+    }
+}
+
+impl ResourceLedger for FileResourceLedger {
+    fn create_class(&self, class_id: &TokenClassId, class: TokenClass) -> Result<(), CommonError> {
+        let mut data = self.data.lock().unwrap();
+        data.classes.insert(class_id.clone(), class);
+        self.persist_locked(&data)
+    }
+
+    fn get_class(&self, class_id: &TokenClassId) -> Option<TokenClass> {
+        let data = self.data.lock().unwrap();
+        data.classes.get(class_id).cloned()
+    }
+
+    fn mint(&self, class_id: &TokenClassId, owner: &Did, amount: u64) -> Result<(), CommonError> {
+        let mut data = self.data.lock().unwrap();
+        let entry = data
+            .balances
+            .entry(class_id.clone())
+            .or_default()
+            .entry(owner.to_string())
+            .or_insert(0);
+        *entry += amount;
+        self.persist_locked(&data)
+    }
+
+    fn burn(&self, class_id: &TokenClassId, owner: &Did, amount: u64) -> Result<(), CommonError> {
+        let mut data = self.data.lock().unwrap();
+        let entry = data
+            .balances
+            .entry(class_id.clone())
+            .or_default()
+            .entry(owner.to_string())
+            .or_insert(0);
+        if *entry < amount {
+            return Err(CommonError::PolicyDenied("Insufficient balance".into()));
+        }
+        *entry -= amount;
+        self.persist_locked(&data)
+    }
+
+    fn transfer(&self, class_id: &TokenClassId, from: &Did, to: &Did, amount: u64) -> Result<(), CommonError> {
+        self.burn(class_id, from, amount)?;
+        self.mint(class_id, to, amount)
+    }
+
+    fn get_balance(&self, class_id: &TokenClassId, owner: &Did) -> u64 {
+        let data = self.data.lock().unwrap();
+        data.balances
+            .get(class_id)
+            .and_then(|m| m.get(&owner.to_string()).cloned())
+            .unwrap_or(0)
+    }
+}
+
 // --- Persistent Sled-based Mana Ledger ---
 
 #[cfg(feature = "persist-sled")]
@@ -303,12 +459,134 @@ impl crate::ManaLedger for SledManaLedger {
     }
 }
 
+// --- Sled based Resource Ledger ----------------------------------------------
+
+#[cfg(feature = "persist-sled")]
+#[derive(Debug)]
+pub struct SledResourceLedger {
+    classes: sled::Tree,
+    balances: sled::Tree,
+}
+
+#[cfg(feature = "persist-sled")]
+impl SledResourceLedger {
+    /// Open or create a sled database at `path` for token accounting.
+    pub fn new(path: PathBuf) -> Result<Self, CommonError> {
+        let db = sled::open(path)
+            .map_err(|e| CommonError::DatabaseError(format!("Failed to open sled DB: {e}")))?;
+        let classes = db
+            .open_tree("token_classes")
+            .map_err(|e| CommonError::DatabaseError(format!("Failed to open classes tree: {e}")))?;
+        let balances = db
+            .open_tree("token_balances")
+            .map_err(|e| CommonError::DatabaseError(format!("Failed to open balances tree: {e}")))?;
+        Ok(Self { classes, balances })
+    }
+
+    fn class_key(id: &TokenClassId) -> Vec<u8> {
+        id.as_bytes().to_vec()
+    }
+
+    fn balance_key(class: &TokenClassId, did: &Did) -> Vec<u8> {
+        format!("{class}:{}", did).into_bytes()
+    }
+
+    fn write_class(&self, id: &TokenClassId, class: &TokenClass) -> Result<(), CommonError> {
+        let data = bincode::serialize(class).map_err(|e| {
+            CommonError::SerializationError(format!("Failed to serialize class: {e}"))
+        })?;
+        self.classes
+            .insert(Self::class_key(id), data)
+            .map_err(|e| CommonError::DatabaseError(format!("Failed to store class: {e}")))?;
+        self.classes.flush().map_err(|e| CommonError::DatabaseError(format!("Failed to flush ledger: {e}")))?;
+        Ok(())
+    }
+
+    fn read_class(&self, id: &TokenClassId) -> Result<Option<TokenClass>, CommonError> {
+        if let Some(val) = self
+            .classes
+            .get(Self::class_key(id))
+            .map_err(|e| CommonError::DatabaseError(format!("Failed to read class: {e}")))?
+        {
+            let class = bincode::deserialize(val.as_ref()).map_err(|e| {
+                CommonError::DeserializationError(format!("Failed to decode class: {e}"))
+            })?;
+            Ok(Some(class))
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn write_balance(&self, class: &TokenClassId, did: &Did, amount: u64) -> Result<(), CommonError> {
+        let data = bincode::serialize(&amount).map_err(|e| {
+            CommonError::SerializationError(format!("Failed to serialize balance: {e}"))
+        })?;
+        self.balances
+            .insert(Self::balance_key(class, did), data)
+            .map_err(|e| CommonError::DatabaseError(format!("Failed to store balance: {e}")))?;
+        self.balances.flush().map_err(|e| CommonError::DatabaseError(format!("Failed to flush ledger: {e}")))?;
+        Ok(())
+    }
+
+    fn read_balance(&self, class: &TokenClassId, did: &Did) -> Result<u64, CommonError> {
+        if let Some(val) = self
+            .balances
+            .get(Self::balance_key(class, did))
+            .map_err(|e| CommonError::DatabaseError(format!("Failed to read balance: {e}")))?
+        {
+            let amt: u64 = bincode::deserialize(val.as_ref()).map_err(|e| {
+                CommonError::DeserializationError(format!("Failed to deserialize balance: {e}"))
+            })?;
+            Ok(amt)
+        } else {
+            Ok(0)
+        }
+    }
+}
+
+#[cfg(feature = "persist-sled")]
+impl ResourceLedger for SledResourceLedger {
+    fn create_class(&self, id: &TokenClassId, class: TokenClass) -> Result<(), CommonError> {
+        self.write_class(id, &class)
+    }
+
+    fn get_class(&self, id: &TokenClassId) -> Option<TokenClass> {
+        self.read_class(id).ok().flatten()
+    }
+
+    fn mint(&self, class: &TokenClassId, owner: &Did, amount: u64) -> Result<(), CommonError> {
+        let current = self.read_balance(class, owner)?;
+        self.write_balance(class, owner, current + amount)
+    }
+
+    fn burn(&self, class: &TokenClassId, owner: &Did, amount: u64) -> Result<(), CommonError> {
+        let current = self.read_balance(class, owner)?;
+        if current < amount {
+            return Err(CommonError::PolicyDenied("Insufficient balance".into()));
+        }
+        self.write_balance(class, owner, current - amount)
+    }
+
+    fn transfer(&self, class: &TokenClassId, from: &Did, to: &Did, amount: u64) -> Result<(), CommonError> {
+        self.burn(class, from, amount)?;
+        self.mint(class, to, amount)
+    }
+
+    fn get_balance(&self, class: &TokenClassId, owner: &Did) -> u64 {
+        self.read_balance(class, owner).unwrap_or(0)
+    }
+}
+
 #[cfg(feature = "persist-sqlite")]
 pub mod sqlite;
 #[cfg(feature = "persist-sqlite")]
-pub use sqlite::SqliteManaLedger;
+pub use sqlite::{SqliteManaLedger, SqliteResourceLedger};
 
 #[cfg(feature = "persist-rocksdb")]
 pub mod rocksdb;
 #[cfg(feature = "persist-rocksdb")]
-pub use rocksdb::RocksdbManaLedger;
+pub use rocksdb::{RocksdbManaLedger, RocksdbResourceLedger};
+
+pub use FileResourceLedger;
+#[cfg(feature = "persist-sled")]
+pub use SledResourceLedger;

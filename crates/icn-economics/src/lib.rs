@@ -10,12 +10,13 @@ use log::{debug, info};
 pub mod ledger;
 pub mod metrics;
 pub use ledger::FileManaLedger;
+pub use ledger::{FileResourceLedger, ResourceLedger};
 #[cfg(feature = "persist-rocksdb")]
-pub use ledger::RocksdbManaLedger;
+pub use ledger::{RocksdbManaLedger, RocksdbResourceLedger};
 #[cfg(feature = "persist-sled")]
-pub use ledger::SledManaLedger;
+pub use ledger::{SledManaLedger, SledResourceLedger};
 #[cfg(feature = "persist-sqlite")]
-pub use ledger::SqliteManaLedger;
+pub use ledger::{SqliteManaLedger, SqliteResourceLedger};
 
 /// Abstraction over the persistence layer storing account balances.
 pub trait ManaLedger: Send + Sync {
