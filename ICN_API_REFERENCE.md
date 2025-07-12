@@ -36,6 +36,11 @@
 | `/network/connect` | POST | Connect to a peer | ✅ Working |
 | `/network/peers` | GET | List network peers | ✅ Working |
 | `/transaction/submit` | POST | Submit a transaction | ✅ Working |
+| `/tokens/classes` | GET | List token classes | 🚧 Experimental |
+| `/tokens/class` | POST | Create a token class | 🚧 Experimental |
+| `/tokens/mint` | POST | Mint resource tokens | 🚧 Experimental |
+| `/tokens/transfer` | POST | Transfer resource tokens | 🚧 Experimental |
+| `/tokens/burn` | POST | Burn resource tokens | 🚧 Experimental |
 | `/data/query` | POST | Query data | ✅ Working |
 | `/contracts` | POST | Upload WASM contract | ✅ Working |
 | `/federation/peers` | GET | List federation peers | ✅ Working |

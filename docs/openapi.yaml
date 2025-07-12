@@ -533,6 +533,109 @@ paths:
               schema:
                 type: string
               example: "tx-1"
+  /tokens/classes:
+    get:
+      summary: List token classes
+      responses:
+        '200':
+          description: Token classes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TokenClass'
+              example:
+                - id: "pantry-credit"
+                  transferable: true
+  /tokens/class:
+    post:
+      summary: Create a token class
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTokenClassRequest'
+            example:
+              id: "pantry-credit"
+              description: "Food pantry credit"
+              transferable: true
+      responses:
+        '200':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: string
+              example: "pantry-credit"
+  /tokens/mint:
+    post:
+      summary: Mint resource tokens
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MintTokensRequest'
+            example:
+              class_id: "pantry-credit"
+              amount: 10
+              recipient_did: "did:key:alice"
+      responses:
+        '200':
+          description: Minted
+          content:
+            application/json:
+              schema:
+                type: object
+              example:
+                minted: true
+  /tokens/transfer:
+    post:
+      summary: Transfer resource tokens
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransferTokensRequest'
+            example:
+              class_id: "pantry-credit"
+              amount: 5
+              from_did: "did:key:alice"
+              to_did: "did:key:bob"
+      responses:
+        '200':
+          description: Transferred
+          content:
+            application/json:
+              schema:
+                type: object
+              example:
+                transferred: true
+  /tokens/burn:
+    post:
+      summary: Burn resource tokens
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BurnTokensRequest'
+            example:
+              class_id: "pantry-credit"
+              amount: 3
+              owner_did: "did:key:alice"
+      responses:
+        '200':
+          description: Burned
+          content:
+            application/json:
+              schema:
+                type: object
+              example:
+                burned: true
   /data/query:
     post:
       summary: Query data
@@ -945,3 +1048,51 @@ components:
           type: string
           format: byte
           nullable: true
+    TokenClass:
+      type: object
+      properties:
+        id:
+          type: string
+        description:
+          type: string
+          nullable: true
+        transferable:
+          type: boolean
+    CreateTokenClassRequest:
+      type: object
+      properties:
+        id:
+          type: string
+        description:
+          type: string
+        transferable:
+          type: boolean
+    MintTokensRequest:
+      type: object
+      properties:
+        class_id:
+          type: string
+        amount:
+          type: integer
+        recipient_did:
+          type: string
+    TransferTokensRequest:
+      type: object
+      properties:
+        class_id:
+          type: string
+        amount:
+          type: integer
+        from_did:
+          type: string
+        to_did:
+          type: string
+    BurnTokensRequest:
+      type: object
+      properties:
+        class_id:
+          type: string
+        amount:
+          type: integer
+        owner_did:
+          type: string
