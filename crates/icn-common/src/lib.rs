@@ -13,6 +13,8 @@ pub use retry::retry_with_backoff;
 pub mod resilience;
 pub use resilience::{CircuitBreaker, CircuitBreakerError, CircuitState};
 pub mod resource_token;
+pub mod zk;
+pub use zk::{ZkCredentialProof, ZkProofType};
 
 pub const ICN_CORE_VERSION: &str = "0.2.0-beta";
 
@@ -413,7 +415,7 @@ impl Cid {
     /// Encode this CID to a multibase string.
     #[allow(clippy::inherent_to_string_shadow_display)]
     pub fn to_string(&self) -> String {
-        use multibase::{Base, encode};
+        use multibase::{encode, Base};
         encode(Base::Base32Lower, self.to_bytes())
     }
 }
