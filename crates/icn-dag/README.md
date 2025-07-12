@@ -48,6 +48,18 @@ let store = TokioFileDagStore::new(PathBuf::from("./dag")).unwrap();
 let dag_store = Mutex::new(store); // implement AsyncStorageService
 ```
 
+## File Storage Layout
+
+Blocks stored with `FileDagStore` and `TokioFileDagStore` are written under
+a sharded directory structure derived from the block CID. For a CID like
+`bafy...`, the block is placed at:
+
+```
+<storage>/<first2>/<next2>/<cid>
+```
+
+This prevents any single directory from containing too many files.
+
 ## Running Persistence Tests
 
 Integration tests for each storage backend are gated by their corresponding
