@@ -35,6 +35,12 @@ See <a href="../../docs/ASYNC_OVERVIEW.md">docs/ASYNC_OVERVIEW.md</a> for async 
 <li><code>icn-cli federation status</code>: Display federation status including peer count.</li>
 </ul>
 </li>
+<li><strong>Identity Operations:</strong>
+<ul>
+<li><code>icn-cli identity generate-proof &lt;PROOF_REQUEST_JSON&gt;</code>: Produce a zero-knowledge proof from the supplied request JSON.</li>
+<li><code>icn-cli identity verify-proof &lt;PROOF_JSON&gt;</code>: Verify a proof and print whether it is valid.</li>
+</ul>
+</li>
 <li><strong>Miscellaneous:</strong>
 <ul>
 <li><code>icn-cli hello</code>: A simple command to check if the CLI is responsive.</li>
@@ -42,7 +48,13 @@ See <a href="../../docs/ASYNC_OVERVIEW.md">docs/ASYNC_OVERVIEW.md</a> for async 
 </ul>
 </li>
 </ul>
-<h3 id="error-handling"><a class="doc-anchor" href="#error-handling">§</a>Error Handling</h3>
+<h4 id="example-generate-and-verify-a-proof"><a class="doc-anchor" href="#example-generate-and-verify-a-proof">§</a>Example: Generate and Verify a Proof</h4><div class="example-wrap"><pre class="language-bash"><code># Generate a proof for a membership credential
+cargo run -p icn-cli -- identity generate-proof &#39;{&quot;member_did&quot;:&quot;did:example:123&quot;}&#39;
+# =&gt; &#39;{&quot;proof&quot;:&quot;base64string&quot;,&quot;backend&quot;:&quot;Groth16&quot;}&#39;
+
+# Verify the returned proof
+cargo run -p icn-cli -- identity verify-proof &#39;{&quot;proof&quot;:&quot;base64string&quot;,&quot;backend&quot;:&quot;Groth16&quot;}&#39;
+# =&gt; &quot;verified: true&quot;</code></pre></div><h3 id="error-handling"><a class="doc-anchor" href="#error-handling">§</a>Error Handling</h3>
 <p>The CLI aims to provide clear error messages and exit with appropriate status codes:</p>
 <ul>
 <li>Successful commands generally exit with status code 0.</li>
