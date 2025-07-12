@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["GovernanceEvent","ProposalStatus","ProposalType","VoteOption"],"fn":["submit_governance_proposal"],"mod":["metrics","scoped_policy"],"struct":["GovernanceModule","Proposal","ProposalId","ProposalSubmission","Vote"]};
+window.SIDEBAR_ITEMS = {"enum":["ProposalStatus","ProposalType","VoteOption"],"fn":["submit_governance_proposal"],"mod":["metrics","scoped_policy"],"struct":["GovernanceModule","Proposal","ProposalId","ProposalSubmission","Vote"]};
