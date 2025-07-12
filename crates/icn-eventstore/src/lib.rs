@@ -1,6 +1,5 @@
 use icn_common::CommonError;
 use serde::{Deserialize, Serialize};
-use serde_json;
 use std::fs::OpenOptions;
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::marker::PhantomData;
@@ -36,7 +35,7 @@ where
 
     fn query(&self, since: Option<usize>) -> Result<Vec<E>, CommonError> {
         let start = since.unwrap_or(0);
-        Ok(self.events.iter().cloned().skip(start).collect())
+        Ok(self.events.iter().skip(start).cloned().collect())
     }
 }
 
