@@ -1,3 +1,5 @@
+use base64;
+use bincode;
 use icn_node::app_router_with_options;
 use reqwest::Client;
 use serde_json::json;
@@ -19,7 +21,7 @@ async fn test_stub_endpoints_full_lifecycle() {
     // Start server on localhost
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
-    
+
     let server = task::spawn(async move {
         axum::serve(listener, router).await.unwrap();
     });
@@ -35,23 +37,27 @@ async fn test_stub_endpoints_full_lifecycle() {
         .post(&format!("{}/mesh/submit", base_url))
         .json(&json!({
             "manifest_cid": "bafybeigdyrztktx5b5m2y4sogf2hf5uq3k5knv5c5k2pvx7aq5w3sh7g5e",
-            "spec_json": {
-                "kind": { "Echo": { "payload": "testing" } },
-                "inputs": [],
-                "outputs": ["result"],
-                "required_resources": { "cpu_cores": 1, "memory_mb": 128 }
-            },
+            "spec_bytes": base64::encode(bincode::serialize(&icn_mesh::JobSpec {
+                kind: icn_mesh::JobKind::Echo { payload: "testing".into() },
+                inputs: vec![],
+                outputs: vec!["result".into()],
+                required_resources: icn_mesh::Resources { cpu_cores: 1, memory_mb: 128 },
+            }).unwrap()),
+            "spec_json": null,
             "cost_mana": 10
         }))
         .send()
         .await
         .unwrap();
 
-    assert!(job_response.status().is_success(), "Job submission should succeed");
-    
+    assert!(
+        job_response.status().is_success(),
+        "Job submission should succeed"
+    );
+
     let job_data: serde_json::Value = job_response.json().await.unwrap();
     println!("✅ Job submitted: {}", job_data);
-    
+
     let job_id = job_data.get("job_id").and_then(|v| v.as_str()).unwrap();
 
     // Test 2: Inject a bid
@@ -106,7 +112,7 @@ async fn test_stub_endpoints_full_lifecycle() {
     // Test 4: Check job status
     println!("\n4. Checking job status...");
     tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
-    
+
     let status_response = client
         .get(&format!("{}/mesh/jobs/{}", base_url, job_id))
         .send()
@@ -123,4 +129,4 @@ async fn test_stub_endpoints_full_lifecycle() {
 
     server.abort();
     println!("\n=== Test Complete ===");
-} 
+}

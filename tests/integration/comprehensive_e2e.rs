@@ -359,21 +359,18 @@ impl E2ETestHarness {
         println!("  📋 Skipping mana balance check - proceeding with job submission");
         
         // Submit a real computational job using Echo format (proven to work)
-        let job_request = json!({
-            "manifest_cid": "bafybeigdyrztktx5b5m2y4sogf2hf5uq3k5knv5c5k2pvx7aq5w3sh7g5e", // Valid CID format
-            "spec_json": {
-                "kind": {
-                    "Echo": {
-                        "payload": format!("E2E test job - Fibonacci calculation simulation - {}", self.test_id)
-                    }
-                },
-                "inputs": [],
-                "outputs": ["result"],
-                "required_resources": {
-                    "cpu_cores": 1,
-                    "memory_mb": 128
-                }
+        let job_spec = icn_mesh::JobSpec {
+            kind: icn_mesh::JobKind::Echo {
+                payload: format!("E2E test job - Fibonacci calculation simulation - {}", self.test_id),
             },
+            inputs: vec![],
+            outputs: vec!["result".into()],
+            required_resources: icn_mesh::Resources { cpu_cores: 1, memory_mb: 128 },
+        };
+        let job_request = json!({
+            "manifest_cid": "bafybeigdyrztktx5b5m2y4sogf2hf5uq3k5knv5c5k2pvx7aq5w3sh7g5e",
+            "spec_bytes": base64::encode(bincode::serialize(&job_spec).unwrap()),
+            "spec_json": null,
             "cost_mana": 200
         });
         
@@ -602,13 +599,16 @@ impl E2ETestHarness {
             
             let handle = tokio::spawn(async move {
                 // Use Echo jobs for load testing (proven to work)
+                let spec = icn_mesh::JobSpec {
+                    kind: icn_mesh::JobKind::Echo {
+                        payload: format!("Load test job #{} - {}", i, test_id),
+                    },
+                    ..Default::default()
+                };
                 let job_request = json!({
                     "manifest_cid": format!("cidv1-load-test-{}", test_id),
-                    "spec_json": {
-                        "Echo": {
-                            "payload": format!("Load test job #{} - {}", i, test_id)
-                        }
-                    },
+                    "spec_bytes": base64::encode(bincode::serialize(&spec).unwrap()),
+                    "spec_json": null,
                     "cost_mana": 100
                 });
                 

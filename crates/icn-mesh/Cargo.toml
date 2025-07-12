@@ -14,6 +14,7 @@ icn-economics = { path = "../icn-economics" }
 once_cell = "1.21"
 prometheus-client = "0.22"
 log = "0.4"
+bincode = "1"
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["async"] }

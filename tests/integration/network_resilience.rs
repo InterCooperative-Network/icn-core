@@ -1,8 +1,11 @@
 #[path = "federation.rs"]
 mod federation;
 
+use base64;
+use bincode;
 use federation::{ensure_devnet, wait_for_federation_ready, NODE_A_URL, NODE_C_URL};
 use icn_common::retry_with_backoff;
+use icn_mesh::{JobKind, JobSpec};
 use reqwest::Client;
 use serde_json::Value;
 use std::process::Command;
@@ -27,9 +30,16 @@ async fn test_network_resilience() {
     let client = Client::new();
 
     // Submit a job while Node C is offline
+    let spec = icn_mesh::JobSpec {
+        kind: icn_mesh::JobKind::Echo {
+            payload: "Network resilience test".into(),
+        },
+        ..Default::default()
+    };
     let job_request = serde_json::json!({
         "manifest_cid": "cidv1-resilience-test-manifest",
-        "spec_json": { "Echo": { "payload": "Network resilience test" } },
+        "spec_bytes": base64::encode(bincode::serialize(&spec).unwrap()),
+        "spec_json": null,
         "cost_mana": 50
     });
 

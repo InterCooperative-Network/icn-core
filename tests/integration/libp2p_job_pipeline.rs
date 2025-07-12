@@ -4,9 +4,11 @@ mod federation;
 #[cfg(feature = "enable-libp2p")]
 mod libp2p_job_pipeline {
     use super::federation::{ensure_devnet, NODE_A_URL, NODE_B_URL, NODE_C_URL};
+    use base64;
+    use bincode;
     use icn_common::{Cid, Did};
     use icn_identity::{generate_ed25519_keypair, SignatureBytes};
-    use icn_mesh::{ActualMeshJob, JobSpec, JobState, MeshJobBid, Resources};
+    use icn_mesh::{ActualMeshJob, JobKind, JobSpec, JobState, MeshJobBid, Resources};
     use icn_network::NetworkService;
     use icn_protocol::{MeshJobAssignmentMessage, MessagePayload, ProtocolMessage};
     use icn_runtime::context::{DefaultMeshNetworkService, MeshNetworkService, RuntimeContext};
@@ -49,9 +51,16 @@ mod libp2p_job_pipeline {
         let node_b_did = extract_did(&client, NODE_B_URL).await;
         let node_c_did = extract_did(&client, NODE_C_URL).await;
 
+        let spec = icn_mesh::JobSpec {
+            kind: icn_mesh::JobKind::Echo {
+                payload: "libp2p pipeline test".into(),
+            },
+            ..Default::default()
+        };
         let job_request = serde_json::json!({
             "manifest_cid": "cidv1-libp2p-test-manifest",
-            "spec_json": { "Echo": { "payload": "libp2p pipeline test" } },
+            "spec_bytes": base64::encode(bincode::serialize(&spec).unwrap()),
+            "spec_json": null,
             "cost_mana": 50
         });
 
@@ -147,7 +156,8 @@ mod libp2p_job_pipeline {
         };
         let job_request = serde_json::json!({
             "manifest_cid": manifest_cid,
-            "spec_json": serde_json::to_value(&job_spec).unwrap(),
+            "spec_bytes": base64::encode(bincode::serialize(&job_spec).unwrap()),
+            "spec_json": null,
             "cost_mana": 50
         });
 

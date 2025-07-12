@@ -24,7 +24,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let payload = DagBlockPayload { data: wasm_bytes };
     let client = reqwest::blocking::Client::new();
     let resp = client
-        .post(format!("{}/dag/put", api_url))
+        .post(format!("{api_url}/dag/put"))
         .json(&payload)
         .send()?;
 
@@ -34,16 +34,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let cid_str: String = resp.json()?;
     let _cid =
-        parse_cid_from_string(&cid_str).map_err(|e| format!("Invalid CID returned: {}", e))?;
+        parse_cid_from_string(&cid_str).map_err(|e| format!("Invalid CID returned: {e}"))?;
 
     let spec = serde_json::json!({
         "manifest_cid": cid_str,
-        "spec_json": {
-            "kind": "CclWasm",
-            "inputs": [],
-            "outputs": [],
-            "required_resources": {"cpu_cores": 1, "memory_mb": 64}
-        },
+        "spec_bytes": "BASE64_SPEC",
+        "spec_json": null,
         "cost_mana": 0
     });
 

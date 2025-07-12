@@ -28,6 +28,7 @@ pub use icn_dag::StorageService;
 
 // Re-export ABI constants
 pub use abi::*;
+use bincode;
 use icn_common::{Cid, CommonError, Did, NodeInfo};
 use icn_mesh::JobId;
 use icn_reputation::ReputationStore;
@@ -35,12 +36,14 @@ use log::{debug, error, info, warn};
 use std::str::FromStr;
 use thiserror::Error;
 
-pub use config::{RuntimeConfig, RuntimeConfigBuilder, EnvironmentConfig, IdentityConfig, NetworkConfig, StorageConfig, GovernanceConfig, RuntimeParametersConfig, templates};
+pub use config::{
+    templates, EnvironmentConfig, GovernanceConfig, IdentityConfig, NetworkConfig, RuntimeConfig,
+    RuntimeConfigBuilder, RuntimeParametersConfig, StorageConfig,
+};
 pub use context::{
-    DefaultMeshNetworkService, MeshNetworkService,
-    MeshNetworkServiceType, SimpleManaLedger, Ed25519Signer, HostEnvironment,
-    ConcreteHostEnvironment, StubMeshNetworkService, JobAssignmentNotice,
-    CreateProposalPayload, CastVotePayload, CloseProposalResult,
+    CastVotePayload, CloseProposalResult, ConcreteHostEnvironment, CreateProposalPayload,
+    DefaultMeshNetworkService, Ed25519Signer, HostEnvironment, JobAssignmentNotice,
+    MeshNetworkService, MeshNetworkServiceType, SimpleManaLedger, StubMeshNetworkService,
 };
 
 #[derive(Debug, Error)]
@@ -110,22 +113,22 @@ pub async fn host_submit_mesh_job(
     }
 
     // Parse the input to extract the required fields for the new API
-    let job_to_submit: icn_mesh::ActualMeshJob =
-        serde_json::from_str(job_json).map_err(|e| {
-            HostAbiError::InvalidParameters(format!(
-                "Failed to deserialize ActualMeshJob: {}. Input: {}",
-                e, job_json
-            ))
-        })?;
+    let job_to_submit: icn_mesh::ActualMeshJob = serde_json::from_str(job_json).map_err(|e| {
+        HostAbiError::InvalidParameters(format!(
+            "Failed to deserialize ActualMeshJob: {}. Input: {}",
+            e, job_json
+        ))
+    })?;
 
     // Extract the fields needed for the new handle_submit_job method
     let manifest_cid = job_to_submit.manifest_cid;
-    let spec_json = serde_json::to_string(&job_to_submit.spec)
+    let spec_bytes = bincode::serialize(&job_to_submit.spec)
         .map_err(|e| HostAbiError::InternalError(format!("Failed to serialize job spec: {}", e)))?;
     let cost_mana = job_to_submit.cost_mana;
 
     // Use the new DAG-integrated job submission method
-    ctx.handle_submit_job(manifest_cid, spec_json, cost_mana).await
+    ctx.handle_submit_job(manifest_cid, spec_bytes, cost_mana)
+        .await
 }
 
 /// ABI Index: (defined in `abi::ABI_HOST_GET_PENDING_MESH_JOBS`)
@@ -514,13 +517,12 @@ pub async fn host_create_governance_proposal(
     ctx: &RuntimeContext,
     payload_json: &str,
 ) -> Result<String, HostAbiError> {
-    let payload: CreateProposalPayload =
-        serde_json::from_str(payload_json).map_err(|e| {
-            HostAbiError::InvalidParameters(format!(
-                "Failed to parse CreateProposalPayload JSON: {}",
-                e
-            ))
-        })?;
+    let payload: CreateProposalPayload = serde_json::from_str(payload_json).map_err(|e| {
+        HostAbiError::InvalidParameters(format!(
+            "Failed to parse CreateProposalPayload JSON: {}",
+            e
+        ))
+    })?;
     ctx.create_governance_proposal(payload).await
 }
 
@@ -596,24 +598,28 @@ pub async fn host_get_job_status(
     ctx: &RuntimeContext,
     job_id_str: &str,
 ) -> Result<Option<String>, HostAbiError> {
-    log::debug!("[host_get_job_status] Getting status for job: {}", job_id_str);
-    
+    log::debug!(
+        "[host_get_job_status] Getting status for job: {}",
+        job_id_str
+    );
+
     // Parse job ID
     let job_id_cid = icn_common::parse_cid_from_string(job_id_str)
         .map_err(|e| HostAbiError::InvalidParameters(format!("Invalid job ID CID: {}", e)))?;
     let job_id = JobId::from(job_id_cid);
-    
+
     // Get the job lifecycle from the runtime context
     let lifecycle_opt = ctx.get_job_status(&job_id).await?;
-    
+
     match lifecycle_opt {
         Some(lifecycle) => {
             // Serialize the lifecycle to JSON for return
-            let lifecycle_json = serde_json::to_string(&lifecycle)
-                .map_err(|e| HostAbiError::InternalError(format!("Failed to serialize job lifecycle: {}", e)))?;
+            let lifecycle_json = serde_json::to_string(&lifecycle).map_err(|e| {
+                HostAbiError::InternalError(format!("Failed to serialize job lifecycle: {}", e))
+            })?;
             Ok(Some(lifecycle_json))
         }
-        None => Ok(None)
+        None => Ok(None),
     }
 }
 
@@ -621,9 +627,7 @@ pub async fn host_get_job_status(
 mod tests {
     use super::*;
 
-    use super::context::{
-        HostAbiError, RuntimeContext,
-    };
+    use super::context::{HostAbiError, RuntimeContext};
     use icn_common::{Cid, Did, ICN_CORE_VERSION};
     use icn_identity::SignatureBytes;
     use icn_mesh::{ActualMeshJob, JobId, JobKind, JobSpec};
@@ -695,17 +699,22 @@ mod tests {
         let pending_jobs = host_get_pending_mesh_jobs(&ctx).await.unwrap();
         // The new implementation doesn't use the pending jobs queue, so this might be 0
         // This is the expected behavior with the new DAG integration
-        println!("Pending jobs count: {} (new DAG implementation)", pending_jobs.len());
-        
+        println!(
+            "Pending jobs count: {} (new DAG implementation)",
+            pending_jobs.len()
+        );
+
         // Instead, let's verify that the job was stored in the DAG by checking job status
         let job_id_result = job_id.unwrap();
         let job_status = ctx.get_job_status(&job_id_result).await;
-        
+
         // If the DAG integration is working, we should be able to retrieve the job
         match job_status {
             Ok(Some(lifecycle)) => {
-                println!("Job lifecycle found: submitter={}, status={:?}", 
-                        lifecycle.job.submitter_did, lifecycle.job.status);
+                println!(
+                    "Job lifecycle found: submitter={}, status={:?}",
+                    lifecycle.job.submitter_did, lifecycle.job.status
+                );
                 assert_eq!(lifecycle.job.cost_mana, 10);
                 assert_eq!(lifecycle.job.submitter_did, ctx.current_identity);
             }
@@ -1006,24 +1015,24 @@ mod tests {
     async fn test_new_mesh_job_lifecycle_basic() {
         // Test the new DAG-integrated job lifecycle
         let ctx = create_test_context_with_mana(100);
-        
+
         // Submit a job using the new API
         let manifest_cid = Cid::new_v1_sha256(0x55, b"test_manifest_basic");
-        let spec_json = serde_json::to_string(&JobSpec::default()).unwrap();
-        
-        let job_id = ctx.handle_submit_job(manifest_cid, spec_json, 50).await;
+        let spec_bytes = bincode::serialize(&JobSpec::default()).unwrap();
+
+        let job_id = ctx.handle_submit_job(manifest_cid, spec_bytes, 50).await;
         assert!(job_id.is_ok(), "Job submission failed: {:?}", job_id.err());
-        
+
         let job_id = job_id.unwrap();
         println!("Submitted job with ID: {}", job_id);
-        
+
         // Verify mana was spent
         let mana_after = ctx.get_mana(&ctx.current_identity).await.unwrap();
         assert_eq!(mana_after, 50); // 100 - 50 spent
-        
+
         // Give the async lifecycle management a moment to start
         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-        
+
         // Check job status via DAG
         let job_status = ctx.get_job_status(&job_id).await;
         match job_status {
@@ -1035,7 +1044,7 @@ mod tests {
                 println!("  Bids received: {}", lifecycle.bids.len());
                 println!("  Assignment: {}", lifecycle.assignment.is_some());
                 println!("  Receipt: {}", lifecycle.receipt.is_some());
-                
+
                 assert_eq!(lifecycle.job.cost_mana, 50);
                 assert_eq!(lifecycle.job.submitter_did, ctx.current_identity);
             }
@@ -1054,30 +1063,33 @@ mod tests {
     async fn test_host_get_job_status_function() {
         // Test the new host function for getting job status
         let ctx = create_test_context_with_mana(200);
-        
+
         // Submit a job
         let manifest_cid = Cid::new_v1_sha256(0x55, b"test_status_check");
-        let spec_json = serde_json::to_string(&JobSpec::default()).unwrap();
-        
-        let job_id = ctx.handle_submit_job(manifest_cid, spec_json, 75).await.unwrap();
+        let spec_bytes = bincode::serialize(&JobSpec::default()).unwrap();
+
+        let job_id = ctx
+            .handle_submit_job(manifest_cid, spec_bytes, 75)
+            .await
+            .unwrap();
         println!("Submitted job with ID: {}", job_id);
-        
+
         // Give the lifecycle management a moment
         tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
-        
+
         // Test the host function for getting job status
         let job_id_str = job_id.to_string();
         let status_result = host_get_job_status(&ctx, &job_id_str).await;
-        
+
         match status_result {
             Ok(Some(status_json)) => {
                 println!("Job status JSON: {}", status_json);
-                
+
                 // Parse the JSON to verify structure
                 let lifecycle: icn_mesh::JobLifecycle = serde_json::from_str(&status_json).unwrap();
                 assert_eq!(lifecycle.job.cost_mana, 75);
                 assert_eq!(lifecycle.job.submitter_did, ctx.current_identity);
-                
+
                 println!("Successfully retrieved and parsed job lifecycle via host function");
             }
             Ok(None) => {

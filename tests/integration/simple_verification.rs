@@ -2,6 +2,8 @@
 mod simple_verification_test {
     use icn_runtime::RuntimeContext;
     use icn_common::{Did, DagBlock, Cid};
+    use icn_mesh::{JobSpec, JobKind, Resources};
+    use bincode;
     use std::time::Duration;
     use tokio::time::sleep;
 
@@ -67,25 +69,16 @@ mod simple_verification_test {
         // Test 4: Submit a simple mesh job using the new API
         println!("📋 Test 4: Testing mesh job submission...");
         let manifest_cid = Cid::new_v1_sha256(0x55, b"test_manifest");
-        let job_spec = serde_json::json!({
-            "kind": {
-                "Echo": {
-                    "payload": "Simple verification test job"
-                }
-            },
-            "inputs": [],
-            "outputs": ["result"],
-            "required_resources": {
-                "cpu_cores": 1,
-                "memory_mb": 128
-            }
-        });
-        
-        let submit_result = rt_ctx.handle_submit_job(
-            manifest_cid, 
-            job_spec.to_string(), 
-            100
-        ).await;
+        let spec = icn_mesh::JobSpec {
+            kind: icn_mesh::JobKind::Echo { payload: "Simple verification test job".into() },
+            inputs: vec![],
+            outputs: vec!["result".into()],
+            required_resources: icn_mesh::Resources { cpu_cores: 1, memory_mb: 128 },
+        };
+        let spec_bytes = bincode::serialize(&spec).unwrap();
+        let submit_result = rt_ctx
+            .handle_submit_job(manifest_cid, spec_bytes, 100)
+            .await;
         assert!(submit_result.is_ok(), "Job submission should succeed");
         
         if let Ok(job_id) = submit_result {

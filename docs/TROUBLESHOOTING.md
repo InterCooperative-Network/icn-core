@@ -76,20 +76,13 @@ Use the correct JSON structure with all required fields:
 ```json
 {
   "manifest_cid": "bafybeiczsscdsbs7ffqz55asqdf3smv6klcw3gofszvwlyarci47bgf354",
-  "spec_json": {
-    "kind": {
-      "Echo": {
-        "payload": "your message"
-      }
-    }
-  },
+  "spec_bytes": "BASE64_SPEC",
   "cost_mana": 50
 }
 ```
 
-**Common Mistakes:**
-- Missing `kind` wrapper in `spec_json`
-- Using `command` instead of structured `spec_json`
+- `spec_bytes` not properly base64 encoded
+- Using outdated `spec_json` field
 - Missing `manifest_cid` field
 
 ### Build Memory Issues

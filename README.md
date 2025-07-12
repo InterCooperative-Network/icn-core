@@ -202,13 +202,8 @@ curl -X POST http://localhost:5001/mesh/submit \
   -H "X-API-Key: devnet-a-key" \
   -d '{
     "manifest_cid": "bafybeiczsscdsbs7ffqz55asqdf3smv6klcw3gofszvwlyarci47bgf354",
-    "spec_json": {
-      "kind": {
-        "Echo": {
-          "payload": "Hello ICN!"
-        }
-      }
-    },
+    "spec_bytes": "BASE64_SPEC",
+    "spec_json": null,
     "cost_mana": 50
   }'
 

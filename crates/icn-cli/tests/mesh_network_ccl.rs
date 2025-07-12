@@ -1,4 +1,7 @@
 use assert_cmd::prelude::*;
+use base64;
+use bincode;
+use icn_mesh::{JobKind, JobSpec};
 use icn_node::app_router;
 use predicates::prelude::PredicateBooleanExt;
 use std::process::Command;
@@ -18,9 +21,16 @@ async fn mesh_network_and_ccl_commands() {
     tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
     // Submit a mesh job via the new root command
+    let spec = icn_mesh::JobSpec {
+        kind: icn_mesh::JobKind::Echo {
+            payload: "hello".into(),
+        },
+        ..Default::default()
+    };
     let job_req = serde_json::json!({
         "manifest_cid": "bafytestmanifest",
-        "spec_json": { "Echo": { "payload": "hello" } },
+        "spec_bytes": base64::encode(bincode::serialize(&spec).unwrap()),
+        "spec_json": null,
         "cost_mana": 10
     })
     .to_string();
