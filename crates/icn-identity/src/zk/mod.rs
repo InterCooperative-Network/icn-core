@@ -164,4 +164,13 @@ mod tests {
         let verifier = BulletproofsVerifier;
         assert_eq!(verifier.verify(&proof), Err(ZkError::InvalidProof));
     }
+
+    #[test]
+    fn bulletproofs_tampered_proof_fails() {
+        let mut proof = dummy_proof(ZkProofType::Bulletproofs);
+        // Flip a bit in the proof bytes to corrupt it while preserving length
+        proof.proof[0] ^= 0x01;
+        let verifier = BulletproofsVerifier;
+        assert_eq!(verifier.verify(&proof), Err(ZkError::VerificationFailed));
+    }
 }
