@@ -1,5 +1,7 @@
 #![doc = include_str!("../README.md")]
 
+#[cfg(feature = "async")]
+use async_trait::async_trait;
 use icn_common::Did;
 #[cfg(test)]
 use icn_identity::ExecutionReceipt;
@@ -26,6 +28,45 @@ pub trait ReputationStore: Send + Sync {
 
     /// Updates reputation metrics for an executor.
     fn record_execution(&self, executor: &Did, success: bool, cpu_ms: u64);
+}
+
+#[cfg(feature = "async")]
+#[async_trait]
+pub trait AsyncReputationStore: Send + Sync {
+    async fn get_reputation(&self, did: &Did) -> u64;
+
+    async fn record_execution(&self, executor: &Did, success: bool, cpu_ms: u64);
+}
+
+#[cfg(feature = "async")]
+pub struct CompatAsyncReputationStore<S> {
+    inner: S,
+}
+
+#[cfg(feature = "async")]
+impl<S> CompatAsyncReputationStore<S> {
+    pub fn new(inner: S) -> Self {
+        Self { inner }
+    }
+
+    pub fn into_inner(self) -> S {
+        self.inner
+    }
+}
+
+#[cfg(feature = "async")]
+#[async_trait]
+impl<S> AsyncReputationStore for CompatAsyncReputationStore<S>
+where
+    S: ReputationStore + Send + Sync,
+{
+    async fn get_reputation(&self, did: &Did) -> u64 {
+        self.inner.get_reputation(did)
+    }
+
+    async fn record_execution(&self, executor: &Did, success: bool, cpu_ms: u64) {
+        self.inner.record_execution(executor, success, cpu_ms);
+    }
 }
 
 /// Simple in-memory reputation tracker for tests.
