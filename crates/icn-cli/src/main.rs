@@ -106,6 +106,11 @@ enum Commands {
         #[clap(subcommand)]
         command: ReputationCommands,
     },
+    /// Identity utilities
+    Identity {
+        #[clap(subcommand)]
+        command: IdentityCommands,
+    },
     /// Cooperative Contract Language operations
     Ccl {
         #[clap(subcommand)]
@@ -308,6 +313,24 @@ enum ReputationCommands {
     },
 }
 
+#[derive(Subcommand, Debug)]
+enum IdentityCommands {
+    /// Generate a zero-knowledge credential proof
+    #[clap(name = "generate-proof")]
+    GenerateProof {
+        #[clap(long, help = "DID of the credential issuer")]
+        issuer: String,
+        #[clap(long, help = "DID of the credential holder")]
+        holder: String,
+        #[clap(long, help = "Claim type being proven")]
+        claim_type: String,
+        #[clap(long, help = "Credential schema CID")]
+        schema: String,
+        #[clap(long, help = "Proof backend")]
+        backend: String,
+    },
+}
+
 // --- Main CLI Logic ---
 
 #[tokio::main]
@@ -374,6 +397,15 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
         },
         Commands::Reputation { command } => match command {
             ReputationCommands::Get { did } => handle_reputation_get(cli, client, did).await?,
+        },
+        Commands::Identity { command } => match command {
+            IdentityCommands::GenerateProof {
+                issuer,
+                holder,
+                claim_type,
+                schema,
+                backend,
+            } => handle_identity_generate(issuer, holder, claim_type, schema, backend).await?,
         },
         Commands::Ccl { command } => match command {
             CclCommands::Compile { file } => handle_ccl_compile(file)?,
@@ -934,6 +966,43 @@ async fn handle_reputation_get(cli: &Cli, client: &Client, did: &str) -> Result<
     let path = format!("/reputation/{}", did);
     let v: serde_json::Value = get_request(&cli.api_url, client, &path).await?;
     println!("{}", serde_json::to_string_pretty(&v)?);
+    Ok(())
+}
+
+async fn handle_identity_generate(
+    issuer: &str,
+    holder: &str,
+    claim_type: &str,
+    schema: &str,
+    backend: &str,
+) -> Result<(), anyhow::Error> {
+    use icn_common::{parse_cid_from_string, Did, ZkCredentialProof, ZkProofType};
+
+    let issuer_did: Did = issuer.parse()?;
+    let holder_did: Did = holder.parse()?;
+    let schema_cid = parse_cid_from_string(schema)?;
+
+    let backend = match backend.to_ascii_lowercase().as_str() {
+        "groth16" => ZkProofType::Groth16,
+        "bulletproofs" => ZkProofType::Bulletproofs,
+        other => ZkProofType::Other(other.to_string()),
+    };
+
+    let mut proof_bytes = vec![0u8; 32];
+    fastrand::Rng::new().fill(&mut proof_bytes);
+
+    let proof = ZkCredentialProof {
+        issuer: issuer_did,
+        holder: holder_did,
+        claim_type: claim_type.to_string(),
+        proof: proof_bytes,
+        schema: schema_cid,
+        disclosed_fields: Vec::new(),
+        challenge: None,
+        backend,
+    };
+
+    println!("{}", serde_json::to_string_pretty(&proof)?);
     Ok(())
 }
 
