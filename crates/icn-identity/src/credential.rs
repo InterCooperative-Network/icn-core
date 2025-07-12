@@ -6,6 +6,8 @@ use serde::{Deserialize, Serialize};
 use icn_common::{Cid, CommonError, Did};
 
 use crate::{sign_message, verify_signature, SignatureBytes};
+use crate::zk::{ZkError, ZkProver};
+use icn_common::ZkCredentialProof;
 
 /// A verifiable credential issued by a DID subject to selective disclosure.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -130,6 +132,81 @@ impl DisclosedCredential {
             }
         }
         Ok(())
+    }
+}
+
+pub struct CredentialIssuer {
+    did: Did,
+    signing_key: SigningKey,
+    prover: Option<Box<dyn ZkProver>>,
+}
+
+impl CredentialIssuer {
+    pub fn new(did: Did, signing_key: SigningKey) -> Self {
+        Self { did, signing_key, prover: None }
+    }
+
+    pub fn with_prover(mut self, prover: Box<dyn ZkProver>) -> Self {
+        self.prover = Some(prover);
+        self
+    }
+
+    pub fn issue(
+        &self,
+        holder: Did,
+        claims: HashMap<String, String>,
+        schema: Option<Cid>,
+        prove_fields: Option<&[&str]>,
+    ) -> Result<(Credential, Option<ZkCredentialProof>), ZkError> {
+        let mut cred = Credential::new(self.did.clone(), holder, claims, schema);
+        cred.sign_claims(&self.signing_key);
+        let proof = if let (Some(ref prover), Some(fields)) = (&self.prover, prove_fields) {
+            Some(prover.prove(&cred, fields)?)
+        } else {
+            None
+        };
+        Ok((cred, proof))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::zk::{BulletproofsProver, BulletproofsVerifier, DummyProver, DummyVerifier, ZkVerifier};
+    use crate::generate_ed25519_keypair;
+
+    #[test]
+    fn dummy_proof_roundtrip() {
+        let (sk, _) = generate_ed25519_keypair();
+        let issuer = Did::new("key", "issuer");
+        let holder = Did::new("key", "holder");
+        let mut claims = HashMap::new();
+        claims.insert("age".to_string(), "30".to_string());
+
+        let issuer = CredentialIssuer::new(issuer, sk).with_prover(Box::new(DummyProver));
+        let (_, proof_opt) = issuer
+            .issue(holder, claims, Some(Cid::new_v1_sha256(0x55, b"schema")), Some(&["age"]))
+            .unwrap();
+        let proof = proof_opt.expect("proof");
+        let verifier = DummyVerifier;
+        assert!(verifier.verify(&proof).unwrap());
+    }
+
+    #[test]
+    fn bulletproofs_proof_roundtrip() {
+        let (sk, _) = generate_ed25519_keypair();
+        let issuer = Did::new("key", "issuer");
+        let holder = Did::new("key", "holder");
+        let mut claims = HashMap::new();
+        claims.insert("amount".to_string(), "42".to_string());
+
+        let issuer = CredentialIssuer::new(issuer, sk).with_prover(Box::new(BulletproofsProver));
+        let (_, proof_opt) = issuer
+            .issue(holder, claims, Some(Cid::new_v1_sha256(0x55, b"schema")), Some(&[]))
+            .unwrap();
+        let proof = proof_opt.expect("proof");
+        let verifier = BulletproofsVerifier;
+        assert!(verifier.verify(&proof).unwrap());
     }
 }
 
