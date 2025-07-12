@@ -8,6 +8,7 @@ pub mod errors;
 pub mod host_environment;
 pub mod mana;
 pub mod mesh_network;
+pub mod resource_ledger;
 pub mod runtime_context;
 pub mod service_config;
 pub mod signers;
@@ -19,18 +20,20 @@ pub use errors::HostAbiError;
 pub use host_environment::{ConcreteHostEnvironment, HostEnvironment};
 pub use mana::{LedgerBackend, ManaRepository, SimpleManaLedger};
 pub use mesh_network::{
-    DefaultMeshNetworkService, JobAssignmentNotice, LocalMeshSubmitReceiptMessage,
-    MeshJobStateChange, MeshNetworkService, SelectionPolicy, BidId,
-    PROPOSAL_COST_MANA, VOTE_COST_MANA,
+    BidId, DefaultMeshNetworkService, JobAssignmentNotice, LocalMeshSubmitReceiptMessage,
+    MeshJobStateChange, MeshNetworkService, SelectionPolicy, PROPOSAL_COST_MANA, VOTE_COST_MANA,
+};
+pub use resource_ledger::{
+    record_resource_event, ResourceAction, ResourceLedger, ResourceLedgerEntry,
 };
 pub use runtime_context::{
-    RuntimeContext, RuntimeContextParams, MeshNetworkServiceType, CreateProposalPayload, CastVotePayload, CloseProposalResult,
-    MANA_MAX_CAPACITY_KEY,
+    CastVotePayload, CloseProposalResult, CreateProposalPayload, MeshNetworkServiceType,
+    RuntimeContext, RuntimeContextParams, MANA_MAX_CAPACITY_KEY,
 };
 pub use service_config::{ServiceConfig, ServiceConfigBuilder, ServiceEnvironment};
 pub use signers::{Ed25519Signer, HsmKeyStore, Signer, StubSigner};
 pub use stubs::{RuntimeStubDagStore, StubDagStore, StubMeshNetworkService};
 
 // Conditional compilation helpers for DAG storage service
-pub type DagStorageService =
-    dyn icn_dag::AsyncStorageService<icn_common::DagBlock> + Send;pub type DagStoreMutexType<T> = tokio::sync::Mutex<T>; 
+pub type DagStorageService = dyn icn_dag::AsyncStorageService<icn_common::DagBlock> + Send;
+pub type DagStoreMutexType<T> = tokio::sync::Mutex<T>;
