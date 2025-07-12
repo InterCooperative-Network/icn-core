@@ -69,6 +69,8 @@ predicates = "3.1"
 axum = { version = "0.7", features = ["json"] }
 chrono = { version = "0.4", features = ["serde"] }
 anyhow = "1.0"
+base64 = "0.22"
+bincode = "1"
 icn-node = { path = "../crates/icn-node", features = ["with-libp2p"] }
 icn-runtime = { path = "../crates/icn-runtime", features = ["async"] }
 icn-governance = { path = "../crates/icn-governance" }

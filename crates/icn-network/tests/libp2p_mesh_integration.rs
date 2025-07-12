@@ -392,16 +392,19 @@ mod libp2p_mesh_integration {
                 creator_did: job_to_announce.creator_did.clone(),
                 max_cost_mana: job_to_announce.cost_mana,
                 job_spec: icn_protocol::JobSpec {
-                    image: job_to_announce.spec.image.clone(),
-                    command: job_to_announce.spec.command.clone(),
-                    args: job_to_announce.spec.args.clone(),
-                    env: job_to_announce.spec.env.clone(),
-                    resources: icn_protocol::ResourceRequirements {
-                        cpu: job_to_announce.spec.resources.cpu,
-                        memory: job_to_announce.spec.resources.memory,
-                        storage: job_to_announce.spec.resources.storage,
+                    kind: match &job_to_announce.spec.kind {
+                        JobKind::Echo { payload } => icn_protocol::JobKind::Echo { payload: payload.clone() },
+                        JobKind::CclWasm => icn_protocol::JobKind::CclWasm,
+                        JobKind::GenericPlaceholder => icn_protocol::JobKind::Generic,
                     },
-                    timeout: job_to_announce.spec.timeout,
+                    inputs: job_to_announce.spec.inputs.clone(),
+                    outputs: job_to_announce.spec.outputs.clone(),
+                    required_resources: icn_protocol::ResourceRequirements {
+                        cpu_cores: job_to_announce.spec.required_resources.cpu_cores,
+                        memory_mb: job_to_announce.spec.required_resources.memory_mb,
+                        storage_mb: 0, // Set default storage if not specified
+                        max_execution_time_secs: 300, // Set default timeout
+                    },
                 },
                 bid_deadline: 0,
             }),
@@ -447,12 +450,13 @@ mod libp2p_mesh_integration {
                         MessagePayload::MeshBidSubmission(MeshBidSubmissionMessage {
                             job_id: bid_to_submit.job_id.0.clone(), // Convert JobId to Cid
                             executor_did: bid_to_submit.executor_did.clone(),
-                            cost_mana: bid_to_submit.cost_mana,
+                            cost_mana: bid_to_submit.price_mana,
                             estimated_duration_secs: 0,
                             offered_resources: icn_protocol::ResourceRequirements {
-                                cpu: bid_to_submit.resources.cpu,
-                                memory: bid_to_submit.resources.memory,
-                                storage: bid_to_submit.resources.storage,
+                                cpu_cores: bid_to_submit.resources.cpu_cores,
+                                memory_mb: bid_to_submit.resources.memory_mb,
+                                storage_mb: 0, // Set default storage if not specified
+                                max_execution_time_secs: 300, // Set default timeout
                             },
                             reputation_score: 0,
                         }),
@@ -646,16 +650,19 @@ mod libp2p_mesh_integration {
                 creator_did: test_job.creator_did.clone(),
                 max_cost_mana: test_job.cost_mana,
                 job_spec: icn_protocol::JobSpec {
-                    image: test_job.spec.image.clone(),
-                    command: test_job.spec.command.clone(),
-                    args: test_job.spec.args.clone(),
-                    env: test_job.spec.env.clone(),
-                    resources: icn_protocol::ResourceRequirements {
-                        cpu: test_job.spec.resources.cpu,
-                        memory: test_job.spec.resources.memory,
-                        storage: test_job.spec.resources.storage,
+                    kind: match &test_job.spec.kind {
+                        JobKind::Echo { payload } => icn_protocol::JobKind::Echo { payload: payload.clone() },
+                        JobKind::CclWasm => icn_protocol::JobKind::CclWasm,
+                        JobKind::GenericPlaceholder => icn_protocol::JobKind::Generic,
                     },
-                    timeout: test_job.spec.timeout,
+                    inputs: test_job.spec.inputs.clone(),
+                    outputs: test_job.spec.outputs.clone(),
+                    required_resources: icn_protocol::ResourceRequirements {
+                        cpu_cores: test_job.spec.required_resources.cpu_cores,
+                        memory_mb: test_job.spec.required_resources.memory_mb,
+                        storage_mb: 0, // Set default storage if not specified
+                        max_execution_time_secs: 300, // Set default timeout
+                    },
                 },
                 bid_deadline: 0,
             }),
@@ -684,12 +691,13 @@ mod libp2p_mesh_integration {
             MessagePayload::MeshBidSubmission(MeshBidSubmissionMessage {
                 job_id: bid.job_id.0.clone(), // Convert JobId to Cid
                 executor_did: bid.executor_did.clone(),
-                cost_mana: bid.cost_mana,
+                cost_mana: bid.price_mana,
                 estimated_duration_secs: 0,
                 offered_resources: icn_protocol::ResourceRequirements {
-                    cpu: bid.resources.cpu,
-                    memory: bid.resources.memory,
-                    storage: bid.resources.storage,
+                    cpu_cores: bid.resources.cpu_cores,
+                    memory_mb: bid.resources.memory_mb,
+                    storage_mb: 0, // Set default storage if not specified
+                    max_execution_time_secs: 300, // Set default timeout
                 },
                 reputation_score: 0,
             }),
@@ -723,7 +731,12 @@ mod libp2p_mesh_integration {
             MessagePayload::MeshJobAssignment(MeshJobAssignmentMessage {
                 job_id: job_id.0.clone(), // Convert JobId to Cid
                 executor_did: executor_did.clone(),
-                assigned_at: 0,
+                agreed_cost_mana: 80, // Use the bid price
+                completion_deadline: std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs() + 300, // 5 minutes from now
+                manifest_cid: None,
             }),
             Did::new("key", "node_a"),
             None,
@@ -755,24 +768,26 @@ mod libp2p_mesh_integration {
         let assigned_executor = received_job_assignment.executor_did.clone();
 
         // Convert back to the expected format for the executor using original job data
-        let actual_job = icn_mesh::Job {
+        let actual_job = icn_mesh::ActualMeshJob {
             id: JobId::from(received_job_assignment.job_id.clone()),
             manifest_cid: received_job.manifest_cid.clone(),
             creator_did: received_job.creator_did.clone(),
             cost_mana: received_job.max_cost_mana,
+            max_execution_wait_ms: None,
+            signature: SignatureBytes(vec![]),
             spec: icn_mesh::JobSpec {
-                image: received_job.job_spec.image.clone(),
-                command: received_job.job_spec.command.clone(),
-                args: received_job.job_spec.args.clone(),
-                env: received_job.job_spec.env.clone(),
-                resources: icn_mesh::Resources {
-                    cpu: received_job.job_spec.resources.cpu,
-                    memory: received_job.job_spec.resources.memory,
-                    storage: received_job.job_spec.resources.storage,
+                kind: match &received_job.job_spec.kind {
+                    icn_protocol::JobKind::Echo { payload } => JobKind::Echo { payload: payload.clone() },
+                    icn_protocol::JobKind::CclWasm => JobKind::CclWasm,
+                    icn_protocol::JobKind::Generic => JobKind::GenericPlaceholder,
                 },
-                timeout: received_job.job_spec.timeout,
+                inputs: received_job.job_spec.inputs.clone(),
+                outputs: received_job.job_spec.outputs.clone(),
+                required_resources: icn_mesh::Resources {
+                    cpu_cores: received_job.job_spec.required_resources.cpu_cores,
+                    memory_mb: received_job.job_spec.required_resources.memory_mb,
+                },
             },
-            assigned_executor: Some(received_job_assignment.executor_did.clone()),
         };
 
         let execution_result =
@@ -869,16 +884,19 @@ mod libp2p_mesh_integration {
                 creator_did: test_job.creator_did.clone(),
                 max_cost_mana: test_job.cost_mana,
                 job_spec: icn_protocol::JobSpec {
-                    image: test_job.spec.image.clone(),
-                    command: test_job.spec.command.clone(),
-                    args: test_job.spec.args.clone(),
-                    env: test_job.spec.env.clone(),
-                    resources: icn_protocol::ResourceRequirements {
-                        cpu: test_job.spec.resources.cpu,
-                        memory: test_job.spec.resources.memory,
-                        storage: test_job.spec.resources.storage,
+                    kind: match &test_job.spec.kind {
+                        JobKind::Echo { payload } => icn_protocol::JobKind::Echo { payload: payload.clone() },
+                        JobKind::CclWasm => icn_protocol::JobKind::CclWasm,
+                        JobKind::GenericPlaceholder => icn_protocol::JobKind::Generic,
                     },
-                    timeout: test_job.spec.timeout,
+                    inputs: test_job.spec.inputs.clone(),
+                    outputs: test_job.spec.outputs.clone(),
+                    required_resources: icn_protocol::ResourceRequirements {
+                        cpu_cores: test_job.spec.required_resources.cpu_cores,
+                        memory_mb: test_job.spec.required_resources.memory_mb,
+                        storage_mb: 0, // Set default storage if not specified
+                        max_execution_time_secs: 300, // Set default timeout
+                    },
                 },
                 bid_deadline: 0,
             }),
@@ -907,12 +925,13 @@ mod libp2p_mesh_integration {
             MessagePayload::MeshBidSubmission(MeshBidSubmissionMessage {
                 job_id: bid.job_id.0.clone(), // Convert JobId to Cid
                 executor_did: bid.executor_did.clone(),
-                cost_mana: bid.cost_mana,
+                cost_mana: bid.price_mana,
                 estimated_duration_secs: 0,
                 offered_resources: icn_protocol::ResourceRequirements {
-                    cpu: bid.resources.cpu,
-                    memory: bid.resources.memory,
-                    storage: bid.resources.storage,
+                    cpu_cores: bid.resources.cpu_cores,
+                    memory_mb: bid.resources.memory_mb,
+                    storage_mb: 0, // Set default storage if not specified
+                    max_execution_time_secs: 300, // Set default timeout
                 },
                 reputation_score: 0,
             }),

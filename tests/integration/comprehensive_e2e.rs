@@ -6,6 +6,7 @@ mod comprehensive_e2e_test {
     use std::process::Command;
     use std::time::{Duration, Instant};
     use tokio::time::sleep;
+    use base64::{Engine, engine::general_purpose};
 
 /// Comprehensive end-to-end test for ICN mesh job lifecycle
 /// 
@@ -369,7 +370,7 @@ impl E2ETestHarness {
         };
         let job_request = json!({
             "manifest_cid": "bafybeigdyrztktx5b5m2y4sogf2hf5uq3k5knv5c5k2pvx7aq5w3sh7g5e",
-            "spec_bytes": base64::encode(bincode::serialize(&job_spec).unwrap()),
+            "spec_bytes": general_purpose::STANDARD.encode(bincode::serialize(&job_spec).unwrap()),
             "spec_json": null,
             "cost_mana": 200
         });
@@ -607,7 +608,7 @@ impl E2ETestHarness {
                 };
                 let job_request = json!({
                     "manifest_cid": format!("cidv1-load-test-{}", test_id),
-                    "spec_bytes": base64::encode(bincode::serialize(&spec).unwrap()),
+                    "spec_bytes": general_purpose::STANDARD.encode(bincode::serialize(&spec).unwrap()),
                     "spec_json": null,
                     "cost_mana": 100
                 });
