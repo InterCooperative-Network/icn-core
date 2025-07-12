@@ -19,9 +19,17 @@ use std::str::FromStr;
 use unsigned_varint::encode as varint_encode;
 
 pub mod zk;
-pub use zk::{BulletproofsVerifier, DummyVerifier, ZkError, ZkVerifier};
+pub use zk::{
+    BulletproofsProver,
+    BulletproofsVerifier,
+    DummyProver,
+    DummyVerifier,
+    ZkError,
+    ZkProver,
+    ZkVerifier,
+};
 pub mod credential;
-pub use credential::{Credential, DisclosedCredential};
+pub use credential::{Credential, DisclosedCredential, CredentialIssuer};
 
 // --- Core Cryptographic Operations & DID:key generation ---
 

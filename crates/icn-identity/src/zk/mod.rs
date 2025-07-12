@@ -1,4 +1,4 @@
-use icn_common::{ZkCredentialProof, ZkProofType};
+use icn_common::{Cid, ZkCredentialProof, ZkProofType};
 use core::convert::TryInto;
 use thiserror::Error;
 
@@ -21,6 +21,15 @@ pub trait ZkVerifier: Send + Sync {
     /// Verify the supplied [`ZkCredentialProof`]. Returns `Ok(true)` if the proof
     /// is valid and corresponds to the verifier's backend.
     fn verify(&self, proof: &ZkCredentialProof) -> Result<bool, ZkError>;
+}
+
+/// Trait for generating zero-knowledge proofs for credentials.
+pub trait ZkProver: Send + Sync {
+    fn prove(
+        &self,
+        credential: &crate::credential::Credential,
+        fields: &[&str],
+    ) -> Result<ZkCredentialProof, ZkError>;
 }
 
 /// Verifier implementation for the Bulletproofs proving system.
@@ -69,6 +78,78 @@ impl ZkVerifier for DummyVerifier {
             return Err(ZkError::InvalidProof);
         }
         Ok(true)
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct DummyProver;
+
+impl ZkProver for DummyProver {
+    fn prove(
+        &self,
+        credential: &crate::credential::Credential,
+        fields: &[&str],
+    ) -> Result<ZkCredentialProof, ZkError> {
+        Ok(ZkCredentialProof {
+            issuer: credential.issuer.clone(),
+            holder: credential.holder.clone(),
+            claim_type: "test".into(),
+            proof: vec![1, 2, 3],
+            schema: credential
+                .schema
+                .clone()
+                .unwrap_or_else(|| Cid::new_v1_sha256(0x55, b"dummy")),
+            disclosed_fields: fields.iter().map(|f| f.to_string()).collect(),
+            challenge: None,
+            backend: ZkProofType::Groth16,
+        })
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct BulletproofsProver;
+
+impl ZkProver for BulletproofsProver {
+    fn prove(
+        &self,
+        credential: &crate::credential::Credential,
+        fields: &[&str],
+    ) -> Result<ZkCredentialProof, ZkError> {
+        use bulletproofs::{BulletproofGens, PedersenGens, RangeProof};
+        use curve25519_dalek::scalar::Scalar;
+        use merlin::Transcript;
+        use rand_core::OsRng;
+
+        let pc_gens = PedersenGens::default();
+        let bp_gens = BulletproofGens::new(64, 1);
+        let blinding = Scalar::random(&mut OsRng);
+        let mut transcript = Transcript::new(b"ZkCredentialProof");
+        let (proof, commit) = RangeProof::prove_single(
+            &bp_gens,
+            &pc_gens,
+            &mut transcript,
+            42u64,
+            &blinding,
+            64,
+        )
+        .map_err(|_| ZkError::VerificationFailed)?;
+
+        let mut bytes = proof.to_bytes();
+        bytes.extend_from_slice(commit.as_bytes());
+
+        Ok(ZkCredentialProof {
+            issuer: credential.issuer.clone(),
+            holder: credential.holder.clone(),
+            claim_type: "test".into(),
+            proof: bytes,
+            schema: credential
+                .schema
+                .clone()
+                .unwrap_or_else(|| Cid::new_v1_sha256(0x55, b"bp")),
+            disclosed_fields: fields.iter().map(|f| f.to_string()).collect(),
+            challenge: None,
+            backend: ZkProofType::Bulletproofs,
+        })
     }
 }
 
