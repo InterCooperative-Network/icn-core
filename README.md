@@ -388,6 +388,7 @@ More detailed information can be found in the `README.md` file within each crate
 * [RFC Index](icn-docs/rfcs/README.md) – design proposals and specifications
 * [RFC 0010: ICN Governance Core](icn-docs/rfcs/0010-governance-core.md) – governance framework
 * [Mana Policies](docs/mana_policies.md) – economic policy examples
+* [Resource Tokens](docs/resource_tokens.md) – token classes and mana integration
 * [CCL Language Reference](docs/CCL_LANGUAGE_REFERENCE.md) – full syntax guide
 * [CCL Examples](icn-ccl/examples/) – governance contract templates
 * [Contract Creation Guide](docs/howto-create-contract.md) – compile and submit CCL jobs

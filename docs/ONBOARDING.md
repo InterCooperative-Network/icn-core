@@ -401,7 +401,7 @@ and set `storage_backend = "rocksdb"` in your configuration.
     *   **`icn-reputation`**: Reputation scoring and validation for network participants.
     *   **`icn-node`**: The main binary executable that runs a persistent HTTP server with P2P networking.
     *   **`icn-cli`**: The command-line interface client that interacts with `icn-node` via HTTP API.
-*   **`docs/` directory:** Contains this onboarding guide and potentially other architectural documents.
+*   **`docs/` directory:** Contains this onboarding guide and other references such as [resource_tokens.md](resource_tokens.md) explaining the token system.
 *   **`.github/` directory:** CI workflows, issue templates, Dependabot configuration.
 
 ### Error Handling Approach
