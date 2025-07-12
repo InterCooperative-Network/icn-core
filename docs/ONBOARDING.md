@@ -527,7 +527,7 @@ The repository includes a containerized devnet for quickly spinning up a three-n
    ```bash
    curl -X POST http://localhost:5001/mesh/submit \
      -H 'Content-Type: application/json' \
-     -d '{"manifest_cid":"example_manifest","spec_json":{"Echo":{"payload":"hi"}},"cost_mana":50}'
+  -d '{"manifest_cid":"example_manifest","spec_bytes":"BASE64_SPEC","cost_mana":50}'
    ```
    The response contains `job_id`. You can query any node for its status:
    ```bash

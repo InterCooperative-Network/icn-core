@@ -467,7 +467,7 @@ Response `200 OK`
 ```bash
 curl -X POST http://localhost:8080/mesh/submit \
   -H "Content-Type: application/json" \
-  -d '{"manifest_cid":"bafyjobmanifest","spec_json":{"command":"echo"}}'
+  -d '{"manifest_cid":"bafyjobmanifest","spec_bytes":"BASE64_SPEC"}'
 ```
 Response `200 OK`
 ```json

@@ -18,6 +18,8 @@ icn-reputation = { path = "../icn-reputation" }
 icn-economics = { path = "../icn-economics" }
 icn-ccl = { path = "../../icn-ccl" }
 icn-protocol = { path = "../icn-protocol" }
+base64 = "0.21"
+bincode = "1"
 log = "0.4"
 env_logger = "0.10"
 serde = { version = "1.0", features = ["derive"] }

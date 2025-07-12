@@ -66,7 +66,7 @@ cargo run -p icn-cli -- --api-url http://localhost:7845 compile-ccl policy.ccl
 
 # Submit a mesh job referencing the returned CID
 cargo run -p icn-cli -- --api-url http://localhost:7845 submit-job \
-  '{"manifest_cid":"CID_FROM_UPLOAD","spec_json":{},"cost_mana":0}'
+  '{"manifest_cid":"CID_FROM_UPLOAD","spec_bytes":"BASE64_SPEC","cost_mana":0}'
 ```
 
 ### Utility: `generate_ccl_job_spec`

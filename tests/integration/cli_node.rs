@@ -1,5 +1,8 @@
 use assert_cmd::prelude::*;
+use base64;
+use bincode;
 use icn_common::{compute_merkle_cid, Cid, DagBlock, Did};
+use icn_mesh::{JobKind, JobSpec};
 use icn_node::app_router;
 use std::process::Command;
 use tokio::task;
@@ -166,9 +169,16 @@ async fn mesh_job_via_cli() {
     });
     sleep(Duration::from_millis(100)).await;
 
+    let spec = icn_mesh::JobSpec {
+        kind: icn_mesh::JobKind::Echo {
+            payload: "hello".into(),
+        },
+        ..Default::default()
+    };
     let job_req = serde_json::json!({
         "manifest_cid": "bafytestmanifest",
-        "spec_json": { "Echo": { "payload": "hello" } },
+        "spec_bytes": base64::encode(bincode::serialize(&spec).unwrap()),
+        "spec_json": null,
         "cost_mana": 10
     })
     .to_string();

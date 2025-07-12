@@ -1,3 +1,6 @@
+use base64;
+use bincode;
+use icn_mesh::{JobKind, JobSpec};
 use once_cell::sync::OnceCell;
 use serde_json::Value;
 use std::{process::Command, time::Duration};
@@ -147,9 +150,16 @@ async fn test_federation_mesh_job_lifecycle() {
     // Submit job to Node A
     println!("  📤 Submitting mesh job to Node A...");
 
+    let spec = icn_mesh::JobSpec {
+        kind: icn_mesh::JobKind::Echo {
+            payload: "Federation integration test!".into(),
+        },
+        ..Default::default()
+    };
     let job_request = serde_json::json!({
         "manifest_cid": "cidv1-85-20-integration_test_manifest",
-        "spec_json": { "Echo": { "payload": "Federation integration test!" } },
+        "spec_bytes": base64::encode(bincode::serialize(&spec).unwrap()),
+        "spec_json": null,
         "cost_mana": 150
     });
 

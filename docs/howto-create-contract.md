@@ -39,7 +39,7 @@ Use the returned CID when creating a job. The job will execute the contract's `r
 
 ```bash
 icn-cli --api-url http://localhost:7845 submit-job \
-  '{"manifest_cid":"<CID>","spec_json":{},"cost_mana":0}'
+  '{"manifest_cid":"<CID>","spec_bytes":"BASE64_SPEC","cost_mana":0}'
 ```
 
 Check the job status with:

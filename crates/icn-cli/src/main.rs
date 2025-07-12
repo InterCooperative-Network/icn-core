@@ -4,6 +4,8 @@
 //! # ICN CLI Crate
 //! This crate provides a command-line interface (CLI) for interacting with an ICN HTTP node.
 
+use base64;
+use bincode;
 use clap::{Parser, Subcommand};
 use icn_common::CommonError;
 use reqwest::Client;
@@ -770,14 +772,15 @@ async fn handle_mesh_submit(
                 "manifest_cid".to_string(),
                 serde_json::json!(cid.to_string()),
             );
-            if !obj.contains_key("spec_json") {
+            if !obj.contains_key("spec_bytes") {
                 let spec = icn_mesh::JobSpec {
                     kind: icn_mesh::JobKind::CclWasm,
                     ..Default::default()
                 };
+                let bytes = bincode::serialize(&spec).unwrap();
                 obj.insert(
-                    "spec_json".to_string(),
-                    serde_json::to_value(&spec).unwrap(),
+                    "spec_bytes".to_string(),
+                    serde_json::json!(base64::encode(bytes)),
                 );
             }
         }

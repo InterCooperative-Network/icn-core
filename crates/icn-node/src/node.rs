@@ -55,6 +55,8 @@ use axum::{
     Json, Router,
 };
 use axum_server::tls_rustls::RustlsConfig;
+use base64;
+use bincode;
 use bs58;
 use clap::{ArgMatches, CommandFactory, FromArgMatches, Parser};
 use log::{debug, error, info, warn};
@@ -2005,9 +2007,12 @@ async fn gov_execute_handler(
 #[derive(Debug, Serialize, Deserialize)] // Added Serialize and Deserialize
 pub struct SubmitJobRequest {
     pub manifest_cid: String, // String to be parsed into Cid
-    // pub spec: JobSpec, // JobSpec is currently {}, so not very useful as JSON.
-    // Let's assume spec comes as a JSON Value or stringified JSON for now.
-    pub spec_json: serde_json::Value, // Expecting JobSpec as a JSON value
+    /// Base64 encoded bincode [`JobSpec`] bytes.
+    #[serde(default)]
+    pub spec_bytes: Option<String>,
+    /// Deprecated JSON representation of the job spec.
+    #[serde(default)]
+    pub spec_json: Option<serde_json::Value>,
     pub cost_mana: u64,
 }
 
@@ -2028,15 +2033,44 @@ async fn mesh_submit_job_handler(
         }
     };
 
-    let job_spec = match serde_json::from_value::<icn_mesh::JobSpec>(request.spec_json.clone()) {
-        Ok(spec) => spec,
-        Err(e) => {
-            return map_rust_error_to_json_response(
-                format!("Failed to parse job spec: {}", e),
-                StatusCode::BAD_REQUEST,
-            )
-            .into_response()
+    // Decode job spec from bytes or fallback to deprecated JSON
+    let job_spec = if let Some(b64) = &request.spec_bytes {
+        match base64::decode(b64) {
+            Ok(bytes) => match bincode::deserialize::<icn_mesh::JobSpec>(&bytes) {
+                Ok(spec) => spec,
+                Err(e) => {
+                    return map_rust_error_to_json_response(
+                        format!("Failed to decode job spec bytes: {}", e),
+                        StatusCode::BAD_REQUEST,
+                    )
+                    .into_response()
+                }
+            },
+            Err(e) => {
+                return map_rust_error_to_json_response(
+                    format!("Invalid base64 spec bytes: {}", e),
+                    StatusCode::BAD_REQUEST,
+                )
+                .into_response()
+            }
         }
+    } else if let Some(json_val) = &request.spec_json {
+        match serde_json::from_value::<icn_mesh::JobSpec>(json_val.clone()) {
+            Ok(spec) => spec,
+            Err(e) => {
+                return map_rust_error_to_json_response(
+                    format!("Failed to parse job spec JSON: {}", e),
+                    StatusCode::BAD_REQUEST,
+                )
+                .into_response()
+            }
+        }
+    } else {
+        return map_rust_error_to_json_response(
+            "Missing job spec".to_string(),
+            StatusCode::BAD_REQUEST,
+        )
+        .into_response();
     };
 
     // Build complete ActualMeshJob structure with placeholder values
@@ -2737,15 +2771,16 @@ mod tests {
     async fn mesh_submit_job_endpoint_basic() {
         let app = test_app().await;
 
+        let spec = icn_mesh::JobSpec {
+            kind: icn_mesh::JobKind::Echo {
+                payload: "hello".into(),
+            },
+            ..Default::default()
+        };
         let job_req = SubmitJobRequest {
             manifest_cid: Cid::new_v1_sha256(0x55, b"test_manifest").to_string(),
-            spec_json: serde_json::to_value(&icn_mesh::JobSpec {
-                kind: icn_mesh::JobKind::Echo {
-                    payload: "hello".into(),
-                },
-                ..Default::default()
-            })
-            .unwrap(),
+            spec_bytes: Some(base64::encode(bincode::serialize(&spec).unwrap())),
+            spec_json: None,
             cost_mana: 50,
         };
         let job_req_json = serde_json::to_string(&job_req).unwrap();
@@ -2776,15 +2811,16 @@ mod tests {
         let app = test_app().await;
 
         // Step 1: Submit a job via HTTP
+        let spec = icn_mesh::JobSpec {
+            kind: icn_mesh::JobKind::Echo {
+                payload: "HTTP pipeline test".into(),
+            },
+            ..Default::default()
+        };
         let job_req = SubmitJobRequest {
             manifest_cid: Cid::new_v1_sha256(0x55, b"pipeline_test_manifest").to_string(),
-            spec_json: serde_json::to_value(&icn_mesh::JobSpec {
-                kind: icn_mesh::JobKind::Echo {
-                    payload: "HTTP pipeline test".into(),
-                },
-                ..Default::default()
-            })
-            .unwrap(),
+            spec_bytes: Some(base64::encode(bincode::serialize(&spec).unwrap())),
+            spec_json: None,
             cost_mana: 100,
         };
         let job_req_json = serde_json::to_string(&job_req).unwrap();
@@ -2914,15 +2950,16 @@ mod tests {
         let app = test_app().await;
 
         // Step 1: Submit a job
+        let spec = icn_mesh::JobSpec {
+            kind: icn_mesh::JobKind::Echo {
+                payload: "simple test".into(),
+            },
+            ..Default::default()
+        };
         let job_req = SubmitJobRequest {
             manifest_cid: Cid::new_v1_sha256(0x55, b"simple_test").to_string(),
-            spec_json: serde_json::to_value(&icn_mesh::JobSpec {
-                kind: icn_mesh::JobKind::Echo {
-                    payload: "simple test".into(),
-                },
-                ..Default::default()
-            })
-            .unwrap(),
+            spec_bytes: Some(base64::encode(bincode::serialize(&spec).unwrap())),
+            spec_json: None,
             cost_mana: 50,
         };
         let job_req_json = serde_json::to_string(&job_req).unwrap();
@@ -3000,7 +3037,10 @@ mod tests {
         // Submit job referencing the WASM CID
         let job_req = SubmitJobRequest {
             manifest_cid: wasm_cid.to_string(),
-            spec_json: serde_json::to_value(&icn_mesh::JobSpec::default()).unwrap(),
+            spec_bytes: Some(base64::encode(
+                bincode::serialize(&icn_mesh::JobSpec::default()).unwrap(),
+            )),
+            spec_json: None,
             cost_mana: 0,
         };
         let job_req_json = serde_json::to_string(&job_req).unwrap();

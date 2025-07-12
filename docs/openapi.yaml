@@ -82,8 +82,7 @@ paths:
               $ref: '#/components/schemas/SubmitJobRequest'
             example:
               manifest_cid: "bafyjobmanifest"
-              spec_json:
-                command: "echo hello"
+              spec_bytes: "BASE64_SPEC"
               cost_mana: 10
       responses:
         '200':
@@ -763,8 +762,9 @@ components:
       properties:
         manifest_cid:
           type: string
-        spec_json:
-          type: object
+        spec_bytes:
+          type: string
+          format: byte
         cost_mana:
           type: integer
     SubmitReceiptRequest:

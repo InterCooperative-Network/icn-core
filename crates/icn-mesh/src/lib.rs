@@ -6,6 +6,7 @@
 //! InterCooperative Network (ICN) mesh network. It handles job definition, resource discovery,
 //! scheduling, execution management, and fault tolerance.
 
+use bincode;
 use icn_common::{Cid, CommonError, Did, NodeInfo};
 use icn_identity::{
     sign_message as identity_sign_message, verify_signature as identity_verify_signature,
@@ -560,8 +561,11 @@ pub struct Job {
     pub id: JobId,
     /// Content Identifier (CID) of the job's executable or data package.
     pub manifest_cid: Cid,
-    /// Detailed specification of the job.
-    pub spec_json: String, // JSON-serialized JobSpec for DAG storage
+    /// Binary-encoded specification of the job (bincode serialized [`JobSpec`]).
+    pub spec_bytes: Vec<u8>,
+    /// **Deprecated** JSON-serialized job spec for backward compatibility.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spec_json: Option<String>,
     /// Decentralized Identifier (DID) of the entity that submitted the job.
     pub submitter_did: Did,
     /// The amount of mana allocated for this job's execution.
@@ -572,6 +576,24 @@ pub struct Job {
     pub status: JobLifecycleStatus,
     /// Optional resource requirements for the job.
     pub resource_requirements: Resources,
+}
+
+impl Job {
+    /// Decode the job specification from `spec_bytes` or the deprecated
+    /// `spec_json` field.
+    pub fn decode_spec(&self) -> Result<JobSpec, CommonError> {
+        if !self.spec_bytes.is_empty() {
+            bincode::deserialize(&self.spec_bytes).map_err(|e| {
+                CommonError::InternalError(format!("Failed to decode spec_bytes: {}", e))
+            })
+        } else if let Some(json) = &self.spec_json {
+            serde_json::from_str(json).map_err(|e| {
+                CommonError::InternalError(format!("Failed to decode spec_json: {}", e))
+            })
+        } else {
+            Err(CommonError::InternalError("Job spec missing".into()))
+        }
+    }
 }
 
 /// Represents a bid stored in the DAG, linked to a specific job.
@@ -655,9 +677,14 @@ pub enum JobLifecycleStatus {
 impl JobLifecycleStatus {
     /// Returns true if the job is in a terminal state.
     pub fn is_terminal(&self) -> bool {
-        matches!(self, JobLifecycleStatus::Completed | JobLifecycleStatus::Failed | JobLifecycleStatus::Cancelled)
+        matches!(
+            self,
+            JobLifecycleStatus::Completed
+                | JobLifecycleStatus::Failed
+                | JobLifecycleStatus::Cancelled
+        )
     }
-    
+
     /// Returns true if the job is active (can still change state).
     pub fn is_active(&self) -> bool {
         !self.is_terminal()
@@ -687,22 +714,22 @@ impl JobLifecycle {
             receipt: None,
         }
     }
-    
+
     /// Add a bid to this lifecycle.
     pub fn add_bid(&mut self, bid: JobBid) {
         self.bids.push(bid);
     }
-    
+
     /// Set the assignment for this lifecycle.
     pub fn set_assignment(&mut self, assignment: JobAssignment) {
         self.assignment = Some(assignment);
     }
-    
+
     /// Set the receipt for this lifecycle.
     pub fn set_receipt(&mut self, receipt: JobReceipt) {
         self.receipt = Some(receipt);
     }
-    
+
     /// Get the current status based on what lifecycle events exist.
     pub fn current_status(&self) -> JobLifecycleStatus {
         if let Some(receipt) = &self.receipt {
