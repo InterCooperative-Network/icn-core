@@ -3,7 +3,6 @@ use rocksdb::{WriteBatch, DB};
 use std::path::PathBuf;
 use std::sync::Mutex;
 
-#[derive(Debug)]
 pub struct RocksdbManaLedger {
     db: DB,
     batch: Mutex<WriteBatch>,
@@ -44,11 +43,11 @@ impl RocksdbManaLedger {
     /// Flush pending batched writes to disk.
     pub fn flush(&self) -> Result<(), CommonError> {
         let mut batch = self.batch.lock().unwrap();
-        if batch.len() > 0 {
+        if !batch.is_empty() {
+            let wb = std::mem::take(&mut *batch);
             self.db
-                .write(batch.as_ref())
+                .write(wb)
                 .map_err(|e| CommonError::DatabaseError(format!("Failed to write batch: {e}")))?;
-            *batch = WriteBatch::default();
         }
         self.db
             .flush()

@@ -18,6 +18,8 @@ use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 use unsigned_varint::encode as varint_encode;
 
+pub mod zk;
+
 // --- Core Cryptographic Operations & DID:key generation ---
 
 /// Generate an Ed25519 key-pair using the OS CSPRNG.
@@ -114,12 +116,12 @@ fn is_valid_domain(domain: &str) -> bool {
     if domain.is_empty() || domain.len() > MAX_DOMAIN_LEN {
         return false;
     }
-    
+
     // Handle domains with ports (e.g., "localhost:8080")
     let (hostname, _port) = if let Some(colon_pos) = domain.rfind(':') {
         let hostname = &domain[..colon_pos];
         let port_str = &domain[colon_pos + 1..];
-        
+
         // Validate port is numeric and in valid range
         if let Ok(port) = port_str.parse::<u16>() {
             if port == 0 {
@@ -132,12 +134,12 @@ fn is_valid_domain(domain: &str) -> bool {
     } else {
         (domain, None)
     };
-    
+
     // Validate hostname part
     if hostname.is_empty() {
         return false;
     }
-    
+
     hostname.split('.').all(|label| {
         let bytes = label.as_bytes();
         !bytes.is_empty()

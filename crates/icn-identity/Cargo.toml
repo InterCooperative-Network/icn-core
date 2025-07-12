@@ -20,6 +20,9 @@ multibase      = "0.9"          # base-58btc ("z...") encoder/decoder
 unsigned-varint = { version = "0.8", default-features = false } 
 serde_bytes = "0.11" # For SignatureBytes serialization
 reqwest.workspace = true
+bulletproofs = "5"
+merlin = "3"
+curve25519-dalek = { version = "4", default-features = false, features = ["alloc", "digest", "rand_core", "group", "serde"] }
 
 # Ensure old ones are removed if they conflict or are replaced
 # ed25519-dalek = { version = "2.0", features = ["serde"] } # Old, replaced by specific version

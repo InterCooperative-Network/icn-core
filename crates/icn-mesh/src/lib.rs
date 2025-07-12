@@ -6,7 +6,6 @@
 //! InterCooperative Network (ICN) mesh network. It handles job definition, resource discovery,
 //! scheduling, execution management, and fault tolerance.
 
-use bincode;
 use icn_common::{Cid, CommonError, Did, NodeInfo};
 use icn_identity::{
     sign_message as identity_sign_message, verify_signature as identity_verify_signature,
@@ -409,7 +408,13 @@ pub fn score_bid(
     let resource_score = policy.weight_resources * resource_match;
 
     let latency_score = latency_ms
-        .and_then(|ms| if ms > 0 { Some(policy.weight_latency / ms as f64) } else { None })
+        .and_then(|ms| {
+            if ms > 0 {
+                Some(policy.weight_latency / ms as f64)
+            } else {
+                None
+            }
+        })
         .unwrap_or(0.0);
 
     let weighted = price_score + reputation_score + resource_score + latency_score;
