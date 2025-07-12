@@ -115,6 +115,7 @@ pub struct Vote {
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[allow(clippy::large_enum_variant)]
 pub enum GovernanceEvent {
     ProposalSubmitted(Proposal),
     VoteCast(Vote),
@@ -233,7 +234,7 @@ impl GovernanceModule {
         })?;
 
         let proposals_tree_name = "proposals_v1".to_string(); // versioned tree name
-                                                              // sled automatically creates trees when first accessed, so no explicit creation needed here.
+        // sled automatically creates trees when first accessed, so no explicit creation needed here.
 
         Ok(GovernanceModule {
             backend: Backend::Sled {
