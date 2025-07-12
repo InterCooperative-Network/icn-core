@@ -20,6 +20,8 @@ use unsigned_varint::encode as varint_encode;
 
 pub mod zk;
 pub use zk::{BulletproofsVerifier, DummyVerifier, ZkError, ZkVerifier};
+pub mod credential;
+pub use credential::{Credential, DisclosedCredential};
 
 // --- Core Cryptographic Operations & DID:key generation ---
 
@@ -888,5 +890,26 @@ mod tests {
 
         let outsider = Did::from_str("did:icn:test:bob").unwrap();
         assert!(enforcer.check_permission(&outsider, &scope).is_err());
+    }
+
+    #[test]
+    fn credential_selective_disclosure() {
+        use std::collections::HashMap;
+
+        let (sk, pk) = generate_ed25519_keypair();
+        let issuer = Did::from_str(&did_key_from_verifying_key(&pk)).unwrap();
+        let holder = Did::new("key", "holder");
+
+        let mut claims = HashMap::new();
+        claims.insert("age".to_string(), "30".to_string());
+        claims.insert("member".to_string(), "true".to_string());
+
+        let mut cred = Credential::new(issuer.clone(), holder, claims, None);
+        cred.sign_claims(&sk);
+
+        let disclosed = cred.selective_disclosure(&["member"]);
+        assert_eq!(disclosed.claims.len(), 1);
+        assert_eq!(disclosed.claims.get("member").unwrap(), "true");
+        assert!(disclosed.verify(&pk).is_ok());
     }
 }
