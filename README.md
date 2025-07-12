@@ -72,6 +72,7 @@ The project has achieved a significant milestone with a production-ready foundat
 - **Modular Crate Structure**: Well-defined crates for all major domains
 - **Real Protocol Data Models**: DIDs, CIDs, DagBlocks, governance primitives
 - **Multiple Storage Backends**: SQLite, RocksDB, Sled, File-based persistence
+- **Event Sourcing**: Append-only event log via `icn-eventstore` for replayable state
 - **API Layer**: Comprehensive REST endpoints with authentication and TLS
 - **P2P Mesh Networking**: real libp2p networking stack with Kademlia peer discovery
 - **PostgresDagStore**: scalable PostgreSQL backend for DAG storage

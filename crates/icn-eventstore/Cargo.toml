@@ -1,0 +1,13 @@
+[package]
+name = "icn-eventstore"
+version.workspace = true
+edition = "2021"
+authors = ["ICN Contributors"]
+description = "Event sourcing utilities for ICN"
+license = "Apache-2.0"
+
+[dependencies]
+icn-common = { path = "../icn-common" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
