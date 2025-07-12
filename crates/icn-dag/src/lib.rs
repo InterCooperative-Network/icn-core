@@ -387,13 +387,20 @@ impl FileDagStore {
 
     // Renamed from get_block_path in apply model changes, reverting to original name for clarity
     fn block_path(&self, cid: &Cid) -> PathBuf {
-        // Consider sharding directories if many blocks are expected (e.g., /ab/cd/efgh...).
-        self.storage_path.join(cid.to_string())
+        let cid_str = cid.to_string();
+        let (p1, rest) = cid_str.split_at(2);
+        let (p2, _) = rest.split_at(2);
+        self.storage_path.join(p1).join(p2).join(cid_str)
     }
 
     fn put_block_to_file(&self, block: &DagBlock) -> Result<(), CommonError> {
         icn_common::verify_block_integrity(block)?;
         let file_path = self.block_path(&block.cid);
+        if let Some(parent) = file_path.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| {
+                CommonError::IoError(format!("Failed to create directories {:?}: {}", parent, e))
+            })?;
+        }
         let serialized_block = serde_json::to_string(block).map_err(|e| {
             CommonError::SerializationError(format!(
                 "Failed to serialize block {}: {}",
@@ -424,6 +431,11 @@ impl FileDagStore {
 
     fn get_block_from_file(&self, cid: &Cid) -> Result<Option<DagBlock>, CommonError> {
         let file_path = self.block_path(cid);
+        if let Some(parent) = file_path.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| {
+                CommonError::IoError(format!("Failed to create directories {:?}: {}", parent, e))
+            })?;
+        }
         if !file_path.exists() {
             return Ok(None);
         }
@@ -461,6 +473,11 @@ impl FileDagStore {
 
     fn delete_block_file(&self, cid: &Cid) -> Result<(), CommonError> {
         let file_path = self.block_path(cid);
+        if let Some(parent) = file_path.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| {
+                CommonError::IoError(format!("Failed to create directories {:?}: {}", parent, e))
+            })?;
+        }
         if file_path.exists() {
             std::fs::remove_file(&file_path).map_err(|e| {
                 CommonError::IoError(format!("Failed to delete file {:?}: {}", file_path, e))
@@ -496,26 +513,33 @@ impl StorageService<DagBlock> for FileDagStore {
     }
 
     fn list_blocks(&self) -> Result<Vec<DagBlock>, CommonError> {
-        let mut blocks = Vec::new();
-        for entry in std::fs::read_dir(&self.storage_path).map_err(|e| {
-            CommonError::IoError(format!("Failed to read dir {:?}: {}", self.storage_path, e))
-        })? {
-            let path = entry
-                .map_err(|e| CommonError::IoError(format!("Dir entry error: {}", e)))?
-                .path();
-            if path.is_file() {
-                let contents = std::fs::read_to_string(&path).map_err(|e| {
-                    CommonError::IoError(format!("Failed to read file {:?}: {}", path, e))
-                })?;
-                let block: DagBlock = serde_json::from_str(&contents).map_err(|e| {
-                    CommonError::DeserializationError(format!(
-                        "Failed to deserialize {:?}: {}",
-                        path, e
-                    ))
-                })?;
-                blocks.push(block);
+        fn collect(dir: &Path, blocks: &mut Vec<DagBlock>) -> Result<(), CommonError> {
+            for entry in std::fs::read_dir(dir)
+                .map_err(|e| CommonError::IoError(format!("Failed to read dir {:?}: {}", dir, e)))?
+            {
+                let path = entry
+                    .map_err(|e| CommonError::IoError(format!("Dir entry error: {}", e)))?
+                    .path();
+                if path.is_dir() {
+                    collect(&path, blocks)?;
+                } else if path.is_file() {
+                    let contents = std::fs::read_to_string(&path).map_err(|e| {
+                        CommonError::IoError(format!("Failed to read file {:?}: {}", path, e))
+                    })?;
+                    let block: DagBlock = serde_json::from_str(&contents).map_err(|e| {
+                        CommonError::DeserializationError(format!(
+                            "Failed to deserialize {:?}: {}",
+                            path, e
+                        ))
+                    })?;
+                    blocks.push(block);
+                }
             }
+            Ok(())
         }
+
+        let mut blocks = Vec::new();
+        collect(&self.storage_path, &mut blocks)?;
         Ok(blocks)
     }
 
@@ -622,7 +646,10 @@ impl TokioFileDagStore {
     }
 
     fn block_path(&self, cid: &Cid) -> PathBuf {
-        self.storage_path.join(cid.to_string())
+        let cid_str = cid.to_string();
+        let (p1, rest) = cid_str.split_at(2);
+        let (p2, _) = rest.split_at(2);
+        self.storage_path.join(p1).join(p2).join(cid_str)
     }
 }
 
@@ -632,6 +659,11 @@ impl AsyncStorageService<DagBlock> for TokioFileDagStore {
     async fn put(&mut self, block: &DagBlock) -> Result<(), CommonError> {
         icn_common::verify_block_integrity(block)?;
         let file_path = self.block_path(&block.cid);
+        if let Some(parent) = file_path.parent() {
+            fs::create_dir_all(parent).await.map_err(|e| {
+                CommonError::IoError(format!("Failed to create directories {:?}: {}", parent, e))
+            })?;
+        }
         let serialized_block = serde_json::to_string(block).map_err(|e| {
             CommonError::SerializationError(format!(
                 "Failed to serialize block {}: {}",
@@ -667,6 +699,11 @@ impl AsyncStorageService<DagBlock> for TokioFileDagStore {
 
     async fn get(&self, cid: &Cid) -> Result<Option<DagBlock>, CommonError> {
         let file_path = self.block_path(cid);
+        if let Some(parent) = file_path.parent() {
+            fs::create_dir_all(parent).await.map_err(|e| {
+                CommonError::IoError(format!("Failed to create directories {:?}: {}", parent, e))
+            })?;
+        }
         if fs::metadata(&file_path).await.is_err() {
             return Ok(None);
         }
@@ -704,6 +741,11 @@ impl AsyncStorageService<DagBlock> for TokioFileDagStore {
 
     async fn delete(&mut self, cid: &Cid) -> Result<(), CommonError> {
         let file_path = self.block_path(cid);
+        if let Some(parent) = file_path.parent() {
+            fs::create_dir_all(parent).await.map_err(|e| {
+                CommonError::IoError(format!("Failed to create directories {:?}: {}", parent, e))
+            })?;
+        }
         if fs::metadata(&file_path).await.is_ok() {
             fs::remove_file(&file_path).await.map_err(|e| {
                 CommonError::IoError(format!("Failed to delete file {:?}: {}", file_path, e))
@@ -718,33 +760,40 @@ impl AsyncStorageService<DagBlock> for TokioFileDagStore {
     }
 
     async fn list_blocks(&self) -> Result<Vec<DagBlock>, CommonError> {
-        let mut blocks = Vec::new();
-        let mut dir = fs::read_dir(&self.storage_path).await.map_err(|e| {
-            CommonError::IoError(format!("Failed to read dir {:?}: {}", self.storage_path, e))
-        })?;
-        while let Some(entry) = dir
-            .next_entry()
-            .await
-            .map_err(|e| CommonError::IoError(format!("Dir entry error: {}", e)))?
-        {
-            let path = entry.path();
-            if path.is_file() {
-                let mut file = TokioFile::open(&path).await.map_err(|e| {
-                    CommonError::IoError(format!("Failed to open file {:?}: {}", path, e))
-                })?;
-                let mut contents = String::new();
-                file.read_to_string(&mut contents).await.map_err(|e| {
-                    CommonError::IoError(format!("Failed to read file {:?}: {}", path, e))
-                })?;
-                let block: DagBlock = serde_json::from_str(&contents).map_err(|e| {
-                    CommonError::DeserializationError(format!(
-                        "Failed to deserialize {:?}: {}",
-                        path, e
-                    ))
-                })?;
-                blocks.push(block);
+        async fn collect(dir: &Path, blocks: &mut Vec<DagBlock>) -> Result<(), CommonError> {
+            let mut entries = fs::read_dir(dir).await.map_err(|e| {
+                CommonError::IoError(format!("Failed to read dir {:?}: {}", dir, e))
+            })?;
+            while let Some(entry) = entries
+                .next_entry()
+                .await
+                .map_err(|e| CommonError::IoError(format!("Dir entry error: {}", e)))?
+            {
+                let path = entry.path();
+                if path.is_dir() {
+                    collect(&path, blocks).await?;
+                } else if path.is_file() {
+                    let mut file = TokioFile::open(&path).await.map_err(|e| {
+                        CommonError::IoError(format!("Failed to open file {:?}: {}", path, e))
+                    })?;
+                    let mut contents = String::new();
+                    file.read_to_string(&mut contents).await.map_err(|e| {
+                        CommonError::IoError(format!("Failed to read file {:?}: {}", path, e))
+                    })?;
+                    let block: DagBlock = serde_json::from_str(&contents).map_err(|e| {
+                        CommonError::DeserializationError(format!(
+                            "Failed to deserialize {:?}: {}",
+                            path, e
+                        ))
+                    })?;
+                    blocks.push(block);
+                }
             }
+            Ok(())
         }
+
+        let mut blocks = Vec::new();
+        collect(&self.storage_path, &mut blocks).await?;
         Ok(blocks)
     }
 
@@ -875,24 +924,32 @@ where
             path
         )));
     }
-    for entry in std::fs::read_dir(path)
-        .map_err(|e| CommonError::IoError(format!("Failed to read backup dir {:?}: {}", path, e)))?
-    {
-        let entry = entry.map_err(|e| CommonError::IoError(format!("Dir entry error: {}", e)))?;
-        let file_path = entry.path();
-        if file_path.is_file() {
-            let contents = std::fs::read_to_string(&file_path).map_err(|e| {
-                CommonError::IoError(format!("Failed to read file {:?}: {}", file_path, e))
-            })?;
-            let block: DagBlock = serde_json::from_str(&contents).map_err(|e| {
-                CommonError::DeserializationError(format!(
-                    "Failed to deserialize {:?}: {}",
-                    file_path, e
-                ))
-            })?;
-            store.put(&block)?;
+    fn load(dir: &Path, store: &mut S) -> Result<(), CommonError> {
+        for entry in std::fs::read_dir(dir).map_err(|e| {
+            CommonError::IoError(format!("Failed to read backup dir {:?}: {}", dir, e))
+        })? {
+            let entry =
+                entry.map_err(|e| CommonError::IoError(format!("Dir entry error: {}", e)))?;
+            let file_path = entry.path();
+            if file_path.is_dir() {
+                load(&file_path, store)?;
+            } else if file_path.is_file() {
+                let contents = std::fs::read_to_string(&file_path).map_err(|e| {
+                    CommonError::IoError(format!("Failed to read file {:?}: {}", file_path, e))
+                })?;
+                let block: DagBlock = serde_json::from_str(&contents).map_err(|e| {
+                    CommonError::DeserializationError(format!(
+                        "Failed to deserialize {:?}: {}",
+                        file_path, e
+                    ))
+                })?;
+                store.put(&block)?;
+            }
         }
+        Ok(())
     }
+
+    load(path, store)?;
     Ok(())
 }
 
@@ -948,28 +1005,35 @@ where
             path
         )));
     }
-    let mut entries = fs::read_dir(path).await.map_err(|e| {
-        CommonError::IoError(format!("Failed to read backup dir {:?}: {}", path, e))
-    })?;
-    while let Some(entry) = entries
-        .next_entry()
-        .await
-        .map_err(|e| CommonError::IoError(format!("Dir entry error: {}", e)))?
-    {
-        let file_path = entry.path();
-        if file_path.is_file() {
-            let contents = fs::read_to_string(&file_path).await.map_err(|e| {
-                CommonError::IoError(format!("Failed to read file {:?}: {}", file_path, e))
-            })?;
-            let block: DagBlock = serde_json::from_str(&contents).map_err(|e| {
-                CommonError::DeserializationError(format!(
-                    "Failed to deserialize {:?}: {}",
-                    file_path, e
-                ))
-            })?;
-            store.put(&block).await?;
+    async fn load(dir: &Path, store: &mut S) -> Result<(), CommonError> {
+        let mut entries = fs::read_dir(dir).await.map_err(|e| {
+            CommonError::IoError(format!("Failed to read backup dir {:?}: {}", dir, e))
+        })?;
+        while let Some(entry) = entries
+            .next_entry()
+            .await
+            .map_err(|e| CommonError::IoError(format!("Dir entry error: {}", e)))?
+        {
+            let file_path = entry.path();
+            if file_path.is_dir() {
+                load(&file_path, store).await?;
+            } else if file_path.is_file() {
+                let contents = fs::read_to_string(&file_path).await.map_err(|e| {
+                    CommonError::IoError(format!("Failed to read file {:?}: {}", file_path, e))
+                })?;
+                let block: DagBlock = serde_json::from_str(&contents).map_err(|e| {
+                    CommonError::DeserializationError(format!(
+                        "Failed to deserialize {:?}: {}",
+                        file_path, e
+                    ))
+                })?;
+                store.put(&block).await?;
+            }
         }
+        Ok(())
     }
+
+    load(path, store).await?;
     Ok(())
 }
 
