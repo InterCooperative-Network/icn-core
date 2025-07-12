@@ -5,9 +5,6 @@ use thiserror::Error;
 /// Errors that can occur during mesh network operations within the `icn-network` crate.
 #[derive(Debug, Error)]
 pub enum MeshNetworkError {
-    #[error("Message serialization/deserialization failed: {0}")]
-    Serialization(#[from] serde_json::Error),
-
     #[error("Failed to send message: {0}")]
     SendFailure(String),
 
