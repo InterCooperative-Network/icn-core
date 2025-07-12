@@ -55,6 +55,9 @@ mod reputation_persistence {
             signature: SignatureBytes(Vec::new()),
         };
 
+        let latency = icn_mesh::tests::InMemoryLatencyStore::new();
+        latency.set_latency(did_a.clone(), 5);
+        latency.set_latency(did_b.clone(), 20);
         let selected = select_executor(
             &job_id,
             &JobSpec::Echo { payload: "persist".into() },
@@ -62,6 +65,7 @@ mod reputation_persistence {
             &SelectionPolicy::default(),
             &reopened,
             &ledger,
+            &latency,
         )
         .expect("executor selected");
 
@@ -195,6 +199,9 @@ mod reputation_persistence_sqlite {
             signature: SignatureBytes(Vec::new()),
         };
 
+        let latency = icn_mesh::tests::InMemoryLatencyStore::new();
+        latency.set_latency(did_a.clone(), 5);
+        latency.set_latency(did_b.clone(), 20);
         let selected = select_executor(
             &job_id,
             &JobSpec::Echo { payload: "persist".into() },
@@ -202,6 +209,7 @@ mod reputation_persistence_sqlite {
             &SelectionPolicy::default(),
             &reopened,
             &ledger,
+            &latency,
         )
         .expect("executor selected");
 
@@ -297,6 +305,9 @@ mod reputation_persistence_rocks {
             signature: SignatureBytes(Vec::new()),
         };
 
+        let latency = icn_mesh::tests::InMemoryLatencyStore::new();
+        latency.set_latency(did_a.clone(), 5);
+        latency.set_latency(did_b.clone(), 20);
         let selected = select_executor(
             &job_id,
             &JobSpec::Echo { payload: "persist".into() },
@@ -304,6 +315,7 @@ mod reputation_persistence_rocks {
             &SelectionPolicy::default(),
             &reopened,
             &ledger,
+            &latency,
         )
         .expect("executor selected");
 
