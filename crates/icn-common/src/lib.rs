@@ -12,6 +12,7 @@ pub mod retry;
 pub use retry::retry_with_backoff;
 pub mod resilience;
 pub use resilience::{CircuitBreaker, CircuitBreakerError, CircuitState};
+pub mod resource_token;
 
 pub const ICN_CORE_VERSION: &str = "0.2.0-beta";
 
