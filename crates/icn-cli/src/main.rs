@@ -14,10 +14,13 @@ use serde_json::Value as JsonValue; // For generic JSON data if needed
 use std::io::{self, Read};
 use std::path::PathBuf;
 use std::process::exit; // Added for reading from stdin
+use fastrand;
 
 // Types from our ICN crates that CLI will interact with (serialize/deserialize)
 // These types are expected to be sent to/received from the icn-node HTTP API.
-use icn_common::{Cid, DagBlock, NodeInfo, NodeStatus, ZkCredentialProof};
+use icn_common::{
+    Cid, DagBlock, Did, NodeInfo, NodeStatus, ZkCredentialProof, ZkProofType,
+};
 // Using aliased request structs from icn-api for clarity, these are what the node expects
 use icn_api::governance_trait::{
     CastVoteRequest as ApiCastVoteRequest, SubmitProposalRequest as ApiSubmitProposalRequest,
@@ -320,6 +323,19 @@ enum IdentityCommands {
         #[clap(help = "ZkCredentialProof JSON or '-' for stdin")]
         proof_json_or_stdin: String,
     },
+    /// Generate a dummy zero-knowledge credential proof
+    GenerateProof {
+        #[clap(long, help = "Issuer DID string")]
+        issuer: String,
+        #[clap(long, help = "Holder DID string")]
+        holder: String,
+        #[clap(long, help = "Claim type tag")]
+        claim_type: String,
+        #[clap(long, help = "Credential schema CID string")]
+        schema: String,
+        #[clap(long, help = "Proof backend (groth16|bulletproofs|other:<name>)")]
+        backend: String,
+    },
 }
 
 // --- Main CLI Logic ---
@@ -392,6 +408,15 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
         Commands::Identity { command } => match command {
             IdentityCommands::VerifyProof { proof_json_or_stdin } => {
                 handle_identity_verify(cli, client, proof_json_or_stdin).await?
+            }
+            IdentityCommands::GenerateProof {
+                issuer,
+                holder,
+                claim_type,
+                schema,
+                backend,
+            } => {
+                handle_identity_generate(issuer, holder, claim_type, schema, backend)?;
             }
         },
         Commands::Ccl { command } => match command {
@@ -975,6 +1000,45 @@ async fn handle_identity_verify(
     let resp: serde_json::Value =
         post_request(&cli.api_url, client, "/identity/verify", &proof).await?;
     println!("{}", serde_json::to_string_pretty(&resp)?);
+    Ok(())
+}
+
+fn parse_backend(s: &str) -> ZkProofType {
+    match s.to_ascii_lowercase().as_str() {
+        "groth16" => ZkProofType::Groth16,
+        "bulletproofs" => ZkProofType::Bulletproofs,
+        other => ZkProofType::Other(other.to_string()),
+    }
+}
+
+fn handle_identity_generate(
+    issuer: &str,
+    holder: &str,
+    claim_type: &str,
+    schema: &str,
+    backend: &str,
+) -> Result<(), anyhow::Error> {
+    use std::str::FromStr;
+
+    let issuer_did = Did::from_str(issuer)?;
+    let holder_did = Did::from_str(holder)?;
+    let schema_cid = icn_common::parse_cid_from_string(schema)?;
+    let backend_parsed = parse_backend(backend);
+    let mut proof_bytes = vec![0u8; 32];
+    fastrand::fill(&mut proof_bytes);
+
+    let proof = ZkCredentialProof {
+        issuer: issuer_did,
+        holder: holder_did,
+        claim_type: claim_type.to_string(),
+        proof: proof_bytes,
+        schema: schema_cid,
+        disclosed_fields: Vec::new(),
+        challenge: None,
+        backend: backend_parsed,
+    };
+
+    println!("{}", serde_json::to_string_pretty(&proof)?);
     Ok(())
 }
 
