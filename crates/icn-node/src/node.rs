@@ -749,6 +749,7 @@ pub async fn app_router_with_options(
             .route("/dag/put", post(dag_put_handler)) // These will use RT context's DAG store
             .route("/dag/get", post(dag_get_handler)) // These will use RT context's DAG store
             .route("/dag/meta", post(dag_meta_handler))
+            .route("/dag/root", get(dag_root_handler))
             .route("/dag/pin", post(dag_pin_handler))
             .route("/dag/unpin", post(dag_unpin_handler))
             .route("/dag/prune", post(dag_prune_handler))
@@ -873,6 +874,7 @@ pub async fn app_router_from_context(
         .route("/dag/put", post(dag_put_handler))
         .route("/dag/get", post(dag_get_handler))
         .route("/dag/meta", post(dag_meta_handler))
+        .route("/dag/root", get(dag_root_handler))
         .route("/dag/pin", post(dag_pin_handler))
         .route("/dag/unpin", post(dag_unpin_handler))
         .route("/dag/prune", post(dag_prune_handler))
@@ -1139,6 +1141,7 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
         .route("/dag/put", post(dag_put_handler))
         .route("/dag/get", post(dag_get_handler))
         .route("/dag/meta", post(dag_meta_handler))
+        .route("/dag/root", get(dag_root_handler))
         .route("/dag/pin", post(dag_pin_handler))
         .route("/dag/unpin", post(dag_unpin_handler))
         .route("/dag/prune", post(dag_prune_handler))
@@ -1562,6 +1565,21 @@ async fn dag_meta_handler(
             .into_response(),
         Err(e) => map_rust_error_to_json_response(
             format!("DAG meta error: {e}"),
+            StatusCode::INTERNAL_SERVER_ERROR,
+        )
+        .into_response(),
+    }
+}
+
+/// GET /dag/root – Retrieve the current DAG root CID.
+/// Clients can compare this value across peers for synchronization.
+async fn dag_root_handler(State(state): State<AppState>) -> impl IntoResponse {
+    let store = state.runtime_context.dag_store.lock().await;
+    match icn_dag::current_root(&*store).await {
+        Ok(Some(cid)) => (StatusCode::OK, Json(cid.to_string())).into_response(),
+        Ok(None) => (StatusCode::OK, Json(String::new())).into_response(),
+        Err(e) => map_rust_error_to_json_response(
+            format!("DAG root error: {e}"),
             StatusCode::INTERNAL_SERVER_ERROR,
         )
         .into_response(),
