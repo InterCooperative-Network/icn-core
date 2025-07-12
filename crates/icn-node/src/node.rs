@@ -55,7 +55,7 @@ use axum::{
     Json, Router,
 };
 use axum_server::tls_rustls::RustlsConfig;
-use base64;
+use base64::{self, Engine};
 use bincode;
 use bs58;
 use clap::{ArgMatches, CommandFactory, FromArgMatches, Parser};
@@ -73,7 +73,7 @@ use subtle::ConstantTimeEq;
 use tokio::sync::{Mutex as AsyncMutex, Mutex as TokioMutex};
 use uuid::Uuid;
 
-use crate::config::{NodeConfig, StorageBackendType};
+use crate::config::{NodeConfig, StorageBackendType, StorageConfig};
 
 #[cfg(feature = "enable-libp2p")]
 use icn_network::libp2p_service::{Libp2pNetworkService, NetworkConfig};
@@ -254,16 +254,16 @@ pub struct Cli {
 pub fn load_or_generate_identity(
     config: &mut NodeConfig,
 ) -> Result<(icn_runtime::context::Ed25519Signer, String), CommonError> {
-    if let (Some(lib), Some(key_id)) = (&config.hsm_library, &config.hsm_key_id) {
+    if let (Some(lib), Some(key_id)) = (&config.identity.hsm_library, &config.identity.hsm_key_id) {
         let hsm = icn_runtime::context::signers::ExampleHsm::with_key(lib, key_id.clone());
         let signer = icn_runtime::context::Ed25519Signer::from_hsm(&hsm)?;
         let did_str = signer.did().to_string();
-        config.node_did = Some(did_str.clone());
+        config.identity.node_did = Some(did_str.clone());
         return Ok((signer, did_str));
     }
-    if let Some(path) = &config.key_path {
+    if let Some(path) = &config.identity.key_path {
         let env_name = config
-            .key_passphrase_env
+            .identity.key_passphrase_env
             .as_deref()
             .unwrap_or("ICN_KEY_PASSPHRASE");
         let passphrase = std::env::var(env_name).map_err(|_| {
@@ -272,12 +272,12 @@ pub fn load_or_generate_identity(
         let signer =
             icn_runtime::context::Ed25519Signer::from_encrypted_file(path, passphrase.as_bytes())?;
         let did_str = signer.did().to_string();
-        config.node_did = Some(did_str.clone());
+        config.identity.node_did = Some(did_str.clone());
         return Ok((signer, did_str));
     }
     if let (Some(did_str), Some(sk_bs58)) = (
-        config.node_did.clone(),
-        config.node_private_key_bs58.clone(),
+        config.identity.node_did.clone(),
+        config.identity.node_private_key_bs58.clone(),
     ) {
         let sk_bytes = bs58::decode(sk_bs58)
             .into_vec()
@@ -291,12 +291,12 @@ pub fn load_or_generate_identity(
             icn_runtime::context::Ed25519Signer::new_with_keys(sk, pk),
             did_str,
         ))
-    } else if config.node_did_path.exists() && config.node_private_key_path.exists() {
-        let did_str = fs::read_to_string(&config.node_did_path)
+    } else if config.identity.node_did_path.exists() && config.identity.node_private_key_path.exists() {
+        let did_str = fs::read_to_string(&config.identity.node_did_path)
             .map_err(|e| CommonError::IoError(format!("Failed to read DID file: {e}")))?
             .trim()
             .to_string();
-        let sk_bs58 = fs::read_to_string(&config.node_private_key_path)
+        let sk_bs58 = fs::read_to_string(&config.identity.node_private_key_path)
             .map_err(|e| CommonError::IoError(format!("Failed to read key file: {e}")))?
             .trim()
             .to_string();
@@ -308,8 +308,8 @@ pub fn load_or_generate_identity(
             .map_err(|_| CommonError::IdentityError("Invalid private key length".into()))?;
         let sk = icn_identity::SigningKey::from_bytes(&sk_array);
         let pk = sk.verifying_key();
-        config.node_did = Some(did_str.clone());
-        config.node_private_key_bs58 = Some(sk_bs58);
+        config.identity.node_did = Some(did_str.clone());
+        config.identity.node_private_key_bs58 = Some(sk_bs58);
         Ok((
             icn_runtime::context::Ed25519Signer::new_with_keys(sk, pk),
             did_str,
@@ -318,14 +318,14 @@ pub fn load_or_generate_identity(
         let (sk, pk) = generate_ed25519_keypair();
         let did_str = did_key_from_verifying_key(&pk);
         let sk_bs58 = bs58::encode(sk.to_bytes()).into_string();
-        if let Err(e) = fs::write(&config.node_did_path, &did_str) {
+        if let Err(e) = fs::write(&config.identity.node_did_path, &did_str) {
             error!("Failed to write DID file: {}", e);
         }
-        if let Err(e) = fs::write(&config.node_private_key_path, &sk_bs58) {
+        if let Err(e) = fs::write(&config.identity.node_private_key_path, &sk_bs58) {
             error!("Failed to write key file: {}", e);
         }
-        config.node_did = Some(did_str.clone());
-        config.node_private_key_bs58 = Some(sk_bs58);
+        config.identity.node_did = Some(did_str.clone());
+        config.identity.node_private_key_bs58 = Some(sk_bs58);
         Ok((
             icn_runtime::context::Ed25519Signer::new_with_keys(sk, pk),
             did_str,
@@ -519,7 +519,7 @@ pub async fn build_network_service(
         return Ok(Arc::new(icn_network::StubNetworkService::default()));
     }
 
-    if config.enable_p2p {
+    if config.p2p.enable_p2p {
         #[cfg(feature = "enable-libp2p")]
         {
             let net_cfg = config.libp2p_config()?;
@@ -570,10 +570,14 @@ pub async fn app_router_with_options(
 
     let _signer = Arc::new(Ed25519Signer::new_with_keys(sk, pk)); // Not used with stubs
     let cfg = NodeConfig {
-        storage_backend: storage_backend.unwrap_or(StorageBackendType::Memory),
-        storage_path: storage_path
-            .clone()
-            .unwrap_or_else(|| PathBuf::from("./dag_store")),
+        storage: StorageConfig {
+            storage_backend: storage_backend.unwrap_or(StorageBackendType::Memory),
+            storage_path: storage_path
+                .clone()
+                .unwrap_or_else(|| PathBuf::from("./dag_store")),
+            mana_ledger_path: mana_ledger_path.clone().unwrap_or_else(|| PathBuf::from("./tests/fixtures/mana_ledger.json")),
+            ..Default::default()
+        },
         ..NodeConfig::default()
     };
     let parameter_store = parameter_store_path.map(|p| {
@@ -1004,7 +1008,7 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    let mana_ledger = icn_runtime::context::SimpleManaLedger::new(config.mana_ledger_path.clone());
+    let mana_ledger = icn_runtime::context::SimpleManaLedger::new(config.storage.mana_ledger_path.clone());
     let signer = Arc::new(signer);
 
     let network_service = match build_network_service(&config).await {
@@ -1179,13 +1183,13 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
         ));
 
     let addr: SocketAddr = config
-        .http_listen_addr
+        .http.http_listen_addr
         .parse()
         .expect("Invalid HTTP listen address");
     info!("🌐 {} HTTP server listening on {}", node_name, addr);
 
-    if let (Some(cert), Some(key)) = (&config.tls_cert_path, &config.tls_key_path) {
-        info!(target: "audit", "tls_enabled cert={:?} min_version={:?}", cert, config.tls_min_version);
+    if let (Some(cert), Some(key)) = (&config.http.tls_cert_path, &config.http.tls_key_path) {
+        info!(target: "audit", "tls_enabled cert={:?} min_version={:?}", cert, config.http.tls_min_version);
         let tls_config = axum_server::tls_rustls::RustlsConfig::from_pem_file(cert, key)
             .await
             .expect("failed to load TLS certificate");
@@ -1201,7 +1205,7 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
             .unwrap();
     }
 
-    if config.enable_p2p {
+    if config.p2p.enable_p2p {
         #[cfg(feature = "enable-libp2p")]
         {
             if let Err(e) = rt_ctx.shutdown_network().await {
@@ -2053,7 +2057,7 @@ async fn mesh_submit_job_handler(
 
     // Decode job spec from bytes or fallback to deprecated JSON
     let job_spec = if let Some(b64) = &request.spec_bytes {
-        match base64::decode(b64) {
+        match base64::engine::general_purpose::STANDARD.decode(b64) {
             Ok(bytes) => match bincode::deserialize::<icn_mesh::JobSpec>(&bytes) {
                 Ok(spec) => spec,
                 Err(e) => {
