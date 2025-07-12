@@ -111,7 +111,23 @@ impl IcnClient {
         &self,
         body: &B,
     ) -> Result<serde_json::Value, reqwest::Error> {
-        self.post("/mesh/receipts", body).await
+        self.post("/mesh/receipt", body).await
+    }
+
+    /// Inject a mesh bid (stub only).
+    pub async fn mesh_stub_bid<B: Serialize>(
+        &self,
+        body: &B,
+    ) -> Result<serde_json::Value, reqwest::Error> {
+        self.post("/mesh/stub/bid", body).await
+    }
+
+    /// Inject a mesh receipt (stub only).
+    pub async fn mesh_stub_receipt<B: Serialize>(
+        &self,
+        body: &B,
+    ) -> Result<serde_json::Value, reqwest::Error> {
+        self.post("/mesh/stub/receipt", body).await
     }
 
     /// List governance proposals.
@@ -221,6 +237,11 @@ impl IcnClient {
         self.post("/dag/prune", body).await
     }
 
+    /// Retrieve the current DAG root CID.
+    pub async fn dag_root(&self) -> Result<String, reqwest::Error> {
+        self.get("/dag/root").await
+    }
+
     /// Return the node's peer id.
     pub async fn local_peer_id(&self) -> Result<serde_json::Value, reqwest::Error> {
         self.get("/network/local-peer-id").await
@@ -237,6 +258,23 @@ impl IcnClient {
     /// List connected peers.
     pub async fn peers(&self) -> Result<serde_json::Value, reqwest::Error> {
         self.get("/network/peers").await
+    }
+
+    /// Get mana balance for a DID.
+    pub async fn account_mana(&self, did: &str) -> Result<serde_json::Value, reqwest::Error> {
+        let path = format!("/account/{did}/mana");
+        self.get(&path).await
+    }
+
+    /// Retrieve the node DID and public key.
+    pub async fn keys(&self) -> Result<serde_json::Value, reqwest::Error> {
+        self.get("/keys").await
+    }
+
+    /// Fetch reputation score for a DID.
+    pub async fn reputation(&self, did: &str) -> Result<serde_json::Value, reqwest::Error> {
+        let path = format!("/reputation/{did}");
+        self.get(&path).await
     }
 
     /// Submit a transaction.

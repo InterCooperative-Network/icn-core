@@ -412,7 +412,7 @@ impl Cid {
     /// Encode this CID to a multibase string.
     #[allow(clippy::inherent_to_string_shadow_display)]
     pub fn to_string(&self) -> String {
-        use multibase::{encode, Base};
+        use multibase::{Base, encode};
         encode(Base::Base32Lower, self.to_bytes())
     }
 }
@@ -600,6 +600,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[allow(clippy::const_is_empty)]
     fn version_is_set() {
         assert!(!ICN_CORE_VERSION.is_empty());
         assert!(ICN_CORE_VERSION.contains("0.2.0"));
