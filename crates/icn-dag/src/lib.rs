@@ -10,6 +10,7 @@
 use icn_common::compute_merkle_cid;
 use icn_common::{Cid, CommonError, DagBlock, DagLink, Did, NodeInfo, ICN_CORE_VERSION};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::fs::{File, OpenOptions}; // For FileDagStore
 use std::io::{Read, Write}; // Removed Seek, SeekFrom
@@ -18,6 +19,9 @@ use std::path::{Path, PathBuf}; // For FileDagStore and backup/restore
 use tokio::fs::{self, File as TokioFile, OpenOptions as TokioOpenOptions};
 #[cfg(feature = "async")]
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+/// Helper crate for encoding/decoding root hashes
+use hex;
 
 pub mod index;
 pub mod metrics;
@@ -60,6 +64,23 @@ pub fn metadata_from_block(block: &DagBlock) -> DagBlockMetadata {
         author_did: block.author_did.clone(),
         links: block.links.clone(),
     }
+}
+
+/// Compute a Merkle root hash from a set of top-level CIDs.
+///
+/// The CIDs are first sorted lexicographically to ensure deterministic output
+/// regardless of input order. The sorted bytes are then hashed using SHA-256.
+pub fn compute_dag_root(cids: &[Cid]) -> [u8; 32] {
+    let mut cid_strings: Vec<String> = cids.iter().map(|c| c.to_string()).collect();
+    cid_strings.sort();
+    let mut hasher = Sha256::new();
+    for cid_str in cid_strings {
+        hasher.update(cid_str.as_bytes());
+    }
+    let result = hasher.finalize();
+    let mut root = [0u8; 32];
+    root.copy_from_slice(&result);
+    root
 }
 
 // --- Storage Service Trait ---
@@ -385,6 +406,49 @@ impl FileDagStore {
         })
     }
 
+    fn root_file(&self) -> PathBuf {
+        self.storage_path.join("dag.root")
+    }
+
+    fn update_root_file(&self) -> Result<(), CommonError> {
+        let blocks = self.list_blocks()?;
+        let mut referenced = std::collections::HashSet::new();
+        for b in &blocks {
+            for l in &b.links {
+                referenced.insert(l.cid.clone());
+            }
+        }
+        let top: Vec<Cid> = blocks
+            .iter()
+            .filter(|b| !referenced.contains(&b.cid))
+            .map(|b| b.cid.clone())
+            .collect();
+        let root = compute_dag_root(&top);
+        std::fs::write(self.root_file(), hex::encode(root))
+            .map_err(|e| CommonError::IoError(format!("Failed to write root file: {}", e)))?;
+        Ok(())
+    }
+
+    /// Read the current root hash from disk if it exists.
+    pub fn current_root(&self) -> Result<Option<[u8; 32]>, CommonError> {
+        let path = self.root_file();
+        if !path.exists() {
+            return Ok(None);
+        }
+        let contents = std::fs::read_to_string(&path)
+            .map_err(|e| CommonError::IoError(format!("Failed to read root file: {}", e)))?;
+        let bytes = hex::decode(contents.trim())
+            .map_err(|e| CommonError::DeserializationError(format!("Invalid root hex: {}", e)))?;
+        if bytes.len() != 32 {
+            return Err(CommonError::DeserializationError(
+                "root hash must be 32 bytes".to_string(),
+            ));
+        }
+        let mut arr = [0u8; 32];
+        arr.copy_from_slice(&bytes);
+        Ok(Some(arr))
+    }
+
     // Renamed from get_block_path in apply model changes, reverting to original name for clarity
     fn block_path(&self, cid: &Cid) -> PathBuf {
         // Consider sharding directories if many blocks are expected (e.g., /ab/cd/efgh...).
@@ -476,6 +540,7 @@ impl StorageService<DagBlock> for FileDagStore {
         self.put_block_to_file(block)?;
         self.meta
             .insert(block.cid.clone(), BlockMetadata::default());
+        self.update_root_file()?;
         Ok(())
     }
 
@@ -487,6 +552,7 @@ impl StorageService<DagBlock> for FileDagStore {
     fn delete(&mut self, cid: &Cid) -> Result<(), CommonError> {
         self.delete_block_file(cid)?;
         self.meta.remove(cid);
+        self.update_root_file()?;
         Ok(())
     }
 
@@ -558,6 +624,7 @@ impl StorageService<DagBlock> for FileDagStore {
             self.meta.remove(&cid);
             removed.push(cid);
         }
+        self.update_root_file()?;
         Ok(removed)
     }
 
@@ -621,6 +688,51 @@ impl TokioFileDagStore {
         })
     }
 
+    fn root_file(&self) -> PathBuf {
+        self.storage_path.join("dag.root")
+    }
+
+    async fn update_root_file(&self) -> Result<(), CommonError> {
+        let blocks = self.list_blocks().await?;
+        let mut referenced = std::collections::HashSet::new();
+        for b in &blocks {
+            for l in &b.links {
+                referenced.insert(l.cid.clone());
+            }
+        }
+        let top: Vec<Cid> = blocks
+            .iter()
+            .filter(|b| !referenced.contains(&b.cid))
+            .map(|b| b.cid.clone())
+            .collect();
+        let root = compute_dag_root(&top);
+        fs::write(self.root_file(), hex::encode(root))
+            .await
+            .map_err(|e| CommonError::IoError(format!("Failed to write root file: {}", e)))?;
+        Ok(())
+    }
+
+    /// Read the current root hash from disk if present.
+    pub async fn current_root(&self) -> Result<Option<[u8; 32]>, CommonError> {
+        let path = self.root_file();
+        if fs::metadata(&path).await.is_err() {
+            return Ok(None);
+        }
+        let contents = fs::read_to_string(&path)
+            .await
+            .map_err(|e| CommonError::IoError(format!("Failed to read root file: {}", e)))?;
+        let bytes = hex::decode(contents.trim())
+            .map_err(|e| CommonError::DeserializationError(format!("Invalid root hex: {}", e)))?;
+        if bytes.len() != 32 {
+            return Err(CommonError::DeserializationError(
+                "root hash must be 32 bytes".to_string(),
+            ));
+        }
+        let mut arr = [0u8; 32];
+        arr.copy_from_slice(&bytes);
+        Ok(Some(arr))
+    }
+
     fn block_path(&self, cid: &Cid) -> PathBuf {
         self.storage_path.join(cid.to_string())
     }
@@ -662,6 +774,7 @@ impl AsyncStorageService<DagBlock> for TokioFileDagStore {
             })?;
         self.meta
             .insert(block.cid.clone(), BlockMetadata::default());
+        self.update_root_file().await?;
         Ok(())
     }
 
@@ -710,6 +823,7 @@ impl AsyncStorageService<DagBlock> for TokioFileDagStore {
             })?;
         }
         self.meta.remove(cid);
+        self.update_root_file().await?;
         Ok(())
     }
 
@@ -792,6 +906,7 @@ impl AsyncStorageService<DagBlock> for TokioFileDagStore {
             self.meta.remove(&cid);
             removed.push(cid);
         }
+        self.update_root_file().await?;
         Ok(removed)
     }
 
