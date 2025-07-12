@@ -55,6 +55,10 @@ path = "integration/comprehensive_e2e.rs"
 name = "simple_verification"
 path = "integration/simple_verification.rs"
 
+[[test]]
+name = "zk_proof_verification"
+path = "integration/zk_proof_verification.rs"
+
 [features]
 default = []
 enable-libp2p = ["icn-node/with-libp2p", "icn-runtime/enable-libp2p"]
@@ -66,7 +70,7 @@ tokio.workspace = true
 once_cell = "1"
 assert_cmd = "2.0"
 predicates = "3.1"
-axum = { version = "0.7", features = ["json"] }
+axum = { version = "0.8", features = ["json"] }
 chrono = { version = "0.4", features = ["serde"] }
 anyhow = "1.0"
 base64 = "0.22"

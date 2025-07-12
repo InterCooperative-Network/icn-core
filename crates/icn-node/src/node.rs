@@ -263,7 +263,8 @@ pub fn load_or_generate_identity(
     }
     if let Some(path) = &config.identity.key_path {
         let env_name = config
-            .identity.key_passphrase_env
+            .identity
+            .key_passphrase_env
             .as_deref()
             .unwrap_or("ICN_KEY_PASSPHRASE");
         let passphrase = std::env::var(env_name).map_err(|_| {
@@ -291,7 +292,9 @@ pub fn load_or_generate_identity(
             icn_runtime::context::Ed25519Signer::new_with_keys(sk, pk),
             did_str,
         ))
-    } else if config.identity.node_did_path.exists() && config.identity.node_private_key_path.exists() {
+    } else if config.identity.node_did_path.exists()
+        && config.identity.node_private_key_path.exists()
+    {
         let did_str = fs::read_to_string(&config.identity.node_did_path)
             .map_err(|e| CommonError::IoError(format!("Failed to read DID file: {e}")))?
             .trim()
@@ -559,8 +562,9 @@ pub async fn app_router_with_options(
     storage_backend: Option<StorageBackendType>,
     storage_path: Option<PathBuf>,
     _governance_db_path: Option<PathBuf>,
-    #[cfg_attr(not(feature = "persist-sled"), allow(unused_variables))]
-    reputation_db_path: Option<PathBuf>,
+    #[cfg_attr(not(feature = "persist-sled"), allow(unused_variables))] reputation_db_path: Option<
+        PathBuf,
+    >,
     parameter_store_path: Option<PathBuf>,
 ) -> (Router, Arc<RuntimeContext>) {
     // Generate a new identity for this test/embedded instance
@@ -576,7 +580,9 @@ pub async fn app_router_with_options(
             storage_path: storage_path
                 .clone()
                 .unwrap_or_else(|| PathBuf::from("./dag_store")),
-            mana_ledger_path: mana_ledger_path.clone().unwrap_or_else(|| PathBuf::from("./tests/fixtures/mana_ledger.json")),
+            mana_ledger_path: mana_ledger_path
+                .clone()
+                .unwrap_or_else(|| PathBuf::from("./tests/fixtures/mana_ledger.json")),
             ..Default::default()
         },
         ..NodeConfig::default()
@@ -753,6 +759,7 @@ pub async fn app_router_with_options(
             .route("/account/{did}/mana", get(account_mana_handler))
             .route("/keys", get(keys_handler))
             .route("/reputation/{did}", get(reputation_handler))
+            .route("/identity/verify", post(zk_verify_handler))
             .route("/dag/put", post(dag_put_handler)) // These will use RT context's DAG store
             .route("/dag/get", post(dag_get_handler)) // These will use RT context's DAG store
             .route("/dag/meta", post(dag_meta_handler))
@@ -1011,7 +1018,8 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    let mana_ledger = icn_runtime::context::SimpleManaLedger::new(config.storage.mana_ledger_path.clone());
+    let mana_ledger =
+        icn_runtime::context::SimpleManaLedger::new(config.storage.mana_ledger_path.clone());
     let signer = Arc::new(signer);
 
     let network_service = match build_network_service(&config).await {
@@ -1042,8 +1050,9 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
 
     #[cfg(feature = "persist-sled")]
     {
-        let gov_mod = icn_governance::GovernanceModule::new_sled(config.storage.governance_db_path.clone())
-            .unwrap_or_else(|_| icn_governance::GovernanceModule::new());
+        let gov_mod =
+            icn_governance::GovernanceModule::new_sled(config.storage.governance_db_path.clone())
+                .unwrap_or_else(|_| icn_governance::GovernanceModule::new());
         if let Some(ctx) = Arc::get_mut(&mut rt_ctx) {
             ctx.governance_module = Arc::new(TokioMutex::new(gov_mod));
             if let Ok(store) =
@@ -1187,7 +1196,8 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
         ));
 
     let addr: SocketAddr = config
-        .http.http_listen_addr
+        .http
+        .http_listen_addr
         .parse()
         .expect("Invalid HTTP listen address");
     info!("🌐 {} HTTP server listening on {}", node_name, addr);
@@ -2760,6 +2770,32 @@ async fn reputation_handler(
     }
 }
 
+// POST /identity/verify - verify a zero-knowledge credential proof
+async fn zk_verify_handler(
+    State(_state): State<AppState>,
+    Json(proof): Json<icn_common::ZkCredentialProof>,
+) -> impl IntoResponse {
+    use icn_common::ZkProofType;
+    use icn_identity::{BulletproofsVerifier, DummyVerifier, ZkVerifier};
+    use serde_json::json;
+
+    let verifier: Box<dyn ZkVerifier> = match proof.backend {
+        ZkProofType::Bulletproofs => Box::new(BulletproofsVerifier::default()),
+        _ => Box::new(DummyVerifier::default()),
+    };
+
+    match verifier.verify(&proof) {
+        Ok(true) => (StatusCode::OK, Json(json!({ "verified": true }))).into_response(),
+        Ok(false) => {
+            map_rust_error_to_json_response("verification failed", StatusCode::BAD_REQUEST)
+                .into_response()
+        }
+        Err(e) => {
+            map_rust_error_to_json_response(format!("{e}"), StatusCode::BAD_REQUEST).into_response()
+        }
+    }
+}
+
 // --- Test module (can be expanded later) ---
 #[cfg(test)]
 mod tests {
@@ -3063,9 +3099,9 @@ mod tests {
         // Submit job referencing the WASM CID
         let job_req = SubmitJobRequest {
             manifest_cid: wasm_cid.to_string(),
-            spec_bytes: Some(BASE64_STANDARD.encode(
-                bincode::serialize(&icn_mesh::JobSpec::default()).unwrap(),
-            )),
+            spec_bytes: Some(
+                BASE64_STANDARD.encode(bincode::serialize(&icn_mesh::JobSpec::default()).unwrap()),
+            ),
             spec_json: None,
             cost_mana: 0,
         };

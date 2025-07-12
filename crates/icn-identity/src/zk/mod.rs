@@ -78,14 +78,14 @@ mod tests {
     #[test]
     fn dummy_verifier_ok() {
         let proof = dummy_proof(ZkProofType::Groth16);
-        let verifier = DummyVerifier::default();
-        assert_eq!(verifier.verify(&proof).unwrap(), true);
+        let verifier = DummyVerifier;
+        assert!(verifier.verify(&proof).unwrap());
     }
 
     #[test]
     fn bulletproofs_backend_mismatch() {
         let proof = dummy_proof(ZkProofType::Groth16);
-        let verifier = BulletproofsVerifier::default();
+        let verifier = BulletproofsVerifier;
         assert!(matches!(
             verifier.verify(&proof),
             Err(ZkError::UnsupportedBackend(_))
@@ -95,7 +95,23 @@ mod tests {
     #[test]
     fn bulletproofs_verifier_ok() {
         let proof = dummy_proof(ZkProofType::Bulletproofs);
-        let verifier = BulletproofsVerifier::default();
+        let verifier = BulletproofsVerifier;
         assert!(verifier.verify(&proof).unwrap());
+    }
+
+    #[test]
+    fn dummy_verifier_rejects_empty_proof() {
+        let mut proof = dummy_proof(ZkProofType::Groth16);
+        proof.proof.clear();
+        let verifier = DummyVerifier;
+        assert_eq!(verifier.verify(&proof), Err(ZkError::InvalidProof));
+    }
+
+    #[test]
+    fn bulletproofs_invalid_proof_error() {
+        let mut proof = dummy_proof(ZkProofType::Bulletproofs);
+        proof.proof.clear();
+        let verifier = BulletproofsVerifier;
+        assert_eq!(verifier.verify(&proof), Err(ZkError::InvalidProof));
     }
 }
