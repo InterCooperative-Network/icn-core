@@ -18,7 +18,7 @@ const RETRY_DELAY: Duration = Duration::from_secs(3);
 static DEVNET_LOCK: OnceCell<Mutex<()>> = OnceCell::new();
 
 pub struct DevnetGuard {
-    _guard: tokio::sync::OwnedMutexGuard<()>,
+    _guard: tokio::sync::MutexGuard<'static, ()>,
 }
 
 impl Drop for DevnetGuard {
@@ -41,7 +41,7 @@ pub async fn ensure_devnet() -> Option<DevnetGuard> {
         return None;
     }
     let lock = DEVNET_LOCK.get_or_init(|| Mutex::new(()));
-    let guard = lock.lock_owned().await;
+    let guard = lock.lock().await;
 
     Command::new("bash")
         .arg("./icn-devnet/launch_federation.sh")
