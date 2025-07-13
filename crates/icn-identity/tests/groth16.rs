@@ -1,11 +1,11 @@
 use icn_common::{Cid, Did, ZkCredentialProof, ZkProofType};
+use icn_identity::credential::Credential;
 use icn_identity::{
     credential::CredentialIssuer,
     generate_ed25519_keypair,
     zk::{Groth16Verifier, ZkError, ZkProver},
     ZkVerifier,
 };
-use icn_identity::credential::Credential;
 
 use ark_serialize::CanonicalSerialize;
 use ark_std::rand::{rngs::StdRng, SeedableRng};
@@ -54,6 +54,9 @@ impl ZkProver for Groth16Prover {
             disclosed_fields: fields.iter().map(|f| f.to_string()).collect(),
             challenge: None,
             backend: ZkProofType::Groth16,
+            vk_cid: None,
+            verification_key: None,
+            public_inputs: None,
         })
     }
 }
