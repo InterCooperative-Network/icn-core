@@ -62,3 +62,39 @@ See [`docs/examples/zk_membership.json`](examples/zk_membership.json) for a memb
 `~/.icn/zk/`, and signs the verifying key with an Ed25519 key. Use
 `load_proving_key` and `verify_key_signature` to access the stored parameters
 and confirm their authenticity.
+
+### Host ABI Usage
+
+Within WASM execution environments the runtime exposes `host_generate_zk_proof`
+and `host_verify_zk_proof`. Both operate on JSON payloads.
+
+```json
+// proof generation request
+{
+  "issuer": "did:example:issuer",
+  "holder": "did:example:holder"
+}
+```
+
+Example response from `host_generate_zk_proof`:
+
+```json
+{
+  "issuer": "did:example:issuer",
+  "holder": "did:example:holder",
+  "claim_type": "demo",
+  "proof": [1, 2, 3],
+  "schema": "bafyschemacid",
+  "disclosed_fields": [],
+  "challenge": null,
+  "backend": "groth16",
+  "verification_key": null,
+  "public_inputs": null
+}
+```
+
+Passing this JSON back to `host_verify_zk_proof` yields:
+
+```json
+true
+```

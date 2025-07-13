@@ -623,6 +623,68 @@ pub async fn host_get_job_status(
     }
 }
 
+/// Generate a zero-knowledge credential proof using a stub backend.
+///
+/// The request JSON must contain `issuer` and `holder` DID fields:
+/// `{ "issuer": "did:example:issuer", "holder": "did:example:holder" }`.
+/// The returned JSON is a serialized [`ZkCredentialProof`].
+pub async fn host_generate_zk_proof(
+    _ctx: &RuntimeContext,
+    request_json: &str,
+) -> Result<String, HostAbiError> {
+    use icn_common::{Cid, Did, ZkCredentialProof, ZkProofType};
+    use serde::Deserialize;
+    use std::str::FromStr;
+
+    #[derive(Deserialize)]
+    struct Req {
+        issuer: String,
+        holder: String,
+    }
+
+    let req: Req = serde_json::from_str(request_json)
+        .map_err(|e| HostAbiError::InvalidParameters(format!("Invalid proof request JSON: {e}")))?;
+
+    let issuer = Did::from_str(&req.issuer)
+        .map_err(|e| HostAbiError::InvalidParameters(format!("Invalid issuer DID: {e}")))?;
+    let holder = Did::from_str(&req.holder)
+        .map_err(|e| HostAbiError::InvalidParameters(format!("Invalid holder DID: {e}")))?;
+
+    let proof = ZkCredentialProof {
+        issuer,
+        holder,
+        claim_type: "demo".to_string(),
+        proof: vec![1, 2, 3],
+        schema: Cid::new_v1_sha256(0x55, b"schema"),
+        vk_cid: None,
+        disclosed_fields: Vec::new(),
+        challenge: None,
+        backend: ZkProofType::Groth16,
+        verification_key: None,
+        public_inputs: None,
+    };
+
+    serde_json::to_string(&proof)
+        .map_err(|e| HostAbiError::InternalError(format!("Failed to serialize proof: {e}")))
+}
+
+/// Verify a zero-knowledge credential proof represented as JSON.
+pub async fn host_verify_zk_proof(
+    _ctx: &RuntimeContext,
+    proof_json: &str,
+) -> Result<bool, HostAbiError> {
+    use icn_common::ZkCredentialProof;
+    use icn_identity::zk::{DummyVerifier, ZkVerifier};
+
+    let proof: ZkCredentialProof = serde_json::from_str(proof_json)
+        .map_err(|e| HostAbiError::InvalidParameters(format!("Invalid proof JSON: {e}")))?;
+
+    let verifier = DummyVerifier::default();
+    verifier
+        .verify(&proof)
+        .map_err(|_| HostAbiError::InternalError("Proof verification failed".into()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
