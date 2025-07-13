@@ -1,0 +1,20 @@
+{
+  "proposer_did": "did:key:alice",
+  "proposal": { "type": "PolicyChange", "title": "open_membership" },
+  "description": "Adopt open membership policy",
+  "duration_secs": 86400,
+  "quorum": 3,
+  "threshold": 0.6,
+  "credential_proof": {
+    "issuer": "did:key:federation",
+    "holder": "did:key:alice",
+    "claim_type": "membership",
+    "proof": "0x123456",
+    "schema": "bafyschemacid",
+    "disclosed_fields": [],
+    "challenge": null,
+    "backend": "groth16",
+    "verification_key": "0xdeadbeef",
+    "public_inputs": { "membership": true }
+  }
+}

@@ -53,6 +53,7 @@ The InterCooperative Network (ICN) governance framework enables communities, coo
 #### **1. Proposal System**
 - **Draft Phase**: Collaborative proposal development
 - **Deliberation Phase**: Community discussion and refinement
+- **Credential Verification**: Proposers attach a zero-knowledge credential proof demonstrating they hold required roles.
 - **Voting Phase**: Democratic decision-making
 - **Execution Phase**: Automatic policy implementation
 - **Amendment Process**: Iterative improvement and adaptation
@@ -153,6 +154,7 @@ fn validate_vote(voter: Did, proposal: Proposal, vote: Vote) -> Bool {
 - **Ballot Creation**: Formal voting interface
 - **Voter Notification**: Alert all eligible participants
 - **Vote Collection**: Secure, anonymous vote recording
+- **Eligibility Proof**: Each ballot includes a zero-knowledge credential proof verifying the voter meets membership requirements.
 - **Real-Time Tallying**: Live vote count display
 
 ### **4. Execution Phase**
@@ -292,7 +294,7 @@ fn emergency_decision(crisis: Crisis) -> EmergencyResponse {
 - **Vote Privacy**: Anonymous voting with public verification
 - **Tamper Evidence**: Cryptographic proof of vote integrity
 - **Audit Trails**: Complete history of all governance actions
-- **Identity Verification**: Secure member authentication
+- **Identity Verification**: Secure member authentication using verifiable credentials and zero-knowledge proofs
 
 ### **Anti-Manipulation Measures**
 - **Sybil Resistance**: Multiple identity prevention
