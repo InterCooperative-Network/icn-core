@@ -100,3 +100,24 @@ fn balance_range_proof() {
     let vk = prepare_vk(&pk);
     assert!(verify(&vk, &proof, &[Fr::from(50u64), Fr::from(100u64)]).unwrap());
 }
+
+#[test]
+fn age_rep_membership_proof() {
+    let circuit = AgeRepMembershipCircuit {
+        birth_year: 2000,
+        current_year: 2020,
+        reputation: 10,
+        threshold: 5,
+        is_member: true,
+    };
+    let mut rng = StdRng::seed_from_u64(42);
+    let pk = setup(circuit.clone(), &mut rng).unwrap();
+    let proof = prove(&pk, circuit, &mut rng).unwrap();
+    let vk = prepare_vk(&pk);
+    assert!(verify(
+        &vk,
+        &proof,
+        &[Fr::from(2020u64), Fr::from(10u64), Fr::from(1u64)]
+    )
+    .unwrap());
+}

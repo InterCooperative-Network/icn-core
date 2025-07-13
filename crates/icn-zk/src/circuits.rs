@@ -159,3 +159,49 @@ impl ConstraintSynthesizer<Fr> for BalanceRangeCircuit {
         Ok(())
     }
 }
+
+/// Prove age over 18, membership status, and reputation threshold simultaneously.
+#[derive(Clone)]
+pub struct AgeRepMembershipCircuit {
+    /// Birth year of the subject (private).
+    pub birth_year: u64,
+    /// Current year (public).
+    pub current_year: u64,
+    /// Reputation score (public).
+    pub reputation: u64,
+    /// Required reputation threshold.
+    pub threshold: u64,
+    /// Membership flag (public).
+    pub is_member: bool,
+}
+
+impl ConstraintSynthesizer<Fr> for AgeRepMembershipCircuit {
+    fn generate_constraints(self, cs: ConstraintSystemRef<Fr>) -> Result<(), SynthesisError> {
+        // Age over 18 constraint
+        let birth = FpVar::<Fr>::new_witness(cs.clone(), || Ok(Fr::from(self.birth_year)))?;
+        let current = FpVar::<Fr>::new_input(cs.clone(), || Ok(Fr::from(self.current_year)))?;
+        let diff_age = self
+            .current_year
+            .checked_sub(self.birth_year + 18)
+            .ok_or(SynthesisError::AssignmentMissing)?;
+        let k_age = FpVar::<Fr>::new_witness(cs.clone(), || Ok(Fr::from(diff_age)))?;
+        let eighteen = FpVar::<Fr>::Constant(Fr::from(18u64));
+        (birth + eighteen + k_age).enforce_equal(&current)?;
+
+        // Reputation threshold constraint
+        let rep = FpVar::<Fr>::new_input(cs.clone(), || Ok(Fr::from(self.reputation)))?;
+        let diff_rep = self
+            .reputation
+            .checked_sub(self.threshold)
+            .ok_or(SynthesisError::AssignmentMissing)?;
+        let k_rep = FpVar::<Fr>::new_witness(cs.clone(), || Ok(Fr::from(diff_rep)))?;
+        let threshold = FpVar::<Fr>::Constant(Fr::from(self.threshold));
+        (threshold + k_rep).enforce_equal(&rep)?;
+
+        // Membership constraint
+        let member = Boolean::new_input(cs, || Ok(self.is_member))?;
+        member.enforce_equal(&Boolean::TRUE)?;
+
+        Ok(())
+    }
+}
