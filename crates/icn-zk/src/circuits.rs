@@ -122,3 +122,40 @@ impl ConstraintSynthesizer<Fr> for TimestampValidityCircuit {
         Ok(())
     }
 }
+
+/// Prove that `min ≤ balance ≤ max`.
+#[derive(Clone)]
+pub struct BalanceRangeCircuit {
+    /// Balance amount to validate (private).
+    pub balance: u64,
+    /// Minimum acceptable balance (public).
+    pub min: u64,
+    /// Maximum acceptable balance (public).
+    pub max: u64,
+}
+
+impl ConstraintSynthesizer<Fr> for BalanceRangeCircuit {
+    fn generate_constraints(self, cs: ConstraintSystemRef<Fr>) -> Result<(), SynthesisError> {
+        let bal = FpVar::<Fr>::new_witness(cs.clone(), || Ok(Fr::from(self.balance)))?;
+        let min = FpVar::<Fr>::new_input(cs.clone(), || Ok(Fr::from(self.min)))?;
+        let max = FpVar::<Fr>::new_input(cs.clone(), || Ok(Fr::from(self.max)))?;
+
+        // diff_min = balance - min
+        let diff_min_val = self
+            .balance
+            .checked_sub(self.min)
+            .ok_or(SynthesisError::AssignmentMissing)?;
+        let diff_min = FpVar::<Fr>::new_witness(cs.clone(), || Ok(Fr::from(diff_min_val)))?;
+        (min.clone() + diff_min.clone()).enforce_equal(&bal)?;
+
+        // diff_max = max - balance
+        let diff_max_val = self
+            .max
+            .checked_sub(self.balance)
+            .ok_or(SynthesisError::AssignmentMissing)?;
+        let diff_max = FpVar::<Fr>::new_witness(cs, || Ok(Fr::from(diff_max_val)))?;
+        (bal + diff_max).enforce_equal(&max)?;
+
+        Ok(())
+    }
+}

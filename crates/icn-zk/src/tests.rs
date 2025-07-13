@@ -86,3 +86,17 @@ fn timestamp_validity_proof() {
     )
     .unwrap());
 }
+
+#[test]
+fn balance_range_proof() {
+    let circuit = BalanceRangeCircuit {
+        balance: 75,
+        min: 50,
+        max: 100,
+    };
+    let mut rng = StdRng::seed_from_u64(42);
+    let pk = setup(circuit.clone(), &mut rng).unwrap();
+    let proof = prove(&pk, circuit, &mut rng).unwrap();
+    let vk = prepare_vk(&pk);
+    assert!(verify(&vk, &proof, &[Fr::from(50u64), Fr::from(100u64)]).unwrap());
+}
