@@ -1022,6 +1022,7 @@ fn parse_backend(s: &str) -> ZkProofType {
     }
 }
 
+
 fn handle_identity_generate_inner(
     issuer: &str,
     holder: &str,

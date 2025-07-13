@@ -2776,11 +2776,12 @@ async fn zk_verify_handler(
     Json(proof): Json<icn_common::ZkCredentialProof>,
 ) -> impl IntoResponse {
     use icn_common::ZkProofType;
-    use icn_identity::{BulletproofsVerifier, DummyVerifier, ZkVerifier};
+    use icn_identity::{BulletproofsVerifier, DummyVerifier, Groth16Verifier, ZkVerifier};
     use serde_json::json;
 
     let verifier: Box<dyn ZkVerifier> = match proof.backend {
         ZkProofType::Bulletproofs => Box::new(BulletproofsVerifier::default()),
+        ZkProofType::Groth16 => Box::new(Groth16Verifier::default()),
         _ => Box::new(DummyVerifier::default()),
     };
 

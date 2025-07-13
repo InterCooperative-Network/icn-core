@@ -16,11 +16,12 @@ async fn identity_verify_command() {
 
     tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
-    let proof = ZkCredentialProof {
+    // Test with invalid proof data - should fail
+    let invalid_proof = ZkCredentialProof {
         issuer: Did::new("key", "issuer"),
         holder: Did::new("key", "holder"),
         claim_type: "test".to_string(),
-        proof: vec![1, 2, 3],
+        proof: vec![1, 2, 3], // Invalid proof data
         schema: Cid::new_v1_sha256(0x55, b"schema"),
         vk_cid: None,
         disclosed_fields: Vec::new(),
@@ -29,7 +30,7 @@ async fn identity_verify_command() {
         verification_key: None,
         public_inputs: None,
     };
-    let proof_json = serde_json::to_string(&proof).unwrap();
+    let proof_json = serde_json::to_string(&invalid_proof).unwrap();
 
     let bin = env!("CARGO_BIN_EXE_icn-cli");
     let base = format!("http://{addr}");
@@ -41,9 +42,12 @@ async fn identity_verify_command() {
     })
     .await
     .unwrap();
-    assert!(output.status.success());
-    let stdout = String::from_utf8(output.stdout).unwrap();
-    assert!(stdout.contains("verified"));
+    
+    // Invalid proof should cause command to fail
+    assert!(!output.status.success());
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    // Should contain error information about the failed verification
+    assert!(stderr.contains("400") || stderr.contains("error") || stderr.contains("failed"));
 
     server.abort();
 }
