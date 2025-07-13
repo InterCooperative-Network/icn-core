@@ -704,9 +704,9 @@ pub async fn host_verify_zk_proof(
     })?;
 
     let verifier: Box<dyn ZkVerifier> = match proof.backend {
-        ZkProofType::Bulletproofs => Box::new(BulletproofsVerifier::default()),
+        ZkProofType::Bulletproofs => Box::new(BulletproofsVerifier),
         ZkProofType::Groth16 => Box::new(Groth16Verifier::default()),
-        _ => Box::new(DummyVerifier::default()),
+        _ => Box::new(DummyVerifier),
     };
 
     verifier

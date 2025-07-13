@@ -5,6 +5,7 @@ use ark_groth16::{Groth16, PreparedVerifyingKey, Proof, ProvingKey};
 use ark_relations::r1cs::{ConstraintSynthesizer, SynthesisError};
 use ark_snark::SNARK;
 use ark_std::rand::{CryptoRng, RngCore};
+use rayon::prelude::*;
 
 mod circuits;
 mod params;
@@ -45,6 +46,22 @@ pub fn verify(
     public_inputs: &[Fr],
 ) -> Result<bool, SynthesisError> {
     Groth16::<Bn254>::verify_with_processed_vk(vk, public_inputs, proof)
+}
+
+/// Verify multiple Groth16 proofs sharing the same verifying key.
+pub fn verify_batch(
+    vk: &PreparedVerifyingKey<Bn254>,
+    proofs: &[Proof<Bn254>],
+    inputs: &[Vec<Fr>],
+) -> Result<Vec<bool>, SynthesisError> {
+    if proofs.len() != inputs.len() {
+        return Err(SynthesisError::MalformedVerifyingKey);
+    }
+    proofs
+        .par_iter()
+        .zip(inputs)
+        .map(|(p, inp)| Groth16::<Bn254>::verify_with_processed_vk(vk, inp, p))
+        .collect()
 }
 
 #[cfg(test)]

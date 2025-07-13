@@ -1118,7 +1118,7 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
         RuntimeContext::new_production(
             node_did.clone(),
             network_service,
-            signer,
+            signer.clone(),
             Arc::new(icn_identity::KeyDidResolver),
             dag_store_for_rt,
             mana_ledger,
@@ -2985,7 +2985,7 @@ async fn credential_verify_handler(
     Json(cred): Json<Credential>,
 ) -> impl IntoResponse {
     if let Some(vk) = state.trusted_issuers.get(&cred.issuer) {
-        for (k, _) in &cred.claims {
+        for k in cred.claims.keys() {
             if let Err(e) = cred.verify_claim(k, vk) {
                 return map_rust_error_to_json_response(format!("{e}"), StatusCode::BAD_REQUEST)
                     .into_response();

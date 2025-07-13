@@ -121,3 +121,18 @@ fn age_rep_membership_proof() {
     )
     .unwrap());
 }
+
+#[test]
+fn batch_verification() {
+    let mut rng = StdRng::seed_from_u64(42);
+    let circuit = MembershipCircuit { is_member: true };
+    let pk = setup(circuit.clone(), &mut rng).unwrap();
+    let proof1 = prove(&pk, circuit.clone(), &mut rng).unwrap();
+    let proof2 = prove(&pk, circuit, &mut rng).unwrap();
+    let vk = prepare_vk(&pk);
+
+    let proofs = vec![proof1, proof2];
+    let inputs = vec![vec![Fr::from(1u64)], vec![Fr::from(1u64)]];
+    let results = verify_batch(&vk, &proofs, &inputs).unwrap();
+    assert_eq!(results, vec![true, true]);
+}

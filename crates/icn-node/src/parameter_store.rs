@@ -34,7 +34,10 @@ impl ParameterStore {
                     .parse::<u64>()
                     .map_err(|e| CommonError::InvalidInputError(e.to_string()))?;
                 self.config.http.open_rate_limit = val;
-                log::info!(target: "audit", "parameter_changed name=open_rate_limit value={}" , val);
+                log::info!(
+                    target: "audit",
+                    "parameter_changed name=open_rate_limit value={val}"
+                );
                 self.save()?;
                 Ok(())
             }
