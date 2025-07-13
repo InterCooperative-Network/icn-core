@@ -25,7 +25,8 @@ use icn_api::{
     get_dag_metadata,
     identity_trait::{
         CredentialResponse, DisclosureRequest, DisclosureResponse, IssueCredentialRequest,
-        RevokeCredentialRequest, VerificationResponse,
+        RevokeCredentialRequest, VerificationResponse, VerifyProofsRequest,
+        BatchVerificationResponse,
     },
     query_data, submit_transaction,
 };
@@ -807,6 +808,7 @@ pub async fn app_router_with_options(
             .route("/keys", get(keys_handler))
             .route("/reputation/{did}", get(reputation_handler))
             .route("/identity/verify", post(zk_verify_handler))
+            .route("/identity/verify/batch", post(zk_verify_batch_handler))
             .route(
                 "/identity/credentials/issue",
                 post(credential_issue_handler),
@@ -2947,6 +2949,57 @@ async fn zk_verify_handler(
             map_rust_error_to_json_response(format!("{e}"), StatusCode::BAD_REQUEST).into_response()
         }
     }
+}
+
+// POST /identity/verify/batch - verify multiple credential proofs
+async fn zk_verify_batch_handler(
+    State(state): State<AppState>,
+    Json(req): Json<VerifyProofsRequest>,
+) -> impl IntoResponse {
+    use icn_common::ZkProofType;
+    use icn_identity::{BulletproofsVerifier, DummyVerifier, Groth16Verifier, ZkVerifier};
+
+    let total = ZK_VERIFY_COST_MANA * req.proofs.len() as u64;
+    if let Err(e) = state
+        .runtime_context
+        .spend_mana(&state.runtime_context.current_identity, total)
+        .await
+    {
+        return map_rust_error_to_json_response(e, StatusCode::BAD_REQUEST).into_response();
+    }
+
+    let mut results = Vec::with_capacity(req.proofs.len());
+    for proof in req.proofs.iter() {
+        let verifier: Box<dyn ZkVerifier> = match proof.backend {
+            ZkProofType::Bulletproofs => Box::new(BulletproofsVerifier::default()),
+            ZkProofType::Groth16 => Box::new(Groth16Verifier::default()),
+            _ => Box::new(DummyVerifier::default()),
+        };
+
+        match verifier.verify(proof) {
+            Ok(true) => results.push(true),
+            Ok(false) => {
+                results.push(false);
+                let _ = state
+                    .runtime_context
+                    .credit_mana(&state.runtime_context.current_identity, ZK_VERIFY_COST_MANA)
+                    .await;
+            }
+            Err(_) => {
+                results.push(false);
+                let _ = state
+                    .runtime_context
+                    .credit_mana(&state.runtime_context.current_identity, ZK_VERIFY_COST_MANA)
+                    .await;
+            }
+        }
+    }
+
+    (
+        StatusCode::OK,
+        Json(BatchVerificationResponse { results }),
+    )
+        .into_response()
 }
 
 // POST /identity/credentials/issue - issue a credential
