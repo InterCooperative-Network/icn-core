@@ -85,9 +85,7 @@ use crate::config::{NodeConfig, StorageBackendType, StorageConfig};
 use icn_network::libp2p_service::{Libp2pNetworkService, NetworkConfig};
 #[cfg(feature = "enable-libp2p")]
 use libp2p::Multiaddr;
-
-/// Mana cost charged for verifying a zero-knowledge proof.
-const ZK_VERIFY_COST_MANA: u64 = 2;
+use icn_runtime::ZK_VERIFY_COST_MANA;
 
 static NODE_START_TIME: AtomicU64 = AtomicU64::new(0);
 
