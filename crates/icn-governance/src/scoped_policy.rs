@@ -3,8 +3,9 @@ pub enum PolicyCheckResult {
     Denied { reason: String },
 }
 
-use icn_common::{Did, NodeScope, ZkCredentialProof};
+use icn_common::{Did, NodeScope, ZkCredentialProof, ZkRevocationProof};
 use icn_identity::{Groth16Verifier, ZkVerifier};
+use icn_identity::zk::ZkRevocationVerifier;
 
 /// Operations that may be subject to scoped policy checks when writing to the DAG.
 #[derive(Debug, Clone, Copy)]
@@ -21,6 +22,7 @@ pub trait ScopedPolicyEnforcer: Send + Sync {
         actor: &Did,
         scope: Option<&NodeScope>,
         proof: Option<&ZkCredentialProof>,
+        revocation_proof: Option<&ZkRevocationProof>,
     ) -> PolicyCheckResult;
 }
 
@@ -54,21 +56,31 @@ impl InMemoryPolicyEnforcer {
         }
     }
 
-    fn validate_proof(&self, proof: Option<&ZkCredentialProof>) -> PolicyCheckResult {
+    fn validate_proof(
+        &self,
+        proof: Option<&ZkCredentialProof>,
+        revocation: Option<&ZkRevocationProof>,
+    ) -> PolicyCheckResult {
         if !self.require_proof {
             return PolicyCheckResult::Allowed;
         }
 
-        match proof {
-            Some(p) => match self.verifier.verify(p) {
+        let cred_ok = match proof {
+            Some(p) => matches!(self.verifier.verify(p), Ok(true)),
+            None => return PolicyCheckResult::Denied { reason: "credential proof required".to_string() },
+        };
+
+        if !cred_ok {
+            return PolicyCheckResult::Denied { reason: "credential proof invalid".to_string() };
+        }
+
+        if let Some(rp) = revocation {
+            match self.verifier.verify_revocation(rp) {
                 Ok(true) => PolicyCheckResult::Allowed,
-                _ => PolicyCheckResult::Denied {
-                    reason: "credential proof invalid".to_string(),
-                },
-            },
-            None => PolicyCheckResult::Denied {
-                reason: "credential proof required".to_string(),
-            },
+                _ => PolicyCheckResult::Denied { reason: "revocation proof invalid".to_string() },
+            }
+        } else {
+            PolicyCheckResult::Allowed
         }
     }
 }
@@ -80,6 +92,7 @@ impl ScopedPolicyEnforcer for InMemoryPolicyEnforcer {
         actor: &Did,
         scope: Option<&NodeScope>,
         proof: Option<&ZkCredentialProof>,
+        revocation_proof: Option<&ZkRevocationProof>,
     ) -> PolicyCheckResult {
         match op {
             DagPayloadOp::SubmitBlock => {
@@ -91,14 +104,14 @@ impl ScopedPolicyEnforcer for InMemoryPolicyEnforcer {
                             .map(|m| m.contains(actor))
                             .unwrap_or(false)
                         {
-                            self.validate_proof(proof)
+                            self.validate_proof(proof, revocation_proof)
                         } else {
                             PolicyCheckResult::Denied {
                                 reason: "actor not in scope".to_string(),
                             }
                         }
                     } else {
-                        self.validate_proof(proof)
+                        self.validate_proof(proof, revocation_proof)
                     }
                 } else {
                     PolicyCheckResult::Denied {
@@ -115,14 +128,14 @@ impl ScopedPolicyEnforcer for InMemoryPolicyEnforcer {
                             .map(|m| m.contains(actor))
                             .unwrap_or(false)
                         {
-                            self.validate_proof(proof)
+                            self.validate_proof(proof, revocation_proof)
                         } else {
                             PolicyCheckResult::Denied {
                                 reason: "actor not in scope".to_string(),
                             }
                         }
                     } else {
-                        self.validate_proof(proof)
+                        self.validate_proof(proof, revocation_proof)
                     }
                 } else {
                     PolicyCheckResult::Denied {

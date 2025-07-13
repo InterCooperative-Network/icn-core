@@ -4,7 +4,7 @@
 //! prepared verifying key and known public inputs.
 
 use core::convert::TryInto;
-use icn_common::{Cid, ZkCredentialProof, ZkProofType};
+use icn_common::{Cid, ZkCredentialProof, ZkProofType, ZkRevocationProof};
 use std::{any::Any, collections::HashMap};
 use serde_json::Value;
 use serde_json;
@@ -32,6 +32,34 @@ pub trait ZkVerifier: Send + Sync {
     /// Verify the supplied [`ZkCredentialProof`]. Returns `Ok(true)` if the proof
     /// is valid and corresponds to the verifier's backend.
     fn verify(&self, proof: &ZkCredentialProof) -> Result<bool, ZkError>;
+}
+
+/// Trait for verifying revocation proofs that prove a credential has not been revoked.
+pub trait ZkRevocationVerifier: Send + Sync {
+    /// Verify the supplied [`ZkRevocationProof`].
+    fn verify_revocation(&self, proof: &ZkRevocationProof) -> Result<bool, ZkError>;
+}
+
+impl<T: ZkVerifier + ?Sized> ZkRevocationVerifier for T {
+    fn verify_revocation(&self, proof: &ZkRevocationProof) -> Result<bool, ZkError> {
+        use icn_common::{Cid, ZkCredentialProof};
+
+        let cred_like = ZkCredentialProof {
+            issuer: proof.issuer.clone(),
+            holder: proof.subject.clone(),
+            claim_type: "revocation".into(),
+            proof: proof.proof.clone(),
+            schema: Cid::new_v1_sha256(0x55, b"revocation"),
+            vk_cid: None,
+            disclosed_fields: Vec::new(),
+            challenge: None,
+            backend: proof.backend.clone(),
+            verification_key: proof.verification_key.clone(),
+            public_inputs: proof.public_inputs.clone(),
+        };
+
+        self.verify(&cred_like)
+    }
 }
 
 /// Trait for generating zero-knowledge proofs for credentials.

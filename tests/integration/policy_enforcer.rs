@@ -1,7 +1,9 @@
 use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 
-use icn_common::{compute_merkle_cid, Cid, DagBlock, DagLink, Did, NodeScope, ZkCredentialProof};
+use icn_common::{
+    compute_merkle_cid, Cid, DagBlock, DagLink, Did, NodeScope, ZkCredentialProof, ZkRevocationProof,
+};
 use icn_governance::scoped_policy::{
     DagPayloadOp, InMemoryPolicyEnforcer, PolicyCheckResult, ScopedPolicyEnforcer,
 };
@@ -23,12 +25,14 @@ async fn anchor_block_with_policy<E: ScopedPolicyEnforcer>(
     block: &DagBlock,
     enforcer: &E,
     proof: Option<&ZkCredentialProof>,
+    revocation: Option<&ZkRevocationProof>,
 ) -> Result<(), PolicyError> {
     if let PolicyCheckResult::Denied { .. } = enforcer.check_permission(
         DagPayloadOp::SubmitBlock,
         &block.author_did,
         block.scope.as_ref(),
         proof,
+        revocation,
     ) {
         return Err(PolicyError::Unauthorized);
     }
@@ -70,7 +74,7 @@ async fn authorized_dag_write_succeeds() {
         scope: None,
     };
 
-    anchor_block_with_policy(&ctx, &block, &enforcer, None)
+    anchor_block_with_policy(&ctx, &block, &enforcer, None, None)
         .await
         .expect("write succeeds");
 
@@ -100,7 +104,7 @@ async fn unauthorized_write_denied() {
         scope: None,
     };
 
-    let res = anchor_block_with_policy(&ctx, &block, &enforcer, None).await;
+    let res = anchor_block_with_policy(&ctx, &block, &enforcer, None, None).await;
     assert_eq!(res, Err(PolicyError::Unauthorized));
 }
 
@@ -131,7 +135,7 @@ async fn invalid_parent_is_rejected() {
         scope: None,
     };
 
-    let res = anchor_block_with_policy(&ctx, &block, &enforcer, None).await;
+    let res = anchor_block_with_policy(&ctx, &block, &enforcer, None, None).await;
     assert_eq!(res, Err(PolicyError::InvalidParent));
 }
 
@@ -163,7 +167,7 @@ async fn scope_membership_enforced() {
         scope: Some(scope),
     };
 
-    anchor_block_with_policy(&ctx, &block, &enforcer, None)
+    anchor_block_with_policy(&ctx, &block, &enforcer, None, None)
         .await
         .expect("scoped write succeeds");
 }
@@ -189,7 +193,7 @@ async fn proof_required_without_proof_fails() {
         scope: None,
     };
 
-    let res = anchor_block_with_policy(&ctx, &block, &enforcer, None).await;
+    let res = anchor_block_with_policy(&ctx, &block, &enforcer, None, None).await;
     assert_eq!(res, Err(PolicyError::Unauthorized));
 }
 
@@ -228,7 +232,7 @@ async fn proof_required_invalid_proof_fails() {
         scope: None,
     };
 
-    let res = anchor_block_with_policy(&ctx, &block, &enforcer, Some(&invalid)).await;
+    let res = anchor_block_with_policy(&ctx, &block, &enforcer, Some(&invalid), None).await;
     assert_eq!(res, Err(PolicyError::Unauthorized));
 }
 
@@ -269,7 +273,7 @@ async fn proof_required_valid_proof_allows() {
         scope: None,
     };
 
-    anchor_block_with_policy(&ctx, &block, &enforcer, Some(&proof))
+    anchor_block_with_policy(&ctx, &block, &enforcer, Some(&proof), None)
         .await
         .expect("write succeeds with proof");
     let stored = ctx.dag_store.lock().await.get(&cid).unwrap();
