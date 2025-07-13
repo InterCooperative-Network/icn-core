@@ -24,6 +24,16 @@ This document provides a short overview of when zero-knowledge proofs (ZKPs) are
 
 See [`docs/examples/zk_example.json`](examples/zk_example.json) for a minimal JSON representation of a proof.
 
+## Membership Proofs
+The `MembershipProofCircuit` is used when a verifier needs to confirm a holder's membership status without revealing other credential data. The prover supplies their private `membership_flag` and the verifier publishes the expected boolean. The circuit simply enforces equality between these values.
+
+```json
+{
+  "proof": "0xfeedface",
+  "public_inputs": { "statement": "membership", "expected": true }
+}
+```
+
 ### Credential Proof JSON Format
 
 `ZkCredentialProof` objects exchanged with ICN nodes are JSON encoded. Optional
@@ -49,6 +59,8 @@ The `icn-zk` crate exposes reusable circuits that can be compiled into proofs:
 
 - `AgeOver18Circuit` – proves a birth year is at least 18 years in the past.
 - `MembershipCircuit` – proves the subject is a registered member.
+- `MembershipProofCircuit` – proves a private membership flag matches the verifier's expectation.
 - `ReputationCircuit` – proves a reputation score meets a required threshold.
 
 See [`docs/examples/zk_age_over_18.json`](examples/zk_age_over_18.json) for a sample proof payload.
+See [`docs/examples/zk_membership.json`](examples/zk_membership.json) for a membership proof example.

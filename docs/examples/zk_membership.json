@@ -1,0 +1,7 @@
+{
+  "proof": "0xfeedface",
+  "public_inputs": {
+    "statement": "membership",
+    "expected": true
+  }
+}
