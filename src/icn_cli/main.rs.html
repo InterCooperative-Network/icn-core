@@ -1022,52 +1022,53 @@
 <a href=#1022 id=1022 data-nosnippet>1022</a>    }
 <a href=#1023 id=1023 data-nosnippet>1023</a>}
 <a href=#1024 id=1024 data-nosnippet>1024</a>
-<a href=#1025 id=1025 data-nosnippet>1025</a><span class="kw">fn </span>handle_identity_generate_inner(
-<a href=#1026 id=1026 data-nosnippet>1026</a>    issuer: <span class="kw-2">&amp;</span>str,
-<a href=#1027 id=1027 data-nosnippet>1027</a>    holder: <span class="kw-2">&amp;</span>str,
-<a href=#1028 id=1028 data-nosnippet>1028</a>    claim_type: <span class="kw-2">&amp;</span>str,
-<a href=#1029 id=1029 data-nosnippet>1029</a>    schema: <span class="kw-2">&amp;</span>str,
-<a href=#1030 id=1030 data-nosnippet>1030</a>    backend: <span class="kw-2">&amp;</span>str,
-<a href=#1031 id=1031 data-nosnippet>1031</a>    verification_key: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span>&lt;String&gt;,
-<a href=#1032 id=1032 data-nosnippet>1032</a>    public_inputs: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span>&lt;String&gt;,
-<a href=#1033 id=1033 data-nosnippet>1033</a>) -&gt; <span class="prelude-ty">Result</span>&lt;(), anyhow::Error&gt; {
-<a href=#1034 id=1034 data-nosnippet>1034</a>    <span class="kw">use </span>std::str::FromStr;
-<a href=#1035 id=1035 data-nosnippet>1035</a>
-<a href=#1036 id=1036 data-nosnippet>1036</a>    <span class="kw">let </span>issuer_did = Did::from_str(issuer)<span class="question-mark">?</span>;
-<a href=#1037 id=1037 data-nosnippet>1037</a>    <span class="kw">let </span>holder_did = Did::from_str(holder)<span class="question-mark">?</span>;
-<a href=#1038 id=1038 data-nosnippet>1038</a>    <span class="kw">let </span>schema_cid = icn_common::parse_cid_from_string(schema)<span class="question-mark">?</span>;
-<a href=#1039 id=1039 data-nosnippet>1039</a>    <span class="kw">let </span>backend_parsed = parse_backend(backend);
-<a href=#1040 id=1040 data-nosnippet>1040</a>    <span class="kw">let </span><span class="kw-2">mut </span>proof_bytes = <span class="macro">vec!</span>[<span class="number">0u8</span>; <span class="number">32</span>];
-<a href=#1041 id=1041 data-nosnippet>1041</a>    fastrand::fill(<span class="kw-2">&amp;mut </span>proof_bytes);
-<a href=#1042 id=1042 data-nosnippet>1042</a>
-<a href=#1043 id=1043 data-nosnippet>1043</a>    <span class="kw">let </span>verification_key_bytes = <span class="kw">if let </span><span class="prelude-val">Some</span>(vk_hex) = verification_key {
-<a href=#1044 id=1044 data-nosnippet>1044</a>        <span class="prelude-val">Some</span>(hex::decode(vk_hex.trim_start_matches(<span class="string">"0x"</span>))<span class="question-mark">?</span>)
-<a href=#1045 id=1045 data-nosnippet>1045</a>    } <span class="kw">else </span>{
-<a href=#1046 id=1046 data-nosnippet>1046</a>        <span class="prelude-val">None
-<a href=#1047 id=1047 data-nosnippet>1047</a>    </span>};
-<a href=#1048 id=1048 data-nosnippet>1048</a>
-<a href=#1049 id=1049 data-nosnippet>1049</a>    <span class="kw">let </span>public_inputs_value = <span class="kw">if let </span><span class="prelude-val">Some</span>(json) = public_inputs {
-<a href=#1050 id=1050 data-nosnippet>1050</a>        <span class="prelude-val">Some</span>(serde_json::from_str(json)<span class="question-mark">?</span>)
-<a href=#1051 id=1051 data-nosnippet>1051</a>    } <span class="kw">else </span>{
-<a href=#1052 id=1052 data-nosnippet>1052</a>        <span class="prelude-val">None
-<a href=#1053 id=1053 data-nosnippet>1053</a>    </span>};
-<a href=#1054 id=1054 data-nosnippet>1054</a>
-<a href=#1055 id=1055 data-nosnippet>1055</a>    <span class="kw">let </span>proof = ZkCredentialProof {
-<a href=#1056 id=1056 data-nosnippet>1056</a>        issuer: issuer_did,
-<a href=#1057 id=1057 data-nosnippet>1057</a>        holder: holder_did,
-<a href=#1058 id=1058 data-nosnippet>1058</a>        claim_type: claim_type.to_string(),
-<a href=#1059 id=1059 data-nosnippet>1059</a>        proof: proof_bytes,
-<a href=#1060 id=1060 data-nosnippet>1060</a>        schema: schema_cid,
-<a href=#1061 id=1061 data-nosnippet>1061</a>        vk_cid: <span class="prelude-val">None</span>,
-<a href=#1062 id=1062 data-nosnippet>1062</a>        disclosed_fields: Vec::new(),
-<a href=#1063 id=1063 data-nosnippet>1063</a>        challenge: <span class="prelude-val">None</span>,
-<a href=#1064 id=1064 data-nosnippet>1064</a>        backend: backend_parsed,
-<a href=#1065 id=1065 data-nosnippet>1065</a>        verification_key: verification_key_bytes,
-<a href=#1066 id=1066 data-nosnippet>1066</a>        public_inputs: public_inputs_value,
-<a href=#1067 id=1067 data-nosnippet>1067</a>    };
-<a href=#1068 id=1068 data-nosnippet>1068</a>
-<a href=#1069 id=1069 data-nosnippet>1069</a>    <span class="macro">println!</span>(<span class="string">"{}"</span>, serde_json::to_string_pretty(<span class="kw-2">&amp;</span>proof)<span class="question-mark">?</span>);
-<a href=#1070 id=1070 data-nosnippet>1070</a>    <span class="prelude-val">Ok</span>(())
-<a href=#1071 id=1071 data-nosnippet>1071</a>}
-<a href=#1072 id=1072 data-nosnippet>1072</a>
-<a href=#1073 id=1073 data-nosnippet>1073</a><span class="comment">// CLI command behavior is covered by tests in `crates/icn-cli/tests`.</span></code></pre></div></section></main></body></html>
+<a href=#1025 id=1025 data-nosnippet>1025</a>
+<a href=#1026 id=1026 data-nosnippet>1026</a><span class="kw">fn </span>handle_identity_generate_inner(
+<a href=#1027 id=1027 data-nosnippet>1027</a>    issuer: <span class="kw-2">&amp;</span>str,
+<a href=#1028 id=1028 data-nosnippet>1028</a>    holder: <span class="kw-2">&amp;</span>str,
+<a href=#1029 id=1029 data-nosnippet>1029</a>    claim_type: <span class="kw-2">&amp;</span>str,
+<a href=#1030 id=1030 data-nosnippet>1030</a>    schema: <span class="kw-2">&amp;</span>str,
+<a href=#1031 id=1031 data-nosnippet>1031</a>    backend: <span class="kw-2">&amp;</span>str,
+<a href=#1032 id=1032 data-nosnippet>1032</a>    verification_key: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span>&lt;String&gt;,
+<a href=#1033 id=1033 data-nosnippet>1033</a>    public_inputs: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span>&lt;String&gt;,
+<a href=#1034 id=1034 data-nosnippet>1034</a>) -&gt; <span class="prelude-ty">Result</span>&lt;(), anyhow::Error&gt; {
+<a href=#1035 id=1035 data-nosnippet>1035</a>    <span class="kw">use </span>std::str::FromStr;
+<a href=#1036 id=1036 data-nosnippet>1036</a>
+<a href=#1037 id=1037 data-nosnippet>1037</a>    <span class="kw">let </span>issuer_did = Did::from_str(issuer)<span class="question-mark">?</span>;
+<a href=#1038 id=1038 data-nosnippet>1038</a>    <span class="kw">let </span>holder_did = Did::from_str(holder)<span class="question-mark">?</span>;
+<a href=#1039 id=1039 data-nosnippet>1039</a>    <span class="kw">let </span>schema_cid = icn_common::parse_cid_from_string(schema)<span class="question-mark">?</span>;
+<a href=#1040 id=1040 data-nosnippet>1040</a>    <span class="kw">let </span>backend_parsed = parse_backend(backend);
+<a href=#1041 id=1041 data-nosnippet>1041</a>    <span class="kw">let </span><span class="kw-2">mut </span>proof_bytes = <span class="macro">vec!</span>[<span class="number">0u8</span>; <span class="number">32</span>];
+<a href=#1042 id=1042 data-nosnippet>1042</a>    fastrand::fill(<span class="kw-2">&amp;mut </span>proof_bytes);
+<a href=#1043 id=1043 data-nosnippet>1043</a>
+<a href=#1044 id=1044 data-nosnippet>1044</a>    <span class="kw">let </span>verification_key_bytes = <span class="kw">if let </span><span class="prelude-val">Some</span>(vk_hex) = verification_key {
+<a href=#1045 id=1045 data-nosnippet>1045</a>        <span class="prelude-val">Some</span>(hex::decode(vk_hex.trim_start_matches(<span class="string">"0x"</span>))<span class="question-mark">?</span>)
+<a href=#1046 id=1046 data-nosnippet>1046</a>    } <span class="kw">else </span>{
+<a href=#1047 id=1047 data-nosnippet>1047</a>        <span class="prelude-val">None
+<a href=#1048 id=1048 data-nosnippet>1048</a>    </span>};
+<a href=#1049 id=1049 data-nosnippet>1049</a>
+<a href=#1050 id=1050 data-nosnippet>1050</a>    <span class="kw">let </span>public_inputs_value = <span class="kw">if let </span><span class="prelude-val">Some</span>(json) = public_inputs {
+<a href=#1051 id=1051 data-nosnippet>1051</a>        <span class="prelude-val">Some</span>(serde_json::from_str(json)<span class="question-mark">?</span>)
+<a href=#1052 id=1052 data-nosnippet>1052</a>    } <span class="kw">else </span>{
+<a href=#1053 id=1053 data-nosnippet>1053</a>        <span class="prelude-val">None
+<a href=#1054 id=1054 data-nosnippet>1054</a>    </span>};
+<a href=#1055 id=1055 data-nosnippet>1055</a>
+<a href=#1056 id=1056 data-nosnippet>1056</a>    <span class="kw">let </span>proof = ZkCredentialProof {
+<a href=#1057 id=1057 data-nosnippet>1057</a>        issuer: issuer_did,
+<a href=#1058 id=1058 data-nosnippet>1058</a>        holder: holder_did,
+<a href=#1059 id=1059 data-nosnippet>1059</a>        claim_type: claim_type.to_string(),
+<a href=#1060 id=1060 data-nosnippet>1060</a>        proof: proof_bytes,
+<a href=#1061 id=1061 data-nosnippet>1061</a>        schema: schema_cid,
+<a href=#1062 id=1062 data-nosnippet>1062</a>        vk_cid: <span class="prelude-val">None</span>,
+<a href=#1063 id=1063 data-nosnippet>1063</a>        disclosed_fields: Vec::new(),
+<a href=#1064 id=1064 data-nosnippet>1064</a>        challenge: <span class="prelude-val">None</span>,
+<a href=#1065 id=1065 data-nosnippet>1065</a>        backend: backend_parsed,
+<a href=#1066 id=1066 data-nosnippet>1066</a>        verification_key: verification_key_bytes,
+<a href=#1067 id=1067 data-nosnippet>1067</a>        public_inputs: public_inputs_value,
+<a href=#1068 id=1068 data-nosnippet>1068</a>    };
+<a href=#1069 id=1069 data-nosnippet>1069</a>
+<a href=#1070 id=1070 data-nosnippet>1070</a>    <span class="macro">println!</span>(<span class="string">"{}"</span>, serde_json::to_string_pretty(<span class="kw-2">&amp;</span>proof)<span class="question-mark">?</span>);
+<a href=#1071 id=1071 data-nosnippet>1071</a>    <span class="prelude-val">Ok</span>(())
+<a href=#1072 id=1072 data-nosnippet>1072</a>}
+<a href=#1073 id=1073 data-nosnippet>1073</a>
+<a href=#1074 id=1074 data-nosnippet>1074</a><span class="comment">// CLI command behavior is covered by tests in `crates/icn-cli/tests`.</span></code></pre></div></section></main></body></html>
