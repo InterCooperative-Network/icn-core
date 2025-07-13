@@ -1,4 +1,4 @@
-use icn_common::CommonError;
+use icn_common::{CommonError, ZkCredentialProof, ZkRevocationProof};
 use icn_governance::{Proposal, ProposalId};
 use serde::{Deserialize, Serialize}; // Added for ProposalInputType later
 
@@ -10,6 +10,10 @@ pub struct CastVoteRequest {
     pub voter_did: String, // Assuming DID is represented as a String for the API layer
     pub proposal_id: String, // ProposalId represented as String for API layer
     pub vote_option: String, // e.g., "Yes", "No", "Abstain" - will map to VoteOption enum
+    #[serde(default)]
+    pub credential_proof: Option<ZkCredentialProof>,
+    #[serde(default)]
+    pub revocation_proof: Option<ZkRevocationProof>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -56,6 +60,10 @@ pub struct SubmitProposalRequest {
     pub quorum: Option<usize>,
     pub threshold: Option<f32>,
     pub body: Option<Vec<u8>>,
+    #[serde(default)]
+    pub credential_proof: Option<ZkCredentialProof>,
+    #[serde(default)]
+    pub revocation_proof: Option<ZkRevocationProof>,
 }
 
 pub trait GovernanceApi {
