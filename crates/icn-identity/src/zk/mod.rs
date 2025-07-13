@@ -5,7 +5,9 @@
 
 use core::convert::TryInto;
 use icn_common::{Cid, ZkCredentialProof, ZkProofType};
-use std::any::Any;
+use std::{any::Any, collections::HashMap};
+use serde_json::Value;
+use serde_json;
 use thiserror::Error;
 
 pub mod key_manager;
@@ -399,6 +401,7 @@ impl ZkProver for Groth16Prover {
 pub struct Groth16Verifier {
     vk: ark_groth16::PreparedVerifyingKey<ark_bn254::Bn254>,
     public_inputs: Vec<ark_bn254::Fr>,
+    cache: std::sync::Mutex<std::collections::HashMap<Cid, ark_groth16::PreparedVerifyingKey<ark_bn254::Bn254>>>,
 }
 
 impl Groth16Verifier {
@@ -407,8 +410,64 @@ impl Groth16Verifier {
         vk: ark_groth16::PreparedVerifyingKey<ark_bn254::Bn254>,
         public_inputs: Vec<ark_bn254::Fr>,
     ) -> Self {
-        Self { vk, public_inputs }
+        Self {
+            vk,
+            public_inputs,
+            cache: std::sync::Mutex::new(HashMap::new()),
+        }
     }
+
+    /// Verify the supplied [`ZkCredentialProof`] using a cached prepared key if
+    /// provided. Public inputs embedded in the proof take precedence over the
+    /// verifier's defaults.
+    pub fn verify_proof(&self, proof: &ZkCredentialProof) -> Result<bool, ZkError> {
+        use ark_groth16::{Groth16, Proof, VerifyingKey};
+        use ark_snark::SNARK;
+        use ark_serialize::CanonicalDeserialize;
+
+        if proof.backend != ZkProofType::Groth16 {
+            return Err(ZkError::UnsupportedBackend(proof.backend.clone()));
+        }
+        if proof.proof.is_empty() {
+            return Err(ZkError::InvalidProof);
+        }
+
+        // Deserialize the proof bytes
+        let groth_proof = Proof::<ark_bn254::Bn254>::deserialize_compressed(proof.proof.as_slice())
+            .map_err(|_| ZkError::InvalidProof)?;
+
+        // Determine public inputs
+        let inputs = match &proof.public_inputs {
+            Some(v) => parse_public_inputs(v)?,
+            None => self.public_inputs.clone(),
+        };
+
+        // Fetch or prepare verifying key
+        let pvk = if let Some(vk_bytes) = &proof.verification_key {
+            let cid = Cid::new_v1_sha256(0x55, vk_bytes);
+            let mut cache = self.cache.lock().unwrap();
+            cache
+                .entry(cid)
+                .or_insert_with(|| {
+                    let vk = VerifyingKey::<ark_bn254::Bn254>::deserialize_compressed(vk_bytes.as_slice())
+                        .expect("verifying key bytes");
+                    Groth16::<ark_bn254::Bn254>::process_vk(&vk).expect("prepare vk")
+                })
+                .clone()
+        } else {
+            self.vk.clone()
+        };
+
+        Groth16::<ark_bn254::Bn254>::verify_proof(&pvk, &groth_proof, &inputs)
+            .map_err(|_| ZkError::VerificationFailed)
+    }
+}
+
+fn parse_public_inputs(v: &Value) -> Result<Vec<ark_bn254::Fr>, ZkError> {
+    let arr = v.as_array().ok_or(ZkError::InvalidProof)?;
+    arr.iter()
+        .map(|val| val.as_u64().map(ark_bn254::Fr::from).ok_or(ZkError::InvalidProof))
+        .collect()
 }
 
 impl Default for Groth16Verifier {
@@ -432,25 +491,7 @@ impl Default for Groth16Verifier {
 
 impl ZkVerifier for Groth16Verifier {
     fn verify(&self, proof: &ZkCredentialProof) -> Result<bool, ZkError> {
-        use ark_groth16::Proof;
-        use ark_serialize::CanonicalDeserialize;
-
-        if proof.backend != ZkProofType::Groth16 {
-            return Err(ZkError::UnsupportedBackend(proof.backend.clone()));
-        }
-        if proof.proof.is_empty() {
-            return Err(ZkError::InvalidProof);
-        }
-
-        let groth_proof = Proof::<ark_bn254::Bn254>::deserialize_compressed(proof.proof.as_slice())
-            .map_err(|_| ZkError::InvalidProof)?;
-
-        ark_groth16::Groth16::<ark_bn254::Bn254>::verify_proof(
-            &self.vk,
-            &groth_proof,
-            &self.public_inputs,
-        )
-        .map_err(|_| ZkError::VerificationFailed)
+        self.verify_proof(proof)
     }
 }
 
@@ -692,5 +733,89 @@ mod tests {
 
         let verifier = Groth16Verifier::new(verifier_vk, vec![ark_bn254::Fr::from(2020u64)]);
         assert!(verifier.verify(&proof).unwrap());
+    }
+
+    #[test]
+    fn verify_proof_cache_hit() {
+        use ark_serialize::CanonicalSerialize;
+        use ark_std::rand::{rngs::StdRng, SeedableRng};
+        use icn_zk::{prepare_vk, prove, setup, AgeOver18Circuit};
+
+        let mut rng = StdRng::seed_from_u64(42);
+        let circuit = AgeOver18Circuit { birth_year: 2000, current_year: 2020 };
+        let pk = setup(circuit.clone(), &mut rng).unwrap();
+        let proof_obj = prove(&pk, circuit, &mut rng).unwrap();
+        let mut proof_bytes = Vec::new();
+        proof_obj.serialize_compressed(&mut proof_bytes).unwrap();
+        let mut vk_bytes = Vec::new();
+        pk.vk.serialize_compressed(&mut vk_bytes).unwrap();
+
+        let mut verifier = Groth16Verifier::new(prepare_vk(&pk), vec![ark_bn254::Fr::from(2020u64)]);
+        let proof = ZkCredentialProof {
+            issuer: Did::new("key", "issuer"),
+            holder: Did::new("key", "holder"),
+            claim_type: "age_over_18".into(),
+            proof: proof_bytes.clone(),
+            schema: dummy_cid("schema"),
+            vk_cid: None,
+            disclosed_fields: Vec::new(),
+            challenge: None,
+            backend: ZkProofType::Groth16,
+            verification_key: Some(vk_bytes.clone()),
+            public_inputs: Some(serde_json::json!([2020])),
+        };
+
+        assert!(verifier.verify_proof(&proof).unwrap());
+        let cache_len = verifier.cache.lock().unwrap().len();
+        assert_eq!(cache_len, 1);
+        assert!(verifier.verify_proof(&proof).unwrap());
+        let cache_len2 = verifier.cache.lock().unwrap().len();
+        assert_eq!(cache_len2, 1);
+    }
+
+    #[test]
+    fn verify_proof_invalid_key_signature() {
+        use crate::generate_ed25519_keypair;
+
+        let (sk, pk1) = generate_ed25519_keypair();
+        let km = Groth16KeyManager::new(&sk).unwrap();
+        assert!(km.verify_key_signature(&pk1).unwrap());
+        // Verification with a different key should fail
+        let (_, pk2) = generate_ed25519_keypair();
+        assert!(!km.verify_key_signature(&pk2).unwrap());
+    }
+
+    #[test]
+    fn verify_proof_with_inputs() {
+        use ark_serialize::CanonicalSerialize;
+        use ark_std::rand::{rngs::StdRng, SeedableRng};
+        use icn_zk::{prepare_vk, prove, setup, AgeOver18Circuit};
+
+        let mut rng = StdRng::seed_from_u64(42);
+        let circuit = AgeOver18Circuit { birth_year: 2000, current_year: 2021 };
+        let pk = setup(circuit.clone(), &mut rng).unwrap();
+        let proof_obj = prove(&pk, circuit, &mut rng).unwrap();
+        let mut proof_bytes = Vec::new();
+        proof_obj.serialize_compressed(&mut proof_bytes).unwrap();
+        let mut vk_bytes = Vec::new();
+        pk.vk.serialize_compressed(&mut vk_bytes).unwrap();
+
+        // Verifier has incorrect default inputs
+        let mut verifier = Groth16Verifier::new(prepare_vk(&pk), vec![ark_bn254::Fr::from(9999u64)]);
+        let proof = ZkCredentialProof {
+            issuer: Did::new("key", "issuer"),
+            holder: Did::new("key", "holder"),
+            claim_type: "age_over_18".into(),
+            proof: proof_bytes,
+            schema: dummy_cid("schema"),
+            vk_cid: None,
+            disclosed_fields: Vec::new(),
+            challenge: None,
+            backend: ZkProofType::Groth16,
+            verification_key: Some(vk_bytes),
+            public_inputs: Some(serde_json::json!([2021])),
+        };
+
+        assert!(verifier.verify_proof(&proof).unwrap());
     }
 }

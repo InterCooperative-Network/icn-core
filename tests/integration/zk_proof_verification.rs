@@ -4,8 +4,9 @@ use reqwest::Client;
 use icn_identity::{
     generate_ed25519_keypair, sign_message, verify_signature, SignatureBytes,
 };
-use icn_zk::{prepare_vk, setup, AgeOver18Circuit};
+use icn_zk::{prepare_vk, setup, prove, AgeOver18Circuit};
 use rand_core::OsRng;
+use ark_serialize::CanonicalSerialize;
 use tokio::task;
 use tokio::time::{sleep, Duration};
 
@@ -113,6 +114,31 @@ async fn zk_proof_verification_route() {
     let resp = client.post(&url).json(&bulletproof_invalid).send().await.unwrap();
     // Invalid proof should result in a 400 Bad Request
     assert_eq!(resp.status().as_u16(), 400);
+
+    // Now test a valid Groth16 proof with explicit public inputs
+
+    let circuit = AgeOver18Circuit { birth_year: 2000, current_year: 2020 };
+    let mut rng = OsRng;
+    let proof_obj = prove(&manager.pk, circuit, &mut rng).unwrap();
+    let mut proof_bytes = Vec::new();
+    proof_obj.serialize_compressed(&mut proof_bytes).unwrap();
+
+    let valid_proof = ZkCredentialProof {
+        issuer: Did::new("key", "issuer"),
+        holder: Did::new("key", "holder"),
+        claim_type: "age_over_18".to_string(),
+        proof: proof_bytes,
+        schema: Cid::new_v1_sha256(0x55, b"schema"),
+        vk_cid: None,
+        disclosed_fields: Vec::new(),
+        challenge: None,
+        backend: ZkProofType::Groth16,
+        verification_key: Some(manager.vk_bytes.clone()),
+        public_inputs: Some(serde_json::json!([2020])),
+    };
+
+    let resp = client.post(&url).json(&valid_proof).send().await.unwrap();
+    assert_eq!(resp.status().as_u16(), 200);
 
     server.abort();
 }
