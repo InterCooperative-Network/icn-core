@@ -18,6 +18,7 @@ pub mod context;
 pub mod executor;
 pub mod memory;
 pub mod metrics;
+pub mod constants;
 
 // Re-export important types for convenience
 pub use context::{DagStoreMutexType, HostAbiError, RuntimeContext, Signer};
@@ -28,6 +29,7 @@ pub use icn_dag::StorageService;
 
 // Re-export ABI constants
 pub use abi::*;
+pub use constants::ZK_VERIFY_COST_MANA;
 extern crate bincode;
 use icn_common::{Cid, CommonError, Did, NodeInfo};
 use icn_mesh::JobId;
