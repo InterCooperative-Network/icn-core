@@ -548,6 +548,30 @@ pub fn wasm_host_verify_zk_proof(
     }
 }
 
+/// WASM wrapper for [`host_verify_zk_revocation_proof`].
+pub fn wasm_host_verify_zk_revocation_proof(
+    mut caller: wasmtime::Caller<'_, std::sync::Arc<RuntimeContext>>,
+    ptr: u32,
+    len: u32,
+) -> i32 {
+    let json = match memory::read_string_safe(&mut caller, ptr, len) {
+        Ok(j) => j,
+        Err(e) => {
+            log::error!("wasm_host_verify_zk_revocation_proof read error: {e:?}");
+            return 0;
+        }
+    };
+    let handle = tokio::runtime::Handle::current();
+    match handle.block_on(host_verify_zk_revocation_proof(caller.data(), &json)) {
+        Ok(true) => 1,
+        Ok(false) => 0,
+        Err(e) => {
+            log::error!("wasm_host_verify_zk_revocation_proof runtime error: {e:?}");
+            0
+        }
+    }
+}
+
 /// WASM wrapper for [`host_generate_zk_proof`].
 pub fn wasm_host_generate_zk_proof(
     mut caller: wasmtime::Caller<'_, std::sync::Arc<RuntimeContext>>,
@@ -711,6 +735,30 @@ pub async fn host_verify_zk_proof(
 
     verifier
         .verify(&proof)
+        .map_err(|e| HostAbiError::InvalidParameters(format!("{e}")))
+}
+
+/// Verify a zero-knowledge revocation proof.
+pub async fn host_verify_zk_revocation_proof(
+    _ctx: &RuntimeContext,
+    proof_json: &str,
+) -> Result<bool, HostAbiError> {
+    use icn_common::{ZkProofType, ZkRevocationProof};
+    use icn_identity::{BulletproofsVerifier, DummyVerifier, Groth16Verifier};
+    use icn_identity::zk::ZkRevocationVerifier;
+
+    let proof: ZkRevocationProof = serde_json::from_str(proof_json).map_err(|e| {
+        HostAbiError::InvalidParameters(format!("Invalid ZkRevocationProof JSON: {e}"))
+    })?;
+
+    let verifier: Box<dyn ZkRevocationVerifier> = match proof.backend {
+        ZkProofType::Bulletproofs => Box::new(BulletproofsVerifier::default()),
+        ZkProofType::Groth16 => Box::new(Groth16Verifier::default()),
+        _ => Box::new(DummyVerifier::default()),
+    };
+
+    verifier
+        .verify_revocation(&proof)
         .map_err(|e| HostAbiError::InvalidParameters(format!("{e}")))
 }
 

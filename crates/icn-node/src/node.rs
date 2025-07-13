@@ -1115,7 +1115,7 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
         RuntimeContext::new_production(
             node_did.clone(),
             network_service,
-            signer,
+            signer.clone(),
             Arc::new(icn_identity::KeyDidResolver),
             dag_store_for_rt,
             mana_ledger,
