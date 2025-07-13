@@ -77,3 +77,30 @@ Two host functions are provided for working with zero-knowledge proofs:
 When called from WASM, use the `wasm_host_verify_zk_proof` and
 `wasm_host_generate_zk_proof` wrappers which handle passing strings in and out
 of guest memory.
+
+## Production Verification
+
+Production nodes must verify the authenticity of the Groth16 verifying key
+before accepting proofs. `Groth16KeyManager` stores `verifying_key.bin` and a
+matching `verifying_key.sig` under `~/.icn/zk/`. The signature is created using
+an Ed25519 signing key and can be checked with `verify_key_signature`.
+
+`Groth16Verifier` caches prepared verifying keys in memory keyed by their CID to
+avoid redundant deserialization. When a proof includes the `verification_key`
+bytes, the verifier computes its CID and stores the prepared key. Proofs may
+also supply a `vk_cid` pointing to the same key.
+
+Example proof payload referencing a cached key:
+
+```json
+{
+  "issuer": "did:key:federation",
+  "holder": "did:key:member",
+  "claim_type": "membership",
+  "proof": "0xabc123",
+  "schema": "bafyschemacid",
+  "verification_key": "0xdeadbeef",
+  "vk_cid": "bafyverifykeycid",
+  "public_inputs": { "membership": true }
+}
+```
