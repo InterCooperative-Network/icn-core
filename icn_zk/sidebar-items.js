@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["prepare_vk","prove","setup","verify"],"struct":["AgeOver18Circuit","MembershipCircuit","ReputationCircuit"]};
+window.SIDEBAR_ITEMS = {"fn":["prepare_vk","prove","setup","verify"],"struct":["AgeOver18Circuit","CircuitParameters","MembershipCircuit","MemoryParametersStorage","ReputationCircuit"],"trait":["CircuitParametersStorage"]};

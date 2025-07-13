@@ -7,40 +7,42 @@
 <a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span>ark_std::rand::{CryptoRng, RngCore};
 <a href=#8 id=8 data-nosnippet>8</a>
 <a href=#9 id=9 data-nosnippet>9</a><span class="kw">mod </span>circuits;
-<a href=#10 id=10 data-nosnippet>10</a>
-<a href=#11 id=11 data-nosnippet>11</a><span class="kw">pub use </span>circuits::{AgeOver18Circuit, MembershipCircuit, ReputationCircuit};
-<a href=#12 id=12 data-nosnippet>12</a>
-<a href=#13 id=13 data-nosnippet>13</a><span class="doccomment">/// Generate Groth16 parameters for a given circuit.
-<a href=#14 id=14 data-nosnippet>14</a></span><span class="kw">pub fn </span>setup&lt;C: ConstraintSynthesizer&lt;Fr&gt;, R: RngCore + CryptoRng&gt;(
-<a href=#15 id=15 data-nosnippet>15</a>    circuit: C,
-<a href=#16 id=16 data-nosnippet>16</a>    rng: <span class="kw-2">&amp;mut </span>R,
-<a href=#17 id=17 data-nosnippet>17</a>) -&gt; <span class="prelude-ty">Result</span>&lt;ProvingKey&lt;Bn254&gt;, SynthesisError&gt; {
-<a href=#18 id=18 data-nosnippet>18</a>    <span class="kw">let </span>(pk, _vk) = Groth16::&lt;Bn254&gt;::circuit_specific_setup(circuit, rng)<span class="question-mark">?</span>;
-<a href=#19 id=19 data-nosnippet>19</a>    <span class="prelude-val">Ok</span>(pk)
-<a href=#20 id=20 data-nosnippet>20</a>}
-<a href=#21 id=21 data-nosnippet>21</a>
-<a href=#22 id=22 data-nosnippet>22</a><span class="doccomment">/// Create a Groth16 proof for the provided circuit and proving key.
-<a href=#23 id=23 data-nosnippet>23</a></span><span class="kw">pub fn </span>prove&lt;C: ConstraintSynthesizer&lt;Fr&gt;, R: RngCore + CryptoRng&gt;(
-<a href=#24 id=24 data-nosnippet>24</a>    pk: <span class="kw-2">&amp;</span>ProvingKey&lt;Bn254&gt;,
-<a href=#25 id=25 data-nosnippet>25</a>    circuit: C,
-<a href=#26 id=26 data-nosnippet>26</a>    rng: <span class="kw-2">&amp;mut </span>R,
-<a href=#27 id=27 data-nosnippet>27</a>) -&gt; <span class="prelude-ty">Result</span>&lt;Proof&lt;Bn254&gt;, SynthesisError&gt; {
-<a href=#28 id=28 data-nosnippet>28</a>    Groth16::&lt;Bn254&gt;::prove(pk, circuit, rng)
-<a href=#29 id=29 data-nosnippet>29</a>}
-<a href=#30 id=30 data-nosnippet>30</a>
-<a href=#31 id=31 data-nosnippet>31</a><span class="doccomment">/// Prepare the verifying key for use in verification.
-<a href=#32 id=32 data-nosnippet>32</a></span><span class="kw">pub fn </span>prepare_vk(pk: <span class="kw-2">&amp;</span>ProvingKey&lt;Bn254&gt;) -&gt; PreparedVerifyingKey&lt;Bn254&gt; {
-<a href=#33 id=33 data-nosnippet>33</a>    Groth16::&lt;Bn254&gt;::process_vk(<span class="kw-2">&amp;</span>pk.vk).unwrap()
-<a href=#34 id=34 data-nosnippet>34</a>}
-<a href=#35 id=35 data-nosnippet>35</a>
-<a href=#36 id=36 data-nosnippet>36</a><span class="doccomment">/// Verify a Groth16 proof with the given verifying key and public inputs.
-<a href=#37 id=37 data-nosnippet>37</a></span><span class="kw">pub fn </span>verify(
-<a href=#38 id=38 data-nosnippet>38</a>    vk: <span class="kw-2">&amp;</span>PreparedVerifyingKey&lt;Bn254&gt;,
-<a href=#39 id=39 data-nosnippet>39</a>    proof: <span class="kw-2">&amp;</span>Proof&lt;Bn254&gt;,
-<a href=#40 id=40 data-nosnippet>40</a>    public_inputs: <span class="kw-2">&amp;</span>[Fr],
-<a href=#41 id=41 data-nosnippet>41</a>) -&gt; <span class="prelude-ty">Result</span>&lt;bool, SynthesisError&gt; {
-<a href=#42 id=42 data-nosnippet>42</a>    Groth16::&lt;Bn254&gt;::verify_with_processed_vk(vk, public_inputs, proof)
-<a href=#43 id=43 data-nosnippet>43</a>}
-<a href=#44 id=44 data-nosnippet>44</a>
-<a href=#45 id=45 data-nosnippet>45</a><span class="attr">#[cfg(test)]
-<a href=#46 id=46 data-nosnippet>46</a></span><span class="kw">mod </span>tests;</code></pre></div></section></main></body></html>
+<a href=#10 id=10 data-nosnippet>10</a><span class="kw">mod </span>params;
+<a href=#11 id=11 data-nosnippet>11</a>
+<a href=#12 id=12 data-nosnippet>12</a><span class="kw">pub use </span>circuits::{AgeOver18Circuit, MembershipCircuit, ReputationCircuit};
+<a href=#13 id=13 data-nosnippet>13</a><span class="kw">pub use </span>params::{CircuitParameters, CircuitParametersStorage, MemoryParametersStorage};
+<a href=#14 id=14 data-nosnippet>14</a>
+<a href=#15 id=15 data-nosnippet>15</a><span class="doccomment">/// Generate Groth16 parameters for a given circuit.
+<a href=#16 id=16 data-nosnippet>16</a></span><span class="kw">pub fn </span>setup&lt;C: ConstraintSynthesizer&lt;Fr&gt;, R: RngCore + CryptoRng&gt;(
+<a href=#17 id=17 data-nosnippet>17</a>    circuit: C,
+<a href=#18 id=18 data-nosnippet>18</a>    rng: <span class="kw-2">&amp;mut </span>R,
+<a href=#19 id=19 data-nosnippet>19</a>) -&gt; <span class="prelude-ty">Result</span>&lt;ProvingKey&lt;Bn254&gt;, SynthesisError&gt; {
+<a href=#20 id=20 data-nosnippet>20</a>    <span class="kw">let </span>(pk, _vk) = Groth16::&lt;Bn254&gt;::circuit_specific_setup(circuit, rng)<span class="question-mark">?</span>;
+<a href=#21 id=21 data-nosnippet>21</a>    <span class="prelude-val">Ok</span>(pk)
+<a href=#22 id=22 data-nosnippet>22</a>}
+<a href=#23 id=23 data-nosnippet>23</a>
+<a href=#24 id=24 data-nosnippet>24</a><span class="doccomment">/// Create a Groth16 proof for the provided circuit and proving key.
+<a href=#25 id=25 data-nosnippet>25</a></span><span class="kw">pub fn </span>prove&lt;C: ConstraintSynthesizer&lt;Fr&gt;, R: RngCore + CryptoRng&gt;(
+<a href=#26 id=26 data-nosnippet>26</a>    pk: <span class="kw-2">&amp;</span>ProvingKey&lt;Bn254&gt;,
+<a href=#27 id=27 data-nosnippet>27</a>    circuit: C,
+<a href=#28 id=28 data-nosnippet>28</a>    rng: <span class="kw-2">&amp;mut </span>R,
+<a href=#29 id=29 data-nosnippet>29</a>) -&gt; <span class="prelude-ty">Result</span>&lt;Proof&lt;Bn254&gt;, SynthesisError&gt; {
+<a href=#30 id=30 data-nosnippet>30</a>    Groth16::&lt;Bn254&gt;::prove(pk, circuit, rng)
+<a href=#31 id=31 data-nosnippet>31</a>}
+<a href=#32 id=32 data-nosnippet>32</a>
+<a href=#33 id=33 data-nosnippet>33</a><span class="doccomment">/// Prepare the verifying key for use in verification.
+<a href=#34 id=34 data-nosnippet>34</a></span><span class="kw">pub fn </span>prepare_vk(pk: <span class="kw-2">&amp;</span>ProvingKey&lt;Bn254&gt;) -&gt; PreparedVerifyingKey&lt;Bn254&gt; {
+<a href=#35 id=35 data-nosnippet>35</a>    Groth16::&lt;Bn254&gt;::process_vk(<span class="kw-2">&amp;</span>pk.vk).unwrap()
+<a href=#36 id=36 data-nosnippet>36</a>}
+<a href=#37 id=37 data-nosnippet>37</a>
+<a href=#38 id=38 data-nosnippet>38</a><span class="doccomment">/// Verify a Groth16 proof with the given verifying key and public inputs.
+<a href=#39 id=39 data-nosnippet>39</a></span><span class="kw">pub fn </span>verify(
+<a href=#40 id=40 data-nosnippet>40</a>    vk: <span class="kw-2">&amp;</span>PreparedVerifyingKey&lt;Bn254&gt;,
+<a href=#41 id=41 data-nosnippet>41</a>    proof: <span class="kw-2">&amp;</span>Proof&lt;Bn254&gt;,
+<a href=#42 id=42 data-nosnippet>42</a>    public_inputs: <span class="kw-2">&amp;</span>[Fr],
+<a href=#43 id=43 data-nosnippet>43</a>) -&gt; <span class="prelude-ty">Result</span>&lt;bool, SynthesisError&gt; {
+<a href=#44 id=44 data-nosnippet>44</a>    Groth16::&lt;Bn254&gt;::verify_with_processed_vk(vk, public_inputs, proof)
+<a href=#45 id=45 data-nosnippet>45</a>}
+<a href=#46 id=46 data-nosnippet>46</a>
+<a href=#47 id=47 data-nosnippet>47</a><span class="attr">#[cfg(test)]
+<a href=#48 id=48 data-nosnippet>48</a></span><span class="kw">mod </span>tests;</code></pre></div></section></main></body></html>
