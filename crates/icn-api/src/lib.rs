@@ -12,7 +12,8 @@
 // Depending on icn_common crate
 use icn_common::{
     compute_merkle_cid, retry_with_backoff, Cid, CircuitBreaker, CircuitBreakerError, CommonError,
-    DagBlock, Did, NodeInfo, NodeStatus, SystemTimeProvider, ICN_CORE_VERSION,
+    DagBlock, Did, NodeInfo, NodeStatus, SystemTimeProvider, ZkCredentialProof, ZkRevocationProof,
+    ICN_CORE_VERSION,
 };
 // Remove direct use of icn_dag::put_block and icn_dag::get_block which use global store
 // use icn_dag::{put_block as dag_put_block, get_block as dag_get_block};
@@ -142,6 +143,8 @@ pub async fn submit_dag_block(
     block_data_json: String,
     policy_enforcer: Option<Arc<dyn ScopedPolicyEnforcer>>,
     actor: Did,
+    credential_proof: Option<ZkCredentialProof>,
+    revocation_proof: Option<ZkRevocationProof>,
 ) -> Result<Cid, CommonError> {
     let block: DagBlock = serde_json::from_str(&block_data_json).map_err(|e| {
         CommonError::DeserializationError(format!(
@@ -168,8 +171,8 @@ pub async fn submit_dag_block(
             DagPayloadOp::SubmitBlock,
             &actor,
             block.scope.as_ref(),
-            None,
-            None,
+            credential_proof.as_ref(),
+            revocation_proof.as_ref(),
         ) {
             return Err(CommonError::PolicyDenied(reason));
         }
@@ -694,7 +697,15 @@ mod tests {
             scope: None,
         };
         let block_json = serde_json::to_string(&block).unwrap();
-        let result = submit_dag_block(storage, block_json, None, block.author_did.clone()).await;
+        let result = submit_dag_block(
+            storage,
+            block_json,
+            None,
+            block.author_did.clone(),
+            None,
+            None,
+        )
+        .await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), cid);
     }
@@ -720,7 +731,15 @@ mod tests {
             scope: None,
         };
         let block_json = serde_json::to_string(&block).unwrap();
-        let result = submit_dag_block(storage, block_json, None, block.author_did.clone()).await;
+        let result = submit_dag_block(
+            storage,
+            block_json,
+            None,
+            block.author_did.clone(),
+            None,
+            None,
+        )
+        .await;
         match result {
             Err(CommonError::DagValidationError(_)) => {}
             other => panic!("expected DagValidationError, got {:?}", other),
@@ -757,6 +776,8 @@ mod tests {
             block_json.clone(),
             None,
             block.author_did.clone(),
+            None,
+            None,
         )
         .await
         {
@@ -792,6 +813,8 @@ mod tests {
             invalid_block_json.to_string(),
             None,
             Did::new("key", "tester"),
+            None,
+            None,
         )
         .await
         {
@@ -1107,7 +1130,16 @@ mod tests {
             scope: None,
         };
         let block_json = serde_json::to_string(&block).unwrap();
-        match submit_dag_block(store, block_json, None, block.author_did.clone()).await {
+        match submit_dag_block(
+            store,
+            block_json,
+            None,
+            block.author_did.clone(),
+            None,
+            None,
+        )
+        .await
+        {
             Err(CommonError::PolicyDenied(msg)) => assert!(msg.contains("blocked")),
             other => panic!("Expected PolicyDenied, got {:?}", other),
         }
@@ -1171,6 +1203,8 @@ mod tests {
             block_json,
             Some(Arc::new(enforcer)),
             actor.clone(),
+            None,
+            None,
         )
         .await;
 
@@ -1208,6 +1242,8 @@ mod tests {
             block_json,
             Some(Arc::new(enforcer)),
             actor.clone(),
+            None,
+            None,
         )
         .await
         {

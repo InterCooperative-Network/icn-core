@@ -340,6 +340,12 @@ paths:
               $ref: '#/components/schemas/DagBlockPayload'
             example:
               data: "aGVsbG8="
+              credential_proof:
+                issuer: "did:key:issuer"
+                holder: "did:key:holder"
+                claim_type: "membership"
+                proof: "0x1234"
+                schema: "bafyschemacid"
       responses:
         '200':
           description: CID string
@@ -672,6 +678,12 @@ paths:
               $ref: '#/components/schemas/ContractSourcePayload'
             example:
               source: "(module ...)"
+              credential_proof:
+                issuer: "did:key:issuer"
+                holder: "did:key:holder"
+                claim_type: "membership"
+                proof: "0x1234"
+                schema: "bafyschemacid"
       responses:
         '200':
           description: Upload result
@@ -930,12 +942,18 @@ components:
       properties:
         proposal_id:
           type: string
-    DagBlockPayload:
-      type: object
-      properties:
-        data:
-          type: string
-          format: byte
+  DagBlockPayload:
+    type: object
+    properties:
+      data:
+        type: string
+        format: byte
+      credential_proof:
+        $ref: '#/components/schemas/ZkCredentialProof'
+        nullable: true
+      revocation_proof:
+        $ref: '#/components/schemas/ZkRevocationProof'
+        nullable: true
     CidRequest:
       type: object
       properties:
@@ -997,11 +1015,17 @@ components:
           type: array
           items:
             type: object
-    ContractSourcePayload:
-      type: object
-      properties:
-        source:
-          type: string
+  ContractSourcePayload:
+    type: object
+    properties:
+      source:
+        type: string
+      credential_proof:
+        $ref: '#/components/schemas/ZkCredentialProof'
+        nullable: true
+      revocation_proof:
+        $ref: '#/components/schemas/ZkRevocationProof'
+        nullable: true
     PeerPayload:
       type: object
       properties:
@@ -1012,6 +1036,58 @@ components:
       properties:
         peer:
           type: string
+    ZkCredentialProof:
+      type: object
+      properties:
+        issuer:
+          type: string
+        holder:
+          type: string
+        claim_type:
+          type: string
+        proof:
+          type: string
+          format: byte
+        schema:
+          type: string
+        vk_cid:
+          type: string
+          nullable: true
+        disclosed_fields:
+          type: array
+          items:
+            type: string
+        challenge:
+          type: string
+          nullable: true
+        backend:
+          type: string
+        verification_key:
+          type: string
+          format: byte
+          nullable: true
+        public_inputs:
+          type: object
+          nullable: true
+    ZkRevocationProof:
+      type: object
+      properties:
+        issuer:
+          type: string
+        subject:
+          type: string
+        proof:
+          type: string
+          format: byte
+        backend:
+          type: string
+        verification_key:
+          type: string
+          format: byte
+          nullable: true
+        public_inputs:
+          type: object
+          nullable: true
     FederationStatus:
       type: object
       properties:
