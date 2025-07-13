@@ -276,6 +276,24 @@ impl GovernanceApiImpl {
     pub fn new(gov_module: Arc<Mutex<GovernanceModule>>) -> Self {
         Self { gov_module }
     }
+
+    fn verify_proof(proof: &ZkCredentialProof) -> Result<(), CommonError> {
+        if proof.proof.is_empty() {
+            return Err(CommonError::InvalidInputError(
+                "credential proof invalid".to_string(),
+            ));
+        }
+        Ok(())
+    }
+
+    fn verify_revocation(proof: &ZkRevocationProof) -> Result<(), CommonError> {
+        if proof.proof.is_empty() {
+            return Err(CommonError::InvalidInputError(
+                "revocation proof invalid".to_string(),
+            ));
+        }
+        Ok(())
+    }
 }
 
 impl GovernanceApi for GovernanceApiImpl {
@@ -317,6 +335,13 @@ impl GovernanceApi for GovernanceApiImpl {
             }
             ProposalInputType::GenericText { text } => ProposalType::GenericText(text),
         };
+
+        if let Some(ref p) = request.credential_proof {
+            Self::verify_proof(p)?;
+        }
+        if let Some(ref rp) = request.revocation_proof {
+            Self::verify_revocation(rp)?;
+        }
 
         let mut module = self.gov_module.lock().map_err(|_e| {
             CommonError::ApiError(
@@ -361,6 +386,13 @@ impl GovernanceApi for GovernanceApiImpl {
                 )))
             }
         };
+
+        if let Some(ref p) = request.credential_proof {
+            Self::verify_proof(p)?;
+        }
+        if let Some(ref rp) = request.revocation_proof {
+            Self::verify_revocation(rp)?;
+        }
 
         let mut module = self.gov_module.lock().map_err(|_e| {
             CommonError::ApiError("Failed to lock governance module for casting vote".to_string())
