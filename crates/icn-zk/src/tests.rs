@@ -100,3 +100,15 @@ fn balance_range_proof() {
     let vk = prepare_vk(&pk);
     assert!(verify(&vk, &proof, &[Fr::from(50u64), Fr::from(100u64)]).unwrap());
 }
+
+#[test]
+fn batch_verify_proofs() {
+    let circuit = MembershipCircuit { is_member: true };
+    let mut rng = StdRng::seed_from_u64(42);
+    let pk = setup(circuit.clone(), &mut rng).unwrap();
+    let proof1 = prove(&pk, circuit.clone(), &mut rng).unwrap();
+    let proof2 = prove(&pk, circuit, &mut rng).unwrap();
+    let vk = prepare_vk(&pk);
+    let inputs = vec![vec![Fr::from(1u64)], vec![Fr::from(1u64)]];
+    assert!(verify_batch(&vk, &[proof1, proof2], &inputs).unwrap());
+}

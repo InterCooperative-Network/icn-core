@@ -47,5 +47,25 @@ pub fn verify(
     Groth16::<Bn254>::verify_with_processed_vk(vk, public_inputs, proof)
 }
 
+/// Verify multiple Groth16 proofs using the same prepared verifying key.
+/// Returns `Ok(true)` only if all proofs are valid.
+pub fn verify_batch(
+    vk: &PreparedVerifyingKey<Bn254>,
+    proofs: &[Proof<Bn254>],
+    public_inputs: &[Vec<Fr>],
+) -> Result<bool, SynthesisError> {
+    if proofs.len() != public_inputs.len() {
+        return Err(SynthesisError::AssignmentMissing);
+    }
+
+    for (proof, inputs) in proofs.iter().zip(public_inputs.iter()) {
+        if !verify(vk, proof, inputs)? {
+            return Ok(false);
+        }
+    }
+
+    Ok(true)
+}
+
 #[cfg(test)]
 mod tests;
