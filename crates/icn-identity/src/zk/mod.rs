@@ -4,15 +4,21 @@
 //! prepared verifying key and known public inputs.
 
 use core::convert::TryInto;
-use icn_common::{Cid, ZkCredentialProof, ZkProofType, ZkRevocationProof};
+use directories_next as dirs_next;
+use icn_common::{Cid, Did, ZkCredentialProof, ZkProofType, ZkRevocationProof};
 use serde_json;
 use serde_json::Value;
 use std::any::Any;
+use std::fs;
 use thiserror::Error;
 
 pub mod key_manager;
 pub use key_manager::Groth16KeyManager;
 pub mod vk_cache;
+
+use crate::{
+    verify_signature, verifying_key_from_did_key, verifying_key_from_did_peer, SIGNATURE_LENGTH,
+};
 
 /// Errors that can occur when verifying zero-knowledge proofs.
 #[derive(Debug, Error, PartialEq, Eq)]
@@ -63,6 +69,35 @@ impl<T: ZkVerifier + ?Sized> ZkRevocationVerifier for T {
         };
 
         self.verify(&cred_like)
+    }
+}
+
+fn verify_verification_key(vk_bytes: &[u8], issuer: &Did) -> Result<(), ZkError> {
+    use ed25519_dalek::Signature;
+
+    let signer_pk = match issuer.method.as_str() {
+        "key" => verifying_key_from_did_key(issuer),
+        "peer" => verifying_key_from_did_peer(issuer),
+        _ => Err(icn_common::CommonError::IdentityError(
+            "unsupported did".into(),
+        )),
+    }
+    .map_err(|_| ZkError::VerificationFailed)?;
+
+    let dirs = dirs_next::BaseDirs::new().ok_or(ZkError::VerificationFailed)?;
+    let dir = dirs.home_dir().join(".icn/zk");
+    let sig_bytes =
+        fs::read(dir.join("verifying_key.sig")).map_err(|_| ZkError::VerificationFailed)?;
+    if sig_bytes.len() != SIGNATURE_LENGTH {
+        return Err(ZkError::InvalidProof);
+    }
+    let sig_array: [u8; SIGNATURE_LENGTH] =
+        sig_bytes.try_into().map_err(|_| ZkError::InvalidProof)?;
+    let sig = Signature::from_bytes(&sig_array);
+    if verify_signature(&signer_pk, vk_bytes, &sig) {
+        Ok(())
+    } else {
+        Err(ZkError::VerificationFailed)
     }
 }
 
@@ -529,6 +564,7 @@ impl Groth16Verifier {
 
         // Fetch or prepare verifying key
         let pvk = if let Some(vk_bytes) = &proof.verification_key {
+            verify_verification_key(vk_bytes, &proof.issuer)?;
             vk_cache::PreparedVkCache::get_or_insert(vk_bytes)?
         } else {
             self.vk.clone()
