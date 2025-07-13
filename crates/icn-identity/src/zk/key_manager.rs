@@ -3,10 +3,12 @@ use crate::{
 };
 use ark_bn254::Bn254;
 use ark_groth16::ProvingKey;
+use ark_relations::r1cs::ConstraintSynthesizer;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::rand::rngs::OsRng;
 use directories_next as dirs_next;
 use icn_common::CommonError;
+use icn_zk::Fr;
 use std::fs;
 use std::path::PathBuf;
 
@@ -14,18 +16,18 @@ use std::path::PathBuf;
 #[derive(Debug, Clone)]
 pub struct Groth16KeyManager {
     dir: PathBuf,
+    circuit: String,
     pk: ProvingKey<Bn254>,
 }
 
 impl Groth16KeyManager {
-    /// Generate new parameters and store them in `~/.icn/zk`.
-    pub fn new(signer: &SigningKey) -> Result<Self, CommonError> {
-        use icn_zk::{setup, AgeOver18Circuit};
+    /// Generate new parameters for the given circuit and store them in `~/.icn/zk`.
+    pub fn new<C>(signer: &SigningKey, circuit_name: &str, circuit: C) -> Result<Self, CommonError>
+    where
+        C: ConstraintSynthesizer<Fr>,
+    {
+        use icn_zk::setup;
 
-        let circuit = AgeOver18Circuit {
-            birth_year: 2000,
-            current_year: 2020,
-        };
         let mut rng = OsRng;
         let pk = setup(circuit, &mut rng)
             .map_err(|_| CommonError::CryptoError("groth16 setup failed".into()))?;
@@ -36,9 +38,9 @@ impl Groth16KeyManager {
             .join(".icn/zk");
         fs::create_dir_all(&dir).map_err(|e| CommonError::IoError(e.to_string()))?;
 
-        let pk_path = dir.join("proving_key.bin");
-        let vk_path = dir.join("verifying_key.bin");
-        let sig_path = dir.join("verifying_key.sig");
+        let pk_path = dir.join(format!("proving_key_{}.bin", circuit_name));
+        let vk_path = dir.join(format!("verifying_key_{}.bin", circuit_name));
+        let sig_path = dir.join(format!("verifying_key_{}.sig", circuit_name));
 
         let mut pk_bytes = Vec::new();
         pk.serialize_compressed(&mut pk_bytes)
@@ -54,12 +56,16 @@ impl Groth16KeyManager {
         let sig = sign_message(signer, &vk_bytes);
         fs::write(&sig_path, sig.to_bytes()).map_err(|e| CommonError::IoError(e.to_string()))?;
 
-        Ok(Self { dir, pk })
+        Ok(Self {
+            dir,
+            circuit: circuit_name.to_string(),
+            pk,
+        })
     }
 
     /// Load the proving key previously stored on disk.
     pub fn load_proving_key(&self) -> Result<ProvingKey<Bn254>, CommonError> {
-        let path = self.dir.join("proving_key.bin");
+        let path = self.dir.join(format!("proving_key_{}.bin", self.circuit));
         let bytes = fs::read(&path).map_err(|e| CommonError::IoError(e.to_string()))?;
         ProvingKey::deserialize_compressed(&*bytes)
             .map_err(|_| CommonError::DeserializationError("proving key".into()))
@@ -67,9 +73,9 @@ impl Groth16KeyManager {
 
     /// Verify the stored verifying key signature with the provided public key.
     pub fn verify_key_signature(&self, signer_pk: &VerifyingKey) -> Result<bool, CommonError> {
-        let vk_bytes = fs::read(self.dir.join("verifying_key.bin"))
+        let vk_bytes = fs::read(self.dir.join(format!("verifying_key_{}.bin", self.circuit)))
             .map_err(|e| CommonError::IoError(e.to_string()))?;
-        let sig_bytes = fs::read(self.dir.join("verifying_key.sig"))
+        let sig_bytes = fs::read(self.dir.join(format!("verifying_key_{}.sig", self.circuit)))
             .map_err(|e| CommonError::IoError(e.to_string()))?;
         if sig_bytes.len() != SIGNATURE_LENGTH {
             return Err(CommonError::DeserializationError("signature length".into()));

@@ -145,7 +145,15 @@ fn prover_rejects_low_reputation() {
     let store = icn_reputation::InMemoryReputationStore::new();
     store.set_score(issuer_did.clone(), 0);
     let thresholds = icn_zk::ReputationThresholds::default();
-    let km = icn_identity::zk::Groth16KeyManager::new(&sk).unwrap();
+    let km = icn_identity::zk::Groth16KeyManager::new(
+        &sk,
+        "age_over_18",
+        icn_zk::AgeOver18Circuit {
+            birth_year: 2000,
+            current_year: 2020,
+        },
+    )
+    .unwrap();
     let prover =
         icn_identity::zk::Groth16Prover::new(km, std::sync::Arc::new(store), thresholds.clone());
 

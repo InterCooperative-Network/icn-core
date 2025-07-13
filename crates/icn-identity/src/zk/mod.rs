@@ -355,7 +355,15 @@ impl Default for Groth16Prover {
         use crate::generate_ed25519_keypair;
 
         let (sk, _) = generate_ed25519_keypair();
-        let km = Groth16KeyManager::new(&sk).expect("key manager setup");
+        let km = Groth16KeyManager::new(
+            &sk,
+            "age_over_18",
+            icn_zk::AgeOver18Circuit {
+                birth_year: 2000,
+                current_year: 2020,
+            },
+        )
+        .expect("key manager setup");
         Self {
             km,
             reputation_store: std::sync::Arc::new(icn_reputation::InMemoryReputationStore::new()),
@@ -802,7 +810,15 @@ mod tests {
         let mut claims = HashMap::new();
         claims.insert("birth_year".to_string(), "2000".to_string());
 
-        let km = Groth16KeyManager::new(&sk).unwrap();
+        let km = Groth16KeyManager::new(
+            &sk,
+            "age_over_18",
+            icn_zk::AgeOver18Circuit {
+                birth_year: 2000,
+                current_year: 2020,
+            },
+        )
+        .unwrap();
         let verifier_vk = icn_zk::prepare_vk(km.proving_key());
         let issuer =
             CredentialIssuer::new(issuer_did, sk).with_prover(Box::new(Groth16Prover::new(
@@ -882,7 +898,15 @@ mod tests {
         use crate::generate_ed25519_keypair;
 
         let (sk, pk1) = generate_ed25519_keypair();
-        let km = Groth16KeyManager::new(&sk).unwrap();
+        let km = Groth16KeyManager::new(
+            &sk,
+            "age_over_18",
+            icn_zk::AgeOver18Circuit {
+                birth_year: 2000,
+                current_year: 2020,
+            },
+        )
+        .unwrap();
         assert!(km.verify_key_signature(&pk1).unwrap());
         // Verification with a different key should fail
         let (_, pk2) = generate_ed25519_keypair();
