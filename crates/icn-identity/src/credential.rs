@@ -248,7 +248,11 @@ mod tests {
         claims.insert("birth_year".to_string(), "2000".to_string());
 
         let km = Groth16KeyManager::new(&sk).unwrap();
-        let prover = Groth16Prover::new(km.clone());
+        let prover = Groth16Prover::new(
+            km.clone(),
+            std::sync::Arc::new(icn_reputation::InMemoryReputationStore::new()),
+            icn_zk::ReputationThresholds::default(),
+        );
         let issuer = CredentialIssuer::new(issuer, sk).with_prover(Box::new(prover));
         let (_, proof_opt) = issuer
             .issue(
@@ -263,6 +267,8 @@ mod tests {
         let verifier = Groth16Verifier::new(
             icn_zk::prepare_vk(km.proving_key()),
             vec![ark_bn254::Fr::from(2020u64)],
+            std::sync::Arc::new(icn_reputation::InMemoryReputationStore::new()),
+            icn_zk::ReputationThresholds::default(),
         );
         assert!(verifier.verify(&proof).unwrap());
     }

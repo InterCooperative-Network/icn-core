@@ -16,6 +16,32 @@ pub use circuits::{
 };
 pub use params::{CircuitParameters, CircuitParametersStorage, MemoryParametersStorage};
 
+/// Reputation thresholds required to prove or verify each circuit type.
+#[derive(Debug, Clone)]
+pub struct ReputationThresholds {
+    pub age_over_18: u64,
+    pub membership: u64,
+    pub membership_proof: u64,
+    pub reputation: u64,
+    pub timestamp_validity: u64,
+    pub balance_range: u64,
+    pub age_rep_membership: u64,
+}
+
+impl Default for ReputationThresholds {
+    fn default() -> Self {
+        Self {
+            age_over_18: 10,
+            membership: 5,
+            membership_proof: 5,
+            reputation: 15,
+            timestamp_validity: 5,
+            balance_range: 5,
+            age_rep_membership: 20,
+        }
+    }
+}
+
 /// Generate Groth16 parameters for a given circuit.
 pub fn setup<C: ConstraintSynthesizer<Fr>, R: RngCore + CryptoRng>(
     circuit: C,

@@ -26,6 +26,9 @@ pub enum ZkError {
     /// Verification failed due to an unspecified reason.
     #[error("verification failed")]
     VerificationFailed,
+    /// Caller reputation below required threshold.
+    #[error("insufficient reputation")]
+    InsufficientReputation,
 }
 
 /// Trait for verifying zero-knowledge credential proofs.
@@ -85,6 +88,17 @@ impl ZkVerifier for BulletproofsVerifier {
         }
         if proof.proof.is_empty() {
             return Err(ZkError::InvalidProof);
+        }
+
+        let caller_rep = self.reputation_store.get_reputation(&proof.issuer);
+        let required = match proof.claim_type.as_str() {
+            "age_over_18" => self.thresholds.age_over_18,
+            "membership" => self.thresholds.membership,
+            "reputation" => self.thresholds.reputation,
+            _ => 0,
+        };
+        if caller_rep < required {
+            return Err(ZkError::InsufficientReputation);
         }
         if proof.proof.len() < 32 {
             return Err(ZkError::InvalidProof);
@@ -215,12 +229,22 @@ impl ZkProver for BulletproofsProver {
 #[derive(Debug)]
 pub struct Groth16Prover {
     km: Groth16KeyManager,
+    reputation_store: std::sync::Arc<dyn icn_reputation::ReputationStore>,
+    thresholds: icn_zk::ReputationThresholds,
 }
 
 impl Groth16Prover {
-    /// Create a new prover wrapping the provided proving key.
-    pub fn new(km: Groth16KeyManager) -> Self {
-        Self { km }
+    /// Create a new prover wrapping the provided proving key and reputation store.
+    pub fn new(
+        km: Groth16KeyManager,
+        reputation_store: std::sync::Arc<dyn icn_reputation::ReputationStore>,
+        thresholds: icn_zk::ReputationThresholds,
+    ) -> Self {
+        Self {
+            km,
+            reputation_store,
+            thresholds,
+        }
     }
 
     /// Generate a proof for the provided circuit using credential claims.
@@ -235,6 +259,16 @@ impl Groth16Prover {
         use icn_zk::{prove, AgeOver18Circuit, MembershipCircuit, ReputationCircuit};
 
         let mut rng = StdRng::seed_from_u64(42);
+
+        let caller_rep = self.reputation_store.get_reputation(&credential.issuer);
+        let required = match circuit {
+            Groth16Circuit::AgeOver18 { .. } => self.thresholds.age_over_18,
+            Groth16Circuit::Membership => self.thresholds.membership,
+            Groth16Circuit::Reputation { .. } => self.thresholds.reputation,
+        };
+        if caller_rep < required {
+            return Err(ZkError::InsufficientReputation);
+        }
 
         let (claim_type, proof_obj, vk_bytes) = match circuit {
             Groth16Circuit::AgeOver18 { current_year } => {
@@ -331,7 +365,11 @@ impl Default for Groth16Prover {
 
         let (sk, _) = generate_ed25519_keypair();
         let km = Groth16KeyManager::new(&sk).expect("key manager setup");
-        Self { km }
+        Self {
+            km,
+            reputation_store: std::sync::Arc::new(icn_reputation::InMemoryReputationStore::new()),
+            thresholds: icn_zk::ReputationThresholds::default(),
+        }
     }
 }
 
@@ -347,10 +385,15 @@ impl ZkProver for Groth16Prover {
 
         // Determine which circuit to prove based on available claims
         let mut rng = StdRng::seed_from_u64(42);
+
+        let rep = self.reputation_store.get_reputation(&credential.issuer);
         let (claim_type, proof_obj) = if let Some(val) = credential.claims.get("birth_year") {
             let birth_year = val
                 .parse::<u64>()
                 .map_err(|_| ZkError::VerificationFailed)?;
+            if rep < self.thresholds.age_over_18 {
+                return Err(ZkError::InsufficientReputation);
+            }
             (
                 "age_over_18".to_string(),
                 prove(
@@ -365,6 +408,9 @@ impl ZkProver for Groth16Prover {
             )
         } else if let Some(val) = credential.claims.get("is_member") {
             let is_member = matches!(val.as_str(), "true" | "1");
+            if rep < self.thresholds.membership {
+                return Err(ZkError::InsufficientReputation);
+            }
             (
                 "membership".to_string(),
                 prove(
@@ -378,6 +424,9 @@ impl ZkProver for Groth16Prover {
             let reputation = val
                 .parse::<u64>()
                 .map_err(|_| ZkError::VerificationFailed)?;
+            if rep < self.thresholds.reputation {
+                return Err(ZkError::InsufficientReputation);
+            }
             (
                 "reputation".to_string(),
                 prove(
@@ -430,6 +479,8 @@ impl ZkProver for Groth16Prover {
 pub struct Groth16Verifier {
     vk: ark_groth16::PreparedVerifyingKey<ark_bn254::Bn254>,
     public_inputs: Vec<ark_bn254::Fr>,
+    reputation_store: std::sync::Arc<dyn icn_reputation::ReputationStore>,
+    thresholds: icn_zk::ReputationThresholds,
 }
 
 impl Groth16Verifier {
@@ -437,8 +488,15 @@ impl Groth16Verifier {
     pub fn new(
         vk: ark_groth16::PreparedVerifyingKey<ark_bn254::Bn254>,
         public_inputs: Vec<ark_bn254::Fr>,
+        reputation_store: std::sync::Arc<dyn icn_reputation::ReputationStore>,
+        thresholds: icn_zk::ReputationThresholds,
     ) -> Self {
-        Self { vk, public_inputs }
+        Self {
+            vk,
+            public_inputs,
+            reputation_store,
+            thresholds,
+        }
     }
 
     /// Verify the supplied [`ZkCredentialProof`] using a cached prepared key if
@@ -502,8 +560,12 @@ impl Default for Groth16Verifier {
         let pk = setup(circuit, &mut rng).expect("setup");
         let vk = prepare_vk(&pk);
         let inputs = vec![ark_bn254::Fr::from(2020u64)];
-
-        Self::new(vk, inputs)
+        Self::new(
+            vk,
+            inputs,
+            std::sync::Arc::new(icn_reputation::InMemoryReputationStore::new()),
+            icn_zk::ReputationThresholds::default(),
+        )
     }
 }
 
@@ -644,7 +706,12 @@ mod tests {
             public_inputs: None,
         };
 
-        let verifier = Groth16Verifier::new(pvk, vec![ark_bn254::Fr::from(2020u64)]);
+        let verifier = Groth16Verifier::new(
+            pvk,
+            vec![ark_bn254::Fr::from(2020u64)],
+            std::sync::Arc::new(icn_reputation::InMemoryReputationStore::new()),
+            icn_zk::ReputationThresholds::default(),
+        );
         assert!(verifier.verify(&proof).unwrap());
     }
 
@@ -679,7 +746,12 @@ mod tests {
             public_inputs: None,
         };
 
-        let verifier = Groth16Verifier::new(pvk, vec![ark_bn254::Fr::from(2020u64)]);
+        let verifier = Groth16Verifier::new(
+            pvk,
+            vec![ark_bn254::Fr::from(2020u64)],
+            std::sync::Arc::new(icn_reputation::InMemoryReputationStore::new()),
+            icn_zk::ReputationThresholds::default(),
+        );
         assert!(matches!(
             verifier.verify(&proof),
             Err(ZkError::UnsupportedBackend(_))
@@ -716,7 +788,12 @@ mod tests {
             public_inputs: None,
         };
 
-        let verifier = Groth16Verifier::new(pvk, vec![ark_bn254::Fr::from(2020u64)]);
+        let verifier = Groth16Verifier::new(
+            pvk,
+            vec![ark_bn254::Fr::from(2020u64)],
+            std::sync::Arc::new(icn_reputation::InMemoryReputationStore::new()),
+            icn_zk::ReputationThresholds::default(),
+        );
         assert!(matches!(
             verifier.verify(&proof),
             Err(ZkError::InvalidProof)
@@ -736,8 +813,12 @@ mod tests {
 
         let km = Groth16KeyManager::new(&sk).unwrap();
         let verifier_vk = icn_zk::prepare_vk(km.proving_key());
-        let issuer = CredentialIssuer::new(issuer_did, sk)
-            .with_prover(Box::new(Groth16Prover::new(km.clone())));
+        let issuer =
+            CredentialIssuer::new(issuer_did, sk).with_prover(Box::new(Groth16Prover::new(
+                km.clone(),
+                std::sync::Arc::new(icn_reputation::InMemoryReputationStore::new()),
+                icn_zk::ReputationThresholds::default(),
+            )));
         let (_, proof_opt) = issuer
             .issue(
                 holder_did,
@@ -749,7 +830,12 @@ mod tests {
             .unwrap();
         let proof = proof_opt.expect("proof");
 
-        let verifier = Groth16Verifier::new(verifier_vk, vec![ark_bn254::Fr::from(2020u64)]);
+        let verifier = Groth16Verifier::new(
+            verifier_vk,
+            vec![ark_bn254::Fr::from(2020u64)],
+            std::sync::Arc::new(icn_reputation::InMemoryReputationStore::new()),
+            icn_zk::ReputationThresholds::default(),
+        );
         assert!(verifier.verify(&proof).unwrap());
     }
 
@@ -771,7 +857,12 @@ mod tests {
         let mut vk_bytes = Vec::new();
         pk.vk.serialize_compressed(&mut vk_bytes).unwrap();
 
-        let verifier = Groth16Verifier::new(prepare_vk(&pk), vec![ark_bn254::Fr::from(2020u64)]);
+        let verifier = Groth16Verifier::new(
+            prepare_vk(&pk),
+            vec![ark_bn254::Fr::from(2020u64)],
+            std::sync::Arc::new(icn_reputation::InMemoryReputationStore::new()),
+            icn_zk::ReputationThresholds::default(),
+        );
         let proof = ZkCredentialProof {
             issuer: Did::new("key", "issuer"),
             holder: Did::new("key", "holder"),
@@ -825,7 +916,12 @@ mod tests {
         pk.vk.serialize_compressed(&mut vk_bytes).unwrap();
 
         // Verifier has incorrect default inputs
-        let verifier = Groth16Verifier::new(prepare_vk(&pk), vec![ark_bn254::Fr::from(9999u64)]);
+        let verifier = Groth16Verifier::new(
+            prepare_vk(&pk),
+            vec![ark_bn254::Fr::from(9999u64)],
+            std::sync::Arc::new(icn_reputation::InMemoryReputationStore::new()),
+            icn_zk::ReputationThresholds::default(),
+        );
         let proof = ZkCredentialProof {
             issuer: Did::new("key", "issuer"),
             holder: Did::new("key", "holder"),
