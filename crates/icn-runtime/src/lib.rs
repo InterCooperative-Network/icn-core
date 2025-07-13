@@ -716,6 +716,7 @@ pub async fn host_get_job_status(
 }
 
 /// Verify a zero-knowledge credential proof.
+#[allow(clippy::default_constructed_unit_structs)]
 pub async fn host_verify_zk_proof(
     ctx: &RuntimeContext,
     proof_json: &str,
@@ -761,6 +762,7 @@ pub async fn host_verify_zk_proof(
 }
 
 /// Verify a zero-knowledge revocation proof.
+#[allow(clippy::default_constructed_unit_structs)]
 pub async fn host_verify_zk_revocation_proof(
     ctx: &RuntimeContext,
     proof_json: &str,

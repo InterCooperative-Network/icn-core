@@ -103,6 +103,11 @@ async fn finalize_proposal(ctx: &RuntimeContext, pid: &str) -> Result<(), icn_ru
 emits a dummy proof for testing. WASM modules can call these via the
 `wasm_host_verify_zk_proof` and `wasm_host_generate_zk_proof` helpers.
 
+Both host calls deduct mana from the caller when executed. The amount removed
+is proportional to the complexity of the proving circuit. If proof generation or
+verification fails, the deducted mana is automatically refunded so callers only
+pay for successful operations.
+
 ## Mana Regeneration
 
 `RuntimeContext` can automatically replenish mana. Use

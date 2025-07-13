@@ -93,6 +93,10 @@ When called from WASM, use the `wasm_host_verify_zk_proof` and
 `wasm_host_generate_zk_proof` wrappers which handle passing strings in and out
 of guest memory.
 
+Both operations charge mana according to the complexity of the circuit. The
+runtime refunds this mana automatically if proof generation or verification
+fails, so callers only pay when a proof succeeds.
+
 ### Example: Generate and Verify
 
 The host API expects JSON strings. A minimal request to `host_generate_zk_proof`
