@@ -741,13 +741,19 @@ pub async fn host_verify_zk_proof(
     };
 
     match verifier.verify(&proof) {
-        Ok(true) => Ok(true),
+        Ok(true) => {
+            ctx.reputation_store
+                .record_proof_attempt(&proof.issuer, true);
+            Ok(true)
+        }
         Ok(false) => {
             ctx.credit_mana(
                 &ctx.current_identity,
                 context::mesh_network::ZK_VERIFY_COST_MANA,
             )
             .await?;
+            ctx.reputation_store
+                .record_proof_attempt(&proof.issuer, false);
             Ok(false)
         }
         Err(e) => {
@@ -756,6 +762,8 @@ pub async fn host_verify_zk_proof(
                 context::mesh_network::ZK_VERIFY_COST_MANA,
             )
             .await?;
+            ctx.reputation_store
+                .record_proof_attempt(&proof.issuer, false);
             Err(HostAbiError::InvalidParameters(format!("{e}")))
         }
     }
@@ -788,13 +796,19 @@ pub async fn host_verify_zk_revocation_proof(
     };
 
     match verifier.verify_revocation(&proof) {
-        Ok(true) => Ok(true),
+        Ok(true) => {
+            ctx.reputation_store
+                .record_proof_attempt(&proof.issuer, true);
+            Ok(true)
+        }
         Ok(false) => {
             ctx.credit_mana(
                 &ctx.current_identity,
                 context::mesh_network::ZK_VERIFY_COST_MANA,
             )
             .await?;
+            ctx.reputation_store
+                .record_proof_attempt(&proof.issuer, false);
             Ok(false)
         }
         Err(e) => {
@@ -803,6 +817,8 @@ pub async fn host_verify_zk_revocation_proof(
                 context::mesh_network::ZK_VERIFY_COST_MANA,
             )
             .await?;
+            ctx.reputation_store
+                .record_proof_attempt(&proof.issuer, false);
             Err(HostAbiError::InvalidParameters(format!("{e}")))
         }
     }

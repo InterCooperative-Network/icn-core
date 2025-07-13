@@ -95,7 +95,9 @@ of guest memory.
 
 Both operations charge mana according to the complexity of the circuit. The
 runtime refunds this mana automatically if proof generation or verification
-fails, so callers only pay when a proof succeeds.
+fails, so callers only pay when a proof succeeds. The runtime also records a
+reputation event for the proof issuer: successful verifications increase the
+issuer's reputation while failed attempts decrease it.
 
 ### Example: Generate and Verify
 

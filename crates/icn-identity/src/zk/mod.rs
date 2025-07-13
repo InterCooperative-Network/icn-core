@@ -78,8 +78,20 @@ pub trait ZkProver: Send + Sync {
 }
 
 /// Verifier implementation for the Bulletproofs proving system.
-#[derive(Debug, Default)]
-pub struct BulletproofsVerifier;
+#[derive(Debug)]
+pub struct BulletproofsVerifier {
+    reputation_store: std::sync::Arc<dyn icn_reputation::ReputationStore>,
+    thresholds: icn_zk::ReputationThresholds,
+}
+
+impl Default for BulletproofsVerifier {
+    fn default() -> Self {
+        Self {
+            reputation_store: std::sync::Arc::new(icn_reputation::InMemoryReputationStore::new()),
+            thresholds: icn_zk::ReputationThresholds::default(),
+        }
+    }
+}
 
 impl ZkVerifier for BulletproofsVerifier {
     fn verify(&self, proof: &ZkCredentialProof) -> Result<bool, ZkError> {
