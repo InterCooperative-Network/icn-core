@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["prepare_vk","prove","setup","verify"],"struct":["AgeOver18Circuit","CircuitParameters","MembershipCircuit","MembershipProofCircuit","MemoryParametersStorage","ReputationCircuit","TimestampValidityCircuit"],"trait":["CircuitParametersStorage"]};
+window.SIDEBAR_ITEMS = {"fn":["prepare_vk","prove","setup","verify"],"struct":["AgeOver18Circuit","BalanceRangeCircuit","CircuitParameters","MembershipCircuit","MembershipProofCircuit","MemoryParametersStorage","ReputationCircuit","TimestampValidityCircuit"],"trait":["CircuitParametersStorage"]};
