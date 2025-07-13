@@ -553,7 +553,7 @@ impl Default for Groth16Verifier {
         use ark_std::rand::rngs::OsRng;
         use icn_zk::{prepare_vk, setup, AgeOver18Circuit};
 
-        // Deterministic setup for demo purposes
+        // Example setup for demo purposes
         let circuit = AgeOver18Circuit {
             birth_year: 2000,
             current_year: 2020,
