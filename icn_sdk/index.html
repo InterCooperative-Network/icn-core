@@ -1,1 +1,301 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="API documentation for the Rust `icn_sdk` crate."><title>icn_sdk - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-1a91846b.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="icn_sdk" data-themes="" data-resource-suffix="" data-rustdoc-version="1.88.0 (6b00bc388 2025-06-23)" data-channel="1.88.0" data-search-js="search-f7877310.js" data-settings-js="settings-5514c975.js" ><script src="../static.files/storage-4e99c027.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-7ef8a74a.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-044be391.svg"></head><body class="rustdoc mod crate"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button></nav><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../icn_sdk/index.html">icn_sdk</a><span class="version">0.2.0</span></h2></div><div class="sidebar-elems"><ul class="block"><li><a id="all-types" href="all.html">All Items</a></li></ul><section id="rustdoc-toc"><h3><a href="#structs">Crate Items</a></h3><ul class="block"><li><a href="#structs" title="Structs">Structs</a></li></ul></section><div id="rustdoc-modnav"></div></div></nav><div class="sidebar-resizer"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1>Crate <span>icn_sdk</span><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/icn_sdk/lib.rs.html#1-380">Source</a> </span></div><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><dl class="item-table"><dt><a class="struct" href="struct.HealthChecks.html" title="struct icn_sdk::HealthChecks">Health<wbr>Checks</a></dt><dt><a class="struct" href="struct.HealthStatus.html" title="struct icn_sdk::HealthStatus">Health<wbr>Status</a></dt><dt><a class="struct" href="struct.IcnClient.html" title="struct icn_sdk::IcnClient">IcnClient</a></dt><dd>High-level client for interacting with an ICN HTTP node.</dd><dt><a class="struct" href="struct.ReadinessChecks.html" title="struct icn_sdk::ReadinessChecks">Readiness<wbr>Checks</a></dt><dt><a class="struct" href="struct.ReadinessStatus.html" title="struct icn_sdk::ReadinessStatus">Readiness<wbr>Status</a></dt></dl></section></div></main></body></html>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="ICN SDK (`icn-sdk`)"><title>icn_sdk - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-1a91846b.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="icn_sdk" data-themes="" data-resource-suffix="" data-rustdoc-version="1.88.0 (6b00bc388 2025-06-23)" data-channel="1.88.0" data-search-js="search-f7877310.js" data-settings-js="settings-5514c975.js" ><script src="../static.files/storage-4e99c027.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-7ef8a74a.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-044be391.svg"></head><body class="rustdoc mod crate"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button></nav><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../icn_sdk/index.html">icn_sdk</a><span class="version">0.2.0</span></h2></div><div class="sidebar-elems"><ul class="block"><li><a id="all-types" href="all.html">All Items</a></li></ul><section id="rustdoc-toc"><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#icn-sdk-icn-sdk" title="ICN SDK (`icn-sdk`)">ICN SDK (<code>icn-sdk</code>)</a><ul><li><a href="#purpose" title="Purpose">Purpose</a></li><li><a href="#key-features" title="Key Features">Key Features</a></li><li><a href="#api-coverage" title="API Coverage">API Coverage</a></li><li><a href="#usage-examples" title="Usage Examples">Usage Examples</a></li><li><a href="#error-handling" title="Error Handling">Error Handling</a></li><li><a href="#configuration" title="Configuration">Configuration</a></li><li><a href="#authentication" title="Authentication">Authentication</a></li><li><a href="#response-types" title="Response Types">Response Types</a></li><li><a href="#testing" title="Testing">Testing</a></li><li><a href="#integration-with-icn-ecosystem" title="Integration with ICN Ecosystem">Integration with ICN Ecosystem</a></li><li><a href="#performance-considerations" title="Performance Considerations">Performance Considerations</a></li><li><a href="#contributing" title="Contributing">Contributing</a></li><li><a href="#license" title="License">License</a></li></ul></li><li><a href="#icn-sdk" title="ICN SDK">ICN SDK</a><ul><li><a href="#quick-start" title="Quick Start">Quick Start</a></li></ul></li></ul><h3><a href="#structs">Crate Items</a></h3><ul class="block"><li><a href="#structs" title="Structs">Structs</a></li></ul></section><div id="rustdoc-modnav"></div></div></nav><div class="sidebar-resizer"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1>Crate <span>icn_sdk</span><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/icn_sdk/lib.rs.html#1-1329">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><h2 id="icn-sdk-icn-sdk"><a class="doc-anchor" href="#icn-sdk-icn-sdk">§</a>ICN SDK (<code>icn-sdk</code>)</h2>
+<p>This crate provides a high-level Rust SDK for interacting with InterCooperative Network (ICN) nodes via their HTTP API. It offers a convenient, type-safe interface for building applications that integrate with ICN.</p>
+<p>See <a href="../../CONTEXT.md">CONTEXT.md</a> for ICN Core design philosophy and crate roles.
+See <a href="../../docs/ASYNC_OVERVIEW.md">docs/ASYNC_OVERVIEW.md</a> for async API guidelines.</p>
+<h3 id="purpose"><a class="doc-anchor" href="#purpose">§</a>Purpose</h3>
+<p>The <code>icn-sdk</code> crate is responsible for:</p>
+<ul>
+<li><strong>HTTP Client Interface</strong>: Providing a high-level client for ICN node HTTP APIs</li>
+<li><strong>Type Safety</strong>: Wrapping HTTP calls with Rust types for compile-time safety</li>
+<li><strong>Async Support</strong>: Full async/await support for non-blocking operations</li>
+<li><strong>Error Handling</strong>: Consistent error handling using <code>reqwest::Error</code></li>
+<li><strong>Developer Experience</strong>: Simplified API for common ICN operations</li>
+</ul>
+<h3 id="key-features"><a class="doc-anchor" href="#key-features">§</a>Key Features</h3><h4 id="icnclient"><a class="doc-anchor" href="#icnclient">§</a>IcnClient</h4>
+<p>The main client for interacting with ICN nodes:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>icn_sdk::IcnClient;
+
+<span class="kw">let </span>client = IcnClient::new(<span class="string">"http://localhost:8080"</span>)<span class="question-mark">?</span>;</code></pre></div>
+<h4 id="health-and-status-monitoring"><a class="doc-anchor" href="#health-and-status-monitoring">§</a>Health and Status Monitoring</h4>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="comment">// Get node information
+</span><span class="kw">let </span>info = client.info().<span class="kw">await</span><span class="question-mark">?</span>;
+<span class="macro">println!</span>(<span class="string">"Node: {} v{}"</span>, info.name, info.version);
+
+<span class="comment">// Check node status
+</span><span class="kw">let </span>status = client.status().<span class="kw">await</span><span class="question-mark">?</span>;
+<span class="macro">println!</span>(<span class="string">"Node is {}"</span>, status.status);
+
+<span class="comment">// Health check
+</span><span class="kw">let </span>health = client.health().<span class="kw">await</span><span class="question-mark">?</span>;
+<span class="macro">println!</span>(<span class="string">"Health: {}"</span>, health.status);
+
+<span class="comment">// Readiness check
+</span><span class="kw">let </span>ready = client.ready().<span class="kw">await</span><span class="question-mark">?</span>;
+<span class="macro">println!</span>(<span class="string">"Ready: {}"</span>, ready.ready);</code></pre></div>
+<h3 id="api-coverage"><a class="doc-anchor" href="#api-coverage">§</a>API Coverage</h3><h4 id="node-management"><a class="doc-anchor" href="#node-management">§</a>Node Management</h4>
+<ul>
+<li><code>info()</code> - Get node information</li>
+<li><code>status()</code> - Get node status</li>
+<li><code>health()</code> - Health check endpoint</li>
+<li><code>ready()</code> - Readiness check endpoint</li>
+<li><code>metrics()</code> - Prometheus metrics</li>
+</ul>
+<h4 id="mesh-computing"><a class="doc-anchor" href="#mesh-computing">§</a>Mesh Computing</h4>
+<ul>
+<li><code>submit_mesh_job()</code> - Submit a job to the mesh network</li>
+<li><code>list_mesh_jobs()</code> - List all mesh jobs</li>
+<li><code>mesh_job(id)</code> - Get details of a specific job</li>
+<li><code>submit_mesh_receipt()</code> - Submit execution receipt</li>
+<li><code>mesh_stub_bid()</code> - Submit a bid for a job</li>
+<li><code>mesh_stub_receipt()</code> - Submit receipt stub</li>
+</ul>
+<h4 id="governance"><a class="doc-anchor" href="#governance">§</a>Governance</h4>
+<ul>
+<li><code>list_proposals()</code> - List governance proposals</li>
+<li><code>proposal(id)</code> - Get proposal details</li>
+<li><code>submit_proposal()</code> - Submit new proposal</li>
+<li><code>cast_vote()</code> - Cast vote on proposal</li>
+<li><code>delegate()</code> - Delegate voting power</li>
+<li><code>revoke()</code> - Revoke delegation</li>
+<li><code>close_vote()</code> - Close voting on proposal</li>
+<li><code>execute()</code> - Execute approved proposal</li>
+</ul>
+<h4 id="dag-operations"><a class="doc-anchor" href="#dag-operations">§</a>DAG Operations</h4>
+<ul>
+<li><code>dag_put()</code> - Store block in DAG</li>
+<li><code>dag_get()</code> - Retrieve block from DAG</li>
+<li><code>dag_meta()</code> - Get block metadata</li>
+<li><code>dag_pin()</code> - Pin block to prevent garbage collection</li>
+<li><code>dag_unpin()</code> - Unpin block</li>
+<li><code>dag_prune()</code> - Prune expired blocks</li>
+<li><code>dag_root()</code> - Get DAG root hash</li>
+</ul>
+<h4 id="network-operations"><a class="doc-anchor" href="#network-operations">§</a>Network Operations</h4>
+<ul>
+<li><code>local_peer_id()</code> - Get local peer ID</li>
+<li><code>connect_peer()</code> - Connect to remote peer</li>
+<li><code>peers()</code> - List connected peers</li>
+</ul>
+<h4 id="economic-operations"><a class="doc-anchor" href="#economic-operations">§</a>Economic Operations</h4>
+<ul>
+<li><code>account_mana(did)</code> - Get mana balance for account</li>
+<li><code>submit_transaction()</code> - Submit economic transaction</li>
+<li><code>token_classes()</code> - List token classes</li>
+<li><code>create_token_class()</code> - Create new token class</li>
+<li><code>mint_tokens()</code> - Mint tokens</li>
+<li><code>transfer_tokens()</code> - Transfer tokens</li>
+<li><code>burn_tokens()</code> - Burn tokens</li>
+</ul>
+<h4 id="identity-and-security"><a class="doc-anchor" href="#identity-and-security">§</a>Identity and Security</h4>
+<ul>
+<li><code>keys()</code> - Get node keys</li>
+<li><code>reputation(did)</code> - Get reputation score</li>
+</ul>
+<h4 id="data-operations"><a class="doc-anchor" href="#data-operations">§</a>Data Operations</h4>
+<ul>
+<li><code>data_query()</code> - Query stored data</li>
+<li><code>upload_contract()</code> - Upload smart contract</li>
+</ul>
+<h4 id="federation-management"><a class="doc-anchor" href="#federation-management">§</a>Federation Management</h4>
+<ul>
+<li><code>federation_peers()</code> - List federation peers</li>
+<li><code>add_federation_peer()</code> - Add peer to federation</li>
+<li><code>federation_join()</code> - Join federation</li>
+<li><code>federation_leave()</code> - Leave federation</li>
+<li><code>federation_status()</code> - Get federation status</li>
+</ul>
+<h3 id="usage-examples"><a class="doc-anchor" href="#usage-examples">§</a>Usage Examples</h3><h4 id="basic-node-interaction"><a class="doc-anchor" href="#basic-node-interaction">§</a>Basic Node Interaction</h4>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>icn_sdk::IcnClient;
+
+<span class="attr">#[tokio::main]
+</span><span class="kw">async fn </span>main() -&gt; <span class="prelude-ty">Result</span>&lt;(), Box&lt;<span class="kw">dyn </span>std::error::Error&gt;&gt; {
+    <span class="kw">let </span>client = IcnClient::new(<span class="string">"http://localhost:8080"</span>)<span class="question-mark">?</span>;
+    
+    <span class="comment">// Get node info
+    </span><span class="kw">let </span>info = client.info().<span class="kw">await</span><span class="question-mark">?</span>;
+    <span class="macro">println!</span>(<span class="string">"Connected to {} v{}"</span>, info.name, info.version);
+    
+    <span class="comment">// Check health
+    </span><span class="kw">let </span>health = client.health().<span class="kw">await</span><span class="question-mark">?</span>;
+    <span class="macro">println!</span>(<span class="string">"Node health: {}"</span>, health.status);
+    
+    <span class="prelude-val">Ok</span>(())
+}</code></pre></div>
+<h4 id="mesh-job-management"><a class="doc-anchor" href="#mesh-job-management">§</a>Mesh Job Management</h4>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>serde_json::json;
+
+<span class="comment">// Submit a job
+</span><span class="kw">let </span>job_request = <span class="macro">json!</span>({
+    <span class="string">"manifest_cid"</span>: <span class="string">"bafybeiczsscdsbs7ffqz55asqdf3smv6klcw3gofszvwlyarci47bgf354"</span>,
+    <span class="string">"cost_mana"</span>: <span class="number">50
+</span>});
+
+<span class="kw">let </span>job_response = client.submit_mesh_job(<span class="kw-2">&amp;</span>job_request).<span class="kw">await</span><span class="question-mark">?</span>;
+<span class="macro">println!</span>(<span class="string">"Job submitted: {}"</span>, job_response);
+
+<span class="comment">// List all jobs
+</span><span class="kw">let </span>jobs = client.list_mesh_jobs().<span class="kw">await</span><span class="question-mark">?</span>;
+<span class="macro">println!</span>(<span class="string">"Current jobs: {}"</span>, jobs);</code></pre></div>
+<h4 id="governance-participation"><a class="doc-anchor" href="#governance-participation">§</a>Governance Participation</h4>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>serde_json::json;
+
+<span class="comment">// Submit a proposal
+</span><span class="kw">let </span>proposal = <span class="macro">json!</span>({
+    <span class="string">"title"</span>: <span class="string">"Increase mesh job timeout"</span>,
+    <span class="string">"description"</span>: <span class="string">"Increase timeout from 60 to 120 seconds"</span>,
+    <span class="string">"changes"</span>: [{
+        <span class="string">"parameter"</span>: <span class="string">"mesh_job_timeout"</span>,
+        <span class="string">"new_value"</span>: <span class="string">"120"
+    </span>}]
+});
+
+<span class="kw">let </span>response = client.submit_proposal(<span class="kw-2">&amp;</span>proposal).<span class="kw">await</span><span class="question-mark">?</span>;
+<span class="macro">println!</span>(<span class="string">"Proposal submitted: {}"</span>, response);
+
+<span class="comment">// Cast a vote
+</span><span class="kw">let </span>vote = <span class="macro">json!</span>({
+    <span class="string">"proposal_id"</span>: <span class="string">"proposal_123"</span>,
+    <span class="string">"vote"</span>: <span class="string">"approve"
+</span>});
+
+<span class="kw">let </span>response = client.cast_vote(<span class="kw-2">&amp;</span>vote).<span class="kw">await</span><span class="question-mark">?</span>;
+<span class="macro">println!</span>(<span class="string">"Vote cast: {}"</span>, response);</code></pre></div>
+<h4 id="dag-operations-1"><a class="doc-anchor" href="#dag-operations-1">§</a>DAG Operations</h4>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>serde_json::json;
+
+<span class="comment">// Store data in DAG
+</span><span class="kw">let </span>block = <span class="macro">json!</span>({
+    <span class="string">"data"</span>: <span class="string">"Hello, ICN!"</span>,
+    <span class="string">"timestamp"</span>: <span class="number">1234567890
+</span>});
+
+<span class="kw">let </span>response = client.dag_put(<span class="kw-2">&amp;</span>block).<span class="kw">await</span><span class="question-mark">?</span>;
+<span class="macro">println!</span>(<span class="string">"Block stored: {}"</span>, response);
+
+<span class="comment">// Retrieve data
+</span><span class="kw">let </span>cid = <span class="macro">json!</span>(<span class="string">"bafybeiczsscdsbs7ffqz55asqdf3smv6klcw3gofszvwlyarci47bgf354"</span>);
+<span class="kw">let </span>block = client.dag_get(<span class="kw-2">&amp;</span>cid).<span class="kw">await</span><span class="question-mark">?</span>;
+<span class="macro">println!</span>(<span class="string">"Retrieved block: {}"</span>, block);</code></pre></div>
+<h4 id="economic-operations-1"><a class="doc-anchor" href="#economic-operations-1">§</a>Economic Operations</h4>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="comment">// Check mana balance
+</span><span class="kw">let </span>balance = client.account_mana(<span class="string">"did:key:alice"</span>).<span class="kw">await</span><span class="question-mark">?</span>;
+<span class="macro">println!</span>(<span class="string">"Mana balance: {}"</span>, balance);
+
+<span class="comment">// Transfer tokens
+</span><span class="kw">let </span>transfer = <span class="macro">json!</span>({
+    <span class="string">"from"</span>: <span class="string">"did:key:alice"</span>,
+    <span class="string">"to"</span>: <span class="string">"did:key:bob"</span>,
+    <span class="string">"amount"</span>: <span class="number">100</span>,
+    <span class="string">"token_class"</span>: <span class="string">"local.food.token"
+</span>});
+
+<span class="kw">let </span>response = client.transfer_tokens(<span class="kw-2">&amp;</span>transfer).<span class="kw">await</span><span class="question-mark">?</span>;
+<span class="macro">println!</span>(<span class="string">"Transfer result: {}"</span>, response);</code></pre></div>
+<h4 id="federation-management-1"><a class="doc-anchor" href="#federation-management-1">§</a>Federation Management</h4>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="comment">// Check federation status
+</span><span class="kw">let </span>status = client.federation_status().<span class="kw">await</span><span class="question-mark">?</span>;
+<span class="macro">println!</span>(<span class="string">"Federation status: {}"</span>, status);
+
+<span class="comment">// Join a federation
+</span><span class="kw">let </span>join_request = <span class="macro">json!</span>({
+    <span class="string">"peer_id"</span>: <span class="string">"12D3KooWExample"</span>,
+    <span class="string">"federation_id"</span>: <span class="string">"food-coop-federation"
+</span>});
+
+<span class="kw">let </span>response = client.federation_join(<span class="kw-2">&amp;</span>join_request).<span class="kw">await</span><span class="question-mark">?</span>;
+<span class="macro">println!</span>(<span class="string">"Federation join result: {}"</span>, response);</code></pre></div>
+<h3 id="error-handling"><a class="doc-anchor" href="#error-handling">§</a>Error Handling</h3>
+<p>All methods return <code>Result&lt;T, reqwest::Error&gt;</code> for consistent error handling:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">match </span>client.info().<span class="kw">await </span>{
+    <span class="prelude-val">Ok</span>(info) =&gt; <span class="macro">println!</span>(<span class="string">"Node: {}"</span>, info.name),
+    <span class="prelude-val">Err</span>(e) =&gt; <span class="macro">eprintln!</span>(<span class="string">"Error: {}"</span>, e),
+}</code></pre></div>
+<h3 id="configuration"><a class="doc-anchor" href="#configuration">§</a>Configuration</h3>
+<p>The client can be configured with different base URLs for different environments:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="comment">// Local development
+</span><span class="kw">let </span>client = IcnClient::new(<span class="string">"http://localhost:8080"</span>)<span class="question-mark">?</span>;
+
+<span class="comment">// Remote node
+</span><span class="kw">let </span>client = IcnClient::new(<span class="string">"https://node.icn.example.com"</span>)<span class="question-mark">?</span>;
+
+<span class="comment">// Custom port
+</span><span class="kw">let </span>client = IcnClient::new(<span class="string">"http://localhost:3000"</span>)<span class="question-mark">?</span>;</code></pre></div>
+<h3 id="authentication"><a class="doc-anchor" href="#authentication">§</a>Authentication</h3>
+<p>The SDK uses the underlying <code>reqwest</code> client which can be configured with authentication:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>reqwest::Client;
+
+<span class="kw">let </span>http_client = Client::builder()
+    .default_headers(<span class="comment">/* auth headers */</span>)
+    .build()<span class="question-mark">?</span>;
+
+<span class="comment">// Custom client creation would need to be exposed by the SDK</span></code></pre></div>
+<h3 id="response-types"><a class="doc-anchor" href="#response-types">§</a>Response Types</h3>
+<p>The SDK provides structured response types for health and readiness checks:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">pub struct </span>HealthStatus {
+    <span class="kw">pub </span>status: String,
+    <span class="kw">pub </span>timestamp: u64,
+    <span class="kw">pub </span>uptime_seconds: u64,
+    <span class="kw">pub </span>checks: HealthChecks,
+}
+
+<span class="kw">pub struct </span>ReadinessStatus {
+    <span class="kw">pub </span>ready: bool,
+    <span class="kw">pub </span>timestamp: u64,
+    <span class="kw">pub </span>checks: ReadinessChecks,
+}</code></pre></div>
+<p>Most other endpoints return <code>serde_json::Value</code> for flexibility.</p>
+<h3 id="testing"><a class="doc-anchor" href="#testing">§</a>Testing</h3><div class="example-wrap"><pre class="language-bash"><code># Run all tests
+cargo test -p icn-sdk
+
+# Test with a running node
+cargo test -p icn-sdk --features integration</code></pre></div><h3 id="integration-with-icn-ecosystem"><a class="doc-anchor" href="#integration-with-icn-ecosystem">§</a>Integration with ICN Ecosystem</h3>
+<p>The SDK is designed to work with:</p>
+<ul>
+<li><strong>ICN Node</strong>: Primary target for HTTP API calls</li>
+<li><strong>ICN CLI</strong>: Can be used to build alternative CLI tools</li>
+<li><strong>Web Applications</strong>: JavaScript/TypeScript bindings via WASM</li>
+<li><strong>Monitoring Tools</strong>: Prometheus metrics integration</li>
+<li><strong>Custom Applications</strong>: Any Rust application needing ICN integration</li>
+</ul>
+<h3 id="performance-considerations"><a class="doc-anchor" href="#performance-considerations">§</a>Performance Considerations</h3>
+<ul>
+<li><strong>Connection Pooling</strong>: Uses <code>reqwest::Client</code> with connection pooling</li>
+<li><strong>Async Operations</strong>: All operations are async for non-blocking I/O</li>
+<li><strong>Batch Operations</strong>: Consider batching requests for better performance</li>
+<li><strong>Caching</strong>: Implement client-side caching for frequently accessed data</li>
+</ul>
+<h3 id="contributing"><a class="doc-anchor" href="#contributing">§</a>Contributing</h3>
+<p>Contributions are welcome! Please see the main <a href="../../CONTRIBUTING.md">CONTRIBUTING.md</a> in the root of the <code>icn-core</code> repository for guidelines.</p>
+<p><strong>Areas for contribution:</strong></p>
+<ul>
+<li>Additional API endpoint wrappers</li>
+<li>Strongly-typed request/response structures</li>
+<li>Authentication support</li>
+<li>WebAssembly bindings</li>
+<li>Example applications</li>
+<li>Performance optimizations</li>
+</ul>
+<h3 id="license"><a class="doc-anchor" href="#license">§</a>License</h3>
+<p>Licensed under the Apache License, Version 2.0. See <a href="../../LICENSE">LICENSE</a>.</p>
+<h2 id="icn-sdk"><a class="doc-anchor" href="#icn-sdk">§</a>ICN SDK</h2>
+<p>This crate provides a high-level Rust SDK for interacting with InterCooperative Network (ICN) nodes
+via their HTTP API. It offers a convenient, type-safe interface for building applications that
+integrate with ICN.</p>
+<h3 id="quick-start"><a class="doc-anchor" href="#quick-start">§</a>Quick Start</h3>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>icn_sdk::IcnClient;
+
+<span class="kw">let </span>client = IcnClient::new(<span class="string">"http://localhost:8080"</span>)<span class="question-mark">?</span>;
+
+<span class="comment">// Get node information
+</span><span class="kw">let </span>info = client.info().<span class="kw">await</span><span class="question-mark">?</span>;
+<span class="macro">println!</span>(<span class="string">"Node: {} v{}"</span>, info.name, info.version);
+
+<span class="comment">// Check health
+</span><span class="kw">let </span>health = client.health().<span class="kw">await</span><span class="question-mark">?</span>;
+<span class="macro">println!</span>(<span class="string">"Health: {}"</span>, health.status);</code></pre></div>
+</div></details><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><dl class="item-table"><dt><a class="struct" href="struct.HealthChecks.html" title="struct icn_sdk::HealthChecks">Health<wbr>Checks</a></dt><dd>Individual component health checks.</dd><dt><a class="struct" href="struct.HealthStatus.html" title="struct icn_sdk::HealthStatus">Health<wbr>Status</a></dt><dd>Health status information from an ICN node.</dd><dt><a class="struct" href="struct.IcnClient.html" title="struct icn_sdk::IcnClient">IcnClient</a></dt><dd>HTTP client for interacting with ICN nodes.</dd><dt><a class="struct" href="struct.ReadinessChecks.html" title="struct icn_sdk::ReadinessChecks">Readiness<wbr>Checks</a></dt><dd>Individual readiness checks.</dd><dt><a class="struct" href="struct.ReadinessStatus.html" title="struct icn_sdk::ReadinessStatus">Readiness<wbr>Status</a></dt><dd>Readiness status information from an ICN node.</dd></dl></section></div></main></body></html>
