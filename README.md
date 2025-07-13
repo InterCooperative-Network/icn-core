@@ -5,10 +5,27 @@ It provides the foundational crates for building ICN nodes, CLI tools, and other
 
 **ICN Mission**: Replace every major function of the state and corporation with programmable, federated, democratic infrastructure—built for actual human needs and scalable solidarity.
 
-For full architecture, philosophy, and comprehensive feature overview, see:
+## 📚 Documentation
+
+### Core Documentation
 - [CONTEXT.md](CONTEXT.md) - Core philosophy and architectural principles
 - [docs/ICN_FEATURE_OVERVIEW.md](docs/ICN_FEATURE_OVERVIEW.md) - Complete feature set (current and planned)
 - [docs/ASYNC_OVERVIEW.md](docs/ASYNC_OVERVIEW.md) - Async APIs and concurrency model
+
+### Comprehensive Guides
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - System architecture, crate relationships, and data flow
+- [docs/DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md) - Complete developer setup, workflows, and best practices
+- [docs/SYSTEM_COMPLETENESS_ROADMAP.md](docs/SYSTEM_COMPLETENESS_ROADMAP.md) - Development roadmap and missing features
+- [docs/GLOSSARY.md](docs/GLOSSARY.md) - Comprehensive glossary of ICN terms and concepts
+
+### Quick Start
+- [docs/beginner/README.md](docs/beginner/README.md) - Quickest setup steps
+- [docs/ONBOARDING.md](docs/ONBOARDING.md) - Comprehensive walkthrough
+- [icn-devnet/README.md](icn-devnet/README.md) - Multi-node federation testing
+
+### API Documentation
+- [docs/API.md](docs/API.md) - HTTP API endpoints and authentication
+- [docs/troubleshooting.md](docs/troubleshooting.md) - Common issues and solutions
 
 ## Overview
 
@@ -111,6 +128,22 @@ The project has achieved a significant milestone with a production-ready foundat
 - **Overall**: 65/104 total features complete (63%)
 
 See [docs/ICN_FEATURE_OVERVIEW.md](docs/ICN_FEATURE_OVERVIEW.md) for the complete feature breakdown and roadmap.
+
+### **🎯 Next Development Phase**
+
+The project is ready for the next phase of development. See [docs/SYSTEM_COMPLETENESS_ROADMAP.md](docs/SYSTEM_COMPLETENESS_ROADMAP.md) for a comprehensive analysis of remaining work, including:
+
+#### Critical Path (Must Have)
+1. **Zero-Knowledge Credential Disclosure** - Privacy-preserving cooperative membership
+2. **Scoped Token Economy** - Core cooperative resource sharing
+3. **Federation Sync Protocol Hardening** - Multi-node federation reliability
+
+#### High Value (Should Have)
+4. **Dynamic Governance Policies** - Truly programmable cooperative governance
+5. **Web UI / Wallet / Explorer Suite** - Critical for user adoption
+6. **Federation Bootstrap CLI/UX** - Cooperative formation tools
+
+The roadmap includes detailed action items, success metrics, and implementation priorities for transforming ICN from a solid foundation into a complete cooperative digital infrastructure platform.
 
 ### Rust Toolchain
 
