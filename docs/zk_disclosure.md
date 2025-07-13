@@ -52,3 +52,11 @@ The `icn-zk` crate exposes reusable circuits that can be compiled into proofs:
 - `ReputationCircuit` – proves a reputation score meets a required threshold.
 
 See [`docs/examples/zk_age_over_18.json`](examples/zk_age_over_18.json) for a sample proof payload.
+
+## Available Provers
+
+The `icn-identity` crate includes several proving backends:
+
+- `DummyProver` – emits placeholder proofs for testing
+- `BulletproofsProver` – uses the Bulletproofs range-proof system
+- `Groth16Prover` – generates zk-SNARK proofs via Groth16

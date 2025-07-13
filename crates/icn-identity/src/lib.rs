@@ -20,16 +20,11 @@ use unsigned_varint::encode as varint_encode;
 
 pub mod zk;
 pub use zk::{
-    BulletproofsProver,
-    BulletproofsVerifier,
-    DummyProver,
-    DummyVerifier,
-    ZkError,
-    ZkProver,
-    ZkVerifier,
+    BulletproofsProver, BulletproofsVerifier, DummyProver, DummyVerifier, Groth16Prover,
+    Groth16Verifier, ZkError, ZkProver, ZkVerifier,
 };
 pub mod credential;
-pub use credential::{Credential, DisclosedCredential, CredentialIssuer};
+pub use credential::{Credential, CredentialIssuer, DisclosedCredential};
 
 // --- Core Cryptographic Operations & DID:key generation ---
 

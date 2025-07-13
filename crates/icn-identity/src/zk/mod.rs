@@ -1,3 +1,4 @@
+use ark_groth16::ProvingKey;
 use core::convert::TryInto;
 use icn_common::{Cid, ZkCredentialProof, ZkProofType};
 use thiserror::Error;
@@ -147,6 +148,102 @@ impl ZkProver for BulletproofsProver {
             disclosed_fields: fields.iter().map(|f| f.to_string()).collect(),
             challenge: None,
             backend: ZkProofType::Bulletproofs,
+            verification_key: None,
+            public_inputs: None,
+        })
+    }
+}
+
+/// Prover implementation for Groth16 proofs using circuits from `icn-zk`.
+#[derive(Debug)]
+pub struct Groth16Prover {
+    pk: ProvingKey<ark_bn254::Bn254>,
+}
+
+impl Groth16Prover {
+    /// Create a new prover from the given proving key.
+    pub fn new(pk: ProvingKey<ark_bn254::Bn254>) -> Self {
+        Self { pk }
+    }
+}
+
+impl ZkProver for Groth16Prover {
+    fn prove(
+        &self,
+        credential: &crate::credential::Credential,
+        fields: &[&str],
+    ) -> Result<ZkCredentialProof, ZkError> {
+        use ark_serialize::CanonicalSerialize;
+        use ark_std::rand::rngs::OsRng;
+        use icn_zk::{prove, AgeOver18Circuit, MembershipCircuit, ReputationCircuit};
+
+        let mut rng = OsRng;
+
+        let (claim_type, proof) = if let Some(by) = credential.claims.get("birth_year") {
+            let birth_year = by.parse::<u64>().map_err(|_| ZkError::VerificationFailed)?;
+            (
+                "age_over_18".to_string(),
+                prove(
+                    &self.pk,
+                    AgeOver18Circuit {
+                        birth_year,
+                        current_year: 2020,
+                    },
+                    &mut rng,
+                )
+                .map_err(|_| ZkError::VerificationFailed)?,
+            )
+        } else if let Some(mem) = credential.claims.get("is_member") {
+            let is_member = matches!(mem.as_str(), "true" | "1");
+            (
+                "membership".to_string(),
+                prove(&self.pk, MembershipCircuit { is_member }, &mut rng)
+                    .map_err(|_| ZkError::VerificationFailed)?,
+            )
+        } else if let Some(rep) = credential.claims.get("reputation") {
+            let reputation = rep
+                .parse::<u64>()
+                .map_err(|_| ZkError::VerificationFailed)?;
+            let threshold = credential
+                .claims
+                .get("reputation_threshold")
+                .or_else(|| credential.claims.get("threshold"))
+                .and_then(|v| v.parse::<u64>().ok())
+                .unwrap_or(0);
+            (
+                "reputation".to_string(),
+                prove(
+                    &self.pk,
+                    ReputationCircuit {
+                        reputation,
+                        threshold,
+                    },
+                    &mut rng,
+                )
+                .map_err(|_| ZkError::VerificationFailed)?,
+            )
+        } else {
+            return Err(ZkError::VerificationFailed);
+        };
+
+        let mut bytes = Vec::new();
+        proof
+            .serialize_compressed(&mut bytes)
+            .map_err(|_| ZkError::VerificationFailed)?;
+
+        Ok(ZkCredentialProof {
+            issuer: credential.issuer.clone(),
+            holder: credential.holder.clone(),
+            claim_type,
+            proof: bytes,
+            schema: credential
+                .schema
+                .clone()
+                .unwrap_or_else(|| Cid::new_v1_sha256(0x55, b"groth16")),
+            vk_cid: None,
+            disclosed_fields: fields.iter().map(|f| f.to_string()).collect(),
+            challenge: None,
+            backend: ZkProofType::Groth16,
             verification_key: None,
             public_inputs: None,
         })
@@ -324,9 +421,12 @@ mod tests {
             claim_type: "age_over_18".into(),
             proof: bytes,
             schema: dummy_cid("schema"),
+            vk_cid: None,
             disclosed_fields: Vec::new(),
             challenge: None,
             backend: ZkProofType::Groth16,
+            verification_key: None,
+            public_inputs: None,
         };
 
         let verifier = Groth16Verifier::default();
