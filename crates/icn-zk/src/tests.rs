@@ -159,3 +159,43 @@ fn batch_verify_detects_invalid() {
     let batch = [(&valid, &inputs1[..]), (&invalid, &inputs2[..])];
     assert!(!verify_batch(&vk, &batch).unwrap());
 }
+#[test]
+fn parameters_registry_multiple() {
+    use super::params::{CircuitParameters, MemoryParametersStorage};
+    let mut rng = StdRng::seed_from_u64(123);
+    let pk1 = setup(
+        AgeOver18Circuit {
+            birth_year: 1980,
+            current_year: 2020,
+        },
+        &mut rng,
+    )
+    .unwrap();
+    let pk2 = setup(MembershipCircuit { is_member: true }, &mut rng).unwrap();
+    let params1 = CircuitParameters::from_proving_key(&pk1).unwrap();
+    let params2 = CircuitParameters::from_proving_key(&pk2).unwrap();
+    let mut store = MemoryParametersStorage::default();
+    store.put("age", params1.clone());
+    store.put("member", params2.clone());
+    let fetched1 = store.get("age").unwrap();
+    let fetched2 = store.get("member").unwrap();
+    let proof1 = prove(
+        &fetched1.proving_key().unwrap(),
+        AgeOver18Circuit {
+            birth_year: 1980,
+            current_year: 2020,
+        },
+        &mut rng,
+    )
+    .unwrap();
+    let vk1 = fetched1.prepared_vk().unwrap();
+    assert!(verify(&vk1, &proof1, &[Fr::from(2020u64)]).unwrap());
+    let proof2 = prove(
+        &fetched2.proving_key().unwrap(),
+        MembershipCircuit { is_member: true },
+        &mut rng,
+    )
+    .unwrap();
+    let vk2 = fetched2.prepared_vk().unwrap();
+    assert!(verify(&vk2, &proof2, &[Fr::from(1u64)]).unwrap());
+}
