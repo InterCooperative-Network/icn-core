@@ -1,5 +1,6 @@
 use core::convert::TryInto;
 use icn_common::{Cid, ZkCredentialProof, ZkProofType};
+use std::any::Any;
 use thiserror::Error;
 
 /// Errors that can occur when verifying zero-knowledge proofs.
@@ -30,6 +31,8 @@ pub trait ZkProver: Send + Sync {
         credential: &crate::credential::Credential,
         fields: &[&str],
     ) -> Result<ZkCredentialProof, ZkError>;
+
+    fn as_any(&self) -> &dyn Any;
 }
 
 /// Verifier implementation for the Bulletproofs proving system.
@@ -107,10 +110,22 @@ impl ZkProver for DummyProver {
             public_inputs: None,
         })
     }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
 }
 
 #[derive(Debug, Default)]
 pub struct BulletproofsProver;
+
+/// Supported circuits for Groth16 credential proofs.
+#[derive(Debug, Clone)]
+pub enum Groth16Circuit {
+    AgeOver18 { current_year: u64 },
+    Membership,
+    Reputation { threshold: u64 },
+}
 
 impl ZkProver for BulletproofsProver {
     fn prove(
@@ -151,6 +166,10 @@ impl ZkProver for BulletproofsProver {
             public_inputs: None,
         })
     }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
 }
 
 /// Prover implementation for Groth16 proofs using circuits from `icn-zk`.
@@ -163,6 +182,104 @@ impl Groth16Prover {
     /// Create a new prover wrapping the provided proving key.
     pub fn new(pk: ark_groth16::ProvingKey<ark_bn254::Bn254>) -> Self {
         Self { pk }
+    }
+
+    /// Generate a proof for the provided circuit using credential claims.
+    pub fn prove_with_circuit(
+        &self,
+        credential: &crate::credential::Credential,
+        fields: &[&str],
+        circuit: Groth16Circuit,
+    ) -> Result<ZkCredentialProof, ZkError> {
+        use ark_serialize::CanonicalSerialize;
+        use ark_std::rand::{rngs::StdRng, SeedableRng};
+        use icn_zk::{prove, AgeOver18Circuit, MembershipCircuit, ReputationCircuit};
+
+        let mut rng = StdRng::seed_from_u64(42);
+
+        let (claim_type, proof_obj, vk_bytes) = match circuit {
+            Groth16Circuit::AgeOver18 { current_year } => {
+                let birth_year = credential
+                    .claims
+                    .get("birth_year")
+                    .ok_or(ZkError::VerificationFailed)?
+                    .parse::<u64>()
+                    .map_err(|_| ZkError::VerificationFailed)?;
+                let circuit = AgeOver18Circuit {
+                    birth_year,
+                    current_year,
+                };
+                let proof =
+                    prove(&self.pk, circuit, &mut rng).map_err(|_| ZkError::VerificationFailed)?;
+                let mut vk_bytes = Vec::new();
+                self.pk
+                    .vk
+                    .serialize_compressed(&mut vk_bytes)
+                    .map_err(|_| ZkError::VerificationFailed)?;
+                ("age_over_18".to_string(), proof, vk_bytes)
+            }
+            Groth16Circuit::Membership => {
+                let is_member = credential
+                    .claims
+                    .get("is_member")
+                    .ok_or(ZkError::VerificationFailed)?
+                    .as_str()
+                    .eq_ignore_ascii_case("true");
+                let circuit = MembershipCircuit { is_member };
+                let proof =
+                    prove(&self.pk, circuit, &mut rng).map_err(|_| ZkError::VerificationFailed)?;
+                let mut vk_bytes = Vec::new();
+                self.pk
+                    .vk
+                    .serialize_compressed(&mut vk_bytes)
+                    .map_err(|_| ZkError::VerificationFailed)?;
+                ("membership".to_string(), proof, vk_bytes)
+            }
+            Groth16Circuit::Reputation { threshold } => {
+                let reputation = credential
+                    .claims
+                    .get("reputation")
+                    .ok_or(ZkError::VerificationFailed)?
+                    .parse::<u64>()
+                    .map_err(|_| ZkError::VerificationFailed)?;
+                let circuit = ReputationCircuit {
+                    reputation,
+                    threshold,
+                };
+                let proof =
+                    prove(&self.pk, circuit, &mut rng).map_err(|_| ZkError::VerificationFailed)?;
+                let mut vk_bytes = Vec::new();
+                self.pk
+                    .vk
+                    .serialize_compressed(&mut vk_bytes)
+                    .map_err(|_| ZkError::VerificationFailed)?;
+                ("reputation".to_string(), proof, vk_bytes)
+            }
+        };
+
+        let mut proof_bytes = Vec::new();
+        proof_obj
+            .serialize_compressed(&mut proof_bytes)
+            .map_err(|_| ZkError::VerificationFailed)?;
+
+        let vk_cid = Cid::new_v1_sha256(0x55, &vk_bytes);
+
+        Ok(ZkCredentialProof {
+            issuer: credential.issuer.clone(),
+            holder: credential.holder.clone(),
+            claim_type,
+            proof: proof_bytes,
+            schema: credential
+                .schema
+                .clone()
+                .unwrap_or_else(|| Cid::new_v1_sha256(0x55, b"groth16")),
+            vk_cid: Some(vk_cid),
+            disclosed_fields: fields.iter().map(|f| f.to_string()).collect(),
+            challenge: None,
+            backend: ZkProofType::Groth16,
+            verification_key: None,
+            public_inputs: None,
+        })
     }
 }
 
@@ -259,6 +376,10 @@ impl ZkProver for Groth16Prover {
             verification_key: None,
             public_inputs: None,
         })
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
@@ -460,7 +581,13 @@ mod tests {
         let issuer =
             CredentialIssuer::new(issuer_did, sk).with_prover(Box::new(Groth16Prover::default()));
         let (_, proof_opt) = issuer
-            .issue(holder_did, claims, Some(dummy_cid("schema")), Some(&[]))
+            .issue(
+                holder_did,
+                claims,
+                Some(dummy_cid("schema")),
+                Some(&[]),
+                Some(Groth16Circuit::AgeOver18 { current_year: 2020 }),
+            )
             .unwrap();
         let proof = proof_opt.expect("proof");
 

@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use icn_common::{Cid, CommonError, Did};
 
+use crate::zk::{Groth16Circuit, Groth16Prover};
 use crate::zk::{ZkError, ZkProver};
 use crate::{sign_message, verify_signature, SignatureBytes};
 use icn_common::ZkCredentialProof;
@@ -160,11 +161,20 @@ impl CredentialIssuer {
         claims: HashMap<String, String>,
         schema: Option<Cid>,
         prove_fields: Option<&[&str]>,
+        circuit: Option<Groth16Circuit>,
     ) -> Result<(Credential, Option<ZkCredentialProof>), ZkError> {
         let mut cred = Credential::new(self.did.clone(), holder, claims, schema);
         cred.sign_claims(&self.signing_key);
         let proof = if let (Some(ref prover), Some(fields)) = (&self.prover, prove_fields) {
-            Some(prover.prove(&cred, fields)?)
+            if let Some(groth16) = prover.as_any().downcast_ref::<Groth16Prover>() {
+                if let Some(c) = circuit {
+                    Some(groth16.prove_with_circuit(&cred, fields, c)?)
+                } else {
+                    Some(groth16.prove(&cred, fields)?)
+                }
+            } else {
+                Some(prover.prove(&cred, fields)?)
+            }
         } else {
             None
         };
@@ -177,8 +187,8 @@ mod tests {
     use super::*;
     use crate::generate_ed25519_keypair;
     use crate::zk::{
-        BulletproofsProver, BulletproofsVerifier, DummyProver, DummyVerifier, Groth16Prover,
-        Groth16Verifier, ZkVerifier,
+        BulletproofsProver, BulletproofsVerifier, DummyProver, DummyVerifier, Groth16Circuit,
+        Groth16Prover, Groth16Verifier, ZkVerifier,
     };
 
     #[test]
@@ -196,6 +206,7 @@ mod tests {
                 claims,
                 Some(Cid::new_v1_sha256(0x55, b"schema")),
                 Some(&["age"]),
+                None,
             )
             .unwrap();
         let proof = proof_opt.expect("proof");
@@ -218,6 +229,7 @@ mod tests {
                 claims,
                 Some(Cid::new_v1_sha256(0x55, b"schema")),
                 Some(&[]),
+                None,
             )
             .unwrap();
         let proof = proof_opt.expect("proof");
@@ -254,6 +266,7 @@ mod tests {
                 claims,
                 Some(Cid::new_v1_sha256(0x55, b"schema")),
                 Some(&[]),
+                Some(Groth16Circuit::AgeOver18 { current_year: 2020 }),
             )
             .unwrap();
         let proof = proof_opt.expect("proof");
