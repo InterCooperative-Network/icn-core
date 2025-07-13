@@ -1,5 +1,12 @@
-use icn_common::{Cid, ZkCredentialProof, ZkProofType};
+//! Utilities for generating and verifying zero-knowledge proofs.
+//!
+//! This module provides simple verifiers for Bulletproofs and Groth16 proofs
+//! used in credential validation.
+use ark_bn254::{Bn254, Fr};
+use ark_groth16::{Groth16, PreparedVerifyingKey, Proof};
+use ark_serialize::CanonicalDeserialize;
 use core::convert::TryInto;
+use icn_common::{Cid, ZkCredentialProof, ZkProofType};
 use thiserror::Error;
 
 /// Errors that can occur when verifying zero-knowledge proofs.
@@ -67,6 +74,29 @@ impl ZkVerifier for BulletproofsVerifier {
     }
 }
 
+/// Verifier implementation for Groth16 zk-SNARK proofs using the BN254 curve.
+#[derive(Debug)]
+pub struct Groth16Verifier {
+    /// Prepared verifying key for the circuit.
+    pub vk: PreparedVerifyingKey<Bn254>,
+    /// Expected public inputs for the proof.
+    pub public_inputs: Vec<Fr>,
+}
+
+impl ZkVerifier for Groth16Verifier {
+    fn verify(&self, proof: &ZkCredentialProof) -> Result<bool, ZkError> {
+        if proof.backend != ZkProofType::Groth16 {
+            return Err(ZkError::UnsupportedBackend(proof.backend.clone()));
+        }
+
+        let groth_proof = Proof::<Bn254>::deserialize_compressed(&mut &proof.proof[..])
+            .map_err(|_| ZkError::InvalidProof)?;
+
+        Groth16::<Bn254>::verify_proof(&self.vk, &groth_proof, &self.public_inputs)
+            .map_err(|_| ZkError::VerificationFailed)
+    }
+}
+
 /// Simple verifier used for testing that always returns `true` when the proof
 /// structure is well formed.
 #[derive(Debug, Default)]
@@ -124,15 +154,9 @@ impl ZkProver for BulletproofsProver {
         let bp_gens = BulletproofGens::new(64, 1);
         let blinding = Scalar::random(&mut OsRng);
         let mut transcript = Transcript::new(b"ZkCredentialProof");
-        let (proof, commit) = RangeProof::prove_single(
-            &bp_gens,
-            &pc_gens,
-            &mut transcript,
-            42u64,
-            &blinding,
-            64,
-        )
-        .map_err(|_| ZkError::VerificationFailed)?;
+        let (proof, commit) =
+            RangeProof::prove_single(&bp_gens, &pc_gens, &mut transcript, 42u64, &blinding, 64)
+                .map_err(|_| ZkError::VerificationFailed)?;
 
         let mut bytes = proof.to_bytes();
         bytes.extend_from_slice(commit.as_bytes());
@@ -172,15 +196,9 @@ mod tests {
         let bp_gens = BulletproofGens::new(64, 1);
         let blinding = Scalar::random(&mut OsRng);
         let mut transcript = Transcript::new(b"ZkCredentialProof");
-        let (proof, commit) = RangeProof::prove_single(
-            &bp_gens,
-            &pc_gens,
-            &mut transcript,
-            42u64,
-            &blinding,
-            64,
-        )
-        .expect("range proof generation should succeed");
+        let (proof, commit) =
+            RangeProof::prove_single(&bp_gens, &pc_gens, &mut transcript, 42u64, &blinding, 64)
+                .expect("range proof generation should succeed");
 
         let mut bytes = proof.to_bytes();
         bytes.extend_from_slice(commit.as_bytes());
@@ -253,5 +271,63 @@ mod tests {
         proof.proof[0] ^= 0x01;
         let verifier = BulletproofsVerifier;
         assert_eq!(verifier.verify(&proof), Err(ZkError::VerificationFailed));
+    }
+
+    #[test]
+    fn groth16_verifier_ok() {
+        use ark_serialize::CanonicalSerialize;
+        use ark_std::rand::{rngs::StdRng, SeedableRng};
+        use icn_zk::{self as zk, AgeOver18Circuit};
+
+        let circuit = AgeOver18Circuit {
+            birth_year: 2000,
+            current_year: 2020,
+        };
+        let mut rng = StdRng::seed_from_u64(42);
+        let pk = zk::setup(circuit.clone(), &mut rng).unwrap();
+        let proof = zk::prove(&pk, circuit, &mut rng).unwrap();
+        let vk = zk::prepare_vk(&pk);
+        let public_inputs = vec![Fr::from(2020u64)];
+        let verifier = Groth16Verifier { vk, public_inputs };
+
+        let mut proof_bytes = Vec::new();
+        proof.serialize_compressed(&mut proof_bytes).unwrap();
+
+        let zk_proof = ZkCredentialProof {
+            issuer: Did::new("key", "issuer"),
+            holder: Did::new("key", "holder"),
+            claim_type: "age".into(),
+            proof: proof_bytes,
+            schema: dummy_cid("age"),
+            disclosed_fields: Vec::new(),
+            challenge: None,
+            backend: ZkProofType::Groth16,
+        };
+
+        assert!(verifier.verify(&zk_proof).unwrap());
+    }
+
+    #[test]
+    fn groth16_backend_mismatch() {
+        let verifier = Groth16Verifier {
+            vk: PreparedVerifyingKey::default(),
+            public_inputs: vec![],
+        };
+        let proof = dummy_proof(ZkProofType::Bulletproofs);
+        assert!(matches!(
+            verifier.verify(&proof),
+            Err(ZkError::UnsupportedBackend(_))
+        ));
+    }
+
+    #[test]
+    fn groth16_malformed_proof() {
+        let verifier = Groth16Verifier {
+            vk: PreparedVerifyingKey::default(),
+            public_inputs: vec![],
+        };
+        let mut proof = dummy_proof(ZkProofType::Groth16);
+        proof.proof = vec![1, 2, 3];
+        assert_eq!(verifier.verify(&proof), Err(ZkError::InvalidProof));
     }
 }
