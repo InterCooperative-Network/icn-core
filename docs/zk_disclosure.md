@@ -104,3 +104,12 @@ Example proof payload referencing a cached key:
   "public_inputs": { "membership": true }
 }
 ```
+## Proof of Revocation
+
+Verifiable credentials can be invalidated without revealing their contents. The `ZkRevocationProof` structure allows a holder to prove that a credential has not been revoked while keeping the revocation registry private.
+
+1. **Issuer** marks the credential ID in its revocation registry and generates a zero-knowledge revocation proof.
+2. **Holder** presents this `ZkRevocationProof` together with their credential or credential proof.
+3. **Verifier** calls `verify_revocation` on a configured `ZkRevocationVerifier` implementation. If the proof succeeds, the credential is considered active without exposing registry entries.
+
+Revocation proofs can be produced by `icn-identity`'s `Groth16Prover` or any custom prover implementing `ZkProver`.

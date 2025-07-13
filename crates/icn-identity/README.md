@@ -49,8 +49,15 @@ Credential issuance can optionally generate zero-knowledge proofs via the
 
 - `DummyProver` – generates placeholder proofs for testing.
 - `BulletproofsProver` – produces range proofs using the Bulletproofs protocol.
-- `Groth16Prover` – generic prover for Groth16 circuits such as age, membership
-  or reputation checks.
+- `Groth16Prover` – generic prover for Groth16 circuits such as age, membership or reputation checks.
+
+## Credential Revocation Workflow
+
+Zero-knowledge revocation proofs allow verifiers to check that a credential remains valid without revealing registry details.
+
+1. An issuer records the credential identifier in its revocation registry and creates a `ZkRevocationProof`.
+2. The holder includes this proof when presenting the credential or a credential proof.
+3. Verifiers call `verify_revocation` using their configured `ZkRevocationVerifier`. A successful result confirms the credential is not revoked.
 
 ## Contributing
 
