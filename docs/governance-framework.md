@@ -157,6 +157,15 @@ fn validate_vote(voter: Did, proposal: Proposal, vote: Vote) -> Bool {
 - **Eligibility Proof**: Each ballot includes a zero-knowledge credential proof verifying the voter meets membership requirements.
 - **Real-Time Tallying**: Live vote count display
 
+### Credential Proofs
+
+Proposers and voters attach a `credential_proof` object when submitting
+governance actions. The proof follows the format described in
+[`zk_disclosure.md`](zk_disclosure.md) and typically demonstrates
+membership status. Nodes verify this proof before accepting the proposal or
+vote. Operators may enforce mandatory proofs by creating the
+`InMemoryPolicyEnforcer` with `require_proof` enabled.
+
 ### **4. Execution Phase**
 - **Automatic Implementation**: CCL contracts execute decisions
 - **Monitoring**: Track implementation progress

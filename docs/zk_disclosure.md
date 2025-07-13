@@ -113,3 +113,24 @@ Verifiable credentials can be invalidated without revealing their contents. The 
 3. **Verifier** calls `verify_revocation` on a configured `ZkRevocationVerifier` implementation. If the proof succeeds, the credential is considered active without exposing registry entries.
 
 Revocation proofs can be produced by `icn-identity`'s `Groth16Prover` or any custom prover implementing `ZkProver`.
+
+## Example API Requests
+
+Verify a credential proof:
+
+```bash
+curl -X POST http://localhost:7845/identity/verify \
+     -H "Content-Type: application/json" \
+     --data @docs/examples/zk_membership.json
+```
+
+Submit a DAG block with an attached proof:
+
+```bash
+curl -X POST http://localhost:7845/dag/put \
+     -H "Content-Type: application/json" \
+     --data @docs/examples/dag_put_with_proof.json
+```
+
+Nodes can enforce proof submission by creating the
+`InMemoryPolicyEnforcer` with `require_proof` set to `true`.
