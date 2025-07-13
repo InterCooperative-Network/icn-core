@@ -144,6 +144,28 @@ fn batch_verify_multiple_proofs() {
 }
 
 #[test]
+fn prove_batch_multiple() {
+    let circuits = vec![
+        AgeOver18Circuit {
+            birth_year: 1990,
+            current_year: 2020,
+        },
+        AgeOver18Circuit {
+            birth_year: 1995,
+            current_year: 2020,
+        },
+    ];
+    let mut rng = StdRng::seed_from_u64(42);
+    let pk = setup(circuits[0].clone(), &mut rng).unwrap();
+    let proofs = prove_batch(&pk, &circuits).unwrap();
+    let vk = prepare_vk(&pk);
+    let inputs1 = [Fr::from(2020u64)];
+    let inputs2 = [Fr::from(2020u64)];
+    let batch = [(&proofs[0], &inputs1[..]), (&proofs[1], &inputs2[..])];
+    assert!(verify_batch(&vk, &batch).unwrap());
+}
+
+#[test]
 fn batch_verify_detects_invalid() {
     let circuit = AgeOver18Circuit {
         birth_year: 2000,

@@ -60,6 +60,24 @@ pub fn prove<C: ConstraintSynthesizer<Fr>, R: RngCore + CryptoRng>(
     Groth16::<Bn254>::prove(pk, circuit, rng)
 }
 
+/// Create Groth16 proofs for multiple circuits in parallel.
+pub fn prove_batch<C>(
+    pk: &ProvingKey<Bn254>,
+    circuits: &[C],
+) -> Result<Vec<Proof<Bn254>>, SynthesisError>
+where
+    C: ConstraintSynthesizer<Fr> + Clone + Send + Sync,
+{
+    circuits
+        .par_iter()
+        .cloned()
+        .map(|c| {
+            let mut rng = ark_std::rand::rngs::OsRng;
+            Groth16::<Bn254>::prove(pk, c, &mut rng)
+        })
+        .collect()
+}
+
 /// Prepare the verifying key for use in verification.
 pub fn prepare_vk(pk: &ProvingKey<Bn254>) -> PreparedVerifyingKey<Bn254> {
     Groth16::<Bn254>::process_vk(&pk.vk).unwrap()

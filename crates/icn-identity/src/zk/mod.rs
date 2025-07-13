@@ -481,7 +481,9 @@ impl ZkProver for Groth16Prover {
 pub struct Groth16Verifier {
     vk: ark_groth16::PreparedVerifyingKey<ark_bn254::Bn254>,
     public_inputs: Vec<ark_bn254::Fr>,
+    #[allow(dead_code)]
     reputation_store: std::sync::Arc<dyn icn_reputation::ReputationStore>,
+    #[allow(dead_code)]
     thresholds: icn_zk::ReputationThresholds,
 }
 
