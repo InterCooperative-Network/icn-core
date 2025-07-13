@@ -62,3 +62,29 @@ See [`docs/examples/zk_membership.json`](examples/zk_membership.json) for a memb
 `~/.icn/zk/`, and signs the verifying key with an Ed25519 key. Use
 `load_proving_key` and `verify_key_signature` to access the stored parameters
 and confirm their authenticity.
+
+### Production Verification
+ICN nodes treat verifying keys as signed artifacts. When a proving key is generated,
+`Groth16KeyManager` writes `verifying_key.bin` and a matching `verifying_key.sig`
+to `~/.icn/zk/`. The signature ensures the key came from the expected signer.
+
+Nodes cache these files locally so proofs do not need to embed large keys or
+fetch them repeatedly. When verifying a proof, the node checks the signature
+using the signer's public key and compares the computed CID of the local key
+with the `vk_cid` field from the proof. If the signature or CID do not match,
+verification fails.
+
+Example proof referencing a cached key:
+```json
+{
+  "issuer": "did:key:example:issuer",
+  "holder": "did:key:example:holder",
+  "claim_type": "membership",
+  "proof": [1, 2, 3],
+  "schema": "bafyschemacid",
+  "vk_cid": "bafyverifyingkeycid",
+  "verification_key": [4, 5, 6],
+  "backend": "groth16",
+  "public_inputs": { "is_member": true }
+}
+```
