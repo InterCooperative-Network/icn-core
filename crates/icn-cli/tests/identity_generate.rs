@@ -1,5 +1,6 @@
 use assert_cmd::prelude::*;
 use icn_common::{Cid, Did, ZkCredentialProof, ZkProofType};
+use serde::Deserialize;
 use std::process::Command;
 
 #[tokio::test]
@@ -28,6 +29,8 @@ async fn identity_generate_command() {
                 &schema_str,
                 "--backend",
                 "groth16",
+                "--age-over-18",
+                "2024",
             ])
             .output()
             .unwrap()
@@ -37,11 +40,17 @@ async fn identity_generate_command() {
 
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).unwrap();
-    let proof: ZkCredentialProof = serde_json::from_str(&stdout).unwrap();
-    assert_eq!(proof.issuer, issuer);
-    assert_eq!(proof.holder, holder);
-    assert_eq!(proof.claim_type, "test");
-    assert_eq!(proof.schema, schema_cid);
-    assert_eq!(proof.backend, ZkProofType::Groth16);
-    assert!(!proof.proof.is_empty());
+    #[derive(Deserialize)]
+    struct Output {
+        proof: ZkCredentialProof,
+        verifying_key: String,
+    }
+    let out: Output = serde_json::from_str(&stdout).unwrap();
+    assert_eq!(out.proof.issuer, issuer);
+    assert_eq!(out.proof.holder, holder);
+    assert_eq!(out.proof.claim_type, "test");
+    assert_eq!(out.proof.schema, schema_cid);
+    assert_eq!(out.proof.backend, ZkProofType::Groth16);
+    assert!(!out.proof.proof.is_empty());
+    assert!(!out.verifying_key.is_empty());
 }

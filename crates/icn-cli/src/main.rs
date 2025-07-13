@@ -14,13 +14,10 @@ use serde_json::Value as JsonValue; // For generic JSON data if needed
 use std::io::{self, Read};
 use std::path::PathBuf;
 use std::process::exit; // Added for reading from stdin
-use fastrand;
 
 // Types from our ICN crates that CLI will interact with (serialize/deserialize)
 // These types are expected to be sent to/received from the icn-node HTTP API.
-use icn_common::{
-    Cid, DagBlock, Did, NodeInfo, NodeStatus, ZkCredentialProof, ZkProofType,
-};
+use icn_common::{Cid, DagBlock, Did, NodeInfo, NodeStatus, ZkCredentialProof, ZkProofType};
 // Using aliased request structs from icn-api for clarity, these are what the node expects
 use icn_api::governance_trait::{
     CastVoteRequest as ApiCastVoteRequest, SubmitProposalRequest as ApiSubmitProposalRequest,
@@ -335,6 +332,11 @@ enum IdentityCommands {
         schema: String,
         #[clap(long, help = "Proof backend (groth16|bulletproofs|other:<name>)")]
         backend: String,
+        #[clap(
+            long,
+            help = "Generate an age-over-18 proof using the given current year"
+        )]
+        age_over_18: Option<u64>,
     },
 }
 
@@ -406,17 +408,25 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
             ReputationCommands::Get { did } => handle_reputation_get(cli, client, did).await?,
         },
         Commands::Identity { command } => match command {
-            IdentityCommands::VerifyProof { proof_json_or_stdin } => {
-                handle_identity_verify(cli, client, proof_json_or_stdin).await?
-            }
+            IdentityCommands::VerifyProof {
+                proof_json_or_stdin,
+            } => handle_identity_verify(cli, client, proof_json_or_stdin).await?,
             IdentityCommands::GenerateProof {
                 issuer,
                 holder,
                 claim_type,
                 schema,
                 backend,
+                age_over_18,
             } => {
-                handle_identity_generate(issuer, holder, claim_type, schema, backend)?;
+                handle_identity_generate(
+                    issuer,
+                    holder,
+                    claim_type,
+                    schema,
+                    backend,
+                    *age_over_18,
+                )?;
             }
         },
         Commands::Ccl { command } => match command {
@@ -1017,6 +1027,7 @@ fn handle_identity_generate(
     claim_type: &str,
     schema: &str,
     backend: &str,
+    age_over_18: Option<u64>,
 ) -> Result<(), anyhow::Error> {
     use std::str::FromStr;
 
@@ -1024,8 +1035,12 @@ fn handle_identity_generate(
     let holder_did = Did::from_str(holder)?;
     let schema_cid = icn_common::parse_cid_from_string(schema)?;
     let backend_parsed = parse_backend(backend);
-    let mut proof_bytes = vec![0u8; 32];
-    fastrand::fill(&mut proof_bytes);
+    if backend_parsed != ZkProofType::Groth16 {
+        return Err(anyhow::anyhow!("only groth16 backend implemented"));
+    }
+    let current = age_over_18.ok_or_else(|| anyhow::anyhow!("--age-over-18 required"))?;
+    let prover = icn_identity::Groth16Prover::default();
+    let (proof_bytes, vk_bytes) = prover.prove_age_over_18(2000, current)?;
 
     let proof = ZkCredentialProof {
         issuer: issuer_did,
@@ -1038,7 +1053,13 @@ fn handle_identity_generate(
         backend: backend_parsed,
     };
 
-    println!("{}", serde_json::to_string_pretty(&proof)?);
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&serde_json::json!({
+            "proof": proof,
+            "verifying_key": base64::engine::general_purpose::STANDARD.encode(vk_bytes)
+        }))?
+    );
     Ok(())
 }
 

@@ -8,6 +8,7 @@ license.workspace = true
 [dependencies]
 icn-common = { path = "../icn-common" }
 icn-api = { path = "../icn-api" }
+icn-identity = { path = "../icn-identity" }
 icn-governance = { path = "../icn-governance" }
 icn-network = { path = "../icn-network" }
 icn-mesh = { path = "../icn-mesh" }

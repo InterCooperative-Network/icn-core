@@ -1,5 +1,5 @@
-use icn_common::{Cid, ZkCredentialProof, ZkProofType};
 use core::convert::TryInto;
+use icn_common::{Cid, ZkCredentialProof, ZkProofType};
 use thiserror::Error;
 
 /// Errors that can occur when verifying zero-knowledge proofs.
@@ -124,15 +124,9 @@ impl ZkProver for BulletproofsProver {
         let bp_gens = BulletproofGens::new(64, 1);
         let blinding = Scalar::random(&mut OsRng);
         let mut transcript = Transcript::new(b"ZkCredentialProof");
-        let (proof, commit) = RangeProof::prove_single(
-            &bp_gens,
-            &pc_gens,
-            &mut transcript,
-            42u64,
-            &blinding,
-            64,
-        )
-        .map_err(|_| ZkError::VerificationFailed)?;
+        let (proof, commit) =
+            RangeProof::prove_single(&bp_gens, &pc_gens, &mut transcript, 42u64, &blinding, 64)
+                .map_err(|_| ZkError::VerificationFailed)?;
 
         let mut bytes = proof.to_bytes();
         bytes.extend_from_slice(commit.as_bytes());
@@ -150,6 +144,43 @@ impl ZkProver for BulletproofsProver {
             challenge: None,
             backend: ZkProofType::Bulletproofs,
         })
+    }
+}
+
+/// Prover for Groth16 SNARK circuits used in ICN.
+#[derive(Debug, Default)]
+pub struct Groth16Prover;
+
+impl Groth16Prover {
+    /// Generate an age-over-18 proof returning the proof bytes and verifying key bytes.
+    pub fn prove_age_over_18(
+        &self,
+        birth_year: u64,
+        current_year: u64,
+    ) -> Result<(Vec<u8>, Vec<u8>), ZkError> {
+        use ark_serialize::CanonicalSerialize;
+        use ark_std::rand::rngs::OsRng;
+        use icn_zk::{prove, setup, AgeOver18Circuit};
+
+        let mut rng = OsRng;
+        let circuit = AgeOver18Circuit {
+            birth_year,
+            current_year,
+        };
+        let pk = setup(circuit.clone(), &mut rng).map_err(|_| ZkError::VerificationFailed)?;
+        let proof = prove(&pk, circuit, &mut rng).map_err(|_| ZkError::VerificationFailed)?;
+
+        let mut proof_bytes = Vec::new();
+        proof
+            .serialize_uncompressed(&mut proof_bytes)
+            .map_err(|_| ZkError::InvalidProof)?;
+
+        let mut vk_bytes = Vec::new();
+        pk.vk
+            .serialize_uncompressed(&mut vk_bytes)
+            .map_err(|_| ZkError::InvalidProof)?;
+
+        Ok((proof_bytes, vk_bytes))
     }
 }
 
@@ -172,15 +203,9 @@ mod tests {
         let bp_gens = BulletproofGens::new(64, 1);
         let blinding = Scalar::random(&mut OsRng);
         let mut transcript = Transcript::new(b"ZkCredentialProof");
-        let (proof, commit) = RangeProof::prove_single(
-            &bp_gens,
-            &pc_gens,
-            &mut transcript,
-            42u64,
-            &blinding,
-            64,
-        )
-        .expect("range proof generation should succeed");
+        let (proof, commit) =
+            RangeProof::prove_single(&bp_gens, &pc_gens, &mut transcript, 42u64, &blinding, 64)
+                .expect("range proof generation should succeed");
 
         let mut bytes = proof.to_bytes();
         bytes.extend_from_slice(commit.as_bytes());
