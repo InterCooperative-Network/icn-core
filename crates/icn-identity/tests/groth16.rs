@@ -135,7 +135,7 @@ fn issue_and_verify_groth16_proof() {
 
 #[test]
 fn prover_rejects_low_reputation() {
-    let manager = Groth16KeyManager::new();
+    let _manager = Groth16KeyManager::new();
     let (sk, _) = generate_ed25519_keypair();
     let issuer_did = Did::new("key", "issuer");
     let holder_did = Did::new("key", "holder");
@@ -145,7 +145,15 @@ fn prover_rejects_low_reputation() {
     let store = icn_reputation::InMemoryReputationStore::new();
     store.set_score(issuer_did.clone(), 0);
     let thresholds = icn_zk::ReputationThresholds::default();
-    let km = icn_identity::zk::Groth16KeyManager::new(&sk).unwrap();
+    let km = icn_identity::zk::Groth16KeyManager::new(
+        "age_over_18",
+        icn_zk::AgeOver18Circuit {
+            birth_year: 0,
+            current_year: 0,
+        },
+        &sk,
+    )
+    .unwrap();
     let prover =
         icn_identity::zk::Groth16Prover::new(km, std::sync::Arc::new(store), thresholds.clone());
 
@@ -156,6 +164,7 @@ fn prover_rejects_low_reputation() {
         Some(Cid::new_v1_sha256(0x55, b"schema")),
         Some(&[]),
         Some(Groth16Circuit::AgeOver18 { current_year: 2020 }),
+        None,
     );
     assert!(matches!(res, Err(ZkError::InsufficientReputation)));
 }
@@ -180,6 +189,7 @@ fn verifier_rejects_low_reputation() {
             Some(Cid::new_v1_sha256(0x55, b"schema")),
             Some(&[]),
             Some(Groth16Circuit::AgeOver18 { current_year: 2020 }),
+            None,
         )
         .unwrap();
     let proof = proof_opt.expect("proof");

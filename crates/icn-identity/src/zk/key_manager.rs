@@ -1,10 +1,11 @@
 use crate::{
     sign_message, verify_signature, EdSignature, SigningKey, VerifyingKey, SIGNATURE_LENGTH,
 };
-use ark_bn254::Bn254;
+use ark_bn254::{Bn254, Fr};
 use ark_groth16::ProvingKey;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::rand::rngs::OsRng;
+use ark_relations::r1cs::ConstraintSynthesizer;
 use directories_next as dirs_next;
 use icn_common::CommonError;
 use std::fs;
@@ -18,14 +19,15 @@ pub struct Groth16KeyManager {
 }
 
 impl Groth16KeyManager {
-    /// Generate new parameters and store them in `~/.icn/zk`.
-    pub fn new(signer: &SigningKey) -> Result<Self, CommonError> {
-        use icn_zk::{setup, AgeOver18Circuit};
+    /// Generate new parameters for `circuit` and store them under
+    /// `~/.icn/zk/<name>`.
+    pub fn new<C: ConstraintSynthesizer<Fr>>(
+        name: &str,
+        circuit: C,
+        signer: &SigningKey,
+    ) -> Result<Self, CommonError> {
+        use icn_zk::setup;
 
-        let circuit = AgeOver18Circuit {
-            birth_year: 2000,
-            current_year: 2020,
-        };
         let mut rng = OsRng;
         let pk = setup(circuit, &mut rng)
             .map_err(|_| CommonError::CryptoError("groth16 setup failed".into()))?;
@@ -33,7 +35,8 @@ impl Groth16KeyManager {
         let dir = dirs_next::BaseDirs::new()
             .ok_or_else(|| CommonError::IoError("missing home directory".into()))?
             .home_dir()
-            .join(".icn/zk");
+            .join(".icn/zk")
+            .join(name);
         fs::create_dir_all(&dir).map_err(|e| CommonError::IoError(e.to_string()))?;
 
         let pk_path = dir.join("proving_key.bin");

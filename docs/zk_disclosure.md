@@ -75,8 +75,8 @@ For information on adding or upgrading circuits, see [dynamic_circuits.md](dynam
 For a hands-on tutorial on creating new circuits, see [zk_circuit_development.md](zk_circuit_development.md).
 
 ### Groth16KeyManager
-`Groth16KeyManager` generates Groth16 parameters, stores them under
-`~/.icn/zk/`, and signs the verifying key with an Ed25519 key. Use
+`Groth16KeyManager` generates Groth16 parameters for a circuit, stores them under
+`~/.icn/zk/<circuit>/`, and signs the verifying key with an Ed25519 key. Use
 `load_proving_key` and `verify_key_signature` to access the stored parameters
 and confirm their authenticity.
 
@@ -145,7 +145,7 @@ true
 
 Production nodes must verify the authenticity of the Groth16 verifying key
 before accepting proofs. `Groth16KeyManager` stores `verifying_key.bin` and a
-matching `verifying_key.sig` under `~/.icn/zk/`. The signature is created using
+matching `verifying_key.sig` under `~/.icn/zk/<circuit>/`. The signature is created using
 an Ed25519 signing key and can be checked with `verify_key_signature`.
 
 `Groth16Verifier` caches prepared verifying keys in memory keyed by their CID to

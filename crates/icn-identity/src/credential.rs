@@ -273,7 +273,17 @@ mod tests {
         let mut claims = HashMap::new();
         claims.insert("birth_year".to_string(), "2000".to_string());
 
-        let km = Groth16KeyManager::new(&sk).unwrap();
+        use icn_zk::AgeOver18Circuit;
+
+        let km = Groth16KeyManager::new(
+            "age_over_18",
+            AgeOver18Circuit {
+                birth_year: 0,
+                current_year: 0,
+            },
+            &sk,
+        )
+        .unwrap();
         let prover = Groth16Prover::new(
             km.clone(),
             std::sync::Arc::new(icn_reputation::InMemoryReputationStore::new()),

@@ -35,7 +35,7 @@ The node stores the parameters and returns a content identifier (CID) for later 
 
 ## Proving Key and Parameter Storage
 
-`Groth16KeyManager` persists parameters under `~/.icn/zk/`:
+`Groth16KeyManager` persists parameters under `~/.icn/zk/<circuit>/`:
 
 - `proving_key.bin` – compressed Groth16 proving key
 - `verifying_key.bin` – verifying key bytes
