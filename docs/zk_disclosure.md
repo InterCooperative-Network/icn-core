@@ -52,3 +52,9 @@ The `icn-zk` crate exposes reusable circuits that can be compiled into proofs:
 - `ReputationCircuit` – proves a reputation score meets a required threshold.
 
 See [`docs/examples/zk_age_over_18.json`](examples/zk_age_over_18.json) for a sample proof payload.
+
+### Groth16KeyManager
+`Groth16KeyManager` generates Groth16 parameters, stores them under
+`~/.icn/zk/`, and signs the verifying key with an Ed25519 key. Use
+`load_proving_key` and `verify_key_signature` to access the stored parameters
+and confirm their authenticity.

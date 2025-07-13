@@ -5,6 +5,8 @@ use serde::{Deserialize, Serialize};
 
 use icn_common::{Cid, CommonError, Did};
 
+#[cfg(test)]
+use crate::zk::Groth16KeyManager;
 use crate::zk::{Groth16Circuit, Groth16Prover};
 use crate::zk::{ZkError, ZkProver};
 use crate::{sign_message, verify_signature, SignatureBytes};
@@ -239,27 +241,15 @@ mod tests {
 
     #[test]
     fn groth16_proof_roundtrip() {
-        use ark_std::rand::{rngs::StdRng, SeedableRng};
-        use icn_zk::{setup, AgeOver18Circuit};
-
         let (sk, _) = generate_ed25519_keypair();
         let issuer = Did::new("key", "issuer");
         let holder = Did::new("key", "holder");
         let mut claims = HashMap::new();
         claims.insert("birth_year".to_string(), "2000".to_string());
 
-        let mut rng = StdRng::seed_from_u64(42);
-        let pk = setup(
-            AgeOver18Circuit {
-                birth_year: 2000,
-                current_year: 2020,
-            },
-            &mut rng,
-        )
-        .unwrap();
-
-        let issuer =
-            CredentialIssuer::new(issuer, sk).with_prover(Box::new(Groth16Prover::new(pk)));
+        let km = Groth16KeyManager::new(&sk).unwrap();
+        let prover = Groth16Prover::new(km.clone());
+        let issuer = CredentialIssuer::new(issuer, sk).with_prover(Box::new(prover));
         let (_, proof_opt) = issuer
             .issue(
                 holder,
@@ -270,7 +260,10 @@ mod tests {
             )
             .unwrap();
         let proof = proof_opt.expect("proof");
-        let verifier = Groth16Verifier::default();
+        let verifier = Groth16Verifier::new(
+            icn_zk::prepare_vk(km.proving_key()),
+            vec![ark_bn254::Fr::from(2020u64)],
+        );
         assert!(verifier.verify(&proof).unwrap());
     }
 }

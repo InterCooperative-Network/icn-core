@@ -8,6 +8,9 @@ use icn_common::{Cid, ZkCredentialProof, ZkProofType};
 use std::any::Any;
 use thiserror::Error;
 
+pub mod key_manager;
+pub use key_manager::Groth16KeyManager;
+
 /// Errors that can occur when verifying zero-knowledge proofs.
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum ZkError {
@@ -180,13 +183,13 @@ impl ZkProver for BulletproofsProver {
 /// Prover implementation for Groth16 proofs using circuits from `icn-zk`.
 #[derive(Debug)]
 pub struct Groth16Prover {
-    pk: ark_groth16::ProvingKey<ark_bn254::Bn254>,
+    km: Groth16KeyManager,
 }
 
 impl Groth16Prover {
     /// Create a new prover wrapping the provided proving key.
-    pub fn new(pk: ark_groth16::ProvingKey<ark_bn254::Bn254>) -> Self {
-        Self { pk }
+    pub fn new(km: Groth16KeyManager) -> Self {
+        Self { km }
     }
 
     /// Generate a proof for the provided circuit using credential claims.
@@ -214,10 +217,11 @@ impl Groth16Prover {
                     birth_year,
                     current_year,
                 };
-                let proof =
-                    prove(&self.pk, circuit, &mut rng).map_err(|_| ZkError::VerificationFailed)?;
+                let proof = prove(self.km.proving_key(), circuit, &mut rng)
+                    .map_err(|_| ZkError::VerificationFailed)?;
                 let mut vk_bytes = Vec::new();
-                self.pk
+                self.km
+                    .proving_key()
                     .vk
                     .serialize_compressed(&mut vk_bytes)
                     .map_err(|_| ZkError::VerificationFailed)?;
@@ -231,10 +235,11 @@ impl Groth16Prover {
                     .as_str()
                     .eq_ignore_ascii_case("true");
                 let circuit = MembershipCircuit { is_member };
-                let proof =
-                    prove(&self.pk, circuit, &mut rng).map_err(|_| ZkError::VerificationFailed)?;
+                let proof = prove(self.km.proving_key(), circuit, &mut rng)
+                    .map_err(|_| ZkError::VerificationFailed)?;
                 let mut vk_bytes = Vec::new();
-                self.pk
+                self.km
+                    .proving_key()
                     .vk
                     .serialize_compressed(&mut vk_bytes)
                     .map_err(|_| ZkError::VerificationFailed)?;
@@ -251,10 +256,11 @@ impl Groth16Prover {
                     reputation,
                     threshold,
                 };
-                let proof =
-                    prove(&self.pk, circuit, &mut rng).map_err(|_| ZkError::VerificationFailed)?;
+                let proof = prove(self.km.proving_key(), circuit, &mut rng)
+                    .map_err(|_| ZkError::VerificationFailed)?;
                 let mut vk_bytes = Vec::new();
-                self.pk
+                self.km
+                    .proving_key()
                     .vk
                     .serialize_compressed(&mut vk_bytes)
                     .map_err(|_| ZkError::VerificationFailed)?;
@@ -290,18 +296,11 @@ impl Groth16Prover {
 
 impl Default for Groth16Prover {
     fn default() -> Self {
-        use ark_std::rand::{rngs::StdRng, SeedableRng};
-        use icn_zk::{setup, AgeOver18Circuit};
+        use crate::generate_ed25519_keypair;
 
-        // Deterministic setup for demo purposes
-        let circuit = AgeOver18Circuit {
-            birth_year: 2000,
-            current_year: 2020,
-        };
-        let mut rng = StdRng::seed_from_u64(42);
-        let pk = setup(circuit, &mut rng).expect("setup");
-
-        Self { pk }
+        let (sk, _) = generate_ed25519_keypair();
+        let km = Groth16KeyManager::new(&sk).expect("key manager setup");
+        Self { km }
     }
 }
 
@@ -324,7 +323,7 @@ impl ZkProver for Groth16Prover {
             (
                 "age_over_18".to_string(),
                 prove(
-                    &self.pk,
+                    self.km.proving_key(),
                     AgeOver18Circuit {
                         birth_year,
                         current_year: 2020,
@@ -337,8 +336,12 @@ impl ZkProver for Groth16Prover {
             let is_member = matches!(val.as_str(), "true" | "1");
             (
                 "membership".to_string(),
-                prove(&self.pk, MembershipCircuit { is_member }, &mut rng)
-                    .map_err(|_| ZkError::VerificationFailed)?,
+                prove(
+                    self.km.proving_key(),
+                    MembershipCircuit { is_member },
+                    &mut rng,
+                )
+                .map_err(|_| ZkError::VerificationFailed)?,
             )
         } else if let Some(val) = credential.claims.get("reputation") {
             let reputation = val
@@ -347,7 +350,7 @@ impl ZkProver for Groth16Prover {
             (
                 "reputation".to_string(),
                 prove(
-                    &self.pk,
+                    self.km.proving_key(),
                     ReputationCircuit {
                         reputation,
                         threshold: 5,
@@ -672,8 +675,10 @@ mod tests {
         let mut claims = HashMap::new();
         claims.insert("birth_year".to_string(), "2000".to_string());
 
-        let issuer =
-            CredentialIssuer::new(issuer_did, sk).with_prover(Box::new(Groth16Prover::default()));
+        let km = Groth16KeyManager::new(&sk).unwrap();
+        let verifier_vk = icn_zk::prepare_vk(km.proving_key());
+        let issuer = CredentialIssuer::new(issuer_did, sk)
+            .with_prover(Box::new(Groth16Prover::new(km.clone())));
         let (_, proof_opt) = issuer
             .issue(
                 holder_did,
@@ -685,7 +690,7 @@ mod tests {
             .unwrap();
         let proof = proof_opt.expect("proof");
 
-        let verifier = Groth16Verifier::default();
+        let verifier = Groth16Verifier::new(verifier_vk, vec![ark_bn254::Fr::from(2020u64)]);
         assert!(verifier.verify(&proof).unwrap());
     }
 }
