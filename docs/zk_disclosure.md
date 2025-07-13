@@ -97,6 +97,10 @@ Both operations charge mana according to the complexity of the circuit. The
 runtime refunds this mana automatically if proof generation or verification
 fails, so callers only pay when a proof succeeds.
 
+The runtime also records each verification attempt in the node's reputation
+store. Valid proofs increase reputation while invalid or malformed proofs
+decrease it.
+
 ### Example: Generate and Verify
 
 The host API expects JSON strings. A minimal request to `host_generate_zk_proof`

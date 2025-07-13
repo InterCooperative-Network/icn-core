@@ -19,9 +19,11 @@ mod tests {
 
         store.record_execution(&did, true, 1000).await;
         assert_eq!(store.get_reputation(&did).await, 2);
+        store.record_proof_attempt(&did, true).await;
+        assert_eq!(store.get_reputation(&did).await, 3);
 
         drop(store);
         let reopened = SqliteReputationStore::new(path).await.unwrap();
-        assert_eq!(reopened.get_reputation(&did).await, 2);
+        assert_eq!(reopened.get_reputation(&did).await, 3);
     }
 }
