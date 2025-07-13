@@ -77,3 +77,61 @@ Two host functions are provided for working with zero-knowledge proofs:
 When called from WASM, use the `wasm_host_verify_zk_proof` and
 `wasm_host_generate_zk_proof` wrappers which handle passing strings in and out
 of guest memory.
+
+### Usage Example
+
+The snippet below demonstrates a minimal round trip using the host functions.
+
+#### Generate a Proof
+
+Request
+```json
+{
+  "issuer": "did:key:zIssuer",
+  "holder": "did:key:zHolder",
+  "claim_type": "test",
+  "schema": "bafySchemaCid",
+  "backend": "dummy"
+}
+```
+
+Response
+```json
+{
+  "issuer": "did:key:zIssuer",
+  "holder": "did:key:zHolder",
+  "claim_type": "test",
+  "proof": [1, 2, 3],
+  "schema": "bafySchemaCid",
+  "vk_cid": null,
+  "disclosed_fields": [],
+  "challenge": null,
+  "backend": "dummy",
+  "verification_key": null,
+  "public_inputs": null
+}
+```
+
+#### Verify the Proof
+
+Request
+```json
+{
+  "issuer": "did:key:zIssuer",
+  "holder": "did:key:zHolder",
+  "claim_type": "test",
+  "proof": [1, 2, 3],
+  "schema": "bafySchemaCid",
+  "vk_cid": null,
+  "disclosed_fields": [],
+  "challenge": null,
+  "backend": "dummy",
+  "verification_key": null,
+  "public_inputs": null
+}
+```
+
+Response
+```json
+true
+```

@@ -63,6 +63,10 @@ path = "integration/simple_verification.rs"
 name = "zk_proof_verification"
 path = "integration/zk_proof_verification.rs"
 
+[[test]]
+name = "zk_host_roundtrip"
+path = "integration/zk_host_roundtrip.rs"
+
 [features]
 default = []
 enable-libp2p = ["icn-node/with-libp2p", "icn-runtime/enable-libp2p"]
