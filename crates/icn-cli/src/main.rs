@@ -5,9 +5,8 @@
 //! This crate provides a command-line interface (CLI) for interacting with an ICN HTTP node.
 
 use base64::{self, Engine};
-use bincode;
+extern crate bincode;
 use clap::{Parser, Subcommand};
-use fastrand;
 use icn_common::CommonError;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -1021,15 +1020,6 @@ fn parse_backend(s: &str) -> ZkProofType {
         "bulletproofs" => ZkProofType::Bulletproofs,
         other => ZkProofType::Other(other.to_string()),
     }
-}
-
-fn handle_identity_generate(
-    issuer: &str,
-    holder: &str,
-    claim_type: &str,
-    schema: &str,
-) -> Result<(), anyhow::Error> {
-    handle_identity_generate_inner(issuer, holder, claim_type, schema, backend, &None, &None)
 }
 
 fn handle_identity_generate_inner(

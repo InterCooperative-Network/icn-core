@@ -2,7 +2,7 @@ use icn_common::{compute_merkle_cid, DagBlock, DagLink, Did};
 use icn_dag::compute_dag_root;
 
 fn make_block(id: &str, links: Vec<DagLink>) -> DagBlock {
-    let data = format!("{id}").into_bytes();
+    let data = id.as_bytes().to_vec();
     let ts = 0u64;
     let author = Did::new("key", "tester");
     let sig = None;

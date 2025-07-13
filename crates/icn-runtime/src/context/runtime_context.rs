@@ -454,6 +454,7 @@ impl RuntimeContext {
 
     /// Create a production RuntimeContext with all production services.
     /// This method ensures no stub services are used.
+    #[allow(clippy::too_many_arguments)]
     pub fn new_production(
         current_identity: Did,
         network_service: Arc<dyn icn_network::NetworkService>,
@@ -598,6 +599,7 @@ impl RuntimeContext {
 
     /// Create a new context with real libp2p and mDNS services.
     #[cfg(feature = "enable-libp2p")]
+    #[allow(clippy::too_many_arguments)]
     pub async fn new_with_real_libp2p_and_mdns(
         node_did_string: &str,
         listen_addrs: Vec<libp2p::Multiaddr>,
@@ -2238,7 +2240,7 @@ impl RuntimeContext {
                     // Calculate regeneration based on reputation and policy
                     let reputation = ctx.reputation_store.get_reputation(&account_did);
                     let base_regeneration = 10u64; // Base regeneration per minute
-                    let reputation_multiplier = (reputation as f64 / 100.0).max(0.1).min(2.0); // 0.1x to 2x based on reputation
+                    let reputation_multiplier = (reputation as f64 / 100.0).clamp(0.1, 2.0); // 0.1x to 2x based on reputation
                     let regeneration_amount =
                         (base_regeneration as f64 * reputation_multiplier) as u64;
 

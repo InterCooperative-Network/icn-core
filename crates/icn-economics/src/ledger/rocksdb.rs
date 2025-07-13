@@ -43,7 +43,7 @@ impl RocksdbManaLedger {
     /// Flush pending batched writes to disk.
     pub fn flush(&self) -> Result<(), CommonError> {
         let mut batch = self.batch.lock().unwrap();
-        if batch.len() > 0 {
+        if !batch.is_empty() {
             let write_batch = std::mem::take(&mut *batch);
             self.db
                 .write(write_batch)

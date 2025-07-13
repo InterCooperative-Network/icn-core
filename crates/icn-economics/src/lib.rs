@@ -447,6 +447,7 @@ pub fn burn_tokens<L: ResourceLedger, M: ManaLedger>(
     repo.burn(issuer, class_id, amount, owner, scope)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn transfer_tokens<L: ResourceLedger, M: ManaLedger>(
     repo: &ResourceRepositoryAdapter<L>,
     mana_ledger: &M,

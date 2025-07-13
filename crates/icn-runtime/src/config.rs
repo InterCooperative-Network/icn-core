@@ -3,11 +3,11 @@
 //! This module provides configuration loading and validation for different
 //! environments (Production, Development, Testing) with appropriate defaults.
 
-use crate::context::{ServiceEnvironment, ServiceConfig, ServiceConfigBuilder};
+use crate::context::{ServiceConfig, ServiceConfigBuilder, ServiceEnvironment};
 use icn_common::{CommonError, Did};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -319,7 +319,7 @@ impl RuntimeConfig {
     /// Create a default development configuration
     pub fn development() -> Self {
         let mut config = Self::production();
-        
+
         // Override for development
         config.environment = EnvironmentConfig {
             environment_type: "development".to_string(),
@@ -327,29 +327,27 @@ impl RuntimeConfig {
             log_level: "debug".to_string(),
             metrics: true,
         };
-        
+
         config.network.enable_mdns = true;
-        config.network.listen_addresses = vec![
-            "/ip4/127.0.0.1/tcp/4001".to_string(),
-        ];
-        
+        config.network.listen_addresses = vec!["/ip4/127.0.0.1/tcp/4001".to_string()];
+
         config.storage.data_dir = PathBuf::from("./dev-data");
         config.storage.dag_store.store_type = "memory".to_string();
         config.storage.dag_store.storage_path = None;
         config.storage.mana_ledger.ledger_path = PathBuf::from("./dev-data/mana.db");
         config.storage.reputation_store.store_type = "memory".to_string();
         config.storage.reputation_store.storage_path = None;
-        
+
         config.governance.voting.voting_period_seconds = 300; // 5 minutes for dev
         config.runtime.job_execution_timeout_ms = 60000; // 1 minute for dev
-        
+
         config
     }
 
     /// Create a default testing configuration
     pub fn testing() -> Self {
         let mut config = Self::development();
-        
+
         // Override for testing
         config.environment = EnvironmentConfig {
             environment_type: "testing".to_string(),
@@ -357,62 +355,74 @@ impl RuntimeConfig {
             log_level: "trace".to_string(),
             metrics: false,
         };
-        
+
         config.network.enable_mdns = false;
         config.network.listen_addresses = vec![]; // No networking for tests
         config.network.bootstrap_peers = vec![];
-        
+
         config.storage.data_dir = PathBuf::from("/tmp/icn-test");
         config.storage.dag_store.store_type = "memory".to_string();
         config.storage.dag_store.storage_path = None;
         config.storage.mana_ledger.initial_mana = 10000; // More mana for testing
         config.storage.reputation_store.store_type = "memory".to_string();
         config.storage.reputation_store.storage_path = None;
-        
+
         config.governance.voting.voting_period_seconds = 10; // 10 seconds for testing
         config.runtime.job_execution_timeout_ms = 10000; // 10 seconds for testing
         config.runtime.max_job_queue_size = 100;
         config.runtime.max_concurrent_jobs = 5;
-        
+
         config
     }
 
     /// Load configuration from file
     pub fn from_file(path: &str) -> Result<Self, CommonError> {
-        let content = std::fs::read_to_string(path)
-            .map_err(|e| CommonError::IoError(format!("Failed to read config file {}: {}", path, e)))?;
-        
+        let content = std::fs::read_to_string(path).map_err(|e| {
+            CommonError::IoError(format!("Failed to read config file {}: {}", path, e))
+        })?;
+
         // Try TOML first, then JSON
         if path.ends_with(".toml") {
-            toml::from_str(&content)
-                .map_err(|e| CommonError::ConfigError(format!("Failed to parse TOML config: {}", e)))
+            toml::from_str(&content).map_err(|e| {
+                CommonError::ConfigError(format!("Failed to parse TOML config: {}", e))
+            })
         } else if path.ends_with(".json") {
-            serde_json::from_str(&content)
-                .map_err(|e| CommonError::ConfigError(format!("Failed to parse JSON config: {}", e)))
+            serde_json::from_str(&content).map_err(|e| {
+                CommonError::ConfigError(format!("Failed to parse JSON config: {}", e))
+            })
         } else {
             // Try both formats
             toml::from_str(&content)
                 .or_else(|_| serde_json::from_str(&content))
-                .map_err(|e| CommonError::ConfigError(format!("Failed to parse config (tried both TOML and JSON): {}", e)))
+                .map_err(|e| {
+                    CommonError::ConfigError(format!(
+                        "Failed to parse config (tried both TOML and JSON): {}",
+                        e
+                    ))
+                })
         }
     }
 
     /// Save configuration to file
     pub fn to_file(&self, path: &str) -> Result<(), CommonError> {
         let content = if path.ends_with(".toml") {
-            toml::to_string_pretty(self)
-                .map_err(|e| CommonError::ConfigError(format!("Failed to serialize to TOML: {}", e)))?
+            toml::to_string_pretty(self).map_err(|e| {
+                CommonError::ConfigError(format!("Failed to serialize to TOML: {}", e))
+            })?
         } else if path.ends_with(".json") {
-            serde_json::to_string_pretty(self)
-                .map_err(|e| CommonError::ConfigError(format!("Failed to serialize to JSON: {}", e)))?
+            serde_json::to_string_pretty(self).map_err(|e| {
+                CommonError::ConfigError(format!("Failed to serialize to JSON: {}", e))
+            })?
         } else {
             // Default to TOML
-            toml::to_string_pretty(self)
-                .map_err(|e| CommonError::ConfigError(format!("Failed to serialize to TOML: {}", e)))?
+            toml::to_string_pretty(self).map_err(|e| {
+                CommonError::ConfigError(format!("Failed to serialize to TOML: {}", e))
+            })?
         };
-        
-        std::fs::write(path, content)
-            .map_err(|e| CommonError::IoError(format!("Failed to write config file {}: {}", path, e)))
+
+        std::fs::write(path, content).map_err(|e| {
+            CommonError::IoError(format!("Failed to write config file {}: {}", path, e))
+        })
     }
 
     /// Validate the configuration
@@ -420,47 +430,53 @@ impl RuntimeConfig {
         // Validate DID format
         Did::from_str(&self.identity.node_did)
             .map_err(|e| CommonError::ConfigError(format!("Invalid node DID: {}", e)))?;
-        
+
         // Validate environment type
         match self.environment.environment_type.as_str() {
             "production" | "development" | "testing" => {}
-            _ => return Err(CommonError::ConfigError(
-                "Invalid environment type. Must be 'production', 'development', or 'testing'".to_string()
-            )),
+            _ => {
+                return Err(CommonError::ConfigError(
+                    "Invalid environment type. Must be 'production', 'development', or 'testing'"
+                        .to_string(),
+                ))
+            }
         }
-        
+
         // Validate network addresses
         for addr in &self.network.listen_addresses {
             if addr.is_empty() {
                 return Err(CommonError::ConfigError("Empty listen address".to_string()));
             }
         }
-        
+
         // Validate storage paths
         if self.storage.data_dir.as_os_str().is_empty() {
             return Err(CommonError::ConfigError("Empty data directory".to_string()));
         }
-        
+
         // Validate mana parameters
         if self.storage.mana_ledger.initial_mana > self.storage.mana_ledger.max_capacity {
             return Err(CommonError::ConfigError(
-                "Initial mana cannot exceed max capacity".to_string()
+                "Initial mana cannot exceed max capacity".to_string(),
             ));
         }
-        
+
         // Validate governance parameters
-        if self.governance.proposals.min_quorum < 0.0 || self.governance.proposals.min_quorum > 1.0 {
+        if self.governance.proposals.min_quorum < 0.0 || self.governance.proposals.min_quorum > 1.0
+        {
             return Err(CommonError::ConfigError(
-                "Minimum quorum must be between 0.0 and 1.0".to_string()
+                "Minimum quorum must be between 0.0 and 1.0".to_string(),
             ));
         }
-        
-        if self.governance.proposals.passing_threshold < 0.0 || self.governance.proposals.passing_threshold > 1.0 {
+
+        if self.governance.proposals.passing_threshold < 0.0
+            || self.governance.proposals.passing_threshold > 1.0
+        {
             return Err(CommonError::ConfigError(
-                "Passing threshold must be between 0.0 and 1.0".to_string()
+                "Passing threshold must be between 0.0 and 1.0".to_string(),
             ));
         }
-        
+
         Ok(())
     }
 
@@ -471,7 +487,7 @@ impl RuntimeConfig {
             "development" => Ok(ServiceEnvironment::Development),
             "testing" => Ok(ServiceEnvironment::Testing),
             _ => Err(CommonError::ConfigError(
-                "Invalid environment type in configuration".to_string()
+                "Invalid environment type in configuration".to_string(),
             )),
         }
     }
@@ -481,20 +497,20 @@ impl RuntimeConfig {
         // Expand storage paths
         self.storage.data_dir = expand_path(&self.storage.data_dir)?;
         self.storage.mana_ledger.ledger_path = expand_path(&self.storage.mana_ledger.ledger_path)?;
-        
+
         if let Some(ref mut path) = self.storage.dag_store.storage_path {
             *path = expand_path(path)?;
         }
-        
+
         if let Some(ref mut path) = self.storage.reputation_store.storage_path {
             *path = expand_path(path)?;
         }
-        
+
         // Expand key store path
         if let Some(ref mut path) = self.identity.key_store.key_file_path {
             *path = expand_path(path)?;
         }
-        
+
         Ok(())
     }
 
@@ -502,55 +518,58 @@ impl RuntimeConfig {
     pub fn to_service_config(&self) -> Result<ServiceConfig, CommonError> {
         // Get the service environment
         let environment = self.get_service_environment()?;
-        
+
         // Parse the DID
         let current_identity = Did::from_str(&self.identity.node_did)
             .map_err(|e| CommonError::ConfigError(format!("Invalid node DID: {}", e)))?;
-        
+
         // Create service configuration builder
-        let mut builder = ServiceConfigBuilder::new(environment)
-            .with_identity(current_identity);
-        
+        let mut builder = ServiceConfigBuilder::new(environment).with_identity(current_identity);
+
         // Create services based on configuration
-        
+
         // Create signer based on key store configuration
         let signer = self.create_signer()?;
         builder = builder.with_signer(signer);
-        
+
         // Create DID resolver
         let did_resolver = self.create_did_resolver()?;
         builder = builder.with_did_resolver(did_resolver);
-        
+
         // Create mana ledger
         let mana_ledger = self.create_mana_ledger()?;
         builder = builder.with_mana_ledger(mana_ledger);
-        
+
         // Create network service for production/development
-        if environment == ServiceEnvironment::Production || 
-           (environment == ServiceEnvironment::Development && !self.network.listen_addresses.is_empty()) {
+        if environment == ServiceEnvironment::Production
+            || (environment == ServiceEnvironment::Development
+                && !self.network.listen_addresses.is_empty())
+        {
             let network_service = self.create_network_service()?;
             builder = builder.with_network_service(network_service);
         }
-        
+
         // Create DAG store for production/development
-        if environment == ServiceEnvironment::Production || 
-           (environment == ServiceEnvironment::Development && self.storage.dag_store.store_type != "memory") {
+        if environment == ServiceEnvironment::Production
+            || (environment == ServiceEnvironment::Development
+                && self.storage.dag_store.store_type != "memory")
+        {
             let dag_store = self.create_dag_store()?;
             builder = builder.with_dag_store(dag_store);
         }
-        
+
         // Create reputation store
         let reputation_store = self.create_reputation_store()?;
         builder = builder.with_reputation_store(reputation_store);
-        
+
         // Create time provider (always use system time for now)
         let time_provider = Arc::new(icn_common::SystemTimeProvider);
         builder = builder.with_time_provider(time_provider);
-        
+
         // Build the service configuration
         builder.build()
     }
-    
+
     /// Create a signer from the key store configuration
     fn create_signer(&self) -> Result<Arc<dyn crate::context::Signer>, CommonError> {
         match self.identity.key_store.store_type.as_str() {
@@ -562,7 +581,9 @@ impl RuntimeConfig {
                     // In a real implementation, this would load the key from the file
                     Ok(Arc::new(crate::context::StubSigner::new()))
                 } else {
-                    Err(CommonError::ConfigError("Key file path is required for file key store".to_string()))
+                    Err(CommonError::ConfigError(
+                        "Key file path is required for file key store".to_string(),
+                    ))
                 }
             }
             "hsm" => {
@@ -571,13 +592,18 @@ impl RuntimeConfig {
                     // In a real implementation, this would connect to the HSM
                     Ok(Arc::new(crate::context::StubSigner::new()))
                 } else {
-                    Err(CommonError::ConfigError("HSM configuration is required for HSM key store".to_string()))
+                    Err(CommonError::ConfigError(
+                        "HSM configuration is required for HSM key store".to_string(),
+                    ))
                 }
             }
-            _ => Err(CommonError::ConfigError(format!("Unsupported key store type: {}", self.identity.key_store.store_type))),
+            _ => Err(CommonError::ConfigError(format!(
+                "Unsupported key store type: {}",
+                self.identity.key_store.store_type
+            ))),
         }
     }
-    
+
     /// Create a DID resolver from the configuration
     fn create_did_resolver(&self) -> Result<Arc<dyn icn_identity::DidResolver>, CommonError> {
         match self.identity.did_resolver.resolver_type.as_str() {
@@ -587,16 +613,19 @@ impl RuntimeConfig {
                 // In a real implementation, this would create a WebDidResolver
                 Ok(Arc::new(icn_identity::KeyDidResolver))
             }
-            _ => Err(CommonError::ConfigError(format!("Unsupported DID resolver type: {}", self.identity.did_resolver.resolver_type))),
+            _ => Err(CommonError::ConfigError(format!(
+                "Unsupported DID resolver type: {}",
+                self.identity.did_resolver.resolver_type
+            ))),
         }
     }
-    
+
     /// Create a mana ledger from the configuration
     fn create_mana_ledger(&self) -> Result<crate::context::SimpleManaLedger, CommonError> {
         let expanded_path = expand_path(&self.storage.mana_ledger.ledger_path)?;
         Ok(crate::context::SimpleManaLedger::new(expanded_path))
     }
-    
+
     /// Create a network service from the configuration
     fn create_network_service(&self) -> Result<Arc<dyn icn_network::NetworkService>, CommonError> {
         // For now, return a stub network service
@@ -604,27 +633,43 @@ impl RuntimeConfig {
         // based on the configuration parameters
         Ok(Arc::new(icn_network::StubNetworkService::default()))
     }
-    
+
     /// Create a DAG store from the configuration
-    fn create_dag_store(&self) -> Result<Arc<crate::context::DagStoreMutexType<crate::context::DagStorageService>>, CommonError> {
+    fn create_dag_store(
+        &self,
+    ) -> Result<
+        Arc<crate::context::DagStoreMutexType<crate::context::DagStorageService>>,
+        CommonError,
+    > {
         match self.storage.dag_store.store_type.as_str() {
-            "memory" => Ok(Arc::new(crate::context::DagStoreMutexType::new(crate::context::StubDagStore::new()))),
+            "memory" => Ok(Arc::new(crate::context::DagStoreMutexType::new(
+                crate::context::StubDagStore::new(),
+            ))),
             "file" | "sled" | "rocksdb" => {
                 if let Some(ref storage_path) = self.storage.dag_store.storage_path {
                     let _expanded_path = expand_path(storage_path)?;
                     // For now, create a stub store with path awareness
                     // In a real implementation, this would create the appropriate persistent store
-                    Ok(Arc::new(crate::context::DagStoreMutexType::new(crate::context::StubDagStore::new())))
+                    Ok(Arc::new(crate::context::DagStoreMutexType::new(
+                        crate::context::StubDagStore::new(),
+                    )))
                 } else {
-                    Err(CommonError::ConfigError("Storage path is required for persistent DAG store".to_string()))
+                    Err(CommonError::ConfigError(
+                        "Storage path is required for persistent DAG store".to_string(),
+                    ))
                 }
             }
-            _ => Err(CommonError::ConfigError(format!("Unsupported DAG store type: {}", self.storage.dag_store.store_type))),
+            _ => Err(CommonError::ConfigError(format!(
+                "Unsupported DAG store type: {}",
+                self.storage.dag_store.store_type
+            ))),
         }
     }
-    
+
     /// Create a reputation store from the configuration
-    fn create_reputation_store(&self) -> Result<Arc<dyn icn_reputation::ReputationStore>, CommonError> {
+    fn create_reputation_store(
+        &self,
+    ) -> Result<Arc<dyn icn_reputation::ReputationStore>, CommonError> {
         match self.storage.reputation_store.store_type.as_str() {
             "memory" => Ok(Arc::new(icn_reputation::InMemoryReputationStore::new())),
             "file" | "database" => {
@@ -634,10 +679,15 @@ impl RuntimeConfig {
                     // In a real implementation, this would create the appropriate persistent store
                     Ok(Arc::new(icn_reputation::InMemoryReputationStore::new()))
                 } else {
-                    Err(CommonError::ConfigError("Storage path is required for persistent reputation store".to_string()))
+                    Err(CommonError::ConfigError(
+                        "Storage path is required for persistent reputation store".to_string(),
+                    ))
                 }
             }
-            _ => Err(CommonError::ConfigError(format!("Unsupported reputation store type: {}", self.storage.reputation_store.store_type))),
+            _ => Err(CommonError::ConfigError(format!(
+                "Unsupported reputation store type: {}",
+                self.storage.reputation_store.store_type
+            ))),
         }
     }
 }
@@ -655,107 +705,112 @@ impl RuntimeConfigBuilder {
             config: RuntimeConfig::default(),
         }
     }
-    
+
     /// Start with production defaults
     pub fn production() -> Self {
         Self {
             config: RuntimeConfig::production(),
         }
     }
-    
+
     /// Start with development defaults
     pub fn development() -> Self {
         Self {
             config: RuntimeConfig::development(),
         }
     }
-    
+
     /// Start with testing defaults
     pub fn testing() -> Self {
         Self {
             config: RuntimeConfig::testing(),
         }
     }
-    
+
     /// Start from an existing configuration
     pub fn from_config(config: RuntimeConfig) -> Self {
         Self { config }
     }
-    
+
     /// Load from a configuration file and use as base
     pub fn from_file<P: AsRef<std::path::Path>>(path: P) -> Result<Self, CommonError> {
-        let path_str = path.as_ref().to_str()
+        let path_str = path
+            .as_ref()
+            .to_str()
             .ok_or_else(|| CommonError::ConfigError("Invalid path encoding".to_string()))?;
         let config = RuntimeConfig::from_file(path_str)?;
         Ok(Self { config })
     }
-    
+
     // Environment configuration methods
-    
+
     /// Set the environment type
     pub fn environment_type(mut self, env_type: &str) -> Self {
         self.config.environment.environment_type = env_type.to_string();
         self
     }
-    
+
     /// Enable or disable debug mode
     pub fn debug(mut self, enabled: bool) -> Self {
         self.config.environment.debug = enabled;
         self
     }
-    
+
     /// Set log level
     pub fn log_level(mut self, level: &str) -> Self {
         self.config.environment.log_level = level.to_string();
         self
     }
-    
+
     /// Enable or disable metrics
     pub fn metrics(mut self, enabled: bool) -> Self {
         self.config.environment.metrics = enabled;
         self
     }
-    
+
     // Identity configuration methods
-    
+
     /// Set the node DID
     pub fn node_did(mut self, did: &str) -> Self {
         self.config.identity.node_did = did.to_string();
         self
     }
-    
+
     /// Set key store type
     pub fn key_store_type(mut self, store_type: &str) -> Self {
         self.config.identity.key_store.store_type = store_type.to_string();
         self
     }
-    
+
     /// Set key file path
     pub fn key_file_path<P: Into<PathBuf>>(mut self, path: P) -> Self {
         self.config.identity.key_store.key_file_path = Some(path.into());
         self
     }
-    
+
     /// Set DID resolver type
     pub fn did_resolver_type(mut self, resolver_type: &str) -> Self {
         self.config.identity.did_resolver.resolver_type = resolver_type.to_string();
         self
     }
-    
+
     // Network configuration methods
-    
+
     /// Add a listen address
     pub fn add_listen_address(mut self, address: &str) -> Self {
-        self.config.network.listen_addresses.push(address.to_string());
+        self.config
+            .network
+            .listen_addresses
+            .push(address.to_string());
         self
     }
-    
+
     /// Set listen addresses (replaces existing)
     pub fn listen_addresses(mut self, addresses: Vec<String>) -> Self {
         self.config.network.listen_addresses = addresses;
         self
     }
-    
+
     /// Add a bootstrap peer
     pub fn add_bootstrap_peer(mut self, peer_id: &str, address: &str) -> Self {
         self.config.network.bootstrap_peers.push(BootstrapPeer {
@@ -764,141 +819,147 @@ impl RuntimeConfigBuilder {
         });
         self
     }
-    
+
     /// Enable or disable mDNS
     pub fn enable_mdns(mut self, enabled: bool) -> Self {
         self.config.network.enable_mdns = enabled;
         self
     }
-    
+
     /// Set connection timeout
     pub fn connection_timeout_ms(mut self, timeout: u64) -> Self {
         self.config.network.timeouts.connection_timeout_ms = timeout;
         self
     }
-    
+
     /// Set request timeout
     pub fn request_timeout_ms(mut self, timeout: u64) -> Self {
         self.config.network.timeouts.request_timeout_ms = timeout;
         self
     }
-    
+
     /// Set keep alive interval
     pub fn keep_alive_interval_ms(mut self, interval: u64) -> Self {
         self.config.network.timeouts.keep_alive_interval_ms = interval;
         self
     }
-    
+
     /// Set maximum incoming connections
     pub fn max_incoming_connections(mut self, max: u32) -> Self {
-        self.config.network.connection_limits.max_incoming_connections = max;
+        self.config
+            .network
+            .connection_limits
+            .max_incoming_connections = max;
         self
     }
-    
+
     /// Set maximum outgoing connections
     pub fn max_outgoing_connections(mut self, max: u32) -> Self {
-        self.config.network.connection_limits.max_outgoing_connections = max;
+        self.config
+            .network
+            .connection_limits
+            .max_outgoing_connections = max;
         self
     }
-    
+
     // Storage configuration methods
-    
+
     /// Set data directory
     pub fn data_dir<P: Into<PathBuf>>(mut self, path: P) -> Self {
         self.config.storage.data_dir = path.into();
         self
     }
-    
+
     /// Set DAG store type
     pub fn dag_store_type(mut self, store_type: &str) -> Self {
         self.config.storage.dag_store.store_type = store_type.to_string();
         self
     }
-    
+
     /// Set DAG store path
     pub fn dag_store_path<P: Into<PathBuf>>(mut self, path: P) -> Self {
         self.config.storage.dag_store.storage_path = Some(path.into());
         self
     }
-    
+
     /// Set DAG cache size
     pub fn dag_cache_size_mb(mut self, size: u64) -> Self {
         self.config.storage.dag_store.cache_size_mb = size;
         self
     }
-    
+
     /// Set mana ledger path
     pub fn mana_ledger_path<P: Into<PathBuf>>(mut self, path: P) -> Self {
         self.config.storage.mana_ledger.ledger_path = path.into();
         self
     }
-    
+
     /// Set initial mana balance
     pub fn initial_mana(mut self, mana: u64) -> Self {
         self.config.storage.mana_ledger.initial_mana = mana;
         self
     }
-    
+
     /// Set mana regeneration rate
     pub fn mana_regeneration_rate(mut self, rate: f64) -> Self {
         self.config.storage.mana_ledger.regeneration_rate = rate;
         self
     }
-    
+
     /// Set maximum mana capacity
     pub fn max_mana_capacity(mut self, capacity: u64) -> Self {
         self.config.storage.mana_ledger.max_capacity = capacity;
         self
     }
-    
+
     // Governance configuration methods
-    
+
     /// Enable or disable governance
     pub fn governance_enabled(mut self, enabled: bool) -> Self {
         self.config.governance.enabled = enabled;
         self
     }
-    
+
     /// Set minimum voting power
     pub fn min_voting_power(mut self, power: u64) -> Self {
         self.config.governance.voting.min_voting_power = power;
         self
     }
-    
+
     /// Set vote cost in mana
     pub fn vote_cost_mana(mut self, cost: u64) -> Self {
         self.config.governance.voting.vote_cost_mana = cost;
         self
     }
-    
+
     /// Set voting period
     pub fn voting_period_seconds(mut self, period: u64) -> Self {
         self.config.governance.voting.voting_period_seconds = period;
         self
     }
-    
+
     // Runtime parameters methods
-    
+
     /// Set job execution timeout
     pub fn job_execution_timeout_ms(mut self, timeout: u64) -> Self {
         self.config.runtime.job_execution_timeout_ms = timeout;
         self
     }
-    
+
     /// Set maximum job queue size
     pub fn max_job_queue_size(mut self, size: usize) -> Self {
         self.config.runtime.max_job_queue_size = size;
         self
     }
-    
+
     /// Set maximum concurrent jobs
     pub fn max_concurrent_jobs(mut self, jobs: usize) -> Self {
         self.config.runtime.max_concurrent_jobs = jobs;
         self
     }
-    
+
     // Configuration composition methods
-    
+
     /// Merge with another configuration (other takes precedence)
     pub fn merge_with(mut self, other: RuntimeConfig) -> Self {
         // Simple merge logic - other configuration takes precedence
@@ -906,25 +967,25 @@ impl RuntimeConfigBuilder {
         if other.environment.environment_type != "default" {
             self.config.environment = other.environment;
         }
-        
+
         if other.identity.node_did != "default" {
             self.config.identity = other.identity;
         }
-        
+
         if !other.network.listen_addresses.is_empty() {
             self.config.network = other.network;
         }
-        
+
         if other.storage.data_dir != PathBuf::from("./data") {
             self.config.storage = other.storage;
         }
-        
+
         self.config.governance = other.governance;
         self.config.runtime = other.runtime;
-        
+
         self
     }
-    
+
     /// Override with environment-specific settings
     pub fn with_environment_overrides(mut self, environment: &str) -> Self {
         match environment {
@@ -952,7 +1013,7 @@ impl RuntimeConfigBuilder {
         }
         self
     }
-    
+
     /// Apply a configuration template
     pub fn apply_template<F>(self, template: F) -> Self
     where
@@ -960,36 +1021,36 @@ impl RuntimeConfigBuilder {
     {
         template(self)
     }
-    
+
     // Validation and building methods
-    
+
     /// Validate the current configuration
     pub fn validate(&self) -> Result<(), CommonError> {
         self.config.validate()
     }
-    
+
     /// Build the final configuration
     pub fn build(mut self) -> Result<RuntimeConfig, CommonError> {
         // Expand paths before validation
         self.config.expand_paths()?;
-        
+
         // Validate the configuration
         self.config.validate()?;
-        
+
         Ok(self.config)
     }
-    
+
     /// Build without validation (useful for testing)
     pub fn build_unchecked(mut self) -> RuntimeConfig {
         let _ = self.config.expand_paths();
         self.config
     }
-    
+
     /// Get a reference to the current configuration state
     pub fn get_config(&self) -> &RuntimeConfig {
         &self.config
     }
-    
+
     /// Get a mutable reference to the current configuration state
     pub fn get_config_mut(&mut self) -> &mut RuntimeConfig {
         &mut self.config
@@ -1005,7 +1066,7 @@ impl Default for RuntimeConfigBuilder {
 // Configuration template functions
 pub mod templates {
     use super::*;
-    
+
     /// Local development template
     pub fn local_development(_builder: RuntimeConfigBuilder) -> RuntimeConfigBuilder {
         RuntimeConfigBuilder::development()
@@ -1015,20 +1076,20 @@ pub mod templates {
             .connection_timeout_ms(5000)
             .job_execution_timeout_ms(30000)
     }
-    
+
     /// Production server template
     pub fn production_server(_builder: RuntimeConfigBuilder) -> RuntimeConfigBuilder {
         RuntimeConfigBuilder::production()
             .listen_addresses(vec![
                 "/ip4/0.0.0.0/tcp/4001".to_string(),
-                "/ip6/::/tcp/4001".to_string()
+                "/ip6/::/tcp/4001".to_string(),
             ])
             .enable_mdns(false)
             .dag_store_type("rocksdb")
             .connection_timeout_ms(10000)
             .job_execution_timeout_ms(300000)
     }
-    
+
     /// Testing template with isolated storage
     pub fn isolated_testing(_builder: RuntimeConfigBuilder) -> RuntimeConfigBuilder {
         RuntimeConfigBuilder::testing()
@@ -1039,7 +1100,7 @@ pub mod templates {
             .governance_enabled(false)
             .job_execution_timeout_ms(5000)
     }
-    
+
     /// High-performance template
     pub fn high_performance(builder: RuntimeConfigBuilder) -> RuntimeConfigBuilder {
         builder
@@ -1051,7 +1112,7 @@ pub mod templates {
             .job_execution_timeout_ms(60000)
             .max_concurrent_jobs(50)
     }
-    
+
     /// Minimal resource template
     pub fn minimal_resources(builder: RuntimeConfigBuilder) -> RuntimeConfigBuilder {
         builder
@@ -1066,17 +1127,19 @@ pub mod templates {
 }
 
 /// Expand path with home directory
-fn expand_path(path: &PathBuf) -> Result<PathBuf, CommonError> {
-    let path_str = path.to_str()
+fn expand_path(path: &Path) -> Result<PathBuf, CommonError> {
+    let path_str = path
+        .to_str()
         .ok_or_else(|| CommonError::ConfigError("Invalid path encoding".to_string()))?;
-    
+
     if path_str.starts_with("~/") {
-        let home = std::env::var("HOME")
-            .map_err(|_| CommonError::ConfigError("HOME environment variable not set".to_string()))?;
+        let home = std::env::var("HOME").map_err(|_| {
+            CommonError::ConfigError("HOME environment variable not set".to_string())
+        })?;
         let expanded = path_str.replace("~/", &format!("{}/", home));
         Ok(PathBuf::from(expanded))
     } else {
-        Ok(path.clone())
+        Ok(path.to_path_buf())
     }
 }
 
@@ -1116,31 +1179,38 @@ mod tests {
     #[test]
     fn test_config_serialization() {
         let config = RuntimeConfig::development();
-        
+
         // Test TOML serialization
         let toml_str = toml::to_string(&config).unwrap();
         let deserialized: RuntimeConfig = toml::from_str(&toml_str).unwrap();
-        assert_eq!(config.environment.environment_type, deserialized.environment.environment_type);
-        
+        assert_eq!(
+            config.environment.environment_type,
+            deserialized.environment.environment_type
+        );
+
         // Test JSON serialization
         let json_str = serde_json::to_string(&config).unwrap();
         let deserialized: RuntimeConfig = serde_json::from_str(&json_str).unwrap();
-        assert_eq!(config.environment.environment_type, deserialized.environment.environment_type);
+        assert_eq!(
+            config.environment.environment_type,
+            deserialized.environment.environment_type
+        );
     }
 
     #[test]
     fn test_config_validation() {
         let mut config = RuntimeConfig::testing();
-        
+
         // Test invalid DID
         config.identity.node_did = "invalid-did".to_string();
         assert!(config.validate().is_err());
-        
+
         // Test invalid environment
-        config.identity.node_did = "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK".to_string();
+        config.identity.node_did =
+            "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK".to_string();
         config.environment.environment_type = "invalid".to_string();
         assert!(config.validate().is_err());
-        
+
         // Test invalid mana parameters
         config.environment.environment_type = "testing".to_string();
         config.storage.mana_ledger.initial_mana = 20000;
@@ -1151,22 +1221,28 @@ mod tests {
     #[test]
     fn test_config_file_io() {
         let config = RuntimeConfig::development();
-        
+
         // Test TOML file I/O
         let toml_file = NamedTempFile::new().unwrap();
         let toml_path = toml_file.path().to_str().unwrap().to_string() + ".toml";
-        
+
         config.to_file(&toml_path).unwrap();
         let loaded_config = RuntimeConfig::from_file(&toml_path).unwrap();
-        assert_eq!(config.environment.environment_type, loaded_config.environment.environment_type);
-        
+        assert_eq!(
+            config.environment.environment_type,
+            loaded_config.environment.environment_type
+        );
+
         // Test JSON file I/O
         let json_file = NamedTempFile::new().unwrap();
         let json_path = json_file.path().to_str().unwrap().to_string() + ".json";
-        
+
         config.to_file(&json_path).unwrap();
         let loaded_config = RuntimeConfig::from_file(&json_path).unwrap();
-        assert_eq!(config.environment.environment_type, loaded_config.environment.environment_type);
+        assert_eq!(
+            config.environment.environment_type,
+            loaded_config.environment.environment_type
+        );
     }
 
     #[test]
@@ -1174,19 +1250,19 @@ mod tests {
         // Test default builder
         let config = RuntimeConfigBuilder::new().build_unchecked();
         assert_eq!(config.environment.environment_type, "development");
-        
+
         // Test production builder
         let config = RuntimeConfigBuilder::production().build_unchecked();
         assert_eq!(config.environment.environment_type, "production");
         assert!(!config.environment.debug);
         assert_eq!(config.environment.log_level, "info");
-        
+
         // Test development builder
         let config = RuntimeConfigBuilder::development().build_unchecked();
         assert_eq!(config.environment.environment_type, "development");
         assert!(config.environment.debug);
         assert_eq!(config.environment.log_level, "debug");
-        
+
         // Test testing builder
         let config = RuntimeConfigBuilder::testing().build_unchecked();
         assert_eq!(config.environment.environment_type, "testing");
@@ -1213,14 +1289,17 @@ mod tests {
             .governance_enabled(false)
             .job_execution_timeout_ms(120000)
             .build_unchecked();
-        
+
         assert_eq!(config.environment.environment_type, "custom");
         assert!(config.environment.debug);
         assert_eq!(config.environment.log_level, "warn");
         assert!(!config.environment.metrics);
         assert_eq!(config.identity.node_did, "did:key:z6MkTest");
         assert_eq!(config.identity.key_store.store_type, "hsm");
-        assert_eq!(config.network.listen_addresses, vec!["/ip4/127.0.0.1/tcp/5000"]);
+        assert_eq!(
+            config.network.listen_addresses,
+            vec!["/ip4/127.0.0.1/tcp/5000"]
+        );
         assert!(config.network.enable_mdns);
         assert_eq!(config.network.timeouts.connection_timeout_ms, 15000);
         assert_eq!(config.storage.dag_store.store_type, "rocksdb");
@@ -1238,7 +1317,7 @@ mod tests {
             .environment_type("modified")
             .initial_mana(9999)
             .build_unchecked();
-        
+
         assert_eq!(modified_config.environment.environment_type, "modified");
         assert_eq!(modified_config.storage.mana_ledger.initial_mana, 9999);
         // Other settings should remain from development defaults
@@ -1252,11 +1331,11 @@ mod tests {
         let override_config = RuntimeConfigBuilder::production()
             .initial_mana(999)
             .build_unchecked();
-        
+
         let merged_config = RuntimeConfigBuilder::from_config(base_config)
             .merge_with(override_config)
             .build_unchecked();
-        
+
         // Should have production environment settings
         assert_eq!(merged_config.environment.environment_type, "production");
         assert!(!merged_config.environment.debug);
@@ -1269,15 +1348,15 @@ mod tests {
         let config = RuntimeConfigBuilder::new()
             .with_environment_overrides("production")
             .build_unchecked();
-        
+
         assert_eq!(config.environment.environment_type, "production");
         assert!(!config.environment.debug);
         assert_eq!(config.environment.log_level, "info");
-        
+
         let config = RuntimeConfigBuilder::new()
             .with_environment_overrides("testing")
             .build_unchecked();
-        
+
         assert_eq!(config.environment.environment_type, "testing");
         assert!(config.environment.debug);
         assert_eq!(config.environment.log_level, "trace");
@@ -1289,52 +1368,67 @@ mod tests {
         let config = RuntimeConfigBuilder::new()
             .apply_template(templates::local_development)
             .build_unchecked();
-        
+
         assert_eq!(config.environment.environment_type, "development");
-        assert_eq!(config.network.listen_addresses, vec!["/ip4/127.0.0.1/tcp/4001"]);
+        assert_eq!(
+            config.network.listen_addresses,
+            vec!["/ip4/127.0.0.1/tcp/4001"]
+        );
         assert!(config.network.enable_mdns);
         assert_eq!(config.storage.dag_store.store_type, "memory");
-        
+
         // Test production server template
         let config = RuntimeConfigBuilder::new()
             .apply_template(templates::production_server)
             .build_unchecked();
-        
+
         assert_eq!(config.environment.environment_type, "production");
-        assert_eq!(config.network.listen_addresses, vec![
-            "/ip4/0.0.0.0/tcp/4001",
-            "/ip6/::/tcp/4001"
-        ]);
+        assert_eq!(
+            config.network.listen_addresses,
+            vec!["/ip4/0.0.0.0/tcp/4001", "/ip6/::/tcp/4001"]
+        );
         assert!(!config.network.enable_mdns);
         assert_eq!(config.storage.dag_store.store_type, "rocksdb");
-        
+
         // Test isolated testing template
         let config = RuntimeConfigBuilder::new()
             .apply_template(templates::isolated_testing)
             .build_unchecked();
-        
+
         assert_eq!(config.environment.environment_type, "testing");
         assert_eq!(config.storage.data_dir, PathBuf::from("/tmp/icn-test"));
         assert!(config.network.listen_addresses.is_empty());
         assert!(!config.governance.enabled);
-        
+
         // Test high performance template
         let config = RuntimeConfigBuilder::new()
             .apply_template(templates::high_performance)
             .build_unchecked();
-        
-        assert_eq!(config.network.connection_limits.max_incoming_connections, 200);
-        assert_eq!(config.network.connection_limits.max_outgoing_connections, 200);
+
+        assert_eq!(
+            config.network.connection_limits.max_incoming_connections,
+            200
+        );
+        assert_eq!(
+            config.network.connection_limits.max_outgoing_connections,
+            200
+        );
         assert_eq!(config.storage.dag_store.cache_size_mb, 1024);
         assert_eq!(config.runtime.max_concurrent_jobs, 50);
-        
+
         // Test minimal resources template
         let config = RuntimeConfigBuilder::new()
             .apply_template(templates::minimal_resources)
             .build_unchecked();
-        
-        assert_eq!(config.network.connection_limits.max_incoming_connections, 10);
-        assert_eq!(config.network.connection_limits.max_outgoing_connections, 10);
+
+        assert_eq!(
+            config.network.connection_limits.max_incoming_connections,
+            10
+        );
+        assert_eq!(
+            config.network.connection_limits.max_outgoing_connections,
+            10
+        );
         assert_eq!(config.storage.dag_store.cache_size_mb, 64);
         assert_eq!(config.runtime.max_concurrent_jobs, 5);
     }
@@ -1346,15 +1440,15 @@ mod tests {
             .node_did("did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK")
             .initial_mana(1000)
             .max_mana_capacity(10000);
-        
+
         assert!(config.validate().is_ok());
-        
+
         // Test invalid configuration (initial mana > max capacity)
         let config = RuntimeConfigBuilder::production()
             .node_did("did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK")
             .initial_mana(20000)
             .max_mana_capacity(10000);
-        
+
         assert!(config.validate().is_err());
     }
 
@@ -1363,7 +1457,10 @@ mod tests {
         // Test complex configuration chaining
         let config = RuntimeConfigBuilder::development()
             .log_level("info")
-            .listen_addresses(vec!["/ip4/0.0.0.0/tcp/4001".to_string(), "/ip6/::/tcp/4001".to_string()]) // Replace list
+            .listen_addresses(vec![
+                "/ip4/0.0.0.0/tcp/4001".to_string(),
+                "/ip6/::/tcp/4001".to_string(),
+            ]) // Replace list
             .add_bootstrap_peer("12D3KooWTest", "/ip4/127.0.0.1/tcp/4002")
             .connection_timeout_ms(5000)
             .request_timeout_ms(10000)
@@ -1375,7 +1472,7 @@ mod tests {
             .vote_cost_mana(5)
             .max_job_queue_size(500)
             .build_unchecked();
-        
+
         assert_eq!(config.environment.log_level, "info");
         assert_eq!(config.network.listen_addresses.len(), 2);
         assert_eq!(config.network.bootstrap_peers.len(), 1);
@@ -1383,11 +1480,17 @@ mod tests {
         assert_eq!(config.network.timeouts.connection_timeout_ms, 5000);
         assert_eq!(config.network.timeouts.request_timeout_ms, 10000);
         assert_eq!(config.storage.dag_store.store_type, "file");
-        assert_eq!(config.storage.dag_store.storage_path, Some(PathBuf::from("/custom/dag/path")));
-        assert_eq!(config.storage.mana_ledger.ledger_path, PathBuf::from("/custom/mana/path"));
+        assert_eq!(
+            config.storage.dag_store.storage_path,
+            Some(PathBuf::from("/custom/dag/path"))
+        );
+        assert_eq!(
+            config.storage.mana_ledger.ledger_path,
+            PathBuf::from("/custom/mana/path")
+        );
         assert_eq!(config.storage.mana_ledger.regeneration_rate, 2.5);
         assert_eq!(config.governance.voting.min_voting_power, 50);
         assert_eq!(config.governance.voting.vote_cost_mana, 5);
         assert_eq!(config.runtime.max_job_queue_size, 500);
     }
-} 
+}

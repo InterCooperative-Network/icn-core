@@ -103,35 +103,45 @@ impl ServiceConfigBuilder {
     }
 
     /// Set the policy enforcer (optional)
-    pub fn with_policy_enforcer(mut self, enforcer: Arc<dyn icn_governance::scoped_policy::ScopedPolicyEnforcer>) -> Self {
+    pub fn with_policy_enforcer(
+        mut self,
+        enforcer: Arc<dyn icn_governance::scoped_policy::ScopedPolicyEnforcer>,
+    ) -> Self {
         self.policy_enforcer = Some(enforcer);
         self
     }
 
     /// Build the service configuration
     pub fn build(self) -> Result<ServiceConfig, CommonError> {
-        let current_identity = self.current_identity.clone()
-            .ok_or_else(|| CommonError::InternalError("Current identity is required".to_string()))?;
+        let current_identity = self.current_identity.clone().ok_or_else(|| {
+            CommonError::InternalError("Current identity is required".to_string())
+        })?;
 
-        let signer = self.signer.clone()
+        let signer = self
+            .signer
+            .clone()
             .ok_or_else(|| CommonError::InternalError("Signer is required".to_string()))?;
 
-        let did_resolver = self.did_resolver.clone()
+        let did_resolver = self
+            .did_resolver
+            .clone()
             .ok_or_else(|| CommonError::InternalError("DID resolver is required".to_string()))?;
 
-        let mana_ledger = self.mana_ledger.clone()
+        let mana_ledger = self
+            .mana_ledger
+            .clone()
             .ok_or_else(|| CommonError::InternalError("Mana ledger is required".to_string()))?;
 
         // Validate production requirements
         if self.environment == ServiceEnvironment::Production {
             if self.network_service.is_none() {
                 return Err(CommonError::InternalError(
-                    "Network service is required for production environment".to_string()
+                    "Network service is required for production environment".to_string(),
                 ));
             }
             if self.dag_store.is_none() {
                 return Err(CommonError::InternalError(
-                    "DAG store is required for production environment".to_string()
+                    "DAG store is required for production environment".to_string(),
                 ));
             }
         }
@@ -157,58 +167,65 @@ impl ServiceConfigBuilder {
     }
 
     /// Create mesh network service based on environment
-    fn create_mesh_network_service(&self, signer: &Arc<dyn Signer>) -> Result<Arc<MeshNetworkServiceType>, CommonError> {
+    fn create_mesh_network_service(
+        &self,
+        signer: &Arc<dyn Signer>,
+    ) -> Result<Arc<MeshNetworkServiceType>, CommonError> {
         match self.environment {
             ServiceEnvironment::Production => {
-                let network_service = self.network_service.as_ref()
-                    .ok_or_else(|| CommonError::InternalError("Network service required for production".to_string()))?;
+                let network_service = self.network_service.as_ref().ok_or_else(|| {
+                    CommonError::InternalError(
+                        "Network service required for production".to_string(),
+                    )
+                })?;
                 let service = Arc::new(MeshNetworkServiceType::Default(
-                    DefaultMeshNetworkService::new(network_service.clone(), signer.clone())
+                    DefaultMeshNetworkService::new(network_service.clone(), signer.clone()),
                 ));
-                
+
                 // Compile-time check for production builds
                 #[cfg(all(feature = "production", not(feature = "allow-stubs")))]
                 {
                     // This will be checked at runtime to ensure we're not using stubs
                     if matches!(&*service, MeshNetworkServiceType::Stub(_)) {
                         return Err(CommonError::InternalError(
-                            "Stub mesh network service cannot be used in production".to_string()
+                            "Stub mesh network service cannot be used in production".to_string(),
                         ));
                     }
                 }
-                
+
                 Ok(service)
             }
             ServiceEnvironment::Development => {
                 if let Some(network_service) = &self.network_service {
                     Ok(Arc::new(MeshNetworkServiceType::Default(
-                        DefaultMeshNetworkService::new(network_service.clone(), signer.clone())
+                        DefaultMeshNetworkService::new(network_service.clone(), signer.clone()),
                     )))
                 } else {
-                    let service = Arc::new(MeshNetworkServiceType::Stub(StubMeshNetworkService::new()));
-                    
+                    let service =
+                        Arc::new(MeshNetworkServiceType::Stub(StubMeshNetworkService::new()));
+
                     // Ensure we're not accidentally using stubs in production
                     #[cfg(all(feature = "production", not(feature = "allow-stubs")))]
                     {
                         return Err(CommonError::InternalError(
-                            "Stub services cannot be used in production builds".to_string()
+                            "Stub services cannot be used in production builds".to_string(),
                         ));
                     }
-                    
+
                     Ok(service)
                 }
             }
             ServiceEnvironment::Testing => {
                 let service = Arc::new(MeshNetworkServiceType::Stub(StubMeshNetworkService::new()));
-                
+
                 // Ensure we're not accidentally using stubs in production
                 #[cfg(all(feature = "production", not(feature = "allow-stubs")))]
                 {
                     return Err(CommonError::InternalError(
-                        "Stub services cannot be used in production builds".to_string()
+                        "Stub services cannot be used in production builds".to_string(),
                     ));
                 }
-                
+
                 Ok(service)
             }
         }
@@ -217,11 +234,13 @@ impl ServiceConfigBuilder {
     /// Create DAG store based on environment
     fn create_dag_store(&self) -> Result<Arc<DagStoreMutexType<DagStorageService>>, CommonError> {
         match self.environment {
-            ServiceEnvironment::Production => {
-                self.dag_store.as_ref()
-                    .ok_or_else(|| CommonError::InternalError("DAG store required for production".to_string()))
-                    .map(|store| store.clone())
-            }
+            ServiceEnvironment::Production => self
+                .dag_store
+                .as_ref()
+                .ok_or_else(|| {
+                    CommonError::InternalError("DAG store required for production".to_string())
+                })
+                .cloned(),
             ServiceEnvironment::Development => {
                 if let Some(store) = &self.dag_store {
                     Ok(store.clone())
@@ -237,14 +256,16 @@ impl ServiceConfigBuilder {
 
     /// Create reputation store
     fn create_reputation_store(&self) -> Arc<dyn ReputationStore> {
-        self.reputation_store.as_ref()
+        self.reputation_store
+            .as_ref()
             .map(|store| store.clone())
             .unwrap_or_else(|| Arc::new(icn_reputation::InMemoryReputationStore::new()))
     }
 
     /// Create time provider
     fn create_time_provider(&self) -> Arc<dyn icn_common::TimeProvider> {
-        self.time_provider.as_ref()
+        self.time_provider
+            .as_ref()
             .map(|provider| provider.clone())
             .unwrap_or_else(|| Arc::new(icn_common::SystemTimeProvider))
     }
@@ -272,10 +293,10 @@ impl ServiceConfig {
                 // Ensure no stub services are used in production
                 if let MeshNetworkServiceType::Stub(_) = &*self.mesh_network_service {
                     return Err(CommonError::InternalError(
-                        "Stub mesh network service cannot be used in production".to_string()
+                        "Stub mesh network service cannot be used in production".to_string(),
                     ));
                 }
-                
+
                 // Check if DAG store is a stub (this is a bit tricky due to trait objects)
                 // We'll use a runtime check
                 let dag_store = self.dag_store.clone();
@@ -285,7 +306,7 @@ impl ServiceConfig {
                         let store = dag_store.lock().await;
                         if store.as_any().is::<StubDagStore>() {
                             return Err(CommonError::InternalError(
-                                "Stub DAG store cannot be used in production".to_string()
+                                "Stub DAG store cannot be used in production".to_string(),
                             ));
                         }
                         Ok(())
@@ -303,6 +324,7 @@ impl ServiceConfig {
 /// Factory methods for common service configurations
 impl ServiceConfig {
     /// Create a production configuration
+    #[allow(clippy::too_many_arguments)]
     pub fn production(
         current_identity: Did,
         network_service: Arc<dyn icn_network::NetworkService>,
@@ -327,7 +349,7 @@ impl ServiceConfig {
         }
 
         let config = builder.build()?;
-        
+
         config.validate()?;
         Ok(config)
     }
@@ -358,21 +380,22 @@ impl ServiceConfig {
     }
 
     /// Create a testing configuration
-    pub fn testing(
-        current_identity: Did,
-        initial_mana: Option<u64>,
-    ) -> Result<Self, CommonError> {
+    pub fn testing(current_identity: Did, initial_mana: Option<u64>) -> Result<Self, CommonError> {
         // Create temporary mana ledger for testing
-        let temp_file = tempfile::NamedTempFile::new()
-            .map_err(|e| CommonError::IoError(format!("Failed to create temp file for testing: {}", e)))?;
+        let temp_file = tempfile::NamedTempFile::new().map_err(|e| {
+            CommonError::IoError(format!("Failed to create temp file for testing: {}", e))
+        })?;
         let temp_path = temp_file.path().to_path_buf();
         std::mem::forget(temp_file);
         let mana_ledger = super::mana::SimpleManaLedger::new(temp_path);
 
         // Set initial mana if provided
         if let Some(mana) = initial_mana {
-            mana_ledger.set_balance(&current_identity, mana)
-                .map_err(|e| CommonError::InternalError(format!("Failed to set initial mana: {}", e)))?;
+            mana_ledger
+                .set_balance(&current_identity, mana)
+                .map_err(|e| {
+                    CommonError::InternalError(format!("Failed to set initial mana: {}", e))
+                })?;
         }
 
         ServiceConfigBuilder::new(ServiceEnvironment::Testing)
@@ -382,4 +405,4 @@ impl ServiceConfig {
             .with_mana_ledger(mana_ledger)
             .build()
     }
-} 
+}

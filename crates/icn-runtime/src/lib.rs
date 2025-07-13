@@ -28,7 +28,7 @@ pub use icn_dag::StorageService;
 
 // Re-export ABI constants
 pub use abi::*;
-use bincode;
+extern crate bincode;
 use icn_common::{Cid, CommonError, Did, NodeInfo};
 use icn_mesh::JobId;
 use icn_reputation::ReputationStore;
@@ -1050,11 +1050,11 @@ mod tests {
             }
             Ok(None) => {
                 println!("Job not found in DAG");
-                assert!(false, "Job should be stored in DAG");
+                panic!("Job should be stored in DAG");
             }
             Err(e) => {
                 println!("Error retrieving job status: {}", e);
-                assert!(false, "Should be able to retrieve job status");
+                panic!("Should be able to retrieve job status");
             }
         }
     }
@@ -1093,10 +1093,10 @@ mod tests {
                 println!("Successfully retrieved and parsed job lifecycle via host function");
             }
             Ok(None) => {
-                assert!(false, "Job should exist");
+                panic!("Job should exist");
             }
             Err(e) => {
-                assert!(false, "Host function should work: {}", e);
+                panic!("Host function should work: {}", e);
             }
         }
     }
