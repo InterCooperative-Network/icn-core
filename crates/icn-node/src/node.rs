@@ -80,14 +80,12 @@ use tokio::sync::{Mutex as AsyncMutex, Mutex as TokioMutex};
 use uuid::Uuid;
 
 use crate::config::{NodeConfig, StorageBackendType, StorageConfig};
+use icn_runtime::context::mesh_network::ZK_VERIFY_COST_MANA;
 
 #[cfg(feature = "enable-libp2p")]
 use icn_network::libp2p_service::{Libp2pNetworkService, NetworkConfig};
 #[cfg(feature = "enable-libp2p")]
 use libp2p::Multiaddr;
-
-/// Mana cost charged for verifying a zero-knowledge proof.
-const ZK_VERIFY_COST_MANA: u64 = 2;
 
 static NODE_START_TIME: AtomicU64 = AtomicU64::new(0);
 
@@ -2876,13 +2874,13 @@ async fn zk_verify_handler(
     use icn_identity::{BulletproofsVerifier, DummyVerifier, Groth16Verifier, ZkVerifier};
     use serde_json::json;
 
+    let charged = ZK_VERIFY_COST_MANA;
     if let Err(e) = state
         .runtime_context
-        .spend_mana(&state.runtime_context.current_identity, ZK_VERIFY_COST_MANA)
+        .spend_mana(&state.runtime_context.current_identity, charged)
         .await
     {
-        return map_rust_error_to_json_response(e, StatusCode::BAD_REQUEST)
-            .into_response();
+        return map_rust_error_to_json_response(e, StatusCode::BAD_REQUEST).into_response();
     }
 
     let verifier: Box<dyn ZkVerifier> = match proof.backend {
@@ -2894,10 +2892,24 @@ async fn zk_verify_handler(
     match verifier.verify(&proof) {
         Ok(true) => (StatusCode::OK, Json(json!({ "verified": true }))).into_response(),
         Ok(false) => {
+            if let Err(err) = state
+                .runtime_context
+                .credit_mana(&state.runtime_context.current_identity, charged)
+                .await
+            {
+                log::error!("Failed to refund mana after failed verification: {}", err);
+            }
             map_rust_error_to_json_response("verification failed", StatusCode::BAD_REQUEST)
                 .into_response()
         }
         Err(e) => {
+            if let Err(err) = state
+                .runtime_context
+                .credit_mana(&state.runtime_context.current_identity, charged)
+                .await
+            {
+                log::error!("Failed to refund mana after verification error: {}", err);
+            }
             map_rust_error_to_json_response(format!("{e}"), StatusCode::BAD_REQUEST).into_response()
         }
     }

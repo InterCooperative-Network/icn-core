@@ -32,8 +32,8 @@ extern crate bincode;
 use icn_common::{Cid, CommonError, Did, NodeInfo};
 use icn_mesh::JobId;
 use icn_reputation::ReputationStore;
-use serde::Deserialize;
 use log::{debug, error, info, warn};
+use serde::Deserialize;
 use std::str::FromStr;
 use thiserror::Error;
 
@@ -717,7 +717,7 @@ pub async fn host_get_job_status(
 
 /// Verify a zero-knowledge credential proof.
 pub async fn host_verify_zk_proof(
-    _ctx: &RuntimeContext,
+    ctx: &RuntimeContext,
     proof_json: &str,
 ) -> Result<bool, HostAbiError> {
     use icn_common::{ZkCredentialProof, ZkProofType};
@@ -727,29 +727,57 @@ pub async fn host_verify_zk_proof(
         HostAbiError::InvalidParameters(format!("Invalid ZkCredentialProof JSON: {e}"))
     })?;
 
+    ctx.spend_mana(
+        &ctx.current_identity,
+        context::mesh_network::ZK_VERIFY_COST_MANA,
+    )
+    .await?;
+
     let verifier: Box<dyn ZkVerifier> = match proof.backend {
         ZkProofType::Bulletproofs => Box::new(BulletproofsVerifier::default()),
         ZkProofType::Groth16 => Box::new(Groth16Verifier::default()),
         _ => Box::new(DummyVerifier::default()),
     };
 
-    verifier
-        .verify(&proof)
-        .map_err(|e| HostAbiError::InvalidParameters(format!("{e}")))
+    match verifier.verify(&proof) {
+        Ok(true) => Ok(true),
+        Ok(false) => {
+            ctx.credit_mana(
+                &ctx.current_identity,
+                context::mesh_network::ZK_VERIFY_COST_MANA,
+            )
+            .await?;
+            Ok(false)
+        }
+        Err(e) => {
+            ctx.credit_mana(
+                &ctx.current_identity,
+                context::mesh_network::ZK_VERIFY_COST_MANA,
+            )
+            .await?;
+            Err(HostAbiError::InvalidParameters(format!("{e}")))
+        }
+    }
 }
 
 /// Verify a zero-knowledge revocation proof.
 pub async fn host_verify_zk_revocation_proof(
-    _ctx: &RuntimeContext,
+    ctx: &RuntimeContext,
     proof_json: &str,
 ) -> Result<bool, HostAbiError> {
     use icn_common::{ZkProofType, ZkRevocationProof};
-    use icn_identity::{BulletproofsVerifier, DummyVerifier, Groth16Verifier};
     use icn_identity::zk::ZkRevocationVerifier;
+    use icn_identity::{BulletproofsVerifier, DummyVerifier, Groth16Verifier};
 
     let proof: ZkRevocationProof = serde_json::from_str(proof_json).map_err(|e| {
         HostAbiError::InvalidParameters(format!("Invalid ZkRevocationProof JSON: {e}"))
     })?;
+
+    ctx.spend_mana(
+        &ctx.current_identity,
+        context::mesh_network::ZK_VERIFY_COST_MANA,
+    )
+    .await?;
 
     let verifier: Box<dyn ZkRevocationVerifier> = match proof.backend {
         ZkProofType::Bulletproofs => Box::new(BulletproofsVerifier::default()),
@@ -757,9 +785,25 @@ pub async fn host_verify_zk_revocation_proof(
         _ => Box::new(DummyVerifier::default()),
     };
 
-    verifier
-        .verify_revocation(&proof)
-        .map_err(|e| HostAbiError::InvalidParameters(format!("{e}")))
+    match verifier.verify_revocation(&proof) {
+        Ok(true) => Ok(true),
+        Ok(false) => {
+            ctx.credit_mana(
+                &ctx.current_identity,
+                context::mesh_network::ZK_VERIFY_COST_MANA,
+            )
+            .await?;
+            Ok(false)
+        }
+        Err(e) => {
+            ctx.credit_mana(
+                &ctx.current_identity,
+                context::mesh_network::ZK_VERIFY_COST_MANA,
+            )
+            .await?;
+            Err(HostAbiError::InvalidParameters(format!("{e}")))
+        }
+    }
 }
 
 /// Generate a dummy zero-knowledge credential proof.
@@ -812,8 +856,7 @@ pub async fn host_generate_zk_proof(
         public_inputs: req.public_inputs,
     };
 
-    serde_json::to_string(&proof)
-        .map_err(|e| HostAbiError::SerializationError(format!("{e}")))
+    serde_json::to_string(&proof).map_err(|e| HostAbiError::SerializationError(format!("{e}")))
 }
 
 #[cfg(test)]
