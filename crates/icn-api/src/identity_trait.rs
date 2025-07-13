@@ -47,6 +47,18 @@ pub struct DisclosureResponse {
     pub proof: ZkCredentialProof,
 }
 
+/// Request to verify multiple zero-knowledge proofs.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VerifyProofsRequest {
+    pub proofs: Vec<ZkCredentialProof>,
+}
+
+/// Batch verification results.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BatchVerificationResponse {
+    pub results: Vec<bool>,
+}
+
 #[async_trait]
 pub trait IdentityApi {
     async fn issue_credential(
@@ -69,4 +81,10 @@ pub trait IdentityApi {
         &self,
         request: DisclosureRequest,
     ) -> Result<DisclosureResponse, CommonError>;
+
+    /// Verify multiple credential proofs in one call.
+    async fn verify_proofs(
+        &self,
+        req: VerifyProofsRequest,
+    ) -> Result<BatchVerificationResponse, CommonError>;
 }
