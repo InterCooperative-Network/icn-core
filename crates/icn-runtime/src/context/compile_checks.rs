@@ -49,7 +49,7 @@ macro_rules! ensure_production_service {
             // Ensure that in production builds, only real services are used
             let _: $production_type = $service;
         }
-        
+
         #[cfg(not(feature = "production"))]
         {
             // Development builds can use any service type
@@ -98,17 +98,18 @@ macro_rules! validate_service_config {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
+    #[allow(clippy::assertions_on_constants)]
     fn test_production_ready_traits() {
         use super::super::mesh_network::DefaultMeshNetworkService;
-        use super::super::stubs::{StubMeshNetworkService, StubDagStore};
-        
+        use super::super::stubs::{StubDagStore, StubMeshNetworkService};
+
         // Verify production services are marked as production-ready
         assert!(DefaultMeshNetworkService::IS_PRODUCTION_READY);
-        
+
         // Verify stub services are marked as NOT production-ready
         assert!(!StubMeshNetworkService::IS_PRODUCTION_READY);
         assert!(!StubDagStore::IS_PRODUCTION_READY);
     }
-} 
+}

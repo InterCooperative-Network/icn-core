@@ -1,3 +1,8 @@
+//! Zero-knowledge proof helpers used by the identity subsystem.
+//!
+//! The [`Groth16Verifier`] type allows validating Groth16 proofs against a
+//! prepared verifying key and known public inputs.
+
 use core::convert::TryInto;
 use icn_common::{Cid, ZkCredentialProof, ZkProofType};
 use std::any::Any;
@@ -383,10 +388,24 @@ impl ZkProver for Groth16Prover {
     }
 }
 
-/// Verifier implementation for Groth16 proofs using circuits from `icn-zk`.
+/// Verifier implementation for Groth16 proofs.
+///
+/// The verifier stores a prepared verifying key and the public inputs expected
+/// by the circuit. Proofs are checked using [`ark_groth16::Groth16::verify_proof`].
 #[derive(Debug)]
 pub struct Groth16Verifier {
-    vk_age_over_18: ark_groth16::PreparedVerifyingKey<ark_bn254::Bn254>,
+    vk: ark_groth16::PreparedVerifyingKey<ark_bn254::Bn254>,
+    public_inputs: Vec<ark_bn254::Fr>,
+}
+
+impl Groth16Verifier {
+    /// Create a new verifier from the prepared verifying key and public inputs.
+    pub fn new(
+        vk: ark_groth16::PreparedVerifyingKey<ark_bn254::Bn254>,
+        public_inputs: Vec<ark_bn254::Fr>,
+    ) -> Self {
+        Self { vk, public_inputs }
+    }
 }
 
 impl Default for Groth16Verifier {
@@ -401,15 +420,15 @@ impl Default for Groth16Verifier {
         };
         let mut rng = StdRng::seed_from_u64(42);
         let pk = setup(circuit, &mut rng).expect("setup");
-        let vk_age_over_18 = prepare_vk(&pk);
+        let vk = prepare_vk(&pk);
+        let inputs = vec![ark_bn254::Fr::from(2020u64)];
 
-        Self { vk_age_over_18 }
+        Self::new(vk, inputs)
     }
 }
 
 impl ZkVerifier for Groth16Verifier {
     fn verify(&self, proof: &ZkCredentialProof) -> Result<bool, ZkError> {
-        use ark_bn254::Fr;
         use ark_groth16::Proof;
         use ark_serialize::CanonicalDeserialize;
 
@@ -423,13 +442,12 @@ impl ZkVerifier for Groth16Verifier {
         let groth_proof = Proof::<ark_bn254::Bn254>::deserialize_compressed(proof.proof.as_slice())
             .map_err(|_| ZkError::InvalidProof)?;
 
-        let inputs = match proof.claim_type.as_str() {
-            "age_over_18" => vec![Fr::from(2020u64)],
-            _ => return Err(ZkError::VerificationFailed),
-        };
-
-        icn_zk::verify(&self.vk_age_over_18, &groth_proof, &inputs)
-            .map_err(|_| ZkError::VerificationFailed)
+        ark_groth16::Groth16::<ark_bn254::Bn254>::verify_proof(
+            &self.vk,
+            &groth_proof,
+            &self.public_inputs,
+        )
+        .map_err(|_| ZkError::VerificationFailed)
     }
 }
 
@@ -537,7 +555,7 @@ mod tests {
     fn groth16_verifier_ok() {
         use ark_serialize::CanonicalSerialize;
         use ark_std::rand::{rngs::StdRng, SeedableRng};
-        use icn_zk::{prove, setup, AgeOver18Circuit};
+        use icn_zk::{prepare_vk, prove, setup, AgeOver18Circuit};
 
         let circuit = AgeOver18Circuit {
             birth_year: 2000,
@@ -545,6 +563,7 @@ mod tests {
         };
         let mut rng = StdRng::seed_from_u64(42);
         let pk = setup(circuit.clone(), &mut rng).unwrap();
+        let pvk = prepare_vk(&pk);
         let proof_obj = prove(&pk, circuit, &mut rng).unwrap();
         let mut bytes = Vec::new();
         proof_obj.serialize_compressed(&mut bytes).unwrap();
@@ -563,8 +582,83 @@ mod tests {
             public_inputs: None,
         };
 
-        let verifier = Groth16Verifier::default();
+        let verifier = Groth16Verifier::new(pvk, vec![ark_bn254::Fr::from(2020u64)]);
         assert!(verifier.verify(&proof).unwrap());
+    }
+
+    #[test]
+    fn groth16_backend_mismatch() {
+        use ark_serialize::CanonicalSerialize;
+        use ark_std::rand::{rngs::StdRng, SeedableRng};
+        use icn_zk::{prepare_vk, prove, setup, AgeOver18Circuit};
+
+        let circuit = AgeOver18Circuit {
+            birth_year: 2000,
+            current_year: 2020,
+        };
+        let mut rng = StdRng::seed_from_u64(42);
+        let pk = setup(circuit.clone(), &mut rng).unwrap();
+        let pvk = prepare_vk(&pk);
+        let proof_obj = prove(&pk, circuit, &mut rng).unwrap();
+        let mut bytes = Vec::new();
+        proof_obj.serialize_compressed(&mut bytes).unwrap();
+
+        let proof = ZkCredentialProof {
+            issuer: Did::new("key", "issuer"),
+            holder: Did::new("key", "holder"),
+            claim_type: "age_over_18".into(),
+            proof: bytes,
+            schema: dummy_cid("schema"),
+            vk_cid: None,
+            disclosed_fields: Vec::new(),
+            challenge: None,
+            backend: ZkProofType::Bulletproofs,
+            verification_key: None,
+            public_inputs: None,
+        };
+
+        let verifier = Groth16Verifier::new(pvk, vec![ark_bn254::Fr::from(2020u64)]);
+        assert!(matches!(
+            verifier.verify(&proof),
+            Err(ZkError::UnsupportedBackend(_))
+        ));
+    }
+
+    #[test]
+    fn groth16_malformed_proof() {
+        use ark_std::rand::{rngs::StdRng, SeedableRng};
+        use icn_zk::{prepare_vk, setup, AgeOver18Circuit};
+
+        let mut rng = StdRng::seed_from_u64(42);
+        let pk = setup(
+            AgeOver18Circuit {
+                birth_year: 2000,
+                current_year: 2020,
+            },
+            &mut rng,
+        )
+        .unwrap();
+        let pvk = prepare_vk(&pk);
+
+        let proof = ZkCredentialProof {
+            issuer: Did::new("key", "issuer"),
+            holder: Did::new("key", "holder"),
+            claim_type: "age_over_18".into(),
+            proof: vec![0u8; 10],
+            schema: dummy_cid("schema"),
+            vk_cid: None,
+            disclosed_fields: Vec::new(),
+            challenge: None,
+            backend: ZkProofType::Groth16,
+            verification_key: None,
+            public_inputs: None,
+        };
+
+        let verifier = Groth16Verifier::new(pvk, vec![ark_bn254::Fr::from(2020u64)]);
+        assert!(matches!(
+            verifier.verify(&proof),
+            Err(ZkError::InvalidProof)
+        ));
     }
 
     #[test]

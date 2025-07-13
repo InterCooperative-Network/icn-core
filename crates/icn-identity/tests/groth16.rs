@@ -55,6 +55,7 @@ impl ZkProver for Groth16Prover {
             disclosed_fields: fields.iter().map(|f| f.to_string()).collect(),
             challenge: None,
             backend: ZkProofType::Groth16,
+
             verification_key: None,
             public_inputs: None,
         })

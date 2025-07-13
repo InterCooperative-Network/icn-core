@@ -21,8 +21,6 @@ use tokio::fs::{self, File as TokioFile, OpenOptions as TokioOpenOptions};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 /// Helper crate for encoding/decoding root hashes
-use hex;
-
 pub mod index;
 pub mod metrics;
 #[cfg(feature = "persist-postgres")]
