@@ -94,3 +94,49 @@ async fn malformed_proof_refunds_mana() {
     let final_balance = ctx.get_mana(&ctx.current_identity).await.unwrap();
     assert_eq!(initial, final_balance);
 }
+
+#[tokio::test]
+async fn valid_proof_increases_reputation() {
+    let ctx = RuntimeContext::new_with_stubs_and_mana("did:key:zRepPos", ZK_VERIFY_COST_MANA * 2)
+        .unwrap();
+    let issuer = Did::from_str("did:key:zIssPos").unwrap();
+    let holder = Did::from_str("did:key:zHoldPos").unwrap();
+    let schema = Cid::new_v1_sha256(0x55, b"schemap");
+    let req = serde_json::json!({
+        "issuer": issuer.to_string(),
+        "holder": holder.to_string(),
+        "claim_type": "test",
+        "schema": schema.to_string(),
+        "backend": "dummy",
+    });
+    let proof_json = host_generate_zk_proof(&ctx, &req.to_string()).await.unwrap();
+    let before = ctx.reputation_store.get_reputation(&ctx.current_identity);
+    let verified = host_verify_zk_proof(&ctx, &proof_json).await.unwrap();
+    assert!(verified);
+    let after = ctx.reputation_store.get_reputation(&ctx.current_identity);
+    assert_eq!(after, before + 1);
+}
+
+#[tokio::test]
+async fn invalid_proof_penalizes_reputation() {
+    let ctx = RuntimeContext::new_with_stubs_and_mana("did:key:zRepNeg", ZK_VERIFY_COST_MANA * 2)
+        .unwrap();
+    ctx.reputation_store.record_execution(&ctx.current_identity, true, 0);
+    let proof = ZkCredentialProof {
+        issuer: Did::from_str("did:key:zIssNeg").unwrap(),
+        holder: Did::from_str("did:key:zHoldNeg").unwrap(),
+        claim_type: "test".into(),
+        proof: vec![1, 2, 3],
+        schema: Cid::new_v1_sha256(0x55, b"s"),
+        vk_cid: None,
+        disclosed_fields: Vec::new(),
+        challenge: None,
+        backend: ZkProofType::Groth16,
+        verification_key: None,
+        public_inputs: None,
+    };
+    let json = serde_json::to_string(&proof).unwrap();
+    let _ = host_verify_zk_proof(&ctx, &json).await;
+    let rep = ctx.reputation_store.get_reputation(&ctx.current_identity);
+    assert_eq!(rep, 0);
+}

@@ -734,19 +734,25 @@ pub async fn host_verify_zk_proof(
     .await?;
 
     let verifier: Box<dyn ZkVerifier> = match proof.backend {
-        ZkProofType::Bulletproofs => Box::new(BulletproofsVerifier),
+        ZkProofType::Bulletproofs => Box::new(BulletproofsVerifier::default()),
         ZkProofType::Groth16 => Box::new(Groth16Verifier::default()),
         _ => Box::new(DummyVerifier),
     };
 
     match verifier.verify(&proof) {
-        Ok(true) => Ok(true),
+        Ok(true) => {
+            ctx.reputation_store
+                .record_proof_attempt(&ctx.current_identity, true);
+            Ok(true)
+        }
         Ok(false) => {
             ctx.credit_mana(
                 &ctx.current_identity,
                 context::mesh_network::ZK_VERIFY_COST_MANA,
             )
             .await?;
+            ctx.reputation_store
+                .record_proof_attempt(&ctx.current_identity, false);
             Ok(false)
         }
         Err(e) => {
@@ -755,6 +761,8 @@ pub async fn host_verify_zk_proof(
                 context::mesh_network::ZK_VERIFY_COST_MANA,
             )
             .await?;
+            ctx.reputation_store
+                .record_proof_attempt(&ctx.current_identity, false);
             Err(HostAbiError::InvalidParameters(format!("{e}")))
         }
     }
@@ -780,19 +788,25 @@ pub async fn host_verify_zk_revocation_proof(
     .await?;
 
     let verifier: Box<dyn ZkRevocationVerifier> = match proof.backend {
-        ZkProofType::Bulletproofs => Box::new(BulletproofsVerifier),
+        ZkProofType::Bulletproofs => Box::new(BulletproofsVerifier::default()),
         ZkProofType::Groth16 => Box::new(Groth16Verifier::default()),
         _ => Box::new(DummyVerifier),
     };
 
     match verifier.verify_revocation(&proof) {
-        Ok(true) => Ok(true),
+        Ok(true) => {
+            ctx.reputation_store
+                .record_proof_attempt(&ctx.current_identity, true);
+            Ok(true)
+        }
         Ok(false) => {
             ctx.credit_mana(
                 &ctx.current_identity,
                 context::mesh_network::ZK_VERIFY_COST_MANA,
             )
             .await?;
+            ctx.reputation_store
+                .record_proof_attempt(&ctx.current_identity, false);
             Ok(false)
         }
         Err(e) => {
@@ -801,6 +815,8 @@ pub async fn host_verify_zk_revocation_proof(
                 context::mesh_network::ZK_VERIFY_COST_MANA,
             )
             .await?;
+            ctx.reputation_store
+                .record_proof_attempt(&ctx.current_identity, false);
             Err(HostAbiError::InvalidParameters(format!("{e}")))
         }
     }

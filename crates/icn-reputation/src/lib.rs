@@ -28,6 +28,15 @@ pub trait ReputationStore: Send + Sync {
 
     /// Updates reputation metrics for an executor.
     fn record_execution(&self, executor: &Did, success: bool, cpu_ms: u64);
+
+    /// Record the outcome of a zero-knowledge proof attempt.
+    fn record_proof_attempt(&self, prover: &Did, success: bool);
+}
+
+impl std::fmt::Debug for dyn ReputationStore {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "ReputationStore")
+    }
 }
 
 #[cfg(feature = "async")]
@@ -36,6 +45,8 @@ pub trait AsyncReputationStore: Send + Sync {
     async fn get_reputation(&self, did: &Did) -> u64;
 
     async fn record_execution(&self, executor: &Did, success: bool, cpu_ms: u64);
+
+    async fn record_proof_attempt(&self, prover: &Did, success: bool);
 }
 
 #[cfg(feature = "async")]
@@ -66,6 +77,10 @@ where
 
     async fn record_execution(&self, executor: &Did, success: bool, cpu_ms: u64) {
         self.inner.record_execution(executor, success, cpu_ms);
+    }
+
+    async fn record_proof_attempt(&self, prover: &Did, success: bool) {
+        self.inner.record_proof_attempt(prover, success);
     }
 }
 
@@ -100,6 +115,14 @@ impl ReputationStore for InMemoryReputationStore {
         let base: i64 = if success { 1 } else { -1 };
         let delta: i64 = base + (cpu_ms / 1000) as i64;
         let updated = (*entry as i64) + delta;
+        *entry = if updated < 0 { 0 } else { updated as u64 };
+    }
+
+    fn record_proof_attempt(&self, prover: &Did, success: bool) {
+        let mut map = self.scores.lock().unwrap();
+        let entry = map.entry(prover.clone()).or_insert(0);
+        let base: i64 = if success { 1 } else { -1 };
+        let updated = (*entry as i64) + base;
         *entry = if updated < 0 { 0 } else { updated as u64 };
     }
 }

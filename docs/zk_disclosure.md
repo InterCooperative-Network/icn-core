@@ -89,6 +89,10 @@ Two host functions are provided for working with zero-knowledge proofs:
 - **`host_generate_zk_proof`** (`ABI index 26`) – creates a dummy proof object
   from supplied parameters, useful for testing flows without a real prover.
 
+Calling `host_verify_zk_proof` or `host_verify_zk_revocation_proof` also updates
+the runtime's reputation store using `record_proof_attempt`. Successful proofs
+increase reputation while invalid proofs reduce it.
+
 When called from WASM, use the `wasm_host_verify_zk_proof` and
 `wasm_host_generate_zk_proof` wrappers which handle passing strings in and out
 of guest memory.
