@@ -27,10 +27,12 @@
 <a href=#27 id=27 data-nosnippet>27</a>    </span><span class="kw">pub </span>proof: Vec&lt;u8&gt;,
 <a href=#28 id=28 data-nosnippet>28</a>    <span class="doccomment">/// CID of the credential schema this proof adheres to.
 <a href=#29 id=29 data-nosnippet>29</a>    </span><span class="kw">pub </span>schema: Cid,
-<a href=#30 id=30 data-nosnippet>30</a>    <span class="doccomment">/// Fields from the credential that were disclosed in plain text.
-<a href=#31 id=31 data-nosnippet>31</a>    </span><span class="kw">pub </span>disclosed_fields: Vec&lt;String&gt;,
-<a href=#32 id=32 data-nosnippet>32</a>    <span class="doccomment">/// Optional challenge used in the proof generation.
-<a href=#33 id=33 data-nosnippet>33</a>    </span><span class="kw">pub </span>challenge: <span class="prelude-ty">Option</span>&lt;String&gt;,
-<a href=#34 id=34 data-nosnippet>34</a>    <span class="doccomment">/// Backend proving system used for this proof.
-<a href=#35 id=35 data-nosnippet>35</a>    </span><span class="kw">pub </span>backend: ZkProofType,
-<a href=#36 id=36 data-nosnippet>36</a>}</code></pre></div></section></main></body></html>
+<a href=#30 id=30 data-nosnippet>30</a>    <span class="doccomment">/// Optional CID referencing the verifying key for this proof.
+<a href=#31 id=31 data-nosnippet>31</a>    </span><span class="kw">pub </span>vk_cid: <span class="prelude-ty">Option</span>&lt;Cid&gt;,
+<a href=#32 id=32 data-nosnippet>32</a>    <span class="doccomment">/// Fields from the credential that were disclosed in plain text.
+<a href=#33 id=33 data-nosnippet>33</a>    </span><span class="kw">pub </span>disclosed_fields: Vec&lt;String&gt;,
+<a href=#34 id=34 data-nosnippet>34</a>    <span class="doccomment">/// Optional challenge used in the proof generation.
+<a href=#35 id=35 data-nosnippet>35</a>    </span><span class="kw">pub </span>challenge: <span class="prelude-ty">Option</span>&lt;String&gt;,
+<a href=#36 id=36 data-nosnippet>36</a>    <span class="doccomment">/// Backend proving system used for this proof.
+<a href=#37 id=37 data-nosnippet>37</a>    </span><span class="kw">pub </span>backend: ZkProofType,
+<a href=#38 id=38 data-nosnippet>38</a>}</code></pre></div></section></main></body></html>
