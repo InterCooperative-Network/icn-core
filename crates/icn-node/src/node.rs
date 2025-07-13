@@ -21,7 +21,13 @@ use icn_api::governance_trait::{
     RevokeDelegationRequest as ApiRevokeDelegationRequest,
     SubmitProposalRequest as ApiSubmitProposalRequest,
 };
-use icn_api::{get_dag_metadata, query_data, submit_transaction};
+use icn_api::{
+    get_dag_metadata,
+    identity_trait::{
+        CredentialResponse, IssueCredentialRequest, RevokeCredentialRequest, VerificationResponse,
+    },
+    query_data, submit_transaction,
+};
 use icn_common::DagBlock as CoreDagBlock;
 use icn_common::{
     parse_cid_from_string, Cid, CommonError, Did, NodeInfo, NodeStatus, Transaction,
@@ -29,8 +35,8 @@ use icn_common::{
 };
 use icn_dag;
 use icn_identity::{
-    did_key_from_verifying_key, generate_ed25519_keypair,
-    ExecutionReceipt as IdentityExecutionReceipt, SignatureBytes,
+    did_key_from_verifying_key, generate_ed25519_keypair, Credential,
+    ExecutionReceipt as IdentityExecutionReceipt, InMemoryCredentialStore, SignatureBytes,
 };
 use icn_mesh::{ActualMeshJob, JobId, JobSpec};
 #[allow(unused_imports)]
@@ -381,6 +387,7 @@ struct AppState {
     peers: Arc<TokioMutex<Vec<String>>>,
     config: Arc<TokioMutex<NodeConfig>>,
     parameter_store: Option<Arc<TokioMutex<ParameterStore>>>,
+    credential_store: icn_identity::InMemoryCredentialStore,
 }
 
 struct RateLimitData {
@@ -710,6 +717,7 @@ pub async fn app_router_with_options(
         peers: Arc::new(TokioMutex::new(Vec::new())),
         config: config.clone(),
         parameter_store: parameter_store.clone(),
+        credential_store: icn_identity::InMemoryCredentialStore::new(),
     };
 
     // Register governance callback for parameter changes
@@ -760,6 +768,23 @@ pub async fn app_router_with_options(
             .route("/keys", get(keys_handler))
             .route("/reputation/{did}", get(reputation_handler))
             .route("/identity/verify", post(zk_verify_handler))
+            .route(
+                "/identity/credentials/issue",
+                post(credential_issue_handler),
+            )
+            .route(
+                "/identity/credentials/verify",
+                post(credential_verify_handler),
+            )
+            .route(
+                "/identity/credentials/revoke",
+                post(credential_revoke_handler),
+            )
+            .route(
+                "/identity/credentials/schemas",
+                get(credential_schemas_handler),
+            )
+            .route("/identity/credentials/{cid}", get(credential_get_handler))
             .route("/dag/put", post(dag_put_handler)) // These will use RT context's DAG store
             .route("/dag/get", post(dag_get_handler)) // These will use RT context's DAG store
             .route("/dag/meta", post(dag_meta_handler))
@@ -838,6 +863,7 @@ pub async fn app_router_from_context(
         peers: Arc::new(TokioMutex::new(Vec::new())),
         config: config.clone(),
         parameter_store: None,
+        credential_store: icn_identity::InMemoryCredentialStore::new(),
     };
 
     {
@@ -885,6 +911,23 @@ pub async fn app_router_from_context(
         .route("/account/{did}/mana", get(account_mana_handler))
         .route("/keys", get(keys_handler))
         .route("/reputation/{did}", get(reputation_handler))
+        .route(
+            "/identity/credentials/issue",
+            post(credential_issue_handler),
+        )
+        .route(
+            "/identity/credentials/verify",
+            post(credential_verify_handler),
+        )
+        .route(
+            "/identity/credentials/revoke",
+            post(credential_revoke_handler),
+        )
+        .route(
+            "/identity/credentials/schemas",
+            get(credential_schemas_handler),
+        )
+        .route("/identity/credentials/{cid}", get(credential_get_handler))
         .route("/dag/put", post(dag_put_handler))
         .route("/dag/get", post(dag_get_handler))
         .route("/dag/meta", post(dag_meta_handler))
@@ -1118,6 +1161,7 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
         peers: Arc::new(TokioMutex::new(Vec::new())),
         config: shared_config.clone(),
         parameter_store: Some(parameter_store.clone()),
+        credential_store: icn_identity::InMemoryCredentialStore::new(),
     };
 
     {
@@ -2795,6 +2839,120 @@ async fn zk_verify_handler(
             map_rust_error_to_json_response(format!("{e}"), StatusCode::BAD_REQUEST).into_response()
         }
     }
+}
+
+// POST /identity/credentials/issue - issue a credential
+async fn credential_issue_handler(
+    State(state): State<AppState>,
+    Json(req): Json<IssueCredentialRequest>,
+) -> impl IntoResponse {
+    use std::collections::HashMap;
+
+    let mut claims: HashMap<String, String> = req.attributes.into_iter().collect();
+    let mut cred = Credential::new(
+        req.issuer.clone(),
+        req.holder,
+        claims.clone(),
+        Some(req.schema),
+    );
+
+    for (k, v) in claims {
+        let mut bytes = req.issuer.to_string().into_bytes();
+        bytes.extend_from_slice(cred.holder.to_string().as_bytes());
+        bytes.extend_from_slice(k.as_bytes());
+        bytes.extend_from_slice(v.as_bytes());
+        match state.runtime_context.signer.sign(&bytes) {
+            Ok(sig) => {
+                cred.signatures.insert(k, SignatureBytes(sig));
+            }
+            Err(e) => {
+                return map_rust_error_to_json_response(e, StatusCode::INTERNAL_SERVER_ERROR)
+                    .into_response();
+            }
+        }
+    }
+
+    let bytes = match serde_json::to_vec(&cred) {
+        Ok(b) => b,
+        Err(e) => {
+            return map_rust_error_to_json_response(e, StatusCode::INTERNAL_SERVER_ERROR)
+                .into_response();
+        }
+    };
+    let cid = Cid::new_v1_sha256(0x71, &bytes);
+    state.credential_store.insert(cid.clone(), cred.clone());
+
+    (
+        StatusCode::CREATED,
+        Json(CredentialResponse {
+            cid,
+            credential: cred,
+        }),
+    )
+        .into_response()
+}
+
+// GET /identity/credentials/{cid}
+async fn credential_get_handler(
+    AxumPath(cid_str): AxumPath<String>,
+    State(state): State<AppState>,
+) -> impl IntoResponse {
+    match parse_cid_from_string(&cid_str) {
+        Ok(cid) => match state.credential_store.get(&cid) {
+            Some(cred) => (
+                StatusCode::OK,
+                Json(CredentialResponse {
+                    cid,
+                    credential: cred,
+                }),
+            )
+                .into_response(),
+            None => map_rust_error_to_json_response("Credential not found", StatusCode::NOT_FOUND)
+                .into_response(),
+        },
+        Err(e) => {
+            map_rust_error_to_json_response(format!("Invalid CID: {e}"), StatusCode::BAD_REQUEST)
+                .into_response()
+        }
+    }
+}
+
+// POST /identity/credentials/verify
+async fn credential_verify_handler(
+    State(state): State<AppState>,
+    Json(cred): Json<Credential>,
+) -> impl IntoResponse {
+    let vk = state.runtime_context.signer.verifying_key_ref();
+    for (k, _) in &cred.claims {
+        if let Err(e) = cred.verify_claim(k, vk) {
+            return map_rust_error_to_json_response(format!("{e}"), StatusCode::BAD_REQUEST)
+                .into_response();
+        }
+    }
+    (StatusCode::OK, Json(VerificationResponse { valid: true })).into_response()
+}
+
+// POST /identity/credentials/revoke
+async fn credential_revoke_handler(
+    State(state): State<AppState>,
+    Json(req): Json<RevokeCredentialRequest>,
+) -> impl IntoResponse {
+    if state.credential_store.revoke(&req.cid) {
+        (
+            StatusCode::OK,
+            Json(serde_json::json!({"revoked": req.cid.to_string()})),
+        )
+            .into_response()
+    } else {
+        map_rust_error_to_json_response("Credential not found", StatusCode::NOT_FOUND)
+            .into_response()
+    }
+}
+
+// GET /identity/credentials/schemas
+async fn credential_schemas_handler(State(state): State<AppState>) -> impl IntoResponse {
+    let schemas = state.credential_store.list_schemas();
+    (StatusCode::OK, Json(schemas)).into_response()
 }
 
 // --- Test module (can be expanded later) ---

@@ -1,5 +1,6 @@
 use async_trait::async_trait;
-use icn_common::{Cid, CommonError, Did, VerifiableCredential};
+use icn_common::{Cid, CommonError, Did};
+use icn_identity::Credential as VerifiableCredential;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -16,6 +17,7 @@ pub struct IssueCredentialRequest {
 /// Response containing the issued credential.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CredentialResponse {
+    pub cid: Cid,
     pub credential: VerifiableCredential,
 }
 
@@ -23,6 +25,11 @@ pub struct CredentialResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VerificationResponse {
     pub valid: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RevokeCredentialRequest {
+    pub cid: Cid,
 }
 
 #[async_trait]
@@ -36,4 +43,10 @@ pub trait IdentityApi {
         &self,
         credential: VerifiableCredential,
     ) -> Result<VerificationResponse, CommonError>;
+
+    async fn get_credential(&self, cid: Cid) -> Result<CredentialResponse, CommonError>;
+
+    async fn revoke_credential(&self, cid: Cid) -> Result<(), CommonError>;
+
+    async fn list_schemas(&self) -> Result<Vec<Cid>, CommonError>;
 }

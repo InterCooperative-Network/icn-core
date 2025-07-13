@@ -40,6 +40,10 @@ name = "parameter_change"
 path = "integration/parameter_change.rs"
 
 [[test]]
+name = "credential_issuance"
+path = "integration/credential_issuance.rs"
+
+[[test]]
 name = "ccl_operator_precedence"
 path = "../icn-ccl/tests/operator_precedence.rs"
 
@@ -83,3 +87,4 @@ icn-common = { path = "../crates/icn-common" }
 icn-protocol = { path = "../crates/icn-protocol" }
 icn-identity = { path = "../crates/icn-identity" }
 icn-network = { path = "../crates/icn-network" }
+icn-api = { path = "../crates/icn-api" }

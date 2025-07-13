@@ -25,6 +25,8 @@ pub use zk::{
 };
 pub mod credential;
 pub use credential::{Credential, CredentialIssuer, DisclosedCredential};
+pub mod credential_store;
+pub use credential_store::InMemoryCredentialStore;
 
 // --- Core Cryptographic Operations & DID:key generation ---
 
