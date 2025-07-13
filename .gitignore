@@ -25,3 +25,4 @@ rustc-ice-*.txt
 # Ignore ledger artifacts at the repository root
 /mana_ledger.*
 !tests/fixtures/mana_ledger.json
+tests/fixtures/mana_ledger.tmp
