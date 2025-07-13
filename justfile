@@ -33,6 +33,10 @@ validate:
 bench:
     cargo bench --workspace --all-features
 
+# Run zero-knowledge circuit benchmarks
+bench-zk:
+    cargo bench -p icn-zk
+
 # Run federation health checks
 health-check:
     cargo test --test federation -- --exact test_federation_node_health --nocapture
