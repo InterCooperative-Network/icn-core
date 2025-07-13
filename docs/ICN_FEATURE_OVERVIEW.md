@@ -158,6 +158,7 @@ ICN enables autonomous federated systems that support cooperative coordination w
 - **Tamper-Evident Audit Logs**: Comprehensive action tracking
 - **WASM Sandboxing**: Secure execution environment
 - **DID-Based Authentication**: Decentralized identity verification
+- **Revocation Support**: Verifiable credential invalidation with ZK proofs
 
 ### **🚧 In Development**
 - **Zero-Knowledge Proofs**: Anonymous voting and selective disclosure

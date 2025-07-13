@@ -62,3 +62,23 @@ See [`docs/examples/zk_membership.json`](examples/zk_membership.json) for a memb
 `~/.icn/zk/`, and signs the verifying key with an Ed25519 key. Use
 `load_proving_key` and `verify_key_signature` to access the stored parameters
 and confirm their authenticity.
+
+## ZK Proof-of-Revocation
+
+Credentials sometimes need to be invalidated without revealing the
+specific credential. A *proof-of-revocation* allows a holder to show that a
+credential has been revoked or, conversely, to prove they are **not** on a
+revocation list without disclosing which credential they possess.
+
+1. **Issuer publishes list** – Revoked credential identifiers are collected in
+   a signed `RevocationList` anchored to the DAG.
+2. **Holder generates proof** – Using the list's content identifier (CID), the
+   holder produces a zero-knowledge proof that their credential identifier
+   either appears on the list (for transparency) or does not (for selective
+   disclosure).
+3. **Verifier checks** – The verifier confirms the list's signature and verifies
+   the proof with the corresponding verification key. No credential details are
+   leaked during this process.
+
+The `icn-zk` crate exposes circuits for building these proofs so that
+revocation status can be proven privately in federated environments.

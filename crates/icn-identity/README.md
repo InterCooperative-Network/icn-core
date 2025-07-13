@@ -52,6 +52,19 @@ Credential issuance can optionally generate zero-knowledge proofs via the
 - `Groth16Prover` – generic prover for Groth16 circuits such as age, membership
   or reputation checks.
 
+## Revocation Workflow
+
+Credentials may be revoked by an issuer. To verify revocation status while
+preserving privacy:
+
+1. **Issuer posts a RevocationList** – A signed list of revoked credential IDs
+   is anchored to the DAG.
+2. **Holder creates a proof** – Using the list CID, the holder generates a
+   zero-knowledge proof that their credential identifier is (or is not) in the
+   list.
+3. **Verifier validates** – The verifier checks the list signature and verifies
+   the proof without learning any credential details.
+
 ## Contributing
 
 Contributions are welcome! Please see the main [CONTRIBUTING.md](../../CONTRIBUTING.md) in the root of the `icn-core` repository for guidelines.
