@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":["CredentialResponse","IssueCredentialRequest","RevokeCredentialRequest","VerificationResponse"],"trait":["IdentityApi"]};
