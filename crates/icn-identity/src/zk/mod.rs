@@ -147,6 +147,76 @@ impl ZkProver for BulletproofsProver {
     }
 }
 
+/// Prover implementation for Groth16 proofs using circuits from `icn-zk`.
+#[derive(Debug)]
+pub struct Groth16Prover {
+    pk_age_over_18: ark_groth16::ProvingKey<ark_bn254::Bn254>,
+}
+
+impl Default for Groth16Prover {
+    fn default() -> Self {
+        use ark_std::rand::{rngs::StdRng, SeedableRng};
+        use icn_zk::{setup, AgeOver18Circuit};
+
+        // Deterministic setup for demo purposes
+        let circuit = AgeOver18Circuit {
+            birth_year: 2000,
+            current_year: 2020,
+        };
+        let mut rng = StdRng::seed_from_u64(42);
+        let pk_age_over_18 = setup(circuit, &mut rng).expect("setup");
+
+        Self { pk_age_over_18 }
+    }
+}
+
+impl ZkProver for Groth16Prover {
+    fn prove(
+        &self,
+        credential: &crate::credential::Credential,
+        fields: &[&str],
+    ) -> Result<ZkCredentialProof, ZkError> {
+        use ark_serialize::CanonicalSerialize;
+        use ark_std::rand::{rngs::StdRng, SeedableRng};
+        use icn_zk::{prove, AgeOver18Circuit};
+
+        // Parse the birth year claim from the credential
+        let birth_year = credential
+            .claims
+            .get("birth_year")
+            .and_then(|v| v.parse::<u64>().ok())
+            .ok_or(ZkError::VerificationFailed)?;
+
+        let circuit = AgeOver18Circuit {
+            birth_year,
+            current_year: 2020,
+        };
+
+        let mut rng = StdRng::seed_from_u64(42);
+        let proof_obj = prove(&self.pk_age_over_18, circuit, &mut rng)
+            .map_err(|_| ZkError::VerificationFailed)?;
+
+        let mut bytes = Vec::new();
+        proof_obj
+            .serialize_compressed(&mut bytes)
+            .map_err(|_| ZkError::VerificationFailed)?;
+
+        Ok(ZkCredentialProof {
+            issuer: credential.issuer.clone(),
+            holder: credential.holder.clone(),
+            claim_type: "age_over_18".into(),
+            proof: bytes,
+            schema: credential
+                .schema
+                .clone()
+                .unwrap_or_else(|| Cid::new_v1_sha256(0x55, b"groth16")),
+            disclosed_fields: fields.iter().map(|f| f.to_string()).collect(),
+            challenge: None,
+            backend: ZkProofType::Groth16,
+        })
+    }
+}
+
 /// Verifier implementation for Groth16 proofs using circuits from `icn-zk`.
 #[derive(Debug)]
 pub struct Groth16Verifier {
@@ -201,6 +271,7 @@ impl ZkVerifier for Groth16Verifier {
 mod tests {
     use super::*;
     use icn_common::{Cid, Did};
+    use std::collections::HashMap;
 
     fn dummy_cid(s: &str) -> Cid {
         Cid::new_v1_sha256(0x55, s.as_bytes())
@@ -319,6 +390,28 @@ mod tests {
             challenge: None,
             backend: ZkProofType::Groth16,
         };
+
+        let verifier = Groth16Verifier::default();
+        assert!(verifier.verify(&proof).unwrap());
+    }
+
+    #[test]
+    fn groth16_proof_roundtrip() {
+        use crate::credential::CredentialIssuer;
+        use crate::generate_ed25519_keypair;
+
+        let (sk, _) = generate_ed25519_keypair();
+        let issuer_did = Did::new("key", "issuer");
+        let holder_did = Did::new("key", "holder");
+        let mut claims = HashMap::new();
+        claims.insert("birth_year".to_string(), "2000".to_string());
+
+        let issuer = CredentialIssuer::new(issuer_did, sk)
+            .with_prover(Box::new(Groth16Prover::default()));
+        let (_, proof_opt) = issuer
+            .issue(holder_did, claims, Some(dummy_cid("schema")), Some(&[]))
+            .unwrap();
+        let proof = proof_opt.expect("proof");
 
         let verifier = Groth16Verifier::default();
         assert!(verifier.verify(&proof).unwrap());
