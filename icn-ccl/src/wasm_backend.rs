@@ -44,7 +44,7 @@ impl LocalEnv {
     }
 }
 
-const IMPORT_COUNT: u32 = 4;
+const IMPORT_COUNT: u32 = 5;
 
 pub struct WasmBackend {
     data: wasm_encoder::DataSection,
@@ -130,6 +130,18 @@ impl WasmBackend {
             wasm_encoder::EntityType::Function(ty_anchor),
         );
         fn_indices.insert("host_anchor_receipt".to_string(), next_index);
+        next_index += 1;
+
+        let ty_verify = types.len() as u32;
+        types
+            .ty()
+            .function(vec![ValType::I32, ValType::I32], vec![ValType::I32]);
+        imports.import(
+            "icn",
+            "host_verify_zk_proof",
+            wasm_encoder::EntityType::Function(ty_verify),
+        );
+        fn_indices.insert("host_verify_zk_proof".to_string(), next_index);
         next_index += 1;
 
         let policy_items = match ast {
@@ -341,14 +353,25 @@ impl WasmBackend {
                         instrs.push(Instruction::I32Mul);
                         instrs.push(Instruction::I32Const(8));
                         instrs.push(Instruction::I32Add);
-                        instrs.push(Instruction::MemoryCopy { src_mem: 0, dst_mem: 0 });
+                        instrs.push(Instruction::MemoryCopy {
+                            src_mem: 0,
+                            dst_mem: 0,
+                        });
                         // store updated len and capacity
                         instrs.push(Instruction::LocalGet(new_ptr));
                         instrs.push(Instruction::LocalGet(len_local));
-                        instrs.push(Instruction::I32Store(wasm_encoder::MemArg { offset: 0, align: 0, memory_index: 0 }));
+                        instrs.push(Instruction::I32Store(wasm_encoder::MemArg {
+                            offset: 0,
+                            align: 0,
+                            memory_index: 0,
+                        }));
                         instrs.push(Instruction::LocalGet(new_ptr));
                         instrs.push(Instruction::LocalGet(new_cap));
-                        instrs.push(Instruction::I32Store(wasm_encoder::MemArg { offset: 4, align: 0, memory_index: 0 }));
+                        instrs.push(Instruction::I32Store(wasm_encoder::MemArg {
+                            offset: 4,
+                            align: 0,
+                            memory_index: 0,
+                        }));
                         // update caller variable and arr_ptr
                         if let Some(var_idx) = arr_var {
                             instrs.push(Instruction::LocalGet(new_ptr));
@@ -357,7 +380,7 @@ impl WasmBackend {
                         instrs.push(Instruction::LocalGet(new_ptr));
                         instrs.push(Instruction::LocalSet(arr_ptr));
                         instrs.push(Instruction::End); // end if
-                        // store value
+                                                       // store value
                         instrs.push(Instruction::LocalGet(arr_ptr));
                         instrs.push(Instruction::I32Const(8));
                         instrs.push(Instruction::LocalGet(len_local));
@@ -731,6 +754,28 @@ impl WasmBackend {
             ExpressionNode::OkExpr(inner) | ExpressionNode::ErrExpr(inner) => {
                 self.emit_expression(inner, instrs, locals, indices)?;
                 Ok(ValType::I64)
+            }
+            ExpressionNode::RequireProof(inner) => {
+                let ptr_local = locals.get_or_add("__proof_ptr", ValType::I32);
+                self.emit_expression(inner, instrs, locals, indices)?;
+                instrs.push(Instruction::LocalTee(ptr_local));
+                let len_local = locals.get_or_add("__proof_len", ValType::I32);
+                instrs.push(Instruction::LocalGet(ptr_local));
+                instrs.push(Instruction::I32Load(wasm_encoder::MemArg {
+                    offset: 0,
+                    align: 0,
+                    memory_index: 0,
+                }));
+                instrs.push(Instruction::LocalSet(len_local));
+                instrs.push(Instruction::LocalGet(ptr_local));
+                instrs.push(Instruction::I32Const(4));
+                instrs.push(Instruction::I32Add);
+                instrs.push(Instruction::LocalGet(len_local));
+                let idx = *indices.get("host_verify_zk_proof").ok_or_else(|| {
+                    CclError::WasmGenerationError("missing host_verify_zk_proof".into())
+                })?;
+                instrs.push(Instruction::Call(idx));
+                Ok(ValType::I32)
             }
             ExpressionNode::Match { value, arms } => {
                 self.emit_expression(value, instrs, locals, indices)?;

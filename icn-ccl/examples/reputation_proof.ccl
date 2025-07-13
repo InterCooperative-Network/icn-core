@@ -1,0 +1,4 @@
+fn run() -> Bool {
+    let rep_claim = "{\"issuer\":\"did:coop:issuer\",\"holder\":\"did:member:1\",\"claim_type\":\"reputation_over_50\",\"schema\":\"bafkreputation\",\"backend\":\"dummy\"}";
+    return require_proof(rep_claim);
+}

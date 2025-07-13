@@ -388,6 +388,15 @@ impl SemanticAnalyzer {
                 let _ = self.evaluate_expression(inner)?;
                 Ok(TypeAnnotationNode::Result)
             }
+            ExpressionNode::RequireProof(inner) => {
+                let ty = self.evaluate_expression(inner)?;
+                if ty != TypeAnnotationNode::String {
+                    return Err(CclError::TypeError(
+                        "require_proof expects String".to_string(),
+                    ));
+                }
+                Ok(TypeAnnotationNode::Bool)
+            }
             ExpressionNode::Match { value, arms } => {
                 let _ = self.evaluate_expression(value)?;
                 let mut branch_ty: Option<TypeAnnotationNode> = None;
@@ -414,76 +423,83 @@ impl SemanticAnalyzer {
                     name
                 ))),
             },
-            ExpressionNode::FunctionCall { name, arguments } => {
-                match name.as_str() {
-                    "array_len" => {
-                        if arguments.len() != 1 {
-                            return Err(CclError::TypeError("array_len expects one argument".into()));
-                        }
-                        let arr_ty = self.evaluate_expression(&arguments[0])?;
-                        match arr_ty {
-                            TypeAnnotationNode::Array(_) => Ok(TypeAnnotationNode::Integer),
-                            _ => Err(CclError::TypeError("array_len requires array".into())),
-                        }
+            ExpressionNode::FunctionCall { name, arguments } => match name.as_str() {
+                "array_len" => {
+                    if arguments.len() != 1 {
+                        return Err(CclError::TypeError("array_len expects one argument".into()));
                     }
-                    "array_push" => {
-                        if arguments.len() != 2 {
-                            return Err(CclError::TypeError("array_push expects two arguments".into()));
-                        }
-                        let arr_ty = self.evaluate_expression(&arguments[0])?;
-                        let val_ty = self.evaluate_expression(&arguments[1])?;
-                        match arr_ty {
-                            TypeAnnotationNode::Array(elem_ty) => {
-                                if !val_ty.compatible_with(&elem_ty) {
-                                    Err(CclError::TypeError("push type mismatch".into()))
-                                } else {
-                                    Ok(TypeAnnotationNode::Integer)
-                                }
-                            }
-                            _ => Err(CclError::TypeError("array_push requires array".into())),
-                        }
-                    }
-                    "array_pop" => {
-                        if arguments.len() != 1 {
-                            return Err(CclError::TypeError("array_pop expects one argument".into()));
-                        }
-                        let arr_ty = self.evaluate_expression(&arguments[0])?;
-                        match arr_ty {
-                            TypeAnnotationNode::Array(elem_ty) => Ok(*elem_ty),
-                            _ => Err(CclError::TypeError("array_pop requires array".into())),
-                        }
-                    }
-                    _ => {
-                        let symbol = self.lookup_symbol(name).cloned();
-                        match symbol {
-                            Some(Symbol::Function { params, return_type }) => {
-                                if params.len() != arguments.len() {
-                                    return Err(CclError::TypeError(format!(
-                                        "Function `{}` expects {} arguments, got {}",
-                                        name,
-                                        params.len(),
-                                        arguments.len()
-                                    )));
-                                }
-                                for (arg_expr, param_ty) in arguments.iter().zip(params.iter()) {
-                                    let arg_ty = self.evaluate_expression(arg_expr)?;
-                                    if !arg_ty.compatible_with(param_ty) {
-                                        return Err(CclError::TypeError(format!(
-                                            "Argument type mismatch for `{}`: expected {:?}, got {:?}",
-                                            name, param_ty, arg_ty
-                                        )));
-                                    }
-                                }
-                                Ok(return_type.clone())
-                            }
-                            Some(Symbol::Variable { .. }) => {
-                                Err(CclError::TypeError(format!("Variable `{}` used as function", name)))
-                            }
-                            None => Err(CclError::SemanticError(format!("Undefined function `{}`", name))),
-                        }
+                    let arr_ty = self.evaluate_expression(&arguments[0])?;
+                    match arr_ty {
+                        TypeAnnotationNode::Array(_) => Ok(TypeAnnotationNode::Integer),
+                        _ => Err(CclError::TypeError("array_len requires array".into())),
                     }
                 }
-            }
+                "array_push" => {
+                    if arguments.len() != 2 {
+                        return Err(CclError::TypeError(
+                            "array_push expects two arguments".into(),
+                        ));
+                    }
+                    let arr_ty = self.evaluate_expression(&arguments[0])?;
+                    let val_ty = self.evaluate_expression(&arguments[1])?;
+                    match arr_ty {
+                        TypeAnnotationNode::Array(elem_ty) => {
+                            if !val_ty.compatible_with(&elem_ty) {
+                                Err(CclError::TypeError("push type mismatch".into()))
+                            } else {
+                                Ok(TypeAnnotationNode::Integer)
+                            }
+                        }
+                        _ => Err(CclError::TypeError("array_push requires array".into())),
+                    }
+                }
+                "array_pop" => {
+                    if arguments.len() != 1 {
+                        return Err(CclError::TypeError("array_pop expects one argument".into()));
+                    }
+                    let arr_ty = self.evaluate_expression(&arguments[0])?;
+                    match arr_ty {
+                        TypeAnnotationNode::Array(elem_ty) => Ok(*elem_ty),
+                        _ => Err(CclError::TypeError("array_pop requires array".into())),
+                    }
+                }
+                _ => {
+                    let symbol = self.lookup_symbol(name).cloned();
+                    match symbol {
+                        Some(Symbol::Function {
+                            params,
+                            return_type,
+                        }) => {
+                            if params.len() != arguments.len() {
+                                return Err(CclError::TypeError(format!(
+                                    "Function `{}` expects {} arguments, got {}",
+                                    name,
+                                    params.len(),
+                                    arguments.len()
+                                )));
+                            }
+                            for (arg_expr, param_ty) in arguments.iter().zip(params.iter()) {
+                                let arg_ty = self.evaluate_expression(arg_expr)?;
+                                if !arg_ty.compatible_with(param_ty) {
+                                    return Err(CclError::TypeError(format!(
+                                        "Argument type mismatch for `{}`: expected {:?}, got {:?}",
+                                        name, param_ty, arg_ty
+                                    )));
+                                }
+                            }
+                            Ok(return_type.clone())
+                        }
+                        Some(Symbol::Variable { .. }) => Err(CclError::TypeError(format!(
+                            "Variable `{}` used as function",
+                            name
+                        ))),
+                        None => Err(CclError::SemanticError(format!(
+                            "Undefined function `{}`",
+                            name
+                        ))),
+                    }
+                }
+            },
             ExpressionNode::BinaryOp {
                 left,
                 operator,

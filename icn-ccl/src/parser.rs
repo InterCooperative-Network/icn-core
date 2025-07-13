@@ -139,6 +139,12 @@ pub(crate) fn parse_primary(pair: Pair<Rule>) -> Result<ExpressionNode, CclError
         Rule::integer_literal | Rule::boolean_literal | Rule::string_literal | Rule::identifier => {
             parse_literal_expression(pair)
         }
+        Rule::require_proof_expr => {
+            let inner = pair.into_inner().next().unwrap();
+            Ok(ExpressionNode::RequireProof(Box::new(parse_expression(
+                inner,
+            )?)))
+        }
         Rule::function_call => parse_function_call(pair),
         Rule::expression => parse_expression(pair),
         _ => Err(CclError::ParsingError(format!(
