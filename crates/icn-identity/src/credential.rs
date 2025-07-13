@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 
 use icn_common::{Cid, CommonError, Did};
 
-use crate::{sign_message, verify_signature, SignatureBytes};
 use crate::zk::{ZkError, ZkProver};
+use crate::{sign_message, verify_signature, SignatureBytes};
 use icn_common::ZkCredentialProof;
 
 /// A verifiable credential issued by a DID subject to selective disclosure.
@@ -49,8 +49,7 @@ impl Credential {
             bytes.extend_from_slice(k.as_bytes());
             bytes.extend_from_slice(v.as_bytes());
             let sig = sign_message(key, &bytes);
-            self
-                .signatures
+            self.signatures
                 .insert(k.clone(), SignatureBytes::from_ed_signature(sig));
         }
     }
@@ -61,10 +60,9 @@ impl Credential {
             .claims
             .get(claim)
             .ok_or_else(|| CommonError::IdentityError(format!("claim not found: {claim}")))?;
-        let sig = self
-            .signatures
-            .get(claim)
-            .ok_or_else(|| CommonError::IdentityError(format!("missing signature for claim: {claim}")))?;
+        let sig = self.signatures.get(claim).ok_or_else(|| {
+            CommonError::IdentityError(format!("missing signature for claim: {claim}"))
+        })?;
         let mut bytes = self.issuer.to_string().into_bytes();
         bytes.extend_from_slice(self.holder.to_string().as_bytes());
         bytes.extend_from_slice(claim.as_bytes());
@@ -118,17 +116,18 @@ impl DisclosedCredential {
     /// Verify all disclosed claim signatures against the issuer key.
     pub fn verify(&self, key: &VerifyingKey) -> Result<(), CommonError> {
         for (k, v) in &self.claims {
-            let sig = self
-                .signatures
-                .get(k)
-                .ok_or_else(|| CommonError::IdentityError(format!("missing signature for claim: {k}")))?;
+            let sig = self.signatures.get(k).ok_or_else(|| {
+                CommonError::IdentityError(format!("missing signature for claim: {k}"))
+            })?;
             let mut bytes = self.issuer.to_string().into_bytes();
             bytes.extend_from_slice(self.holder.to_string().as_bytes());
             bytes.extend_from_slice(k.as_bytes());
             bytes.extend_from_slice(v.as_bytes());
             let ed = sig.to_ed_signature()?;
             if !verify_signature(key, &bytes, &ed) {
-                return Err(CommonError::IdentityError(format!("invalid signature for claim: {k}")));
+                return Err(CommonError::IdentityError(format!(
+                    "invalid signature for claim: {k}"
+                )));
             }
         }
         Ok(())
@@ -143,7 +142,11 @@ pub struct CredentialIssuer {
 
 impl CredentialIssuer {
     pub fn new(did: Did, signing_key: SigningKey) -> Self {
-        Self { did, signing_key, prover: None }
+        Self {
+            did,
+            signing_key,
+            prover: None,
+        }
     }
 
     pub fn with_prover(mut self, prover: Box<dyn ZkProver>) -> Self {
@@ -172,8 +175,11 @@ impl CredentialIssuer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::zk::{BulletproofsProver, BulletproofsVerifier, DummyProver, DummyVerifier, ZkVerifier};
     use crate::generate_ed25519_keypair;
+    use crate::zk::{
+        BulletproofsProver, BulletproofsVerifier, DummyProver, DummyVerifier, Groth16Prover,
+        Groth16Verifier, ZkVerifier,
+    };
 
     #[test]
     fn dummy_proof_roundtrip() {
@@ -185,7 +191,12 @@ mod tests {
 
         let issuer = CredentialIssuer::new(issuer, sk).with_prover(Box::new(DummyProver));
         let (_, proof_opt) = issuer
-            .issue(holder, claims, Some(Cid::new_v1_sha256(0x55, b"schema")), Some(&["age"]))
+            .issue(
+                holder,
+                claims,
+                Some(Cid::new_v1_sha256(0x55, b"schema")),
+                Some(&["age"]),
+            )
             .unwrap();
         let proof = proof_opt.expect("proof");
         let verifier = DummyVerifier;
@@ -202,11 +213,51 @@ mod tests {
 
         let issuer = CredentialIssuer::new(issuer, sk).with_prover(Box::new(BulletproofsProver));
         let (_, proof_opt) = issuer
-            .issue(holder, claims, Some(Cid::new_v1_sha256(0x55, b"schema")), Some(&[]))
+            .issue(
+                holder,
+                claims,
+                Some(Cid::new_v1_sha256(0x55, b"schema")),
+                Some(&[]),
+            )
             .unwrap();
         let proof = proof_opt.expect("proof");
         let verifier = BulletproofsVerifier;
         assert!(verifier.verify(&proof).unwrap());
     }
-}
 
+    #[test]
+    fn groth16_proof_roundtrip() {
+        use ark_std::rand::{rngs::StdRng, SeedableRng};
+        use icn_zk::{setup, AgeOver18Circuit};
+
+        let (sk, _) = generate_ed25519_keypair();
+        let issuer = Did::new("key", "issuer");
+        let holder = Did::new("key", "holder");
+        let mut claims = HashMap::new();
+        claims.insert("birth_year".to_string(), "2000".to_string());
+
+        let mut rng = StdRng::seed_from_u64(42);
+        let pk = setup(
+            AgeOver18Circuit {
+                birth_year: 2000,
+                current_year: 2020,
+            },
+            &mut rng,
+        )
+        .unwrap();
+
+        let issuer =
+            CredentialIssuer::new(issuer, sk).with_prover(Box::new(Groth16Prover::new(pk)));
+        let (_, proof_opt) = issuer
+            .issue(
+                holder,
+                claims,
+                Some(Cid::new_v1_sha256(0x55, b"schema")),
+                Some(&[]),
+            )
+            .unwrap();
+        let proof = proof_opt.expect("proof");
+        let verifier = Groth16Verifier::default();
+        assert!(verifier.verify(&proof).unwrap());
+    }
+}
