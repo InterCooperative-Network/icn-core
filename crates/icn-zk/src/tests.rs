@@ -36,3 +36,21 @@ fn reputation_threshold_proof() {
     let vk = prepare_vk(&pk);
     assert!(verify(&vk, &proof, &[Fr::from(10u64)]).unwrap());
 }
+
+#[test]
+fn circuit_parameters_roundtrip() {
+    let circuit = AgeOver18Circuit {
+        birth_year: 2000,
+        current_year: 2020,
+    };
+    let mut rng = StdRng::seed_from_u64(42);
+    let pk = setup(circuit.clone(), &mut rng).unwrap();
+    let params = CircuitParameters::from_proving_key(&pk).unwrap();
+    let mut store = MemoryParametersStorage::default();
+    store.put("age_over_18", params.clone());
+    let fetched = store.get("age_over_18").unwrap();
+    let pk2 = fetched.proving_key().unwrap();
+    let proof = prove(&pk2, circuit, &mut rng).unwrap();
+    let vk = fetched.prepared_vk().unwrap();
+    assert!(verify(&vk, &proof, &[Fr::from(2020u64)]).unwrap());
+}
