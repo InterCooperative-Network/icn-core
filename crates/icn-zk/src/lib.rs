@@ -10,9 +10,7 @@ mod circuits;
 mod params;
 
 pub use circuits::{
-    AgeOver18Circuit,
-    MembershipCircuit,
-    ReputationCircuit,
+    AgeOver18Circuit, BalanceRangeCircuit, MembershipCircuit, ReputationCircuit,
     TimestampValidityCircuit,
 };
 pub use params::{CircuitParameters, CircuitParametersStorage, MemoryParametersStorage};

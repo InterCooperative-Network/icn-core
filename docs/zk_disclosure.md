@@ -51,6 +51,7 @@ The `icn-zk` crate exposes reusable circuits that can be compiled into proofs:
 - `MembershipCircuit` – proves the subject is a registered member.
 - `ReputationCircuit` – proves a reputation score meets a required threshold.
 - `TimestampValidityCircuit` – proves a timestamp falls within a valid range.
+- `BalanceRangeCircuit` – proves a balance is between a minimum and maximum value.
 
 See [`docs/examples/zk_age_over_18.json`](examples/zk_age_over_18.json) for a sample proof payload.
 

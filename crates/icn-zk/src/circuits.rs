@@ -104,3 +104,40 @@ impl ConstraintSynthesizer<Fr> for TimestampValidityCircuit {
         Ok(())
     }
 }
+
+/// Prove that a balance lies within an inclusive range.
+#[derive(Clone)]
+pub struct BalanceRangeCircuit {
+    /// Balance to verify (private).
+    pub balance: u64,
+    /// Minimum allowed value (public).
+    pub min: u64,
+    /// Maximum allowed value (public).
+    pub max: u64,
+}
+
+impl ConstraintSynthesizer<Fr> for BalanceRangeCircuit {
+    fn generate_constraints(self, cs: ConstraintSystemRef<Fr>) -> Result<(), SynthesisError> {
+        let bal = FpVar::<Fr>::new_witness(cs.clone(), || Ok(Fr::from(self.balance)))?;
+        let min = FpVar::<Fr>::new_input(cs.clone(), || Ok(Fr::from(self.min)))?;
+        let max = FpVar::<Fr>::new_input(cs.clone(), || Ok(Fr::from(self.max)))?;
+
+        // diff_min = balance - min
+        let diff_min = self
+            .balance
+            .checked_sub(self.min)
+            .ok_or(SynthesisError::AssignmentMissing)?;
+        let diff_min_var = FpVar::<Fr>::new_witness(cs.clone(), || Ok(Fr::from(diff_min)))?;
+        (min + diff_min_var.clone()).enforce_equal(&bal)?;
+
+        // diff_max = max - balance
+        let diff_max = self
+            .max
+            .checked_sub(self.balance)
+            .ok_or(SynthesisError::AssignmentMissing)?;
+        let diff_max_var = FpVar::<Fr>::new_witness(cs, || Ok(Fr::from(diff_max)))?;
+        (bal + diff_max_var).enforce_equal(&max)?;
+
+        Ok(())
+    }
+}
