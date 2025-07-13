@@ -49,10 +49,12 @@ The `icn-zk` crate exposes reusable circuits that can be compiled into proofs:
 
 - `AgeOver18Circuit` – proves a birth year is at least 18 years in the past.
 - `MembershipCircuit` – proves the subject is a registered member.
+- `MembershipProofCircuit` – proves a private membership flag equals the expected value.
 - `ReputationCircuit` – proves a reputation score meets a required threshold.
 - `TimestampValidityCircuit` – proves a timestamp falls within a valid range.
 
 See [`docs/examples/zk_age_over_18.json`](examples/zk_age_over_18.json) for a sample proof payload.
+See [`docs/examples/zk_membership.json`](examples/zk_membership.json) for a membership proof example.
 
 ### Groth16KeyManager
 `Groth16KeyManager` generates Groth16 parameters, stores them under
