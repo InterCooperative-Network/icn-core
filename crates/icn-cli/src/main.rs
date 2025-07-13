@@ -22,6 +22,7 @@ use icn_common::{Cid, DagBlock, Did, NodeInfo, NodeStatus, ZkCredentialProof, Zk
 use icn_api::governance_trait::{
     CastVoteRequest as ApiCastVoteRequest, SubmitProposalRequest as ApiSubmitProposalRequest,
 };
+use icn_api::identity_trait::{BatchVerificationResponse, VerifyProofsRequest};
 use icn_ccl::{check_ccl_file, compile_ccl_file, compile_ccl_file_to_wasm, explain_ccl_policy};
 use icn_governance::{Proposal, ProposalId};
 use icn_identity::generate_ed25519_keypair;
@@ -327,6 +328,11 @@ enum IdentityCommands {
         #[clap(help = "ZkCredentialProof JSON or '-' for stdin")]
         proof_json_or_stdin: String,
     },
+    /// Verify multiple zero-knowledge credential proofs from a JSON array
+    VerifyProofs {
+        #[clap(help = "JSON array of proofs or '-' for stdin")]
+        proofs_json_or_stdin: String,
+    },
     /// Generate a dummy zero-knowledge credential proof
     GenerateProof {
         #[clap(long, help = "Issuer DID string")]
@@ -424,6 +430,9 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
             IdentityCommands::VerifyProof {
                 proof_json_or_stdin,
             } => handle_identity_verify(cli, client, proof_json_or_stdin).await?,
+            IdentityCommands::VerifyProofs {
+                proofs_json_or_stdin,
+            } => handle_identity_verify_batch(cli, client, proofs_json_or_stdin).await?,
             IdentityCommands::GenerateProof {
                 issuer,
                 holder,
@@ -1027,6 +1036,29 @@ async fn handle_identity_verify(
 
     let resp: serde_json::Value =
         post_request(&cli.api_url, client, "/identity/verify", &proof).await?;
+    println!("{}", serde_json::to_string_pretty(&resp)?);
+    Ok(())
+}
+
+async fn handle_identity_verify_batch(
+    cli: &Cli,
+    client: &Client,
+    proofs_json_or_stdin: &str,
+) -> Result<(), anyhow::Error> {
+    let content = if proofs_json_or_stdin == "-" {
+        let mut buffer = String::new();
+        io::stdin().read_to_string(&mut buffer)?;
+        buffer
+    } else {
+        proofs_json_or_stdin.to_string()
+    };
+
+    let proofs: Vec<ZkCredentialProof> = serde_json::from_str(&content)
+        .map_err(|e| anyhow::anyhow!("Invalid proofs JSON: {}", e))?;
+    let req = VerifyProofsRequest { proofs };
+
+    let resp: BatchVerificationResponse =
+        post_request(&cli.api_url, client, "/identity/verify/batch", &req).await?;
     println!("{}", serde_json::to_string_pretty(&resp)?);
     Ok(())
 }

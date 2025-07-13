@@ -35,6 +35,8 @@
 | `/network/local-peer-id` | GET | Show local peer ID | ✅ Working |
 | `/network/connect` | POST | Connect to a peer | ✅ Working |
 | `/network/peers` | GET | List network peers | ✅ Working |
+| `/identity/verify` | POST | Verify a zero-knowledge proof | ✅ Working |
+| `/identity/verify/batch` | POST | Verify multiple proofs | ✅ Working |
 | `/transaction/submit` | POST | Submit a transaction | ✅ Working |
 | `/tokens/classes` | GET | List token classes | 🚧 Experimental |
 | `/tokens/class` | POST | Create a token class | 🚧 Experimental |
@@ -49,6 +51,24 @@
 | `/federation/leave` | POST | Leave the federation | ✅ Working |
 | `/federation/status` | GET | Current federation status | ✅ Working |
 | `/metrics` | GET | Prometheus metrics | ✅ Working |
+
+### Identity Proof Verification
+
+Example verifying a single proof:
+
+```bash
+curl -X POST http://127.0.0.1:7845/identity/verify \
+  -H 'Content-Type: application/json' \
+  -d '{"issuer":"did:key:abc","holder":"did:key:def",...}'
+```
+
+Verifying multiple proofs:
+
+```bash
+curl -X POST http://127.0.0.1:7845/identity/verify/batch \
+  -H 'Content-Type: application/json' \
+  -d '{"proofs": [ {...}, {...} ] }'
+```
 
 ---
 This document summarizes the HTTP endpoints. See [docs/API.md](docs/API.md) for complete details and authentication requirements.

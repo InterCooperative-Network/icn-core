@@ -24,7 +24,8 @@ use icn_api::governance_trait::{
 use icn_api::{
     get_dag_metadata,
     identity_trait::{
-        CredentialResponse, IssueCredentialRequest, RevokeCredentialRequest, VerificationResponse,
+        BatchVerificationResponse, CredentialResponse, IssueCredentialRequest,
+        RevokeCredentialRequest, VerificationResponse, VerifyProofsRequest,
     },
     query_data, submit_transaction,
 };
@@ -798,6 +799,7 @@ pub async fn app_router_with_options(
             .route("/keys", get(keys_handler))
             .route("/reputation/{did}", get(reputation_handler))
             .route("/identity/verify", post(zk_verify_handler))
+            .route("/identity/verify/batch", post(zk_verify_batch_handler))
             .route(
                 "/identity/credentials/issue",
                 post(credential_issue_handler),
@@ -2886,9 +2888,9 @@ async fn zk_verify_handler(
     }
 
     let verifier: Box<dyn ZkVerifier> = match proof.backend {
-        ZkProofType::Bulletproofs => Box::new(BulletproofsVerifier::default()),
+        ZkProofType::Bulletproofs => Box::new(BulletproofsVerifier),
         ZkProofType::Groth16 => Box::new(Groth16Verifier::default()),
-        _ => Box::new(DummyVerifier::default()),
+        _ => Box::new(DummyVerifier),
     };
 
     match verifier.verify(&proof) {
@@ -2901,6 +2903,44 @@ async fn zk_verify_handler(
             map_rust_error_to_json_response(format!("{e}"), StatusCode::BAD_REQUEST).into_response()
         }
     }
+}
+
+// POST /identity/verify/batch - verify multiple zero-knowledge credential proofs
+async fn zk_verify_batch_handler(
+    State(state): State<AppState>,
+    Json(req): Json<VerifyProofsRequest>,
+) -> impl IntoResponse {
+    use icn_common::ZkProofType;
+    use icn_identity::{BulletproofsVerifier, DummyVerifier, Groth16Verifier, ZkVerifier};
+    use serde_json::json;
+
+    let cost = ZK_VERIFY_COST_MANA * req.proofs.len() as u64;
+    if let Err(e) = state
+        .runtime_context
+        .spend_mana(&state.runtime_context.current_identity, cost)
+        .await
+    {
+        return map_rust_error_to_json_response(e, StatusCode::BAD_REQUEST).into_response();
+    }
+
+    let mut results = Vec::with_capacity(req.proofs.len());
+    for proof in req.proofs {
+        let verifier: Box<dyn ZkVerifier> = match proof.backend {
+            ZkProofType::Bulletproofs => Box::new(BulletproofsVerifier),
+            ZkProofType::Groth16 => Box::new(Groth16Verifier::default()),
+            _ => Box::new(DummyVerifier),
+        };
+        match verifier.verify(&proof) {
+            Ok(valid) => results.push(valid),
+            Err(_) => results.push(false),
+        }
+    }
+
+    (
+        StatusCode::OK,
+        Json(json!(BatchVerificationResponse { verified: results })),
+    )
+        .into_response()
 }
 
 // POST /identity/credentials/issue - issue a credential

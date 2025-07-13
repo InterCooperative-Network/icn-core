@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use icn_common::{Cid, CommonError, Did};
+use icn_common::{Cid, CommonError, Did, ZkCredentialProof};
 use icn_identity::Credential as VerifiableCredential;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -32,6 +32,19 @@ pub struct RevokeCredentialRequest {
     pub cid: Cid,
 }
 
+/// Request containing multiple zero-knowledge credential proofs to verify.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VerifyProofsRequest {
+    pub proofs: Vec<ZkCredentialProof>,
+}
+
+/// Response for batch proof verification.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BatchVerificationResponse {
+    /// Verification result for each proof in the request.
+    pub verified: Vec<bool>,
+}
+
 #[async_trait]
 pub trait IdentityApi {
     async fn issue_credential(
@@ -49,4 +62,10 @@ pub trait IdentityApi {
     async fn revoke_credential(&self, cid: Cid) -> Result<(), CommonError>;
 
     async fn list_schemas(&self) -> Result<Vec<Cid>, CommonError>;
+
+    /// Verify multiple zero-knowledge credential proofs in a single request.
+    async fn verify_proofs(
+        &self,
+        req: VerifyProofsRequest,
+    ) -> Result<BatchVerificationResponse, CommonError>;
 }
