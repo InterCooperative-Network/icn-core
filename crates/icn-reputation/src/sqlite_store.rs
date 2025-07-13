@@ -91,6 +91,23 @@ impl ReputationStore for SqliteReputationStore {
             }
         }
     }
+
+    fn record_proof_attempt(&self, prover: &Did, success: bool) {
+        let fut = async {
+            let current = self.read_score(prover).await.unwrap_or(0);
+            let base: i64 = if success { 1 } else { -1 };
+            let updated = (current as i64) + base;
+            let new_score = if updated < 0 { 0 } else { updated as u64 };
+            let _ = self.write_score(prover, new_score).await;
+        };
+        match tokio::runtime::Handle::try_current() {
+            Ok(h) => h.block_on(fut),
+            Err(_) => {
+                let rt = tokio::runtime::Runtime::new().unwrap();
+                rt.block_on(fut);
+            }
+        }
+    }
 }
 
 #[cfg(all(feature = "persist-sqlite", feature = "async"))]
@@ -107,5 +124,13 @@ impl AsyncReputationStore for SqliteReputationStore {
         let updated = (current as i64) + delta;
         let new_score = if updated < 0 { 0 } else { updated as u64 };
         let _ = self.write_score(executor, new_score).await;
+    }
+
+    async fn record_proof_attempt(&self, prover: &Did, success: bool) {
+        let current = self.read_score(prover).await.unwrap_or(0);
+        let base: i64 = if success { 1 } else { -1 };
+        let updated = (current as i64) + base;
+        let new_score = if updated < 0 { 0 } else { updated as u64 };
+        let _ = self.write_score(prover, new_score).await;
     }
 }

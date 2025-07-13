@@ -20,6 +20,12 @@ mod tests {
         store.record_execution(&did, true, 1000);
         assert_eq!(store.get_reputation(&did), 2);
 
+        store.record_proof_attempt(&did, true);
+        assert_eq!(store.get_reputation(&did), 3);
+
+        store.record_proof_attempt(&did, false);
+        assert_eq!(store.get_reputation(&did), 2);
+
         drop(store);
         let reopened = RocksdbReputationStore::new(path).unwrap();
         assert_eq!(reopened.get_reputation(&did), 2);
