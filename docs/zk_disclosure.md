@@ -62,3 +62,17 @@ See [`docs/examples/zk_membership.json`](examples/zk_membership.json) for a memb
 `~/.icn/zk/`, and signs the verifying key with an Ed25519 key. Use
 `load_proving_key` and `verify_key_signature` to access the stored parameters
 and confirm their authenticity.
+
+## Runtime ABI
+
+Two host functions are provided for working with zero-knowledge proofs:
+
+- **`host_verify_zk_proof`** (`ABI index 25`) – accepts a JSON encoded
+  [`ZkCredentialProof`](../crates/icn-common/src/zk.rs) and returns `true` when
+  verification succeeds.
+- **`host_generate_zk_proof`** (`ABI index 26`) – creates a dummy proof object
+  from supplied parameters, useful for testing flows without a real prover.
+
+When called from WASM, use the `wasm_host_verify_zk_proof` and
+`wasm_host_generate_zk_proof` wrappers which handle passing strings in and out
+of guest memory.

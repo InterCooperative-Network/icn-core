@@ -31,6 +31,16 @@ pub const ABI_HOST_ANCHOR_RECEIPT: u32 = 23;
 /// Retrieves the reputation score for the given DID.
 pub const ABI_HOST_GET_REPUTATION: u32 = 24;
 
+/// ABI Index for `host_verify_zk_proof`.
+/// Verifies a [`ZkCredentialProof`](icn_common::ZkCredentialProof)
+/// provided by the caller.
+pub const ABI_HOST_VERIFY_ZK_PROOF: u32 = 25;
+
+/// ABI Index for `host_generate_zk_proof`.
+/// Creates a placeholder [`ZkCredentialProof`](icn_common::ZkCredentialProof)
+/// using the supplied parameters.
+pub const ABI_HOST_GENERATE_ZK_PROOF: u32 = 26;
+
 // --- Governance ABI Functions (RFC 0010) ---
 // Indices reserved for governance operations defined in RFC 0010.
 
