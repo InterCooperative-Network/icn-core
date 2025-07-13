@@ -354,11 +354,19 @@ pub fn load_or_generate_identity(
 #[derive(Deserialize)]
 struct DagBlockPayload {
     data: Vec<u8>,
+    #[serde(default)]
+    credential_proof: Option<icn_common::ZkCredentialProof>,
+    #[serde(default)]
+    revocation_proof: Option<icn_common::ZkRevocationProof>,
 }
 
 #[derive(Deserialize)]
 struct ContractSourcePayload {
     source: String,
+    #[serde(default)]
+    credential_proof: Option<icn_common::ZkCredentialProof>,
+    #[serde(default)]
+    revocation_proof: Option<icn_common::ZkRevocationProof>,
 }
 
 #[derive(Deserialize)]
@@ -1572,13 +1580,12 @@ async fn dag_put_handler(
     State(state): State<AppState>,
     Json(block): Json<DagBlockPayload>,
 ) -> impl IntoResponse {
-    // Use RuntimeContext's dag_store now
     let ts = 0u64;
     let author = Did::new("key", "tester");
     let sig_opt = None;
     let cid = icn_common::compute_merkle_cid(0x71, &block.data, &[], ts, &author, &sig_opt, &None);
     let dag_block = CoreDagBlock {
-        cid,
+        cid: cid.clone(),
         data: block.data,
         links: vec![],
         timestamp: ts,
@@ -1586,9 +1593,27 @@ async fn dag_put_handler(
         signature: sig_opt,
         scope: None,
     };
-    let mut store = state.runtime_context.dag_store.lock().await;
-    match store.put(&dag_block).await {
-        Ok(()) => (StatusCode::CREATED, Json(dag_block.cid.to_string())).into_response(),
+    let block_json = match serde_json::to_string(&dag_block) {
+        Ok(j) => j,
+        Err(e) => {
+            return map_rust_error_to_json_response(
+                format!("Failed to serialize DagBlock: {e}"),
+                StatusCode::INTERNAL_SERVER_ERROR,
+            )
+            .into_response();
+        }
+    };
+    match icn_api::submit_dag_block(
+        state.runtime_context.dag_store.clone(),
+        block_json,
+        state.runtime_context.policy_enforcer.clone(),
+        state.runtime_context.current_identity.clone(),
+        block.credential_proof,
+        block.revocation_proof,
+    )
+    .await
+    {
+        Ok(_) => (StatusCode::CREATED, Json(cid.to_string())).into_response(),
         Err(e) => map_rust_error_to_json_response(
             format!("DAG put error: {}", e),
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -1826,6 +1851,8 @@ async fn contracts_post_handler(
         block_json,
         state.runtime_context.policy_enforcer.clone(),
         state.runtime_context.current_identity.clone(),
+        payload.credential_proof,
+        payload.revocation_proof,
     )
     .await
     {
@@ -2881,8 +2908,7 @@ async fn zk_verify_handler(
         .spend_mana(&state.runtime_context.current_identity, ZK_VERIFY_COST_MANA)
         .await
     {
-        return map_rust_error_to_json_response(e, StatusCode::BAD_REQUEST)
-            .into_response();
+        return map_rust_error_to_json_response(e, StatusCode::BAD_REQUEST).into_response();
     }
 
     let verifier: Box<dyn ZkVerifier> = match proof.backend {
