@@ -204,6 +204,10 @@ pub struct Cli {
     #[clap(long)]
     pub hsm_key_id: Option<String>,
 
+    /// Trusted issuer DID(s) for credential verification
+    #[clap(long = "trusted-issuer", value_delimiter = ',')]
+    pub trusted_issuers: Vec<String>,
+
     #[clap(
         long,
         help = "Human-readable name for this node (for logging and identification)"
@@ -388,6 +392,7 @@ struct AppState {
     config: Arc<TokioMutex<NodeConfig>>,
     parameter_store: Option<Arc<TokioMutex<ParameterStore>>>,
     credential_store: icn_identity::InMemoryCredentialStore,
+    trusted_issuers: std::collections::HashMap<Did, icn_identity::VerifyingKey>,
 }
 
 struct RateLimitData {
@@ -581,7 +586,7 @@ pub async fn app_router_with_options(
     info!("Test/Embedded Node DID: {}", node_did);
 
     let _signer = Arc::new(Ed25519Signer::new_with_keys(sk, pk)); // Not used with stubs
-    let cfg = NodeConfig {
+    let mut cfg = NodeConfig {
         storage: StorageConfig {
             storage_backend: storage_backend.unwrap_or(StorageBackendType::Memory),
             storage_path: storage_path
@@ -594,6 +599,7 @@ pub async fn app_router_with_options(
         },
         ..NodeConfig::default()
     };
+    cfg.apply_env_overrides();
     let parameter_store = parameter_store_path.map(|p| {
         Arc::new(TokioMutex::new(
             ParameterStore::load(p).expect("failed to load parameter store"),
@@ -707,6 +713,26 @@ pub async fn app_router_with_options(
         }))
     });
 
+    let mut trusted_map = std::collections::HashMap::new();
+    trusted_map.insert(
+        rt_ctx.current_identity.clone(),
+        *rt_ctx.signer.verifying_key_ref(),
+    );
+    for did_str in &cfg.identity.trusted_credential_issuers {
+        if let Ok(did) = Did::from_str(did_str) {
+            match rt_ctx.did_resolver.resolve(&did) {
+                Ok(vk) => {
+                    trusted_map.insert(did, vk);
+                }
+                Err(e) => {
+                    warn!("Failed to resolve trusted issuer {}: {}", did_str, e);
+                }
+            }
+        } else {
+            warn!("Invalid trusted issuer DID: {}", did_str);
+        }
+    }
+
     let app_state = AppState {
         runtime_context: rt_ctx.clone(),
         node_name: "ICN Test/Embedded Node".to_string(),
@@ -718,6 +744,7 @@ pub async fn app_router_with_options(
         config: config.clone(),
         parameter_store: parameter_store.clone(),
         credential_store: icn_identity::InMemoryCredentialStore::new(),
+        trusted_issuers: trusted_map,
     };
 
     // Register governance callback for parameter changes
@@ -851,6 +878,12 @@ pub async fn app_router_from_context(
         }))
     });
 
+    let mut trusted_map = std::collections::HashMap::new();
+    trusted_map.insert(
+        ctx.current_identity.clone(),
+        *ctx.signer.verifying_key_ref(),
+    );
+
     let config = Arc::new(TokioMutex::new(NodeConfig::default()));
 
     let app_state = AppState {
@@ -864,6 +897,7 @@ pub async fn app_router_from_context(
         config: config.clone(),
         parameter_store: None,
         credential_store: icn_identity::InMemoryCredentialStore::new(),
+        trusted_issuers: trusted_map,
     };
 
     {
@@ -1151,6 +1185,21 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
         None
     };
 
+    let mut trusted_map = std::collections::HashMap::new();
+    trusted_map.insert(node_did.clone(), *signer.verifying_key_ref());
+    for did_str in &config.identity.trusted_credential_issuers {
+        if let Ok(did) = Did::from_str(did_str) {
+            match rt_ctx.did_resolver.resolve(&did) {
+                Ok(vk) => {
+                    trusted_map.insert(did, vk);
+                }
+                Err(e) => warn!("Failed to resolve trusted issuer {}: {}", did_str, e),
+            }
+        } else {
+            warn!("Invalid trusted issuer DID: {}", did_str);
+        }
+    }
+
     let app_state = AppState {
         runtime_context: rt_ctx.clone(),
         node_name: node_name.clone(),
@@ -1162,6 +1211,7 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
         config: shared_config.clone(),
         parameter_store: Some(parameter_store.clone()),
         credential_store: icn_identity::InMemoryCredentialStore::new(),
+        trusted_issuers: trusted_map,
     };
 
     {
@@ -2922,14 +2972,18 @@ async fn credential_verify_handler(
     State(state): State<AppState>,
     Json(cred): Json<Credential>,
 ) -> impl IntoResponse {
-    let vk = state.runtime_context.signer.verifying_key_ref();
-    for (k, _) in &cred.claims {
-        if let Err(e) = cred.verify_claim(k, vk) {
-            return map_rust_error_to_json_response(format!("{e}"), StatusCode::BAD_REQUEST)
-                .into_response();
+    if let Some(vk) = state.trusted_issuers.get(&cred.issuer) {
+        for (k, _) in &cred.claims {
+            if let Err(e) = cred.verify_claim(k, vk) {
+                return map_rust_error_to_json_response(format!("{e}"), StatusCode::BAD_REQUEST)
+                    .into_response();
+            }
         }
+        (StatusCode::OK, Json(VerificationResponse { valid: true })).into_response()
+    } else {
+        map_rust_error_to_json_response("untrusted credential issuer", StatusCode::FORBIDDEN)
+            .into_response()
     }
-    (StatusCode::OK, Json(VerificationResponse { valid: true })).into_response()
 }
 
 // POST /identity/credentials/revoke
