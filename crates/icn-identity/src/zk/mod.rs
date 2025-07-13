@@ -12,7 +12,9 @@ use thiserror::Error;
 
 pub mod key_manager;
 pub use key_manager::Groth16KeyManager;
+pub mod circuit_registry;
 pub mod vk_cache;
+pub use circuit_registry::{get_circuit, register_circuit, CircuitEntry, CircuitRegistry};
 
 /// Errors that can occur when verifying zero-knowledge proofs.
 #[derive(Debug, Error, PartialEq, Eq)]

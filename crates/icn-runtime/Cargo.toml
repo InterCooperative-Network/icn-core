@@ -48,6 +48,10 @@ chrono = { version = "0.4", features = ["serde"] }
 tempfile = "3"
 fastrand = "2.0"
 sysinfo = { version = "0.29", features = ["multithread"] }
+ark-bn254 = "0.4"
+ark-groth16 = "0.4"
+ark-serialize = "0.4"
+ark-snark = "0.4"
 
 [dev-dependencies]
 anyhow = "1.0.75"
@@ -61,6 +65,8 @@ serial_test = { version = "3", features = ["async"] }
 env_logger = "0.11"
 # temp-dir = "0.1"
 criterion = { version = "0.5", features = ["async"] }
+icn-zk = { path = "../icn-zk" }
+rand_core = "0.6"
 
 [features]
 default = []

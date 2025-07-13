@@ -720,8 +720,15 @@ pub async fn host_verify_zk_proof(
     _ctx: &RuntimeContext,
     proof_json: &str,
 ) -> Result<bool, HostAbiError> {
+    use ark_bn254::Fr;
+    use ark_groth16::{Groth16, VerifyingKey};
+    use ark_serialize::CanonicalDeserialize;
+    use ark_snark::SNARK;
     use icn_common::{ZkCredentialProof, ZkProofType};
-    use icn_identity::{BulletproofsVerifier, DummyVerifier, Groth16Verifier, ZkVerifier};
+    use icn_identity::{
+        zk::get_circuit,
+        BulletproofsVerifier, DummyVerifier, Groth16Verifier, ZkVerifier,
+    };
 
     let proof: ZkCredentialProof = serde_json::from_str(proof_json).map_err(|e| {
         HostAbiError::InvalidParameters(format!("Invalid ZkCredentialProof JSON: {e}"))
@@ -729,7 +736,19 @@ pub async fn host_verify_zk_proof(
 
     let verifier: Box<dyn ZkVerifier> = match proof.backend {
         ZkProofType::Bulletproofs => Box::new(BulletproofsVerifier::default()),
-        ZkProofType::Groth16 => Box::new(Groth16Verifier::default()),
+        ZkProofType::Groth16 => {
+            let version = proof.vk_cid.as_ref().map(|c| c.to_string());
+            if let Some(entry) = get_circuit(&proof.claim_type, version.as_deref()) {
+                let vk = VerifyingKey::deserialize_compressed(&entry.verifying_key[..])
+                    .map_err(|e| HostAbiError::InvalidParameters(format!("{e}")))?;
+                let pvk = Groth16::<ark_bn254::Bn254>::process_vk(&vk)
+                    .map_err(|e| HostAbiError::InvalidParameters(format!("{e}")))?;
+                let inputs: Vec<Fr> = entry.public_inputs.iter().map(|v| Fr::from(*v)).collect();
+                Box::new(Groth16Verifier::new(pvk, inputs))
+            } else {
+                Box::new(Groth16Verifier::default())
+            }
+        }
         _ => Box::new(DummyVerifier::default()),
     };
 
