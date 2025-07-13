@@ -49,4 +49,12 @@ impl ReputationStore for RocksdbReputationStore {
         let new_score = if updated < 0 { 0 } else { updated as u64 };
         self.write_score(executor, new_score);
     }
+
+    fn record_proof_attempt(&self, prover: &Did, success: bool) {
+        let current = self.read_score(prover);
+        let delta: i64 = if success { 1 } else { -1 };
+        let updated = (current as i64) + delta;
+        let new_score = if updated < 0 { 0 } else { updated as u64 };
+        self.write_score(prover, new_score);
+    }
 }

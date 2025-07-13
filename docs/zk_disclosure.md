@@ -117,6 +117,9 @@ Invoking `host_verify_zk_proof` with this response yields the boolean result:
 true
 ```
 
+After verification the runtime updates the prover's reputation via
+`record_proof_attempt`, incrementing on success and decrementing on failure.
+
 ## Production Verification
 
 Production nodes must verify the authenticity of the Groth16 verifying key
@@ -150,6 +153,7 @@ Verifiable credentials can be invalidated without revealing their contents. The 
 1. **Issuer** marks the credential ID in its revocation registry and generates a zero-knowledge revocation proof.
 2. **Holder** presents this `ZkRevocationProof` together with their credential or credential proof.
 3. **Verifier** calls `verify_revocation` on a configured `ZkRevocationVerifier` implementation. If the proof succeeds, the credential is considered active without exposing registry entries.
+   Reputation for the subject DID is updated using `record_proof_attempt`.
 
 Revocation proofs can be produced by `icn-identity`'s `Groth16Prover` or any custom prover implementing `ZkProver`.
 

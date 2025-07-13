@@ -717,7 +717,7 @@ pub async fn host_get_job_status(
 
 /// Verify a zero-knowledge credential proof.
 pub async fn host_verify_zk_proof(
-    _ctx: &RuntimeContext,
+    ctx: &RuntimeContext,
     proof_json: &str,
 ) -> Result<bool, HostAbiError> {
     use icn_common::{ZkCredentialProof, ZkProofType};
@@ -733,14 +733,21 @@ pub async fn host_verify_zk_proof(
         _ => Box::new(DummyVerifier::default()),
     };
 
-    verifier
-        .verify(&proof)
-        .map_err(|e| HostAbiError::InvalidParameters(format!("{e}")))
+    match verifier.verify(&proof) {
+        Ok(valid) => {
+            ctx.reputation_store.record_proof_attempt(&proof.holder, valid);
+            Ok(valid)
+        }
+        Err(e) => {
+            ctx.reputation_store.record_proof_attempt(&proof.holder, false);
+            Err(HostAbiError::InvalidParameters(format!("{e}")))
+        }
+    }
 }
 
 /// Verify a zero-knowledge revocation proof.
 pub async fn host_verify_zk_revocation_proof(
-    _ctx: &RuntimeContext,
+    ctx: &RuntimeContext,
     proof_json: &str,
 ) -> Result<bool, HostAbiError> {
     use icn_common::{ZkProofType, ZkRevocationProof};
@@ -757,9 +764,16 @@ pub async fn host_verify_zk_revocation_proof(
         _ => Box::new(DummyVerifier::default()),
     };
 
-    verifier
-        .verify_revocation(&proof)
-        .map_err(|e| HostAbiError::InvalidParameters(format!("{e}")))
+    match verifier.verify_revocation(&proof) {
+        Ok(valid) => {
+            ctx.reputation_store.record_proof_attempt(&proof.subject, valid);
+            Ok(valid)
+        }
+        Err(e) => {
+            ctx.reputation_store.record_proof_attempt(&proof.subject, false);
+            Err(HostAbiError::InvalidParameters(format!("{e}")))
+        }
+    }
 }
 
 /// Generate a dummy zero-knowledge credential proof.
