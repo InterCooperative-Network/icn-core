@@ -3,6 +3,12 @@ use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::prelude::*;
 use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError};
 
+/// Trait for circuits that expose a relative complexity score.
+pub trait CircuitCost {
+    /// Return the complexity score for the circuit.
+    fn complexity() -> u32;
+}
+
 /// Prove that `current_year >= birth_year + 18`.
 #[derive(Clone)]
 pub struct AgeOver18Circuit {
@@ -30,6 +36,12 @@ impl ConstraintSynthesizer<Fr> for AgeOver18Circuit {
     }
 }
 
+impl CircuitCost for AgeOver18Circuit {
+    fn complexity() -> u32 {
+        1
+    }
+}
+
 /// Prove knowledge of membership boolean (must equal `true`).
 #[derive(Clone)]
 pub struct MembershipCircuit {
@@ -42,6 +54,12 @@ impl ConstraintSynthesizer<Fr> for MembershipCircuit {
         let member = Boolean::new_input(cs, || Ok(self.is_member))?;
         member.enforce_equal(&Boolean::TRUE)?;
         Ok(())
+    }
+}
+
+impl CircuitCost for MembershipCircuit {
+    fn complexity() -> u32 {
+        1
     }
 }
 
@@ -60,6 +78,12 @@ impl ConstraintSynthesizer<Fr> for MembershipProofCircuit {
         let expected = Boolean::new_input(cs, || Ok(self.expected))?;
         flag.enforce_equal(&expected)?;
         Ok(())
+    }
+}
+
+impl CircuitCost for MembershipProofCircuit {
+    fn complexity() -> u32 {
+        1
     }
 }
 
@@ -83,6 +107,12 @@ impl ConstraintSynthesizer<Fr> for ReputationCircuit {
         let threshold = FpVar::<Fr>::Constant(Fr::from(self.threshold));
         (threshold + k).enforce_equal(&rep)?;
         Ok(())
+    }
+}
+
+impl CircuitCost for ReputationCircuit {
+    fn complexity() -> u32 {
+        1
     }
 }
 
@@ -123,6 +153,12 @@ impl ConstraintSynthesizer<Fr> for TimestampValidityCircuit {
     }
 }
 
+impl CircuitCost for TimestampValidityCircuit {
+    fn complexity() -> u32 {
+        2
+    }
+}
+
 /// Prove that `min ≤ balance ≤ max`.
 #[derive(Clone)]
 pub struct BalanceRangeCircuit {
@@ -157,6 +193,12 @@ impl ConstraintSynthesizer<Fr> for BalanceRangeCircuit {
         (bal + diff_max).enforce_equal(&max)?;
 
         Ok(())
+    }
+}
+
+impl CircuitCost for BalanceRangeCircuit {
+    fn complexity() -> u32 {
+        2
     }
 }
 
@@ -203,5 +245,11 @@ impl ConstraintSynthesizer<Fr> for AgeRepMembershipCircuit {
         member.enforce_equal(&Boolean::TRUE)?;
 
         Ok(())
+    }
+}
+
+impl CircuitCost for AgeRepMembershipCircuit {
+    fn complexity() -> u32 {
+        3
     }
 }

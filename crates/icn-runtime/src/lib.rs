@@ -32,8 +32,12 @@ extern crate bincode;
 use icn_common::{Cid, CommonError, Did, NodeInfo};
 use icn_mesh::JobId;
 use icn_reputation::ReputationStore;
-use serde::Deserialize;
+use icn_zk::{
+    AgeOver18Circuit, AgeRepMembershipCircuit, BalanceRangeCircuit, CircuitCost, MembershipCircuit,
+    MembershipProofCircuit, ReputationCircuit, TimestampValidityCircuit,
+};
 use log::{debug, error, info, warn};
+use serde::Deserialize;
 use std::str::FromStr;
 use thiserror::Error;
 
@@ -68,6 +72,27 @@ impl From<CommonError> for RuntimeError {
 }
 
 pub const MAX_JOB_JSON_SIZE: usize = 1024 * 1024; // 1MB
+
+/// Multiplier used when converting circuit complexity into mana cost.
+pub const ZK_COST_FACTOR: u64 = 2;
+
+/// Convert a circuit complexity score into a mana charge.
+pub fn calculate_zk_cost(complexity: u32) -> u64 {
+    u64::from(complexity) * ZK_COST_FACTOR
+}
+
+fn complexity_from_claim_type(claim: &str) -> u32 {
+    match claim {
+        "age_over_18" => AgeOver18Circuit::complexity(),
+        "membership" => MembershipCircuit::complexity(),
+        "membership_proof" => MembershipProofCircuit::complexity(),
+        "reputation" => ReputationCircuit::complexity(),
+        "timestamp_validity" => TimestampValidityCircuit::complexity(),
+        "balance_range" => BalanceRangeCircuit::complexity(),
+        "age_rep_membership" => AgeRepMembershipCircuit::complexity(),
+        _ => 1,
+    }
+}
 
 #[derive(Deserialize)]
 struct GenerateProofRequest {
@@ -717,7 +742,7 @@ pub async fn host_get_job_status(
 
 /// Verify a zero-knowledge credential proof.
 pub async fn host_verify_zk_proof(
-    _ctx: &RuntimeContext,
+    ctx: &RuntimeContext,
     proof_json: &str,
 ) -> Result<bool, HostAbiError> {
     use icn_common::{ZkCredentialProof, ZkProofType};
@@ -727,10 +752,14 @@ pub async fn host_verify_zk_proof(
         HostAbiError::InvalidParameters(format!("Invalid ZkCredentialProof JSON: {e}"))
     })?;
 
+    let complexity = complexity_from_claim_type(&proof.claim_type);
+    let cost = calculate_zk_cost(complexity);
+    ctx.spend_mana(&ctx.current_identity, cost).await?;
+
     let verifier: Box<dyn ZkVerifier> = match proof.backend {
-        ZkProofType::Bulletproofs => Box::new(BulletproofsVerifier::default()),
+        ZkProofType::Bulletproofs => Box::new(BulletproofsVerifier),
         ZkProofType::Groth16 => Box::new(Groth16Verifier::default()),
-        _ => Box::new(DummyVerifier::default()),
+        _ => Box::new(DummyVerifier),
     };
 
     verifier
@@ -744,17 +773,17 @@ pub async fn host_verify_zk_revocation_proof(
     proof_json: &str,
 ) -> Result<bool, HostAbiError> {
     use icn_common::{ZkProofType, ZkRevocationProof};
-    use icn_identity::{BulletproofsVerifier, DummyVerifier, Groth16Verifier};
     use icn_identity::zk::ZkRevocationVerifier;
+    use icn_identity::{BulletproofsVerifier, DummyVerifier, Groth16Verifier};
 
     let proof: ZkRevocationProof = serde_json::from_str(proof_json).map_err(|e| {
         HostAbiError::InvalidParameters(format!("Invalid ZkRevocationProof JSON: {e}"))
     })?;
 
     let verifier: Box<dyn ZkRevocationVerifier> = match proof.backend {
-        ZkProofType::Bulletproofs => Box::new(BulletproofsVerifier::default()),
+        ZkProofType::Bulletproofs => Box::new(BulletproofsVerifier),
         ZkProofType::Groth16 => Box::new(Groth16Verifier::default()),
-        _ => Box::new(DummyVerifier::default()),
+        _ => Box::new(DummyVerifier),
     };
 
     verifier
@@ -764,7 +793,7 @@ pub async fn host_verify_zk_revocation_proof(
 
 /// Generate a dummy zero-knowledge credential proof.
 pub async fn host_generate_zk_proof(
-    _ctx: &RuntimeContext,
+    ctx: &RuntimeContext,
     request_json: &str,
 ) -> Result<String, HostAbiError> {
     use icn_common::{parse_cid_from_string, ZkCredentialProof, ZkProofType};
@@ -798,6 +827,10 @@ pub async fn host_generate_zk_proof(
         None
     };
 
+    let complexity = complexity_from_claim_type(&req.claim_type);
+    let cost = calculate_zk_cost(complexity);
+    ctx.spend_mana(&ctx.current_identity, cost).await?;
+
     let proof = ZkCredentialProof {
         issuer,
         holder,
@@ -812,8 +845,7 @@ pub async fn host_generate_zk_proof(
         public_inputs: req.public_inputs,
     };
 
-    serde_json::to_string(&proof)
-        .map_err(|e| HostAbiError::SerializationError(format!("{e}")))
+    serde_json::to_string(&proof).map_err(|e| HostAbiError::SerializationError(format!("{e}")))
 }
 
 #[cfg(test)]
