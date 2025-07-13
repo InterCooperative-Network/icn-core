@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 
 use icn_common::{Cid, CommonError, Did};
 
+use crate::zk::{Groth16Circuit, Groth16Prover, ZkError, ZkProver};
 use crate::{sign_message, verify_signature, SignatureBytes};
-use crate::zk::{ZkError, ZkProver};
 use icn_common::ZkCredentialProof;
 
 /// A verifiable credential issued by a DID subject to selective disclosure.
@@ -49,8 +49,7 @@ impl Credential {
             bytes.extend_from_slice(k.as_bytes());
             bytes.extend_from_slice(v.as_bytes());
             let sig = sign_message(key, &bytes);
-            self
-                .signatures
+            self.signatures
                 .insert(k.clone(), SignatureBytes::from_ed_signature(sig));
         }
     }
@@ -61,10 +60,9 @@ impl Credential {
             .claims
             .get(claim)
             .ok_or_else(|| CommonError::IdentityError(format!("claim not found: {claim}")))?;
-        let sig = self
-            .signatures
-            .get(claim)
-            .ok_or_else(|| CommonError::IdentityError(format!("missing signature for claim: {claim}")))?;
+        let sig = self.signatures.get(claim).ok_or_else(|| {
+            CommonError::IdentityError(format!("missing signature for claim: {claim}"))
+        })?;
         let mut bytes = self.issuer.to_string().into_bytes();
         bytes.extend_from_slice(self.holder.to_string().as_bytes());
         bytes.extend_from_slice(claim.as_bytes());
@@ -118,17 +116,18 @@ impl DisclosedCredential {
     /// Verify all disclosed claim signatures against the issuer key.
     pub fn verify(&self, key: &VerifyingKey) -> Result<(), CommonError> {
         for (k, v) in &self.claims {
-            let sig = self
-                .signatures
-                .get(k)
-                .ok_or_else(|| CommonError::IdentityError(format!("missing signature for claim: {k}")))?;
+            let sig = self.signatures.get(k).ok_or_else(|| {
+                CommonError::IdentityError(format!("missing signature for claim: {k}"))
+            })?;
             let mut bytes = self.issuer.to_string().into_bytes();
             bytes.extend_from_slice(self.holder.to_string().as_bytes());
             bytes.extend_from_slice(k.as_bytes());
             bytes.extend_from_slice(v.as_bytes());
             let ed = sig.to_ed_signature()?;
             if !verify_signature(key, &bytes, &ed) {
-                return Err(CommonError::IdentityError(format!("invalid signature for claim: {k}")));
+                return Err(CommonError::IdentityError(format!(
+                    "invalid signature for claim: {k}"
+                )));
             }
         }
         Ok(())
@@ -143,7 +142,11 @@ pub struct CredentialIssuer {
 
 impl CredentialIssuer {
     pub fn new(did: Did, signing_key: SigningKey) -> Self {
-        Self { did, signing_key, prover: None }
+        Self {
+            did,
+            signing_key,
+            prover: None,
+        }
     }
 
     pub fn with_prover(mut self, prover: Box<dyn ZkProver>) -> Self {
@@ -157,11 +160,20 @@ impl CredentialIssuer {
         claims: HashMap<String, String>,
         schema: Option<Cid>,
         prove_fields: Option<&[&str]>,
+        circuit: Option<Groth16Circuit>,
     ) -> Result<(Credential, Option<ZkCredentialProof>), ZkError> {
         let mut cred = Credential::new(self.did.clone(), holder, claims, schema);
         cred.sign_claims(&self.signing_key);
         let proof = if let (Some(ref prover), Some(fields)) = (&self.prover, prove_fields) {
-            Some(prover.prove(&cred, fields)?)
+            if let Some(groth) = prover.as_any().downcast_ref::<Groth16Prover>() {
+                if let Some(circ) = circuit.clone() {
+                    Some(groth.prove_with_circuit(&cred, fields, circ)?)
+                } else {
+                    None
+                }
+            } else {
+                Some(prover.prove(&cred, fields)?)
+            }
         } else {
             None
         };
@@ -172,8 +184,12 @@ impl CredentialIssuer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::zk::{BulletproofsProver, BulletproofsVerifier, DummyProver, DummyVerifier, ZkVerifier};
     use crate::generate_ed25519_keypair;
+    use crate::zk::{
+        BulletproofsProver, BulletproofsVerifier, DummyProver, DummyVerifier, Groth16Circuit,
+        Groth16Prover, ZkVerifier,
+    };
+    use icn_common::ZkProofType;
 
     #[test]
     fn dummy_proof_roundtrip() {
@@ -185,7 +201,13 @@ mod tests {
 
         let issuer = CredentialIssuer::new(issuer, sk).with_prover(Box::new(DummyProver));
         let (_, proof_opt) = issuer
-            .issue(holder, claims, Some(Cid::new_v1_sha256(0x55, b"schema")), Some(&["age"]))
+            .issue(
+                holder,
+                claims,
+                Some(Cid::new_v1_sha256(0x55, b"schema")),
+                Some(&["age"]),
+                None,
+            )
             .unwrap();
         let proof = proof_opt.expect("proof");
         let verifier = DummyVerifier;
@@ -202,11 +224,42 @@ mod tests {
 
         let issuer = CredentialIssuer::new(issuer, sk).with_prover(Box::new(BulletproofsProver));
         let (_, proof_opt) = issuer
-            .issue(holder, claims, Some(Cid::new_v1_sha256(0x55, b"schema")), Some(&[]))
+            .issue(
+                holder,
+                claims,
+                Some(Cid::new_v1_sha256(0x55, b"schema")),
+                Some(&[]),
+                None,
+            )
             .unwrap();
         let proof = proof_opt.expect("proof");
         let verifier = BulletproofsVerifier;
         assert!(verifier.verify(&proof).unwrap());
     }
-}
 
+    #[test]
+    fn groth16_age_over_18() {
+        let (sk, _) = generate_ed25519_keypair();
+        let issuer = Did::new("key", "issuer");
+        let holder = Did::new("key", "holder");
+        let mut claims = HashMap::new();
+        claims.insert("birth_year".to_string(), "2000".to_string());
+
+        let issuer = CredentialIssuer::new(issuer, sk).with_prover(Box::new(Groth16Prover));
+        let (_, proof_opt) = issuer
+            .issue(
+                holder,
+                claims,
+                Some(Cid::new_v1_sha256(0x55, b"schema")),
+                Some(&[]),
+                Some(Groth16Circuit::AgeOver18 {
+                    birth_year: 2000,
+                    current_year: 2020,
+                }),
+            )
+            .unwrap();
+        let proof = proof_opt.expect("proof");
+        assert_eq!(proof.backend, ZkProofType::Groth16);
+        assert!(proof.verifying_key.is_some());
+    }
+}

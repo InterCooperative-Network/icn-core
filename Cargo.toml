@@ -14,6 +14,7 @@ members = [
     "crates/icn-api",
     "crates/icn-cli",
     "crates/icn-node",
+    "crates/icn-zk",
     "icn-ccl",
     "crates/icn-templates",
     "tests",

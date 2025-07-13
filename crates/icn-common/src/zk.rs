@@ -27,6 +27,8 @@ pub struct ZkCredentialProof {
     pub proof: Vec<u8>,
     /// CID of the credential schema this proof adheres to.
     pub schema: Cid,
+    /// CID referencing the verifying key used for the proof.
+    pub verifying_key: Option<Cid>,
     /// Fields from the credential that were disclosed in plain text.
     pub disclosed_fields: Vec<String>,
     /// Optional challenge used in the proof generation.

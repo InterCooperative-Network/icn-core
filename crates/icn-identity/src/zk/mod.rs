@@ -1,5 +1,5 @@
-use icn_common::{Cid, ZkCredentialProof, ZkProofType};
 use core::convert::TryInto;
+use icn_common::{Cid, ZkCredentialProof, ZkProofType};
 use thiserror::Error;
 
 /// Errors that can occur when verifying zero-knowledge proofs.
@@ -30,6 +30,7 @@ pub trait ZkProver: Send + Sync {
         credential: &crate::credential::Credential,
         fields: &[&str],
     ) -> Result<ZkCredentialProof, ZkError>;
+    fn as_any(&self) -> &dyn core::any::Any;
 }
 
 /// Verifier implementation for the Bulletproofs proving system.
@@ -99,10 +100,94 @@ impl ZkProver for DummyProver {
                 .schema
                 .clone()
                 .unwrap_or_else(|| Cid::new_v1_sha256(0x55, b"dummy")),
+            verifying_key: None,
             disclosed_fields: fields.iter().map(|f| f.to_string()).collect(),
             challenge: None,
             backend: ZkProofType::Groth16,
         })
+    }
+
+    fn as_any(&self) -> &dyn core::any::Any {
+        self
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct Groth16Prover;
+
+/// Circuits supported by the [`Groth16Prover`].
+#[derive(Clone)]
+pub enum Groth16Circuit {
+    AgeOver18 { birth_year: u64, current_year: u64 },
+}
+
+impl Groth16Prover {
+    pub fn prove_with_circuit(
+        &self,
+        credential: &crate::credential::Credential,
+        fields: &[&str],
+        circuit: Groth16Circuit,
+    ) -> Result<ZkCredentialProof, ZkError> {
+        use icn_zk::{self as zk, AgeOver18Circuit};
+        use rand_core::OsRng;
+
+        let mut rng = OsRng;
+
+        let (proof, vk_cid) = match circuit {
+            Groth16Circuit::AgeOver18 {
+                birth_year,
+                current_year,
+            } => {
+                let circuit = AgeOver18Circuit {
+                    birth_year,
+                    current_year,
+                };
+                let pk = zk::setup(circuit.clone(), &mut rng)
+                    .map_err(|_| ZkError::VerificationFailed)?;
+                let proof =
+                    zk::prove(&pk, circuit, &mut rng).map_err(|_| ZkError::VerificationFailed)?;
+                let vk = zk::prepare_vk(&pk);
+                use ark_serialize::CanonicalSerialize;
+                let mut vk_bytes = Vec::new();
+                vk.serialize_compressed(&mut vk_bytes)
+                    .map_err(|_| ZkError::VerificationFailed)?;
+                let vk_cid = Cid::new_v1_sha256(0x55, &vk_bytes);
+                let mut proof_bytes = Vec::new();
+                proof
+                    .serialize_compressed(&mut proof_bytes)
+                    .map_err(|_| ZkError::VerificationFailed)?;
+                (proof_bytes, vk_cid)
+            }
+        };
+
+        Ok(ZkCredentialProof {
+            issuer: credential.issuer.clone(),
+            holder: credential.holder.clone(),
+            claim_type: "age_over_18".into(),
+            proof,
+            schema: credential
+                .schema
+                .clone()
+                .unwrap_or_else(|| Cid::new_v1_sha256(0x55, b"g16")),
+            verifying_key: Some(vk_cid),
+            disclosed_fields: fields.iter().map(|f| f.to_string()).collect(),
+            challenge: None,
+            backend: ZkProofType::Groth16,
+        })
+    }
+}
+
+impl ZkProver for Groth16Prover {
+    fn prove(
+        &self,
+        _credential: &crate::credential::Credential,
+        _fields: &[&str],
+    ) -> Result<ZkCredentialProof, ZkError> {
+        Err(ZkError::UnsupportedBackend(ZkProofType::Groth16))
+    }
+
+    fn as_any(&self) -> &dyn core::any::Any {
+        self
     }
 }
 
@@ -124,15 +209,9 @@ impl ZkProver for BulletproofsProver {
         let bp_gens = BulletproofGens::new(64, 1);
         let blinding = Scalar::random(&mut OsRng);
         let mut transcript = Transcript::new(b"ZkCredentialProof");
-        let (proof, commit) = RangeProof::prove_single(
-            &bp_gens,
-            &pc_gens,
-            &mut transcript,
-            42u64,
-            &blinding,
-            64,
-        )
-        .map_err(|_| ZkError::VerificationFailed)?;
+        let (proof, commit) =
+            RangeProof::prove_single(&bp_gens, &pc_gens, &mut transcript, 42u64, &blinding, 64)
+                .map_err(|_| ZkError::VerificationFailed)?;
 
         let mut bytes = proof.to_bytes();
         bytes.extend_from_slice(commit.as_bytes());
@@ -146,10 +225,15 @@ impl ZkProver for BulletproofsProver {
                 .schema
                 .clone()
                 .unwrap_or_else(|| Cid::new_v1_sha256(0x55, b"bp")),
+            verifying_key: None,
             disclosed_fields: fields.iter().map(|f| f.to_string()).collect(),
             challenge: None,
             backend: ZkProofType::Bulletproofs,
         })
+    }
+
+    fn as_any(&self) -> &dyn core::any::Any {
+        self
     }
 }
 
@@ -172,15 +256,9 @@ mod tests {
         let bp_gens = BulletproofGens::new(64, 1);
         let blinding = Scalar::random(&mut OsRng);
         let mut transcript = Transcript::new(b"ZkCredentialProof");
-        let (proof, commit) = RangeProof::prove_single(
-            &bp_gens,
-            &pc_gens,
-            &mut transcript,
-            42u64,
-            &blinding,
-            64,
-        )
-        .expect("range proof generation should succeed");
+        let (proof, commit) =
+            RangeProof::prove_single(&bp_gens, &pc_gens, &mut transcript, 42u64, &blinding, 64)
+                .expect("range proof generation should succeed");
 
         let mut bytes = proof.to_bytes();
         bytes.extend_from_slice(commit.as_bytes());
@@ -200,6 +278,7 @@ mod tests {
             claim_type: "test".into(),
             proof: proof_bytes,
             schema: dummy_cid("schema"),
+            verifying_key: None,
             disclosed_fields: Vec::new(),
             challenge: None,
             backend,
