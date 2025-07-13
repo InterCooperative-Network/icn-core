@@ -1,5 +1,6 @@
-use icn_common::{Cid, ZkCredentialProof, ZkProofType};
+use chrono::Datelike;
 use core::convert::TryInto;
+use icn_common::{Cid, ZkCredentialProof, ZkProofType};
 use thiserror::Error;
 
 /// Errors that can occur when verifying zero-knowledge proofs.
@@ -124,15 +125,9 @@ impl ZkProver for BulletproofsProver {
         let bp_gens = BulletproofGens::new(64, 1);
         let blinding = Scalar::random(&mut OsRng);
         let mut transcript = Transcript::new(b"ZkCredentialProof");
-        let (proof, commit) = RangeProof::prove_single(
-            &bp_gens,
-            &pc_gens,
-            &mut transcript,
-            42u64,
-            &blinding,
-            64,
-        )
-        .map_err(|_| ZkError::VerificationFailed)?;
+        let (proof, commit) =
+            RangeProof::prove_single(&bp_gens, &pc_gens, &mut transcript, 42u64, &blinding, 64)
+                .map_err(|_| ZkError::VerificationFailed)?;
 
         let mut bytes = proof.to_bytes();
         bytes.extend_from_slice(commit.as_bytes());
@@ -149,6 +144,96 @@ impl ZkProver for BulletproofsProver {
             disclosed_fields: fields.iter().map(|f| f.to_string()).collect(),
             challenge: None,
             backend: ZkProofType::Bulletproofs,
+        })
+    }
+}
+
+/// Prover implementation for Groth16 zk-SNARK proofs.
+#[derive(Debug)]
+pub struct Groth16Prover {
+    pk: ark_groth16::ProvingKey<ark_bn254::Bn254>,
+}
+
+impl Groth16Prover {
+    /// Create a new prover with the given Groth16 proving key.
+    pub fn new(pk: ark_groth16::ProvingKey<ark_bn254::Bn254>) -> Self {
+        Self { pk }
+    }
+}
+
+impl ZkProver for Groth16Prover {
+    fn prove(
+        &self,
+        credential: &crate::credential::Credential,
+        fields: &[&str],
+    ) -> Result<ZkCredentialProof, ZkError> {
+        use ark_serialize::CanonicalSerialize;
+        use ark_std::rand::{rngs::StdRng, SeedableRng};
+        use icn_zk::{self, AgeOver18Circuit, MembershipCircuit, ReputationCircuit};
+
+        let mut rng = StdRng::from_entropy();
+
+        let (claim_type, proof) = if let Some(birth_year) = credential.claims.get("birth_year") {
+            let birth_year = birth_year
+                .parse::<u64>()
+                .map_err(|_| ZkError::InvalidProof)?;
+            let current_year = chrono::Utc::now().year() as u64;
+            let circuit = AgeOver18Circuit {
+                birth_year,
+                current_year,
+            };
+            (
+                "age_over_18".to_string(),
+                icn_zk::prove(&self.pk, circuit, &mut rng),
+            )
+        } else if let Some(is_member) = credential.claims.get("is_member") {
+            let is_member = is_member
+                .parse::<bool>()
+                .map_err(|_| ZkError::InvalidProof)?;
+            let circuit = MembershipCircuit { is_member };
+            (
+                "membership".to_string(),
+                icn_zk::prove(&self.pk, circuit, &mut rng),
+            )
+        } else if let Some(rep) = credential.claims.get("reputation") {
+            let reputation = rep.parse::<u64>().map_err(|_| ZkError::InvalidProof)?;
+            let threshold = credential
+                .claims
+                .get("reputation_threshold")
+                .or_else(|| credential.claims.get("threshold"))
+                .and_then(|t| t.parse::<u64>().ok())
+                .unwrap_or(0);
+            let circuit = ReputationCircuit {
+                reputation,
+                threshold,
+            };
+            (
+                "reputation".to_string(),
+                icn_zk::prove(&self.pk, circuit, &mut rng),
+            )
+        } else {
+            return Err(ZkError::InvalidProof);
+        };
+
+        let proof = proof.map_err(|_| ZkError::VerificationFailed)?;
+
+        let mut proof_bytes = Vec::new();
+        proof
+            .serialize_compressed(&mut proof_bytes)
+            .map_err(|_| ZkError::InvalidProof)?;
+
+        Ok(ZkCredentialProof {
+            issuer: credential.issuer.clone(),
+            holder: credential.holder.clone(),
+            claim_type,
+            proof: proof_bytes,
+            schema: credential
+                .schema
+                .clone()
+                .unwrap_or_else(|| Cid::new_v1_sha256(0x55, b"groth16")),
+            disclosed_fields: fields.iter().map(|f| f.to_string()).collect(),
+            challenge: None,
+            backend: ZkProofType::Groth16,
         })
     }
 }
@@ -172,15 +257,9 @@ mod tests {
         let bp_gens = BulletproofGens::new(64, 1);
         let blinding = Scalar::random(&mut OsRng);
         let mut transcript = Transcript::new(b"ZkCredentialProof");
-        let (proof, commit) = RangeProof::prove_single(
-            &bp_gens,
-            &pc_gens,
-            &mut transcript,
-            42u64,
-            &blinding,
-            64,
-        )
-        .expect("range proof generation should succeed");
+        let (proof, commit) =
+            RangeProof::prove_single(&bp_gens, &pc_gens, &mut transcript, 42u64, &blinding, 64)
+                .expect("range proof generation should succeed");
 
         let mut bytes = proof.to_bytes();
         bytes.extend_from_slice(commit.as_bytes());

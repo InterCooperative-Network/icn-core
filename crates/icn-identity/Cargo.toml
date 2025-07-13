@@ -23,6 +23,12 @@ reqwest.workspace = true
 bulletproofs = "5"
 curve25519-dalek = "4"
 merlin = "3"
+icn-zk = { path = "../icn-zk" }
+ark-std = "0.4"
+ark-serialize = "0.4"
+ark-bn254 = "0.4"
+ark-groth16 = "0.4"
+chrono = { version = "0.4", default-features = false, features = ["std"] }
 
 # Ensure old ones are removed if they conflict or are replaced
 # ed25519-dalek = { version = "2.0", features = ["serde"] } # Old, replaced by specific version

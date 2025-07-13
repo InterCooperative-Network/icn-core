@@ -1,5 +1,6 @@
 #![doc = include_str!("../README.md")]
 #![allow(clippy::uninlined_format_args)]
+#![allow(clippy::single_component_path_imports)]
 
 //! # ICN DAG Crate
 //! This crate implements or defines interfaces for content-addressed Directed Acyclic Graph (DAG)

@@ -42,6 +42,15 @@ contains characters other than ASCII letters, digits, `-`, `_`, or `.` or if a
 segment exceeds 63 characters. Domains longer than 253 characters are also
 rejected.
 
+## Available ZK Provers
+
+Credential proofs are generated through the `ZkProver` trait. This crate
+includes several implementations:
+
+- `DummyProver` – returns placeholder bytes for testing.
+- `BulletproofsProver` – creates range proofs using the Bulletproofs backend.
+- `Groth16Prover` – produces Groth16 zk‑SNARK proofs over Bn254.
+
 ## Contributing
 
 Contributions are welcome! Please see the main [CONTRIBUTING.md](../../CONTRIBUTING.md) in the root of the `icn-core` repository for guidelines.

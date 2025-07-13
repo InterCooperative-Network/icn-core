@@ -1,5 +1,6 @@
 #![doc = include_str!("../README.md")]
 #![allow(clippy::uninlined_format_args)]
+#![allow(clippy::single_component_path_imports)]
 
 //! # ICN Mesh Crate
 //! This crate focuses on job orchestration, scheduling, and execution within the
@@ -409,7 +410,13 @@ pub fn score_bid(
     let resource_score = policy.weight_resources * resource_match;
 
     let latency_score = latency_ms
-        .and_then(|ms| if ms > 0 { Some(policy.weight_latency / ms as f64) } else { None })
+        .and_then(|ms| {
+            if ms > 0 {
+                Some(policy.weight_latency / ms as f64)
+            } else {
+                None
+            }
+        })
         .unwrap_or(0.0);
 
     let weighted = price_score + reputation_score + resource_score + latency_score;
