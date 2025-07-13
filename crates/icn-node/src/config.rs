@@ -67,6 +67,8 @@ pub struct IdentityConfig {
     pub key_passphrase_env: Option<String>,
     pub hsm_library: Option<PathBuf>,
     pub hsm_key_id: Option<String>,
+    /// Additional trusted credential issuer DIDs
+    pub trusted_credential_issuers: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -163,6 +165,7 @@ impl Default for IdentityConfig {
             key_passphrase_env: None,
             hsm_library: None,
             hsm_key_id: None,
+            trusted_credential_issuers: Vec::new(),
         }
     }
 }
@@ -296,6 +299,10 @@ impl NodeConfig {
         if let Ok(val) = std::env::var("ICN_HSM_KEY_ID") {
             self.identity.hsm_key_id = Some(val);
         }
+        if let Ok(val) = std::env::var("ICN_TRUSTED_ISSUERS") {
+            self.identity.trusted_credential_issuers =
+                val.split(',').map(|s| s.to_string()).collect();
+        }
         if let Ok(val) = std::env::var("ICN_NODE_NAME") {
             self.node_name = val;
         }
@@ -372,6 +379,9 @@ impl NodeConfig {
         }
         if let Some(v) = &cli.hsm_key_id {
             self.identity.hsm_key_id = Some(v.clone());
+        }
+        if !cli.trusted_issuers.is_empty() {
+            self.identity.trusted_credential_issuers = cli.trusted_issuers.clone();
         }
         if let Some(v) = &cli.node_name {
             self.node_name = v.clone();
