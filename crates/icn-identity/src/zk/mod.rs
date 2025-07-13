@@ -99,6 +99,7 @@ impl ZkProver for DummyProver {
                 .schema
                 .clone()
                 .unwrap_or_else(|| Cid::new_v1_sha256(0x55, b"dummy")),
+            vk_cid: None,
             disclosed_fields: fields.iter().map(|f| f.to_string()).collect(),
             challenge: None,
             backend: ZkProofType::Groth16,
@@ -140,6 +141,7 @@ impl ZkProver for BulletproofsProver {
                 .schema
                 .clone()
                 .unwrap_or_else(|| Cid::new_v1_sha256(0x55, b"bp")),
+            vk_cid: None,
             disclosed_fields: fields.iter().map(|f| f.to_string()).collect(),
             challenge: None,
             backend: ZkProofType::Bulletproofs,
@@ -238,6 +240,7 @@ mod tests {
             claim_type: "test".into(),
             proof: proof_bytes,
             schema: dummy_cid("schema"),
+            vk_cid: None,
             disclosed_fields: Vec::new(),
             challenge: None,
             backend,

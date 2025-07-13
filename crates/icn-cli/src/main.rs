@@ -7,6 +7,7 @@
 use base64::{self, Engine};
 use bincode;
 use clap::{Parser, Subcommand};
+use fastrand;
 use icn_common::CommonError;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -14,13 +15,10 @@ use serde_json::Value as JsonValue; // For generic JSON data if needed
 use std::io::{self, Read};
 use std::path::PathBuf;
 use std::process::exit; // Added for reading from stdin
-use fastrand;
 
 // Types from our ICN crates that CLI will interact with (serialize/deserialize)
 // These types are expected to be sent to/received from the icn-node HTTP API.
-use icn_common::{
-    Cid, DagBlock, Did, NodeInfo, NodeStatus, ZkCredentialProof, ZkProofType,
-};
+use icn_common::{Cid, DagBlock, Did, NodeInfo, NodeStatus, ZkCredentialProof, ZkProofType};
 // Using aliased request structs from icn-api for clarity, these are what the node expects
 use icn_api::governance_trait::{
     CastVoteRequest as ApiCastVoteRequest, SubmitProposalRequest as ApiSubmitProposalRequest,
@@ -406,9 +404,9 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
             ReputationCommands::Get { did } => handle_reputation_get(cli, client, did).await?,
         },
         Commands::Identity { command } => match command {
-            IdentityCommands::VerifyProof { proof_json_or_stdin } => {
-                handle_identity_verify(cli, client, proof_json_or_stdin).await?
-            }
+            IdentityCommands::VerifyProof {
+                proof_json_or_stdin,
+            } => handle_identity_verify(cli, client, proof_json_or_stdin).await?,
             IdentityCommands::GenerateProof {
                 issuer,
                 holder,
@@ -1033,6 +1031,7 @@ fn handle_identity_generate(
         claim_type: claim_type.to_string(),
         proof: proof_bytes,
         schema: schema_cid,
+        vk_cid: None,
         disclosed_fields: Vec::new(),
         challenge: None,
         backend: backend_parsed,

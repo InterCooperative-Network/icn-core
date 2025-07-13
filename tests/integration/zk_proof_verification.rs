@@ -38,6 +38,7 @@ async fn zk_proof_verification_route() {
         claim_type: "test".to_string(),
         proof: vec![1, 2, 3],
         schema: Cid::new_v1_sha256(0x55, b"schema"),
+        vk_cid: None,
         disclosed_fields: Vec::new(),
         challenge: None,
         backend: ZkProofType::Groth16,
