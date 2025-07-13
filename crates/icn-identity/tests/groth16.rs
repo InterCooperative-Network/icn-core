@@ -8,8 +8,8 @@ use icn_identity::{
 };
 
 use ark_serialize::CanonicalSerialize;
-use icn_zk::{prepare_vk, prove, setup, AgeOver18Circuit};
 use icn_identity::{sign_message, verify_signature, SignatureBytes, VerifyingKey};
+use icn_zk::{prepare_vk, prove, setup, AgeOver18Circuit};
 use rand_core::OsRng;
 
 struct Groth16KeyManager {
@@ -54,9 +54,7 @@ struct Groth16Prover {
 
 impl Groth16Prover {
     fn from_manager(mgr: &Groth16KeyManager) -> Self {
-        Self {
-            pk: mgr.pk.clone(),
-        }
+        Self { pk: mgr.pk.clone() }
     }
 }
 
@@ -119,6 +117,7 @@ fn issue_and_verify_groth16_proof() {
             Some(Cid::new_v1_sha256(0x55, b"schema")),
             Some(&[]),
             Some(Groth16Circuit::AgeOver18 { current_year: 2020 }),
+            None,
         )
         .unwrap();
     let proof = proof_opt.expect("proof");
