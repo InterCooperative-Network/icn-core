@@ -67,3 +67,39 @@ impl ConstraintSynthesizer<Fr> for ReputationCircuit {
         Ok(())
     }
 }
+
+/// Prove that `not_before <= timestamp <= not_after`.
+#[derive(Clone)]
+pub struct TimestampValidityCircuit {
+    /// Timestamp being proved (private).
+    pub timestamp: u64,
+    /// Earliest allowed time (public).
+    pub not_before: u64,
+    /// Latest allowed time (public).
+    pub not_after: u64,
+}
+
+impl ConstraintSynthesizer<Fr> for TimestampValidityCircuit {
+    fn generate_constraints(self, cs: ConstraintSystemRef<Fr>) -> Result<(), SynthesisError> {
+        let ts = FpVar::<Fr>::new_witness(cs.clone(), || Ok(Fr::from(self.timestamp)))?;
+        let nb = FpVar::<Fr>::new_input(cs.clone(), || Ok(Fr::from(self.not_before)))?;
+        let na = FpVar::<Fr>::new_input(cs.clone(), || Ok(Fr::from(self.not_after)))?;
+
+        // k1 = timestamp - not_before
+        let diff_low = self
+            .timestamp
+            .checked_sub(self.not_before)
+            .ok_or(SynthesisError::AssignmentMissing)?;
+        let k1 = FpVar::<Fr>::new_witness(cs.clone(), || Ok(Fr::from(diff_low)))?;
+        (nb.clone() + k1).enforce_equal(&ts)?;
+
+        // k2 = not_after - timestamp
+        let diff_high = self
+            .not_after
+            .checked_sub(self.timestamp)
+            .ok_or(SynthesisError::AssignmentMissing)?;
+        let k2 = FpVar::<Fr>::new_witness(cs, || Ok(Fr::from(diff_high)))?;
+        (ts + k2).enforce_equal(&na)?;
+        Ok(())
+    }
+}

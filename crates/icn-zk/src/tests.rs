@@ -36,3 +36,17 @@ fn reputation_threshold_proof() {
     let vk = prepare_vk(&pk);
     assert!(verify(&vk, &proof, &[Fr::from(10u64)]).unwrap());
 }
+
+#[test]
+fn timestamp_validity_proof() {
+    let circuit = TimestampValidityCircuit {
+        timestamp: 50,
+        not_before: 40,
+        not_after: 60,
+    };
+    let mut rng = StdRng::seed_from_u64(42);
+    let pk = setup(circuit.clone(), &mut rng).unwrap();
+    let proof = prove(&pk, circuit, &mut rng).unwrap();
+    let vk = prepare_vk(&pk);
+    assert!(verify(&vk, &proof, &[Fr::from(40u64), Fr::from(60u64)]).unwrap());
+}
