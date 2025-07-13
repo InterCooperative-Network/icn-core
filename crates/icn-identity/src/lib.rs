@@ -22,6 +22,8 @@ pub mod zk;
 pub use zk::{
     BulletproofsProver,
     BulletproofsVerifier,
+    Groth16Prover,
+    Groth16Verifier,
     DummyProver,
     DummyVerifier,
     ZkError,
