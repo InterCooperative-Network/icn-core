@@ -77,3 +77,7 @@ Two host functions are provided for working with zero-knowledge proofs:
 When called from WASM, use the `wasm_host_verify_zk_proof` and
 `wasm_host_generate_zk_proof` wrappers which handle passing strings in and out
 of guest memory.
+
+## Proof-of-Revocation
+Zero-knowledge proofs can also show that a credential has been revoked without revealing the credential itself. When an issuer marks a credential as revoked, a revocation identifier is published to the DAG. Holders generate a ZK proof referencing this identifier to demonstrate revocation or non-revocation. Verifiers check the proof against the revocation list without ever seeing the original credential contents.
+
