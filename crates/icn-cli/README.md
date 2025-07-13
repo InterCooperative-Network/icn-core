@@ -31,6 +31,8 @@ The `icn-cli` is the primary tool for users to interact with an ICN node from th
 *   **Identity Operations:**
     *   `icn-cli identity generate-proof <PROOF_REQUEST_JSON>`: Produce a zero-knowledge proof from the supplied request JSON.
     *   `icn-cli identity verify-proof <PROOF_JSON>`: Verify a proof and print whether it is valid.
+*   **Zero-Knowledge Operations:**
+    *   `icn-cli zk generate-key`: Generate a Groth16 proving key and output the verifying key signature.
 *   **Miscellaneous:**
     *   `icn-cli hello`: A simple command to check if the CLI is responsive.
     *   `icn-cli help` or `icn-cli --help`: Displays usage information.
@@ -45,6 +47,14 @@ cargo run -p icn-cli -- identity generate-proof '{"member_did":"did:example:123"
 # Verify the returned proof
 cargo run -p icn-cli -- identity verify-proof '{"proof":"base64string","backend":"Groth16"}'
 # => "verified: true"
+```
+
+### Example: Generate Groth16 Keys
+
+```bash
+# Generate a proving key and verifying key signature
+cargo run -p icn-cli -- zk generate-key
+# => '{"proving_key_path":"./groth16_proving_key.bin","verifying_key_signature_hex":"abc..."}'
 ```
 
 ## Error Handling

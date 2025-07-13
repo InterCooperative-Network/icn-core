@@ -24,6 +24,8 @@ use icn_api::governance_trait::{
 };
 use icn_ccl::{check_ccl_file, compile_ccl_file, compile_ccl_file_to_wasm, explain_ccl_policy};
 use icn_governance::{Proposal, ProposalId};
+use icn_identity::generate_ed25519_keypair;
+use icn_runtime::context::{Ed25519Signer, Signer};
 
 fn anyhow_to_common(e: anyhow::Error) -> CommonError {
     if let Some(c) = e.downcast_ref::<CommonError>() {
@@ -115,6 +117,11 @@ enum Commands {
     Ccl {
         #[clap(subcommand)]
         command: CclCommands,
+    },
+    /// Zero-knowledge tooling
+    Zk {
+        #[clap(subcommand)]
+        command: ZkCommands,
     },
     /// Compile a CCL file to WASM and upload to the node
     #[clap(name = "compile-ccl")]
@@ -339,6 +346,13 @@ enum IdentityCommands {
     },
 }
 
+#[derive(Subcommand, Debug)]
+enum ZkCommands {
+    /// Generate a Groth16 proving key and sign the verifying key
+    #[clap(name = "generate-key")]
+    GenerateKey,
+}
+
 // --- Main CLI Logic ---
 
 #[tokio::main]
@@ -434,6 +448,9 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
             CclCommands::Compile { file } => handle_ccl_compile(file)?,
             CclCommands::Lint { file } => handle_ccl_lint(file)?,
             CclCommands::Explain { file, target } => handle_ccl_explain(file, target).await?,
+        },
+        Commands::Zk { command } => match command {
+            ZkCommands::GenerateKey => handle_zk_generate_key().await?,
         },
         Commands::CompileCcl { file } => handle_compile_ccl_upload(cli, client, file).await?,
         Commands::SubmitJob {
@@ -1022,7 +1039,6 @@ fn parse_backend(s: &str) -> ZkProofType {
     }
 }
 
-
 fn handle_identity_generate_inner(
     issuer: &str,
     holder: &str,
@@ -1068,6 +1084,47 @@ fn handle_identity_generate_inner(
     };
 
     println!("{}", serde_json::to_string_pretty(&proof)?);
+    Ok(())
+}
+
+struct Groth16KeyManager;
+
+impl Groth16KeyManager {
+    fn generate_proving_key(
+        path: &std::path::Path,
+        signer: &Ed25519Signer,
+    ) -> Result<Vec<u8>, anyhow::Error> {
+        use ark_serialize::CanonicalSerialize;
+        use ark_std::rand::{rngs::StdRng, SeedableRng};
+        use icn_zk::{setup, AgeOver18Circuit};
+
+        let circuit = AgeOver18Circuit {
+            birth_year: 2000,
+            current_year: 2020,
+        };
+        let mut rng = StdRng::seed_from_u64(42);
+        let pk = setup(circuit, &mut rng)?;
+
+        let mut file = std::fs::File::create(path)?;
+        pk.serialize_compressed(&mut file)?;
+
+        let mut vk_bytes = Vec::new();
+        pk.vk.serialize_compressed(&mut vk_bytes)?;
+        let sig = signer.sign(&vk_bytes)?;
+        Ok(sig)
+    }
+}
+
+async fn handle_zk_generate_key() -> Result<(), anyhow::Error> {
+    let (sk, pk) = generate_ed25519_keypair();
+    let signer = Ed25519Signer::new_with_keys(sk, pk);
+    let path = std::path::PathBuf::from("groth16_proving_key.bin");
+    let sig = Groth16KeyManager::generate_proving_key(&path, &signer)?;
+    let output = serde_json::json!({
+        "proving_key_path": path.to_string_lossy(),
+        "verifying_key_signature_hex": hex::encode(sig),
+    });
+    println!("{}", serde_json::to_string_pretty(&output)?);
     Ok(())
 }
 
