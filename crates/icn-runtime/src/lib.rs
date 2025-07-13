@@ -69,6 +69,11 @@ impl From<CommonError> for RuntimeError {
 
 pub const MAX_JOB_JSON_SIZE: usize = 1024 * 1024; // 1MB
 
+/// Convert a circuit complexity score into a mana cost.
+pub fn calculate_zk_cost(complexity: u64) -> u64 {
+    context::mesh_network::ZK_VERIFY_COST_MANA.saturating_mul(complexity)
+}
+
 #[derive(Deserialize)]
 struct GenerateProofRequest {
     issuer: String,
@@ -728,11 +733,8 @@ pub async fn host_verify_zk_proof(
         HostAbiError::InvalidParameters(format!("Invalid ZkCredentialProof JSON: {e}"))
     })?;
 
-    ctx.spend_mana(
-        &ctx.current_identity,
-        context::mesh_network::ZK_VERIFY_COST_MANA,
-    )
-    .await?;
+    let cost = calculate_zk_cost(1);
+    ctx.spend_mana(&ctx.current_identity, cost).await?;
 
     let verifier: Box<dyn ZkVerifier> = match proof.backend {
         ZkProofType::Bulletproofs => Box::new(BulletproofsVerifier),
@@ -743,19 +745,11 @@ pub async fn host_verify_zk_proof(
     match verifier.verify(&proof) {
         Ok(true) => Ok(true),
         Ok(false) => {
-            ctx.credit_mana(
-                &ctx.current_identity,
-                context::mesh_network::ZK_VERIFY_COST_MANA,
-            )
-            .await?;
+            ctx.credit_mana(&ctx.current_identity, cost).await?;
             Ok(false)
         }
         Err(e) => {
-            ctx.credit_mana(
-                &ctx.current_identity,
-                context::mesh_network::ZK_VERIFY_COST_MANA,
-            )
-            .await?;
+            ctx.credit_mana(&ctx.current_identity, cost).await?;
             Err(HostAbiError::InvalidParameters(format!("{e}")))
         }
     }
@@ -775,11 +769,8 @@ pub async fn host_verify_zk_revocation_proof(
         HostAbiError::InvalidParameters(format!("Invalid ZkRevocationProof JSON: {e}"))
     })?;
 
-    ctx.spend_mana(
-        &ctx.current_identity,
-        context::mesh_network::ZK_VERIFY_COST_MANA,
-    )
-    .await?;
+    let cost = calculate_zk_cost(1);
+    ctx.spend_mana(&ctx.current_identity, cost).await?;
 
     let verifier: Box<dyn ZkRevocationVerifier> = match proof.backend {
         ZkProofType::Bulletproofs => Box::new(BulletproofsVerifier),
@@ -790,19 +781,11 @@ pub async fn host_verify_zk_revocation_proof(
     match verifier.verify_revocation(&proof) {
         Ok(true) => Ok(true),
         Ok(false) => {
-            ctx.credit_mana(
-                &ctx.current_identity,
-                context::mesh_network::ZK_VERIFY_COST_MANA,
-            )
-            .await?;
+            ctx.credit_mana(&ctx.current_identity, cost).await?;
             Ok(false)
         }
         Err(e) => {
-            ctx.credit_mana(
-                &ctx.current_identity,
-                context::mesh_network::ZK_VERIFY_COST_MANA,
-            )
-            .await?;
+            ctx.credit_mana(&ctx.current_identity, cost).await?;
             Err(HostAbiError::InvalidParameters(format!("{e}")))
         }
     }
@@ -810,7 +793,7 @@ pub async fn host_verify_zk_revocation_proof(
 
 /// Generate a dummy zero-knowledge credential proof.
 pub async fn host_generate_zk_proof(
-    _ctx: &RuntimeContext,
+    ctx: &RuntimeContext,
     request_json: &str,
 ) -> Result<String, HostAbiError> {
     use icn_common::{parse_cid_from_string, ZkCredentialProof, ZkProofType};
@@ -844,6 +827,9 @@ pub async fn host_generate_zk_proof(
         None
     };
 
+    let cost = calculate_zk_cost(1);
+    ctx.spend_mana(&ctx.current_identity, cost).await?;
+
     let proof = ZkCredentialProof {
         issuer,
         holder,
@@ -858,7 +844,10 @@ pub async fn host_generate_zk_proof(
         public_inputs: req.public_inputs,
     };
 
-    serde_json::to_string(&proof).map_err(|e| HostAbiError::SerializationError(format!("{e}")))
+    serde_json::to_string(&proof).map_err(|e| {
+        let _ = ctx.credit_mana(&ctx.current_identity, cost);
+        HostAbiError::SerializationError(format!("{e}"))
+    })
 }
 
 #[cfg(test)]
