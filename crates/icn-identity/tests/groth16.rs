@@ -117,6 +117,7 @@ fn issue_and_verify_groth16_proof() {
             Some(Cid::new_v1_sha256(0x55, b"schema")),
             Some(&[]),
             Some(Groth16Circuit::AgeOver18 { current_year: 2020 }),
+            None,
         )
         .unwrap();
     let proof = proof_opt.expect("proof");

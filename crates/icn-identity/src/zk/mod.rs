@@ -826,6 +826,7 @@ mod tests {
                 Some(dummy_cid("schema")),
                 Some(&[]),
                 Some(Groth16Circuit::AgeOver18 { current_year: 2020 }),
+                None,
             )
             .unwrap();
         let proof = proof_opt.expect("proof");

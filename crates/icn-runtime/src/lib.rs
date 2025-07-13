@@ -734,9 +734,9 @@ pub async fn host_verify_zk_proof(
     .await?;
 
     let verifier: Box<dyn ZkVerifier> = match proof.backend {
-        ZkProofType::Bulletproofs => Box::new(BulletproofsVerifier::default()),
+        ZkProofType::Bulletproofs => Box::new(BulletproofsVerifier),
         ZkProofType::Groth16 => Box::new(Groth16Verifier::default()),
-        _ => Box::new(DummyVerifier::default()),
+        _ => Box::new(DummyVerifier),
     };
 
     match verifier.verify(&proof) {
@@ -780,9 +780,9 @@ pub async fn host_verify_zk_revocation_proof(
     .await?;
 
     let verifier: Box<dyn ZkRevocationVerifier> = match proof.backend {
-        ZkProofType::Bulletproofs => Box::new(BulletproofsVerifier::default()),
+        ZkProofType::Bulletproofs => Box::new(BulletproofsVerifier),
         ZkProofType::Groth16 => Box::new(Groth16Verifier::default()),
-        _ => Box::new(DummyVerifier::default()),
+        _ => Box::new(DummyVerifier),
     };
 
     match verifier.verify_revocation(&proof) {

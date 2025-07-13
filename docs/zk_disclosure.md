@@ -167,6 +167,22 @@ Verifiable credentials can be invalidated without revealing their contents. The 
 
 Revocation proofs can be produced by `icn-identity`'s `Groth16Prover` or any custom prover implementing `ZkProver`.
 
+## Selective Disclosure Workflow
+
+The `/identity/credentials/disclose` endpoint allows a holder to reveal only specific
+claims while proving the rest via zero-knowledge. The request payload contains the
+complete credential and an array of field names to disclose.
+
+```json
+{
+  "credential": { /* full credential object */ },
+  "fields": ["role"]
+}
+```
+
+The response returns a `DisclosedCredential` with the requested fields and a
+`ZkCredentialProof` that proves the undisclosed claims.
+
 ## Example API Requests
 
 Verify a credential proof:

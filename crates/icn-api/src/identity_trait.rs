@@ -1,6 +1,7 @@
 use async_trait::async_trait;
+use icn_common::ZkCredentialProof;
 use icn_common::{Cid, CommonError, Did};
-use icn_identity::Credential as VerifiableCredential;
+use icn_identity::{Credential as VerifiableCredential, DisclosedCredential};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -32,6 +33,20 @@ pub struct RevokeCredentialRequest {
     pub cid: Cid,
 }
 
+/// Request selective disclosure of certain fields.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DisclosureRequest {
+    pub credential: VerifiableCredential,
+    pub fields: Vec<String>,
+}
+
+/// Response containing disclosed fields and proof of the rest.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DisclosureResponse {
+    pub credential: DisclosedCredential,
+    pub proof: ZkCredentialProof,
+}
+
 #[async_trait]
 pub trait IdentityApi {
     async fn issue_credential(
@@ -49,4 +64,9 @@ pub trait IdentityApi {
     async fn revoke_credential(&self, cid: Cid) -> Result<(), CommonError>;
 
     async fn list_schemas(&self) -> Result<Vec<Cid>, CommonError>;
+
+    async fn request_disclosure(
+        &self,
+        request: DisclosureRequest,
+    ) -> Result<DisclosureResponse, CommonError>;
 }

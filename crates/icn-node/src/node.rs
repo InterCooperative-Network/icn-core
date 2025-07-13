@@ -24,7 +24,8 @@ use icn_api::governance_trait::{
 use icn_api::{
     get_dag_metadata,
     identity_trait::{
-        CredentialResponse, IssueCredentialRequest, RevokeCredentialRequest, VerificationResponse,
+        CredentialResponse, DisclosureRequest, DisclosureResponse, IssueCredentialRequest,
+        RevokeCredentialRequest, VerificationResponse,
     },
     query_data, submit_transaction,
 };
@@ -35,8 +36,10 @@ use icn_common::{
 };
 use icn_dag;
 use icn_identity::{
-    did_key_from_verifying_key, generate_ed25519_keypair, Credential,
-    ExecutionReceipt as IdentityExecutionReceipt, InMemoryCredentialStore, SignatureBytes,
+    did_key_from_verifying_key, generate_ed25519_keypair,
+    zk::{DummyProver, ZkProver},
+    Credential, DisclosedCredential, ExecutionReceipt as IdentityExecutionReceipt,
+    InMemoryCredentialStore, SignatureBytes,
 };
 use icn_mesh::{ActualMeshJob, JobId, JobSpec};
 #[allow(unused_imports)]
@@ -811,6 +814,10 @@ pub async fn app_router_with_options(
             .route(
                 "/identity/credentials/schemas",
                 get(credential_schemas_handler),
+            )
+            .route(
+                "/identity/credentials/disclose",
+                post(credential_disclose_handler),
             )
             .route("/identity/credentials/{cid}", get(credential_get_handler))
             .route("/dag/put", post(dag_put_handler)) // These will use RT context's DAG store
@@ -3024,6 +3031,24 @@ async fn credential_revoke_handler(
     } else {
         map_rust_error_to_json_response("Credential not found", StatusCode::NOT_FOUND)
             .into_response()
+    }
+}
+
+// POST /identity/credentials/disclose
+async fn credential_disclose_handler(Json(req): Json<DisclosureRequest>) -> impl IntoResponse {
+    let fields: Vec<&str> = req.fields.iter().map(|s| s.as_str()).collect();
+    match req.credential.disclose_with_proof(&fields, &DummyProver) {
+        Ok((cred, proof)) => (
+            StatusCode::OK,
+            Json(DisclosureResponse {
+                credential: cred,
+                proof,
+            }),
+        )
+            .into_response(),
+        Err(e) => {
+            map_rust_error_to_json_response(format!("{e}"), StatusCode::BAD_REQUEST).into_response()
+        }
     }
 }
 

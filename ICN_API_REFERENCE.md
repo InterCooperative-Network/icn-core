@@ -36,6 +36,7 @@
 | `/network/connect` | POST | Connect to a peer | ✅ Working |
 | `/network/peers` | GET | List network peers | ✅ Working |
 | `/transaction/submit` | POST | Submit a transaction | ✅ Working |
+| `/identity/credentials/disclose` | POST | Selective credential disclosure | ✅ Working |
 | `/tokens/classes` | GET | List token classes | 🚧 Experimental |
 | `/tokens/class` | POST | Create a token class | 🚧 Experimental |
 | `/tokens/mint` | POST | Mint resource tokens | 🚧 Experimental |
