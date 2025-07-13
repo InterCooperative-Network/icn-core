@@ -744,12 +744,20 @@ pub async fn host_verify_zk_proof(
     };
 
     match verifier.verify(&proof) {
-        Ok(true) => Ok(true),
+        Ok(true) => {
+            ctx.reputation_store
+                .record_proof_attempt(&ctx.current_identity, true);
+            Ok(true)
+        }
         Ok(false) => {
+            ctx.reputation_store
+                .record_proof_attempt(&ctx.current_identity, false);
             ctx.credit_mana(&ctx.current_identity, cost).await?;
             Ok(false)
         }
         Err(e) => {
+            ctx.reputation_store
+                .record_proof_attempt(&ctx.current_identity, false);
             ctx.credit_mana(&ctx.current_identity, cost).await?;
             Err(HostAbiError::InvalidParameters(format!("{e}")))
         }
@@ -780,12 +788,20 @@ pub async fn host_verify_zk_revocation_proof(
     };
 
     match verifier.verify_revocation(&proof) {
-        Ok(true) => Ok(true),
+        Ok(true) => {
+            ctx.reputation_store
+                .record_proof_attempt(&ctx.current_identity, true);
+            Ok(true)
+        }
         Ok(false) => {
+            ctx.reputation_store
+                .record_proof_attempt(&ctx.current_identity, false);
             ctx.credit_mana(&ctx.current_identity, cost).await?;
             Ok(false)
         }
         Err(e) => {
+            ctx.reputation_store
+                .record_proof_attempt(&ctx.current_identity, false);
             ctx.credit_mana(&ctx.current_identity, cost).await?;
             Err(HostAbiError::InvalidParameters(format!("{e}")))
         }

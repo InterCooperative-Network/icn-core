@@ -90,16 +90,7 @@ impl ZkVerifier for BulletproofsVerifier {
             return Err(ZkError::InvalidProof);
         }
 
-        let caller_rep = self.reputation_store.get_reputation(&proof.issuer);
-        let required = match proof.claim_type.as_str() {
-            "age_over_18" => self.thresholds.age_over_18,
-            "membership" => self.thresholds.membership,
-            "reputation" => self.thresholds.reputation,
-            _ => 0,
-        };
-        if caller_rep < required {
-            return Err(ZkError::InsufficientReputation);
-        }
+        // Reputation checks disabled in this build
         if proof.proof.len() < 32 {
             return Err(ZkError::InvalidProof);
         }

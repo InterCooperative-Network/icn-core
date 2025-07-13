@@ -28,6 +28,15 @@ pub trait ReputationStore: Send + Sync {
 
     /// Updates reputation metrics for an executor.
     fn record_execution(&self, executor: &Did, success: bool, cpu_ms: u64);
+
+    /// Records an attempt to verify a zero-knowledge proof.
+    fn record_proof_attempt(&self, prover: &Did, success: bool);
+}
+
+impl std::fmt::Debug for dyn ReputationStore {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "ReputationStore")
+    }
 }
 
 #[cfg(feature = "async")]
@@ -36,6 +45,8 @@ pub trait AsyncReputationStore: Send + Sync {
     async fn get_reputation(&self, did: &Did) -> u64;
 
     async fn record_execution(&self, executor: &Did, success: bool, cpu_ms: u64);
+
+    async fn record_proof_attempt(&self, prover: &Did, success: bool);
 }
 
 #[cfg(feature = "async")]
@@ -66,6 +77,10 @@ where
 
     async fn record_execution(&self, executor: &Did, success: bool, cpu_ms: u64) {
         self.inner.record_execution(executor, success, cpu_ms);
+    }
+
+    async fn record_proof_attempt(&self, prover: &Did, success: bool) {
+        self.inner.record_proof_attempt(prover, success);
     }
 }
 
@@ -102,6 +117,14 @@ impl ReputationStore for InMemoryReputationStore {
         let updated = (*entry as i64) + delta;
         *entry = if updated < 0 { 0 } else { updated as u64 };
     }
+
+    fn record_proof_attempt(&self, prover: &Did, success: bool) {
+        let mut map = self.scores.lock().unwrap();
+        let entry = map.entry(prover.clone()).or_insert(0);
+        let delta: i64 = if success { 1 } else { -1 };
+        let updated = (*entry as i64) + delta;
+        *entry = if updated < 0 { 0 } else { updated as u64 };
+    }
 }
 
 #[cfg(test)]
@@ -125,6 +148,12 @@ mod tests {
             sig: icn_identity::SignatureBytes(vec![]),
         };
         store.record_execution(&receipt.executor_did, receipt.success, receipt.cpu_ms);
+        assert_eq!(store.get_reputation(&did), 1);
+
+        store.record_proof_attempt(&did, true);
+        assert_eq!(store.get_reputation(&did), 2);
+
+        store.record_proof_attempt(&did, false);
         assert_eq!(store.get_reputation(&did), 1);
     }
 }
