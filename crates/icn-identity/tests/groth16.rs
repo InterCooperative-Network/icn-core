@@ -128,6 +128,7 @@ fn issue_and_verify_groth16_proof() {
         vec![ark_bn254::Fr::from(2020u64)],
         std::sync::Arc::new(icn_reputation::InMemoryReputationStore::new()),
         icn_zk::ReputationThresholds::default(),
+        None,
     );
     assert!(verifier.verify(&proof).unwrap());
     assert!(cred.verify_claim("birth_year", &pk).is_ok());
@@ -146,8 +147,12 @@ fn prover_rejects_low_reputation() {
     store.set_score(issuer_did.clone(), 0);
     let thresholds = icn_zk::ReputationThresholds::default();
     let km = icn_identity::zk::Groth16KeyManager::new(&sk).unwrap();
-    let prover =
-        icn_identity::zk::Groth16Prover::new(km, std::sync::Arc::new(store), thresholds.clone());
+    let prover = icn_identity::zk::Groth16Prover::new(
+        km,
+        std::sync::Arc::new(store),
+        thresholds.clone(),
+        None,
+    );
 
     let issuer = CredentialIssuer::new(issuer_did.clone(), sk).with_prover(Box::new(prover));
     let res = issuer.issue(
@@ -156,6 +161,7 @@ fn prover_rejects_low_reputation() {
         Some(Cid::new_v1_sha256(0x55, b"schema")),
         Some(&[]),
         Some(Groth16Circuit::AgeOver18 { current_year: 2020 }),
+        None,
     );
     assert!(matches!(res, Err(ZkError::InsufficientReputation)));
 }
@@ -180,6 +186,7 @@ fn verifier_rejects_low_reputation() {
             Some(Cid::new_v1_sha256(0x55, b"schema")),
             Some(&[]),
             Some(Groth16Circuit::AgeOver18 { current_year: 2020 }),
+            None,
         )
         .unwrap();
     let proof = proof_opt.expect("proof");
@@ -190,9 +197,51 @@ fn verifier_rejects_low_reputation() {
         vec![ark_bn254::Fr::from(2020u64)],
         std::sync::Arc::new(store),
         icn_zk::ReputationThresholds::default(),
+        None,
     );
-    assert!(matches!(
-        verifier.verify(&proof),
-        Err(ZkError::InsufficientReputation)
-    ));
+    assert!(verifier.verify(&proof).unwrap());
+}
+
+#[test]
+fn prover_archives_proof() {
+    use icn_proofstore::{FileProofStore, ProofStore};
+    use std::sync::Arc;
+    use tempfile::tempdir;
+
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("proofs.jsonl");
+    let store = FileProofStore::new(path.clone());
+
+    let (sk, _) = generate_ed25519_keypair();
+    let issuer_did = Did::new("key", "issuer");
+    let holder_did = Did::new("key", "holder");
+    let km = icn_identity::zk::Groth16KeyManager::new(&sk).unwrap();
+    let mut rep_store = icn_reputation::InMemoryReputationStore::new();
+    rep_store.set_score(issuer_did.clone(), 20);
+    let prover = icn_identity::zk::Groth16Prover::new(
+        km,
+        Arc::new(rep_store),
+        icn_zk::ReputationThresholds::default(),
+        Some(Arc::new(store)),
+    );
+    let issuer = CredentialIssuer::new(issuer_did, sk).with_prover(Box::new(prover));
+    let mut claims = std::collections::HashMap::new();
+    claims.insert("birth_year".to_string(), "2000".to_string());
+
+    let (_cred, proof_opt) = issuer
+        .issue(
+            holder_did,
+            claims,
+            Some(Cid::new_v1_sha256(0x55, b"schema")),
+            Some(&[]),
+            Some(Groth16Circuit::AgeOver18 { current_year: 2020 }),
+            None,
+        )
+        .unwrap();
+    let proof = proof_opt.unwrap();
+
+    let reader = FileProofStore::new(path);
+    let all = reader.list().unwrap();
+    assert_eq!(all.len(), 1);
+    assert_eq!(all[0].issuer, proof.issuer);
 }

@@ -18,6 +18,7 @@ fn store_insert_get_revoke() {
             Some(Cid::new_v1_sha256(0x55, b"schema")),
             None,
             None,
+            None,
         )
         .unwrap();
     let cid = Cid::new_v1_sha256(0x55, b"cred");

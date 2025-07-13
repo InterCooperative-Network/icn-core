@@ -228,7 +228,7 @@ mod tests {
         let issuer = CredentialIssuer::new(issuer, sk).with_prover(Box::new(DummyProver));
         let (_, proof_opt) = issuer
             .issue(
-                holder,
+                holder.clone(),
                 claims,
                 Some(Cid::new_v1_sha256(0x55, b"schema")),
                 Some(&["age"]),
@@ -252,7 +252,7 @@ mod tests {
         let issuer = CredentialIssuer::new(issuer, sk).with_prover(Box::new(BulletproofsProver));
         let (_, proof_opt) = issuer
             .issue(
-                holder,
+                holder.clone(),
                 claims,
                 Some(Cid::new_v1_sha256(0x55, b"schema")),
                 Some(&[]),
@@ -274,15 +274,18 @@ mod tests {
         claims.insert("birth_year".to_string(), "2000".to_string());
 
         let km = Groth16KeyManager::new(&sk).unwrap();
+        let store = icn_reputation::InMemoryReputationStore::new();
+        store.set_score(issuer.clone(), 20);
         let prover = Groth16Prover::new(
             km.clone(),
-            std::sync::Arc::new(icn_reputation::InMemoryReputationStore::new()),
+            std::sync::Arc::new(store),
             icn_zk::ReputationThresholds::default(),
+            None,
         );
         let issuer = CredentialIssuer::new(issuer, sk).with_prover(Box::new(prover));
         let (_, proof_opt) = issuer
             .issue(
-                holder,
+                holder.clone(),
                 claims,
                 Some(Cid::new_v1_sha256(0x55, b"schema")),
                 Some(&[]),
@@ -291,11 +294,14 @@ mod tests {
             )
             .unwrap();
         let proof = proof_opt.expect("proof");
+        let vstore = icn_reputation::InMemoryReputationStore::new();
+        vstore.set_score(holder.clone(), 20);
         let verifier = Groth16Verifier::new(
             icn_zk::prepare_vk(km.proving_key()),
             vec![ark_bn254::Fr::from(2020u64)],
-            std::sync::Arc::new(icn_reputation::InMemoryReputationStore::new()),
+            std::sync::Arc::new(vstore),
             icn_zk::ReputationThresholds::default(),
+            None,
         );
         assert!(verifier.verify(&proof).unwrap());
     }

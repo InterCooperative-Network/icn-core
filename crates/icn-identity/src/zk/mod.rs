@@ -222,6 +222,7 @@ pub struct Groth16Prover {
     km: Groth16KeyManager,
     reputation_store: std::sync::Arc<dyn icn_reputation::ReputationStore>,
     thresholds: icn_zk::ReputationThresholds,
+    proof_store: Option<std::sync::Arc<dyn icn_proofstore::ProofStore>>,
 }
 
 impl Groth16Prover {
@@ -230,11 +231,13 @@ impl Groth16Prover {
         km: Groth16KeyManager,
         reputation_store: std::sync::Arc<dyn icn_reputation::ReputationStore>,
         thresholds: icn_zk::ReputationThresholds,
+        proof_store: Option<std::sync::Arc<dyn icn_proofstore::ProofStore>>,
     ) -> Self {
         Self {
             km,
             reputation_store,
             thresholds,
+            proof_store,
         }
     }
 
@@ -330,8 +333,7 @@ impl Groth16Prover {
             .map_err(|_| ZkError::VerificationFailed)?;
 
         let vk_cid = Cid::new_v1_sha256(0x55, &vk_bytes);
-
-        Ok(ZkCredentialProof {
+        let proof = ZkCredentialProof {
             issuer: credential.issuer.clone(),
             holder: credential.holder.clone(),
             claim_type,
@@ -346,7 +348,13 @@ impl Groth16Prover {
             backend: ZkProofType::Groth16,
             verification_key: None,
             public_inputs: None,
-        })
+        };
+
+        if let Some(store) = &self.proof_store {
+            let _ = store.put(&proof);
+        }
+
+        Ok(proof)
     }
 }
 
@@ -360,6 +368,7 @@ impl Default for Groth16Prover {
             km,
             reputation_store: std::sync::Arc::new(icn_reputation::InMemoryReputationStore::new()),
             thresholds: icn_zk::ReputationThresholds::default(),
+            proof_store: None,
         }
     }
 }
@@ -439,7 +448,7 @@ impl ZkProver for Groth16Prover {
             .serialize_compressed(&mut bytes)
             .map_err(|_| ZkError::VerificationFailed)?;
 
-        Ok(ZkCredentialProof {
+        let proof = ZkCredentialProof {
             issuer: credential.issuer.clone(),
             holder: credential.holder.clone(),
             claim_type,
@@ -454,7 +463,13 @@ impl ZkProver for Groth16Prover {
             backend: ZkProofType::Groth16,
             verification_key: None,
             public_inputs: None,
-        })
+        };
+
+        if let Some(store) = &self.proof_store {
+            let _ = store.put(&proof);
+        }
+
+        Ok(proof)
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -472,6 +487,7 @@ pub struct Groth16Verifier {
     public_inputs: Vec<ark_bn254::Fr>,
     reputation_store: std::sync::Arc<dyn icn_reputation::ReputationStore>,
     thresholds: icn_zk::ReputationThresholds,
+    proof_store: Option<std::sync::Arc<dyn icn_proofstore::ProofStore>>,
 }
 
 impl Groth16Verifier {
@@ -481,12 +497,14 @@ impl Groth16Verifier {
         public_inputs: Vec<ark_bn254::Fr>,
         reputation_store: std::sync::Arc<dyn icn_reputation::ReputationStore>,
         thresholds: icn_zk::ReputationThresholds,
+        proof_store: Option<std::sync::Arc<dyn icn_proofstore::ProofStore>>,
     ) -> Self {
         Self {
             vk,
             public_inputs,
             reputation_store,
             thresholds,
+            proof_store,
         }
     }
 
@@ -556,6 +574,7 @@ impl Default for Groth16Verifier {
             inputs,
             std::sync::Arc::new(icn_reputation::InMemoryReputationStore::new()),
             icn_zk::ReputationThresholds::default(),
+            None,
         )
     }
 }
@@ -702,6 +721,7 @@ mod tests {
             vec![ark_bn254::Fr::from(2020u64)],
             std::sync::Arc::new(icn_reputation::InMemoryReputationStore::new()),
             icn_zk::ReputationThresholds::default(),
+            None,
         );
         assert!(verifier.verify(&proof).unwrap());
     }
@@ -742,6 +762,7 @@ mod tests {
             vec![ark_bn254::Fr::from(2020u64)],
             std::sync::Arc::new(icn_reputation::InMemoryReputationStore::new()),
             icn_zk::ReputationThresholds::default(),
+            None,
         );
         assert!(matches!(
             verifier.verify(&proof),
@@ -784,6 +805,7 @@ mod tests {
             vec![ark_bn254::Fr::from(2020u64)],
             std::sync::Arc::new(icn_reputation::InMemoryReputationStore::new()),
             icn_zk::ReputationThresholds::default(),
+            None,
         );
         assert!(matches!(
             verifier.verify(&proof),
@@ -804,12 +826,16 @@ mod tests {
 
         let km = Groth16KeyManager::new(&sk).unwrap();
         let verifier_vk = icn_zk::prepare_vk(km.proving_key());
-        let issuer =
-            CredentialIssuer::new(issuer_did, sk).with_prover(Box::new(Groth16Prover::new(
+        let store_p = icn_reputation::InMemoryReputationStore::new();
+        store_p.set_score(issuer_did.clone(), 20);
+        let issuer = CredentialIssuer::new(issuer_did.clone(), sk).with_prover(Box::new(
+            Groth16Prover::new(
                 km.clone(),
-                std::sync::Arc::new(icn_reputation::InMemoryReputationStore::new()),
+                std::sync::Arc::new(store_p),
                 icn_zk::ReputationThresholds::default(),
-            )));
+                None,
+            ),
+        ));
         let (_, proof_opt) = issuer
             .issue(
                 holder_did,
@@ -822,11 +848,14 @@ mod tests {
             .unwrap();
         let proof = proof_opt.expect("proof");
 
+        let store_v = icn_reputation::InMemoryReputationStore::new();
+        store_v.set_score(issuer_did, 20);
         let verifier = Groth16Verifier::new(
             verifier_vk,
             vec![ark_bn254::Fr::from(2020u64)],
-            std::sync::Arc::new(icn_reputation::InMemoryReputationStore::new()),
+            std::sync::Arc::new(store_v),
             icn_zk::ReputationThresholds::default(),
+            None,
         );
         assert!(verifier.verify(&proof).unwrap());
     }
@@ -854,6 +883,7 @@ mod tests {
             vec![ark_bn254::Fr::from(2020u64)],
             std::sync::Arc::new(icn_reputation::InMemoryReputationStore::new()),
             icn_zk::ReputationThresholds::default(),
+            None,
         );
         let proof = ZkCredentialProof {
             issuer: Did::new("key", "issuer"),
@@ -913,6 +943,7 @@ mod tests {
             vec![ark_bn254::Fr::from(9999u64)],
             std::sync::Arc::new(icn_reputation::InMemoryReputationStore::new()),
             icn_zk::ReputationThresholds::default(),
+            None,
         );
         let proof = ZkCredentialProof {
             issuer: Did::new("key", "issuer"),
