@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["ZkError"],"struct":["BulletproofsProver","BulletproofsVerifier","DummyProver","DummyVerifier","Groth16Verifier"],"trait":["ZkProver","ZkVerifier"]};
+window.SIDEBAR_ITEMS = {"enum":["ZkError"],"struct":["BulletproofsProver","BulletproofsVerifier","DummyProver","DummyVerifier","Groth16Prover","Groth16Verifier"],"trait":["ZkProver","ZkVerifier"]};
