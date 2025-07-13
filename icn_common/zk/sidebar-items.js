@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["ZkProofType"],"struct":["ZkCredentialProof"]};
+window.SIDEBAR_ITEMS = {"enum":["ZkProofType"],"struct":["ZkCredentialProof","ZkRevocationProof"]};

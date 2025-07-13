@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["Groth16Circuit","ZkError"],"mod":["key_manager"],"struct":["BulletproofsProver","BulletproofsVerifier","DummyProver","DummyVerifier","Groth16Prover","Groth16Verifier"],"trait":["ZkProver","ZkVerifier"]};
+window.SIDEBAR_ITEMS = {"enum":["Groth16Circuit","ZkError"],"mod":["key_manager"],"struct":["BulletproofsProver","BulletproofsVerifier","DummyProver","DummyVerifier","Groth16Prover","Groth16Verifier"],"trait":["ZkProver","ZkRevocationVerifier","ZkVerifier"]};
