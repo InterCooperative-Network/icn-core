@@ -1,12 +1,56 @@
 use icn_common::{Cid, Did, ZkCredentialProof, ZkProofType};
 use icn_node::app_router_with_options;
 use reqwest::Client;
+use icn_identity::{
+    generate_ed25519_keypair, sign_message, verify_signature, SignatureBytes,
+};
+use icn_zk::{prepare_vk, setup, AgeOver18Circuit};
+use rand_core::OsRng;
 use tokio::task;
 use tokio::time::{sleep, Duration};
+
+struct Groth16KeyManager {
+    pk: ark_groth16::ProvingKey<ark_bn254::Bn254>,
+    vk_bytes: Vec<u8>,
+    vk_sig: SignatureBytes,
+    signer_pk: icn_identity::VerifyingKey,
+}
+
+impl Groth16KeyManager {
+    fn new() -> Self {
+        let circuit = AgeOver18Circuit {
+            birth_year: 2000,
+            current_year: 2020,
+        };
+        let mut rng = OsRng;
+        let pk = setup(circuit, &mut rng).expect("setup");
+        let (sk, signer_pk) = generate_ed25519_keypair();
+        let mut vk_bytes = Vec::new();
+        pk.vk
+            .serialize_compressed(&mut vk_bytes)
+            .expect("serialize");
+        let sig = sign_message(&sk, &vk_bytes);
+        let vk_sig = SignatureBytes::from_ed_signature(sig);
+        Self {
+            pk,
+            vk_bytes,
+            vk_sig,
+            signer_pk,
+        }
+    }
+
+    fn verify_vk_signature(&self) -> bool {
+        let sig = self.vk_sig.to_ed_signature().unwrap();
+        verify_signature(&self.signer_pk, &self.vk_bytes, &sig)
+    }
+}
 
 #[tokio::test]
 async fn zk_proof_verification_route() {
     std::fs::write("fixtures/mana_ledger.tmp", "{\"balances\":{}}").unwrap();
+    let manager = Groth16KeyManager::new();
+    assert!(manager.verify_vk_signature());
+    let _prepared_vk = prepare_vk(&manager.pk);
     let (router, _ctx) = app_router_with_options(
         None,
         None,
