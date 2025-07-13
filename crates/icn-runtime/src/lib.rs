@@ -14,6 +14,7 @@
 
 pub mod abi;
 pub mod config;
+pub mod constants;
 pub mod context;
 pub mod executor;
 pub mod memory;
