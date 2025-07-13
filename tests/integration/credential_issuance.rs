@@ -33,7 +33,7 @@ async fn credential_issue_route() {
 
     sleep(Duration::from_millis(100)).await;
     let client = Client::new();
-    let url = format!("http://{}/identity/issue", addr);
+    let url = format!("http://{}/identity/credentials/issue", addr);
 
     let mut attrs = BTreeMap::new();
     attrs.insert("role".to_string(), "tester".to_string());
