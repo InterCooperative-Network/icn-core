@@ -36,6 +36,8 @@ once_cell = "1.21"
 prometheus-client = "0.22"
 clap = { version = "4.0", features = ["derive"], optional = true }
 icn-ccl = { path = "../../icn-ccl" }
+# For tests using circuit cost helpers
+icn-zk = { path = "../icn-zk" }
 sha2 = "0.10"
 anyhow = "1.0"
 dashmap = "5"
