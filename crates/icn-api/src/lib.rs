@@ -163,9 +163,12 @@ pub async fn submit_dag_block(
     }
 
     if let Some(enforcer) = &policy_enforcer {
-        if let PolicyCheckResult::Denied { reason } =
-            enforcer.check_permission(DagPayloadOp::SubmitBlock, &actor, block.scope.as_ref())
-        {
+        if let PolicyCheckResult::Denied { reason } = enforcer.check_permission(
+            DagPayloadOp::SubmitBlock,
+            &actor,
+            block.scope.as_ref(),
+            None,
+        ) {
             return Err(CommonError::PolicyDenied(reason));
         }
     }
@@ -1143,7 +1146,8 @@ mod tests {
         let actor = Did::new("key", "allowed");
         let mut submitters = HashSet::new();
         submitters.insert(actor.clone());
-        let enforcer = InMemoryPolicyEnforcer::new(submitters, HashSet::new(), HashMap::new());
+        let enforcer =
+            InMemoryPolicyEnforcer::new(submitters, HashSet::new(), HashMap::new(), false);
 
         let data = b"block".to_vec();
         let ts = 0u64;
@@ -1179,7 +1183,8 @@ mod tests {
         let store = new_test_storage();
         let actor = Did::new("key", "denied");
         let submitters = HashSet::new();
-        let enforcer = InMemoryPolicyEnforcer::new(submitters, HashSet::new(), HashMap::new());
+        let enforcer =
+            InMemoryPolicyEnforcer::new(submitters, HashSet::new(), HashMap::new(), false);
 
         let data = b"block".to_vec();
         let ts = 0u64;
