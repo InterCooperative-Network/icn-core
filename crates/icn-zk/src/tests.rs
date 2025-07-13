@@ -121,3 +121,41 @@ fn age_rep_membership_proof() {
     )
     .unwrap());
 }
+
+#[test]
+fn batch_verify_multiple_proofs() {
+    let circuit1 = AgeOver18Circuit {
+        birth_year: 1990,
+        current_year: 2020,
+    };
+    let circuit2 = AgeOver18Circuit {
+        birth_year: 1995,
+        current_year: 2020,
+    };
+    let mut rng = StdRng::seed_from_u64(42);
+    let pk = setup(circuit1.clone(), &mut rng).unwrap();
+    let proof1 = prove(&pk, circuit1, &mut rng).unwrap();
+    let proof2 = prove(&pk, circuit2, &mut rng).unwrap();
+    let vk = prepare_vk(&pk);
+    let inputs1 = [Fr::from(2020u64)];
+    let inputs2 = [Fr::from(2020u64)];
+    let batch = [(&proof1, &inputs1[..]), (&proof2, &inputs2[..])];
+    assert!(verify_batch(&vk, &batch).unwrap());
+}
+
+#[test]
+fn batch_verify_detects_invalid() {
+    let circuit = AgeOver18Circuit {
+        birth_year: 2000,
+        current_year: 2020,
+    };
+    let mut rng = StdRng::seed_from_u64(42);
+    let pk = setup(circuit.clone(), &mut rng).unwrap();
+    let valid = prove(&pk, circuit.clone(), &mut rng).unwrap();
+    let invalid = prove(&pk, circuit, &mut rng).unwrap();
+    let vk = prepare_vk(&pk);
+    let inputs1 = [Fr::from(2020u64)];
+    let inputs2 = [Fr::from(2019u64)];
+    let batch = [(&valid, &inputs1[..]), (&invalid, &inputs2[..])];
+    assert!(!verify_batch(&vk, &batch).unwrap());
+}

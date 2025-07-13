@@ -47,5 +47,19 @@ pub fn verify(
     Groth16::<Bn254>::verify_with_processed_vk(vk, public_inputs, proof)
 }
 
+/// Verify multiple Groth16 proofs with a single verifying key.
+/// Returns `Ok(true)` if all proofs succeed.
+pub fn verify_batch<'a>(
+    vk: &PreparedVerifyingKey<Bn254>,
+    batch: &[(&'a Proof<Bn254>, &'a [Fr])],
+) -> Result<bool, SynthesisError> {
+    for (proof, inputs) in batch.iter() {
+        if !Groth16::<Bn254>::verify_with_processed_vk(vk, inputs, proof)? {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
 #[cfg(test)]
 mod tests;
