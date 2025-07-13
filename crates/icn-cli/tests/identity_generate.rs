@@ -45,4 +45,6 @@ async fn identity_generate_command() {
     assert!(proof.vk_cid.is_none());
     assert_eq!(proof.backend, ZkProofType::Groth16);
     assert!(!proof.proof.is_empty());
+    assert!(proof.verification_key.is_none());
+    assert!(proof.public_inputs.is_none());
 }

@@ -24,6 +24,26 @@ This document provides a short overview of when zero-knowledge proofs (ZKPs) are
 
 See [`docs/examples/zk_example.json`](examples/zk_example.json) for a minimal JSON representation of a proof.
 
+### Credential Proof JSON Format
+
+`ZkCredentialProof` objects exchanged with ICN nodes are JSON encoded. Optional
+fields may be omitted when not needed.
+
+```json
+{
+  "issuer": "did:key:example:issuer",
+  "holder": "did:key:example:holder",
+  "claim_type": "age_over_18",
+  "proof": [1, 2, 3],
+  "schema": "bafyschemacid",
+  "disclosed_fields": [],
+  "challenge": null,
+  "backend": "groth16",
+  "verification_key": [1, 2, 3],
+  "public_inputs": { "age": 21 }
+}
+```
+
 ## Available Circuits
 The `icn-zk` crate exposes reusable circuits that can be compiled into proofs:
 

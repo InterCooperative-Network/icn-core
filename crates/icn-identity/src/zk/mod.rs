@@ -103,6 +103,8 @@ impl ZkProver for DummyProver {
             disclosed_fields: fields.iter().map(|f| f.to_string()).collect(),
             challenge: None,
             backend: ZkProofType::Groth16,
+            verification_key: None,
+            public_inputs: None,
         })
     }
 }
@@ -145,6 +147,8 @@ impl ZkProver for BulletproofsProver {
             disclosed_fields: fields.iter().map(|f| f.to_string()).collect(),
             challenge: None,
             backend: ZkProofType::Bulletproofs,
+            verification_key: None,
+            public_inputs: None,
         })
     }
 }
@@ -244,6 +248,8 @@ mod tests {
             disclosed_fields: Vec::new(),
             challenge: None,
             backend,
+            verification_key: None,
+            public_inputs: None,
         }
     }
 

@@ -26,6 +26,8 @@ async fn identity_verify_command() {
         disclosed_fields: Vec::new(),
         challenge: None,
         backend: ZkProofType::Groth16,
+        verification_key: None,
+        public_inputs: None,
     };
     let proof_json = serde_json::to_string(&proof).unwrap();
 

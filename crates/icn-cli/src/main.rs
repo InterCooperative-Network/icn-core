@@ -333,6 +333,10 @@ enum IdentityCommands {
         schema: String,
         #[clap(long, help = "Proof backend (groth16|bulletproofs|other:<name>)")]
         backend: String,
+        #[clap(long, help = "Hex-encoded verification key bytes", required = false)]
+        verification_key: Option<String>,
+        #[clap(long, help = "Public inputs as JSON string", required = false)]
+        public_inputs: Option<String>,
     },
 }
 
@@ -413,8 +417,18 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
                 claim_type,
                 schema,
                 backend,
+                verification_key,
+                public_inputs,
             } => {
-                handle_identity_generate(issuer, holder, claim_type, schema, backend)?;
+                handle_identity_generate_inner(
+                    issuer,
+                    holder,
+                    claim_type,
+                    schema,
+                    backend,
+                    verification_key,
+                    public_inputs,
+                )?;
             }
         },
         Commands::Ccl { command } => match command {
@@ -1014,7 +1028,18 @@ fn handle_identity_generate(
     holder: &str,
     claim_type: &str,
     schema: &str,
+) -> Result<(), anyhow::Error> {
+    handle_identity_generate_inner(issuer, holder, claim_type, schema, backend, &None, &None)
+}
+
+fn handle_identity_generate_inner(
+    issuer: &str,
+    holder: &str,
+    claim_type: &str,
+    schema: &str,
     backend: &str,
+    verification_key: &Option<String>,
+    public_inputs: &Option<String>,
 ) -> Result<(), anyhow::Error> {
     use std::str::FromStr;
 
@@ -1024,6 +1049,18 @@ fn handle_identity_generate(
     let backend_parsed = parse_backend(backend);
     let mut proof_bytes = vec![0u8; 32];
     fastrand::fill(&mut proof_bytes);
+
+    let verification_key_bytes = if let Some(vk_hex) = verification_key {
+        Some(hex::decode(vk_hex.trim_start_matches("0x"))?)
+    } else {
+        None
+    };
+
+    let public_inputs_value = if let Some(json) = public_inputs {
+        Some(serde_json::from_str(json)?)
+    } else {
+        None
+    };
 
     let proof = ZkCredentialProof {
         issuer: issuer_did,
@@ -1035,6 +1072,8 @@ fn handle_identity_generate(
         disclosed_fields: Vec::new(),
         challenge: None,
         backend: backend_parsed,
+        verification_key: verification_key_bytes,
+        public_inputs: public_inputs_value,
     };
 
     println!("{}", serde_json::to_string_pretty(&proof)?);

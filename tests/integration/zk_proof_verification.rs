@@ -42,6 +42,8 @@ async fn zk_proof_verification_route() {
         disclosed_fields: Vec::new(),
         challenge: None,
         backend: ZkProofType::Groth16,
+        verification_key: None,
+        public_inputs: None,
     };
 
     let resp = client.post(url).json(&proof).send().await.unwrap();
