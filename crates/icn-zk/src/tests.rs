@@ -38,6 +38,20 @@ fn reputation_threshold_proof() {
 }
 
 #[test]
+fn balance_range_proof() {
+    let circuit = BalanceRangeCircuit {
+        balance: 8,
+        min: 5,
+        max: 10,
+    };
+    let mut rng = StdRng::seed_from_u64(42);
+    let pk = setup(circuit.clone(), &mut rng).unwrap();
+    let proof = prove(&pk, circuit, &mut rng).unwrap();
+    let vk = prepare_vk(&pk);
+    assert!(verify(&vk, &proof, &[Fr::from(5u64), Fr::from(10u64)]).unwrap());
+}
+
+#[test]
 fn circuit_parameters_roundtrip() {
     let circuit = AgeOver18Circuit {
         birth_year: 2000,

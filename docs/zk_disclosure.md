@@ -50,6 +50,7 @@ The `icn-zk` crate exposes reusable circuits that can be compiled into proofs:
 - `AgeOver18Circuit` – proves a birth year is at least 18 years in the past.
 - `MembershipCircuit` – proves the subject is a registered member.
 - `ReputationCircuit` – proves a reputation score meets a required threshold.
+- `BalanceRangeCircuit` – proves a balance falls within a specified range.
 
 See [`docs/examples/zk_age_over_18.json`](examples/zk_age_over_18.json) for a sample proof payload.
 

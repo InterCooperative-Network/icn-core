@@ -67,3 +67,38 @@ impl ConstraintSynthesizer<Fr> for ReputationCircuit {
         Ok(())
     }
 }
+
+/// Prove that `balance` lies within the inclusive range `[min, max]`.
+#[derive(Clone)]
+pub struct BalanceRangeCircuit {
+    /// Balance to prove knowledge of (private).
+    pub balance: u64,
+    /// Minimum acceptable balance (public).
+    pub min: u64,
+    /// Maximum acceptable balance (public).
+    pub max: u64,
+}
+
+impl ConstraintSynthesizer<Fr> for BalanceRangeCircuit {
+    fn generate_constraints(self, cs: ConstraintSystemRef<Fr>) -> Result<(), SynthesisError> {
+        let balance = FpVar::<Fr>::new_witness(cs.clone(), || Ok(Fr::from(self.balance)))?;
+        let min = FpVar::<Fr>::new_input(cs.clone(), || Ok(Fr::from(self.min)))?;
+        let max = FpVar::<Fr>::new_input(cs.clone(), || Ok(Fr::from(self.max)))?;
+
+        let diff_min_val = self
+            .balance
+            .checked_sub(self.min)
+            .ok_or(SynthesisError::AssignmentMissing)?;
+        let diff_min = FpVar::<Fr>::new_witness(cs.clone(), || Ok(Fr::from(diff_min_val)))?;
+
+        let diff_max_val = self
+            .max
+            .checked_sub(self.balance)
+            .ok_or(SynthesisError::AssignmentMissing)?;
+        let diff_max = FpVar::<Fr>::new_witness(cs, || Ok(Fr::from(diff_max_val)))?;
+
+        (min + diff_min.clone()).enforce_equal(&balance)?;
+        (balance + diff_max).enforce_equal(&max)?;
+        Ok(())
+    }
+}
