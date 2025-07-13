@@ -107,6 +107,11 @@ curl -X POST https://localhost:8080/dag/unpin \
 | POST | `/governance/close` | Close voting and return tally | Yes |
 | POST | `/governance/execute` | Execute an accepted proposal | Yes |
 
+Proposers and voters may include a `credential_proof` object proving
+membership or other criteria. See [zk_disclosure.md](zk_disclosure.md) for the
+full JSON structure. When a policy enforces proofs, requests missing this field
+are rejected.
+
 ### Example Governance Operations
 ```bash
 # Submit a proposal
@@ -116,7 +121,14 @@ curl -X POST https://localhost:8080/governance/submit \
   -d '{
     "title": "Increase mesh job timeout",
     "description": "Increase the maximum timeout for mesh jobs to 300 seconds",
-    "proposal_type": "ParameterChange"
+    "proposal_type": "ParameterChange",
+    "credential_proof": {
+      "issuer": "did:key:federation",
+      "holder": "did:key:alice",
+      "claim_type": "membership",
+      "proof": "0x123456",
+      "backend": "groth16"
+    }
   }'
 
 # Cast a vote
@@ -125,7 +137,14 @@ curl -X POST https://localhost:8080/governance/vote \
   -H "x-api-key: your-api-key" \
   -d '{
     "proposal_id": "proposal-uuid",
-    "vote": "Yes"
+    "vote": "Yes",
+    "credential_proof": {
+      "issuer": "did:key:federation",
+      "holder": "did:key:alice",
+      "claim_type": "membership",
+      "proof": "0x123456",
+      "backend": "groth16"
+    }
   }'
 ```
 
@@ -382,7 +401,17 @@ Response `200 OK`
 ```bash
 curl -X POST http://localhost:8080/governance/submit \
   -H "Content-Type: application/json" \
-  -d '{"proposer_did":"did:key:alice","proposal":{}}'
+  -d '{
+    "proposer_did": "did:key:alice",
+    "proposal": {},
+    "credential_proof": {
+      "issuer": "did:key:federation",
+      "holder": "did:key:alice",
+      "claim_type": "membership",
+      "proof": "0x123456",
+      "backend": "groth16"
+    }
+  }'
 ```
 Response `200 OK`
 ```json
@@ -393,7 +422,18 @@ Response `200 OK`
 ```bash
 curl -X POST http://localhost:8080/governance/vote \
   -H "Content-Type: application/json" \
-  -d '{"voter_did":"did:key:alice","proposal_id":"prop-1","vote_option":"Yes"}'
+  -d '{
+    "voter_did": "did:key:alice",
+    "proposal_id": "prop-1",
+    "vote_option": "Yes",
+    "credential_proof": {
+      "issuer": "did:key:federation",
+      "holder": "did:key:alice",
+      "claim_type": "membership",
+      "proof": "0x123456",
+      "backend": "groth16"
+    }
+  }'
 ```
 Response `200 OK`
 ```json
