@@ -3,7 +3,7 @@ use icn_identity::credential::Credential;
 use icn_identity::{
     credential::CredentialIssuer,
     generate_ed25519_keypair,
-    zk::{Groth16Verifier, ZkError, ZkProver},
+    zk::{Groth16Circuit, Groth16Verifier, ZkError, ZkProver},
     ZkVerifier,
 };
 
@@ -51,13 +51,18 @@ impl ZkProver for Groth16Prover {
                 .schema
                 .clone()
                 .unwrap_or_else(|| Cid::new_v1_sha256(0x55, b"age")),
+            vk_cid: None,
             disclosed_fields: fields.iter().map(|f| f.to_string()).collect(),
             challenge: None,
             backend: ZkProofType::Groth16,
-            vk_cid: None,
+
             verification_key: None,
             public_inputs: None,
         })
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }
 
@@ -78,6 +83,7 @@ fn issue_and_verify_groth16_proof() {
             claims,
             Some(Cid::new_v1_sha256(0x55, b"schema")),
             Some(&[]),
+            Some(Groth16Circuit::AgeOver18 { current_year: 2020 }),
         )
         .unwrap();
     let proof = proof_opt.expect("proof");
