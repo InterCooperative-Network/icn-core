@@ -88,6 +88,9 @@ pub struct Proposal {
     pub content_cid: Option<Cid>,
     pub proposal_type: ProposalType,
     pub author: Did,
+    /// Optional zero-knowledge proof that the proposer holds the
+    /// required role or membership credential
+    pub credential_proof: Option<ZkCredentialProof>,
     pub created_at: DateTime<Utc>,
     pub voting_ends_at: DateTime<Utc>,
     pub vote_threshold: VoteThreshold,
@@ -155,6 +158,8 @@ fn validate_vote(voter: Did, proposal: Proposal, vote: Vote) -> Bool {
 - **Voter Notification**: Alert all eligible participants
 - **Vote Collection**: Secure, anonymous vote recording
 - **Eligibility Proof**: Each ballot includes a zero-knowledge credential proof verifying the voter meets membership requirements.
+- **Field Usage**: Both proposal and vote payloads include a `credential_proof`
+  object. Nodes verify this proof before accepting the action.
 - **Real-Time Tallying**: Live vote count display
 
 ### **4. Execution Phase**
@@ -361,6 +366,11 @@ fn emergency_decision(crisis: Crisis) -> EmergencyResponse {
 - **Document Clearly**: Maintain clear governance documentation
 - **Plan for Change**: Design governance to evolve over time
 - **Balance Efficiency and Democracy**: Find the right trade-offs
+
+### **Node Configuration**
+Operators can enforce credential checks by enabling the `require_proof` option
+when constructing an `InMemoryPolicyEnforcer`. When set to `true`, all DAG
+submissions and governance actions must include a valid `credential_proof`.
 
 ---
 

@@ -77,3 +77,21 @@ Two host functions are provided for working with zero-knowledge proofs:
 When called from WASM, use the `wasm_host_verify_zk_proof` and
 `wasm_host_generate_zk_proof` wrappers which handle passing strings in and out
 of guest memory.
+
+## Example API Requests
+
+Verify a credential proof directly against a node:
+
+```bash
+curl -X POST https://node.example.com/identity/verify \
+    -H 'Content-Type: application/json' \
+    -d @docs/examples/zk_membership.json
+```
+
+Submit a DAG block that includes a credential proof:
+
+```bash
+curl -X POST https://node.example.com/dag/submit-block \
+    -H 'Content-Type: application/json' \
+    -d @docs/examples/block_submission_with_proof.json
+```

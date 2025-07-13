@@ -1,0 +1,16 @@
+{
+  "block_cid": "bafyblockcid",
+  "payload": "aGVsbG8=",
+  "credential_proof": {
+    "issuer": "did:key:federation",
+    "holder": "did:key:alice",
+    "claim_type": "membership",
+    "proof": "0x123456",
+    "schema": "bafyschemacid",
+    "disclosed_fields": [],
+    "challenge": null,
+    "backend": "groth16",
+    "verification_key": "0xdeadbeef",
+    "public_inputs": { "membership": true }
+  }
+}
