@@ -11,6 +11,8 @@ thiserror = "2.0"
 serde = { version = "1.0", features = ["derive"] }
 icn-common = { path = "../icn-common" }
 dashmap = "5"
+once_cell = "1.21"
+lru = "0.16"
 
 # --- crypto ---
 ed25519-dalek = { version = "2.0.0-pre.3", features = ["rand_core"] }

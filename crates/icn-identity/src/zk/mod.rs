@@ -5,13 +5,15 @@
 
 use core::convert::TryInto;
 use icn_common::{Cid, ZkCredentialProof, ZkProofType};
-use std::{any::Any, collections::HashMap};
-use serde_json::Value;
 use serde_json;
+use serde_json::Value;
+use std::any::Any;
 use thiserror::Error;
 
 pub mod key_manager;
 pub use key_manager::Groth16KeyManager;
+pub mod vk_cache;
+use vk_cache::PreparedVkCache;
 
 /// Errors that can occur when verifying zero-knowledge proofs.
 #[derive(Debug, Error, PartialEq, Eq)]
@@ -401,7 +403,6 @@ impl ZkProver for Groth16Prover {
 pub struct Groth16Verifier {
     vk: ark_groth16::PreparedVerifyingKey<ark_bn254::Bn254>,
     public_inputs: Vec<ark_bn254::Fr>,
-    cache: std::sync::Mutex<std::collections::HashMap<Cid, ark_groth16::PreparedVerifyingKey<ark_bn254::Bn254>>>,
 }
 
 impl Groth16Verifier {
@@ -410,19 +411,14 @@ impl Groth16Verifier {
         vk: ark_groth16::PreparedVerifyingKey<ark_bn254::Bn254>,
         public_inputs: Vec<ark_bn254::Fr>,
     ) -> Self {
-        Self {
-            vk,
-            public_inputs,
-            cache: std::sync::Mutex::new(HashMap::new()),
-        }
+        Self { vk, public_inputs }
     }
 
     /// Verify the supplied [`ZkCredentialProof`] using a cached prepared key if
     /// provided. Public inputs embedded in the proof take precedence over the
     /// verifier's defaults.
     pub fn verify_proof(&self, proof: &ZkCredentialProof) -> Result<bool, ZkError> {
-        use ark_groth16::{Groth16, Proof, VerifyingKey};
-        use ark_snark::SNARK;
+        use ark_groth16::{Groth16, Proof};
         use ark_serialize::CanonicalDeserialize;
 
         if proof.backend != ZkProofType::Groth16 {
@@ -444,16 +440,7 @@ impl Groth16Verifier {
 
         // Fetch or prepare verifying key
         let pvk = if let Some(vk_bytes) = &proof.verification_key {
-            let cid = Cid::new_v1_sha256(0x55, vk_bytes);
-            let mut cache = self.cache.lock().unwrap();
-            cache
-                .entry(cid)
-                .or_insert_with(|| {
-                    let vk = VerifyingKey::<ark_bn254::Bn254>::deserialize_compressed(vk_bytes.as_slice())
-                        .expect("verifying key bytes");
-                    Groth16::<ark_bn254::Bn254>::process_vk(&vk).expect("prepare vk")
-                })
-                .clone()
+            PreparedVkCache::get_or_insert(vk_bytes)?
         } else {
             self.vk.clone()
         };
@@ -466,7 +453,11 @@ impl Groth16Verifier {
 fn parse_public_inputs(v: &Value) -> Result<Vec<ark_bn254::Fr>, ZkError> {
     let arr = v.as_array().ok_or(ZkError::InvalidProof)?;
     arr.iter()
-        .map(|val| val.as_u64().map(ark_bn254::Fr::from).ok_or(ZkError::InvalidProof))
+        .map(|val| {
+            val.as_u64()
+                .map(ark_bn254::Fr::from)
+                .ok_or(ZkError::InvalidProof)
+        })
         .collect()
 }
 
@@ -742,7 +733,10 @@ mod tests {
         use icn_zk::{prepare_vk, prove, setup, AgeOver18Circuit};
 
         let mut rng = StdRng::seed_from_u64(42);
-        let circuit = AgeOver18Circuit { birth_year: 2000, current_year: 2020 };
+        let circuit = AgeOver18Circuit {
+            birth_year: 2000,
+            current_year: 2020,
+        };
         let pk = setup(circuit.clone(), &mut rng).unwrap();
         let proof_obj = prove(&pk, circuit, &mut rng).unwrap();
         let mut proof_bytes = Vec::new();
@@ -750,7 +744,7 @@ mod tests {
         let mut vk_bytes = Vec::new();
         pk.vk.serialize_compressed(&mut vk_bytes).unwrap();
 
-        let mut verifier = Groth16Verifier::new(prepare_vk(&pk), vec![ark_bn254::Fr::from(2020u64)]);
+        let verifier = Groth16Verifier::new(prepare_vk(&pk), vec![ark_bn254::Fr::from(2020u64)]);
         let proof = ZkCredentialProof {
             issuer: Did::new("key", "issuer"),
             holder: Did::new("key", "holder"),
@@ -766,10 +760,10 @@ mod tests {
         };
 
         assert!(verifier.verify_proof(&proof).unwrap());
-        let cache_len = verifier.cache.lock().unwrap().len();
+        let cache_len = vk_cache::PreparedVkCache::len();
         assert_eq!(cache_len, 1);
         assert!(verifier.verify_proof(&proof).unwrap());
-        let cache_len2 = verifier.cache.lock().unwrap().len();
+        let cache_len2 = vk_cache::PreparedVkCache::len();
         assert_eq!(cache_len2, 1);
     }
 
@@ -792,7 +786,10 @@ mod tests {
         use icn_zk::{prepare_vk, prove, setup, AgeOver18Circuit};
 
         let mut rng = StdRng::seed_from_u64(42);
-        let circuit = AgeOver18Circuit { birth_year: 2000, current_year: 2021 };
+        let circuit = AgeOver18Circuit {
+            birth_year: 2000,
+            current_year: 2021,
+        };
         let pk = setup(circuit.clone(), &mut rng).unwrap();
         let proof_obj = prove(&pk, circuit, &mut rng).unwrap();
         let mut proof_bytes = Vec::new();
@@ -801,7 +798,7 @@ mod tests {
         pk.vk.serialize_compressed(&mut vk_bytes).unwrap();
 
         // Verifier has incorrect default inputs
-        let mut verifier = Groth16Verifier::new(prepare_vk(&pk), vec![ark_bn254::Fr::from(9999u64)]);
+        let verifier = Groth16Verifier::new(prepare_vk(&pk), vec![ark_bn254::Fr::from(9999u64)]);
         let proof = ZkCredentialProof {
             issuer: Did::new("key", "issuer"),
             holder: Did::new("key", "holder"),
