@@ -5,6 +5,7 @@ use ark_groth16::{Groth16, PreparedVerifyingKey, Proof, ProvingKey};
 use ark_relations::r1cs::{ConstraintSynthesizer, SynthesisError};
 use ark_snark::SNARK;
 use ark_std::rand::{CryptoRng, RngCore};
+use rayon::prelude::*;
 
 mod circuits;
 mod params;
@@ -53,12 +54,11 @@ pub fn verify_batch<'a>(
     vk: &PreparedVerifyingKey<Bn254>,
     batch: &[(&'a Proof<Bn254>, &'a [Fr])],
 ) -> Result<bool, SynthesisError> {
-    for (proof, inputs) in batch.iter() {
-        if !Groth16::<Bn254>::verify_with_processed_vk(vk, inputs, proof)? {
-            return Ok(false);
-        }
-    }
-    Ok(true)
+    batch
+        .par_iter()
+        .map(|(proof, inputs)| Groth16::<Bn254>::verify_with_processed_vk(vk, inputs, proof))
+        .collect::<Result<Vec<_>, _>>()
+        .map(|results| results.into_iter().all(|r| r))
 }
 
 #[cfg(test)]
