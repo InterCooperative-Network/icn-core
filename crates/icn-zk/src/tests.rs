@@ -54,3 +54,22 @@ fn circuit_parameters_roundtrip() {
     let vk = fetched.prepared_vk().unwrap();
     assert!(verify(&vk, &proof, &[Fr::from(2020u64)]).unwrap());
 }
+
+#[test]
+fn timestamp_validity_proof() {
+    let circuit = TimestampValidityCircuit {
+        timestamp: 1_650_000_000,
+        not_before: 1_600_000_000,
+        not_after: 1_700_000_000,
+    };
+    let mut rng = StdRng::seed_from_u64(42);
+    let pk = setup(circuit.clone(), &mut rng).unwrap();
+    let proof = prove(&pk, circuit, &mut rng).unwrap();
+    let vk = prepare_vk(&pk);
+    assert!(verify(
+        &vk,
+        &proof,
+        &[Fr::from(1_600_000_000u64), Fr::from(1_700_000_000u64)]
+    )
+    .unwrap());
+}
