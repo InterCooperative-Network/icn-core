@@ -312,6 +312,7 @@ fn expr_to_string(expr: &ExpressionNode) -> String {
         ExpressionNode::NoneExpr => "None".to_string(),
         ExpressionNode::OkExpr(inner) => format!("Ok({})", expr_to_string(inner)),
         ExpressionNode::ErrExpr(inner) => format!("Err({})", expr_to_string(inner)),
+        ExpressionNode::RequireProof(inner) => format!("require_proof({})", expr_to_string(inner)),
         ExpressionNode::Match { value, .. } => format!("match {} ...", expr_to_string(value)),
     }
 }

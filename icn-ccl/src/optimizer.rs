@@ -186,6 +186,9 @@ impl Optimizer {
                     },
                 }
             }
+            ExpressionNode::RequireProof(inner) => {
+                ExpressionNode::RequireProof(Box::new(self.fold_expr(*inner)))
+            }
             e => e,
         }
     }

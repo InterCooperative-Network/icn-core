@@ -87,6 +87,16 @@ rule allow_basic when cost <= 100 then allow
 
 Actions are `allow`, `deny`, or `charge <expr>`.
 
+### Credential Verification
+
+Use `require_proof(expr)` to validate a zero-knowledge credential proof. The
+argument must be a JSON string containing a `ZkCredentialProof`. The expression
+returns `true` when the proof verifies.
+
+```ccl
+let ok = require_proof(claim_json);
+```
+
 ### Imports
 
 External files can be imported with an alias:
@@ -101,4 +111,5 @@ Contracts executed as mesh jobs expose a `run` function. Additional helper
 functions may be defined as needed.
 
 See `icn-ccl/examples/` for real‑world contract templates demonstrating the
-language.
+language. Examples `age_proof.ccl` and `reputation_proof.ccl` show credential
+verification.

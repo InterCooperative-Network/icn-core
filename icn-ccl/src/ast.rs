@@ -157,6 +157,7 @@ pub enum ExpressionNode {
     NoneExpr,
     OkExpr(Box<ExpressionNode>),
     ErrExpr(Box<ExpressionNode>),
+    RequireProof(Box<ExpressionNode>),
     Match {
         value: Box<ExpressionNode>,
         arms: Vec<(ExpressionNode, ExpressionNode)>,
