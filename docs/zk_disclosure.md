@@ -212,3 +212,21 @@ curl -X POST http://localhost:7845/dag/put \
 
 Nodes can enforce proof submission by creating the
 `InMemoryPolicyEnforcer` with `require_proof` set to `true`.
+
+## Proof Archival and Retrieval
+
+Every successful credential verification is archived in the node's identity
+database. Proof entries are keyed by CID so that auditors can reference them at
+a later date. Verifiers may list or fetch archived proofs through the HTTP API or
+via `icn-cli`:
+
+```bash
+# List archived proofs
+icn-cli identity list-proofs
+
+# Fetch a specific proof by CID
+icn-cli identity fetch-proof --cid <CID>
+```
+
+The same data can be accessed programmatically using
+`GET /identity/proofs` and `GET /identity/proofs/{cid}`.

@@ -43,3 +43,23 @@ The node stores the parameters and returns a content identifier (CID) for later 
 
 Parameters registered via the API are saved as [`CircuitParameters`](../crates/icn-zk/src/params.rs) within the registry database. Prepared verifying keys are cached in memory to speed up verification.
 
+## Database-Backed Registry
+
+Circuit metadata and parameter bytes now persist in an embedded database located
+under `~/.icn/zk/registry.sqlite`. Storing circuits in a database means they
+survive node restarts and can be synchronized across deployments. Each entry is
+keyed by the circuit slug and semantic version.
+
+### Backup and Restore
+
+Use `icn-cli` to export or re-import the circuit registry. This works with any
+database backend:
+
+```bash
+# Backup circuit registry
+icn-cli zk backup --path ./backups/circuits
+
+# Restore from a backup
+icn-cli zk restore --path ./backups/circuits
+```
+
