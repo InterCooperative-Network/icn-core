@@ -246,10 +246,10 @@ impl Groth16Prover {
         circuit: Groth16Circuit,
     ) -> Result<ZkCredentialProof, ZkError> {
         use ark_serialize::CanonicalSerialize;
-        use ark_std::rand::{rngs::StdRng, SeedableRng};
+        use ark_std::rand::rngs::OsRng;
         use icn_zk::{prove, AgeOver18Circuit, MembershipCircuit, ReputationCircuit};
 
-        let mut rng = StdRng::seed_from_u64(42);
+        let mut rng = OsRng;
 
         let caller_rep = self.reputation_store.get_reputation(&credential.issuer);
         let required = match circuit {
@@ -371,11 +371,11 @@ impl ZkProver for Groth16Prover {
         fields: &[&str],
     ) -> Result<ZkCredentialProof, ZkError> {
         use ark_serialize::CanonicalSerialize;
-        use ark_std::rand::{rngs::StdRng, SeedableRng};
+        use ark_std::rand::rngs::OsRng;
         use icn_zk::{prove, AgeOver18Circuit, MembershipCircuit, ReputationCircuit};
 
         // Determine which circuit to prove based on available claims
-        let mut rng = StdRng::seed_from_u64(42);
+        let mut rng = OsRng;
 
         let rep = self.reputation_store.get_reputation(&credential.issuer);
         let (claim_type, proof_obj) = if let Some(val) = credential.claims.get("birth_year") {
@@ -539,15 +539,15 @@ fn parse_public_inputs(v: &Value) -> Result<Vec<ark_bn254::Fr>, ZkError> {
 
 impl Default for Groth16Verifier {
     fn default() -> Self {
-        use ark_std::rand::{rngs::StdRng, SeedableRng};
+        use ark_std::rand::rngs::OsRng;
         use icn_zk::{prepare_vk, setup, AgeOver18Circuit};
 
-        // Deterministic setup for demo purposes
+        // Example setup for demo purposes
         let circuit = AgeOver18Circuit {
             birth_year: 2000,
             current_year: 2020,
         };
-        let mut rng = StdRng::seed_from_u64(42);
+        let mut rng = OsRng;
         let pk = setup(circuit, &mut rng).expect("setup");
         let vk = prepare_vk(&pk);
         let inputs = vec![ark_bn254::Fr::from(2020u64)];
@@ -669,14 +669,14 @@ mod tests {
     #[test]
     fn groth16_verifier_ok() {
         use ark_serialize::CanonicalSerialize;
-        use ark_std::rand::{rngs::StdRng, SeedableRng};
+        use ark_std::rand::rngs::OsRng;
         use icn_zk::{prepare_vk, prove, setup, AgeOver18Circuit};
 
         let circuit = AgeOver18Circuit {
             birth_year: 2000,
             current_year: 2020,
         };
-        let mut rng = StdRng::seed_from_u64(42);
+        let mut rng = OsRng;
         let pk = setup(circuit.clone(), &mut rng).unwrap();
         let pvk = prepare_vk(&pk);
         let proof_obj = prove(&pk, circuit, &mut rng).unwrap();
@@ -709,14 +709,14 @@ mod tests {
     #[test]
     fn groth16_backend_mismatch() {
         use ark_serialize::CanonicalSerialize;
-        use ark_std::rand::{rngs::StdRng, SeedableRng};
+        use ark_std::rand::rngs::OsRng;
         use icn_zk::{prepare_vk, prove, setup, AgeOver18Circuit};
 
         let circuit = AgeOver18Circuit {
             birth_year: 2000,
             current_year: 2020,
         };
-        let mut rng = StdRng::seed_from_u64(42);
+        let mut rng = OsRng;
         let pk = setup(circuit.clone(), &mut rng).unwrap();
         let pvk = prepare_vk(&pk);
         let proof_obj = prove(&pk, circuit, &mut rng).unwrap();
@@ -751,10 +751,10 @@ mod tests {
 
     #[test]
     fn groth16_malformed_proof() {
-        use ark_std::rand::{rngs::StdRng, SeedableRng};
+        use ark_std::rand::rngs::OsRng;
         use icn_zk::{prepare_vk, setup, AgeOver18Circuit};
 
-        let mut rng = StdRng::seed_from_u64(42);
+        let mut rng = OsRng;
         let pk = setup(
             AgeOver18Circuit {
                 birth_year: 2000,
@@ -834,10 +834,10 @@ mod tests {
     #[test]
     fn verify_proof_cache_hit() {
         use ark_serialize::CanonicalSerialize;
-        use ark_std::rand::{rngs::StdRng, SeedableRng};
+        use ark_std::rand::rngs::OsRng;
         use icn_zk::{prepare_vk, prove, setup, AgeOver18Circuit};
 
-        let mut rng = StdRng::seed_from_u64(42);
+        let mut rng = OsRng;
         let circuit = AgeOver18Circuit {
             birth_year: 2000,
             current_year: 2020,
@@ -892,10 +892,10 @@ mod tests {
     #[test]
     fn verify_proof_with_inputs() {
         use ark_serialize::CanonicalSerialize;
-        use ark_std::rand::{rngs::StdRng, SeedableRng};
+        use ark_std::rand::rngs::OsRng;
         use icn_zk::{prepare_vk, prove, setup, AgeOver18Circuit};
 
-        let mut rng = StdRng::seed_from_u64(42);
+        let mut rng = OsRng;
         let circuit = AgeOver18Circuit {
             birth_year: 2000,
             current_year: 2021,
