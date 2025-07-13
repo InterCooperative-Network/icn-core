@@ -72,6 +72,7 @@ allowing proof generation or verification. The defaults are:
 See [`docs/examples/zk_age_over_18.json`](examples/zk_age_over_18.json) for a sample proof payload.
 See [`docs/examples/zk_membership.json`](examples/zk_membership.json) for a membership proof example.
 For information on adding or upgrading circuits, see [dynamic_circuits.md](dynamic_circuits.md).
+For a hands-on tutorial on creating new circuits, see [zk_circuit_development.md](zk_circuit_development.md).
 
 ### Groth16KeyManager
 `Groth16KeyManager` generates Groth16 parameters, stores them under

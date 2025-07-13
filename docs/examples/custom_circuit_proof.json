@@ -1,0 +1,12 @@
+{
+  "issuer": "did:key:federation",
+  "holder": "did:key:example",
+  "claim_type": "less_than_10",
+  "proof": "0x123456",
+  "schema": "bafyschemacid",
+  "disclosed_fields": [],
+  "challenge": null,
+  "backend": "groth16",
+  "verification_key": "0x...",
+  "public_inputs": { "value": 7 }
+}

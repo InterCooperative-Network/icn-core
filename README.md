@@ -433,6 +433,7 @@ More detailed information can be found in the `README.md` file within each crate
 * [API Documentation](docs/API.md) – HTTP endpoints and programmatic interfaces
 * [Deployment Guide](docs/deployment-guide.md) – production deployment instructions (see [circuit breaker & retry settings](docs/deployment-guide.md#circuit-breaker-and-retry))
 * [Troubleshooting Guide](docs/TROUBLESHOOTING.md) – common issues and solutions
+* [Custom Circuit Development](docs/zk_circuit_development.md) – implement and profile new zero-knowledge circuits
 
 ## Community & Contribution
 
