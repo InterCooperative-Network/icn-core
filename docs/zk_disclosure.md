@@ -55,6 +55,20 @@ The `icn-zk` crate exposes reusable circuits that can be compiled into proofs:
 - `BalanceRangeCircuit` – proves a private balance lies between a public minimum and maximum.
 - `AgeRepMembershipCircuit` – proves age over 18, membership status, and reputation threshold in one proof.
 
+### Default Reputation Thresholds
+The `Groth16Prover` and `Groth16Verifier` enforce minimum reputation scores before
+allowing proof generation or verification. The defaults are:
+
+| Circuit | Minimum Reputation |
+|---------|-------------------|
+| AgeOver18Circuit | 10 |
+| MembershipCircuit | 5 |
+| MembershipProofCircuit | 5 |
+| ReputationCircuit | 15 |
+| TimestampValidityCircuit | 5 |
+| BalanceRangeCircuit | 5 |
+| AgeRepMembershipCircuit | 20 |
+
 See [`docs/examples/zk_age_over_18.json`](examples/zk_age_over_18.json) for a sample proof payload.
 See [`docs/examples/zk_membership.json`](examples/zk_membership.json) for a membership proof example.
 

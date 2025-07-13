@@ -8,8 +8,8 @@ use icn_identity::{
 };
 
 use ark_serialize::CanonicalSerialize;
-use icn_zk::{prepare_vk, prove, setup, AgeOver18Circuit};
 use icn_identity::{sign_message, verify_signature, SignatureBytes, VerifyingKey};
+use icn_zk::{prepare_vk, prove, setup, AgeOver18Circuit};
 use rand_core::OsRng;
 
 struct Groth16KeyManager {
@@ -54,9 +54,7 @@ struct Groth16Prover {
 
 impl Groth16Prover {
     fn from_manager(mgr: &Groth16KeyManager) -> Self {
-        Self {
-            pk: mgr.pk.clone(),
-        }
+        Self { pk: mgr.pk.clone() }
     }
 }
 
@@ -124,7 +122,76 @@ fn issue_and_verify_groth16_proof() {
     let proof = proof_opt.expect("proof");
 
     let pvk = prepare_vk(&manager.pk);
-    let verifier = Groth16Verifier::new(pvk, vec![ark_bn254::Fr::from(2020u64)]);
+    let verifier = Groth16Verifier::new(
+        pvk,
+        vec![ark_bn254::Fr::from(2020u64)],
+        std::sync::Arc::new(icn_reputation::InMemoryReputationStore::new()),
+        icn_zk::ReputationThresholds::default(),
+    );
     assert!(verifier.verify(&proof).unwrap());
     assert!(cred.verify_claim("birth_year", &pk).is_ok());
+}
+
+#[test]
+fn prover_rejects_low_reputation() {
+    let manager = Groth16KeyManager::new();
+    let (sk, _) = generate_ed25519_keypair();
+    let issuer_did = Did::new("key", "issuer");
+    let holder_did = Did::new("key", "holder");
+    let mut claims = std::collections::HashMap::new();
+    claims.insert("birth_year".to_string(), "2000".to_string());
+
+    let store = icn_reputation::InMemoryReputationStore::new();
+    store.set_score(issuer_did.clone(), 0);
+    let thresholds = icn_zk::ReputationThresholds::default();
+    let km = icn_identity::zk::Groth16KeyManager::new(&sk).unwrap();
+    let prover =
+        icn_identity::zk::Groth16Prover::new(km, std::sync::Arc::new(store), thresholds.clone());
+
+    let issuer = CredentialIssuer::new(issuer_did.clone(), sk).with_prover(Box::new(prover));
+    let res = issuer.issue(
+        holder_did,
+        claims,
+        Some(Cid::new_v1_sha256(0x55, b"schema")),
+        Some(&[]),
+        Some(Groth16Circuit::AgeOver18 { current_year: 2020 }),
+    );
+    assert!(matches!(res, Err(ZkError::InsufficientReputation)));
+}
+
+#[test]
+fn verifier_rejects_low_reputation() {
+    let manager = Groth16KeyManager::new();
+    let store = icn_reputation::InMemoryReputationStore::new();
+    store.set_score(Did::new("key", "issuer"), 0);
+
+    let (sk, _) = generate_ed25519_keypair();
+    let issuer_did = Did::new("key", "issuer");
+    let holder_did = Did::new("key", "holder");
+    let issuer = CredentialIssuer::new(issuer_did.clone(), sk)
+        .with_prover(Box::new(Groth16Prover::from_manager(&manager)));
+    let mut claims = std::collections::HashMap::new();
+    claims.insert("birth_year".to_string(), "2000".to_string());
+    let (_, proof_opt) = issuer
+        .issue(
+            holder_did,
+            claims,
+            Some(Cid::new_v1_sha256(0x55, b"schema")),
+            Some(&[]),
+            Some(Groth16Circuit::AgeOver18 { current_year: 2020 }),
+        )
+        .unwrap();
+    let proof = proof_opt.expect("proof");
+
+    let pvk = prepare_vk(&manager.pk);
+    let verifier = Groth16Verifier::new(
+        pvk,
+        vec![ark_bn254::Fr::from(2020u64)],
+        std::sync::Arc::new(store),
+        icn_zk::ReputationThresholds::default(),
+    );
+    assert!(matches!(
+        verifier.verify(&proof),
+        Err(ZkError::InsufficientReputation)
+    ));
 }
