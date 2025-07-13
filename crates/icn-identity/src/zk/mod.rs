@@ -7,11 +7,12 @@ use core::convert::TryInto;
 use icn_common::{Cid, ZkCredentialProof, ZkProofType, ZkRevocationProof};
 use serde_json;
 use serde_json::Value;
-use std::{any::Any, collections::HashMap};
+use std::any::Any;
 use thiserror::Error;
 
 pub mod key_manager;
 pub use key_manager::Groth16KeyManager;
+pub mod vk_cache;
 
 /// Errors that can occur when verifying zero-knowledge proofs.
 #[derive(Debug, Error, PartialEq, Eq)]
@@ -429,9 +430,6 @@ impl ZkProver for Groth16Prover {
 pub struct Groth16Verifier {
     vk: ark_groth16::PreparedVerifyingKey<ark_bn254::Bn254>,
     public_inputs: Vec<ark_bn254::Fr>,
-    cache: std::sync::Mutex<
-        std::collections::HashMap<Cid, ark_groth16::PreparedVerifyingKey<ark_bn254::Bn254>>,
-    >,
 }
 
 impl Groth16Verifier {
@@ -440,20 +438,15 @@ impl Groth16Verifier {
         vk: ark_groth16::PreparedVerifyingKey<ark_bn254::Bn254>,
         public_inputs: Vec<ark_bn254::Fr>,
     ) -> Self {
-        Self {
-            vk,
-            public_inputs,
-            cache: std::sync::Mutex::new(HashMap::new()),
-        }
+        Self { vk, public_inputs }
     }
 
     /// Verify the supplied [`ZkCredentialProof`] using a cached prepared key if
     /// provided. Public inputs embedded in the proof take precedence over the
     /// verifier's defaults.
     pub fn verify_proof(&self, proof: &ZkCredentialProof) -> Result<bool, ZkError> {
-        use ark_groth16::{Groth16, Proof, VerifyingKey};
+        use ark_groth16::{Groth16, Proof};
         use ark_serialize::CanonicalDeserialize;
-        use ark_snark::SNARK;
 
         if proof.backend != ZkProofType::Groth16 {
             return Err(ZkError::UnsupportedBackend(proof.backend.clone()));
@@ -474,18 +467,7 @@ impl Groth16Verifier {
 
         // Fetch or prepare verifying key
         let pvk = if let Some(vk_bytes) = &proof.verification_key {
-            let cid = Cid::new_v1_sha256(0x55, vk_bytes);
-            let mut cache = self.cache.lock().unwrap();
-            cache
-                .entry(cid)
-                .or_insert_with(|| {
-                    let vk = VerifyingKey::<ark_bn254::Bn254>::deserialize_compressed(
-                        vk_bytes.as_slice(),
-                    )
-                    .expect("verifying key bytes");
-                    Groth16::<ark_bn254::Bn254>::process_vk(&vk).expect("prepare vk")
-                })
-                .clone()
+            vk_cache::PreparedVkCache::get_or_insert(vk_bytes)?
         } else {
             self.vk.clone()
         };
@@ -805,10 +787,10 @@ mod tests {
         };
 
         assert!(verifier.verify_proof(&proof).unwrap());
-        let cache_len = verifier.cache.lock().unwrap().len();
+        let cache_len = vk_cache::PreparedVkCache::len();
         assert_eq!(cache_len, 1);
         assert!(verifier.verify_proof(&proof).unwrap());
-        let cache_len2 = verifier.cache.lock().unwrap().len();
+        let cache_len2 = vk_cache::PreparedVkCache::len();
         assert_eq!(cache_len2, 1);
     }
 
