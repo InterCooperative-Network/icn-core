@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["prepare_vk","prove","setup","verify"],"struct":["AgeOver18Circuit","MembershipCircuit","ReputationCircuit"]};
