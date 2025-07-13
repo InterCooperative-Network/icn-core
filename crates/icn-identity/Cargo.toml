@@ -28,6 +28,7 @@ ark-groth16 = "0.4"
 ark-bn254 = "0.4"
 ark-serialize = "0.4"
 ark-std = "0.4"
+directories-next = "2"
 
 # Ensure old ones are removed if they conflict or are replaced
 # ed25519-dalek = { version = "2.0", features = ["serde"] } # Old, replaced by specific version
