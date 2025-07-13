@@ -7,6 +7,7 @@
 use base64::{self, Engine};
 use bincode;
 use clap::{Parser, Subcommand};
+use fastrand;
 use icn_common::CommonError;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -14,13 +15,10 @@ use serde_json::Value as JsonValue; // For generic JSON data if needed
 use std::io::{self, Read};
 use std::path::PathBuf;
 use std::process::exit; // Added for reading from stdin
-use fastrand;
 
 // Types from our ICN crates that CLI will interact with (serialize/deserialize)
 // These types are expected to be sent to/received from the icn-node HTTP API.
-use icn_common::{
-    Cid, DagBlock, Did, NodeInfo, NodeStatus, ZkCredentialProof, ZkProofType,
-};
+use icn_common::{Cid, DagBlock, Did, NodeInfo, NodeStatus, ZkCredentialProof, ZkProofType};
 // Using aliased request structs from icn-api for clarity, these are what the node expects
 use icn_api::governance_trait::{
     CastVoteRequest as ApiCastVoteRequest, SubmitProposalRequest as ApiSubmitProposalRequest,
@@ -335,6 +333,10 @@ enum IdentityCommands {
         schema: String,
         #[clap(long, help = "Proof backend (groth16|bulletproofs|other:<name>)")]
         backend: String,
+        #[clap(long, help = "Hex-encoded verification key bytes", required = false)]
+        verification_key: Option<String>,
+        #[clap(long, help = "Public inputs as JSON string", required = false)]
+        public_inputs: Option<String>,
     },
 }
 
@@ -406,17 +408,27 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
             ReputationCommands::Get { did } => handle_reputation_get(cli, client, did).await?,
         },
         Commands::Identity { command } => match command {
-            IdentityCommands::VerifyProof { proof_json_or_stdin } => {
-                handle_identity_verify(cli, client, proof_json_or_stdin).await?
-            }
+            IdentityCommands::VerifyProof {
+                proof_json_or_stdin,
+            } => handle_identity_verify(cli, client, proof_json_or_stdin).await?,
             IdentityCommands::GenerateProof {
                 issuer,
                 holder,
                 claim_type,
                 schema,
                 backend,
+                verification_key,
+                public_inputs,
             } => {
-                handle_identity_generate(issuer, holder, claim_type, schema, backend)?;
+                handle_identity_generate_inner(
+                    issuer,
+                    holder,
+                    claim_type,
+                    schema,
+                    backend,
+                    verification_key,
+                    public_inputs,
+                )?;
             }
         },
         Commands::Ccl { command } => match command {
@@ -1016,7 +1028,18 @@ fn handle_identity_generate(
     holder: &str,
     claim_type: &str,
     schema: &str,
+) -> Result<(), anyhow::Error> {
+    handle_identity_generate_inner(issuer, holder, claim_type, schema, backend, &None, &None)
+}
+
+fn handle_identity_generate_inner(
+    issuer: &str,
+    holder: &str,
+    claim_type: &str,
+    schema: &str,
     backend: &str,
+    verification_key: &Option<String>,
+    public_inputs: &Option<String>,
 ) -> Result<(), anyhow::Error> {
     use std::str::FromStr;
 
@@ -1027,6 +1050,18 @@ fn handle_identity_generate(
     let mut proof_bytes = vec![0u8; 32];
     fastrand::fill(&mut proof_bytes);
 
+    let verification_key_bytes = if let Some(vk_hex) = verification_key {
+        Some(hex::decode(vk_hex.trim_start_matches("0x"))?)
+    } else {
+        None
+    };
+
+    let public_inputs_value = if let Some(json) = public_inputs {
+        Some(serde_json::from_str(json)?)
+    } else {
+        None
+    };
+
     let proof = ZkCredentialProof {
         issuer: issuer_did,
         holder: holder_did,
@@ -1036,6 +1071,8 @@ fn handle_identity_generate(
         disclosed_fields: Vec::new(),
         challenge: None,
         backend: backend_parsed,
+        verification_key: verification_key_bytes,
+        public_inputs: public_inputs_value,
     };
 
     println!("{}", serde_json::to_string_pretty(&proof)?);

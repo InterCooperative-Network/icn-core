@@ -44,4 +44,6 @@ async fn identity_generate_command() {
     assert_eq!(proof.schema, schema_cid);
     assert_eq!(proof.backend, ZkProofType::Groth16);
     assert!(!proof.proof.is_empty());
+    assert!(proof.verification_key.is_none());
+    assert!(proof.public_inputs.is_none());
 }

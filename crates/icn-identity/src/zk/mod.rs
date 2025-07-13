@@ -1,5 +1,5 @@
-use icn_common::{Cid, ZkCredentialProof, ZkProofType};
 use core::convert::TryInto;
+use icn_common::{Cid, ZkCredentialProof, ZkProofType};
 use thiserror::Error;
 
 /// Errors that can occur when verifying zero-knowledge proofs.
@@ -102,6 +102,8 @@ impl ZkProver for DummyProver {
             disclosed_fields: fields.iter().map(|f| f.to_string()).collect(),
             challenge: None,
             backend: ZkProofType::Groth16,
+            verification_key: None,
+            public_inputs: None,
         })
     }
 }
@@ -124,15 +126,9 @@ impl ZkProver for BulletproofsProver {
         let bp_gens = BulletproofGens::new(64, 1);
         let blinding = Scalar::random(&mut OsRng);
         let mut transcript = Transcript::new(b"ZkCredentialProof");
-        let (proof, commit) = RangeProof::prove_single(
-            &bp_gens,
-            &pc_gens,
-            &mut transcript,
-            42u64,
-            &blinding,
-            64,
-        )
-        .map_err(|_| ZkError::VerificationFailed)?;
+        let (proof, commit) =
+            RangeProof::prove_single(&bp_gens, &pc_gens, &mut transcript, 42u64, &blinding, 64)
+                .map_err(|_| ZkError::VerificationFailed)?;
 
         let mut bytes = proof.to_bytes();
         bytes.extend_from_slice(commit.as_bytes());
@@ -149,6 +145,8 @@ impl ZkProver for BulletproofsProver {
             disclosed_fields: fields.iter().map(|f| f.to_string()).collect(),
             challenge: None,
             backend: ZkProofType::Bulletproofs,
+            verification_key: None,
+            public_inputs: None,
         })
     }
 }
@@ -172,15 +170,9 @@ mod tests {
         let bp_gens = BulletproofGens::new(64, 1);
         let blinding = Scalar::random(&mut OsRng);
         let mut transcript = Transcript::new(b"ZkCredentialProof");
-        let (proof, commit) = RangeProof::prove_single(
-            &bp_gens,
-            &pc_gens,
-            &mut transcript,
-            42u64,
-            &blinding,
-            64,
-        )
-        .expect("range proof generation should succeed");
+        let (proof, commit) =
+            RangeProof::prove_single(&bp_gens, &pc_gens, &mut transcript, 42u64, &blinding, 64)
+                .expect("range proof generation should succeed");
 
         let mut bytes = proof.to_bytes();
         bytes.extend_from_slice(commit.as_bytes());
@@ -203,6 +195,8 @@ mod tests {
             disclosed_fields: Vec::new(),
             challenge: None,
             backend,
+            verification_key: None,
+            public_inputs: None,
         }
     }
 
