@@ -409,6 +409,29 @@ impl Groth16Verifier {
     ) -> Self {
         Self { vk, public_inputs }
     }
+
+    /// Verify a [`ZkRevocationProof`].
+    pub fn verify_revocation(&self, proof: &icn_common::ZkRevocationProof) -> Result<bool, ZkError> {
+        use ark_groth16::Proof;
+        use ark_serialize::CanonicalDeserialize;
+
+        if proof.backend != ZkProofType::Groth16 {
+            return Err(ZkError::UnsupportedBackend(proof.backend.clone()));
+        }
+        if proof.proof.is_empty() {
+            return Err(ZkError::InvalidProof);
+        }
+
+        let groth_proof = Proof::<ark_bn254::Bn254>::deserialize_compressed(proof.proof.as_slice())
+            .map_err(|_| ZkError::InvalidProof)?;
+
+        ark_groth16::Groth16::<ark_bn254::Bn254>::verify_proof(
+            &self.vk,
+            &groth_proof,
+            &self.public_inputs,
+        )
+        .map_err(|_| ZkError::VerificationFailed)
+    }
 }
 
 impl Default for Groth16Verifier {

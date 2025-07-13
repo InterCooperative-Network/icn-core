@@ -169,6 +169,7 @@ pub async fn submit_dag_block(
             &actor,
             block.scope.as_ref(),
             None,
+            None,
         ) {
             return Err(CommonError::PolicyDenied(reason));
         }

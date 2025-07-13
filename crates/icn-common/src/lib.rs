@@ -14,7 +14,7 @@ pub mod resilience;
 pub use resilience::{CircuitBreaker, CircuitBreakerError, CircuitState};
 pub mod resource_token;
 pub mod zk;
-pub use zk::{ZkCredentialProof, ZkProofType};
+pub use zk::{ZkCredentialProof, ZkProofType, ZkRevocationProof};
 
 pub const ICN_CORE_VERSION: &str = "0.2.0-beta";
 

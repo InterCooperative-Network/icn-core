@@ -29,6 +29,8 @@ See [`docs/examples/zk_example.json`](examples/zk_example.json) for a minimal JS
 `ZkCredentialProof` objects exchanged with ICN nodes are JSON encoded. Optional
 fields may be omitted when not needed.
 
+`ZkRevocationProof` follows a similar JSON structure and proves that a credential has not been revoked.
+
 ```json
 {
   "issuer": "did:key:example:issuer",

@@ -30,6 +30,7 @@ devnet, and expanded security guidance.
 - HTTP gateway enabling REST job submission and status queries.
 - Containerized 3-node federation devnet with Docker and integration tests.
 - `Ed25519Signer` replaces `StubSigner` for production runtime; tests may continue using `StubSigner`.
+- Optional `ZkRevocationProof` checks for policy enforcement in `icn-governance`.
 - Comprehensive production security guide covering Ed25519 migration, TLS, and authentication.
 - Enhanced API documentation with all current endpoints, authentication, and TLS features.
 - Updated feature overview reflecting production-ready status and completed Phase 5 milestones.
@@ -42,6 +43,7 @@ devnet, and expanded security guidance.
 - Enhanced API documentation to include TLS, authentication, and all current endpoints.
 - Updated feature overview moving many items from "In Development" to "Implemented" status.
 - Improved quick start examples with production configuration options.
+- `ScopedPolicyEnforcer::check_permission` now accepts an optional `ZkRevocationProof` argument.
 
 ### Deprecated
 

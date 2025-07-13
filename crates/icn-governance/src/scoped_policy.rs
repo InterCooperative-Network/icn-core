@@ -3,7 +3,7 @@ pub enum PolicyCheckResult {
     Denied { reason: String },
 }
 
-use icn_common::{Did, NodeScope, ZkCredentialProof};
+use icn_common::{Did, NodeScope, ZkCredentialProof, ZkRevocationProof};
 use icn_identity::{Groth16Verifier, ZkVerifier};
 
 /// Operations that may be subject to scoped policy checks when writing to the DAG.
@@ -21,6 +21,7 @@ pub trait ScopedPolicyEnforcer: Send + Sync {
         actor: &Did,
         scope: Option<&NodeScope>,
         proof: Option<&ZkCredentialProof>,
+        revocation: Option<&ZkRevocationProof>,
     ) -> PolicyCheckResult;
 }
 
@@ -54,12 +55,16 @@ impl InMemoryPolicyEnforcer {
         }
     }
 
-    fn validate_proof(&self, proof: Option<&ZkCredentialProof>) -> PolicyCheckResult {
+    fn validate_proof(
+        &self,
+        proof: Option<&ZkCredentialProof>,
+        revocation: Option<&ZkRevocationProof>,
+    ) -> PolicyCheckResult {
         if !self.require_proof {
             return PolicyCheckResult::Allowed;
         }
 
-        match proof {
+        let cred_check = match proof {
             Some(p) => match self.verifier.verify(p) {
                 Ok(true) => PolicyCheckResult::Allowed,
                 _ => PolicyCheckResult::Denied {
@@ -69,6 +74,20 @@ impl InMemoryPolicyEnforcer {
             None => PolicyCheckResult::Denied {
                 reason: "credential proof required".to_string(),
             },
+        };
+
+        if let PolicyCheckResult::Denied { .. } = cred_check {
+            return cred_check;
+        }
+
+        match revocation {
+            Some(rp) => match self.verifier.verify_revocation(rp) {
+                Ok(true) => PolicyCheckResult::Allowed,
+                _ => PolicyCheckResult::Denied {
+                    reason: "revocation proof invalid".to_string(),
+                },
+            },
+            None => PolicyCheckResult::Allowed,
         }
     }
 }
@@ -80,6 +99,7 @@ impl ScopedPolicyEnforcer for InMemoryPolicyEnforcer {
         actor: &Did,
         scope: Option<&NodeScope>,
         proof: Option<&ZkCredentialProof>,
+        revocation: Option<&ZkRevocationProof>,
     ) -> PolicyCheckResult {
         match op {
             DagPayloadOp::SubmitBlock => {
@@ -91,14 +111,14 @@ impl ScopedPolicyEnforcer for InMemoryPolicyEnforcer {
                             .map(|m| m.contains(actor))
                             .unwrap_or(false)
                         {
-                            self.validate_proof(proof)
+                            self.validate_proof(proof, revocation)
                         } else {
                             PolicyCheckResult::Denied {
                                 reason: "actor not in scope".to_string(),
                             }
                         }
                     } else {
-                        self.validate_proof(proof)
+                        self.validate_proof(proof, revocation)
                     }
                 } else {
                     PolicyCheckResult::Denied {
@@ -115,14 +135,14 @@ impl ScopedPolicyEnforcer for InMemoryPolicyEnforcer {
                             .map(|m| m.contains(actor))
                             .unwrap_or(false)
                         {
-                            self.validate_proof(proof)
+                            self.validate_proof(proof, revocation)
                         } else {
                             PolicyCheckResult::Denied {
                                 reason: "actor not in scope".to_string(),
                             }
                         }
                     } else {
-                        self.validate_proof(proof)
+                        self.validate_proof(proof, revocation)
                     }
                 } else {
                     PolicyCheckResult::Denied {
