@@ -43,6 +43,7 @@ static HTTP_BREAKER: Lazy<AsyncMutex<CircuitBreaker<SystemTimeProvider>>> = Lazy
 pub mod dag_trait;
 pub mod federation_trait;
 pub mod governance_trait;
+pub mod identity_trait;
 /// Prometheus metrics helpers
 pub mod metrics;
 use crate::governance_trait::{
