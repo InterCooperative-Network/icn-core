@@ -83,14 +83,13 @@ use tokio::sync::{Mutex as AsyncMutex, Mutex as TokioMutex};
 use uuid::Uuid;
 
 use crate::config::{NodeConfig, StorageBackendType, StorageConfig};
+use icn_runtime::constants::NODE_START_TIME;
 use icn_runtime::context::mesh_network::ZK_VERIFY_COST_MANA;
 
 #[cfg(feature = "enable-libp2p")]
 use icn_network::libp2p_service::{Libp2pNetworkService, NetworkConfig};
 #[cfg(feature = "enable-libp2p")]
 use libp2p::Multiaddr;
-
-static NODE_START_TIME: AtomicU64 = AtomicU64::new(0);
 
 // Initialize node start time (call this when the node starts)
 fn init_node_start_time() {
