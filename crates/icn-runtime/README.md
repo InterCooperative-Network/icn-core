@@ -96,6 +96,13 @@ async fn finalize_proposal(ctx: &RuntimeContext, pid: &str) -> Result<(), icn_ru
 }
 ```
 
+### Zero-Knowledge Proofs
+
+`host_verify_zk_proof` validates a serialized `ZkCredentialProof` and returns
+`true` when the proof is valid for the selected backend. `host_generate_zk_proof`
+emits a dummy proof for testing. WASM modules can call these via the
+`wasm_host_verify_zk_proof` and `wasm_host_generate_zk_proof` helpers.
+
 ## Mana Regeneration
 
 `RuntimeContext` can automatically replenish mana. Use

@@ -32,6 +32,7 @@ extern crate bincode;
 use icn_common::{Cid, CommonError, Did, NodeInfo};
 use icn_mesh::JobId;
 use icn_reputation::ReputationStore;
+use serde::Deserialize;
 use log::{debug, error, info, warn};
 use std::str::FromStr;
 use thiserror::Error;
@@ -67,6 +68,17 @@ impl From<CommonError> for RuntimeError {
 }
 
 pub const MAX_JOB_JSON_SIZE: usize = 1024 * 1024; // 1MB
+
+#[derive(Deserialize)]
+struct GenerateProofRequest {
+    issuer: String,
+    holder: String,
+    claim_type: String,
+    schema: String,
+    backend: String,
+    verification_key: Option<String>,
+    public_inputs: Option<serde_json::Value>,
+}
 
 pub fn execute_icn_script(info: &NodeInfo, script_id: &str) -> Result<String, CommonError> {
     // Stub implementation
@@ -512,6 +524,62 @@ pub fn wasm_host_account_spend_mana(
     }
 }
 
+/// WASM wrapper for [`host_verify_zk_proof`].
+pub fn wasm_host_verify_zk_proof(
+    mut caller: wasmtime::Caller<'_, std::sync::Arc<RuntimeContext>>,
+    ptr: u32,
+    len: u32,
+) -> i32 {
+    let json = match memory::read_string_safe(&mut caller, ptr, len) {
+        Ok(j) => j,
+        Err(e) => {
+            log::error!("wasm_host_verify_zk_proof read error: {e:?}");
+            return 0;
+        }
+    };
+    let handle = tokio::runtime::Handle::current();
+    match handle.block_on(host_verify_zk_proof(caller.data(), &json)) {
+        Ok(true) => 1,
+        Ok(false) => 0,
+        Err(e) => {
+            log::error!("wasm_host_verify_zk_proof runtime error: {e:?}");
+            0
+        }
+    }
+}
+
+/// WASM wrapper for [`host_generate_zk_proof`].
+pub fn wasm_host_generate_zk_proof(
+    mut caller: wasmtime::Caller<'_, std::sync::Arc<RuntimeContext>>,
+    ptr: u32,
+    len: u32,
+    out_ptr: u32,
+    out_len: u32,
+) -> u32 {
+    let json = match memory::read_string_safe(&mut caller, ptr, len) {
+        Ok(j) => j,
+        Err(e) => {
+            log::error!("wasm_host_generate_zk_proof read error: {e:?}");
+            return 0;
+        }
+    };
+    let handle = tokio::runtime::Handle::current();
+    let proof_json = match handle.block_on(host_generate_zk_proof(caller.data(), &json)) {
+        Ok(p) => p,
+        Err(e) => {
+            log::error!("wasm_host_generate_zk_proof runtime error: {e:?}");
+            return 0;
+        }
+    };
+    match memory::write_string_limited(&mut caller, out_ptr, &proof_json, out_len) {
+        Ok(w) => w,
+        Err(e) => {
+            log::error!("wasm_host_generate_zk_proof write error: {e:?}");
+            0
+        }
+    }
+}
+
 /// Creates a governance proposal using the runtime context.
 pub async fn host_create_governance_proposal(
     ctx: &RuntimeContext,
@@ -621,6 +689,83 @@ pub async fn host_get_job_status(
         }
         None => Ok(None),
     }
+}
+
+/// Verify a zero-knowledge credential proof.
+pub async fn host_verify_zk_proof(
+    _ctx: &RuntimeContext,
+    proof_json: &str,
+) -> Result<bool, HostAbiError> {
+    use icn_common::{ZkCredentialProof, ZkProofType};
+    use icn_identity::{BulletproofsVerifier, DummyVerifier, Groth16Verifier, ZkVerifier};
+
+    let proof: ZkCredentialProof = serde_json::from_str(proof_json).map_err(|e| {
+        HostAbiError::InvalidParameters(format!("Invalid ZkCredentialProof JSON: {e}"))
+    })?;
+
+    let verifier: Box<dyn ZkVerifier> = match proof.backend {
+        ZkProofType::Bulletproofs => Box::new(BulletproofsVerifier::default()),
+        ZkProofType::Groth16 => Box::new(Groth16Verifier::default()),
+        _ => Box::new(DummyVerifier::default()),
+    };
+
+    verifier
+        .verify(&proof)
+        .map_err(|e| HostAbiError::InvalidParameters(format!("{e}")))
+}
+
+/// Generate a dummy zero-knowledge credential proof.
+pub async fn host_generate_zk_proof(
+    _ctx: &RuntimeContext,
+    request_json: &str,
+) -> Result<String, HostAbiError> {
+    use icn_common::{parse_cid_from_string, ZkCredentialProof, ZkProofType};
+    use std::str::FromStr;
+
+    let req: GenerateProofRequest = serde_json::from_str(request_json).map_err(|e| {
+        HostAbiError::InvalidParameters(format!("Invalid GenerateProofRequest JSON: {e}"))
+    })?;
+
+    let issuer = Did::from_str(&req.issuer)
+        .map_err(|e| HostAbiError::InvalidParameters(format!("Invalid issuer DID: {e}")))?;
+    let holder = Did::from_str(&req.holder)
+        .map_err(|e| HostAbiError::InvalidParameters(format!("Invalid holder DID: {e}")))?;
+    let schema = parse_cid_from_string(&req.schema)
+        .map_err(|e| HostAbiError::InvalidParameters(format!("Invalid schema CID: {e}")))?;
+
+    let backend = match req.backend.to_ascii_lowercase().as_str() {
+        "groth16" => ZkProofType::Groth16,
+        "bulletproofs" => ZkProofType::Bulletproofs,
+        other => ZkProofType::Other(other.to_string()),
+    };
+
+    let mut proof_bytes = vec![0u8; 32];
+    fastrand::fill(&mut proof_bytes);
+
+    let verification_key_bytes = if let Some(vk_hex) = req.verification_key.as_deref() {
+        Some(hex::decode(vk_hex.trim_start_matches("0x")).map_err(|e| {
+            HostAbiError::InvalidParameters(format!("Invalid verification key hex: {e}"))
+        })?)
+    } else {
+        None
+    };
+
+    let proof = ZkCredentialProof {
+        issuer,
+        holder,
+        claim_type: req.claim_type,
+        proof: proof_bytes,
+        schema,
+        vk_cid: None,
+        disclosed_fields: Vec::new(),
+        challenge: None,
+        backend,
+        verification_key: verification_key_bytes,
+        public_inputs: req.public_inputs,
+    };
+
+    serde_json::to_string(&proof)
+        .map_err(|e| HostAbiError::SerializationError(format!("{e}")))
 }
 
 #[cfg(test)]

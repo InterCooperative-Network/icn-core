@@ -25,6 +25,18 @@ pub trait HostEnvironment: Send + Sync + std::fmt::Debug {
         account_did_len: u32,
         amount: u64,
     ) -> Result<(), HostAbiError>;
+    fn env_verify_zk_proof(
+        &self,
+        ctx: &Arc<RuntimeContext>,
+        proof_ptr: u32,
+        proof_len: u32,
+    ) -> Result<bool, HostAbiError>;
+    fn env_generate_zk_proof(
+        &self,
+        ctx: &Arc<RuntimeContext>,
+        request_ptr: u32,
+        request_len: u32,
+    ) -> Result<String, HostAbiError>;
 }
 
 /// Concrete implementation of HostEnvironment.
@@ -133,4 +145,44 @@ impl HostEnvironment for ConcreteHostEnvironment {
         tokio::runtime::Handle::current()
             .block_on(crate::host_account_spend_mana(ctx, did_str, amount))
     }
-} 
+
+    fn env_verify_zk_proof(
+        &self,
+        ctx: &Arc<RuntimeContext>,
+        proof_ptr: u32,
+        proof_len: u32,
+    ) -> Result<bool, HostAbiError> {
+        let start = proof_ptr as usize;
+        let end = start + proof_len as usize;
+        if end > self.memory.len() {
+            return Err(HostAbiError::InvalidParameters(
+                "Proof pointer/length exceeds memory bounds".to_string(),
+            ));
+        }
+        let data = &self.memory[start..end];
+        let json = std::str::from_utf8(data).map_err(|_| {
+            HostAbiError::InvalidParameters("Invalid UTF-8 in proof data".to_string())
+        })?;
+        tokio::runtime::Handle::current().block_on(crate::host_verify_zk_proof(ctx, json))
+    }
+
+    fn env_generate_zk_proof(
+        &self,
+        ctx: &Arc<RuntimeContext>,
+        request_ptr: u32,
+        request_len: u32,
+    ) -> Result<String, HostAbiError> {
+        let start = request_ptr as usize;
+        let end = start + request_len as usize;
+        if end > self.memory.len() {
+            return Err(HostAbiError::InvalidParameters(
+                "Request pointer/length exceeds memory bounds".to_string(),
+            ));
+        }
+        let data = &self.memory[start..end];
+        let json = std::str::from_utf8(data).map_err(|_| {
+            HostAbiError::InvalidParameters("Invalid UTF-8 in request data".to_string())
+        })?;
+        tokio::runtime::Handle::current().block_on(crate::host_generate_zk_proof(ctx, json))
+    }
+}
