@@ -354,8 +354,18 @@ impl Default for Groth16Prover {
     fn default() -> Self {
         use crate::generate_ed25519_keypair;
 
+        use icn_zk::AgeOver18Circuit;
+
         let (sk, _) = generate_ed25519_keypair();
-        let km = Groth16KeyManager::new(&sk).expect("key manager setup");
+        let km = Groth16KeyManager::new(
+            "age_over_18",
+            AgeOver18Circuit {
+                birth_year: 0,
+                current_year: 0,
+            },
+            &sk,
+        )
+        .expect("key manager setup");
         Self {
             km,
             reputation_store: std::sync::Arc::new(icn_reputation::InMemoryReputationStore::new()),
@@ -467,6 +477,7 @@ impl ZkProver for Groth16Prover {
 /// The verifier stores a prepared verifying key and the public inputs expected
 /// by the circuit. Proofs are checked using [`ark_groth16::Groth16::verify_proof`].
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct Groth16Verifier {
     vk: ark_groth16::PreparedVerifyingKey<ark_bn254::Bn254>,
     public_inputs: Vec<ark_bn254::Fr>,
@@ -802,7 +813,17 @@ mod tests {
         let mut claims = HashMap::new();
         claims.insert("birth_year".to_string(), "2000".to_string());
 
-        let km = Groth16KeyManager::new(&sk).unwrap();
+        use icn_zk::AgeOver18Circuit;
+
+        let km = Groth16KeyManager::new(
+            "age_over_18",
+            AgeOver18Circuit {
+                birth_year: 0,
+                current_year: 0,
+            },
+            &sk,
+        )
+        .unwrap();
         let verifier_vk = icn_zk::prepare_vk(km.proving_key());
         let issuer =
             CredentialIssuer::new(issuer_did, sk).with_prover(Box::new(Groth16Prover::new(
@@ -881,8 +902,18 @@ mod tests {
     fn verify_proof_invalid_key_signature() {
         use crate::generate_ed25519_keypair;
 
+        use icn_zk::AgeOver18Circuit;
+
         let (sk, pk1) = generate_ed25519_keypair();
-        let km = Groth16KeyManager::new(&sk).unwrap();
+        let km = Groth16KeyManager::new(
+            "age_over_18",
+            AgeOver18Circuit {
+                birth_year: 0,
+                current_year: 0,
+            },
+            &sk,
+        )
+        .unwrap();
         assert!(km.verify_key_signature(&pk1).unwrap());
         // Verification with a different key should fail
         let (_, pk2) = generate_ed25519_keypair();
