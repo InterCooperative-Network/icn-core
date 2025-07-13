@@ -1,0 +1,28 @@
+{
+  "block": {
+    "cid": {
+      "version": 1,
+      "codec": 113,
+      "hash_alg": 18,
+      "hash_bytes": "0xabc123"
+    },
+    "data": "0xdeadbeef",
+    "links": [],
+    "timestamp": 0,
+    "author_did": "did:key:alice",
+    "signature": null,
+    "scope": null
+  },
+  "credential_proof": {
+    "issuer": "did:key:federation",
+    "holder": "did:key:alice",
+    "claim_type": "membership",
+    "proof": "0xabc123",
+    "schema": "bafyschemacid",
+    "disclosed_fields": [],
+    "challenge": null,
+    "backend": "groth16",
+    "verification_key": "0xdeadbeef",
+    "public_inputs": { "membership": true }
+  }
+}

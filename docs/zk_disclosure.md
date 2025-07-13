@@ -104,3 +104,33 @@ Example proof payload referencing a cached key:
   "public_inputs": { "membership": true }
 }
 ```
+
+## Example API Requests
+
+### Verify a Credential Proof
+
+```bash
+curl -X POST https://localhost:8080/identity/verify \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: your-api-key" \
+  --data-binary @docs/examples/zk_membership.json
+```
+
+Returns `{"verified": true}` when the proof is valid.
+
+### Submit a DAG Block with Proof
+
+Operators may require a credential proof when submitting DAG blocks.
+
+```bash
+curl -X POST https://localhost:8080/dag/put \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: your-api-key" \
+  --data-binary @docs/examples/submit_block_with_proof.json
+```
+
+### Enforcing Proofs
+
+Set `require_proof = true` when constructing `InMemoryPolicyEnforcer` to reject
+submissions that lack a valid `credential_proof`. This ensures all identity,
+governance, and DAG operations provide verifiable credentials.

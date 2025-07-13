@@ -1,0 +1,16 @@
+{
+  "proposal_id": "proposal-uuid",
+  "vote": "Yes",
+  "credential_proof": {
+    "issuer": "did:key:federation",
+    "holder": "did:key:member",
+    "claim_type": "membership",
+    "proof": "0xabc123",
+    "schema": "bafyschemacid",
+    "disclosed_fields": [],
+    "challenge": null,
+    "backend": "groth16",
+    "verification_key": "0xdeadbeef",
+    "public_inputs": { "membership": true }
+  }
+}

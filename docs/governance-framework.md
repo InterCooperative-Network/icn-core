@@ -58,6 +58,32 @@ The InterCooperative Network (ICN) governance framework enables communities, coo
 - **Execution Phase**: Automatic policy implementation
 - **Amendment Process**: Iterative improvement and adaptation
 
+#### **Credential Proof Integration**
+Proposals and votes include a `credential_proof` field carrying a
+[`ZkCredentialProof`](../crates/icn-common/src/zk.rs). Nodes verify this
+object before accepting the operation. The same field is used on ballots to
+prove voting eligibility.
+
+Example proposal payload:
+```json
+{
+  "proposer_did": "did:key:alice",
+  "proposal": { "type": "PolicyChange", "title": "open_membership" },
+  "description": "Adopt open membership policy",
+  "duration_secs": 86400,
+  "credential_proof": { "issuer": "did:key:federation", "proof": "0x123" }
+}
+```
+
+Example vote payload:
+```json
+{
+  "proposal_id": "proposal-uuid",
+  "vote": "Yes",
+  "credential_proof": { "issuer": "did:key:federation", "proof": "0x123" }
+}
+```
+
 #### **2. Voting Mechanisms**
 - **Simple Majority**: Basic democratic decisions
 - **Supermajority**: Constitutional changes and critical decisions
