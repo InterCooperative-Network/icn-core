@@ -32,8 +32,8 @@ extern crate bincode;
 use icn_common::{Cid, CommonError, Did, NodeInfo};
 use icn_mesh::JobId;
 use icn_reputation::ReputationStore;
-use serde::Deserialize;
 use log::{debug, error, info, warn};
+use serde::Deserialize;
 use std::str::FromStr;
 use thiserror::Error;
 
@@ -728,9 +728,9 @@ pub async fn host_verify_zk_proof(
     })?;
 
     let verifier: Box<dyn ZkVerifier> = match proof.backend {
-        ZkProofType::Bulletproofs => Box::new(BulletproofsVerifier::default()),
+        ZkProofType::Bulletproofs => Box::new(BulletproofsVerifier),
         ZkProofType::Groth16 => Box::new(Groth16Verifier::default()),
-        _ => Box::new(DummyVerifier::default()),
+        _ => Box::new(DummyVerifier),
     };
 
     verifier
@@ -744,17 +744,17 @@ pub async fn host_verify_zk_revocation_proof(
     proof_json: &str,
 ) -> Result<bool, HostAbiError> {
     use icn_common::{ZkProofType, ZkRevocationProof};
-    use icn_identity::{BulletproofsVerifier, DummyVerifier, Groth16Verifier};
     use icn_identity::zk::ZkRevocationVerifier;
+    use icn_identity::{BulletproofsVerifier, DummyVerifier, Groth16Verifier};
 
     let proof: ZkRevocationProof = serde_json::from_str(proof_json).map_err(|e| {
         HostAbiError::InvalidParameters(format!("Invalid ZkRevocationProof JSON: {e}"))
     })?;
 
     let verifier: Box<dyn ZkRevocationVerifier> = match proof.backend {
-        ZkProofType::Bulletproofs => Box::new(BulletproofsVerifier::default()),
+        ZkProofType::Bulletproofs => Box::new(BulletproofsVerifier),
         ZkProofType::Groth16 => Box::new(Groth16Verifier::default()),
-        _ => Box::new(DummyVerifier::default()),
+        _ => Box::new(DummyVerifier),
     };
 
     verifier
@@ -812,8 +812,7 @@ pub async fn host_generate_zk_proof(
         public_inputs: req.public_inputs,
     };
 
-    serde_json::to_string(&proof)
-        .map_err(|e| HostAbiError::SerializationError(format!("{e}")))
+    serde_json::to_string(&proof).map_err(|e| HostAbiError::SerializationError(format!("{e}")))
 }
 
 #[cfg(test)]

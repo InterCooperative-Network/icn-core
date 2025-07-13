@@ -2881,14 +2881,13 @@ async fn zk_verify_handler(
         .spend_mana(&state.runtime_context.current_identity, ZK_VERIFY_COST_MANA)
         .await
     {
-        return map_rust_error_to_json_response(e, StatusCode::BAD_REQUEST)
-            .into_response();
+        return map_rust_error_to_json_response(e, StatusCode::BAD_REQUEST).into_response();
     }
 
     let verifier: Box<dyn ZkVerifier> = match proof.backend {
-        ZkProofType::Bulletproofs => Box::new(BulletproofsVerifier::default()),
+        ZkProofType::Bulletproofs => Box::new(BulletproofsVerifier),
         ZkProofType::Groth16 => Box::new(Groth16Verifier::default()),
-        _ => Box::new(DummyVerifier::default()),
+        _ => Box::new(DummyVerifier),
     };
 
     match verifier.verify(&proof) {
