@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/icn-zk/src/lib.rs`."><title>lib.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-1a91846b.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="icn_zk" data-themes="" data-resource-suffix="" data-rustdoc-version="1.88.0 (6b00bc388 2025-06-23)" data-channel="1.88.0" data-search-js="search-f7877310.js" data-settings-js="settings-5514c975.js" ><script src="../../static.files/storage-4e99c027.js"></script><script defer src="../../static.files/src-script-63605ae7.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-7ef8a74a.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">icn_zk/</div>lib.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-2"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="doccomment">//! Reusable zero-knowledge circuits for ICN credential proofs.
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/icn-zk/src/lib.rs`."><title>lib.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-1a91846b.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="icn_zk" data-themes="" data-resource-suffix="" data-rustdoc-version="1.88.0 (6b00bc388 2025-06-23)" data-channel="1.88.0" data-search-js="search-f7877310.js" data-settings-js="settings-5514c975.js" ><script src="../../static.files/storage-4e99c027.js"></script><script defer src="../../static.files/src-script-63605ae7.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-7ef8a74a.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">icn_zk/</div>lib.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="doccomment">//! Reusable zero-knowledge circuits for ICN credential proofs.
 <a href=#2 id=2 data-nosnippet>2</a>
 <a href=#3 id=3 data-nosnippet>3</a></span><span class="kw">use </span>ark_bn254::{Bn254, Fr};
 <a href=#4 id=4 data-nosnippet>4</a><span class="kw">use </span>ark_groth16::{Groth16, PreparedVerifyingKey, Proof, ProvingKey};
@@ -60,32 +60,50 @@
 <a href=#60 id=60 data-nosnippet>60</a>    Groth16::&lt;Bn254&gt;::prove(pk, circuit, rng)
 <a href=#61 id=61 data-nosnippet>61</a>}
 <a href=#62 id=62 data-nosnippet>62</a>
-<a href=#63 id=63 data-nosnippet>63</a><span class="doccomment">/// Prepare the verifying key for use in verification.
-<a href=#64 id=64 data-nosnippet>64</a></span><span class="kw">pub fn </span>prepare_vk(pk: <span class="kw-2">&amp;</span>ProvingKey&lt;Bn254&gt;) -&gt; PreparedVerifyingKey&lt;Bn254&gt; {
-<a href=#65 id=65 data-nosnippet>65</a>    Groth16::&lt;Bn254&gt;::process_vk(<span class="kw-2">&amp;</span>pk.vk).unwrap()
-<a href=#66 id=66 data-nosnippet>66</a>}
-<a href=#67 id=67 data-nosnippet>67</a>
-<a href=#68 id=68 data-nosnippet>68</a><span class="doccomment">/// Verify a Groth16 proof with the given verifying key and public inputs.
-<a href=#69 id=69 data-nosnippet>69</a></span><span class="kw">pub fn </span>verify(
-<a href=#70 id=70 data-nosnippet>70</a>    vk: <span class="kw-2">&amp;</span>PreparedVerifyingKey&lt;Bn254&gt;,
-<a href=#71 id=71 data-nosnippet>71</a>    proof: <span class="kw-2">&amp;</span>Proof&lt;Bn254&gt;,
-<a href=#72 id=72 data-nosnippet>72</a>    public_inputs: <span class="kw-2">&amp;</span>[Fr],
-<a href=#73 id=73 data-nosnippet>73</a>) -&gt; <span class="prelude-ty">Result</span>&lt;bool, SynthesisError&gt; {
-<a href=#74 id=74 data-nosnippet>74</a>    Groth16::&lt;Bn254&gt;::verify_with_processed_vk(vk, public_inputs, proof)
-<a href=#75 id=75 data-nosnippet>75</a>}
-<a href=#76 id=76 data-nosnippet>76</a>
-<a href=#77 id=77 data-nosnippet>77</a><span class="doccomment">/// Verify multiple Groth16 proofs with a single verifying key.
-<a href=#78 id=78 data-nosnippet>78</a>/// Returns `Ok(true)` if all proofs succeed.
-<a href=#79 id=79 data-nosnippet>79</a></span><span class="kw">pub fn </span>verify_batch&lt;<span class="lifetime">'a</span>&gt;(
-<a href=#80 id=80 data-nosnippet>80</a>    vk: <span class="kw-2">&amp;</span>PreparedVerifyingKey&lt;Bn254&gt;,
-<a href=#81 id=81 data-nosnippet>81</a>    batch: <span class="kw-2">&amp;</span>[(<span class="kw-2">&amp;</span><span class="lifetime">'a </span>Proof&lt;Bn254&gt;, <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[Fr])],
-<a href=#82 id=82 data-nosnippet>82</a>) -&gt; <span class="prelude-ty">Result</span>&lt;bool, SynthesisError&gt; {
-<a href=#83 id=83 data-nosnippet>83</a>    batch
-<a href=#84 id=84 data-nosnippet>84</a>        .par_iter()
-<a href=#85 id=85 data-nosnippet>85</a>        .map(|(proof, inputs)| Groth16::&lt;Bn254&gt;::verify_with_processed_vk(vk, inputs, proof))
-<a href=#86 id=86 data-nosnippet>86</a>        .collect::&lt;<span class="prelude-ty">Result</span>&lt;Vec&lt;<span class="kw">_</span>&gt;, <span class="kw">_</span>&gt;&gt;()
-<a href=#87 id=87 data-nosnippet>87</a>        .map(|results| results.into_iter().all(|r| r))
-<a href=#88 id=88 data-nosnippet>88</a>}
-<a href=#89 id=89 data-nosnippet>89</a>
-<a href=#90 id=90 data-nosnippet>90</a><span class="attr">#[cfg(test)]
-<a href=#91 id=91 data-nosnippet>91</a></span><span class="kw">mod </span>tests;</code></pre></div></section></main></body></html>
+<a href=#63 id=63 data-nosnippet>63</a><span class="doccomment">/// Create Groth16 proofs for multiple circuits in parallel.
+<a href=#64 id=64 data-nosnippet>64</a></span><span class="kw">pub fn </span>prove_batch&lt;C&gt;(
+<a href=#65 id=65 data-nosnippet>65</a>    pk: <span class="kw-2">&amp;</span>ProvingKey&lt;Bn254&gt;,
+<a href=#66 id=66 data-nosnippet>66</a>    circuits: <span class="kw-2">&amp;</span>[C],
+<a href=#67 id=67 data-nosnippet>67</a>) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;Proof&lt;Bn254&gt;&gt;, SynthesisError&gt;
+<a href=#68 id=68 data-nosnippet>68</a><span class="kw">where
+<a href=#69 id=69 data-nosnippet>69</a>    </span>C: ConstraintSynthesizer&lt;Fr&gt; + Clone + Send + Sync,
+<a href=#70 id=70 data-nosnippet>70</a>{
+<a href=#71 id=71 data-nosnippet>71</a>    circuits
+<a href=#72 id=72 data-nosnippet>72</a>        .par_iter()
+<a href=#73 id=73 data-nosnippet>73</a>        .cloned()
+<a href=#74 id=74 data-nosnippet>74</a>        .map(|c| {
+<a href=#75 id=75 data-nosnippet>75</a>            <span class="kw">let </span><span class="kw-2">mut </span>rng = ark_std::rand::rngs::OsRng;
+<a href=#76 id=76 data-nosnippet>76</a>            Groth16::&lt;Bn254&gt;::prove(pk, c, <span class="kw-2">&amp;mut </span>rng)
+<a href=#77 id=77 data-nosnippet>77</a>        })
+<a href=#78 id=78 data-nosnippet>78</a>        .collect()
+<a href=#79 id=79 data-nosnippet>79</a>}
+<a href=#80 id=80 data-nosnippet>80</a>
+<a href=#81 id=81 data-nosnippet>81</a><span class="doccomment">/// Prepare the verifying key for use in verification.
+<a href=#82 id=82 data-nosnippet>82</a></span><span class="kw">pub fn </span>prepare_vk(pk: <span class="kw-2">&amp;</span>ProvingKey&lt;Bn254&gt;) -&gt; PreparedVerifyingKey&lt;Bn254&gt; {
+<a href=#83 id=83 data-nosnippet>83</a>    Groth16::&lt;Bn254&gt;::process_vk(<span class="kw-2">&amp;</span>pk.vk).unwrap()
+<a href=#84 id=84 data-nosnippet>84</a>}
+<a href=#85 id=85 data-nosnippet>85</a>
+<a href=#86 id=86 data-nosnippet>86</a><span class="doccomment">/// Verify a Groth16 proof with the given verifying key and public inputs.
+<a href=#87 id=87 data-nosnippet>87</a></span><span class="kw">pub fn </span>verify(
+<a href=#88 id=88 data-nosnippet>88</a>    vk: <span class="kw-2">&amp;</span>PreparedVerifyingKey&lt;Bn254&gt;,
+<a href=#89 id=89 data-nosnippet>89</a>    proof: <span class="kw-2">&amp;</span>Proof&lt;Bn254&gt;,
+<a href=#90 id=90 data-nosnippet>90</a>    public_inputs: <span class="kw-2">&amp;</span>[Fr],
+<a href=#91 id=91 data-nosnippet>91</a>) -&gt; <span class="prelude-ty">Result</span>&lt;bool, SynthesisError&gt; {
+<a href=#92 id=92 data-nosnippet>92</a>    Groth16::&lt;Bn254&gt;::verify_with_processed_vk(vk, public_inputs, proof)
+<a href=#93 id=93 data-nosnippet>93</a>}
+<a href=#94 id=94 data-nosnippet>94</a>
+<a href=#95 id=95 data-nosnippet>95</a><span class="doccomment">/// Verify multiple Groth16 proofs with a single verifying key.
+<a href=#96 id=96 data-nosnippet>96</a>/// Returns `Ok(true)` if all proofs succeed.
+<a href=#97 id=97 data-nosnippet>97</a></span><span class="kw">pub fn </span>verify_batch&lt;<span class="lifetime">'a</span>&gt;(
+<a href=#98 id=98 data-nosnippet>98</a>    vk: <span class="kw-2">&amp;</span>PreparedVerifyingKey&lt;Bn254&gt;,
+<a href=#99 id=99 data-nosnippet>99</a>    batch: <span class="kw-2">&amp;</span>[(<span class="kw-2">&amp;</span><span class="lifetime">'a </span>Proof&lt;Bn254&gt;, <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[Fr])],
+<a href=#100 id=100 data-nosnippet>100</a>) -&gt; <span class="prelude-ty">Result</span>&lt;bool, SynthesisError&gt; {
+<a href=#101 id=101 data-nosnippet>101</a>    batch
+<a href=#102 id=102 data-nosnippet>102</a>        .par_iter()
+<a href=#103 id=103 data-nosnippet>103</a>        .map(|(proof, inputs)| Groth16::&lt;Bn254&gt;::verify_with_processed_vk(vk, inputs, proof))
+<a href=#104 id=104 data-nosnippet>104</a>        .collect::&lt;<span class="prelude-ty">Result</span>&lt;Vec&lt;<span class="kw">_</span>&gt;, <span class="kw">_</span>&gt;&gt;()
+<a href=#105 id=105 data-nosnippet>105</a>        .map(|results| results.into_iter().all(|r| r))
+<a href=#106 id=106 data-nosnippet>106</a>}
+<a href=#107 id=107 data-nosnippet>107</a>
+<a href=#108 id=108 data-nosnippet>108</a><span class="attr">#[cfg(test)]
+<a href=#109 id=109 data-nosnippet>109</a></span><span class="kw">mod </span>tests;</code></pre></div></section></main></body></html>
