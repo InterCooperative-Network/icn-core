@@ -78,6 +78,45 @@ When called from WASM, use the `wasm_host_verify_zk_proof` and
 `wasm_host_generate_zk_proof` wrappers which handle passing strings in and out
 of guest memory.
 
+### Example: Generate and Verify
+
+The host API expects JSON strings. A minimal request to `host_generate_zk_proof`
+looks like this:
+
+```json
+{
+  "issuer": "did:key:issuer",
+  "holder": "did:key:holder",
+  "claim_type": "test",
+  "schema": "bafyschema",
+  "backend": "dummy"
+}
+```
+
+`host_generate_zk_proof` returns a JSON `ZkCredentialProof` which can be passed
+directly to `host_verify_zk_proof`:
+
+```json
+{
+  "issuer": "did:key:issuer",
+  "holder": "did:key:holder",
+  "claim_type": "test",
+  "proof": [0, 1, 2],
+  "schema": "bafyschema",
+  "disclosed_fields": [],
+  "challenge": null,
+  "backend": "dummy",
+  "verification_key": null,
+  "public_inputs": null
+}
+```
+
+Invoking `host_verify_zk_proof` with this response yields the boolean result:
+
+```json
+true
+```
+
 ## Production Verification
 
 Production nodes must verify the authenticity of the Groth16 verifying key
