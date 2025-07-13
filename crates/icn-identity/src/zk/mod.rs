@@ -156,7 +156,14 @@ impl ZkProver for BulletproofsProver {
 /// Prover implementation for Groth16 proofs using circuits from `icn-zk`.
 #[derive(Debug)]
 pub struct Groth16Prover {
-    pk_age_over_18: ark_groth16::ProvingKey<ark_bn254::Bn254>,
+    pk: ark_groth16::ProvingKey<ark_bn254::Bn254>,
+}
+
+impl Groth16Prover {
+    /// Create a new prover wrapping the provided proving key.
+    pub fn new(pk: ark_groth16::ProvingKey<ark_bn254::Bn254>) -> Self {
+        Self { pk }
+    }
 }
 
 impl Default for Groth16Prover {
@@ -170,9 +177,9 @@ impl Default for Groth16Prover {
             current_year: 2020,
         };
         let mut rng = StdRng::seed_from_u64(42);
-        let pk_age_over_18 = setup(circuit, &mut rng).expect("setup");
+        let pk = setup(circuit, &mut rng).expect("setup");
 
-        Self { pk_age_over_18 }
+        Self { pk }
     }
 }
 
@@ -184,23 +191,52 @@ impl ZkProver for Groth16Prover {
     ) -> Result<ZkCredentialProof, ZkError> {
         use ark_serialize::CanonicalSerialize;
         use ark_std::rand::{rngs::StdRng, SeedableRng};
-        use icn_zk::{prove, AgeOver18Circuit};
+        use icn_zk::{prove, AgeOver18Circuit, MembershipCircuit, ReputationCircuit};
 
-        // Parse the birth year claim from the credential
-        let birth_year = credential
-            .claims
-            .get("birth_year")
-            .and_then(|v| v.parse::<u64>().ok())
-            .ok_or(ZkError::VerificationFailed)?;
-
-        let circuit = AgeOver18Circuit {
-            birth_year,
-            current_year: 2020,
-        };
-
+        // Determine which circuit to prove based on available claims
         let mut rng = StdRng::seed_from_u64(42);
-        let proof_obj = prove(&self.pk_age_over_18, circuit, &mut rng)
-            .map_err(|_| ZkError::VerificationFailed)?;
+        let (claim_type, proof_obj) = if let Some(val) = credential.claims.get("birth_year") {
+            let birth_year = val
+                .parse::<u64>()
+                .map_err(|_| ZkError::VerificationFailed)?;
+            (
+                "age_over_18".to_string(),
+                prove(
+                    &self.pk,
+                    AgeOver18Circuit {
+                        birth_year,
+                        current_year: 2020,
+                    },
+                    &mut rng,
+                )
+                .map_err(|_| ZkError::VerificationFailed)?,
+            )
+        } else if let Some(val) = credential.claims.get("is_member") {
+            let is_member = matches!(val.as_str(), "true" | "1");
+            (
+                "membership".to_string(),
+                prove(&self.pk, MembershipCircuit { is_member }, &mut rng)
+                    .map_err(|_| ZkError::VerificationFailed)?,
+            )
+        } else if let Some(val) = credential.claims.get("reputation") {
+            let reputation = val
+                .parse::<u64>()
+                .map_err(|_| ZkError::VerificationFailed)?;
+            (
+                "reputation".to_string(),
+                prove(
+                    &self.pk,
+                    ReputationCircuit {
+                        reputation,
+                        threshold: 5,
+                    },
+                    &mut rng,
+                )
+                .map_err(|_| ZkError::VerificationFailed)?,
+            )
+        } else {
+            return Err(ZkError::VerificationFailed);
+        };
 
         let mut bytes = Vec::new();
         proof_obj
@@ -210,15 +246,18 @@ impl ZkProver for Groth16Prover {
         Ok(ZkCredentialProof {
             issuer: credential.issuer.clone(),
             holder: credential.holder.clone(),
-            claim_type: "age_over_18".into(),
+            claim_type,
             proof: bytes,
             schema: credential
                 .schema
                 .clone()
                 .unwrap_or_else(|| Cid::new_v1_sha256(0x55, b"groth16")),
+            vk_cid: None,
             disclosed_fields: fields.iter().map(|f| f.to_string()).collect(),
             challenge: None,
             backend: ZkProofType::Groth16,
+            verification_key: None,
+            public_inputs: None,
         })
     }
 }
@@ -395,9 +434,12 @@ mod tests {
             claim_type: "age_over_18".into(),
             proof: bytes,
             schema: dummy_cid("schema"),
+            vk_cid: None,
             disclosed_fields: Vec::new(),
             challenge: None,
             backend: ZkProofType::Groth16,
+            verification_key: None,
+            public_inputs: None,
         };
 
         let verifier = Groth16Verifier::default();
@@ -415,8 +457,8 @@ mod tests {
         let mut claims = HashMap::new();
         claims.insert("birth_year".to_string(), "2000".to_string());
 
-        let issuer = CredentialIssuer::new(issuer_did, sk)
-            .with_prover(Box::new(Groth16Prover::default()));
+        let issuer =
+            CredentialIssuer::new(issuer_did, sk).with_prover(Box::new(Groth16Prover::default()));
         let (_, proof_opt) = issuer
             .issue(holder_did, claims, Some(dummy_cid("schema")), Some(&[]))
             .unwrap();
