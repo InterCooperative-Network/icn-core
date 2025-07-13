@@ -58,6 +58,10 @@ pub struct SelectionPolicy {
 /// Governance cost constants.
 pub const PROPOSAL_COST_MANA: u64 = 10;
 pub const VOTE_COST_MANA: u64 = 1;
+/// Mana cost charged for verifying a zero-knowledge proof.
+pub const ZK_VERIFY_COST_MANA: u64 = 2;
+/// Mana cost charged for generating a zero-knowledge proof.
+pub const ZK_GENERATE_COST_MANA: u64 = 2;
 
 /// Mesh network service trait for handling mesh jobs, proposals, and votes.
 /// Using async_trait to make it object-safe

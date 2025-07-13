@@ -20,8 +20,8 @@ pub use host_environment::{ConcreteHostEnvironment, HostEnvironment};
 pub use mana::{LedgerBackend, ManaRepository, SimpleManaLedger};
 pub use mesh_network::{
     DefaultMeshNetworkService, JobAssignmentNotice, LocalMeshSubmitReceiptMessage,
-    MeshJobStateChange, MeshNetworkService, SelectionPolicy, BidId,
-    PROPOSAL_COST_MANA, VOTE_COST_MANA,
+    MeshJobStateChange, MeshNetworkService, SelectionPolicy, BidId, PROPOSAL_COST_MANA,
+    VOTE_COST_MANA, ZK_GENERATE_COST_MANA, ZK_VERIFY_COST_MANA,
 };
 pub use runtime_context::{
     RuntimeContext, RuntimeContextParams, MeshNetworkServiceType, CreateProposalPayload, CastVotePayload, CloseProposalResult,

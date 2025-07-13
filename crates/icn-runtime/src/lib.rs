@@ -717,7 +717,7 @@ pub async fn host_get_job_status(
 
 /// Verify a zero-knowledge credential proof.
 pub async fn host_verify_zk_proof(
-    _ctx: &RuntimeContext,
+    ctx: &RuntimeContext,
     proof_json: &str,
 ) -> Result<bool, HostAbiError> {
     use icn_common::{ZkCredentialProof, ZkProofType};
@@ -727,15 +727,29 @@ pub async fn host_verify_zk_proof(
         HostAbiError::InvalidParameters(format!("Invalid ZkCredentialProof JSON: {e}"))
     })?;
 
+    ctx.spend_mana(&ctx.current_identity, context::ZK_VERIFY_COST_MANA).await?;
+
     let verifier: Box<dyn ZkVerifier> = match proof.backend {
         ZkProofType::Bulletproofs => Box::new(BulletproofsVerifier::default()),
         ZkProofType::Groth16 => Box::new(Groth16Verifier::default()),
         _ => Box::new(DummyVerifier::default()),
     };
 
-    verifier
-        .verify(&proof)
-        .map_err(|e| HostAbiError::InvalidParameters(format!("{e}")))
+    match verifier.verify(&proof) {
+        Ok(true) => Ok(true),
+        Ok(false) => {
+            ctx
+                .credit_mana(&ctx.current_identity, context::ZK_VERIFY_COST_MANA)
+                .await?;
+            Ok(false)
+        }
+        Err(e) => {
+            ctx
+                .credit_mana(&ctx.current_identity, context::ZK_VERIFY_COST_MANA)
+                .await?;
+            Err(HostAbiError::InvalidParameters(format!("{e}")))
+        }
+    }
 }
 
 /// Verify a zero-knowledge revocation proof.
@@ -764,7 +778,7 @@ pub async fn host_verify_zk_revocation_proof(
 
 /// Generate a dummy zero-knowledge credential proof.
 pub async fn host_generate_zk_proof(
-    _ctx: &RuntimeContext,
+    ctx: &RuntimeContext,
     request_json: &str,
 ) -> Result<String, HostAbiError> {
     use icn_common::{parse_cid_from_string, ZkCredentialProof, ZkProofType};
@@ -773,6 +787,8 @@ pub async fn host_generate_zk_proof(
     let req: GenerateProofRequest = serde_json::from_str(request_json).map_err(|e| {
         HostAbiError::InvalidParameters(format!("Invalid GenerateProofRequest JSON: {e}"))
     })?;
+
+    ctx.spend_mana(&ctx.current_identity, context::ZK_GENERATE_COST_MANA).await?;
 
     let issuer = Did::from_str(&req.issuer)
         .map_err(|e| HostAbiError::InvalidParameters(format!("Invalid issuer DID: {e}")))?;
