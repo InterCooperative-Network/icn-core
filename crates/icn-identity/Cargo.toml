@@ -29,6 +29,8 @@ ark-groth16 = "0.4"
 ark-bn254 = "0.4"
 ark-serialize = "0.4"
 ark-std = "0.4"
+once_cell = "1.21"
+lru = "0.16"
 directories-next = "2"
 
 # Ensure old ones are removed if they conflict or are replaced

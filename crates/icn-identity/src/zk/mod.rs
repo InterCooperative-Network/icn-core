@@ -11,6 +11,9 @@ use thiserror::Error;
 pub mod key_manager;
 pub use key_manager::Groth16KeyManager;
 
+pub mod vk_cache;
+pub use vk_cache::PreparedVkCache;
+
 /// Errors that can occur when verifying zero-knowledge proofs.
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum ZkError {
@@ -445,8 +448,14 @@ impl ZkVerifier for Groth16Verifier {
         let groth_proof = Proof::<ark_bn254::Bn254>::deserialize_compressed(proof.proof.as_slice())
             .map_err(|_| ZkError::InvalidProof)?;
 
+        let vk = if let Some(bytes) = proof.verification_key.as_deref() {
+            PreparedVkCache::get_or_insert(bytes)?
+        } else {
+            self.vk.clone()
+        };
+
         ark_groth16::Groth16::<ark_bn254::Bn254>::verify_proof(
-            &self.vk,
+            &vk,
             &groth_proof,
             &self.public_inputs,
         )
