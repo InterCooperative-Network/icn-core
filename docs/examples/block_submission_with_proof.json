@@ -1,0 +1,15 @@
+{
+  "data": "aGVsbG8=",
+  "credential_proof": {
+    "issuer": "did:key:federation",
+    "holder": "did:key:alice",
+    "claim_type": "membership",
+    "proof": "0x1234",
+    "schema": "bafyschemacid",
+    "disclosed_fields": [],
+    "challenge": null,
+    "backend": "groth16",
+    "verification_key": "0x1234",
+    "public_inputs": { "membership": true }
+  }
+}

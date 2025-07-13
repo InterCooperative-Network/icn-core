@@ -62,3 +62,29 @@ See [`docs/examples/zk_membership.json`](examples/zk_membership.json) for a memb
 `~/.icn/zk/`, and signs the verifying key with an Ed25519 key. Use
 `load_proving_key` and `verify_key_signature` to access the stored parameters
 and confirm their authenticity.
+
+## Example API Usage with Proofs
+
+The `/identity/verify` endpoint allows a node to validate a credential proof
+before it is attached to another operation. Submit the proof JSON directly:
+
+```bash
+curl -X POST https://localhost:8080/identity/verify \
+  -H "Content-Type: application/json" \
+  -d @docs/examples/zk_membership.json
+```
+
+Credential proofs can also accompany DAG block submissions. Include the object
+under the `credential_proof` field when calling the block submission endpoint:
+
+```bash
+curl -X POST https://localhost:8080/dag/put \
+  -H "Content-Type: application/json" \
+  -d '{
+    "data": "aGVsbG8=",
+    "credential_proof": { /* proof fields */ }
+  }'
+```
+
+See [`docs/examples/block_submission_with_proof.json`](examples/block_submission_with_proof.json)
+for a complete payload.

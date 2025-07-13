@@ -72,6 +72,19 @@ The InterCooperative Network (ICN) governance framework enables communities, coo
 - **Revocable Trust**: Withdraw delegation at any time
 - **Transitive Delegation**: Delegates can further delegate
 
+### **Credential Proof Payloads**
+
+Governance operations accept an optional `credential_proof` field that carries a
+[`ZkCredentialProof`](zk_disclosure.md) object. Proposals and ballots include this
+field to demonstrate that the submitter or voter meets membership requirements.
+Operators can enforce mandatory proofs by enabling `require_proof` in the
+`InMemoryPolicyEnforcer` configuration. When enabled, nodes reject submissions
+that omit a valid proof.
+
+See [`docs/examples/proposal_with_zk_proof.json`](examples/proposal_with_zk_proof.json)
+and [`docs/examples/vote_with_zk_proof.json`](examples/vote_with_zk_proof.json)
+for example payloads.
+
 ---
 
 ## 🗳️ **Governance Primitives**
