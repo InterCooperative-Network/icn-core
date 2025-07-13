@@ -86,6 +86,9 @@ use icn_network::libp2p_service::{Libp2pNetworkService, NetworkConfig};
 #[cfg(feature = "enable-libp2p")]
 use libp2p::Multiaddr;
 
+/// Mana cost charged for verifying a zero-knowledge proof.
+const ZK_VERIFY_COST_MANA: u64 = 2;
+
 static NODE_START_TIME: AtomicU64 = AtomicU64::new(0);
 
 // Initialize node start time (call this when the node starts)
@@ -2816,12 +2819,21 @@ async fn reputation_handler(
 
 // POST /identity/verify - verify a zero-knowledge credential proof
 async fn zk_verify_handler(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Json(proof): Json<icn_common::ZkCredentialProof>,
 ) -> impl IntoResponse {
     use icn_common::ZkProofType;
     use icn_identity::{BulletproofsVerifier, DummyVerifier, Groth16Verifier, ZkVerifier};
     use serde_json::json;
+
+    if let Err(e) = state
+        .runtime_context
+        .spend_mana(&state.runtime_context.current_identity, ZK_VERIFY_COST_MANA)
+        .await
+    {
+        return map_rust_error_to_json_response(e, StatusCode::BAD_REQUEST)
+            .into_response();
+    }
 
     let verifier: Box<dyn ZkVerifier> = match proof.backend {
         ZkProofType::Bulletproofs => Box::new(BulletproofsVerifier::default()),
