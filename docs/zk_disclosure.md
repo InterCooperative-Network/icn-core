@@ -49,6 +49,20 @@ The `icn-zk` crate exposes reusable circuits that can be compiled into proofs:
 
 - `AgeOver18Circuit` – proves a birth year is at least 18 years in the past.
 - `MembershipCircuit` – proves the subject is a registered member.
+- `MembershipProofCircuit` – proves a private membership flag matches an expected value.
 - `ReputationCircuit` – proves a reputation score meets a required threshold.
 
 See [`docs/examples/zk_age_over_18.json`](examples/zk_age_over_18.json) for a sample proof payload.
+
+### Membership Proof Example
+
+```
+{
+  "proof": "0xdeadbeef",
+  "public_inputs": {
+    "membership": true
+  }
+}
+```
+
+See [`docs/examples/zk_membership.json`](examples/zk_membership.json) for the full JSON example.

@@ -25,6 +25,19 @@ fn membership_proof() {
 }
 
 #[test]
+fn membership_flag_proof() {
+    let circuit = MembershipProofCircuit {
+        membership_flag: true,
+        expected_flag: true,
+    };
+    let mut rng = StdRng::seed_from_u64(42);
+    let pk = setup(circuit.clone(), &mut rng).unwrap();
+    let proof = prove(&pk, circuit, &mut rng).unwrap();
+    let vk = prepare_vk(&pk);
+    assert!(verify(&vk, &proof, &[Fr::from(1u64)]).unwrap());
+}
+
+#[test]
 fn reputation_threshold_proof() {
     let circuit = ReputationCircuit {
         reputation: 10,

@@ -45,6 +45,24 @@ impl ConstraintSynthesizer<Fr> for MembershipCircuit {
     }
 }
 
+/// Prove a private membership flag equals an expected public value.
+#[derive(Clone)]
+pub struct MembershipProofCircuit {
+    /// Witness membership flag.
+    pub membership_flag: bool,
+    /// Expected public flag.
+    pub expected_flag: bool,
+}
+
+impl ConstraintSynthesizer<Fr> for MembershipProofCircuit {
+    fn generate_constraints(self, cs: ConstraintSystemRef<Fr>) -> Result<(), SynthesisError> {
+        let flag = Boolean::new_witness(cs.clone(), || Ok(self.membership_flag))?;
+        let expected = Boolean::new_input(cs, || Ok(self.expected_flag))?;
+        flag.enforce_equal(&expected)?;
+        Ok(())
+    }
+}
+
 /// Prove that `reputation >= threshold`.
 #[derive(Clone)]
 pub struct ReputationCircuit {

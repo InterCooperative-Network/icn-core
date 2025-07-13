@@ -9,7 +9,12 @@ use ark_std::rand::{CryptoRng, RngCore};
 mod circuits;
 mod params;
 
-pub use circuits::{AgeOver18Circuit, MembershipCircuit, ReputationCircuit};
+pub use circuits::{
+    AgeOver18Circuit,
+    MembershipCircuit,
+    MembershipProofCircuit,
+    ReputationCircuit,
+};
 pub use params::{CircuitParameters, CircuitParametersStorage, MemoryParametersStorage};
 
 /// Generate Groth16 parameters for a given circuit.
