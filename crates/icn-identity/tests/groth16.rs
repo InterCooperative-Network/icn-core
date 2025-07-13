@@ -8,22 +8,55 @@ use icn_identity::{
 };
 
 use ark_serialize::CanonicalSerialize;
-use ark_std::rand::{rngs::StdRng, SeedableRng};
-use icn_zk::{prove, setup, AgeOver18Circuit};
+use icn_zk::{prepare_vk, prove, setup, AgeOver18Circuit};
+use icn_identity::{sign_message, verify_signature, SignatureBytes, VerifyingKey};
+use rand_core::OsRng;
+
+struct Groth16KeyManager {
+    pk: ark_groth16::ProvingKey<ark_bn254::Bn254>,
+    vk_bytes: Vec<u8>,
+    vk_sig: SignatureBytes,
+    signer_pk: VerifyingKey,
+}
+
+impl Groth16KeyManager {
+    fn new() -> Self {
+        let circuit = AgeOver18Circuit {
+            birth_year: 2000,
+            current_year: 2020,
+        };
+        let mut rng = OsRng;
+        let pk = setup(circuit, &mut rng).expect("setup");
+        let (sk, signer_pk) = generate_ed25519_keypair();
+        let mut vk_bytes = Vec::new();
+        pk.vk
+            .serialize_compressed(&mut vk_bytes)
+            .expect("serialize");
+        let sig = sign_message(&sk, &vk_bytes);
+        let vk_sig = SignatureBytes::from_ed_signature(sig);
+        Self {
+            pk,
+            vk_bytes,
+            vk_sig,
+            signer_pk,
+        }
+    }
+
+    fn verify_vk_signature(&self) -> bool {
+        let sig = self.vk_sig.to_ed_signature().unwrap();
+        verify_signature(&self.signer_pk, &self.vk_bytes, &sig)
+    }
+}
 
 struct Groth16Prover {
     pk: ark_groth16::ProvingKey<ark_bn254::Bn254>,
 }
 
-impl Default for Groth16Prover {
-    fn default() -> Self {
-        let circuit = AgeOver18Circuit {
-            birth_year: 2000,
-            current_year: 2020,
-        };
-        let mut rng = StdRng::seed_from_u64(42);
-        let pk = setup(circuit, &mut rng).expect("setup");
-        Self { pk }
+impl Groth16Prover {
+    fn from_manager(mgr: &Groth16KeyManager) -> Self {
+        Self {
+            pk: mgr.pk.clone(),
+        }
     }
 }
 
@@ -37,7 +70,7 @@ impl ZkProver for Groth16Prover {
             birth_year: 2000,
             current_year: 2020,
         };
-        let mut rng = StdRng::seed_from_u64(42);
+        let mut rng = OsRng;
         let proof_obj =
             prove(&self.pk, circuit, &mut rng).map_err(|_| ZkError::VerificationFailed)?;
         let mut bytes = Vec::new();
@@ -67,11 +100,14 @@ impl ZkProver for Groth16Prover {
 
 #[test]
 fn issue_and_verify_groth16_proof() {
+    let manager = Groth16KeyManager::new();
+    assert!(manager.verify_vk_signature());
+
     let (sk, pk) = generate_ed25519_keypair();
     let issuer_did = Did::new("key", "issuer");
     let holder_did = Did::new("key", "holder");
     let issuer = CredentialIssuer::new(issuer_did.clone(), sk)
-        .with_prover(Box::new(Groth16Prover::default()));
+        .with_prover(Box::new(Groth16Prover::from_manager(&manager)));
 
     let mut claims = std::collections::HashMap::new();
     claims.insert("birth_year".to_string(), "2000".to_string());
@@ -87,7 +123,8 @@ fn issue_and_verify_groth16_proof() {
         .unwrap();
     let proof = proof_opt.expect("proof");
 
-    let verifier = Groth16Verifier::default();
+    let pvk = prepare_vk(&manager.pk);
+    let verifier = Groth16Verifier::new(pvk, vec![ark_bn254::Fr::from(2020u64)]);
     assert!(verifier.verify(&proof).unwrap());
     assert!(cred.verify_claim("birth_year", &pk).is_ok());
 }
