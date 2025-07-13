@@ -8,7 +8,7 @@ use ark_std::rand::{CryptoRng, RngCore};
 
 mod circuits;
 
-pub use circuits::{AgeOver18Circuit, MembershipCircuit, ReputationCircuit};
+pub use circuits::{AgeOver18Circuit, BalanceRangeCircuit, MembershipCircuit, ReputationCircuit};
 
 /// Generate Groth16 parameters for a given circuit.
 pub fn setup<C: ConstraintSynthesizer<Fr>, R: RngCore + CryptoRng>(
