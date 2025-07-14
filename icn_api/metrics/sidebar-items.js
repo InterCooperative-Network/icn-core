@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["collect_metrics","register_core_metrics"]};
+window.SIDEBAR_ITEMS = {"fn":["collect_metrics","register_core_metrics","update_system_metrics"],"mod":["application","system"]};
