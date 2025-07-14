@@ -824,7 +824,6 @@ mod tests {
     async fn test_submit_and_retrieve_dag_block_api() {
         let storage = new_test_storage();
         let data = b"api test block data for error refinement".to_vec();
-        let cid = Cid::new_v1_sha256(0x71, &data); // Use more specific data for test CID
         let link_cid = Cid::new_v1_sha256(0x71, b"api link for error refinement");
         let link = DagLink {
             cid: link_cid,
@@ -834,6 +833,8 @@ mod tests {
         let ts = 0u64;
         let author = Did::new("key", "tester");
         let sig_opt = None;
+        // Compute the CID correctly using the same function as submit_dag_block
+        let cid = compute_merkle_cid(0x71, &data, &[link.clone()], ts, &author, &sig_opt, &None);
         let block = DagBlock {
             cid: cid.clone(),
             data: data.clone(),
@@ -976,6 +977,12 @@ mod tests {
         let proposal_id = api
             .submit_proposal(submit_req)
             .expect("Submitting proposal for vote test failed");
+
+        // Open the proposal for voting (required step)
+        {
+            let mut gov_module_guard = gov_module.lock().expect("Failed to lock governance module");
+            gov_module_guard.open_voting(&proposal_id).expect("Failed to open voting");
+        }
 
         let voter_did_str = "did:key:z6MkjchhcVbWZkAbNGRsM4ac3gR3eNnYtD9tYtFv9T9xL4xH";
         let cast_vote_req = GovernanceCastVoteRequest {

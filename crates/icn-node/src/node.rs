@@ -3640,7 +3640,8 @@ mod tests {
         let cid_bytes = axum::body::to_bytes(put_resp.into_body(), usize::MAX)
             .await
             .unwrap();
-        let wasm_cid: Cid = serde_json::from_slice(&cid_bytes).unwrap();
+        let wasm_cid_str: String = serde_json::from_slice(&cid_bytes).unwrap();
+        let wasm_cid = parse_cid_from_string(&wasm_cid_str).unwrap();
 
         // Submit job referencing the WASM CID
         let job_req = SubmitJobRequest {
@@ -3669,7 +3670,8 @@ mod tests {
             .await
             .unwrap();
         let submit_json: serde_json::Value = serde_json::from_slice(&body).unwrap();
-        let job_id: Cid = serde_json::from_str(submit_json["job_id"].as_str().unwrap()).unwrap();
+        let job_id_str = submit_json["job_id"].as_str().unwrap();
+        let job_id = parse_cid_from_string(job_id_str).unwrap();
 
         // Execute the job using WasmExecutor and anchor the receipt
         let (sk, vk) = generate_ed25519_keypair();
