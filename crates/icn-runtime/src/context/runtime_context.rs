@@ -1,4 +1,83 @@
 //! RuntimeContext struct and implementations.
+//!
+//! This module provides the main runtime context for ICN nodes, with clear configuration
+//! options for different environments.
+//!
+//! # Configuration Examples
+//!
+//! ## Production Configuration
+//! ```rust,no_run
+//! use icn_runtime::context::{RuntimeContextBuilder, EnvironmentType};
+//! use icn_runtime::Ed25519Signer;
+//! use icn_common::Did;
+//! use std::str::FromStr;
+//! 
+//! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+//! let node_did = Did::from_str("did:key:zProduction...")?;
+//! let signer = Ed25519Signer::new(); // Real signer
+//! let network_service = todo!(); // Real libp2p service
+//! let dag_store = todo!(); // Real persistent DAG store
+//! let mana_ledger = todo!(); // Real persistent mana ledger
+//! 
+//! let ctx = RuntimeContextBuilder::new(EnvironmentType::Production)
+//!     .with_identity(node_did)
+//!     .with_signer(signer)
+//!     .with_network_service(network_service)
+//!     .with_dag_store(dag_store)
+//!     .with_mana_ledger(mana_ledger)
+//!     .build()?;
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! ## Development Configuration
+//! ```rust,no_run
+//! use icn_runtime::context::{RuntimeContextBuilder, EnvironmentType};
+//! use icn_runtime::Ed25519Signer;
+//! use icn_common::Did;
+//! use std::str::FromStr;
+//! 
+//! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+//! let node_did = Did::from_str("did:key:zDevelopment...")?;
+//! let signer = Ed25519Signer::new(); // Real signer
+//! let mana_ledger = todo!(); // Real persistent mana ledger
+//! // Network service and DAG store are optional - will use stubs if not provided
+//! 
+//! let ctx = RuntimeContextBuilder::new(EnvironmentType::Development)
+//!     .with_identity(node_did)
+//!     .with_signer(signer)
+//!     .with_mana_ledger(mana_ledger)
+//!     .build()?;
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! ## Testing Configuration
+//! ```rust
+//! use icn_runtime::context::{RuntimeContextBuilder, EnvironmentType};
+//! use icn_common::Did;
+//! use std::str::FromStr;
+//! 
+//! # fn example() -> Result<(), Box<dyn std::error::Error>> {
+//! let test_did = Did::from_str("did:key:zTesting...")?;
+//! 
+//! let ctx = RuntimeContextBuilder::new(EnvironmentType::Testing)
+//!     .with_identity(test_did)
+//!     .with_initial_mana(1000)
+//!     .build()?;
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! ## Production Validation
+//! ```rust,no_run
+//! # use icn_runtime::context::RuntimeContext;
+//! # fn example(ctx: &RuntimeContext) -> Result<(), Box<dyn std::error::Error>> {
+//! // Validate that production services are being used
+//! ctx.validate_production_services()?;
+//! # Ok(())
+//! # }
+//! ```
 
 use super::errors::HostAbiError;
 use super::mana::SimpleManaLedger;
@@ -199,6 +278,152 @@ pub struct RuntimeContextParams {
     pub time_provider: Arc<dyn icn_common::TimeProvider>,
 }
 
+/// Configuration builder for creating RuntimeContext instances with type safety.
+pub struct RuntimeContextBuilder {
+    current_identity: Option<Did>,
+    environment: EnvironmentType,
+    network_service: Option<Arc<dyn icn_network::NetworkService>>,
+    signer: Option<Arc<dyn Signer>>,
+    dag_store: Option<Arc<DagStoreMutexType<DagStorageService>>>,
+    mana_ledger: Option<SimpleManaLedger>,
+    reputation_store: Option<Arc<dyn icn_reputation::ReputationStore>>,
+    policy_enforcer: Option<Arc<dyn icn_governance::scoped_policy::ScopedPolicyEnforcer>>,
+    initial_mana: Option<u64>,
+}
+
+/// Environment type for RuntimeContext configuration.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EnvironmentType {
+    /// Production environment - all services must be production-ready
+    Production,
+    /// Development environment - mixed services allowed
+    Development,
+    /// Testing environment - stub services preferred
+    Testing,
+}
+
+impl RuntimeContextBuilder {
+    /// Create a new builder for the specified environment.
+    pub fn new(environment: EnvironmentType) -> Self {
+        Self {
+            current_identity: None,
+            environment,
+            network_service: None,
+            signer: None,
+            dag_store: None,
+            mana_ledger: None,
+            reputation_store: None,
+            policy_enforcer: None,
+            initial_mana: None,
+        }
+    }
+
+    /// Set the current identity for this context.
+    pub fn with_identity(mut self, identity: Did) -> Self {
+        self.current_identity = Some(identity);
+        self
+    }
+
+    /// Set the network service (required for production).
+    pub fn with_network_service(mut self, service: Arc<dyn icn_network::NetworkService>) -> Self {
+        self.network_service = Some(service);
+        self
+    }
+
+    /// Set the cryptographic signer (required for production).
+    pub fn with_signer(mut self, signer: Arc<dyn Signer>) -> Self {
+        self.signer = Some(signer);
+        self
+    }
+
+    /// Set the DAG store (required for production).
+    pub fn with_dag_store(mut self, store: Arc<DagStoreMutexType<DagStorageService>>) -> Self {
+        self.dag_store = Some(store);
+        self
+    }
+
+    /// Set the mana ledger (required for all environments).
+    pub fn with_mana_ledger(mut self, ledger: SimpleManaLedger) -> Self {
+        self.mana_ledger = Some(ledger);
+        self
+    }
+
+    /// Set the reputation store (optional).
+    pub fn with_reputation_store(mut self, store: Arc<dyn icn_reputation::ReputationStore>) -> Self {
+        self.reputation_store = Some(store);
+        self
+    }
+
+    /// Set the policy enforcer (optional).
+    pub fn with_policy_enforcer(mut self, enforcer: Arc<dyn icn_governance::scoped_policy::ScopedPolicyEnforcer>) -> Self {
+        self.policy_enforcer = Some(enforcer);
+        self
+    }
+
+    /// Set initial mana balance (for testing).
+    pub fn with_initial_mana(mut self, mana: u64) -> Self {
+        self.initial_mana = Some(mana);
+        self
+    }
+
+    /// Build the RuntimeContext with validation.
+    pub fn build(self) -> Result<Arc<RuntimeContext>, CommonError> {
+        let current_identity = self.current_identity.ok_or_else(|| {
+            CommonError::InternalError("Current identity is required".to_string())
+        })?;
+
+        match self.environment {
+            EnvironmentType::Production => {
+                let network_service = self.network_service.ok_or_else(|| {
+                    CommonError::InternalError("Network service is required for production".to_string())
+                })?;
+                let signer = self.signer.ok_or_else(|| {
+                    CommonError::InternalError("Signer is required for production".to_string())
+                })?;
+                let dag_store = self.dag_store.ok_or_else(|| {
+                    CommonError::InternalError("DAG store is required for production".to_string())
+                })?;
+                let mana_ledger = self.mana_ledger.ok_or_else(|| {
+                    CommonError::InternalError("Mana ledger is required for production".to_string())
+                })?;
+                let reputation_store = self.reputation_store.unwrap_or_else(|| {
+                    Arc::new(icn_reputation::InMemoryReputationStore::new())
+                });
+
+                RuntimeContext::new(
+                    current_identity,
+                    network_service,
+                    signer,
+                    Arc::new(icn_identity::KeyDidResolver),
+                    dag_store,
+                    mana_ledger,
+                    reputation_store,
+                    self.policy_enforcer,
+                )
+            }
+            EnvironmentType::Development => {
+                let signer = self.signer.ok_or_else(|| {
+                    CommonError::InternalError("Signer is required for development".to_string())
+                })?;
+                let mana_ledger = self.mana_ledger.ok_or_else(|| {
+                    CommonError::InternalError("Mana ledger is required for development".to_string())
+                })?;
+
+                RuntimeContext::new_development(
+                    current_identity,
+                    signer,
+                    mana_ledger,
+                    self.network_service,
+                    self.dag_store,
+                )
+            }
+            EnvironmentType::Testing => {
+                RuntimeContext::new_testing(current_identity, self.initial_mana)
+            }
+        }
+    }
+}
+
 impl RuntimeContext {
     /// Initialize the default runtime parameters.
     fn default_parameters() -> Arc<DashMap<String, String>> {
@@ -208,6 +433,24 @@ impl RuntimeContext {
             DEFAULT_MANA_MAX_CAPACITY.to_string(),
         );
         Arc::new(map)
+    }
+
+    /// Validate that production services are being used correctly.
+    /// 
+    /// This function performs runtime checks to ensure that stub services
+    /// are not accidentally used in production contexts.
+    pub fn validate_production_services(&self) -> Result<(), CommonError> {
+        // Check if we're using stub mesh network service
+        if let MeshNetworkServiceType::Stub(_) = &*self.mesh_network_service {
+            return Err(CommonError::InternalError(
+                "❌ PRODUCTION ERROR: Stub mesh network service detected in production context. Use RuntimeContext::new() with real network service.".to_string()
+            ));
+        }
+
+        // TODO: Add validation for DAG store and signer when trait objects support it
+        // For now, service validation should be done at the configuration level
+
+        Ok(())
     }
 
     /// Query CPU core count and available memory in MB using sysinfo.
@@ -221,66 +464,32 @@ impl RuntimeContext {
     }
 
     /// Create a new context with stubs for testing.
+    /// 
+    /// **⚠️ DEPRECATED**: This method is deprecated in favor of `new_testing()` which provides
+    /// clearer semantics and better error handling. Use `new_testing()` instead.
+    #[deprecated(since = "0.2.0", note = "Use `new_testing()` instead for clearer semantics")]
     pub fn new_with_stubs(current_identity_str: &str) -> Result<Arc<Self>, CommonError> {
         let current_identity = Did::from_str(current_identity_str)
             .map_err(|e| CommonError::InternalError(format!("Invalid DID: {}", e)))?;
-
-        let (tx, rx) = mpsc::channel(128);
-        let job_states = Arc::new(DashMap::new());
-        let governance_module = Arc::new(DagStoreMutexType::new(GovernanceModule::new()));
-        let mesh_network_service =
-            Arc::new(MeshNetworkServiceType::Stub(StubMeshNetworkService::new()));
-        let signer = Arc::new(super::signers::StubSigner::new());
-        let did_resolver = Arc::new(icn_identity::KeyDidResolver);
-        let reputation_store = Arc::new(icn_reputation::InMemoryReputationStore::new());
-        let latency_store = Arc::new(icn_mesh::NoOpLatencyStore) as Arc<dyn icn_mesh::LatencyStore>;
-        let parameters = Self::default_parameters();
-        let policy_enforcer = None;
-        let time_provider = Arc::new(icn_common::SystemTimeProvider);
-
-        // Use a temporary file for testing to avoid file system issues
-        let temp_file = tempfile::NamedTempFile::new()
-            .map_err(|e| CommonError::IoError(format!("Failed to create temp file: {}", e)))?;
-        let temp_path = temp_file.path().to_path_buf();
-        // Keep the temp file alive by storing it
-        std::mem::forget(temp_file);
-        let mana_ledger = SimpleManaLedger::new(temp_path);
-
-        Ok(Arc::new(Self {
-            current_identity,
-            mana_ledger,
-            pending_mesh_jobs_tx: tx,
-            pending_mesh_jobs_rx: TokioMutex::new(rx),
-            job_states,
-            governance_module,
-            mesh_network_service,
-            signer,
-            did_resolver,
-            dag_store: Arc::new(DagStoreMutexType::new(StubDagStore::new()))
-                as Arc<DagStoreMutexType<DagStorageService>>,
-            reputation_store,
-            latency_store,
-            parameters,
-            policy_enforcer,
-            time_provider,
-            default_receipt_wait_ms: 30000,
-        }))
+        
+        // Forward to new_testing method
+        Self::new_testing(current_identity, None)
     }
 
     /// Create a new context with stubs and initial mana balance (convenience method for tests).
+    /// 
+    /// **⚠️ DEPRECATED**: This method is deprecated in favor of `new_testing()` which provides
+    /// clearer semantics and better error handling. Use `new_testing()` instead.
+    #[deprecated(since = "0.2.0", note = "Use `new_testing()` instead for clearer semantics")]
     pub fn new_with_stubs_and_mana(
         current_identity_str: &str,
         initial_mana: u64,
     ) -> Result<Arc<Self>, CommonError> {
-        let ctx = Self::new_with_stubs(current_identity_str)?;
         let current_identity = Did::from_str(current_identity_str)
             .map_err(|e| CommonError::InternalError(format!("Invalid DID: {}", e)))?;
-        ctx.mana_ledger
-            .set_balance(&current_identity, initial_mana)
-            .map_err(|e| {
-                CommonError::InternalError(format!("Failed to set initial mana: {}", e))
-            })?;
-        Ok(ctx)
+        
+        // Forward to new_testing method
+        Self::new_testing(current_identity, Some(initial_mana))
     }
 
     /// Create a new context with ledger path (convenience method for tests).
@@ -456,8 +665,22 @@ impl RuntimeContext {
     }
 
     /// Create a new `RuntimeContext` with all production services.
-    /// This method ensures no stub services are used and should be used
-    /// whenever running an ICN node outside of test mode.
+    /// 
+    /// **🏭 PRODUCTION**: This method ensures no stub services are used and should be used
+    /// for all production ICN node deployments.
+    /// 
+    /// **Services Used:**
+    /// - Network: Real libp2p networking service
+    /// - Signer: Ed25519 cryptographic signer
+    /// - DAG Store: Persistent storage backend (PostgreSQL, RocksDB, etc.)
+    /// - Mana Ledger: Persistent mana ledger
+    /// - Reputation Store: Persistent reputation storage
+    /// 
+    /// **Use when:**
+    /// - Running an ICN node in production
+    /// - Need real P2P networking
+    /// - Require persistent storage
+    /// - Need cryptographic security
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         current_identity: Did,
@@ -483,6 +706,21 @@ impl RuntimeContext {
     }
 
     /// Create a development RuntimeContext with mixed services.
+    /// 
+    /// **🛠️ DEVELOPMENT**: This method provides a flexible configuration for development
+    /// and testing scenarios where you may want some real services and some stub services.
+    /// 
+    /// **Services Used:**
+    /// - Network: Real libp2p if provided, otherwise stub service
+    /// - Signer: Real Ed25519 signer (provided)
+    /// - DAG Store: Persistent storage if provided, otherwise stub store
+    /// - Mana Ledger: Persistent mana ledger (provided)
+    /// - Reputation Store: In-memory reputation store
+    /// 
+    /// **Use when:**
+    /// - Local development with some real services
+    /// - Integration testing with selective real services
+    /// - Development environments where you need networking but not persistence
     pub fn new_development(
         current_identity: Did,
         signer: Arc<dyn Signer>,
@@ -501,6 +739,26 @@ impl RuntimeContext {
     }
 
     /// Create a testing RuntimeContext with all stub services.
+    /// 
+    /// **🧪 TESTING**: This method creates a completely isolated testing environment
+    /// with all stub services for fast, deterministic testing.
+    /// 
+    /// **Services Used:**
+    /// - Network: Stub network service (no real networking)
+    /// - Signer: Stub signer (deterministic signatures)
+    /// - DAG Store: In-memory stub store
+    /// - Mana Ledger: Temporary file-based ledger
+    /// - Reputation Store: In-memory reputation store
+    /// 
+    /// **Use when:**
+    /// - Unit testing
+    /// - Integration testing that doesn't require real networking
+    /// - Fast test execution
+    /// - Deterministic test behavior
+    /// 
+    /// **Parameters:**
+    /// - `current_identity`: The DID for this test context
+    /// - `initial_mana`: Optional initial mana balance (defaults to 0)
     pub fn new_testing(
         current_identity: Did,
         initial_mana: Option<u64>,
@@ -3154,5 +3412,61 @@ mod tests {
             }
         }
         assert!(found, "status change block not found");
+    }
+}
+
+#[cfg(test)]
+mod configuration_tests {
+    use super::*;
+    use std::str::FromStr;
+
+    #[test]
+    fn test_runtime_context_builder_testing() {
+        let test_did = Did::from_str("did:key:zTestBuilder").unwrap();
+        
+        let ctx = RuntimeContextBuilder::new(EnvironmentType::Testing)
+            .with_identity(test_did)
+            .with_initial_mana(100)
+            .build()
+            .unwrap();
+
+        assert_eq!(ctx.current_identity, test_did);
+        assert_eq!(ctx.get_mana(&test_did).unwrap(), 100);
+    }
+
+    #[test]
+    fn test_runtime_context_builder_validation() {
+        // Should fail without identity
+        let result = RuntimeContextBuilder::new(EnvironmentType::Testing)
+            .build();
+        
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Current identity is required"));
+    }
+
+    #[test]
+    fn test_production_validation() {
+        let test_did = Did::from_str("did:key:zTestValidation").unwrap();
+        
+        // Create a testing context (which uses stubs)
+        let ctx = RuntimeContext::new_testing(test_did, Some(100)).unwrap();
+        
+        // Validation should fail because it's using stub services
+        let result = ctx.validate_production_services();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("PRODUCTION ERROR"));
+    }
+
+    #[test]
+    fn test_deprecated_methods_still_work() {
+        #[allow(deprecated)]
+        let ctx = RuntimeContext::new_with_stubs("did:key:zTestDeprecated").unwrap();
+        
+        // Should still create a valid context
+        assert!(ctx.current_identity.to_string().contains("zTestDeprecated"));
+        
+        #[allow(deprecated)]
+        let ctx2 = RuntimeContext::new_with_stubs_and_mana("did:key:zTestDeprecated2", 50).unwrap();
+        assert_eq!(ctx2.get_mana(&ctx2.current_identity).unwrap(), 50);
     }
 }

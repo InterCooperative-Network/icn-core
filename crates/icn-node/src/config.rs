@@ -141,15 +141,50 @@ pub(crate) fn default_ledger_backend() -> icn_runtime::context::LedgerBackend {
     }
 }
 
+/// Choose the best available persistent storage backend for production use.
+/// 
+/// **🏭 PRODUCTION PRIORITY ORDER:**
+/// 1. **RocksDB** - Best performance for production workloads
+/// 2. **Sled** - Good balance of performance and simplicity  
+/// 3. **SQLite** - Lightweight but reliable option
+/// 4. **File** - Fallback file-based storage
+/// 5. **Memory** - Only for testing/development (volatile)
+pub(crate) fn default_storage_backend() -> StorageBackendType {
+    #[cfg(feature = "persist-rocksdb")]
+    {
+        StorageBackendType::Rocksdb
+    }
+    #[cfg(all(not(feature = "persist-rocksdb"), feature = "persist-sled"))]
+    {
+        StorageBackendType::Sled
+    }
+    #[cfg(all(
+        not(feature = "persist-rocksdb"),
+        not(feature = "persist-sled"),
+        feature = "persist-sqlite"
+    ))]
+    {
+        StorageBackendType::Sqlite
+    }
+    #[cfg(all(
+        not(feature = "persist-rocksdb"),
+        not(feature = "persist-sled"),
+        not(feature = "persist-sqlite")
+    ))]
+    {
+        StorageBackendType::File
+    }
+}
+
 impl Default for StorageConfig {
     fn default() -> Self {
         Self {
-            storage_backend: StorageBackendType::Memory,
-            storage_path: "./icn_data/node_store".into(),
+            storage_backend: default_storage_backend(),
+            storage_path: "./icn_data/dag_store".into(),
             mana_ledger_backend: default_ledger_backend(),
-            mana_ledger_path: "./tests/fixtures/mana_ledger.json".into(),
-            reputation_db_path: "./reputation.sled".into(),
-            governance_db_path: "./governance_db".into(),
+            mana_ledger_path: "./icn_data/mana_ledger.json".into(),
+            reputation_db_path: "./icn_data/reputation.sled".into(),
+            governance_db_path: "./icn_data/governance_db".into(),
         }
     }
 }
@@ -581,5 +616,51 @@ impl NodeConfig {
             enable_mdns: self.p2p.enable_mdns,
             ..Default::default()
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_production_ready_defaults() {
+        let config = StorageConfig::default();
+        
+        // Verify that default storage backend is persistent (not Memory)
+        assert_ne!(config.storage_backend, StorageBackendType::Memory, 
+            "❌ PRODUCTION ERROR: Default storage backend should not be Memory");
+        
+        // Verify that all paths are in icn_data directory (not test fixtures)
+        assert!(config.storage_path.to_string_lossy().contains("icn_data"), 
+            "Storage path should be in icn_data directory");
+        assert!(config.mana_ledger_path.to_string_lossy().contains("icn_data"), 
+            "Mana ledger path should be in icn_data directory");
+        assert!(config.reputation_db_path.to_string_lossy().contains("icn_data"), 
+            "Reputation DB path should be in icn_data directory");
+        assert!(config.governance_db_path.to_string_lossy().contains("icn_data"), 
+            "Governance DB path should be in icn_data directory");
+            
+        // Verify mana ledger backend is persistent
+        assert_ne!(config.mana_ledger_backend, icn_runtime::context::LedgerBackend::Memory, 
+            "❌ PRODUCTION ERROR: Default mana ledger backend should not be Memory");
+        
+        println!("✅ Production-ready configuration:");
+        println!("  - Storage backend: {:?}", config.storage_backend);
+        println!("  - Storage path: {:?}", config.storage_path);
+        println!("  - Mana ledger backend: {:?}", config.mana_ledger_backend);
+        println!("  - Mana ledger path: {:?}", config.mana_ledger_path);
+    }
+    
+    #[test]
+    fn test_storage_backend_priority() {
+        let backend = default_storage_backend();
+        
+        // The actual backend depends on which features are enabled
+        // But it should never be Memory in production
+        assert_ne!(backend, StorageBackendType::Memory, 
+            "❌ PRODUCTION ERROR: Default storage backend should not be Memory");
+        
+        println!("✅ Default storage backend: {:?}", backend);
     }
 }

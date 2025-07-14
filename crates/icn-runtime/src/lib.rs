@@ -45,7 +45,7 @@ pub use config::{
 pub use context::{
     CastVotePayload, CloseProposalResult, ConcreteHostEnvironment, CreateProposalPayload,
     DefaultMeshNetworkService, Ed25519Signer, HostEnvironment, JobAssignmentNotice,
-    MeshNetworkService, MeshNetworkServiceType, SimpleManaLedger, StubMeshNetworkService,
+    MeshNetworkService, MeshNetworkServiceType, RuntimeContextBuilder, EnvironmentType, SimpleManaLedger, StubMeshNetworkService,
 };
 
 #[derive(Debug, Error)]

@@ -2058,6 +2058,9 @@ async fn gov_submit_handler(
         icn_api::governance_trait::ProposalInputType::GenericText { text } => {
             ("GenericText".to_string(), text.into_bytes())
         }
+        icn_api::governance_trait::ProposalInputType::Resolution { actions } => {
+            ("Resolution".to_string(), serde_json::to_vec(&actions).unwrap())
+        }
     };
 
     let payload = icn_runtime::context::CreateProposalPayload {

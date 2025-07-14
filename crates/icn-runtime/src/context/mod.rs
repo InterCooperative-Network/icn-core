@@ -24,7 +24,7 @@ pub use mesh_network::{
     PROPOSAL_COST_MANA, VOTE_COST_MANA,
 };
 pub use runtime_context::{
-    RuntimeContext, RuntimeContextParams, MeshNetworkServiceType, CreateProposalPayload, CastVotePayload, CloseProposalResult,
+    RuntimeContext, RuntimeContextParams, RuntimeContextBuilder, EnvironmentType, MeshNetworkServiceType, CreateProposalPayload, CastVotePayload, CloseProposalResult,
     MANA_MAX_CAPACITY_KEY,
 };
 pub use service_config::{ServiceConfig, ServiceConfigBuilder, ServiceEnvironment};
