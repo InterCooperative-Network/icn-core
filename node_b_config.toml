@@ -1,0 +1,25 @@
+node_name = "ICN Node B (Executor)"
+
+[storage]
+storage_backend = "memory"
+storage_path = "./icn_data/node_b/store"
+mana_ledger_backend = "file"
+mana_ledger_path = "./icn_data/node_b/mana_ledger.json"
+reputation_db_path = "./icn_data/node_b/reputation.sled"
+governance_db_path = "./icn_data/node_b/governance.sled"
+
+[identity]
+node_did_path = "./icn_data/node_b/node_did.txt"
+node_private_key_path = "./icn_data/node_b/node_sk.bs58"
+
+[http]
+http_listen_addr = "0.0.0.0:5002"
+api_key = "node-b-key"
+
+[p2p]
+listen_address = "/ip4/0.0.0.0/tcp/4002"
+enable_p2p = true
+enable_mdns = true
+
+# Production settings
+test_mode = false

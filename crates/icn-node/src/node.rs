@@ -651,8 +651,9 @@ pub async fn app_router_with_options(
     let _node_did_string = node_did.to_string();
 
     // Create mana ledger with initial balance
-    let mana_ledger = icn_runtime::context::SimpleManaLedger::new(
+    let mana_ledger = icn_runtime::context::SimpleManaLedger::new_with_backend(
         mana_ledger_path.unwrap_or_else(|| PathBuf::from("./tests/fixtures/mana_ledger.json")),
+        _mana_ledger_backend.unwrap_or(icn_runtime::context::LedgerBackend::File),
     );
     mana_ledger
         .set_balance(&node_did, 1000)
@@ -1122,8 +1123,10 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    let mana_ledger =
-        icn_runtime::context::SimpleManaLedger::new(config.storage.mana_ledger_path.clone());
+    let mana_ledger = icn_runtime::context::SimpleManaLedger::new_with_backend(
+        config.storage.mana_ledger_path.clone(),
+        config.storage.mana_ledger_backend,
+    );
     let signer = Arc::new(signer);
 
     let network_service = match build_network_service(&config).await {

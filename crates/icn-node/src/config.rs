@@ -259,6 +259,11 @@ impl NodeConfig {
             "ICN_OPEN_RATE_LIMIT",
             |v: &str| v.parse::<u64>()
         );
+        set_from_env!(
+            self.storage.mana_ledger_backend,
+            "ICN_MANA_LEDGER_BACKEND",
+            |v: &str| v.parse::<icn_runtime::context::LedgerBackend>()
+        );
 
         if let Ok(val) = std::env::var("ICN_STORAGE_PATH") {
             self.storage.storage_path = val.into();

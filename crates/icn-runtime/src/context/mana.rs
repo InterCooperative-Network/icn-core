@@ -8,6 +8,7 @@ use std::sync::Arc;
 #[cfg(feature = "cli")]
 use clap::ValueEnum;
 use serde::{Deserialize, Serialize};
+use std::str::FromStr;
 
 /// Supported mana ledger persistence backends.
 #[cfg_attr(feature = "cli", derive(ValueEnum))]
@@ -20,6 +21,23 @@ pub enum LedgerBackend {
     Sled,
     #[cfg(feature = "persist-rocksdb")]
     Rocksdb,
+}
+
+impl FromStr for LedgerBackend {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_ascii_lowercase().as_str() {
+            "file" => Ok(LedgerBackend::File),
+            #[cfg(feature = "persist-sqlite")]
+            "sqlite" => Ok(LedgerBackend::Sqlite),
+            #[cfg(feature = "persist-sled")]
+            "sled" => Ok(LedgerBackend::Sled),
+            #[cfg(feature = "persist-rocksdb")]
+            "rocksdb" => Ok(LedgerBackend::Rocksdb),
+            _ => Err(format!("Invalid ledger backend: {}", s)),
+        }
+    }
 }
 
 /// Placeholder for icn_economics::ManaRepository
