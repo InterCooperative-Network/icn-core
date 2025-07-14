@@ -65,6 +65,14 @@ struct Cli {
     )]
     api_url: String,
 
+    #[clap(
+        long,
+        global = true,
+        env = "ICN_API_KEY",
+        help = "API key for authenticated requests"
+    )]
+    api_key: Option<String>,
+
     #[clap(subcommand)]
     command: Commands,
 }
@@ -566,12 +574,14 @@ async fn get_request<T: for<'de> Deserialize<'de>>(
     api_url: &str,
     client: &Client,
     path: &str,
+    api_key: Option<&str>,
 ) -> Result<T, anyhow::Error> {
     let url = format!("{}{}", api_url, path);
     let res = icn_common::retry_with_backoff(
         || async {
-            client
-                .get(&url)
+            let req = client.get(&url);
+            let req = if let Some(k) = api_key { req.header("x-api-key", k) } else { req };
+            req
                 .send()
                 .await
                 .map_err(|e| anyhow::anyhow!(e))
@@ -605,13 +615,14 @@ async fn post_request<S: Serialize, T: for<'de> Deserialize<'de>>(
     client: &Client,
     path: &str,
     body: &S,
+    api_key: Option<&str>,
 ) -> Result<T, anyhow::Error> {
     let url = format!("{}{}", api_url, path);
     let res = icn_common::retry_with_backoff(
         || async {
-            client
-                .post(&url)
-                .json(body)
+            let req = client.post(&url).json(body);
+            let req = if let Some(k) = api_key { req.header("x-api-key", k) } else { req };
+            req
                 .send()
                 .await
                 .map_err(|e| anyhow::anyhow!(e))
@@ -643,7 +654,7 @@ async fn post_request<S: Serialize, T: for<'de> Deserialize<'de>>(
 // --- Command Handlers ---
 
 async fn handle_info(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
-    let response: NodeInfo = get_request(&cli.api_url, client, "/info").await?;
+    let response: NodeInfo = get_request(&cli.api_url, client, "/info", cli.api_key.as_deref()).await?;
     println!("--- Node Information ---");
     println!("Name:    {}", response.name);
     println!("Version: {}", response.version);
@@ -653,7 +664,7 @@ async fn handle_info(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
 }
 
 async fn handle_status(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
-    let response: NodeStatus = get_request(&cli.api_url, client, "/status").await?;
+    let response: NodeStatus = get_request(&cli.api_url, client, "/status", cli.api_key.as_deref()).await?;
     println!("--- Node Status ---");
     println!("Online:         {}", response.is_online);
     println!("Peer Count:     {}", response.peer_count);
@@ -665,10 +676,12 @@ async fn handle_status(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> 
 
 async fn handle_metrics(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
     let url = format!("{}{}", &cli.api_url, "/metrics");
+    let api_key = cli.api_key.as_deref();
     let res = icn_common::retry_with_backoff(
         || async {
-            client
-                .get(&url)
+            let req = client.get(&url);
+            let req = if let Some(k) = api_key { req.header("x-api-key", k) } else { req };
+            req
                 .send()
                 .await
                 .map_err(|e| anyhow::anyhow!(e))
@@ -712,7 +725,7 @@ async fn handle_dag_put(
 
     let block: DagBlock = serde_json::from_str(&block_json_content)
         .map_err(|e| anyhow::anyhow!("Invalid DagBlock JSON provided. Error: {}", e))?;
-    let response_cid: Cid = post_request(&cli.api_url, client, "/dag/put", &block).await?;
+    let response_cid: Cid = post_request(&cli.api_url, client, "/dag/put", &block, cli.api_key.as_deref()).await?;
     println!(
         "Successfully submitted block. CID: {}",
         serde_json::to_string_pretty(&response_cid)?
@@ -723,7 +736,7 @@ async fn handle_dag_put(
 async fn handle_dag_get(cli: &Cli, client: &Client, cid_json: &str) -> Result<(), anyhow::Error> {
     let cid: Cid = serde_json::from_str(cid_json)
         .map_err(|e| anyhow::anyhow!("Invalid CID JSON provided: {}. Error: {}", cid_json, e))?;
-    let response_block: DagBlock = post_request(&cli.api_url, client, "/dag/get", &cid).await?;
+    let response_block: DagBlock = post_request(&cli.api_url, client, "/dag/get", &cid, cli.api_key.as_deref()).await?;
     println!("--- Retrieved DAG Block ---");
     println!("{}", serde_json::to_string_pretty(&response_block)?);
     println!("-------------------------");
@@ -734,7 +747,7 @@ async fn handle_dag_meta(cli: &Cli, client: &Client, cid_json: &str) -> Result<(
     let cid: Cid = serde_json::from_str(cid_json)
         .map_err(|e| anyhow::anyhow!("Invalid CID JSON provided: {}. Error: {}", cid_json, e))?;
     let meta: icn_dag::DagBlockMetadata =
-        post_request(&cli.api_url, client, "/dag/meta", &cid).await?;
+        post_request(&cli.api_url, client, "/dag/meta", &cid, cli.api_key.as_deref()).await?;
     println!("--- DAG Block Metadata ---");
     println!("{}", serde_json::to_string_pretty(&meta)?);
     println!("--------------------------");
@@ -796,7 +809,7 @@ async fn handle_dag_pin(
     let cid: Cid = serde_json::from_str(cid_json)
         .map_err(|e| anyhow::anyhow!("Invalid CID JSON: {cid_json}. Error: {e}"))?;
     let body = serde_json::json!({ "cid": cid, "ttl": ttl });
-    let _: JsonValue = post_request(&cli.api_url, client, "/dag/pin", &body).await?;
+    let _: JsonValue = post_request(&cli.api_url, client, "/dag/pin", &body, cli.api_key.as_deref()).await?;
     println!("Pinned block {cid_json}");
     Ok(())
 }
@@ -804,13 +817,13 @@ async fn handle_dag_pin(
 async fn handle_dag_unpin(cli: &Cli, client: &Client, cid_json: &str) -> Result<(), anyhow::Error> {
     let cid: Cid = serde_json::from_str(cid_json)
         .map_err(|e| anyhow::anyhow!("Invalid CID JSON: {cid_json}. Error: {e}"))?;
-    let _: JsonValue = post_request(&cli.api_url, client, "/dag/unpin", &cid).await?;
+    let _: JsonValue = post_request(&cli.api_url, client, "/dag/unpin", &cid, cli.api_key.as_deref()).await?;
     println!("Unpinned block {cid_json}");
     Ok(())
 }
 
 async fn handle_dag_prune(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
-    let _: JsonValue = post_request(&cli.api_url, client, "/dag/prune", &()).await?;
+    let _: JsonValue = post_request(&cli.api_url, client, "/dag/prune", &(), cli.api_key.as_deref()).await?;
     println!("Prune triggered");
     Ok(())
 }
@@ -831,7 +844,7 @@ async fn handle_gov_submit(
     let request: ApiSubmitProposalRequest = serde_json::from_str(&proposal_request_content)
         .map_err(|e| anyhow::anyhow!("Invalid ApiSubmitProposalRequest JSON. Error: {}", e))?;
     let response_proposal_id: ProposalId =
-        post_request(&cli.api_url, client, "/governance/submit", &request).await?;
+        post_request(&cli.api_url, client, "/governance/submit", &request, cli.api_key.as_deref()).await?;
     println!(
         "Successfully submitted proposal. Proposal ID: {}",
         serde_json::to_string_pretty(&response_proposal_id)?
@@ -853,7 +866,7 @@ async fn handle_gov_vote(
     })?;
     // Assuming the response is a simple success message or confirmation JSON
     let response: JsonValue =
-        post_request(&cli.api_url, client, "/governance/vote", &request).await?;
+        post_request(&cli.api_url, client, "/governance/vote", &request, cli.api_key.as_deref()).await?;
     println!(
         "Vote response: {}",
         serde_json::to_string_pretty(&response)?
@@ -868,7 +881,7 @@ async fn handle_gov_tally(
 ) -> Result<(), anyhow::Error> {
     let req = serde_json::json!({ "proposal_id": proposal_id });
     let result: icn_api::governance_trait::CloseProposalResponse =
-        post_request(&cli.api_url, client, "/governance/close", &req).await?;
+        post_request(&cli.api_url, client, "/governance/close", &req, cli.api_key.as_deref()).await?;
     println!(
         "Tally result: yes={} no={} abstain={} status={}",
         result.yes, result.no, result.abstain, result.status
@@ -878,7 +891,7 @@ async fn handle_gov_tally(
 
 async fn handle_gov_list_proposals(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
     let proposals: Vec<Proposal> =
-        get_request(&cli.api_url, client, "/governance/proposals").await?;
+        get_request(&cli.api_url, client, "/governance/proposals", cli.api_key.as_deref()).await?;
     println!("--- All Proposals ---");
     if proposals.is_empty() {
         println!("No proposals found.");
@@ -895,7 +908,7 @@ async fn handle_gov_get_proposal(
     proposal_id: &str,
 ) -> Result<(), anyhow::Error> {
     let path = format!("/governance/proposal/{}", proposal_id);
-    let proposal: Proposal = get_request(&cli.api_url, client, &path).await?;
+    let proposal: Proposal = get_request(&cli.api_url, client, &path, cli.api_key.as_deref()).await?;
     println!("--- Proposal Details (ID: {}) ---", proposal_id);
     println!("{}", serde_json::to_string_pretty(&proposal)?);
     println!("-----------------------------------");
@@ -903,14 +916,14 @@ async fn handle_gov_get_proposal(
 }
 
 async fn handle_mesh_jobs(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
-    let response: serde_json::Value = get_request(&cli.api_url, client, "/mesh/jobs").await?;
+    let response: serde_json::Value = get_request(&cli.api_url, client, "/mesh/jobs", cli.api_key.as_deref()).await?;
     println!("{}", serde_json::to_string_pretty(&response)?);
     Ok(())
 }
 
 async fn handle_mesh_status(cli: &Cli, client: &Client, job_id: &str) -> Result<(), anyhow::Error> {
     let path = format!("/mesh/jobs/{}", job_id);
-    let response: serde_json::Value = get_request(&cli.api_url, client, &path).await?;
+    let response: serde_json::Value = get_request(&cli.api_url, client, &path, cli.api_key.as_deref()).await?;
     println!("{}", serde_json::to_string_pretty(&response)?);
     Ok(())
 }
@@ -940,7 +953,7 @@ async fn handle_mesh_submit(
         let path = PathBuf::from(manifest_path);
         let (wasm, _meta) = compile_ccl_file_to_wasm(&path).map_err(anyhow::Error::msg)?;
         let payload = DagBlockPayload { data: wasm };
-        let cid: Cid = post_request(&cli.api_url, client, "/dag/put", &payload).await?;
+        let cid: Cid = post_request(&cli.api_url, client, "/dag/put", &payload, cli.api_key.as_deref()).await?;
 
         if let Some(obj) = request_value.as_object_mut() {
             obj.insert(
@@ -962,13 +975,13 @@ async fn handle_mesh_submit(
     }
 
     let response: serde_json::Value =
-        post_request(&cli.api_url, client, "/mesh/submit", &request_value).await?;
+        post_request(&cli.api_url, client, "/mesh/submit", &request_value, cli.api_key.as_deref()).await?;
     println!("{}", serde_json::to_string_pretty(&response)?);
     Ok(())
 }
 
 async fn handle_network_stats(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
-    let status: NodeStatus = get_request(&cli.api_url, client, "/status").await?;
+    let status: NodeStatus = get_request(&cli.api_url, client, "/status", cli.api_key.as_deref()).await?;
     println!("{}", serde_json::to_string_pretty(&status)?);
     Ok(())
 }
@@ -979,7 +992,7 @@ async fn handle_network_ping(
     client: &Client,
     peer_id: &str,
 ) -> Result<(), anyhow::Error> {
-    let info: NodeInfo = get_request(&cli.api_url, client, "/info").await?;
+    let info: NodeInfo = get_request(&cli.api_url, client, "/info", cli.api_key.as_deref()).await?;
     let result = icn_network::send_network_ping(&info, peer_id).await?;
     println!("{}", result);
     Ok(())
@@ -1034,7 +1047,7 @@ async fn handle_compile_ccl_upload(
     let path = PathBuf::from(file);
     let (wasm, meta) = compile_ccl_file_to_wasm(&path)?;
     let payload = DagBlockPayload { data: wasm };
-    let cid: Cid = post_request(&cli.api_url, client, "/dag/put", &payload).await?;
+    let cid: Cid = post_request(&cli.api_url, client, "/dag/put", &payload, cli.api_key.as_deref()).await?;
     println!(
         "{}",
         serde_json::to_string_pretty(&serde_json::json!({
@@ -1046,7 +1059,7 @@ async fn handle_compile_ccl_upload(
 }
 
 async fn handle_fed_list_peers(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
-    let peers: Vec<String> = get_request(&cli.api_url, client, "/federation/peers").await?;
+    let peers: Vec<String> = get_request(&cli.api_url, client, "/federation/peers", cli.api_key.as_deref()).await?;
     println!("{}", serde_json::to_string_pretty(&peers)?);
     Ok(())
 }
@@ -1059,7 +1072,7 @@ struct PeerReq<'a> {
 async fn handle_fed_join(cli: &Cli, client: &Client, peer: &str) -> Result<(), anyhow::Error> {
     let req = PeerReq { peer };
     let resp: serde_json::Value =
-        post_request(&cli.api_url, client, "/federation/join", &req).await?;
+        post_request(&cli.api_url, client, "/federation/join", &req, cli.api_key.as_deref()).await?;
     println!("{}", serde_json::to_string_pretty(&resp)?);
     Ok(())
 }
@@ -1067,27 +1080,27 @@ async fn handle_fed_join(cli: &Cli, client: &Client, peer: &str) -> Result<(), a
 async fn handle_fed_leave(cli: &Cli, client: &Client, peer: &str) -> Result<(), anyhow::Error> {
     let req = PeerReq { peer };
     let resp: serde_json::Value =
-        post_request(&cli.api_url, client, "/federation/leave", &req).await?;
+        post_request(&cli.api_url, client, "/federation/leave", &req, cli.api_key.as_deref()).await?;
     println!("{}", serde_json::to_string_pretty(&resp)?);
     Ok(())
 }
 
 async fn handle_fed_status(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
-    let status: serde_json::Value = get_request(&cli.api_url, client, "/federation/status").await?;
+    let status: serde_json::Value = get_request(&cli.api_url, client, "/federation/status", cli.api_key.as_deref()).await?;
     println!("{}", serde_json::to_string_pretty(&status)?);
     Ok(())
 }
 
 async fn handle_fed_init(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
     let resp: serde_json::Value =
-        post_request(&cli.api_url, client, "/federation/init", &()).await?;
+        post_request(&cli.api_url, client, "/federation/init", &(), cli.api_key.as_deref()).await?;
     println!("{}", serde_json::to_string_pretty(&resp)?);
     Ok(())
 }
 
 async fn handle_fed_sync(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
     let resp: serde_json::Value =
-        post_request(&cli.api_url, client, "/federation/sync", &()).await?;
+        post_request(&cli.api_url, client, "/federation/sync", &(), cli.api_key.as_deref()).await?;
     println!("{}", serde_json::to_string_pretty(&resp)?);
     Ok(())
 }
@@ -1098,20 +1111,20 @@ async fn handle_account_balance(
     did: &str,
 ) -> Result<(), anyhow::Error> {
     let path = format!("/account/{}/mana", did);
-    let v: serde_json::Value = get_request(&cli.api_url, client, &path).await?;
+    let v: serde_json::Value = get_request(&cli.api_url, client, &path, cli.api_key.as_deref()).await?;
     println!("{}", serde_json::to_string_pretty(&v)?);
     Ok(())
 }
 
 async fn handle_keys_show(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
-    let v: serde_json::Value = get_request(&cli.api_url, client, "/keys").await?;
+    let v: serde_json::Value = get_request(&cli.api_url, client, "/keys", cli.api_key.as_deref()).await?;
     println!("{}", serde_json::to_string_pretty(&v)?);
     Ok(())
 }
 
 async fn handle_reputation_get(cli: &Cli, client: &Client, did: &str) -> Result<(), anyhow::Error> {
     let path = format!("/reputation/{}", did);
-    let v: serde_json::Value = get_request(&cli.api_url, client, &path).await?;
+    let v: serde_json::Value = get_request(&cli.api_url, client, &path, cli.api_key.as_deref()).await?;
     println!("{}", serde_json::to_string_pretty(&v)?);
     Ok(())
 }
@@ -1133,7 +1146,7 @@ async fn handle_identity_verify(
         .map_err(|e| anyhow::anyhow!("Invalid ZkCredentialProof JSON: {}", e))?;
 
     let resp: serde_json::Value =
-        post_request(&cli.api_url, client, "/identity/verify", &proof).await?;
+        post_request(&cli.api_url, client, "/identity/verify", &proof, cli.api_key.as_deref()).await?;
     println!("{}", serde_json::to_string_pretty(&resp)?);
     Ok(())
 }
@@ -1155,7 +1168,7 @@ async fn handle_identity_verify_batch(
         .map_err(|e| anyhow::anyhow!("Invalid proofs JSON: {}", e))?;
     let req = VerifyProofsRequest { proofs };
     let resp: BatchVerificationResponse =
-        post_request(&cli.api_url, client, "/identity/verify/batch", &req).await?;
+        post_request(&cli.api_url, client, "/identity/verify/batch", &req, cli.api_key.as_deref()).await?;
     println!("{}", serde_json::to_string_pretty(&resp)?);
     Ok(())
 }
@@ -1379,6 +1392,7 @@ fn handle_wizard_setup(config: &str) -> Result<(), anyhow::Error> {
     let did = icn_identity::did_key_from_verifying_key(&pk);
     let sk_bs58 = bs58::encode(sk.to_bytes()).into_string();
 
+    let did_value = did.clone();
     let cfg = toml::toml! {
         node_name = name
         http_listen_addr = "0.0.0.0:7845"
@@ -1387,7 +1401,7 @@ fn handle_wizard_setup(config: &str) -> Result<(), anyhow::Error> {
         api_key = api_key
         open_rate_limit = 0
         federation_peers = peers
-        node_did = did
+        node_did = did_value
         node_private_key_bs58 = sk_bs58
     };
 
@@ -1398,20 +1412,25 @@ fn handle_wizard_setup(config: &str) -> Result<(), anyhow::Error> {
 }
 
 async fn handle_monitor_uptime(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
-    let metrics = get_request::<String>(&cli.api_url, client, "/metrics").await?;
+    let metrics = get_request::<String>(&cli.api_url, client, "/metrics", cli.api_key.as_deref()).await?;
     let scrape = prometheus_parse::Scrape::parse(metrics.lines().map(|l| Ok(l.to_string())))?;
     let uptime = scrape
         .samples
         .iter()
         .find(|s| s.metric == "node_uptime_seconds")
-        .and_then(|s| s.sample.value.as_f64())
+        .and_then(|s| match s.value {
+            prometheus_parse::Value::Counter(v)
+            | prometheus_parse::Value::Gauge(v)
+            | prometheus_parse::Value::Untyped(v) => Some(v),
+            _ => None,
+        })
         .unwrap_or(0.0);
     println!("Uptime: {} seconds", uptime);
     Ok(())
 }
 
 async fn handle_emergency_list(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
-    let v: serde_json::Value = get_request(&cli.api_url, client, "/emergency/requests").await?;
+    let v: serde_json::Value = get_request(&cli.api_url, client, "/emergency/requests", cli.api_key.as_deref()).await?;
     println!("{}", serde_json::to_string_pretty(&v)?);
     Ok(())
 }
@@ -1431,7 +1450,7 @@ async fn handle_emergency_request(
     let body: serde_json::Value = serde_json::from_str(&content)
         .map_err(|e| anyhow::anyhow!("Invalid aid request JSON: {}", e))?;
     let _: serde_json::Value =
-        post_request(&cli.api_url, client, "/emergency/request", &body).await?;
+        post_request(&cli.api_url, client, "/emergency/request", &body, cli.api_key.as_deref()).await?;
     println!("Aid request submitted");
     Ok(())
 }

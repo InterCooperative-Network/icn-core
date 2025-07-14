@@ -1705,7 +1705,8 @@ pub mod libp2p_service {
                         })?;
                     rx.await.map_err(|e| {
                         MeshNetworkError::Libp2p(format!("Connect response failed: {}", e))
-                    })
+                    })?;
+                    Ok(())
                 }
             })
             .await
