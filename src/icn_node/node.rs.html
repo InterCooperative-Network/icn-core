@@ -856,7 +856,7 @@
 <a href=#856 id=856 data-nosnippet>856</a>            </span>.route(<span class="string">"/dag/get"</span>, post(dag_get_handler)) <span class="comment">// These will use RT context's DAG store
 <a href=#857 id=857 data-nosnippet>857</a>            </span>.route(<span class="string">"/dag/meta"</span>, post(dag_meta_handler))
 <a href=#858 id=858 data-nosnippet>858</a>            .route(<span class="string">"/dag/root"</span>, get(dag_root_handler))
-<a href=#859 id=859 data-nosnippet>859</a>            .route(<span class="string">"/dag/sync"</span>, get(dag_sync_status_handler))
+<a href=#859 id=859 data-nosnippet>859</a>            .route(<span class="string">"/dag/status"</span>, get(dag_status_handler))
 <a href=#860 id=860 data-nosnippet>860</a>            .route(<span class="string">"/dag/pin"</span>, post(dag_pin_handler))
 <a href=#861 id=861 data-nosnippet>861</a>            .route(<span class="string">"/dag/unpin"</span>, post(dag_unpin_handler))
 <a href=#862 id=862 data-nosnippet>862</a>            .route(<span class="string">"/dag/prune"</span>, post(dag_prune_handler))
@@ -1029,7 +1029,7 @@
 <a href=#1029 id=1029 data-nosnippet>1029</a>        .route(<span class="string">"/dag/get"</span>, post(dag_get_handler))
 <a href=#1030 id=1030 data-nosnippet>1030</a>        .route(<span class="string">"/dag/meta"</span>, post(dag_meta_handler))
 <a href=#1031 id=1031 data-nosnippet>1031</a>        .route(<span class="string">"/dag/root"</span>, get(dag_root_handler))
-<a href=#1032 id=1032 data-nosnippet>1032</a>        .route(<span class="string">"/dag/sync"</span>, get(dag_sync_status_handler))
+<a href=#1032 id=1032 data-nosnippet>1032</a>        .route(<span class="string">"/dag/status"</span>, get(dag_status_handler))
 <a href=#1033 id=1033 data-nosnippet>1033</a>        .route(<span class="string">"/dag/pin"</span>, post(dag_pin_handler))
 <a href=#1034 id=1034 data-nosnippet>1034</a>        .route(<span class="string">"/dag/unpin"</span>, post(dag_unpin_handler))
 <a href=#1035 id=1035 data-nosnippet>1035</a>        .route(<span class="string">"/dag/prune"</span>, post(dag_prune_handler))
@@ -1343,7 +1343,7 @@
 <a href=#1343 id=1343 data-nosnippet>1343</a>        .route(<span class="string">"/dag/get"</span>, post(dag_get_handler))
 <a href=#1344 id=1344 data-nosnippet>1344</a>        .route(<span class="string">"/dag/meta"</span>, post(dag_meta_handler))
 <a href=#1345 id=1345 data-nosnippet>1345</a>        .route(<span class="string">"/dag/root"</span>, get(dag_root_handler))
-<a href=#1346 id=1346 data-nosnippet>1346</a>        .route(<span class="string">"/dag/sync"</span>, get(dag_sync_status_handler))
+<a href=#1346 id=1346 data-nosnippet>1346</a>        .route(<span class="string">"/dag/status"</span>, get(dag_status_handler))
 <a href=#1347 id=1347 data-nosnippet>1347</a>        .route(<span class="string">"/dag/pin"</span>, post(dag_pin_handler))
 <a href=#1348 id=1348 data-nosnippet>1348</a>        .route(<span class="string">"/dag/unpin"</span>, post(dag_unpin_handler))
 <a href=#1349 id=1349 data-nosnippet>1349</a>        .route(<span class="string">"/dag/prune"</span>, post(dag_prune_handler))
@@ -1811,12 +1811,12 @@
 <a href=#1811 id=1811 data-nosnippet>1811</a>    }
 <a href=#1812 id=1812 data-nosnippet>1812</a>}
 <a href=#1813 id=1813 data-nosnippet>1813</a>
-<a href=#1814 id=1814 data-nosnippet>1814</a><span class="doccomment">/// GET /dag/sync – Report DAG synchronization status.
-<a href=#1815 id=1815 data-nosnippet>1815</a></span><span class="kw">async fn </span>dag_sync_status_handler(State(state): State&lt;AppState&gt;) -&gt; <span class="kw">impl </span>IntoResponse {
+<a href=#1814 id=1814 data-nosnippet>1814</a><span class="doccomment">/// GET /dag/status – Report DAG synchronization status.
+<a href=#1815 id=1815 data-nosnippet>1815</a></span><span class="kw">async fn </span>dag_status_handler(State(state): State&lt;AppState&gt;) -&gt; <span class="kw">impl </span>IntoResponse {
 <a href=#1816 id=1816 data-nosnippet>1816</a>    <span class="kw">match </span>state.runtime_context.get_dag_sync_status().<span class="kw">await </span>{
 <a href=#1817 id=1817 data-nosnippet>1817</a>        <span class="prelude-val">Ok</span>(status) =&gt; (StatusCode::OK, Json(status)).into_response(),
 <a href=#1818 id=1818 data-nosnippet>1818</a>        <span class="prelude-val">Err</span>(e) =&gt; map_rust_error_to_json_response(
-<a href=#1819 id=1819 data-nosnippet>1819</a>            <span class="macro">format!</span>(<span class="string">"DAG sync error: {e}"</span>),
+<a href=#1819 id=1819 data-nosnippet>1819</a>            <span class="macro">format!</span>(<span class="string">"DAG status error: {e}"</span>),
 <a href=#1820 id=1820 data-nosnippet>1820</a>            StatusCode::INTERNAL_SERVER_ERROR,
 <a href=#1821 id=1821 data-nosnippet>1821</a>        )
 <a href=#1822 id=1822 data-nosnippet>1822</a>        .into_response(),
