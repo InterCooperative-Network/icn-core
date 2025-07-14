@@ -1274,16 +1274,53 @@ impl RuntimeContext {
     /// Update the status of a job (this would update the DAG node in a real implementation).
     async fn update_job_status(
         &self,
-        _job_id: &JobId,
-        _status: JobLifecycleStatus,
+        job_id: &JobId,
+        status: JobLifecycleStatus,
     ) -> Result<(), HostAbiError> {
-        // TODO: In a full implementation, this would update the job node in the DAG
-        // For now, we just log the status change
-        log::info!(
-            "[update_job_status] Job {} status updated to {:?}",
-            _job_id,
-            _status
-        );
+        let update = icn_mesh::JobStatusUpdate {
+            job_id: job_id.clone(),
+            status: status.clone(),
+            updated_at: self.time_provider.unix_seconds(),
+        };
+
+        let data = serde_json::to_vec(&update).map_err(|e| {
+            HostAbiError::DagOperationFailed(format!("Failed to serialize status update: {}", e))
+        })?;
+
+        use sha2::{Digest, Sha256};
+        let cid = {
+            let mut hasher = Sha256::new();
+            hasher.update(&data);
+            Cid::new_v1_sha256(0x55, &hasher.finalize())
+        };
+
+        let link = icn_common::DagLink {
+            cid: job_id.0.clone(),
+            name: "parent_job".to_string(),
+            size: 0,
+        };
+
+        let block = DagBlock {
+            cid: cid.clone(),
+            data,
+            links: vec![link],
+            timestamp: update.updated_at,
+            author_did: self.current_identity.clone(),
+            signature: None,
+            scope: None,
+        };
+
+        {
+            let mut store = self.dag_store.lock().await;
+            store.put(&block).await.map_err(|e| {
+                HostAbiError::DagOperationFailed(format!(
+                    "Failed to store status update DAG block: {}",
+                    e
+                ))
+            })?;
+        }
+
+        log::info!("[update_job_status] Job {} status updated to {:?}", job_id, status);
         Ok(())
     }
 
@@ -2897,5 +2934,49 @@ impl RuntimeContext {
         // For now, it's mostly a placeholder
         log::debug!("[ExecutorManager] Polling for executor tasks");
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use icn_mesh::{Job, JobLifecycleStatus, JobId, Resources};
+
+    #[tokio::test]
+    async fn status_updates_are_persisted() {
+        let ctx = RuntimeContext::new_with_stubs("did:icn:test:status").unwrap();
+
+        let job = Job {
+            id: JobId(Cid::new_v1_sha256(0x55, b"status_job")),
+            manifest_cid: Cid::new_v1_sha256(0x55, b"manifest"),
+            spec_json: "{}".to_string(),
+            submitter_did: ctx.current_identity.clone(),
+            cost_mana: 1,
+            submitted_at: ctx.time_provider.unix_seconds(),
+            status: JobLifecycleStatus::Submitted,
+            resource_requirements: Resources::default(),
+        };
+
+        ctx.store_job_in_dag(&job).await.unwrap();
+
+        ctx.update_job_status(&job.id, JobLifecycleStatus::BiddingOpen)
+            .await
+            .unwrap();
+        ctx.update_job_status(&job.id, JobLifecycleStatus::BiddingClosed)
+            .await
+            .unwrap();
+
+        let blocks = ctx.dag_store.lock().await.list_blocks().unwrap();
+        let mut statuses = Vec::new();
+        for block in blocks {
+            if let Ok(update) = serde_json::from_slice::<icn_mesh::JobStatusUpdate>(&block.data) {
+                if update.job_id == job.id {
+                    statuses.push(update.status);
+                }
+            }
+        }
+
+        assert!(statuses.contains(&JobLifecycleStatus::BiddingOpen));
+        assert!(statuses.contains(&JobLifecycleStatus::BiddingClosed));
     }
 }

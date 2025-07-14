@@ -631,6 +631,17 @@ pub struct JobReceipt {
     pub signature: SignatureBytes,
 }
 
+/// Records a job lifecycle status change in the DAG.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct JobStatusUpdate {
+    /// Identifier of the job being updated.
+    pub job_id: JobId,
+    /// New status for the job.
+    pub status: JobLifecycleStatus,
+    /// Timestamp when the status change occurred.
+    pub updated_at: u64,
+}
+
 /// Status of a job in its lifecycle.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum JobLifecycleStatus {
