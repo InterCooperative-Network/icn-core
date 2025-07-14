@@ -11,13 +11,25 @@ This guide covers how zero-knowledge circuits are managed in the InterCooperativ
 
 ## Versioning Rules and Compatibility
 
-- Minor version bumps must remain backward compatible with proving keys generated for earlier minor versions.
-- Breaking changes require a new major version. Older versions remain in the registry for verifiers that still rely on them.
-- Proofs include a circuit slug and version so verifiers can select the appropriate parameters.
+The registry follows semantic versioning for circuit parameters:
 
-## Registering Circuits via the API
+- **Patch versions** fix parameter generation bugs without changing the proving
+  key format.
+- **Minor versions** must remain backward compatible with earlier minor releases
+  of the same major line.
+- **Major versions** indicate breaking changes. Older versions remain available
+  so historical proofs continue to verify.
 
-The registry is manipulated through the `/circuits` endpoints.
+Each proof embeds the circuit slug and version so verifiers can load exactly the
+parameters it expects.
+
+## Registry API
+
+The HTTP API is implemented in [`crates/icn-node`](../crates/icn-node/src) using
+the [`CircuitRegistry`](../crates/icn-node/src/circuit_registry.rs) type.
+Request and response bodies are defined in
+[`icn_api::circuits`](../crates/icn-api/src/circuits.rs) and include
+`RegisterCircuitRequest`, `CircuitResponse` and `CircuitVersionsResponse`.
 
 ### Register a Circuit
 
@@ -31,17 +43,40 @@ POST /circuits/register
 }
 ```
 
-The node stores the parameters and returns a content identifier (CID) for later reference. Circuits can be fetched with `GET /circuits/{slug}/{version}`.
+The node stores the parameters and returns a JSON acknowledgement. Retrieve
+parameters with `GET /circuits/{slug}/{version}` or list versions with
+`GET /circuits/{slug}`.
 
-## Proving Key and Parameter Storage
+### Retrieve Metadata
 
-`Groth16KeyManager` persists parameters under `~/.icn/zk/<circuit>/`:
+```bash
+GET /circuits/age_over_18/1.0.0
 
-- `proving_key.bin` – compressed Groth16 proving key
-- `verifying_key.bin` – verifying key bytes
-- `verifying_key.sig` – Ed25519 signature authenticating the key
+Response:
+{
+  "slug": "age_over_18",
+  "version": "1.0.0",
+  "verification_key": "<bytes>"
+}
+```
 
-Parameters registered via the API are saved as [`CircuitParameters`](../crates/icn-zk/src/params.rs) within the registry database. Prepared verifying keys are cached in memory to speed up verification.
+## Storage Layout
+
+The [`CircuitRegistry`](../crates/icn-node/src/circuit_registry.rs) stores all
+registered parameters under `~/.icn/zk/`:
+
+```text
+~/.icn/zk/
+├── registry.sqlite     # database of CircuitParameters
+└── <slug>/
+    ├── proving_key.bin
+    ├── verifying_key.bin
+    └── verifying_key.sig
+```
+
+Raw files are handled by `Groth16KeyManager`, while structured entries are saved
+as [`CircuitParameters`](../crates/icn-zk/src/params.rs). Prepared verifying keys
+are cached in memory for speedy verification.
 
 ## Database-Backed Registry
 
