@@ -15,8 +15,8 @@
 //! It integrates various core components to operate a functional ICN node, handling initialization,
 //! lifecycle, configuration, service hosting, and persistence.
 
-use crate::parameter_store::ParameterStore;
 use crate::circuit_registry::CircuitRegistry;
+use crate::parameter_store::ParameterStore;
 use icn_api::governance_trait::{
     CastVoteRequest as ApiCastVoteRequest, DelegateRequest as ApiDelegateRequest,
     RevokeDelegationRequest as ApiRevokeDelegationRequest,
@@ -25,9 +25,8 @@ use icn_api::governance_trait::{
 use icn_api::{
     get_dag_metadata,
     identity_trait::{
-        CredentialResponse, DisclosureRequest, DisclosureResponse, IssueCredentialRequest,
-        RevokeCredentialRequest, VerificationResponse, VerifyProofsRequest,
-        BatchVerificationResponse,
+        BatchVerificationResponse, CredentialReceipt, DisclosureRequest, DisclosureResponse,
+        IssueCredentialRequest, RevokeCredentialRequest, VerificationResponse, VerifyProofsRequest,
     },
     query_data, submit_transaction,
 };
@@ -3011,11 +3010,7 @@ async fn zk_verify_batch_handler(
         }
     }
 
-    (
-        StatusCode::OK,
-        Json(BatchVerificationResponse { results }),
-    )
-        .into_response()
+    (StatusCode::OK, Json(BatchVerificationResponse { results })).into_response()
 }
 
 // POST /identity/credentials/issue - issue a credential
@@ -3061,7 +3056,7 @@ async fn credential_issue_handler(
 
     (
         StatusCode::CREATED,
-        Json(CredentialResponse {
+        Json(CredentialReceipt {
             cid,
             credential: cred,
         }),
@@ -3078,7 +3073,7 @@ async fn credential_get_handler(
         Ok(cid) => match state.credential_store.get(&cid) {
             Some(cred) => (
                 StatusCode::OK,
-                Json(CredentialResponse {
+                Json(CredentialReceipt {
                     cid,
                     credential: cred,
                 }),
@@ -3099,6 +3094,18 @@ async fn credential_verify_handler(
     State(state): State<AppState>,
     Json(cred): Json<Credential>,
 ) -> impl IntoResponse {
+    let cid_bytes = match serde_json::to_vec(&cred) {
+        Ok(b) => b,
+        Err(e) => {
+            return map_rust_error_to_json_response(e, StatusCode::BAD_REQUEST).into_response();
+        }
+    };
+    let cred_cid = Cid::new_v1_sha256(0x71, &cid_bytes);
+    if state.credential_store.is_revoked(&cred_cid) {
+        return map_rust_error_to_json_response("credential revoked", StatusCode::FORBIDDEN)
+            .into_response();
+    }
+
     if let Some(vk) = state.trusted_issuers.get(&cred.issuer) {
         for (k, _) in &cred.claims {
             if let Err(e) = cred.verify_claim(k, vk) {
@@ -3218,8 +3225,7 @@ async fn circuit_versions_handler(
 ) -> impl IntoResponse {
     let versions = state.circuit_registry.lock().await.versions(&slug);
     if versions.is_empty() {
-        map_rust_error_to_json_response("circuit not found", StatusCode::NOT_FOUND)
-            .into_response()
+        map_rust_error_to_json_response("circuit not found", StatusCode::NOT_FOUND).into_response()
     } else {
         (
             StatusCode::OK,

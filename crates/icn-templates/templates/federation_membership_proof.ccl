@@ -1,0 +1,6 @@
+// Federation membership proof template
+// Verifies that a submitted zero-knowledge proof confirms federation membership.
+
+fn verify_membership(proof: Bytes) -> Bool {
+    return verify_membership_proof(proof);
+}

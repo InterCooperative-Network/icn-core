@@ -22,10 +22,13 @@ use icn_common::{Cid, DagBlock, Did, NodeInfo, NodeStatus, ZkCredentialProof, Zk
 use icn_api::governance_trait::{
     CastVoteRequest as ApiCastVoteRequest, SubmitProposalRequest as ApiSubmitProposalRequest,
 };
-use icn_api::identity_trait::{BatchVerificationResponse, VerifyProofsRequest};
+use icn_api::identity_trait::{
+    BatchVerificationResponse, CredentialReceipt, IssueCredentialRequest, RevokeCredentialRequest,
+    VerificationResponse, VerifyProofsRequest,
+};
 use icn_ccl::{check_ccl_file, compile_ccl_file, compile_ccl_file_to_wasm, explain_ccl_policy};
 use icn_governance::{Proposal, ProposalId};
-use icn_identity::generate_ed25519_keypair;
+use icn_identity::{generate_ed25519_keypair, Credential};
 use icn_runtime::context::{Ed25519Signer, Signer};
 
 fn anyhow_to_common(e: anyhow::Error) -> CommonError {
@@ -323,6 +326,11 @@ enum ReputationCommands {
 
 #[derive(Subcommand, Debug)]
 enum IdentityCommands {
+    /// Issue a verifiable credential (JSON string or '-' for stdin)
+    Issue {
+        #[clap(help = "IssueCredentialRequest JSON or '-' for stdin")]
+        request_json_or_stdin: String,
+    },
     /// Verify a zero-knowledge credential proof (JSON string or '-' for stdin)
     VerifyProof {
         #[clap(help = "ZkCredentialProof JSON or '-' for stdin")]
@@ -349,6 +357,16 @@ enum IdentityCommands {
         verification_key: Option<String>,
         #[clap(long, help = "Public inputs as JSON string", required = false)]
         public_inputs: Option<String>,
+    },
+    /// Verify a credential's signatures (JSON string or '-' for stdin)
+    Verify {
+        #[clap(help = "Credential JSON or '-' for stdin")]
+        credential_json_or_stdin: String,
+    },
+    /// Revoke a credential by CID string
+    Revoke {
+        #[clap(help = "Credential CID string")]
+        cid: String,
     },
 }
 
@@ -439,6 +457,9 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
             ReputationCommands::Get { did } => handle_reputation_get(cli, client, did).await?,
         },
         Commands::Identity { command } => match command {
+            IdentityCommands::Issue {
+                request_json_or_stdin,
+            } => handle_identity_issue(cli, client, request_json_or_stdin).await?,
             IdentityCommands::VerifyProof {
                 proof_json_or_stdin,
             } => handle_identity_verify(cli, client, proof_json_or_stdin).await?,
@@ -464,6 +485,10 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
                     public_inputs,
                 )?;
             }
+            IdentityCommands::Verify {
+                credential_json_or_stdin,
+            } => handle_identity_verify_credential(cli, client, credential_json_or_stdin).await?,
+            IdentityCommands::Revoke { cid } => handle_identity_revoke(cli, client, cid).await?,
         },
         Commands::Ccl { command } => match command {
             CclCommands::Compile { file } => handle_ccl_compile(file)?,
@@ -1082,6 +1107,61 @@ fn parse_backend(s: &str) -> ZkProofType {
         "bulletproofs" => ZkProofType::Bulletproofs,
         other => ZkProofType::Other(other.to_string()),
     }
+}
+
+async fn handle_identity_issue(
+    cli: &Cli,
+    client: &Client,
+    request_json_or_stdin: &str,
+) -> Result<(), anyhow::Error> {
+    let content = if request_json_or_stdin == "-" {
+        let mut buffer = String::new();
+        io::stdin().read_to_string(&mut buffer)?;
+        buffer
+    } else {
+        request_json_or_stdin.to_string()
+    };
+
+    let req: IssueCredentialRequest = serde_json::from_str(&content)
+        .map_err(|e| anyhow::anyhow!("Invalid IssueCredentialRequest JSON: {}", e))?;
+    let resp: CredentialReceipt =
+        post_request(&cli.api_url, client, "/identity/credentials/issue", &req).await?;
+    println!("{}", serde_json::to_string_pretty(&resp)?);
+    Ok(())
+}
+
+async fn handle_identity_verify_credential(
+    cli: &Cli,
+    client: &Client,
+    credential_json_or_stdin: &str,
+) -> Result<(), anyhow::Error> {
+    let content = if credential_json_or_stdin == "-" {
+        let mut buffer = String::new();
+        io::stdin().read_to_string(&mut buffer)?;
+        buffer
+    } else {
+        credential_json_or_stdin.to_string()
+    };
+
+    let cred: Credential = serde_json::from_str(&content)
+        .map_err(|e| anyhow::anyhow!("Invalid Credential JSON: {}", e))?;
+    let resp: VerificationResponse =
+        post_request(&cli.api_url, client, "/identity/credentials/verify", &cred).await?;
+    println!("{}", serde_json::to_string_pretty(&resp)?);
+    Ok(())
+}
+
+async fn handle_identity_revoke(
+    cli: &Cli,
+    client: &Client,
+    cid_str: &str,
+) -> Result<(), anyhow::Error> {
+    let cid = icn_common::parse_cid_from_string(cid_str)?;
+    let req = RevokeCredentialRequest { cid };
+    let resp: serde_json::Value =
+        post_request(&cli.api_url, client, "/identity/credentials/revoke", &req).await?;
+    println!("{}", serde_json::to_string_pretty(&resp)?);
+    Ok(())
 }
 
 fn handle_identity_generate_inner(

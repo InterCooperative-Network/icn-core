@@ -15,12 +15,15 @@ pub struct IssueCredentialRequest {
     pub expiration: u64,
 }
 
-/// Response containing the issued credential.
+/// Receipt for a newly issued credential.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CredentialResponse {
+pub struct CredentialReceipt {
     pub cid: Cid,
     pub credential: VerifiableCredential,
 }
+
+/// Deprecated alias retained for backward compatibility.
+pub type CredentialResponse = CredentialReceipt;
 
 /// Result of verifying a credential.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -64,14 +67,14 @@ pub trait IdentityApi {
     async fn issue_credential(
         &self,
         request: IssueCredentialRequest,
-    ) -> Result<CredentialResponse, CommonError>;
+    ) -> Result<CredentialReceipt, CommonError>;
 
     async fn verify_credential(
         &self,
         credential: VerifiableCredential,
     ) -> Result<VerificationResponse, CommonError>;
 
-    async fn get_credential(&self, cid: Cid) -> Result<CredentialResponse, CommonError>;
+    async fn get_credential(&self, cid: Cid) -> Result<CredentialReceipt, CommonError>;
 
     async fn revoke_credential(&self, cid: Cid) -> Result<(), CommonError>;
 

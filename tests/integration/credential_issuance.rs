@@ -1,5 +1,5 @@
 use icn_api::identity_trait::{
-    CredentialResponse, IssueCredentialRequest, RevokeCredentialRequest, VerificationResponse,
+    CredentialReceipt, IssueCredentialRequest, RevokeCredentialRequest, VerificationResponse,
 };
 use icn_common::{Cid, Did};
 use icn_identity::Credential;
@@ -50,7 +50,7 @@ async fn credential_issue_route() {
 
     let resp = client.post(&url).json(&req).send().await.unwrap();
     assert!(resp.status().is_success());
-    let resp_body: CredentialResponse = resp.json().await.unwrap();
+    let resp_body: CredentialReceipt = resp.json().await.unwrap();
     let cid = resp_body.cid.clone();
     let cred: Credential = resp_body.credential;
     for (k, _) in &cred.claims {
@@ -61,7 +61,7 @@ async fn credential_issue_route() {
     let get_url = format!("http://{}/identity/credentials/{}", addr, cid.to_string());
     let resp = client.get(&get_url).send().await.unwrap();
     assert!(resp.status().is_success());
-    let retrieved: CredentialResponse = resp.json().await.unwrap();
+    let retrieved: CredentialReceipt = resp.json().await.unwrap();
     assert_eq!(retrieved.cid, cid);
 
     // verify via API

@@ -27,6 +27,8 @@ pub mod credential;
 pub use credential::{Credential, CredentialIssuer, DisclosedCredential};
 pub mod credential_store;
 pub use credential_store::InMemoryCredentialStore;
+pub mod revocation_list;
+pub use revocation_list::RevocationList;
 
 // --- Core Cryptographic Operations & DID:key generation ---
 

@@ -1,5 +1,5 @@
 use icn_api::identity_trait::{
-    DisclosureRequest, DisclosureResponse, IssueCredentialRequest, CredentialResponse,
+    DisclosureRequest, DisclosureResponse, IssueCredentialRequest, CredentialReceipt,
 };
 use icn_common::{Cid, Did};
 use icn_node::app_router_with_options;
@@ -50,7 +50,7 @@ async fn credential_disclose_route() {
 
     let resp = client.post(&issue_url).json(&req).send().await.unwrap();
     assert_eq!(resp.status(), StatusCode::CREATED);
-    let cred_resp: CredentialResponse = resp.json().await.unwrap();
+    let cred_resp: CredentialReceipt = resp.json().await.unwrap();
 
     let disclose_url = format!("http://{}/identity/credentials/disclose", addr);
     let disc_req = DisclosureRequest {
