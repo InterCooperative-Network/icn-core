@@ -1,1 +1,1 @@
-searchState.loadedDescShard("icn_templates", 0, "Pre-built CCL templates for cooperative governance.\nSimple majority voting procedure in CCL.\nBasic treasury rule example in CCL.")
+searchState.loadedDescShard("icn_templates", 0, "Pre-built CCL templates for cooperative governance.\nRotating assembly governance template.\nRotating council governance template.\nRotating steward governance template.\nSimple majority voting procedure in CCL.\nBasic treasury rule example in CCL.")
