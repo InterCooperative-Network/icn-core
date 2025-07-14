@@ -1514,13 +1514,21 @@ pub mod libp2p_service {
                 None => None,
             };
 
-            let (tx, rx) = oneshot::channel();
-            self.cmd_tx
-                .send(Command::DiscoverPeers { target, rsp: tx })
-                .await
-                .map_err(|e| MeshNetworkError::Libp2p(format!("Command send failed: {}", e)))?;
-            rx.await
-                .map_err(|e| MeshNetworkError::Libp2p(format!("Response dropped: {}", e)))?
+            with_resilience(|| {
+                let cmd = self.cmd_tx.clone();
+                let target = target.clone();
+                async move {
+                    let (tx, rx) = oneshot::channel();
+                    cmd.send(Command::DiscoverPeers { target, rsp: tx })
+                        .await
+                        .map_err(|e| {
+                            MeshNetworkError::Libp2p(format!("Command send failed: {}", e))
+                        })?;
+                    rx.await
+                        .map_err(|e| MeshNetworkError::Libp2p(format!("Response dropped: {}", e)))
+                }
+            })
+            .await?
         }
 
         async fn send_message(
@@ -1531,19 +1539,27 @@ pub mod libp2p_service {
             let libp2p_peer = Libp2pPeerId::from_str(&peer.0)
                 .map_err(|e| MeshNetworkError::InvalidInput(format!("Invalid peer ID: {}", e)))?;
 
-            let (tx, rx) = oneshot::channel();
-            self.cmd_tx
-                .send(Command::SendMessage {
-                    peer: libp2p_peer,
-                    message,
-                    rsp: tx,
-                })
-                .await
-                .map_err(|e| {
-                    MeshNetworkError::SendFailure(format!("Command send failed: {}", e))
-                })?;
-            rx.await
-                .map_err(|e| MeshNetworkError::SendFailure(format!("Response dropped: {}", e)))?
+            with_resilience(|| {
+                let cmd = self.cmd_tx.clone();
+                let peer_id = libp2p_peer.clone();
+                let msg = message.clone();
+                async move {
+                    let (tx, rx) = oneshot::channel();
+                    cmd.send(Command::SendMessage {
+                        peer: peer_id,
+                        message: msg,
+                        rsp: tx,
+                    })
+                    .await
+                    .map_err(|e| {
+                        MeshNetworkError::SendFailure(format!("Command send failed: {}", e))
+                    })?;
+                    rx.await.map_err(|e| {
+                        MeshNetworkError::SendFailure(format!("Response dropped: {}", e))
+                    })
+                }
+            })
+            .await?
         }
 
         async fn broadcast_message(
@@ -1553,74 +1569,117 @@ pub mod libp2p_service {
             let data = bincode::serialize(&message)
                 .map_err(|e| MeshNetworkError::MessageDecodeFailed(e.to_string()))?;
 
-            self.cmd_tx
-                .send(Command::Broadcast { data })
-                .await
-                .map_err(|e| MeshNetworkError::SendFailure(format!("Broadcast failed: {}", e)))
+            with_resilience(|| {
+                let cmd = self.cmd_tx.clone();
+                let bytes = data.clone();
+                async move {
+                    cmd.send(Command::Broadcast { data: bytes })
+                        .await
+                        .map_err(|e| {
+                            MeshNetworkError::SendFailure(format!("Broadcast failed: {}", e))
+                        })
+                }
+            })
+            .await
         }
 
         async fn subscribe(&self) -> Result<Receiver<super::ProtocolMessage>, MeshNetworkError> {
-            let (tx, rx) = oneshot::channel();
-            self.cmd_tx
-                .send(Command::Subscribe { rsp: tx })
-                .await
-                .map_err(|e| MeshNetworkError::Libp2p(format!("Subscribe failed: {}", e)))?;
-
-            rx.await
-                .map_err(|e| MeshNetworkError::Libp2p(format!("Subscribe response failed: {}", e)))
+            with_resilience(|| {
+                let cmd = self.cmd_tx.clone();
+                async move {
+                    let (tx, rx) = oneshot::channel();
+                    cmd.send(Command::Subscribe { rsp: tx })
+                        .await
+                        .map_err(|e| {
+                            MeshNetworkError::Libp2p(format!("Subscribe failed: {}", e))
+                        })?;
+                    rx.await.map_err(|e| {
+                        MeshNetworkError::Libp2p(format!("Subscribe response failed: {}", e))
+                    })
+                }
+            })
+            .await
         }
 
         async fn get_network_stats(&self) -> Result<super::NetworkStats, MeshNetworkError> {
-            let (tx, rx) = oneshot::channel();
-            self.cmd_tx
-                .send(Command::GetStats { rsp: tx })
-                .await
-                .map_err(|e| MeshNetworkError::Libp2p(format!("Get stats failed: {}", e)))?;
-            rx.await
-                .map_err(|e| MeshNetworkError::Libp2p(format!("Stats response failed: {}", e)))
+            with_resilience(|| {
+                let cmd = self.cmd_tx.clone();
+                async move {
+                    let (tx, rx) = oneshot::channel();
+                    cmd.send(Command::GetStats { rsp: tx }).await.map_err(|e| {
+                        MeshNetworkError::Libp2p(format!("Get stats failed: {}", e))
+                    })?;
+                    rx.await.map_err(|e| {
+                        MeshNetworkError::Libp2p(format!("Stats response failed: {}", e))
+                    })
+                }
+            })
+            .await
         }
 
         async fn store_record(&self, key: String, value: Vec<u8>) -> Result<(), MeshNetworkError> {
-            let (tx, rx) = oneshot::channel();
-            let record_key = KademliaKey::new(&key.into_bytes());
-            self.cmd_tx
-                .send(Command::PutKademliaRecord {
-                    key: record_key,
-                    value,
-                    rsp: tx,
-                })
-                .await
-                .map_err(|e| MeshNetworkError::Libp2p(format!("Put record failed: {}", e)))?;
-            let _ = rx.await.map_err(|e| {
-                MeshNetworkError::Libp2p(format!("Put record response failed: {}", e))
-            })?;
-            Ok(())
+            with_resilience(|| {
+                let cmd = self.cmd_tx.clone();
+                let key_bytes = key.clone().into_bytes();
+                let val = value.clone();
+                async move {
+                    let (tx, rx) = oneshot::channel();
+                    let record_key = KademliaKey::new(&key_bytes);
+                    cmd.send(Command::PutKademliaRecord {
+                        key: record_key,
+                        value: val,
+                        rsp: tx,
+                    })
+                    .await
+                    .map_err(|e| MeshNetworkError::Libp2p(format!("Put record failed: {}", e)))?;
+                    rx.await.map_err(|e| {
+                        MeshNetworkError::Libp2p(format!("Put record response failed: {}", e))
+                    })?;
+                    Ok(())
+                }
+            })
+            .await
         }
 
         async fn get_record(&self, key: String) -> Result<Option<Vec<u8>>, MeshNetworkError> {
-            let (tx, rx) = oneshot::channel();
-            let record_key = KademliaKey::new(&key.into_bytes());
-            self.cmd_tx
-                .send(Command::GetKademliaRecord {
-                    key: record_key,
-                    rsp: tx,
-                })
-                .await
-                .map_err(|e| MeshNetworkError::Libp2p(format!("Get record failed: {}", e)))?;
-            let record_opt = rx.await.map_err(|e| {
-                MeshNetworkError::Libp2p(format!("Get record response failed: {}", e))
-            })??;
-            Ok(record_opt.map(|rec| rec.value))
+            with_resilience(|| {
+                let cmd = self.cmd_tx.clone();
+                let key_bytes = key.clone().into_bytes();
+                async move {
+                    let (tx, rx) = oneshot::channel();
+                    let record_key = KademliaKey::new(&key_bytes);
+                    cmd.send(Command::GetKademliaRecord {
+                        key: record_key,
+                        rsp: tx,
+                    })
+                    .await
+                    .map_err(|e| MeshNetworkError::Libp2p(format!("Get record failed: {}", e)))?;
+                    let record_opt = rx.await.map_err(|e| {
+                        MeshNetworkError::Libp2p(format!("Get record response failed: {}", e))
+                    })??;
+                    Ok(record_opt.map(|rec| rec.value))
+                }
+            })
+            .await
         }
 
         async fn connect_peer(&self, addr: Multiaddr) -> Result<(), MeshNetworkError> {
-            let (tx, rx) = oneshot::channel();
-            self.cmd_tx
-                .send(Command::ConnectPeer { addr, rsp: tx })
-                .await
-                .map_err(|e| MeshNetworkError::Libp2p(format!("Connect send failed: {}", e)))?;
-            rx.await
-                .map_err(|e| MeshNetworkError::Libp2p(format!("Connect response failed: {}", e)))?
+            with_resilience(|| {
+                let cmd = self.cmd_tx.clone();
+                let addr = addr.clone();
+                async move {
+                    let (tx, rx) = oneshot::channel();
+                    cmd.send(Command::ConnectPeer { addr, rsp: tx })
+                        .await
+                        .map_err(|e| {
+                            MeshNetworkError::Libp2p(format!("Connect send failed: {}", e))
+                        })?;
+                    rx.await.map_err(|e| {
+                        MeshNetworkError::Libp2p(format!("Connect response failed: {}", e))
+                    })
+                }
+            })
+            .await
         }
 
         fn as_any(&self) -> &dyn Any {

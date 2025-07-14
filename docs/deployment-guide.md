@@ -243,3 +243,13 @@ For more advanced composition patterns, see
 [`config_builder.rs`](../crates/icn-runtime/examples/config_builder.rs).
 
 
+
+## Large Federation Script
+For quick experiments with more than ten nodes, use `scripts/deploy_large_federation.sh`.
+It generates a temporary compose file with nodes K–T and starts Prometheus/Grafana.
+
+```bash
+./scripts/deploy_large_federation.sh
+```
+
+See [deployment-automation.md](deployment-automation.md) for Terraform and Ansible examples.
