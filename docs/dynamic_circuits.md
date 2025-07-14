@@ -31,7 +31,7 @@ POST /circuits/register
 }
 ```
 
-The node stores the parameters and returns a content identifier (CID) for later reference. Circuits can be fetched with `GET /circuits/{slug}/{version}`.
+The node stores the parameters and returns a content identifier (CID) for later reference. Circuits can be fetched with `GET /circuits/{slug}/{version}`. Available versions are listed via `GET /circuits/{slug}`.
 
 ## Proving Key and Parameter Storage
 

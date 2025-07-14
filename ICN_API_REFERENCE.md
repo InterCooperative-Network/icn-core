@@ -46,6 +46,9 @@
 | `/tokens/burn` | POST | Burn resource tokens | 🚧 Experimental |
 | `/data/query` | POST | Query data | ✅ Working |
 | `/contracts` | POST | Upload WASM contract | ✅ Working |
+| `/circuits/register` | POST | Register Groth16 circuit parameters | ✅ Working |
+| `/circuits/{slug}/{version}` | GET | Fetch circuit metadata | ✅ Working |
+| `/circuits/{slug}` | GET | List circuit versions | ✅ Working |
 | `/federation/peers` | GET | List federation peers | ✅ Working |
 | `/federation/peers` | POST | Add federation peer | ✅ Working |
 | `/federation/join` | POST | Join a federation | ✅ Working |

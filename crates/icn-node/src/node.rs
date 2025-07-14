@@ -15,6 +15,7 @@
 //! It integrates various core components to operate a functional ICN node, handling initialization,
 //! lifecycle, configuration, service hosting, and persistence.
 
+use crate::circuit_registry::CircuitRegistry;
 use crate::parameter_store::ParameterStore;
 use icn_api::governance_trait::{
     CastVoteRequest as ApiCastVoteRequest, DelegateRequest as ApiDelegateRequest,
@@ -22,11 +23,14 @@ use icn_api::governance_trait::{
     SubmitProposalRequest as ApiSubmitProposalRequest,
 };
 use icn_api::{
+    circuits_trait::{
+        CircuitMetadataResponse, CircuitVersionsResponse,
+        RegisterCircuitRequest as ApiRegisterCircuitRequest,
+    },
     get_dag_metadata,
     identity_trait::{
-        CredentialResponse, DisclosureRequest, DisclosureResponse, IssueCredentialRequest,
-        RevokeCredentialRequest, VerificationResponse, VerifyProofsRequest,
-        BatchVerificationResponse,
+        BatchVerificationResponse, CredentialResponse, DisclosureRequest, DisclosureResponse,
+        IssueCredentialRequest, RevokeCredentialRequest, VerificationResponse, VerifyProofsRequest,
     },
     query_data, submit_transaction,
 };
@@ -405,6 +409,7 @@ struct AppState {
     parameter_store: Option<Arc<TokioMutex<ParameterStore>>>,
     credential_store: icn_identity::InMemoryCredentialStore,
     trusted_issuers: std::collections::HashMap<Did, icn_identity::VerifyingKey>,
+    circuit_registry: CircuitRegistry,
 }
 
 struct RateLimitData {
@@ -757,6 +762,7 @@ pub async fn app_router_with_options(
         parameter_store: parameter_store.clone(),
         credential_store: icn_identity::InMemoryCredentialStore::new(),
         trusted_issuers: trusted_map,
+        circuit_registry: CircuitRegistry::new(),
     };
 
     // Register governance callback for parameter changes
@@ -836,6 +842,9 @@ pub async fn app_router_with_options(
             .route("/dag/pin", post(dag_pin_handler))
             .route("/dag/unpin", post(dag_unpin_handler))
             .route("/dag/prune", post(dag_prune_handler))
+            .route("/circuits/register", post(circuits_register_handler))
+            .route("/circuits/{slug}/{version}", get(circuits_get_handler))
+            .route("/circuits/{slug}", get(circuits_list_handler))
             .route("/transaction/submit", post(tx_submit_handler))
             .route("/data/query", post(data_query_handler))
             .route("/governance/submit", post(gov_submit_handler)) // Uses RT context's Gov mod
@@ -915,6 +924,7 @@ pub async fn app_router_from_context(
         parameter_store: None,
         credential_store: icn_identity::InMemoryCredentialStore::new(),
         trusted_issuers: trusted_map,
+        circuit_registry: CircuitRegistry::new(),
     };
 
     {
@@ -986,6 +996,9 @@ pub async fn app_router_from_context(
         .route("/dag/pin", post(dag_pin_handler))
         .route("/dag/unpin", post(dag_unpin_handler))
         .route("/dag/prune", post(dag_prune_handler))
+        .route("/circuits/register", post(circuits_register_handler))
+        .route("/circuits/{slug}/{version}", get(circuits_get_handler))
+        .route("/circuits/{slug}", get(circuits_list_handler))
         .route("/transaction/submit", post(tx_submit_handler))
         .route("/data/query", post(data_query_handler))
         .route("/governance/submit", post(gov_submit_handler))
@@ -1229,6 +1242,7 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
         parameter_store: Some(parameter_store.clone()),
         credential_store: icn_identity::InMemoryCredentialStore::new(),
         trusted_issuers: trusted_map,
+        circuit_registry: CircuitRegistry::new(),
     };
 
     {
@@ -1273,6 +1287,9 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
         .route("/dag/pin", post(dag_pin_handler))
         .route("/dag/unpin", post(dag_unpin_handler))
         .route("/dag/prune", post(dag_prune_handler))
+        .route("/circuits/register", post(circuits_register_handler))
+        .route("/circuits/{slug}/{version}", get(circuits_get_handler))
+        .route("/circuits/{slug}", get(circuits_list_handler))
         .route("/transaction/submit", post(tx_submit_handler))
         .route("/data/query", post(data_query_handler))
         .route("/governance/submit", post(gov_submit_handler))
@@ -1884,6 +1901,78 @@ struct CidRequest {
 struct PinRequest {
     cid: String,
     ttl: Option<u64>,
+}
+
+// POST /circuits/register – add a circuit to the registry
+async fn circuits_register_handler(
+    State(state): State<AppState>,
+    Json(req): Json<ApiRegisterCircuitRequest>,
+) -> impl IntoResponse {
+    let pk_bytes = match BASE64_STANDARD.decode(req.proving_key.as_bytes()) {
+        Ok(b) => b,
+        Err(e) => {
+            return map_rust_error_to_json_response(
+                format!("Invalid proving key: {e}"),
+                StatusCode::BAD_REQUEST,
+            )
+            .into_response();
+        }
+    };
+    let vk_bytes = match BASE64_STANDARD.decode(req.verification_key.as_bytes()) {
+        Ok(b) => b,
+        Err(e) => {
+            return map_rust_error_to_json_response(
+                format!("Invalid verification key: {e}"),
+                StatusCode::BAD_REQUEST,
+            )
+            .into_response();
+        }
+    };
+    state
+        .circuit_registry
+        .register(req.slug, req.version, pk_bytes, vk_bytes)
+        .await;
+    (
+        StatusCode::CREATED,
+        Json(serde_json::json!({"status": "registered"})),
+    )
+        .into_response()
+}
+
+// GET /circuits/{slug}/{version} – fetch verifying key bytes
+async fn circuits_get_handler(
+    State(state): State<AppState>,
+    AxumPath((slug, version)): AxumPath<(String, String)>,
+) -> impl IntoResponse {
+    match state.circuit_registry.get(&slug, &version).await {
+        Some(rec) => (
+            StatusCode::OK,
+            Json(CircuitMetadataResponse {
+                slug: rec.slug,
+                version: rec.version,
+                verification_key: rec.verification_key,
+            }),
+        )
+            .into_response(),
+        None => map_rust_error_to_json_response("Not found", StatusCode::NOT_FOUND).into_response(),
+    }
+}
+
+// GET /circuits/{slug} – list available versions
+async fn circuits_list_handler(
+    State(state): State<AppState>,
+    AxumPath(slug): AxumPath<String>,
+) -> impl IntoResponse {
+    let versions = state.circuit_registry.list_versions(&slug).await;
+    if versions.is_empty() {
+        map_rust_error_to_json_response("Not found", StatusCode::NOT_FOUND).into_response()
+    } else {
+        (
+            StatusCode::OK,
+            Json(CircuitVersionsResponse { slug, versions }),
+        )
+            .into_response()
+    }
 }
 
 // POST /transaction/submit – Submit a transaction
@@ -2994,11 +3083,7 @@ async fn zk_verify_batch_handler(
         }
     }
 
-    (
-        StatusCode::OK,
-        Json(BatchVerificationResponse { results }),
-    )
-        .into_response()
+    (StatusCode::OK, Json(BatchVerificationResponse { results })).into_response()
 }
 
 // POST /identity/credentials/issue - issue a credential
