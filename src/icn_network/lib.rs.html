@@ -1830,7 +1830,7 @@
 <a href=#1830 id=1830 data-nosnippet>1830</a>                    })
 <a href=#1831 id=1831 data-nosnippet>1831</a>                    .<span class="kw">await
 <a href=#1832 id=1832 data-nosnippet>1832</a>                    </span>.map_err(|e| MeshNetworkError::Libp2p(<span class="macro">format!</span>(<span class="string">"Put record failed: {}"</span>, e)))<span class="question-mark">?</span>;
-<a href=#1833 id=1833 data-nosnippet>1833</a>                    rx.<span class="kw">await</span>.map_err(|e| {
+<a href=#1833 id=1833 data-nosnippet>1833</a>                    <span class="kw">let _ </span>= rx.<span class="kw">await</span>.map_err(|e| {
 <a href=#1834 id=1834 data-nosnippet>1834</a>                        MeshNetworkError::Libp2p(<span class="macro">format!</span>(<span class="string">"Put record response failed: {}"</span>, e))
 <a href=#1835 id=1835 data-nosnippet>1835</a>                    })<span class="question-mark">?</span>;
 <a href=#1836 id=1836 data-nosnippet>1836</a>                    <span class="prelude-val">Ok</span>(())
@@ -1872,7 +1872,7 @@
 <a href=#1872 id=1872 data-nosnippet>1872</a>                        </span>.map_err(|e| {
 <a href=#1873 id=1873 data-nosnippet>1873</a>                            MeshNetworkError::Libp2p(<span class="macro">format!</span>(<span class="string">"Connect send failed: {}"</span>, e))
 <a href=#1874 id=1874 data-nosnippet>1874</a>                        })<span class="question-mark">?</span>;
-<a href=#1875 id=1875 data-nosnippet>1875</a>                    rx.<span class="kw">await</span>.map_err(|e| {
+<a href=#1875 id=1875 data-nosnippet>1875</a>                    <span class="kw">let _ </span>= rx.<span class="kw">await</span>.map_err(|e| {
 <a href=#1876 id=1876 data-nosnippet>1876</a>                        MeshNetworkError::Libp2p(<span class="macro">format!</span>(<span class="string">"Connect response failed: {}"</span>, e))
 <a href=#1877 id=1877 data-nosnippet>1877</a>                    })<span class="question-mark">?</span>;
 <a href=#1878 id=1878 data-nosnippet>1878</a>                    <span class="prelude-val">Ok</span>(())
