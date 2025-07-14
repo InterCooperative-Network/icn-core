@@ -230,3 +230,25 @@ For more advanced composition patterns, see
 [`config_builder.rs`](../crates/icn-runtime/examples/config_builder.rs).
 
 
+
+## Automated Federation Deployment
+
+For repeatable production deployments, example Terraform and Ansible configurations are provided in the `deployment/` directory.
+
+### Terraform
+
+```
+cd deployment/terraform
+terraform init
+terraform apply -auto-approve
+```
+
+This will launch a Docker-based federation defined in `main.tf`.
+
+### Ansible
+
+```
+ansible-playbook -i hosts deployment/ansible/playbook.yml
+```
+
+The playbook installs Docker and starts three ICN nodes using the latest container image.
