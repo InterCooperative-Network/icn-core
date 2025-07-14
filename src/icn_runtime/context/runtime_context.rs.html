@@ -998,7 +998,7 @@
 <a href=#998 id=998 data-nosnippet>998</a>        <span class="comment">// 0. Check if this is a CCL WASM job that should auto-execute
 <a href=#999 id=999 data-nosnippet>999</a>        </span><span class="macro">log::debug!</span>(<span class="string">"[manage_job_lifecycle] Retrieving job status for: {}"</span>, job_id);
 <a href=#1000 id=1000 data-nosnippet>1000</a>        <span class="kw">match </span><span class="self">self</span>.get_job_status(<span class="kw-2">&amp;</span>job_id).<span class="kw">await </span>{
-<a href=#1001 id=1001 data-nosnippet>1001</a>            <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(lifecycle)) =&gt; {
+<a href=#1001 id=1001 data-nosnippet>1001</a>            <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(_lifecycle)) =&gt; {
 <a href=#1002 id=1002 data-nosnippet>1002</a>                <span class="macro">log::debug!</span>(
 <a href=#1003 id=1003 data-nosnippet>1003</a>                    <span class="string">"[manage_job_lifecycle] Found job lifecycle, checking if CCL WASM: {}"</span>,
 <a href=#1004 id=1004 data-nosnippet>1004</a>                    job_id
