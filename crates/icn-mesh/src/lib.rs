@@ -995,6 +995,7 @@ mod tests {
             resources: Resources {
                 cpu_cores: 2,
                 memory_mb: 1024,
+                storage_mb: 0,
             },
             signature: SignatureBytes(vec![]),
         }
@@ -1007,6 +1008,7 @@ mod tests {
             resources: Resources {
                 cpu_cores: 1,
                 memory_mb: 512,
+                storage_mb: 0,
             },
             signature: SignatureBytes(vec![]),
         }
@@ -1206,6 +1208,7 @@ mod tests {
             resources: Resources {
                 cpu_cores: 4,
                 memory_mb: 4096,
+                storage_mb: 0,
             },
             signature: SignatureBytes(vec![]),
         }
@@ -1219,6 +1222,7 @@ mod tests {
             resources: Resources {
                 cpu_cores: 1,
                 memory_mb: 512,
+                storage_mb: 0,
             },
             signature: SignatureBytes(vec![]),
         }
@@ -1267,6 +1271,7 @@ mod tests {
             resources: Resources {
                 cpu_cores: 2,
                 memory_mb: 1024,
+                storage_mb: 0,
             },
             signature: SignatureBytes(vec![]),
         };

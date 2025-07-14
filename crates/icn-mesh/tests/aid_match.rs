@@ -20,7 +20,9 @@ fn basic_matching() {
         },
     };
 
-    let matches = match_aid_requests(&[request.clone()], &[template.clone()]);
+    let requests = [request.clone()];
+    let templates = [template.clone()];
+    let matches = match_aid_requests(&requests, &templates);
     assert_eq!(matches.len(), 1);
     assert_eq!(matches[0].0.id, request.id);
     assert_eq!(matches[0].1.tags[0], template.tags[0]);

@@ -230,6 +230,19 @@ pub struct RuntimeContext {
     pub default_receipt_wait_ms: u64,
 }
 
+impl std::fmt::Debug for RuntimeContext {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RuntimeContext")
+            .field("current_identity", &self.current_identity)
+            .field("job_states_count", &self.job_states.len())
+            .field("mesh_network_service", &self.mesh_network_service)
+            .field("parameters_count", &self.parameters.len())
+            .field("default_receipt_wait_ms", &self.default_receipt_wait_ms)
+            .field("policy_enforcer", &self.policy_enforcer.is_some())
+            .finish_non_exhaustive()
+    }
+}
+
 // Import std::str::FromStr for Did::from_str
 use std::str::FromStr;
 
@@ -3469,18 +3482,18 @@ mod configuration_tests {
     use super::*;
     use std::str::FromStr;
 
-    #[test]
-    fn test_runtime_context_builder_testing() {
+    #[tokio::test]
+    async fn test_runtime_context_builder_testing() {
         let test_did = Did::from_str("did:key:zTestBuilder").unwrap();
         
         let ctx = RuntimeContextBuilder::new(EnvironmentType::Testing)
-            .with_identity(test_did)
+            .with_identity(test_did.clone())
             .with_initial_mana(100)
             .build()
             .unwrap();
 
         assert_eq!(ctx.current_identity, test_did);
-        assert_eq!(ctx.get_mana(&test_did).unwrap(), 100);
+        assert_eq!(ctx.get_mana(&test_did).await.unwrap(), 100);
     }
 
     #[test]
@@ -3506,8 +3519,8 @@ mod configuration_tests {
         assert!(result.unwrap_err().to_string().contains("PRODUCTION ERROR"));
     }
 
-    #[test]
-    fn test_deprecated_methods_still_work() {
+    #[tokio::test]
+    async fn test_deprecated_methods_still_work() {
         #[allow(deprecated)]
         let ctx = RuntimeContext::new_with_stubs("did:key:zTestDeprecated").unwrap();
         
@@ -3516,6 +3529,6 @@ mod configuration_tests {
         
         #[allow(deprecated)]
         let ctx2 = RuntimeContext::new_with_stubs_and_mana("did:key:zTestDeprecated2", 50).unwrap();
-        assert_eq!(ctx2.get_mana(&ctx2.current_identity).unwrap(), 50);
+        assert_eq!(ctx2.get_mana(&ctx2.current_identity).await.unwrap(), 50);
     }
 }
