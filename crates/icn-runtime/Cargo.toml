@@ -38,6 +38,7 @@ clap = { version = "4.0", features = ["derive"], optional = true }
 icn-ccl = { path = "../../icn-ccl" }
 sha2 = "0.10"
 anyhow = "1.0"
+procfs = "0.17"
 dashmap = "5"
 aes-gcm = "0.10"
 pbkdf2 = "0.12"
