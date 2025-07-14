@@ -59,6 +59,22 @@ pub enum ProposalType {
     SoftwareUpgrade(String),               // Version or identifier for the upgrade
     GenericText(String),                   // For general purpose proposals
     BudgetAllocation(u64, String),         // amount, purpose
+    Resolution(ResolutionProposal),        // Dispute or remediation actions
+}
+
+/// Specific remediation actions for dispute resolution.
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum ResolutionAction {
+    PauseCredential(Cid),
+    FreezeReputation(Did),
+}
+
+/// Proposal containing one or more resolution actions.
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct ResolutionProposal {
+    pub actions: Vec<ResolutionAction>,
 }
 
 /// Current lifecycle state of a proposal.
@@ -234,7 +250,7 @@ impl GovernanceModule {
         })?;
 
         let proposals_tree_name = "proposals_v1".to_string(); // versioned tree name
-        // sled automatically creates trees when first accessed, so no explicit creation needed here.
+                                                              // sled automatically creates trees when first accessed, so no explicit creation needed here.
 
         Ok(GovernanceModule {
             backend: Backend::Sled {

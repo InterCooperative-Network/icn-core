@@ -38,6 +38,7 @@ libp2p = { version = "0.56", optional = true }
 async-trait = "0.1"
 prometheus-client = "0.22"
 subtle = "2"
+dashmap = "5"
 
 [features]
 default = ["icn-network/default"]

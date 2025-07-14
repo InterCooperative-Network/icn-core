@@ -17,6 +17,7 @@
 
 use crate::circuit_registry::CircuitRegistry;
 use crate::parameter_store::ParameterStore;
+use dashmap::DashSet;
 use icn_api::governance_trait::{
     CastVoteRequest as ApiCastVoteRequest, DelegateRequest as ApiDelegateRequest,
     RevokeDelegationRequest as ApiRevokeDelegationRequest,
@@ -406,6 +407,8 @@ struct AppState {
     circuit_registry: Arc<TokioMutex<CircuitRegistry>>,
     credential_store: icn_identity::InMemoryCredentialStore,
     trusted_issuers: std::collections::HashMap<Did, icn_identity::VerifyingKey>,
+    paused_credentials: DashSet<Cid>,
+    frozen_reputations: DashSet<Did>,
 }
 
 struct RateLimitData {
@@ -760,6 +763,8 @@ pub async fn app_router_with_options(
         circuit_registry: Arc::new(TokioMutex::new(CircuitRegistry::default())),
         credential_store: icn_identity::InMemoryCredentialStore::new(),
         trusted_issuers: trusted_map,
+        paused_credentials: DashSet::new(),
+        frozen_reputations: DashSet::new(),
     };
 
     // Register governance callback for parameter changes
@@ -767,6 +772,8 @@ pub async fn app_router_with_options(
         let gov_mod = rt_ctx.governance_module.clone();
         let rate_opt = rate_limiter.clone();
         let param_store_opt = parameter_store.clone();
+        let paused_set = app_state.paused_credentials.clone();
+        let frozen_set = app_state.frozen_reputations.clone();
         let handle = tokio::runtime::Handle::current();
         let mut gov = gov_mod.lock().await;
         gov.set_callback(move |proposal| {
@@ -789,6 +796,18 @@ pub async fn app_router_with_options(
                             let mut ps = store.lock().await;
                             let _ = ps.set_parameter(param, &val);
                         });
+                    }
+                }
+            }
+            if let icn_governance::ProposalType::Resolution(res) = &proposal.proposal_type {
+                for act in &res.actions {
+                    match act {
+                        icn_governance::ResolutionAction::PauseCredential(cid) => {
+                            paused_set.insert(cid.clone());
+                        }
+                        icn_governance::ResolutionAction::FreezeReputation(did) => {
+                            frozen_set.insert(did.clone());
+                        }
                     }
                 }
             }
@@ -925,12 +944,16 @@ pub async fn app_router_from_context(
         circuit_registry: Arc::new(TokioMutex::new(CircuitRegistry::default())),
         credential_store: icn_identity::InMemoryCredentialStore::new(),
         trusted_issuers: trusted_map,
+        paused_credentials: DashSet::new(),
+        frozen_reputations: DashSet::new(),
     };
 
     {
         let gov_mod = ctx.governance_module.clone();
         let rate_opt = rate_limiter.clone();
         let param_store_opt: Option<Arc<TokioMutex<ParameterStore>>> = None;
+        let paused_set = app_state.paused_credentials.clone();
+        let frozen_set = app_state.frozen_reputations.clone();
         let handle = tokio::runtime::Handle::current();
         let mut gov = gov_mod.lock().await;
         gov.set_callback(move |proposal| {
@@ -953,6 +976,18 @@ pub async fn app_router_from_context(
                             let mut ps = store.lock().await;
                             let _ = ps.set_parameter(param, &val);
                         });
+                    }
+                }
+            }
+            if let icn_governance::ProposalType::Resolution(res) = &proposal.proposal_type {
+                for act in &res.actions {
+                    match act {
+                        icn_governance::ResolutionAction::PauseCredential(cid) => {
+                            paused_set.insert(cid.clone());
+                        }
+                        icn_governance::ResolutionAction::FreezeReputation(did) => {
+                            frozen_set.insert(did.clone());
+                        }
                     }
                 }
             }
@@ -1250,11 +1285,15 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
         circuit_registry: Arc::new(TokioMutex::new(CircuitRegistry::default())),
         credential_store: icn_identity::InMemoryCredentialStore::new(),
         trusted_issuers: trusted_map,
+        paused_credentials: DashSet::new(),
+        frozen_reputations: DashSet::new(),
     };
 
     {
         let gov_mod = rt_ctx.governance_module.clone();
         let rate_opt = rate_limiter.clone();
+        let paused_set = app_state.paused_credentials.clone();
+        let frozen_set = app_state.frozen_reputations.clone();
         let handle = tokio::runtime::Handle::current();
         let mut gov = gov_mod.lock().await;
         gov.set_callback(move |proposal| {
@@ -1270,6 +1309,18 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
                             let mut data = limiter.lock().await;
                             data.limit = new_lim;
                         });
+                    }
+                }
+            }
+            if let icn_governance::ProposalType::Resolution(res) = &proposal.proposal_type {
+                for act in &res.actions {
+                    match act {
+                        icn_governance::ResolutionAction::PauseCredential(cid) => {
+                            paused_set.insert(cid.clone());
+                        }
+                        icn_governance::ResolutionAction::FreezeReputation(did) => {
+                            frozen_set.insert(did.clone());
+                        }
                     }
                 }
             }
@@ -2945,6 +2996,13 @@ async fn reputation_handler(
 ) -> impl IntoResponse {
     match Did::from_str(&did_str) {
         Ok(did) => {
+            if state.frozen_reputations.contains(&did) {
+                return (
+                    StatusCode::OK,
+                    Json(serde_json::json!({ "score": 0, "frozen": true })),
+                )
+                    .into_response();
+            }
             let score = state.runtime_context.reputation_store.get_reputation(&did);
             (StatusCode::OK, Json(serde_json::json!({ "score": score }))).into_response()
         }
@@ -3109,18 +3167,26 @@ async fn credential_get_handler(
     State(state): State<AppState>,
 ) -> impl IntoResponse {
     match parse_cid_from_string(&cid_str) {
-        Ok(cid) => match state.credential_store.get(&cid) {
-            Some(cred) => (
-                StatusCode::OK,
-                Json(CredentialResponse {
-                    cid,
-                    credential: cred,
-                }),
-            )
-                .into_response(),
-            None => map_rust_error_to_json_response("Credential not found", StatusCode::NOT_FOUND)
-                .into_response(),
-        },
+        Ok(cid) => {
+            if state.paused_credentials.contains(&cid) {
+                return map_rust_error_to_json_response("Credential paused", StatusCode::FORBIDDEN)
+                    .into_response();
+            }
+            match state.credential_store.get(&cid) {
+                Some(cred) => (
+                    StatusCode::OK,
+                    Json(CredentialResponse {
+                        cid,
+                        credential: cred,
+                    }),
+                )
+                    .into_response(),
+                None => {
+                    map_rust_error_to_json_response("Credential not found", StatusCode::NOT_FOUND)
+                        .into_response()
+                }
+            }
+        }
         Err(e) => {
             map_rust_error_to_json_response(format!("Invalid CID: {e}"), StatusCode::BAD_REQUEST)
                 .into_response()
@@ -3134,6 +3200,13 @@ async fn credential_verify_handler(
     Json(cred): Json<Credential>,
 ) -> impl IntoResponse {
     if let Some(vk) = state.trusted_issuers.get(&cred.issuer) {
+        if let Ok(bytes) = serde_json::to_vec(&cred) {
+            let cid = Cid::new_v1_sha256(0x71, &bytes);
+            if state.paused_credentials.contains(&cid) {
+                return map_rust_error_to_json_response("Credential paused", StatusCode::FORBIDDEN)
+                    .into_response();
+            }
+        }
         for (k, _) in &cred.claims {
             if let Err(e) = cred.verify_claim(k, vk) {
                 return map_rust_error_to_json_response(format!("{e}"), StatusCode::BAD_REQUEST)

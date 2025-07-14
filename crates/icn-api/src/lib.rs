@@ -11,9 +11,9 @@
 
 // Depending on icn_common crate
 use icn_common::{
-    compute_merkle_cid, retry_with_backoff, Cid, CircuitBreaker, CircuitBreakerError, CommonError,
-    DagBlock, Did, NodeInfo, NodeStatus, DagSyncStatus, SystemTimeProvider, ZkCredentialProof, ZkRevocationProof,
-    ICN_CORE_VERSION,
+    compute_merkle_cid, parse_cid_from_string, retry_with_backoff, Cid, CircuitBreaker,
+    CircuitBreakerError, CommonError, DagBlock, DagSyncStatus, Did, NodeInfo, NodeStatus,
+    SystemTimeProvider, ZkCredentialProof, ZkRevocationProof, ICN_CORE_VERSION,
 };
 // Remove direct use of icn_dag::put_block and icn_dag::get_block which use global store
 // use icn_dag::{put_block as dag_put_block, get_block as dag_get_block};
@@ -41,17 +41,18 @@ static HTTP_BREAKER: Lazy<AsyncMutex<CircuitBreaker<SystemTimeProvider>>> = Lazy
     ))
 });
 
+pub mod circuits;
 pub mod dag_trait;
 pub mod federation_trait;
 pub mod governance_trait;
 pub mod identity_trait;
-pub mod circuits;
 /// Prometheus metrics helpers
 pub mod metrics;
 use crate::governance_trait::{
     CastVoteRequest as GovernanceCastVoteRequest, // Renamed to avoid conflict
     GovernanceApi,
     ProposalInputType,
+    ResolutionActionInput,
     SubmitProposalRequest as GovernanceSubmitProposalRequest, // Renamed to avoid conflict
 };
 
@@ -335,6 +336,35 @@ impl GovernanceApi for GovernanceApiImpl {
                 ProposalType::SoftwareUpgrade(version)
             }
             ProposalInputType::GenericText { text } => ProposalType::GenericText(text),
+            ProposalInputType::Resolution { actions } => {
+                let mut core_actions = Vec::new();
+                for a in actions {
+                    let ca = match a {
+                        ResolutionActionInput::PauseCredential { cid } => {
+                            let c = parse_cid_from_string(&cid).map_err(|e| {
+                                CommonError::InvalidInputError(format!(
+                                    "Invalid CID in resolution action: {} - {}",
+                                    cid, e
+                                ))
+                            })?;
+                            icn_governance::ResolutionAction::PauseCredential(c)
+                        }
+                        ResolutionActionInput::FreezeReputation { did } => {
+                            let d = Did::from_str(&did).map_err(|e| {
+                                CommonError::InvalidInputError(format!(
+                                    "Invalid DID in resolution action: {} - {}",
+                                    did, e
+                                ))
+                            })?;
+                            icn_governance::ResolutionAction::FreezeReputation(d)
+                        }
+                    };
+                    core_actions.push(ca);
+                }
+                ProposalType::Resolution(icn_governance::ResolutionProposal {
+                    actions: core_actions,
+                })
+            }
         };
 
         if let Some(ref p) = request.credential_proof {
