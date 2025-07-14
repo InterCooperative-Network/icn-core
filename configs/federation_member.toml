@@ -1,0 +1,7 @@
+# Template configuration for joining an existing federation
+http_listen_addr = "0.0.0.0:7845"
+storage_backend = "sqlite"
+storage_path = "./icn_data/member.sqlite"
+# Replace with address of a peer already in the federation
+bootstrap_peers = ["/ip4/1.2.3.4/tcp/7000/p2p/QmPeer"]
+federation_name = "icn-demo"

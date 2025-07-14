@@ -19,14 +19,17 @@ use std::process::exit; // Added for reading from stdin
 // These types are expected to be sent to/received from the icn-node HTTP API.
 use icn_common::{Cid, DagBlock, Did, NodeInfo, NodeStatus, ZkCredentialProof, ZkProofType};
 // Using aliased request structs from icn-api for clarity, these are what the node expects
+use bs58;
+use dialoguer::{theme::ColorfulTheme, Input};
 use icn_api::governance_trait::{
     CastVoteRequest as ApiCastVoteRequest, SubmitProposalRequest as ApiSubmitProposalRequest,
 };
 use icn_api::identity_trait::{BatchVerificationResponse, VerifyProofsRequest};
 use icn_ccl::{check_ccl_file, compile_ccl_file, compile_ccl_file_to_wasm, explain_ccl_policy};
 use icn_governance::{Proposal, ProposalId};
-use icn_identity::generate_ed25519_keypair;
+use icn_identity::{did_key_from_verifying_key, generate_ed25519_keypair};
 use icn_runtime::context::{Ed25519Signer, Signer};
+use icn_sdk::{HealthStatus, ReadinessStatus};
 
 fn anyhow_to_common(e: anyhow::Error) -> CommonError {
     if let Some(c) = e.downcast_ref::<CommonError>() {
@@ -74,6 +77,10 @@ enum Commands {
     Status,
     /// Fetch Prometheus metrics text
     Metrics,
+    /// Get node health report
+    Health,
+    /// Get node readiness status
+    Ready,
     /// DAG block operations
     Dag {
         #[clap(subcommand)]
@@ -277,6 +284,9 @@ enum CclCommands {
 
 #[derive(Subcommand, Debug)]
 enum FederationCommands {
+    /// Initialize a new federation and generate keys
+    #[clap(name = "init")]
+    Init,
     /// Join a federation by specifying a peer
     #[clap(name = "join")]
     Join {
@@ -295,6 +305,9 @@ enum FederationCommands {
     /// Show federation status
     #[clap(name = "status")]
     Status,
+    /// Synchronize federation state from peers
+    #[clap(name = "sync")]
+    Sync,
 }
 
 #[derive(Subcommand, Debug)]
@@ -391,6 +404,8 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
         Commands::Info => handle_info(cli, client).await?,
         Commands::Status => handle_status(cli, client).await?,
         Commands::Metrics => handle_metrics(cli, client).await?,
+        Commands::Health => handle_health(cli, client).await?,
+        Commands::Ready => handle_ready(cli, client).await?,
         Commands::Dag { command } => match command {
             DagCommands::Put {
                 block_json_or_stdin,
@@ -481,10 +496,12 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
         } => handle_mesh_submit(cli, client, job_request_json_or_stdin).await?,
         Commands::JobStatus { job_id } => handle_mesh_status(cli, client, job_id).await?,
         Commands::Federation { command } => match command {
+            FederationCommands::Init => handle_fed_init(cli, client).await?,
             FederationCommands::Join { peer } => handle_fed_join(cli, client, peer).await?,
             FederationCommands::Leave { peer } => handle_fed_leave(cli, client, peer).await?,
             FederationCommands::ListPeers => handle_fed_list_peers(cli, client).await?,
             FederationCommands::Status => handle_fed_status(cli, client).await?,
+            FederationCommands::Sync => handle_fed_sync(cli, client).await?,
         },
     }
     Ok(())
@@ -590,6 +607,18 @@ async fn handle_status(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> 
     println!("Block Height:   {}", response.current_block_height);
     println!("Version:        {}", response.version);
     println!("-------------------");
+    Ok(())
+}
+
+async fn handle_health(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
+    let status: HealthStatus = get_request(&cli.api_url, client, "/health").await?;
+    println!("{}", serde_json::to_string_pretty(&status)?);
+    Ok(())
+}
+
+async fn handle_ready(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
+    let status: ReadinessStatus = get_request(&cli.api_url, client, "/ready").await?;
+    println!("{}", serde_json::to_string_pretty(&status)?);
     Ok(())
 }
 
@@ -981,6 +1010,71 @@ async fn handle_fed_list_peers(cli: &Cli, client: &Client) -> Result<(), anyhow:
     Ok(())
 }
 
+struct WizardOutput {
+    node_name: String,
+    node_did: String,
+    bootstrap_peers: Vec<String>,
+    key_path: String,
+    config_path: String,
+}
+
+fn run_setup_wizard() -> Result<WizardOutput, anyhow::Error> {
+    let theme = ColorfulTheme::default();
+    println!("=== Federation Setup Wizard ===");
+    let node_name: String = Input::with_theme(&theme)
+        .with_prompt("Node name")
+        .default("ICN Node".into())
+        .interact_text()?;
+    let key_path: String = Input::with_theme(&theme)
+        .with_prompt("Path to save private key")
+        .default("./node_sk.bs58".into())
+        .interact_text()?;
+    let peers_input: String = Input::with_theme(&theme)
+        .with_prompt("Bootstrap peers (comma separated)")
+        .default("".into())
+        .interact_text()?;
+    let config_path: String = Input::with_theme(&theme)
+        .with_prompt("Write config to")
+        .default("./federation.toml".into())
+        .interact_text()?;
+
+    println!("Generating Ed25519 key pair...");
+    let (sk, pk) = generate_ed25519_keypair();
+    let sk_bs58 = bs58::encode(sk.to_bytes()).into_string();
+    std::fs::write(&key_path, sk_bs58)?;
+    let did = did_key_from_verifying_key(&pk);
+    println!("Node DID: {}", did);
+
+    let peers: Vec<String> = if peers_input.trim().is_empty() {
+        Vec::new()
+    } else {
+        peers_input
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .collect()
+    };
+
+    let peers_toml = peers
+        .iter()
+        .map(|p| format!("\"{}\"", p))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let cfg_contents = format!(
+        "node_name = \"{}\"\nprivate_key_path = \"{}\"\nbootstrap_peers = [{}]\n",
+        node_name, key_path, peers_toml
+    );
+    std::fs::write(&config_path, cfg_contents)?;
+    println!("Configuration written to {}", config_path);
+
+    Ok(WizardOutput {
+        node_name,
+        node_did: did,
+        bootstrap_peers: peers,
+        key_path,
+        config_path,
+    })
+}
+
 #[derive(Serialize)]
 struct PeerReq<'a> {
     peer: &'a str,
@@ -990,6 +1084,26 @@ async fn handle_fed_join(cli: &Cli, client: &Client, peer: &str) -> Result<(), a
     let req = PeerReq { peer };
     let resp: serde_json::Value =
         post_request(&cli.api_url, client, "/federation/join", &req).await?;
+    println!("{}", serde_json::to_string_pretty(&resp)?);
+    Ok(())
+}
+
+async fn handle_fed_init(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
+    let wizard = run_setup_wizard()?;
+    let body = serde_json::json!({
+        "node_name": wizard.node_name,
+        "node_did": wizard.node_did,
+        "bootstrap_peers": wizard.bootstrap_peers,
+    });
+    let resp: serde_json::Value =
+        post_request(&cli.api_url, client, "/federation/init", &body).await?;
+    println!("{}", serde_json::to_string_pretty(&resp)?);
+    Ok(())
+}
+
+async fn handle_fed_sync(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
+    let resp: serde_json::Value =
+        post_request(&cli.api_url, client, "/federation/sync", &()).await?;
     println!("{}", serde_json::to_string_pretty(&resp)?);
     Ok(())
 }
