@@ -7,36 +7,36 @@ echo "============================================================="
 
 # Build with production features
 echo "🔧 Building with production features..."
-cargo build --release --bin icn-node --features "with-libp2p,persist-sled"
+cargo build --release --bin icn-node --features "with-libp2p"
 
 # Create node configurations
 echo "📝 Creating node configurations..."
 mkdir -p ./icn_data/{node_a,node_b}
-echo '{}' > ./icn_data/node_a/mana_ledger.json
-echo '{}' > ./icn_data/node_b/mana_ledger.json
+echo '{"balances": {}}' > ./icn_data/node_a/mana_ledger.json
+echo '{"balances": {}}' > ./icn_data/node_b/mana_ledger.json
 
 # Start Node A (submitter) in background
 echo "🚀 Starting Node A (submitter)..."
-ICN_MANA_LEDGER_BACKEND=file \
-ICN_MANA_LEDGER_PATH=./icn_data/node_a/mana_ledger.json \
-ICN_HTTP_LISTEN_ADDR=0.0.0.0:5001 \
-ICN_LISTEN_ADDRESS=/ip4/0.0.0.0/tcp/4001 \
-ICN_ENABLE_P2P=true \
-ICN_NODE_NAME="ICN Node A (Submitter)" \
-ICN_STORAGE_BACKEND=memory \
-./target/release/icn-node --api-key "node-a-key" &
+./target/release/icn-node \
+    --mana-ledger-path ./icn_data/node_a/mana_ledger.json \
+    --http-listen-addr 0.0.0.0:5001 \
+    --listen-address "/ip4/0.0.0.0/tcp/4001" \
+    --enable-p2p \
+    --node-name "ICN Node A (Submitter)" \
+    --storage-backend memory \
+    --api-key "node-a-key" &
 NODE_A_PID=$!
 
 # Start Node B (executor) in background
 echo "🚀 Starting Node B (executor)..."
-ICN_MANA_LEDGER_BACKEND=file \
-ICN_MANA_LEDGER_PATH=./icn_data/node_b/mana_ledger.json \
-ICN_HTTP_LISTEN_ADDR=0.0.0.0:5002 \
-ICN_LISTEN_ADDRESS=/ip4/0.0.0.0/tcp/4002 \
-ICN_ENABLE_P2P=true \
-ICN_NODE_NAME="ICN Node B (Executor)" \
-ICN_STORAGE_BACKEND=memory \
-./target/release/icn-node --api-key "node-b-key" &
+./target/release/icn-node \
+    --mana-ledger-path ./icn_data/node_b/mana_ledger.json \
+    --http-listen-addr 0.0.0.0:5002 \
+    --listen-address "/ip4/0.0.0.0/tcp/4002" \
+    --enable-p2p \
+    --node-name "ICN Node B (Executor)" \
+    --storage-backend memory \
+    --api-key "node-b-key" &
 NODE_B_PID=$!
 
 # Wait for nodes to start
