@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["MUTUAL_AID_CLASS"],"fn":["grant_mutual_aid","use_mutual_aid"]};

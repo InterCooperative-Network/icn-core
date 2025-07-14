@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["ProposalInputType"],"struct":["CastVoteRequest","CloseProposalResponse","DelegateRequest","RevokeDelegationRequest","SubmitProposalRequest"],"trait":["GovernanceApi"]};
+window.SIDEBAR_ITEMS = {"enum":["ProposalInputType","ResolutionActionInput"],"struct":["CastVoteRequest","CloseProposalResponse","DelegateRequest","RevokeDelegationRequest","SubmitProposalRequest"],"trait":["GovernanceApi"]};
