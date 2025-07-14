@@ -190,6 +190,14 @@ Prometheus will be reachable at <http://localhost:9090> and Grafana at
 <http://localhost:3000> (`admin` / `icnfederation`). Import the dashboards from
 `icn-devnet/grafana/` to visualize node metrics.
 
+Each `icn-node` exposes metrics at `http://<node>/metrics`. The endpoint is
+enabled by default and returns Prometheus text. Use a scrape interval of 15s for
+development.
+
+Logs use structured JSON via the `tracing` crate. Every request includes an
+`x-correlation-id` header which is echoed in responses and log entries, making it
+easy to trace activity across services.
+
 Runtime metrics now include counters for WASM resource limiter denials:
 
 ```text

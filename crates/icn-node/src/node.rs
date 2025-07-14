@@ -59,7 +59,8 @@ use axum::{
 use axum_server::tls_rustls::RustlsConfig;
 use bs58;
 use clap::{ArgMatches, CommandFactory, FromArgMatches, Parser};
-use log::{debug, error, info, warn};
+use tracing::{debug, error, info, warn};
+use tracing_subscriber::EnvFilter;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::net::SocketAddr;
@@ -97,6 +98,7 @@ struct HealthStatus {
     timestamp: u64,
     uptime_seconds: u64,
     checks: HealthChecks,
+    metrics: SystemMetrics,
 }
 
 #[derive(serde::Serialize)]
@@ -112,6 +114,7 @@ struct ReadinessStatus {
     ready: bool,
     timestamp: u64,
     checks: ReadinessChecks,
+    metrics: SystemMetrics,
 }
 
 #[derive(serde::Serialize)]
@@ -138,6 +141,36 @@ struct SystemMetrics {
     connected_peers: usize,
     pending_jobs: usize,
     mana_accounts: usize,
+}
+
+fn gather_system_metrics(ctx: &RuntimeContext) -> SystemMetrics {
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    let start_time = NODE_START_TIME.load(Ordering::Relaxed);
+    let uptime_seconds = if start_time > 0 { now - start_time } else { 0 };
+
+    let memory_usage_bytes = if let Ok(status) = fs::read_to_string("/proc/self/status") {
+        status
+            .lines()
+            .find(|l| l.starts_with("VmRSS:"))
+            .and_then(|l| l.split_whitespace().nth(1))
+            .and_then(|kb| kb.parse::<u64>().ok())
+            .map(|kb| kb * 1024)
+            .unwrap_or(0)
+    } else {
+        0
+    };
+
+    SystemMetrics {
+        uptime_seconds,
+        memory_usage_bytes,
+        process_id: process::id(),
+        connected_peers: icn_network::metrics::PEER_COUNT_GAUGE.get() as usize,
+        pending_jobs: icn_mesh::metrics::PENDING_JOBS_GAUGE.get() as usize,
+        mana_accounts: ctx.mana_ledger.all_accounts().len(),
+    }
 }
 
 // --- CLI Arguments ---
@@ -508,14 +541,15 @@ async fn correlation_id_middleware(
         .map(|s| s.to_string())
         .unwrap_or_else(|| Uuid::new_v4().to_string());
     req.extensions_mut().insert(cid.clone());
-    info!(target: "request", "start cid={} {} {}", cid, method, path);
+    let span = tracing::info_span!("http_request", %cid, %method, %path);
+    let _enter = span.enter();
     let start = Instant::now();
     let mut res = next.run(req).await.into_response();
     res.headers_mut()
         .insert("x-correlation-id", cid.parse().unwrap());
     let latency = start.elapsed().as_millis();
     let status = res.status().as_u16();
-    info!(target: "request", "end cid={} status={} latency_ms={}", cid, status, latency);
+    tracing::info!(status = %status, latency_ms = latency, "request_complete");
     res
 }
 
@@ -930,7 +964,11 @@ pub async fn app_router_from_context(
 
 // --- Main Application Logic ---
 pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
-    env_logger::init(); // Initialize logger
+    tracing_log::LogTracer::init().ok();
+    tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_default_env())
+        .json()
+        .init();
     init_node_start_time(); // Initialize uptime tracking
 
     let cmd = Cli::command();
@@ -1337,11 +1375,13 @@ async fn health_handler(State(state): State<AppState>) -> impl IntoResponse {
         checks.network = "DISABLED".to_string();
     }
 
+    let metrics = gather_system_metrics(&state.runtime_context);
     let health_status = HealthStatus {
         status: overall_status.to_string(),
         timestamp: now,
         uptime_seconds: uptime,
         checks,
+        metrics,
     };
 
     let status_code = match overall_status {
@@ -1391,10 +1431,12 @@ async fn readiness_handler(State(state): State<AppState>) -> impl IntoResponse {
         && checks.dag_store_available
         && checks.network_initialized;
 
+    let metrics = gather_system_metrics(&state.runtime_context);
     let readiness_status = ReadinessStatus {
         ready,
         timestamp: now,
         checks,
+        metrics,
     };
 
     let status_code = if ready {
