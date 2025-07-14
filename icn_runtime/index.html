@@ -110,7 +110,7 @@ runtime):</p>
 <span class="attr">#[cfg(not(feature = <span class="string">"async"</span>))]
 </span><span class="kw">let </span>dag_store = Arc::new(Mutex::new(icn_dag::FileDagStore::new(<span class="string">"./dag"</span>.into()).unwrap()));
 
-<span class="kw">let </span>ctx = RuntimeContext::new(
+<span class="kw">let </span>ctx = RuntimeContext::new_with_services(
     Did::new(<span class="string">"key"</span>, <span class="string">"node"</span>),
     Arc::new(StubMeshNetworkService::new()),
     Arc::new(Ed25519Signer::new(generate_ed25519_keypair().<span class="number">0</span>)),
