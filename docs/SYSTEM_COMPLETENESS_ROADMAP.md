@@ -135,10 +135,10 @@ The ICN Core provides a solid foundation with:
 - No inflation/decay model for economic simulation
 
 **Action Items**:
-- [ ] Build `icn-economics` ledger explorer
-- [ ] Add hooks to store mana transaction summaries to DAG
+- [x] Build `icn-economics` ledger explorer
+- [x] Add hooks to store mana transaction summaries to DAG
 - [ ] Create dashboard panels for cooperative treasury visualization
-- [ ] Implement economic simulation tools
+- [x] Implement economic simulation tools
 
 #### 3.3 Federation Bootstrap CLI/UX
 **Status**: Missing  

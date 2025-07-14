@@ -14,6 +14,8 @@ use log::{debug, info};
 use serde::{Deserialize, Serialize};
 pub mod ledger;
 pub mod metrics;
+pub mod explorer;
+pub use explorer::{LedgerExplorer, FlowStats};
 pub use ledger::FileManaLedger;
 #[cfg(feature = "persist-rocksdb")]
 pub use ledger::RocksdbManaLedger;
