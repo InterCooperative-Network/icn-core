@@ -536,9 +536,18 @@ async fn correlation_id_middleware(
     let mut res = next.run(req).await.into_response();
     res.headers_mut()
         .insert("x-correlation-id", cid.parse().unwrap());
-    let latency = start.elapsed().as_millis();
+    let latency = start.elapsed();
     let status = res.status().as_u16();
-    info!(target: "request", "end cid={} status={} latency_ms={}", cid, status, latency);
+    info!(target: "request", "end cid={} status={} latency_ms={}", cid, status, latency.as_millis());
+    
+    // Track HTTP metrics
+    icn_api::metrics::system::HTTP_REQUESTS_TOTAL.inc();
+    icn_api::metrics::system::HTTP_REQUEST_DURATION.observe(latency.as_secs_f64());
+    
+    if status >= 400 {
+        icn_api::metrics::system::HTTP_ERRORS_TOTAL.inc();
+    }
+    
     res
 }
 
@@ -1607,14 +1616,15 @@ async fn readiness_handler(State(state): State<AppState>) -> impl IntoResponse {
 
 // GET /metrics – Prometheus metrics text
 async fn metrics_handler() -> impl IntoResponse {
-    use icn_api::metrics::register_core_metrics;
+    use icn_api::metrics::{register_core_metrics, update_system_metrics};
     use prometheus_client::metrics::{gauge::Gauge, histogram::Histogram};
 
     let mut registry = Registry::default();
 
+    // Register all core metrics
     register_core_metrics(&mut registry);
 
-    // Add system metrics
+    // Add additional node-specific metrics
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
@@ -1634,29 +1644,15 @@ async fn metrics_handler() -> impl IntoResponse {
     process_id_gauge.set(process::id() as f64);
     registry.register("node_process_id", "Node process ID", process_id_gauge);
 
-    // Memory usage (basic approximation - could be enhanced with proper system monitoring)
-    if let Ok(status) = fs::read_to_string("/proc/self/status") {
-        for line in status.lines() {
-            if line.starts_with("VmRSS:") {
-                if let Some(kb_str) = line.split_whitespace().nth(1) {
-                    if let Ok(kb) = kb_str.parse::<u64>() {
-                        let memory_gauge: Gauge<f64, std::sync::atomic::AtomicU64> =
-                            Gauge::default();
-                        memory_gauge.set((kb * 1024) as f64); // Convert KB to bytes
-                        registry.register(
-                            "node_memory_usage_bytes",
-                            "Node memory usage in bytes",
-                            memory_gauge,
-                        );
-                    }
-                }
-                break;
-            }
-        }
-    }
+    // Update system metrics before collecting
+    update_system_metrics();
 
     let mut buffer = String::new();
     encode(&mut buffer, &registry).unwrap();
+    
+    // Track this metrics request
+    icn_api::metrics::system::HTTP_REQUESTS_TOTAL.inc();
+    
     (StatusCode::OK, buffer)
 }
 
