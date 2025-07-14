@@ -1,0 +1,14 @@
+// Template: Council Governance
+// Calculates simple majority approval for council decisions.
+
+fn majority(votes_for: Integer, votes_against: Integer) -> Integer {
+    let total = votes_for + votes_against;
+    let required = total / 2 + 1;
+    let approved = votes_for / required;
+    return approved;
+}
+
+fn run() -> Integer {
+    // Example values
+    return majority(4, 3);
+}

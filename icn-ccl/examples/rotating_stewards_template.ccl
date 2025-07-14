@@ -1,0 +1,15 @@
+// Template: Rotating Stewards Governance
+// Demonstrates a simple steward rotation schedule.
+
+fn next_steward(current_index: Integer, total_stewards: Integer) -> Integer {
+    let next = current_index + 1;
+    let wrapped = next / total_stewards;
+    let result = next - wrapped * total_stewards;
+    return result;
+}
+
+fn run() -> Integer {
+    // Example: rotate among 3 stewards
+    let current = 0;
+    return next_steward(current, 3);
+}

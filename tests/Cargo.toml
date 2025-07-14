@@ -93,6 +93,7 @@ icn-identity = { path = "../crates/icn-identity" }
 icn-network = { path = "../crates/icn-network" }
 icn-api = { path = "../crates/icn-api" }
 icn-zk = { path = "../crates/icn-zk" }
+icn-ccl = { path = "../icn-ccl" }
 ark-groth16 = "0.4"
 ark-bn254 = "0.4"
 ark-serialize = "0.4"

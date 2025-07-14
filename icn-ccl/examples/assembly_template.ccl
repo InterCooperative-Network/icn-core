@@ -1,0 +1,13 @@
+// Template: Assembly Governance
+// Computes participation quorum for a member assembly.
+
+fn quorum(total_members: Integer, present_members: Integer, percent_required: Integer) -> Integer {
+    let required = total_members * percent_required / 100;
+    let met = present_members / required;
+    return met;
+}
+
+fn run() -> Integer {
+    // Example: 60% quorum requirement
+    return quorum(50, 35, 60);
+}

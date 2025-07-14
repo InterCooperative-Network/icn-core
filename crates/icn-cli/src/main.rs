@@ -147,6 +147,11 @@ enum Commands {
         #[clap(subcommand)]
         command: FederationCommands,
     },
+    /// Cooperative formation utilities
+    Coop {
+        #[clap(subcommand)]
+        command: CoopCommands,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -371,6 +376,13 @@ enum ZkCommands {
     },
 }
 
+#[derive(Subcommand, Debug)]
+enum CoopCommands {
+    /// Interactive cooperative formation wizard
+    #[clap(name = "wizard")]
+    Wizard,
+}
+
 // --- Main CLI Logic ---
 
 #[tokio::main]
@@ -485,6 +497,9 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
             FederationCommands::Leave { peer } => handle_fed_leave(cli, client, peer).await?,
             FederationCommands::ListPeers => handle_fed_list_peers(cli, client).await?,
             FederationCommands::Status => handle_fed_status(cli, client).await?,
+        },
+        Commands::Coop { command } => match command {
+            CoopCommands::Wizard => handle_coop_wizard().await?,
         },
     }
     Ok(())
@@ -1233,6 +1248,43 @@ async fn handle_zk_profile(circuit: &str) -> Result<(), anyhow::Error> {
     if !status.success() {
         anyhow::bail!("cargo bench failed");
     }
+    Ok(())
+}
+
+async fn handle_coop_wizard() -> Result<(), anyhow::Error> {
+    use std::io::{self, Write};
+    println!("=== Cooperative Formation Wizard ===");
+    print!("Cooperative name: ");
+    io::stdout().flush()?;
+    let mut name = String::new();
+    io::stdin().read_line(&mut name)?;
+    let name = name.trim();
+
+    println!("Select governance template:");
+    println!("1) Rotating Stewards");
+    println!("2) Council Majority");
+    println!("3) Member Assembly");
+    print!("Choice [1-3]: ");
+    io::stdout().flush()?;
+    let mut choice = String::new();
+    io::stdin().read_line(&mut choice)?;
+    let template = match choice.trim() {
+        "1" => "rotating_stewards_template.ccl",
+        "2" => "council_template.ccl",
+        "3" => "assembly_template.ccl",
+        _ => {
+            println!("Invalid choice, defaulting to rotating stewards");
+            "rotating_stewards_template.ccl"
+        }
+    };
+
+    let config = serde_json::json!({
+        "name": name,
+        "governance_template": template,
+    });
+    let filename = format!("{}-config.json", name.replace(' ', "_"));
+    std::fs::write(&filename, serde_json::to_string_pretty(&config)?)?;
+    println!("Created {filename}. Copy {template} from icn-ccl/examples/ as a starting policy.");
     Ok(())
 }
 
