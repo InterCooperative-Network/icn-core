@@ -16,6 +16,12 @@ The `icn-dag` crate is responsible for:
 
 This forms a foundational layer for data representation and exchange within the ICN.
 
+### Mutual Aid Resource Registry
+
+Helper functions `register_resource` and `list_resources` store and query
+`AidResource` records in the DAG, enabling decentralized tracking of emergency
+supplies across federated nodes.
+
 ## Pinning and TTL
 
 Every block stored in a DAG backend can have associated metadata indicating whether it is pinned and an optional TTL (expiration timestamp). Pinned blocks are preserved during pruning even if their TTL has passed. TTL values are expressed as seconds since the Unix epoch and may be updated after a block is stored. Implementations provide `pin_block`, `unpin_block`, and `prune_expired` to manage this metadata and remove stale content.

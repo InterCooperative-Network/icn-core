@@ -12,10 +12,10 @@ use icn_common::{
 use icn_dag::StorageService;
 use log::{debug, info};
 use serde::{Deserialize, Serialize};
+pub mod explorer;
 pub mod ledger;
 pub mod metrics;
-pub mod explorer;
-pub use explorer::{LedgerExplorer, FlowStats};
+pub use explorer::{FlowStats, LedgerExplorer};
 pub use ledger::FileManaLedger;
 #[cfg(feature = "persist-rocksdb")]
 pub use ledger::RocksdbManaLedger;
@@ -423,6 +423,9 @@ impl<L: ResourceLedger> ResourceRepositoryAdapter<L> {
 
 const TOKEN_FEE: u64 = 1;
 
+/// Reserved token class for non-transferable mutual aid tokens.
+pub const MUTUAL_AID_CLASS_ID: &str = "mutual_aid";
+
 pub fn mint_tokens<L: ResourceLedger, M: ManaLedger>(
     repo: &ResourceRepositoryAdapter<L>,
     mana_ledger: &M,
@@ -449,6 +452,44 @@ pub fn burn_tokens<L: ResourceLedger, M: ManaLedger>(
     repo.burn(issuer, class_id, amount, owner, scope)
 }
 
+pub fn mint_mutual_aid_tokens<L: ResourceLedger, M: ManaLedger>(
+    repo: &ResourceRepositoryAdapter<L>,
+    mana_ledger: &M,
+    issuer: &Did,
+    amount: u64,
+    recipient: &Did,
+    scope: Option<NodeScope>,
+) -> Result<(), CommonError> {
+    mint_tokens(
+        repo,
+        mana_ledger,
+        issuer,
+        MUTUAL_AID_CLASS_ID,
+        amount,
+        recipient,
+        scope,
+    )
+}
+
+pub fn burn_mutual_aid_tokens<L: ResourceLedger, M: ManaLedger>(
+    repo: &ResourceRepositoryAdapter<L>,
+    mana_ledger: &M,
+    issuer: &Did,
+    amount: u64,
+    owner: &Did,
+    scope: Option<NodeScope>,
+) -> Result<(), CommonError> {
+    burn_tokens(
+        repo,
+        mana_ledger,
+        issuer,
+        MUTUAL_AID_CLASS_ID,
+        amount,
+        owner,
+        scope,
+    )
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn transfer_tokens<L: ResourceLedger, M: ManaLedger>(
     repo: &ResourceRepositoryAdapter<L>,
@@ -460,6 +501,11 @@ pub fn transfer_tokens<L: ResourceLedger, M: ManaLedger>(
     to: &Did,
     scope: Option<NodeScope>,
 ) -> Result<(), CommonError> {
+    if class_id == MUTUAL_AID_CLASS_ID {
+        return Err(CommonError::PolicyDenied(
+            "mutual aid tokens are non-transferable".into(),
+        ));
+    }
     charge_mana(mana_ledger, issuer, TOKEN_FEE)?;
     repo.transfer(issuer, class_id, amount, from, to, scope)
 }

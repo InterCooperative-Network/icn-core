@@ -35,6 +35,9 @@ The `icn-cli` is the primary tool for users to interact with an ICN node from th
     *   `icn-cli zk generate-key`: Generate a Groth16 proving key and output the verifying key signature.
     *   `icn-cli zk analyze <CIRCUIT>`: Count constraints for a circuit.
     *   `icn-cli zk profile <CIRCUIT>`: Run Criterion benchmarks for a circuit.
+*   **Emergency Coordination:**
+    *   `icn-cli emergency register-resource <RESOURCE_JSON>`: Record a mutual aid resource.
+    *   `icn-cli emergency list-resources`: List known resources.
 *   **Miscellaneous:**
     *   `icn-cli hello`: A simple command to check if the CLI is responsive.
     *   `icn-cli help` or `icn-cli --help`: Displays usage information.

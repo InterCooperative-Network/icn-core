@@ -31,6 +31,13 @@ All persistent ledger backends expose a bulk credit operation via
 account and is used by the runtime to periodically regenerate balances. In-memory
 test ledgers implement the same interface for parity with the on-disk backends.
 
+### Mutual Aid Tokens
+
+`MUTUAL_AID_CLASS_ID` denotes a special non-transferable token type. Functions
+`mint_mutual_aid_tokens` and `burn_mutual_aid_tokens` adjust balances while
+`transfer_tokens` refuses to move these credits. Use them to track emergency
+assistance without creating a tradable asset.
+
 ## Feature Flags
 
 Persistence backends are selected via Cargo features. The default backend uses

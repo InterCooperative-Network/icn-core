@@ -14,6 +14,7 @@ use icn_identity::{
 };
 use serde::{Deserialize, Serialize};
 pub mod metrics;
+pub mod mutual_aid;
 
 /// Unique identifier for a mesh job.
 ///

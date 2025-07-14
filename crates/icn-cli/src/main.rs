@@ -153,6 +153,11 @@ enum Commands {
         #[clap(subcommand)]
         command: WizardCommands,
     },
+    /// Emergency mutual aid operations
+    Emergency {
+        #[clap(subcommand)]
+        command: EmergencyCommands,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -310,6 +315,17 @@ enum WizardCommands {
         #[clap(long, help = "Output directory", required = false)]
         output: Option<String>,
     },
+}
+
+#[derive(Subcommand, Debug)]
+enum EmergencyCommands {
+    /// Register a mutual aid resource from JSON or '-' for stdin
+    RegisterResource {
+        #[clap(help = "Aid resource JSON or '-' for stdin")]
+        resource_json_or_stdin: String,
+    },
+    /// List mutual aid resources
+    ListResources,
 }
 
 #[derive(Subcommand, Debug)]
@@ -503,6 +519,12 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
         },
         Commands::Wizard { command } => match command {
             WizardCommands::Cooperative { output } => handle_wizard_cooperative(output.clone())?,
+        },
+        Commands::Emergency { command } => match command {
+            EmergencyCommands::RegisterResource { resource_json_or_stdin } => {
+                handle_emergency_register(cli, client, resource_json_or_stdin).await?
+            }
+            EmergencyCommands::ListResources => handle_emergency_list(cli, client).await?,
         },
     }
     Ok(())
@@ -1282,6 +1304,28 @@ fn handle_wizard_cooperative(output: Option<String>) -> Result<(), anyhow::Error
     let path = std::path::Path::new(&dir).join(&file_name);
     std::fs::write(&path, template)?;
     println!("Template written to {}", path.display());
+    Ok(())
+}
+
+async fn handle_emergency_register(
+    _cli: &Cli,
+    _client: &Client,
+    resource_json_or_stdin: String,
+) -> Result<(), anyhow::Error> {
+    let json_content = if resource_json_or_stdin == "-" {
+        let mut buf = String::new();
+        std::io::stdin().read_to_string(&mut buf)?;
+        buf
+    } else {
+        resource_json_or_stdin
+    };
+    let record: icn_dag::mutual_aid::AidResource = serde_json::from_str(&json_content)?;
+    println!("registering resource: {:?}", record);
+    Ok(())
+}
+
+async fn handle_emergency_list(_cli: &Cli, _client: &Client) -> Result<(), anyhow::Error> {
+    println!("listing resources - not yet implemented");
     Ok(())
 }
 
