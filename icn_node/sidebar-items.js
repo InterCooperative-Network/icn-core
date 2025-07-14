@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["config","node","parameter_store"]};
+window.SIDEBAR_ITEMS = {"mod":["circuit_registry","config","node","parameter_store"]};
