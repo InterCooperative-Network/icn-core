@@ -8,11 +8,12 @@ use ark_std::rand::{CryptoRng, RngCore};
 use rayon::prelude::*;
 
 mod circuits;
+pub mod devtools;
 mod params;
 
 pub use circuits::{
-    AgeOver18Circuit, AgeRepMembershipCircuit, BalanceRangeCircuit, MembershipCircuit,
-    MembershipProofCircuit, ReputationCircuit, TimestampValidityCircuit, CircuitCost,
+    AgeOver18Circuit, AgeRepMembershipCircuit, BalanceRangeCircuit, CircuitCost, MembershipCircuit,
+    MembershipProofCircuit, ReputationCircuit, TimestampValidityCircuit,
 };
 pub use params::{CircuitParameters, CircuitParametersStorage, MemoryParametersStorage};
 

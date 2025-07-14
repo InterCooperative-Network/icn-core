@@ -357,6 +357,18 @@ enum ZkCommands {
     /// Generate a Groth16 proving key and sign the verifying key
     #[clap(name = "generate-key")]
     GenerateKey,
+    /// Count constraints for a circuit
+    #[clap(name = "analyze")]
+    Analyze {
+        #[clap(help = "Circuit name to analyze")]
+        circuit: String,
+    },
+    /// Benchmark a circuit with Criterion
+    #[clap(name = "profile")]
+    Profile {
+        #[clap(help = "Circuit name to benchmark")]
+        circuit: String,
+    },
 }
 
 // --- Main CLI Logic ---
@@ -460,6 +472,8 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
         },
         Commands::Zk { command } => match command {
             ZkCommands::GenerateKey => handle_zk_generate_key().await?,
+            ZkCommands::Analyze { circuit } => handle_zk_analyze(circuit).await?,
+            ZkCommands::Profile { circuit } => handle_zk_profile(circuit).await?,
         },
         Commands::CompileCcl { file } => handle_compile_ccl_upload(cli, client, file).await?,
         Commands::SubmitJob {
@@ -1156,6 +1170,69 @@ async fn handle_zk_generate_key() -> Result<(), anyhow::Error> {
         "verifying_key_signature_hex": hex::encode(sig),
     });
     println!("{}", serde_json::to_string_pretty(&output)?);
+    Ok(())
+}
+
+async fn handle_zk_analyze(circuit: &str) -> Result<(), anyhow::Error> {
+    use icn_zk::devtools::count_constraints;
+    use icn_zk::{
+        AgeOver18Circuit, AgeRepMembershipCircuit, BalanceRangeCircuit, MembershipCircuit,
+        MembershipProofCircuit, ReputationCircuit, TimestampValidityCircuit,
+    };
+
+    let count = match circuit {
+        "age_over_18" => count_constraints(AgeOver18Circuit {
+            birth_year: 2000,
+            current_year: 2024,
+        })?,
+        "membership" => count_constraints(MembershipCircuit { is_member: true })?,
+        "membership_proof" => count_constraints(MembershipProofCircuit {
+            membership_flag: true,
+            expected: true,
+        })?,
+        "reputation" => count_constraints(ReputationCircuit {
+            reputation: 10,
+            threshold: 5,
+        })?,
+        "timestamp_validity" => count_constraints(TimestampValidityCircuit {
+            timestamp: 0,
+            not_before: 0,
+            not_after: 1,
+        })?,
+        "balance_range" => count_constraints(BalanceRangeCircuit {
+            balance: 10,
+            min: 0,
+            max: 100,
+        })?,
+        "age_rep_membership" => count_constraints(AgeRepMembershipCircuit {
+            birth_year: 2000,
+            current_year: 2024,
+            reputation: 10,
+            threshold: 5,
+            is_member: true,
+        })?,
+        other => anyhow::bail!("Unknown circuit '{}'.", other),
+    };
+
+    println!("constraints: {}", count);
+    Ok(())
+}
+
+async fn handle_zk_profile(circuit: &str) -> Result<(), anyhow::Error> {
+    use tokio::process::Command;
+
+    let status = Command::new("cargo")
+        .arg("bench")
+        .arg("-p")
+        .arg("icn-zk")
+        .arg("--")
+        .arg(circuit)
+        .status()
+        .await?;
+
+    if !status.success() {
+        anyhow::bail!("cargo bench failed");
+    }
     Ok(())
 }
 
