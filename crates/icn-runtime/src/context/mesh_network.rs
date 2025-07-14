@@ -1,9 +1,9 @@
 //! Mesh network service types and implementations for the ICN runtime.
 
 use super::errors::HostAbiError;
-use icn_common::Did;
 #[cfg(feature = "enable-libp2p")]
 use icn_common::CommonError;
+use icn_common::Did;
 use icn_identity::{ExecutionReceipt as IdentityExecutionReceipt, SignatureBytes};
 use icn_mesh::{ActualMeshJob, JobId, MeshJobBid};
 use icn_network::NetworkService;
@@ -81,10 +81,7 @@ pub trait MeshNetworkService: Send + Sync + std::fmt::Debug {
         expected_executor: &Did,
         timeout: StdDuration,
     ) -> Result<Option<IdentityExecutionReceipt>, HostAbiError>;
-    async fn submit_bid_for_job(
-        &self,
-        bid: &icn_mesh::MeshJobBid,
-    ) -> Result<(), HostAbiError>;
+    async fn submit_bid_for_job(&self, bid: &icn_mesh::MeshJobBid) -> Result<(), HostAbiError>;
     async fn submit_execution_receipt(
         &self,
         receipt: &icn_identity::ExecutionReceipt,
@@ -161,8 +158,8 @@ impl MeshNetworkService for DefaultMeshNetworkService {
         // Convert JobSpec to protocol JobSpec
         let protocol_job_spec = icn_protocol::JobSpec {
             kind: match &job.spec.kind {
-                icn_mesh::JobKind::Echo { payload } => icn_protocol::JobKind::Echo { 
-                    payload: payload.clone() 
+                icn_mesh::JobKind::Echo { payload } => icn_protocol::JobKind::Echo {
+                    payload: payload.clone(),
                 },
                 icn_mesh::JobKind::CclWasm => icn_protocol::JobKind::CclWasm,
                 icn_mesh::JobKind::GenericPlaceholder => icn_protocol::JobKind::Generic,
@@ -172,7 +169,7 @@ impl MeshNetworkService for DefaultMeshNetworkService {
             required_resources: icn_protocol::ResourceRequirements {
                 cpu_cores: job.spec.required_resources.cpu_cores,
                 memory_mb: job.spec.required_resources.memory_mb,
-                storage_mb: 0, // TODO: Add storage to job spec
+                storage_mb: 0,                // TODO: Add storage to job spec
                 max_execution_time_secs: 300, // 5 minutes default
             },
         };
@@ -200,15 +197,18 @@ impl MeshNetworkService for DefaultMeshNetworkService {
         self.inner
             .broadcast_signed_message(signed)
             .await
-            .map_err(|e| HostAbiError::NetworkError(format!("Failed to broadcast job announcement: {}", e)))
+            .map_err(|e| {
+                HostAbiError::NetworkError(format!("Failed to broadcast job announcement: {}", e))
+            })
     }
 
     async fn announce_proposal(&self, proposal_bytes: Vec<u8>) -> Result<(), HostAbiError> {
         debug!("DefaultMeshNetworkService: announcing proposal");
 
-        let proposal: icn_governance::Proposal = bincode::deserialize(&proposal_bytes).map_err(|e| {
-            HostAbiError::SerializationError(format!("Failed to deserialize proposal: {}", e))
-        })?;
+        let proposal: icn_governance::Proposal =
+            bincode::deserialize(&proposal_bytes).map_err(|e| {
+                HostAbiError::SerializationError(format!("Failed to deserialize proposal: {}", e))
+            })?;
 
         let message = ProtocolMessage {
             payload: MessagePayload::GovernanceProposalAnnouncement(GovernanceProposalMessage {
@@ -258,28 +258,38 @@ impl MeshNetworkService for DefaultMeshNetworkService {
         job_id: &JobId,
         duration: StdDuration,
     ) -> Result<Vec<MeshJobBid>, HostAbiError> {
-        log::info!("[MeshNetwork] Collecting bids for job {:?} for {}s", job_id, duration.as_secs());
+        log::info!(
+            "[MeshNetwork] Collecting bids for job {:?} for {}s",
+            job_id,
+            duration.as_secs()
+        );
 
         let mut bids = Vec::new();
-        
+
         // Subscribe to network messages to collect bids
-        let mut receiver = self.inner.subscribe().await
-            .map_err(|e| HostAbiError::NetworkError(format!("Failed to subscribe to network: {}", e)))?;
+        let mut receiver = self.inner.subscribe().await.map_err(|e| {
+            HostAbiError::NetworkError(format!("Failed to subscribe to network: {}", e))
+        })?;
 
         let deadline = tokio::time::Instant::now() + duration;
-        
+
         while tokio::time::Instant::now() < deadline {
             let remaining = deadline.duration_since(tokio::time::Instant::now());
-            
+
             match tokio::time::timeout(remaining, receiver.recv()).await {
                 Ok(Some(signed_message)) => {
                     // Check if this is a bid for our job
-                    if let MessagePayload::MeshBidSubmission(bid_message) = &signed_message.payload {
+                    if let MessagePayload::MeshBidSubmission(bid_message) = &signed_message.payload
+                    {
                         let protocol_job_id = icn_common::Cid::from(job_id.clone());
                         if bid_message.job_id == protocol_job_id {
-                            log::info!("[MeshNetwork] Received bid from {} for job {:?}: {} mana",
-                                     bid_message.executor_did, job_id, bid_message.cost_mana);
-                            
+                            log::info!(
+                                "[MeshNetwork] Received bid from {} for job {:?}: {} mana",
+                                bid_message.executor_did,
+                                job_id,
+                                bid_message.cost_mana
+                            );
+
                             // Convert protocol bid message to MeshJobBid
                             let mesh_bid = icn_mesh::MeshJobBid {
                                 job_id: job_id.clone(),
@@ -291,7 +301,7 @@ impl MeshNetworkService for DefaultMeshNetworkService {
                                 },
                                 signature: icn_identity::SignatureBytes(vec![]), // TODO: Extract from message signature
                             };
-                            
+
                             // TODO: In a real implementation, we'd verify the bid signature
                             // For now, we'll accept all properly formatted bids
                             bids.push(mesh_bid);
@@ -309,17 +319,22 @@ impl MeshNetworkService for DefaultMeshNetworkService {
             }
         }
 
-        log::info!("[MeshNetwork] Bid collection completed: {} bids for job {:?}", bids.len(), job_id);
+        log::info!(
+            "[MeshNetwork] Bid collection completed: {} bids for job {:?}",
+            bids.len(),
+            job_id
+        );
         Ok(bids)
     }
 
     /// Submit a bid for a job (used by executor nodes)
-    async fn submit_bid_for_job(
-        &self,
-        bid: &icn_mesh::MeshJobBid,
-    ) -> Result<(), HostAbiError> {
-        log::info!("[MeshNetwork] Submitting bid for job {:?}: {} mana from {}", 
-                  bid.job_id, bid.price_mana, bid.executor_did);
+    async fn submit_bid_for_job(&self, bid: &icn_mesh::MeshJobBid) -> Result<(), HostAbiError> {
+        log::info!(
+            "[MeshNetwork] Submitting bid for job {:?}: {} mana from {}",
+            bid.job_id,
+            bid.price_mana,
+            bid.executor_did
+        );
 
         // Convert MeshJobBid to protocol message
         let bid_message = icn_protocol::MeshBidSubmissionMessage {
@@ -330,7 +345,7 @@ impl MeshNetworkService for DefaultMeshNetworkService {
             offered_resources: icn_protocol::ResourceRequirements {
                 cpu_cores: bid.resources.cpu_cores,
                 memory_mb: bid.resources.memory_mb,
-                storage_mb: 0, // TODO: Add storage to Resources
+                storage_mb: 0,                // TODO: Add storage to Resources
                 max_execution_time_secs: 300, // 5 minutes default
             },
             reputation_score: 100, // TODO: Get actual reputation score
@@ -357,15 +372,19 @@ impl MeshNetworkService for DefaultMeshNetworkService {
         &self,
         receipt: &icn_identity::ExecutionReceipt,
     ) -> Result<(), HostAbiError> {
-        log::info!("[MeshNetwork] Submitting execution receipt for job {:?} from {}", 
-                  receipt.job_id, receipt.executor_did);
+        log::info!(
+            "[MeshNetwork] Submitting execution receipt for job {:?} from {}",
+            receipt.job_id,
+            receipt.executor_did
+        );
 
-        // Create execution metadata
+        // Create execution metadata with metrics
+        let logs = crate::execution_monitor::take_logs();
         let execution_metadata = icn_protocol::ExecutionMetadata {
-            wall_time_ms: receipt.cpu_ms, // Use cpu_ms as wall time for now
-            peak_memory_mb: 0, // TODO: Track actual memory usage
+            wall_time_ms: receipt.cpu_ms,
+            peak_memory_mb: crate::execution_monitor::current_peak_memory_mb(),
             exit_code: if receipt.success { 0 } else { 1 },
-            execution_logs: None, // TODO: Capture execution logs
+            execution_logs: if logs.is_empty() { None } else { Some(logs) },
         };
 
         let receipt_message = icn_protocol::MeshReceiptSubmissionMessage {
@@ -395,7 +414,8 @@ impl MeshNetworkService for DefaultMeshNetworkService {
     ) -> Result<(), HostAbiError> {
         log::info!(
             "[MeshNetwork] Notifying executor {} of assignment for job {:?}",
-            notice.executor_did, notice.job_id
+            notice.executor_did,
+            notice.job_id
         );
 
         let assignment_message = MeshJobAssignmentMessage {
@@ -414,7 +434,7 @@ impl MeshNetworkService for DefaultMeshNetworkService {
             signature: SignatureBytes(Vec::new()),
             version: 1,
         };
-        
+
         let signed = self.sign_message(&message)?;
         self.inner
             .broadcast_signed_message(signed)
@@ -432,28 +452,38 @@ impl MeshNetworkService for DefaultMeshNetworkService {
     ) -> Result<Option<IdentityExecutionReceipt>, HostAbiError> {
         log::info!(
             "[MeshNetwork] Waiting for receipt from {} for job {:?} (timeout: {}s)",
-            expected_executor, job_id, timeout.as_secs()
+            expected_executor,
+            job_id,
+            timeout.as_secs()
         );
 
         // Subscribe to network messages to wait for receipt
-        let mut receiver = self.inner.subscribe().await
-            .map_err(|e| HostAbiError::NetworkError(format!("Failed to subscribe to network: {}", e)))?;
+        let mut receiver = self.inner.subscribe().await.map_err(|e| {
+            HostAbiError::NetworkError(format!("Failed to subscribe to network: {}", e))
+        })?;
 
         let deadline = tokio::time::Instant::now() + timeout;
-        
+
         while tokio::time::Instant::now() < deadline {
             let remaining = deadline.duration_since(tokio::time::Instant::now());
-            
+
             match tokio::time::timeout(remaining, receiver.recv()).await {
                 Ok(Some(signed_message)) => {
                     // Check if this is a receipt for our job
-                    if let MessagePayload::MeshReceiptSubmission(receipt_message) = &signed_message.payload {
+                    if let MessagePayload::MeshReceiptSubmission(receipt_message) =
+                        &signed_message.payload
+                    {
                         let receipt = &receipt_message.receipt;
-                        
-                        if receipt.job_id == job_id.clone().into() && receipt.executor_did == *expected_executor {
-                            log::info!("[MeshNetwork] Received execution receipt from {} for job {:?}",
-                                     expected_executor, job_id);
-                            
+
+                        if receipt.job_id == job_id.clone().into()
+                            && receipt.executor_did == *expected_executor
+                        {
+                            log::info!(
+                                "[MeshNetwork] Received execution receipt from {} for job {:?}",
+                                expected_executor,
+                                job_id
+                            );
+
                             // TODO: Verify receipt signature
                             return Ok(Some(receipt.clone()));
                         }
@@ -470,8 +500,11 @@ impl MeshNetworkService for DefaultMeshNetworkService {
             }
         }
 
-        log::warn!("[MeshNetwork] No receipt received from {} for job {:?} within timeout", 
-                  expected_executor, job_id);
+        log::warn!(
+            "[MeshNetwork] No receipt received from {} for job {:?} within timeout",
+            expected_executor,
+            job_id
+        );
         Ok(None)
     }
 }

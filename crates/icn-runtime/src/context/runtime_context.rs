@@ -206,6 +206,7 @@ impl RuntimeContext {
 
     /// Create a new context with stubs for testing.
     pub fn new_with_stubs(current_identity_str: &str) -> Result<Arc<Self>, CommonError> {
+        crate::execution_monitor::init_logger();
         let current_identity = Did::from_str(current_identity_str)
             .map_err(|e| CommonError::InternalError(format!("Invalid DID: {}", e)))?;
 
@@ -408,6 +409,7 @@ impl RuntimeContext {
     /// Create a new RuntimeContext from a service configuration.
     /// This is the preferred method as it ensures type-safe service mapping.
     pub fn from_service_config(config: ServiceConfig) -> Result<Arc<Self>, CommonError> {
+        crate::execution_monitor::init_logger();
         // Validate the configuration before using it
         config.validate()?;
 
@@ -2728,6 +2730,7 @@ impl RuntimeContext {
         job: &ActualMeshJob,
         _agreed_cost: u64, // Marked as unused for now
     ) -> Result<icn_identity::ExecutionReceipt, HostAbiError> {
+        crate::execution_monitor::clear_logs();
         let job_id = &job.id;
         let executor_did = ctx.current_identity.clone();
 

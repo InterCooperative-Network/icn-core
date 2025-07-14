@@ -431,14 +431,15 @@ mod cross_node_tests {
         let receipt = executor.execute_job(&test_job).await.map_err(|e| anyhow::anyhow!("Job execution failed: {}", e))?;
         
         // Node B: Submit receipt to Node A
+        let logs = icn_runtime::execution_monitor::take_logs();
         let receipt_message = ProtocolMessage::new(
             MessagePayload::MeshReceiptSubmission(MeshReceiptSubmissionMessage {
                 receipt: receipt.clone(),
                 execution_metadata: ExecutionMetadata {
-                    wall_time_ms: 0,
-                    peak_memory_mb: 0,
+                    wall_time_ms: receipt.cpu_ms,
+                    peak_memory_mb: icn_runtime::execution_monitor::current_peak_memory_mb(),
                     exit_code: 0,
-                    execution_logs: None,
+                    execution_logs: Some(logs),
                 },
             }),
             executor_did.clone(),
@@ -473,10 +474,13 @@ mod cross_node_tests {
         assert_eq!(received_receipt.job_id, test_job.id);
         assert_eq!(received_receipt.executor_did, executor_did);
         assert_eq!(received_receipt.result_cid, receipt.result_cid);
-        
-        // Verify receipt signature (Note: In real cross-node scenario, Node A would need 
+
+        // Verify receipt signature (Note: In real cross-node scenario, Node A would need
         // to resolve executor's public key from their DID, but for test we have it)
         assert!(received_receipt.verify_against_key(&executor_pk).is_ok(), "Cross-node receipt signature verification failed");
+
+        assert!(received_receipt.execution_metadata.peak_memory_mb > 0);
+        assert!(received_receipt.execution_metadata.execution_logs.is_some());
         
         info!("✓ Test passed: Receipt successfully transmitted from Node B to Node A and verified");
         Ok(())
@@ -663,14 +667,15 @@ mod cross_node_tests {
         // Phase 6: Receipt Submission and Verification
         info!("Phase 6: Node B submits receipt, Node A verifies and anchors");
         
+        let logs = icn_runtime::execution_monitor::take_logs();
         let receipt_message = ProtocolMessage::new(
             MessagePayload::MeshReceiptSubmission(MeshReceiptSubmissionMessage {
                 receipt: receipt.clone(),
                 execution_metadata: ExecutionMetadata {
-                    wall_time_ms: 0,
-                    peak_memory_mb: 0,
+                    wall_time_ms: receipt.cpu_ms,
+                    peak_memory_mb: icn_runtime::execution_monitor::current_peak_memory_mb(),
                     exit_code: 0,
-                    execution_logs: None,
+                    execution_logs: Some(logs),
                 },
             }),
             executor_did.clone(),
