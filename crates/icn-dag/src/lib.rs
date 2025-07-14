@@ -584,12 +584,12 @@ impl StorageService<DagBlock> for FileDagStore {
                 let entry =
                     entry.map_err(|e| CommonError::IoError(format!("Dir entry error: {}", e)))?;
                 let path = entry.path();
-                
+
                 // Skip the dag.root file
                 if path.file_name() == Some(std::ffi::OsStr::new("dag.root")) {
                     continue;
                 }
-                
+
                 if entry
                     .file_type()
                     .map_err(|e| {
