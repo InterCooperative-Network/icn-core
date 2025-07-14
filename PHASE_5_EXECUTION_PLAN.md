@@ -103,9 +103,9 @@ let mesh_network_service = if config.test_mode {
 };
 ```
 
-**Deliverables:**
-- [ ] Update `RuntimeContext::new()` to be `new_for_production()` by default
-- [ ] Ensure `icn-node` uses production services unless `--test-mode` flag is set
+-**Deliverables:**
+- [x] `RuntimeContext::new()` now provides production services by default
+ - [ ] Ensure `icn-node` uses production services unless `--test-mode` flag is set
 - [ ] Configure persistent DAG storage for all production deployments
 - [ ] Use `Ed25519Signer` for all production cryptographic operations
 - [ ] Update all documentation to reflect production vs test configurations

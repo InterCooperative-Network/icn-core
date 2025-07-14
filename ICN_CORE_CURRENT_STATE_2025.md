@@ -112,7 +112,7 @@ Based on codebase analysis, the following stub services exist primarily for test
 #### **Week 1: Service Configuration Audit**
 - [ ] **Enable governance tests** (immediate - 5 minutes)
 - [ ] **Audit stub usage** in production code paths
-- [ ] **Update RuntimeContext::new()** to default to production services
+- [x] **RuntimeContext::new()** defaults to production services
 - [ ] **Ensure icn-node uses production configuration**
 
 #### **Week 2: Production Service Integration**

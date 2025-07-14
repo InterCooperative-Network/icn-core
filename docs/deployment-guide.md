@@ -6,12 +6,23 @@ For details on the HTTP API exposed by the node see [API.md](API.md).
 
 ## Single Node Local
 
-This mode runs a standalone node for development or testing.
+This mode runs a standalone node for development or testing. By default the node
+starts in **production mode** with persistent storage and Ed25519 signing. Use
+`--test-mode` or set `ICN_TEST_MODE=true` to launch with stub services and
+in-memory storage.
 
 ```bash
 icn-node --storage-backend memory --http-listen-addr 127.0.0.1:7845 \
          --api-key mylocalkey \
          --tls-cert-path ./cert.pem --tls-key-path ./key.pem
+```
+
+Set `ICN_STORAGE_PATH` and related variables to control where persistent DAG
+data is written:
+
+```bash
+ICN_STORAGE_PATH=./icn_data/node.sled ICN_MANA_LEDGER_PATH=./icn_data/mana.sled \
+icn-node --storage-backend sled
 ```
 
 Providing certificate and key paths makes the server listen on HTTPS instead of HTTP.
@@ -31,8 +42,9 @@ To use RocksDB as the persistence layer, build `icn-node` with the
 
 ## Identity
 
-ICN nodes generate a new DID and key on first launch. To supply an encrypted
-key, set the path and passphrase environment variable name:
+ICN nodes generate a new DID and Ed25519 key on first launch. To supply an
+existing key, set the path and passphrase environment variable name or provide
+`ICN_NODE_DID_PATH` and `ICN_NODE_PRIVATE_KEY_PATH`:
 
 ```toml
 [identity]
@@ -41,7 +53,8 @@ key_passphrase_env = "ICN_KEY_PASSPHRASE"
 ```
 
 The passphrase is read from the environment variable referenced by
-`key_passphrase_env`.
+`key_passphrase_env`. When the plain-text paths are provided the node loads the
+DID and private key instead of generating new ones.
 
 ## Small Federation
 

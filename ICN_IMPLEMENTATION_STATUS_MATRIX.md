@@ -203,7 +203,7 @@ The main problem is that some contexts default to stub services instead of produ
 
 - [ ] **Enable governance tests** (5 minutes): Remove `#[ignore]` from all governance tests
 - [ ] **Audit service usage**: Identify where stub services are used in production contexts
-- [ ] **Update RuntimeContext::new()** to be `new_for_production()` by default
+- [x] **RuntimeContext::new()** now provides production services by default
 - [ ] **Update icn-node** to use production services unless `--test-mode` flag is set
 - [ ] **Clear configuration separation**: Production vs test vs development configs
 

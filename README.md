@@ -213,6 +213,20 @@ cargo build --no-default-features --features "with-libp2p persist-rocksdb"
 ./target/debug/icn-cli federation list-peers
 ```
 
+## Production vs Test Modes
+
+`icn-node` runs with production services by default. Use `--test-mode` or set
+`ICN_TEST_MODE=true` to launch with stub networking and in-memory storage.
+Persistent DAG paths and the signing key are configured via CLI or environment
+variables:
+
+```bash
+ICN_STORAGE_PATH=./icn_data/dag.sqlite \
+ICN_NODE_DID_PATH=./icn_data/node.did \
+ICN_NODE_PRIVATE_KEY_PATH=./icn_data/node.key \
+icn-node --storage-backend sqlite
+```
+
 ## 🌐 Quick Start: Devnet Testing
 
 For the fastest way to test ICN features, use the containerized devnet that launches a 3-node federation:
