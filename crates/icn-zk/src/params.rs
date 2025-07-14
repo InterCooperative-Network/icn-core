@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 pub struct CircuitParameters {
     /// Compressed Groth16 proving key bytes.
     #[serde(with = "serde_bytes")]
-    pub proving_key: Vec<u8>,
+    pub proving_key: Box<[u8]>,
 }
 
 impl CircuitParameters {
@@ -31,7 +31,9 @@ impl CircuitParameters {
     ) -> Result<Self, ark_serialize::SerializationError> {
         let mut bytes = Vec::new();
         pk.serialize_compressed(&mut bytes)?;
-        Ok(Self { proving_key: bytes })
+        Ok(Self {
+            proving_key: bytes.into_boxed_slice(),
+        })
     }
 }
 
