@@ -14,6 +14,7 @@ use thiserror::Error;
 
 pub mod key_manager;
 pub use key_manager::Groth16KeyManager;
+pub mod proof_cache;
 pub mod vk_cache;
 
 use crate::{
@@ -570,8 +571,11 @@ impl Groth16Verifier {
             self.vk.clone()
         };
 
-        Groth16::<ark_bn254::Bn254>::verify_proof(&pvk, &groth_proof, &inputs)
-            .map_err(|_| ZkError::VerificationFailed)
+        let pvk_clone = pvk.clone();
+        proof_cache::ProofCache::get_or_insert(&proof.proof, &pvk, &inputs, || {
+            Groth16::<ark_bn254::Bn254>::verify_proof(&pvk_clone, &groth_proof, &inputs)
+                .map_err(|_| ZkError::VerificationFailed)
+        })
     }
 }
 
@@ -908,6 +912,13 @@ mod tests {
         let mut vk_bytes = Vec::new();
         pk.vk.serialize_compressed(&mut vk_bytes).unwrap();
 
+        let (sk, _) = crate::generate_ed25519_keypair();
+        let sig = crate::sign_message(&sk, &vk_bytes);
+        let dirs = dirs_next::BaseDirs::new().unwrap();
+        let dir = dirs.home_dir().join(".icn/zk");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("verifying_key.sig"), sig.to_bytes()).unwrap();
+
         let verifier = Groth16Verifier::new(
             prepare_vk(&pk),
             vec![ark_bn254::Fr::from(2020u64)],
@@ -976,6 +987,13 @@ mod tests {
         let mut vk_bytes = Vec::new();
         pk.vk.serialize_compressed(&mut vk_bytes).unwrap();
 
+        let (sk, _) = crate::generate_ed25519_keypair();
+        let sig = crate::sign_message(&sk, &vk_bytes);
+        let dirs = dirs_next::BaseDirs::new().unwrap();
+        let dir = dirs.home_dir().join(".icn/zk");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("verifying_key.sig"), sig.to_bytes()).unwrap();
+
         // Verifier has incorrect default inputs
         let verifier = Groth16Verifier::new(
             prepare_vk(&pk),
@@ -998,5 +1016,57 @@ mod tests {
         };
 
         assert!(verifier.verify_proof(&proof).unwrap());
+    }
+
+    #[test]
+    fn proof_result_cache_hit() {
+        use ark_serialize::CanonicalSerialize;
+        use ark_std::rand::rngs::OsRng;
+        use icn_zk::{prepare_vk, prove, setup, AgeOver18Circuit};
+
+        let mut rng = OsRng;
+        let circuit = AgeOver18Circuit {
+            birth_year: 2000,
+            current_year: 2020,
+        };
+        let pk = setup(circuit.clone(), &mut rng).unwrap();
+        let pvk = prepare_vk(&pk);
+        let proof_obj = prove(&pk, circuit, &mut rng).unwrap();
+        let mut proof_bytes = Vec::new();
+        proof_obj.serialize_compressed(&mut proof_bytes).unwrap();
+        let mut vk_bytes = Vec::new();
+        pk.vk.serialize_compressed(&mut vk_bytes).unwrap();
+
+        let (sk, _) = crate::generate_ed25519_keypair();
+        let sig = crate::sign_message(&sk, &vk_bytes);
+        let dirs = dirs_next::BaseDirs::new().unwrap();
+        let dir = dirs.home_dir().join(".icn/zk");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("verifying_key.sig"), sig.to_bytes()).unwrap();
+
+        let verifier = Groth16Verifier::new(
+            pvk,
+            vec![ark_bn254::Fr::from(2020u64)],
+            std::sync::Arc::new(icn_reputation::InMemoryReputationStore::new()),
+            icn_zk::ReputationThresholds::default(),
+        );
+        let proof = ZkCredentialProof {
+            issuer: Did::new("key", "issuer"),
+            holder: Did::new("key", "holder"),
+            claim_type: "age_over_18".into(),
+            proof: proof_bytes.clone(),
+            schema: dummy_cid("schema"),
+            vk_cid: None,
+            disclosed_fields: Vec::new(),
+            challenge: None,
+            backend: ZkProofType::Groth16,
+            verification_key: Some(vk_bytes),
+            public_inputs: Some(serde_json::json!([2020])),
+        };
+
+        assert!(verifier.verify_proof(&proof).unwrap());
+        assert_eq!(proof_cache::ProofCache::len(), 1);
+        assert!(verifier.verify_proof(&proof).unwrap());
+        assert_eq!(proof_cache::ProofCache::len(), 1);
     }
 }
