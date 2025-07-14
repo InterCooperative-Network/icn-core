@@ -143,10 +143,16 @@ impl ZkVerifier for BulletproofsVerifier {
         let bp_gens = BulletproofGens::new(64, 1);
         let mut transcript = Transcript::new(b"ZkCredentialProof");
 
-        range_proof
+        let result = range_proof
             .verify_single(&bp_gens, &pc_gens, &mut transcript, &commitment, 64)
             .map(|_| true)
-            .map_err(|_| ZkError::VerificationFailed)
+            .map_err(|_| ZkError::VerificationFailed);
+        if result.is_ok() {
+            crate::metrics::PROOFS_VERIFIED.inc();
+        } else {
+            crate::metrics::PROOF_VERIFICATION_FAILURES.inc();
+        }
+        result
     }
 }
 
@@ -160,6 +166,7 @@ impl ZkVerifier for DummyVerifier {
         if proof.proof.is_empty() {
             return Err(ZkError::InvalidProof);
         }
+        crate::metrics::PROOFS_VERIFIED.inc();
         Ok(true)
     }
 }
@@ -573,10 +580,16 @@ impl Groth16Verifier {
         };
 
         let pvk_clone = pvk.clone();
-        proof_cache::ProofCache::get_or_insert(&proof.proof, &pvk, &inputs, || {
+        let result = proof_cache::ProofCache::get_or_insert(&proof.proof, &pvk, &inputs, || {
             Groth16::<ark_bn254::Bn254>::verify_proof(&pvk_clone, &groth_proof, &inputs)
                 .map_err(|_| ZkError::VerificationFailed)
-        })
+        });
+        if result.as_ref().map(|b| *b).unwrap_or(false) {
+            crate::metrics::PROOFS_VERIFIED.inc();
+        } else if result.is_err() || !result.as_ref().unwrap_or(&false) {
+            crate::metrics::PROOF_VERIFICATION_FAILURES.inc();
+        }
+        result
     }
 }
 

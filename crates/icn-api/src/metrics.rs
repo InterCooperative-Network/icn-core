@@ -6,11 +6,13 @@ use prometheus_client::registry::Registry;
 pub fn register_core_metrics(registry: &mut Registry) {
     use icn_dag::metrics::{DAG_GET_CALLS, DAG_PUT_CALLS};
     use icn_governance::metrics::{CAST_VOTE_CALLS, EXECUTE_PROPOSAL_CALLS, SUBMIT_PROPOSAL_CALLS};
+    use icn_identity::metrics::{CREDENTIALS_ISSUED, PROOFS_VERIFIED, PROOF_VERIFICATION_FAILURES};
     use icn_network::metrics::{
         BYTES_RECEIVED_TOTAL, BYTES_SENT_TOTAL, KADEMLIA_PEERS_GAUGE, MESSAGES_RECEIVED_TOTAL,
         MESSAGES_SENT_TOTAL, PEER_COUNT_GAUGE, PING_AVG_RTT_MS, PING_LAST_RTT_MS, PING_MAX_RTT_MS,
         PING_MIN_RTT_MS,
     };
+    use icn_reputation::metrics::{EXECUTION_RECORDS, PROOF_ATTEMPTS};
 
     #[cfg(feature = "runtime-metrics")]
     use icn_economics::metrics::{CREDIT_MANA_CALLS, GET_BALANCE_CALLS, SPEND_MANA_CALLS};
@@ -61,6 +63,31 @@ pub fn register_core_metrics(registry: &mut Registry) {
         "dag_get_calls",
         "Number of DAG get calls",
         DAG_GET_CALLS.clone(),
+    );
+    registry.register(
+        "identity_credentials_issued",
+        "Credentials issued",
+        CREDENTIALS_ISSUED.clone(),
+    );
+    registry.register(
+        "identity_proofs_verified",
+        "Proof verifications succeeded",
+        PROOFS_VERIFIED.clone(),
+    );
+    registry.register(
+        "identity_proof_verification_failures",
+        "Proof verifications failed",
+        PROOF_VERIFICATION_FAILURES.clone(),
+    );
+    registry.register(
+        "reputation_execution_records",
+        "Reputation execution records",
+        EXECUTION_RECORDS.clone(),
+    );
+    registry.register(
+        "reputation_proof_attempts",
+        "Reputation proof attempts",
+        PROOF_ATTEMPTS.clone(),
     );
     #[cfg(feature = "runtime-metrics")]
     {

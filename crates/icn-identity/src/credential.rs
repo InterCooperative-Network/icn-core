@@ -204,6 +204,7 @@ impl CredentialIssuer {
         } else {
             None
         };
+        crate::metrics::CREDENTIALS_ISSUED.inc();
         Ok((cred, proof))
     }
 }

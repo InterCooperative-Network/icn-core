@@ -14,6 +14,8 @@ async-trait = "0.1"
 tokio = { workspace = true, optional = true }
 sqlx = { version = "0.7", optional = true, features = ["runtime-tokio-rustls", "sqlite"] }
 rocksdb = { version = "0.21", optional = true }
+prometheus-client = "0.22"
+once_cell = "1.21"
 
 [dev-dependencies]
 tempfile = "3"

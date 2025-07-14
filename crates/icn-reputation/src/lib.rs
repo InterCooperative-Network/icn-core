@@ -20,6 +20,7 @@ pub use sqlite_store::SqliteReputationStore;
 pub mod rocksdb_store;
 #[cfg(feature = "persist-rocksdb")]
 pub use rocksdb_store::RocksdbReputationStore;
+pub mod metrics;
 
 /// Store for retrieving and updating executor reputation scores.
 pub trait ReputationStore: Send + Sync {
@@ -110,6 +111,7 @@ impl ReputationStore for InMemoryReputationStore {
     }
 
     fn record_execution(&self, executor: &Did, success: bool, cpu_ms: u64) {
+        crate::metrics::EXECUTION_RECORDS.inc();
         let mut map = self.scores.lock().unwrap();
         let entry = map.entry(executor.clone()).or_insert(0);
         let base: i64 = if success { 1 } else { -1 };
@@ -119,6 +121,7 @@ impl ReputationStore for InMemoryReputationStore {
     }
 
     fn record_proof_attempt(&self, prover: &Did, success: bool) {
+        crate::metrics::PROOF_ATTEMPTS.inc();
         let mut map = self.scores.lock().unwrap();
         let entry = map.entry(prover.clone()).or_insert(0);
         let delta: i64 = if success { 1 } else { -1 };
