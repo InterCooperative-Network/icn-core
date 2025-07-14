@@ -20,6 +20,17 @@ async fn federation_commands_work() {
     let base = format!("http://{addr}");
     tokio::task::spawn_blocking(move || {
         Command::new(bin)
+            .args(["--api-url", &base, "federation", "init"])
+            .assert()
+            .success();
+    })
+    .await
+    .unwrap();
+
+    let bin = env!("CARGO_BIN_EXE_icn-cli");
+    let base = format!("http://{addr}");
+    tokio::task::spawn_blocking(move || {
+        Command::new(bin)
             .args(["--api-url", &base, "federation", "join", "peerA"])
             .assert()
             .success();
@@ -58,6 +69,17 @@ async fn federation_commands_work() {
             .assert()
             .success()
             .stdout(predicates::str::contains("peerA").not());
+    })
+    .await
+    .unwrap();
+
+    let bin = env!("CARGO_BIN_EXE_icn-cli");
+    let base = format!("http://{addr}");
+    tokio::task::spawn_blocking(move || {
+        Command::new(bin)
+            .args(["--api-url", &base, "federation", "sync"])
+            .assert()
+            .success();
     })
     .await
     .unwrap();

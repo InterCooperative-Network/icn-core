@@ -1,0 +1,12 @@
+# Template configuration for a federated ICN node
+# Fill in your API key and peer addresses.
+http_listen_addr = "0.0.0.0:7845"
+storage_backend = "sqlite"
+storage_path = "./icn_data/node.sqlite"
+api_key = "CHANGE_ME"
+open_rate_limit = 0
+federation_peers = ["/ip4/1.2.3.4/tcp/7000/p2p/QmPeer"]
+bootstrap_peers = ["/ip4/1.2.3.4/tcp/7000/p2p/QmPeer"]
+# Optionally embed the node identity
+node_did = "did:key:zExample"
+node_private_key_bs58 = "BASE58_PRIVATE_KEY"
