@@ -33,6 +33,8 @@ The `icn-cli` is the primary tool for users to interact with an ICN node from th
     *   `icn-cli identity verify-proof <PROOF_JSON>`: Verify a proof and print whether it is valid.
 *   **Zero-Knowledge Operations:**
     *   `icn-cli zk generate-key`: Generate a Groth16 proving key and output the verifying key signature.
+    *   `icn-cli zk analyze <CIRCUIT>`: Count constraints for a circuit.
+    *   `icn-cli zk profile <CIRCUIT>`: Run Criterion benchmarks for a circuit.
 *   **Miscellaneous:**
     *   `icn-cli hello`: A simple command to check if the CLI is responsive.
     *   `icn-cli help` or `icn-cli --help`: Displays usage information.
@@ -55,6 +57,20 @@ cargo run -p icn-cli -- identity verify-proof '{"proof":"base64string","backend"
 # Generate a proving key and verifying key signature
 cargo run -p icn-cli -- zk generate-key
 # => '{"proving_key_path":"./groth16_proving_key.bin","verifying_key_signature_hex":"abc..."}'
+```
+
+### Example: Analyze a Circuit
+
+```bash
+cargo run -p icn-cli -- zk analyze age_over_18
+# => 'constraints: 3'
+```
+
+### Example: Profile a Circuit
+
+```bash
+cargo run -p icn-cli -- zk profile age_over_18
+# Runs `cargo bench` for the specified circuit
 ```
 
 ## Error Handling
