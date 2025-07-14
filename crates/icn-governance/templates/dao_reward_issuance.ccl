@@ -1,0 +1,13 @@
+// Proposal template: issue reward tokens to DAO members
+class DaoReward {
+    transferable: true
+}
+
+fn issue(member: Did, amount: Integer) -> Integer {
+    mint("DaoReward", amount, member);
+    return amount;
+}
+
+fn run() -> Integer {
+    return issue(member, 1);
+}

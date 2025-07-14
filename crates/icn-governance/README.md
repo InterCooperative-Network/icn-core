@@ -39,6 +39,8 @@ When built with the `federation` feature, this crate exposes
 Reusable CCL snippets for rewarding contributors live in `templates/`. Examples:
 - `reward_member.ccl` — grant scoped tokens to a specific member.
 - `community_bonus.ccl` — distribute a bonus to all members.
+- `dao_reward_issuance.ccl` — issue DAO reward tokens to members.
+- `contributor_recognition.ccl` — mint a recognition badge for a contributor.
 
 
 ## Contributing
