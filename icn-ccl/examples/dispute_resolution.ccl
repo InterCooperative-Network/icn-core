@@ -1,0 +1,8 @@
+// Dispute resolution template demonstrating governance actions
+fn run() -> Bool {
+    // Pause a disputed credential by CID
+    pause_credential("bafkreiExampleCid");
+    // Freeze reputation of a malicious executor
+    freeze_reputation("did:example:badactor");
+    return true;
+}

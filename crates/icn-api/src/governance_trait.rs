@@ -48,7 +48,17 @@ pub enum ProposalInputType {
     GenericText {
         text: String,
     }, // Matches ProposalType more closely
-       // Add more as needed
+    Resolution {
+        actions: Vec<ResolutionActionInput>,
+    },
+    // Add more as needed
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(tag = "action", content = "data")]
+pub enum ResolutionActionInput {
+    PauseCredential { cid: String },
+    FreezeReputation { did: String },
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)] // Added Clone
