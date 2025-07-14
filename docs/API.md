@@ -231,6 +231,14 @@ curl -X GET https://localhost:8080/federation/peers \
 |--------|------|-------------|---------------|
 | POST | `/data/query` | Query stored data with filters | Yes |
 
+## Circuit Registry Endpoints
+
+| Method | Path | Description | Auth Required |
+|--------|------|-------------|---------------|
+| POST | `/circuits/register` | Register Groth16 circuit parameters | Yes |
+| GET | `/circuits/{slug}/{version}` | Fetch circuit verifying key | Yes |
+| GET | `/circuits/{slug}` | List available circuit versions | Yes |
+
 ## Example Requests & Responses
 
 ### GET `/info`

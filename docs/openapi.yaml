@@ -696,6 +696,62 @@ paths:
                     type: string
               example:
                 manifest_cid: "bafycontractmanifest"
+  /circuits/register:
+    post:
+      summary: Register circuit parameters
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterCircuitRequest'
+      responses:
+        '201':
+          description: Registered
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+  /circuits/{slug}/{version}:
+    get:
+      summary: Fetch circuit verifying key
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: version
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Circuit parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CircuitResponse'
+  /circuits/{slug}:
+    get:
+      summary: List circuit versions
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Version list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CircuitVersionsResponse'
   /federation/peers:
     get:
       summary: List federation peers
@@ -1172,3 +1228,35 @@ components:
           type: integer
         owner_did:
           type: string
+    RegisterCircuitRequest:
+      type: object
+      properties:
+        slug:
+          type: string
+        version:
+          type: string
+        proving_key:
+          type: string
+          format: byte
+        verification_key:
+          type: string
+          format: byte
+    CircuitResponse:
+      type: object
+      properties:
+        slug:
+          type: string
+        version:
+          type: string
+        verification_key:
+          type: string
+          format: byte
+    CircuitVersionsResponse:
+      type: object
+      properties:
+        slug:
+          type: string
+        versions:
+          type: array
+          items:
+            type: string
