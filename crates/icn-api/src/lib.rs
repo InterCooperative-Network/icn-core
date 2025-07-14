@@ -882,6 +882,8 @@ mod tests {
             quorum: None,
             threshold: None,
             body: None,
+            credential_proof: None,
+            revocation_proof: None,
         };
 
         let proposal_id_res = api.submit_proposal(submit_req);
@@ -926,6 +928,8 @@ mod tests {
             quorum: None,
             threshold: None,
             body: None,
+            credential_proof: None,
+            revocation_proof: None,
         };
         let proposal_id = api
             .submit_proposal(submit_req)
@@ -936,6 +940,8 @@ mod tests {
             voter_did: voter_did_str.to_string(),
             proposal_id: proposal_id.0.clone(), // ProposalId(String) -> String
             vote_option: "yes".to_string(),
+            credential_proof: None,
+            revocation_proof: None,
         };
 
         let vote_res = api.cast_vote(cast_vote_req);

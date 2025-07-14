@@ -1,0 +1,9 @@
+{
+  "issuer": "did:key:federation",
+  "holder": "did:key:alice",
+  "claim_type": "sum_check",
+  "proof": "0xabc123",
+  "schema": "bafyschemacid",
+  "verification_key": "0xdeadbeef",
+  "public_inputs": { "x": 1, "y": 2, "sum": 3 }
+}

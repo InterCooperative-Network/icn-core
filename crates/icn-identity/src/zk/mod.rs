@@ -467,6 +467,7 @@ impl ZkProver for Groth16Prover {
 /// The verifier stores a prepared verifying key and the public inputs expected
 /// by the circuit. Proofs are checked using [`ark_groth16::Groth16::verify_proof`].
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct Groth16Verifier {
     vk: ark_groth16::PreparedVerifyingKey<ark_bn254::Bn254>,
     public_inputs: Vec<ark_bn254::Fr>,

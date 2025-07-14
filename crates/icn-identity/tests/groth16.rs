@@ -135,7 +135,6 @@ fn issue_and_verify_groth16_proof() {
 
 #[test]
 fn prover_rejects_low_reputation() {
-    let manager = Groth16KeyManager::new();
     let (sk, _) = generate_ed25519_keypair();
     let issuer_did = Did::new("key", "issuer");
     let holder_did = Did::new("key", "holder");
@@ -156,6 +155,7 @@ fn prover_rejects_low_reputation() {
         Some(Cid::new_v1_sha256(0x55, b"schema")),
         Some(&[]),
         Some(Groth16Circuit::AgeOver18 { current_year: 2020 }),
+        None,
     );
     assert!(matches!(res, Err(ZkError::InsufficientReputation)));
 }
@@ -180,6 +180,7 @@ fn verifier_rejects_low_reputation() {
             Some(Cid::new_v1_sha256(0x55, b"schema")),
             Some(&[]),
             Some(Groth16Circuit::AgeOver18 { current_year: 2020 }),
+            None,
         )
         .unwrap();
     let proof = proof_opt.expect("proof");

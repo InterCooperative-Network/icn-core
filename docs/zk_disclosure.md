@@ -1,6 +1,7 @@
 # Zero-Knowledge Proof Disclosure Guide
 
 This document provides a short overview of when zero-knowledge proofs (ZKPs) are useful within ICN systems, how they can be generated, and a basic example flow.
+For details on developing new circuits see [zk_circuit_development.md](zk_circuit_development.md).
 
 ---
 

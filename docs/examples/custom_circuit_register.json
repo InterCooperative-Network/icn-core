@@ -1,0 +1,6 @@
+{
+  "slug": "sum_check",
+  "version": "1.0.0",
+  "proving_key": "<base64>",
+  "verification_key": "<base64>"
+}

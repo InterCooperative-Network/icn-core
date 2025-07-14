@@ -862,6 +862,7 @@ pub async fn host_generate_zk_proof(
     };
 
     serde_json::to_string(&proof).map_err(|e| {
+        #[allow(clippy::let_underscore_future)]
         let _ = ctx.credit_mana(&ctx.current_identity, cost);
         HostAbiError::SerializationError(format!("{e}"))
     })

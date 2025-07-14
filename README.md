@@ -17,6 +17,7 @@ It provides the foundational crates for building ICN nodes, CLI tools, and other
 - [docs/DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md) - Complete developer setup, workflows, and best practices
 - [docs/SYSTEM_COMPLETENESS_ROADMAP.md](docs/SYSTEM_COMPLETENESS_ROADMAP.md) - Development roadmap and missing features
 - [docs/GLOSSARY.md](docs/GLOSSARY.md) - Comprehensive glossary of ICN terms and concepts
+- [docs/zk_circuit_development.md](docs/zk_circuit_development.md) - Building and profiling custom ZK circuits
 
 ### Quick Start
 - [docs/beginner/README.md](docs/beginner/README.md) - Quickest setup steps
