@@ -814,8 +814,11 @@ impl RuntimeContext {
         let ctx = Arc::clone(self);
         let job_id_for_task = job_id.clone();
         tokio::spawn(async move {
+            log::info!("[handle_submit_job] Spawning lifecycle management task for job: {}", job_id_for_task);
             if let Err(e) = ctx.manage_job_lifecycle(job_id_for_task).await {
                 log::error!("[handle_submit_job] Job lifecycle management failed: {}", e);
+            } else {
+                log::info!("[handle_submit_job] Job lifecycle management completed successfully");
             }
         });
 
@@ -993,6 +996,30 @@ impl RuntimeContext {
         );
 
         // 0. Check if this is a CCL WASM job that should auto-execute
+        log::debug!("[manage_job_lifecycle] Retrieving job status for: {}", job_id);
+        match self.get_job_status(&job_id).await {
+            Ok(Some(lifecycle)) => {
+                log::debug!(
+                    "[manage_job_lifecycle] Found job lifecycle, checking if CCL WASM: {}",
+                    job_id
+                );
+            }
+            Ok(None) => {
+                log::warn!("[manage_job_lifecycle] Job not found in DAG: {}", job_id);
+                return Err(HostAbiError::DagOperationFailed(
+                    "Job not found in DAG".to_string(),
+                ));
+            }
+            Err(e) => {
+                log::error!(
+                    "[manage_job_lifecycle] Failed to get job status: {} - {}",
+                    job_id,
+                    e
+                );
+                return Err(e);
+            }
+        }
+        
         if let Ok(Some(lifecycle)) = self.get_job_status(&job_id).await {
             let job_spec = lifecycle.job.decode_spec().map_err(|e| {
                 HostAbiError::DagOperationFailed(format!("Failed to decode job spec: {}", e))

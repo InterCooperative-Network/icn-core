@@ -424,6 +424,7 @@ impl WasmExecutor {
         wasmtime_config.wasm_reference_types(false); // Disable reference types for simplicity
         wasmtime_config.wasm_bulk_memory(false); // Disable bulk memory operations for security
         wasmtime_config.wasm_simd(false); // Disable SIMD for security
+        wasmtime_config.wasm_relaxed_simd(false); // Disable relaxed SIMD for security
 
         let engine = wasmtime::Engine::new(&wasmtime_config).expect("create engine");
         let validator = WasmModuleValidator::new(config.security_limits.clone());
