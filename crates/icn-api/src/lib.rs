@@ -12,7 +12,7 @@
 // Depending on icn_common crate
 use icn_common::{
     compute_merkle_cid, retry_with_backoff, Cid, CircuitBreaker, CircuitBreakerError, CommonError,
-    DagBlock, Did, NodeInfo, NodeStatus, SystemTimeProvider, ZkCredentialProof, ZkRevocationProof,
+    DagBlock, Did, NodeInfo, NodeStatus, DagSyncStatus, SystemTimeProvider, ZkCredentialProof, ZkRevocationProof,
     ICN_CORE_VERSION,
 };
 // Remove direct use of icn_dag::put_block and icn_dag::get_block which use global store
@@ -439,6 +439,15 @@ where
     async fn get_dag_root(&self) -> Result<Option<Cid>, CommonError> {
         let store = self.store.lock().await;
         icn_dag::current_root(&*store).await
+    }
+
+    async fn get_dag_sync_status(&self) -> Result<DagSyncStatus, CommonError> {
+        let store = self.store.lock().await;
+        let root = icn_dag::current_root(&*store).await?;
+        Ok(DagSyncStatus {
+            current_root: root,
+            in_sync: true,
+        })
     }
 }
 

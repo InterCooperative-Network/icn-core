@@ -81,6 +81,18 @@ cargo test -p icn-dag --no-default-features --features persist-rocksdb \
   --test rocks_backend
 ```
 
+## DAG Fork Conflict Resolution
+
+Federations may temporarily diverge and create competing DAG roots. Nodes apply
+the following deterministic rules when reconciling forks:
+
+1. Prefer the root with the highest block height.
+2. If heights match, choose the lexicographically smallest root CID.
+3. Retain orphaned branches for audit but disallow new references.
+
+Nodes exchange `DagSyncStatus` information to detect divergence and converge on
+a single history without complex reorganization.
+
 ## Contributing
 
 Contributions are welcome! Please see the main [CONTRIBUTING.md](../../CONTRIBUTING.md) in the root of the `icn-core` repository for guidelines.

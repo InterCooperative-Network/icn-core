@@ -524,6 +524,35 @@ pub async fn send_network_ping(
     ))
 }
 
+/// Broadcast a governance proposal with retry logic.
+pub async fn gossip_proposal_with_retry<S: NetworkService>(
+    service: &S,
+    message: ProtocolMessage,
+) -> Result<(), MeshNetworkError> {
+    with_resilience(|| {
+        let msg = message.clone();
+        async move { service.broadcast_message(msg).await }
+    })
+    .await
+}
+
+/// Confirm quorum status by querying the network with retries.
+pub async fn confirm_quorum_with_retry<S: NetworkService>(
+    service: &S,
+    quorum_key: String,
+) -> Result<bool, MeshNetworkError> {
+    with_resilience(|| {
+        let key = quorum_key.clone();
+        async move {
+            match service.get_record(key).await? {
+                Some(v) => Ok(v == b"confirmed"),
+                None => Ok(false),
+            }
+        }
+    })
+    .await
+}
+
 #[cfg(all(test, feature = "libp2p"))]
 mod tests {
     use super::*;

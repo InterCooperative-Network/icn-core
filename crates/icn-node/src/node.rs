@@ -836,6 +836,7 @@ pub async fn app_router_with_options(
             .route("/dag/get", post(dag_get_handler)) // These will use RT context's DAG store
             .route("/dag/meta", post(dag_meta_handler))
             .route("/dag/root", get(dag_root_handler))
+            .route("/dag/sync", get(dag_sync_status_handler))
             .route("/dag/pin", post(dag_pin_handler))
             .route("/dag/unpin", post(dag_unpin_handler))
             .route("/dag/prune", post(dag_prune_handler))
@@ -992,6 +993,7 @@ pub async fn app_router_from_context(
         .route("/dag/get", post(dag_get_handler))
         .route("/dag/meta", post(dag_meta_handler))
         .route("/dag/root", get(dag_root_handler))
+        .route("/dag/sync", get(dag_sync_status_handler))
         .route("/dag/pin", post(dag_pin_handler))
         .route("/dag/unpin", post(dag_unpin_handler))
         .route("/dag/prune", post(dag_prune_handler))
@@ -1289,6 +1291,7 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
         .route("/dag/get", post(dag_get_handler))
         .route("/dag/meta", post(dag_meta_handler))
         .route("/dag/root", get(dag_root_handler))
+        .route("/dag/sync", get(dag_sync_status_handler))
         .route("/dag/pin", post(dag_pin_handler))
         .route("/dag/unpin", post(dag_unpin_handler))
         .route("/dag/prune", post(dag_prune_handler))
@@ -1750,6 +1753,18 @@ async fn dag_root_handler(State(state): State<AppState>) -> impl IntoResponse {
         Ok(None) => (StatusCode::OK, Json(String::new())).into_response(),
         Err(e) => map_rust_error_to_json_response(
             format!("DAG root error: {e}"),
+            StatusCode::INTERNAL_SERVER_ERROR,
+        )
+        .into_response(),
+    }
+}
+
+/// GET /dag/sync – Report DAG synchronization status.
+async fn dag_sync_status_handler(State(state): State<AppState>) -> impl IntoResponse {
+    match state.runtime_context.get_dag_sync_status().await {
+        Ok(status) => (StatusCode::OK, Json(status)).into_response(),
+        Err(e) => map_rust_error_to_json_response(
+            format!("DAG sync error: {e}"),
             StatusCode::INTERNAL_SERVER_ERROR,
         )
         .into_response(),

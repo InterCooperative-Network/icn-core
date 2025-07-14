@@ -38,6 +38,15 @@ pub struct NodeStatus {
     pub version: String,
 }
 
+/// Indicates whether the local DAG is synchronized with peers.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DagSyncStatus {
+    /// Current root CID of the local DAG.
+    pub current_root: Option<Cid>,
+    /// True if the node believes it is fully synchronized.
+    pub in_sync: bool,
+}
+
 /// Identifies a membership scope such as a community, cooperative, or federation.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct NodeScope(pub String);
