@@ -8,6 +8,9 @@ Templates are provided as plain CCL source files and exposed through constants f
 
 - `simple_voting.ccl` – minimal majority voting procedure
 - `treasury_rules.ccl` – example treasury withdrawal policy
+- `rotating_stewards.ccl` – rotating single steward each cycle
+- `rotating_council.ccl` – rotating council subset
+- `rotating_assembly.ccl` – rotating meeting chair for assemblies
 
 Use `icn_templates::SIMPLE_VOTING` or `icn_templates::TREASURY_RULES` to retrieve the source text.
 

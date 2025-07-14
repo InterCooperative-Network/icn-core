@@ -27,6 +27,7 @@ use icn_ccl::{check_ccl_file, compile_ccl_file, compile_ccl_file_to_wasm, explai
 use icn_governance::{Proposal, ProposalId};
 use icn_identity::generate_ed25519_keypair;
 use icn_runtime::context::{Ed25519Signer, Signer};
+use icn_templates;
 
 fn anyhow_to_common(e: anyhow::Error) -> CommonError {
     if let Some(c) = e.downcast_ref::<CommonError>() {
@@ -146,6 +147,11 @@ enum Commands {
     Federation {
         #[clap(subcommand)]
         command: FederationCommands,
+    },
+    /// Interactive cooperative formation wizard
+    Wizard {
+        #[clap(subcommand)]
+        command: WizardCommands,
     },
 }
 
@@ -295,6 +301,15 @@ enum FederationCommands {
     /// Show federation status
     #[clap(name = "status")]
     Status,
+}
+
+#[derive(Subcommand, Debug)]
+enum WizardCommands {
+    /// Generate a cooperative template interactively
+    Cooperative {
+        #[clap(long, help = "Output directory", required = false)]
+        output: Option<String>,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -485,6 +500,9 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
             FederationCommands::Leave { peer } => handle_fed_leave(cli, client, peer).await?,
             FederationCommands::ListPeers => handle_fed_list_peers(cli, client).await?,
             FederationCommands::Status => handle_fed_status(cli, client).await?,
+        },
+        Commands::Wizard { command } => match command {
+            WizardCommands::Cooperative { output } => handle_wizard_cooperative(output.clone())?,
         },
     }
     Ok(())
@@ -1233,6 +1251,37 @@ async fn handle_zk_profile(circuit: &str) -> Result<(), anyhow::Error> {
     if !status.success() {
         anyhow::bail!("cargo bench failed");
     }
+    Ok(())
+}
+
+fn handle_wizard_cooperative(output: Option<String>) -> Result<(), anyhow::Error> {
+    use std::io::{self, Write};
+    let mut name = String::new();
+    print!("Cooperative name: ");
+    io::stdout().flush()?;
+    io::stdin().read_line(&mut name)?;
+    let name = name.trim();
+
+    println!("Select governance template:");
+    println!("1) Rotating stewards");
+    println!("2) Rotating council");
+    println!("3) Rotating assembly");
+    print!("Choice: ");
+    io::stdout().flush()?;
+    let mut choice = String::new();
+    io::stdin().read_line(&mut choice)?;
+
+    let template = match choice.trim() {
+        "1" => icn_templates::ROTATING_STEWARDS,
+        "2" => icn_templates::ROTATING_COUNCIL,
+        _ => icn_templates::ROTATING_ASSEMBLY,
+    };
+
+    let file_name = format!("{}_governance.ccl", name.replace(' ', "_"));
+    let dir = output.unwrap_or_else(|| ".".to_string());
+    let path = std::path::Path::new(&dir).join(&file_name);
+    std::fs::write(&path, template)?;
+    println!("Template written to {}", path.display());
     Ok(())
 }
 
