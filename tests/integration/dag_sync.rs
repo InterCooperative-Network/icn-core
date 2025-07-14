@@ -18,7 +18,7 @@ async fn dag_sync_status_consistency() {
         let mut roots = Vec::new();
         for url in [NODE_A_URL, NODE_B_URL, NODE_C_URL] {
             let resp = client
-                .get(&format!("{}/dag/sync", url))
+                .get(&format!("{}/dag/status", url))
                 .send()
                 .await
                 .expect("dag sync");
