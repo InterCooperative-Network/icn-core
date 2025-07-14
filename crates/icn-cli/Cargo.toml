@@ -45,3 +45,4 @@ icn-node = { path = "../icn-node" }
 icn-dag = { path = "../icn-dag", features = ["persist-sqlite"] }
 tempfile = "3"
 serial_test = { version = "3", features = ["async"] }
+criterion = { version = "0.5", features = ["async_tokio"] }

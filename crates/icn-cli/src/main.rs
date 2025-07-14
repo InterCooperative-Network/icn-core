@@ -1197,7 +1197,7 @@ async fn handle_identity_verify_revocation(
     let proof: icn_common::ZkRevocationProof = serde_json::from_str(&proof_json_content)
         .map_err(|e| anyhow::anyhow!("Invalid ZkRevocationProof JSON: {}", e))?;
 
-    let resp: serde_json::Value = post_request(&cli.api_url, client, "/identity/verify/revocation", &proof).await?;
+    let resp: serde_json::Value = post_request(&cli.api_url, client, "/identity/verify/revocation", &proof, cli.api_key.as_deref()).await?;
     println!("{}", serde_json::to_string_pretty(&resp)?);
     Ok(())
 }
@@ -1507,7 +1507,7 @@ async fn handle_emergency_request(
 }
 
 async fn handle_aid_list(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
-    let v: serde_json::Value = get_request(&cli.api_url, client, "/aid/resources").await?;
+    let v: serde_json::Value = get_request(&cli.api_url, client, "/aid/resources", cli.api_key.as_deref()).await?;
     println!("{}", serde_json::to_string_pretty(&v)?);
     Ok(())
 }
@@ -1526,7 +1526,7 @@ async fn handle_aid_register(
     };
     let body: serde_json::Value = serde_json::from_str(&content)
         .map_err(|e| anyhow::anyhow!("Invalid aid resource JSON: {}", e))?;
-    let _: serde_json::Value = post_request(&cli.api_url, client, "/aid/resource", &body).await?;
+    let _: serde_json::Value = post_request(&cli.api_url, client, "/aid/resource", &body, cli.api_key.as_deref()).await?;
     println!("Aid resource registered");
     Ok(())
 }
