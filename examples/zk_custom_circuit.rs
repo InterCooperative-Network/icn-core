@@ -6,6 +6,8 @@ use ark_bn254::Fr;
 use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystem, ConstraintSystemRef, SynthesisError};
 use ark_r1cs_std::prelude::*;
 use icn_zk::{prepare_vk, prove, setup, verify};
+#[cfg(feature = "devtools")]
+use icn_zk::devtools::print_cs_stats;
 use rand::thread_rng;
 use core::cmp::Ordering;
 
@@ -27,6 +29,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Inspect constraint count
     let cs = ConstraintSystem::<Fr>::new_ref();
     LessThan10Circuit { value: 7 }.clone().generate_constraints(cs.clone())?;
+    #[cfg(feature = "devtools")]
+    print_cs_stats(&cs)?;
+    #[cfg(not(feature = "devtools"))]
     println!("constraints: {}", cs.num_constraints());
 
     // Generate parameters and a proof
