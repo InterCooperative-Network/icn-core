@@ -3640,100 +3640,102 @@
 <a href=#3640 id=3640 data-nosnippet>3640</a>        <span class="kw">let </span>cid_bytes = axum::body::to_bytes(put_resp.into_body(), usize::MAX)
 <a href=#3641 id=3641 data-nosnippet>3641</a>            .<span class="kw">await
 <a href=#3642 id=3642 data-nosnippet>3642</a>            </span>.unwrap();
-<a href=#3643 id=3643 data-nosnippet>3643</a>        <span class="kw">let </span>wasm_cid: Cid = serde_json::from_slice(<span class="kw-2">&amp;</span>cid_bytes).unwrap();
-<a href=#3644 id=3644 data-nosnippet>3644</a>
-<a href=#3645 id=3645 data-nosnippet>3645</a>        <span class="comment">// Submit job referencing the WASM CID
-<a href=#3646 id=3646 data-nosnippet>3646</a>        </span><span class="kw">let </span>job_req = SubmitJobRequest {
-<a href=#3647 id=3647 data-nosnippet>3647</a>            manifest_cid: wasm_cid.to_string(),
-<a href=#3648 id=3648 data-nosnippet>3648</a>            spec_bytes: <span class="prelude-val">Some</span>(
-<a href=#3649 id=3649 data-nosnippet>3649</a>                BASE64_STANDARD.encode(bincode::serialize(<span class="kw-2">&amp;</span>icn_mesh::JobSpec::default()).unwrap()),
-<a href=#3650 id=3650 data-nosnippet>3650</a>            ),
-<a href=#3651 id=3651 data-nosnippet>3651</a>            spec_json: <span class="prelude-val">None</span>,
-<a href=#3652 id=3652 data-nosnippet>3652</a>            cost_mana: <span class="number">0</span>,
-<a href=#3653 id=3653 data-nosnippet>3653</a>        };
-<a href=#3654 id=3654 data-nosnippet>3654</a>        <span class="kw">let </span>job_req_json = serde_json::to_string(<span class="kw-2">&amp;</span>job_req).unwrap();
-<a href=#3655 id=3655 data-nosnippet>3655</a>        <span class="kw">let </span>submit_resp = app
-<a href=#3656 id=3656 data-nosnippet>3656</a>            .clone()
-<a href=#3657 id=3657 data-nosnippet>3657</a>            .oneshot(
-<a href=#3658 id=3658 data-nosnippet>3658</a>                Request::builder()
-<a href=#3659 id=3659 data-nosnippet>3659</a>                    .method(<span class="string">"POST"</span>)
-<a href=#3660 id=3660 data-nosnippet>3660</a>                    .uri(<span class="string">"/mesh/submit"</span>)
-<a href=#3661 id=3661 data-nosnippet>3661</a>                    .header(<span class="string">"content-type"</span>, <span class="string">"application/json"</span>)
-<a href=#3662 id=3662 data-nosnippet>3662</a>                    .body(Body::from(job_req_json))
-<a href=#3663 id=3663 data-nosnippet>3663</a>                    .unwrap(),
-<a href=#3664 id=3664 data-nosnippet>3664</a>            )
-<a href=#3665 id=3665 data-nosnippet>3665</a>            .<span class="kw">await
-<a href=#3666 id=3666 data-nosnippet>3666</a>            </span>.unwrap();
-<a href=#3667 id=3667 data-nosnippet>3667</a>        <span class="macro">assert_eq!</span>(submit_resp.status(), StatusCode::ACCEPTED);
-<a href=#3668 id=3668 data-nosnippet>3668</a>        <span class="kw">let </span>body = axum::body::to_bytes(submit_resp.into_body(), usize::MAX)
-<a href=#3669 id=3669 data-nosnippet>3669</a>            .<span class="kw">await
-<a href=#3670 id=3670 data-nosnippet>3670</a>            </span>.unwrap();
-<a href=#3671 id=3671 data-nosnippet>3671</a>        <span class="kw">let </span>submit_json: serde_json::Value = serde_json::from_slice(<span class="kw-2">&amp;</span>body).unwrap();
-<a href=#3672 id=3672 data-nosnippet>3672</a>        <span class="kw">let </span>job_id: Cid = serde_json::from_str(submit_json[<span class="string">"job_id"</span>].as_str().unwrap()).unwrap();
-<a href=#3673 id=3673 data-nosnippet>3673</a>
-<a href=#3674 id=3674 data-nosnippet>3674</a>        <span class="comment">// Execute the job using WasmExecutor and anchor the receipt
-<a href=#3675 id=3675 data-nosnippet>3675</a>        </span><span class="kw">let </span>(sk, vk) = generate_ed25519_keypair();
-<a href=#3676 id=3676 data-nosnippet>3676</a>        <span class="kw">let </span>exec_did = did_key_from_verifying_key(<span class="kw-2">&amp;</span>vk);
-<a href=#3677 id=3677 data-nosnippet>3677</a>        <span class="kw">let </span>exec_did = Did::from_str(<span class="kw-2">&amp;</span>exec_did).unwrap();
-<a href=#3678 id=3678 data-nosnippet>3678</a>        <span class="kw">let </span>signer =
-<a href=#3679 id=3679 data-nosnippet>3679</a>            std::sync::Arc::new(icn_runtime::context::Ed25519Signer::new_with_keys(sk, vk));
-<a href=#3680 id=3680 data-nosnippet>3680</a>        <span class="kw">let </span>executor = WasmExecutor::new(
-<a href=#3681 id=3681 data-nosnippet>3681</a>            ctx.clone(),
-<a href=#3682 id=3682 data-nosnippet>3682</a>            signer,
-<a href=#3683 id=3683 data-nosnippet>3683</a>            icn_runtime::executor::WasmExecutorConfig::default(),
-<a href=#3684 id=3684 data-nosnippet>3684</a>        );
-<a href=#3685 id=3685 data-nosnippet>3685</a>        <span class="kw">let </span>job = ActualMeshJob {
-<a href=#3686 id=3686 data-nosnippet>3686</a>            id: JobId(job_id.clone()),
-<a href=#3687 id=3687 data-nosnippet>3687</a>            manifest_cid: wasm_cid.clone(),
-<a href=#3688 id=3688 data-nosnippet>3688</a>            spec: JobSpec::default(),
-<a href=#3689 id=3689 data-nosnippet>3689</a>            creator_did: ctx.current_identity.clone(),
-<a href=#3690 id=3690 data-nosnippet>3690</a>            cost_mana: <span class="number">0</span>,
-<a href=#3691 id=3691 data-nosnippet>3691</a>            max_execution_wait_ms: <span class="prelude-val">None</span>,
-<a href=#3692 id=3692 data-nosnippet>3692</a>            signature: SignatureBytes(<span class="macro">vec!</span>[]),
-<a href=#3693 id=3693 data-nosnippet>3693</a>        };
-<a href=#3694 id=3694 data-nosnippet>3694</a>        <span class="kw">let </span>receipt_cid = executor
-<a href=#3695 id=3695 data-nosnippet>3695</a>            .execute_and_anchor_job(<span class="kw-2">&amp;</span>job)
-<a href=#3696 id=3696 data-nosnippet>3696</a>            .<span class="kw">await
-<a href=#3697 id=3697 data-nosnippet>3697</a>            </span>.expect(<span class="string">"exec and anchor"</span>);
-<a href=#3698 id=3698 data-nosnippet>3698</a>
-<a href=#3699 id=3699 data-nosnippet>3699</a>        <span class="comment">// Fetch the anchored receipt via HTTP
-<a href=#3700 id=3700 data-nosnippet>3700</a>        </span><span class="kw">let </span>get_req = Request::builder()
-<a href=#3701 id=3701 data-nosnippet>3701</a>            .method(<span class="string">"POST"</span>)
-<a href=#3702 id=3702 data-nosnippet>3702</a>            .uri(<span class="string">"/dag/get"</span>)
-<a href=#3703 id=3703 data-nosnippet>3703</a>            .header(<span class="string">"content-type"</span>, <span class="string">"application/json"</span>)
-<a href=#3704 id=3704 data-nosnippet>3704</a>            .body(Body::from(
-<a href=#3705 id=3705 data-nosnippet>3705</a>                serde_json::to_vec(<span class="kw-2">&amp;</span><span class="macro">serde_json::json!</span>({
-<a href=#3706 id=3706 data-nosnippet>3706</a>                    <span class="string">"cid"</span>: receipt_cid.to_string()
-<a href=#3707 id=3707 data-nosnippet>3707</a>                }))
-<a href=#3708 id=3708 data-nosnippet>3708</a>                .unwrap(),
-<a href=#3709 id=3709 data-nosnippet>3709</a>            ))
-<a href=#3710 id=3710 data-nosnippet>3710</a>            .unwrap();
-<a href=#3711 id=3711 data-nosnippet>3711</a>        <span class="kw">let </span>get_resp = app.clone().oneshot(get_req).<span class="kw">await</span>.unwrap();
-<a href=#3712 id=3712 data-nosnippet>3712</a>        <span class="macro">assert_eq!</span>(get_resp.status(), StatusCode::OK);
-<a href=#3713 id=3713 data-nosnippet>3713</a>        <span class="kw">let </span>receipt_bytes = axum::body::to_bytes(get_resp.into_body(), usize::MAX)
-<a href=#3714 id=3714 data-nosnippet>3714</a>            .<span class="kw">await
-<a href=#3715 id=3715 data-nosnippet>3715</a>            </span>.unwrap();
-<a href=#3716 id=3716 data-nosnippet>3716</a>        <span class="kw">let </span>receipt: icn_identity::ExecutionReceipt =
-<a href=#3717 id=3717 data-nosnippet>3717</a>            serde_json::from_slice(<span class="kw-2">&amp;</span>receipt_bytes).unwrap();
-<a href=#3718 id=3718 data-nosnippet>3718</a>        <span class="macro">assert_eq!</span>(receipt.job_id, job_id);
-<a href=#3719 id=3719 data-nosnippet>3719</a>        <span class="macro">assert_eq!</span>(receipt.executor_did, exec_did);
-<a href=#3720 id=3720 data-nosnippet>3720</a>    }
-<a href=#3721 id=3721 data-nosnippet>3721</a>
-<a href=#3722 id=3722 data-nosnippet>3722</a>    <span class="attr">#[tokio::test]
-<a href=#3723 id=3723 data-nosnippet>3723</a>    </span><span class="kw">async fn </span>network_connect_endpoint_basic() {
-<a href=#3724 id=3724 data-nosnippet>3724</a>        <span class="kw">let </span>app = test_app().<span class="kw">await</span>;
-<a href=#3725 id=3725 data-nosnippet>3725</a>        <span class="kw">let </span>payload = <span class="macro">serde_json::json!</span>({ <span class="string">"peer"</span>: <span class="string">"/ip4/127.0.0.1/tcp/1234" </span>});
-<a href=#3726 id=3726 data-nosnippet>3726</a>        <span class="kw">let </span>response = app
-<a href=#3727 id=3727 data-nosnippet>3727</a>            .oneshot(
-<a href=#3728 id=3728 data-nosnippet>3728</a>                Request::builder()
-<a href=#3729 id=3729 data-nosnippet>3729</a>                    .method(<span class="string">"POST"</span>)
-<a href=#3730 id=3730 data-nosnippet>3730</a>                    .uri(<span class="string">"/network/connect"</span>)
-<a href=#3731 id=3731 data-nosnippet>3731</a>                    .header(<span class="string">"content-type"</span>, <span class="string">"application/json"</span>)
-<a href=#3732 id=3732 data-nosnippet>3732</a>                    .body(Body::from(payload.to_string()))
-<a href=#3733 id=3733 data-nosnippet>3733</a>                    .unwrap(),
-<a href=#3734 id=3734 data-nosnippet>3734</a>            )
-<a href=#3735 id=3735 data-nosnippet>3735</a>            .<span class="kw">await
-<a href=#3736 id=3736 data-nosnippet>3736</a>            </span>.unwrap();
-<a href=#3737 id=3737 data-nosnippet>3737</a>        <span class="macro">assert_eq!</span>(response.status(), StatusCode::OK);
-<a href=#3738 id=3738 data-nosnippet>3738</a>    }
-<a href=#3739 id=3739 data-nosnippet>3739</a>}</code></pre></div></section></main></body></html>
+<a href=#3643 id=3643 data-nosnippet>3643</a>        <span class="kw">let </span>wasm_cid_str: String = serde_json::from_slice(<span class="kw-2">&amp;</span>cid_bytes).unwrap();
+<a href=#3644 id=3644 data-nosnippet>3644</a>        <span class="kw">let </span>wasm_cid = parse_cid_from_string(<span class="kw-2">&amp;</span>wasm_cid_str).unwrap();
+<a href=#3645 id=3645 data-nosnippet>3645</a>
+<a href=#3646 id=3646 data-nosnippet>3646</a>        <span class="comment">// Submit job referencing the WASM CID
+<a href=#3647 id=3647 data-nosnippet>3647</a>        </span><span class="kw">let </span>job_req = SubmitJobRequest {
+<a href=#3648 id=3648 data-nosnippet>3648</a>            manifest_cid: wasm_cid.to_string(),
+<a href=#3649 id=3649 data-nosnippet>3649</a>            spec_bytes: <span class="prelude-val">Some</span>(
+<a href=#3650 id=3650 data-nosnippet>3650</a>                BASE64_STANDARD.encode(bincode::serialize(<span class="kw-2">&amp;</span>icn_mesh::JobSpec::default()).unwrap()),
+<a href=#3651 id=3651 data-nosnippet>3651</a>            ),
+<a href=#3652 id=3652 data-nosnippet>3652</a>            spec_json: <span class="prelude-val">None</span>,
+<a href=#3653 id=3653 data-nosnippet>3653</a>            cost_mana: <span class="number">0</span>,
+<a href=#3654 id=3654 data-nosnippet>3654</a>        };
+<a href=#3655 id=3655 data-nosnippet>3655</a>        <span class="kw">let </span>job_req_json = serde_json::to_string(<span class="kw-2">&amp;</span>job_req).unwrap();
+<a href=#3656 id=3656 data-nosnippet>3656</a>        <span class="kw">let </span>submit_resp = app
+<a href=#3657 id=3657 data-nosnippet>3657</a>            .clone()
+<a href=#3658 id=3658 data-nosnippet>3658</a>            .oneshot(
+<a href=#3659 id=3659 data-nosnippet>3659</a>                Request::builder()
+<a href=#3660 id=3660 data-nosnippet>3660</a>                    .method(<span class="string">"POST"</span>)
+<a href=#3661 id=3661 data-nosnippet>3661</a>                    .uri(<span class="string">"/mesh/submit"</span>)
+<a href=#3662 id=3662 data-nosnippet>3662</a>                    .header(<span class="string">"content-type"</span>, <span class="string">"application/json"</span>)
+<a href=#3663 id=3663 data-nosnippet>3663</a>                    .body(Body::from(job_req_json))
+<a href=#3664 id=3664 data-nosnippet>3664</a>                    .unwrap(),
+<a href=#3665 id=3665 data-nosnippet>3665</a>            )
+<a href=#3666 id=3666 data-nosnippet>3666</a>            .<span class="kw">await
+<a href=#3667 id=3667 data-nosnippet>3667</a>            </span>.unwrap();
+<a href=#3668 id=3668 data-nosnippet>3668</a>        <span class="macro">assert_eq!</span>(submit_resp.status(), StatusCode::ACCEPTED);
+<a href=#3669 id=3669 data-nosnippet>3669</a>        <span class="kw">let </span>body = axum::body::to_bytes(submit_resp.into_body(), usize::MAX)
+<a href=#3670 id=3670 data-nosnippet>3670</a>            .<span class="kw">await
+<a href=#3671 id=3671 data-nosnippet>3671</a>            </span>.unwrap();
+<a href=#3672 id=3672 data-nosnippet>3672</a>        <span class="kw">let </span>submit_json: serde_json::Value = serde_json::from_slice(<span class="kw-2">&amp;</span>body).unwrap();
+<a href=#3673 id=3673 data-nosnippet>3673</a>        <span class="kw">let </span>job_id_str = submit_json[<span class="string">"job_id"</span>].as_str().unwrap();
+<a href=#3674 id=3674 data-nosnippet>3674</a>        <span class="kw">let </span>job_id = parse_cid_from_string(job_id_str).unwrap();
+<a href=#3675 id=3675 data-nosnippet>3675</a>
+<a href=#3676 id=3676 data-nosnippet>3676</a>        <span class="comment">// Execute the job using WasmExecutor and anchor the receipt
+<a href=#3677 id=3677 data-nosnippet>3677</a>        </span><span class="kw">let </span>(sk, vk) = generate_ed25519_keypair();
+<a href=#3678 id=3678 data-nosnippet>3678</a>        <span class="kw">let </span>exec_did = did_key_from_verifying_key(<span class="kw-2">&amp;</span>vk);
+<a href=#3679 id=3679 data-nosnippet>3679</a>        <span class="kw">let </span>exec_did = Did::from_str(<span class="kw-2">&amp;</span>exec_did).unwrap();
+<a href=#3680 id=3680 data-nosnippet>3680</a>        <span class="kw">let </span>signer =
+<a href=#3681 id=3681 data-nosnippet>3681</a>            std::sync::Arc::new(icn_runtime::context::Ed25519Signer::new_with_keys(sk, vk));
+<a href=#3682 id=3682 data-nosnippet>3682</a>        <span class="kw">let </span>executor = WasmExecutor::new(
+<a href=#3683 id=3683 data-nosnippet>3683</a>            ctx.clone(),
+<a href=#3684 id=3684 data-nosnippet>3684</a>            signer,
+<a href=#3685 id=3685 data-nosnippet>3685</a>            icn_runtime::executor::WasmExecutorConfig::default(),
+<a href=#3686 id=3686 data-nosnippet>3686</a>        );
+<a href=#3687 id=3687 data-nosnippet>3687</a>        <span class="kw">let </span>job = ActualMeshJob {
+<a href=#3688 id=3688 data-nosnippet>3688</a>            id: JobId(job_id.clone()),
+<a href=#3689 id=3689 data-nosnippet>3689</a>            manifest_cid: wasm_cid.clone(),
+<a href=#3690 id=3690 data-nosnippet>3690</a>            spec: JobSpec::default(),
+<a href=#3691 id=3691 data-nosnippet>3691</a>            creator_did: ctx.current_identity.clone(),
+<a href=#3692 id=3692 data-nosnippet>3692</a>            cost_mana: <span class="number">0</span>,
+<a href=#3693 id=3693 data-nosnippet>3693</a>            max_execution_wait_ms: <span class="prelude-val">None</span>,
+<a href=#3694 id=3694 data-nosnippet>3694</a>            signature: SignatureBytes(<span class="macro">vec!</span>[]),
+<a href=#3695 id=3695 data-nosnippet>3695</a>        };
+<a href=#3696 id=3696 data-nosnippet>3696</a>        <span class="kw">let </span>receipt_cid = executor
+<a href=#3697 id=3697 data-nosnippet>3697</a>            .execute_and_anchor_job(<span class="kw-2">&amp;</span>job)
+<a href=#3698 id=3698 data-nosnippet>3698</a>            .<span class="kw">await
+<a href=#3699 id=3699 data-nosnippet>3699</a>            </span>.expect(<span class="string">"exec and anchor"</span>);
+<a href=#3700 id=3700 data-nosnippet>3700</a>
+<a href=#3701 id=3701 data-nosnippet>3701</a>        <span class="comment">// Fetch the anchored receipt via HTTP
+<a href=#3702 id=3702 data-nosnippet>3702</a>        </span><span class="kw">let </span>get_req = Request::builder()
+<a href=#3703 id=3703 data-nosnippet>3703</a>            .method(<span class="string">"POST"</span>)
+<a href=#3704 id=3704 data-nosnippet>3704</a>            .uri(<span class="string">"/dag/get"</span>)
+<a href=#3705 id=3705 data-nosnippet>3705</a>            .header(<span class="string">"content-type"</span>, <span class="string">"application/json"</span>)
+<a href=#3706 id=3706 data-nosnippet>3706</a>            .body(Body::from(
+<a href=#3707 id=3707 data-nosnippet>3707</a>                serde_json::to_vec(<span class="kw-2">&amp;</span><span class="macro">serde_json::json!</span>({
+<a href=#3708 id=3708 data-nosnippet>3708</a>                    <span class="string">"cid"</span>: receipt_cid.to_string()
+<a href=#3709 id=3709 data-nosnippet>3709</a>                }))
+<a href=#3710 id=3710 data-nosnippet>3710</a>                .unwrap(),
+<a href=#3711 id=3711 data-nosnippet>3711</a>            ))
+<a href=#3712 id=3712 data-nosnippet>3712</a>            .unwrap();
+<a href=#3713 id=3713 data-nosnippet>3713</a>        <span class="kw">let </span>get_resp = app.clone().oneshot(get_req).<span class="kw">await</span>.unwrap();
+<a href=#3714 id=3714 data-nosnippet>3714</a>        <span class="macro">assert_eq!</span>(get_resp.status(), StatusCode::OK);
+<a href=#3715 id=3715 data-nosnippet>3715</a>        <span class="kw">let </span>receipt_bytes = axum::body::to_bytes(get_resp.into_body(), usize::MAX)
+<a href=#3716 id=3716 data-nosnippet>3716</a>            .<span class="kw">await
+<a href=#3717 id=3717 data-nosnippet>3717</a>            </span>.unwrap();
+<a href=#3718 id=3718 data-nosnippet>3718</a>        <span class="kw">let </span>receipt: icn_identity::ExecutionReceipt =
+<a href=#3719 id=3719 data-nosnippet>3719</a>            serde_json::from_slice(<span class="kw-2">&amp;</span>receipt_bytes).unwrap();
+<a href=#3720 id=3720 data-nosnippet>3720</a>        <span class="macro">assert_eq!</span>(receipt.job_id, job_id);
+<a href=#3721 id=3721 data-nosnippet>3721</a>        <span class="macro">assert_eq!</span>(receipt.executor_did, exec_did);
+<a href=#3722 id=3722 data-nosnippet>3722</a>    }
+<a href=#3723 id=3723 data-nosnippet>3723</a>
+<a href=#3724 id=3724 data-nosnippet>3724</a>    <span class="attr">#[tokio::test]
+<a href=#3725 id=3725 data-nosnippet>3725</a>    </span><span class="kw">async fn </span>network_connect_endpoint_basic() {
+<a href=#3726 id=3726 data-nosnippet>3726</a>        <span class="kw">let </span>app = test_app().<span class="kw">await</span>;
+<a href=#3727 id=3727 data-nosnippet>3727</a>        <span class="kw">let </span>payload = <span class="macro">serde_json::json!</span>({ <span class="string">"peer"</span>: <span class="string">"/ip4/127.0.0.1/tcp/1234" </span>});
+<a href=#3728 id=3728 data-nosnippet>3728</a>        <span class="kw">let </span>response = app
+<a href=#3729 id=3729 data-nosnippet>3729</a>            .oneshot(
+<a href=#3730 id=3730 data-nosnippet>3730</a>                Request::builder()
+<a href=#3731 id=3731 data-nosnippet>3731</a>                    .method(<span class="string">"POST"</span>)
+<a href=#3732 id=3732 data-nosnippet>3732</a>                    .uri(<span class="string">"/network/connect"</span>)
+<a href=#3733 id=3733 data-nosnippet>3733</a>                    .header(<span class="string">"content-type"</span>, <span class="string">"application/json"</span>)
+<a href=#3734 id=3734 data-nosnippet>3734</a>                    .body(Body::from(payload.to_string()))
+<a href=#3735 id=3735 data-nosnippet>3735</a>                    .unwrap(),
+<a href=#3736 id=3736 data-nosnippet>3736</a>            )
+<a href=#3737 id=3737 data-nosnippet>3737</a>            .<span class="kw">await
+<a href=#3738 id=3738 data-nosnippet>3738</a>            </span>.unwrap();
+<a href=#3739 id=3739 data-nosnippet>3739</a>        <span class="macro">assert_eq!</span>(response.status(), StatusCode::OK);
+<a href=#3740 id=3740 data-nosnippet>3740</a>    }
+<a href=#3741 id=3741 data-nosnippet>3741</a>}</code></pre></div></section></main></body></html>
