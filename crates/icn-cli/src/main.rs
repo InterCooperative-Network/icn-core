@@ -6,8 +6,10 @@
 
 use base64::{self, Engine};
 extern crate bincode;
+use bs58;
 use clap::{Parser, Subcommand};
 use icn_common::CommonError;
+use prometheus_parse;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue; // For generic JSON data if needed
@@ -75,6 +77,11 @@ enum Commands {
     Status,
     /// Fetch Prometheus metrics text
     Metrics,
+    /// Monitoring commands using metrics
+    Monitor {
+        #[clap(subcommand)]
+        command: MonitorCommands,
+    },
     /// DAG block operations
     Dag {
         #[clap(subcommand)]
@@ -283,6 +290,9 @@ enum CclCommands {
 
 #[derive(Subcommand, Debug)]
 enum FederationCommands {
+    /// Initialize a new federation
+    #[clap(name = "init")]
+    Init,
     /// Join a federation by specifying a peer
     #[clap(name = "join")]
     Join {
@@ -301,6 +311,9 @@ enum FederationCommands {
     /// Show federation status
     #[clap(name = "status")]
     Status,
+    /// Synchronize federation state
+    #[clap(name = "sync")]
+    Sync,
 }
 
 #[derive(Subcommand, Debug)]
@@ -310,6 +323,17 @@ enum WizardCommands {
         #[clap(long, help = "Output directory", required = false)]
         output: Option<String>,
     },
+    /// Interactive node setup wizard
+    Setup {
+        #[clap(long, help = "Output config file", default_value = "node_config.toml")]
+        config: String,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum MonitorCommands {
+    /// Display node uptime using the metrics endpoint
+    Uptime,
 }
 
 #[derive(Subcommand, Debug)]
@@ -496,13 +520,19 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
         } => handle_mesh_submit(cli, client, job_request_json_or_stdin).await?,
         Commands::JobStatus { job_id } => handle_mesh_status(cli, client, job_id).await?,
         Commands::Federation { command } => match command {
+            FederationCommands::Init => handle_fed_init(cli, client).await?,
             FederationCommands::Join { peer } => handle_fed_join(cli, client, peer).await?,
             FederationCommands::Leave { peer } => handle_fed_leave(cli, client, peer).await?,
             FederationCommands::ListPeers => handle_fed_list_peers(cli, client).await?,
             FederationCommands::Status => handle_fed_status(cli, client).await?,
+            FederationCommands::Sync => handle_fed_sync(cli, client).await?,
         },
         Commands::Wizard { command } => match command {
             WizardCommands::Cooperative { output } => handle_wizard_cooperative(output.clone())?,
+            WizardCommands::Setup { config } => handle_wizard_setup(config)?,
+        },
+        Commands::Monitor { command } => match command {
+            MonitorCommands::Uptime => handle_monitor_uptime(cli, client).await?,
         },
     }
     Ok(())
@@ -1026,6 +1056,20 @@ async fn handle_fed_status(cli: &Cli, client: &Client) -> Result<(), anyhow::Err
     Ok(())
 }
 
+async fn handle_fed_init(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
+    let resp: serde_json::Value =
+        post_request(&cli.api_url, client, "/federation/init", &()).await?;
+    println!("{}", serde_json::to_string_pretty(&resp)?);
+    Ok(())
+}
+
+async fn handle_fed_sync(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
+    let resp: serde_json::Value =
+        post_request(&cli.api_url, client, "/federation/sync", &()).await?;
+    println!("{}", serde_json::to_string_pretty(&resp)?);
+    Ok(())
+}
+
 async fn handle_account_balance(
     cli: &Cli,
     client: &Client,
@@ -1282,6 +1326,65 @@ fn handle_wizard_cooperative(output: Option<String>) -> Result<(), anyhow::Error
     let path = std::path::Path::new(&dir).join(&file_name);
     std::fs::write(&path, template)?;
     println!("Template written to {}", path.display());
+    Ok(())
+}
+
+fn handle_wizard_setup(config: &str) -> Result<(), anyhow::Error> {
+    use std::io::{self, Write};
+    let mut name = String::new();
+    print!("Node name: ");
+    io::stdout().flush()?;
+    io::stdin().read_line(&mut name)?;
+    let name = name.trim();
+
+    let mut api_key = String::new();
+    print!("API key: ");
+    io::stdout().flush()?;
+    io::stdin().read_line(&mut api_key)?;
+    let api_key = api_key.trim();
+
+    let mut peers_input = String::new();
+    print!("Federation peers (comma separated): ");
+    io::stdout().flush()?;
+    io::stdin().read_line(&mut peers_input)?;
+    let peers: Vec<String> = peers_input
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
+
+    let (sk, pk) = generate_ed25519_keypair();
+    let did = icn_identity::did_key_from_verifying_key(&pk);
+    let sk_bs58 = bs58::encode(sk.to_bytes()).into_string();
+
+    let cfg = toml::toml! {
+        node_name = name
+        http_listen_addr = "0.0.0.0:7845"
+        storage_backend = "sqlite"
+        storage_path = "./icn_data/node.sqlite"
+        api_key = api_key
+        open_rate_limit = 0
+        federation_peers = peers
+        node_did = did
+        node_private_key_bs58 = sk_bs58
+    };
+
+    std::fs::write(config, toml::to_string_pretty(&cfg)?)?;
+    println!("Configuration written to {}", config);
+    println!("Node DID: {}", did);
+    Ok(())
+}
+
+async fn handle_monitor_uptime(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
+    let metrics = get_request::<String>(&cli.api_url, client, "/metrics").await?;
+    let scrape = prometheus_parse::Scrape::parse(metrics.lines().map(|l| Ok(l.to_string())))?;
+    let uptime = scrape
+        .samples
+        .iter()
+        .find(|s| s.metric == "node_uptime_seconds")
+        .and_then(|s| s.sample.value.as_f64())
+        .unwrap_or(0.0);
+    println!("Uptime: {} seconds", uptime);
     Ok(())
 }
 

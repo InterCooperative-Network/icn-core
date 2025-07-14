@@ -15,8 +15,8 @@
 //! It integrates various core components to operate a functional ICN node, handling initialization,
 //! lifecycle, configuration, service hosting, and persistence.
 
-use crate::parameter_store::ParameterStore;
 use crate::circuit_registry::CircuitRegistry;
+use crate::parameter_store::ParameterStore;
 use icn_api::governance_trait::{
     CastVoteRequest as ApiCastVoteRequest, DelegateRequest as ApiDelegateRequest,
     RevokeDelegationRequest as ApiRevokeDelegationRequest,
@@ -25,9 +25,8 @@ use icn_api::governance_trait::{
 use icn_api::{
     get_dag_metadata,
     identity_trait::{
-        CredentialResponse, DisclosureRequest, DisclosureResponse, IssueCredentialRequest,
-        RevokeCredentialRequest, VerificationResponse, VerifyProofsRequest,
-        BatchVerificationResponse,
+        BatchVerificationResponse, CredentialResponse, DisclosureRequest, DisclosureResponse,
+        IssueCredentialRequest, RevokeCredentialRequest, VerificationResponse, VerifyProofsRequest,
     },
     query_data, submit_transaction,
 };
@@ -868,6 +867,8 @@ pub async fn app_router_with_options(
             .route("/federation/join", post(federation_join_handler))
             .route("/federation/leave", post(federation_leave_handler))
             .route("/federation/status", get(federation_status_handler))
+            .route("/federation/init", post(federation_init_handler))
+            .route("/federation/sync", post(federation_sync_handler))
             .with_state(app_state.clone())
             .layer(middleware::from_fn(correlation_id_middleware))
             .layer(middleware::from_fn_with_state(
@@ -1022,9 +1023,13 @@ pub async fn app_router_from_context(
         .route("/federation/join", post(federation_join_handler))
         .route("/federation/leave", post(federation_leave_handler))
         .route("/federation/status", get(federation_status_handler))
+        .route("/federation/init", post(federation_init_handler))
+        .route("/federation/sync", post(federation_sync_handler))
         .route("/federation/join", post(federation_join_handler))
         .route("/federation/leave", post(federation_leave_handler))
         .route("/federation/status", get(federation_status_handler))
+        .route("/federation/init", post(federation_init_handler))
+        .route("/federation/sync", post(federation_sync_handler))
         .with_state(app_state.clone())
         .layer(middleware::from_fn(correlation_id_middleware))
         .layer(middleware::from_fn_with_state(
@@ -1313,6 +1318,8 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
         .route("/federation/join", post(federation_join_handler))
         .route("/federation/leave", post(federation_leave_handler))
         .route("/federation/status", get(federation_status_handler))
+        .route("/federation/init", post(federation_init_handler))
+        .route("/federation/sync", post(federation_sync_handler))
         .with_state(app_state.clone())
         .layer(middleware::from_fn_with_state(
             app_state.clone(),
@@ -2782,6 +2789,22 @@ async fn federation_status_handler(State(state): State<AppState>) -> impl IntoRe
     (StatusCode::OK, Json(status))
 }
 
+// POST /federation/init - initialize federation (stub)
+async fn federation_init_handler(State(_state): State<AppState>) -> impl IntoResponse {
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({ "initialized": true })),
+    )
+}
+
+// POST /federation/sync - trigger federation sync (stub)
+async fn federation_sync_handler(State(_state): State<AppState>) -> impl IntoResponse {
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({ "sync": "started" })),
+    )
+}
+
 // GET /network/local-peer-id - return this node's peer ID
 async fn network_local_peer_id_handler(State(state): State<AppState>) -> impl IntoResponse {
     #[cfg(feature = "enable-libp2p")]
@@ -3011,11 +3034,7 @@ async fn zk_verify_batch_handler(
         }
     }
 
-    (
-        StatusCode::OK,
-        Json(BatchVerificationResponse { results }),
-    )
-        .into_response()
+    (StatusCode::OK, Json(BatchVerificationResponse { results })).into_response()
 }
 
 // POST /identity/credentials/issue - issue a credential
@@ -3218,8 +3237,7 @@ async fn circuit_versions_handler(
 ) -> impl IntoResponse {
     let versions = state.circuit_registry.lock().await.versions(&slug);
     if versions.is_empty() {
-        map_rust_error_to_json_response("circuit not found", StatusCode::NOT_FOUND)
-            .into_response()
+        map_rust_error_to_json_response("circuit not found", StatusCode::NOT_FOUND).into_response()
     } else {
         (
             StatusCode::OK,

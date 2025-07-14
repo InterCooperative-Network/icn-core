@@ -24,13 +24,17 @@ The `icn-cli` is the primary tool for users to interact with an ICN node from th
     *   `icn-cli network send-message <PEER_ID> <MESSAGE_JSON>`: Send a `ProtocolMessage` (encoded as JSON) to a specified peer. Requires the node to run with libp2p networking.
     *   `icn-cli network peers`: Display this node's peer ID and the currently discovered peer list.
 *   **Federation Operations:**
+    *   `icn-cli federation init`: Initialize a new federation on this node.
     *   `icn-cli federation join <PEER_ID>`: Join a federation by adding the given peer.
     *   `icn-cli federation leave <PEER_ID>`: Leave a federation or remove the peer.
     *   `icn-cli federation list-peers`: List peers known to the node.
     *   `icn-cli federation status`: Display federation status including peer count.
+    *   `icn-cli federation sync`: Synchronize federation state with peers.
 *   **Identity Operations:**
     *   `icn-cli identity generate-proof <PROOF_REQUEST_JSON>`: Produce a zero-knowledge proof from the supplied request JSON.
     *   `icn-cli identity verify-proof <PROOF_JSON>`: Verify a proof and print whether it is valid.
+*   **Monitoring:**
+    *   `icn-cli monitor uptime`: Display node uptime using the metrics endpoint.
 *   **Zero-Knowledge Operations:**
     *   `icn-cli zk generate-key`: Generate a Groth16 proving key and output the verifying key signature.
     *   `icn-cli zk analyze <CIRCUIT>`: Count constraints for a circuit.
@@ -38,6 +42,7 @@ The `icn-cli` is the primary tool for users to interact with an ICN node from th
 *   **Miscellaneous:**
     *   `icn-cli hello`: A simple command to check if the CLI is responsive.
     *   `icn-cli help` or `icn-cli --help`: Displays usage information.
+    *   `icn-cli wizard setup --config <FILE>`: Interactive node setup wizard.
 
 ### Example: Generate and Verify a Proof
 
