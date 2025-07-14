@@ -43,6 +43,7 @@ curl -X GET https://localhost:8080/info \
 | POST | `/dag/pin` | Pin a block to prevent pruning | Yes |
 | POST | `/dag/unpin` | Remove a pin from a block | Yes |
 | POST | `/dag/prune` | Garbage collect unpinned blocks | Yes |
+| GET | `/dag/status` | Current DAG root and sync state | Optional |
 
 ### Example DAG Operations
 ```bash
@@ -76,6 +77,10 @@ curl -X POST https://localhost:8080/dag/unpin \
   -H "Content-Type: application/json" \
   -H "x-api-key: your-api-key" \
   -d '{"cid": "your-cid-string"}'
+
+# Check DAG synchronization status
+curl -X GET https://localhost:8080/dag/status \
+  -H "x-api-key: your-api-key"
 ```
 
 ## Transaction Endpoints
