@@ -1,7 +1,8 @@
 #!/bin/bash
 
 # Basic chaos testing script for ICN devnet
-# Usage: chaos_test.sh --scenario <network_partition|node_failure> [--duration SECONDS] [--failure-rate PERCENT]
+# Usage: chaos_test.sh --scenario <network_partition|node_failure|node_crash> \
+#                        [--duration SECONDS] [--failure-rate SECONDS]
 set -euo pipefail
 
 SCENARIO=""
@@ -51,6 +52,18 @@ case "$SCENARIO" in
             node=${NODES[$RANDOM % ${#NODES[@]}]}
             echo "Restarting $node"
             docker-compose -f "$COMPOSE_FILE" restart "$node"
+            sleep $((FAILURE_RATE))
+        done
+        ;;
+    node_crash)
+        echo "Simulating node crashes for ${DURATION}s"
+        end=$((SECONDS + DURATION))
+        while [[ $SECONDS -lt $end ]]; do
+            node=${NODES[$RANDOM % ${#NODES[@]}]}
+            echo "Killing $node"
+            docker-compose -f "$COMPOSE_FILE" kill "$node"
+            sleep 1
+            docker-compose -f "$COMPOSE_FILE" up -d "$node"
             sleep $((FAILURE_RATE))
         done
         ;;

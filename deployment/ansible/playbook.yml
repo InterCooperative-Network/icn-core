@@ -1,0 +1,20 @@
+- hosts: icn_nodes
+  become: yes
+  tasks:
+    - name: Ensure Docker is installed
+      package:
+        name: docker.io
+        state: present
+
+    - name: Start ICN node containers
+      docker_container:
+        name: "{{ item.name }}"
+        image: intercooperative/icn-node:latest
+        state: started
+        restart_policy: always
+        published_ports:
+          - "{{ item.port }}:7845"
+      loop:
+        - { name: "icn-node-a", port: 5001 }
+        - { name: "icn-node-b", port: 5002 }
+        - { name: "icn-node-c", port: 5003 }
