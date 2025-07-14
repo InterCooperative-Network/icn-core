@@ -38,3 +38,13 @@ pub fn match_aid_requests<'a>(
     }
     matches
 }
+
+pub fn generate_jobs_from_requests(
+    requests: &[AidRequest],
+    templates: &[AidJobTemplate],
+) -> Vec<(AidRequest, JobSpec)> {
+    match_aid_requests(requests, templates)
+        .into_iter()
+        .map(|(r, t)| (r.clone(), t.job.clone()))
+        .collect()
+}

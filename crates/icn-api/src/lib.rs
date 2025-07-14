@@ -12,8 +12,8 @@
 // Depending on icn_common crate
 use icn_common::{
     compute_merkle_cid, retry_with_backoff, Cid, CircuitBreaker, CircuitBreakerError, CommonError,
-    DagBlock, Did, NodeInfo, NodeStatus, DagSyncStatus, SystemTimeProvider, ZkCredentialProof, ZkRevocationProof,
-    ICN_CORE_VERSION,
+    DagBlock, DagSyncStatus, Did, NodeInfo, NodeStatus, SystemTimeProvider, ZkCredentialProof,
+    ZkRevocationProof, ICN_CORE_VERSION,
 };
 // Remove direct use of icn_dag::put_block and icn_dag::get_block which use global store
 // use icn_dag::{put_block as dag_put_block, get_block as dag_get_block};
@@ -41,13 +41,14 @@ static HTTP_BREAKER: Lazy<AsyncMutex<CircuitBreaker<SystemTimeProvider>>> = Lazy
     ))
 });
 
+pub mod circuits;
 pub mod dag_trait;
 pub mod federation_trait;
 pub mod governance_trait;
 pub mod identity_trait;
-pub mod circuits;
 /// Prometheus metrics helpers
 pub mod metrics;
+pub mod mutual_aid_trait;
 use crate::governance_trait::{
     CastVoteRequest as GovernanceCastVoteRequest, // Renamed to avoid conflict
     GovernanceApi,

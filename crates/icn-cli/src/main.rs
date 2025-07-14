@@ -155,6 +155,11 @@ enum Commands {
         #[clap(subcommand)]
         command: FederationCommands,
     },
+    /// Mutual aid resource management
+    Aid {
+        #[clap(subcommand)]
+        command: AidCommands,
+    },
     /// Emergency response coordination
     Emergency {
         #[clap(subcommand)]
@@ -332,6 +337,17 @@ enum WizardCommands {
     Setup {
         #[clap(long, help = "Output config file", default_value = "node_config.toml")]
         config: String,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum AidCommands {
+    /// List registered resources
+    List,
+    /// Register a new resource
+    Register {
+        #[clap(help = "Aid resource JSON or '-' for stdin")]
+        resource_json_or_stdin: String,
     },
 }
 
@@ -542,6 +558,12 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
             FederationCommands::ListPeers => handle_fed_list_peers(cli, client).await?,
             FederationCommands::Status => handle_fed_status(cli, client).await?,
             FederationCommands::Sync => handle_fed_sync(cli, client).await?,
+        },
+        Commands::Aid { command } => match command {
+            AidCommands::List => handle_aid_list(cli, client).await?,
+            AidCommands::Register {
+                resource_json_or_stdin,
+            } => handle_aid_register(cli, client, resource_json_or_stdin).await?,
         },
         Commands::Emergency { command } => match command {
             EmergencyCommands::List => handle_emergency_list(cli, client).await?,
@@ -1437,3 +1459,28 @@ async fn handle_emergency_request(
 }
 
 // CLI command behavior is covered by tests in `crates/icn-cli/tests`.
+
+async fn handle_aid_list(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
+    let v: serde_json::Value = get_request(&cli.api_url, client, "/aid/resources").await?;
+    println!("{}", serde_json::to_string_pretty(&v)?);
+    Ok(())
+}
+
+async fn handle_aid_register(
+    cli: &Cli,
+    client: &Client,
+    resource_json_or_stdin: &str,
+) -> Result<(), anyhow::Error> {
+    let content = if resource_json_or_stdin == "-" {
+        let mut buf = String::new();
+        std::io::stdin().read_to_string(&mut buf)?;
+        buf
+    } else {
+        resource_json_or_stdin.to_string()
+    };
+    let body: serde_json::Value = serde_json::from_str(&content)
+        .map_err(|e| anyhow::anyhow!("Invalid resource JSON: {}", e))?;
+    let _: serde_json::Value = post_request(&cli.api_url, client, "/aid/register", &body).await?;
+    println!("Resource registered");
+    Ok(())
+}

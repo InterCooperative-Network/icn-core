@@ -1,7 +1,9 @@
 use icn_common::{Did, NodeScope};
 use icn_economics::{
-    burn_tokens, grant_mutual_aid, mint_tokens, transfer_tokens, use_mutual_aid, ManaLedger,
-    ResourceLedger, ResourceRepositoryAdapter, MUTUAL_AID_CLASS,
+    burn_tokens, grant_mutual_aid, grant_reputation_credit, mint_tokens,
+    mint_tokens_with_reputation, transfer_tokens, use_mutual_aid, use_reputation_credit,
+    ManaLedger, ResourceLedger, ResourceRepositoryAdapter, MUTUAL_AID_CLASS,
+    REPUTATION_CREDIT_CLASS,
 };
 use icn_runtime::context::StubDagStore;
 use std::collections::HashMap;
@@ -146,4 +148,50 @@ fn mutual_aid_flow() {
 
     use_mutual_aid(&repo, &mana, &issuer, &recipient, 2, Some(scope)).unwrap();
     assert_eq!(repo.ledger().get_balance(&recipient, MUTUAL_AID_CLASS), 2);
+}
+
+#[test]
+fn reputation_credit_flow() {
+    let mana = InMemoryManaLedger::default();
+    mana.set_balance(&Did::from_str("did:example:issuer").unwrap(), 10)
+        .unwrap();
+    let ledger = InMemoryResourceLedger::default();
+    let mut repo = ResourceRepositoryAdapter::with_dag_store(ledger, Box::new(StubDagStore::new()));
+    let scope = NodeScope("rep".into());
+    let issuer = Did::from_str("did:example:issuer").unwrap();
+    repo.add_issuer(scope.clone(), issuer.clone());
+    let recipient = Did::from_str("did:example:bob").unwrap();
+    let rep_store = icn_reputation::InMemoryReputationStore::new();
+
+    grant_reputation_credit(
+        &repo,
+        &mana,
+        &rep_store,
+        &issuer,
+        &recipient,
+        5,
+        Some(scope.clone()),
+    )
+    .unwrap();
+    assert_eq!(
+        repo.ledger()
+            .get_balance(&recipient, REPUTATION_CREDIT_CLASS),
+        5
+    );
+
+    use_reputation_credit(
+        &repo,
+        &mana,
+        &rep_store,
+        &issuer,
+        &recipient,
+        3,
+        Some(scope),
+    )
+    .unwrap();
+    assert_eq!(
+        repo.ledger()
+            .get_balance(&recipient, REPUTATION_CREDIT_CLASS),
+        2
+    );
 }
