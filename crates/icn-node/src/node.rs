@@ -16,6 +16,7 @@
 //! lifecycle, configuration, service hosting, and persistence.
 
 use crate::parameter_store::ParameterStore;
+use crate::circuit_registry::CircuitRegistry;
 use icn_api::governance_trait::{
     CastVoteRequest as ApiCastVoteRequest, DelegateRequest as ApiDelegateRequest,
     RevokeDelegationRequest as ApiRevokeDelegationRequest,
@@ -403,6 +404,7 @@ struct AppState {
     peers: Arc<TokioMutex<Vec<String>>>,
     config: Arc<TokioMutex<NodeConfig>>,
     parameter_store: Option<Arc<TokioMutex<ParameterStore>>>,
+    circuit_registry: Arc<TokioMutex<CircuitRegistry>>,
     credential_store: icn_identity::InMemoryCredentialStore,
     trusted_issuers: std::collections::HashMap<Did, icn_identity::VerifyingKey>,
 }
@@ -755,6 +757,7 @@ pub async fn app_router_with_options(
         peers: Arc::new(TokioMutex::new(Vec::new())),
         config: config.clone(),
         parameter_store: parameter_store.clone(),
+        circuit_registry: Arc::new(TokioMutex::new(CircuitRegistry::default())),
         credential_store: icn_identity::InMemoryCredentialStore::new(),
         trusted_issuers: trusted_map,
     };
@@ -856,6 +859,9 @@ pub async fn app_router_with_options(
             .route("/mesh/stub/bid", post(mesh_stub_bid_handler)) // Stub: inject bid for testing
             .route("/mesh/stub/receipt", post(mesh_stub_receipt_handler)) // Stub: inject receipt for testing
             .route("/contracts", post(contracts_post_handler))
+            .route("/circuits/register", post(circuit_register_handler))
+            .route("/circuits/:slug/:version", get(circuit_get_handler))
+            .route("/circuits/:slug", get(circuit_versions_handler))
             .route("/federation/peers", get(federation_list_peers_handler))
             .route("/federation/peers", post(federation_add_peer_handler))
             .route("/federation/join", post(federation_join_handler))
@@ -913,6 +919,7 @@ pub async fn app_router_from_context(
         peers: Arc::new(TokioMutex::new(Vec::new())),
         config: config.clone(),
         parameter_store: None,
+        circuit_registry: Arc::new(TokioMutex::new(CircuitRegistry::default())),
         credential_store: icn_identity::InMemoryCredentialStore::new(),
         trusted_issuers: trusted_map,
     };
@@ -1006,6 +1013,9 @@ pub async fn app_router_from_context(
         .route("/mesh/stub/bid", post(mesh_stub_bid_handler))
         .route("/mesh/stub/receipt", post(mesh_stub_receipt_handler))
         .route("/contracts", post(contracts_post_handler))
+        .route("/circuits/register", post(circuit_register_handler))
+        .route("/circuits/:slug/:version", get(circuit_get_handler))
+        .route("/circuits/:slug", get(circuit_versions_handler))
         .route("/federation/peers", get(federation_list_peers_handler))
         .route("/federation/peers", post(federation_add_peer_handler))
         .route("/federation/join", post(federation_join_handler))
@@ -1227,6 +1237,7 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
         peers: Arc::new(TokioMutex::new(Vec::new())),
         config: shared_config.clone(),
         parameter_store: Some(parameter_store.clone()),
+        circuit_registry: Arc::new(TokioMutex::new(CircuitRegistry::default())),
         credential_store: icn_identity::InMemoryCredentialStore::new(),
         trusted_issuers: trusted_map,
     };
@@ -1291,6 +1302,9 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
         .route("/mesh/jobs/{job_id}", get(mesh_get_job_status_handler))
         .route("/mesh/receipt", post(mesh_submit_receipt_handler))
         .route("/contracts", post(contracts_post_handler))
+        .route("/circuits/register", post(circuit_register_handler))
+        .route("/circuits/:slug/:version", get(circuit_get_handler))
+        .route("/circuits/:slug", get(circuit_versions_handler))
         .route("/federation/peers", get(federation_list_peers_handler))
         .route("/federation/peers", post(federation_add_peer_handler))
         .route("/federation/join", post(federation_join_handler))
@@ -3135,6 +3149,81 @@ async fn credential_disclose_handler(Json(req): Json<DisclosureRequest>) -> impl
 async fn credential_schemas_handler(State(state): State<AppState>) -> impl IntoResponse {
     let schemas = state.credential_store.list_schemas();
     (StatusCode::OK, Json(schemas)).into_response()
+}
+
+// POST /circuits/register
+async fn circuit_register_handler(
+    State(state): State<AppState>,
+    Json(req): Json<icn_api::circuits::RegisterCircuitRequest>,
+) -> impl IntoResponse {
+    let pk = match BASE64_STANDARD.decode(req.proving_key.as_bytes()) {
+        Ok(b) => b,
+        Err(e) => {
+            return map_rust_error_to_json_response(
+                format!("invalid proving_key: {e}"),
+                StatusCode::BAD_REQUEST,
+            )
+            .into_response();
+        }
+    };
+    let vk = match BASE64_STANDARD.decode(req.verification_key.as_bytes()) {
+        Ok(b) => b,
+        Err(e) => {
+            return map_rust_error_to_json_response(
+                format!("invalid verification_key: {e}"),
+                StatusCode::BAD_REQUEST,
+            )
+            .into_response();
+        }
+    };
+    state
+        .circuit_registry
+        .lock()
+        .await
+        .register(&req.slug, &req.version, pk, vk);
+    (
+        StatusCode::CREATED,
+        Json(serde_json::json!({"status": "registered"})),
+    )
+        .into_response()
+}
+
+// GET /circuits/{slug}/{version}
+async fn circuit_get_handler(
+    AxumPath((slug, version)): AxumPath<(String, String)>,
+    State(state): State<AppState>,
+) -> impl IntoResponse {
+    match state.circuit_registry.lock().await.get(&slug, &version) {
+        Some(rec) => (
+            StatusCode::OK,
+            Json(icn_api::circuits::CircuitResponse {
+                slug,
+                version,
+                verification_key: rec.verification_key,
+            }),
+        )
+            .into_response(),
+        None => map_rust_error_to_json_response("circuit not found", StatusCode::NOT_FOUND)
+            .into_response(),
+    }
+}
+
+// GET /circuits/{slug}
+async fn circuit_versions_handler(
+    AxumPath(slug): AxumPath<String>,
+    State(state): State<AppState>,
+) -> impl IntoResponse {
+    let versions = state.circuit_registry.lock().await.versions(&slug);
+    if versions.is_empty() {
+        map_rust_error_to_json_response("circuit not found", StatusCode::NOT_FOUND)
+            .into_response()
+    } else {
+        (
+            StatusCode::OK,
+            Json(icn_api::circuits::CircuitVersionsResponse { slug, versions }),
+        )
+            .into_response()
+    }
 }
 
 // --- Test module (can be expanded later) ---
