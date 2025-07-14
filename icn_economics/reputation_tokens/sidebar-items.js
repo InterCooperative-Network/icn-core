@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["REPUTATION_CLASS"],"fn":["grant_reputation_tokens","use_reputation_tokens"]};

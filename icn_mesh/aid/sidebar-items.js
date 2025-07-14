@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["match_aid_requests"],"struct":["AidJobTemplate","AidRequest"]};
+window.SIDEBAR_ITEMS = {"fn":["match_aid_requests","match_registry_requests"],"struct":["AidJobTemplate","AidRequest"]};

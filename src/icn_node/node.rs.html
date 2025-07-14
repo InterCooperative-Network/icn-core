@@ -667,7 +667,7 @@
 <a href=#667 id=667 data-nosnippet>667</a>        <span class="attr">#[cfg(feature = <span class="string">"enable-libp2p"</span>)]
 <a href=#668 id=668 data-nosnippet>668</a>        </span>{
 <a href=#669 id=669 data-nosnippet>669</a>            <span class="comment">// For production/development with real networking
-<a href=#670 id=670 data-nosnippet>670</a>            </span>RuntimeContext::new_development(
+<a href=#670 id=670 data-nosnippet>670</a>            </span>RuntimeContext::new_for_development(
 <a href=#671 id=671 data-nosnippet>671</a>                node_did.clone(),
 <a href=#672 id=672 data-nosnippet>672</a>                _signer.clone(),
 <a href=#673 id=673 data-nosnippet>673</a>                mana_ledger,
@@ -679,7 +679,7 @@
 <a href=#679 id=679 data-nosnippet>679</a>        <span class="attr">#[cfg(not(feature = <span class="string">"enable-libp2p"</span>))]
 <a href=#680 id=680 data-nosnippet>680</a>        </span>{
 <a href=#681 id=681 data-nosnippet>681</a>            <span class="comment">// For testing without networking - use stub services
-<a href=#682 id=682 data-nosnippet>682</a>            </span>RuntimeContext::new_testing(node_did.clone(), <span class="prelude-val">Some</span>(<span class="number">1000</span>))
+<a href=#682 id=682 data-nosnippet>682</a>            </span>RuntimeContext::new_for_testing(node_did.clone(), <span class="prelude-val">Some</span>(<span class="number">1000</span>))
 <a href=#683 id=683 data-nosnippet>683</a>                .expect(<span class="string">"Failed to create testing RuntimeContext"</span>)
 <a href=#684 id=684 data-nosnippet>684</a>        }
 <a href=#685 id=685 data-nosnippet>685</a>    };
@@ -1182,10 +1182,10 @@
 <a href=#1182 id=1182 data-nosnippet>1182</a>
 <a href=#1183 id=1183 data-nosnippet>1183</a>    <span class="attr">#[cfg_attr(not(feature = <span class="string">"persist-sled"</span>), allow(unused_mut))]
 <a href=#1184 id=1184 data-nosnippet>1184</a>    </span><span class="kw">let </span><span class="kw-2">mut </span>rt_ctx = <span class="kw">if </span>config.test_mode {
-<a href=#1185 id=1185 data-nosnippet>1185</a>        RuntimeContext::new_testing(node_did.clone(), <span class="prelude-val">Some</span>(<span class="number">1000</span>))
+<a href=#1185 id=1185 data-nosnippet>1185</a>        RuntimeContext::new_for_testing(node_did.clone(), <span class="prelude-val">Some</span>(<span class="number">1000</span>))
 <a href=#1186 id=1186 data-nosnippet>1186</a>            .expect(<span class="string">"Failed to create RuntimeContext for testing"</span>)
 <a href=#1187 id=1187 data-nosnippet>1187</a>    } <span class="kw">else </span>{
-<a href=#1188 id=1188 data-nosnippet>1188</a>        RuntimeContext::new(
+<a href=#1188 id=1188 data-nosnippet>1188</a>        RuntimeContext::new_for_production(
 <a href=#1189 id=1189 data-nosnippet>1189</a>            node_did.clone(),
 <a href=#1190 id=1190 data-nosnippet>1190</a>            network_service,
 <a href=#1191 id=1191 data-nosnippet>1191</a>            signer.clone(),
