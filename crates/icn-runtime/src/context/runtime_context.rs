@@ -12,9 +12,8 @@ use super::{DagStorageService, DagStoreMutexType};
 use crate::metrics::{JOBS_ACTIVE_GAUGE, JOBS_COMPLETED, JOBS_FAILED, JOBS_SUBMITTED};
 use bincode;
 use dashmap::DashMap;
-use icn_common::{Cid, CommonError, DagBlock, Did, compute_merkle_cid};
-use icn_economics::{ManaLedger, LedgerEvent};
-use serde_json;
+use icn_common::{compute_merkle_cid, Cid, CommonError, DagBlock, Did};
+use icn_economics::{LedgerEvent, ManaLedger};
 use icn_governance::GovernanceModule;
 use icn_identity::ExecutionReceipt as IdentityExecutionReceipt;
 use icn_mesh::metrics::{
@@ -26,6 +25,7 @@ use icn_mesh::{
     ActualMeshJob, Job, JobAssignment, JobBid, JobId, JobLifecycle, JobLifecycleStatus, JobReceipt,
     JobState,
 };
+use serde_json;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration as StdDuration;
@@ -2696,6 +2696,7 @@ impl RuntimeContext {
             resources: icn_mesh::Resources {
                 cpu_cores: available_cpu,
                 memory_mb: available_memory,
+                storage_mb: 0,
             },
             signature: icn_identity::SignatureBytes(vec![]), // Will be filled by sign()
         };
@@ -2778,6 +2779,7 @@ impl RuntimeContext {
                 required_resources: icn_mesh::Resources {
                     cpu_cores: 1,
                     memory_mb: 128,
+                    storage_mb: 0,
                 },
             },
             creator_did: icn_common::Did::new("key", "placeholder"), // We don't know the creator from assignment
@@ -2848,6 +2850,7 @@ impl RuntimeContext {
             resources: icn_mesh::Resources {
                 cpu_cores: available_cpu,
                 memory_mb: available_memory,
+                storage_mb: 0,
             },
             signature: icn_identity::SignatureBytes(vec![]), // Will be filled by sign()
         };

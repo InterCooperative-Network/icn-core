@@ -17,8 +17,8 @@ use icn_network::libp2p_service::NetworkConfig;
 use icn_network::NetworkService;
 use icn_runtime::context::{
     DefaultMeshNetworkService, HostAbiError, JobAssignmentNotice, LocalMeshSubmitReceiptMessage,
-    MeshNetworkService, RuntimeContext, StubDagStore, StubMeshNetworkService, StubSigner,
-    MeshNetworkServiceType,
+    MeshNetworkService, MeshNetworkServiceType, RuntimeContext, StubDagStore,
+    StubMeshNetworkService, StubSigner,
 };
 use icn_runtime::{host_get_pending_mesh_jobs, host_submit_mesh_job};
 #[cfg(feature = "enable-libp2p")]
@@ -298,7 +298,9 @@ async fn test_mesh_job_full_lifecycle_happy_path() {
     let receipt_msg = LocalMeshSubmitReceiptMessage {
         receipt: signed_receipt.clone(),
     };
-    job_manager_network_stub.stage_receipt(submitted_job_id.clone(), receipt_msg).await;
+    job_manager_network_stub
+        .stage_receipt(submitted_job_id.clone(), receipt_msg)
+        .await;
 
     // Test receipt retrieval
     let retrieved_receipt = job_manager_network_stub
@@ -338,7 +340,10 @@ async fn test_mesh_job_full_lifecycle_happy_path() {
     };
     {
         let mut store = dag_store.lock().await;
-        store.put(&block).await.expect("Failed to store receipt in DAG");
+        store
+            .put(&block)
+            .await
+            .expect("Failed to store receipt in DAG");
     }
     let stored_cid = block.cid.clone();
 
@@ -456,7 +461,9 @@ async fn test_invalid_receipt_wrong_executor() {
     let correct_executor_did = Did::from_str(correct_executor_did_str).unwrap();
     ctx_submitter.job_states.insert(
         submitted_job_id.clone(),
-        JobState::Assigned { executor: correct_executor_did.clone() }
+        JobState::Assigned {
+            executor: correct_executor_did.clone(),
+        },
     );
 
     // 2. Test receipt verification directly by creating a forged receipt
@@ -563,10 +570,13 @@ fn new_mesh_test_context_with_two_executors() -> (
     Arc<RuntimeContext>,
     Arc<TokioMutex<dyn AsyncStorageService<DagBlock> + Send>>,
 ) {
-    let submitter_ctx = RuntimeContext::new_with_stubs_and_mana("did:icn:test:submitter_multi_exec", 200).unwrap();
-    let executor1_ctx = RuntimeContext::new_with_stubs_and_mana("did:icn:test:executor1_multi_exec", 100).unwrap();
-    let executor2_ctx = RuntimeContext::new_with_stubs_and_mana("did:icn:test:executor2_multi_exec", 100).unwrap();
-    
+    let submitter_ctx =
+        RuntimeContext::new_with_stubs_and_mana("did:icn:test:submitter_multi_exec", 200).unwrap();
+    let executor1_ctx =
+        RuntimeContext::new_with_stubs_and_mana("did:icn:test:executor1_multi_exec", 100).unwrap();
+    let executor2_ctx =
+        RuntimeContext::new_with_stubs_and_mana("did:icn:test:executor2_multi_exec", 100).unwrap();
+
     // Return the shared dag store from one of the contexts
     let dag_store = submitter_ctx.dag_store.clone();
 
@@ -743,7 +753,10 @@ async fn test_submit_mesh_job_with_custom_timeout() {
     let job_status = ctx.get_job_status(&job_id).await.unwrap();
     if let Some(lifecycle) = job_status {
         // Check that the timeout was preserved in the job data
-        println!("Job stored with timeout field preserved: {:?}", lifecycle.job);
+        println!(
+            "Job stored with timeout field preserved: {:?}",
+            lifecycle.job
+        );
         assert_eq!(lifecycle.job.submitter_did, submitter_did);
         // The test is really checking that the job was processed correctly
     } else {
@@ -774,6 +787,7 @@ async fn test_executor_selection_uses_job_spec_from_dag() {
         required_resources: Resources {
             cpu_cores: 2,
             memory_mb: 1024,
+            storage_mb: 0,
         },
     };
     let job = ActualMeshJob {
@@ -794,13 +808,21 @@ async fn test_executor_selection_uses_job_spec_from_dag() {
         &job_id,
         &executor1_ctx,
         5,
-        Resources { cpu_cores: 1, memory_mb: 512 },
+        Resources {
+            cpu_cores: 1,
+            memory_mb: 512,
+            storage_mb: 0,
+        },
     );
     let bid2 = create_test_bid_with_resources(
         &job_id,
         &executor2_ctx,
         5,
-        Resources { cpu_cores: 4, memory_mb: 2048 },
+        Resources {
+            cpu_cores: 4,
+            memory_mb: 2048,
+            storage_mb: 0,
+        },
     );
 
     if let MeshNetworkServiceType::Stub(stub) = submitter_ctx.mesh_network_service.as_ref() {

@@ -2,8 +2,8 @@ use icn_common::{compute_merkle_cid, Cid, DagBlock, Did};
 use icn_identity::{did_key_from_verifying_key, generate_ed25519_keypair, SignatureBytes};
 use icn_mesh::{ActualMeshJob, JobId, JobKind, JobSpec};
 use icn_runtime::context::{RuntimeContext, StubSigner};
-use icn_runtime::executor::{WasmExecutorConfig, WasmSecurityLimits};
 use icn_runtime::executor::{JobExecutor, WasmExecutor};
+use icn_runtime::executor::{WasmExecutorConfig, WasmSecurityLimits};
 use icn_runtime::host_submit_mesh_job;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -126,6 +126,7 @@ async fn wasm_executor_host_submit_mesh_job_json() {
             required_resources: Resources {
                 cpu_cores: 2,
                 memory_mb: 256,
+                storage_mb: 0,
             },
         },
         creator_did: node_did.clone(),

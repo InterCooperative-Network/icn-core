@@ -2,7 +2,9 @@ use criterion::{black_box, criterion_group, criterion_main, BatchSize, Benchmark
 use icn_common::{Cid, Did};
 use icn_economics::ManaLedger;
 use icn_identity::{did_key_from_verifying_key, generate_ed25519_keypair, SignatureBytes};
-use icn_mesh::{select_executor, JobId, JobSpec, MeshJobBid, Resources, SelectionPolicy, LatencyStore};
+use icn_mesh::{
+    select_executor, JobId, JobSpec, LatencyStore, MeshJobBid, Resources, SelectionPolicy,
+};
 use icn_reputation::InMemoryReputationStore;
 use std::str::FromStr;
 
@@ -19,7 +21,9 @@ struct BenchLatency {
 
 impl BenchLatency {
     fn new() -> Self {
-        Self { inner: std::sync::RwLock::new(std::collections::HashMap::new()) }
+        Self {
+            inner: std::sync::RwLock::new(std::collections::HashMap::new()),
+        }
     }
     fn set_latency(&self, did: Did, latency: u64) {
         self.inner.write().unwrap().insert(did, latency);
@@ -91,6 +95,7 @@ fn bench_select_executor(c: &mut Criterion) {
                     resources: Resources {
                         cpu_cores: 1,
                         memory_mb: 512,
+                        storage_mb: 0,
                     },
                     signature: SignatureBytes(Vec::new()),
                 });
@@ -99,13 +104,7 @@ fn bench_select_executor(c: &mut Criterion) {
                 || bids.clone(),
                 |bids_vec| {
                     black_box(select_executor(
-                        &job_id,
-                        &spec,
-                        bids_vec,
-                        &policy,
-                        &rep_store,
-                        &ledger,
-                        &latency,
+                        &job_id, &spec, bids_vec, &policy, &rep_store, &ledger, &latency,
                     ));
                 },
                 BatchSize::SmallInput,

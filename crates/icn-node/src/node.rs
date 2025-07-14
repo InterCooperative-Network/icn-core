@@ -2602,6 +2602,7 @@ async fn mesh_stub_bid_handler(
         resources: icn_mesh::Resources {
             cpu_cores: 1,
             memory_mb: 128,
+            storage_mb: 0,
         },
         signature: icn_identity::SignatureBytes(vec![0; 64]), // Dummy signature for testing
     };
