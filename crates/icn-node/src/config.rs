@@ -578,7 +578,8 @@ impl NodeConfig {
 #[cfg(feature = "enable-libp2p")]
 use icn_network::libp2p_service::NetworkConfig;
 #[cfg(feature = "enable-libp2p")]
-use libp2p::{Multiaddr, PeerId as Libp2pPeerId};
+// Libp2p imports commented out - will be needed for future network configuration
+// use libp2p::{Multiaddr, PeerId as Libp2pPeerId};
 
 impl NodeConfig {
     #[cfg(feature = "enable-libp2p")]
@@ -637,9 +638,25 @@ mod tests {
         assert!(config.governance_db_path.to_string_lossy().contains("icn_data"), 
             "Governance DB path should be in icn_data directory");
             
-        // Verify mana ledger backend is persistent
-        assert_ne!(config.mana_ledger_backend, icn_runtime::context::LedgerBackend::Memory, 
-            "❌ PRODUCTION ERROR: Default mana ledger backend should not be Memory");
+        // Verify mana ledger backend is configured (all available backends are persistent)
+        // Valid backends: File, Sqlite, Sled, Rocksdb - all are persistent
+        match config.mana_ledger_backend {
+            icn_runtime::context::LedgerBackend::File => {
+                println!("  - Using File backend (persistent)");
+            }
+            #[cfg(feature = "persist-sqlite")]
+            icn_runtime::context::LedgerBackend::Sqlite => {
+                println!("  - Using Sqlite backend (persistent)");
+            }
+            #[cfg(feature = "persist-sled")]
+            icn_runtime::context::LedgerBackend::Sled => {
+                println!("  - Using Sled backend (persistent)");
+            }
+            #[cfg(feature = "persist-rocksdb")]
+            icn_runtime::context::LedgerBackend::Rocksdb => {
+                println!("  - Using RocksDB backend (persistent)");
+            }
+        }
         
         println!("✅ Production-ready configuration:");
         println!("  - Storage backend: {:?}", config.storage_backend);

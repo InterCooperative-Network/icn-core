@@ -1830,7 +1830,7 @@ pub mod libp2p_service {
                     })
                     .await
                     .map_err(|e| MeshNetworkError::Libp2p(format!("Put record failed: {}", e)))?;
-                    rx.await.map_err(|e| {
+                    let _ = rx.await.map_err(|e| {
                         MeshNetworkError::Libp2p(format!("Put record response failed: {}", e))
                     })?;
                     Ok(())
@@ -1872,7 +1872,7 @@ pub mod libp2p_service {
                         .map_err(|e| {
                             MeshNetworkError::Libp2p(format!("Connect send failed: {}", e))
                         })?;
-                    rx.await.map_err(|e| {
+                    let _ = rx.await.map_err(|e| {
                         MeshNetworkError::Libp2p(format!("Connect response failed: {}", e))
                     })?;
                     Ok(())
