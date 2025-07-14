@@ -300,12 +300,30 @@ impl MeshNetworkService for DefaultMeshNetworkService {
                                     cpu_cores: bid_message.offered_resources.cpu_cores,
                                     memory_mb: bid_message.offered_resources.memory_mb,
                                 },
-                                signature: icn_identity::SignatureBytes(vec![]), // TODO: Extract from message signature
+                                signature: signed_message.signature.clone(),
                             };
 
-                            // TODO: In a real implementation, we'd verify the bid signature
-                            // For now, we'll accept all properly formatted bids
-                            bids.push(mesh_bid);
+                            match icn_identity::verifying_key_from_did_key(&mesh_bid.executor_did)
+                                .and_then(|vk| {
+                                    let bytes = mesh_bid.to_signable_bytes()?;
+                                    let ed_sig = mesh_bid.signature.to_ed_signature()?;
+                                    if icn_identity::verify_signature(&vk, &bytes, &ed_sig) {
+                                        Ok(())
+                                    } else {
+                                        Err(icn_common::CommonError::CryptoError(
+                                            "Bid signature verification failed".into(),
+                                        ))
+                                    }
+                                }) {
+                                Ok(()) => bids.push(mesh_bid),
+                                Err(e) => {
+                                    log::warn!(
+                                        "[MeshNetwork] Rejecting bid from {}: {}",
+                                        mesh_bid.executor_did,
+                                        e
+                                    );
+                                }
+                            }
                         }
                     }
                 }
@@ -357,7 +375,7 @@ impl MeshNetworkService for DefaultMeshNetworkService {
             timestamp: current_timestamp(),
             sender: self.signer.did(),
             recipient: None, // Broadcast to all (job submitter will filter)
-            signature: SignatureBytes(Vec::new()),
+            signature: bid.signature.clone(),
             version: 1,
         };
 
@@ -484,8 +502,27 @@ impl MeshNetworkService for DefaultMeshNetworkService {
                                 job_id
                             );
 
-                            // TODO: Verify receipt signature
-                            return Ok(Some(receipt.clone()));
+                            match icn_identity::verifying_key_from_did_key(expected_executor)
+                                .and_then(|vk| {
+                                    let bytes = receipt.to_signable_bytes()?;
+                                    let ed_sig = receipt.sig.to_ed_signature()?;
+                                    if icn_identity::verify_signature(&vk, &bytes, &ed_sig) {
+                                        Ok(())
+                                    } else {
+                                        Err(icn_common::CommonError::CryptoError(
+                                            "Receipt signature verification failed".into(),
+                                        ))
+                                    }
+                                }) {
+                                Ok(()) => return Ok(Some(receipt.clone())),
+                                Err(e) => {
+                                    log::warn!(
+                                        "[MeshNetwork] Invalid receipt from {}: {}",
+                                        expected_executor,
+                                        e
+                                    );
+                                }
+                            }
                         }
                     }
                 }
