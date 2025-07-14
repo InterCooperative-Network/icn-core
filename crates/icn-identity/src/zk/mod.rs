@@ -354,15 +354,16 @@ impl Default for Groth16Prover {
     fn default() -> Self {
         use crate::generate_ed25519_keypair;
 
+        use super::Groth16KeySource;
         use icn_zk::AgeOver18Circuit;
 
         let (sk, _) = generate_ed25519_keypair();
         let km = Groth16KeyManager::new(
             "age_over_18",
-            AgeOver18Circuit {
+            Groth16KeySource::Circuit(AgeOver18Circuit {
                 birth_year: 0,
                 current_year: 0,
-            },
+            }),
             &sk,
         )
         .expect("key manager setup");
@@ -817,10 +818,10 @@ mod tests {
 
         let km = Groth16KeyManager::new(
             "age_over_18",
-            AgeOver18Circuit {
+            Groth16KeySource::Circuit(AgeOver18Circuit {
                 birth_year: 0,
                 current_year: 0,
-            },
+            }),
             &sk,
         )
         .unwrap();
@@ -907,10 +908,10 @@ mod tests {
         let (sk, pk1) = generate_ed25519_keypair();
         let km = Groth16KeyManager::new(
             "age_over_18",
-            AgeOver18Circuit {
+            Groth16KeySource::Circuit(AgeOver18Circuit {
                 birth_year: 0,
                 current_year: 0,
-            },
+            }),
             &sk,
         )
         .unwrap();
