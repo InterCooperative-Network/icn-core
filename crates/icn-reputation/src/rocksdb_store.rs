@@ -42,6 +42,7 @@ impl ReputationStore for RocksdbReputationStore {
     }
 
     fn record_execution(&self, executor: &Did, success: bool, cpu_ms: u64) {
+        crate::metrics::EXECUTION_RECORDS.inc();
         let current = self.read_score(executor);
         let base: i64 = if success { 1 } else { -1 };
         let delta: i64 = base + (cpu_ms / 1000) as i64;
@@ -51,6 +52,7 @@ impl ReputationStore for RocksdbReputationStore {
     }
 
     fn record_proof_attempt(&self, prover: &Did, success: bool) {
+        crate::metrics::PROOF_ATTEMPTS.inc();
         let current = self.read_score(prover);
         let delta: i64 = if success { 1 } else { -1 };
         let updated = (current as i64) + delta;

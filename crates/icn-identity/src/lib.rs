@@ -27,6 +27,7 @@ pub mod credential;
 pub use credential::{Credential, CredentialIssuer, DisclosedCredential};
 pub mod credential_store;
 pub use credential_store::InMemoryCredentialStore;
+pub mod metrics;
 
 // --- Core Cryptographic Operations & DID:key generation ---
 

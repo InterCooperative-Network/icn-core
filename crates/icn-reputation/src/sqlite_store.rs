@@ -75,6 +75,7 @@ impl ReputationStore for SqliteReputationStore {
     }
 
     fn record_execution(&self, executor: &Did, success: bool, cpu_ms: u64) {
+        crate::metrics::EXECUTION_RECORDS.inc();
         let fut = async {
             let current = self.read_score(executor).await.unwrap_or(0);
             let base: i64 = if success { 1 } else { -1 };
@@ -93,6 +94,7 @@ impl ReputationStore for SqliteReputationStore {
     }
 
     fn record_proof_attempt(&self, prover: &Did, success: bool) {
+        crate::metrics::PROOF_ATTEMPTS.inc();
         let fut = async {
             let current = self.read_score(prover).await.unwrap_or(0);
             let delta: i64 = if success { 1 } else { -1 };
@@ -118,6 +120,7 @@ impl AsyncReputationStore for SqliteReputationStore {
     }
 
     async fn record_execution(&self, executor: &Did, success: bool, cpu_ms: u64) {
+        crate::metrics::EXECUTION_RECORDS.inc();
         let current = self.read_score(executor).await.unwrap_or(0);
         let base: i64 = if success { 1 } else { -1 };
         let delta: i64 = base + (cpu_ms / 1000) as i64;
@@ -127,6 +130,7 @@ impl AsyncReputationStore for SqliteReputationStore {
     }
 
     async fn record_proof_attempt(&self, prover: &Did, success: bool) {
+        crate::metrics::PROOF_ATTEMPTS.inc();
         let current = self.read_score(prover).await.unwrap_or(0);
         let delta: i64 = if success { 1 } else { -1 };
         let updated = (current as i64) + delta;

@@ -13,6 +13,7 @@ use icn_identity::{
     VerifyingKey as IdentityVerifyingKey,
 };
 use serde::{Deserialize, Serialize};
+pub mod aid;
 pub mod metrics;
 
 /// Unique identifier for a mesh job.
