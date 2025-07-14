@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["count_constraints"]};
+window.SIDEBAR_ITEMS = {"fn":["count_constraints","log_constraints","print_cs_stats"]};

@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["Groth16KeyManager"]};
+window.SIDEBAR_ITEMS = {"enum":["Groth16KeySource"],"struct":["Groth16KeyManager"]};
