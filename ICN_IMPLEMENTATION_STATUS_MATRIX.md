@@ -182,9 +182,9 @@ The main problem is that some contexts default to stub services instead of produ
 
 | Method | Services Used | Purpose | Status |
 |--------|---------------|---------|--------|
-| **`new_for_production()`** | All production services | Production deployments | ❌ Needs implementation |
-| **`new_for_testing()`** | All stub services | Testing only | ❌ Needs implementation |
-| **`new_for_development()`** | Mixed services | Development work | ❌ Needs implementation |
+| **`new_for_production()`** | All production services | Production deployments | ✅ Implemented |
+| **`new_for_testing()`** | All stub services | Testing only | ✅ Implemented |
+| **`new_for_development()`** | Mixed services | Development work | ✅ Implemented |
 
 ### **Service Selection Matrix**
 
