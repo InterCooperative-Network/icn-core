@@ -86,6 +86,18 @@ curl -X POST http://localhost:7845/circuits/register \
 
 After registration you can reference the circuit by slug and version when creating proofs or verification requests.
 
+## 5. Run the Example
+
+The repository provides [`examples/zk_custom_circuit.rs`](../examples/zk_custom_circuit.rs)
+demonstrating this circuit in action. Build and run with the `devtools` feature
+to see constraint statistics:
+
+```bash
+cargo run --example zk_custom_circuit --features icn-zk/devtools
+```
+
+The proof payload generated matches [`docs/examples/custom_circuit_proof.json`](examples/custom_circuit_proof.json).
+
 ---
 
 Continue with [zk_disclosure.md](zk_disclosure.md) for general zero-knowledge usage guidelines and [dynamic_circuits.md](dynamic_circuits.md) for registry details.
