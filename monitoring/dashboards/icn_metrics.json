@@ -1,0 +1,36 @@
+{
+  "uid": "icn-metrics",
+  "title": "ICN Metrics",
+  "schemaVersion": 37,
+  "version": 1,
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Job Throughput",
+      "datasource": "Prometheus",
+      "targets": [{"expr": "rate(jobs_processed_total[5m])"}],
+      "gridPos": {"h":6,"w":12,"x":0,"y":0}
+    },
+    {
+      "type": "stat",
+      "title": "Network Peers",
+      "datasource": "Prometheus",
+      "targets": [{"expr": "network_peer_count"}],
+      "gridPos": {"h":4,"w":6,"x":0,"y":6}
+    },
+    {
+      "type": "timeseries",
+      "title": "Mana Balances",
+      "datasource": "Prometheus",
+      "targets": [{"expr": "mana_balance"}],
+      "gridPos": {"h":6,"w":12,"x":0,"y":10}
+    },
+    {
+      "type": "timeseries",
+      "title": "Proposal Activity",
+      "datasource": "Prometheus",
+      "targets": [{"expr": "governance_submit_proposal_calls"}],
+      "gridPos": {"h":6,"w":12,"x":0,"y":16}
+    }
+  ]
+}

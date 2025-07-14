@@ -9,3 +9,27 @@ groups:
         annotations:
           summary: "ICN node down"
           description: "The node {{ $labels.instance }} is not responding."
+      - alert: JobFailures
+        expr: increase(mesh_job_failures_total[5m]) > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Mesh job failures"
+          description: "Jobs have failed within the last 5 minutes."
+      - alert: LowPeerCount
+        expr: network_peer_count < 3
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low peer count"
+          description: "Peer count below 3 for more than 5 minutes."
+      - alert: LowManaBalance
+        expr: mana_balance < 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low mana balance"
+          description: "Mana balance dropped below 10."
