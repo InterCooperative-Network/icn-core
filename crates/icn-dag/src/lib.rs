@@ -584,6 +584,12 @@ impl StorageService<DagBlock> for FileDagStore {
                 let entry =
                     entry.map_err(|e| CommonError::IoError(format!("Dir entry error: {}", e)))?;
                 let path = entry.path();
+                
+                // Skip the dag.root file
+                if path.file_name() == Some(std::ffi::OsStr::new("dag.root")) {
+                    continue;
+                }
+                
                 if entry
                     .file_type()
                     .map_err(|e| {
@@ -1230,7 +1236,7 @@ mod tests {
         // Test putting a different block (content-addressed storage doesn't allow overwriting with different content)
         let modified_block1_data =
             format!("modified data for {}", "block1_service_test").into_bytes();
-        let timestamp = 1u64;
+        let timestamp = 0u64;
         let author = Did::new("key", "tester");
         let sig = None;
         let modified_cid = compute_merkle_cid(
