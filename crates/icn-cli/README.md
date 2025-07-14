@@ -30,6 +30,36 @@ The `icn-cli` is the primary tool for users to interact with an ICN node from th
     *   `icn-cli federation list-peers`: List peers known to the node.
     *   `icn-cli federation status`: Display federation status including peer count.
     *   `icn-cli federation sync`: Synchronize federation state with peers.
+
+### Federation Examples (with `icn-devnet`)
+
+```bash
+# Initialize the federation on the bootstrap node
+cargo run -p icn-cli -- \
+  --api-url http://localhost:5001 \
+  --api-key devnet-a-key \
+  federation init
+
+# Join additional nodes to the federation
+cargo run -p icn-cli -- \
+  --api-url http://localhost:5002 \
+  --api-key devnet-b-key \
+  federation join http://localhost:5001
+
+cargo run -p icn-cli -- \
+  --api-url http://localhost:5003 \
+  --api-key devnet-c-key \
+  federation join http://localhost:5001
+
+# Synchronize federation state
+cargo run -p icn-cli -- \
+  --api-url http://localhost:5001 \
+  --api-key devnet-a-key \
+  federation sync
+```
+
+`icn-devnet/launch_federation.sh` runs these commands automatically when the
+containers start so the federation is ready for testing.
 *   **Identity Operations:**
     *   `icn-cli identity generate-proof <PROOF_REQUEST_JSON>`: Produce a zero-knowledge proof from the supplied request JSON.
     *   `icn-cli identity verify-proof <PROOF_JSON>`: Verify a proof and print whether it is valid.

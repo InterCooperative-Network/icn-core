@@ -159,6 +159,27 @@ wait_for_network_convergence() {
     done
 }
 
+# Configure federation using icn-cli
+setup_federation_cli() {
+    log "Setting up federation with icn-cli..."
+    cargo run -p icn-cli -- \
+        --api-url "$NODE_A_URL" \
+        --api-key "$NODE_A_API_KEY" \
+        federation init >/dev/null
+    cargo run -p icn-cli -- \
+        --api-url "$NODE_B_URL" \
+        --api-key "$NODE_B_API_KEY" \
+        federation join "$NODE_A_URL" >/dev/null
+    cargo run -p icn-cli -- \
+        --api-url "$NODE_C_URL" \
+        --api-key "$NODE_C_API_KEY" \
+        federation join "$NODE_A_URL" >/dev/null
+    cargo run -p icn-cli -- \
+        --api-url "$NODE_A_URL" \
+        --api-key "$NODE_A_API_KEY" \
+        federation sync >/dev/null
+}
+
 # Test basic node functionality and job submission
 test_mesh_job_execution() {
     log "Testing basic node functionality and job submission..."
@@ -272,6 +293,8 @@ main() {
     
     # Wait for network convergence
     wait_for_network_convergence
+
+    setup_federation_cli
 
     if [ "$START_ONLY" = true ]; then
         success "Federation started (start-only mode)"
