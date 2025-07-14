@@ -1,7 +1,7 @@
 use crate::JobSpec;
 use icn_common::Did;
 use serde::{Deserialize, Serialize};
-use icn_dag::mutual_aid::MutualAidRegistry;
+use icn_dag::mutual_aid::{MutualAidRegistry, AidResource};
 use icn_common::DagBlock;
 use icn_dag::StorageService;
 
@@ -42,11 +42,11 @@ pub fn match_aid_requests<'a>(
     matches
 }
 
-/// Pull open aid requests from a [`MutualAidRegistry`] and match them with templates.
+/// Pull open aid resources from a [`MutualAidRegistry`] and match them with templates.
 pub fn match_registry_requests<'a, S: StorageService<DagBlock>>(
     registry: &MutualAidRegistry<S>,
     templates: &'a [AidJobTemplate],
-) -> Result<Vec<(AidRequest, &'a AidJobTemplate)>, icn_common::CommonError> {
+) -> Result<Vec<(AidResource, &'a AidJobTemplate)>, icn_common::CommonError> {
     let requests = registry.list()?;
     let mut matches = Vec::new();
     for req in &requests {

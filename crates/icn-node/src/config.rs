@@ -583,39 +583,35 @@ use libp2p::{Multiaddr, PeerId as Libp2pPeerId};
 impl NodeConfig {
     #[cfg(feature = "enable-libp2p")]
     pub fn libp2p_config(&self) -> Result<NetworkConfig, CommonError> {
-        let listen_addr =
-            self.p2p.listen_address.parse::<Multiaddr>().map_err(|e| {
-                CommonError::ConfigError(format!("invalid p2p listen address: {e}"))
-            })?;
-
-        let bootstrap_peers = if let Some(peers) = &self.p2p.bootstrap_peers {
-            let mut parsed = Vec::new();
-            for peer_str in peers {
-                let addr = peer_str.parse::<Multiaddr>().map_err(|e| {
-                    CommonError::ConfigError(format!("invalid bootstrap peer '{peer_str}': {e}"))
-                })?;
-                if let Some(libp2p::core::multiaddr::Protocol::P2p(pid)) = addr.iter().last() {
-                    let id: Libp2pPeerId = pid
-                        .try_into()
-                        .map_err(|_| CommonError::ConfigError("invalid peer id".into()))?;
-                    parsed.push((id, addr));
-                } else {
-                    return Err(CommonError::ConfigError(format!(
-                        "bootstrap peer missing peer id: {peer_str}"
-                    )));
-                }
-            }
-            parsed
+        // Use production or development configuration based on test_mode
+        let mut config = if self.test_mode {
+            NetworkConfig::development()
         } else {
-            Vec::new()
+            NetworkConfig::production()
         };
 
-        Ok(NetworkConfig {
-            listen_addresses: vec![listen_addr],
-            bootstrap_peers,
-            enable_mdns: self.p2p.enable_mdns,
-            ..Default::default()
-        })
+        // Set listen address
+        config.set_listen_addresses(vec![&self.p2p.listen_address])
+            .map_err(|e| CommonError::ConfigError(format!("invalid p2p listen address: {e}")))?;
+
+        // Add bootstrap peers
+        if let Some(peers) = &self.p2p.bootstrap_peers {
+            for peer_str in peers {
+                config.add_bootstrap_peer(peer_str)
+                    .map_err(|e| CommonError::ConfigError(format!("invalid bootstrap peer '{peer_str}': {e}")))?;
+            }
+        }
+
+        // Override mDNS setting from config
+        config.enable_mdns = self.p2p.enable_mdns;
+
+        // Validate configuration for production
+        if !self.test_mode {
+            config.validate_production()
+                .map_err(|e| CommonError::ConfigError(format!("production validation failed: {e}")))?;
+        }
+
+        Ok(config)
     }
 }
 

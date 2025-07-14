@@ -602,6 +602,36 @@ pub mod libp2p_service {
     // --- Enhanced Statistics and Configuration ---
 
     /// Configuration options for the libp2p networking backend.
+    /// 
+    /// **🏭 PRODUCTION CONFIGURATION**
+    /// 
+    /// This configuration is designed for production use with the following characteristics:
+    /// - **max_peers**: 1000 concurrent connections (suitable for most production workloads)
+    /// - **connection_timeout**: 30s (balances reliability with responsiveness)
+    /// - **heartbeat_interval**: 15s (keeps connections alive without excessive overhead)
+    /// - **bootstrap_interval**: 5min (periodic reconnection to bootstrap peers)
+    /// - **peer_discovery_interval**: 1min (regular discovery of new peers)
+    /// - **kademlia_replication_factor**: 20 (good balance of redundancy and performance)
+    /// 
+    /// **📋 CONFIGURATION CHECKLIST FOR PRODUCTION:**
+    /// - [ ] Configure `bootstrap_peers` with stable, well-connected nodes
+    /// - [ ] Set `listen_addresses` to appropriate network interfaces
+    /// - [ ] Consider enabling `enable_mdns` for local network discovery
+    /// - [ ] Monitor peer count and connection health
+    /// - [ ] Configure firewall rules for p2p port range
+    /// 
+    /// **🔧 EXAMPLE PRODUCTION CONFIG:**
+    /// ```rust
+    /// NetworkConfig {
+    ///     listen_addresses: vec!["/ip4/0.0.0.0/tcp/7946".parse().unwrap()],
+    ///     bootstrap_peers: vec![
+    ///         (peer_id_1, "/ip4/1.2.3.4/tcp/7946/p2p/12D3...".parse().unwrap()),
+    ///         (peer_id_2, "/ip4/5.6.7.8/tcp/7946/p2p/12D3...".parse().unwrap()),
+    ///     ],
+    ///     enable_mdns: false, // Disable in production for security
+    ///     ..Default::default()
+    /// }
+    /// ```
     #[derive(Debug, Clone)]
     pub struct NetworkConfig {
         pub listen_addresses: Vec<Multiaddr>,
@@ -633,6 +663,145 @@ pub mod libp2p_service {
                 kademlia_replication_factor: 20,
                 bootstrap_peers: Vec::new(),
             }
+        }
+    }
+
+    impl NetworkConfig {
+        /// Create a production-ready network configuration with sensible defaults.
+        /// 
+        /// This configuration is optimized for production deployments with:
+        /// - Increased connection limits and timeouts
+        /// - Disabled mDNS for security
+        /// - Optimized Kademlia settings
+        pub fn production() -> Self {
+            Self {
+                listen_addresses: vec!["/ip4/0.0.0.0/tcp/7946".parse().unwrap()],
+                max_peers: 1000,
+                max_peers_per_ip: 5,
+                connection_timeout: Duration::from_secs(30),
+                request_timeout: Duration::from_secs(10),
+                heartbeat_interval: Duration::from_secs(15),
+                bootstrap_interval: Duration::from_secs(300),
+                peer_discovery_interval: Duration::from_secs(60),
+                enable_mdns: false, // Disabled for production security
+                kademlia_replication_factor: 20,
+                bootstrap_peers: Vec::new(),
+            }
+        }
+
+        /// Create a development-friendly network configuration.
+        /// 
+        /// This configuration enables mDNS for local peer discovery and uses
+        /// more aggressive timings for faster development iteration.
+        pub fn development() -> Self {
+            Self {
+                listen_addresses: vec!["/ip4/127.0.0.1/tcp/0".parse().unwrap()],
+                max_peers: 100,
+                max_peers_per_ip: 10,
+                connection_timeout: Duration::from_secs(10),
+                request_timeout: Duration::from_secs(5),
+                heartbeat_interval: Duration::from_secs(5),
+                bootstrap_interval: Duration::from_secs(60),
+                peer_discovery_interval: Duration::from_secs(30),
+                enable_mdns: true, // Enabled for local development
+                kademlia_replication_factor: 10,
+                bootstrap_peers: Vec::new(),
+            }
+        }
+
+        /// Validate the network configuration for production readiness.
+        /// 
+        /// Returns an error if the configuration has settings that are not
+        /// suitable for production use.
+        pub fn validate_production(&self) -> Result<(), MeshNetworkError> {
+            // Check for reasonable connection limits
+            if self.max_peers < 10 {
+                return Err(MeshNetworkError::SetupError(
+                    "max_peers too low for production (minimum 10)".to_string()
+                ));
+            }
+
+            if self.max_peers_per_ip > 50 {
+                return Err(MeshNetworkError::SetupError(
+                    "max_peers_per_ip too high for production (maximum 50)".to_string()
+                ));
+            }
+
+            // Check for reasonable timeouts
+            if self.connection_timeout < Duration::from_secs(5) {
+                return Err(MeshNetworkError::SetupError(
+                    "connection_timeout too low for production (minimum 5s)".to_string()
+                ));
+            }
+
+            if self.request_timeout < Duration::from_secs(1) {
+                return Err(MeshNetworkError::SetupError(
+                    "request_timeout too low for production (minimum 1s)".to_string()
+                ));
+            }
+
+            // Check for listen addresses
+            if self.listen_addresses.is_empty() {
+                return Err(MeshNetworkError::SetupError(
+                    "No listen addresses configured".to_string()
+                ));
+            }
+
+            // Warn about mDNS in production
+            if self.enable_mdns {
+                log::warn!(
+                    "⚠️  mDNS is enabled in production configuration. Consider disabling for security."
+                );
+            }
+
+            // Check for bootstrap peers
+            if self.bootstrap_peers.is_empty() {
+                log::warn!(
+                    "⚠️  No bootstrap peers configured. Node may have difficulty joining the network."
+                );
+            }
+
+            Ok(())
+        }
+
+        /// Add a bootstrap peer from a multiaddr string.
+        /// 
+        /// The multiaddr must include a peer ID component (e.g., `/p2p/12D3...`).
+        pub fn add_bootstrap_peer(&mut self, multiaddr: &str) -> Result<(), MeshNetworkError> {
+            let addr = multiaddr.parse::<Multiaddr>().map_err(|e| {
+                MeshNetworkError::InvalidInput(format!("Invalid multiaddr: {}", e))
+            })?;
+
+            // Extract peer ID from multiaddr
+            let peer_id = addr
+                .iter()
+                .find_map(|protocol| match protocol {
+                    libp2p::core::multiaddr::Protocol::P2p(pid) => Some(pid.try_into().ok()?),
+                    _ => None,
+                })
+                .ok_or_else(|| {
+                    MeshNetworkError::InvalidInput(
+                        "Multiaddr must contain a peer ID component (/p2p/...)".to_string()
+                    )
+                })?;
+
+            self.bootstrap_peers.push((peer_id, addr));
+            Ok(())
+        }
+
+        /// Set listen addresses from string representations.
+        pub fn set_listen_addresses(&mut self, addresses: Vec<&str>) -> Result<(), MeshNetworkError> {
+            let mut parsed_addresses = Vec::new();
+            
+            for addr_str in addresses {
+                let addr = addr_str.parse::<Multiaddr>().map_err(|e| {
+                    MeshNetworkError::InvalidInput(format!("Invalid listen address '{}': {}", addr_str, e))
+                })?;
+                parsed_addresses.push(addr);
+            }
+
+            self.listen_addresses = parsed_addresses;
+            Ok(())
         }
     }
 
