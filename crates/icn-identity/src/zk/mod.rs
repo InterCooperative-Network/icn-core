@@ -390,7 +390,7 @@ impl Default for Groth16Prover {
     fn default() -> Self {
         use crate::generate_ed25519_keypair;
 
-        use super::Groth16KeySource;
+        use crate::zk::key_manager::Groth16KeySource;
         use icn_zk::AgeOver18Circuit;
 
         let (sk, _) = generate_ed25519_keypair();
@@ -623,6 +623,7 @@ impl ZkVerifier for Groth16Verifier {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::zk::key_manager::Groth16KeySource;
     use icn_common::{Cid, Did};
     use std::collections::HashMap;
 

@@ -1,5 +1,5 @@
 use super::Fr;
-use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystem, SynthesisError};
+use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystem, ConstraintSystemRef, SynthesisError};
 
 /// Count the number of constraints for the provided circuit.
 pub fn count_constraints<C: ConstraintSynthesizer<Fr>>(
@@ -26,5 +26,15 @@ pub fn log_constraints<C: ConstraintSynthesizer<Fr>>(circuit: C) -> Result<(), S
             println!("{i}: {name}");
         }
     }
+    Ok(())
+}
+
+/// Print basic statistics about a synthesized constraint system.
+pub fn print_cs_stats(cs: &ConstraintSystemRef<Fr>) -> Result<(), SynthesisError> {
+    println!("constraints: {}", cs.num_constraints());
+    println!(
+        "variables: {}",
+        cs.num_witness_variables() + cs.num_instance_variables()
+    );
     Ok(())
 }

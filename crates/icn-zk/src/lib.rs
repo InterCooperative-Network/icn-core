@@ -11,23 +11,8 @@ mod circuits;
 #[cfg(feature = "devtools")]
 pub mod devtools;
 #[cfg(feature = "devtools")]
-pub use devtools::{count_constraints, log_constraints};
+pub use devtools::{count_constraints, log_constraints, print_cs_stats};
 mod params;
-#[cfg(feature = "devtools")]
-pub mod devtools {
-    use super::*;
-    use ark_relations::r1cs::ConstraintSystemRef;
-
-    /// Print basic statistics about a synthesized constraint system.
-    pub fn print_cs_stats(cs: &ConstraintSystemRef<Fr>) -> Result<(), SynthesisError> {
-        println!("constraints: {}", cs.num_constraints());
-        println!(
-            "variables: {}",
-            cs.num_witness_variables() + cs.num_instance_variables()
-        );
-        Ok(())
-    }
-}
 
 pub use circuits::{
     AgeOver18Circuit, AgeRepMembershipCircuit, BalanceRangeCircuit, CircuitCost, MembershipCircuit,

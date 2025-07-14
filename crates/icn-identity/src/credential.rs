@@ -273,7 +273,7 @@ mod tests {
         let mut claims = HashMap::new();
         claims.insert("birth_year".to_string(), "2000".to_string());
 
-        use crate::zk::Groth16KeySource;
+        use crate::zk::key_manager::Groth16KeySource;
         use icn_zk::AgeOver18Circuit;
 
         let km = Groth16KeyManager::new(
