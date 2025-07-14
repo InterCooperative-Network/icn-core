@@ -294,10 +294,10 @@ async fn test_federation_complete_workflow() {
     println!("🎯 Testing complete federation workflow...");
 
     // Run all tests in sequence to validate the complete workflow
-    test_federation_node_health().await;
-    test_federation_p2p_convergence().await;
-    test_federation_mesh_job_lifecycle().await;
-    test_federation_cross_node_api_consistency().await;
+    test_federation_node_health();
+    test_federation_p2p_convergence();
+    test_federation_mesh_job_lifecycle();
+    test_federation_cross_node_api_consistency();
 
     println!("🎉 Complete federation workflow test PASSED!");
 }
@@ -343,8 +343,10 @@ pub async fn wait_for_federation_ready() -> Result<(), Box<dyn std::error::Error
 
 #[tokio::test]
 async fn join_and_leave_federation_via_http() {
-    let (router, _ctx) =
-        icn_node::app_router_with_options(None, None, None, None, None, None, None).await;
+    let (router, _ctx) = icn_node::app_router_with_options(
+        None, None, None, None, None, None, None, None, None, None,
+    )
+    .await;
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let server = tokio::spawn(async move {
