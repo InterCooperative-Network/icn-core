@@ -1533,6 +1533,18 @@ impl RuntimeContext {
         Ok(self.mana_ledger.get_balance(account))
     }
 
+    /// Retrieve synchronization status of the local DAG.
+    pub async fn get_dag_sync_status(&self) -> Result<icn_common::DagSyncStatus, HostAbiError> {
+        let store = self.dag_store.lock().await;
+        let root = icn_dag::current_root(&*store).await.map_err(|e| {
+            HostAbiError::DagOperationFailed(format!("Failed to get DAG root: {}", e))
+        })?;
+        Ok(icn_common::DagSyncStatus {
+            current_root: root,
+            in_sync: true,
+        })
+    }
+
     async fn record_ledger_event(&self, event: &LedgerEvent) {
         let data = match serde_json::to_vec(event) {
             Ok(d) => d,
