@@ -474,9 +474,10 @@ where
     async fn get_dag_sync_status(&self) -> Result<DagSyncStatus, CommonError> {
         let store = self.store.lock().await;
         let root = icn_dag::current_root(&*store).await?;
+        let in_sync = root.is_some();
         Ok(DagSyncStatus {
             current_root: root,
-            in_sync: true,
+            in_sync,
         })
     }
 }

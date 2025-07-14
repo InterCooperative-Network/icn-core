@@ -80,6 +80,13 @@ async fn test_federation_node_health() {
         assert!(info["name"].is_string());
         assert!(info["version"].is_string());
 
+        let dag_resp = client
+            .get(&format!("{}/dag/status", url))
+            .send()
+            .await
+            .expect("dag status");
+        assert!(dag_resp.status().is_success());
+
         println!("    ✅ {} is healthy", name);
     }
 

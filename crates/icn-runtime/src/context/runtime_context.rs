@@ -1539,9 +1539,10 @@ impl RuntimeContext {
         let root = icn_dag::current_root(&*store).await.map_err(|e| {
             HostAbiError::DagOperationFailed(format!("Failed to get DAG root: {}", e))
         })?;
+        let in_sync = root.is_some();
         Ok(icn_common::DagSyncStatus {
             current_root: root,
-            in_sync: true,
+            in_sync,
         })
     }
 
