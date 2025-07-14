@@ -156,7 +156,7 @@ use std::str::FromStr;
 
 // Add governance-specific types
 use super::mesh_network::{PROPOSAL_COST_MANA, VOTE_COST_MANA};
-use icn_governance::{ProposalId, ProposalSubmission, ProposalType, VoteOption};
+use icn_governance::{Proposal, ProposalId, ProposalSubmission, ProposalType, Vote, VoteOption};
 use serde::{Deserialize, Serialize};
 
 /// Governance payload types
@@ -1964,6 +1964,28 @@ impl RuntimeContext {
         let mut gov = self.governance_module.lock().await;
         gov.revoke_delegation(from);
         Ok(())
+    }
+
+    /// Ingest a proposal that originated from another node.
+    pub async fn ingest_external_proposal(&self, bytes: &[u8]) -> Result<(), HostAbiError> {
+        let proposal: Proposal = bincode::deserialize(bytes).map_err(|e| {
+            HostAbiError::InvalidParameters(format!("Failed to deserialize proposal: {}", e))
+        })?;
+
+        let mut gov = self.governance_module.lock().await;
+        gov.insert_external_proposal(proposal)
+            .map_err(|e| HostAbiError::InternalError(format!("Failed to ingest external proposal: {}", e)))
+    }
+
+    /// Ingest a vote that originated from another node.
+    pub async fn ingest_external_vote(&self, bytes: &[u8]) -> Result<(), HostAbiError> {
+        let vote: Vote = bincode::deserialize(bytes).map_err(|e| {
+            HostAbiError::InvalidParameters(format!("Failed to deserialize vote: {}", e))
+        })?;
+
+        let mut gov = self.governance_module.lock().await;
+        gov.insert_external_vote(vote)
+            .map_err(|e| HostAbiError::InternalError(format!("Failed to ingest external vote: {}", e)))
     }
 
     /// Update a system parameter.

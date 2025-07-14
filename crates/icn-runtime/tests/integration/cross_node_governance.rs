@@ -68,8 +68,7 @@ mod cross_node_governance {
         })
         .await
         .expect("timeout waiting for proposal");
-        // TODO: Implement proper external proposal ingestion
-        // node_b.ingest_external_proposal(&proposal_bytes).await?;
+        node_b.ingest_external_proposal(&proposal_bytes).await?;
         let proposal: Proposal = bincode::deserialize(&proposal_bytes)?;
         {
             let gov = node_b.governance_module.lock().await;
@@ -93,8 +92,7 @@ mod cross_node_governance {
         })
         .await
         .expect("timeout waiting for vote");
-        // TODO: Implement proper external vote ingestion
-        // node_a.ingest_external_vote(&vote_bytes).await?;
+        node_a.ingest_external_vote(&vote_bytes).await?;
         {
             let gov = node_a.governance_module.lock().await;
             let pid = icn_governance::ProposalId(pid_str.clone());
