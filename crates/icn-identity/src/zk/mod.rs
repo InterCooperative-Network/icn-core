@@ -16,6 +16,7 @@ pub mod key_manager;
 pub use key_manager::Groth16KeyManager;
 pub mod vk_cache;
 
+pub mod proof_cache;
 use crate::{
     verify_signature, verifying_key_from_did_key, verifying_key_from_did_peer, SIGNATURE_LENGTH,
 };
@@ -570,8 +571,10 @@ impl Groth16Verifier {
             self.vk.clone()
         };
 
-        Groth16::<ark_bn254::Bn254>::verify_proof(&pvk, &groth_proof, &inputs)
-            .map_err(|_| ZkError::VerificationFailed)
+        proof_cache::ProofCache::get_or_insert(&proof.proof, &pvk, &inputs, || {
+            Groth16::<ark_bn254::Bn254>::verify_proof(&pvk, &groth_proof, &inputs)
+                .map_err(|_| ZkError::VerificationFailed)
+        })
     }
 }
 
@@ -933,6 +936,50 @@ mod tests {
         assert_eq!(cache_len, 1);
         assert!(verifier.verify_proof(&proof).unwrap());
         let cache_len2 = vk_cache::PreparedVkCache::len();
+        assert_eq!(cache_len2, 1);
+    }
+
+    #[test]
+    fn verify_proof_result_cache_hit() {
+        use ark_serialize::CanonicalSerialize;
+        use ark_std::rand::rngs::OsRng;
+        use icn_zk::{prepare_vk, prove, setup, AgeOver18Circuit};
+
+        let mut rng = OsRng;
+        let circuit = AgeOver18Circuit {
+            birth_year: 2000,
+            current_year: 2020,
+        };
+        let pk = setup(circuit.clone(), &mut rng).unwrap();
+        let proof_obj = prove(&pk, circuit, &mut rng).unwrap();
+        let mut proof_bytes = Vec::new();
+        proof_obj.serialize_compressed(&mut proof_bytes).unwrap();
+
+        let verifier = Groth16Verifier::new(
+            prepare_vk(&pk),
+            vec![ark_bn254::Fr::from(2020u64)],
+            std::sync::Arc::new(icn_reputation::InMemoryReputationStore::new()),
+            icn_zk::ReputationThresholds::default(),
+        );
+        let proof = ZkCredentialProof {
+            issuer: Did::new("key", "issuer"),
+            holder: Did::new("key", "holder"),
+            claim_type: "age_over_18".into(),
+            proof: proof_bytes.clone(),
+            schema: dummy_cid("schema"),
+            vk_cid: None,
+            disclosed_fields: Vec::new(),
+            challenge: None,
+            backend: ZkProofType::Groth16,
+            verification_key: None,
+            public_inputs: None,
+        };
+
+        assert!(verifier.verify_proof(&proof).unwrap());
+        let cache_len = proof_cache::ProofCache::len();
+        assert_eq!(cache_len, 1);
+        assert!(verifier.verify_proof(&proof).unwrap());
+        let cache_len2 = proof_cache::ProofCache::len();
         assert_eq!(cache_len2, 1);
     }
 
