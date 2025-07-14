@@ -2,6 +2,7 @@
 //!
 //! This example demonstrates common operations with the ICN SDK,
 //! including connecting to a node, checking health, and submitting jobs.
+#![allow(clippy::uninlined_format_args)]
 
 use icn_sdk::IcnClient;
 use serde_json::json;
@@ -10,10 +11,10 @@ use serde_json::json;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create a client pointing to a local ICN node
     let client = IcnClient::new("http://localhost:8080")?;
-    
+
     println!("🚀 ICN SDK Basic Usage Example");
     println!("================================");
-    
+
     // 1. Get node information
     println!("\n📋 Getting node information...");
     match client.info().await {
@@ -27,7 +28,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             return Ok(());
         }
     }
-    
+
     // 2. Check node health
     println!("\n🏥 Checking node health...");
     match client.health().await {
@@ -43,7 +44,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("⚠️  Failed to get health status: {}", e);
         }
     }
-    
+
     // 3. Check readiness
     println!("\n🔍 Checking node readiness...");
     match client.ready().await {
@@ -54,15 +55,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("⚠️  Node is not ready");
             }
             println!("   Can serve requests: {}", ready.checks.can_serve_requests);
-            println!("   Mana ledger available: {}", ready.checks.mana_ledger_available);
-            println!("   DAG store available: {}", ready.checks.dag_store_available);
-            println!("   Network initialized: {}", ready.checks.network_initialized);
+            println!(
+                "   Mana ledger available: {}",
+                ready.checks.mana_ledger_available
+            );
+            println!(
+                "   DAG store available: {}",
+                ready.checks.dag_store_available
+            );
+            println!(
+                "   Network initialized: {}",
+                ready.checks.network_initialized
+            );
         }
         Err(e) => {
             println!("⚠️  Failed to check readiness: {}", e);
         }
     }
-    
+
     // 4. List existing mesh jobs
     println!("\n📝 Listing existing mesh jobs...");
     match client.list_mesh_jobs().await {
@@ -86,7 +96,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("⚠️  Failed to list jobs: {}", e);
         }
     }
-    
+
     // 5. Submit a simple mesh job
     println!("\n🚀 Submitting a simple mesh job...");
     let job_request = json!({
@@ -95,19 +105,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "spec_json": null,
         "cost_mana": 50
     });
-    
+
     match client.submit_mesh_job(&job_request).await {
         Ok(response) => {
             println!("✅ Job submitted successfully!");
             if let Some(job_id) = response.get("job_id") {
                 println!("   Job ID: {}", job_id);
-                
+
                 // 6. Check the job status
                 println!("\n🔍 Checking job status...");
                 if let Some(job_id_str) = job_id.as_str() {
                     match client.mesh_job(job_id_str).await {
                         Ok(job_status) => {
-                            println!("✅ Job status: {}", job_status.get("status").unwrap_or(&json!("unknown")));
+                            println!(
+                                "✅ Job status: {}",
+                                job_status.get("status").unwrap_or(&json!("unknown"))
+                            );
                             println!("   Full job details: {}", job_status);
                         }
                         Err(e) => {
@@ -121,7 +134,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("⚠️  Failed to submit job: {}", e);
         }
     }
-    
+
     // 7. List governance proposals
     println!("\n🏛️  Listing governance proposals...");
     match client.list_proposals().await {
@@ -130,7 +143,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 if let Some(proposals) = proposals_array.as_array() {
                     println!("✅ Found {} proposal(s)", proposals.len());
                     for (i, proposal) in proposals.iter().enumerate() {
-                        if let (Some(id), Some(title)) = (proposal.get("id"), proposal.get("title")) {
+                        if let (Some(id), Some(title)) = (proposal.get("id"), proposal.get("title"))
+                        {
                             println!("   {}. Proposal {}: {}", i + 1, id, title);
                         }
                     }
@@ -145,7 +159,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("⚠️  Failed to list proposals: {}", e);
         }
     }
-    
+
     // 8. Check mana balance for a sample DID
     println!("\n💰 Checking mana balance...");
     match client.account_mana("did:key:sample").await {
@@ -156,7 +170,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("⚠️  Failed to get mana balance: {}", e);
         }
     }
-    
+
     // 9. Get network peers
     println!("\n🌐 Getting network peers...");
     match client.peers().await {
@@ -167,7 +181,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("⚠️  Failed to get peers: {}", e);
         }
     }
-    
+
     // 10. Get federation status
     println!("\n🤝 Getting federation status...");
     match client.federation_status().await {
@@ -178,7 +192,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("⚠️  Failed to get federation status: {}", e);
         }
     }
-    
+
     // 11. Get Prometheus metrics
     println!("\n📊 Getting Prometheus metrics...");
     match client.metrics().await {
@@ -196,10 +210,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("⚠️  Failed to get metrics: {}", e);
         }
     }
-    
+
     println!("\n🎉 Example completed!");
     println!("   This example demonstrated basic ICN SDK operations.");
     println!("   For more advanced usage, check the documentation and other examples.");
-    
+
     Ok(())
-} 
+}

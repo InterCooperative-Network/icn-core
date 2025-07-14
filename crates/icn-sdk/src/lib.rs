@@ -2,8 +2,8 @@
 
 //! # ICN SDK
 //!
-//! This crate provides a high-level Rust SDK for interacting with InterCooperative Network (ICN) nodes 
-//! via their HTTP API. It offers a convenient, type-safe interface for building applications that 
+//! This crate provides a high-level Rust SDK for interacting with InterCooperative Network (ICN) nodes
+//! via their HTTP API. It offers a convenient, type-safe interface for building applications that
 //! integrate with ICN.
 //!
 //! ## Quick Start
@@ -180,7 +180,10 @@ impl IcnClient {
     /// ```
     pub fn with_client(base_url: &str, client: Client) -> Result<Self, url::ParseError> {
         let url = Url::parse(base_url)?;
-        Ok(Self { base_url: url, http: client })
+        Ok(Self {
+            base_url: url,
+            http: client,
+        })
     }
 
     /// Get the base URL of this client.
@@ -406,7 +409,7 @@ impl IcnClient {
     /// # }
     /// ```
     pub async fn mesh_job(&self, job_id: &str) -> Result<serde_json::Value, reqwest::Error> {
-        self.get(&format!("/mesh/job/{}", job_id)).await
+        self.get(&format!("/mesh/job/{job_id}")).await
     }
 
     /// Submit a mesh execution receipt.
@@ -523,7 +526,7 @@ impl IcnClient {
     /// # }
     /// ```
     pub async fn proposal(&self, id: &str) -> Result<serde_json::Value, reqwest::Error> {
-        self.get(&format!("/governance/proposal/{}", id)).await
+        self.get(&format!("/governance/proposal/{id}")).await
     }
 
     /// Submit a governance proposal.
@@ -865,7 +868,7 @@ impl IcnClient {
     /// * `Ok(serde_json::Value)` - Mana account information
     /// * `Err(reqwest::Error)` - If the request fails
     pub async fn account_mana(&self, did: &str) -> Result<serde_json::Value, reqwest::Error> {
-        self.get(&format!("/account/mana/{}", did)).await
+        self.get(&format!("/account/mana/{did}")).await
     }
 
     /// Get cryptographic keys.
@@ -893,7 +896,7 @@ impl IcnClient {
     /// * `Ok(serde_json::Value)` - Reputation information
     /// * `Err(reqwest::Error)` - If the request fails
     pub async fn reputation(&self, did: &str) -> Result<serde_json::Value, reqwest::Error> {
-        self.get(&format!("/reputation/{}", did)).await
+        self.get(&format!("/reputation/{did}")).await
     }
 
     /// Submit a transaction.
@@ -1269,7 +1272,7 @@ mod tests {
             .timeout(Duration::from_secs(30))
             .build()
             .unwrap();
-        
+
         let client = IcnClient::with_client("http://localhost:8080", custom_client).unwrap();
         assert_eq!(client.base_url().as_str(), "http://localhost:8080/");
     }
@@ -1284,11 +1287,11 @@ mod tests {
     #[tokio::test]
     async fn test_client_url_construction() {
         let client = IcnClient::new("http://localhost:8080").unwrap();
-        
+
         // Test that URLs are constructed correctly
         let url = client.base_url.join("/info").unwrap();
         assert_eq!(url.as_str(), "http://localhost:8080/info");
-        
+
         let url = client.base_url.join("/mesh/jobs").unwrap();
         assert_eq!(url.as_str(), "http://localhost:8080/mesh/jobs");
     }
@@ -1301,7 +1304,7 @@ mod tests {
 
         let result = client.info().await;
         assert!(result.is_err());
-        
+
         // Check that it's a connection error
         let error = result.unwrap_err();
         assert!(error.is_connect() || error.is_timeout());
@@ -1321,7 +1324,7 @@ mod tests {
         // This will fail with a connection error, but it tests serialization
         let result = client.submit_mesh_job(&test_data).await;
         assert!(result.is_err());
-        
+
         // Verify it's a connection error, not a serialization error
         let error = result.unwrap_err();
         assert!(error.is_connect() || error.is_timeout());
