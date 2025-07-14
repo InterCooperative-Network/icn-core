@@ -438,6 +438,7 @@ More detailed information can be found in the `README.md` file within each crate
 * [Resource Tokens](docs/resource_tokens.md) – token classes and mana integration
 * [CCL Language Reference](docs/CCL_LANGUAGE_REFERENCE.md) – full syntax guide
 * [CCL Examples](icn-ccl/examples/) – governance contract templates
+* [Governance Onboarding Guide](docs/governance_onboarding.md) – using templates
 * [Contract Creation Guide](docs/howto-create-contract.md) – compile and submit CCL jobs
 
 ### **Development Resources**

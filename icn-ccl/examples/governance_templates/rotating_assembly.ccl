@@ -1,0 +1,12 @@
+// Rotating assembly template
+// Returns the meeting chair for a given cycle
+fn assembly_chair(cycle: Integer, members: Array<Integer>) -> Integer {
+    let count = array_len(members);
+    let index = cycle % count;
+    return members[index];
+}
+
+fn run() -> Integer {
+    let members = [1, 2, 3, 4];
+    return assembly_chair(0, members);
+}

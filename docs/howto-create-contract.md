@@ -1,6 +1,6 @@
 # Creating and Running a CCL Contract
 
-This quick guide walks through writing a simple Cooperative Contract Language (CCL) file, compiling it with `icn-cli`, uploading the compiled module to a node, and submitting a job that executes the contract. The examples under [`icn-ccl/examples/`](../icn-ccl/examples/) provide additional templates you can adapt.
+This quick guide walks through writing a simple Cooperative Contract Language (CCL) file, compiling it with `icn-cli`, uploading the compiled module to a node, and submitting a job that executes the contract. The examples under [`icn-ccl/examples/governance_templates/`](../icn-ccl/examples/governance_templates/) provide additional templates you can adapt.
 
 ## 1. Write the contract
 
@@ -13,7 +13,7 @@ fn run() -> Integer {
 }
 ```
 
-Browse the [examples directory](../icn-ccl/examples/) for more realistic contracts such as `cooperative_housing_maintenance.ccl` or `childcare_cooperative_schedule.ccl`.
+Browse the [examples directory](../icn-ccl/examples/governance_templates/) for more realistic contracts such as `cooperative_housing_maintenance.ccl` or `childcare_cooperative_schedule.ccl`.
 
 ## 2. Compile the contract
 

@@ -402,11 +402,12 @@ ICN enables autonomous federated systems that support cooperative coordination w
 
 ### **For Cooperatives**
 1. Review the [Governance Framework](governance-framework.md)
-2. Understand [Economic Models](economics-models.md)
-3. Explore [Cooperative Infrastructure Features](#11-🤝-cooperative-infrastructure-new)
-4. Plan your [Federation Strategy](federation-strategy.md)
-5. Join our [Cooperative Pilot Program](mailto:pilot@intercooperative.network)
-6. Connect with the [Cooperative Working Group](https://github.com/InterCooperative/icn-core/discussions/categories/cooperative-infrastructure)
+2. Follow the [Governance Onboarding Guide](governance_onboarding.md)
+3. Understand [Economic Models](economics-models.md)
+4. Explore [Cooperative Infrastructure Features](#11-🤝-cooperative-infrastructure-new)
+5. Plan your [Federation Strategy](federation-strategy.md)
+6. Join our [Cooperative Pilot Program](mailto:pilot@intercooperative.network)
+7. Connect with the [Cooperative Working Group](https://github.com/InterCooperative/icn-core/discussions/categories/cooperative-infrastructure)
 
 ### **For Researchers**
 1. Read our [Academic Papers](academic-papers.md)
