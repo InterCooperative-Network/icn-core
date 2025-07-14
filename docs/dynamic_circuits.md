@@ -14,10 +14,17 @@ This guide covers how zero-knowledge circuits are managed in the InterCooperativ
 - Minor version bumps must remain backward compatible with proving keys generated for earlier minor versions.
 - Breaking changes require a new major version. Older versions remain in the registry for verifiers that still rely on them.
 - Proofs include a circuit slug and version so verifiers can select the appropriate parameters.
+- Patch versions are reserved for non-breaking metadata updates or key rotations.
 
 ## Registering Circuits via the API
 
 The registry is manipulated through the `/circuits` endpoints.
+
+### API Overview
+
+- `POST /circuits/register` – upload a new circuit version and its parameters
+- `GET  /circuits/{slug}` – list all versions for a circuit slug
+- `GET  /circuits/{slug}/{version}` – fetch parameters and metadata for a specific version
 
 ### Register a Circuit
 
@@ -50,6 +57,13 @@ under `~/.icn/zk/registry.sqlite`. Storing circuits in a database means they
 survive node restarts and can be synchronized across deployments. Each entry is
 keyed by the circuit slug and semantic version.
 
+The `circuits` table contains:
+
+- `slug` – circuit identifier
+- `version` – semantic version string
+- `params` – serialized [`CircuitParameters`](../crates/icn-zk/src/params.rs)
+- `meta` – optional JSON metadata
+
 ### Backup and Restore
 
 Use `icn-cli` to export or re-import the circuit registry. This works with any
@@ -61,5 +75,27 @@ icn-cli zk backup --path ./backups/circuits
 
 # Restore from a backup
 icn-cli zk restore --path ./backups/circuits
+```
+
+### Usage Examples
+
+Using the `icn-sdk` crate the registry can be accessed programmatically:
+
+```rust
+use icn_sdk::{IcnClient, RegisterCircuitRequest};
+use icn_zk::params::CircuitParameters;
+
+let client = IcnClient::new("http://localhost:7845")?;
+let params = CircuitParameters::from_proving_key(&proving_key)?;
+let req = RegisterCircuitRequest {
+    slug: "age_over_18".into(),
+    version: "1.0.0".into(),
+    parameters: params,
+    metadata: None,
+};
+client.register_circuit(&req).await?;
+
+let info = client.circuit_info("age_over_18", "1.0.0").await?;
+println!("registered by {}", info.uploader);
 ```
 
