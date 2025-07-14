@@ -1410,14 +1410,15 @@ impl RuntimeContext {
             return Err(HostAbiError::InvalidParameters("Job not found".to_string()));
         }
 
-        // 2. Verify the receipt signature
-        // Note: In a full implementation, we would resolve the executor's verifying key
-        // and verify the signature. For now, we just check that a signature exists.
+        // 2. Verify the receipt signature using the executor's DID
         if receipt.sig.0.is_empty() {
             return Err(HostAbiError::PermissionDenied(
                 "Receipt signature is required".to_string(),
             ));
         }
+        receipt
+            .verify_with_resolver(self.did_resolver.as_ref())
+            .map_err(|e| HostAbiError::SignatureError(e.to_string()))?;
 
         // Create a DAG block for the receipt
         let receipt_bytes = bincode::serialize(receipt).map_err(|e| {
@@ -2897,5 +2898,73 @@ impl RuntimeContext {
         // For now, it's mostly a placeholder
         log::debug!("[ExecutorManager] Polling for executor tasks");
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use icn_common::Cid;
+    use icn_identity::{ExecutionReceipt, SignatureBytes};
+    use icn_mesh::JobState;
+
+    #[tokio::test]
+    async fn anchor_receipt_valid_signature() {
+        let ctx = RuntimeContext::new_with_stubs("did:key:zrecvalid").unwrap();
+
+        let job_id = Cid::new_v1_sha256(0x55, b"job_valid");
+        ctx.job_states.insert(
+            JobId::from(job_id.clone()),
+            JobState::Assigned {
+                executor: ctx.current_identity.clone(),
+            },
+        );
+
+        let mut receipt = ExecutionReceipt {
+            job_id: job_id.clone(),
+            executor_did: ctx.current_identity.clone(),
+            result_cid: Cid::new_v1_sha256(0x55, b"res_valid"),
+            cpu_ms: 1,
+            success: true,
+            sig: SignatureBytes(vec![]),
+        };
+
+        let msg = receipt.to_signable_bytes().unwrap();
+        let sig = ctx.signer.sign(&msg).unwrap();
+        receipt.sig = SignatureBytes(sig);
+
+        let cid = ctx.anchor_receipt(&receipt).await.unwrap();
+        assert_eq!(cid, receipt.result_cid);
+    }
+
+    #[tokio::test]
+    async fn anchor_receipt_invalid_signature() {
+        let ctx = RuntimeContext::new_with_stubs("did:key:zrecinvalid").unwrap();
+
+        let job_id = Cid::new_v1_sha256(0x55, b"job_invalid");
+        ctx.job_states.insert(
+            JobId::from(job_id.clone()),
+            JobState::Assigned {
+                executor: ctx.current_identity.clone(),
+            },
+        );
+
+        let mut receipt = ExecutionReceipt {
+            job_id: job_id.clone(),
+            executor_did: ctx.current_identity.clone(),
+            result_cid: Cid::new_v1_sha256(0x55, b"res_invalid"),
+            cpu_ms: 1,
+            success: true,
+            sig: SignatureBytes(vec![]),
+        };
+
+        let msg = receipt.to_signable_bytes().unwrap();
+        let sig = ctx.signer.sign(&msg).unwrap();
+        receipt.sig = SignatureBytes(sig);
+
+        receipt.cpu_ms = 2;
+
+        let result = ctx.anchor_receipt(&receipt).await;
+        assert!(matches!(result, Err(HostAbiError::SignatureError(_))));
     }
 }
