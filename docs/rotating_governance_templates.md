@@ -10,7 +10,7 @@ Three example contracts illustrate common cooperative structures where leadershi
 - **Rotating Council** – small council membership rotates through a list of members.
 - **Rotating Assembly** – meeting chair rotates among all members.
 
-The source files live under [`icn-ccl/examples/`](../icn-ccl/examples/) and are mirrored in the `icn-templates` crate for programmatic use.
+The source files live under [`icn-ccl/examples/governance_templates/`](../icn-ccl/examples/governance_templates/) and are mirrored in the `icn-templates` crate for programmatic use.
 
 ## Using the Templates
 

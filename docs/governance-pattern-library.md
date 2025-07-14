@@ -10,6 +10,6 @@ The `icn-templates` crate collects reusable CCL snippets for common cooperative 
 - `rotating_council.ccl`
 - `rotating_assembly.ccl`
 
-Each constant is exported from `icn-templates` for programmatic access. The same files are available under [`icn-ccl/examples/`](../icn-ccl/examples/) for quick inspection.
+Each constant is exported from `icn-templates` for programmatic access. The same files are available under [`icn-ccl/examples/governance_templates/`](../icn-ccl/examples/governance_templates/) for quick inspection.
 
 Use these patterns with the formation wizard or your own tooling to bootstrap new cooperatives.

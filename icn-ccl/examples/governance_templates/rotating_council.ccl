@@ -1,0 +1,19 @@
+// Rotating council template
+// Selects a council subset based on cycle index
+fn select_council(cycle: Integer, members: Array<Integer>, seats: Integer) -> Array<Integer> {
+    let count = array_len(members);
+    let i = 0;
+    let council = [];
+    while i < seats {
+        let idx = (cycle + i) % count;
+        array_push(council, members[idx]);
+        let i = i + 1;
+    }
+    return council;
+}
+
+fn run() -> Integer {
+    let members = [1, 2, 3, 4];
+    let council = select_council(0, members, 2);
+    return array_len(council);
+}
