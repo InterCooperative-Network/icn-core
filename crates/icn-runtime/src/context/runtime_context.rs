@@ -998,7 +998,7 @@ impl RuntimeContext {
         // 0. Check if this is a CCL WASM job that should auto-execute
         log::debug!("[manage_job_lifecycle] Retrieving job status for: {}", job_id);
         match self.get_job_status(&job_id).await {
-            Ok(Some(lifecycle)) => {
+            Ok(Some(_lifecycle)) => {
                 log::debug!(
                     "[manage_job_lifecycle] Found job lifecycle, checking if CCL WASM: {}",
                     job_id
