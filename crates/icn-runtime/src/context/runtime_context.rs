@@ -1048,7 +1048,27 @@ impl RuntimeContext {
         }
 
         // 5. Select best executor
-        let job_spec = icn_mesh::JobSpec::default(); // TODO: Reconstruct from DAG
+        // Reconstruct the JobSpec from the DAG so selection uses the original requirements
+        let job_spec = match self.get_job_status(&job_id).await? {
+            Some(lifecycle) => match serde_json::from_str::<icn_mesh::JobSpec>(&lifecycle.job.spec_json) {
+                Ok(spec) => spec,
+                Err(e) => {
+                    log::warn!(
+                        "[manage_job_lifecycle] Failed to deserialize job spec from DAG for {}: {}",
+                        job_id,
+                        e
+                    );
+                    icn_mesh::JobSpec::default()
+                }
+            },
+            None => {
+                log::warn!(
+                    "[manage_job_lifecycle] Job {} not found in DAG when selecting executor",
+                    job_id
+                );
+                icn_mesh::JobSpec::default()
+            }
+        };
         let selection_policy = icn_mesh::SelectionPolicy::default();
         let selected_executor = icn_mesh::select_executor(
             &job_id,
@@ -1099,7 +1119,7 @@ impl RuntimeContext {
         // 7. Create and store assignment
         let assignment = JobAssignment {
             job_id: job_id.clone(),
-            winning_bid_id: "winning_bid".to_string(), // TODO: Use actual bid ID
+            winning_bid_id: winning_bid.bid_id.clone(),
             assigned_executor_did: selected_executor.clone(),
             assigned_at: self.time_provider.unix_seconds(),
             final_price_mana: winning_bid.price_mana,
