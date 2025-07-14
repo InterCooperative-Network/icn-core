@@ -719,79 +719,80 @@
 <a href=#719 id=719 data-nosnippet>719</a>    }
 <a href=#720 id=720 data-nosnippet>720</a>
 <a href=#721 id=721 data-nosnippet>721</a>    <span class="attr">#[tokio::test]
-<a href=#722 id=722 data-nosnippet>722</a>    </span><span class="kw">async fn </span>test_generic_placeholder_hash_deterministic() {
-<a href=#723 id=723 data-nosnippet>723</a>        <span class="kw">use </span>icn_common::{compute_merkle_cid, DagBlock};
-<a href=#724 id=724 data-nosnippet>724</a>        <span class="kw">use </span>sha2::{Digest, Sha256};
-<a href=#725 id=725 data-nosnippet>725</a>
-<a href=#726 id=726 data-nosnippet>726</a>        <span class="kw">let </span>ctx = RuntimeContext::new_with_stubs_and_mana(<span class="string">"did:key:zHashTest"</span>, <span class="number">0</span>).unwrap();
-<a href=#727 id=727 data-nosnippet>727</a>
-<a href=#728 id=728 data-nosnippet>728</a>        <span class="kw">let </span>manifest_data = <span class="string">b"manifest"</span>;
-<a href=#729 id=729 data-nosnippet>729</a>        <span class="kw">let </span>ts = <span class="number">0u64</span>;
-<a href=#730 id=730 data-nosnippet>730</a>        <span class="kw">let </span>author = Did::new(<span class="string">"key"</span>, <span class="string">"tester"</span>);
-<a href=#731 id=731 data-nosnippet>731</a>        <span class="kw">let </span>sig_opt = <span class="prelude-val">None</span>;
-<a href=#732 id=732 data-nosnippet>732</a>        <span class="kw">let </span>cid = compute_merkle_cid(<span class="number">0x71</span>, manifest_data, <span class="kw-2">&amp;</span>[], ts, <span class="kw-2">&amp;</span>author, <span class="kw-2">&amp;</span>sig_opt, <span class="kw-2">&amp;</span><span class="prelude-val">None</span>);
-<a href=#733 id=733 data-nosnippet>733</a>        <span class="kw">let </span>block = DagBlock {
-<a href=#734 id=734 data-nosnippet>734</a>            cid: cid.clone(),
-<a href=#735 id=735 data-nosnippet>735</a>            data: manifest_data.to_vec(),
-<a href=#736 id=736 data-nosnippet>736</a>            links: <span class="macro">vec!</span>[],
-<a href=#737 id=737 data-nosnippet>737</a>            timestamp: ts,
-<a href=#738 id=738 data-nosnippet>738</a>            author_did: author,
-<a href=#739 id=739 data-nosnippet>739</a>            signature: sig_opt,
-<a href=#740 id=740 data-nosnippet>740</a>            scope: <span class="prelude-val">None</span>,
-<a href=#741 id=741 data-nosnippet>741</a>        };
-<a href=#742 id=742 data-nosnippet>742</a>        {
-<a href=#743 id=743 data-nosnippet>743</a>            <span class="attr">#[cfg(feature = <span class="string">"async"</span>)]
-<a href=#744 id=744 data-nosnippet>744</a>            </span>{
-<a href=#745 id=745 data-nosnippet>745</a>                <span class="kw">let </span><span class="kw-2">mut </span>store = ctx.dag_store.lock().<span class="kw">await</span>;
-<a href=#746 id=746 data-nosnippet>746</a>                store.put(<span class="kw-2">&amp;</span>block).<span class="kw">await</span>.unwrap();
-<a href=#747 id=747 data-nosnippet>747</a>            }
-<a href=#748 id=748 data-nosnippet>748</a>            <span class="attr">#[cfg(not(feature = <span class="string">"async"</span>))]
-<a href=#749 id=749 data-nosnippet>749</a>            </span>{
-<a href=#750 id=750 data-nosnippet>750</a>                <span class="comment">// In non-async mode, we'd need a blocking version
-<a href=#751 id=751 data-nosnippet>751</a>                // For this test, just skip this part as it's primarily testing async functionality
-<a href=#752 id=752 data-nosnippet>752</a>                </span><span class="macro">println!</span>(<span class="string">"Skipping DAG storage in non-async mode"</span>);
-<a href=#753 id=753 data-nosnippet>753</a>            }
-<a href=#754 id=754 data-nosnippet>754</a>        }
-<a href=#755 id=755 data-nosnippet>755</a>
-<a href=#756 id=756 data-nosnippet>756</a>        <span class="kw">let </span>(sk, vk) = generate_keys_for_test();
-<a href=#757 id=757 data-nosnippet>757</a>        <span class="kw">let </span>node_did = Did::from_str(<span class="kw-2">&amp;</span>did_key_from_verifying_key(<span class="kw-2">&amp;</span>vk)).unwrap();
-<a href=#758 id=758 data-nosnippet>758</a>
-<a href=#759 id=759 data-nosnippet>759</a>        <span class="kw">let </span>job = ActualMeshJob {
-<a href=#760 id=760 data-nosnippet>760</a>            id: icn_mesh::JobId::from(dummy_cid_for_executor_test(<span class="string">"hash_job"</span>)),
-<a href=#761 id=761 data-nosnippet>761</a>            manifest_cid: cid.clone(),
-<a href=#762 id=762 data-nosnippet>762</a>            spec: JobSpec::default(),
-<a href=#763 id=763 data-nosnippet>763</a>            creator_did: node_did.clone(),
-<a href=#764 id=764 data-nosnippet>764</a>            cost_mana: <span class="number">0</span>,
-<a href=#765 id=765 data-nosnippet>765</a>            max_execution_wait_ms: <span class="prelude-val">None</span>,
-<a href=#766 id=766 data-nosnippet>766</a>            signature: SignatureBytes(<span class="macro">vec!</span>[]),
-<a href=#767 id=767 data-nosnippet>767</a>        };
-<a href=#768 id=768 data-nosnippet>768</a>
-<a href=#769 id=769 data-nosnippet>769</a>        <span class="kw">let </span>exec = SimpleExecutor::with_context(node_did.clone(), sk, ctx);
-<a href=#770 id=770 data-nosnippet>770</a>        <span class="kw">let </span>receipt = exec.execute_job(<span class="kw-2">&amp;</span>job).<span class="kw">await</span>.unwrap();
-<a href=#771 id=771 data-nosnippet>771</a>
-<a href=#772 id=772 data-nosnippet>772</a>        <span class="kw">let </span>expected_bytes = Sha256::digest(manifest_data);
-<a href=#773 id=773 data-nosnippet>773</a>        <span class="kw">let </span>expected_cid = Cid::new_v1_sha256(<span class="number">0x55</span>, <span class="kw-2">&amp;</span>expected_bytes);
-<a href=#774 id=774 data-nosnippet>774</a>
-<a href=#775 id=775 data-nosnippet>775</a>        <span class="macro">assert_eq!</span>(receipt.result_cid, expected_cid);
-<a href=#776 id=776 data-nosnippet>776</a>        <span class="macro">assert_eq!</span>(receipt.executor_did, node_did);
-<a href=#777 id=777 data-nosnippet>777</a>        <span class="macro">assert!</span>(receipt.verify_against_key(<span class="kw-2">&amp;</span>vk).is_ok());
-<a href=#778 id=778 data-nosnippet>778</a>    }
-<a href=#779 id=779 data-nosnippet>779</a>
-<a href=#780 id=780 data-nosnippet>780</a>    <span class="attr">#[test]
-<a href=#781 id=781 data-nosnippet>781</a>    </span><span class="kw">fn </span>test_wasm_security_limits_default() {
-<a href=#782 id=782 data-nosnippet>782</a>        <span class="kw">let </span>limits = WasmSecurityLimits::default();
-<a href=#783 id=783 data-nosnippet>783</a>        <span class="macro">assert_eq!</span>(limits.max_execution_time_secs, <span class="number">30</span>);
-<a href=#784 id=784 data-nosnippet>784</a>        <span class="macro">assert_eq!</span>(limits.max_memory_pages, <span class="number">160</span>);
-<a href=#785 id=785 data-nosnippet>785</a>        <span class="macro">assert_eq!</span>(limits.max_fuel, <span class="number">1_000_000</span>);
-<a href=#786 id=786 data-nosnippet>786</a>    }
-<a href=#787 id=787 data-nosnippet>787</a>
-<a href=#788 id=788 data-nosnippet>788</a>    <span class="attr">#[test]
-<a href=#789 id=789 data-nosnippet>789</a>    </span><span class="kw">fn </span>test_wasm_module_validator_validates_size() {
-<a href=#790 id=790 data-nosnippet>790</a>        <span class="kw">let </span>limits = WasmSecurityLimits::default();
-<a href=#791 id=791 data-nosnippet>791</a>        <span class="kw">let </span>validator = WasmModuleValidator::new(limits);
-<a href=#792 id=792 data-nosnippet>792</a>
-<a href=#793 id=793 data-nosnippet>793</a>        <span class="comment">// Test with oversized module
-<a href=#794 id=794 data-nosnippet>794</a>        </span><span class="kw">let </span>oversized_wasm = <span class="macro">vec!</span>[<span class="number">0u8</span>; <span class="number">51 </span>* <span class="number">1024 </span>* <span class="number">1024</span>]; <span class="comment">// 51MB
-<a href=#795 id=795 data-nosnippet>795</a>        </span><span class="macro">assert!</span>(validator.validate(<span class="kw-2">&amp;</span>oversized_wasm).is_err());
-<a href=#796 id=796 data-nosnippet>796</a>    }
-<a href=#797 id=797 data-nosnippet>797</a>}</code></pre></div></section></main></body></html>
+<a href=#722 id=722 data-nosnippet>722</a>    #[cfg(feature = <span class="string">"async"</span>)]
+<a href=#723 id=723 data-nosnippet>723</a>    </span><span class="kw">async fn </span>test_generic_placeholder_hash_deterministic() {
+<a href=#724 id=724 data-nosnippet>724</a>        <span class="kw">use </span>icn_common::{compute_merkle_cid, DagBlock};
+<a href=#725 id=725 data-nosnippet>725</a>        <span class="kw">use </span>sha2::{Digest, Sha256};
+<a href=#726 id=726 data-nosnippet>726</a>
+<a href=#727 id=727 data-nosnippet>727</a>        <span class="kw">let </span>ctx = RuntimeContext::new_with_stubs_and_mana(<span class="string">"did:key:zHashTest"</span>, <span class="number">0</span>).unwrap();
+<a href=#728 id=728 data-nosnippet>728</a>
+<a href=#729 id=729 data-nosnippet>729</a>        <span class="kw">let </span>manifest_data = <span class="string">b"manifest"</span>;
+<a href=#730 id=730 data-nosnippet>730</a>        <span class="kw">let </span>ts = <span class="number">0u64</span>;
+<a href=#731 id=731 data-nosnippet>731</a>        <span class="kw">let </span>author = Did::new(<span class="string">"key"</span>, <span class="string">"tester"</span>);
+<a href=#732 id=732 data-nosnippet>732</a>        <span class="kw">let </span>sig_opt = <span class="prelude-val">None</span>;
+<a href=#733 id=733 data-nosnippet>733</a>        <span class="kw">let </span>cid = compute_merkle_cid(<span class="number">0x71</span>, manifest_data, <span class="kw-2">&amp;</span>[], ts, <span class="kw-2">&amp;</span>author, <span class="kw-2">&amp;</span>sig_opt, <span class="kw-2">&amp;</span><span class="prelude-val">None</span>);
+<a href=#734 id=734 data-nosnippet>734</a>        <span class="kw">let </span>block = DagBlock {
+<a href=#735 id=735 data-nosnippet>735</a>            cid: cid.clone(),
+<a href=#736 id=736 data-nosnippet>736</a>            data: manifest_data.to_vec(),
+<a href=#737 id=737 data-nosnippet>737</a>            links: <span class="macro">vec!</span>[],
+<a href=#738 id=738 data-nosnippet>738</a>            timestamp: ts,
+<a href=#739 id=739 data-nosnippet>739</a>            author_did: author,
+<a href=#740 id=740 data-nosnippet>740</a>            signature: sig_opt,
+<a href=#741 id=741 data-nosnippet>741</a>            scope: <span class="prelude-val">None</span>,
+<a href=#742 id=742 data-nosnippet>742</a>        };
+<a href=#743 id=743 data-nosnippet>743</a>        {
+<a href=#744 id=744 data-nosnippet>744</a>            <span class="attr">#[cfg(feature = <span class="string">"async"</span>)]
+<a href=#745 id=745 data-nosnippet>745</a>            </span>{
+<a href=#746 id=746 data-nosnippet>746</a>                <span class="kw">let </span><span class="kw-2">mut </span>store = ctx.dag_store.lock().<span class="kw">await</span>;
+<a href=#747 id=747 data-nosnippet>747</a>                store.put(<span class="kw-2">&amp;</span>block).<span class="kw">await</span>.unwrap();
+<a href=#748 id=748 data-nosnippet>748</a>            }
+<a href=#749 id=749 data-nosnippet>749</a>            <span class="attr">#[cfg(not(feature = <span class="string">"async"</span>))]
+<a href=#750 id=750 data-nosnippet>750</a>            </span>{
+<a href=#751 id=751 data-nosnippet>751</a>                <span class="comment">// In non-async mode, we'd need a blocking version
+<a href=#752 id=752 data-nosnippet>752</a>                // For this test, just skip this part as it's primarily testing async functionality
+<a href=#753 id=753 data-nosnippet>753</a>                </span><span class="macro">println!</span>(<span class="string">"Skipping DAG storage in non-async mode"</span>);
+<a href=#754 id=754 data-nosnippet>754</a>            }
+<a href=#755 id=755 data-nosnippet>755</a>        }
+<a href=#756 id=756 data-nosnippet>756</a>
+<a href=#757 id=757 data-nosnippet>757</a>        <span class="kw">let </span>(sk, vk) = generate_keys_for_test();
+<a href=#758 id=758 data-nosnippet>758</a>        <span class="kw">let </span>node_did = Did::from_str(<span class="kw-2">&amp;</span>did_key_from_verifying_key(<span class="kw-2">&amp;</span>vk)).unwrap();
+<a href=#759 id=759 data-nosnippet>759</a>
+<a href=#760 id=760 data-nosnippet>760</a>        <span class="kw">let </span>job = ActualMeshJob {
+<a href=#761 id=761 data-nosnippet>761</a>            id: icn_mesh::JobId::from(dummy_cid_for_executor_test(<span class="string">"hash_job"</span>)),
+<a href=#762 id=762 data-nosnippet>762</a>            manifest_cid: cid.clone(),
+<a href=#763 id=763 data-nosnippet>763</a>            spec: JobSpec::default(),
+<a href=#764 id=764 data-nosnippet>764</a>            creator_did: node_did.clone(),
+<a href=#765 id=765 data-nosnippet>765</a>            cost_mana: <span class="number">0</span>,
+<a href=#766 id=766 data-nosnippet>766</a>            max_execution_wait_ms: <span class="prelude-val">None</span>,
+<a href=#767 id=767 data-nosnippet>767</a>            signature: SignatureBytes(<span class="macro">vec!</span>[]),
+<a href=#768 id=768 data-nosnippet>768</a>        };
+<a href=#769 id=769 data-nosnippet>769</a>
+<a href=#770 id=770 data-nosnippet>770</a>        <span class="kw">let </span>exec = SimpleExecutor::with_context(node_did.clone(), sk, ctx);
+<a href=#771 id=771 data-nosnippet>771</a>        <span class="kw">let </span>receipt = exec.execute_job(<span class="kw-2">&amp;</span>job).<span class="kw">await</span>.unwrap();
+<a href=#772 id=772 data-nosnippet>772</a>
+<a href=#773 id=773 data-nosnippet>773</a>        <span class="kw">let </span>expected_bytes = Sha256::digest(manifest_data);
+<a href=#774 id=774 data-nosnippet>774</a>        <span class="kw">let </span>expected_cid = Cid::new_v1_sha256(<span class="number">0x55</span>, <span class="kw-2">&amp;</span>expected_bytes);
+<a href=#775 id=775 data-nosnippet>775</a>
+<a href=#776 id=776 data-nosnippet>776</a>        <span class="macro">assert_eq!</span>(receipt.result_cid, expected_cid);
+<a href=#777 id=777 data-nosnippet>777</a>        <span class="macro">assert_eq!</span>(receipt.executor_did, node_did);
+<a href=#778 id=778 data-nosnippet>778</a>        <span class="macro">assert!</span>(receipt.verify_against_key(<span class="kw-2">&amp;</span>vk).is_ok());
+<a href=#779 id=779 data-nosnippet>779</a>    }
+<a href=#780 id=780 data-nosnippet>780</a>
+<a href=#781 id=781 data-nosnippet>781</a>    <span class="attr">#[test]
+<a href=#782 id=782 data-nosnippet>782</a>    </span><span class="kw">fn </span>test_wasm_security_limits_default() {
+<a href=#783 id=783 data-nosnippet>783</a>        <span class="kw">let </span>limits = WasmSecurityLimits::default();
+<a href=#784 id=784 data-nosnippet>784</a>        <span class="macro">assert_eq!</span>(limits.max_execution_time_secs, <span class="number">30</span>);
+<a href=#785 id=785 data-nosnippet>785</a>        <span class="macro">assert_eq!</span>(limits.max_memory_pages, <span class="number">160</span>);
+<a href=#786 id=786 data-nosnippet>786</a>        <span class="macro">assert_eq!</span>(limits.max_fuel, <span class="number">1_000_000</span>);
+<a href=#787 id=787 data-nosnippet>787</a>    }
+<a href=#788 id=788 data-nosnippet>788</a>
+<a href=#789 id=789 data-nosnippet>789</a>    <span class="attr">#[test]
+<a href=#790 id=790 data-nosnippet>790</a>    </span><span class="kw">fn </span>test_wasm_module_validator_validates_size() {
+<a href=#791 id=791 data-nosnippet>791</a>        <span class="kw">let </span>limits = WasmSecurityLimits::default();
+<a href=#792 id=792 data-nosnippet>792</a>        <span class="kw">let </span>validator = WasmModuleValidator::new(limits);
+<a href=#793 id=793 data-nosnippet>793</a>
+<a href=#794 id=794 data-nosnippet>794</a>        <span class="comment">// Test with oversized module
+<a href=#795 id=795 data-nosnippet>795</a>        </span><span class="kw">let </span>oversized_wasm = <span class="macro">vec!</span>[<span class="number">0u8</span>; <span class="number">51 </span>* <span class="number">1024 </span>* <span class="number">1024</span>]; <span class="comment">// 51MB
+<a href=#796 id=796 data-nosnippet>796</a>        </span><span class="macro">assert!</span>(validator.validate(<span class="kw-2">&amp;</span>oversized_wasm).is_err());
+<a href=#797 id=797 data-nosnippet>797</a>    }
+<a href=#798 id=798 data-nosnippet>798</a>}</code></pre></div></section></main></body></html>

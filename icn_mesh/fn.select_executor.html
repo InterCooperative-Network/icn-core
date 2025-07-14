@@ -6,7 +6,7 @@
     reputation_store: &amp;dyn ReputationStore,
     mana_ledger: &amp;dyn ManaLedger,
     latency_store: &amp;dyn <a class="trait" href="trait.LatencyStore.html" title="trait icn_mesh::LatencyStore">LatencyStore</a>,
-) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.88.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;Did&gt;</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Selects the best executor from a list of bids.</p>
+) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.88.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="struct" href="../icn_common/struct.Did.html" title="struct icn_common::Did">Did</a>&gt;</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Selects the best executor from a list of bids.</p>
 <p>Each bid is scored via <a href="fn.score_bid.html" title="fn icn_mesh::score_bid"><code>score_bid</code></a> using the provided <a href="struct.SelectionPolicy.html" title="struct icn_mesh::SelectionPolicy"><code>SelectionPolicy</code></a>.
 Bids from executors that lack sufficient mana are ignored. The executor with
 the highest resulting score is returned.</p>
