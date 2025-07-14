@@ -8,12 +8,16 @@ use ark_std::rand::{CryptoRng, RngCore};
 use rayon::prelude::*;
 
 mod circuits;
+#[cfg(feature = "devtools")]
+mod devtools;
 mod params;
 
 pub use circuits::{
-    AgeOver18Circuit, AgeRepMembershipCircuit, BalanceRangeCircuit, MembershipCircuit,
-    MembershipProofCircuit, ReputationCircuit, TimestampValidityCircuit, CircuitCost,
+    AgeOver18Circuit, AgeRepMembershipCircuit, BalanceRangeCircuit, CircuitCost, MembershipCircuit,
+    MembershipProofCircuit, ReputationCircuit, TimestampValidityCircuit,
 };
+#[cfg(feature = "devtools")]
+pub use devtools::{count_constraints, log_constraints};
 pub use params::{CircuitParameters, CircuitParametersStorage, MemoryParametersStorage};
 
 /// Reputation thresholds required to prove or verify each circuit type.
@@ -87,5 +91,7 @@ pub fn verify_batch<'a>(
         .map(|results| results.into_iter().all(|r| r))
 }
 
+#[cfg(all(test, feature = "devtools"))]
+mod devtools_tests;
 #[cfg(test)]
 mod tests;
