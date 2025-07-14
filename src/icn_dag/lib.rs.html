@@ -584,12 +584,12 @@
 <a href=#584 id=584 data-nosnippet>584</a>                <span class="kw">let </span>entry =
 <a href=#585 id=585 data-nosnippet>585</a>                    entry.map_err(|e| CommonError::IoError(<span class="macro">format!</span>(<span class="string">"Dir entry error: {}"</span>, e)))<span class="question-mark">?</span>;
 <a href=#586 id=586 data-nosnippet>586</a>                <span class="kw">let </span>path = entry.path();
-<a href=#587 id=587 data-nosnippet>587</a>                
+<a href=#587 id=587 data-nosnippet>587</a>
 <a href=#588 id=588 data-nosnippet>588</a>                <span class="comment">// Skip the dag.root file
 <a href=#589 id=589 data-nosnippet>589</a>                </span><span class="kw">if </span>path.file_name() == <span class="prelude-val">Some</span>(std::ffi::OsStr::new(<span class="string">"dag.root"</span>)) {
 <a href=#590 id=590 data-nosnippet>590</a>                    <span class="kw">continue</span>;
 <a href=#591 id=591 data-nosnippet>591</a>                }
-<a href=#592 id=592 data-nosnippet>592</a>                
+<a href=#592 id=592 data-nosnippet>592</a>
 <a href=#593 id=593 data-nosnippet>593</a>                <span class="kw">if </span>entry
 <a href=#594 id=594 data-nosnippet>594</a>                    .file_type()
 <a href=#595 id=595 data-nosnippet>595</a>                    .map_err(|e| {
