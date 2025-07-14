@@ -492,6 +492,54 @@ impl RuntimeContext {
         Self::new_testing(current_identity, Some(initial_mana))
     }
 
+    /// Create a RuntimeContext configured for production deployments.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_for_production(
+        current_identity: Did,
+        network_service: Arc<dyn icn_network::NetworkService>,
+        signer: Arc<dyn Signer>,
+        did_resolver: Arc<dyn icn_identity::DidResolver>,
+        dag_store: Arc<DagStoreMutexType<DagStorageService>>,
+        mana_ledger: SimpleManaLedger,
+        reputation_store: Arc<dyn icn_reputation::ReputationStore>,
+        policy_enforcer: Option<Arc<dyn icn_governance::scoped_policy::ScopedPolicyEnforcer>>,
+    ) -> Result<Arc<Self>, CommonError> {
+        Self::new(
+            current_identity,
+            network_service,
+            signer,
+            did_resolver,
+            dag_store,
+            mana_ledger,
+            reputation_store,
+            policy_enforcer,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_for_development(
+        current_identity: Did,
+        signer: Arc<dyn Signer>,
+        mana_ledger: SimpleManaLedger,
+        network_service: Option<Arc<dyn icn_network::NetworkService>>,
+        dag_store: Option<Arc<DagStoreMutexType<DagStorageService>>>,
+    ) -> Result<Arc<Self>, CommonError> {
+        Self::new_development(
+            current_identity,
+            signer,
+            mana_ledger,
+            network_service,
+            dag_store,
+        )
+    }
+
+    pub fn new_for_testing(
+        current_identity: Did,
+        initial_mana: Option<u64>,
+    ) -> Result<Arc<Self>, CommonError> {
+        Self::new_testing(current_identity, initial_mana)
+    }
+
     /// Create a new context with ledger path (convenience method for tests).
     ///
     /// **⚠️ DEPRECATED**: This method uses stub services and should not be used in production.

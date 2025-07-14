@@ -667,7 +667,7 @@ pub async fn app_router_with_options(
         #[cfg(feature = "enable-libp2p")]
         {
             // For production/development with real networking
-            RuntimeContext::new_development(
+            RuntimeContext::new_for_development(
                 node_did.clone(),
                 _signer.clone(),
                 mana_ledger,
@@ -679,7 +679,7 @@ pub async fn app_router_with_options(
         #[cfg(not(feature = "enable-libp2p"))]
         {
             // For testing without networking - use stub services
-            RuntimeContext::new_testing(node_did.clone(), Some(1000))
+            RuntimeContext::new_for_testing(node_did.clone(), Some(1000))
                 .expect("Failed to create testing RuntimeContext")
         }
     };
@@ -1182,10 +1182,10 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
 
     #[cfg_attr(not(feature = "persist-sled"), allow(unused_mut))]
     let mut rt_ctx = if config.test_mode {
-        RuntimeContext::new_testing(node_did.clone(), Some(1000))
+        RuntimeContext::new_for_testing(node_did.clone(), Some(1000))
             .expect("Failed to create RuntimeContext for testing")
     } else {
-        RuntimeContext::new(
+        RuntimeContext::new_for_production(
             node_did.clone(),
             network_service,
             signer.clone(),
