@@ -8,7 +8,10 @@ use ark_std::rand::{CryptoRng, RngCore};
 use rayon::prelude::*;
 
 mod circuits;
+#[cfg(feature = "devtools")]
 pub mod devtools;
+#[cfg(feature = "devtools")]
+pub use devtools::{count_constraints, log_constraints};
 mod params;
 
 pub use circuits::{
@@ -106,5 +109,7 @@ pub fn verify_batch<'a>(
         .map(|results| results.into_iter().all(|r| r))
 }
 
+#[cfg(all(test, feature = "devtools"))]
+mod devtools_tests;
 #[cfg(test)]
 mod tests;
