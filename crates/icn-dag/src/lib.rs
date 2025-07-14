@@ -23,8 +23,10 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 /// Helper crate for encoding/decoding root hashes
 pub mod index;
 pub mod metrics;
+pub mod mutual_aid;
 #[cfg(feature = "persist-postgres")]
 pub mod postgres_store;
+pub mod recognition;
 #[cfg(feature = "persist-rocksdb")]
 pub mod rocksdb_store;
 #[cfg(feature = "persist-sled")]

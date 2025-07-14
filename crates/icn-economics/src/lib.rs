@@ -12,10 +12,11 @@ use icn_common::{
 use icn_dag::StorageService;
 use log::{debug, info};
 use serde::{Deserialize, Serialize};
+pub mod explorer;
 pub mod ledger;
 pub mod metrics;
-pub mod explorer;
-pub use explorer::{LedgerExplorer, FlowStats};
+pub mod mutual_aid;
+pub use explorer::{FlowStats, LedgerExplorer};
 pub use ledger::FileManaLedger;
 #[cfg(feature = "persist-rocksdb")]
 pub use ledger::RocksdbManaLedger;
@@ -23,6 +24,7 @@ pub use ledger::RocksdbManaLedger;
 pub use ledger::SledManaLedger;
 #[cfg(feature = "persist-sqlite")]
 pub use ledger::SqliteManaLedger;
+pub use mutual_aid::{grant_mutual_aid, use_mutual_aid, MUTUAL_AID_CLASS};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum LedgerEvent {
