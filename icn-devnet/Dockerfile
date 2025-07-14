@@ -44,7 +44,7 @@ ENV CFLAGS="-O1"
 ENV CXXFLAGS="-O1"
 
 # Build with increased stack size and memory limits
-RUN bash -c "cargo build --release -p icn-node --features with-libp2p"
+RUN bash -c "cargo build -p icn-node --features with-libp2p"
 
 # Runtime stage
 FROM debian:bookworm-slim
@@ -60,7 +60,7 @@ RUN useradd -r -s /bin/false -d /app icn
 RUN mkdir -p /app/data && chown icn:icn /app/data
 
 # Copy binary from builder stage
-COPY --from=builder /app/target/release/icn-node /usr/local/bin/icn-node
+COPY --from=builder /app/target/debug/icn-node /usr/local/bin/icn-node
 
 # Copy entrypoint script
 COPY icn-devnet/entrypoint.sh /usr/local/bin/entrypoint.sh
