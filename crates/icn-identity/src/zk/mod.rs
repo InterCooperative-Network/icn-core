@@ -12,6 +12,7 @@ use thiserror::Error;
 
 pub mod key_manager;
 pub use key_manager::Groth16KeyManager;
+pub mod proof_cache;
 pub mod vk_cache;
 
 /// Errors that can occur when verifying zero-knowledge proofs.
@@ -495,7 +496,7 @@ impl Groth16Verifier {
     /// verifier's defaults.
     pub fn verify_proof(&self, proof: &ZkCredentialProof) -> Result<bool, ZkError> {
         use ark_groth16::{Groth16, Proof};
-        use ark_serialize::CanonicalDeserialize;
+        use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 
         if proof.backend != ZkProofType::Groth16 {
             return Err(ZkError::UnsupportedBackend(proof.backend.clone()));
@@ -514,15 +515,25 @@ impl Groth16Verifier {
             None => self.public_inputs.clone(),
         };
 
-        // Fetch or prepare verifying key
-        let pvk = if let Some(vk_bytes) = &proof.verification_key {
-            vk_cache::PreparedVkCache::get_or_insert(vk_bytes)?
+        // Fetch or prepare verifying key and collect bytes for cache key
+        let (pvk, vk_bytes) = if let Some(vk_bytes) = &proof.verification_key {
+            (
+                vk_cache::PreparedVkCache::get_or_insert(vk_bytes)?,
+                vk_bytes.clone(),
+            )
         } else {
-            self.vk.clone()
+            let pvk = self.vk.clone();
+            let mut bytes = Vec::new();
+            pvk.vk
+                .serialize_compressed(&mut bytes)
+                .map_err(|_| ZkError::InvalidProof)?;
+            (pvk, bytes)
         };
 
-        Groth16::<ark_bn254::Bn254>::verify_proof(&pvk, &groth_proof, &inputs)
-            .map_err(|_| ZkError::VerificationFailed)
+        proof_cache::ProofCache::get_or_insert(&proof.proof, &vk_bytes, &inputs, || {
+            Groth16::<ark_bn254::Bn254>::verify_proof(&pvk, &groth_proof, &inputs)
+                .map_err(|_| ZkError::VerificationFailed)
+        })
     }
 }
 
@@ -875,6 +886,52 @@ mod tests {
         assert!(verifier.verify_proof(&proof).unwrap());
         let cache_len2 = vk_cache::PreparedVkCache::len();
         assert_eq!(cache_len2, 1);
+    }
+
+    #[test]
+    fn proof_result_cache_hit() {
+        use ark_serialize::CanonicalSerialize;
+        use ark_std::rand::{rngs::StdRng, SeedableRng};
+        use icn_zk::{prepare_vk, prove, setup, AgeOver18Circuit};
+
+        let mut rng = StdRng::seed_from_u64(42);
+        let circuit = AgeOver18Circuit {
+            birth_year: 2000,
+            current_year: 2020,
+        };
+        let pk = setup(circuit.clone(), &mut rng).unwrap();
+        let proof_obj = prove(&pk, circuit, &mut rng).unwrap();
+        let mut proof_bytes = Vec::new();
+        proof_obj.serialize_compressed(&mut proof_bytes).unwrap();
+        let mut vk_bytes = Vec::new();
+        pk.vk.serialize_compressed(&mut vk_bytes).unwrap();
+
+        let verifier = Groth16Verifier::new(
+            prepare_vk(&pk),
+            vec![ark_bn254::Fr::from(2020u64)],
+            std::sync::Arc::new(icn_reputation::InMemoryReputationStore::new()),
+            icn_zk::ReputationThresholds::default(),
+        );
+        let proof = ZkCredentialProof {
+            issuer: Did::new("key", "issuer"),
+            holder: Did::new("key", "holder"),
+            claim_type: "age_over_18".into(),
+            proof: proof_bytes.clone(),
+            schema: dummy_cid("schema"),
+            vk_cid: None,
+            disclosed_fields: Vec::new(),
+            challenge: None,
+            backend: ZkProofType::Groth16,
+            verification_key: Some(vk_bytes.clone()),
+            public_inputs: Some(serde_json::json!([2020])),
+        };
+
+        assert!(verifier.verify_proof(&proof).unwrap());
+        let len1 = proof_cache::ProofCache::len();
+        assert_eq!(len1, 1);
+        assert!(verifier.verify_proof(&proof).unwrap());
+        let len2 = proof_cache::ProofCache::len();
+        assert_eq!(len2, 1);
     }
 
     #[test]
