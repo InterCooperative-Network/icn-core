@@ -9,12 +9,22 @@ This guide covers how zero-knowledge circuits are managed in the InterCooperativ
 - Nodes consult the registry when verifying credential proofs so that the correct versioned parameters are used.
 - Circuits may be bundled with the node or registered dynamically through the HTTP API.
 
+The in-memory registry implementation lives in
+[`icn-node/src/circuit_registry.rs`](../crates/icn-node/src/circuit_registry.rs).
+Request and response types for the HTTP API are defined in
+[`icn-api::circuits`](../crates/icn-api/src/circuits.rs).
+
 ## Versioning Rules and Compatibility
 
 - Minor version bumps must remain backward compatible with proving keys generated for earlier minor versions.
 - Breaking changes require a new major version. Older versions remain in the registry for verifiers that still rely on them.
 - Proofs include a circuit slug and version so verifiers can select the appropriate parameters.
 - Patch versions are reserved for non-breaking metadata updates or key rotations.
+
+Version numbers follow semantic versioning:
+- **Major** – incompatible constraint changes or proving key formats.
+- **Minor** – backward compatible additions; existing proofs continue to verify.
+- **Patch** – metadata updates or verifying key re-signing.
 
 ## Registering Circuits via the API
 
@@ -25,6 +35,10 @@ The registry is manipulated through the `/circuits` endpoints.
 - `POST /circuits/register` – upload a new circuit version and its parameters
 - `GET  /circuits/{slug}` – list all versions for a circuit slug
 - `GET  /circuits/{slug}/{version}` – fetch parameters and metadata for a specific version
+
+Rust structs for these endpoints live in
+[`icn-api::circuits`](../crates/icn-api/src/circuits.rs):
+`RegisterCircuitRequest`, `CircuitResponse`, and `CircuitVersionsResponse`.
 
 ### Register a Circuit
 
@@ -42,7 +56,8 @@ The node stores the parameters and returns a content identifier (CID) for later 
 
 ## Proving Key and Parameter Storage
 
-`Groth16KeyManager` persists parameters under `~/.icn/zk/<circuit>/`:
+[`Groth16KeyManager`](../crates/icn-identity/src/zk/key_manager.rs) persists
+parameters under `~/.icn/zk/<circuit>/`:
 
 - `proving_key.bin` – compressed Groth16 proving key
 - `verifying_key.bin` – verifying key bytes
@@ -97,5 +112,8 @@ client.register_circuit(&req).await?;
 
 let info = client.circuit_info("age_over_18", "1.0.0").await?;
 println!("registered by {}", info.uploader);
+
+let versions = client.circuit_versions("age_over_18").await?;
+println!("known versions: {:?}", versions.versions);
 ```
 
