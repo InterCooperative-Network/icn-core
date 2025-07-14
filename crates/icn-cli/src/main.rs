@@ -153,6 +153,11 @@ enum Commands {
         #[clap(subcommand)]
         command: WizardCommands,
     },
+    /// Emergency response coordination
+    Emergency {
+        #[clap(subcommand)]
+        command: EmergencyCommands,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -309,6 +314,17 @@ enum WizardCommands {
     Cooperative {
         #[clap(long, help = "Output directory", required = false)]
         output: Option<String>,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum EmergencyCommands {
+    /// List available mutual aid resources
+    List,
+    /// Request aid for a specific resource ID
+    Request {
+        #[clap(help = "Resource identifier")]
+        id: String,
     },
 }
 
@@ -503,6 +519,10 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
         },
         Commands::Wizard { command } => match command {
             WizardCommands::Cooperative { output } => handle_wizard_cooperative(output.clone())?,
+        },
+        Commands::Emergency { command } => match command {
+            EmergencyCommands::List => handle_emergency_list(cli, client).await?,
+            EmergencyCommands::Request { id } => handle_emergency_request(cli, client, id).await?,
         },
     }
     Ok(())
@@ -1282,6 +1302,28 @@ fn handle_wizard_cooperative(output: Option<String>) -> Result<(), anyhow::Error
     let path = std::path::Path::new(&dir).join(&file_name);
     std::fs::write(&path, template)?;
     println!("Template written to {}", path.display());
+    Ok(())
+}
+
+async fn handle_emergency_list(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
+    let data: serde_json::Value = get_request(&cli.api_url, client, "/aid/resources").await?;
+    println!("{}", serde_json::to_string_pretty(&data)?);
+    Ok(())
+}
+
+#[derive(Serialize)]
+struct AidReq<'a> {
+    id: &'a str,
+}
+
+async fn handle_emergency_request(
+    cli: &Cli,
+    client: &Client,
+    id: &str,
+) -> Result<(), anyhow::Error> {
+    let req = AidReq { id };
+    let resp: serde_json::Value = post_request(&cli.api_url, client, "/aid/request", &req).await?;
+    println!("{}", serde_json::to_string_pretty(&resp)?);
     Ok(())
 }
 

@@ -12,8 +12,10 @@ use icn_common::{
 use icn_dag::StorageService;
 use log::{debug, info};
 use serde::{Deserialize, Serialize};
+pub mod bounty;
 pub mod ledger;
 pub mod metrics;
+pub mod mutual_aid;
 pub use ledger::FileManaLedger;
 #[cfg(feature = "persist-rocksdb")]
 pub use ledger::RocksdbManaLedger;
@@ -21,6 +23,7 @@ pub use ledger::RocksdbManaLedger;
 pub use ledger::SledManaLedger;
 #[cfg(feature = "persist-sqlite")]
 pub use ledger::SqliteManaLedger;
+pub use mutual_aid::{MutualAidManager, MutualAidToken};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum LedgerEvent {
@@ -460,6 +463,30 @@ pub fn transfer_tokens<L: ResourceLedger, M: ManaLedger>(
 ) -> Result<(), CommonError> {
     charge_mana(mana_ledger, issuer, TOKEN_FEE)?;
     repo.transfer(issuer, class_id, amount, from, to, scope)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn mint_tokens_with_reputation<L: ResourceLedger, M: ManaLedger>(
+    repo: &ResourceRepositoryAdapter<L>,
+    mana_ledger: &M,
+    reputation_store: &dyn icn_reputation::ReputationStore,
+    issuer: &Did,
+    class_id: &str,
+    amount: u64,
+    recipient: &Did,
+    scope: Option<NodeScope>,
+) -> Result<(), CommonError> {
+    let rep = reputation_store.get_reputation(recipient);
+    let adjusted = amount.saturating_add(rep);
+    mint_tokens(
+        repo,
+        mana_ledger,
+        issuer,
+        class_id,
+        adjusted,
+        recipient,
+        scope,
+    )
 }
 
 /// Credits mana to all known accounts using their reputation scores.

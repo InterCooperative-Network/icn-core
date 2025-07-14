@@ -169,6 +169,27 @@ impl Default for JobSpec {
     }
 }
 
+/// Reusable mesh job template.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct JobTemplate {
+    /// Human readable template name.
+    pub name: String,
+    /// Canonical job specification this template represents.
+    pub spec: JobSpec,
+}
+
+/// Find a matching template for a given job specification.
+pub fn match_job_template<'a>(
+    spec: &JobSpec,
+    templates: &'a [JobTemplate],
+) -> Option<&'a JobTemplate> {
+    templates.iter().find(|t| {
+        t.spec.kind == spec.kind
+            && t.spec.required_resources.cpu_cores >= spec.required_resources.cpu_cores
+            && t.spec.required_resources.memory_mb >= spec.required_resources.memory_mb
+    })
+}
+
 /// Represents a bid submitted by an executor node for a specific mesh job.
 #[derive(Debug, Clone, Serialize, Deserialize)] // Added Serialize, Deserialize
 pub struct MeshJobBid {
@@ -1109,7 +1130,7 @@ mod tests {
         };
 
         let policy = SelectionPolicy {
-            weight_price: 10.0,
+            weight_price: 100.0,
             weight_reputation: 1.0,
             weight_resources: 1.0,
             weight_latency: 1.0,
