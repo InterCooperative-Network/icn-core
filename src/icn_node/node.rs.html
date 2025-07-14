@@ -1303,8 +1303,8 @@
 <a href=#1303 id=1303 data-nosnippet>1303</a>        .route(<span class="string">"/mesh/receipt"</span>, post(mesh_submit_receipt_handler))
 <a href=#1304 id=1304 data-nosnippet>1304</a>        .route(<span class="string">"/contracts"</span>, post(contracts_post_handler))
 <a href=#1305 id=1305 data-nosnippet>1305</a>        .route(<span class="string">"/circuits/register"</span>, post(circuit_register_handler))
-<a href=#1306 id=1306 data-nosnippet>1306</a>        .route(<span class="string">"/circuits/:slug/:version"</span>, get(circuit_get_handler))
-<a href=#1307 id=1307 data-nosnippet>1307</a>        .route(<span class="string">"/circuits/:slug"</span>, get(circuit_versions_handler))
+<a href=#1306 id=1306 data-nosnippet>1306</a>        .route(<span class="string">"/circuits/{slug}/{version}"</span>, get(circuit_get_handler))
+<a href=#1307 id=1307 data-nosnippet>1307</a>        .route(<span class="string">"/circuits/{slug}"</span>, get(circuit_versions_handler))
 <a href=#1308 id=1308 data-nosnippet>1308</a>        .route(<span class="string">"/federation/peers"</span>, get(federation_list_peers_handler))
 <a href=#1309 id=1309 data-nosnippet>1309</a>        .route(<span class="string">"/federation/peers"</span>, post(federation_add_peer_handler))
 <a href=#1310 id=1310 data-nosnippet>1310</a>        .route(<span class="string">"/federation/join"</span>, post(federation_join_handler))
@@ -3022,7 +3022,7 @@
 <a href=#3022 id=3022 data-nosnippet>3022</a>) -&gt; <span class="kw">impl </span>IntoResponse {
 <a href=#3023 id=3023 data-nosnippet>3023</a>    <span class="kw">use </span>std::collections::HashMap;
 <a href=#3024 id=3024 data-nosnippet>3024</a>
-<a href=#3025 id=3025 data-nosnippet>3025</a>    <span class="kw">let </span><span class="kw-2">mut </span>claims: HashMap&lt;String, String&gt; = req.attributes.into_iter().collect();
+<a href=#3025 id=3025 data-nosnippet>3025</a>    <span class="kw">let </span>claims: HashMap&lt;String, String&gt; = req.attributes.into_iter().collect();
 <a href=#3026 id=3026 data-nosnippet>3026</a>    <span class="kw">let </span><span class="kw-2">mut </span>cred = Credential::new(
 <a href=#3027 id=3027 data-nosnippet>3027</a>        req.issuer.clone(),
 <a href=#3028 id=3028 data-nosnippet>3028</a>        req.holder,
