@@ -816,7 +816,10 @@ impl RuntimeContext {
         let ctx = Arc::clone(self);
         let job_id_for_task = job_id.clone();
         tokio::spawn(async move {
-            log::info!("[handle_submit_job] Spawning lifecycle management task for job: {}", job_id_for_task);
+            log::info!(
+                "[handle_submit_job] Spawning lifecycle management task for job: {}",
+                job_id_for_task
+            );
             if let Err(e) = ctx.manage_job_lifecycle(job_id_for_task).await {
                 log::error!("[handle_submit_job] Job lifecycle management failed: {}", e);
             } else {
@@ -998,7 +1001,10 @@ impl RuntimeContext {
         );
 
         // 0. Check if this is a CCL WASM job that should auto-execute
-        log::debug!("[manage_job_lifecycle] Retrieving job status for: {}", job_id);
+        log::debug!(
+            "[manage_job_lifecycle] Retrieving job status for: {}",
+            job_id
+        );
         match self.get_job_status(&job_id).await {
             Ok(Some(_lifecycle)) => {
                 log::debug!(
@@ -1021,7 +1027,7 @@ impl RuntimeContext {
                 return Err(e);
             }
         }
-        
+
         if let Ok(Some(lifecycle)) = self.get_job_status(&job_id).await {
             let job_spec = lifecycle.job.decode_spec().map_err(|e| {
                 HostAbiError::DagOperationFailed(format!("Failed to decode job spec: {}", e))
@@ -1051,10 +1057,8 @@ impl RuntimeContext {
                             "[manage_job_lifecycle] CCL WASM job {} completed successfully",
                             job_id
                         );
-                        self.job_states.insert(
-                            job_id.clone(),
-                            JobState::Completed { receipt },
-                        );
+                        self.job_states
+                            .insert(job_id.clone(), JobState::Completed { receipt });
                         return Ok(());
                     }
                     Err(e) => {
@@ -1574,14 +1578,10 @@ impl RuntimeContext {
             return Err(HostAbiError::InvalidParameters("Job not found".to_string()));
         }
 
-        // 2. Verify the receipt signature
-        // Note: In a full implementation, we would resolve the executor's verifying key
-        // and verify the signature. For now, we just check that a signature exists.
-        if receipt.sig.0.is_empty() {
-            return Err(HostAbiError::PermissionDenied(
-                "Receipt signature is required".to_string(),
-            ));
-        }
+        // 2. Verify the receipt signature against the executor's DID
+        receipt
+            .verify_with_resolver(&*self.did_resolver)
+            .map_err(|e| HostAbiError::SignatureError(format!("{e}")))?;
 
         // Create a DAG block for the receipt
         let receipt_bytes = bincode::serialize(receipt).map_err(|e| {
