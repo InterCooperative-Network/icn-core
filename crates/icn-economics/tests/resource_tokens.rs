@@ -1,7 +1,7 @@
 use icn_common::{Did, NodeScope};
 use icn_economics::{
-    burn_tokens, mint_tokens, transfer_tokens, ManaLedger, ResourceLedger,
-    ResourceRepositoryAdapter,
+    burn_tokens, grant_mutual_aid, mint_tokens, transfer_tokens, use_mutual_aid, ManaLedger,
+    ResourceLedger, ResourceRepositoryAdapter, MUTUAL_AID_CLASS,
 };
 use icn_runtime::context::StubDagStore;
 use std::collections::HashMap;
@@ -127,4 +127,23 @@ fn mint_transfer_burn_flow() {
 
     burn_tokens(&repo, &mana, &issuer, "token", 2, &other, Some(scope)).unwrap();
     assert_eq!(repo.ledger().get_balance(&other, "token"), 1);
+}
+
+#[test]
+fn mutual_aid_flow() {
+    let mana = InMemoryManaLedger::default();
+    mana.set_balance(&Did::from_str("did:example:issuer").unwrap(), 10)
+        .unwrap();
+    let ledger = InMemoryResourceLedger::default();
+    let mut repo = ResourceRepositoryAdapter::with_dag_store(ledger, Box::new(StubDagStore::new()));
+    let scope = NodeScope("aid".into());
+    let issuer = Did::from_str("did:example:issuer").unwrap();
+    repo.add_issuer(scope.clone(), issuer.clone());
+    let recipient = Did::from_str("did:example:bob").unwrap();
+
+    grant_mutual_aid(&repo, &mana, &issuer, &recipient, 4, Some(scope.clone())).unwrap();
+    assert_eq!(repo.ledger().get_balance(&recipient, MUTUAL_AID_CLASS), 4);
+
+    use_mutual_aid(&repo, &mana, &issuer, &recipient, 2, Some(scope)).unwrap();
+    assert_eq!(repo.ledger().get_balance(&recipient, MUTUAL_AID_CLASS), 2);
 }

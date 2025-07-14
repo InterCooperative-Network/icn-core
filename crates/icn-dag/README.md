@@ -93,6 +93,12 @@ the following deterministic rules when reconciling forks:
 Nodes exchange `DagSyncStatus` information to detect divergence and converge on
 a single history without complex reorganization.
 
+## Mutual Aid Resource Registry
+
+`AidResource` structs can be stored as DAG blocks to advertise resources
+available for community sharing. Each record includes a provider DID, quantity,
+description, and classification tags to support matching.
+
 ## Contributing
 
 Contributions are welcome! Please see the main [CONTRIBUTING.md](../../CONTRIBUTING.md) in the root of the `icn-core` repository for guidelines.

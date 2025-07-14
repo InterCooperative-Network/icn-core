@@ -155,6 +155,11 @@ enum Commands {
         #[clap(subcommand)]
         command: FederationCommands,
     },
+    /// Emergency response coordination
+    Emergency {
+        #[clap(subcommand)]
+        command: EmergencyCommands,
+    },
     /// Interactive cooperative formation wizard
     Wizard {
         #[clap(subcommand)]
@@ -327,6 +332,17 @@ enum WizardCommands {
     Setup {
         #[clap(long, help = "Output config file", default_value = "node_config.toml")]
         config: String,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum EmergencyCommands {
+    /// List open aid requests
+    List,
+    /// Submit a new aid request
+    Request {
+        #[clap(help = "Aid request JSON or '-' for stdin")]
+        request_json_or_stdin: String,
     },
 }
 
@@ -526,6 +542,12 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
             FederationCommands::ListPeers => handle_fed_list_peers(cli, client).await?,
             FederationCommands::Status => handle_fed_status(cli, client).await?,
             FederationCommands::Sync => handle_fed_sync(cli, client).await?,
+        },
+        Commands::Emergency { command } => match command {
+            EmergencyCommands::List => handle_emergency_list(cli, client).await?,
+            EmergencyCommands::Request {
+                request_json_or_stdin,
+            } => handle_emergency_request(cli, client, request_json_or_stdin).await?,
         },
         Commands::Wizard { command } => match command {
             WizardCommands::Cooperative { output } => handle_wizard_cooperative(output.clone())?,
@@ -1385,6 +1407,32 @@ async fn handle_monitor_uptime(cli: &Cli, client: &Client) -> Result<(), anyhow:
         .and_then(|s| s.sample.value.as_f64())
         .unwrap_or(0.0);
     println!("Uptime: {} seconds", uptime);
+    Ok(())
+}
+
+async fn handle_emergency_list(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
+    let v: serde_json::Value = get_request(&cli.api_url, client, "/emergency/requests").await?;
+    println!("{}", serde_json::to_string_pretty(&v)?);
+    Ok(())
+}
+
+async fn handle_emergency_request(
+    cli: &Cli,
+    client: &Client,
+    request_json_or_stdin: &str,
+) -> Result<(), anyhow::Error> {
+    let content = if request_json_or_stdin == "-" {
+        let mut buf = String::new();
+        std::io::stdin().read_to_string(&mut buf)?;
+        buf
+    } else {
+        request_json_or_stdin.to_string()
+    };
+    let body: serde_json::Value = serde_json::from_str(&content)
+        .map_err(|e| anyhow::anyhow!("Invalid aid request JSON: {}", e))?;
+    let _: serde_json::Value =
+        post_request(&cli.api_url, client, "/emergency/request", &body).await?;
+    println!("Aid request submitted");
     Ok(())
 }
 
