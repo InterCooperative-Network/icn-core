@@ -3,7 +3,10 @@
 use super::errors::HostAbiError;
 use super::mesh_network::{JobAssignmentNotice, LocalMeshSubmitReceiptMessage, MeshNetworkService};
 use icn_common::{Cid, CommonError, DagBlock, Did};
-use icn_identity::ExecutionReceipt as IdentityExecutionReceipt;
+use icn_identity::{
+    verifying_key_from_did_key,
+    ExecutionReceipt as IdentityExecutionReceipt,
+};
 use icn_mesh::{ActualMeshJob, JobId, MeshJobBid};
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
@@ -308,9 +311,23 @@ impl MeshNetworkService for StubMeshNetworkService {
         if let Some(bids) = staged_bids.get_mut(job_id) {
             let mut collected_bids = Vec::new();
             while let Some(bid) = bids.pop_front() {
-                collected_bids.push(bid);
+                match verifying_key_from_did_key(&bid.executor_did) {
+                    Ok(vk) if bid.verify_signature(&vk).is_ok() => {
+                        collected_bids.push(bid);
+                    }
+                    _ => {
+                        log::warn!(
+                            "[StubMeshNetwork] Rejected bid from {} for job {:?}: invalid signature",
+                            bid.executor_did, job_id
+                        );
+                    }
+                }
             }
-            log::info!("[StubMeshNetwork] Collected {} bids for job {:?}", collected_bids.len(), job_id);
+            log::info!(
+                "[StubMeshNetwork] Collected {} bids for job {:?}",
+                collected_bids.len(),
+                job_id
+            );
             Ok(collected_bids)
         } else {
             log::info!("[StubMeshNetwork] No bids found for job {:?}", job_id);
