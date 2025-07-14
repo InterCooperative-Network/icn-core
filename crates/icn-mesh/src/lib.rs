@@ -45,6 +45,9 @@ pub struct Resources {
     pub cpu_cores: u32,
     /// Amount of memory in megabytes available for the job.
     pub memory_mb: u32,
+    /// Amount of storage in megabytes required or offered for the job.
+    #[serde(default)]
+    pub storage_mb: u32,
 }
 
 /// Represents a job submitted to the ICN mesh computing network.
@@ -193,6 +196,7 @@ impl MeshJobBid {
         bytes.extend_from_slice(&self.price_mana.to_le_bytes());
         bytes.extend_from_slice(&self.resources.cpu_cores.to_le_bytes());
         bytes.extend_from_slice(&self.resources.memory_mb.to_le_bytes());
+        bytes.extend_from_slice(&self.resources.storage_mb.to_le_bytes());
         Ok(bytes)
     }
 

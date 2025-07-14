@@ -41,7 +41,7 @@ async fn test_stub_endpoints_full_lifecycle() {
                 kind: icn_mesh::JobKind::Echo { payload: "testing".into() },
                 inputs: vec![],
                 outputs: vec!["result".into()],
-                required_resources: icn_mesh::Resources { cpu_cores: 1, memory_mb: 128 },
+                required_resources: icn_mesh::Resources { cpu_cores: 1, memory_mb: 128, storage_mb: 0 },
             }).unwrap()),
             "spec_json": null,
             "cost_mana": 10

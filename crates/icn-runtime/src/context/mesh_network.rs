@@ -170,7 +170,7 @@ impl MeshNetworkService for DefaultMeshNetworkService {
             required_resources: icn_protocol::ResourceRequirements {
                 cpu_cores: job.spec.required_resources.cpu_cores,
                 memory_mb: job.spec.required_resources.memory_mb,
-                storage_mb: 0,                // TODO: Add storage to job spec
+                storage_mb: job.spec.required_resources.storage_mb,
                 max_execution_time_secs: 300, // 5 minutes default
             },
         };
@@ -299,6 +299,7 @@ impl MeshNetworkService for DefaultMeshNetworkService {
                                 resources: icn_mesh::Resources {
                                     cpu_cores: bid_message.offered_resources.cpu_cores,
                                     memory_mb: bid_message.offered_resources.memory_mb,
+                                    storage_mb: bid_message.offered_resources.storage_mb,
                                 },
                                 signature: icn_identity::SignatureBytes(vec![]), // TODO: Extract from message signature
                             };
@@ -346,7 +347,7 @@ impl MeshNetworkService for DefaultMeshNetworkService {
             offered_resources: icn_protocol::ResourceRequirements {
                 cpu_cores: bid.resources.cpu_cores,
                 memory_mb: bid.resources.memory_mb,
-                storage_mb: 0,                // TODO: Add storage to Resources
+                storage_mb: bid.resources.storage_mb,
                 max_execution_time_secs: 300, // 5 minutes default
             },
             reputation_score: 100, // TODO: Get actual reputation score

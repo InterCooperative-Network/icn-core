@@ -1,7 +1,7 @@
 use icn_common::Did;
-use icn_identity::{did_key_from_verifying_key, generate_ed25519_keypair, SignatureBytes};
-use icn_mesh::{score_bid, JobSpec, MeshJobBid, Resources, SelectionPolicy, LatencyStore};
 use icn_economics::ManaLedger;
+use icn_identity::{did_key_from_verifying_key, generate_ed25519_keypair, SignatureBytes};
+use icn_mesh::{score_bid, JobSpec, LatencyStore, MeshJobBid, Resources, SelectionPolicy};
 use icn_reputation::InMemoryReputationStore;
 use std::collections::HashMap;
 use std::str::FromStr;
@@ -17,7 +17,9 @@ struct InMemoryLatencyStore {
 
 impl InMemoryLatencyStore {
     fn new() -> Self {
-        Self { latencies: Mutex::new(HashMap::new()) }
+        Self {
+            latencies: Mutex::new(HashMap::new()),
+        }
     }
     fn set_latency(&self, did: Did, latency: u64) {
         self.latencies.lock().unwrap().insert(did, latency);
@@ -32,7 +34,9 @@ impl icn_mesh::LatencyStore for InMemoryLatencyStore {
 
 impl InMemoryLedger {
     fn new() -> Self {
-        Self { balances: Mutex::new(HashMap::new()) }
+        Self {
+            balances: Mutex::new(HashMap::new()),
+        }
     }
 }
 
@@ -46,7 +50,9 @@ impl icn_economics::ManaLedger for InMemoryLedger {
     }
     fn spend(&self, did: &Did, amount: u64) -> Result<(), icn_common::CommonError> {
         let mut map = self.balances.lock().unwrap();
-        let bal = map.get_mut(did).ok_or_else(|| icn_common::CommonError::DatabaseError("account".into()))?;
+        let bal = map
+            .get_mut(did)
+            .ok_or_else(|| icn_common::CommonError::DatabaseError("account".into()))?;
         if *bal < amount {
             return Err(icn_common::CommonError::PolicyDenied("insufficient".into()));
         }
@@ -77,7 +83,11 @@ fn resource_weight_affects_score() {
     ledger.set_balance(&slow, 100).unwrap();
 
     let spec = JobSpec {
-        required_resources: Resources { cpu_cores: 2, memory_mb: 1024 },
+        required_resources: Resources {
+            cpu_cores: 2,
+            memory_mb: 1024,
+            storage_mb: 0,
+        },
         ..JobSpec::default()
     };
 
@@ -85,7 +95,11 @@ fn resource_weight_affects_score() {
         job_id: icn_mesh::JobId(icn_common::Cid::new_v1_sha256(0x55, b"job")),
         executor_did: fast.clone(),
         price_mana: 10,
-        resources: Resources { cpu_cores: 4, memory_mb: 4096 },
+        resources: Resources {
+            cpu_cores: 4,
+            memory_mb: 4096,
+            storage_mb: 0,
+        },
         signature: SignatureBytes(vec![]),
     }
     .sign(&sk_fast)
@@ -95,13 +109,22 @@ fn resource_weight_affects_score() {
         job_id: icn_mesh::JobId(icn_common::Cid::new_v1_sha256(0x55, b"job")),
         executor_did: slow.clone(),
         price_mana: 10,
-        resources: Resources { cpu_cores: 1, memory_mb: 512 },
+        resources: Resources {
+            cpu_cores: 1,
+            memory_mb: 512,
+            storage_mb: 0,
+        },
         signature: SignatureBytes(vec![]),
     }
     .sign(&sk_slow)
     .unwrap();
 
-    let policy = SelectionPolicy { weight_price: 1.0, weight_reputation: 0.0, weight_resources: 10.0, weight_latency: 1.0 };
+    let policy = SelectionPolicy {
+        weight_price: 1.0,
+        weight_reputation: 0.0,
+        weight_resources: 10.0,
+        weight_latency: 1.0,
+    };
     let latency = InMemoryLatencyStore::new();
     latency.set_latency(fast.clone(), 5);
     latency.set_latency(slow.clone(), 50);
