@@ -289,12 +289,25 @@ impl MeshNetworkService for DefaultMeshNetworkService {
                                     cpu_cores: bid_message.offered_resources.cpu_cores,
                                     memory_mb: bid_message.offered_resources.memory_mb,
                                 },
-                                signature: icn_identity::SignatureBytes(vec![]), // TODO: Extract from message signature
+                                signature: bid_message.signature.clone(),
                             };
-                            
-                            // TODO: In a real implementation, we'd verify the bid signature
-                            // For now, we'll accept all properly formatted bids
-                            bids.push(mesh_bid);
+
+                            // Verify the bid signature against the executor DID
+                            if let Ok(vk) = icn_identity::verifying_key_from_did_key(&mesh_bid.executor_did) {
+                                if mesh_bid.verify_signature(&vk).is_ok() {
+                                    bids.push(mesh_bid);
+                                } else {
+                                    log::warn!(
+                                        "[MeshNetwork] Rejected bid from {} for job {:?}: invalid signature",
+                                        mesh_bid.executor_did, job_id
+                                    );
+                                }
+                            } else {
+                                log::warn!(
+                                    "[MeshNetwork] Failed to resolve verifying key for bidder {}",
+                                    mesh_bid.executor_did
+                                );
+                            }
                         }
                     }
                 }
@@ -334,6 +347,7 @@ impl MeshNetworkService for DefaultMeshNetworkService {
                 max_execution_time_secs: 300, // 5 minutes default
             },
             reputation_score: 100, // TODO: Get actual reputation score
+            signature: bid.signature.clone(),
         };
 
         let message = ProtocolMessage {

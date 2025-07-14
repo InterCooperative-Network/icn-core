@@ -150,6 +150,8 @@ pub struct MeshBidSubmissionMessage {
     pub offered_resources: ResourceRequirements,
     /// Executor's current reputation score
     pub reputation_score: u64,
+    /// Signature over the bid fields created by the executor
+    pub signature: SignatureBytes,
 }
 
 /// Notify network of job assignment to selected executor

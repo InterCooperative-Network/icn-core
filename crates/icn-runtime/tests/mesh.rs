@@ -552,6 +552,35 @@ async fn test_job_manager_refunds_on_no_valid_bid() {
     }
 }
 
+#[tokio::test]
+async fn test_collect_bids_rejects_invalid_signature() {
+    use tokio::time::Duration;
+
+    let (submitter_ctx, executor_ctx, _, _) = new_mesh_test_context_with_two_executors();
+    let submitter_did = submitter_ctx.current_identity.clone();
+
+    let (job_json, _cost) = create_test_job_payload_and_cost(&submitter_did, 10);
+    let job_id = host_submit_mesh_job(&submitter_ctx, &job_json)
+        .await
+        .expect("Job submission failed");
+
+    let network = get_stub_network_service(&submitter_ctx);
+    let invalid_bid = MeshJobBid {
+        job_id: job_id.clone(),
+        executor_did: executor_ctx.current_identity.clone(),
+        price_mana: 5,
+        resources: Resources::default(),
+        signature: SignatureBytes(vec![0; 64]),
+    };
+    network.stage_bid(job_id.clone(), invalid_bid).await;
+
+    let bids = network
+        .collect_bids_for_job(&job_id, Duration::from_millis(50))
+        .await
+        .expect("collect bids");
+    assert!(bids.is_empty(), "Invalid bid should be rejected");
+}
+
 /// Creates a set of `RuntimeContext`s representing a submitter and two executors.
 ///
 /// All contexts share a single `StubMeshNetworkService` and DAG store so that
