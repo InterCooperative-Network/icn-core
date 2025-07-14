@@ -152,6 +152,14 @@ avoid redundant deserialization. When a proof includes the `verification_key`
 bytes, the verifier computes its CID and stores the prepared key. Proofs may
 also supply a `vk_cid` pointing to the same key.
 
+Verification results are cached as well. The verifier stores the CID of each
+successfully verified proof so repeated calls skip the expensive check:
+
+```rust
+let first = verifier.verify(&proof).await?;  // full verification
+let second = verifier.verify(&proof).await?; // returned from cache
+```
+
 Example proof payload referencing a cached key:
 
 ```json
@@ -165,6 +173,18 @@ Example proof payload referencing a cached key:
   "vk_cid": "bafyverifykeycid",
   "public_inputs": { "membership": true }
 }
+```
+
+### Batch Proof Generation
+
+`Groth16Prover` now exposes `prove_batch` to create several proofs in a single call. Pass the credential and an array of circuits to receive a vector of `ZkCredentialProof` objects:
+
+```rust
+let circuits = [
+    Groth16Circuit::AgeOver18 { current_year: 2025 },
+    Groth16Circuit::Membership,
+];
+let proofs = prover.prove_batch(&credential, &circuits)?;
 ```
 ## Proof of Revocation
 
