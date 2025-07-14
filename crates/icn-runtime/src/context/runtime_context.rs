@@ -12,8 +12,9 @@ use super::{DagStorageService, DagStoreMutexType};
 use crate::metrics::{JOBS_ACTIVE_GAUGE, JOBS_COMPLETED, JOBS_FAILED, JOBS_SUBMITTED};
 use bincode;
 use dashmap::DashMap;
-use icn_common::{Cid, CommonError, DagBlock, Did};
-use icn_economics::ManaLedger;
+use icn_common::{Cid, CommonError, DagBlock, Did, compute_merkle_cid};
+use icn_economics::{ManaLedger, LedgerEvent};
+use serde_json;
 use icn_governance::GovernanceModule;
 use icn_identity::ExecutionReceipt as IdentityExecutionReceipt;
 use icn_mesh::metrics::{
@@ -1532,14 +1533,56 @@ impl RuntimeContext {
         Ok(self.mana_ledger.get_balance(account))
     }
 
+    async fn record_ledger_event(&self, event: &LedgerEvent) {
+        let data = match serde_json::to_vec(event) {
+            Ok(d) => d,
+            Err(e) => {
+                log::warn!("[record_ledger_event] serialize failed: {e}");
+                return;
+            }
+        };
+        let author = match event {
+            LedgerEvent::Credit { did, .. }
+            | LedgerEvent::Debit { did, .. }
+            | LedgerEvent::SetBalance { did, .. } => did.clone(),
+        };
+        let ts = self.time_provider.unix_seconds();
+        let cid = compute_merkle_cid(0x71, &data, &[], ts, &author, &None, &None);
+        let block = DagBlock {
+            cid,
+            data,
+            links: vec![],
+            timestamp: ts,
+            author_did: author,
+            signature: None,
+            scope: None,
+        };
+        let mut dag = self.dag_store.lock().await;
+        if let Err(e) = dag.put(&block).await {
+            log::warn!("[record_ledger_event] store failed: {e}");
+        }
+    }
+
     /// Spend mana from an account.
     pub async fn spend_mana(&self, account: &Did, amount: u64) -> Result<(), HostAbiError> {
-        self.mana_ledger.spend(account, amount)
+        self.mana_ledger.spend(account, amount)?;
+        self.record_ledger_event(&LedgerEvent::Debit {
+            did: account.clone(),
+            amount,
+        })
+        .await;
+        Ok(())
     }
 
     /// Credit mana to an account.
     pub async fn credit_mana(&self, account: &Did, amount: u64) -> Result<(), HostAbiError> {
-        self.mana_ledger.credit(account, amount)
+        self.mana_ledger.credit(account, amount)?;
+        self.record_ledger_event(&LedgerEvent::Credit {
+            did: account.clone(),
+            amount,
+        })
+        .await;
+        Ok(())
     }
 
     /// Anchor an execution receipt.
