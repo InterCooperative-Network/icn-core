@@ -1,0 +1,15 @@
+// Rotating Stewards Template
+// Demonstrates a simple schedule where stewardship rotates weekly
+
+struct Steward { id: Did, week: Integer }
+
+fn next_steward(current_week: Integer, members: List<Did>) -> Did {
+    let index = current_week % len(members);
+    return members[index];
+}
+
+fn run() -> Did {
+    let members = vec!["did:key:alice", "did:key:bob", "did:key:carol"];
+    let current_week = get_current_week();
+    return next_steward(current_week, members);
+}

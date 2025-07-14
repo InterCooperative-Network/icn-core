@@ -1,0 +1,7 @@
+// Rotating Stewards Template
+fn run() -> Did {
+    let members = vec!["did:key:alice", "did:key:bob", "did:key:carol"];
+    let current_week = get_current_week();
+    let index = current_week % len(members);
+    return members[index];
+}

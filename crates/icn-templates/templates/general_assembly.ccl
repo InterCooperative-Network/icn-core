@@ -1,0 +1,12 @@
+// General Assembly Template
+fn tally(votes: List<Bool>) -> Integer {
+    let mut yes = 0;
+    for v in votes { if v { yes = yes + 1; } }
+    if yes * 2 > len(votes) { return 1; }
+    return 0;
+}
+
+fn run() -> Integer {
+    let votes = vec![true, false, true];
+    return tally(votes);
+}

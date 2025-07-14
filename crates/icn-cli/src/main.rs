@@ -124,6 +124,11 @@ enum Commands {
         #[clap(subcommand)]
         command: ZkCommands,
     },
+    /// Interactive setup wizards
+    Wizard {
+        #[clap(subcommand)]
+        command: WizardCommands,
+    },
     /// Compile a CCL file to WASM and upload to the node
     #[clap(name = "compile-ccl")]
     CompileCcl {
@@ -371,6 +376,13 @@ enum ZkCommands {
     },
 }
 
+#[derive(Subcommand, Debug)]
+enum WizardCommands {
+    /// Bootstrap a new cooperative using built-in templates
+    #[clap(name = "cooperative-formation")]
+    CooperativeFormation,
+}
+
 // --- Main CLI Logic ---
 
 #[tokio::main]
@@ -474,6 +486,9 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
             ZkCommands::GenerateKey => handle_zk_generate_key().await?,
             ZkCommands::Analyze { circuit } => handle_zk_analyze(circuit).await?,
             ZkCommands::Profile { circuit } => handle_zk_profile(circuit).await?,
+        },
+        Commands::Wizard { command } => match command {
+            WizardCommands::CooperativeFormation => handle_wizard_cooperative_formation()?,
         },
         Commands::CompileCcl { file } => handle_compile_ccl_upload(cli, client, file).await?,
         Commands::SubmitJob {
@@ -1233,6 +1248,30 @@ async fn handle_zk_profile(circuit: &str) -> Result<(), anyhow::Error> {
     if !status.success() {
         anyhow::bail!("cargo bench failed");
     }
+    Ok(())
+}
+
+fn handle_wizard_cooperative_formation() -> Result<(), anyhow::Error> {
+    use std::fs;
+    use std::io::{self, Write};
+    println!("Cooperative Formation Wizard");
+    println!("Select a governance template:");
+    println!("1) Rotating Stewards\n2) Council Vote\n3) General Assembly");
+    print!("Choice: ");
+    io::stdout().flush()?;
+    let mut choice = String::new();
+    io::stdin().read_line(&mut choice)?;
+    let template = match choice.trim() {
+        "1" => icn_templates::ROTATING_STEWARDS,
+        "2" => icn_templates::COUNCIL_VOTE,
+        "3" => icn_templates::GENERAL_ASSEMBLY,
+        _ => {
+            println!("Invalid selection");
+            return Ok(());
+        }
+    };
+    fs::write("governance.ccl", template)?;
+    println!("Wrote governance.ccl");
     Ok(())
 }
 
