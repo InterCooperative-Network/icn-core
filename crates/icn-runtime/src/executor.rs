@@ -424,7 +424,6 @@ impl WasmExecutor {
         wasmtime_config.wasm_reference_types(false); // Disable reference types for simplicity
         wasmtime_config.wasm_bulk_memory(false); // Disable bulk memory operations for security
         wasmtime_config.wasm_simd(false); // Disable SIMD for security
-        wasmtime_config.wasm_relaxed_simd(false); // Disable relaxed SIMD for security
 
         let engine = wasmtime::Engine::new(&wasmtime_config).expect("create engine");
         let validator = WasmModuleValidator::new(config.security_limits.clone());
@@ -542,6 +541,16 @@ impl JobExecutor for WasmExecutor {
                 "host_anchor_receipt",
                 move |caller: Caller<'_, Arc<RuntimeContext>>, ptr: u32, len: u32| {
                     crate::wasm_host_anchor_receipt(caller, ptr, len, 0, 0)
+                },
+            )
+            .map_err(|e| CommonError::InternalError(e.to_string()))?;
+
+        linker
+            .func_wrap(
+                "icn",
+                "host_verify_zk_proof",
+                move |caller: Caller<'_, Arc<RuntimeContext>>, ptr: u32, len: u32| {
+                    crate::wasm_host_verify_zk_proof(caller, ptr, len)
                 },
             )
             .map_err(|e| CommonError::InternalError(e.to_string()))?;
