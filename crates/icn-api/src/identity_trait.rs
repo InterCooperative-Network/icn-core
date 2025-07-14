@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use icn_common::ZkCredentialProof;
-use icn_common::{Cid, CommonError, Did};
+use icn_common::{Cid, CommonError, Did, ZkRevocationProof};
 use icn_identity::{Credential as VerifiableCredential, DisclosedCredential};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -87,4 +87,16 @@ pub trait IdentityApi {
         &self,
         req: VerifyProofsRequest,
     ) -> Result<BatchVerificationResponse, CommonError>;
+
+    /// Verify a single credential proof using the runtime's ZK verifier.
+    async fn verify_proof(
+        &self,
+        proof: ZkCredentialProof,
+    ) -> Result<VerificationResponse, CommonError>;
+
+    /// Verify a revocation proof to confirm a credential remains valid.
+    async fn verify_revocation_proof(
+        &self,
+        proof: ZkRevocationProof,
+    ) -> Result<VerificationResponse, CommonError>;
 }

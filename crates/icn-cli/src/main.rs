@@ -383,6 +383,11 @@ enum IdentityCommands {
         #[clap(help = "ZkCredentialProof JSON or '-' for stdin")]
         proof_json_or_stdin: String,
     },
+    /// Verify a revocation proof (JSON string or '-' for stdin)
+    VerifyRevocation {
+        #[clap(help = "ZkRevocationProof JSON or '-' for stdin")]
+        proof_json_or_stdin: String,
+    },
     /// Verify multiple proofs from a JSON array
     VerifyProofs {
         #[clap(help = "JSON array or '-' for stdin")]
@@ -497,6 +502,9 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
             IdentityCommands::VerifyProof {
                 proof_json_or_stdin,
             } => handle_identity_verify(cli, client, proof_json_or_stdin).await?,
+            IdentityCommands::VerifyRevocation {
+                proof_json_or_stdin,
+            } => handle_identity_verify_revocation(cli, client, proof_json_or_stdin).await?,
             IdentityCommands::VerifyProofs {
                 proofs_json_or_stdin,
             } => handle_identity_verify_batch(cli, client, proofs_json_or_stdin).await?,
@@ -1134,6 +1142,27 @@ async fn handle_identity_verify(
 
     let resp: serde_json::Value =
         post_request(&cli.api_url, client, "/identity/verify", &proof).await?;
+    println!("{}", serde_json::to_string_pretty(&resp)?);
+    Ok(())
+}
+
+async fn handle_identity_verify_revocation(
+    cli: &Cli,
+    client: &Client,
+    proof_json_or_stdin: &str,
+) -> Result<(), anyhow::Error> {
+    let proof_json_content = if proof_json_or_stdin == "-" {
+        let mut buffer = String::new();
+        io::stdin().read_to_string(&mut buffer)?;
+        buffer
+    } else {
+        proof_json_or_stdin.to_string()
+    };
+
+    let proof: icn_common::ZkRevocationProof = serde_json::from_str(&proof_json_content)
+        .map_err(|e| anyhow::anyhow!("Invalid ZkRevocationProof JSON: {}", e))?;
+
+    let resp: serde_json::Value = post_request(&cli.api_url, client, "/identity/verify/revocation", &proof).await?;
     println!("{}", serde_json::to_string_pretty(&resp)?);
     Ok(())
 }

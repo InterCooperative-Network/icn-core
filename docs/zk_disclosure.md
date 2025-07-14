@@ -223,6 +223,13 @@ curl -X POST http://localhost:7845/identity/verify \
      --data @docs/examples/zk_membership.json
 ```
 
+Verify a revocation proof:
+```bash
+curl -X POST http://localhost:7845/identity/verify/revocation \
+     -H "Content-Type: application/json" \
+     --data @docs/examples/zk_revocation.json
+```
+
 Submit a DAG block with an attached proof:
 
 ```bash

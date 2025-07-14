@@ -829,6 +829,7 @@ pub async fn app_router_with_options(
             .route("/keys", get(keys_handler))
             .route("/reputation/{did}", get(reputation_handler))
             .route("/identity/verify", post(zk_verify_handler))
+            .route("/identity/verify/revocation", post(zk_verify_revocation_handler))
             .route("/identity/verify/batch", post(zk_verify_batch_handler))
             .route(
                 "/identity/credentials/issue",
@@ -3019,48 +3020,26 @@ async fn zk_verify_handler(
     State(state): State<AppState>,
     Json(proof): Json<icn_common::ZkCredentialProof>,
 ) -> impl IntoResponse {
-    use icn_common::ZkProofType;
-    use icn_identity::{BulletproofsVerifier, DummyVerifier, Groth16Verifier, ZkVerifier};
-    use serde_json::json;
-
-    let charged = ZK_VERIFY_COST_MANA;
-    if let Err(e) = state
-        .runtime_context
-        .spend_mana(&state.runtime_context.current_identity, charged)
-        .await
-    {
-        return map_rust_error_to_json_response(e, StatusCode::BAD_REQUEST).into_response();
-    }
-
-    let verifier: Box<dyn ZkVerifier> = match proof.backend {
-        ZkProofType::Bulletproofs => Box::new(BulletproofsVerifier::default()),
-        ZkProofType::Groth16 => Box::new(Groth16Verifier::default()),
-        _ => Box::new(DummyVerifier::default()),
+    let proof_json = match serde_json::to_string(&proof) {
+        Ok(j) => j,
+        Err(e) => {
+            return map_rust_error_to_json_response(
+                format!("serialization error: {e}"),
+                StatusCode::BAD_REQUEST,
+            )
+            .into_response();
+        }
     };
 
-    match verifier.verify(&proof) {
-        Ok(true) => (StatusCode::OK, Json(json!({ "verified": true }))).into_response(),
-        Ok(false) => {
-            if let Err(err) = state
-                .runtime_context
-                .credit_mana(&state.runtime_context.current_identity, charged)
-                .await
-            {
-                log::error!("Failed to refund mana after failed verification: {}", err);
-            }
-            map_rust_error_to_json_response("verification failed", StatusCode::BAD_REQUEST)
-                .into_response()
-        }
-        Err(e) => {
-            if let Err(err) = state
-                .runtime_context
-                .credit_mana(&state.runtime_context.current_identity, charged)
-                .await
-            {
-                log::error!("Failed to refund mana after verification error: {}", err);
-            }
-            map_rust_error_to_json_response(format!("{e}"), StatusCode::BAD_REQUEST).into_response()
-        }
+    match icn_runtime::host_verify_zk_proof(&state.runtime_context, &proof_json).await {
+        Ok(true) => (
+            StatusCode::OK,
+            Json(serde_json::json!({ "verified": true })),
+        )
+            .into_response(),
+        Ok(false) => map_rust_error_to_json_response("verification failed", StatusCode::BAD_REQUEST)
+            .into_response(),
+        Err(e) => map_rust_error_to_json_response(e, StatusCode::BAD_REQUEST).into_response(),
     }
 }
 
@@ -3109,6 +3088,34 @@ async fn zk_verify_batch_handler(
     }
 
     (StatusCode::OK, Json(BatchVerificationResponse { results })).into_response()
+}
+
+// POST /identity/verify/revocation - verify a revocation proof
+async fn zk_verify_revocation_handler(
+    State(state): State<AppState>,
+    Json(proof): Json<icn_common::ZkRevocationProof>,
+) -> impl IntoResponse {
+    let proof_json = match serde_json::to_string(&proof) {
+        Ok(j) => j,
+        Err(e) => {
+            return map_rust_error_to_json_response(
+                format!("serialization error: {e}"),
+                StatusCode::BAD_REQUEST,
+            )
+            .into_response();
+        }
+    };
+
+    match icn_runtime::host_verify_zk_revocation_proof(&state.runtime_context, &proof_json).await {
+        Ok(true) => (
+            StatusCode::OK,
+            Json(serde_json::json!({ "verified": true })),
+        )
+            .into_response(),
+        Ok(false) => map_rust_error_to_json_response("verification failed", StatusCode::BAD_REQUEST)
+            .into_response(),
+        Err(e) => map_rust_error_to_json_response(e, StatusCode::BAD_REQUEST).into_response(),
+    }
 }
 
 // POST /identity/credentials/issue - issue a credential
