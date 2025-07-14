@@ -262,7 +262,7 @@ fn register_mesh_metrics(registry: &mut Registry) {
     use icn_mesh::metrics::{
         BIDS_RECEIVED_TOTAL, JOBS_ASSIGNED_TOTAL, JOBS_BIDDING_GAUGE, JOBS_COMPLETED_TOTAL,
         JOBS_EXECUTING_GAUGE, JOBS_FAILED_TOTAL, JOBS_SUBMITTED_TOTAL, JOB_ASSIGNMENT_TIME,
-        JOB_EXECUTION_TIME, JOB_PROCESS_TIME, PENDING_JOBS_GAUGE, SCHEDULE_MESH_JOB_CALLS,
+        JOB_COMPLETION_TIME, JOB_PROCESS_TIME, PENDING_JOBS_GAUGE, SCHEDULE_MESH_JOB_CALLS,
         SELECT_EXECUTOR_CALLS,
     };
     
@@ -324,7 +324,7 @@ fn register_mesh_metrics(registry: &mut Registry) {
     registry.register(
         "mesh_job_execution_duration_seconds",
         "Time from job submission to completion",
-        JOB_EXECUTION_TIME.clone(),
+                    JOB_COMPLETION_TIME.clone(),
     );
     registry.register(
         "mesh_job_processing_duration_seconds",
