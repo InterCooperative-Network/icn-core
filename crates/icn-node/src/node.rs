@@ -1029,7 +1029,7 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
         RuntimeContext::new_testing(node_did.clone(), Some(1000))
             .expect("Failed to create RuntimeContext for testing")
     } else {
-        RuntimeContext::new_production(
+        RuntimeContext::new(
             node_did.clone(),
             network_service,
             signer,

@@ -9,7 +9,10 @@ use icn_mesh::{
 };
 use icn_reputation::ReputationStore;
 use icn_runtime::abi; // To use ABI consts if needed, though direct calls are more likely
-use icn_runtime::context::{ExecutionReceipt, HostAbiError, JobId, RuntimeContext};
+use icn_runtime::context::{
+    ExecutionReceipt, HostAbiError, JobId, RuntimeContext, MeshNetworkServiceType,
+    StubMeshNetworkService,
+};
 use icn_runtime::{
     host_anchor_receipt, host_get_pending_mesh_jobs, host_submit_mesh_job, ReputationUpdater,
 };
@@ -167,7 +170,13 @@ impl icn_economics::ManaLedger for InMemoryManaLedger {
 // For now, host functions take ctx, and some mocks might be passed directly to them.
 fn create_test_runtime_context(did_str: &str, initial_mana: u64) -> RuntimeContext {
     let did = Did::from_str(did_str).expect("Invalid DID for test context");
-    let mut ctx = RuntimeContext::new(did.clone());
+    let mut ctx = RuntimeContext::new_with_services(
+        did.clone(),
+        Arc::new(MeshNetworkServiceType::Stub(StubMeshNetworkService::new())),
+        Arc::new(icn_runtime::context::signers::StubSigner::new()),
+        Arc::new(icn_identity::KeyDidResolver),
+        Arc::new(DagStoreMutexType::new(icn_dag::InMemoryDagStore::new())),
+    );
     ctx.mana_ledger.set_balance(&did, initial_mana);
     // `pending_mesh_jobs` is Arc<TokioMutex<VecDeque<ActualMeshJob>>>
     // `governance_module` is default.

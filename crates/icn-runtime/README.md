@@ -127,7 +127,7 @@ let dag_store = Arc::new(Mutex::new(icn_dag::TokioFileDagStore::new("./dag".into
 #[cfg(not(feature = "async"))]
 let dag_store = Arc::new(Mutex::new(icn_dag::FileDagStore::new("./dag".into()).unwrap()));
 
-let ctx = RuntimeContext::new(
+let ctx = RuntimeContext::new_with_services(
     Did::new("key", "node"),
     Arc::new(StubMeshNetworkService::new()),
     Arc::new(Ed25519Signer::new(generate_ed25519_keypair().0)),

@@ -269,10 +269,10 @@ impl RuntimeContext {
     /// Create a new context with ledger path (convenience method for tests).
     ///
     /// **⚠️ DEPRECATED**: This method uses stub services and should not be used in production.
-    /// Use `RuntimeContext::new_production()` or `RuntimeContext::from_service_config()` instead.
+    /// Use [`RuntimeContext::new()`] or [`RuntimeContext::from_service_config()`] instead.
     #[deprecated(
         since = "0.1.0",
-        note = "Use `new_production()` or `from_service_config()` instead. This method uses stub services."
+        note = "Use `new()` or `from_service_config()` instead. This method uses stub services."
     )]
     pub fn new_with_ledger_path(
         current_identity_str: &str,
@@ -318,10 +318,10 @@ impl RuntimeContext {
     /// Create a new context with ledger path and time provider (convenience method for tests).
     ///
     /// **⚠️ DEPRECATED**: This method uses stub services and should not be used in production.
-    /// Use `RuntimeContext::new_production()` or `RuntimeContext::from_service_config()` instead.
+    /// Use [`RuntimeContext::new()`] or [`RuntimeContext::from_service_config()`] instead.
     #[deprecated(
         since = "0.1.0",
-        note = "Use `new_production()` or `from_service_config()` instead. This method uses stub services."
+        note = "Use `new()` or `from_service_config()` instead. This method uses stub services."
     )]
     pub fn new_with_ledger_path_and_time(
         current_identity_str: &str,
@@ -435,9 +435,9 @@ impl RuntimeContext {
         }))
     }
 
-    /// Create a production RuntimeContext with all production services.
-    /// This method ensures no stub services are used.
-    pub fn new_production(
+    /// Create a production `RuntimeContext` with all production services.
+    /// This is the recommended constructor for real deployments.
+    pub fn new(
         current_identity: Did,
         network_service: Arc<dyn icn_network::NetworkService>,
         signer: Arc<dyn Signer>,
@@ -460,7 +460,7 @@ impl RuntimeContext {
         Self::from_service_config(config)
     }
 
-    /// Create a development RuntimeContext with mixed services.
+    /// Create a development `RuntimeContext` with mixed services.
     pub fn new_development(
         current_identity: Did,
         signer: Arc<dyn Signer>,
@@ -535,8 +535,9 @@ impl RuntimeContext {
         Ok(ctx)
     }
 
-    /// Create a new context with proper services.
-    pub fn new(
+    /// Create a context with custom services.
+    /// Primarily used for tests or embedding ICN components.
+    pub fn new_with_services(
         current_identity: Did,
         mesh_network_service: Arc<MeshNetworkServiceType>,
         signer: Arc<dyn Signer>,

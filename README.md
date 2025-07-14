@@ -137,6 +137,15 @@ cargo build --no-default-features --features "with-libp2p persist-sqlite"
 # Build using the RocksDB backend
 cargo build --no-default-features --features "with-libp2p persist-rocksdb"
 
+### Production vs Test Modes
+
+`icn-node` defaults to **production** mode, using persistent services and a real
+`Ed25519Signer`.  To run with in-memory storage and stub networking pass
+`--test-mode` on the CLI or set `ICN_TEST_MODE=true`.
+
+Persistent DAG paths and signing keys can be configured via CLI flags or
+`ICN_*` environment variables as described in the [deployment guide](docs/deployment-guide.md).
+
 # Start a node with persistent storage, P2P, and TLS enabled
 ./target/debug/icn-node \
   --enable-p2p \

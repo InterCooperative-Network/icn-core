@@ -4,6 +4,13 @@ This guide provides minimal examples for launching `icn-node` in common scenario
 
 For details on the HTTP API exposed by the node see [API.md](API.md).
 
+### Production vs Test Modes
+
+`icn-node` starts in production mode unless `--test-mode` or the
+`ICN_TEST_MODE=true` environment variable is supplied. Production mode requires
+persistent DAG storage and an `Ed25519Signer` (configured via CLI or ENV). Test
+mode uses in-memory storage and stub networking for local experimentation.
+
 ## Single Node Local
 
 This mode runs a standalone node for development or testing.
