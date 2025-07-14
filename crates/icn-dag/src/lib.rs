@@ -23,6 +23,8 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 /// Helper crate for encoding/decoding root hashes
 pub mod index;
 pub mod metrics;
+pub mod mutual_aid;
+pub use mutual_aid::{MutualAidRegistry, MutualAidResource};
 #[cfg(feature = "persist-postgres")]
 pub mod postgres_store;
 #[cfg(feature = "persist-rocksdb")]
@@ -584,12 +586,12 @@ impl StorageService<DagBlock> for FileDagStore {
                 let entry =
                     entry.map_err(|e| CommonError::IoError(format!("Dir entry error: {}", e)))?;
                 let path = entry.path();
-                
+
                 // Skip the dag.root file
                 if path.file_name() == Some(std::ffi::OsStr::new("dag.root")) {
                     continue;
                 }
-                
+
                 if entry
                     .file_type()
                     .map_err(|e| {

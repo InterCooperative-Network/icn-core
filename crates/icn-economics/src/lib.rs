@@ -421,6 +421,9 @@ impl<L: ResourceLedger> ResourceRepositoryAdapter<L> {
 
 const TOKEN_FEE: u64 = 1;
 
+/// Class ID reserved for non-transferable mutual aid tokens.
+pub const MUTUAL_AID_CLASS_ID: &str = "mutual_aid";
+
 pub fn mint_tokens<L: ResourceLedger, M: ManaLedger>(
     repo: &ResourceRepositoryAdapter<L>,
     mana_ledger: &M,
@@ -458,6 +461,11 @@ pub fn transfer_tokens<L: ResourceLedger, M: ManaLedger>(
     to: &Did,
     scope: Option<NodeScope>,
 ) -> Result<(), CommonError> {
+    if class_id == MUTUAL_AID_CLASS_ID {
+        return Err(CommonError::PolicyDenied(
+            "mutual aid tokens are non-transferable".into(),
+        ));
+    }
     charge_mana(mana_ledger, issuer, TOKEN_FEE)?;
     repo.transfer(issuer, class_id, amount, from, to, scope)
 }

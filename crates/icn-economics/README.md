@@ -10,6 +10,7 @@ See [docs/ASYNC_OVERVIEW.md](../../docs/ASYNC_OVERVIEW.md) for async API guideli
 The `icn-economics` crate is responsible for:
 
 *   **Token Models:** Defining and managing the native digital assets of the ICN (e.g., Mana or other utility tokens).
+*   **Mutual Aid Tokens:** Non-transferable tokens scoped for community aid.
 *   **Ledger Management:** Implementing or interfacing with the distributed ledger that records transactions and account balances.
 *   **Transaction Logic:** Defining the rules for valid transactions, including transfers, fees, and CCL contract interactions related to economic activity.
 *   **Incentive Mechanisms:** Potentially including staking, rewards, and other economic incentives for network participation.

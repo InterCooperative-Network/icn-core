@@ -38,6 +38,8 @@ The `icn-cli` is the primary tool for users to interact with an ICN node from th
 *   **Miscellaneous:**
     *   `icn-cli hello`: A simple command to check if the CLI is responsive.
     *   `icn-cli help` or `icn-cli --help`: Displays usage information.
+*   **Emergency Coordination:**
+    *   `icn-cli emergency match <REQUESTS_JSON> <TEMPLATES_JSON>`: Suggest job templates for unfilled aid requests.
 
 ### Example: Generate and Verify a Proof
 

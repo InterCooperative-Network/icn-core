@@ -13,7 +13,9 @@ use icn_identity::{
     VerifyingKey as IdentityVerifyingKey,
 };
 use serde::{Deserialize, Serialize};
+pub mod matcher;
 pub mod metrics;
+pub use matcher::{match_unfilled_requests, AidRequest, JobTemplate};
 
 /// Unique identifier for a mesh job.
 ///

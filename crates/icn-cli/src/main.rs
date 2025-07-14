@@ -26,6 +26,7 @@ use icn_api::identity_trait::{BatchVerificationResponse, VerifyProofsRequest};
 use icn_ccl::{check_ccl_file, compile_ccl_file, compile_ccl_file_to_wasm, explain_ccl_policy};
 use icn_governance::{Proposal, ProposalId};
 use icn_identity::generate_ed25519_keypair;
+use icn_mesh::{match_unfilled_requests, AidRequest, JobTemplate};
 use icn_runtime::context::{Ed25519Signer, Signer};
 
 fn anyhow_to_common(e: anyhow::Error) -> CommonError {
@@ -146,6 +147,11 @@ enum Commands {
     Federation {
         #[clap(subcommand)]
         command: FederationCommands,
+    },
+    /// Emergency response helpers
+    Emergency {
+        #[clap(subcommand)]
+        command: EmergencyCommands,
     },
 }
 
@@ -295,6 +301,17 @@ enum FederationCommands {
     /// Show federation status
     #[clap(name = "status")]
     Status,
+}
+
+#[derive(Subcommand, Debug)]
+enum EmergencyCommands {
+    /// Match aid requests to job templates
+    Match {
+        #[clap(help = "Path to aid requests JSON file")]
+        requests: String,
+        #[clap(help = "Path to job templates JSON file")]
+        templates: String,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -485,6 +502,14 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
             FederationCommands::Leave { peer } => handle_fed_leave(cli, client, peer).await?,
             FederationCommands::ListPeers => handle_fed_list_peers(cli, client).await?,
             FederationCommands::Status => handle_fed_status(cli, client).await?,
+        },
+        Commands::Emergency { command } => match command {
+            EmergencyCommands::Match {
+                requests,
+                templates,
+            } => {
+                handle_emergency_match(requests, templates)?;
+            }
         },
     }
     Ok(())
@@ -1233,6 +1258,16 @@ async fn handle_zk_profile(circuit: &str) -> Result<(), anyhow::Error> {
     if !status.success() {
         anyhow::bail!("cargo bench failed");
     }
+    Ok(())
+}
+
+fn handle_emergency_match(requests: &str, templates: &str) -> Result<(), anyhow::Error> {
+    let req_data = std::fs::read_to_string(requests)?;
+    let tmpl_data = std::fs::read_to_string(templates)?;
+    let requests: Vec<AidRequest> = serde_json::from_str(&req_data)?;
+    let templates: Vec<JobTemplate> = serde_json::from_str(&tmpl_data)?;
+    let matches = match_unfilled_requests(&requests, &templates);
+    println!("{}", serde_json::to_string_pretty(&matches)?);
     Ok(())
 }
 

@@ -13,6 +13,7 @@ The `icn-dag` crate is responsible for:
 *   **Content Addressing:** Ensuring data integrity and retrievability using cryptographic hashes (e.g., CIDs - Content Identifiers).
 *   **Storage Abstraction:** Potentially providing interfaces for various backing stores (e.g., in-memory, disk-based, distributed).
 *   **Serialization Formats:** Defining how DAGs are serialized and deserialized (e.g., CBOR, IPLD codecs).
+*   **Mutual Aid Registry:** Schema definitions for cooperative resource sharing.
 
 This forms a foundational layer for data representation and exchange within the ICN.
 
