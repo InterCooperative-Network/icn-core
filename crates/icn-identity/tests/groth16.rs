@@ -3,7 +3,7 @@ use icn_identity::credential::Credential;
 use icn_identity::{
     credential::CredentialIssuer,
     generate_ed25519_keypair,
-    zk::{Groth16Circuit, Groth16Verifier, ZkError, ZkProver},
+    zk::{Groth16Circuit, Groth16Verifier, ZkError, ZkProver, key_manager::Groth16KeySource},
     ZkVerifier,
 };
 
@@ -147,7 +147,7 @@ fn prover_rejects_low_reputation() {
     let thresholds = icn_zk::ReputationThresholds::default();
     let km = icn_identity::zk::Groth16KeyManager::new(
         "age_over_18",
-        icn_identity::zk::Groth16KeySource::Circuit(icn_zk::AgeOver18Circuit {
+        Groth16KeySource::Circuit(icn_zk::AgeOver18Circuit {
             birth_year: 0,
             current_year: 0,
         }),

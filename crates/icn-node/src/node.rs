@@ -1303,8 +1303,8 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
         .route("/mesh/receipt", post(mesh_submit_receipt_handler))
         .route("/contracts", post(contracts_post_handler))
         .route("/circuits/register", post(circuit_register_handler))
-        .route("/circuits/:slug/:version", get(circuit_get_handler))
-        .route("/circuits/:slug", get(circuit_versions_handler))
+        .route("/circuits/{slug}/{version}", get(circuit_get_handler))
+        .route("/circuits/{slug}", get(circuit_versions_handler))
         .route("/federation/peers", get(federation_list_peers_handler))
         .route("/federation/peers", post(federation_add_peer_handler))
         .route("/federation/join", post(federation_join_handler))
@@ -3022,7 +3022,7 @@ async fn credential_issue_handler(
 ) -> impl IntoResponse {
     use std::collections::HashMap;
 
-    let mut claims: HashMap<String, String> = req.attributes.into_iter().collect();
+    let claims: HashMap<String, String> = req.attributes.into_iter().collect();
     let mut cred = Credential::new(
         req.issuer.clone(),
         req.holder,

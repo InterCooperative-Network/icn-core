@@ -986,11 +986,65 @@ impl RuntimeContext {
     }
 
     /// Manage the complete lifecycle of a job through bidding, assignment, and execution.
-    async fn manage_job_lifecycle(&self, job_id: JobId) -> Result<(), HostAbiError> {
+    async fn manage_job_lifecycle(self: &Arc<Self>, job_id: JobId) -> Result<(), HostAbiError> {
         log::info!(
             "[manage_job_lifecycle] Starting lifecycle management for job: {}",
             job_id
         );
+
+        // 0. Check if this is a CCL WASM job that should auto-execute
+        if let Ok(Some(lifecycle)) = self.get_job_status(&job_id).await {
+            let job_spec = lifecycle.job.decode_spec().map_err(|e| {
+                HostAbiError::DagOperationFailed(format!("Failed to decode job spec: {}", e))
+            })?;
+
+            if job_spec.kind.is_ccl_wasm() {
+                log::info!(
+                    "[manage_job_lifecycle] Job {} is CCL WASM, auto-executing immediately",
+                    job_id
+                );
+
+                // Create ActualMeshJob for execution
+                let actual_job = ActualMeshJob {
+                    id: job_id.clone(),
+                    manifest_cid: lifecycle.job.manifest_cid.clone(),
+                    spec: job_spec,
+                    creator_did: lifecycle.job.submitter_did.clone(),
+                    cost_mana: lifecycle.job.cost_mana,
+                    max_execution_wait_ms: None,
+                    signature: icn_identity::SignatureBytes(vec![]),
+                };
+
+                // Execute the CCL WASM job
+                match Self::execute_ccl_wasm_job(self, &actual_job).await {
+                    Ok(receipt) => {
+                        log::info!(
+                            "[manage_job_lifecycle] CCL WASM job {} completed successfully",
+                            job_id
+                        );
+                        self.job_states.insert(
+                            job_id.clone(),
+                            JobState::Completed { receipt },
+                        );
+                        return Ok(());
+                    }
+                    Err(e) => {
+                        log::error!(
+                            "[manage_job_lifecycle] CCL WASM job {} execution failed: {}",
+                            job_id,
+                            e
+                        );
+                        self.job_states.insert(
+                            job_id.clone(),
+                            JobState::Failed {
+                                reason: e.to_string(),
+                            },
+                        );
+                        return Err(e);
+                    }
+                }
+            }
+        }
 
         // 1. Open bidding period
         self.update_job_status(&job_id, JobLifecycleStatus::BiddingOpen)
