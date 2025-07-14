@@ -75,6 +75,58 @@ impl TimeProvider for FixedTimeProvider {
     }
 }
 
+/// Provides runtime system information for resource-based decisions.
+pub trait SystemInfoProvider: Send + Sync {
+    /// Number of available CPU cores.
+    fn cpu_cores(&self) -> u32;
+    /// Available memory in megabytes.
+    fn memory_mb(&self) -> u32;
+}
+
+/// System information provider using the [`sysinfo`] crate.
+#[derive(Debug, Clone)]
+pub struct SysinfoSystemInfoProvider;
+
+impl SystemInfoProvider for SysinfoSystemInfoProvider {
+    fn cpu_cores(&self) -> u32 {
+        use sysinfo::{System, SystemExt};
+        let mut sys = System::new();
+        sys.refresh_cpu();
+        sys.cpus().len() as u32
+    }
+
+    fn memory_mb(&self) -> u32 {
+        use sysinfo::{System, SystemExt};
+        let mut sys = System::new();
+        sys.refresh_memory();
+        (sys.available_memory() / 1024) as u32
+    }
+}
+
+/// Deterministic system info provider returning fixed values (for tests).
+#[derive(Debug, Clone)]
+pub struct FixedSystemInfoProvider {
+    cpu: u32,
+    mem: u32,
+}
+
+impl FixedSystemInfoProvider {
+    /// Create a new provider returning the given values.
+    pub fn new(cpu: u32, mem: u32) -> Self {
+        Self { cpu, mem }
+    }
+}
+
+impl SystemInfoProvider for FixedSystemInfoProvider {
+    fn cpu_cores(&self) -> u32 {
+        self.cpu
+    }
+
+    fn memory_mb(&self) -> u32 {
+        self.mem
+    }
+}
+
 /// Represents a generic error that can occur within the network.
 #[derive(Debug, Error, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub enum CommonError {

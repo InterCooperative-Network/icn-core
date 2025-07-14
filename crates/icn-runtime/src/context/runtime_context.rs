@@ -9,7 +9,9 @@ use super::stubs::{StubDagStore, StubMeshNetworkService};
 use super::{DagStorageService, DagStoreMutexType};
 use crate::metrics::{JOBS_ACTIVE_GAUGE, JOBS_COMPLETED, JOBS_FAILED, JOBS_SUBMITTED};
 use dashmap::DashMap;
-use icn_common::{Cid, CommonError, DagBlock, Did, NodeScope};
+use icn_common::{
+    Cid, CommonError, DagBlock, Did, NodeScope, SysinfoSystemInfoProvider, SystemInfoProvider,
+};
 use icn_economics::ManaLedger;
 use icn_governance::GovernanceModule;
 use icn_identity::ExecutionReceipt as IdentityExecutionReceipt;
@@ -142,6 +144,7 @@ pub struct RuntimeContext {
     pub parameters: Arc<DashMap<String, String>>,
     pub policy_enforcer: Option<Arc<dyn icn_governance::scoped_policy::ScopedPolicyEnforcer>>,
     pub resource_ledger: TokioMutex<super::resource_ledger::ResourceLedger>,
+    pub system_info: Arc<dyn SystemInfoProvider>,
     pub time_provider: Arc<dyn icn_common::TimeProvider>,
     pub default_receipt_wait_ms: u64,
 }
@@ -221,6 +224,7 @@ impl RuntimeContext {
         let parameters = Self::default_parameters();
         let policy_enforcer = None;
         let time_provider = Arc::new(icn_common::SystemTimeProvider);
+        let system_info = Arc::new(SysinfoSystemInfoProvider);
 
         // Use a temporary file for testing to avoid file system issues
         let temp_file = tempfile::NamedTempFile::new()
@@ -246,6 +250,7 @@ impl RuntimeContext {
             parameters,
             policy_enforcer,
             resource_ledger: TokioMutex::new(super::resource_ledger::ResourceLedger::new()),
+            system_info,
             time_provider,
             default_receipt_wait_ms: 30000,
         }))
@@ -293,6 +298,7 @@ impl RuntimeContext {
         let parameters = Self::default_parameters();
         let policy_enforcer = None;
         let time_provider = Arc::new(icn_common::SystemTimeProvider);
+        let system_info = Arc::new(SysinfoSystemInfoProvider);
         let mana_ledger = SimpleManaLedger::new(ledger_path);
 
         Ok(Arc::new(Self {
@@ -311,6 +317,7 @@ impl RuntimeContext {
             parameters,
             policy_enforcer,
             resource_ledger: TokioMutex::new(super::resource_ledger::ResourceLedger::new()),
+            system_info,
             time_provider,
             default_receipt_wait_ms: 30000,
         }))
@@ -343,6 +350,7 @@ impl RuntimeContext {
         let parameters = Self::default_parameters();
         let policy_enforcer = None;
         let mana_ledger = SimpleManaLedger::new(ledger_path);
+        let system_info = Arc::new(SysinfoSystemInfoProvider);
 
         Ok(Arc::new(Self {
             current_identity,
@@ -360,6 +368,7 @@ impl RuntimeContext {
             parameters,
             policy_enforcer,
             resource_ledger: TokioMutex::new(super::resource_ledger::ResourceLedger::new()),
+            system_info,
             time_provider,
             default_receipt_wait_ms: 30000,
         }))
@@ -496,6 +505,7 @@ impl RuntimeContext {
         let parameters = Self::default_parameters();
         let policy_enforcer = None;
         let time_provider = Arc::new(icn_common::SystemTimeProvider);
+        let system_info = Arc::new(SysinfoSystemInfoProvider);
 
         // Use a temporary file for testing
         let temp_file = tempfile::NamedTempFile::new().map_err(|e| {
@@ -521,11 +531,69 @@ impl RuntimeContext {
             parameters,
             policy_enforcer,
             resource_ledger: TokioMutex::new(super::resource_ledger::ResourceLedger::new()),
+            system_info,
             time_provider,
             default_receipt_wait_ms: 30000,
         });
 
         // Set initial mana if provided
+        if let Some(mana) = initial_mana {
+            ctx.mana_ledger
+                .set_balance(&current_identity, mana)
+                .map_err(|e| {
+                    CommonError::InternalError(format!("Failed to set initial mana: {}", e))
+                })?;
+        }
+
+        Ok(ctx)
+    }
+
+    /// Create a testing context with a custom system info provider.
+    pub fn new_testing_with_system_info(
+        current_identity: Did,
+        initial_mana: Option<u64>,
+        system_info: Arc<dyn SystemInfoProvider>,
+    ) -> Result<Arc<Self>, CommonError> {
+        let (tx, rx) = mpsc::channel(128);
+        let job_states = Arc::new(DashMap::new());
+        let governance_module = Arc::new(DagStoreMutexType::new(GovernanceModule::new()));
+        let mesh_network_service =
+            Arc::new(MeshNetworkServiceType::Stub(StubMeshNetworkService::new()));
+        let signer = Arc::new(super::signers::StubSigner::new());
+        let did_resolver = Arc::new(icn_identity::KeyDidResolver);
+        let reputation_store = Arc::new(icn_reputation::InMemoryReputationStore::new());
+        let parameters = Self::default_parameters();
+        let policy_enforcer = None;
+        let time_provider = Arc::new(icn_common::SystemTimeProvider);
+
+        let temp_file = tempfile::NamedTempFile::new().map_err(|e| {
+            CommonError::IoError(format!("Failed to create temp file for testing: {}", e))
+        })?;
+        let temp_path = temp_file.path().to_path_buf();
+        std::mem::forget(temp_file);
+        let mana_ledger = SimpleManaLedger::new(temp_path);
+
+        let ctx = Arc::new(Self {
+            current_identity: current_identity.clone(),
+            mana_ledger,
+            pending_mesh_jobs_tx: tx,
+            pending_mesh_jobs_rx: TokioMutex::new(rx),
+            job_states,
+            governance_module,
+            mesh_network_service,
+            signer,
+            did_resolver,
+            dag_store: Arc::new(DagStoreMutexType::new(StubDagStore::new()))
+                as Arc<DagStoreMutexType<DagStorageService>>,
+            reputation_store,
+            parameters,
+            policy_enforcer,
+            resource_ledger: TokioMutex::new(super::resource_ledger::ResourceLedger::new()),
+            system_info,
+            time_provider,
+            default_receipt_wait_ms: 30000,
+        });
+
         if let Some(mana) = initial_mana {
             ctx.mana_ledger
                 .set_balance(&current_identity, mana)
@@ -552,6 +620,7 @@ impl RuntimeContext {
         let parameters = Self::default_parameters();
         let policy_enforcer = None;
         let time_provider = Arc::new(icn_common::SystemTimeProvider);
+        let system_info = Arc::new(SysinfoSystemInfoProvider);
 
         // Use a temporary file for general contexts
         let temp_file = tempfile::NamedTempFile::new()
@@ -575,6 +644,7 @@ impl RuntimeContext {
             parameters,
             policy_enforcer,
             resource_ledger: TokioMutex::new(super::resource_ledger::ResourceLedger::new()),
+            system_info,
             time_provider,
             default_receipt_wait_ms: 30000,
         })
@@ -634,6 +704,7 @@ impl RuntimeContext {
         let parameters = Self::default_parameters();
         let policy_enforcer = None;
         let time_provider = Arc::new(icn_common::SystemTimeProvider);
+        let system_info = Arc::new(SysinfoSystemInfoProvider);
 
         Ok(Arc::new(Self {
             current_identity,
@@ -649,6 +720,7 @@ impl RuntimeContext {
             reputation_store,
             parameters,
             policy_enforcer,
+            system_info,
             time_provider,
             default_receipt_wait_ms: 30000,
         }))
@@ -1360,6 +1432,14 @@ impl RuntimeContext {
     /// Get mana for an account.
     pub async fn get_mana(&self, account: &Did) -> Result<u64, HostAbiError> {
         Ok(self.mana_ledger.get_balance(account))
+    }
+
+    /// Get available CPU cores and memory for bidding decisions.
+    fn available_resources(&self) -> icn_mesh::Resources {
+        icn_mesh::Resources {
+            cpu_cores: self.system_info.cpu_cores(),
+            memory_mb: self.system_info.memory_mb(),
+        }
     }
 
     /// Spend mana from an account.
@@ -2465,8 +2545,9 @@ impl RuntimeContext {
 
         // Check if we have the required resources
         let required = &announcement.job_spec.required_resources;
-        let available_cpu = 4; // TODO: Get from system info
-        let available_memory = 2048; // TODO: Get from system info
+        let resources = ctx.available_resources();
+        let available_cpu = resources.cpu_cores;
+        let available_memory = resources.memory_mb;
 
         if required.cpu_cores > available_cpu || required.memory_mb > available_memory {
             log::debug!("[ExecutorManager] Insufficient resources for job {}: need {}cpu/{}mb, have {}cpu/{}mb", 
@@ -2652,8 +2733,9 @@ impl RuntimeContext {
 
         // Check if we have the required resources
         let required = &job.spec.required_resources;
-        let available_cpu = 4; // TODO: Get from system info
-        let available_memory = 2048; // TODO: Get from system info
+        let resources = ctx.available_resources();
+        let available_cpu = resources.cpu_cores;
+        let available_memory = resources.memory_mb;
 
         if required.cpu_cores > available_cpu || required.memory_mb > available_memory {
             log::debug!(
@@ -2900,5 +2982,82 @@ impl RuntimeContext {
         // For now, it's mostly a placeholder
         log::debug!("[ExecutorManager] Polling for executor tasks");
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use icn_mesh::{JobKind, JobSpec, Resources};
+    use icn_protocol::MeshJobAnnouncementMessage;
+    use std::str::FromStr;
+
+    #[tokio::test]
+    async fn test_should_bid_on_job_with_resources() {
+        let did = Did::from_str("did:icn:test:exec").unwrap();
+        let ctx = RuntimeContext::new_testing_with_system_info(
+            did.clone(),
+            Some(100),
+            Arc::new(icn_common::FixedSystemInfoProvider::new(8, 4096)),
+        )
+        .unwrap();
+
+        let announcement = MeshJobAnnouncementMessage {
+            job_id: Cid::new_v1_sha256(0x71, b"job"),
+            manifest_cid: Cid::new_v1_sha256(0x71, b"man"),
+            creator_did: did.clone(),
+            max_cost_mana: 10,
+            job_spec: JobSpec {
+                kind: JobKind::Echo {
+                    message: "hi".into(),
+                },
+                required_resources: Resources {
+                    cpu_cores: 2,
+                    memory_mb: 512,
+                },
+                ..Default::default()
+            },
+            bid_deadline: ctx.time_provider.unix_seconds() + 100,
+        };
+
+        let bid = super::RuntimeContext::should_bid_on_job(&ctx, &announcement)
+            .await
+            .unwrap();
+        assert!(bid.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_evaluate_and_bid_on_job_respects_resources() {
+        let did = Did::from_str("did:icn:test:exec2").unwrap();
+        let ctx = RuntimeContext::new_testing_with_system_info(
+            did.clone(),
+            Some(100),
+            Arc::new(icn_common::FixedSystemInfoProvider::new(4, 1024)),
+        )
+        .unwrap();
+
+        let job = icn_mesh::ActualMeshJob {
+            id: icn_mesh::JobId(Cid::new_v1_sha256(0x71, b"job2")),
+            manifest_cid: Cid::new_v1_sha256(0x71, b"man2"),
+            creator_did: did.clone(),
+            cost_mana: 5,
+            max_execution_wait_ms: None,
+            spec: JobSpec {
+                kind: JobKind::Echo {
+                    message: "hi".into(),
+                },
+                required_resources: Resources {
+                    cpu_cores: 8,
+                    memory_mb: 2048,
+                },
+                ..Default::default()
+            },
+            signature: icn_identity::SignatureBytes(vec![]),
+        };
+
+        let bid = RuntimeContext::evaluate_and_bid_on_job(&ctx, &job)
+            .await
+            .unwrap();
+        assert!(bid.is_none());
     }
 }
