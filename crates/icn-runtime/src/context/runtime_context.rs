@@ -2,7 +2,9 @@
 
 use super::errors::HostAbiError;
 use super::mana::SimpleManaLedger;
-use super::mesh_network::{DefaultMeshNetworkService, JobAssignmentNotice, MeshNetworkService};
+use super::mesh_network::{
+    DefaultMeshNetworkService, JobAssignmentNotice, MeshJobStateChange, MeshNetworkService,
+};
 use super::service_config::ServiceConfig;
 use super::signers::Signer;
 use super::stubs::{StubDagStore, StubMeshNetworkService};
@@ -1395,15 +1397,56 @@ impl RuntimeContext {
     /// Update the status of a job (this would update the DAG node in a real implementation).
     async fn update_job_status(
         &self,
-        _job_id: &JobId,
-        _status: JobLifecycleStatus,
+        job_id: &JobId,
+        status: JobLifecycleStatus,
     ) -> Result<(), HostAbiError> {
-        // TODO: In a full implementation, this would update the job node in the DAG
-        // For now, we just log the status change
+        let old_status = if let Some(lifecycle) = self.get_job_status(job_id).await? {
+            lifecycle.current_status()
+        } else {
+            JobLifecycleStatus::Submitted
+        };
+
+        let change = MeshJobStateChange {
+            job_id: job_id.clone(),
+            old_state: format!("{:?}", old_status),
+            new_state: format!("{:?}", status.clone()),
+        };
+
+        let change_bytes = serde_json::to_vec(&change).map_err(|e| {
+            HostAbiError::DagOperationFailed(format!("Failed to serialize status change: {}", e))
+        })?;
+
+        use sha2::{Digest, Sha256};
+        let mut hasher = Sha256::new();
+        hasher.update(&change_bytes);
+        let change_cid = Cid::new_v1_sha256(0x55, &hasher.finalize());
+
+        let job_link = icn_common::DagLink {
+            cid: job_id.0.clone(),
+            name: "parent_job".to_string(),
+            size: 0,
+        };
+
+        let dag_block = DagBlock {
+            cid: change_cid,
+            data: change_bytes,
+            links: vec![job_link],
+            timestamp: self.time_provider.unix_seconds(),
+            author_did: self.current_identity.clone(),
+            signature: None,
+            scope: None,
+        };
+
+        let mut dag_store = self.dag_store.lock().await;
+        dag_store.put(&dag_block).await.map_err(|e| {
+            HostAbiError::DagOperationFailed(format!("Failed to store status update: {}", e))
+        })?;
+
         log::info!(
-            "[update_job_status] Job {} status updated to {:?}",
-            _job_id,
-            _status
+            "[update_job_status] Job {} status updated from {:?} to {:?}",
+            job_id,
+            old_status,
+            status
         );
         Ok(())
     }
@@ -2967,5 +3010,65 @@ impl RuntimeContext {
         // For now, it's mostly a placeholder
         log::debug!("[ExecutorManager] Polling for executor tasks");
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use icn_mesh::{JobSpec, Resources};
+
+    #[tokio::test]
+    async fn job_status_persists_in_dag() {
+        let ctx = RuntimeContext::new_with_stubs_and_mana("did:icn:test:status", 100).unwrap();
+
+        let job_id = JobId(Cid::new_v1_sha256(0x55, b"status_job"));
+        let manifest_cid = Cid::new_v1_sha256(0x55, b"manifest");
+        let spec = JobSpec::default();
+        let spec_bytes = bincode::serialize(&spec).unwrap();
+        let job = Job {
+            id: job_id.clone(),
+            manifest_cid,
+            spec_bytes,
+            spec_json: None,
+            submitter_did: ctx.current_identity.clone(),
+            cost_mana: 10,
+            submitted_at: ctx.time_provider.unix_seconds(),
+            status: JobLifecycleStatus::Submitted,
+            resource_requirements: Resources::default(),
+        };
+        let job_bytes = serde_json::to_vec(&job).unwrap();
+        let block = DagBlock {
+            cid: job_id.0.clone(),
+            data: job_bytes,
+            links: vec![],
+            timestamp: job.submitted_at,
+            author_did: job.submitter_did.clone(),
+            signature: None,
+            scope: None,
+        };
+        {
+            let mut store = ctx.dag_store.lock().await;
+            store.put(&block).await.unwrap();
+        }
+
+        ctx.update_job_status(&job_id, JobLifecycleStatus::BiddingOpen)
+            .await
+            .unwrap();
+
+        let store = ctx.dag_store.lock().await;
+        let blocks = store.list_blocks().await.unwrap();
+        let mut found = false;
+        for b in blocks {
+            if b.links.iter().any(|l| l.cid == job_id.0) {
+                if let Ok(change) = serde_json::from_slice::<MeshJobStateChange>(&b.data) {
+                    if change.job_id == job_id && change.new_state == "BiddingOpen" {
+                        found = true;
+                        break;
+                    }
+                }
+            }
+        }
+        assert!(found, "status change block not found");
     }
 }
