@@ -587,6 +587,3 @@ pub mod rocksdb;
 #[cfg(feature = "persist-rocksdb")]
 pub use rocksdb::{RocksdbManaLedger, RocksdbResourceLedger};
 
-pub use FileResourceLedger;
-#[cfg(feature = "persist-sled")]
-pub use SledResourceLedger;
