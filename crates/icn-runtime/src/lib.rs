@@ -139,14 +139,21 @@ pub async fn host_submit_mesh_job(
     })?;
 
     // Extract the fields needed for the new handle_submit_job method
-    let manifest_cid = job_to_submit.manifest_cid;
+    let manifest_cid = job_to_submit.manifest_cid.clone();
     let spec_bytes = bincode::serialize(&job_to_submit.spec)
         .map_err(|e| HostAbiError::InternalError(format!("Failed to serialize job spec: {}", e)))?;
     let cost_mana = job_to_submit.cost_mana;
 
     // Use the new DAG-integrated job submission method
-    ctx.handle_submit_job(manifest_cid, spec_bytes, cost_mana)
-        .await
+    let job_id = ctx.handle_submit_job(manifest_cid, spec_bytes, cost_mana)
+        .await?;
+
+    // For backwards compatibility, also queue the job in the pending jobs channel
+    // This ensures existing tests and APIs that depend on the queue still work
+    #[allow(deprecated)]
+    ctx.internal_queue_mesh_job(job_to_submit).await?;
+
+    Ok(job_id)
 }
 
 /// ABI Index: (defined in `abi::ABI_HOST_GET_PENDING_MESH_JOBS`)

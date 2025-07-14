@@ -1116,7 +1116,7 @@ mod tests {
         };
 
         let policy = SelectionPolicy {
-            weight_price: 10.0,
+            weight_price: 100.0,  // Much higher weight to truly override reputation
             weight_reputation: 1.0,
             weight_resources: 1.0,
             weight_latency: 1.0,

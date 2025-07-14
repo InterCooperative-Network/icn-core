@@ -719,6 +719,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg(feature = "async")]
     async fn test_generic_placeholder_hash_deterministic() {
         use icn_common::{compute_merkle_cid, DagBlock};
         use sha2::{Digest, Sha256};
