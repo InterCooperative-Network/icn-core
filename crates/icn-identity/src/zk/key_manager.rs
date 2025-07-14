@@ -3,11 +3,12 @@ use crate::{
 };
 use ark_bn254::{Bn254, Fr};
 use ark_groth16::ProvingKey;
+use ark_relations::r1cs::ConstraintSynthesizer;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::rand::rngs::OsRng;
-use ark_relations::r1cs::ConstraintSynthesizer;
 use directories_next as dirs_next;
 use icn_common::CommonError;
+use icn_zk::CircuitParameters;
 use std::fs;
 use std::path::PathBuf;
 
@@ -18,19 +19,32 @@ pub struct Groth16KeyManager {
     pk: ProvingKey<Bn254>,
 }
 
+/// Source of Groth16 parameters when generating keys.
+pub enum Groth16KeySource<C> {
+    /// Run setup for the provided circuit.
+    Circuit(C),
+    /// Use pre-generated parameters.
+    Params(CircuitParameters),
+}
+
 impl Groth16KeyManager {
     /// Generate new parameters for `circuit` and store them under
     /// `~/.icn/zk/<name>`.
     pub fn new<C: ConstraintSynthesizer<Fr>>(
         name: &str,
-        circuit: C,
+        source: Groth16KeySource<C>,
         signer: &SigningKey,
     ) -> Result<Self, CommonError> {
         use icn_zk::setup;
 
         let mut rng = OsRng;
-        let pk = setup(circuit, &mut rng)
-            .map_err(|_| CommonError::CryptoError("groth16 setup failed".into()))?;
+        let pk = match source {
+            Groth16KeySource::Circuit(c) => setup(c, &mut rng)
+                .map_err(|_| CommonError::CryptoError("groth16 setup failed".into()))?,
+            Groth16KeySource::Params(p) => p
+                .proving_key()
+                .map_err(|_| CommonError::DeserializationError("proving key".into()))?,
+        };
 
         let dir = dirs_next::BaseDirs::new()
             .ok_or_else(|| CommonError::IoError("missing home directory".into()))?
