@@ -795,6 +795,11 @@ impl IcnClient {
         self.get("/dag/root").await
     }
 
+    /// Get DAG synchronization status.
+    pub async fn dag_status(&self) -> Result<serde_json::Value, reqwest::Error> {
+        self.get("/dag/status").await
+    }
+
     // === Network Operations ===
 
     /// Get the local peer ID.

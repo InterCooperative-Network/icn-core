@@ -257,6 +257,19 @@ impl E2ETestHarness {
             assert!(info["name"].is_string(), "Node {} missing name", node.name);
             assert!(info["version"].is_string(), "Node {} missing version", node.name);
             
+            // Check DAG synchronization status
+            let dag_resp = self.client
+                .get(&format!("{}/dag/status", node.url))
+                .header("X-API-Key", &node.api_key)
+                .send()
+                .await
+                .expect(&format!("Failed to fetch DAG status from {}", node.name));
+
+            assert!(dag_resp.status().is_success(), "Node {} DAG status", node.name);
+
+            let dag_status: Value = dag_resp.json().await.expect("dag json");
+            assert!(dag_status.get("current_root").is_some());
+
             println!("  ✅ {} is healthy", node.name);
         }
         

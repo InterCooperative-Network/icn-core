@@ -40,6 +40,7 @@ curl -X GET https://localhost:8080/info \
 | POST | `/dag/put` | Store a content-addressed block | Yes |
 | POST | `/dag/get` | Retrieve a block by CID | Yes |
 | POST | `/dag/meta` | Retrieve metadata for a block | Yes |
+| GET  | `/dag/status` | Retrieve DAG synchronization status | Yes |
 | POST | `/dag/pin` | Pin a block to prevent pruning | Yes |
 | POST | `/dag/unpin` | Remove a pin from a block | Yes |
 | POST | `/dag/prune` | Garbage collect unpinned blocks | Yes |
@@ -64,6 +65,10 @@ curl -X POST https://localhost:8080/dag/meta \
   -H "Content-Type: application/json" \
   -H "x-api-key: your-api-key" \
   -d '{"cid": "your-cid-string"}'
+
+# Check DAG synchronization status
+curl -X GET https://localhost:8080/dag/status \
+  -H "x-api-key: your-api-key"
 
 # Pin a DAG block
 curl -X POST https://localhost:8080/dag/pin \

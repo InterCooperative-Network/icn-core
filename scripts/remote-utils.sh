@@ -780,10 +780,14 @@ verify_federation_health() {
     
     for node_name in "${!REMOTE_NODES[@]}"; do
         ((total_nodes++))
-        
+
         if ssh "icn-$node_name" "systemctl is-active icn-node" &>/dev/null; then
-            log "SUCCESS" "Node healthy: $node_name" "REMOTE"
-            ((healthy_nodes++))
+            if ssh "icn-$node_name" "curl -s -f http://localhost:8080/dag/status" &>/dev/null; then
+                log "SUCCESS" "Node healthy: $node_name" "REMOTE"
+                ((healthy_nodes++))
+            else
+                log "ERROR" "Node DAG check failed: $node_name" "REMOTE"
+            fi
         else
             log "ERROR" "Node unhealthy: $node_name" "REMOTE"
         fi
