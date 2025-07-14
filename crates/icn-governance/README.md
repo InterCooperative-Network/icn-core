@@ -34,6 +34,12 @@ When built with the `federation` feature, this crate exposes
 `NetworkService` to request state from another peer. It sends a
 `FederationSyncRequest` message via the network layer and returns a
 `CommonError` if the underlying send fails.
+## DAO Reward Templates
+
+Reusable CCL snippets for rewarding contributors live in `templates/`. Examples:
+- `reward_member.ccl` — grant scoped tokens to a specific member.
+- `community_bonus.ccl` — distribute a bonus to all members.
+
 
 ## Contributing
 

@@ -1,0 +1,7 @@
+// Proposal template: reward a contributor with scoped tokens
+fn reward(member: Did, amount: Integer) -> Integer {
+    return amount;
+}
+fn run() -> Integer {
+    return reward(member, 10);
+}
