@@ -1197,7 +1197,7 @@
 <a href=#1197 id=1197 data-nosnippet>1197</a>    <span class="kw">let </span>proof: icn_common::ZkRevocationProof = serde_json::from_str(<span class="kw-2">&amp;</span>proof_json_content)
 <a href=#1198 id=1198 data-nosnippet>1198</a>        .map_err(|e| <span class="macro">anyhow::anyhow!</span>(<span class="string">"Invalid ZkRevocationProof JSON: {}"</span>, e))<span class="question-mark">?</span>;
 <a href=#1199 id=1199 data-nosnippet>1199</a>
-<a href=#1200 id=1200 data-nosnippet>1200</a>    <span class="kw">let </span>resp: serde_json::Value = post_request(<span class="kw-2">&amp;</span>cli.api_url, client, <span class="string">"/identity/verify/revocation"</span>, <span class="kw-2">&amp;</span>proof).<span class="kw">await</span><span class="question-mark">?</span>;
+<a href=#1200 id=1200 data-nosnippet>1200</a>    <span class="kw">let </span>resp: serde_json::Value = post_request(<span class="kw-2">&amp;</span>cli.api_url, client, <span class="string">"/identity/verify/revocation"</span>, <span class="kw-2">&amp;</span>proof, cli.api_key.as_deref()).<span class="kw">await</span><span class="question-mark">?</span>;
 <a href=#1201 id=1201 data-nosnippet>1201</a>    <span class="macro">println!</span>(<span class="string">"{}"</span>, serde_json::to_string_pretty(<span class="kw-2">&amp;</span>resp)<span class="question-mark">?</span>);
 <a href=#1202 id=1202 data-nosnippet>1202</a>    <span class="prelude-val">Ok</span>(())
 <a href=#1203 id=1203 data-nosnippet>1203</a>}
@@ -1507,7 +1507,7 @@
 <a href=#1507 id=1507 data-nosnippet>1507</a>}
 <a href=#1508 id=1508 data-nosnippet>1508</a>
 <a href=#1509 id=1509 data-nosnippet>1509</a><span class="kw">async fn </span>handle_aid_list(cli: <span class="kw-2">&amp;</span>Cli, client: <span class="kw-2">&amp;</span>Client) -&gt; <span class="prelude-ty">Result</span>&lt;(), anyhow::Error&gt; {
-<a href=#1510 id=1510 data-nosnippet>1510</a>    <span class="kw">let </span>v: serde_json::Value = get_request(<span class="kw-2">&amp;</span>cli.api_url, client, <span class="string">"/aid/resources"</span>).<span class="kw">await</span><span class="question-mark">?</span>;
+<a href=#1510 id=1510 data-nosnippet>1510</a>    <span class="kw">let </span>v: serde_json::Value = get_request(<span class="kw-2">&amp;</span>cli.api_url, client, <span class="string">"/aid/resources"</span>, cli.api_key.as_deref()).<span class="kw">await</span><span class="question-mark">?</span>;
 <a href=#1511 id=1511 data-nosnippet>1511</a>    <span class="macro">println!</span>(<span class="string">"{}"</span>, serde_json::to_string_pretty(<span class="kw-2">&amp;</span>v)<span class="question-mark">?</span>);
 <a href=#1512 id=1512 data-nosnippet>1512</a>    <span class="prelude-val">Ok</span>(())
 <a href=#1513 id=1513 data-nosnippet>1513</a>}
@@ -1526,7 +1526,7 @@
 <a href=#1526 id=1526 data-nosnippet>1526</a>    };
 <a href=#1527 id=1527 data-nosnippet>1527</a>    <span class="kw">let </span>body: serde_json::Value = serde_json::from_str(<span class="kw-2">&amp;</span>content)
 <a href=#1528 id=1528 data-nosnippet>1528</a>        .map_err(|e| <span class="macro">anyhow::anyhow!</span>(<span class="string">"Invalid aid resource JSON: {}"</span>, e))<span class="question-mark">?</span>;
-<a href=#1529 id=1529 data-nosnippet>1529</a>    <span class="kw">let _</span>: serde_json::Value = post_request(<span class="kw-2">&amp;</span>cli.api_url, client, <span class="string">"/aid/resource"</span>, <span class="kw-2">&amp;</span>body).<span class="kw">await</span><span class="question-mark">?</span>;
+<a href=#1529 id=1529 data-nosnippet>1529</a>    <span class="kw">let _</span>: serde_json::Value = post_request(<span class="kw-2">&amp;</span>cli.api_url, client, <span class="string">"/aid/resource"</span>, <span class="kw-2">&amp;</span>body, cli.api_key.as_deref()).<span class="kw">await</span><span class="question-mark">?</span>;
 <a href=#1530 id=1530 data-nosnippet>1530</a>    <span class="macro">println!</span>(<span class="string">"Aid resource registered"</span>);
 <a href=#1531 id=1531 data-nosnippet>1531</a>    <span class="prelude-val">Ok</span>(())
 <a href=#1532 id=1532 data-nosnippet>1532</a>}
