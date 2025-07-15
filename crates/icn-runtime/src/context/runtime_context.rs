@@ -105,7 +105,6 @@ use icn_mesh::{
     JobState,
 };
 use serde_json;
-use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration as StdDuration;
@@ -2881,15 +2880,59 @@ impl RuntimeContext {
                     }
                 }
             } else {
-                log::info!("[ExecutorManager] Using stub network service - polling mode");
+                log::info!("[ExecutorManager] Using stub network service - immediate notification mode");
 
-                // Polling approach for stub network
-                let mut interval = tokio::time::interval(std::time::Duration::from_secs(1));
-                loop {
-                    interval.tick().await;
-                    if let Err(e) = Self::process_executor_tasks(&ctx, &mut evaluated_jobs).await {
-                        log::error!("[ExecutorManager] Error processing executor tasks: {}", e);
+                // Set up immediate notification channel for stub networking
+                if let MeshNetworkServiceType::Stub(stub_service) = &*ctx.mesh_network_service {
+                    let mut job_announcement_rx = stub_service.setup_job_announcement_channel().await;
+                    
+                    // Clone context and network service for the notification task
+                    let ctx_clone = ctx.clone();
+                    let network_service = ctx.mesh_network_service.clone();
+                    
+                    // Start a task to handle immediate job notifications
+                    let mut notification_task = tokio::spawn(async move {
+                        while let Some(job) = job_announcement_rx.recv().await {
+                            log::info!("[ExecutorManager] Received immediate job announcement for job {:?}", job.id);
+                            
+                            // Skip jobs we submitted ourselves
+                            if job.creator_did == ctx_clone.current_identity {
+                                continue;
+                            }
+                            
+                            // Evaluate the job and create a bid if appropriate
+                            if let Ok(Some(bid)) = Self::evaluate_and_bid_on_job(&ctx_clone, &job).await {
+                                log::info!("[ExecutorManager] Submitting immediate bid for job {:?}: {} mana", job.id, bid.price_mana);
+                                
+                                // Submit the bid through the network service
+                                if let Err(e) = network_service.submit_bid_for_job(&bid).await {
+                                    log::error!("[ExecutorManager] Failed to submit immediate bid for job {:?}: {}", job.id, e);
+                                } else {
+                                    log::info!("[ExecutorManager] Successfully submitted immediate bid for job {:?}", job.id);
+                                }
+                            } else {
+                                log::debug!("[ExecutorManager] Decided not to bid on job {:?}", job.id);
+                            }
+                        }
+                    });
+                    
+                    // Also keep polling as a backup
+                    let mut interval = tokio::time::interval(std::time::Duration::from_secs(5));
+                    loop {
+                        tokio::select! {
+                            _ = interval.tick() => {
+                                if let Err(e) = Self::process_executor_tasks(&ctx, &mut evaluated_jobs).await {
+                                    log::error!("[ExecutorManager] Error processing executor tasks: {}", e);
+                                }
+                            }
+                            _ = &mut notification_task => {
+                                log::warn!("[ExecutorManager] Job notification task ended");
+                                break;
+                            }
+                        }
                     }
+                } else {
+                    log::warn!("[ExecutorManager] Expected stub network service but got something else");
                 }
             }
         });

@@ -222,6 +222,7 @@ pub struct StubMeshNetworkService {
     staged_receipts: Arc<TokioMutex<HashMap<JobId, VecDeque<LocalMeshSubmitReceiptMessage>>>>,
     announced_jobs: Arc<TokioMutex<Vec<ActualMeshJob>>>,
     assignment_notices: Arc<TokioMutex<Vec<JobAssignmentNotice>>>,
+    job_announcement_tx: Arc<TokioMutex<Option<tokio::sync::mpsc::UnboundedSender<ActualMeshJob>>>>,
 }
 
 impl StubMeshNetworkService {
@@ -231,7 +232,15 @@ impl StubMeshNetworkService {
             staged_receipts: Arc::new(TokioMutex::new(HashMap::new())),
             announced_jobs: Arc::new(TokioMutex::new(Vec::new())),
             assignment_notices: Arc::new(TokioMutex::new(Vec::new())),
+            job_announcement_tx: Arc::new(TokioMutex::new(None)),
         }
+    }
+
+    /// Set up the job announcement notification channel
+    pub async fn setup_job_announcement_channel(&self) -> tokio::sync::mpsc::UnboundedReceiver<ActualMeshJob> {
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+        *self.job_announcement_tx.lock().await = Some(tx);
+        rx
     }
 
     /// Stage a bid for a specific job (for testing)
@@ -283,6 +292,16 @@ impl MeshNetworkService for StubMeshNetworkService {
         // Store the announced job for testing verification
         let mut announced_jobs = self.announced_jobs.lock().await;
         announced_jobs.push(job.clone());
+        drop(announced_jobs); // Release lock before notifying
+        
+        // Send immediate notification to executor manager if channel is set up
+        if let Some(tx) = &*self.job_announcement_tx.lock().await {
+            if let Err(e) = tx.send(job.clone()) {
+                log::warn!("[StubMeshNetwork] Failed to send job announcement notification: {}", e);
+            } else {
+                log::debug!("[StubMeshNetwork] Sent immediate job announcement notification for job {:?}", job.id);
+            }
+        }
         
         Ok(())
     }
