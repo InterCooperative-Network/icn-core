@@ -25,6 +25,10 @@ once_cell = "1.21"
 prometheus-client = "0.22"
 axum = { version = "0.6", optional = true }
 
+[[bin]]
+name = "generate-ts-sdk"
+path = "src/bin/generate-ts-sdk.rs"
+
 [features]
 default = []
 types-only = [] # Allows depending only on types, no extra code, if types are pub
