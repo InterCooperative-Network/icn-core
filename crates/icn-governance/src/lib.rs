@@ -110,6 +110,13 @@ pub struct Proposal {
     // Potentially, threshold and quorum requirements could be part of the proposal type or global config
 }
 
+pub fn canonical_proposal(proposals: &[Proposal]) -> Option<&Proposal> {
+    proposals.iter().min_by(|a, b| match a.created_at.cmp(&b.created_at) {
+        std::cmp::Ordering::Equal => a.id.0.cmp(&b.id.0),
+        other => other,
+    })
+}
+
 /// Possible voting options.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]

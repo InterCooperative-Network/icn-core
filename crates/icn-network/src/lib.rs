@@ -536,6 +536,17 @@ pub async fn gossip_proposal_with_retry<S: NetworkService>(
     .await
 }
 
+pub async fn gossip_message_with_retry<S: NetworkService>(
+    service: &S,
+    message: ProtocolMessage,
+) -> Result<(), MeshNetworkError> {
+    with_resilience(|| {
+        let msg = message.clone();
+        async move { service.broadcast_message(msg).await }
+    })
+    .await
+}
+
 /// Confirm quorum status by querying the network with retries.
 pub async fn confirm_quorum_with_retry<S: NetworkService>(
     service: &S,
@@ -775,9 +786,12 @@ pub mod libp2p_service {
             // Extract peer ID from multiaddr
             let peer_id = addr
                 .iter()
-                .find_map(|protocol| match protocol {
-                    libp2p::core::multiaddr::Protocol::P2p(pid) => Some(pid.try_into().ok()?),
-                    _ => None,
+                .find_map(|protocol| {
+                    #[allow(clippy::useless_conversion)]
+                    match protocol {
+                        libp2p::core::multiaddr::Protocol::P2p(pid) => Some(pid.try_into().ok()?),
+                        _ => None,
+                    }
                 })
                 .ok_or_else(|| {
                     MeshNetworkError::InvalidInput(

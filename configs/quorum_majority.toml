@@ -1,0 +1,4 @@
+# Default quorum configuration (2 of 3 nodes)
+[governance.proposals]
+min_quorum = 0.66
+passing_threshold = 0.5
