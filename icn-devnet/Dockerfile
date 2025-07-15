@@ -44,7 +44,7 @@ ENV CFLAGS="-O1"
 ENV CXXFLAGS="-O1"
 
 # Build with increased stack size and memory limits
-RUN bash -c "cargo build -p icn-node --features with-libp2p"
+RUN bash -c "cargo build -p icn-node"
 
 # Runtime stage
 FROM debian:bookworm-slim

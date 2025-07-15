@@ -12,7 +12,7 @@ services:
       - ICN_NODE_NAME=Federation-Node-A
       - ICN_HTTP_LISTEN_ADDR=0.0.0.0:7845
       - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
-      - ICN_ENABLE_P2P=true
+      - ICN_ENABLE_P2P=false
       - ICN_ENABLE_MDNS=true
       - ICN_STORAGE_BACKEND=memory
       - ICN_HTTP_API_KEY=devnet-a-key
@@ -44,7 +44,7 @@ services:
       - ICN_NODE_NAME=Federation-Node-B
       - ICN_HTTP_LISTEN_ADDR=0.0.0.0:7845
       - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
-      - ICN_ENABLE_P2P=true
+      - ICN_ENABLE_P2P=false
       - ICN_ENABLE_MDNS=true
       - ICN_BOOTSTRAP_PEERS=/ip4/172.20.0.3/tcp/4001
       - ICN_STORAGE_BACKEND=memory
@@ -78,7 +78,7 @@ services:
       - ICN_NODE_NAME=Federation-Node-C
       - ICN_HTTP_LISTEN_ADDR=0.0.0.0:7845
       - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
-      - ICN_ENABLE_P2P=true
+      - ICN_ENABLE_P2P=false
       - ICN_ENABLE_MDNS=true
       - ICN_BOOTSTRAP_PEERS=/ip4/172.20.0.3/tcp/4001
       - ICN_STORAGE_BACKEND=memory
@@ -112,7 +112,7 @@ services:
       - ICN_NODE_NAME=Federation-Node-D
       - ICN_HTTP_LISTEN_ADDR=0.0.0.0:7845
       - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
-      - ICN_ENABLE_P2P=true
+      - ICN_ENABLE_P2P=false
       - ICN_ENABLE_MDNS=true
       - ICN_BOOTSTRAP_PEERS=/ip4/172.20.0.3/tcp/4001
       - ICN_STORAGE_BACKEND=memory
@@ -146,7 +146,7 @@ services:
       - ICN_NODE_NAME=Federation-Node-E
       - ICN_HTTP_LISTEN_ADDR=0.0.0.0:7845
       - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
-      - ICN_ENABLE_P2P=true
+      - ICN_ENABLE_P2P=false
       - ICN_ENABLE_MDNS=true
       - ICN_BOOTSTRAP_PEERS=/ip4/172.20.0.3/tcp/4001
       - ICN_STORAGE_BACKEND=memory
@@ -180,7 +180,7 @@ services:
       - ICN_NODE_NAME=Federation-Node-F
       - ICN_HTTP_LISTEN_ADDR=0.0.0.0:7845
       - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
-      - ICN_ENABLE_P2P=true
+      - ICN_ENABLE_P2P=false
       - ICN_ENABLE_MDNS=true
       - ICN_BOOTSTRAP_PEERS=/ip4/172.20.0.3/tcp/4001
       - ICN_STORAGE_BACKEND=memory
@@ -214,7 +214,7 @@ services:
       - ICN_NODE_NAME=Federation-Node-G
       - ICN_HTTP_LISTEN_ADDR=0.0.0.0:7845
       - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
-      - ICN_ENABLE_P2P=true
+      - ICN_ENABLE_P2P=false
       - ICN_ENABLE_MDNS=true
       - ICN_BOOTSTRAP_PEERS=/ip4/172.20.0.3/tcp/4001
       - ICN_STORAGE_BACKEND=memory
@@ -248,7 +248,7 @@ services:
       - ICN_NODE_NAME=Federation-Node-H
       - ICN_HTTP_LISTEN_ADDR=0.0.0.0:7845
       - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
-      - ICN_ENABLE_P2P=true
+      - ICN_ENABLE_P2P=false
       - ICN_ENABLE_MDNS=true
       - ICN_BOOTSTRAP_PEERS=/ip4/172.20.0.3/tcp/4001
       - ICN_STORAGE_BACKEND=memory
@@ -282,7 +282,7 @@ services:
       - ICN_NODE_NAME=Federation-Node-I
       - ICN_HTTP_LISTEN_ADDR=0.0.0.0:7845
       - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
-      - ICN_ENABLE_P2P=true
+      - ICN_ENABLE_P2P=false
       - ICN_ENABLE_MDNS=true
       - ICN_BOOTSTRAP_PEERS=/ip4/172.20.0.3/tcp/4001
       - ICN_STORAGE_BACKEND=memory
@@ -316,7 +316,7 @@ services:
       - ICN_NODE_NAME=Federation-Node-J
       - ICN_HTTP_LISTEN_ADDR=0.0.0.0:7845
       - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
-      - ICN_ENABLE_P2P=true
+      - ICN_ENABLE_P2P=false
       - ICN_ENABLE_MDNS=true
       - ICN_BOOTSTRAP_PEERS=/ip4/172.20.0.3/tcp/4001
       - ICN_STORAGE_BACKEND=memory
