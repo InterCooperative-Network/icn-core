@@ -109,6 +109,31 @@ scripts/run_10node_devnet.sh
 This exposes Prometheus at `http://localhost:9090` and Grafana at
 `http://localhost:3000`.
 
+## Large Federation Deployment
+
+To experiment with more than ten nodes, use `scripts/deploy_large_federation.sh`.
+Specify the desired node count with `--nodes`:
+
+```bash
+# Launch a 15 node federation
+./scripts/deploy_large_federation.sh --nodes 15
+```
+
+The script generates a temporary compose file and starts the requested nodes
+alongside Prometheus and Grafana.
+
+## Load Testing
+
+Once the federation is running you can submit a burst of jobs using
+`scripts/load_test.sh`:
+
+```bash
+./scripts/load_test.sh --jobs 100 --metrics-output results.json
+```
+
+The script sends concurrent job submissions and optionally writes Prometheus
+metrics to the specified output file.
+
 ## 🏗️ Architecture
 
 ### Network Topology

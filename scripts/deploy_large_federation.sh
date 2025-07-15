@@ -2,17 +2,33 @@
 set -e
 
 # deploy_large_federation.sh
-# Spin up a 20 node federation with Prometheus/Grafana monitoring.
-# This script generates a temporary docker-compose file extending the
-# default devnet compose with additional nodes.
+# Launch a federation with a configurable number of nodes using Docker
+# Compose. Nodes beyond the ten provided in the default compose file are
+# generated dynamically.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 BASE_COMPOSE="$ROOT_DIR/icn-devnet/docker-compose.yml"
 LARGE_COMPOSE="$ROOT_DIR/icn-devnet/docker-compose.large.yml"
 
-# Generate compose with extra nodes K-T derived from node-j definition
-cp "$BASE_COMPOSE" "$LARGE_COMPOSE"
+NODE_COUNT=20
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --nodes)
+      NODE_COUNT="$2"
+      shift 2
+      ;;
+    *)
+      echo "Usage: $0 [--nodes N]"
+      exit 1
+      ;;
+  esac
+done
+
+# Copy base compose without the trailing volumes section so we can
+# append our dynamically generated volumes list.
+sed '/^volumes:/,$d' "$BASE_COMPOSE" > "$LARGE_COMPOSE"
 
 append_node() {
   local letter="$1"
@@ -58,11 +74,13 @@ append_node() {
 EOF2
 }
 
-for idx in {11..20}; do
+if [ "$NODE_COUNT" -gt 10 ]; then
+for idx in $(seq 11 "$NODE_COUNT"); do
   letter=$(printf "%c" $((96 + idx)))
   append_node "$letter" "$idx"
   EXTRA_VOLUMES+="  node-$letter-data:\n"
 done
+fi
 
 # Append new volumes at end of compose
 cat >> "$LARGE_COMPOSE" <<EOF2
@@ -83,6 +101,13 @@ EOF2
 
 cd "$ROOT_DIR/icn-devnet"
 
-docker-compose -f docker-compose.large.yml up -d icn-node-a icn-node-b icn-node-c icn-node-d icn-node-e icn-node-f icn-node-g icn-node-h icn-node-i icn-node-j icn-node-k icn-node-l icn-node-m icn-node-n icn-node-o icn-node-p icn-node-q icn-node-r icn-node-s icn-node-t postgres prometheus grafana
+services=""
+for idx in $(seq 1 "$NODE_COUNT"); do
+  letter=$(printf "%c" $((96 + idx)))
+  services+=" icn-node-$letter"
+done
+services+=" postgres prometheus grafana"
+
+docker-compose -f docker-compose.large.yml up -d $services
 
 echo "Large federation running using compose file: $LARGE_COMPOSE"
