@@ -31,6 +31,7 @@ pub trait Signer: Send + Sync + std::fmt::Debug {
     fn public_key_bytes(&self) -> Vec<u8>;
     fn did(&self) -> Did;
     fn verifying_key_ref(&self) -> &VerifyingKey;
+    fn as_any(&self) -> &dyn std::any::Any;
 }
 
 /// Helper function to create DID from verifying key
@@ -111,6 +112,10 @@ impl Signer for StubSigner {
 
     fn verifying_key_ref(&self) -> &VerifyingKey {
         &self.pk
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }
 
@@ -273,6 +278,10 @@ impl Signer for Ed25519Signer {
 
     fn verifying_key_ref(&self) -> &VerifyingKey {
         &self.pk
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }
 

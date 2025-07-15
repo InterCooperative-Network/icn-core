@@ -306,7 +306,9 @@ pub fn create_test_job() -> MeshJob {
 
 // Test context
 pub async fn create_test_context() -> RuntimeContext {
-    RuntimeContext::new_for_test().await
+    use icn_runtime::RuntimeContext;
+    let did = icn_common::Did::new("key", "test_node");
+    RuntimeContext::new_for_testing(did, Some(1000)).unwrap()
 }
 
 // Mock implementations
