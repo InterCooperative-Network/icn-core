@@ -1,41 +1,39 @@
-use prometheus_client::encoding::text::encode;
-use prometheus_client::registry::Registry;
-use prometheus_client::metrics::{counter::Counter, gauge::Gauge, histogram::Histogram};
 use once_cell::sync::Lazy;
+use prometheus_client::encoding::text::encode;
+use prometheus_client::metrics::{counter::Counter, gauge::Gauge, histogram::Histogram};
+use prometheus_client::registry::Registry;
 use std::sync::atomic::AtomicU64;
 
 /// Additional system-level metrics for ICN nodes
 pub mod system {
     use super::*;
-    
+
     /// Node startup timestamp (Unix seconds)
     pub static NODE_START_TIME: Lazy<Gauge<f64, AtomicU64>> = Lazy::new(Gauge::default);
-    
+
     /// Current system memory usage in bytes
     pub static SYSTEM_MEMORY_USAGE: Lazy<Gauge<f64, AtomicU64>> = Lazy::new(Gauge::default);
-    
+
     /// Current system CPU usage percentage
     pub static SYSTEM_CPU_USAGE: Lazy<Gauge<f64, AtomicU64>> = Lazy::new(Gauge::default);
-    
+
     /// Number of active HTTP connections
     pub static HTTP_ACTIVE_CONNECTIONS: Lazy<Gauge<i64>> = Lazy::new(Gauge::default);
-    
+
     /// HTTP request duration histogram
     pub static HTTP_REQUEST_DURATION: Lazy<Histogram> = Lazy::new(|| {
-        Histogram::new(
-            [0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0, 5.0, 10.0, 60.0].into_iter()
-        )
+        Histogram::new([0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0, 5.0, 10.0, 60.0].into_iter())
     });
-    
+
     /// HTTP request counter by status code
     pub static HTTP_REQUESTS_TOTAL: Lazy<Counter> = Lazy::new(Counter::default);
-    
+
     /// HTTP errors counter
     pub static HTTP_ERRORS_TOTAL: Lazy<Counter> = Lazy::new(Counter::default);
-    
+
     /// Rate limit violations counter
     pub static RATE_LIMIT_VIOLATIONS: Lazy<Counter> = Lazy::new(Counter::default);
-    
+
     /// Authentication failures counter
     pub static AUTH_FAILURES: Lazy<Counter> = Lazy::new(Counter::default);
 }
@@ -43,37 +41,34 @@ pub mod system {
 /// ICN-specific application metrics
 pub mod application {
     use super::*;
-    
+
     /// Total number of federation members
     pub static FEDERATION_MEMBERS: Lazy<Gauge<i64>> = Lazy::new(Gauge::default);
-    
+
     /// Active consensus rounds
     pub static ACTIVE_CONSENSUS_ROUNDS: Lazy<Gauge<i64>> = Lazy::new(Gauge::default);
-    
+
     /// Total mana in circulation
     pub static TOTAL_MANA_SUPPLY: Lazy<Gauge<f64, AtomicU64>> = Lazy::new(Gauge::default);
-    
+
     /// Average mana regeneration rate
     pub static MANA_REGENERATION_RATE: Lazy<Gauge<f64, AtomicU64>> = Lazy::new(Gauge::default);
-    
+
     /// Number of active DIDs
     pub static ACTIVE_DIDS: Lazy<Gauge<i64>> = Lazy::new(Gauge::default);
-    
+
     /// DAG block height (latest block)
     pub static DAG_BLOCK_HEIGHT: Lazy<Gauge<i64>> = Lazy::new(Gauge::default);
-    
+
     /// DAG storage size in bytes
     pub static DAG_STORAGE_SIZE: Lazy<Gauge<f64, AtomicU64>> = Lazy::new(Gauge::default);
-    
+
     /// CCL contracts deployed
     pub static CCL_CONTRACTS_DEPLOYED: Lazy<Counter> = Lazy::new(Counter::default);
-    
+
     /// CCL contract execution time
-    pub static CCL_EXECUTION_TIME: Lazy<Histogram> = Lazy::new(|| {
-        Histogram::new(
-            [0.001, 0.01, 0.1, 1.0, 10.0, 100.0].into_iter()
-        )
-    });
+    pub static CCL_EXECUTION_TIME: Lazy<Histogram> =
+        Lazy::new(|| Histogram::new([0.001, 0.01, 0.1, 1.0, 10.0, 100.0].into_iter()));
 }
 
 /// Registers common ICN metrics (job execution, governance actions, network health)
@@ -85,17 +80,18 @@ pub fn register_core_metrics(registry: &mut Registry) {
     register_identity_metrics(registry);
     register_reputation_metrics(registry);
     register_network_metrics(registry);
-    
+
     // Runtime-specific metrics (conditionally compiled)
     #[cfg(feature = "runtime-metrics")]
     {
         register_economics_metrics(registry);
         register_mesh_metrics(registry);
+        register_runtime_metrics(registry);
     }
-    
+
     // System-level metrics
     register_system_metrics(registry);
-    
+
     // Application-level metrics
     register_application_metrics(registry);
 }
@@ -103,7 +99,7 @@ pub fn register_core_metrics(registry: &mut Registry) {
 /// Register DAG-related metrics
 fn register_dag_metrics(registry: &mut Registry) {
     use icn_dag::metrics::{DAG_GET_CALLS, DAG_PUT_CALLS};
-    
+
     registry.register(
         "dag_put_calls_total",
         "Number of DAG put operations",
@@ -119,7 +115,7 @@ fn register_dag_metrics(registry: &mut Registry) {
 /// Register governance-related metrics
 fn register_governance_metrics(registry: &mut Registry) {
     use icn_governance::metrics::{CAST_VOTE_CALLS, EXECUTE_PROPOSAL_CALLS, SUBMIT_PROPOSAL_CALLS};
-    
+
     registry.register(
         "governance_proposals_submitted_total",
         "Number of governance proposals submitted",
@@ -140,7 +136,7 @@ fn register_governance_metrics(registry: &mut Registry) {
 /// Register identity-related metrics
 fn register_identity_metrics(registry: &mut Registry) {
     use icn_identity::metrics::{CREDENTIALS_ISSUED, PROOFS_VERIFIED, PROOF_VERIFICATION_FAILURES};
-    
+
     registry.register(
         "identity_credentials_issued_total",
         "Number of credentials issued",
@@ -161,7 +157,7 @@ fn register_identity_metrics(registry: &mut Registry) {
 /// Register reputation-related metrics
 fn register_reputation_metrics(registry: &mut Registry) {
     use icn_reputation::metrics::{EXECUTION_RECORDS, PROOF_ATTEMPTS};
-    
+
     registry.register(
         "reputation_execution_records_total",
         "Number of execution records processed",
@@ -181,7 +177,7 @@ fn register_network_metrics(registry: &mut Registry) {
         MESSAGES_SENT_TOTAL, PEER_COUNT_GAUGE, PING_AVG_RTT_MS, PING_LAST_RTT_MS, PING_MAX_RTT_MS,
         PING_MIN_RTT_MS,
     };
-    
+
     registry.register(
         "network_peer_count",
         "Number of connected peers",
@@ -238,7 +234,7 @@ fn register_network_metrics(registry: &mut Registry) {
 #[cfg(feature = "runtime-metrics")]
 fn register_economics_metrics(registry: &mut Registry) {
     use icn_economics::metrics::{CREDIT_MANA_CALLS, GET_BALANCE_CALLS, SPEND_MANA_CALLS};
-    
+
     registry.register(
         "economics_mana_balance_queries_total",
         "Number of mana balance queries",
@@ -265,7 +261,7 @@ fn register_mesh_metrics(registry: &mut Registry) {
         JOB_COMPLETION_TIME, JOB_PROCESS_TIME, PENDING_JOBS_GAUGE, SCHEDULE_MESH_JOB_CALLS,
         SELECT_EXECUTOR_CALLS,
     };
-    
+
     registry.register(
         "mesh_executor_selection_calls_total",
         "Number of executor selection operations",
@@ -324,12 +320,74 @@ fn register_mesh_metrics(registry: &mut Registry) {
     registry.register(
         "mesh_job_execution_duration_seconds",
         "Time from job submission to completion",
-                    JOB_COMPLETION_TIME.clone(),
+        JOB_COMPLETION_TIME.clone(),
     );
     registry.register(
         "mesh_job_processing_duration_seconds",
         "Time from job assignment to receipt processing",
         JOB_PROCESS_TIME.clone(),
+    );
+}
+
+/// Register runtime-related metrics
+#[cfg(feature = "runtime-metrics")]
+fn register_runtime_metrics(registry: &mut Registry) {
+    use icn_runtime::metrics::{
+        HOST_ACCOUNT_CREDIT_MANA_CALLS, HOST_ACCOUNT_GET_MANA_CALLS, HOST_ACCOUNT_SPEND_MANA_CALLS,
+        HOST_ANCHOR_RECEIPT_CALLS, HOST_GET_PENDING_MESH_JOBS_CALLS, HOST_SUBMIT_MESH_JOB_CALLS,
+        MANA_ACCOUNTS_GAUGE, RECEIPTS_ANCHORED, WASM_MEMORY_GROWTH_DENIED,
+        WASM_TABLE_GROWTH_DENIED,
+    };
+
+    registry.register(
+        "runtime_host_submit_mesh_job_calls_total",
+        "Number of host_submit_mesh_job calls",
+        HOST_SUBMIT_MESH_JOB_CALLS.clone(),
+    );
+    registry.register(
+        "runtime_host_get_pending_mesh_jobs_calls_total",
+        "Number of host_get_pending_mesh_jobs calls",
+        HOST_GET_PENDING_MESH_JOBS_CALLS.clone(),
+    );
+    registry.register(
+        "runtime_host_account_get_mana_calls_total",
+        "Number of host_account_get_mana calls",
+        HOST_ACCOUNT_GET_MANA_CALLS.clone(),
+    );
+    registry.register(
+        "runtime_host_account_spend_mana_calls_total",
+        "Number of host_account_spend_mana calls",
+        HOST_ACCOUNT_SPEND_MANA_CALLS.clone(),
+    );
+    registry.register(
+        "runtime_host_account_credit_mana_calls_total",
+        "Number of host_account_credit_mana calls",
+        HOST_ACCOUNT_CREDIT_MANA_CALLS.clone(),
+    );
+    registry.register(
+        "runtime_host_anchor_receipt_calls_total",
+        "Number of host_anchor_receipt calls",
+        HOST_ANCHOR_RECEIPT_CALLS.clone(),
+    );
+    registry.register(
+        "runtime_receipts_anchored_total",
+        "Number of receipts anchored to the DAG",
+        RECEIPTS_ANCHORED.clone(),
+    );
+    registry.register(
+        "runtime_wasm_memory_growth_denied_total",
+        "Number of denied WASM memory growth attempts",
+        WASM_MEMORY_GROWTH_DENIED.clone(),
+    );
+    registry.register(
+        "runtime_wasm_table_growth_denied_total",
+        "Number of denied WASM table growth attempts",
+        WASM_TABLE_GROWTH_DENIED.clone(),
+    );
+    registry.register(
+        "mana_accounts",
+        "Number of accounts in the mana ledger",
+        MANA_ACCOUNTS_GAUGE.clone(),
     );
 }
 
@@ -443,7 +501,7 @@ pub fn collect_metrics() -> String {
 /// Helper function to update system metrics (to be called periodically)
 pub fn update_system_metrics() {
     use std::time::{SystemTime, UNIX_EPOCH};
-    
+
     // Update node start time if not already set
     if system::NODE_START_TIME.get() == 0.0 {
         let start_time = SystemTime::now()
@@ -452,7 +510,7 @@ pub fn update_system_metrics() {
             .as_secs();
         system::NODE_START_TIME.set(start_time as f64);
     }
-    
+
     // Update system memory usage
     #[cfg(target_os = "linux")]
     {
@@ -469,14 +527,16 @@ pub fn update_system_metrics() {
             }
         }
     }
-    
+
     // Update CPU usage (basic implementation)
     #[cfg(target_os = "linux")]
     {
         if let Ok(stat) = std::fs::read_to_string("/proc/self/stat") {
             let fields: Vec<&str> = stat.split_whitespace().collect();
             if fields.len() > 15 {
-                if let (Ok(utime), Ok(stime)) = (fields[13].parse::<u64>(), fields[14].parse::<u64>()) {
+                if let (Ok(utime), Ok(stime)) =
+                    (fields[13].parse::<u64>(), fields[14].parse::<u64>())
+                {
                     // This is a simplified CPU usage calculation
                     // In production, you'd want to calculate this over time intervals
                     let total_time = utime + stime;
