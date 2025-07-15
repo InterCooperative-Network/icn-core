@@ -294,140 +294,164 @@ export class ICNClient {
   }
 
   // Governance API
-  governance = {
-    async submitProposal(request: SubmitProposalRequest): Promise<string> {
-      return this.post<string>('/governance/submit', request);
-    },
+  get governance() {
+    const client = this;
+    return {
+      async submitProposal(request: SubmitProposalRequest): Promise<string> {
+        return client.post<string>('/governance/submit', request);
+      },
 
-    async castVote(request: CastVoteRequest): Promise<string> {
-      return this.post<string>('/governance/vote', request);
-    },
+      async castVote(request: CastVoteRequest): Promise<string> {
+        return client.post<string>('/governance/vote', request);
+      },
 
-    async listProposals(): Promise<Proposal[]> {
-      return this.get<Proposal[]>('/governance/proposals');
-    },
+      async listProposals(): Promise<Proposal[]> {
+        return client.get<Proposal[]>('/governance/proposals');
+      },
 
-    async getProposal(proposalId: string): Promise<Proposal> {
-      return this.get<Proposal>(`/governance/proposal/${proposalId}`);
-    },
+      async getProposal(proposalId: string): Promise<Proposal> {
+        return client.get<Proposal>(`/governance/proposal/${proposalId}`);
+      },
 
-    async delegateVote(request: DelegateRequest): Promise<string> {
-      return this.post<string>('/governance/delegate', request);
-    },
+      async delegateVote(request: DelegateRequest): Promise<string> {
+        return client.post<string>('/governance/delegate', request);
+      },
 
-    async revokeDelegation(request: RevokeDelegationRequest): Promise<string> {
-      return this.post<string>('/governance/revoke', request);
-    }
-  };
+      async revokeDelegation(request: RevokeDelegationRequest): Promise<string> {
+        return client.post<string>('/governance/revoke', request);
+      }
+    };
+  }
 
   // Identity API
-  identity = {
-    async issueCredential(request: IssueCredentialRequest): Promise<CredentialResponse> {
-      return this.post<CredentialResponse>('/identity/credentials/issue', request);
-    },
+  get identity() {
+    const client = this;
+    return {
+      async issueCredential(request: IssueCredentialRequest): Promise<CredentialResponse> {
+        return client.post<CredentialResponse>('/identity/credentials/issue', request);
+      },
 
-    async verifyCredential(credential: VerifiableCredential): Promise<VerificationResponse> {
-      return this.post<VerificationResponse>('/identity/credentials/verify', { credential });
-    },
+      async verifyCredential(credential: VerifiableCredential): Promise<VerificationResponse> {
+        return client.post<VerificationResponse>('/identity/credentials/verify', { credential });
+      },
 
-    async getCredential(cid: string): Promise<CredentialResponse> {
-      return this.get<CredentialResponse>(`/identity/credentials/${cid}`);
-    },
+      async getCredential(cid: string): Promise<CredentialResponse> {
+        return client.get<CredentialResponse>(`/identity/credentials/${cid}`);
+      },
 
-    async listSchemas(): Promise<string[]> {
-      return this.get<string[]>('/identity/credentials/schemas');
-    },
+      async listSchemas(): Promise<string[]> {
+        return client.get<string[]>('/identity/credentials/schemas');
+      },
 
-    async generateProof(request: GenerateProofRequest): Promise<ProofResponse> {
-      return this.post<ProofResponse>('/identity/generate-proof', request);
-    },
+      async generateProof(request: GenerateProofRequest): Promise<ProofResponse> {
+        return client.post<ProofResponse>('/identity/generate-proof', request);
+      },
 
-    async verifyProof(proof: ZkCredentialProof): Promise<VerificationResponse> {
-      return this.post<VerificationResponse>('/identity/verify', proof);
-    }
-  };
+      async verifyProof(proof: ZkCredentialProof): Promise<VerificationResponse> {
+        return client.post<VerificationResponse>('/identity/verify', proof);
+      }
+    };
+  }
 
   // Federation API
-  federation = {
-    async listPeers(): Promise<string[]> {
-      return this.get<string[]>('/federation/peers');
-    },
+  get federation() {
+    const client = this;
+    return {
+      async listPeers(): Promise<string[]> {
+        return client.get<string[]>('/federation/peers');
+      },
 
-    async joinFederation(request: FederationPeerRequest): Promise<void> {
-      await this.post<void>('/federation/join', request);
-    },
+      async joinFederation(request: FederationPeerRequest): Promise<void> {
+        await client.post<void>('/federation/join', request);
+      },
 
-    async leaveFederation(request: FederationPeerRequest): Promise<void> {
-      await this.post<void>('/federation/leave', request);
-    },
+      async leaveFederation(request: FederationPeerRequest): Promise<void> {
+        await client.post<void>('/federation/leave', request);
+      },
 
-    async getStatus(): Promise<FederationStatus> {
-      return this.get<FederationStatus>('/federation/status');
-    }
-  };
+      async getStatus(): Promise<FederationStatus> {
+        return client.get<FederationStatus>('/federation/status');
+      }
+    };
+  }
 
   // Mesh Computing API
-  mesh = {
-    async submitJob(request: MeshJobSubmitRequest): Promise<MeshJobResponse> {
-      return this.post<MeshJobResponse>('/mesh/submit', request);
-    },
+  get mesh() {
+    const client = this;
+    return {
+      async submitJob(request: MeshJobSubmitRequest): Promise<MeshJobResponse> {
+        return client.post<MeshJobResponse>('/mesh/submit', request);
+      },
 
-    async listJobs(): Promise<JobStatus[]> {
-      return this.get<JobStatus[]>('/mesh/jobs');
-    },
+      async listJobs(): Promise<JobStatus[]> {
+        return client.get<JobStatus[]>('/mesh/jobs');
+      },
 
-    async getJobStatus(jobId: string): Promise<JobStatus> {
-      return this.get<JobStatus>(`/mesh/jobs/${jobId}`);
-    }
-  };
+      async getJobStatus(jobId: string): Promise<JobStatus> {
+        return client.get<JobStatus>(`/mesh/jobs/${jobId}`);
+      }
+    };
+  }
 
   // Account API
-  account = {
-    async getManaBalance(did: string): Promise<ManaBalance> {
-      return this.get<ManaBalance>(`/account/${did}/mana`);
-    },
+  get account() {
+    const client = this;
+    return {
+      async getManaBalance(did: string): Promise<ManaBalance> {
+        return client.get<ManaBalance>(`/account/${did}/mana`);
+      },
 
-    async getKeys(): Promise<AccountKeys> {
-      return this.get<AccountKeys>('/keys');
-    }
-  };
+      async getKeys(): Promise<AccountKeys> {
+        return client.get<AccountKeys>('/keys');
+      }
+    };
+  }
 
   // Reputation API
-  reputation = {
-    async getScore(did: string): Promise<ReputationScore> {
-      return this.get<ReputationScore>(`/reputation/${did}`);
-    }
-  };
+  get reputation() {
+    const client = this;
+    return {
+      async getScore(did: string): Promise<ReputationScore> {
+        return client.get<ReputationScore>(`/reputation/${did}`);
+      }
+    };
+  }
 
   // DAG API
-  dag = {
-    async putBlock(request: DagPutRequest): Promise<string> {
-      return this.post<string>('/dag/put', request);
-    },
+  get dag() {
+    const client = this;
+    return {
+      async putBlock(request: DagPutRequest): Promise<string> {
+        return client.post<string>('/dag/put', request);
+      },
 
-    async getBlock(request: DagGetRequest): Promise<DagBlock | null> {
-      return this.post<DagBlock | null>('/dag/get', request);
-    }
-  };
+      async getBlock(request: DagGetRequest): Promise<DagBlock | null> {
+        return client.post<DagBlock | null>('/dag/get', request);
+      }
+    };
+  }
 
   // System API
-  system = {
-    async getInfo(): Promise<NodeInfo> {
-      return this.get<NodeInfo>('/info');
-    },
+  get system() {
+    const client = this;
+    return {
+      async getInfo(): Promise<NodeInfo> {
+        return client.get<NodeInfo>('/info');
+      },
 
-    async getStatus(): Promise<NodeStatus> {
-      return this.get<NodeStatus>('/status');
-    },
+      async getStatus(): Promise<NodeStatus> {
+        return client.get<NodeStatus>('/status');
+      },
 
-    async getHealth(): Promise<HealthStatus> {
-      return this.get<HealthStatus>('/health');
-    },
+      async getHealth(): Promise<HealthStatus> {
+        return client.get<HealthStatus>('/health');
+      },
 
-    async getMetrics(): Promise<string> {
-      return this.get<string>('/metrics');
-    }
-  };
+      async getMetrics(): Promise<string> {
+        return client.get<string>('/metrics');
+      }
+    };
+  }
 
   // Private HTTP methods
   private async get<T>(path: string): Promise<T> {

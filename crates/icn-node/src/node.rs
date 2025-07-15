@@ -61,13 +61,14 @@ use icn_runtime::{host_anchor_receipt, host_submit_mesh_job, ReputationUpdater};
 use prometheus_client::{encoding::text::encode, registry::Registry};
 
 use axum::{
-    extract::{Path as AxumPath, State},
-    http::StatusCode,
+    extract::{Path as AxumPath, State, WebSocketUpgrade, ws::{Message, WebSocket}},
+    http::{HeaderValue, StatusCode},
     middleware::{self, Next},
     response::IntoResponse,
     routing::{get, post},
     Json, Router,
 };
+use tower_http::cors::{CorsLayer, Any};
 use axum_server::tls_rustls::RustlsConfig;
 use base64::{self, prelude::BASE64_STANDARD, Engine};
 use bincode;
@@ -84,6 +85,9 @@ use std::str::FromStr;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::collections::HashMap;
+use tokio::sync::broadcast;
+use futures_util::{sink::SinkExt, stream::StreamExt};
 use subtle::ConstantTimeEq;
 use tokio::sync::{Mutex as AsyncMutex, Mutex as TokioMutex};
 use uuid::Uuid;
@@ -440,6 +444,33 @@ struct ProposalIdPayload {
 
 // --- Application State ---
 #[derive(Clone)]
+// WebSocket event types for real-time updates
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum WebSocketEvent {
+    ProposalStatusChanged {
+        proposal_id: String,
+        status: String,
+        votes: serde_json::Value,
+    },
+    JobProgressUpdated {
+        job_id: String,
+        status: String,
+        progress: Option<f64>,
+    },
+    NewFederationPeer {
+        peer_id: String,
+    },
+    ManaBalanceChanged {
+        did: String,
+        new_balance: u64,
+    },
+    NetworkEvent {
+        event_type: String,
+        data: serde_json::Value,
+    },
+}
+
 struct AppState {
     runtime_context: Arc<RuntimeContext>,
     node_name: String,
@@ -455,6 +486,7 @@ struct AppState {
     trusted_issuers: std::collections::HashMap<Did, icn_identity::VerifyingKey>,
     paused_credentials: DashSet<Cid>,
     frozen_reputations: DashSet<Did>,
+    ws_broadcaster: broadcast::Sender<WebSocketEvent>,
 }
 
 struct RateLimitData {
@@ -820,6 +852,10 @@ pub async fn app_router_with_options(
         trusted_issuers: trusted_map,
         paused_credentials: DashSet::new(),
         frozen_reputations: DashSet::new(),
+        ws_broadcaster: {
+            let (tx, _) = broadcast::channel(1000);
+            tx
+        },
     };
 
     // Register governance callback for parameter changes
@@ -950,7 +986,15 @@ pub async fn app_router_with_options(
             .route("/federation/status", get(federation_status_handler))
             .route("/federation/init", post(federation_init_handler))
             .route("/federation/sync", post(federation_sync_handler))
+            .route("/ws", get(websocket_handler))
             .with_state(app_state.clone())
+            .layer(
+                CorsLayer::new()
+                    .allow_origin(Any)
+                    .allow_methods(Any)
+                    .allow_headers(Any)
+                    .allow_credentials(true)
+            )
             .layer(middleware::from_fn(correlation_id_middleware))
             .layer(middleware::from_fn_with_state(
                 app_state.clone(),
@@ -1007,6 +1051,10 @@ pub async fn app_router_from_context(
         trusted_issuers: trusted_map,
         paused_credentials: DashSet::new(),
         frozen_reputations: DashSet::new(),
+        ws_broadcaster: {
+            let (tx, _) = broadcast::channel(1000);
+            tx
+        },
     };
 
     {
@@ -1131,7 +1179,15 @@ pub async fn app_router_from_context(
         .route("/federation/status", get(federation_status_handler))
         .route("/federation/init", post(federation_init_handler))
         .route("/federation/sync", post(federation_sync_handler))
+        .route("/ws", get(websocket_handler))
         .with_state(app_state.clone())
+        .layer(
+            CorsLayer::new()
+                .allow_origin(Any)
+                .allow_methods(Any)
+                .allow_headers(Any)
+                .allow_credentials(true)
+        )
         .layer(middleware::from_fn(correlation_id_middleware))
         .layer(middleware::from_fn_with_state(
             app_state.clone(),
@@ -1353,6 +1409,10 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
         trusted_issuers: trusted_map,
         paused_credentials: DashSet::new(),
         frozen_reputations: DashSet::new(),
+        ws_broadcaster: {
+            let (tx, _) = broadcast::channel(1000);
+            tx
+        },
     };
 
     {
@@ -3466,6 +3526,75 @@ async fn circuit_versions_handler(
             Json(icn_api::circuits::CircuitVersionsResponse { slug, versions }),
         )
             .into_response()
+    }
+}
+
+// WebSocket handler for real-time events
+async fn websocket_handler(
+    ws: WebSocketUpgrade,
+    State(state): State<AppState>,
+) -> impl IntoResponse {
+    ws.on_upgrade(move |socket| handle_websocket(socket, state))
+}
+
+async fn handle_websocket(socket: WebSocket, state: AppState) {
+    let mut rx = state.ws_broadcaster.subscribe();
+    let (mut sender, mut receiver) = socket.split();
+
+    // Send a welcome message
+    if let Err(_) = sender.send(Message::Text(
+        serde_json::json!({
+            "type": "connected",
+            "message": "WebSocket connection established"
+        }).to_string()
+    )).await {
+        return;
+    }
+
+    // Handle incoming messages and broadcast events
+    let mut send_task = tokio::spawn(async move {
+        while let Ok(event) = rx.recv().await {
+            let event_json = match serde_json::to_string(&event) {
+                Ok(json) => json,
+                Err(e) => {
+                    error!("Failed to serialize WebSocket event: {}", e);
+                    continue;
+                }
+            };
+
+            if sender.send(Message::Text(event_json)).await.is_err() {
+                break;
+            }
+        }
+    });
+
+    let mut recv_task = tokio::spawn(async move {
+        while let Some(Ok(msg)) = receiver.next().await {
+            match msg {
+                Message::Text(text) => {
+                    debug!("Received WebSocket message: {}", text);
+                    // Handle client messages if needed (like subscription preferences)
+                }
+                Message::Binary(_) => {
+                    debug!("Received binary WebSocket message");
+                }
+                Message::Close(_) => {
+                    debug!("WebSocket connection closed by client");
+                    break;
+                }
+                _ => {}
+            }
+        }
+    });
+
+    // Wait for either task to finish
+    tokio::select! {
+        _ = (&mut send_task) => {
+            recv_task.abort();
+        },
+        _ = (&mut recv_task) => {
+            send_task.abort();
+        }
     }
 }
 
