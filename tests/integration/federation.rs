@@ -81,7 +81,7 @@ async fn test_federation_node_health() {
         assert!(info["version"].is_string());
 
         let dag_resp = client
-            .get(&format!("{}/dag/status", url))
+            .get(&format!("{}/sync/status", url))
             .send()
             .await
             .expect("dag status");

@@ -31,3 +31,23 @@ fn root_deterministic() {
     let root2 = compute_dag_root(&[parent.cid.clone()]);
     assert_eq!(root1, root2);
 }
+
+#[test]
+fn canonical_root_prefers_highest_height() {
+    let a = icn_common::Cid::new_v1_dummy(0x71, 0x12, b"A");
+    let b = icn_common::Cid::new_v1_dummy(0x71, 0x12, b"B");
+    let chosen = icn_dag::choose_canonical_root(vec![(a.clone(), 1), (b.clone(), 2)]).unwrap();
+    assert_eq!(chosen, b);
+}
+
+#[test]
+fn canonical_root_tiebreaks_lexicographically() {
+    let a = icn_common::Cid::new_v1_dummy(0x71, 0x12, b"A");
+    let b = icn_common::Cid::new_v1_dummy(0x71, 0x12, b"B");
+    let chosen = icn_dag::choose_canonical_root(vec![(b.clone(), 1), (a.clone(), 1)]).unwrap();
+    if a.to_string() < b.to_string() {
+        assert_eq!(chosen, a);
+    } else {
+        assert_eq!(chosen, b);
+    }
+}

@@ -19,7 +19,7 @@ async fn dag_sync_status_consistency() {
         let mut all_synced = true;
         for url in [NODE_A_URL, NODE_B_URL, NODE_C_URL] {
             let resp = client
-                .get(&format!("{}/dag/status", url))
+                .get(&format!("{}/sync/status", url))
                 .send()
                 .await
                 .expect("dag sync");
