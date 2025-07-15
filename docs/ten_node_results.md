@@ -36,3 +36,16 @@ failed to start daemon: Error initializing network controller: failed to registe
 ```
 
 As a result, the federation containers never launched and no jobs were submitted. No peer counts or completion times were recorded.
+
+## ❗ Codex Attempt (April 2026)
+
+We executed `scripts/load_test.sh --jobs 5` inside the provided environment. Job
+submissions returned immediately, but the node at `http://localhost:5001` was not
+reachable:
+
+```
+curl: (7) Failed to connect to localhost port 5001: Connection refused
+```
+
+Prometheus was also unavailable so no metrics were captured. The test produced no
+valid results.
