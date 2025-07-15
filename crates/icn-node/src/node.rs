@@ -838,6 +838,8 @@ pub async fn app_router_with_options(
             .route("/keys", get(keys_handler))
             .route("/reputation/{did}", get(reputation_handler))
             .route("/identity/verify", post(zk_verify_handler))
+            .route("/identity/generate-proof", post(zk_generate_handler))
+            .route("/identity/verify-proof", post(zk_verify_handler))
             .route("/identity/verify/revocation", post(zk_verify_revocation_handler))
             .route("/identity/verify/batch", post(zk_verify_batch_handler))
             .route(
@@ -3011,6 +3013,17 @@ async fn reputation_handler(
             map_rust_error_to_json_response(format!("Invalid DID: {e}"), StatusCode::BAD_REQUEST)
                 .into_response()
         }
+    }
+}
+
+// POST /identity/generate-proof - generate a credential proof
+async fn zk_generate_handler(
+    State(state): State<AppState>,
+    Json(req): Json<icn_api::identity_trait::GenerateProofRequest>,
+) -> impl IntoResponse {
+    match icn_runtime::generate_zk_proof(&state.runtime_context, &req).await {
+        Ok(proof) => (StatusCode::OK, Json(proof)).into_response(),
+        Err(e) => map_rust_error_to_json_response(e, StatusCode::BAD_REQUEST).into_response(),
     }
 }
 

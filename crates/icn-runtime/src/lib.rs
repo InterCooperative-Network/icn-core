@@ -68,6 +68,12 @@ impl From<CommonError> for RuntimeError {
     }
 }
 
+impl From<serde_json::Error> for RuntimeError {
+    fn from(err: serde_json::Error) -> Self {
+        RuntimeError::Common(CommonError::DeserializationError(err.to_string()))
+    }
+}
+
 pub const MAX_JOB_JSON_SIZE: usize = 1024 * 1024; // 1MB
 
 /// Convert a circuit complexity score into a mana cost.
@@ -872,6 +878,26 @@ pub async fn host_generate_zk_proof(
         let _ = ctx.credit_mana(&ctx.current_identity, cost);
         HostAbiError::SerializationError(format!("{e}"))
     })
+}
+
+/// Generate a credential proof using the runtime's ZK prover.
+pub async fn generate_zk_proof(
+    ctx: &RuntimeContext,
+    req: &icn_api::identity_trait::GenerateProofRequest,
+) -> Result<icn_common::ZkCredentialProof, RuntimeError> {
+    let json = serde_json::to_string(req)?;
+    let proof_json = host_generate_zk_proof(ctx, &json).await?;
+    let proof = serde_json::from_str(&proof_json)?;
+    Ok(proof)
+}
+
+/// Verify a credential proof using the runtime's ZK verifier.
+pub async fn verify_zk_proof(
+    ctx: &RuntimeContext,
+    proof: &icn_common::ZkCredentialProof,
+) -> Result<bool, RuntimeError> {
+    let json = serde_json::to_string(proof)?;
+    Ok(host_verify_zk_proof(ctx, &json).await?)
 }
 
 #[cfg(test)]

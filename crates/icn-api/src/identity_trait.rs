@@ -59,6 +59,24 @@ pub struct BatchVerificationResponse {
     pub results: Vec<bool>,
 }
 
+/// Request to generate a credential proof on the node.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GenerateProofRequest {
+    pub issuer: Did,
+    pub holder: Did,
+    pub claim_type: String,
+    pub schema: Cid,
+    pub backend: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub public_inputs: Option<serde_json::Value>,
+}
+
+/// Response containing the generated proof.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProofResponse {
+    pub proof: ZkCredentialProof,
+}
+
 #[async_trait]
 pub trait IdentityApi {
     async fn issue_credential(
@@ -98,5 +116,17 @@ pub trait IdentityApi {
     async fn verify_revocation_proof(
         &self,
         proof: ZkRevocationProof,
+    ) -> Result<VerificationResponse, CommonError>;
+
+    /// Generate a zero-knowledge credential proof.
+    async fn generate_zk_proof(
+        &self,
+        request: GenerateProofRequest,
+    ) -> Result<ProofResponse, CommonError>;
+
+    /// Verify a credential proof using the runtime.
+    async fn verify_zk_proof(
+        &self,
+        proof: ZkCredentialProof,
     ) -> Result<VerificationResponse, CommonError>;
 }
