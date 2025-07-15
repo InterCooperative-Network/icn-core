@@ -88,11 +88,12 @@ pub fn choose_canonical_root(mut candidates: Vec<(Cid, u64)>) -> Option<Cid> {
     if candidates.is_empty() {
         return None;
     }
-    candidates.sort_by(|a, b| match a.1.cmp(&b.1) {
+    // Sort by height descending, then lexicographically ascending
+    candidates.sort_by(|a, b| match b.1.cmp(&a.1) {
         std::cmp::Ordering::Equal => a.0.to_string().cmp(&b.0.to_string()),
         other => other,
     });
-    candidates.last().map(|(cid, _)| cid.clone())
+    candidates.first().map(|(cid, _)| cid.clone())
 }
 
 // --- Storage Service Trait ---
