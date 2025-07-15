@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["BatchVerificationResponse","CredentialResponse","DisclosureRequest","DisclosureResponse","IssueCredentialRequest","RevokeCredentialRequest","VerificationResponse","VerifyProofsRequest"],"trait":["IdentityApi"]};
+window.SIDEBAR_ITEMS = {"struct":["BatchVerificationResponse","CredentialResponse","DisclosureRequest","DisclosureResponse","GenerateProofRequest","IssueCredentialRequest","ProofResponse","RevokeCredentialRequest","VerificationResponse","VerifyProofsRequest"],"trait":["IdentityApi"]};
