@@ -41,7 +41,7 @@ codegen-units = 4  # Increase codegen units to reduce memory pressure
 
 # Dependencies for integration tests
 [workspace.dependencies]
-reqwest = { version = "0.11", features = ["json", "blocking"] }
+reqwest = { version = "0.12", features = ["json", "blocking"] }
 serde_json = "1.0"
 tokio = { version = "1.0", features = ["full"] }
 

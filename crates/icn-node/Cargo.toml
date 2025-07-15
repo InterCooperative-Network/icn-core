@@ -53,7 +53,7 @@ persist-rocksdb = ["icn-dag/persist-rocksdb", "icn-runtime/persist-rocksdb", "ic
 persist-postgres = ["icn-dag/persist-postgres", "icn-runtime/persist-postgres"]
 
 [dev-dependencies]
-reqwest = { version = "0.11", features = ["json", "rustls-tls"] }
+reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
 tokio = { version = "1", features = ["full"] }
 tempfile = "3"
 icn-ccl = { path = "../../icn-ccl" }
