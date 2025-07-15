@@ -83,6 +83,18 @@ pub fn compute_dag_root(cids: &[Cid]) -> [u8; 32] {
     root
 }
 
+/// Choose canonical root from `(Cid, height)` candidates.
+pub fn choose_canonical_root(mut candidates: Vec<(Cid, u64)>) -> Option<Cid> {
+    if candidates.is_empty() {
+        return None;
+    }
+    candidates.sort_by(|a, b| match a.1.cmp(&b.1) {
+        std::cmp::Ordering::Equal => a.0.to_string().cmp(&b.0.to_string()),
+        other => other,
+    });
+    candidates.last().map(|(cid, _)| cid.clone())
+}
+
 // --- Storage Service Trait ---
 
 /// Defines the interface for a DAG block storage backend.
