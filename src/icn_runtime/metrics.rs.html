@@ -32,4 +32,13 @@
 <a href=#32 id=32 data-nosnippet>32</a></span><span class="kw">pub static </span>WASM_MEMORY_GROWTH_DENIED: Lazy&lt;Counter&gt; = Lazy::new(Counter::default);
 <a href=#33 id=33 data-nosnippet>33</a>
 <a href=#34 id=34 data-nosnippet>34</a><span class="doccomment">/// Counts denied table growth attempts inside the WASM resource limiter.
-<a href=#35 id=35 data-nosnippet>35</a></span><span class="kw">pub static </span>WASM_TABLE_GROWTH_DENIED: Lazy&lt;Counter&gt; = Lazy::new(Counter::default);</code></pre></div></section></main></body></html>
+<a href=#35 id=35 data-nosnippet>35</a></span><span class="kw">pub static </span>WASM_TABLE_GROWTH_DENIED: Lazy&lt;Counter&gt; = Lazy::new(Counter::default);
+<a href=#36 id=36 data-nosnippet>36</a>
+<a href=#37 id=37 data-nosnippet>37</a><span class="doccomment">/// Counts calls to `host_anchor_receipt`.
+<a href=#38 id=38 data-nosnippet>38</a></span><span class="kw">pub static </span>HOST_ANCHOR_RECEIPT_CALLS: Lazy&lt;Counter&gt; = Lazy::new(Counter::default);
+<a href=#39 id=39 data-nosnippet>39</a>
+<a href=#40 id=40 data-nosnippet>40</a><span class="doccomment">/// Counts calls to `host_account_credit_mana`.
+<a href=#41 id=41 data-nosnippet>41</a></span><span class="kw">pub static </span>HOST_ACCOUNT_CREDIT_MANA_CALLS: Lazy&lt;Counter&gt; = Lazy::new(Counter::default);
+<a href=#42 id=42 data-nosnippet>42</a>
+<a href=#43 id=43 data-nosnippet>43</a><span class="doccomment">/// Tracks the number of known mana ledger accounts.
+<a href=#44 id=44 data-nosnippet>44</a></span><span class="kw">pub static </span>MANA_ACCOUNTS_GAUGE: Lazy&lt;Gauge&lt;i64&gt;&gt; = Lazy::new(Gauge::default);</code></pre></div></section></main></body></html>
