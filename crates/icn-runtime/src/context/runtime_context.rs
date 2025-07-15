@@ -11,14 +11,14 @@
 //! use icn_runtime::Ed25519Signer;
 //! use icn_common::Did;
 //! use std::str::FromStr;
-//! 
+//!
 //! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 //! let node_did = Did::from_str("did:key:zProduction...")?;
 //! let signer = Ed25519Signer::new(); // Real signer
 //! let network_service = todo!(); // Real libp2p service
 //! let dag_store = todo!(); // Real persistent DAG store
 //! let mana_ledger = todo!(); // Real persistent mana ledger
-//! 
+//!
 //! let ctx = RuntimeContextBuilder::new(EnvironmentType::Production)
 //!     .with_identity(node_did)
 //!     .with_signer(signer)
@@ -36,13 +36,13 @@
 //! use icn_runtime::Ed25519Signer;
 //! use icn_common::Did;
 //! use std::str::FromStr;
-//! 
+//!
 //! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 //! let node_did = Did::from_str("did:key:zDevelopment...")?;
 //! let signer = Ed25519Signer::new(); // Real signer
 //! let mana_ledger = todo!(); // Real persistent mana ledger
 //! // Network service and DAG store are optional - will use stubs if not provided
-//! 
+//!
 //! let ctx = RuntimeContextBuilder::new(EnvironmentType::Development)
 //!     .with_identity(node_did)
 //!     .with_signer(signer)
@@ -57,10 +57,10 @@
 //! use icn_runtime::context::{RuntimeContextBuilder, EnvironmentType};
 //! use icn_common::Did;
 //! use std::str::FromStr;
-//! 
+//!
 //! # fn example() -> Result<(), Box<dyn std::error::Error>> {
 //! let test_did = Did::from_str("did:key:zTesting...")?;
-//! 
+//!
 //! let ctx = RuntimeContextBuilder::new(EnvironmentType::Testing)
 //!     .with_identity(test_did)
 //!     .with_initial_mana(1000)
@@ -362,13 +362,19 @@ impl RuntimeContextBuilder {
     }
 
     /// Set the reputation store (optional).
-    pub fn with_reputation_store(mut self, store: Arc<dyn icn_reputation::ReputationStore>) -> Self {
+    pub fn with_reputation_store(
+        mut self,
+        store: Arc<dyn icn_reputation::ReputationStore>,
+    ) -> Self {
         self.reputation_store = Some(store);
         self
     }
 
     /// Set the policy enforcer (optional).
-    pub fn with_policy_enforcer(mut self, enforcer: Arc<dyn icn_governance::scoped_policy::ScopedPolicyEnforcer>) -> Self {
+    pub fn with_policy_enforcer(
+        mut self,
+        enforcer: Arc<dyn icn_governance::scoped_policy::ScopedPolicyEnforcer>,
+    ) -> Self {
         self.policy_enforcer = Some(enforcer);
         self
     }
@@ -388,7 +394,9 @@ impl RuntimeContextBuilder {
         match self.environment {
             EnvironmentType::Production => {
                 let network_service = self.network_service.ok_or_else(|| {
-                    CommonError::InternalError("Network service is required for production".to_string())
+                    CommonError::InternalError(
+                        "Network service is required for production".to_string(),
+                    )
                 })?;
                 let signer = self.signer.ok_or_else(|| {
                     CommonError::InternalError("Signer is required for production".to_string())
@@ -399,9 +407,9 @@ impl RuntimeContextBuilder {
                 let mana_ledger = self.mana_ledger.ok_or_else(|| {
                     CommonError::InternalError("Mana ledger is required for production".to_string())
                 })?;
-                let reputation_store = self.reputation_store.unwrap_or_else(|| {
-                    Arc::new(icn_reputation::InMemoryReputationStore::new())
-                });
+                let reputation_store = self
+                    .reputation_store
+                    .unwrap_or_else(|| Arc::new(icn_reputation::InMemoryReputationStore::new()));
 
                 RuntimeContext::new(
                     current_identity,
@@ -419,7 +427,9 @@ impl RuntimeContextBuilder {
                     CommonError::InternalError("Signer is required for development".to_string())
                 })?;
                 let mana_ledger = self.mana_ledger.ok_or_else(|| {
-                    CommonError::InternalError("Mana ledger is required for development".to_string())
+                    CommonError::InternalError(
+                        "Mana ledger is required for development".to_string(),
+                    )
                 })?;
 
                 RuntimeContext::new_development(
@@ -449,7 +459,7 @@ impl RuntimeContext {
     }
 
     /// Validate that production services are being used correctly.
-    /// 
+    ///
     /// This function performs runtime checks to ensure that stub services
     /// are not accidentally used in production contexts.
     pub fn validate_production_services(&self) -> Result<(), CommonError> {
@@ -475,7 +485,8 @@ impl RuntimeContext {
                 let store = dag_store.lock().await;
                 if store.as_any().is::<super::stubs::StubDagStore>() {
                     return Err(CommonError::InternalError(
-                        "❌ PRODUCTION ERROR: Stub DAG store detected in production context.".to_string(),
+                        "❌ PRODUCTION ERROR: Stub DAG store detected in production context."
+                            .to_string(),
                     ));
                 }
                 Ok(())
@@ -496,30 +507,36 @@ impl RuntimeContext {
     }
 
     /// Create a new context with stubs for testing.
-    /// 
+    ///
     /// **⚠️ DEPRECATED**: This method is deprecated in favor of `new_testing()` which provides
     /// clearer semantics and better error handling. Use `new_testing()` instead.
-    #[deprecated(since = "0.2.0", note = "Use `new_testing()` instead for clearer semantics")]
+    #[deprecated(
+        since = "0.2.0",
+        note = "Use `new_testing()` instead for clearer semantics"
+    )]
     pub fn new_with_stubs(current_identity_str: &str) -> Result<Arc<Self>, CommonError> {
         let current_identity = Did::from_str(current_identity_str)
             .map_err(|e| CommonError::InternalError(format!("Invalid DID: {}", e)))?;
-        
+
         // Forward to new_testing method
         Self::new_testing(current_identity, None)
     }
 
     /// Create a new context with stubs and initial mana balance (convenience method for tests).
-    /// 
+    ///
     /// **⚠️ DEPRECATED**: This method is deprecated in favor of `new_testing()` which provides
     /// clearer semantics and better error handling. Use `new_testing()` instead.
-    #[deprecated(since = "0.2.0", note = "Use `new_testing()` instead for clearer semantics")]
+    #[deprecated(
+        since = "0.2.0",
+        note = "Use `new_testing()` instead for clearer semantics"
+    )]
     pub fn new_with_stubs_and_mana(
         current_identity_str: &str,
         initial_mana: u64,
     ) -> Result<Arc<Self>, CommonError> {
         let current_identity = Did::from_str(current_identity_str)
             .map_err(|e| CommonError::InternalError(format!("Invalid DID: {}", e)))?;
-        
+
         // Forward to new_testing method
         Self::new_testing(current_identity, Some(initial_mana))
     }
@@ -745,17 +762,17 @@ impl RuntimeContext {
     }
 
     /// Create a new `RuntimeContext` with all production services.
-    /// 
+    ///
     /// **🏭 PRODUCTION**: This method ensures no stub services are used and should be used
     /// for all production ICN node deployments.
-    /// 
+    ///
     /// **Services Used:**
     /// - Network: Real libp2p networking service
     /// - Signer: Ed25519 cryptographic signer
     /// - DAG Store: Persistent storage backend (PostgreSQL, RocksDB, etc.)
     /// - Mana Ledger: Persistent mana ledger
     /// - Reputation Store: Persistent reputation storage
-    /// 
+    ///
     /// **Use when:**
     /// - Running an ICN node in production
     /// - Need real P2P networking
@@ -786,17 +803,17 @@ impl RuntimeContext {
     }
 
     /// Create a development RuntimeContext with mixed services.
-    /// 
+    ///
     /// **🛠️ DEVELOPMENT**: This method provides a flexible configuration for development
     /// and testing scenarios where you may want some real services and some stub services.
-    /// 
+    ///
     /// **Services Used:**
     /// - Network: Real libp2p if provided, otherwise stub service
     /// - Signer: Real Ed25519 signer (provided)
     /// - DAG Store: Persistent storage if provided, otherwise stub store
     /// - Mana Ledger: Persistent mana ledger (provided)
     /// - Reputation Store: In-memory reputation store
-    /// 
+    ///
     /// **Use when:**
     /// - Local development with some real services
     /// - Integration testing with selective real services
@@ -819,23 +836,23 @@ impl RuntimeContext {
     }
 
     /// Create a testing RuntimeContext with all stub services.
-    /// 
+    ///
     /// **🧪 TESTING**: This method creates a completely isolated testing environment
     /// with all stub services for fast, deterministic testing.
-    /// 
+    ///
     /// **Services Used:**
     /// - Network: Stub network service (no real networking)
     /// - Signer: Stub signer (deterministic signatures)
     /// - DAG Store: In-memory stub store
     /// - Mana Ledger: Temporary file-based ledger
     /// - Reputation Store: In-memory reputation store
-    /// 
+    ///
     /// **Use when:**
     /// - Unit testing
     /// - Integration testing that doesn't require real networking
     /// - Fast test execution
     /// - Deterministic test behavior
-    /// 
+    ///
     /// **Parameters:**
     /// - `current_identity`: The DID for this test context
     /// - `initial_mana`: Optional initial mana balance (defaults to 0)
@@ -1922,6 +1939,7 @@ impl RuntimeContext {
             amount,
         })
         .await;
+        crate::metrics::MANA_ACCOUNTS_GAUGE.set(self.mana_ledger.all_accounts().len() as i64);
         Ok(())
     }
 
@@ -1933,6 +1951,7 @@ impl RuntimeContext {
             amount,
         })
         .await;
+        crate::metrics::MANA_ACCOUNTS_GAUGE.set(self.mana_ledger.all_accounts().len() as i64);
         Ok(())
     }
 
@@ -2004,6 +2023,8 @@ impl RuntimeContext {
                 HostAbiError::DagOperationFailed(format!("Failed to store receipt: {}", e))
             })?;
         }
+
+        crate::metrics::RECEIPTS_ANCHORED.inc();
 
         Ok(cid)
     }
@@ -2312,8 +2333,9 @@ impl RuntimeContext {
         })?;
 
         let mut gov = self.governance_module.lock().await;
-        gov.insert_external_proposal(proposal)
-            .map_err(|e| HostAbiError::InternalError(format!("Failed to ingest external proposal: {}", e)))
+        gov.insert_external_proposal(proposal).map_err(|e| {
+            HostAbiError::InternalError(format!("Failed to ingest external proposal: {}", e))
+        })
     }
 
     /// Ingest a vote that originated from another node.
@@ -2323,8 +2345,9 @@ impl RuntimeContext {
         })?;
 
         let mut gov = self.governance_module.lock().await;
-        gov.insert_external_vote(vote)
-            .map_err(|e| HostAbiError::InternalError(format!("Failed to ingest external vote: {}", e)))
+        gov.insert_external_vote(vote).map_err(|e| {
+            HostAbiError::InternalError(format!("Failed to ingest external vote: {}", e))
+        })
     }
 
     /// Update a system parameter.
@@ -2889,7 +2912,9 @@ impl RuntimeContext {
                         let mut interval = tokio::time::interval(std::time::Duration::from_secs(1));
                         loop {
                             interval.tick().await;
-                            if let Err(e) = Self::process_executor_tasks(&ctx, &mut evaluated_jobs).await {
+                            if let Err(e) =
+                                Self::process_executor_tasks(&ctx, &mut evaluated_jobs).await
+                            {
                                 log::error!(
                                     "[ExecutorManager] Error processing executor tasks: {}",
                                     e
@@ -2899,30 +2924,35 @@ impl RuntimeContext {
                     }
                 }
             } else {
-                log::info!("[ExecutorManager] Using stub network service - immediate notification mode");
+                log::info!(
+                    "[ExecutorManager] Using stub network service - immediate notification mode"
+                );
 
                 // Set up immediate notification channel for stub networking
                 if let MeshNetworkServiceType::Stub(stub_service) = &*ctx.mesh_network_service {
-                    let mut job_announcement_rx = stub_service.setup_job_announcement_channel().await;
-                    
+                    let mut job_announcement_rx =
+                        stub_service.setup_job_announcement_channel().await;
+
                     // Clone context and network service for the notification task
                     let ctx_clone = ctx.clone();
                     let network_service = ctx.mesh_network_service.clone();
-                    
+
                     // Start a task to handle immediate job notifications
                     let mut notification_task = tokio::spawn(async move {
                         while let Some(job) = job_announcement_rx.recv().await {
                             log::info!("[ExecutorManager] Received immediate job announcement for job {:?}", job.id);
-                            
+
                             // Skip jobs we submitted ourselves
                             if job.creator_did == ctx_clone.current_identity {
                                 continue;
                             }
-                            
+
                             // Evaluate the job and create a bid if appropriate
-                            if let Ok(Some(bid)) = Self::evaluate_and_bid_on_job(&ctx_clone, &job).await {
+                            if let Ok(Some(bid)) =
+                                Self::evaluate_and_bid_on_job(&ctx_clone, &job).await
+                            {
                                 log::info!("[ExecutorManager] Submitting immediate bid for job {:?}: {} mana", job.id, bid.price_mana);
-                                
+
                                 // Submit the bid through the network service
                                 if let Err(e) = network_service.submit_bid_for_job(&bid).await {
                                     log::error!("[ExecutorManager] Failed to submit immediate bid for job {:?}: {}", job.id, e);
@@ -2930,11 +2960,14 @@ impl RuntimeContext {
                                     log::info!("[ExecutorManager] Successfully submitted immediate bid for job {:?}", job.id);
                                 }
                             } else {
-                                log::debug!("[ExecutorManager] Decided not to bid on job {:?}", job.id);
+                                log::debug!(
+                                    "[ExecutorManager] Decided not to bid on job {:?}",
+                                    job.id
+                                );
                             }
                         }
                     });
-                    
+
                     // Also keep polling as a backup
                     let mut interval = tokio::time::interval(std::time::Duration::from_secs(5));
                     loop {
@@ -2951,7 +2984,9 @@ impl RuntimeContext {
                         }
                     }
                 } else {
-                    log::warn!("[ExecutorManager] Expected stub network service but got something else");
+                    log::warn!(
+                        "[ExecutorManager] Expected stub network service but got something else"
+                    );
                 }
             }
         });
@@ -3474,50 +3509,67 @@ impl RuntimeContext {
     }
 
     /// Process executor tasks in polling mode (fallback when network subscription fails).
-    async fn process_executor_tasks(ctx: &Arc<RuntimeContext>, evaluated_jobs: &mut std::collections::HashSet<JobId>) -> Result<(), HostAbiError> {
+    async fn process_executor_tasks(
+        ctx: &Arc<RuntimeContext>,
+        evaluated_jobs: &mut std::collections::HashSet<JobId>,
+    ) -> Result<(), HostAbiError> {
         // This is a fallback mode for when network message subscription fails
         // In stub networking mode, we need to check for announced jobs and bid on them
         log::debug!("[ExecutorManager] Polling for executor tasks");
-        
+
         // Check if we're using stub networking
         if let MeshNetworkServiceType::Stub(stub_service) = &*ctx.mesh_network_service {
             // Get announced jobs from the stub service
             let announced_jobs = stub_service.get_announced_jobs().await;
-            
+
             // Check if there are any new jobs we should bid on
             for job in announced_jobs {
                 // Check if we've already evaluated this job for bidding
                 if evaluated_jobs.contains(&job.id) {
                     continue; // Skip jobs we've already evaluated
                 }
-                
+
                 // Skip jobs we submitted ourselves
                 if job.creator_did == ctx.current_identity {
                     evaluated_jobs.insert(job.id.clone());
                     continue;
                 }
-                
-                log::info!("[ExecutorManager] Found announced job {:?} for evaluation", job.id);
-                
+
+                log::info!(
+                    "[ExecutorManager] Found announced job {:?} for evaluation",
+                    job.id
+                );
+
                 // Mark this job as evaluated
                 evaluated_jobs.insert(job.id.clone());
-                
+
                 // Evaluate the job and create a bid if appropriate
                 if let Ok(Some(bid)) = Self::evaluate_and_bid_on_job(ctx, &job).await {
-                    log::info!("[ExecutorManager] Submitting bid for job {:?}: {} mana", job.id, bid.price_mana);
-                    
+                    log::info!(
+                        "[ExecutorManager] Submitting bid for job {:?}: {} mana",
+                        job.id,
+                        bid.price_mana
+                    );
+
                     // Submit the bid through the stub service
                     if let Err(e) = stub_service.submit_bid_for_job(&bid).await {
-                        log::error!("[ExecutorManager] Failed to submit bid for job {:?}: {}", job.id, e);
+                        log::error!(
+                            "[ExecutorManager] Failed to submit bid for job {:?}: {}",
+                            job.id,
+                            e
+                        );
                     } else {
-                        log::info!("[ExecutorManager] Successfully submitted bid for job {:?}", job.id);
+                        log::info!(
+                            "[ExecutorManager] Successfully submitted bid for job {:?}",
+                            job.id
+                        );
                     }
                 } else {
                     log::debug!("[ExecutorManager] Decided not to bid on job {:?}", job.id);
                 }
             }
         }
-        
+
         Ok(())
     }
 }
@@ -3590,7 +3642,7 @@ mod configuration_tests {
     #[tokio::test]
     async fn test_runtime_context_builder_testing() {
         let test_did = Did::from_str("did:key:zTestBuilder").unwrap();
-        
+
         let ctx = RuntimeContextBuilder::new(EnvironmentType::Testing)
             .with_identity(test_did.clone())
             .with_initial_mana(100)
@@ -3604,20 +3656,22 @@ mod configuration_tests {
     #[test]
     fn test_runtime_context_builder_validation() {
         // Should fail without identity
-        let result = RuntimeContextBuilder::new(EnvironmentType::Testing)
-            .build();
-        
+        let result = RuntimeContextBuilder::new(EnvironmentType::Testing).build();
+
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Current identity is required"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Current identity is required"));
     }
 
     #[test]
     fn test_production_validation() {
         let test_did = Did::from_str("did:key:zTestValidation").unwrap();
-        
+
         // Create a testing context (which uses stubs)
         let ctx = RuntimeContext::new_testing(test_did, Some(100)).unwrap();
-        
+
         // Validation should fail because it's using stub services
         let result = ctx.validate_production_services();
         assert!(result.is_err());
@@ -3628,10 +3682,10 @@ mod configuration_tests {
     async fn test_deprecated_methods_still_work() {
         #[allow(deprecated)]
         let ctx = RuntimeContext::new_with_stubs("did:key:zTestDeprecated").unwrap();
-        
+
         // Should still create a valid context
         assert!(ctx.current_identity.to_string().contains("zTestDeprecated"));
-        
+
         #[allow(deprecated)]
         let ctx2 = RuntimeContext::new_with_stubs_and_mana("did:key:zTestDeprecated2", 50).unwrap();
         assert_eq!(ctx2.get_mana(&ctx2.current_identity).await.unwrap(), 50);

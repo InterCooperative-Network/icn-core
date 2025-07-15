@@ -44,8 +44,9 @@ pub use config::{
 };
 pub use context::{
     CastVotePayload, CloseProposalResult, ConcreteHostEnvironment, CreateProposalPayload,
-    DefaultMeshNetworkService, Ed25519Signer, HostEnvironment, JobAssignmentNotice,
-    MeshNetworkService, MeshNetworkServiceType, RuntimeContextBuilder, EnvironmentType, SimpleManaLedger, StubMeshNetworkService,
+    DefaultMeshNetworkService, Ed25519Signer, EnvironmentType, HostEnvironment,
+    JobAssignmentNotice, MeshNetworkService, MeshNetworkServiceType, RuntimeContextBuilder,
+    SimpleManaLedger, StubMeshNetworkService,
 };
 
 #[derive(Debug, Error)]
@@ -145,7 +146,8 @@ pub async fn host_submit_mesh_job(
     let cost_mana = job_to_submit.cost_mana;
 
     // Use the new DAG-integrated job submission method
-    let job_id = ctx.handle_submit_job(manifest_cid, spec_bytes, cost_mana)
+    let job_id = ctx
+        .handle_submit_job(manifest_cid, spec_bytes, cost_mana)
         .await?;
 
     // For backwards compatibility, also queue the job in the pending jobs channel
@@ -280,6 +282,7 @@ pub async fn host_account_credit_mana(
     account_id_str: &str,
     amount: u64,
 ) -> Result<(), HostAbiError> {
+    metrics::HOST_ACCOUNT_CREDIT_MANA_CALLS.inc();
     info!(
         "[host_account_credit_mana] called for account: {} amount: {}",
         account_id_str, amount
@@ -352,6 +355,7 @@ pub async fn host_anchor_receipt(
     receipt_json: &str,
     reputation_updater: &ReputationUpdater,
 ) -> Result<Cid, HostAbiError> {
+    metrics::HOST_ANCHOR_RECEIPT_CALLS.inc();
     debug!(
         "[host_anchor_receipt] Received receipt JSON: {}",
         receipt_json

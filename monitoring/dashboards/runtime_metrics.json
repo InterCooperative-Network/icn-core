@@ -1,0 +1,22 @@
+{
+  "uid": "runtime-metrics",
+  "title": "Runtime Metrics",
+  "schemaVersion": 37,
+  "version": 1,
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Receipts Anchored",
+      "datasource": "Prometheus",
+      "targets": [{"expr": "runtime_receipts_anchored_total"}],
+      "gridPos": {"h":6,"w":12,"x":0,"y":0}
+    },
+    {
+      "type": "stat",
+      "title": "Mana Accounts",
+      "datasource": "Prometheus",
+      "targets": [{"expr": "mana_accounts"}],
+      "gridPos": {"h":4,"w":6,"x":0,"y":6}
+    }
+  ]
+}

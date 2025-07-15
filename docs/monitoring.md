@@ -88,6 +88,8 @@ Returns overall node health status:
 }
 ```
 
+Example JSON dashboards are available in [`monitoring/dashboards`](../monitoring/dashboards). Import these files into Grafana to visualize runtime metrics such as `runtime_receipts_anchored_total` and `mana_accounts`.
+
 **Status Codes:**
 - `200` - Node is healthy
 - `503` - Node is unhealthy
