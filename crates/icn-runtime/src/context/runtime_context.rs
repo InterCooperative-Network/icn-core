@@ -460,8 +460,27 @@ impl RuntimeContext {
             ));
         }
 
-        // TODO: Add validation for DAG store and signer when trait objects support it
-        // For now, service validation should be done at the configuration level
+        // Check signer type
+        if self.signer.as_any().is::<super::signers::StubSigner>() {
+            return Err(CommonError::InternalError(
+                "❌ PRODUCTION ERROR: Stub signer detected in production context.".to_string(),
+            ));
+        }
+
+        // Check DAG store type
+        let dag_store = self.dag_store.clone();
+        tokio::task::block_in_place(|| {
+            let rt = tokio::runtime::Handle::current();
+            rt.block_on(async {
+                let store = dag_store.lock().await;
+                if store.as_any().is::<super::stubs::StubDagStore>() {
+                    return Err(CommonError::InternalError(
+                        "❌ PRODUCTION ERROR: Stub DAG store detected in production context.".to_string(),
+                    ));
+                }
+                Ok(())
+            })
+        })?;
 
         Ok(())
     }
