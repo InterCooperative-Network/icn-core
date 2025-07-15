@@ -8,29 +8,32 @@
 <a href=#8 id=8 data-nosnippet>8</a><span class="kw">pub mod </span>host_environment;
 <a href=#9 id=9 data-nosnippet>9</a><span class="kw">pub mod </span>mana;
 <a href=#10 id=10 data-nosnippet>10</a><span class="kw">pub mod </span>mesh_network;
-<a href=#11 id=11 data-nosnippet>11</a><span class="kw">pub mod </span>runtime_context;
-<a href=#12 id=12 data-nosnippet>12</a><span class="kw">pub mod </span>service_config;
-<a href=#13 id=13 data-nosnippet>13</a><span class="kw">pub mod </span>signers;
-<a href=#14 id=14 data-nosnippet>14</a><span class="kw">pub mod </span>stubs;
-<a href=#15 id=15 data-nosnippet>15</a>
-<a href=#16 id=16 data-nosnippet>16</a><span class="comment">// Re-export important types for convenience
-<a href=#17 id=17 data-nosnippet>17</a></span><span class="kw">pub use </span>compile_checks::ProductionReady;
-<a href=#18 id=18 data-nosnippet>18</a><span class="kw">pub use </span>errors::HostAbiError;
-<a href=#19 id=19 data-nosnippet>19</a><span class="kw">pub use </span>host_environment::{ConcreteHostEnvironment, HostEnvironment};
-<a href=#20 id=20 data-nosnippet>20</a><span class="kw">pub use </span>mana::{LedgerBackend, ManaRepository, SimpleManaLedger};
-<a href=#21 id=21 data-nosnippet>21</a><span class="kw">pub use </span>mesh_network::{
-<a href=#22 id=22 data-nosnippet>22</a>    DefaultMeshNetworkService, JobAssignmentNotice, LocalMeshSubmitReceiptMessage,
-<a href=#23 id=23 data-nosnippet>23</a>    MeshJobStateChange, MeshNetworkService, SelectionPolicy, BidId,
-<a href=#24 id=24 data-nosnippet>24</a>    PROPOSAL_COST_MANA, VOTE_COST_MANA,
+<a href=#11 id=11 data-nosnippet>11</a><span class="kw">pub mod </span>resource_ledger;
+<a href=#12 id=12 data-nosnippet>12</a><span class="kw">pub mod </span>runtime_context;
+<a href=#13 id=13 data-nosnippet>13</a><span class="kw">pub mod </span>service_config;
+<a href=#14 id=14 data-nosnippet>14</a><span class="kw">pub mod </span>signers;
+<a href=#15 id=15 data-nosnippet>15</a><span class="kw">pub mod </span>stubs;
+<a href=#16 id=16 data-nosnippet>16</a>
+<a href=#17 id=17 data-nosnippet>17</a><span class="comment">// Re-export important types for convenience
+<a href=#18 id=18 data-nosnippet>18</a></span><span class="kw">pub use </span>compile_checks::ProductionReady;
+<a href=#19 id=19 data-nosnippet>19</a><span class="kw">pub use </span>errors::HostAbiError;
+<a href=#20 id=20 data-nosnippet>20</a><span class="kw">pub use </span>host_environment::{ConcreteHostEnvironment, HostEnvironment};
+<a href=#21 id=21 data-nosnippet>21</a><span class="kw">pub use </span>mana::{LedgerBackend, ManaRepository, SimpleManaLedger};
+<a href=#22 id=22 data-nosnippet>22</a><span class="kw">pub use </span>mesh_network::{
+<a href=#23 id=23 data-nosnippet>23</a>    BidId, DefaultMeshNetworkService, JobAssignmentNotice, LocalMeshSubmitReceiptMessage,
+<a href=#24 id=24 data-nosnippet>24</a>    MeshJobStateChange, MeshNetworkService, SelectionPolicy, PROPOSAL_COST_MANA, VOTE_COST_MANA,
 <a href=#25 id=25 data-nosnippet>25</a>};
-<a href=#26 id=26 data-nosnippet>26</a><span class="kw">pub use </span>runtime_context::{
-<a href=#27 id=27 data-nosnippet>27</a>    RuntimeContext, RuntimeContextParams, RuntimeContextBuilder, EnvironmentType, MeshNetworkServiceType, CreateProposalPayload, CastVotePayload, CloseProposalResult,
-<a href=#28 id=28 data-nosnippet>28</a>    MANA_MAX_CAPACITY_KEY,
-<a href=#29 id=29 data-nosnippet>29</a>};
-<a href=#30 id=30 data-nosnippet>30</a><span class="kw">pub use </span>service_config::{ServiceConfig, ServiceConfigBuilder, ServiceEnvironment};
-<a href=#31 id=31 data-nosnippet>31</a><span class="kw">pub use </span>signers::{Ed25519Signer, HsmKeyStore, Signer, StubSigner};
-<a href=#32 id=32 data-nosnippet>32</a><span class="kw">pub use </span>stubs::{RuntimeStubDagStore, StubDagStore, StubMeshNetworkService};
-<a href=#33 id=33 data-nosnippet>33</a>
-<a href=#34 id=34 data-nosnippet>34</a><span class="comment">// Conditional compilation helpers for DAG storage service
-<a href=#35 id=35 data-nosnippet>35</a></span><span class="kw">pub type </span>DagStorageService =
-<a href=#36 id=36 data-nosnippet>36</a>    <span class="kw">dyn </span>icn_dag::AsyncStorageService&lt;icn_common::DagBlock&gt; + Send;<span class="kw">pub type </span>DagStoreMutexType&lt;T&gt; = tokio::sync::Mutex&lt;T&gt;; </code></pre></div></section></main></body></html>
+<a href=#26 id=26 data-nosnippet>26</a><span class="kw">pub use </span>resource_ledger::{
+<a href=#27 id=27 data-nosnippet>27</a>    record_resource_event, ResourceAction, ResourceLedger, ResourceLedgerEntry,
+<a href=#28 id=28 data-nosnippet>28</a>};
+<a href=#29 id=29 data-nosnippet>29</a><span class="kw">pub use </span>runtime_context::{
+<a href=#30 id=30 data-nosnippet>30</a>    RuntimeContext, RuntimeContextParams, RuntimeContextBuilder, EnvironmentType, MeshNetworkServiceType, CreateProposalPayload, CastVotePayload, CloseProposalResult,
+<a href=#31 id=31 data-nosnippet>31</a>    MANA_MAX_CAPACITY_KEY,
+<a href=#32 id=32 data-nosnippet>32</a>};
+<a href=#33 id=33 data-nosnippet>33</a><span class="kw">pub use </span>service_config::{ServiceConfig, ServiceConfigBuilder, ServiceEnvironment};
+<a href=#34 id=34 data-nosnippet>34</a><span class="kw">pub use </span>signers::{Ed25519Signer, HsmKeyStore, Signer, StubSigner};
+<a href=#35 id=35 data-nosnippet>35</a><span class="kw">pub use </span>stubs::{RuntimeStubDagStore, StubDagStore, StubMeshNetworkService};
+<a href=#36 id=36 data-nosnippet>36</a>
+<a href=#37 id=37 data-nosnippet>37</a><span class="comment">// Conditional compilation helpers for DAG storage service
+<a href=#38 id=38 data-nosnippet>38</a></span><span class="kw">pub type </span>DagStorageService = <span class="kw">dyn </span>icn_dag::AsyncStorageService&lt;icn_common::DagBlock&gt; + Send;
+<a href=#39 id=39 data-nosnippet>39</a><span class="kw">pub type </span>DagStoreMutexType&lt;T&gt; = tokio::sync::Mutex&lt;T&gt;;</code></pre></div></section></main></body></html>

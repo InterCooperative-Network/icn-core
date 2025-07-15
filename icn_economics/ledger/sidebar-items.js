@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["FileManaLedger","SledManaLedger"]};
+window.SIDEBAR_ITEMS = {"struct":["FileManaLedger","FileResourceLedger","SledManaLedger","SledResourceLedger","TokenClass"],"trait":["ResourceLedger"],"type":["TokenClassId"]};

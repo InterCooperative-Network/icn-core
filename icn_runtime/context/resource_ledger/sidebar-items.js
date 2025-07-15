@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ResourceAction"],"fn":["record_resource_event"],"struct":["ResourceLedger","ResourceLedgerEntry"]};
