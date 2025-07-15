@@ -97,6 +97,8 @@ use icn_network::libp2p_service::{Libp2pNetworkService, NetworkConfig};
 #[cfg(feature = "enable-libp2p")]
 use libp2p::Multiaddr;
 
+
+
 // Initialize node start time (call this when the node starts)
 fn init_node_start_time() {
     let start_time = SystemTime::now()
@@ -1143,11 +1145,9 @@ pub async fn app_router_from_context(
 
 // --- Main Application Logic ---
 pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
-    tracing_log::LogTracer::init().ok();
-    tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::from_default_env())
-        .json()
-        .init();
+    // Simple logging initialization - ignore errors if already initialized
+    let _ = env_logger::try_init();
+    
     init_node_start_time(); // Initialize uptime tracking
 
     let cmd = Cli::command();
