@@ -434,6 +434,26 @@ enum IdentityCommands {
         #[clap(long, help = "Public inputs as JSON string", required = false)]
         public_inputs: Option<String>,
     },
+    /// Request proof generation from the node
+    GenerateProofRemote {
+        #[clap(long)]
+        issuer: String,
+        #[clap(long)]
+        holder: String,
+        #[clap(long)]
+        claim_type: String,
+        #[clap(long)]
+        schema: String,
+        #[clap(long)]
+        backend: String,
+        #[clap(long)]
+        public_inputs: Option<String>,
+    },
+    /// Verify a proof via the node
+    VerifyProofRemote {
+        #[clap(help = "ZkCredentialProof JSON or '-' for stdin")]
+        proof_json_or_stdin: String,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -550,6 +570,29 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
                     verification_key,
                     public_inputs,
                 )?;
+            }
+            IdentityCommands::GenerateProofRemote {
+                issuer,
+                holder,
+                claim_type,
+                schema,
+                backend,
+                public_inputs,
+            } => {
+                handle_identity_generate_remote(
+                    cli,
+                    client,
+                    issuer,
+                    holder,
+                    claim_type,
+                    schema,
+                    backend,
+                    public_inputs,
+                )
+                .await?;
+            }
+            IdentityCommands::VerifyProofRemote { proof_json_or_stdin } => {
+                handle_identity_verify_remote(cli, client, proof_json_or_stdin).await?;
             }
         },
         Commands::Ccl { command } => match command {
@@ -1528,6 +1571,65 @@ async fn handle_aid_register(
         .map_err(|e| anyhow::anyhow!("Invalid aid resource JSON: {}", e))?;
     let _: serde_json::Value = post_request(&cli.api_url, client, "/aid/resource", &body, cli.api_key.as_deref()).await?;
     println!("Aid resource registered");
+    Ok(())
+}
+
+async fn handle_identity_generate_remote(
+    cli: &Cli,
+    client: &Client,
+    issuer: &str,
+    holder: &str,
+    claim_type: &str,
+    schema: &str,
+    backend: &str,
+    public_inputs: &Option<String>,
+) -> Result<(), anyhow::Error> {
+    let req = icn_api::identity_trait::GenerateProofRequest {
+        issuer: Did::from_str(issuer)?,
+        holder: Did::from_str(holder)?,
+        claim_type: claim_type.to_string(),
+        schema: icn_common::parse_cid_from_string(schema)?,
+        backend: backend.to_string(),
+        public_inputs: if let Some(s) = public_inputs {
+            Some(serde_json::from_str(s)?)
+        } else {
+            None
+        },
+    };
+    let proof: icn_common::ZkCredentialProof = post_request(
+        &cli.api_url,
+        client,
+        "/identity/generate-proof",
+        &req,
+        cli.api_key.as_deref(),
+    )
+    .await?;
+    println!("{}", serde_json::to_string_pretty(&proof)?);
+    Ok(())
+}
+
+async fn handle_identity_verify_remote(
+    cli: &Cli,
+    client: &Client,
+    proof_json_or_stdin: &str,
+) -> Result<(), anyhow::Error> {
+    let content = if proof_json_or_stdin == "-" {
+        let mut buf = String::new();
+        std::io::stdin().read_to_string(&mut buf)?;
+        buf
+    } else {
+        proof_json_or_stdin.to_string()
+    };
+    let proof: icn_common::ZkCredentialProof = serde_json::from_str(&content)?;
+    let resp: serde_json::Value = post_request(
+        &cli.api_url,
+        client,
+        "/identity/verify-proof",
+        &proof,
+        cli.api_key.as_deref(),
+    )
+    .await?;
+    println!("{}", serde_json::to_string_pretty(&resp)?);
     Ok(())
 }
 

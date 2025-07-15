@@ -244,6 +244,43 @@ curl -X GET https://localhost:8080/federation/peers \
 | GET | `/circuits/{slug}/{version}` | Fetch circuit verifying key | Yes |
 | GET | `/circuits/{slug}` | List available circuit versions | Yes |
 
+## Credential Proof Endpoints
+
+| Method | Path | Description | Auth Required |
+|--------|------|-------------|---------------|
+| POST | `/identity/generate-proof` | Generate a zero-knowledge credential proof | Yes |
+| POST | `/identity/verify-proof` | Verify a credential proof | Yes |
+
+### Example Proof Generation
+```bash
+curl -X POST https://localhost:8080/identity/generate-proof \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: your-api-key" \
+  -d '{"issuer":"did:key:issuer","holder":"did:key:holder","claim_type":"age_over_18","schema":"bafyschema","backend":"groth16","public_inputs":{"birth_year":2000,"current_year":2020}}'
+```
+Response `200 OK`
+```json
+{
+  "issuer": "did:key:issuer",
+  "holder": "did:key:holder",
+  "claim_type": "age_over_18",
+  "proof": "...",
+  "schema": "bafyschema",
+  "backend": "groth16"
+}
+```
+
+### Example Proof Verification
+```bash
+curl -X POST https://localhost:8080/identity/verify-proof \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: your-api-key" \
+  -d '{"issuer":"did:key:issuer","holder":"did:key:holder","claim_type":"age_over_18","proof":"0xdead","schema":"bafyschema","backend":"groth16"}'
+```
+Response `200 OK`
+```json
+{ "verified": true }
+```
 ## Example Requests & Responses
 
 ### GET `/info`
