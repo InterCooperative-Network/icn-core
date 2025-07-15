@@ -21,11 +21,13 @@ devnet, and expanded security guidance.
 - Repository hygiene files (LICENSE, CODE_OF_CONDUCT.md, CONTRIBUTING.md, SECURITY.md, .editorconfig).
 - Workspace consistency for Cargo.toml files.
 - Optional improvements: rust-toolchain.toml, dependabot.yml, issue templates, CHANGELOG.md.
+- Scoped policy checks now accept `ZkRevocationProof` alongside credential proofs.
 - Kademlia DHT record storage and peer discovery behind `experimental-libp2p`.
 - New scoring algorithm in `icn-mesh` with reputation-based `select_executor`.
 - Introduced `icn-reputation` crate providing `ReputationStore` trait and in-memory implementation.
 - Multi-node CLI with libp2p networking and bootstrap peer discovery.
 - Cross-node mesh job execution pipeline with signed receipts anchored to the DAG.
+- Latency-aware executor selection via `LatencyStore` and updated `select_executor`.
 - HTTP gateway enabling REST job submission and status queries.
 - Containerized 3-node federation devnet with Docker and integration tests.
 - `Ed25519Signer` replaces `StubSigner` for production runtime; tests may continue using `StubSigner`.

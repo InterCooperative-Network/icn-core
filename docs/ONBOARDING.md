@@ -2,6 +2,8 @@
 
 Welcome to the InterCooperative Network (ICN) Core project! This guide will help you get set up, understand the codebase, and start contributing.
 
+If you just want the minimal steps, start with [beginner/README.md](beginner/README.md) first.
+
 Before jumping into the setup steps below, please read [CONTEXT.md](../CONTEXT.md) at the repository root. It explains the project's goals, rules, and terminology that all contributors should understand.
 
 ## 1. Prerequisites
@@ -399,7 +401,7 @@ and set `storage_backend = "rocksdb"` in your configuration.
     *   **`icn-reputation`**: Reputation scoring and validation for network participants.
     *   **`icn-node`**: The main binary executable that runs a persistent HTTP server with P2P networking.
     *   **`icn-cli`**: The command-line interface client that interacts with `icn-node` via HTTP API.
-*   **`docs/` directory:** Contains this onboarding guide and potentially other architectural documents.
+*   **`docs/` directory:** Contains this onboarding guide and other references such as [resource_tokens.md](resource_tokens.md) explaining the token system.
 *   **`.github/` directory:** CI workflows, issue templates, Dependabot configuration.
 
 ### Error Handling Approach
@@ -525,7 +527,7 @@ The repository includes a containerized devnet for quickly spinning up a three-n
    ```bash
    curl -X POST http://localhost:5001/mesh/submit \
      -H 'Content-Type: application/json' \
-     -d '{"manifest_cid":"example_manifest","spec_json":{"Echo":{"payload":"hi"}},"cost_mana":50}'
+  -d '{"manifest_cid":"example_manifest","spec_bytes":"BASE64_SPEC","cost_mana":50}'
    ```
    The response contains `job_id`. You can query any node for its status:
    ```bash
@@ -536,6 +538,32 @@ The repository includes a containerized devnet for quickly spinning up a three-n
    curl -X POST http://localhost:5003/dag/get \
      -H 'Content-Type: application/json' \
      -d '{"cid":"RESULT_CID"}'
+   ```
+
+## 9. Submitting a CCL WASM Job
+
+The devnet can execute Cooperative Contract Language (CCL) policies compiled to WebAssembly.
+Follow these steps to run your own module:
+
+1. **Compile the contract:**
+   ```bash
+   icn-cli ccl compile ./my_policy.ccl ./my_policy.wasm
+   ```
+2. **Store the WASM in the DAG:** the returned CID is base32 and begins with `bafy`.
+   ```bash
+   curl -X POST http://localhost:5001/dag/put \
+     --data-binary '@my_policy.wasm'
+   # => "bafy...base32-cid"
+   ```
+3. **Generate the job spec:**
+   ```bash
+   generate_ccl_job_spec --wasm-cid bafy...base32-cid --output ccl_job_spec.json
+   ```
+4. **Submit the job:**
+   ```bash
+   curl -X POST http://localhost:5001/mesh/submit \
+     -H 'Content-Type: application/json' \
+     -d @ccl_job_spec.json
    ```
 
 Refer to `MULTI_NODE_GUIDE.md` for more details on manual multi-node setups.

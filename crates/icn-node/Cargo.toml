@@ -8,7 +8,7 @@ license.workspace = true
 [dependencies]
 icn-common = { path = "../icn-common" }
 icn-api = { path = "../icn-api", default-features = false, features = ["types-only"] }
-icn-network = { path = "../icn-network", default-features = false }
+icn-network = { path = "../icn-network", default-features = false, features = ["libp2p"] }
 icn-dag = { path = "../icn-dag", features = ["async"] }
 icn-governance = { path = "../icn-governance", features = ["serde"] }
 icn-runtime = { path = "../icn-runtime", features = ["cli", "async"] }
@@ -18,6 +18,8 @@ icn-reputation = { path = "../icn-reputation" }
 icn-economics = { path = "../icn-economics" }
 icn-ccl = { path = "../../icn-ccl" }
 icn-protocol = { path = "../icn-protocol" }
+base64 = "0.21"
+bincode = "1"
 log = "0.4"
 env_logger = "0.10"
 tracing = "0.1"
@@ -39,6 +41,7 @@ libp2p = { version = "0.56", optional = true }
 async-trait = "0.1"
 prometheus-client = "0.22"
 subtle = "2"
+dashmap = "5"
 
 [features]
 default = ["icn-network/default"]

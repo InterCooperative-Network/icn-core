@@ -1,31 +1,74 @@
 use icn_common::{CommonError, Did};
-use rocksdb::DB;
+use rocksdb::{WriteBatch, DB};
 use super::{ResourceLedger, TokenClass, TokenClassId};
 use std::path::PathBuf;
+use std::sync::Mutex;
 
-#[derive(Debug)]
 pub struct RocksdbManaLedger {
     db: DB,
+    batch: Mutex<WriteBatch>,
+    flush_every: Option<usize>,
+}
+
+impl Drop for RocksdbManaLedger {
+    fn drop(&mut self) {
+        let _ = self.flush();
+    }
 }
 
 impl RocksdbManaLedger {
     /// Initialise a RocksDB backed mana ledger at `path`.
+    ///
+    /// `flush_every` controls how many write operations are batched before
+    /// automatically flushing to disk. If `None`, writes must be flushed
+    /// manually using [`Self::flush`].
     pub fn new(path: PathBuf) -> Result<Self, CommonError> {
+        // Batch up to 50 operations by default.
+        Self::with_flush_interval(path, Some(50))
+    }
+
+    /// Create a ledger with an explicit flush interval.
+    pub fn with_flush_interval(
+        path: PathBuf,
+        flush_every: Option<usize>,
+    ) -> Result<Self, CommonError> {
         let db = DB::open_default(path)
             .map_err(|e| CommonError::DatabaseError(format!("Failed to open rocksdb: {e}")))?;
-        Ok(Self { db })
+        Ok(Self {
+            db,
+            batch: Mutex::new(WriteBatch::default()),
+            flush_every,
+        })
+    }
+
+    /// Flush pending batched writes to disk.
+    pub fn flush(&self) -> Result<(), CommonError> {
+        let mut batch = self.batch.lock().unwrap();
+        if !batch.is_empty() {
+            let write_batch = std::mem::take(&mut *batch);
+            self.db
+                .write(write_batch)
+                .map_err(|e| CommonError::DatabaseError(format!("Failed to write batch: {e}")))?;
+            *batch = WriteBatch::default();
+        }
+        self.db
+            .flush()
+            .map_err(|e| CommonError::DatabaseError(format!("Failed to flush ledger: {e}")))?;
+        Ok(())
     }
 
     fn write_balance(&self, account: &Did, amount: u64) -> Result<(), CommonError> {
         let encoded = bincode::serialize(&amount).map_err(|e| {
             CommonError::SerializationError(format!("Failed to serialize balance: {e}"))
         })?;
-        self.db
-            .put(account.to_string(), encoded)
-            .map_err(|e| CommonError::DatabaseError(format!("Failed to store balance: {e}")))?;
-        self.db
-            .flush()
-            .map_err(|e| CommonError::DatabaseError(format!("Failed to flush ledger: {e}")))?;
+        let mut batch = self.batch.lock().unwrap();
+        batch.put(account.to_string(), encoded);
+        if let Some(n) = self.flush_every {
+            if batch.len() >= n {
+                drop(batch);
+                self.flush()?;
+            }
+        }
         Ok(())
     }
 

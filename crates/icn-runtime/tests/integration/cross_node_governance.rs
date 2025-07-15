@@ -2,6 +2,7 @@
 mod cross_node_governance {
     use icn_governance::Proposal;
     use icn_network::NetworkService;
+    use icn_protocol::MessagePayload;
     use icn_runtime::context::RuntimeContext;
     use icn_runtime::{host_cast_governance_vote, host_create_governance_proposal};
     use libp2p::{Multiaddr, PeerId as Libp2pPeerId};
@@ -14,13 +15,12 @@ mod cross_node_governance {
     ) -> anyhow::Result<Arc<RuntimeContext>> {
         let id = format!("did:key:z6Mkgov{id_suffix}");
         let listen: Vec<Multiaddr> = vec!["/ip4/0.0.0.0/tcp/0".parse().unwrap()];
+        let signer = Arc::new(icn_runtime::context::StubSigner::new());
         let ctx = RuntimeContext::new_with_real_libp2p(
             &id,
             listen,
             bootstrap,
-            std::path::PathBuf::from("./dag_store"),
-            std::path::PathBuf::from("./mana_ledger.sled"),
-            std::path::PathBuf::from("./reputation.sled"),
+            signer,
         )
         .await?;
         Ok(ctx)

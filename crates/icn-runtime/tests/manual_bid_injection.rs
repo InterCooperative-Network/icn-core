@@ -1,10 +1,10 @@
-use icn_runtime::context::{
-    RuntimeContext, StubMeshNetworkService, MeshNetworkServiceType, 
-    MeshNetworkService, LocalMeshSubmitReceiptMessage
-};
-use icn_mesh::{JobId, MeshJobBid, Resources, JobSpec, JobKind, ActualMeshJob};
+use icn_common::{Cid, Did};
 use icn_identity::{ExecutionReceipt, SignatureBytes};
-use icn_common::{Did, Cid};
+use icn_mesh::{ActualMeshJob, JobId, JobKind, JobSpec, MeshJobBid, Resources};
+use icn_runtime::context::{
+    LocalMeshSubmitReceiptMessage, MeshNetworkService, MeshNetworkServiceType, RuntimeContext,
+    StubMeshNetworkService,
+};
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -23,26 +23,26 @@ async fn test_manual_bid_injection_full_lifecycle() {
     println!("=== Manual Bid Injection Test ===");
 
     // Create a test runtime context with stub services
-    let submitter_did = Did::from_str("did:key:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH").unwrap();
+    let submitter_did =
+        Did::from_str("did:key:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH").unwrap();
     let mut context = RuntimeContext::new_testing(submitter_did.clone(), Some(1000))
         .expect("Failed to create test context");
 
     // Get the stub network service for manual bid injection
     let stub_service = get_stub_network_service(&context);
-    
+
     println!("✅ Test context created with StubMeshNetworkService");
 
     // Create a test job
     let test_job = create_test_echo_job(&submitter_did);
     let job_id = test_job.id.clone();
-    
+
     println!("📝 Created test job: {:?}", job_id);
 
     // Submit the job to start the lifecycle
     let job_manager = context.clone();
-    let job_handle = tokio::spawn(async move {
-        job_manager.handle_mesh_job_lifecycle(test_job).await
-    });
+    let job_handle =
+        tokio::spawn(async move { job_manager.handle_mesh_job_lifecycle(test_job).await });
 
     // Give the job manager a moment to announce the job
     tokio::time::sleep(Duration::from_millis(500)).await;
@@ -50,16 +50,23 @@ async fn test_manual_bid_injection_full_lifecycle() {
     // Verify the job was announced
     let announced_jobs = stub_service.get_announced_jobs().await;
     assert_eq!(announced_jobs.len(), 1, "Job should be announced");
-    assert_eq!(announced_jobs[0].id, job_id, "Announced job should match submitted job");
+    assert_eq!(
+        announced_jobs[0].id, job_id,
+        "Announced job should match submitted job"
+    );
     println!("📢 Job announced successfully");
 
     // Manually inject multiple bids for the job
     let test_bids = create_test_bids(&job_id);
-    
+
     for (i, bid) in test_bids.iter().enumerate() {
         stub_service.stage_bid(job_id.clone(), bid.clone()).await;
-        println!("💰 Injected bid {}: {} mana from {}", 
-                i+1, bid.price_mana, bid.executor_did);
+        println!(
+            "💰 Injected bid {}: {} mana from {}",
+            i + 1,
+            bid.price_mana,
+            bid.executor_did
+        );
     }
 
     println!("✅ Injected {} bids for job {:?}", test_bids.len(), job_id);
@@ -70,22 +77,26 @@ async fn test_manual_bid_injection_full_lifecycle() {
     // The job manager should select the best executor (lowest price)
     let best_bid = test_bids.iter().min_by_key(|bid| bid.price_mana).unwrap();
     let selected_executor = &best_bid.executor_did;
-    
-    println!("🎯 Expected selected executor: {} (price: {} mana)", 
-             selected_executor, best_bid.price_mana);
+
+    println!(
+        "🎯 Expected selected executor: {} (price: {} mana)",
+        selected_executor, best_bid.price_mana
+    );
 
     // Create and inject an execution receipt from the selected executor
     let receipt = create_test_receipt(&job_id, selected_executor);
     let receipt_message = LocalMeshSubmitReceiptMessage {
         receipt: receipt.clone(),
     };
-    
-    stub_service.stage_receipt(job_id.clone(), receipt_message).await;
+
+    stub_service
+        .stage_receipt(job_id.clone(), receipt_message)
+        .await;
     println!("📋 Injected execution receipt from {}", selected_executor);
 
     // Wait for the job lifecycle to complete
     let result = timeout(Duration::from_secs(10), job_handle).await;
-    
+
     match result {
         Ok(Ok(())) => {
             println!("✅ Job lifecycle completed successfully!");
@@ -100,30 +111,53 @@ async fn test_manual_bid_injection_full_lifecycle() {
 
     // Verify the assignment notice was sent
     let assignment_notices = stub_service.get_assignment_notices().await;
-    assert_eq!(assignment_notices.len(), 1, "Should have one assignment notice");
-    assert_eq!(assignment_notices[0].executor_did, *selected_executor, 
-               "Assignment should go to selected executor");
-    assert_eq!(assignment_notices[0].agreed_cost_mana, best_bid.price_mana,
-               "Assignment should have agreed cost");
-    
-    println!("🎯 Assignment notice verified: executor={}, cost={} mana", 
-             assignment_notices[0].executor_did, assignment_notices[0].agreed_cost_mana);
+    assert_eq!(
+        assignment_notices.len(),
+        1,
+        "Should have one assignment notice"
+    );
+    assert_eq!(
+        assignment_notices[0].executor_did, *selected_executor,
+        "Assignment should go to selected executor"
+    );
+    assert_eq!(
+        assignment_notices[0].agreed_cost_mana, best_bid.price_mana,
+        "Assignment should have agreed cost"
+    );
+
+    println!(
+        "🎯 Assignment notice verified: executor={}, cost={} mana",
+        assignment_notices[0].executor_did, assignment_notices[0].agreed_cost_mana
+    );
 
     // Check final mana balances
-    let submitter_balance = context.get_mana_balance(&submitter_did).await
+    let submitter_balance = context
+        .get_mana_balance(&submitter_did)
+        .await
         .expect("Failed to get submitter balance");
-    let executor_balance = context.get_mana_balance(selected_executor).await
+    let executor_balance = context
+        .get_mana_balance(selected_executor)
+        .await
         .expect("Failed to get executor balance");
 
     println!("💰 Final balances:");
-    println!("  Submitter ({}): {} mana", submitter_did, submitter_balance);
-    println!("  Executor ({}): {} mana", selected_executor, executor_balance);
+    println!(
+        "  Submitter ({}): {} mana",
+        submitter_did, submitter_balance
+    );
+    println!(
+        "  Executor ({}): {} mana",
+        selected_executor, executor_balance
+    );
 
     // Submitter should have been charged
     assert!(submitter_balance < 1000, "Submitter should be charged mana");
-    
+
     // Executor should have been paid (they start with 0, so should now have the agreed cost)
-    assert_eq!(executor_balance, best_bid.price_mana, "Executor should be paid agreed amount");
+    assert_eq!(
+        executor_balance, best_bid.price_mana,
+        "Executor should be paid agreed amount"
+    );
 
     println!("✅ Manual bid injection test completed successfully!");
 }
@@ -138,24 +172,24 @@ async fn test_no_bids_timeout() {
 
     println!("=== No Bids Timeout Test ===");
 
-    let submitter_did = Did::from_str("did:key:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH").unwrap();
+    let submitter_did =
+        Did::from_str("did:key:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH").unwrap();
     let context = RuntimeContext::new_testing(submitter_did.clone(), Some(1000))
         .expect("Failed to create test context");
 
     let test_job = create_test_echo_job(&submitter_did);
     let job_id = test_job.id.clone();
-    
+
     println!("📝 Created test job: {:?}", job_id);
 
     // Submit job but don't inject any bids
     let job_manager = context.clone();
-    let job_handle = tokio::spawn(async move {
-        job_manager.handle_mesh_job_lifecycle(test_job).await
-    });
+    let job_handle =
+        tokio::spawn(async move { job_manager.handle_mesh_job_lifecycle(test_job).await });
 
     // Wait for the job to timeout (should be quick since no bids)
     let result = timeout(Duration::from_secs(45), job_handle).await;
-    
+
     match result {
         Ok(Ok(())) => {
             // This is expected - the job should complete (fail) when no bids are received
@@ -170,12 +204,17 @@ async fn test_no_bids_timeout() {
     }
 
     // Check that submitter's mana was refunded (since job failed due to no bids)
-    let final_balance = context.get_mana_balance(&submitter_did).await
+    let final_balance = context
+        .get_mana_balance(&submitter_did)
+        .await
         .expect("Failed to get final balance");
-    
+
     println!("💰 Final submitter balance: {} mana", final_balance);
     // Balance should be close to original (may be slightly less due to announcement cost)
-    assert!(final_balance >= 990, "Submitter should get most mana back when no bids");
+    assert!(
+        final_balance >= 990,
+        "Submitter should get most mana back when no bids"
+    );
 
     println!("✅ No bids timeout test completed successfully!");
 }
@@ -190,7 +229,8 @@ async fn test_multiple_jobs_selective_bidding() {
 
     println!("=== Multiple Jobs Selective Bidding Test ===");
 
-    let submitter_did = Did::from_str("did:key:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH").unwrap();
+    let submitter_did =
+        Did::from_str("did:key:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH").unwrap();
     let context = RuntimeContext::new_testing(submitter_did.clone(), Some(2000))
         .expect("Failed to create test context");
 
@@ -207,14 +247,10 @@ async fn test_multiple_jobs_selective_bidding() {
     // Start both jobs
     let context1 = context.clone();
     let context2 = context.clone();
-    
-    let job1_handle = tokio::spawn(async move {
-        context1.handle_mesh_job_lifecycle(job1).await
-    });
-    
-    let job2_handle = tokio::spawn(async move {
-        context2.handle_mesh_job_lifecycle(job2).await
-    });
+
+    let job1_handle = tokio::spawn(async move { context1.handle_mesh_job_lifecycle(job1).await });
+
+    let job2_handle = tokio::spawn(async move { context2.handle_mesh_job_lifecycle(job2).await });
 
     // Wait for announcements
     tokio::time::sleep(Duration::from_millis(500)).await;
@@ -224,13 +260,18 @@ async fn test_multiple_jobs_selective_bidding() {
     for bid in job1_bids.iter() {
         stub_service.stage_bid(job1_id.clone(), bid.clone()).await;
     }
-    
+
     // Create receipt for job1
     let best_bid = job1_bids.iter().min_by_key(|bid| bid.price_mana).unwrap();
     let receipt = create_test_receipt(&job1_id, &best_bid.executor_did);
-    stub_service.stage_receipt(job1_id.clone(), LocalMeshSubmitReceiptMessage {
-        receipt: receipt.clone(),
-    }).await;
+    stub_service
+        .stage_receipt(
+            job1_id.clone(),
+            LocalMeshSubmitReceiptMessage {
+                receipt: receipt.clone(),
+            },
+        )
+        .await;
 
     println!("💰 Injected bids and receipt for job1 only");
 
@@ -266,7 +307,8 @@ fn get_stub_network_service(context: &Arc<RuntimeContext>) -> Arc<StubMeshNetwor
 fn create_test_echo_job(submitter_did: &Did) -> ActualMeshJob {
     ActualMeshJob {
         id: JobId::new(),
-        manifest_cid: Cid::from_str("bafybeigdyrztktx5b5m2y4sogf2hf5uq3k5knv5c5k2pvx7aq5w3sh7g5e").unwrap(),
+        manifest_cid: Cid::from_str("bafybeigdyrztktx5b5m2y4sogf2hf5uq3k5knv5c5k2pvx7aq5w3sh7g5e")
+            .unwrap(),
         creator_did: submitter_did.clone(),
         cost_mana: 50,
         spec: JobSpec {
@@ -278,6 +320,7 @@ fn create_test_echo_job(submitter_did: &Did) -> ActualMeshJob {
             required_resources: icn_mesh::Resources {
                 cpu_cores: 1,
                 memory_mb: 100,
+                storage_mb: 0,
             },
         },
     }
@@ -287,31 +330,37 @@ fn create_test_bids(job_id: &JobId) -> Vec<MeshJobBid> {
     vec![
         MeshJobBid {
             job_id: job_id.clone(),
-            executor_did: Did::from_str("did:key:z6MkrJvwAfLVgFntBzYCBLXXNGMNPdpJcRw4Qc9vq8vN8oSz").unwrap(),
+            executor_did: Did::from_str("did:key:z6MkrJvwAfLVgFntBzYCBLXXNGMNPdpJcRw4Qc9vq8vN8oSz")
+                .unwrap(),
             price_mana: 30, // Lowest price - should be selected
             resources: Resources {
                 cpu_cores: 1,
                 memory_mb: 100,
+                storage_mb: 0,
             },
             signature: SignatureBytes(vec![]),
         },
         MeshJobBid {
             job_id: job_id.clone(),
-            executor_did: Did::from_str("did:key:z6MkoTHsgNNrby8JzCNQ1iRLyW5QQ6R8Xuu6AA8igGrMVPUM").unwrap(),
+            executor_did: Did::from_str("did:key:z6MkoTHsgNNrby8JzCNQ1iRLyW5QQ6R8Xuu6AA8igGrMVPUM")
+                .unwrap(),
             price_mana: 40,
             resources: Resources {
                 cpu_cores: 1,
                 memory_mb: 120,
+                storage_mb: 0,
             },
             signature: SignatureBytes(vec![]),
         },
         MeshJobBid {
             job_id: job_id.clone(),
-            executor_did: Did::from_str("did:key:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktM").unwrap(),
+            executor_did: Did::from_str("did:key:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktM")
+                .unwrap(),
             price_mana: 35,
             resources: Resources {
                 cpu_cores: 2,
                 memory_mb: 150,
+                storage_mb: 0,
             },
             signature: SignatureBytes(vec![]),
         },
@@ -322,9 +371,10 @@ fn create_test_receipt(job_id: &JobId, executor_did: &Did) -> ExecutionReceipt {
     ExecutionReceipt {
         job_id: Cid::from(job_id.clone()),
         executor_did: executor_did.clone(),
-        result_cid: Cid::from_str("bafybeigdyrztktx5b5m2y4sogf2hf5uq3k5knv5c5k2pvx7aq5w3sh7g5e").unwrap(),
+        result_cid: Cid::from_str("bafybeigdyrztktx5b5m2y4sogf2hf5uq3k5knv5c5k2pvx7aq5w3sh7g5e")
+            .unwrap(),
         cpu_ms: 150,
         success: true,
         signature: SignatureBytes(vec![]),
     }
-} 
+}

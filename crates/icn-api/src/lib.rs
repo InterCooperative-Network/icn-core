@@ -11,8 +11,9 @@
 
 // Depending on icn_common crate
 use icn_common::{
-    compute_merkle_cid, retry_with_backoff, Cid, CircuitBreaker, CircuitBreakerError, CommonError,
-    DagBlock, Did, NodeInfo, NodeStatus, SystemTimeProvider, ICN_CORE_VERSION,
+    compute_merkle_cid, parse_cid_from_string, retry_with_backoff, Cid, CircuitBreaker,
+    CircuitBreakerError, CommonError, DagBlock, DagSyncStatus, Did, NodeInfo, NodeStatus,
+    SystemTimeProvider, ZkCredentialProof, ZkRevocationProof, ICN_CORE_VERSION,
 };
 // Remove direct use of icn_dag::put_block and icn_dag::get_block which use global store
 // use icn_dag::{put_block as dag_put_block, get_block as dag_get_block};
@@ -40,14 +41,19 @@ static HTTP_BREAKER: Lazy<AsyncMutex<CircuitBreaker<SystemTimeProvider>>> = Lazy
     ))
 });
 
+pub mod circuits;
+pub mod dag_trait;
 pub mod federation_trait;
 pub mod governance_trait;
+pub mod identity_trait;
+pub mod mutual_aid_trait;
 /// Prometheus metrics helpers
 pub mod metrics;
 use crate::governance_trait::{
     CastVoteRequest as GovernanceCastVoteRequest, // Renamed to avoid conflict
     GovernanceApi,
     ProposalInputType,
+    ResolutionActionInput,
     SubmitProposalRequest as GovernanceSubmitProposalRequest, // Renamed to avoid conflict
 };
 
@@ -216,6 +222,8 @@ pub async fn submit_dag_block(
     block_data_json: String,
     policy_enforcer: Option<Arc<dyn ScopedPolicyEnforcer>>,
     actor: Did,
+    credential_proof: Option<ZkCredentialProof>,
+    revocation_proof: Option<ZkRevocationProof>,
 ) -> Result<Cid, CommonError> {
     let block: DagBlock = serde_json::from_str(&block_data_json).map_err(|e| {
         CommonError::DeserializationError(format!(
@@ -238,9 +246,13 @@ pub async fn submit_dag_block(
     }
 
     if let Some(enforcer) = &policy_enforcer {
-        if let PolicyCheckResult::Denied { reason } =
-            enforcer.check_permission(DagPayloadOp::SubmitBlock, &actor, block.scope.as_ref())
-        {
+        if let PolicyCheckResult::Denied { reason } = enforcer.check_permission(
+            DagPayloadOp::SubmitBlock,
+            &actor,
+            block.scope.as_ref(),
+            credential_proof.as_ref(),
+            revocation_proof.as_ref(),
+        ) {
             return Err(CommonError::PolicyDenied(reason));
         }
     }
@@ -343,6 +355,24 @@ impl GovernanceApiImpl {
     pub fn new(gov_module: Arc<Mutex<GovernanceModule>>) -> Self {
         Self { gov_module }
     }
+
+    fn verify_proof(proof: &ZkCredentialProof) -> Result<(), CommonError> {
+        if proof.proof.is_empty() {
+            return Err(CommonError::InvalidInputError(
+                "credential proof invalid".to_string(),
+            ));
+        }
+        Ok(())
+    }
+
+    fn verify_revocation(proof: &ZkRevocationProof) -> Result<(), CommonError> {
+        if proof.proof.is_empty() {
+            return Err(CommonError::InvalidInputError(
+                "revocation proof invalid".to_string(),
+            ));
+        }
+        Ok(())
+    }
 }
 
 impl GovernanceApi for GovernanceApiImpl {
@@ -383,7 +413,43 @@ impl GovernanceApi for GovernanceApiImpl {
                 ProposalType::SoftwareUpgrade(version)
             }
             ProposalInputType::GenericText { text } => ProposalType::GenericText(text),
+            ProposalInputType::Resolution { actions } => {
+                let mut core_actions = Vec::new();
+                for a in actions {
+                    let ca = match a {
+                        ResolutionActionInput::PauseCredential { cid } => {
+                            let c = parse_cid_from_string(&cid).map_err(|e| {
+                                CommonError::InvalidInputError(format!(
+                                    "Invalid CID in resolution action: {} - {}",
+                                    cid, e
+                                ))
+                            })?;
+                            icn_governance::ResolutionAction::PauseCredential(c)
+                        }
+                        ResolutionActionInput::FreezeReputation { did } => {
+                            let d = Did::from_str(&did).map_err(|e| {
+                                CommonError::InvalidInputError(format!(
+                                    "Invalid DID in resolution action: {} - {}",
+                                    did, e
+                                ))
+                            })?;
+                            icn_governance::ResolutionAction::FreezeReputation(d)
+                        }
+                    };
+                    core_actions.push(ca);
+                }
+                ProposalType::Resolution(icn_governance::ResolutionProposal {
+                    actions: core_actions,
+                })
+            }
         };
+
+        if let Some(ref p) = request.credential_proof {
+            Self::verify_proof(p)?;
+        }
+        if let Some(ref rp) = request.revocation_proof {
+            Self::verify_revocation(rp)?;
+        }
 
         let mut module = self.gov_module.lock().map_err(|_e| {
             CommonError::ApiError(
@@ -429,6 +495,13 @@ impl GovernanceApi for GovernanceApiImpl {
             }
         };
 
+        if let Some(ref p) = request.credential_proof {
+            Self::verify_proof(p)?;
+        }
+        if let Some(ref rp) = request.revocation_proof {
+            Self::verify_revocation(rp)?;
+        }
+
         let mut module = self.gov_module.lock().map_err(|_e| {
             CommonError::ApiError("Failed to lock governance module for casting vote".to_string())
         })?;
@@ -451,6 +524,38 @@ impl GovernanceApi for GovernanceApiImpl {
             )
         })?;
         module.list_proposals()
+    }
+}
+
+/// Concrete implementation for DAG API operations.
+pub struct DagApiImpl<S> {
+    pub store: Arc<AsyncMutex<S>>,
+}
+
+impl<S> DagApiImpl<S> {
+    pub fn new(store: Arc<AsyncMutex<S>>) -> Self {
+        Self { store }
+    }
+}
+
+#[async_trait::async_trait]
+impl<S> dag_trait::DagApi for DagApiImpl<S>
+where
+    S: AsyncStorageService<DagBlock> + Send,
+{
+    async fn get_dag_root(&self) -> Result<Option<Cid>, CommonError> {
+        let store = self.store.lock().await;
+        icn_dag::current_root(&*store).await
+    }
+
+    async fn get_dag_sync_status(&self) -> Result<DagSyncStatus, CommonError> {
+        let store = self.store.lock().await;
+        let root = icn_dag::current_root(&*store).await?;
+        let in_sync = root.is_some();
+        Ok(DagSyncStatus {
+            current_root: root,
+            in_sync,
+        })
     }
 }
 
@@ -742,7 +847,15 @@ mod tests {
             scope: None,
         };
         let block_json = serde_json::to_string(&block).unwrap();
-        let result = submit_dag_block(storage, block_json, None, block.author_did.clone()).await;
+        let result = submit_dag_block(
+            storage,
+            block_json,
+            None,
+            block.author_did.clone(),
+            None,
+            None,
+        )
+        .await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), cid);
     }
@@ -768,7 +881,15 @@ mod tests {
             scope: None,
         };
         let block_json = serde_json::to_string(&block).unwrap();
-        let result = submit_dag_block(storage, block_json, None, block.author_did.clone()).await;
+        let result = submit_dag_block(
+            storage,
+            block_json,
+            None,
+            block.author_did.clone(),
+            None,
+            None,
+        )
+        .await;
         match result {
             Err(CommonError::DagValidationError(_)) => {}
             other => panic!("expected DagValidationError, got {:?}", other),
@@ -779,7 +900,6 @@ mod tests {
     async fn test_submit_and_retrieve_dag_block_api() {
         let storage = new_test_storage();
         let data = b"api test block data for error refinement".to_vec();
-        let cid = Cid::new_v1_sha256(0x71, &data); // Use more specific data for test CID
         let link_cid = Cid::new_v1_sha256(0x71, b"api link for error refinement");
         let link = DagLink {
             cid: link_cid,
@@ -789,6 +909,8 @@ mod tests {
         let ts = 0u64;
         let author = Did::new("key", "tester");
         let sig_opt = None;
+        // Compute the CID correctly using the same function as submit_dag_block
+        let cid = compute_merkle_cid(0x71, &data, &[link.clone()], ts, &author, &sig_opt, &None);
         let block = DagBlock {
             cid: cid.clone(),
             data: data.clone(),
@@ -805,6 +927,8 @@ mod tests {
             block_json.clone(),
             None,
             block.author_did.clone(),
+            None,
+            None,
         )
         .await
         {
@@ -840,6 +964,8 @@ mod tests {
             invalid_block_json.to_string(),
             None,
             Did::new("key", "tester"),
+            None,
+            None,
         )
         .await
         {
@@ -875,6 +1001,8 @@ mod tests {
             quorum: None,
             threshold: None,
             body: None,
+            credential_proof: None,
+            revocation_proof: None,
         };
 
         let proposal_id_res = api.submit_proposal(submit_req);
@@ -919,16 +1047,26 @@ mod tests {
             quorum: None,
             threshold: None,
             body: None,
+            credential_proof: None,
+            revocation_proof: None,
         };
         let proposal_id = api
             .submit_proposal(submit_req)
             .expect("Submitting proposal for vote test failed");
+
+        // Open the proposal for voting (required step)
+        {
+            let mut gov_module_guard = gov_module.lock().expect("Failed to lock governance module");
+            gov_module_guard.open_voting(&proposal_id).expect("Failed to open voting");
+        }
 
         let voter_did_str = "did:key:z6MkjchhcVbWZkAbNGRsM4ac3gR3eNnYtD9tYtFv9T9xL4xH";
         let cast_vote_req = GovernanceCastVoteRequest {
             voter_did: voter_did_str.to_string(),
             proposal_id: proposal_id.0.clone(), // ProposalId(String) -> String
             vote_option: "yes".to_string(),
+            credential_proof: None,
+            revocation_proof: None,
         };
 
         let vote_res = api.cast_vote(cast_vote_req);
@@ -1155,7 +1293,16 @@ mod tests {
             scope: None,
         };
         let block_json = serde_json::to_string(&block).unwrap();
-        match submit_dag_block(store, block_json, None, block.author_did.clone()).await {
+        match submit_dag_block(
+            store,
+            block_json,
+            None,
+            block.author_did.clone(),
+            None,
+            None,
+        )
+        .await
+        {
             Err(CommonError::PolicyDenied(msg)) => assert!(msg.contains("blocked")),
             other => panic!("Expected PolicyDenied, got {:?}", other),
         }
@@ -1196,7 +1343,8 @@ mod tests {
         let actor = Did::new("key", "allowed");
         let mut submitters = HashSet::new();
         submitters.insert(actor.clone());
-        let enforcer = InMemoryPolicyEnforcer::new(submitters, HashSet::new(), HashMap::new());
+        let enforcer =
+            InMemoryPolicyEnforcer::new(submitters, HashSet::new(), HashMap::new(), false);
 
         let data = b"block".to_vec();
         let ts = 0u64;
@@ -1218,6 +1366,8 @@ mod tests {
             block_json,
             Some(Arc::new(enforcer)),
             actor.clone(),
+            None,
+            None,
         )
         .await;
 
@@ -1232,7 +1382,8 @@ mod tests {
         let store = new_test_storage();
         let actor = Did::new("key", "denied");
         let submitters = HashSet::new();
-        let enforcer = InMemoryPolicyEnforcer::new(submitters, HashSet::new(), HashMap::new());
+        let enforcer =
+            InMemoryPolicyEnforcer::new(submitters, HashSet::new(), HashMap::new(), false);
 
         let data = b"block".to_vec();
         let ts = 0u64;
@@ -1254,6 +1405,8 @@ mod tests {
             block_json,
             Some(Arc::new(enforcer)),
             actor.clone(),
+            None,
+            None,
         )
         .await
         {

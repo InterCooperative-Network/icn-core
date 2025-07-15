@@ -2,7 +2,9 @@ use criterion::{black_box, criterion_group, criterion_main, BatchSize, Benchmark
 use icn_common::{Cid, Did};
 use icn_economics::ManaLedger;
 use icn_identity::{did_key_from_verifying_key, generate_ed25519_keypair, SignatureBytes};
-use icn_mesh::{select_executor, JobId, JobSpec, MeshJobBid, Resources, SelectionPolicy};
+use icn_mesh::{
+    select_executor, JobId, JobSpec, LatencyStore, MeshJobBid, Resources, SelectionPolicy,
+};
 use icn_reputation::InMemoryReputationStore;
 use std::str::FromStr;
 
@@ -11,6 +13,27 @@ use std::sync::RwLock;
 
 struct BenchLedger {
     inner: RwLock<std::collections::HashMap<Did, u64>>,
+}
+
+struct BenchLatency {
+    inner: std::sync::RwLock<std::collections::HashMap<Did, u64>>,
+}
+
+impl BenchLatency {
+    fn new() -> Self {
+        Self {
+            inner: std::sync::RwLock::new(std::collections::HashMap::new()),
+        }
+    }
+    fn set_latency(&self, did: Did, latency: u64) {
+        self.inner.write().unwrap().insert(did, latency);
+    }
+}
+
+impl LatencyStore for BenchLatency {
+    fn get_latency(&self, did: &Did) -> Option<u64> {
+        self.inner.read().unwrap().get(did).cloned()
+    }
 }
 impl BenchLedger {
     fn new() -> Self {
@@ -58,11 +81,13 @@ fn bench_select_executor(c: &mut Criterion) {
             let rep_store = InMemoryReputationStore::new();
             let ledger = BenchLedger::new();
             let mut bids = Vec::with_capacity(n);
+            let latency = BenchLatency::new();
             for i in 0..n {
                 let (_sk, vk) = generate_ed25519_keypair();
                 let did = Did::from_str(&did_key_from_verifying_key(&vk)).unwrap();
                 rep_store.set_score(did.clone(), i as u64);
                 ledger.set_balance(&did, 100).unwrap();
+                latency.set_latency(did.clone(), (i % 10 + 1) as u64);
                 bids.push(MeshJobBid {
                     job_id: job_id.clone(),
                     executor_did: did,
@@ -70,6 +95,7 @@ fn bench_select_executor(c: &mut Criterion) {
                     resources: Resources {
                         cpu_cores: 1,
                         memory_mb: 512,
+                        storage_mb: 0,
                     },
                     signature: SignatureBytes(Vec::new()),
                 });
@@ -78,7 +104,7 @@ fn bench_select_executor(c: &mut Criterion) {
                 || bids.clone(),
                 |bids_vec| {
                     black_box(select_executor(
-                        &job_id, &spec, bids_vec, &policy, &rep_store, &ledger,
+                        &job_id, &spec, bids_vec, &policy, &rep_store, &ledger, &latency,
                     ));
                 },
                 BatchSize::SmallInput,

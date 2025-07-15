@@ -30,12 +30,8 @@ JOB_RESPONSE=$(curl -s -X POST "$NODE_URL/mesh/submit" \
     -H "x-api-key: $API_KEY" \
     -d '{
         "manifest_cid": "bafybeigdyrztktx5b5m2y4sogf2hf5uq3k5knv5c5k2pvx7aq5w3sh7g5e",
-        "spec_json": {
-            "kind": "CclWasm",
-            "inputs": [],
-            "outputs": ["result"],
-            "required_resources": { "cpu_cores": 1, "memory_mb": 128 }
-        },
+        "spec_bytes": "BASE64_SPEC",
+        "spec_json": null,
         "cost_mana": 5
     }')
 

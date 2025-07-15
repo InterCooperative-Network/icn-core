@@ -1,6 +1,6 @@
 use icn_common::Did;
 use icn_identity::{did_key_from_verifying_key, generate_ed25519_keypair};
-use icn_network::{sign_message, NetworkService, SignedMessage, StubNetworkService};
+use icn_network::{sign_message, NetworkService, StubNetworkService};
 use icn_protocol::{GossipMessage, MessagePayload, ProtocolMessage};
 use std::str::FromStr;
 

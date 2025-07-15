@@ -15,13 +15,22 @@
 //! It integrates various core components to operate a functional ICN node, handling initialization,
 //! lifecycle, configuration, service hosting, and persistence.
 
+use crate::circuit_registry::CircuitRegistry;
 use crate::parameter_store::ParameterStore;
+use dashmap::DashSet;
 use icn_api::governance_trait::{
     CastVoteRequest as ApiCastVoteRequest, DelegateRequest as ApiDelegateRequest,
     RevokeDelegationRequest as ApiRevokeDelegationRequest,
     SubmitProposalRequest as ApiSubmitProposalRequest,
 };
-use icn_api::{get_dag_metadata, query_data, submit_transaction};
+use icn_api::{
+    get_dag_metadata,
+    identity_trait::{
+        BatchVerificationResponse, CredentialResponse, DisclosureRequest, DisclosureResponse,
+        IssueCredentialRequest, RevokeCredentialRequest, VerificationResponse, VerifyProofsRequest,
+    },
+    query_data, submit_transaction,
+};
 use icn_common::DagBlock as CoreDagBlock;
 use icn_common::NodeScope;
 use icn_common::{
@@ -31,7 +40,9 @@ use icn_common::{
 use icn_dag;
 use icn_identity::{
     did_key_from_verifying_key, generate_ed25519_keypair,
-    ExecutionReceipt as IdentityExecutionReceipt, SignatureBytes,
+    zk::{DummyProver, ZkProver},
+    Credential, DisclosedCredential, ExecutionReceipt as IdentityExecutionReceipt,
+    InMemoryCredentialStore, SignatureBytes,
 };
 use icn_mesh::{ActualMeshJob, JobId, JobSpec};
 #[allow(unused_imports)]
@@ -57,6 +68,8 @@ use axum::{
     Json, Router,
 };
 use axum_server::tls_rustls::RustlsConfig;
+use base64::{self, prelude::BASE64_STANDARD, Engine};
+use bincode;
 use bs58;
 use clap::{ArgMatches, CommandFactory, FromArgMatches, Parser};
 use tracing::{debug, error, info, warn};
@@ -74,14 +87,14 @@ use subtle::ConstantTimeEq;
 use tokio::sync::{Mutex as AsyncMutex, Mutex as TokioMutex};
 use uuid::Uuid;
 
-use crate::config::{NodeConfig, StorageBackendType};
+use crate::config::{NodeConfig, StorageBackendType, StorageConfig};
+use icn_runtime::constants::NODE_START_TIME;
+use icn_runtime::context::mesh_network::ZK_VERIFY_COST_MANA;
 
 #[cfg(feature = "enable-libp2p")]
 use icn_network::libp2p_service::{Libp2pNetworkService, NetworkConfig};
 #[cfg(feature = "enable-libp2p")]
 use libp2p::Multiaddr;
-
-static NODE_START_TIME: AtomicU64 = AtomicU64::new(0);
 
 // Initialize node start time (call this when the node starts)
 fn init_node_start_time() {
@@ -239,6 +252,10 @@ pub struct Cli {
     #[clap(long)]
     pub hsm_key_id: Option<String>,
 
+    /// Trusted issuer DID(s) for credential verification
+    #[clap(long = "trusted-issuer", value_delimiter = ',')]
+    pub trusted_issuers: Vec<String>,
+
     #[clap(
         long,
         help = "Human-readable name for this node (for logging and identification)"
@@ -295,15 +312,16 @@ pub struct Cli {
 pub fn load_or_generate_identity(
     config: &mut NodeConfig,
 ) -> Result<(icn_runtime::context::Ed25519Signer, String), CommonError> {
-    if let (Some(lib), Some(key_id)) = (&config.hsm_library, &config.hsm_key_id) {
+    if let (Some(lib), Some(key_id)) = (&config.identity.hsm_library, &config.identity.hsm_key_id) {
         let hsm = icn_runtime::context::signers::ExampleHsm::with_key(lib, key_id.clone());
         let signer = icn_runtime::context::Ed25519Signer::from_hsm(&hsm)?;
         let did_str = signer.did().to_string();
-        config.node_did = Some(did_str.clone());
+        config.identity.node_did = Some(did_str.clone());
         return Ok((signer, did_str));
     }
-    if let Some(path) = &config.key_path {
+    if let Some(path) = &config.identity.key_path {
         let env_name = config
+            .identity
             .key_passphrase_env
             .as_deref()
             .unwrap_or("ICN_KEY_PASSPHRASE");
@@ -313,12 +331,12 @@ pub fn load_or_generate_identity(
         let signer =
             icn_runtime::context::Ed25519Signer::from_encrypted_file(path, passphrase.as_bytes())?;
         let did_str = signer.did().to_string();
-        config.node_did = Some(did_str.clone());
+        config.identity.node_did = Some(did_str.clone());
         return Ok((signer, did_str));
     }
     if let (Some(did_str), Some(sk_bs58)) = (
-        config.node_did.clone(),
-        config.node_private_key_bs58.clone(),
+        config.identity.node_did.clone(),
+        config.identity.node_private_key_bs58.clone(),
     ) {
         let sk_bytes = bs58::decode(sk_bs58)
             .into_vec()
@@ -332,12 +350,14 @@ pub fn load_or_generate_identity(
             icn_runtime::context::Ed25519Signer::new_with_keys(sk, pk),
             did_str,
         ))
-    } else if config.node_did_path.exists() && config.node_private_key_path.exists() {
-        let did_str = fs::read_to_string(&config.node_did_path)
+    } else if config.identity.node_did_path.exists()
+        && config.identity.node_private_key_path.exists()
+    {
+        let did_str = fs::read_to_string(&config.identity.node_did_path)
             .map_err(|e| CommonError::IoError(format!("Failed to read DID file: {e}")))?
             .trim()
             .to_string();
-        let sk_bs58 = fs::read_to_string(&config.node_private_key_path)
+        let sk_bs58 = fs::read_to_string(&config.identity.node_private_key_path)
             .map_err(|e| CommonError::IoError(format!("Failed to read key file: {e}")))?
             .trim()
             .to_string();
@@ -349,8 +369,8 @@ pub fn load_or_generate_identity(
             .map_err(|_| CommonError::IdentityError("Invalid private key length".into()))?;
         let sk = icn_identity::SigningKey::from_bytes(&sk_array);
         let pk = sk.verifying_key();
-        config.node_did = Some(did_str.clone());
-        config.node_private_key_bs58 = Some(sk_bs58);
+        config.identity.node_did = Some(did_str.clone());
+        config.identity.node_private_key_bs58 = Some(sk_bs58);
         Ok((
             icn_runtime::context::Ed25519Signer::new_with_keys(sk, pk),
             did_str,
@@ -359,14 +379,14 @@ pub fn load_or_generate_identity(
         let (sk, pk) = generate_ed25519_keypair();
         let did_str = did_key_from_verifying_key(&pk);
         let sk_bs58 = bs58::encode(sk.to_bytes()).into_string();
-        if let Err(e) = fs::write(&config.node_did_path, &did_str) {
+        if let Err(e) = fs::write(&config.identity.node_did_path, &did_str) {
             error!("Failed to write DID file: {}", e);
         }
-        if let Err(e) = fs::write(&config.node_private_key_path, &sk_bs58) {
+        if let Err(e) = fs::write(&config.identity.node_private_key_path, &sk_bs58) {
             error!("Failed to write key file: {}", e);
         }
-        config.node_did = Some(did_str.clone());
-        config.node_private_key_bs58 = Some(sk_bs58);
+        config.identity.node_did = Some(did_str.clone());
+        config.identity.node_private_key_bs58 = Some(sk_bs58);
         Ok((
             icn_runtime::context::Ed25519Signer::new_with_keys(sk, pk),
             did_str,
@@ -379,11 +399,19 @@ pub fn load_or_generate_identity(
 #[derive(Deserialize)]
 struct DagBlockPayload {
     data: Vec<u8>,
+    #[serde(default)]
+    credential_proof: Option<icn_common::ZkCredentialProof>,
+    #[serde(default)]
+    revocation_proof: Option<icn_common::ZkRevocationProof>,
 }
 
 #[derive(Deserialize)]
 struct ContractSourcePayload {
     source: String,
+    #[serde(default)]
+    credential_proof: Option<icn_common::ZkCredentialProof>,
+    #[serde(default)]
+    revocation_proof: Option<icn_common::ZkRevocationProof>,
 }
 
 #[derive(Deserialize)]
@@ -419,6 +447,11 @@ struct AppState {
     peers: Arc<TokioMutex<Vec<String>>>,
     config: Arc<TokioMutex<NodeConfig>>,
     parameter_store: Option<Arc<TokioMutex<ParameterStore>>>,
+    circuit_registry: Arc<TokioMutex<CircuitRegistry>>,
+    credential_store: icn_identity::InMemoryCredentialStore,
+    trusted_issuers: std::collections::HashMap<Did, icn_identity::VerifyingKey>,
+    paused_credentials: DashSet<Cid>,
+    frozen_reputations: DashSet<Did>,
 }
 
 struct RateLimitData {
@@ -547,9 +580,22 @@ async fn correlation_id_middleware(
     let mut res = next.run(req).await.into_response();
     res.headers_mut()
         .insert("x-correlation-id", cid.parse().unwrap());
-    let latency = start.elapsed().as_millis();
+    let latency = start.elapsed();
     let status = res.status().as_u16();
+<<<<<<< HEAD
     tracing::info!(status = %status, latency_ms = latency, "request_complete");
+=======
+    info!(target: "request", "end cid={} status={} latency_ms={}", cid, status, latency.as_millis());
+    
+    // Track HTTP metrics
+    icn_api::metrics::system::HTTP_REQUESTS_TOTAL.inc();
+    icn_api::metrics::system::HTTP_REQUEST_DURATION.observe(latency.as_secs_f64());
+    
+    if status >= 400 {
+        icn_api::metrics::system::HTTP_ERRORS_TOTAL.inc();
+    }
+    
+>>>>>>> develop
     res
 }
 
@@ -561,7 +607,7 @@ pub async fn build_network_service(
         return Ok(Arc::new(icn_network::StubNetworkService::default()));
     }
 
-    if config.enable_p2p {
+    if config.p2p.enable_p2p {
         #[cfg(feature = "enable-libp2p")]
         {
             let net_cfg = config.libp2p_config()?;
@@ -596,12 +642,14 @@ pub async fn app_router_with_options(
     api_key: Option<String>,
     auth_token: Option<String>,
     rate_limit: Option<u64>,
-    mana_ledger_backend: Option<icn_runtime::context::LedgerBackend>,
+    _mana_ledger_backend: Option<icn_runtime::context::LedgerBackend>,
     mana_ledger_path: Option<PathBuf>,
     storage_backend: Option<StorageBackendType>,
     storage_path: Option<PathBuf>,
     _governance_db_path: Option<PathBuf>,
-    reputation_db_path: Option<PathBuf>,
+    #[cfg_attr(not(feature = "persist-sled"), allow(unused_variables))] reputation_db_path: Option<
+        PathBuf,
+    >,
     parameter_store_path: Option<PathBuf>,
 ) -> (Router, Arc<RuntimeContext>) {
     // Generate a new identity for this test/embedded instance
@@ -611,13 +659,20 @@ pub async fn app_router_with_options(
     info!("Test/Embedded Node DID: {}", node_did);
 
     let _signer = Arc::new(Ed25519Signer::new_with_keys(sk, pk)); // Not used with stubs
-    let cfg = NodeConfig {
-        storage_backend: storage_backend.unwrap_or(StorageBackendType::Memory),
-        storage_path: storage_path
-            .clone()
-            .unwrap_or_else(|| PathBuf::from("./dag_store")),
+    let mut cfg = NodeConfig {
+        storage: StorageConfig {
+            storage_backend: storage_backend.unwrap_or(StorageBackendType::Memory),
+            storage_path: storage_path
+                .clone()
+                .unwrap_or_else(|| PathBuf::from("./dag_store")),
+            mana_ledger_path: mana_ledger_path
+                .clone()
+                .unwrap_or_else(|| PathBuf::from("./tests/fixtures/mana_ledger.json")),
+            ..Default::default()
+        },
         ..NodeConfig::default()
     };
+    cfg.apply_env_overrides();
     let parameter_store = parameter_store_path.map(|p| {
         Arc::new(TokioMutex::new(
             ParameterStore::load(p).expect("failed to load parameter store"),
@@ -625,10 +680,11 @@ pub async fn app_router_with_options(
     });
     let dag_store_for_rt = cfg
         .init_dag_store()
+        .await
         .expect("Failed to init DAG store for test context");
 
     #[cfg(feature = "enable-libp2p")]
-    let (mesh_network_service, service_dyn) = {
+    let (_mesh_network_service, service_dyn) = {
         let cfg = NetworkConfig::default();
         let service = Libp2pNetworkService::new(cfg)
             .await
@@ -641,7 +697,7 @@ pub async fn app_router_with_options(
         )
     };
     #[cfg(not(feature = "enable-libp2p"))]
-    let (mesh_network_service, service_dyn) = {
+    let (_mesh_network_service, service_dyn) = {
         let stub_service = StubMeshNetworkService::new();
         (
             Arc::new(MeshNetworkServiceType::Stub(stub_service)),
@@ -651,22 +707,32 @@ pub async fn app_router_with_options(
     // GovernanceModule is initialized inside RuntimeContext::new
 
     // Create production-ready RuntimeContext with proper services
+<<<<<<< HEAD
     let node_did_string = node_did.to_string();
 
     // Create mana ledger with initial balance
     let mana_ledger = icn_runtime::context::SimpleManaLedger::new(
         mana_ledger_path.unwrap_or_else(|| PathBuf::from("./mana_ledger.sqlite")),
+=======
+    let _node_did_string = node_did.to_string();
+
+    // Create mana ledger with initial balance
+    let mana_ledger = icn_runtime::context::SimpleManaLedger::new_with_backend(
+        mana_ledger_path.unwrap_or_else(|| PathBuf::from("./tests/fixtures/mana_ledger.json")),
+        _mana_ledger_backend.unwrap_or(icn_runtime::context::LedgerBackend::File),
+>>>>>>> develop
     );
     mana_ledger
         .set_balance(&node_did, 1000)
         .expect("Failed to set initial mana balance");
 
     // Create production RuntimeContext using the mesh network service we created above
+    #[cfg_attr(not(feature = "persist-sled"), allow(unused_mut))]
     let mut rt_ctx = {
         #[cfg(feature = "enable-libp2p")]
         {
             // For production/development with real networking
-            RuntimeContext::new_development(
+            RuntimeContext::new_for_development(
                 node_did.clone(),
                 _signer.clone(),
                 mana_ledger,
@@ -678,7 +744,7 @@ pub async fn app_router_with_options(
         #[cfg(not(feature = "enable-libp2p"))]
         {
             // For testing without networking - use stub services
-            RuntimeContext::new_testing(node_did.clone(), Some(1000))
+            RuntimeContext::new_for_testing(node_did.clone(), Some(1000))
                 .expect("Failed to create testing RuntimeContext")
         }
     };
@@ -729,6 +795,26 @@ pub async fn app_router_with_options(
         }))
     });
 
+    let mut trusted_map = std::collections::HashMap::new();
+    trusted_map.insert(
+        rt_ctx.current_identity.clone(),
+        *rt_ctx.signer.verifying_key_ref(),
+    );
+    for did_str in &cfg.identity.trusted_credential_issuers {
+        if let Ok(did) = Did::from_str(did_str) {
+            match rt_ctx.did_resolver.resolve(&did) {
+                Ok(vk) => {
+                    trusted_map.insert(did, vk);
+                }
+                Err(e) => {
+                    warn!("Failed to resolve trusted issuer {}: {}", did_str, e);
+                }
+            }
+        } else {
+            warn!("Invalid trusted issuer DID: {}", did_str);
+        }
+    }
+
     let app_state = AppState {
         runtime_context: rt_ctx.clone(),
         node_name: "ICN Test/Embedded Node".to_string(),
@@ -739,6 +825,11 @@ pub async fn app_router_with_options(
         peers: Arc::new(TokioMutex::new(Vec::new())),
         config: config.clone(),
         parameter_store: parameter_store.clone(),
+        circuit_registry: Arc::new(TokioMutex::new(CircuitRegistry::default())),
+        credential_store: icn_identity::InMemoryCredentialStore::new(),
+        trusted_issuers: trusted_map,
+        paused_credentials: DashSet::new(),
+        frozen_reputations: DashSet::new(),
     };
 
     // Register governance callback for parameter changes
@@ -746,6 +837,8 @@ pub async fn app_router_with_options(
         let gov_mod = rt_ctx.governance_module.clone();
         let rate_opt = rate_limiter.clone();
         let param_store_opt = parameter_store.clone();
+        let paused_set = app_state.paused_credentials.clone();
+        let frozen_set = app_state.frozen_reputations.clone();
         let handle = tokio::runtime::Handle::current();
         let mut gov = gov_mod.lock().await;
         gov.set_callback(move |proposal| {
@@ -771,6 +864,18 @@ pub async fn app_router_with_options(
                     }
                 }
             }
+            if let icn_governance::ProposalType::Resolution(res) = &proposal.proposal_type {
+                for act in &res.actions {
+                    match act {
+                        icn_governance::ResolutionAction::PauseCredential(cid) => {
+                            paused_set.insert(cid.clone());
+                        }
+                        icn_governance::ResolutionAction::FreezeReputation(did) => {
+                            frozen_set.insert(did.clone());
+                        }
+                    }
+                }
+            }
             Ok(())
         });
     }
@@ -788,9 +893,38 @@ pub async fn app_router_with_options(
             .route("/account/{did}/mana", get(account_mana_handler))
             .route("/keys", get(keys_handler))
             .route("/reputation/{did}", get(reputation_handler))
+            .route("/identity/verify", post(zk_verify_handler))
+            .route("/identity/generate-proof", post(zk_generate_handler))
+            .route("/identity/verify-proof", post(zk_verify_handler))
+            .route("/identity/verify/revocation", post(zk_verify_revocation_handler))
+            .route("/identity/verify/batch", post(zk_verify_batch_handler))
+            .route(
+                "/identity/credentials/issue",
+                post(credential_issue_handler),
+            )
+            .route(
+                "/identity/credentials/verify",
+                post(credential_verify_handler),
+            )
+            .route(
+                "/identity/credentials/revoke",
+                post(credential_revoke_handler),
+            )
+            .route(
+                "/identity/credentials/schemas",
+                get(credential_schemas_handler),
+            )
+            .route(
+                "/identity/credentials/disclose",
+                post(credential_disclose_handler),
+            )
+            .route("/identity/credentials/{cid}", get(credential_get_handler))
             .route("/dag/put", post(dag_put_handler)) // These will use RT context's DAG store
             .route("/dag/get", post(dag_get_handler)) // These will use RT context's DAG store
             .route("/dag/meta", post(dag_meta_handler))
+            .route("/dag/root", get(dag_root_handler))
+            .route("/dag/status", get(dag_status_handler))
+            .route("/sync/status", get(sync_status_handler))
             .route("/dag/pin", post(dag_pin_handler))
             .route("/dag/unpin", post(dag_unpin_handler))
             .route("/dag/prune", post(dag_prune_handler))
@@ -816,11 +950,16 @@ pub async fn app_router_with_options(
             .route("/mesh/stub/bid", post(mesh_stub_bid_handler)) // Stub: inject bid for testing
             .route("/mesh/stub/receipt", post(mesh_stub_receipt_handler)) // Stub: inject receipt for testing
             .route("/contracts", post(contracts_post_handler))
+            .route("/circuits/register", post(circuit_register_handler))
+            .route("/circuits/{slug}/{version}", get(circuit_get_handler))
+            .route("/circuits/{slug}", get(circuit_versions_handler))
             .route("/federation/peers", get(federation_list_peers_handler))
             .route("/federation/peers", post(federation_add_peer_handler))
             .route("/federation/join", post(federation_join_handler))
             .route("/federation/leave", post(federation_leave_handler))
             .route("/federation/status", get(federation_status_handler))
+            .route("/federation/init", post(federation_init_handler))
+            .route("/federation/sync", post(federation_sync_handler))
             .with_state(app_state.clone())
             .layer(middleware::from_fn(correlation_id_middleware))
             .layer(middleware::from_fn_with_state(
@@ -855,6 +994,12 @@ pub async fn app_router_from_context(
         }))
     });
 
+    let mut trusted_map = std::collections::HashMap::new();
+    trusted_map.insert(
+        ctx.current_identity.clone(),
+        *ctx.signer.verifying_key_ref(),
+    );
+
     let config = Arc::new(TokioMutex::new(NodeConfig::default()));
 
     let app_state = AppState {
@@ -867,12 +1012,19 @@ pub async fn app_router_from_context(
         peers: Arc::new(TokioMutex::new(Vec::new())),
         config: config.clone(),
         parameter_store: None,
+        circuit_registry: Arc::new(TokioMutex::new(CircuitRegistry::default())),
+        credential_store: icn_identity::InMemoryCredentialStore::new(),
+        trusted_issuers: trusted_map,
+        paused_credentials: DashSet::new(),
+        frozen_reputations: DashSet::new(),
     };
 
     {
         let gov_mod = ctx.governance_module.clone();
         let rate_opt = rate_limiter.clone();
         let param_store_opt: Option<Arc<TokioMutex<ParameterStore>>> = None;
+        let paused_set = app_state.paused_credentials.clone();
+        let frozen_set = app_state.frozen_reputations.clone();
         let handle = tokio::runtime::Handle::current();
         let mut gov = gov_mod.lock().await;
         gov.set_callback(move |proposal| {
@@ -898,6 +1050,18 @@ pub async fn app_router_from_context(
                     }
                 }
             }
+            if let icn_governance::ProposalType::Resolution(res) = &proposal.proposal_type {
+                for act in &res.actions {
+                    match act {
+                        icn_governance::ResolutionAction::PauseCredential(cid) => {
+                            paused_set.insert(cid.clone());
+                        }
+                        icn_governance::ResolutionAction::FreezeReputation(did) => {
+                            frozen_set.insert(did.clone());
+                        }
+                    }
+                }
+            }
             Ok(())
         });
     }
@@ -914,9 +1078,29 @@ pub async fn app_router_from_context(
         .route("/account/{did}/mana", get(account_mana_handler))
         .route("/keys", get(keys_handler))
         .route("/reputation/{did}", get(reputation_handler))
+        .route(
+            "/identity/credentials/issue",
+            post(credential_issue_handler),
+        )
+        .route(
+            "/identity/credentials/verify",
+            post(credential_verify_handler),
+        )
+        .route(
+            "/identity/credentials/revoke",
+            post(credential_revoke_handler),
+        )
+        .route(
+            "/identity/credentials/schemas",
+            get(credential_schemas_handler),
+        )
+        .route("/identity/credentials/{cid}", get(credential_get_handler))
         .route("/dag/put", post(dag_put_handler))
         .route("/dag/get", post(dag_get_handler))
         .route("/dag/meta", post(dag_meta_handler))
+        .route("/dag/root", get(dag_root_handler))
+        .route("/dag/status", get(dag_status_handler))
+        .route("/sync/status", get(sync_status_handler))
         .route("/dag/pin", post(dag_pin_handler))
         .route("/dag/unpin", post(dag_unpin_handler))
         .route("/dag/prune", post(dag_prune_handler))
@@ -942,14 +1126,21 @@ pub async fn app_router_from_context(
         .route("/mesh/stub/bid", post(mesh_stub_bid_handler))
         .route("/mesh/stub/receipt", post(mesh_stub_receipt_handler))
         .route("/contracts", post(contracts_post_handler))
+        .route("/circuits/register", post(circuit_register_handler))
+        .route("/circuits/{slug}/{version}", get(circuit_get_handler))
+        .route("/circuits/{slug}", get(circuit_versions_handler))
         .route("/federation/peers", get(federation_list_peers_handler))
         .route("/federation/peers", post(federation_add_peer_handler))
         .route("/federation/join", post(federation_join_handler))
         .route("/federation/leave", post(federation_leave_handler))
         .route("/federation/status", get(federation_status_handler))
+        .route("/federation/init", post(federation_init_handler))
+        .route("/federation/sync", post(federation_sync_handler))
         .route("/federation/join", post(federation_join_handler))
         .route("/federation/leave", post(federation_leave_handler))
         .route("/federation/status", get(federation_status_handler))
+        .route("/federation/init", post(federation_init_handler))
+        .route("/federation/sync", post(federation_sync_handler))
         .with_state(app_state.clone())
         .layer(middleware::from_fn(correlation_id_middleware))
         .layer(middleware::from_fn_with_state(
@@ -999,13 +1190,13 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
         panic!("Failed to create parameter store")
     });
     // Start with persisted parameter values
-    config.open_rate_limit = parameter_store.open_rate_limit();
+    config.http.open_rate_limit = parameter_store.open_rate_limit();
     config.apply_env_overrides();
     config.apply_cli_overrides(&cli, &matches);
     if let Err(e) =
-        parameter_store.set_parameter("open_rate_limit", &config.open_rate_limit.to_string())
+        parameter_store.set_parameter("open_rate_limit", &config.http.open_rate_limit.to_string())
     {
-        warn!("Failed to update parameter store: {}", e);
+        warn!("Failed to update parammter store: {}", e);
     }
     let _ = parameter_store.save();
     if let Err(e) = config.prepare_paths() {
@@ -1015,11 +1206,11 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
     let shared_config = Arc::new(TokioMutex::new(config.clone()));
     let parameter_store = Arc::new(TokioMutex::new(parameter_store));
 
-    if config.auth_token.is_none() {
-        if let Some(path) = &config.auth_token_path {
+    if config.http.auth_token.is_none() {
+        if let Some(path) = &config.http.auth_token_path {
             match fs::read_to_string(path) {
                 Ok(tok) => {
-                    config.auth_token = Some(tok.trim().to_string());
+                    config.http.auth_token = Some(tok.trim().to_string());
                 }
                 Err(e) => {
                     error!("Failed to read auth token file {}: {}", path.display(), e);
@@ -1044,7 +1235,7 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
     info!("Starting {} with DID: {}", node_name, node_did);
 
     // --- Create RuntimeContext with Networking ---
-    let dag_store_for_rt = match config.init_dag_store() {
+    let dag_store_for_rt = match config.init_dag_store().await {
         Ok(store) => store,
         Err(e) => {
             error!("Failed to initialize DAG store: {}", e);
@@ -1052,7 +1243,10 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    let mana_ledger = icn_runtime::context::SimpleManaLedger::new(config.mana_ledger_path.clone());
+    let mana_ledger = icn_runtime::context::SimpleManaLedger::new_with_backend(
+        config.storage.mana_ledger_path.clone(),
+        config.storage.mana_ledger_backend,
+    );
     let signer = Arc::new(signer);
 
     let network_service = match build_network_service(&config).await {
@@ -1063,14 +1257,15 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    let rt_ctx = if config.test_mode {
-        RuntimeContext::new_testing(node_did.clone(), Some(1000))
+    #[cfg_attr(not(feature = "persist-sled"), allow(unused_mut))]
+    let mut rt_ctx = if config.test_mode {
+        RuntimeContext::new_for_testing(node_did.clone(), Some(1000))
             .expect("Failed to create RuntimeContext for testing")
     } else {
-        RuntimeContext::new_production(
+        RuntimeContext::new_for_production(
             node_did.clone(),
             network_service,
-            signer,
+            signer.clone(),
             Arc::new(icn_identity::KeyDidResolver),
             dag_store_for_rt,
             mana_ledger,
@@ -1082,12 +1277,13 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
 
     #[cfg(feature = "persist-sled")]
     {
-        let gov_mod = icn_governance::GovernanceModule::new_sled(config.governance_db_path.clone())
-            .unwrap_or_else(|_| icn_governance::GovernanceModule::new());
+        let gov_mod =
+            icn_governance::GovernanceModule::new_sled(config.storage.governance_db_path.clone())
+                .unwrap_or_else(|_| icn_governance::GovernanceModule::new());
         if let Some(ctx) = Arc::get_mut(&mut rt_ctx) {
             ctx.governance_module = Arc::new(TokioMutex::new(gov_mod));
             if let Ok(store) =
-                icn_reputation::SledReputationStore::new(config.reputation_db_path.clone())
+                icn_reputation::SledReputationStore::new(config.storage.reputation_db_path.clone())
             {
                 ctx.reputation_store = Arc::new(store);
             }
@@ -1125,33 +1321,57 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // --- Create AppState for Axum ---
-    let rate_limiter =
-        if config.api_key.is_none() && config.auth_token.is_none() && config.open_rate_limit > 0 {
-            Some(Arc::new(AsyncMutex::new(RateLimitData {
-                last: Instant::now(),
-                count: 0,
-                limit: config.open_rate_limit,
-                failed_attempts: 0,
-            })))
+    let rate_limiter = if config.http.api_key.is_none()
+        && config.http.auth_token.is_none()
+        && config.http.open_rate_limit > 0
+    {
+        Some(Arc::new(AsyncMutex::new(RateLimitData {
+            last: Instant::now(),
+            count: 0,
+            limit: config.http.open_rate_limit,
+            failed_attempts: 0,
+        })))
+    } else {
+        None
+    };
+
+    let mut trusted_map = std::collections::HashMap::new();
+    trusted_map.insert(node_did.clone(), *signer.verifying_key_ref());
+    for did_str in &config.identity.trusted_credential_issuers {
+        if let Ok(did) = Did::from_str(did_str) {
+            match rt_ctx.did_resolver.resolve(&did) {
+                Ok(vk) => {
+                    trusted_map.insert(did, vk);
+                }
+                Err(e) => warn!("Failed to resolve trusted issuer {}: {}", did_str, e),
+            }
         } else {
-            None
-        };
+            warn!("Invalid trusted issuer DID: {}", did_str);
+        }
+    }
 
     let app_state = AppState {
         runtime_context: rt_ctx.clone(),
         node_name: node_name.clone(),
         node_version: ICN_CORE_VERSION.to_string(),
-        api_key: config.api_key.clone(),
-        auth_token: config.auth_token.clone(),
+        api_key: config.http.api_key.clone(),
+        auth_token: config.http.auth_token.clone(),
         rate_limiter: rate_limiter.clone(),
         peers: Arc::new(TokioMutex::new(Vec::new())),
         config: shared_config.clone(),
         parameter_store: Some(parameter_store.clone()),
+        circuit_registry: Arc::new(TokioMutex::new(CircuitRegistry::default())),
+        credential_store: icn_identity::InMemoryCredentialStore::new(),
+        trusted_issuers: trusted_map,
+        paused_credentials: DashSet::new(),
+        frozen_reputations: DashSet::new(),
     };
 
     {
         let gov_mod = rt_ctx.governance_module.clone();
         let rate_opt = rate_limiter.clone();
+        let paused_set = app_state.paused_credentials.clone();
+        let frozen_set = app_state.frozen_reputations.clone();
         let handle = tokio::runtime::Handle::current();
         let mut gov = gov_mod.lock().await;
         gov.set_callback(move |proposal| {
@@ -1167,6 +1387,18 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
                             let mut data = limiter.lock().await;
                             data.limit = new_lim;
                         });
+                    }
+                }
+            }
+            if let icn_governance::ProposalType::Resolution(res) = &proposal.proposal_type {
+                for act in &res.actions {
+                    match act {
+                        icn_governance::ResolutionAction::PauseCredential(cid) => {
+                            paused_set.insert(cid.clone());
+                        }
+                        icn_governance::ResolutionAction::FreezeReputation(did) => {
+                            frozen_set.insert(did.clone());
+                        }
                     }
                 }
             }
@@ -1187,6 +1419,9 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
         .route("/dag/put", post(dag_put_handler))
         .route("/dag/get", post(dag_get_handler))
         .route("/dag/meta", post(dag_meta_handler))
+        .route("/dag/root", get(dag_root_handler))
+        .route("/dag/status", get(dag_status_handler))
+        .route("/sync/status", get(sync_status_handler))
         .route("/dag/pin", post(dag_pin_handler))
         .route("/dag/unpin", post(dag_unpin_handler))
         .route("/dag/prune", post(dag_prune_handler))
@@ -1210,11 +1445,16 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
         .route("/mesh/jobs/{job_id}", get(mesh_get_job_status_handler))
         .route("/mesh/receipt", post(mesh_submit_receipt_handler))
         .route("/contracts", post(contracts_post_handler))
+        .route("/circuits/register", post(circuit_register_handler))
+        .route("/circuits/{slug}/{version}", get(circuit_get_handler))
+        .route("/circuits/{slug}", get(circuit_versions_handler))
         .route("/federation/peers", get(federation_list_peers_handler))
         .route("/federation/peers", post(federation_add_peer_handler))
         .route("/federation/join", post(federation_join_handler))
         .route("/federation/leave", post(federation_leave_handler))
         .route("/federation/status", get(federation_status_handler))
+        .route("/federation/init", post(federation_init_handler))
+        .route("/federation/sync", post(federation_sync_handler))
         .with_state(app_state.clone())
         .layer(middleware::from_fn_with_state(
             app_state.clone(),
@@ -1226,13 +1466,14 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
         ));
 
     let addr: SocketAddr = config
+        .http
         .http_listen_addr
         .parse()
         .expect("Invalid HTTP listen address");
     info!("🌐 {} HTTP server listening on {}", node_name, addr);
 
-    if let (Some(cert), Some(key)) = (&config.tls_cert_path, &config.tls_key_path) {
-        info!(target: "audit", "tls_enabled cert={:?} min_version={:?}", cert, config.tls_min_version);
+    if let (Some(cert), Some(key)) = (&config.http.tls_cert_path, &config.http.tls_key_path) {
+        info!(target: "audit", "tls_enabled cert={:?} min_version={:?}", cert, config.http.tls_min_version);
         let tls_config = axum_server::tls_rustls::RustlsConfig::from_pem_file(cert, key)
             .await
             .expect("failed to load TLS certificate");
@@ -1248,7 +1489,7 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
             .unwrap();
     }
 
-    if config.enable_p2p {
+    if config.p2p.enable_p2p {
         #[cfg(feature = "enable-libp2p")]
         {
             if let Err(e) = rt_ctx.shutdown_network().await {
@@ -1450,14 +1691,15 @@ async fn readiness_handler(State(state): State<AppState>) -> impl IntoResponse {
 
 // GET /metrics – Prometheus metrics text
 async fn metrics_handler() -> impl IntoResponse {
-    use icn_api::metrics::register_core_metrics;
+    use icn_api::metrics::{register_core_metrics, update_system_metrics};
     use prometheus_client::metrics::{gauge::Gauge, histogram::Histogram};
 
     let mut registry = Registry::default();
 
+    // Register all core metrics
     register_core_metrics(&mut registry);
 
-    // Add system metrics
+    // Add additional node-specific metrics
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
@@ -1477,29 +1719,15 @@ async fn metrics_handler() -> impl IntoResponse {
     process_id_gauge.set(process::id() as f64);
     registry.register("node_process_id", "Node process ID", process_id_gauge);
 
-    // Memory usage (basic approximation - could be enhanced with proper system monitoring)
-    if let Ok(status) = fs::read_to_string("/proc/self/status") {
-        for line in status.lines() {
-            if line.starts_with("VmRSS:") {
-                if let Some(kb_str) = line.split_whitespace().nth(1) {
-                    if let Ok(kb) = kb_str.parse::<u64>() {
-                        let memory_gauge: Gauge<f64, std::sync::atomic::AtomicU64> =
-                            Gauge::default();
-                        memory_gauge.set((kb * 1024) as f64); // Convert KB to bytes
-                        registry.register(
-                            "node_memory_usage_bytes",
-                            "Node memory usage in bytes",
-                            memory_gauge,
-                        );
-                    }
-                }
-                break;
-            }
-        }
-    }
+    // Update system metrics before collecting
+    update_system_metrics();
 
     let mut buffer = String::new();
     encode(&mut buffer, &registry).unwrap();
+    
+    // Track this metrics request
+    icn_api::metrics::system::HTTP_REQUESTS_TOTAL.inc();
+    
     (StatusCode::OK, buffer)
 }
 
@@ -1508,13 +1736,12 @@ async fn dag_put_handler(
     State(state): State<AppState>,
     Json(block): Json<DagBlockPayload>,
 ) -> impl IntoResponse {
-    // Use RuntimeContext's dag_store now
     let ts = 0u64;
     let author = Did::new("key", "tester");
     let sig_opt = None;
     let cid = icn_common::compute_merkle_cid(0x71, &block.data, &[], ts, &author, &sig_opt, &None);
     let dag_block = CoreDagBlock {
-        cid,
+        cid: cid.clone(),
         data: block.data,
         links: vec![],
         timestamp: ts,
@@ -1522,9 +1749,27 @@ async fn dag_put_handler(
         signature: sig_opt,
         scope: None,
     };
-    let mut store = state.runtime_context.dag_store.lock().await;
-    match store.put(&dag_block).await {
-        Ok(()) => (StatusCode::CREATED, Json(dag_block.cid.to_string())).into_response(),
+    let block_json = match serde_json::to_string(&dag_block) {
+        Ok(j) => j,
+        Err(e) => {
+            return map_rust_error_to_json_response(
+                format!("Failed to serialize DagBlock: {e}"),
+                StatusCode::INTERNAL_SERVER_ERROR,
+            )
+            .into_response();
+        }
+    };
+    match icn_api::submit_dag_block(
+        state.runtime_context.dag_store.clone(),
+        block_json,
+        state.runtime_context.policy_enforcer.clone(),
+        state.runtime_context.current_identity.clone(),
+        block.credential_proof,
+        block.revocation_proof,
+    )
+    .await
+    {
+        Ok(_) => (StatusCode::CREATED, Json(cid.to_string())).into_response(),
         Err(e) => map_rust_error_to_json_response(
             format!("DAG put error: {}", e),
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -1616,6 +1861,45 @@ async fn dag_meta_handler(
             .into_response(),
         Err(e) => map_rust_error_to_json_response(
             format!("DAG meta error: {e}"),
+            StatusCode::INTERNAL_SERVER_ERROR,
+        )
+        .into_response(),
+    }
+}
+
+/// GET /dag/root – Retrieve the current DAG root CID.
+/// Clients can compare this value across peers for synchronization.
+async fn dag_root_handler(State(state): State<AppState>) -> impl IntoResponse {
+    let store = state.runtime_context.dag_store.lock().await;
+    match icn_dag::current_root(&*store).await {
+        Ok(Some(cid)) => (StatusCode::OK, Json(cid.to_string())).into_response(),
+        Ok(None) => (StatusCode::OK, Json(String::new())).into_response(),
+        Err(e) => map_rust_error_to_json_response(
+            format!("DAG root error: {e}"),
+            StatusCode::INTERNAL_SERVER_ERROR,
+        )
+        .into_response(),
+    }
+}
+
+/// GET /dag/status – Report DAG synchronization status.
+async fn dag_status_handler(State(state): State<AppState>) -> impl IntoResponse {
+    match state.runtime_context.get_dag_sync_status().await {
+        Ok(status) => (StatusCode::OK, Json(status)).into_response(),
+        Err(e) => map_rust_error_to_json_response(
+            format!("DAG status error: {e}"),
+            StatusCode::INTERNAL_SERVER_ERROR,
+        )
+        .into_response(),
+    }
+}
+
+/// GET /sync/status – Report DAG synchronization status (alias).
+async fn sync_status_handler(State(state): State<AppState>) -> impl IntoResponse {
+    match state.runtime_context.get_dag_sync_status().await {
+        Ok(status) => (StatusCode::OK, Json(status)).into_response(),
+        Err(e) => map_rust_error_to_json_response(
+            format!("Sync status error: {e}"),
             StatusCode::INTERNAL_SERVER_ERROR,
         )
         .into_response(),
@@ -1788,6 +2072,8 @@ async fn contracts_post_handler(
         block_json,
         state.runtime_context.policy_enforcer.clone(),
         state.runtime_context.current_identity.clone(),
+        payload.credential_proof,
+        payload.revocation_proof,
     )
     .await
     {
@@ -1895,6 +2181,9 @@ async fn gov_submit_handler(
         }
         icn_api::governance_trait::ProposalInputType::GenericText { text } => {
             ("GenericText".to_string(), text.into_bytes())
+        }
+        icn_api::governance_trait::ProposalInputType::Resolution { actions } => {
+            ("Resolution".to_string(), serde_json::to_vec(&actions).unwrap())
         }
     };
 
@@ -2102,9 +2391,12 @@ async fn gov_execute_handler(
 #[derive(Debug, Serialize, Deserialize)] // Added Serialize and Deserialize
 pub struct SubmitJobRequest {
     pub manifest_cid: String, // String to be parsed into Cid
-    // pub spec: JobSpec, // JobSpec is currently {}, so not very useful as JSON.
-    // Let's assume spec comes as a JSON Value or stringified JSON for now.
-    pub spec_json: serde_json::Value, // Expecting JobSpec as a JSON value
+    /// Base64 encoded bincode [`JobSpec`] bytes.
+    #[serde(default)]
+    pub spec_bytes: Option<String>,
+    /// Deprecated JSON representation of the job spec.
+    #[serde(default)]
+    pub spec_json: Option<serde_json::Value>,
     pub cost_mana: u64,
 }
 
@@ -2125,15 +2417,44 @@ async fn mesh_submit_job_handler(
         }
     };
 
-    let job_spec = match serde_json::from_value::<icn_mesh::JobSpec>(request.spec_json.clone()) {
-        Ok(spec) => spec,
-        Err(e) => {
-            return map_rust_error_to_json_response(
-                format!("Failed to parse job spec: {}", e),
-                StatusCode::BAD_REQUEST,
-            )
-            .into_response()
+    // Decode job spec from bytes or fallback to deprecated JSON
+    let job_spec = if let Some(b64) = &request.spec_bytes {
+        match base64::engine::general_purpose::STANDARD.decode(b64) {
+            Ok(bytes) => match bincode::deserialize::<icn_mesh::JobSpec>(&bytes) {
+                Ok(spec) => spec,
+                Err(e) => {
+                    return map_rust_error_to_json_response(
+                        format!("Failed to decode job spec bytes: {}", e),
+                        StatusCode::BAD_REQUEST,
+                    )
+                    .into_response()
+                }
+            },
+            Err(e) => {
+                return map_rust_error_to_json_response(
+                    format!("Invalid base64 spec bytes: {}", e),
+                    StatusCode::BAD_REQUEST,
+                )
+                .into_response()
+            }
         }
+    } else if let Some(json_val) = &request.spec_json {
+        match serde_json::from_value::<icn_mesh::JobSpec>(json_val.clone()) {
+            Ok(spec) => spec,
+            Err(e) => {
+                return map_rust_error_to_json_response(
+                    format!("Failed to parse job spec JSON: {}", e),
+                    StatusCode::BAD_REQUEST,
+                )
+                .into_response()
+            }
+        }
+    } else {
+        return map_rust_error_to_json_response(
+            "Missing job spec".to_string(),
+            StatusCode::BAD_REQUEST,
+        )
+        .into_response();
     };
 
     // Build complete ActualMeshJob structure with placeholder values
@@ -2460,6 +2781,7 @@ async fn mesh_stub_bid_handler(
         resources: icn_mesh::Resources {
             cpu_cores: 1,
             memory_mb: 128,
+            storage_mb: 0,
         },
         signature: icn_identity::SignatureBytes(vec![0; 64]), // Dummy signature for testing
     };
@@ -2662,6 +2984,22 @@ async fn federation_status_handler(State(state): State<AppState>) -> impl IntoRe
     (StatusCode::OK, Json(status))
 }
 
+// POST /federation/init - initialize federation (stub)
+async fn federation_init_handler(State(_state): State<AppState>) -> impl IntoResponse {
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({ "initialized": true })),
+    )
+}
+
+// POST /federation/sync - trigger federation sync (stub)
+async fn federation_sync_handler(State(_state): State<AppState>) -> impl IntoResponse {
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({ "sync": "started" })),
+    )
+}
+
 // GET /network/local-peer-id - return this node's peer ID
 async fn network_local_peer_id_handler(State(state): State<AppState>) -> impl IntoResponse {
     #[cfg(feature = "enable-libp2p")]
@@ -2787,6 +3125,13 @@ async fn reputation_handler(
 ) -> impl IntoResponse {
     match Did::from_str(&did_str) {
         Ok(did) => {
+            if state.frozen_reputations.contains(&did) {
+                return (
+                    StatusCode::OK,
+                    Json(serde_json::json!({ "score": 0, "frozen": true })),
+                )
+                    .into_response();
+            }
             let score = state.runtime_context.reputation_store.get_reputation(&did);
             (StatusCode::OK, Json(serde_json::json!({ "score": score }))).into_response()
         }
@@ -2794,6 +3139,345 @@ async fn reputation_handler(
             map_rust_error_to_json_response(format!("Invalid DID: {e}"), StatusCode::BAD_REQUEST)
                 .into_response()
         }
+    }
+}
+
+// POST /identity/generate-proof - generate a credential proof
+async fn zk_generate_handler(
+    State(state): State<AppState>,
+    Json(req): Json<icn_api::identity_trait::GenerateProofRequest>,
+) -> impl IntoResponse {
+    match icn_runtime::generate_zk_proof(&state.runtime_context, &req).await {
+        Ok(proof) => (StatusCode::OK, Json(proof)).into_response(),
+        Err(e) => map_rust_error_to_json_response(e, StatusCode::BAD_REQUEST).into_response(),
+    }
+}
+
+// POST /identity/verify - verify a zero-knowledge credential proof
+async fn zk_verify_handler(
+    State(state): State<AppState>,
+    Json(proof): Json<icn_common::ZkCredentialProof>,
+) -> impl IntoResponse {
+    let proof_json = match serde_json::to_string(&proof) {
+        Ok(j) => j,
+        Err(e) => {
+            return map_rust_error_to_json_response(
+                format!("serialization error: {e}"),
+                StatusCode::BAD_REQUEST,
+            )
+            .into_response();
+        }
+    };
+
+    match icn_runtime::host_verify_zk_proof(&state.runtime_context, &proof_json).await {
+        Ok(true) => (
+            StatusCode::OK,
+            Json(serde_json::json!({ "verified": true })),
+        )
+            .into_response(),
+        Ok(false) => map_rust_error_to_json_response("verification failed", StatusCode::BAD_REQUEST)
+            .into_response(),
+        Err(e) => map_rust_error_to_json_response(e, StatusCode::BAD_REQUEST).into_response(),
+    }
+}
+
+// POST /identity/verify/batch - verify multiple credential proofs
+async fn zk_verify_batch_handler(
+    State(state): State<AppState>,
+    Json(req): Json<VerifyProofsRequest>,
+) -> impl IntoResponse {
+    use icn_common::ZkProofType;
+    use icn_identity::{BulletproofsVerifier, DummyVerifier, Groth16Verifier, ZkVerifier};
+
+    let total = ZK_VERIFY_COST_MANA * req.proofs.len() as u64;
+    if let Err(e) = state
+        .runtime_context
+        .spend_mana(&state.runtime_context.current_identity, total)
+        .await
+    {
+        return map_rust_error_to_json_response(e, StatusCode::BAD_REQUEST).into_response();
+    }
+
+    let mut results = Vec::with_capacity(req.proofs.len());
+    for proof in req.proofs.iter() {
+        let verifier: Box<dyn ZkVerifier> = match proof.backend {
+            ZkProofType::Bulletproofs => Box::new(BulletproofsVerifier::default()),
+            ZkProofType::Groth16 => Box::new(Groth16Verifier::default()),
+            _ => Box::new(DummyVerifier::default()),
+        };
+
+        match verifier.verify(proof) {
+            Ok(true) => results.push(true),
+            Ok(false) => {
+                results.push(false);
+                let _ = state
+                    .runtime_context
+                    .credit_mana(&state.runtime_context.current_identity, ZK_VERIFY_COST_MANA)
+                    .await;
+            }
+            Err(_) => {
+                results.push(false);
+                let _ = state
+                    .runtime_context
+                    .credit_mana(&state.runtime_context.current_identity, ZK_VERIFY_COST_MANA)
+                    .await;
+            }
+        }
+    }
+
+    (StatusCode::OK, Json(BatchVerificationResponse { results })).into_response()
+}
+
+// POST /identity/verify/revocation - verify a revocation proof
+async fn zk_verify_revocation_handler(
+    State(state): State<AppState>,
+    Json(proof): Json<icn_common::ZkRevocationProof>,
+) -> impl IntoResponse {
+    let proof_json = match serde_json::to_string(&proof) {
+        Ok(j) => j,
+        Err(e) => {
+            return map_rust_error_to_json_response(
+                format!("serialization error: {e}"),
+                StatusCode::BAD_REQUEST,
+            )
+            .into_response();
+        }
+    };
+
+    match icn_runtime::host_verify_zk_revocation_proof(&state.runtime_context, &proof_json).await {
+        Ok(true) => (
+            StatusCode::OK,
+            Json(serde_json::json!({ "verified": true })),
+        )
+            .into_response(),
+        Ok(false) => map_rust_error_to_json_response("verification failed", StatusCode::BAD_REQUEST)
+            .into_response(),
+        Err(e) => map_rust_error_to_json_response(e, StatusCode::BAD_REQUEST).into_response(),
+    }
+}
+
+// POST /identity/credentials/issue - issue a credential
+async fn credential_issue_handler(
+    State(state): State<AppState>,
+    Json(req): Json<IssueCredentialRequest>,
+) -> impl IntoResponse {
+    use std::collections::HashMap;
+
+    let claims: HashMap<String, String> = req.attributes.into_iter().collect();
+    let mut cred = Credential::new(
+        req.issuer.clone(),
+        req.holder,
+        claims.clone(),
+        Some(req.schema),
+    );
+
+    for (k, v) in claims {
+        let mut bytes = req.issuer.to_string().into_bytes();
+        bytes.extend_from_slice(cred.holder.to_string().as_bytes());
+        bytes.extend_from_slice(k.as_bytes());
+        bytes.extend_from_slice(v.as_bytes());
+        match state.runtime_context.signer.sign(&bytes) {
+            Ok(sig) => {
+                cred.signatures.insert(k, SignatureBytes(sig));
+            }
+            Err(e) => {
+                return map_rust_error_to_json_response(e, StatusCode::INTERNAL_SERVER_ERROR)
+                    .into_response();
+            }
+        }
+    }
+
+    let bytes = match serde_json::to_vec(&cred) {
+        Ok(b) => b,
+        Err(e) => {
+            return map_rust_error_to_json_response(e, StatusCode::INTERNAL_SERVER_ERROR)
+                .into_response();
+        }
+    };
+    let cid = Cid::new_v1_sha256(0x71, &bytes);
+    state.credential_store.insert(cid.clone(), cred.clone());
+
+    (
+        StatusCode::CREATED,
+        Json(CredentialResponse {
+            cid,
+            credential: cred,
+        }),
+    )
+        .into_response()
+}
+
+// GET /identity/credentials/{cid}
+async fn credential_get_handler(
+    AxumPath(cid_str): AxumPath<String>,
+    State(state): State<AppState>,
+) -> impl IntoResponse {
+    match parse_cid_from_string(&cid_str) {
+        Ok(cid) => {
+            if state.paused_credentials.contains(&cid) {
+                return map_rust_error_to_json_response("Credential paused", StatusCode::FORBIDDEN)
+                    .into_response();
+            }
+            match state.credential_store.get(&cid) {
+                Some(cred) => (
+                    StatusCode::OK,
+                    Json(CredentialResponse {
+                        cid,
+                        credential: cred,
+                    }),
+                )
+                    .into_response(),
+                None => {
+                    map_rust_error_to_json_response("Credential not found", StatusCode::NOT_FOUND)
+                        .into_response()
+                }
+            }
+        }
+        Err(e) => {
+            map_rust_error_to_json_response(format!("Invalid CID: {e}"), StatusCode::BAD_REQUEST)
+                .into_response()
+        }
+    }
+}
+
+// POST /identity/credentials/verify
+async fn credential_verify_handler(
+    State(state): State<AppState>,
+    Json(cred): Json<Credential>,
+) -> impl IntoResponse {
+    if let Some(vk) = state.trusted_issuers.get(&cred.issuer) {
+        if let Ok(bytes) = serde_json::to_vec(&cred) {
+            let cid = Cid::new_v1_sha256(0x71, &bytes);
+            if state.paused_credentials.contains(&cid) {
+                return map_rust_error_to_json_response("Credential paused", StatusCode::FORBIDDEN)
+                    .into_response();
+            }
+        }
+        for (k, _) in &cred.claims {
+            if let Err(e) = cred.verify_claim(k, vk) {
+                return map_rust_error_to_json_response(format!("{e}"), StatusCode::BAD_REQUEST)
+                    .into_response();
+            }
+        }
+        (StatusCode::OK, Json(VerificationResponse { valid: true })).into_response()
+    } else {
+        map_rust_error_to_json_response("untrusted credential issuer", StatusCode::FORBIDDEN)
+            .into_response()
+    }
+}
+
+// POST /identity/credentials/revoke
+async fn credential_revoke_handler(
+    State(state): State<AppState>,
+    Json(req): Json<RevokeCredentialRequest>,
+) -> impl IntoResponse {
+    if state.credential_store.revoke(&req.cid) {
+        (
+            StatusCode::OK,
+            Json(serde_json::json!({"revoked": req.cid.to_string()})),
+        )
+            .into_response()
+    } else {
+        map_rust_error_to_json_response("Credential not found", StatusCode::NOT_FOUND)
+            .into_response()
+    }
+}
+
+// POST /identity/credentials/disclose
+async fn credential_disclose_handler(Json(req): Json<DisclosureRequest>) -> impl IntoResponse {
+    let fields: Vec<&str> = req.fields.iter().map(|s| s.as_str()).collect();
+    match req.credential.disclose_with_proof(&fields, &DummyProver) {
+        Ok((cred, proof)) => (
+            StatusCode::OK,
+            Json(DisclosureResponse {
+                credential: cred,
+                proof,
+            }),
+        )
+            .into_response(),
+        Err(e) => {
+            map_rust_error_to_json_response(format!("{e}"), StatusCode::BAD_REQUEST).into_response()
+        }
+    }
+}
+
+// GET /identity/credentials/schemas
+async fn credential_schemas_handler(State(state): State<AppState>) -> impl IntoResponse {
+    let schemas = state.credential_store.list_schemas();
+    (StatusCode::OK, Json(schemas)).into_response()
+}
+
+// POST /circuits/register
+async fn circuit_register_handler(
+    State(state): State<AppState>,
+    Json(req): Json<icn_api::circuits::RegisterCircuitRequest>,
+) -> impl IntoResponse {
+    let pk = match BASE64_STANDARD.decode(req.proving_key.as_bytes()) {
+        Ok(b) => b,
+        Err(e) => {
+            return map_rust_error_to_json_response(
+                format!("invalid proving_key: {e}"),
+                StatusCode::BAD_REQUEST,
+            )
+            .into_response();
+        }
+    };
+    let vk = match BASE64_STANDARD.decode(req.verification_key.as_bytes()) {
+        Ok(b) => b,
+        Err(e) => {
+            return map_rust_error_to_json_response(
+                format!("invalid verification_key: {e}"),
+                StatusCode::BAD_REQUEST,
+            )
+            .into_response();
+        }
+    };
+    state
+        .circuit_registry
+        .lock()
+        .await
+        .register(&req.slug, &req.version, pk, vk);
+    (
+        StatusCode::CREATED,
+        Json(serde_json::json!({"status": "registered"})),
+    )
+        .into_response()
+}
+
+// GET /circuits/{slug}/{version}
+async fn circuit_get_handler(
+    AxumPath((slug, version)): AxumPath<(String, String)>,
+    State(state): State<AppState>,
+) -> impl IntoResponse {
+    match state.circuit_registry.lock().await.get(&slug, &version) {
+        Some(rec) => (
+            StatusCode::OK,
+            Json(icn_api::circuits::CircuitResponse {
+                slug,
+                version,
+                verification_key: rec.verification_key,
+            }),
+        )
+            .into_response(),
+        None => map_rust_error_to_json_response("circuit not found", StatusCode::NOT_FOUND)
+            .into_response(),
+    }
+}
+
+// GET /circuits/{slug}
+async fn circuit_versions_handler(
+    AxumPath(slug): AxumPath<String>,
+    State(state): State<AppState>,
+) -> impl IntoResponse {
+    let versions = state.circuit_registry.lock().await.versions(&slug);
+    if versions.is_empty() {
+        map_rust_error_to_json_response("circuit not found", StatusCode::NOT_FOUND).into_response()
+    } else {
+        (
+            StatusCode::OK,
+            Json(icn_api::circuits::CircuitVersionsResponse { slug, versions }),
+        )
+            .into_response()
     }
 }
 
@@ -2834,15 +3518,16 @@ mod tests {
     async fn mesh_submit_job_endpoint_basic() {
         let app = test_app().await;
 
+        let spec = icn_mesh::JobSpec {
+            kind: icn_mesh::JobKind::Echo {
+                payload: "hello".into(),
+            },
+            ..Default::default()
+        };
         let job_req = SubmitJobRequest {
             manifest_cid: Cid::new_v1_sha256(0x55, b"test_manifest").to_string(),
-            spec_json: serde_json::to_value(&icn_mesh::JobSpec {
-                kind: icn_mesh::JobKind::Echo {
-                    payload: "hello".into(),
-                },
-                ..Default::default()
-            })
-            .unwrap(),
+            spec_bytes: Some(BASE64_STANDARD.encode(bincode::serialize(&spec).unwrap())),
+            spec_json: None,
             cost_mana: 50,
         };
         let job_req_json = serde_json::to_string(&job_req).unwrap();
@@ -2873,15 +3558,16 @@ mod tests {
         let app = test_app().await;
 
         // Step 1: Submit a job via HTTP
+        let spec = icn_mesh::JobSpec {
+            kind: icn_mesh::JobKind::Echo {
+                payload: "HTTP pipeline test".into(),
+            },
+            ..Default::default()
+        };
         let job_req = SubmitJobRequest {
             manifest_cid: Cid::new_v1_sha256(0x55, b"pipeline_test_manifest").to_string(),
-            spec_json: serde_json::to_value(&icn_mesh::JobSpec {
-                kind: icn_mesh::JobKind::Echo {
-                    payload: "HTTP pipeline test".into(),
-                },
-                ..Default::default()
-            })
-            .unwrap(),
+            spec_bytes: Some(BASE64_STANDARD.encode(bincode::serialize(&spec).unwrap())),
+            spec_json: None,
             cost_mana: 100,
         };
         let job_req_json = serde_json::to_string(&job_req).unwrap();
@@ -3011,15 +3697,16 @@ mod tests {
         let app = test_app().await;
 
         // Step 1: Submit a job
+        let spec = icn_mesh::JobSpec {
+            kind: icn_mesh::JobKind::Echo {
+                payload: "simple test".into(),
+            },
+            ..Default::default()
+        };
         let job_req = SubmitJobRequest {
             manifest_cid: Cid::new_v1_sha256(0x55, b"simple_test").to_string(),
-            spec_json: serde_json::to_value(&icn_mesh::JobSpec {
-                kind: icn_mesh::JobKind::Echo {
-                    payload: "simple test".into(),
-                },
-                ..Default::default()
-            })
-            .unwrap(),
+            spec_bytes: Some(BASE64_STANDARD.encode(bincode::serialize(&spec).unwrap())),
+            spec_json: None,
             cost_mana: 50,
         };
         let job_req_json = serde_json::to_string(&job_req).unwrap();
@@ -3092,12 +3779,16 @@ mod tests {
         let cid_bytes = axum::body::to_bytes(put_resp.into_body(), usize::MAX)
             .await
             .unwrap();
-        let wasm_cid: Cid = serde_json::from_slice(&cid_bytes).unwrap();
+        let wasm_cid_str: String = serde_json::from_slice(&cid_bytes).unwrap();
+        let wasm_cid = parse_cid_from_string(&wasm_cid_str).unwrap();
 
         // Submit job referencing the WASM CID
         let job_req = SubmitJobRequest {
             manifest_cid: wasm_cid.to_string(),
-            spec_json: serde_json::to_value(&icn_mesh::JobSpec::default()).unwrap(),
+            spec_bytes: Some(
+                BASE64_STANDARD.encode(bincode::serialize(&icn_mesh::JobSpec::default()).unwrap()),
+            ),
+            spec_json: None,
             cost_mana: 0,
         };
         let job_req_json = serde_json::to_string(&job_req).unwrap();
@@ -3118,7 +3809,8 @@ mod tests {
             .await
             .unwrap();
         let submit_json: serde_json::Value = serde_json::from_slice(&body).unwrap();
-        let job_id: Cid = serde_json::from_str(submit_json["job_id"].as_str().unwrap()).unwrap();
+        let job_id_str = submit_json["job_id"].as_str().unwrap();
+        let job_id = parse_cid_from_string(job_id_str).unwrap();
 
         // Execute the job using WasmExecutor and anchor the receipt
         let (sk, vk) = generate_ed25519_keypair();

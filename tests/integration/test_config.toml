@@ -1,0 +1,124 @@
+# ICN Comprehensive E2E Test Configuration
+# This file contains configuration parameters for the comprehensive end-to-end test
+
+[general]
+# Test timeout in seconds
+test_timeout = 600
+
+# Number of retries for network operations
+max_retries = 20
+
+# Delay between retries in seconds
+retry_delay = 3
+
+# Test job types to execute
+job_types = ["fibonacci", "prime_check", "echo", "cpu_benchmark"]
+
+[federation]
+# Federation nodes configuration
+[federation.nodes]
+node_a = { url = "http://localhost:5001", api_key = "devnet-a-key", role = "bootstrap" }
+node_b = { url = "http://localhost:5002", api_key = "devnet-b-key", role = "executor" }
+node_c = { url = "http://localhost:5003", api_key = "devnet-c-key", role = "executor" }
+
+# P2P network convergence requirements
+min_peer_connections = 1
+convergence_timeout = 60
+
+[mana]
+# Mana configuration for testing
+initial_balance = 10000
+job_cost_fibonacci = 200
+job_cost_prime_check = 150
+job_cost_echo = 50
+job_cost_cpu_benchmark = 300
+
+# Mana balance thresholds
+min_balance_threshold = 100
+refund_timeout = 30
+
+[load_test]
+# Load testing configuration
+num_concurrent_jobs = 5
+job_submission_interval = 500  # milliseconds
+load_test_duration = 300      # seconds
+max_jobs_per_node = 10
+
+# Performance expectations
+min_job_completion_rate = 0.8  # 80% of jobs should complete
+max_avg_job_duration = 60      # seconds
+max_network_latency = 1000     # milliseconds
+
+[monitoring]
+# Prometheus and Grafana configuration
+prometheus_url = "http://localhost:9090"
+grafana_url = "http://localhost:3000"
+metrics_scrape_interval = 10  # seconds
+
+# Key metrics to validate
+[monitoring.metrics]
+jobs_submitted = "icn_jobs_submitted_total"
+jobs_completed = "icn_jobs_completed_total"
+jobs_failed = "icn_jobs_failed_total"
+job_duration = "icn_job_process_time"
+mana_balance = "icn_mana_balance"
+peer_count = "icn_peer_count"
+network_latency = "icn_network_ping_rtt_ms"
+dag_blocks = "icn_dag_blocks_total"
+
+[dag]
+# DAG validation configuration
+receipt_anchor_timeout = 30
+max_dag_query_time = 10
+validate_receipt_signatures = true
+cross_node_replication_check = true
+
+[jobs]
+# Job specification templates
+[jobs.fibonacci]
+algorithm = "fibonacci"
+input = 25
+expected_result = 75025
+timeout_seconds = 30
+cost_mana = 200
+
+[jobs.prime_check]
+algorithm = "prime_check"
+input = 1000003  # Large prime number
+expected_result = true
+timeout_seconds = 60
+cost_mana = 150
+
+[jobs.echo]
+payload = "E2E test message"
+timeout_seconds = 10
+cost_mana = 50
+
+[jobs.cpu_benchmark]
+algorithm = "cpu_benchmark"
+iterations = 10000
+timeout_seconds = 120
+cost_mana = 300
+
+[validation]
+# Validation thresholds and criteria
+min_success_rate = 0.95
+max_failure_rate = 0.05
+max_job_timeout_rate = 0.02
+
+# Performance thresholds
+max_job_submission_latency = 1000  # milliseconds
+max_job_completion_latency = 60000  # milliseconds
+min_throughput_jobs_per_minute = 10
+
+[reporting]
+# Test reporting configuration
+generate_html_report = true
+generate_json_report = true
+generate_metrics_export = true
+include_container_logs = true
+include_prometheus_data = true
+
+# Report retention
+max_reports_to_keep = 10
+report_cleanup_days = 30 

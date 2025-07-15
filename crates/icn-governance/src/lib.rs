@@ -59,6 +59,22 @@ pub enum ProposalType {
     SoftwareUpgrade(String),               // Version or identifier for the upgrade
     GenericText(String),                   // For general purpose proposals
     BudgetAllocation(u64, String),         // amount, purpose
+    Resolution(ResolutionProposal),        // Dispute or remediation actions
+}
+
+/// Specific remediation actions for dispute resolution.
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum ResolutionAction {
+    PauseCredential(Cid),
+    FreezeReputation(Did),
+}
+
+/// Proposal containing one or more resolution actions.
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct ResolutionProposal {
+    pub actions: Vec<ResolutionAction>,
 }
 
 /// Current lifecycle state of a proposal.
@@ -94,6 +110,13 @@ pub struct Proposal {
     // Potentially, threshold and quorum requirements could be part of the proposal type or global config
 }
 
+pub fn canonical_proposal(proposals: &[Proposal]) -> Option<&Proposal> {
+    proposals.iter().min_by(|a, b| match a.created_at.cmp(&b.created_at) {
+        std::cmp::Ordering::Equal => a.id.0.cmp(&b.id.0),
+        other => other,
+    })
+}
+
 /// Possible voting options.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -111,6 +134,15 @@ pub struct Vote {
     pub proposal_id: ProposalId,
     pub option: VoteOption,
     pub voted_at: u64, // Timestamp
+}
+
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[allow(clippy::large_enum_variant)]
+pub enum GovernanceEvent {
+    ProposalSubmitted(Proposal),
+    VoteCast(Vote),
+    StatusUpdated(ProposalId, ProposalStatus),
 }
 
 // Define the Backend enum
@@ -138,6 +170,8 @@ pub struct GovernanceModule {
     threshold: f32,
     #[allow(clippy::type_complexity)]
     proposal_callback: Option<Box<dyn Fn(&Proposal) -> Result<(), CommonError> + Send + Sync>>,
+    #[allow(clippy::type_complexity)]
+    event_store: Option<std::sync::Mutex<Box<dyn icn_eventstore::EventStore<GovernanceEvent>>>>,
 }
 
 /// Parameters for submitting a new proposal
@@ -164,6 +198,54 @@ impl GovernanceModule {
             quorum: 1,
             threshold: 0.5,
             proposal_callback: None,
+            event_store: None,
+        }
+    }
+
+    /// Creates an in-memory governance module backed by the provided event store.
+    pub fn with_event_store(store: Box<dyn icn_eventstore::EventStore<GovernanceEvent>>) -> Self {
+        let mut g = Self::new();
+        g.event_store = Some(std::sync::Mutex::new(store));
+        g
+    }
+
+    /// Rebuild module state by replaying events from the store.
+    pub fn from_event_store(
+        store: Box<dyn icn_eventstore::EventStore<GovernanceEvent>>,
+    ) -> Result<Self, CommonError> {
+        let events = store.query(None)?;
+        let mut g = Self::with_event_store(store);
+        for ev in events {
+            g.apply_event(ev);
+        }
+        Ok(g)
+    }
+
+    fn apply_event(&mut self, ev: GovernanceEvent) {
+        match ev {
+            GovernanceEvent::ProposalSubmitted(p) => {
+                if let Backend::InMemory { proposals } = &mut self.backend {
+                    proposals.insert(p.id.clone(), p);
+                }
+                #[cfg(feature = "persist-sled")]
+                if let Backend::Sled { .. } = &self.backend {
+                    // not implemented for sled yet
+                }
+            }
+            GovernanceEvent::VoteCast(v) => {
+                if let Backend::InMemory { proposals } = &mut self.backend {
+                    if let Some(prop) = proposals.get_mut(&v.proposal_id) {
+                        prop.votes.insert(v.voter.clone(), v);
+                    }
+                }
+            }
+            GovernanceEvent::StatusUpdated(id, status) => {
+                if let Backend::InMemory { proposals } = &mut self.backend {
+                    if let Some(prop) = proposals.get_mut(&id) {
+                        prop.status = status;
+                    }
+                }
+            }
         }
     }
 
@@ -187,6 +269,7 @@ impl GovernanceModule {
             quorum: 1,
             threshold: 0.5,
             proposal_callback: None,
+            event_store: None,
         })
     }
 
@@ -231,7 +314,7 @@ impl GovernanceModule {
                         proposal_id.0
                     )));
                 }
-                proposals.insert(proposal_id.clone(), proposal);
+                proposals.insert(proposal_id.clone(), proposal.clone());
             }
             #[cfg(feature = "persist-sled")]
             Backend::Sled {
@@ -276,6 +359,12 @@ impl GovernanceModule {
                     ))
                 })?;
             }
+        }
+        if let Some(store) = &self.event_store {
+            store
+                .lock()
+                .unwrap()
+                .append(&GovernanceEvent::ProposalSubmitted(proposal))?;
         }
         Ok(proposal_id)
     }
@@ -355,6 +444,15 @@ impl GovernanceModule {
                 })?;
             }
         }
+        if let Some(store) = &self.event_store {
+            store
+                .lock()
+                .unwrap()
+                .append(&GovernanceEvent::StatusUpdated(
+                    proposal_id.clone(),
+                    ProposalStatus::VotingOpen,
+                ))?;
+        }
         Ok(())
     }
 
@@ -402,7 +500,7 @@ impl GovernanceModule {
                     option,
                     voted_at: now,
                 };
-                proposal.votes.insert(voter, vote);
+                proposal.votes.insert(voter.clone(), vote.clone());
             }
             #[cfg(feature = "persist-sled")]
             Backend::Sled {
@@ -456,7 +554,7 @@ impl GovernanceModule {
                     option,
                     voted_at: now,
                 };
-                proposal.votes.insert(voter, vote);
+                proposal.votes.insert(voter.clone(), vote.clone());
 
                 let encoded_proposal = bincode::serialize(&proposal).map_err(|e| {
                     CommonError::SerializationError(format!(
@@ -478,6 +576,17 @@ impl GovernanceModule {
                     ))
                 })?;
             }
+        }
+        if let Some(store) = &self.event_store {
+            store
+                .lock()
+                .unwrap()
+                .append(&GovernanceEvent::VoteCast(Vote {
+                    voter,
+                    proposal_id: proposal_id.clone(),
+                    option,
+                    voted_at: now,
+                }))?;
         }
         Ok(())
     }
@@ -928,6 +1037,15 @@ impl GovernanceModule {
                 } else {
                     proposal.status = ProposalStatus::Rejected;
                 }
+                if let Some(store) = &self.event_store {
+                    store
+                        .lock()
+                        .unwrap()
+                        .append(&GovernanceEvent::StatusUpdated(
+                            proposal_id.clone(),
+                            proposal.status.clone(),
+                        ))?;
+                }
                 Ok((proposal.status.clone(), (yes, no, abstain)))
             }
             #[cfg(feature = "persist-sled")]
@@ -999,6 +1117,15 @@ impl GovernanceModule {
                         proposal_id.0, e
                     ))
                 })?;
+                if let Some(store) = &self.event_store {
+                    store
+                        .lock()
+                        .unwrap()
+                        .append(&GovernanceEvent::StatusUpdated(
+                            proposal_id.clone(),
+                            proposal.status.clone(),
+                        ))?;
+                }
                 Ok((proposal.status, (yes, no, abstain)))
             }
         }
@@ -1033,10 +1160,28 @@ impl GovernanceModule {
                 if let Some(cb) = &self.proposal_callback {
                     if let Err(e) = cb(proposal) {
                         proposal.status = ProposalStatus::Failed;
+                        if let Some(store) = &self.event_store {
+                            let _ = store
+                                .lock()
+                                .unwrap()
+                                .append(&GovernanceEvent::StatusUpdated(
+                                    proposal_id.clone(),
+                                    ProposalStatus::Failed,
+                                ));
+                        }
                         return Err(e);
                     }
                 }
                 proposal.status = ProposalStatus::Executed;
+                if let Some(store) = &self.event_store {
+                    store
+                        .lock()
+                        .unwrap()
+                        .append(&GovernanceEvent::StatusUpdated(
+                            proposal_id.clone(),
+                            ProposalStatus::Executed,
+                        ))?;
+                }
                 Ok(())
             }
             #[cfg(feature = "persist-sled")]
@@ -1108,6 +1253,15 @@ impl GovernanceModule {
                                 proposal_id.0, e
                             ))
                         })?;
+                        if let Some(store) = &self.event_store {
+                            let _ = store
+                                .lock()
+                                .unwrap()
+                                .append(&GovernanceEvent::StatusUpdated(
+                                    proposal_id.clone(),
+                                    ProposalStatus::Failed,
+                                ));
+                        }
                         return Err(e);
                     }
                 }
@@ -1130,9 +1284,24 @@ impl GovernanceModule {
                         proposal_id.0, e
                     ))
                 })?;
+                if let Some(store) = &self.event_store {
+                    store
+                        .lock()
+                        .unwrap()
+                        .append(&GovernanceEvent::StatusUpdated(
+                            proposal_id.clone(),
+                            ProposalStatus::Executed,
+                        ))?;
+                }
                 Ok(())
             }
         }
+    }
+
+    pub fn event_store(
+        &self,
+    ) -> Option<&std::sync::Mutex<Box<dyn icn_eventstore::EventStore<GovernanceEvent>>>> {
+        self.event_store.as_ref()
     }
 }
 

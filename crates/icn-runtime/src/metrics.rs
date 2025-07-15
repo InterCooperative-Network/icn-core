@@ -33,3 +33,12 @@ pub static WASM_MEMORY_GROWTH_DENIED: Lazy<Counter> = Lazy::new(Counter::default
 
 /// Counts denied table growth attempts inside the WASM resource limiter.
 pub static WASM_TABLE_GROWTH_DENIED: Lazy<Counter> = Lazy::new(Counter::default);
+
+/// Counts calls to `host_anchor_receipt`.
+pub static HOST_ANCHOR_RECEIPT_CALLS: Lazy<Counter> = Lazy::new(Counter::default);
+
+/// Counts calls to `host_account_credit_mana`.
+pub static HOST_ACCOUNT_CREDIT_MANA_CALLS: Lazy<Counter> = Lazy::new(Counter::default);
+
+/// Tracks the number of known mana ledger accounts.
+pub static MANA_ACCOUNTS_GAUGE: Lazy<Gauge<i64>> = Lazy::new(Gauge::default);

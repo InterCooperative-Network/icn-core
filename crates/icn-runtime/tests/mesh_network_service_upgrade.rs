@@ -140,15 +140,15 @@ async fn test_default_mesh_network_service_connectivity_validation() {
 }
 
 #[test]
-fn test_default_signer_functionality() {
-    // Test that DefaultSigner provides real cryptographic capabilities
-    use icn_runtime::context::DefaultSigner;
+fn test_stub_signer_functionality() {
+    // Test that StubSigner provides cryptographic capabilities
+    use icn_runtime::context::StubSigner as DefaultSigner;
 
     let did_str = "did:icn:test:default_signer";
     let did = Did::from_str(did_str).unwrap();
 
-    // Create a DefaultSigner
-    let signer = DefaultSigner::new_for_did(&did).unwrap();
+    // Create a StubSigner
+    let signer = DefaultSigner::new();
 
     // Test signing and verification
     let test_payload = b"Hello, ICN Phase 5!";
@@ -159,7 +159,7 @@ fn test_default_signer_functionality() {
     let is_valid = signer
         .verify(test_payload, &signature, &public_key_bytes)
         .unwrap();
-    assert!(is_valid, "DefaultSigner should produce valid signatures");
+    assert!(is_valid, "StubSigner should produce valid signatures");
 
     // Test that DID is properly maintained
     assert_eq!(signer.did(), did);
@@ -172,13 +172,13 @@ fn test_default_signer_functionality() {
         .unwrap();
     assert!(
         !is_invalid,
-        "DefaultSigner should detect invalid signatures"
+        "StubSigner should detect invalid signatures"
     );
 }
 
 #[test]
-fn test_runtime_context_uses_default_signer() {
-    // Test that RuntimeContext now uses DefaultSigner instead of StubSigner
+fn test_runtime_context_uses_stub_signer() {
+    // Test that RuntimeContext uses StubSigner by default
     let did_str = "did:icn:test:runtime_signer";
     let ctx = RuntimeContext::new_with_stubs(did_str).unwrap();
 

@@ -1,9 +1,16 @@
 use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 
-use icn_common::{compute_merkle_cid, DagBlock, DagLink, Did, NodeScope};
+use icn_common::{
+    compute_merkle_cid, Cid, DagBlock, DagLink, Did, NodeScope, ZkCredentialProof, ZkRevocationProof,
+};
 use icn_governance::scoped_policy::{
     DagPayloadOp, InMemoryPolicyEnforcer, PolicyCheckResult, ScopedPolicyEnforcer,
+};
+use icn_identity::{
+    credential::CredentialIssuer,
+    generate_ed25519_keypair,
+    zk::{Groth16Circuit, Groth16Prover},
 };
 use icn_runtime::context::RuntimeContext;
 
@@ -17,11 +24,15 @@ async fn anchor_block_with_policy<E: ScopedPolicyEnforcer>(
     ctx: &RuntimeContext,
     block: &DagBlock,
     enforcer: &E,
+    proof: Option<&ZkCredentialProof>,
+    revocation: Option<&ZkRevocationProof>,
 ) -> Result<(), PolicyError> {
     if let PolicyCheckResult::Denied { .. } = enforcer.check_permission(
         DagPayloadOp::SubmitBlock,
         &block.author_did,
         block.scope.as_ref(),
+        proof,
+        revocation,
     ) {
         return Err(PolicyError::Unauthorized);
     }
@@ -48,7 +59,7 @@ async fn authorized_dag_write_succeeds() {
     let alice = Did::from_str("did:example:alice").unwrap();
     let mut submitters = HashSet::new();
     submitters.insert(alice.clone());
-    let enforcer = InMemoryPolicyEnforcer::new(submitters, HashSet::new(), HashMap::new());
+    let enforcer = InMemoryPolicyEnforcer::new(submitters, HashSet::new(), HashMap::new(), false);
 
     let data = b"block".to_vec();
     let ts = 0u64;
@@ -63,7 +74,7 @@ async fn authorized_dag_write_succeeds() {
         scope: None,
     };
 
-    anchor_block_with_policy(&ctx, &block, &enforcer)
+    anchor_block_with_policy(&ctx, &block, &enforcer, None, None)
         .await
         .expect("write succeeds");
 
@@ -77,7 +88,7 @@ async fn unauthorized_write_denied() {
     let alice = Did::from_str("did:example:alice").unwrap();
     let mut submitters = HashSet::new();
     submitters.insert(alice.clone());
-    let enforcer = InMemoryPolicyEnforcer::new(submitters, HashSet::new(), HashMap::new());
+    let enforcer = InMemoryPolicyEnforcer::new(submitters, HashSet::new(), HashMap::new(), false);
 
     let eve = Did::from_str("did:example:eve").unwrap();
     let data = b"bad".to_vec();
@@ -93,7 +104,7 @@ async fn unauthorized_write_denied() {
         scope: None,
     };
 
-    let res = anchor_block_with_policy(&ctx, &block, &enforcer).await;
+    let res = anchor_block_with_policy(&ctx, &block, &enforcer, None, None).await;
     assert_eq!(res, Err(PolicyError::Unauthorized));
 }
 
@@ -103,7 +114,7 @@ async fn invalid_parent_is_rejected() {
     let alice = Did::from_str("did:example:alice").unwrap();
     let mut submitters = HashSet::new();
     submitters.insert(alice.clone());
-    let enforcer = InMemoryPolicyEnforcer::new(submitters, HashSet::new(), HashMap::new());
+    let enforcer = InMemoryPolicyEnforcer::new(submitters, HashSet::new(), HashMap::new(), false);
 
     let missing_cid = compute_merkle_cid(0x71, b"parent", &[], 0, &alice, &None, &None);
     let link = DagLink {
@@ -124,7 +135,7 @@ async fn invalid_parent_is_rejected() {
         scope: None,
     };
 
-    let res = anchor_block_with_policy(&ctx, &block, &enforcer).await;
+    let res = anchor_block_with_policy(&ctx, &block, &enforcer, None, None).await;
     assert_eq!(res, Err(PolicyError::InvalidParent));
 }
 
@@ -141,7 +152,7 @@ async fn scope_membership_enforced() {
         set.insert(alice.clone());
         set
     });
-    let enforcer = InMemoryPolicyEnforcer::new(submitters, HashSet::new(), memberships);
+    let enforcer = InMemoryPolicyEnforcer::new(submitters, HashSet::new(), memberships, false);
 
     let data = b"scoped".to_vec();
     let ts = 0u64;
@@ -156,7 +167,115 @@ async fn scope_membership_enforced() {
         scope: Some(scope),
     };
 
-    anchor_block_with_policy(&ctx, &block, &enforcer)
+    anchor_block_with_policy(&ctx, &block, &enforcer, None, None)
         .await
         .expect("scoped write succeeds");
+}
+
+#[tokio::test]
+async fn proof_required_without_proof_fails() {
+    let ctx = RuntimeContext::new_with_stubs("did:example:alice").unwrap();
+    let alice = Did::from_str("did:example:alice").unwrap();
+    let mut submitters = HashSet::new();
+    submitters.insert(alice.clone());
+    let enforcer = InMemoryPolicyEnforcer::new(submitters, HashSet::new(), HashMap::new(), true);
+
+    let data = b"block".to_vec();
+    let ts = 0u64;
+    let cid = compute_merkle_cid(0x71, &data, &[], ts, &alice, &None, &None);
+    let block = DagBlock {
+        cid,
+        data,
+        links: vec![],
+        timestamp: ts,
+        author_did: alice.clone(),
+        signature: None,
+        scope: None,
+    };
+
+    let res = anchor_block_with_policy(&ctx, &block, &enforcer, None, None).await;
+    assert_eq!(res, Err(PolicyError::Unauthorized));
+}
+
+#[tokio::test]
+async fn proof_required_invalid_proof_fails() {
+    let ctx = RuntimeContext::new_with_stubs("did:example:alice").unwrap();
+    let alice = Did::from_str("did:example:alice").unwrap();
+    let mut submitters = HashSet::new();
+    submitters.insert(alice.clone());
+    let enforcer = InMemoryPolicyEnforcer::new(submitters, HashSet::new(), HashMap::new(), true);
+
+    let invalid = ZkCredentialProof {
+        issuer: alice.clone(),
+        holder: alice.clone(),
+        claim_type: "age_over_18".into(),
+        proof: vec![0u8; 10],
+        schema: Cid::new_v1_sha256(0x55, b"schema"),
+        vk_cid: None,
+        disclosed_fields: Vec::new(),
+        challenge: None,
+        backend: icn_common::ZkProofType::Groth16,
+        verification_key: None,
+        public_inputs: None,
+    };
+
+    let data = b"block".to_vec();
+    let ts = 0u64;
+    let cid = compute_merkle_cid(0x71, &data, &[], ts, &alice, &None, &None);
+    let block = DagBlock {
+        cid,
+        data,
+        links: vec![],
+        timestamp: ts,
+        author_did: alice.clone(),
+        signature: None,
+        scope: None,
+    };
+
+    let res = anchor_block_with_policy(&ctx, &block, &enforcer, Some(&invalid), None).await;
+    assert_eq!(res, Err(PolicyError::Unauthorized));
+}
+
+#[tokio::test]
+async fn proof_required_valid_proof_allows() {
+    let ctx = RuntimeContext::new_with_stubs("did:example:alice").unwrap();
+    let alice = Did::from_str("did:example:alice").unwrap();
+    let mut submitters = HashSet::new();
+    submitters.insert(alice.clone());
+    let enforcer = InMemoryPolicyEnforcer::new(submitters, HashSet::new(), HashMap::new(), true);
+
+    let (sk, _) = generate_ed25519_keypair();
+    let issuer =
+        CredentialIssuer::new(alice.clone(), sk).with_prover(Box::new(Groth16Prover::default()));
+    let mut claims = HashMap::new();
+    claims.insert("birth_year".to_string(), "2000".to_string());
+    let (_, proof_opt) = issuer
+        .issue(
+            alice.clone(),
+            claims,
+            Some(Cid::new_v1_sha256(0x55, b"schema")),
+            Some(&[]),
+            Some(Groth16Circuit::AgeOver18 { current_year: 2020 }),
+        )
+        .unwrap();
+    let proof = proof_opt.expect("proof");
+
+    let data = b"block".to_vec();
+    let ts = 0u64;
+    let cid = compute_merkle_cid(0x71, &data, &[], ts, &alice, &None, &None);
+    let block = DagBlock {
+        cid: cid.clone(),
+        data,
+        links: vec![],
+        timestamp: ts,
+        author_did: alice.clone(),
+        signature: None,
+        scope: None,
+    };
+
+    anchor_block_with_policy(&ctx, &block, &enforcer, Some(&proof), None)
+        .await
+        .expect("write succeeds with proof");
+    let stored = ctx.dag_store.lock().await.get(&cid).unwrap();
+    assert!(stored.is_some());
 }

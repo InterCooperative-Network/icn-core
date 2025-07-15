@@ -13,8 +13,11 @@ icn-protocol = { path = "../icn-protocol" }
 icn-governance = { path = "../icn-governance", features = ["serde"] }
 icn-economics = { path = "../icn-economics", optional = true }
 icn-mesh = { path = "../icn-mesh", optional = true }
+icn-identity = { path = "../icn-identity" }
+icn-reputation = { path = "../icn-reputation" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+serde_bytes = "0.11"
 tokio = { workspace = true }
 async-trait = "0.1"
 reqwest.workspace = true

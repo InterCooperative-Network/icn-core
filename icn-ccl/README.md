@@ -66,8 +66,20 @@ cargo run -p icn-cli -- --api-url http://localhost:7845 compile-ccl policy.ccl
 
 # Submit a mesh job referencing the returned CID
 cargo run -p icn-cli -- --api-url http://localhost:7845 submit-job \
-  '{"manifest_cid":"CID_FROM_UPLOAD","spec_json":{},"cost_mana":0}'
+  '{"manifest_cid":"CID_FROM_UPLOAD","spec_bytes":"BASE64_SPEC","cost_mana":0}'
 ```
+
+### Utility: `generate_ccl_job_spec`
+
+For quick testing you can upload a compiled `.wasm` file and produce a
+`ccl_job_spec.json` in one step:
+
+```bash
+cargo run -p icn-ccl --bin generate_ccl_job_spec -- path/to/policy.wasm http://localhost:7845
+```
+
+The file will contain a job specification referencing the returned CID and
+requesting minimal resources.
 
 ### Included Governance Examples
 
@@ -103,8 +115,10 @@ match safe_div(10, 2) {
 
 ## Array and String Operations
 
-The runtime now supports dynamic arrays and UTF-8 strings. Arrays are heap
-allocated and can be manipulated using the helper functions:
+Arrays and UTF-8 strings are now supported. Arrays are heap allocated but have
+a fixed capacity. The `array_push` and `array_pop` helpers operate on this
+preallocated memory—no dynamic growth occurs at runtime. Strings are stored in
+memory and each concatenation allocates a new buffer:
 
 ```ccl
 let items = [1, 2, 3];
@@ -113,8 +127,6 @@ let count = array_len(items); // returns 4
 let last = array_pop(items);  // returns 4
 ```
 
-Strings are stored in memory and concatenation returns a new allocation:
-
 ```ccl
 fn run() -> String {
     let hello = "Hello ";
@@ -122,6 +134,10 @@ fn run() -> String {
     return hello + world;
 }
 ```
+
+### Remaining Limitations
+
+- `for` loops are not yet implemented; only `while` loops are available.
 
 ## Mana Policies
 

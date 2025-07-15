@@ -46,6 +46,13 @@ cargo build --features persist-rocksdb
 When using RocksDB at runtime, pass `--mana-ledger-backend rocksdb` and a path
 ending in `.rocks` to the node binary.
 
+## Mutual Aid Tokens
+
+This crate provides helper functions `grant_mutual_aid` and `use_mutual_aid` for
+minting and burning non-transferable credits under the `mutual_aid` token class.
+These credits facilitate community support but cannot be transferred between
+accounts.
+
 ## Contributing
 
 Contributions are welcome! Please see the main [CONTRIBUTING.md](../../CONTRIBUTING.md) in the root of the `icn-core` repository for guidelines.

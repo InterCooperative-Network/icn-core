@@ -1,3 +1,6 @@
+use base64;
+use bincode;
+use icn_mesh::{JobKind, JobSpec};
 use once_cell::sync::OnceCell;
 use serde_json::Value;
 use std::{process::Command, time::Duration};
@@ -15,7 +18,7 @@ const RETRY_DELAY: Duration = Duration::from_secs(3);
 static DEVNET_LOCK: OnceCell<Mutex<()>> = OnceCell::new();
 
 pub struct DevnetGuard {
-    _guard: tokio::sync::OwnedMutexGuard<()>,
+    _guard: tokio::sync::MutexGuard<'static, ()>,
 }
 
 impl Drop for DevnetGuard {
@@ -38,7 +41,7 @@ pub async fn ensure_devnet() -> Option<DevnetGuard> {
         return None;
     }
     let lock = DEVNET_LOCK.get_or_init(|| Mutex::new(()));
-    let guard = lock.lock_owned().await;
+    let guard = lock.lock().await;
 
     Command::new("bash")
         .arg("./icn-devnet/launch_federation.sh")
@@ -76,6 +79,13 @@ async fn test_federation_node_health() {
         let info: Value = response.json().await.expect("Failed to parse JSON");
         assert!(info["name"].is_string());
         assert!(info["version"].is_string());
+
+        let dag_resp = client
+            .get(&format!("{}/sync/status", url))
+            .send()
+            .await
+            .expect("dag status");
+        assert!(dag_resp.status().is_success());
 
         println!("    ✅ {} is healthy", name);
     }
@@ -147,9 +157,16 @@ async fn test_federation_mesh_job_lifecycle() {
     // Submit job to Node A
     println!("  📤 Submitting mesh job to Node A...");
 
+    let spec = icn_mesh::JobSpec {
+        kind: icn_mesh::JobKind::Echo {
+            payload: "Federation integration test!".into(),
+        },
+        ..Default::default()
+    };
     let job_request = serde_json::json!({
         "manifest_cid": "cidv1-85-20-integration_test_manifest",
-        "spec_json": { "Echo": { "payload": "Federation integration test!" } },
+        "spec_bytes": base64::encode(bincode::serialize(&spec).unwrap()),
+        "spec_json": null,
         "cost_mana": 150
     });
 
@@ -284,10 +301,10 @@ async fn test_federation_complete_workflow() {
     println!("🎯 Testing complete federation workflow...");
 
     // Run all tests in sequence to validate the complete workflow
-    test_federation_node_health().await;
-    test_federation_p2p_convergence().await;
-    test_federation_mesh_job_lifecycle().await;
-    test_federation_cross_node_api_consistency().await;
+    test_federation_node_health();
+    test_federation_p2p_convergence();
+    test_federation_mesh_job_lifecycle();
+    test_federation_cross_node_api_consistency();
 
     println!("🎉 Complete federation workflow test PASSED!");
 }
@@ -333,8 +350,10 @@ pub async fn wait_for_federation_ready() -> Result<(), Box<dyn std::error::Error
 
 #[tokio::test]
 async fn join_and_leave_federation_via_http() {
-    let (router, _ctx) =
-        icn_node::app_router_with_options(None, None, None, None, None, None, None).await;
+    let (router, _ctx) = icn_node::app_router_with_options(
+        None, None, None, None, None, None, None, None, None, None,
+    )
+    .await;
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let server = tokio::spawn(async move {

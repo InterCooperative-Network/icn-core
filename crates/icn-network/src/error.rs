@@ -1,12 +1,13 @@
 // crates/icn-network/src/error.rs
 
 use thiserror::Error;
+use bincode::Error as BincodeError;
 
 /// Errors that can occur during mesh network operations within the `icn-network` crate.
 #[derive(Debug, Error)]
 pub enum MeshNetworkError {
     #[error("Message serialization/deserialization failed: {0}")]
-    Serialization(#[from] serde_json::Error),
+    Serialization(#[from] BincodeError),
 
     #[error("Failed to send message: {0}")]
     SendFailure(String),

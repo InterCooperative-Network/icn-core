@@ -24,11 +24,20 @@ ICN implements multiple layers of security:
 ICN has migrated from development `StubSigner` to production-grade `Ed25519Signer` with memory protection:
 
 ```rust
-// Production deployment (automatic)
-let runtime_context = RuntimeContext::new_with_real_libp2p(config).await?;
+// Production deployment
+let runtime_context = RuntimeContext::new_for_production(
+    node_did,
+    network_service,
+    signer,
+    Arc::new(icn_identity::KeyDidResolver),
+    dag_store,
+    mana_ledger,
+    reputation_store,
+    None,
+)?;
 
-// Development/testing (manual)
-let runtime_context = RuntimeContext::new_with_stub_signer(config).await?;
+// Development or testing
+let runtime_context = RuntimeContext::new_for_testing(node_did, Some(1000))?;
 ```
 
 ### **Ed25519Signer Features**

@@ -1,0 +1,22 @@
+---
+- hosts: icn
+  become: true
+  vars:
+    node_count: 3
+  tasks:
+    - name: Ensure Docker installed
+      apt:
+        name: docker.io
+        state: present
+
+    - name: Launch ICN nodes
+      docker_container:
+        name: "icn-node-{{ item }}"
+        image: icn-node:latest
+        state: started
+        env:
+          ICN_NODE_NAME: "Ansible-{{ item }}"
+          ICN_ENABLE_P2P: "true"
+        published_ports:
+          - "7{{ item }}45:7845"
+      loop: "{{ range(1, node_count + 1) | list }}"

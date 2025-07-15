@@ -8,8 +8,18 @@ use tokio::task;
 
 #[tokio::test]
 async fn submit_and_vote_proposal() {
-    let (router, ctx) =
-        app_router_with_options(None, None, None, None, None, None, None, None, None, None).await;
+    let (router, ctx) = app_router_with_options(
+        None, // api_key
+        None, // auth_token
+        None, // rate_limit
+        None, // mana_ledger_backend
+        None, // mana_ledger_path
+        None, // storage_backend
+        None, // storage_path
+        None, // governance_db_path
+        None, // reputation_db_path
+        None, // parameter_store_path
+    ).await;
     {
         let mut gov = ctx.governance_module.lock().await;
         gov.add_member(Did::from_str("did:example:alice").unwrap());
@@ -29,6 +39,7 @@ async fn submit_and_vote_proposal() {
         duration_secs: 60,
         quorum: None,
         threshold: None,
+        body: None,
     };
     let submit_resp = client
         .post(format!("http://{addr}/governance/submit"))

@@ -6,12 +6,23 @@ For details on the HTTP API exposed by the node see [API.md](API.md).
 
 ## Single Node Local
 
-This mode runs a standalone node for development or testing.
+This mode runs a standalone node for development or testing. By default the node
+starts in **production mode** with persistent storage and Ed25519 signing. Use
+`--test-mode` or set `ICN_TEST_MODE=true` to launch with stub services and
+in-memory storage.
 
 ```bash
 icn-node --storage-backend memory --http-listen-addr 127.0.0.1:7845 \
          --api-key mylocalkey \
          --tls-cert-path ./cert.pem --tls-key-path ./key.pem
+```
+
+Set `ICN_STORAGE_PATH` and related variables to control where persistent DAG
+data is written:
+
+```bash
+ICN_STORAGE_PATH=./icn_data/node.sled ICN_MANA_LEDGER_PATH=./icn_data/mana.sled \
+icn-node --storage-backend sled
 ```
 
 Providing certificate and key paths makes the server listen on HTTPS instead of HTTP.
@@ -31,8 +42,9 @@ To use RocksDB as the persistence layer, build `icn-node` with the
 
 ## Identity
 
-ICN nodes generate a new DID and key on first launch. To supply an encrypted
-key, set the path and passphrase environment variable name:
+ICN nodes generate a new DID and Ed25519 key on first launch. To supply an
+existing key, set the path and passphrase environment variable name or provide
+`ICN_NODE_DID_PATH` and `ICN_NODE_PRIVATE_KEY_PATH`:
 
 ```toml
 [identity]
@@ -41,7 +53,8 @@ key_passphrase_env = "ICN_KEY_PASSPHRASE"
 ```
 
 The passphrase is read from the environment variable referenced by
-`key_passphrase_env`.
+`key_passphrase_env`. When the plain-text paths are provided the node loads the
+DID and private key instead of generating new ones.
 
 ## Small Federation
 
@@ -190,14 +203,6 @@ Prometheus will be reachable at <http://localhost:9090> and Grafana at
 <http://localhost:3000> (`admin` / `icnfederation`). Import the dashboards from
 `icn-devnet/grafana/` to visualize node metrics.
 
-Each `icn-node` exposes metrics at `http://<node>/metrics`. The endpoint is
-enabled by default and returns Prometheus text. Use a scrape interval of 15s for
-development.
-
-Logs use structured JSON via the `tracing` crate. Every request includes an
-`x-correlation-id` header which is echoed in responses and log entries, making it
-easy to trace activity across services.
-
 Runtime metrics now include counters for WASM resource limiter denials:
 
 ```text
@@ -239,24 +244,12 @@ For more advanced composition patterns, see
 
 
 
-## Automated Federation Deployment
+## Large Federation Script
+For quick experiments with more than ten nodes, use `scripts/deploy_large_federation.sh`.
+It generates a temporary compose file with nodes K–T and starts Prometheus/Grafana.
 
-For repeatable production deployments, example Terraform and Ansible configurations are provided in the `deployment/` directory.
-
-### Terraform
-
-```
-cd deployment/terraform
-terraform init
-terraform apply -auto-approve
+```bash
+./scripts/deploy_large_federation.sh
 ```
 
-This will launch a Docker-based federation defined in `main.tf`.
-
-### Ansible
-
-```
-ansible-playbook -i hosts deployment/ansible/playbook.yml
-```
-
-The playbook installs Docker and starts three ICN nodes using the latest container image.
+See [deployment-automation.md](deployment-automation.md) for Terraform and Ansible examples.

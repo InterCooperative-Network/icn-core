@@ -4,5 +4,9 @@ This crate provides reputation tracking utilities for the InterCooperative Netwo
 It defines the `ReputationStore` trait used by the mesh scheduling logic and a simple
 in-memory implementation useful for testing.
 
+`ReputationStore` now exposes `record_proof_attempt` for tracking zero-knowledge
+proof verification results. The runtime calls this to reward nodes for valid
+proofs and penalize invalid attempts.
+
 See [CONTEXT.md](../../CONTEXT.md) for ICN Core design philosophy and crate roles.
 See [docs/ASYNC_OVERVIEW.md](../../docs/ASYNC_OVERVIEW.md) for async API guidelines.

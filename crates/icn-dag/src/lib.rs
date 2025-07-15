@@ -10,6 +10,7 @@
 use icn_common::compute_merkle_cid;
 use icn_common::{Cid, CommonError, DagBlock, DagLink, Did, NodeInfo, ICN_CORE_VERSION};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::fs::{File, OpenOptions}; // For FileDagStore
 use std::io::{Read, Write}; // Removed Seek, SeekFrom
@@ -19,10 +20,13 @@ use tokio::fs::{self, File as TokioFile, OpenOptions as TokioOpenOptions};
 #[cfg(feature = "async")]
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
+/// Helper crate for encoding/decoding root hashes
 pub mod index;
 pub mod metrics;
+pub mod mutual_aid;
 #[cfg(feature = "persist-postgres")]
 pub mod postgres_store;
+pub mod recognition;
 #[cfg(feature = "persist-rocksdb")]
 pub mod rocksdb_store;
 #[cfg(feature = "persist-sled")]
@@ -60,6 +64,36 @@ pub fn metadata_from_block(block: &DagBlock) -> DagBlockMetadata {
         author_did: block.author_did.clone(),
         links: block.links.clone(),
     }
+}
+
+/// Compute a Merkle root hash from a set of top-level CIDs.
+///
+/// The CIDs are first sorted lexicographically to ensure deterministic output
+/// regardless of input order. The sorted bytes are then hashed using SHA-256.
+pub fn compute_dag_root(cids: &[Cid]) -> [u8; 32] {
+    let mut cid_strings: Vec<String> = cids.iter().map(|c| c.to_string()).collect();
+    cid_strings.sort();
+    let mut hasher = Sha256::new();
+    for cid_str in cid_strings {
+        hasher.update(cid_str.as_bytes());
+    }
+    let result = hasher.finalize();
+    let mut root = [0u8; 32];
+    root.copy_from_slice(&result);
+    root
+}
+
+/// Choose canonical root from `(Cid, height)` candidates.
+pub fn choose_canonical_root(mut candidates: Vec<(Cid, u64)>) -> Option<Cid> {
+    if candidates.is_empty() {
+        return None;
+    }
+    // Sort by height descending, then lexicographically ascending
+    candidates.sort_by(|a, b| match b.1.cmp(&a.1) {
+        std::cmp::Ordering::Equal => a.0.to_string().cmp(&b.0.to_string()),
+        other => other,
+    });
+    candidates.first().map(|(cid, _)| cid.clone())
 }
 
 // --- Storage Service Trait ---
@@ -385,15 +419,65 @@ impl FileDagStore {
         })
     }
 
+    fn root_file(&self) -> PathBuf {
+        self.storage_path.join("dag.root")
+    }
+
+    fn update_root_file(&self) -> Result<(), CommonError> {
+        let blocks = self.list_blocks()?;
+        let mut referenced = std::collections::HashSet::new();
+        for b in &blocks {
+            for l in &b.links {
+                referenced.insert(l.cid.clone());
+            }
+        }
+        let top: Vec<Cid> = blocks
+            .iter()
+            .filter(|b| !referenced.contains(&b.cid))
+            .map(|b| b.cid.clone())
+            .collect();
+        let root = compute_dag_root(&top);
+        std::fs::write(self.root_file(), hex::encode(root))
+            .map_err(|e| CommonError::IoError(format!("Failed to write root file: {}", e)))?;
+        Ok(())
+    }
+
+    /// Read the current root hash from disk if it exists.
+    pub fn current_root(&self) -> Result<Option<[u8; 32]>, CommonError> {
+        let path = self.root_file();
+        if !path.exists() {
+            return Ok(None);
+        }
+        let contents = std::fs::read_to_string(&path)
+            .map_err(|e| CommonError::IoError(format!("Failed to read root file: {}", e)))?;
+        let bytes = hex::decode(contents.trim())
+            .map_err(|e| CommonError::DeserializationError(format!("Invalid root hex: {}", e)))?;
+        if bytes.len() != 32 {
+            return Err(CommonError::DeserializationError(
+                "root hash must be 32 bytes".to_string(),
+            ));
+        }
+        let mut arr = [0u8; 32];
+        arr.copy_from_slice(&bytes);
+        Ok(Some(arr))
+    }
+
     // Renamed from get_block_path in apply model changes, reverting to original name for clarity
     fn block_path(&self, cid: &Cid) -> PathBuf {
-        // Consider sharding directories if many blocks are expected (e.g., /ab/cd/efgh...).
-        self.storage_path.join(cid.to_string())
+        let cid_str = cid.to_string();
+        let (first, rest) = cid_str.split_at(2);
+        let (second, _) = rest.split_at(2);
+        self.storage_path.join(first).join(second).join(cid_str)
     }
 
     fn put_block_to_file(&self, block: &DagBlock) -> Result<(), CommonError> {
         icn_common::verify_block_integrity(block)?;
         let file_path = self.block_path(&block.cid);
+        if let Some(parent) = file_path.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| {
+                CommonError::IoError(format!("Failed to create directories {:?}: {}", parent, e))
+            })?;
+        }
         let serialized_block = serde_json::to_string(block).map_err(|e| {
             CommonError::SerializationError(format!(
                 "Failed to serialize block {}: {}",
@@ -424,6 +508,11 @@ impl FileDagStore {
 
     fn get_block_from_file(&self, cid: &Cid) -> Result<Option<DagBlock>, CommonError> {
         let file_path = self.block_path(cid);
+        if let Some(parent) = file_path.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| {
+                CommonError::IoError(format!("Failed to create directories {:?}: {}", parent, e))
+            })?;
+        }
         if !file_path.exists() {
             return Ok(None);
         }
@@ -461,6 +550,11 @@ impl FileDagStore {
 
     fn delete_block_file(&self, cid: &Cid) -> Result<(), CommonError> {
         let file_path = self.block_path(cid);
+        if let Some(parent) = file_path.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| {
+                CommonError::IoError(format!("Failed to create directories {:?}: {}", parent, e))
+            })?;
+        }
         if file_path.exists() {
             std::fs::remove_file(&file_path).map_err(|e| {
                 CommonError::IoError(format!("Failed to delete file {:?}: {}", file_path, e))
@@ -476,6 +570,7 @@ impl StorageService<DagBlock> for FileDagStore {
         self.put_block_to_file(block)?;
         self.meta
             .insert(block.cid.clone(), BlockMetadata::default());
+        self.update_root_file()?;
         Ok(())
     }
 
@@ -487,6 +582,7 @@ impl StorageService<DagBlock> for FileDagStore {
     fn delete(&mut self, cid: &Cid) -> Result<(), CommonError> {
         self.delete_block_file(cid)?;
         self.meta.remove(cid);
+        self.update_root_file()?;
         Ok(())
     }
 
@@ -496,26 +592,45 @@ impl StorageService<DagBlock> for FileDagStore {
     }
 
     fn list_blocks(&self) -> Result<Vec<DagBlock>, CommonError> {
-        let mut blocks = Vec::new();
-        for entry in std::fs::read_dir(&self.storage_path).map_err(|e| {
-            CommonError::IoError(format!("Failed to read dir {:?}: {}", self.storage_path, e))
-        })? {
-            let path = entry
-                .map_err(|e| CommonError::IoError(format!("Dir entry error: {}", e)))?
-                .path();
-            if path.is_file() {
-                let contents = std::fs::read_to_string(&path).map_err(|e| {
-                    CommonError::IoError(format!("Failed to read file {:?}: {}", path, e))
-                })?;
-                let block: DagBlock = serde_json::from_str(&contents).map_err(|e| {
-                    CommonError::DeserializationError(format!(
-                        "Failed to deserialize {:?}: {}",
-                        path, e
-                    ))
-                })?;
-                blocks.push(block);
+        fn walk(dir: &Path, out: &mut Vec<DagBlock>) -> Result<(), CommonError> {
+            for entry in std::fs::read_dir(dir)
+                .map_err(|e| CommonError::IoError(format!("Failed to read dir {:?}: {}", dir, e)))?
+            {
+                let entry =
+                    entry.map_err(|e| CommonError::IoError(format!("Dir entry error: {}", e)))?;
+                let path = entry.path();
+
+                // Skip the dag.root file
+                if path.file_name() == Some(std::ffi::OsStr::new("dag.root")) {
+                    continue;
+                }
+
+                if entry
+                    .file_type()
+                    .map_err(|e| {
+                        CommonError::IoError(format!("Failed to read type for {:?}: {}", path, e))
+                    })?
+                    .is_dir()
+                {
+                    walk(&path, out)?;
+                } else if path.is_file() {
+                    let contents = std::fs::read_to_string(&path).map_err(|e| {
+                        CommonError::IoError(format!("Failed to read file {:?}: {}", path, e))
+                    })?;
+                    let block: DagBlock = serde_json::from_str(&contents).map_err(|e| {
+                        CommonError::DeserializationError(format!(
+                            "Failed to deserialize {:?}: {}",
+                            path, e
+                        ))
+                    })?;
+                    out.push(block);
+                }
             }
+            Ok(())
         }
+
+        let mut blocks = Vec::new();
+        walk(&self.storage_path, &mut blocks)?;
         Ok(blocks)
     }
 
@@ -558,6 +673,7 @@ impl StorageService<DagBlock> for FileDagStore {
             self.meta.remove(&cid);
             removed.push(cid);
         }
+        self.update_root_file()?;
         Ok(removed)
     }
 
@@ -621,8 +737,56 @@ impl TokioFileDagStore {
         })
     }
 
+    fn root_file(&self) -> PathBuf {
+        self.storage_path.join("dag.root")
+    }
+
+    async fn update_root_file(&self) -> Result<(), CommonError> {
+        let blocks = self.list_blocks().await?;
+        let mut referenced = std::collections::HashSet::new();
+        for b in &blocks {
+            for l in &b.links {
+                referenced.insert(l.cid.clone());
+            }
+        }
+        let top: Vec<Cid> = blocks
+            .iter()
+            .filter(|b| !referenced.contains(&b.cid))
+            .map(|b| b.cid.clone())
+            .collect();
+        let root = compute_dag_root(&top);
+        fs::write(self.root_file(), hex::encode(root))
+            .await
+            .map_err(|e| CommonError::IoError(format!("Failed to write root file: {}", e)))?;
+        Ok(())
+    }
+
+    /// Read the current root hash from disk if present.
+    pub async fn current_root(&self) -> Result<Option<[u8; 32]>, CommonError> {
+        let path = self.root_file();
+        if fs::metadata(&path).await.is_err() {
+            return Ok(None);
+        }
+        let contents = fs::read_to_string(&path)
+            .await
+            .map_err(|e| CommonError::IoError(format!("Failed to read root file: {}", e)))?;
+        let bytes = hex::decode(contents.trim())
+            .map_err(|e| CommonError::DeserializationError(format!("Invalid root hex: {}", e)))?;
+        if bytes.len() != 32 {
+            return Err(CommonError::DeserializationError(
+                "root hash must be 32 bytes".to_string(),
+            ));
+        }
+        let mut arr = [0u8; 32];
+        arr.copy_from_slice(&bytes);
+        Ok(Some(arr))
+    }
+
     fn block_path(&self, cid: &Cid) -> PathBuf {
-        self.storage_path.join(cid.to_string())
+        let cid_str = cid.to_string();
+        let (first, rest) = cid_str.split_at(2);
+        let (second, _) = rest.split_at(2);
+        self.storage_path.join(first).join(second).join(cid_str)
     }
 }
 
@@ -632,6 +796,11 @@ impl AsyncStorageService<DagBlock> for TokioFileDagStore {
     async fn put(&mut self, block: &DagBlock) -> Result<(), CommonError> {
         icn_common::verify_block_integrity(block)?;
         let file_path = self.block_path(&block.cid);
+        if let Some(parent) = file_path.parent() {
+            fs::create_dir_all(parent).await.map_err(|e| {
+                CommonError::IoError(format!("Failed to create directories {:?}: {}", parent, e))
+            })?;
+        }
         let serialized_block = serde_json::to_string(block).map_err(|e| {
             CommonError::SerializationError(format!(
                 "Failed to serialize block {}: {}",
@@ -662,11 +831,17 @@ impl AsyncStorageService<DagBlock> for TokioFileDagStore {
             })?;
         self.meta
             .insert(block.cid.clone(), BlockMetadata::default());
+        self.update_root_file().await?;
         Ok(())
     }
 
     async fn get(&self, cid: &Cid) -> Result<Option<DagBlock>, CommonError> {
         let file_path = self.block_path(cid);
+        if let Some(parent) = file_path.parent() {
+            fs::create_dir_all(parent).await.map_err(|e| {
+                CommonError::IoError(format!("Failed to create directories {:?}: {}", parent, e))
+            })?;
+        }
         if fs::metadata(&file_path).await.is_err() {
             return Ok(None);
         }
@@ -704,12 +879,18 @@ impl AsyncStorageService<DagBlock> for TokioFileDagStore {
 
     async fn delete(&mut self, cid: &Cid) -> Result<(), CommonError> {
         let file_path = self.block_path(cid);
+        if let Some(parent) = file_path.parent() {
+            fs::create_dir_all(parent).await.map_err(|e| {
+                CommonError::IoError(format!("Failed to create directories {:?}: {}", parent, e))
+            })?;
+        }
         if fs::metadata(&file_path).await.is_ok() {
             fs::remove_file(&file_path).await.map_err(|e| {
                 CommonError::IoError(format!("Failed to delete file {:?}: {}", file_path, e))
             })?;
         }
         self.meta.remove(cid);
+        self.update_root_file().await?;
         Ok(())
     }
 
@@ -719,30 +900,38 @@ impl AsyncStorageService<DagBlock> for TokioFileDagStore {
 
     async fn list_blocks(&self) -> Result<Vec<DagBlock>, CommonError> {
         let mut blocks = Vec::new();
-        let mut dir = fs::read_dir(&self.storage_path).await.map_err(|e| {
-            CommonError::IoError(format!("Failed to read dir {:?}: {}", self.storage_path, e))
-        })?;
-        while let Some(entry) = dir
-            .next_entry()
-            .await
-            .map_err(|e| CommonError::IoError(format!("Dir entry error: {}", e)))?
-        {
-            let path = entry.path();
-            if path.is_file() {
-                let mut file = TokioFile::open(&path).await.map_err(|e| {
-                    CommonError::IoError(format!("Failed to open file {:?}: {}", path, e))
+        let mut stack = vec![self.storage_path.clone()];
+        while let Some(dir) = stack.pop() {
+            let mut rd = fs::read_dir(&dir).await.map_err(|e| {
+                CommonError::IoError(format!("Failed to read dir {:?}: {}", dir, e))
+            })?;
+            while let Some(entry) = rd
+                .next_entry()
+                .await
+                .map_err(|e| CommonError::IoError(format!("Dir entry error: {}", e)))?
+            {
+                let path = entry.path();
+                let typ = entry.file_type().await.map_err(|e| {
+                    CommonError::IoError(format!("Failed to read type for {:?}: {}", path, e))
                 })?;
-                let mut contents = String::new();
-                file.read_to_string(&mut contents).await.map_err(|e| {
-                    CommonError::IoError(format!("Failed to read file {:?}: {}", path, e))
-                })?;
-                let block: DagBlock = serde_json::from_str(&contents).map_err(|e| {
-                    CommonError::DeserializationError(format!(
-                        "Failed to deserialize {:?}: {}",
-                        path, e
-                    ))
-                })?;
-                blocks.push(block);
+                if typ.is_dir() {
+                    stack.push(path);
+                } else if typ.is_file() {
+                    let mut file = TokioFile::open(&path).await.map_err(|e| {
+                        CommonError::IoError(format!("Failed to open file {:?}: {}", path, e))
+                    })?;
+                    let mut contents = String::new();
+                    file.read_to_string(&mut contents).await.map_err(|e| {
+                        CommonError::IoError(format!("Failed to read file {:?}: {}", path, e))
+                    })?;
+                    let block: DagBlock = serde_json::from_str(&contents).map_err(|e| {
+                        CommonError::DeserializationError(format!(
+                            "Failed to deserialize {:?}: {}",
+                            path, e
+                        ))
+                    })?;
+                    blocks.push(block);
+                }
             }
         }
         Ok(blocks)
@@ -792,6 +981,7 @@ impl AsyncStorageService<DagBlock> for TokioFileDagStore {
             self.meta.remove(&cid);
             removed.push(cid);
         }
+        self.update_root_file().await?;
         Ok(removed)
     }
 
@@ -985,6 +1175,31 @@ where
     Ok(())
 }
 
+#[cfg(feature = "async")]
+/// Determine the current root CID of the DAG.
+///
+/// The root is the block that is not referenced by any other block's links.
+pub async fn current_root<S>(store: &S) -> Result<Option<Cid>, CommonError>
+where
+    S: AsyncStorageService<DagBlock> + Sync + ?Sized,
+{
+    use std::collections::HashSet;
+
+    let blocks = store.list_blocks().await?;
+    let mut referenced: HashSet<Cid> = HashSet::new();
+    for block in &blocks {
+        for link in &block.links {
+            referenced.insert(link.cid.clone());
+        }
+    }
+    for block in &blocks {
+        if !referenced.contains(&block.cid) {
+            return Ok(Some(block.cid.clone()));
+        }
+    }
+    Ok(None)
+}
+
 // pub fn add(left: u64, right: u64) -> u64 {
 //     left + right
 // }
@@ -1036,7 +1251,7 @@ mod tests {
         // Test putting a different block (content-addressed storage doesn't allow overwriting with different content)
         let modified_block1_data =
             format!("modified data for {}", "block1_service_test").into_bytes();
-        let timestamp = 1u64;
+        let timestamp = 0u64;
         let author = Did::new("key", "tester");
         let sig = None;
         let modified_cid = compute_merkle_cid(

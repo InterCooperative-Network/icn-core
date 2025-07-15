@@ -7,18 +7,23 @@ license.workspace = true
 
 [dependencies]
 icn-common = { path = "../icn-common" }
-icn-identity = { path = "../icn-identity" }
 serde = { version = "1.0", features = ["derive"] }
 sled = { version = "0.34", optional = true }
 bincode = { version = "1.3", optional = true }
-rusqlite = { version = "0.29", optional = true, features = ["bundled"] }
+async-trait = "0.1"
+tokio = { workspace = true, optional = true }
+sqlx = { version = "0.7", optional = true, features = ["runtime-tokio-rustls", "sqlite"] }
 rocksdb = { version = "0.21", optional = true }
+prometheus-client = "0.22"
+once_cell = "1.21"
 
 [dev-dependencies]
 tempfile = "3"
+icn-identity = { path = "../icn-identity" }
 
 [features]
 default = ["persist-sled"]
 persist-sled = ["dep:sled", "dep:bincode"]
-persist-sqlite = ["dep:rusqlite"]
+persist-sqlite = ["dep:sqlx", "async"]
 persist-rocksdb = ["dep:rocksdb", "dep:bincode"]
+async = ["dep:tokio"]

@@ -1,0 +1,4 @@
+fn run() -> Bool {
+    let age_claim = "{\"issuer\":\"did:coop:issuer\",\"holder\":\"did:member:1\",\"claim_type\":\"age_over_18\",\"schema\":\"bafkage\",\"backend\":\"dummy\"}";
+    return require_proof(age_claim);
+}

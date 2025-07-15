@@ -15,6 +15,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/NodeInfo'
+              example:
+                version: "0.1.0-dev-functional"
+                name: "ICN Node"
+                status_message: "ready"
   /status:
     get:
       summary: Real-time node status
@@ -25,6 +29,11 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/NodeStatus'
+              example:
+                is_online: true
+                peer_count: 3
+                current_block_height: 42
+                version: "0.1.0-dev-functional"
   /health:
     get:
       summary: Health check endpoint
@@ -35,6 +44,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HealthStatus'
+              example:
+                status: "ok"
+                timestamp: 1728000000
+                uptime_seconds: 3600
+                checks:
+                  runtime: "ok"
+                  dag_store: "ok"
+                  network: "ok"
+                  mana_ledger: "ok"
   /ready:
     get:
       summary: Readiness probe
@@ -45,6 +63,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ReadinessStatus'
+              example:
+                ready: true
+                timestamp: 1728000000
+                checks:
+                  can_serve_requests: true
+                  mana_ledger_available: true
+                  dag_store_available: true
+                  network_initialized: true
   /mesh/submit:
     post:
       summary: Submit a mesh job
@@ -54,6 +80,10 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/SubmitJobRequest'
+            example:
+              manifest_cid: "bafyjobmanifest"
+              spec_bytes: "BASE64_SPEC"
+              cost_mana: 10
       responses:
         '200':
           description: Job created
@@ -64,6 +94,8 @@ paths:
                 properties:
                   job_id:
                     type: string
+              example:
+                job_id: "job-123"
   /mesh/jobs:
     get:
       summary: List mesh computing jobs
@@ -79,6 +111,10 @@ paths:
                     type: array
                     items:
                       type: object
+              example:
+                jobs:
+                  - job_id: "job-123"
+                    status: "Running"
   /mesh/jobs/{job_id}:
     get:
       summary: Get specific job status
@@ -100,6 +136,9 @@ paths:
                     type: string
                   status:
                     type: string
+              example:
+                job_id: "job-123"
+                status: "Completed"
   /mesh/receipts:
     post:
       summary: Submit execution receipt
@@ -109,9 +148,22 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/SubmitReceiptRequest'
+            example:
+              job_id: "job-123"
+              executor_did: "did:key:executor"
+              result_cid: "bafyresult"
+              cpu_ms: 150
+              success: true
+              signature_hex: "abcd1234"
       responses:
         '200':
           description: Receipt accepted
+          content:
+            application/json:
+              schema:
+                type: object
+              example:
+                accepted: true
   /governance/proposals:
     get:
       summary: List governance proposals
@@ -124,6 +176,9 @@ paths:
                 type: array
                 items:
                   type: object
+              example:
+                - proposal_id: "prop-1"
+                  description: "Increase timeout"
   /governance/proposal/{id}:
     get:
       summary: Fetch a proposal
@@ -140,6 +195,10 @@ paths:
             application/json:
               schema:
                 type: object
+              example:
+                proposal_id: "prop-1"
+                description: "Increase timeout"
+                status: "Open"
   /governance/submit:
     post:
       summary: Submit a proposal
@@ -149,6 +208,13 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/SubmitProposalRequest'
+            example:
+              proposer_did: "did:key:alice"
+              proposal: { "type": "ParameterChange" }
+              description: "Increase mesh timeout"
+              duration_secs: 86400
+              quorum: 3
+              threshold: 0.5
       responses:
         '200':
           description: Proposal id
@@ -156,6 +222,7 @@ paths:
             application/json:
               schema:
                 type: string
+              example: "prop-1"
   /governance/vote:
     post:
       summary: Cast a vote
@@ -165,9 +232,19 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CastVoteRequest'
+            example:
+              voter_did: "did:key:alice"
+              proposal_id: "prop-1"
+              vote_option: "Yes"
       responses:
         '200':
           description: Vote accepted
+          content:
+            application/json:
+              schema:
+                type: object
+              example:
+                accepted: true
   /governance/delegate:
     post:
       summary: Delegate voting power
@@ -177,9 +254,18 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/DelegateRequest'
+            example:
+              from_did: "did:key:alice"
+              to_did: "did:key:bob"
       responses:
         '200':
           description: Delegation recorded
+          content:
+            application/json:
+              schema:
+                type: object
+              example:
+                delegated: true
   /governance/revoke:
     post:
       summary: Revoke a delegation
@@ -189,9 +275,17 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/RevokeDelegationRequest'
+            example:
+              from_did: "did:key:alice"
       responses:
         '200':
           description: Delegation revoked
+          content:
+            application/json:
+              schema:
+                type: object
+              example:
+                revoked: true
   /governance/close:
     post:
       summary: Close voting
@@ -201,9 +295,20 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/ProposalIdPayload'
+            example:
+              proposal_id: "prop-1"
       responses:
         '200':
           description: Vote closed
+          content:
+            application/json:
+              schema:
+                type: object
+              example:
+                status: "Accepted"
+                yes: 2
+                no: 0
+                abstain: 1
   /governance/execute:
     post:
       summary: Execute proposal
@@ -213,9 +318,17 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/ProposalIdPayload'
+            example:
+              proposal_id: "prop-1"
       responses:
         '200':
           description: Execution result
+          content:
+            application/json:
+              schema:
+                type: object
+              example:
+                executed: true
   /dag/put:
     post:
       summary: Store data in DAG
@@ -225,6 +338,14 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/DagBlockPayload'
+            example:
+              data: "aGVsbG8="
+              credential_proof:
+                issuer: "did:key:issuer"
+                holder: "did:key:holder"
+                claim_type: "membership"
+                proof: "0x1234"
+                schema: "bafyschemacid"
       responses:
         '200':
           description: CID string
@@ -232,6 +353,7 @@ paths:
             application/json:
               schema:
                 type: string
+              example: "bafyblockcid"
   /dag/get:
     post:
       summary: Retrieve data from DAG
@@ -241,6 +363,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CidRequest'
+            example:
+              cid: "bafyblockcid"
       responses:
         '200':
           description: Data block
@@ -248,6 +372,7 @@ paths:
             application/json:
               schema:
                 type: string
+              example: "aGVsbG8="
   /dag/meta:
     post:
       summary: Retrieve DAG metadata
@@ -257,6 +382,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CidRequest'
+            example:
+              cid: "bafyblockcid"
       responses:
         '200':
           description: Metadata
@@ -264,6 +391,11 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DagBlockMetadata'
+              example:
+                size: 1024
+                timestamp: 1728000000
+                author_did: "did:key:alice"
+                links: []
   /dag/pin:
     post:
       summary: Pin a DAG block
@@ -273,6 +405,9 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/PinRequest'
+            example:
+              cid: "bafyblockcid"
+              ttl: 3600
       responses:
         '200':
           description: Pinned
@@ -280,6 +415,11 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Cid'
+              example:
+                version: 1
+                codec: 0
+                hash_alg: 1
+                hash_bytes: "AAEC"
   /dag/unpin:
     post:
       summary: Unpin a DAG block
@@ -289,6 +429,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CidRequest'
+            example:
+              cid: "bafyblockcid"
       responses:
         '200':
           description: Unpinned
@@ -296,6 +438,11 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Cid'
+              example:
+                version: 1
+                codec: 0
+                hash_alg: 1
+                hash_bytes: "AAEC"
   /dag/prune:
     post:
       summary: Prune unpinned blocks
@@ -305,9 +452,16 @@ paths:
           application/json:
             schema:
               type: object
+            example: {}
       responses:
         '200':
           description: Pruned
+          content:
+            application/json:
+              schema:
+                type: object
+              example:
+                pruned: true
   /network/local-peer-id:
     get:
       summary: Show local peer ID
@@ -321,6 +475,8 @@ paths:
                 properties:
                   peer_id:
                     type: string
+              example:
+                peer_id: "12D3KooW..."
   /network/connect:
     post:
       summary: Connect to a peer
@@ -330,9 +486,17 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/PeerPayload'
+            example:
+              peer: "/ip4/127.0.0.1/tcp/4001/p2p/12D3KooW..."
       responses:
         '200':
           description: Connection result
+          content:
+            application/json:
+              schema:
+                type: object
+              example:
+                connected: true
   /network/peers:
     get:
       summary: List network peers
@@ -345,6 +509,9 @@ paths:
                 type: array
                 items:
                   type: string
+              example:
+                - "12D3KooWpeer1"
+                - "12D3KooWpeer2"
   /transaction/submit:
     post:
       summary: Submit a transaction
@@ -354,6 +521,16 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/Transaction'
+            example:
+              id: "tx-1"
+              timestamp: 1728000000
+              sender_did: "did:key:alice"
+              recipient_did: "did:key:bob"
+              payload_type: "Transfer"
+              payload: "AAEC"
+              nonce: 1
+              mana_limit: 100
+              mana_price: 1
       responses:
         '200':
           description: Transaction id
@@ -361,6 +538,110 @@ paths:
             application/json:
               schema:
                 type: string
+              example: "tx-1"
+  /tokens/classes:
+    get:
+      summary: List token classes
+      responses:
+        '200':
+          description: Token classes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TokenClass'
+              example:
+                - id: "pantry-credit"
+                  transferable: true
+  /tokens/class:
+    post:
+      summary: Create a token class
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTokenClassRequest'
+            example:
+              id: "pantry-credit"
+              description: "Food pantry credit"
+              transferable: true
+      responses:
+        '200':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: string
+              example: "pantry-credit"
+  /tokens/mint:
+    post:
+      summary: Mint resource tokens
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MintTokensRequest'
+            example:
+              class_id: "pantry-credit"
+              amount: 10
+              recipient_did: "did:key:alice"
+      responses:
+        '200':
+          description: Minted
+          content:
+            application/json:
+              schema:
+                type: object
+              example:
+                minted: true
+  /tokens/transfer:
+    post:
+      summary: Transfer resource tokens
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransferTokensRequest'
+            example:
+              class_id: "pantry-credit"
+              amount: 5
+              from_did: "did:key:alice"
+              to_did: "did:key:bob"
+      responses:
+        '200':
+          description: Transferred
+          content:
+            application/json:
+              schema:
+                type: object
+              example:
+                transferred: true
+  /tokens/burn:
+    post:
+      summary: Burn resource tokens
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BurnTokensRequest'
+            example:
+              class_id: "pantry-credit"
+              amount: 3
+              owner_did: "did:key:alice"
+      responses:
+        '200':
+          description: Burned
+          content:
+            application/json:
+              schema:
+                type: object
+              example:
+                burned: true
   /data/query:
     post:
       summary: Query data
@@ -370,6 +651,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CidRequest'
+            example:
+              cid: "bafyblockcid"
       responses:
         '200':
           description: Query results
@@ -377,6 +660,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DagBlock'
+              example:
+                cid:
+                  version: 1
+                  codec: 0
+                  hash_alg: 1
+                  hash_bytes: "AAEC"
+                data: "aGVsbG8="
   /contracts:
     post:
       summary: Upload WASM contract
@@ -386,6 +676,14 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/ContractSourcePayload'
+            example:
+              source: "(module ...)"
+              credential_proof:
+                issuer: "did:key:issuer"
+                holder: "did:key:holder"
+                claim_type: "membership"
+                proof: "0x1234"
+                schema: "bafyschemacid"
       responses:
         '200':
           description: Upload result
@@ -396,6 +694,64 @@ paths:
                 properties:
                   manifest_cid:
                     type: string
+              example:
+                manifest_cid: "bafycontractmanifest"
+  /circuits/register:
+    post:
+      summary: Register circuit parameters
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterCircuitRequest'
+      responses:
+        '201':
+          description: Registered
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+  /circuits/{slug}/{version}:
+    get:
+      summary: Fetch circuit verifying key
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: version
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Circuit parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CircuitResponse'
+  /circuits/{slug}:
+    get:
+      summary: List circuit versions
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Version list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CircuitVersionsResponse'
   /federation/peers:
     get:
       summary: List federation peers
@@ -408,6 +764,9 @@ paths:
                 type: array
                 items:
                   type: string
+              example:
+                - "12D3KooWpeer1"
+                - "12D3KooWpeer2"
     post:
       summary: Add federation peer
       requestBody:
@@ -416,6 +775,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/AddPeerPayload'
+            example:
+              peer: "/ip4/127.0.0.1/tcp/4001/p2p/12D3KooW..."
       responses:
         '200':
           description: Added
@@ -426,6 +787,8 @@ paths:
                 properties:
                   peer:
                     type: string
+              example:
+                peer: "/ip4/127.0.0.1/tcp/4001/p2p/12D3KooW..."
   /federation/join:
     post:
       summary: Join a federation
@@ -435,6 +798,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/PeerPayload'
+            example:
+              peer: "/ip4/127.0.0.1/tcp/4001/p2p/12D3KooW..."
       responses:
         '200':
           description: Joined
@@ -445,6 +810,8 @@ paths:
                 properties:
                   joined:
                     type: string
+              example:
+                joined: "/ip4/127.0.0.1/tcp/4001/p2p/12D3KooW..."
   /federation/leave:
     post:
       summary: Leave the federation
@@ -454,6 +821,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/PeerPayload'
+            example:
+              peer: "/ip4/127.0.0.1/tcp/4001/p2p/12D3KooW..."
       responses:
         '200':
           description: Left
@@ -464,6 +833,8 @@ paths:
                 properties:
                   left:
                     type: string
+              example:
+                left: "/ip4/127.0.0.1/tcp/4001/p2p/12D3KooW..."
   /federation/status:
     get:
       summary: Current federation status
@@ -474,6 +845,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/FederationStatus'
+              example:
+                peer_count: 3
+                peers:
+                  - "12D3KooWpeer1"
+                  - "12D3KooWpeer2"
+                  - "12D3KooWpeer3"
   /metrics:
     get:
       summary: Prometheus metrics
@@ -484,6 +861,9 @@ paths:
             text/plain:
               schema:
                 type: string
+              example: |
+                # HELP icn_requests_total Total HTTP requests
+                icn_requests_total{path="/info"} 5
 components:
   schemas:
     NodeInfo:
@@ -553,8 +933,9 @@ components:
       properties:
         manifest_cid:
           type: string
-        spec_json:
-          type: object
+        spec_bytes:
+          type: string
+          format: byte
         cost_mana:
           type: integer
     SubmitReceiptRequest:
@@ -617,12 +998,18 @@ components:
       properties:
         proposal_id:
           type: string
-    DagBlockPayload:
-      type: object
-      properties:
-        data:
-          type: string
-          format: byte
+  DagBlockPayload:
+    type: object
+    properties:
+      data:
+        type: string
+        format: byte
+      credential_proof:
+        $ref: '#/components/schemas/ZkCredentialProof'
+        nullable: true
+      revocation_proof:
+        $ref: '#/components/schemas/ZkRevocationProof'
+        nullable: true
     CidRequest:
       type: object
       properties:
@@ -684,11 +1071,17 @@ components:
           type: array
           items:
             type: object
-    ContractSourcePayload:
-      type: object
-      properties:
-        source:
-          type: string
+  ContractSourcePayload:
+    type: object
+    properties:
+      source:
+        type: string
+      credential_proof:
+        $ref: '#/components/schemas/ZkCredentialProof'
+        nullable: true
+      revocation_proof:
+        $ref: '#/components/schemas/ZkRevocationProof'
+        nullable: true
     PeerPayload:
       type: object
       properties:
@@ -699,6 +1092,58 @@ components:
       properties:
         peer:
           type: string
+    ZkCredentialProof:
+      type: object
+      properties:
+        issuer:
+          type: string
+        holder:
+          type: string
+        claim_type:
+          type: string
+        proof:
+          type: string
+          format: byte
+        schema:
+          type: string
+        vk_cid:
+          type: string
+          nullable: true
+        disclosed_fields:
+          type: array
+          items:
+            type: string
+        challenge:
+          type: string
+          nullable: true
+        backend:
+          type: string
+        verification_key:
+          type: string
+          format: byte
+          nullable: true
+        public_inputs:
+          type: object
+          nullable: true
+    ZkRevocationProof:
+      type: object
+      properties:
+        issuer:
+          type: string
+        subject:
+          type: string
+        proof:
+          type: string
+          format: byte
+        backend:
+          type: string
+        verification_key:
+          type: string
+          format: byte
+          nullable: true
+        public_inputs:
+          type: object
+          nullable: true
     FederationStatus:
       type: object
       properties:
@@ -735,3 +1180,83 @@ components:
           type: string
           format: byte
           nullable: true
+    TokenClass:
+      type: object
+      properties:
+        id:
+          type: string
+        description:
+          type: string
+          nullable: true
+        transferable:
+          type: boolean
+    CreateTokenClassRequest:
+      type: object
+      properties:
+        id:
+          type: string
+        description:
+          type: string
+        transferable:
+          type: boolean
+    MintTokensRequest:
+      type: object
+      properties:
+        class_id:
+          type: string
+        amount:
+          type: integer
+        recipient_did:
+          type: string
+    TransferTokensRequest:
+      type: object
+      properties:
+        class_id:
+          type: string
+        amount:
+          type: integer
+        from_did:
+          type: string
+        to_did:
+          type: string
+    BurnTokensRequest:
+      type: object
+      properties:
+        class_id:
+          type: string
+        amount:
+          type: integer
+        owner_did:
+          type: string
+    RegisterCircuitRequest:
+      type: object
+      properties:
+        slug:
+          type: string
+        version:
+          type: string
+        proving_key:
+          type: string
+          format: byte
+        verification_key:
+          type: string
+          format: byte
+    CircuitResponse:
+      type: object
+      properties:
+        slug:
+          type: string
+        version:
+          type: string
+        verification_key:
+          type: string
+          format: byte
+    CircuitVersionsResponse:
+      type: object
+      properties:
+        slug:
+          type: string
+        versions:
+          type: array
+          items:
+            type: string

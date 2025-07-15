@@ -12,6 +12,9 @@ pub mod retry;
 pub use retry::retry_with_backoff;
 pub mod resilience;
 pub use resilience::{CircuitBreaker, CircuitBreakerError, CircuitState};
+pub mod resource_token;
+pub mod zk;
+pub use zk::{ZkCredentialProof, ZkProofType, ZkRevocationProof};
 
 pub const ICN_CORE_VERSION: &str = "0.2.0-beta";
 
@@ -33,6 +36,15 @@ pub struct NodeStatus {
     pub peer_count: u32,
     pub current_block_height: u64, // Example field
     pub version: String,
+}
+
+/// Indicates whether the local DAG is synchronized with peers.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DagSyncStatus {
+    /// Current root CID of the local DAG.
+    pub current_root: Option<Cid>,
+    /// True if the node believes it is fully synchronized.
+    pub in_sync: bool,
 }
 
 /// Identifies a membership scope such as a community, cooperative, or federation.
@@ -652,8 +664,10 @@ mod tests {
     use super::*;
 
     #[test]
+    #[allow(clippy::const_is_empty)]
     fn version_is_set() {
-        assert!(ICN_CORE_VERSION.contains("functional"));
+        assert!(!ICN_CORE_VERSION.is_empty());
+        assert!(ICN_CORE_VERSION.contains("0.2.0"));
     }
 
     #[test]

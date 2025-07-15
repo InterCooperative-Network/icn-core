@@ -1,0 +1,4 @@
+# Federation supermajority quorum configuration (4 of 5 nodes)
+[governance.proposals]
+min_quorum = 0.8
+passing_threshold = 0.66

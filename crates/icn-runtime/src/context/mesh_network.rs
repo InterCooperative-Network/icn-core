@@ -58,6 +58,7 @@ pub struct SelectionPolicy {
 /// Governance cost constants.
 pub const PROPOSAL_COST_MANA: u64 = 10;
 pub const VOTE_COST_MANA: u64 = 1;
+pub const ZK_VERIFY_COST_MANA: u64 = 2;
 
 /// Mesh network service trait for handling mesh jobs, proposals, and votes.
 /// Using async_trait to make it object-safe
@@ -169,7 +170,7 @@ impl MeshNetworkService for DefaultMeshNetworkService {
             required_resources: icn_protocol::ResourceRequirements {
                 cpu_cores: job.spec.required_resources.cpu_cores,
                 memory_mb: job.spec.required_resources.memory_mb,
-                storage_mb: 0,                // TODO: Add storage to job spec
+                storage_mb: job.spec.required_resources.storage_mb,
                 max_execution_time_secs: 300, // 5 minutes default
             },
         };
@@ -298,13 +299,38 @@ impl MeshNetworkService for DefaultMeshNetworkService {
                                 resources: icn_mesh::Resources {
                                     cpu_cores: bid_message.offered_resources.cpu_cores,
                                     memory_mb: bid_message.offered_resources.memory_mb,
+                                    storage_mb: bid_message.offered_resources.storage_mb,
                                 },
-                                signature: icn_identity::SignatureBytes(vec![]), // TODO: Extract from message signature
+                                signature: signed_message.signature.clone(),
                             };
 
+<<<<<<< HEAD
                             // TODO: In a real implementation, we'd verify the bid signature
                             // For now, we'll accept all properly formatted bids
                             bids.push(mesh_bid);
+=======
+                            match icn_identity::verifying_key_from_did_key(&mesh_bid.executor_did)
+                                .and_then(|vk| {
+                                    let bytes = mesh_bid.to_signable_bytes()?;
+                                    let ed_sig = mesh_bid.signature.to_ed_signature()?;
+                                    if icn_identity::verify_signature(&vk, &bytes, &ed_sig) {
+                                        Ok(())
+                                    } else {
+                                        Err(icn_common::CommonError::CryptoError(
+                                            "Bid signature verification failed".into(),
+                                        ))
+                                    }
+                                }) {
+                                Ok(()) => bids.push(mesh_bid),
+                                Err(e) => {
+                                    log::warn!(
+                                        "[MeshNetwork] Rejecting bid from {}: {}",
+                                        mesh_bid.executor_did,
+                                        e
+                                    );
+                                }
+                            }
+>>>>>>> develop
                         }
                     }
                 }
@@ -345,7 +371,11 @@ impl MeshNetworkService for DefaultMeshNetworkService {
             offered_resources: icn_protocol::ResourceRequirements {
                 cpu_cores: bid.resources.cpu_cores,
                 memory_mb: bid.resources.memory_mb,
+<<<<<<< HEAD
                 storage_mb: 0,                // TODO: Add storage to Resources
+=======
+                storage_mb: bid.resources.storage_mb,
+>>>>>>> develop
                 max_execution_time_secs: 300, // 5 minutes default
             },
             reputation_score: 100, // TODO: Get actual reputation score
@@ -356,7 +386,7 @@ impl MeshNetworkService for DefaultMeshNetworkService {
             timestamp: current_timestamp(),
             sender: self.signer.did(),
             recipient: None, // Broadcast to all (job submitter will filter)
-            signature: SignatureBytes(Vec::new()),
+            signature: bid.signature.clone(),
             version: 1,
         };
 
@@ -381,8 +411,13 @@ impl MeshNetworkService for DefaultMeshNetworkService {
         // Create execution metadata with metrics
         let logs = crate::execution_monitor::take_logs();
         let execution_metadata = icn_protocol::ExecutionMetadata {
+<<<<<<< HEAD
             wall_time_ms: receipt.cpu_ms,
             peak_memory_mb: crate::execution_monitor::current_peak_memory_mb(),
+=======
+            wall_time_ms: receipt.cpu_ms, // Use cpu_ms as wall time for now
+            peak_memory_mb: 0,            // TODO: Track actual memory usage
+>>>>>>> develop
             exit_code: if receipt.success { 0 } else { 1 },
             execution_logs: if logs.is_empty() { None } else { Some(logs) },
         };
@@ -484,8 +519,32 @@ impl MeshNetworkService for DefaultMeshNetworkService {
                                 job_id
                             );
 
+<<<<<<< HEAD
                             // TODO: Verify receipt signature
                             return Ok(Some(receipt.clone()));
+=======
+                            match icn_identity::verifying_key_from_did_key(expected_executor)
+                                .and_then(|vk| {
+                                    let bytes = receipt.to_signable_bytes()?;
+                                    let ed_sig = receipt.sig.to_ed_signature()?;
+                                    if icn_identity::verify_signature(&vk, &bytes, &ed_sig) {
+                                        Ok(())
+                                    } else {
+                                        Err(icn_common::CommonError::CryptoError(
+                                            "Receipt signature verification failed".into(),
+                                        ))
+                                    }
+                                }) {
+                                Ok(()) => return Ok(Some(receipt.clone())),
+                                Err(e) => {
+                                    log::warn!(
+                                        "[MeshNetwork] Invalid receipt from {}: {}",
+                                        expected_executor,
+                                        e
+                                    );
+                                }
+                            }
+>>>>>>> develop
                         }
                     }
                 }

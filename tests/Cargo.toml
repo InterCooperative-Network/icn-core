@@ -40,6 +40,10 @@ name = "parameter_change"
 path = "integration/parameter_change.rs"
 
 [[test]]
+name = "credential_issuance"
+path = "integration/credential_issuance.rs"
+
+[[test]]
 name = "ccl_operator_precedence"
 path = "../icn-ccl/tests/operator_precedence.rs"
 
@@ -48,8 +52,24 @@ name = "ten_node_scale"
 path = "integration/ten_node_scale.rs"
 
 [[test]]
-name = "full_workflow"
-path = "integration/full_workflow.rs"
+name = "comprehensive_e2e"
+path = "integration/comprehensive_e2e.rs"
+
+[[test]]
+name = "simple_verification"
+path = "integration/simple_verification.rs"
+
+[[test]]
+name = "zk_proof_verification"
+path = "integration/zk_proof_verification.rs"
+
+[[test]]
+name = "host_zk_roundtrip"
+path = "integration/host_zk_roundtrip.rs"
+
+[features]
+default = []
+enable-libp2p = ["icn-node/with-libp2p", "icn-runtime/enable-libp2p"]
 
 [dependencies]
 reqwest.workspace = true
@@ -59,6 +79,21 @@ once_cell = "1"
 assert_cmd = "2.0"
 predicates = "3.1"
 axum = { version = "0.8", features = ["json"] }
+chrono = { version = "0.4", features = ["serde"] }
+anyhow = "1.0"
+base64 = "0.22"
+bincode = "1"
 icn-node = { path = "../crates/icn-node", features = ["with-libp2p"] }
 icn-runtime = { path = "../crates/icn-runtime", features = ["async"] }
 icn-governance = { path = "../crates/icn-governance" }
+icn-mesh = { path = "../crates/icn-mesh" }
+icn-common = { path = "../crates/icn-common" }
+icn-protocol = { path = "../crates/icn-protocol" }
+icn-identity = { path = "../crates/icn-identity" }
+icn-network = { path = "../crates/icn-network" }
+icn-api = { path = "../crates/icn-api" }
+icn-zk = { path = "../crates/icn-zk" }
+ark-groth16 = "0.4"
+ark-bn254 = "0.4"
+ark-serialize = "0.4"
+rand_core = "0.6"

@@ -8,16 +8,43 @@ format:
 lint:
     cargo clippy --all-targets --all-features -- -D warnings
 
-# Run the full test suite
-# This mirrors CI by testing all crates with all features enabled
-# and executing integration tests for the CLI crate
-
+# Run the full test suite with default features (stable)
+# This uses the default production-ready features (Sled storage)
 test:
+    cargo test --workspace
+
+# Run tests with all features enabled (including RocksDB)
+# This mirrors CI but requires stable C++ compiler
+test-all-features:
     cargo test --all-features --workspace
 
-# Build all crates with all features
+# Run tests with specific storage backend
+test-sled:
+    cargo test --workspace --features persist-sled
+
+# Run tests with RocksDB (requires Clang)
+test-rocksdb:
+    cargo test --workspace --features persist-rocksdb
+
+# Run quick tests without persistence features
+test-quick:
+    cargo test --workspace --no-default-features
+
+# Build with default features (stable, production-ready)
 build:
+    cargo build --workspace
+
+# Build with all features enabled (including RocksDB)
+build-all-features:
     cargo build --all-features --workspace
+
+# Build with specific storage backend
+build-sled:
+    cargo build --workspace --features persist-sled
+
+# Build with RocksDB (requires Clang)
+build-rocksdb:
+    cargo build --workspace --features persist-rocksdb
 
 # Launch the containerized federation devnet
 # Requires Docker and docker-compose
@@ -29,9 +56,17 @@ devnet:
 validate:
     just format && just lint && just test
 
+# Run full validation with all features (for CI)
+validate-all:
+    just format && just lint && just test-all-features
+
 # Run benchmarks for all crates
 bench:
     cargo bench --workspace --all-features
+
+# Run zero-knowledge circuit benchmarks
+bench-zk:
+    cargo bench -p icn-zk
 
 # Run federation health checks
 health-check:

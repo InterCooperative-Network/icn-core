@@ -1,0 +1,7 @@
+{
+  "issuer": "did:key:example:issuer",
+  "subject": "did:key:example:holder",
+  "proof": [1, 2, 3],
+  "backend": "dummy"
+}
+

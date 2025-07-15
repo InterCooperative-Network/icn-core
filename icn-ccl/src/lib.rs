@@ -23,7 +23,7 @@ pub use metadata::ContractMetadata;
 /// Compiles a CCL source string into WASM bytecode and metadata.
 pub fn compile_ccl_source_to_wasm(source: &str) -> Result<(Vec<u8>, ContractMetadata), CclError> {
     use sha2::{Digest, Sha256};
-    use std::cmp::min;
+    use icn_common::{compute_merkle_cid, Did};
 
     let ast_node = parser::parse_ccl_source(source)?;
 
@@ -36,8 +36,15 @@ pub fn compile_ccl_source_to_wasm(source: &str) -> Result<(Vec<u8>, ContractMeta
     let mut backend = wasm_backend::WasmBackend::new();
     let (wasm, mut meta) = backend.compile_to_wasm(&optimized_ast)?;
 
-    // Placeholder CID and source hash until real DAG integration is wired in
-    meta.cid = format!("bafy2bzace{}", hex::encode(&wasm[0..min(10, wasm.len())]));
+    // Compute the CID for the generated WASM so executors can fetch it via the
+    // runtime DAG APIs. This mirrors the behavior in the CLI helper.
+    let ts = 0u64;
+    let author = Did::new("key", "tester");
+    let sig_opt = None;
+    let cid = compute_merkle_cid(0x71, &wasm, &[], ts, &author, &sig_opt, &None);
+    meta.cid = cid.to_string();
+
+    // Hash the source code for auditing purposes
     let digest = Sha256::digest(source.as_bytes());
     meta.source_hash = format!("sha256:{:x}", digest);
 

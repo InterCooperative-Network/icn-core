@@ -44,17 +44,20 @@ mod reputation_persistence {
             job_id: job_id.clone(),
             executor_did: did_a.clone(),
             price_mana: 10,
-            resources: Resources { cpu_cores: 1, memory_mb: 10 },
+            resources: Resources { cpu_cores: 1, memory_mb: 10, storage_mb: 0 },
             signature: SignatureBytes(Vec::new()),
         };
         let bid_b = MeshJobBid {
             job_id: job_id.clone(),
             executor_did: did_b.clone(),
             price_mana: 10,
-            resources: Resources { cpu_cores: 1, memory_mb: 10 },
+            resources: Resources { cpu_cores: 1, memory_mb: 10, storage_mb: 0 },
             signature: SignatureBytes(Vec::new()),
         };
 
+        let latency = icn_mesh::tests::InMemoryLatencyStore::new();
+        latency.set_latency(did_a.clone(), 5);
+        latency.set_latency(did_b.clone(), 20);
         let selected = select_executor(
             &job_id,
             &JobSpec::Echo { payload: "persist".into() },
@@ -62,6 +65,7 @@ mod reputation_persistence {
             &SelectionPolicy::default(),
             &reopened,
             &ledger,
+            &latency,
         )
         .expect("executor selected");
 
@@ -184,17 +188,20 @@ mod reputation_persistence_sqlite {
             job_id: job_id.clone(),
             executor_did: did_a.clone(),
             price_mana: 10,
-            resources: Resources { cpu_cores: 1, memory_mb: 10 },
+            resources: Resources { cpu_cores: 1, memory_mb: 10, storage_mb: 0 },
             signature: SignatureBytes(Vec::new()),
         };
         let bid_b = MeshJobBid {
             job_id: job_id.clone(),
             executor_did: did_b.clone(),
             price_mana: 10,
-            resources: Resources { cpu_cores: 1, memory_mb: 10 },
+            resources: Resources { cpu_cores: 1, memory_mb: 10, storage_mb: 0 },
             signature: SignatureBytes(Vec::new()),
         };
 
+        let latency = icn_mesh::tests::InMemoryLatencyStore::new();
+        latency.set_latency(did_a.clone(), 5);
+        latency.set_latency(did_b.clone(), 20);
         let selected = select_executor(
             &job_id,
             &JobSpec::Echo { payload: "persist".into() },
@@ -202,6 +209,7 @@ mod reputation_persistence_sqlite {
             &SelectionPolicy::default(),
             &reopened,
             &ledger,
+            &latency,
         )
         .expect("executor selected");
 
@@ -286,17 +294,20 @@ mod reputation_persistence_rocks {
             job_id: job_id.clone(),
             executor_did: did_a.clone(),
             price_mana: 10,
-            resources: Resources { cpu_cores: 1, memory_mb: 10 },
+            resources: Resources { cpu_cores: 1, memory_mb: 10, storage_mb: 0 },
             signature: SignatureBytes(Vec::new()),
         };
         let bid_b = MeshJobBid {
             job_id: job_id.clone(),
             executor_did: did_b.clone(),
             price_mana: 10,
-            resources: Resources { cpu_cores: 1, memory_mb: 10 },
+            resources: Resources { cpu_cores: 1, memory_mb: 10, storage_mb: 0 },
             signature: SignatureBytes(Vec::new()),
         };
 
+        let latency = icn_mesh::tests::InMemoryLatencyStore::new();
+        latency.set_latency(did_a.clone(), 5);
+        latency.set_latency(did_b.clone(), 20);
         let selected = select_executor(
             &job_id,
             &JobSpec::Echo { payload: "persist".into() },
@@ -304,6 +315,7 @@ mod reputation_persistence_rocks {
             &SelectionPolicy::default(),
             &reopened,
             &ledger,
+            &latency,
         )
         .expect("executor selected");
 

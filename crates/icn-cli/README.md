@@ -24,13 +24,89 @@ The `icn-cli` is the primary tool for users to interact with an ICN node from th
     *   `icn-cli network send-message <PEER_ID> <MESSAGE_JSON>`: Send a `ProtocolMessage` (encoded as JSON) to a specified peer. Requires the node to run with libp2p networking.
     *   `icn-cli network peers`: Display this node's peer ID and the currently discovered peer list.
 *   **Federation Operations:**
+    *   `icn-cli federation init`: Initialize a new federation on this node.
     *   `icn-cli federation join <PEER_ID>`: Join a federation by adding the given peer.
     *   `icn-cli federation leave <PEER_ID>`: Leave a federation or remove the peer.
     *   `icn-cli federation list-peers`: List peers known to the node.
     *   `icn-cli federation status`: Display federation status including peer count.
+    *   `icn-cli federation sync`: Synchronize federation state with peers.
+
+### Federation Examples (with `icn-devnet`)
+
+```bash
+# Initialize the federation on the bootstrap node
+cargo run -p icn-cli -- \
+  --api-url http://localhost:5001 \
+  --api-key devnet-a-key \
+  federation init
+
+# Join additional nodes to the federation
+cargo run -p icn-cli -- \
+  --api-url http://localhost:5002 \
+  --api-key devnet-b-key \
+  federation join http://localhost:5001
+
+cargo run -p icn-cli -- \
+  --api-url http://localhost:5003 \
+  --api-key devnet-c-key \
+  federation join http://localhost:5001
+
+# Synchronize federation state
+cargo run -p icn-cli -- \
+  --api-url http://localhost:5001 \
+  --api-key devnet-a-key \
+  federation sync
+```
+
+`icn-devnet/launch_federation.sh` runs these commands automatically when the
+containers start so the federation is ready for testing.
+*   **Identity Operations:**
+    *   `icn-cli identity generate-proof <PROOF_REQUEST_JSON>`: Produce a zero-knowledge proof from the supplied request JSON.
+    *   `icn-cli identity verify-proof <PROOF_JSON>`: Verify a proof and print whether it is valid.
+*   **Monitoring:**
+    *   `icn-cli monitor uptime`: Display node uptime using the metrics endpoint.
+*   **Zero-Knowledge Operations:**
+    *   `icn-cli zk generate-key`: Generate a Groth16 proving key and output the verifying key signature.
+    *   `icn-cli zk analyze <CIRCUIT>`: Count constraints for a circuit.
+    *   `icn-cli zk profile <CIRCUIT>`: Run Criterion benchmarks for a circuit.
 *   **Miscellaneous:**
     *   `icn-cli hello`: A simple command to check if the CLI is responsive.
     *   `icn-cli help` or `icn-cli --help`: Displays usage information.
+    *   `icn-cli wizard setup --config <FILE>`: Interactive node setup wizard.
+
+### Example: Generate and Verify a Proof
+
+```bash
+# Generate a proof for a membership credential
+cargo run -p icn-cli -- identity generate-proof '{"member_did":"did:example:123"}'
+# => '{"proof":"base64string","backend":"Groth16"}'
+
+# Verify the returned proof
+cargo run -p icn-cli -- identity verify-proof '{"proof":"base64string","backend":"Groth16"}'
+# => "verified: true"
+```
+
+### Example: Generate Groth16 Keys
+
+```bash
+# Generate a proving key and verifying key signature
+cargo run -p icn-cli -- zk generate-key
+# => '{"proving_key_path":"./groth16_proving_key.bin","verifying_key_signature_hex":"abc..."}'
+```
+
+### Example: Analyze a Circuit
+
+```bash
+cargo run -p icn-cli -- zk analyze age_over_18
+# => 'constraints: 3'
+```
+
+### Example: Profile a Circuit
+
+```bash
+cargo run -p icn-cli -- zk profile age_over_18
+# Runs `cargo bench` for the specified circuit
+```
 
 ## Error Handling
 

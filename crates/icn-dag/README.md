@@ -20,6 +20,10 @@ This forms a foundational layer for data representation and exchange within the 
 
 Every block stored in a DAG backend can have associated metadata indicating whether it is pinned and an optional TTL (expiration timestamp). Pinned blocks are preserved during pruning even if their TTL has passed. TTL values are expressed as seconds since the Unix epoch and may be updated after a block is stored. Implementations provide `pin_block`, `unpin_block`, and `prune_expired` to manage this metadata and remove stale content.
 
+## Synchronization Root
+
+Whenever blocks are added or removed, file‑based stores compute a Merkle root hash from the set of top‑level CIDs and persist it in `dag.root` inside the DAG directory. This snapshot root can be read via `current_root()` to verify two nodes are synchronized.
+
 ## Public API Style
 
 The API style prioritizes:
@@ -48,6 +52,17 @@ let store = TokioFileDagStore::new(PathBuf::from("./dag")).unwrap();
 let dag_store = Mutex::new(store); // implement AsyncStorageService
 ```
 
+## File Storage Layout
+
+File-based stores shard blocks into subdirectories derived from the CID string.
+Given a CID like `bafy...`, the block will be stored at:
+
+```
+<storage>/<ba>/<fy>/<cid>
+```
+
+This prevents directories from growing unbounded.
+
 ## Running Persistence Tests
 
 Integration tests for each storage backend are gated by their corresponding
@@ -65,6 +80,24 @@ cargo test -p icn-dag --no-default-features --features persist-sqlite \
 cargo test -p icn-dag --no-default-features --features persist-rocksdb \
   --test rocks_backend
 ```
+
+## DAG Fork Conflict Resolution
+
+Federations may temporarily diverge and create competing DAG roots. Nodes apply
+the following deterministic rules when reconciling forks:
+
+1. Prefer the root with the highest block height.
+2. If heights match, choose the lexicographically smallest root CID.
+3. Retain orphaned branches for audit but disallow new references.
+
+Nodes exchange `DagSyncStatus` information to detect divergence and converge on
+a single history without complex reorganization.
+
+## Mutual Aid Resource Registry
+
+`AidResource` structs can be stored as DAG blocks to advertise resources
+available for community sharing. Each record includes a provider DID, quantity,
+description, and classification tags to support matching.
 
 ## Contributing
 

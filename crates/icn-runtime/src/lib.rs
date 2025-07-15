@@ -14,6 +14,7 @@
 
 pub mod abi;
 pub mod config;
+pub mod constants;
 pub mod context;
 pub mod executor;
 pub mod memory;
@@ -28,19 +29,24 @@ pub use icn_dag::StorageService;
 
 // Re-export ABI constants
 pub use abi::*;
+extern crate bincode;
 use icn_common::{Cid, CommonError, Did, NodeInfo};
 use icn_mesh::JobId;
 use icn_reputation::ReputationStore;
 use log::{debug, error, info, warn};
+use serde::Deserialize;
 use std::str::FromStr;
 use thiserror::Error;
 
-pub use config::{RuntimeConfig, RuntimeConfigBuilder, EnvironmentConfig, IdentityConfig, NetworkConfig, StorageConfig, GovernanceConfig, RuntimeParametersConfig, templates};
+pub use config::{
+    templates, EnvironmentConfig, GovernanceConfig, IdentityConfig, NetworkConfig, RuntimeConfig,
+    RuntimeConfigBuilder, RuntimeParametersConfig, StorageConfig,
+};
 pub use context::{
-    DefaultMeshNetworkService, MeshNetworkService,
-    MeshNetworkServiceType, SimpleManaLedger, Ed25519Signer, HostEnvironment,
-    ConcreteHostEnvironment, StubMeshNetworkService, JobAssignmentNotice,
-    CreateProposalPayload, CastVotePayload, CloseProposalResult,
+    CastVotePayload, CloseProposalResult, ConcreteHostEnvironment, CreateProposalPayload,
+    DefaultMeshNetworkService, Ed25519Signer, EnvironmentType, HostEnvironment,
+    JobAssignmentNotice, MeshNetworkService, MeshNetworkServiceType, RuntimeContextBuilder,
+    SimpleManaLedger, StubMeshNetworkService,
 };
 
 #[derive(Debug, Error)]
@@ -63,7 +69,29 @@ impl From<CommonError> for RuntimeError {
     }
 }
 
+impl From<serde_json::Error> for RuntimeError {
+    fn from(err: serde_json::Error) -> Self {
+        RuntimeError::Common(CommonError::DeserializationError(err.to_string()))
+    }
+}
+
 pub const MAX_JOB_JSON_SIZE: usize = 1024 * 1024; // 1MB
+
+/// Convert a circuit complexity score into a mana cost.
+pub fn calculate_zk_cost(complexity: u64) -> u64 {
+    context::mesh_network::ZK_VERIFY_COST_MANA.saturating_mul(complexity)
+}
+
+#[derive(Deserialize)]
+struct GenerateProofRequest {
+    issuer: String,
+    holder: String,
+    claim_type: String,
+    schema: String,
+    backend: String,
+    verification_key: Option<String>,
+    public_inputs: Option<serde_json::Value>,
+}
 
 pub fn execute_icn_script(info: &NodeInfo, script_id: &str) -> Result<String, CommonError> {
     // Stub implementation
@@ -110,22 +138,30 @@ pub async fn host_submit_mesh_job(
     }
 
     // Parse the input to extract the required fields for the new API
-    let job_to_submit: icn_mesh::ActualMeshJob =
-        serde_json::from_str(job_json).map_err(|e| {
-            HostAbiError::InvalidParameters(format!(
-                "Failed to deserialize ActualMeshJob: {}. Input: {}",
-                e, job_json
-            ))
-        })?;
+    let job_to_submit: icn_mesh::ActualMeshJob = serde_json::from_str(job_json).map_err(|e| {
+        HostAbiError::InvalidParameters(format!(
+            "Failed to deserialize ActualMeshJob: {}. Input: {}",
+            e, job_json
+        ))
+    })?;
 
     // Extract the fields needed for the new handle_submit_job method
-    let manifest_cid = job_to_submit.manifest_cid;
-    let spec_json = serde_json::to_string(&job_to_submit.spec)
+    let manifest_cid = job_to_submit.manifest_cid.clone();
+    let spec_bytes = bincode::serialize(&job_to_submit.spec)
         .map_err(|e| HostAbiError::InternalError(format!("Failed to serialize job spec: {}", e)))?;
     let cost_mana = job_to_submit.cost_mana;
 
     // Use the new DAG-integrated job submission method
-    ctx.handle_submit_job(manifest_cid, spec_json, cost_mana).await
+    let job_id = ctx
+        .handle_submit_job(manifest_cid, spec_bytes, cost_mana)
+        .await?;
+
+    // For backwards compatibility, also queue the job in the pending jobs channel
+    // This ensures existing tests and APIs that depend on the queue still work
+    #[allow(deprecated)]
+    ctx.internal_queue_mesh_job(job_to_submit).await?;
+
+    Ok(job_id)
 }
 
 /// ABI Index: (defined in `abi::ABI_HOST_GET_PENDING_MESH_JOBS`)
@@ -252,6 +288,7 @@ pub async fn host_account_credit_mana(
     account_id_str: &str,
     amount: u64,
 ) -> Result<(), HostAbiError> {
+    metrics::HOST_ACCOUNT_CREDIT_MANA_CALLS.inc();
     info!(
         "[host_account_credit_mana] called for account: {} amount: {}",
         account_id_str, amount
@@ -324,6 +361,7 @@ pub async fn host_anchor_receipt(
     receipt_json: &str,
     reputation_updater: &ReputationUpdater,
 ) -> Result<Cid, HostAbiError> {
+    metrics::HOST_ANCHOR_RECEIPT_CALLS.inc();
     debug!(
         "[host_anchor_receipt] Received receipt JSON: {}",
         receipt_json
@@ -509,18 +547,97 @@ pub fn wasm_host_account_spend_mana(
     }
 }
 
+/// WASM wrapper for [`host_verify_zk_proof`].
+pub fn wasm_host_verify_zk_proof(
+    mut caller: wasmtime::Caller<'_, std::sync::Arc<RuntimeContext>>,
+    ptr: u32,
+    len: u32,
+) -> i32 {
+    let json = match memory::read_string_safe(&mut caller, ptr, len) {
+        Ok(j) => j,
+        Err(e) => {
+            log::error!("wasm_host_verify_zk_proof read error: {e:?}");
+            return 0;
+        }
+    };
+    let handle = tokio::runtime::Handle::current();
+    match handle.block_on(host_verify_zk_proof(caller.data(), &json)) {
+        Ok(true) => 1,
+        Ok(false) => 0,
+        Err(e) => {
+            log::error!("wasm_host_verify_zk_proof runtime error: {e:?}");
+            0
+        }
+    }
+}
+
+/// WASM wrapper for [`host_verify_zk_revocation_proof`].
+pub fn wasm_host_verify_zk_revocation_proof(
+    mut caller: wasmtime::Caller<'_, std::sync::Arc<RuntimeContext>>,
+    ptr: u32,
+    len: u32,
+) -> i32 {
+    let json = match memory::read_string_safe(&mut caller, ptr, len) {
+        Ok(j) => j,
+        Err(e) => {
+            log::error!("wasm_host_verify_zk_revocation_proof read error: {e:?}");
+            return 0;
+        }
+    };
+    let handle = tokio::runtime::Handle::current();
+    match handle.block_on(host_verify_zk_revocation_proof(caller.data(), &json)) {
+        Ok(true) => 1,
+        Ok(false) => 0,
+        Err(e) => {
+            log::error!("wasm_host_verify_zk_revocation_proof runtime error: {e:?}");
+            0
+        }
+    }
+}
+
+/// WASM wrapper for [`host_generate_zk_proof`].
+pub fn wasm_host_generate_zk_proof(
+    mut caller: wasmtime::Caller<'_, std::sync::Arc<RuntimeContext>>,
+    ptr: u32,
+    len: u32,
+    out_ptr: u32,
+    out_len: u32,
+) -> u32 {
+    let json = match memory::read_string_safe(&mut caller, ptr, len) {
+        Ok(j) => j,
+        Err(e) => {
+            log::error!("wasm_host_generate_zk_proof read error: {e:?}");
+            return 0;
+        }
+    };
+    let handle = tokio::runtime::Handle::current();
+    let proof_json = match handle.block_on(host_generate_zk_proof(caller.data(), &json)) {
+        Ok(p) => p,
+        Err(e) => {
+            log::error!("wasm_host_generate_zk_proof runtime error: {e:?}");
+            return 0;
+        }
+    };
+    match memory::write_string_limited(&mut caller, out_ptr, &proof_json, out_len) {
+        Ok(w) => w,
+        Err(e) => {
+            log::error!("wasm_host_generate_zk_proof write error: {e:?}");
+            0
+        }
+    }
+}
+
 /// Creates a governance proposal using the runtime context.
 pub async fn host_create_governance_proposal(
     ctx: &RuntimeContext,
     payload_json: &str,
 ) -> Result<String, HostAbiError> {
-    let payload: CreateProposalPayload =
-        serde_json::from_str(payload_json).map_err(|e| {
-            HostAbiError::InvalidParameters(format!(
-                "Failed to parse CreateProposalPayload JSON: {}",
-                e
-            ))
-        })?;
+    let payload: CreateProposalPayload = serde_json::from_str(payload_json).map_err(|e| {
+        HostAbiError::InvalidParameters(format!(
+            "Failed to parse CreateProposalPayload JSON: {}",
+            e
+        ))
+    })?;
     ctx.create_governance_proposal(payload).await
 }
 
@@ -596,34 +713,202 @@ pub async fn host_get_job_status(
     ctx: &RuntimeContext,
     job_id_str: &str,
 ) -> Result<Option<String>, HostAbiError> {
-    log::debug!("[host_get_job_status] Getting status for job: {}", job_id_str);
-    
+    log::debug!(
+        "[host_get_job_status] Getting status for job: {}",
+        job_id_str
+    );
+
     // Parse job ID
     let job_id_cid = icn_common::parse_cid_from_string(job_id_str)
         .map_err(|e| HostAbiError::InvalidParameters(format!("Invalid job ID CID: {}", e)))?;
     let job_id = JobId::from(job_id_cid);
-    
+
     // Get the job lifecycle from the runtime context
     let lifecycle_opt = ctx.get_job_status(&job_id).await?;
-    
+
     match lifecycle_opt {
         Some(lifecycle) => {
             // Serialize the lifecycle to JSON for return
-            let lifecycle_json = serde_json::to_string(&lifecycle)
-                .map_err(|e| HostAbiError::InternalError(format!("Failed to serialize job lifecycle: {}", e)))?;
+            let lifecycle_json = serde_json::to_string(&lifecycle).map_err(|e| {
+                HostAbiError::InternalError(format!("Failed to serialize job lifecycle: {}", e))
+            })?;
             Ok(Some(lifecycle_json))
         }
-        None => Ok(None)
+        None => Ok(None),
     }
+}
+
+/// Verify a zero-knowledge credential proof.
+#[allow(clippy::default_constructed_unit_structs)]
+pub async fn host_verify_zk_proof(
+    ctx: &RuntimeContext,
+    proof_json: &str,
+) -> Result<bool, HostAbiError> {
+    use icn_common::{ZkCredentialProof, ZkProofType};
+    use icn_identity::{BulletproofsVerifier, DummyVerifier, Groth16Verifier, ZkVerifier};
+
+    let proof: ZkCredentialProof = serde_json::from_str(proof_json).map_err(|e| {
+        HostAbiError::InvalidParameters(format!("Invalid ZkCredentialProof JSON: {e}"))
+    })?;
+
+    let cost = calculate_zk_cost(1);
+    ctx.spend_mana(&ctx.current_identity, cost).await?;
+
+    let verifier: Box<dyn ZkVerifier> = match proof.backend {
+        ZkProofType::Bulletproofs => Box::new(BulletproofsVerifier),
+        ZkProofType::Groth16 => Box::new(Groth16Verifier::default()),
+        _ => Box::new(DummyVerifier),
+    };
+
+    match verifier.verify(&proof) {
+        Ok(true) => {
+            ctx.reputation_store
+                .record_proof_attempt(&ctx.current_identity, true);
+            Ok(true)
+        }
+        Ok(false) => {
+            ctx.reputation_store
+                .record_proof_attempt(&ctx.current_identity, false);
+            ctx.credit_mana(&ctx.current_identity, cost).await?;
+            Ok(false)
+        }
+        Err(e) => {
+            ctx.reputation_store
+                .record_proof_attempt(&ctx.current_identity, false);
+            ctx.credit_mana(&ctx.current_identity, cost).await?;
+            Err(HostAbiError::InvalidParameters(format!("{e}")))
+        }
+    }
+}
+
+/// Verify a zero-knowledge revocation proof.
+#[allow(clippy::default_constructed_unit_structs)]
+pub async fn host_verify_zk_revocation_proof(
+    ctx: &RuntimeContext,
+    proof_json: &str,
+) -> Result<bool, HostAbiError> {
+    use icn_common::{ZkProofType, ZkRevocationProof};
+    use icn_identity::zk::ZkRevocationVerifier;
+    use icn_identity::{BulletproofsVerifier, DummyVerifier, Groth16Verifier};
+
+    let proof: ZkRevocationProof = serde_json::from_str(proof_json).map_err(|e| {
+        HostAbiError::InvalidParameters(format!("Invalid ZkRevocationProof JSON: {e}"))
+    })?;
+
+    let cost = calculate_zk_cost(1);
+    ctx.spend_mana(&ctx.current_identity, cost).await?;
+
+    let verifier: Box<dyn ZkRevocationVerifier> = match proof.backend {
+        ZkProofType::Bulletproofs => Box::new(BulletproofsVerifier),
+        ZkProofType::Groth16 => Box::new(Groth16Verifier::default()),
+        _ => Box::new(DummyVerifier),
+    };
+
+    match verifier.verify_revocation(&proof) {
+        Ok(true) => {
+            ctx.reputation_store
+                .record_proof_attempt(&ctx.current_identity, true);
+            Ok(true)
+        }
+        Ok(false) => {
+            ctx.reputation_store
+                .record_proof_attempt(&ctx.current_identity, false);
+            ctx.credit_mana(&ctx.current_identity, cost).await?;
+            Ok(false)
+        }
+        Err(e) => {
+            ctx.reputation_store
+                .record_proof_attempt(&ctx.current_identity, false);
+            ctx.credit_mana(&ctx.current_identity, cost).await?;
+            Err(HostAbiError::InvalidParameters(format!("{e}")))
+        }
+    }
+}
+
+/// Generate a dummy zero-knowledge credential proof.
+pub async fn host_generate_zk_proof(
+    ctx: &RuntimeContext,
+    request_json: &str,
+) -> Result<String, HostAbiError> {
+    use icn_common::{parse_cid_from_string, ZkCredentialProof, ZkProofType};
+    use std::str::FromStr;
+
+    let req: GenerateProofRequest = serde_json::from_str(request_json).map_err(|e| {
+        HostAbiError::InvalidParameters(format!("Invalid GenerateProofRequest JSON: {e}"))
+    })?;
+
+    let issuer = Did::from_str(&req.issuer)
+        .map_err(|e| HostAbiError::InvalidParameters(format!("Invalid issuer DID: {e}")))?;
+    let holder = Did::from_str(&req.holder)
+        .map_err(|e| HostAbiError::InvalidParameters(format!("Invalid holder DID: {e}")))?;
+    let schema = parse_cid_from_string(&req.schema)
+        .map_err(|e| HostAbiError::InvalidParameters(format!("Invalid schema CID: {e}")))?;
+
+    let backend = match req.backend.to_ascii_lowercase().as_str() {
+        "groth16" => ZkProofType::Groth16,
+        "bulletproofs" => ZkProofType::Bulletproofs,
+        other => ZkProofType::Other(other.to_string()),
+    };
+
+    let mut proof_bytes = vec![0u8; 32];
+    fastrand::fill(&mut proof_bytes);
+
+    let verification_key_bytes = if let Some(vk_hex) = req.verification_key.as_deref() {
+        Some(hex::decode(vk_hex.trim_start_matches("0x")).map_err(|e| {
+            HostAbiError::InvalidParameters(format!("Invalid verification key hex: {e}"))
+        })?)
+    } else {
+        None
+    };
+
+    let cost = calculate_zk_cost(1);
+    ctx.spend_mana(&ctx.current_identity, cost).await?;
+
+    let proof = ZkCredentialProof {
+        issuer,
+        holder,
+        claim_type: req.claim_type,
+        proof: proof_bytes,
+        schema,
+        vk_cid: None,
+        disclosed_fields: Vec::new(),
+        challenge: None,
+        backend,
+        verification_key: verification_key_bytes,
+        public_inputs: req.public_inputs,
+    };
+
+    serde_json::to_string(&proof).map_err(|e| {
+        let _ = ctx.credit_mana(&ctx.current_identity, cost);
+        HostAbiError::SerializationError(format!("{e}"))
+    })
+}
+
+/// Generate a credential proof using the runtime's ZK prover.
+pub async fn generate_zk_proof(
+    ctx: &RuntimeContext,
+    req: &icn_api::identity_trait::GenerateProofRequest,
+) -> Result<icn_common::ZkCredentialProof, RuntimeError> {
+    let json = serde_json::to_string(req)?;
+    let proof_json = host_generate_zk_proof(ctx, &json).await?;
+    let proof = serde_json::from_str(&proof_json)?;
+    Ok(proof)
+}
+
+/// Verify a credential proof using the runtime's ZK verifier.
+pub async fn verify_zk_proof(
+    ctx: &RuntimeContext,
+    proof: &icn_common::ZkCredentialProof,
+) -> Result<bool, RuntimeError> {
+    let json = serde_json::to_string(proof)?;
+    Ok(host_verify_zk_proof(ctx, &json).await?)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    use super::context::{
-        HostAbiError, RuntimeContext,
-    };
+    use super::context::{HostAbiError, RuntimeContext};
     use icn_common::{Cid, Did, ICN_CORE_VERSION};
     use icn_identity::SignatureBytes;
     use icn_mesh::{ActualMeshJob, JobId, JobKind, JobSpec};
@@ -695,17 +980,22 @@ mod tests {
         let pending_jobs = host_get_pending_mesh_jobs(&ctx).await.unwrap();
         // The new implementation doesn't use the pending jobs queue, so this might be 0
         // This is the expected behavior with the new DAG integration
-        println!("Pending jobs count: {} (new DAG implementation)", pending_jobs.len());
-        
+        println!(
+            "Pending jobs count: {} (new DAG implementation)",
+            pending_jobs.len()
+        );
+
         // Instead, let's verify that the job was stored in the DAG by checking job status
         let job_id_result = job_id.unwrap();
         let job_status = ctx.get_job_status(&job_id_result).await;
-        
+
         // If the DAG integration is working, we should be able to retrieve the job
         match job_status {
             Ok(Some(lifecycle)) => {
-                println!("Job lifecycle found: submitter={}, status={:?}", 
-                        lifecycle.job.submitter_did, lifecycle.job.status);
+                println!(
+                    "Job lifecycle found: submitter={}, status={:?}",
+                    lifecycle.job.submitter_did, lifecycle.job.status
+                );
                 assert_eq!(lifecycle.job.cost_mana, 10);
                 assert_eq!(lifecycle.job.submitter_did, ctx.current_identity);
             }
@@ -1006,24 +1296,24 @@ mod tests {
     async fn test_new_mesh_job_lifecycle_basic() {
         // Test the new DAG-integrated job lifecycle
         let ctx = create_test_context_with_mana(100);
-        
+
         // Submit a job using the new API
         let manifest_cid = Cid::new_v1_sha256(0x55, b"test_manifest_basic");
-        let spec_json = serde_json::to_string(&JobSpec::default()).unwrap();
-        
-        let job_id = ctx.handle_submit_job(manifest_cid, spec_json, 50).await;
+        let spec_bytes = bincode::serialize(&JobSpec::default()).unwrap();
+
+        let job_id = ctx.handle_submit_job(manifest_cid, spec_bytes, 50).await;
         assert!(job_id.is_ok(), "Job submission failed: {:?}", job_id.err());
-        
+
         let job_id = job_id.unwrap();
         println!("Submitted job with ID: {}", job_id);
-        
+
         // Verify mana was spent
         let mana_after = ctx.get_mana(&ctx.current_identity).await.unwrap();
         assert_eq!(mana_after, 50); // 100 - 50 spent
-        
+
         // Give the async lifecycle management a moment to start
         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-        
+
         // Check job status via DAG
         let job_status = ctx.get_job_status(&job_id).await;
         match job_status {
@@ -1035,17 +1325,17 @@ mod tests {
                 println!("  Bids received: {}", lifecycle.bids.len());
                 println!("  Assignment: {}", lifecycle.assignment.is_some());
                 println!("  Receipt: {}", lifecycle.receipt.is_some());
-                
+
                 assert_eq!(lifecycle.job.cost_mana, 50);
                 assert_eq!(lifecycle.job.submitter_did, ctx.current_identity);
             }
             Ok(None) => {
                 println!("Job not found in DAG");
-                assert!(false, "Job should be stored in DAG");
+                panic!("Job should be stored in DAG");
             }
             Err(e) => {
                 println!("Error retrieving job status: {}", e);
-                assert!(false, "Should be able to retrieve job status");
+                panic!("Should be able to retrieve job status");
             }
         }
     }
@@ -1054,37 +1344,40 @@ mod tests {
     async fn test_host_get_job_status_function() {
         // Test the new host function for getting job status
         let ctx = create_test_context_with_mana(200);
-        
+
         // Submit a job
         let manifest_cid = Cid::new_v1_sha256(0x55, b"test_status_check");
-        let spec_json = serde_json::to_string(&JobSpec::default()).unwrap();
-        
-        let job_id = ctx.handle_submit_job(manifest_cid, spec_json, 75).await.unwrap();
+        let spec_bytes = bincode::serialize(&JobSpec::default()).unwrap();
+
+        let job_id = ctx
+            .handle_submit_job(manifest_cid, spec_bytes, 75)
+            .await
+            .unwrap();
         println!("Submitted job with ID: {}", job_id);
-        
+
         // Give the lifecycle management a moment
         tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
-        
+
         // Test the host function for getting job status
         let job_id_str = job_id.to_string();
         let status_result = host_get_job_status(&ctx, &job_id_str).await;
-        
+
         match status_result {
             Ok(Some(status_json)) => {
                 println!("Job status JSON: {}", status_json);
-                
+
                 // Parse the JSON to verify structure
                 let lifecycle: icn_mesh::JobLifecycle = serde_json::from_str(&status_json).unwrap();
                 assert_eq!(lifecycle.job.cost_mana, 75);
                 assert_eq!(lifecycle.job.submitter_did, ctx.current_identity);
-                
+
                 println!("Successfully retrieved and parsed job lifecycle via host function");
             }
             Ok(None) => {
-                assert!(false, "Job should exist");
+                panic!("Job should exist");
             }
             Err(e) => {
-                assert!(false, "Host function should work: {}", e);
+                panic!("Host function should work: {}", e);
             }
         }
     }

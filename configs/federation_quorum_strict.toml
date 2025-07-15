@@ -1,0 +1,4 @@
+# Federation quorum configuration (3 of 5 nodes)
+[governance.proposals]
+min_quorum = 0.75
+passing_threshold = 0.6

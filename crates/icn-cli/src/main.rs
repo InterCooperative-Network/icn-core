@@ -4,24 +4,33 @@
 //! # ICN CLI Crate
 //! This crate provides a command-line interface (CLI) for interacting with an ICN HTTP node.
 
+use base64::{self, Engine};
+extern crate bincode;
+use bs58;
 use clap::{Parser, Subcommand};
 use icn_common::CommonError;
+use prometheus_parse;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue; // For generic JSON data if needed
 use std::io::{self, Read};
 use std::path::PathBuf;
 use std::process::exit; // Added for reading from stdin
+use std::str::FromStr;
 
 // Types from our ICN crates that CLI will interact with (serialize/deserialize)
 // These types are expected to be sent to/received from the icn-node HTTP API.
-use icn_common::{Cid, DagBlock, NodeInfo, NodeStatus};
+use icn_common::{Cid, DagBlock, Did, NodeInfo, NodeStatus, ZkCredentialProof, ZkProofType};
 // Using aliased request structs from icn-api for clarity, these are what the node expects
 use icn_api::governance_trait::{
     CastVoteRequest as ApiCastVoteRequest, SubmitProposalRequest as ApiSubmitProposalRequest,
 };
+use icn_api::identity_trait::{BatchVerificationResponse, VerifyProofsRequest};
 use icn_ccl::{check_ccl_file, compile_ccl_file, compile_ccl_file_to_wasm, explain_ccl_policy};
 use icn_governance::{Proposal, ProposalId};
+use icn_identity::generate_ed25519_keypair;
+use icn_runtime::context::{Ed25519Signer, Signer};
+use icn_templates;
 
 fn anyhow_to_common(e: anyhow::Error) -> CommonError {
     if let Some(c) = e.downcast_ref::<CommonError>() {
@@ -29,6 +38,19 @@ fn anyhow_to_common(e: anyhow::Error) -> CommonError {
     } else {
         CommonError::UnknownError(e.to_string())
     }
+}
+
+fn collect_block_files(dir: &std::path::Path, out: &mut Vec<PathBuf>) -> std::io::Result<()> {
+    for entry in std::fs::read_dir(dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        if entry.file_type()?.is_dir() {
+            collect_block_files(&path, out)?;
+        } else if entry.file_type()?.is_file() {
+            out.push(path);
+        }
+    }
+    Ok(())
 }
 
 // --- CLI Argument Parsing ---
@@ -44,6 +66,14 @@ struct Cli {
     )]
     api_url: String,
 
+    #[clap(
+        long,
+        global = true,
+        env = "ICN_API_KEY",
+        help = "API key for authenticated requests"
+    )]
+    api_key: Option<String>,
+
     #[clap(subcommand)]
     command: Commands,
 }
@@ -56,6 +86,11 @@ enum Commands {
     Status,
     /// Fetch Prometheus metrics text
     Metrics,
+    /// Monitoring commands using metrics
+    Monitor {
+        #[clap(subcommand)]
+        command: MonitorCommands,
+    },
     /// DAG block operations
     Dag {
         #[clap(subcommand)]
@@ -91,10 +126,20 @@ enum Commands {
         #[clap(subcommand)]
         command: ReputationCommands,
     },
+    /// Identity operations
+    Identity {
+        #[clap(subcommand)]
+        command: IdentityCommands,
+    },
     /// Cooperative Contract Language operations
     Ccl {
         #[clap(subcommand)]
         command: CclCommands,
+    },
+    /// Zero-knowledge tooling
+    Zk {
+        #[clap(subcommand)]
+        command: ZkCommands,
     },
     /// Compile a CCL file to WASM and upload to the node
     #[clap(name = "compile-ccl")]
@@ -118,6 +163,21 @@ enum Commands {
     Federation {
         #[clap(subcommand)]
         command: FederationCommands,
+    },
+    /// Mutual aid resource registry
+    Aid {
+        #[clap(subcommand)]
+        command: AidCommands,
+    },
+    /// Emergency response coordination
+    Emergency {
+        #[clap(subcommand)]
+        command: EmergencyCommands,
+    },
+    /// Interactive cooperative formation wizard
+    Wizard {
+        #[clap(subcommand)]
+        command: WizardCommands,
     },
 }
 
@@ -249,6 +309,9 @@ enum CclCommands {
 
 #[derive(Subcommand, Debug)]
 enum FederationCommands {
+    /// Initialize a new federation
+    #[clap(name = "init")]
+    Init,
     /// Join a federation by specifying a peer
     #[clap(name = "join")]
     Join {
@@ -267,6 +330,51 @@ enum FederationCommands {
     /// Show federation status
     #[clap(name = "status")]
     Status,
+    /// Synchronize federation state
+    #[clap(name = "sync")]
+    Sync,
+}
+
+#[derive(Subcommand, Debug)]
+enum WizardCommands {
+    /// Generate a cooperative template interactively
+    Cooperative {
+        #[clap(long, help = "Output directory", required = false)]
+        output: Option<String>,
+    },
+    /// Interactive node setup wizard
+    Setup {
+        #[clap(long, help = "Output config file", default_value = "node_config.toml")]
+        config: String,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum EmergencyCommands {
+    /// List open aid requests
+    List,
+    /// Submit a new aid request
+    Request {
+        #[clap(help = "Aid request JSON or '-' for stdin")]
+        request_json_or_stdin: String,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum AidCommands {
+    /// List available aid resources
+    List,
+    /// Register a new aid resource
+    Register {
+        #[clap(help = "Aid resource JSON or '-' for stdin")]
+        resource_json_or_stdin: String,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum MonitorCommands {
+    /// Display node uptime using the metrics endpoint
+    Uptime,
 }
 
 #[derive(Subcommand, Debug)]
@@ -290,6 +398,81 @@ enum ReputationCommands {
     Get {
         #[clap(help = "Target DID")]
         did: String,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum IdentityCommands {
+    /// Verify a zero-knowledge credential proof (JSON string or '-' for stdin)
+    VerifyProof {
+        #[clap(help = "ZkCredentialProof JSON or '-' for stdin")]
+        proof_json_or_stdin: String,
+    },
+    /// Verify a revocation proof (JSON string or '-' for stdin)
+    VerifyRevocation {
+        #[clap(help = "ZkRevocationProof JSON or '-' for stdin")]
+        proof_json_or_stdin: String,
+    },
+    /// Verify multiple proofs from a JSON array
+    VerifyProofs {
+        #[clap(help = "JSON array or '-' for stdin")]
+        proofs_json_or_stdin: String,
+    },
+    /// Generate a dummy zero-knowledge credential proof
+    GenerateProof {
+        #[clap(long, help = "Issuer DID string")]
+        issuer: String,
+        #[clap(long, help = "Holder DID string")]
+        holder: String,
+        #[clap(long, help = "Claim type tag")]
+        claim_type: String,
+        #[clap(long, help = "Credential schema CID string")]
+        schema: String,
+        #[clap(long, help = "Proof backend (groth16|bulletproofs|other:<name>)")]
+        backend: String,
+        #[clap(long, help = "Hex-encoded verification key bytes", required = false)]
+        verification_key: Option<String>,
+        #[clap(long, help = "Public inputs as JSON string", required = false)]
+        public_inputs: Option<String>,
+    },
+    /// Request proof generation from the node
+    GenerateProofRemote {
+        #[clap(long)]
+        issuer: String,
+        #[clap(long)]
+        holder: String,
+        #[clap(long)]
+        claim_type: String,
+        #[clap(long)]
+        schema: String,
+        #[clap(long)]
+        backend: String,
+        #[clap(long)]
+        public_inputs: Option<String>,
+    },
+    /// Verify a proof via the node
+    VerifyProofRemote {
+        #[clap(help = "ZkCredentialProof JSON or '-' for stdin")]
+        proof_json_or_stdin: String,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum ZkCommands {
+    /// Generate a Groth16 proving key and sign the verifying key
+    #[clap(name = "generate-key")]
+    GenerateKey,
+    /// Count constraints for a circuit
+    #[clap(name = "analyze")]
+    Analyze {
+        #[clap(help = "Circuit name to analyze")]
+        circuit: String,
+    },
+    /// Benchmark a circuit with Criterion
+    #[clap(name = "profile")]
+    Profile {
+        #[clap(help = "Circuit name to benchmark")]
+        circuit: String,
     },
 }
 
@@ -360,10 +543,68 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
         Commands::Reputation { command } => match command {
             ReputationCommands::Get { did } => handle_reputation_get(cli, client, did).await?,
         },
+        Commands::Identity { command } => match command {
+            IdentityCommands::VerifyProof {
+                proof_json_or_stdin,
+            } => handle_identity_verify(cli, client, proof_json_or_stdin).await?,
+            IdentityCommands::VerifyRevocation {
+                proof_json_or_stdin,
+            } => handle_identity_verify_revocation(cli, client, proof_json_or_stdin).await?,
+            IdentityCommands::VerifyProofs {
+                proofs_json_or_stdin,
+            } => handle_identity_verify_batch(cli, client, proofs_json_or_stdin).await?,
+            IdentityCommands::GenerateProof {
+                issuer,
+                holder,
+                claim_type,
+                schema,
+                backend,
+                verification_key,
+                public_inputs,
+            } => {
+                handle_identity_generate_inner(
+                    issuer,
+                    holder,
+                    claim_type,
+                    schema,
+                    backend,
+                    verification_key,
+                    public_inputs,
+                )?;
+            }
+            IdentityCommands::GenerateProofRemote {
+                issuer,
+                holder,
+                claim_type,
+                schema,
+                backend,
+                public_inputs,
+            } => {
+                handle_identity_generate_remote(
+                    cli,
+                    client,
+                    issuer,
+                    holder,
+                    claim_type,
+                    schema,
+                    backend,
+                    public_inputs,
+                )
+                .await?;
+            }
+            IdentityCommands::VerifyProofRemote { proof_json_or_stdin } => {
+                handle_identity_verify_remote(cli, client, proof_json_or_stdin).await?;
+            }
+        },
         Commands::Ccl { command } => match command {
             CclCommands::Compile { file } => handle_ccl_compile(file)?,
             CclCommands::Lint { file } => handle_ccl_lint(file)?,
             CclCommands::Explain { file, target } => handle_ccl_explain(file, target).await?,
+        },
+        Commands::Zk { command } => match command {
+            ZkCommands::GenerateKey => handle_zk_generate_key().await?,
+            ZkCommands::Analyze { circuit } => handle_zk_analyze(circuit).await?,
+            ZkCommands::Profile { circuit } => handle_zk_profile(circuit).await?,
         },
         Commands::CompileCcl { file } => handle_compile_ccl_upload(cli, client, file).await?,
         Commands::SubmitJob {
@@ -371,10 +612,31 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
         } => handle_mesh_submit(cli, client, job_request_json_or_stdin).await?,
         Commands::JobStatus { job_id } => handle_mesh_status(cli, client, job_id).await?,
         Commands::Federation { command } => match command {
+            FederationCommands::Init => handle_fed_init(cli, client).await?,
             FederationCommands::Join { peer } => handle_fed_join(cli, client, peer).await?,
             FederationCommands::Leave { peer } => handle_fed_leave(cli, client, peer).await?,
             FederationCommands::ListPeers => handle_fed_list_peers(cli, client).await?,
             FederationCommands::Status => handle_fed_status(cli, client).await?,
+            FederationCommands::Sync => handle_fed_sync(cli, client).await?,
+        },
+        Commands::Aid { command } => match command {
+            AidCommands::List => handle_aid_list(cli, client).await?,
+            AidCommands::Register { resource_json_or_stdin } => {
+                handle_aid_register(cli, client, resource_json_or_stdin).await?
+            }
+        },
+        Commands::Emergency { command } => match command {
+            EmergencyCommands::List => handle_emergency_list(cli, client).await?,
+            EmergencyCommands::Request {
+                request_json_or_stdin,
+            } => handle_emergency_request(cli, client, request_json_or_stdin).await?,
+        },
+        Commands::Wizard { command } => match command {
+            WizardCommands::Cooperative { output } => handle_wizard_cooperative(output.clone())?,
+            WizardCommands::Setup { config } => handle_wizard_setup(config)?,
+        },
+        Commands::Monitor { command } => match command {
+            MonitorCommands::Uptime => handle_monitor_uptime(cli, client).await?,
         },
     }
     Ok(())
@@ -386,12 +648,14 @@ async fn get_request<T: for<'de> Deserialize<'de>>(
     api_url: &str,
     client: &Client,
     path: &str,
+    api_key: Option<&str>,
 ) -> Result<T, anyhow::Error> {
     let url = format!("{}{}", api_url, path);
     let res = icn_common::retry_with_backoff(
         || async {
-            client
-                .get(&url)
+            let req = client.get(&url);
+            let req = if let Some(k) = api_key { req.header("x-api-key", k) } else { req };
+            req
                 .send()
                 .await
                 .map_err(|e| anyhow::anyhow!(e))
@@ -425,13 +689,14 @@ async fn post_request<S: Serialize, T: for<'de> Deserialize<'de>>(
     client: &Client,
     path: &str,
     body: &S,
+    api_key: Option<&str>,
 ) -> Result<T, anyhow::Error> {
     let url = format!("{}{}", api_url, path);
     let res = icn_common::retry_with_backoff(
         || async {
-            client
-                .post(&url)
-                .json(body)
+            let req = client.post(&url).json(body);
+            let req = if let Some(k) = api_key { req.header("x-api-key", k) } else { req };
+            req
                 .send()
                 .await
                 .map_err(|e| anyhow::anyhow!(e))
@@ -463,7 +728,7 @@ async fn post_request<S: Serialize, T: for<'de> Deserialize<'de>>(
 // --- Command Handlers ---
 
 async fn handle_info(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
-    let response: NodeInfo = get_request(&cli.api_url, client, "/info").await?;
+    let response: NodeInfo = get_request(&cli.api_url, client, "/info", cli.api_key.as_deref()).await?;
     println!("--- Node Information ---");
     println!("Name:    {}", response.name);
     println!("Version: {}", response.version);
@@ -473,7 +738,7 @@ async fn handle_info(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
 }
 
 async fn handle_status(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
-    let response: NodeStatus = get_request(&cli.api_url, client, "/status").await?;
+    let response: NodeStatus = get_request(&cli.api_url, client, "/status", cli.api_key.as_deref()).await?;
     println!("--- Node Status ---");
     println!("Online:         {}", response.is_online);
     println!("Peer Count:     {}", response.peer_count);
@@ -485,10 +750,12 @@ async fn handle_status(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> 
 
 async fn handle_metrics(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
     let url = format!("{}{}", &cli.api_url, "/metrics");
+    let api_key = cli.api_key.as_deref();
     let res = icn_common::retry_with_backoff(
         || async {
-            client
-                .get(&url)
+            let req = client.get(&url);
+            let req = if let Some(k) = api_key { req.header("x-api-key", k) } else { req };
+            req
                 .send()
                 .await
                 .map_err(|e| anyhow::anyhow!(e))
@@ -532,7 +799,7 @@ async fn handle_dag_put(
 
     let block: DagBlock = serde_json::from_str(&block_json_content)
         .map_err(|e| anyhow::anyhow!("Invalid DagBlock JSON provided. Error: {}", e))?;
-    let response_cid: Cid = post_request(&cli.api_url, client, "/dag/put", &block).await?;
+    let response_cid: Cid = post_request(&cli.api_url, client, "/dag/put", &block, cli.api_key.as_deref()).await?;
     println!(
         "Successfully submitted block. CID: {}",
         serde_json::to_string_pretty(&response_cid)?
@@ -543,7 +810,7 @@ async fn handle_dag_put(
 async fn handle_dag_get(cli: &Cli, client: &Client, cid_json: &str) -> Result<(), anyhow::Error> {
     let cid: Cid = serde_json::from_str(cid_json)
         .map_err(|e| anyhow::anyhow!("Invalid CID JSON provided: {}. Error: {}", cid_json, e))?;
-    let response_block: DagBlock = post_request(&cli.api_url, client, "/dag/get", &cid).await?;
+    let response_block: DagBlock = post_request(&cli.api_url, client, "/dag/get", &cid, cli.api_key.as_deref()).await?;
     println!("--- Retrieved DAG Block ---");
     println!("{}", serde_json::to_string_pretty(&response_block)?);
     println!("-------------------------");
@@ -554,7 +821,7 @@ async fn handle_dag_meta(cli: &Cli, client: &Client, cid_json: &str) -> Result<(
     let cid: Cid = serde_json::from_str(cid_json)
         .map_err(|e| anyhow::anyhow!("Invalid CID JSON provided: {}. Error: {}", cid_json, e))?;
     let meta: icn_dag::DagBlockMetadata =
-        post_request(&cli.api_url, client, "/dag/meta", &cid).await?;
+        post_request(&cli.api_url, client, "/dag/meta", &cid, cli.api_key.as_deref()).await?;
     println!("--- DAG Block Metadata ---");
     println!("{}", serde_json::to_string_pretty(&meta)?);
     println!("--------------------------");
@@ -565,12 +832,11 @@ fn handle_dag_backup(path: &str) -> Result<(), anyhow::Error> {
     let src = PathBuf::from("./icn_data/node_store");
     let dest = PathBuf::from(path);
     std::fs::create_dir_all(&dest)?;
-    for entry in std::fs::read_dir(&src)? {
-        let entry = entry?;
-        if entry.file_type()?.is_file() {
-            let target = dest.join(entry.file_name());
-            std::fs::copy(entry.path(), target)?;
-        }
+    let mut files = Vec::new();
+    collect_block_files(&src, &mut files)?;
+    for file in files {
+        let target = dest.join(file.file_name().unwrap());
+        std::fs::copy(&file, target)?;
     }
     println!("Backup created at {}", dest.display());
     Ok(())
@@ -580,12 +846,11 @@ fn handle_dag_restore(path: &str) -> Result<(), anyhow::Error> {
     let src = PathBuf::from(path);
     let dest = PathBuf::from("./icn_data/node_store");
     std::fs::create_dir_all(&dest)?;
-    for entry in std::fs::read_dir(&src)? {
-        let entry = entry?;
-        if entry.file_type()?.is_file() {
-            let target = dest.join(entry.file_name());
-            std::fs::copy(entry.path(), target)?;
-        }
+    let mut files = Vec::new();
+    collect_block_files(&src, &mut files)?;
+    for file in files {
+        let target = dest.join(file.file_name().unwrap());
+        std::fs::copy(&file, target)?;
     }
     println!("Restored DAG store from {}", src.display());
     Ok(())
@@ -594,16 +859,15 @@ fn handle_dag_restore(path: &str) -> Result<(), anyhow::Error> {
 fn handle_dag_verify(full: bool) -> Result<(), anyhow::Error> {
     let store_path = PathBuf::from("./icn_data/node_store");
     let mut verified = 0usize;
-    for entry in std::fs::read_dir(&store_path)? {
-        let entry = entry?;
-        if entry.file_type()?.is_file() {
-            let content = std::fs::read_to_string(entry.path())?;
-            let block: DagBlock = serde_json::from_str(&content)?;
-            icn_common::verify_block_integrity(&block)?;
-            verified += 1;
-            if !full {
-                break;
-            }
+    let mut files = Vec::new();
+    collect_block_files(&store_path, &mut files)?;
+    for file in files {
+        let content = std::fs::read_to_string(&file)?;
+        let block: DagBlock = serde_json::from_str(&content)?;
+        icn_common::verify_block_integrity(&block)?;
+        verified += 1;
+        if !full {
+            break;
         }
     }
     println!("Verified {verified} block(s)");
@@ -619,7 +883,7 @@ async fn handle_dag_pin(
     let cid: Cid = serde_json::from_str(cid_json)
         .map_err(|e| anyhow::anyhow!("Invalid CID JSON: {cid_json}. Error: {e}"))?;
     let body = serde_json::json!({ "cid": cid, "ttl": ttl });
-    let _: JsonValue = post_request(&cli.api_url, client, "/dag/pin", &body).await?;
+    let _: JsonValue = post_request(&cli.api_url, client, "/dag/pin", &body, cli.api_key.as_deref()).await?;
     println!("Pinned block {cid_json}");
     Ok(())
 }
@@ -627,13 +891,13 @@ async fn handle_dag_pin(
 async fn handle_dag_unpin(cli: &Cli, client: &Client, cid_json: &str) -> Result<(), anyhow::Error> {
     let cid: Cid = serde_json::from_str(cid_json)
         .map_err(|e| anyhow::anyhow!("Invalid CID JSON: {cid_json}. Error: {e}"))?;
-    let _: JsonValue = post_request(&cli.api_url, client, "/dag/unpin", &cid).await?;
+    let _: JsonValue = post_request(&cli.api_url, client, "/dag/unpin", &cid, cli.api_key.as_deref()).await?;
     println!("Unpinned block {cid_json}");
     Ok(())
 }
 
 async fn handle_dag_prune(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
-    let _: JsonValue = post_request(&cli.api_url, client, "/dag/prune", &()).await?;
+    let _: JsonValue = post_request(&cli.api_url, client, "/dag/prune", &(), cli.api_key.as_deref()).await?;
     println!("Prune triggered");
     Ok(())
 }
@@ -654,7 +918,7 @@ async fn handle_gov_submit(
     let request: ApiSubmitProposalRequest = serde_json::from_str(&proposal_request_content)
         .map_err(|e| anyhow::anyhow!("Invalid ApiSubmitProposalRequest JSON. Error: {}", e))?;
     let response_proposal_id: ProposalId =
-        post_request(&cli.api_url, client, "/governance/submit", &request).await?;
+        post_request(&cli.api_url, client, "/governance/submit", &request, cli.api_key.as_deref()).await?;
     println!(
         "Successfully submitted proposal. Proposal ID: {}",
         serde_json::to_string_pretty(&response_proposal_id)?
@@ -676,7 +940,7 @@ async fn handle_gov_vote(
     })?;
     // Assuming the response is a simple success message or confirmation JSON
     let response: JsonValue =
-        post_request(&cli.api_url, client, "/governance/vote", &request).await?;
+        post_request(&cli.api_url, client, "/governance/vote", &request, cli.api_key.as_deref()).await?;
     println!(
         "Vote response: {}",
         serde_json::to_string_pretty(&response)?
@@ -691,7 +955,7 @@ async fn handle_gov_tally(
 ) -> Result<(), anyhow::Error> {
     let req = serde_json::json!({ "proposal_id": proposal_id });
     let result: icn_api::governance_trait::CloseProposalResponse =
-        post_request(&cli.api_url, client, "/governance/close", &req).await?;
+        post_request(&cli.api_url, client, "/governance/close", &req, cli.api_key.as_deref()).await?;
     println!(
         "Tally result: yes={} no={} abstain={} status={}",
         result.yes, result.no, result.abstain, result.status
@@ -701,7 +965,7 @@ async fn handle_gov_tally(
 
 async fn handle_gov_list_proposals(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
     let proposals: Vec<Proposal> =
-        get_request(&cli.api_url, client, "/governance/proposals").await?;
+        get_request(&cli.api_url, client, "/governance/proposals", cli.api_key.as_deref()).await?;
     println!("--- All Proposals ---");
     if proposals.is_empty() {
         println!("No proposals found.");
@@ -718,7 +982,7 @@ async fn handle_gov_get_proposal(
     proposal_id: &str,
 ) -> Result<(), anyhow::Error> {
     let path = format!("/governance/proposal/{}", proposal_id);
-    let proposal: Proposal = get_request(&cli.api_url, client, &path).await?;
+    let proposal: Proposal = get_request(&cli.api_url, client, &path, cli.api_key.as_deref()).await?;
     println!("--- Proposal Details (ID: {}) ---", proposal_id);
     println!("{}", serde_json::to_string_pretty(&proposal)?);
     println!("-----------------------------------");
@@ -726,14 +990,14 @@ async fn handle_gov_get_proposal(
 }
 
 async fn handle_mesh_jobs(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
-    let response: serde_json::Value = get_request(&cli.api_url, client, "/mesh/jobs").await?;
+    let response: serde_json::Value = get_request(&cli.api_url, client, "/mesh/jobs", cli.api_key.as_deref()).await?;
     println!("{}", serde_json::to_string_pretty(&response)?);
     Ok(())
 }
 
 async fn handle_mesh_status(cli: &Cli, client: &Client, job_id: &str) -> Result<(), anyhow::Error> {
     let path = format!("/mesh/jobs/{}", job_id);
-    let response: serde_json::Value = get_request(&cli.api_url, client, &path).await?;
+    let response: serde_json::Value = get_request(&cli.api_url, client, &path, cli.api_key.as_deref()).await?;
     println!("{}", serde_json::to_string_pretty(&response)?);
     Ok(())
 }
@@ -763,34 +1027,35 @@ async fn handle_mesh_submit(
         let path = PathBuf::from(manifest_path);
         let (wasm, _meta) = compile_ccl_file_to_wasm(&path).map_err(anyhow::Error::msg)?;
         let payload = DagBlockPayload { data: wasm };
-        let cid: Cid = post_request(&cli.api_url, client, "/dag/put", &payload).await?;
+        let cid: Cid = post_request(&cli.api_url, client, "/dag/put", &payload, cli.api_key.as_deref()).await?;
 
         if let Some(obj) = request_value.as_object_mut() {
             obj.insert(
                 "manifest_cid".to_string(),
                 serde_json::json!(cid.to_string()),
             );
-            if !obj.contains_key("spec_json") {
+            if !obj.contains_key("spec_bytes") {
                 let spec = icn_mesh::JobSpec {
                     kind: icn_mesh::JobKind::CclWasm,
                     ..Default::default()
                 };
+                let bytes = bincode::serialize(&spec).unwrap();
                 obj.insert(
-                    "spec_json".to_string(),
-                    serde_json::to_value(&spec).unwrap(),
+                    "spec_bytes".to_string(),
+                    serde_json::json!(base64::engine::general_purpose::STANDARD.encode(bytes)),
                 );
             }
         }
     }
 
     let response: serde_json::Value =
-        post_request(&cli.api_url, client, "/mesh/submit", &request_value).await?;
+        post_request(&cli.api_url, client, "/mesh/submit", &request_value, cli.api_key.as_deref()).await?;
     println!("{}", serde_json::to_string_pretty(&response)?);
     Ok(())
 }
 
 async fn handle_network_stats(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
-    let status: NodeStatus = get_request(&cli.api_url, client, "/status").await?;
+    let status: NodeStatus = get_request(&cli.api_url, client, "/status", cli.api_key.as_deref()).await?;
     println!("{}", serde_json::to_string_pretty(&status)?);
     Ok(())
 }
@@ -801,7 +1066,7 @@ async fn handle_network_ping(
     client: &Client,
     peer_id: &str,
 ) -> Result<(), anyhow::Error> {
-    let info: NodeInfo = get_request(&cli.api_url, client, "/info").await?;
+    let info: NodeInfo = get_request(&cli.api_url, client, "/info", cli.api_key.as_deref()).await?;
     let result = icn_network::send_network_ping(&info, peer_id).await?;
     println!("{}", result);
     Ok(())
@@ -856,7 +1121,7 @@ async fn handle_compile_ccl_upload(
     let path = PathBuf::from(file);
     let (wasm, meta) = compile_ccl_file_to_wasm(&path)?;
     let payload = DagBlockPayload { data: wasm };
-    let cid: Cid = post_request(&cli.api_url, client, "/dag/put", &payload).await?;
+    let cid: Cid = post_request(&cli.api_url, client, "/dag/put", &payload, cli.api_key.as_deref()).await?;
     println!(
         "{}",
         serde_json::to_string_pretty(&serde_json::json!({
@@ -868,7 +1133,7 @@ async fn handle_compile_ccl_upload(
 }
 
 async fn handle_fed_list_peers(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
-    let peers: Vec<String> = get_request(&cli.api_url, client, "/federation/peers").await?;
+    let peers: Vec<String> = get_request(&cli.api_url, client, "/federation/peers", cli.api_key.as_deref()).await?;
     println!("{}", serde_json::to_string_pretty(&peers)?);
     Ok(())
 }
@@ -881,7 +1146,7 @@ struct PeerReq<'a> {
 async fn handle_fed_join(cli: &Cli, client: &Client, peer: &str) -> Result<(), anyhow::Error> {
     let req = PeerReq { peer };
     let resp: serde_json::Value =
-        post_request(&cli.api_url, client, "/federation/join", &req).await?;
+        post_request(&cli.api_url, client, "/federation/join", &req, cli.api_key.as_deref()).await?;
     println!("{}", serde_json::to_string_pretty(&resp)?);
     Ok(())
 }
@@ -889,14 +1154,28 @@ async fn handle_fed_join(cli: &Cli, client: &Client, peer: &str) -> Result<(), a
 async fn handle_fed_leave(cli: &Cli, client: &Client, peer: &str) -> Result<(), anyhow::Error> {
     let req = PeerReq { peer };
     let resp: serde_json::Value =
-        post_request(&cli.api_url, client, "/federation/leave", &req).await?;
+        post_request(&cli.api_url, client, "/federation/leave", &req, cli.api_key.as_deref()).await?;
     println!("{}", serde_json::to_string_pretty(&resp)?);
     Ok(())
 }
 
 async fn handle_fed_status(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
-    let status: serde_json::Value = get_request(&cli.api_url, client, "/federation/status").await?;
+    let status: serde_json::Value = get_request(&cli.api_url, client, "/federation/status", cli.api_key.as_deref()).await?;
     println!("{}", serde_json::to_string_pretty(&status)?);
+    Ok(())
+}
+
+async fn handle_fed_init(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
+    let resp: serde_json::Value =
+        post_request(&cli.api_url, client, "/federation/init", &(), cli.api_key.as_deref()).await?;
+    println!("{}", serde_json::to_string_pretty(&resp)?);
+    Ok(())
+}
+
+async fn handle_fed_sync(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
+    let resp: serde_json::Value =
+        post_request(&cli.api_url, client, "/federation/sync", &(), cli.api_key.as_deref()).await?;
+    println!("{}", serde_json::to_string_pretty(&resp)?);
     Ok(())
 }
 
@@ -906,21 +1185,452 @@ async fn handle_account_balance(
     did: &str,
 ) -> Result<(), anyhow::Error> {
     let path = format!("/account/{}/mana", did);
-    let v: serde_json::Value = get_request(&cli.api_url, client, &path).await?;
+    let v: serde_json::Value = get_request(&cli.api_url, client, &path, cli.api_key.as_deref()).await?;
     println!("{}", serde_json::to_string_pretty(&v)?);
     Ok(())
 }
 
 async fn handle_keys_show(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
-    let v: serde_json::Value = get_request(&cli.api_url, client, "/keys").await?;
+    let v: serde_json::Value = get_request(&cli.api_url, client, "/keys", cli.api_key.as_deref()).await?;
     println!("{}", serde_json::to_string_pretty(&v)?);
     Ok(())
 }
 
 async fn handle_reputation_get(cli: &Cli, client: &Client, did: &str) -> Result<(), anyhow::Error> {
     let path = format!("/reputation/{}", did);
-    let v: serde_json::Value = get_request(&cli.api_url, client, &path).await?;
+    let v: serde_json::Value = get_request(&cli.api_url, client, &path, cli.api_key.as_deref()).await?;
     println!("{}", serde_json::to_string_pretty(&v)?);
+    Ok(())
+}
+
+async fn handle_identity_verify(
+    cli: &Cli,
+    client: &Client,
+    proof_json_or_stdin: &str,
+) -> Result<(), anyhow::Error> {
+    let proof_json_content = if proof_json_or_stdin == "-" {
+        let mut buffer = String::new();
+        io::stdin().read_to_string(&mut buffer)?;
+        buffer
+    } else {
+        proof_json_or_stdin.to_string()
+    };
+
+    let proof: ZkCredentialProof = serde_json::from_str(&proof_json_content)
+        .map_err(|e| anyhow::anyhow!("Invalid ZkCredentialProof JSON: {}", e))?;
+
+    let resp: serde_json::Value =
+        post_request(&cli.api_url, client, "/identity/verify", &proof, cli.api_key.as_deref()).await?;
+    println!("{}", serde_json::to_string_pretty(&resp)?);
+    Ok(())
+}
+
+async fn handle_identity_verify_revocation(
+    cli: &Cli,
+    client: &Client,
+    proof_json_or_stdin: &str,
+) -> Result<(), anyhow::Error> {
+    let proof_json_content = if proof_json_or_stdin == "-" {
+        let mut buffer = String::new();
+        io::stdin().read_to_string(&mut buffer)?;
+        buffer
+    } else {
+        proof_json_or_stdin.to_string()
+    };
+
+    let proof: icn_common::ZkRevocationProof = serde_json::from_str(&proof_json_content)
+        .map_err(|e| anyhow::anyhow!("Invalid ZkRevocationProof JSON: {}", e))?;
+
+    let resp: serde_json::Value = post_request(&cli.api_url, client, "/identity/verify/revocation", &proof, cli.api_key.as_deref()).await?;
+    println!("{}", serde_json::to_string_pretty(&resp)?);
+    Ok(())
+}
+
+async fn handle_identity_verify_batch(
+    cli: &Cli,
+    client: &Client,
+    proofs_json_or_stdin: &str,
+) -> Result<(), anyhow::Error> {
+    let proofs_json_content = if proofs_json_or_stdin == "-" {
+        let mut buffer = String::new();
+        io::stdin().read_to_string(&mut buffer)?;
+        buffer
+    } else {
+        proofs_json_or_stdin.to_string()
+    };
+
+    let proofs: Vec<ZkCredentialProof> = serde_json::from_str(&proofs_json_content)
+        .map_err(|e| anyhow::anyhow!("Invalid proofs JSON: {}", e))?;
+    let req = VerifyProofsRequest { proofs };
+    let resp: BatchVerificationResponse =
+        post_request(&cli.api_url, client, "/identity/verify/batch", &req, cli.api_key.as_deref()).await?;
+    println!("{}", serde_json::to_string_pretty(&resp)?);
+    Ok(())
+}
+
+fn parse_backend(s: &str) -> ZkProofType {
+    match s.to_ascii_lowercase().as_str() {
+        "groth16" => ZkProofType::Groth16,
+        "bulletproofs" => ZkProofType::Bulletproofs,
+        other => ZkProofType::Other(other.to_string()),
+    }
+}
+
+fn handle_identity_generate_inner(
+    issuer: &str,
+    holder: &str,
+    claim_type: &str,
+    schema: &str,
+    backend: &str,
+    verification_key: &Option<String>,
+    public_inputs: &Option<String>,
+) -> Result<(), anyhow::Error> {
+    use std::str::FromStr;
+
+    let issuer_did = Did::from_str(issuer)?;
+    let holder_did = Did::from_str(holder)?;
+    let schema_cid = icn_common::parse_cid_from_string(schema)?;
+    let backend_parsed = parse_backend(backend);
+    let mut proof_bytes = vec![0u8; 32];
+    fastrand::fill(&mut proof_bytes);
+
+    let verification_key_bytes = if let Some(vk_hex) = verification_key {
+        Some(hex::decode(vk_hex.trim_start_matches("0x"))?)
+    } else {
+        None
+    };
+
+    let public_inputs_value = if let Some(json) = public_inputs {
+        Some(serde_json::from_str(json)?)
+    } else {
+        None
+    };
+
+    let proof = ZkCredentialProof {
+        issuer: issuer_did,
+        holder: holder_did,
+        claim_type: claim_type.to_string(),
+        proof: proof_bytes,
+        schema: schema_cid,
+        vk_cid: None,
+        disclosed_fields: Vec::new(),
+        challenge: None,
+        backend: backend_parsed,
+        verification_key: verification_key_bytes,
+        public_inputs: public_inputs_value,
+    };
+
+    println!("{}", serde_json::to_string_pretty(&proof)?);
+    Ok(())
+}
+
+struct Groth16KeyManager;
+
+impl Groth16KeyManager {
+    fn generate_proving_key(
+        path: &std::path::Path,
+        signer: &Ed25519Signer,
+    ) -> Result<Vec<u8>, anyhow::Error> {
+        use ark_serialize::CanonicalSerialize;
+        use ark_std::rand::{rngs::StdRng, SeedableRng};
+        use icn_zk::{setup, AgeOver18Circuit};
+
+        let circuit = AgeOver18Circuit {
+            birth_year: 2000,
+            current_year: 2020,
+        };
+        let mut rng = StdRng::seed_from_u64(42);
+        let pk = setup(circuit, &mut rng)?;
+
+        let mut file = std::fs::File::create(path)?;
+        pk.serialize_compressed(&mut file)?;
+
+        let mut vk_bytes = Vec::new();
+        pk.vk.serialize_compressed(&mut vk_bytes)?;
+        let sig = signer.sign(&vk_bytes)?;
+        Ok(sig)
+    }
+}
+
+async fn handle_zk_generate_key() -> Result<(), anyhow::Error> {
+    let (sk, pk) = generate_ed25519_keypair();
+    let signer = Ed25519Signer::new_with_keys(sk, pk);
+    let path = std::path::PathBuf::from("groth16_proving_key.bin");
+    let sig = Groth16KeyManager::generate_proving_key(&path, &signer)?;
+    let output = serde_json::json!({
+        "proving_key_path": path.to_string_lossy(),
+        "verifying_key_signature_hex": hex::encode(sig),
+    });
+    println!("{}", serde_json::to_string_pretty(&output)?);
+    Ok(())
+}
+
+async fn handle_zk_analyze(circuit: &str) -> Result<(), anyhow::Error> {
+    use icn_zk::devtools::count_constraints;
+    use icn_zk::{
+        AgeOver18Circuit, AgeRepMembershipCircuit, BalanceRangeCircuit, MembershipCircuit,
+        MembershipProofCircuit, ReputationCircuit, TimestampValidityCircuit,
+    };
+
+    let count = match circuit {
+        "age_over_18" => count_constraints(AgeOver18Circuit {
+            birth_year: 2000,
+            current_year: 2024,
+        })?,
+        "membership" => count_constraints(MembershipCircuit { is_member: true })?,
+        "membership_proof" => count_constraints(MembershipProofCircuit {
+            membership_flag: true,
+            expected: true,
+        })?,
+        "reputation" => count_constraints(ReputationCircuit {
+            reputation: 10,
+            threshold: 5,
+        })?,
+        "timestamp_validity" => count_constraints(TimestampValidityCircuit {
+            timestamp: 0,
+            not_before: 0,
+            not_after: 1,
+        })?,
+        "balance_range" => count_constraints(BalanceRangeCircuit {
+            balance: 10,
+            min: 0,
+            max: 100,
+        })?,
+        "age_rep_membership" => count_constraints(AgeRepMembershipCircuit {
+            birth_year: 2000,
+            current_year: 2024,
+            reputation: 10,
+            threshold: 5,
+            is_member: true,
+        })?,
+        other => anyhow::bail!("Unknown circuit '{}'.", other),
+    };
+
+    println!("constraints: {}", count);
+    Ok(())
+}
+
+async fn handle_zk_profile(circuit: &str) -> Result<(), anyhow::Error> {
+    use tokio::process::Command;
+
+    let status = Command::new("cargo")
+        .arg("bench")
+        .arg("-p")
+        .arg("icn-zk")
+        .arg("--")
+        .arg(circuit)
+        .status()
+        .await?;
+
+    if !status.success() {
+        anyhow::bail!("cargo bench failed");
+    }
+    Ok(())
+}
+
+fn handle_wizard_cooperative(output: Option<String>) -> Result<(), anyhow::Error> {
+    use std::io::{self, Write};
+    let mut name = String::new();
+    print!("Cooperative name: ");
+    io::stdout().flush()?;
+    io::stdin().read_line(&mut name)?;
+    let name = name.trim();
+
+    println!("Select governance template:");
+    println!("1) Rotating stewards");
+    println!("2) Rotating council");
+    println!("3) Rotating assembly");
+    print!("Choice: ");
+    io::stdout().flush()?;
+    let mut choice = String::new();
+    io::stdin().read_line(&mut choice)?;
+
+    let template = match choice.trim() {
+        "1" => icn_templates::ROTATING_STEWARDS,
+        "2" => icn_templates::ROTATING_COUNCIL,
+        _ => icn_templates::ROTATING_ASSEMBLY,
+    };
+
+    let file_name = format!("{}_governance.ccl", name.replace(' ', "_"));
+    let dir = output.unwrap_or_else(|| ".".to_string());
+    let path = std::path::Path::new(&dir).join(&file_name);
+    std::fs::write(&path, template)?;
+    println!("Template written to {}", path.display());
+    Ok(())
+}
+
+fn handle_wizard_setup(config: &str) -> Result<(), anyhow::Error> {
+    use std::io::{self, Write};
+    let mut name = String::new();
+    print!("Node name: ");
+    io::stdout().flush()?;
+    io::stdin().read_line(&mut name)?;
+    let name = name.trim();
+
+    let mut api_key = String::new();
+    print!("API key: ");
+    io::stdout().flush()?;
+    io::stdin().read_line(&mut api_key)?;
+    let api_key = api_key.trim();
+
+    let mut peers_input = String::new();
+    print!("Federation peers (comma separated): ");
+    io::stdout().flush()?;
+    io::stdin().read_line(&mut peers_input)?;
+    let peers: Vec<String> = peers_input
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
+
+    let (sk, pk) = generate_ed25519_keypair();
+    let did = icn_identity::did_key_from_verifying_key(&pk);
+    let sk_bs58 = bs58::encode(sk.to_bytes()).into_string();
+
+    let did_value = did.clone();
+    let cfg = toml::toml! {
+        node_name = name
+        http_listen_addr = "0.0.0.0:7845"
+        storage_backend = "sqlite"
+        storage_path = "./icn_data/node.sqlite"
+        api_key = api_key
+        open_rate_limit = 0
+        federation_peers = peers
+        node_did = did_value
+        node_private_key_bs58 = sk_bs58
+    };
+
+    std::fs::write(config, toml::to_string_pretty(&cfg)?)?;
+    println!("Configuration written to {}", config);
+    println!("Node DID: {}", did);
+    Ok(())
+}
+
+async fn handle_monitor_uptime(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
+    let metrics = get_request::<String>(&cli.api_url, client, "/metrics", cli.api_key.as_deref()).await?;
+    let scrape = prometheus_parse::Scrape::parse(metrics.lines().map(|l| Ok(l.to_string())))?;
+    let uptime = scrape
+        .samples
+        .iter()
+        .find(|s| s.metric == "node_uptime_seconds")
+        .and_then(|s| match s.value {
+            prometheus_parse::Value::Counter(v)
+            | prometheus_parse::Value::Gauge(v)
+            | prometheus_parse::Value::Untyped(v) => Some(v),
+            _ => None,
+        })
+        .unwrap_or(0.0);
+    println!("Uptime: {} seconds", uptime);
+    Ok(())
+}
+
+async fn handle_emergency_list(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
+    let v: serde_json::Value = get_request(&cli.api_url, client, "/emergency/requests", cli.api_key.as_deref()).await?;
+    println!("{}", serde_json::to_string_pretty(&v)?);
+    Ok(())
+}
+
+async fn handle_emergency_request(
+    cli: &Cli,
+    client: &Client,
+    request_json_or_stdin: &str,
+) -> Result<(), anyhow::Error> {
+    let content = if request_json_or_stdin == "-" {
+        let mut buf = String::new();
+        std::io::stdin().read_to_string(&mut buf)?;
+        buf
+    } else {
+        request_json_or_stdin.to_string()
+    };
+    let body: serde_json::Value = serde_json::from_str(&content)
+        .map_err(|e| anyhow::anyhow!("Invalid aid request JSON: {}", e))?;
+    let _: serde_json::Value =
+        post_request(&cli.api_url, client, "/emergency/request", &body, cli.api_key.as_deref()).await?;
+    println!("Aid request submitted");
+    Ok(())
+}
+
+async fn handle_aid_list(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
+    let v: serde_json::Value = get_request(&cli.api_url, client, "/aid/resources", cli.api_key.as_deref()).await?;
+    println!("{}", serde_json::to_string_pretty(&v)?);
+    Ok(())
+}
+
+async fn handle_aid_register(
+    cli: &Cli,
+    client: &Client,
+    resource_json_or_stdin: &str,
+) -> Result<(), anyhow::Error> {
+    let content = if resource_json_or_stdin == "-" {
+        let mut buf = String::new();
+        std::io::stdin().read_to_string(&mut buf)?;
+        buf
+    } else {
+        resource_json_or_stdin.to_string()
+    };
+    let body: serde_json::Value = serde_json::from_str(&content)
+        .map_err(|e| anyhow::anyhow!("Invalid aid resource JSON: {}", e))?;
+    let _: serde_json::Value = post_request(&cli.api_url, client, "/aid/resource", &body, cli.api_key.as_deref()).await?;
+    println!("Aid resource registered");
+    Ok(())
+}
+
+async fn handle_identity_generate_remote(
+    cli: &Cli,
+    client: &Client,
+    issuer: &str,
+    holder: &str,
+    claim_type: &str,
+    schema: &str,
+    backend: &str,
+    public_inputs: &Option<String>,
+) -> Result<(), anyhow::Error> {
+    let req = icn_api::identity_trait::GenerateProofRequest {
+        issuer: Did::from_str(issuer)?,
+        holder: Did::from_str(holder)?,
+        claim_type: claim_type.to_string(),
+        schema: icn_common::parse_cid_from_string(schema)?,
+        backend: backend.to_string(),
+        public_inputs: if let Some(s) = public_inputs {
+            Some(serde_json::from_str(s)?)
+        } else {
+            None
+        },
+    };
+    let proof: icn_common::ZkCredentialProof = post_request(
+        &cli.api_url,
+        client,
+        "/identity/generate-proof",
+        &req,
+        cli.api_key.as_deref(),
+    )
+    .await?;
+    println!("{}", serde_json::to_string_pretty(&proof)?);
+    Ok(())
+}
+
+async fn handle_identity_verify_remote(
+    cli: &Cli,
+    client: &Client,
+    proof_json_or_stdin: &str,
+) -> Result<(), anyhow::Error> {
+    let content = if proof_json_or_stdin == "-" {
+        let mut buf = String::new();
+        std::io::stdin().read_to_string(&mut buf)?;
+        buf
+    } else {
+        proof_json_or_stdin.to_string()
+    };
+    let proof: icn_common::ZkCredentialProof = serde_json::from_str(&content)?;
+    let resp: serde_json::Value = post_request(
+        &cli.api_url,
+        client,
+        "/identity/verify-proof",
+        &proof,
+        cli.api_key.as_deref(),
+    )
+    .await?;
+    println!("{}", serde_json::to_string_pretty(&resp)?);
     Ok(())
 }
 

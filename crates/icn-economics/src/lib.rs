@@ -5,10 +5,19 @@
 //! It manages token models, ledger interactions, transaction logic, and incentive mechanisms,
 //! aiming for security, accuracy, and interoperability.
 
-use icn_common::{CommonError, Did, NodeInfo};
+use icn_common::{
+    compute_merkle_cid, CommonError, DagBlock, Did, NodeInfo, NodeScope, SystemTimeProvider,
+    TimeProvider,
+};
+use icn_dag::StorageService;
 use log::{debug, info};
+use serde::{Deserialize, Serialize};
+pub mod explorer;
 pub mod ledger;
 pub mod metrics;
+pub mod mutual_aid;
+pub mod reputation_tokens;
+pub use explorer::{FlowStats, LedgerExplorer};
 pub use ledger::FileManaLedger;
 pub use ledger::{FileResourceLedger, ResourceLedger};
 #[cfg(feature = "persist-rocksdb")]
@@ -17,6 +26,37 @@ pub use ledger::{RocksdbManaLedger, RocksdbResourceLedger};
 pub use ledger::{SledManaLedger, SledResourceLedger};
 #[cfg(feature = "persist-sqlite")]
 pub use ledger::{SqliteManaLedger, SqliteResourceLedger};
+pub use mutual_aid::{grant_mutual_aid, use_mutual_aid, MUTUAL_AID_CLASS};
+pub use reputation_tokens::{
+    grant_reputation_tokens, use_reputation_tokens, REPUTATION_CLASS,
+};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum LedgerEvent {
+    Credit { did: Did, amount: u64 },
+    Debit { did: Did, amount: u64 },
+    SetBalance { did: Did, amount: u64 },
+}
+
+pub fn balances_from_events(events: &[LedgerEvent]) -> std::collections::HashMap<Did, u64> {
+    use std::collections::HashMap;
+    let mut bal = HashMap::new();
+    for e in events {
+        match e {
+            LedgerEvent::Credit { did, amount } => {
+                *bal.entry(did.clone()).or_insert(0) += *amount;
+            }
+            LedgerEvent::Debit { did, amount } => {
+                let entry = bal.entry(did.clone()).or_insert(0);
+                *entry = entry.saturating_sub(*amount);
+            }
+            LedgerEvent::SetBalance { did, amount } => {
+                bal.insert(did.clone(), *amount);
+            }
+        }
+    }
+    bal
+}
 
 /// Abstraction over the persistence layer storing account balances.
 pub trait ManaLedger: Send + Sync {
@@ -48,22 +88,74 @@ pub trait ManaLedger: Send + Sync {
     }
 }
 
+impl<T: ManaLedger + ?Sized> ManaLedger for &T {
+    fn get_balance(&self, did: &Did) -> u64 {
+        (**self).get_balance(did)
+    }
+    fn set_balance(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
+        (**self).set_balance(did, amount)
+    }
+    fn spend(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
+        (**self).spend(did, amount)
+    }
+    fn credit(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
+        (**self).credit(did, amount)
+    }
+    fn credit_all(&self, amount: u64) -> Result<(), CommonError> {
+        (**self).credit_all(amount)
+    }
+    fn all_accounts(&self) -> Vec<Did> {
+        (**self).all_accounts()
+    }
+}
+
+/// Ledger for scoped resource tokens keyed by class ID and DID.
+pub trait ResourceLedger: Send + Sync {
+    fn get_balance(&self, did: &Did, class_id: &str) -> u64;
+    fn set_balance(&self, did: &Did, class_id: &str, amount: u64) -> Result<(), CommonError>;
+    fn credit(&self, did: &Did, class_id: &str, amount: u64) -> Result<(), CommonError>;
+    fn debit(&self, did: &Did, class_id: &str, amount: u64) -> Result<(), CommonError>;
+}
+
 /// Thin wrapper exposing convenience methods over a [`ManaLedger`].
-#[derive(Debug)]
 pub struct ManaRepositoryAdapter<L: ManaLedger> {
     ledger: L,
+    #[allow(clippy::type_complexity)]
+    event_store: Option<std::sync::Mutex<Box<dyn icn_eventstore::EventStore<LedgerEvent>>>>,
 }
 
 impl<L: ManaLedger> ManaRepositoryAdapter<L> {
     /// Construct a new adapter around the provided ledger implementation.
     pub fn new(ledger: L) -> Self {
-        ManaRepositoryAdapter { ledger }
+        ManaRepositoryAdapter {
+            ledger,
+            event_store: None,
+        }
+    }
+
+    pub fn with_event_store(
+        ledger: L,
+        store: Box<dyn icn_eventstore::EventStore<LedgerEvent>>,
+    ) -> Self {
+        ManaRepositoryAdapter {
+            ledger,
+            event_store: Some(std::sync::Mutex::new(store)),
+        }
     }
 
     /// Deduct mana from an account via the underlying ledger.
     pub fn spend_mana(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
         metrics::SPEND_MANA_CALLS.inc();
-        self.ledger.spend(did, amount)
+        let res = self.ledger.spend(did, amount);
+        if res.is_ok() {
+            if let Some(store) = &self.event_store {
+                let _ = store.lock().unwrap().append(&LedgerEvent::Debit {
+                    did: did.clone(),
+                    amount,
+                });
+            }
+        }
+        res
     }
 
     /// Retrieve the account balance.
@@ -75,12 +167,39 @@ impl<L: ManaLedger> ManaRepositoryAdapter<L> {
     /// Credits the specified account with additional mana.
     pub fn credit_mana(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
         metrics::CREDIT_MANA_CALLS.inc();
-        self.ledger.credit(did, amount)
+        let res = self.ledger.credit(did, amount);
+        if res.is_ok() {
+            if let Some(store) = &self.event_store {
+                let _ = store.lock().unwrap().append(&LedgerEvent::Credit {
+                    did: did.clone(),
+                    amount,
+                });
+            }
+        }
+        res
+    }
+
+    pub fn set_balance(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
+        let res = self.ledger.set_balance(did, amount);
+        if res.is_ok() {
+            if let Some(store) = &self.event_store {
+                let _ = store.lock().unwrap().append(&LedgerEvent::SetBalance {
+                    did: did.clone(),
+                    amount,
+                });
+            }
+        }
+        res
+    }
+
+    pub fn event_store(
+        &self,
+    ) -> Option<&std::sync::Mutex<Box<dyn icn_eventstore::EventStore<LedgerEvent>>>> {
+        self.event_store.as_ref()
     }
 }
 
 /// Enforces spending limits and forwards to a [`ManaRepositoryAdapter`].
-#[derive(Debug)]
 pub struct ResourcePolicyEnforcer<L: ManaLedger> {
     adapter: ManaRepositoryAdapter<L>,
 }
@@ -136,6 +255,237 @@ pub fn credit_mana<L: ManaLedger>(ledger: L, did: &Did, amount: u64) -> Result<(
     let mana_adapter = ManaRepositoryAdapter::new(ledger);
     info!("[icn-economics] credit_mana called for DID {did:?}, amount {amount}");
     mana_adapter.credit_mana(did, amount)
+}
+
+/// Events emitted when resource token balances change.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum TokenEvent {
+    Mint {
+        class_id: String,
+        amount: u64,
+        issuer: Did,
+        recipient: Did,
+        scope: Option<NodeScope>,
+    },
+    Burn {
+        class_id: String,
+        amount: u64,
+        issuer: Did,
+        owner: Did,
+        scope: Option<NodeScope>,
+    },
+    Transfer {
+        class_id: String,
+        amount: u64,
+        issuer: Did,
+        from: Did,
+        to: Did,
+        scope: Option<NodeScope>,
+    },
+}
+
+/// Adapter over a [`ResourceLedger`] with optional DAG event recording.
+pub struct ResourceRepositoryAdapter<L: ResourceLedger> {
+    ledger: L,
+    issuers: std::collections::HashMap<NodeScope, std::collections::HashSet<Did>>,
+    dag_store: Option<std::sync::Mutex<Box<dyn StorageService<DagBlock>>>>,
+}
+
+impl<L: ResourceLedger> ResourceRepositoryAdapter<L> {
+    pub fn new(ledger: L) -> Self {
+        Self {
+            ledger,
+            issuers: std::collections::HashMap::new(),
+            dag_store: None,
+        }
+    }
+
+    pub fn with_dag_store(ledger: L, dag: Box<dyn StorageService<DagBlock>>) -> Self {
+        Self {
+            ledger,
+            issuers: std::collections::HashMap::new(),
+            dag_store: Some(std::sync::Mutex::new(dag)),
+        }
+    }
+
+    pub fn add_issuer(&mut self, scope: NodeScope, issuer: Did) {
+        self.issuers.entry(scope).or_default().insert(issuer);
+    }
+
+    pub fn ledger(&self) -> &L {
+        &self.ledger
+    }
+
+    fn is_authorized(&self, issuer: &Did, scope: &NodeScope) -> bool {
+        self.issuers
+            .get(scope)
+            .map(|s| s.contains(issuer))
+            .unwrap_or(false)
+    }
+
+    fn record_event(&self, event: &TokenEvent) {
+        if let Some(store) = &self.dag_store {
+            let mut store = store.lock().unwrap();
+            let data = serde_json::to_vec(event).unwrap_or_default();
+            let author = match event {
+                TokenEvent::Mint { issuer, .. } => issuer.clone(),
+                TokenEvent::Burn { issuer, .. } => issuer.clone(),
+                TokenEvent::Transfer { issuer, .. } => issuer.clone(),
+            };
+            let scope = match event {
+                TokenEvent::Mint { scope, .. }
+                | TokenEvent::Burn { scope, .. }
+                | TokenEvent::Transfer { scope, .. } => scope.clone(),
+            };
+            let ts = SystemTimeProvider.unix_seconds();
+            let cid = compute_merkle_cid(0x71, &data, &[], ts, &author, &None, &scope);
+            let block = DagBlock {
+                cid,
+                data,
+                links: vec![],
+                timestamp: ts,
+                author_did: author,
+                signature: None,
+                scope,
+            };
+            let _ = store.put(&block);
+        }
+    }
+
+    pub fn mint(
+        &self,
+        issuer: &Did,
+        class_id: &str,
+        amount: u64,
+        recipient: &Did,
+        scope: Option<NodeScope>,
+    ) -> Result<(), CommonError> {
+        if let Some(sc) = &scope {
+            if !self.is_authorized(issuer, sc) {
+                return Err(CommonError::PolicyDenied("issuer not authorized".into()));
+            }
+        }
+        self.ledger.credit(recipient, class_id, amount)?;
+        self.record_event(&TokenEvent::Mint {
+            class_id: class_id.to_string(),
+            amount,
+            issuer: issuer.clone(),
+            recipient: recipient.clone(),
+            scope,
+        });
+        Ok(())
+    }
+
+    pub fn burn(
+        &self,
+        issuer: &Did,
+        class_id: &str,
+        amount: u64,
+        owner: &Did,
+        scope: Option<NodeScope>,
+    ) -> Result<(), CommonError> {
+        if let Some(sc) = &scope {
+            if !self.is_authorized(issuer, sc) {
+                return Err(CommonError::PolicyDenied("issuer not authorized".into()));
+            }
+        }
+        self.ledger.debit(owner, class_id, amount)?;
+        self.record_event(&TokenEvent::Burn {
+            class_id: class_id.to_string(),
+            amount,
+            issuer: issuer.clone(),
+            owner: owner.clone(),
+            scope,
+        });
+        Ok(())
+    }
+
+    pub fn transfer(
+        &self,
+        issuer: &Did,
+        class_id: &str,
+        amount: u64,
+        from: &Did,
+        to: &Did,
+        scope: Option<NodeScope>,
+    ) -> Result<(), CommonError> {
+        if let Some(sc) = &scope {
+            if !self.is_authorized(issuer, sc) {
+                return Err(CommonError::PolicyDenied("issuer not authorized".into()));
+            }
+        }
+        self.ledger.debit(from, class_id, amount)?;
+        self.ledger.credit(to, class_id, amount)?;
+        self.record_event(&TokenEvent::Transfer {
+            class_id: class_id.to_string(),
+            amount,
+            issuer: issuer.clone(),
+            from: from.clone(),
+            to: to.clone(),
+            scope,
+        });
+        Ok(())
+    }
+}
+
+const TOKEN_FEE: u64 = 1;
+
+pub fn mint_tokens<L: ResourceLedger, M: ManaLedger>(
+    repo: &ResourceRepositoryAdapter<L>,
+    mana_ledger: &M,
+    issuer: &Did,
+    class_id: &str,
+    amount: u64,
+    recipient: &Did,
+    scope: Option<NodeScope>,
+) -> Result<(), CommonError> {
+    charge_mana(mana_ledger, issuer, TOKEN_FEE)?;
+    repo.mint(issuer, class_id, amount, recipient, scope)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn mint_tokens_with_reputation<L: ResourceLedger, M: ManaLedger>(
+    repo: &ResourceRepositoryAdapter<L>,
+    mana_ledger: &M,
+    reputation_store: &dyn icn_reputation::ReputationStore,
+    issuer: &Did,
+    class_id: &str,
+    amount: u64,
+    recipient: &Did,
+    scope: Option<NodeScope>,
+) -> Result<(), CommonError> {
+    let rep = reputation_store.get_reputation(issuer);
+    let cost = price_by_reputation(TOKEN_FEE, rep);
+    charge_mana(mana_ledger, issuer, cost)?;
+    repo.mint(issuer, class_id, amount, recipient, scope)
+}
+
+pub fn burn_tokens<L: ResourceLedger, M: ManaLedger>(
+    repo: &ResourceRepositoryAdapter<L>,
+    mana_ledger: &M,
+    issuer: &Did,
+    class_id: &str,
+    amount: u64,
+    owner: &Did,
+    scope: Option<NodeScope>,
+) -> Result<(), CommonError> {
+    charge_mana(mana_ledger, issuer, TOKEN_FEE)?;
+    repo.burn(issuer, class_id, amount, owner, scope)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn transfer_tokens<L: ResourceLedger, M: ManaLedger>(
+    repo: &ResourceRepositoryAdapter<L>,
+    mana_ledger: &M,
+    issuer: &Did,
+    class_id: &str,
+    amount: u64,
+    from: &Did,
+    to: &Did,
+    scope: Option<NodeScope>,
+) -> Result<(), CommonError> {
+    charge_mana(mana_ledger, issuer, TOKEN_FEE)?;
+    repo.transfer(issuer, class_id, amount, from, to, scope)
 }
 
 /// Credits mana to all known accounts using their reputation scores.

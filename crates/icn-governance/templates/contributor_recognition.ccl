@@ -1,0 +1,13 @@
+// Proposal template: mint a recognition badge for a contributor
+class RecognitionBadge {
+    transferable: false
+}
+
+fn recognize(member: Did) -> Integer {
+    mint("RecognitionBadge", 1, member);
+    return 0;
+}
+
+fn run() -> Integer {
+    return recognize(member);
+}

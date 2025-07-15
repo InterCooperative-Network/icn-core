@@ -158,6 +158,7 @@ ICN enables autonomous federated systems that support cooperative coordination w
 - **Tamper-Evident Audit Logs**: Comprehensive action tracking
 - **WASM Sandboxing**: Secure execution environment
 - **DID-Based Authentication**: Decentralized identity verification
+- **Credential Revocation Support**: ZK proof-of-revocation for credentials
 
 ### **🚧 In Development**
 - **Zero-Knowledge Proofs**: Anonymous voting and selective disclosure
@@ -392,19 +393,21 @@ ICN enables autonomous federated systems that support cooperative coordination w
 ## **🎯 Getting Started**
 
 ### **For Developers**
-1. Read the [Developer Onboarding Guide](ONBOARDING.md)
-2. Explore the [API Documentation](API.md)
-3. Try the [Multi-Node Setup Guide](../MULTI_NODE_GUIDE.md)
-4. Join the [Community Discussion](https://github.com/InterCooperative/icn-core/discussions)
-5. Review the [10 Node Devnet Results](ten_node_results.md)
+1. Start with the [Beginner Quickstart](beginner/README.md)
+2. Read the [Developer Onboarding Guide](ONBOARDING.md)
+3. Explore the [API Documentation](API.md)
+4. Try the [Multi-Node Setup Guide](../MULTI_NODE_GUIDE.md)
+5. Join the [Community Discussion](https://github.com/InterCooperative/icn-core/discussions)
+6. Review the [10 Node Devnet Results](ten_node_results.md)
 
 ### **For Cooperatives**
 1. Review the [Governance Framework](governance-framework.md)
-2. Understand [Economic Models](economics-models.md)
-3. Explore [Cooperative Infrastructure Features](#11-🤝-cooperative-infrastructure-new)
-4. Plan your [Federation Strategy](federation-strategy.md)
-5. Join our [Cooperative Pilot Program](mailto:pilot@intercooperative.network)
-6. Connect with the [Cooperative Working Group](https://github.com/InterCooperative/icn-core/discussions/categories/cooperative-infrastructure)
+2. Follow the [Governance Onboarding Guide](governance_onboarding.md)
+3. Understand [Economic Models](economics-models.md)
+4. Explore [Cooperative Infrastructure Features](#11-🤝-cooperative-infrastructure-new)
+5. Plan your [Federation Strategy](federation-strategy.md)
+6. Join our [Cooperative Pilot Program](mailto:pilot@intercooperative.network)
+7. Connect with the [Cooperative Working Group](https://github.com/InterCooperative/icn-core/discussions/categories/cooperative-infrastructure)
 
 ### **For Researchers**
 1. Read our [Academic Papers](academic-papers.md)

@@ -13,6 +13,7 @@ use icn_identity::{
     VerifyingKey as IdentityVerifyingKey,
 };
 use serde::{Deserialize, Serialize};
+pub mod aid;
 pub mod metrics;
 
 /// Unique identifier for a mesh job.
@@ -45,6 +46,9 @@ pub struct Resources {
     pub cpu_cores: u32,
     /// Amount of memory in megabytes available for the job.
     pub memory_mb: u32,
+    /// Amount of storage in megabytes required or offered for the job.
+    #[serde(default)]
+    pub storage_mb: u32,
 }
 
 /// Represents a job submitted to the ICN mesh computing network.
@@ -193,6 +197,7 @@ impl MeshJobBid {
         bytes.extend_from_slice(&self.price_mana.to_le_bytes());
         bytes.extend_from_slice(&self.resources.cpu_cores.to_le_bytes());
         bytes.extend_from_slice(&self.resources.memory_mb.to_le_bytes());
+        bytes.extend_from_slice(&self.resources.storage_mb.to_le_bytes());
         Ok(bytes)
     }
 
@@ -247,6 +252,8 @@ pub struct SelectionPolicy {
     pub weight_reputation: f64,
     /// Weight applied to the offered resources.
     pub weight_resources: f64,
+    /// Weight applied to the network latency score.
+    pub weight_latency: f64,
 }
 
 impl Default for SelectionPolicy {
@@ -255,7 +262,23 @@ impl Default for SelectionPolicy {
             weight_price: 1.0,
             weight_reputation: 50.0,
             weight_resources: 1.0,
+            weight_latency: 1.0,
         }
+    }
+}
+
+/// Provides latency information for executors.
+pub trait LatencyStore: Send + Sync {
+    /// Return the round-trip latency in milliseconds for the given executor.
+    fn get_latency(&self, did: &Did) -> Option<u64>;
+}
+
+/// Latency store that always returns `None`.
+pub struct NoOpLatencyStore;
+
+impl LatencyStore for NoOpLatencyStore {
+    fn get_latency(&self, _did: &Did) -> Option<u64> {
+        None
     }
 }
 
@@ -283,7 +306,7 @@ impl ReputationExecutorSelector {
                 (bid, balance)
             })
             .max_by_key(|(bid, balance)| {
-                score_bid(bid, job_spec, policy, reputation_store, *balance)
+                score_bid(bid, job_spec, policy, reputation_store, *balance, None)
             })
             .map(|(bid, _)| bid.executor_did.clone())
     }
@@ -300,7 +323,7 @@ impl ReputationExecutorSelector {
 /// * `bids` - A vector of `Bid` structs received for a specific job.
 /// * `policy` - The `SelectionPolicy` to apply for choosing the best executor.
 /// * `reputation_store` - Source of reputation scores for executors.
-/// * `available_mana` - Mana balance of the executor submitting the bid.
+/// * `latency_store` - Source of network latency information for executors.
 ///
 /// # Returns
 /// * `Some(Did)` of the selected executor if a suitable one is found.
@@ -312,6 +335,7 @@ pub fn select_executor(
     policy: &SelectionPolicy,
     reputation_store: &dyn icn_reputation::ReputationStore,
     mana_ledger: &dyn icn_economics::ManaLedger,
+    latency_store: &dyn LatencyStore,
 ) -> Option<Did> {
     metrics::SELECT_EXECUTOR_CALLS.inc();
     // Iterate over bids and pick the executor with the highest score as
@@ -327,9 +351,11 @@ pub fn select_executor(
         .filter(|bid| mana_ledger.get_balance(&bid.executor_did) >= bid.price_mana)
         .map(|bid| {
             let balance = mana_ledger.get_balance(&bid.executor_did);
-            (bid, balance)
+            let latency = latency_store.get_latency(&bid.executor_did);
+            let score = score_bid(bid, job_spec, policy, reputation_store, balance, latency);
+            (bid, score)
         })
-        .max_by_key(|(bid, balance)| score_bid(bid, job_spec, policy, reputation_store, *balance))
+        .max_by_key(|(_, score)| *score)
         .map(|(bid, _)| bid.executor_did.clone())
 }
 
@@ -346,6 +372,7 @@ pub fn select_executor(
 /// * `policy` - The `SelectionPolicy` to use for calculating the score.
 /// * `reputation_store` - Source of reputation scores for executors.
 /// * `available_mana` - Mana balance of the executor submitting the bid.
+/// * `latency_ms` - Observed network latency to the executor in milliseconds.
 ///
 /// # Returns
 /// * A `u64` representing the calculated score for the bid. Higher is generally better.
@@ -355,6 +382,7 @@ pub fn score_bid(
     policy: &SelectionPolicy,
     reputation_store: &dyn icn_reputation::ReputationStore,
     available_mana: u64,
+    latency_ms: Option<u64>,
 ) -> u64 {
     if available_mana < bid.price_mana {
         return 0;
@@ -384,7 +412,17 @@ pub fn score_bid(
 
     let resource_score = policy.weight_resources * resource_match;
 
-    let weighted = price_score + reputation_score + resource_score;
+    let latency_score = latency_ms
+        .and_then(|ms| {
+            if ms > 0 {
+                Some(policy.weight_latency / ms as f64)
+            } else {
+                None
+            }
+        })
+        .unwrap_or(0.0);
+
+    let weighted = price_score + reputation_score + resource_score + latency_score;
 
     weighted.max(0.0) as u64
 }
@@ -560,8 +598,11 @@ pub struct Job {
     pub id: JobId,
     /// Content Identifier (CID) of the job's executable or data package.
     pub manifest_cid: Cid,
-    /// Detailed specification of the job.
-    pub spec_json: String, // JSON-serialized JobSpec for DAG storage
+    /// Binary-encoded specification of the job (bincode serialized [`JobSpec`]).
+    pub spec_bytes: Vec<u8>,
+    /// **Deprecated** JSON-serialized job spec for backward compatibility.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spec_json: Option<String>,
     /// Decentralized Identifier (DID) of the entity that submitted the job.
     pub submitter_did: Did,
     /// The amount of mana allocated for this job's execution.
@@ -572,6 +613,24 @@ pub struct Job {
     pub status: JobLifecycleStatus,
     /// Optional resource requirements for the job.
     pub resource_requirements: Resources,
+}
+
+impl Job {
+    /// Decode the job specification from `spec_bytes` or the deprecated
+    /// `spec_json` field.
+    pub fn decode_spec(&self) -> Result<JobSpec, CommonError> {
+        if !self.spec_bytes.is_empty() {
+            bincode::deserialize(&self.spec_bytes).map_err(|e| {
+                CommonError::InternalError(format!("Failed to decode spec_bytes: {}", e))
+            })
+        } else if let Some(json) = &self.spec_json {
+            serde_json::from_str(json).map_err(|e| {
+                CommonError::InternalError(format!("Failed to decode spec_json: {}", e))
+            })
+        } else {
+            Err(CommonError::InternalError("Job spec missing".into()))
+        }
+    }
 }
 
 /// Represents a bid stored in the DAG, linked to a specific job.
@@ -655,9 +714,14 @@ pub enum JobLifecycleStatus {
 impl JobLifecycleStatus {
     /// Returns true if the job is in a terminal state.
     pub fn is_terminal(&self) -> bool {
-        matches!(self, JobLifecycleStatus::Completed | JobLifecycleStatus::Failed | JobLifecycleStatus::Cancelled)
+        matches!(
+            self,
+            JobLifecycleStatus::Completed
+                | JobLifecycleStatus::Failed
+                | JobLifecycleStatus::Cancelled
+        )
     }
-    
+
     /// Returns true if the job is active (can still change state).
     pub fn is_active(&self) -> bool {
         !self.is_terminal()
@@ -687,22 +751,22 @@ impl JobLifecycle {
             receipt: None,
         }
     }
-    
+
     /// Add a bid to this lifecycle.
     pub fn add_bid(&mut self, bid: JobBid) {
         self.bids.push(bid);
     }
-    
+
     /// Set the assignment for this lifecycle.
     pub fn set_assignment(&mut self, assignment: JobAssignment) {
         self.assignment = Some(assignment);
     }
-    
+
     /// Set the receipt for this lifecycle.
     pub fn set_receipt(&mut self, receipt: JobReceipt) {
         self.receipt = Some(receipt);
     }
-    
+
     /// Get the current status based on what lifecycle events exist.
     pub fn current_status(&self) -> JobLifecycleStatus {
         if let Some(receipt) = &self.receipt {
@@ -770,6 +834,29 @@ mod tests {
             let entry = map.entry(did.clone()).or_insert(0);
             *entry += amount;
             Ok(())
+        }
+    }
+
+    #[derive(Default)]
+    struct InMemoryLatencyStore {
+        latencies: Mutex<HashMap<Did, u64>>,
+    }
+
+    impl InMemoryLatencyStore {
+        fn new() -> Self {
+            Self {
+                latencies: Mutex::new(HashMap::new()),
+            }
+        }
+
+        fn set_latency(&self, did: Did, latency: u64) {
+            self.latencies.lock().unwrap().insert(did, latency);
+        }
+    }
+
+    impl LatencyStore for InMemoryLatencyStore {
+        fn get_latency(&self, did: &Did) -> Option<u64> {
+            self.latencies.lock().unwrap().get(did).cloned()
         }
     }
 
@@ -908,6 +995,7 @@ mod tests {
             resources: Resources {
                 cpu_cores: 2,
                 memory_mb: 1024,
+                storage_mb: 0,
             },
             signature: SignatureBytes(vec![]),
         }
@@ -920,6 +1008,7 @@ mod tests {
             resources: Resources {
                 cpu_cores: 1,
                 memory_mb: 512,
+                storage_mb: 0,
             },
             signature: SignatureBytes(vec![]),
         }
@@ -927,6 +1016,9 @@ mod tests {
         .unwrap();
 
         let policy = SelectionPolicy::default();
+        let latency = InMemoryLatencyStore::new();
+        latency.set_latency(high.clone(), 10);
+        latency.set_latency(low.clone(), 20);
         let spec = JobSpec::default();
         let selected = select_executor(
             &job_id,
@@ -935,6 +1027,7 @@ mod tests {
             &policy,
             &rep_store,
             &ledger,
+            &latency,
         );
 
         assert_eq!(selected.unwrap(), high);
@@ -976,6 +1069,9 @@ mod tests {
         .unwrap();
 
         let policy = SelectionPolicy::default();
+        let latency = InMemoryLatencyStore::new();
+        latency.set_latency(a.clone(), 15);
+        latency.set_latency(b.clone(), 5);
         let spec = JobSpec::default();
         let selected = select_executor(
             &job_id,
@@ -984,6 +1080,7 @@ mod tests {
             &policy,
             &rep_store,
             &ledger,
+            &latency,
         );
 
         assert_eq!(selected.unwrap(), b);
@@ -1019,10 +1116,15 @@ mod tests {
         };
 
         let policy = SelectionPolicy {
-            weight_price: 10.0,
+            weight_price: 100.0,  // Much higher weight to truly override reputation
             weight_reputation: 1.0,
             weight_resources: 1.0,
+            weight_latency: 1.0,
         };
+
+        let latency = InMemoryLatencyStore::new();
+        latency.set_latency(high_rep.clone(), 20);
+        latency.set_latency(cheap.clone(), 5);
 
         let selected = select_executor(
             &job_id,
@@ -1031,6 +1133,7 @@ mod tests {
             &policy,
             &rep_store,
             &ledger,
+            &latency,
         );
 
         assert_eq!(selected.unwrap(), cheap);
@@ -1066,6 +1169,9 @@ mod tests {
         };
 
         let policy = SelectionPolicy::default();
+        let latency = InMemoryLatencyStore::new();
+        latency.set_latency(a.clone(), 50);
+        latency.set_latency(b.clone(), 10);
         let selected = select_executor(
             &job_id,
             &JobSpec::default(),
@@ -1073,6 +1179,7 @@ mod tests {
             &policy,
             &rep_store,
             &ledger,
+            &latency,
         );
 
         assert_eq!(selected.unwrap(), b);
@@ -1101,6 +1208,7 @@ mod tests {
             resources: Resources {
                 cpu_cores: 4,
                 memory_mb: 4096,
+                storage_mb: 0,
             },
             signature: SignatureBytes(vec![]),
         }
@@ -1114,6 +1222,7 @@ mod tests {
             resources: Resources {
                 cpu_cores: 1,
                 memory_mb: 512,
+                storage_mb: 0,
             },
             signature: SignatureBytes(vec![]),
         }
@@ -1124,7 +1233,12 @@ mod tests {
             weight_price: 1.0,
             weight_reputation: 0.0,
             weight_resources: 10.0,
+            weight_latency: 1.0,
         };
+
+        let latency = InMemoryLatencyStore::new();
+        latency.set_latency(fast.clone(), 5);
+        latency.set_latency(slow.clone(), 50);
 
         let selected = select_executor(
             &job_id,
@@ -1133,6 +1247,7 @@ mod tests {
             &policy,
             &rep_store,
             &ledger,
+            &latency,
         );
 
         assert_eq!(selected.unwrap(), fast);
@@ -1156,17 +1271,21 @@ mod tests {
             resources: Resources {
                 cpu_cores: 2,
                 memory_mb: 1024,
+                storage_mb: 0,
             },
             signature: SignatureBytes(vec![]),
         };
 
         let policy = SelectionPolicy::default();
+        let latency = InMemoryLatencyStore::new();
+        latency.set_latency(bidder.clone(), 15);
         let score = score_bid(
             &bid,
             &JobSpec::default(),
             &policy,
             &rep_store,
             ledger.get_balance(&bid.executor_did),
+            latency.get_latency(&bid.executor_did),
         );
         assert_eq!(score, 0);
     }
@@ -1178,6 +1297,7 @@ mod tests {
         let ledger = InMemoryLedger::new();
         let policy = SelectionPolicy::default();
 
+        let latency = InMemoryLatencyStore::new();
         let selected = select_executor(
             &job_id,
             &JobSpec::default(),
@@ -1185,6 +1305,7 @@ mod tests {
             &policy,
             &rep_store,
             &ledger,
+            &latency,
         );
 
         assert!(selected.is_none());
@@ -1220,6 +1341,7 @@ mod tests {
         };
 
         let policy = SelectionPolicy::default();
+        let latency = InMemoryLatencyStore::new();
         let selected = select_executor(
             &job_id,
             &JobSpec::default(),
@@ -1227,6 +1349,7 @@ mod tests {
             &policy,
             &rep_store,
             &ledger,
+            &latency,
         );
 
         assert!(selected.is_none());
@@ -1262,12 +1385,16 @@ mod tests {
         };
 
         let policy = SelectionPolicy::default();
+        let latency = InMemoryLatencyStore::new();
+        latency.set_latency(did_a.clone(), 5);
+        latency.set_latency(did_b.clone(), 30);
         let score_a = score_bid(
             &bid_a,
             &JobSpec::default(),
             &policy,
             &rep_store,
             ledger.get_balance(&bid_a.executor_did),
+            latency.get_latency(&bid_a.executor_did),
         );
         let score_b = score_bid(
             &bid_b,
@@ -1275,6 +1402,7 @@ mod tests {
             &policy,
             &rep_store,
             ledger.get_balance(&bid_b.executor_did),
+            latency.get_latency(&bid_b.executor_did),
         );
 
         assert!(score_a > score_b);

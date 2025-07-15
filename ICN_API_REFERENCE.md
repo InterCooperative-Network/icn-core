@@ -37,6 +37,14 @@
 | `/network/connect` | POST | Connect to a peer | ✅ Working |
 | `/network/peers` | GET | List network peers | ✅ Working |
 | `/transaction/submit` | POST | Submit a transaction | ✅ Working |
+| `/identity/verify` | POST | Verify a credential proof | ✅ Working |
+| `/identity/verify/batch` | POST | Batch proof verification | ✅ Working |
+| `/identity/credentials/disclose` | POST | Selective credential disclosure | ✅ Working |
+| `/tokens/classes` | GET | List token classes | 🚧 Experimental |
+| `/tokens/class` | POST | Create a token class | 🚧 Experimental |
+| `/tokens/mint` | POST | Mint resource tokens | 🚧 Experimental |
+| `/tokens/transfer` | POST | Transfer resource tokens | 🚧 Experimental |
+| `/tokens/burn` | POST | Burn resource tokens | 🚧 Experimental |
 | `/data/query` | POST | Query data | ✅ Working |
 | `/contracts` | POST | Upload WASM contract | ✅ Working |
 | `/federation/peers` | GET | List federation peers | ✅ Working |
@@ -48,3 +56,11 @@
 
 ---
 This document summarizes the HTTP endpoints. See [docs/API.md](docs/API.md) for complete details and authentication requirements.
+
+### Example: Batch Proof Verification
+
+```bash
+curl -X POST http://localhost:7845/identity/verify/batch \
+     -H "Content-Type: application/json" \
+     --data '[{"issuer":"did:key:example","holder":"did:key:holder","claim_type":"age","proof":"...","schema":"cid"}]'
+```

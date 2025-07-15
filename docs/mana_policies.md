@@ -40,7 +40,7 @@ Reference the returned CID when creating a job:
 
 ```bash
 icn-cli --api-url http://localhost:7845 submit-job \
-  '{"manifest_cid":"<CID>","spec_json":{},"cost_mana":0}'
+  '{"manifest_cid":"<CID>","spec_bytes":"BASE64_SPEC","cost_mana":0}'
 ```
 
 The mesh executor will invoke the contract's `run` function when processing the job.

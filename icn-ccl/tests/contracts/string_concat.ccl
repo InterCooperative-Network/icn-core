@@ -1,0 +1,5 @@
+fn run() -> String {
+    let hello = "Hello ";
+    let world = "ICN";
+    return hello + world;
+}

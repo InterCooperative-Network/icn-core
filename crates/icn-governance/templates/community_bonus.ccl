@@ -1,0 +1,7 @@
+// Proposal template: distribute bonus to all members
+fn distribute(bonus: Integer) -> Integer {
+    return bonus;
+}
+fn run() -> Integer {
+    return distribute(50);
+}

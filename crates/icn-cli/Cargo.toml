@@ -13,15 +13,28 @@ icn-network = { path = "../icn-network" }
 icn-mesh = { path = "../icn-mesh" }
 icn-ccl = { path = "../../icn-ccl" }
 icn-dag = { path = "../icn-dag" }
+icn-identity = { path = "../icn-identity" }
+icn-runtime = { path = "../icn-runtime" }
+icn-zk = { path = "../icn-zk", features = ["devtools"] }
+ark-serialize = "0.4"
+ark-std = "0.4"
 anyhow = "1.0"
+base64 = "0.21"
+bincode = "1"
 
-clap = { version = "4.0", features = ["derive"] }
+clap = { version = "4.0", features = ["derive", "env"] }
 reqwest = { version = "0.11", features = ["json"] }
 tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 log = "0.4"
 env_logger = "0.10"
+fastrand = "2"
+hex = "0.4"
+icn-templates = { path = "../icn-templates" }
+bs58 = "0.5"
+prometheus-parse = "0.2"
+toml = "0.8"
 
 [dev-dependencies]
 assert_cmd = "2.0"
@@ -32,3 +45,4 @@ icn-node = { path = "../icn-node" }
 icn-dag = { path = "../icn-dag", features = ["persist-sqlite"] }
 tempfile = "3"
 serial_test = { version = "3", features = ["async"] }
+criterion = { version = "0.5", features = ["async_tokio"] }

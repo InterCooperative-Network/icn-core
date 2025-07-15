@@ -27,8 +27,8 @@ pub use resource_ledger::{
     record_resource_event, ResourceAction, ResourceLedger, ResourceLedgerEntry,
 };
 pub use runtime_context::{
-    CastVotePayload, CloseProposalResult, CreateProposalPayload, MeshNetworkServiceType,
-    RuntimeContext, RuntimeContextParams, MANA_MAX_CAPACITY_KEY,
+    RuntimeContext, RuntimeContextParams, RuntimeContextBuilder, EnvironmentType, MeshNetworkServiceType, CreateProposalPayload, CastVotePayload, CloseProposalResult,
+    MANA_MAX_CAPACITY_KEY,
 };
 pub use service_config::{ServiceConfig, ServiceConfigBuilder, ServiceEnvironment};
 pub use signers::{Ed25519Signer, HsmKeyStore, Signer, StubSigner};

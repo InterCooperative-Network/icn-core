@@ -1,0 +1,12 @@
+// Rotating steward template
+// Cycles through a list of steward member IDs
+fn next_steward(cycle: Integer, stewards: Array<Integer>) -> Integer {
+    let count = array_len(stewards);
+    let index = cycle % count;
+    return stewards[index];
+}
+
+fn run() -> Integer {
+    let stewards = [1, 2, 3];
+    return next_steward(0, stewards);
+}

@@ -96,6 +96,18 @@ async fn finalize_proposal(ctx: &RuntimeContext, pid: &str) -> Result<(), icn_ru
 }
 ```
 
+### Zero-Knowledge Proofs
+
+`host_verify_zk_proof` validates a serialized `ZkCredentialProof` and returns
+`true` when the proof is valid for the selected backend. `host_generate_zk_proof`
+emits a dummy proof for testing. WASM modules can call these via the
+`wasm_host_verify_zk_proof` and `wasm_host_generate_zk_proof` helpers.
+
+Both host calls deduct mana from the caller when executed. The amount removed
+is proportional to the complexity of the proving circuit. If proof generation or
+verification fails, the deducted mana is automatically refunded so callers only
+pay for successful operations.
+
 ## Mana Regeneration
 
 `RuntimeContext` can automatically replenish mana. Use
@@ -127,7 +139,7 @@ let dag_store = Arc::new(Mutex::new(icn_dag::TokioFileDagStore::new("./dag".into
 #[cfg(not(feature = "async"))]
 let dag_store = Arc::new(Mutex::new(icn_dag::FileDagStore::new("./dag".into()).unwrap()));
 
-let ctx = RuntimeContext::new(
+let ctx = RuntimeContext::new_with_services(
     Did::new("key", "node"),
     Arc::new(StubMeshNetworkService::new()),
     Arc::new(Ed25519Signer::new(generate_ed25519_keypair().0)),

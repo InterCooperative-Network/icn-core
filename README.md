@@ -5,10 +5,27 @@ It provides the foundational crates for building ICN nodes, CLI tools, and other
 
 **ICN Mission**: Replace every major function of the state and corporation with programmable, federated, democratic infrastructure—built for actual human needs and scalable solidarity.
 
-For full architecture, philosophy, and comprehensive feature overview, see:
+## 📚 Documentation
+
+### Core Documentation
 - [CONTEXT.md](CONTEXT.md) - Core philosophy and architectural principles
 - [docs/ICN_FEATURE_OVERVIEW.md](docs/ICN_FEATURE_OVERVIEW.md) - Complete feature set (current and planned)
 - [docs/ASYNC_OVERVIEW.md](docs/ASYNC_OVERVIEW.md) - Async APIs and concurrency model
+
+### Comprehensive Guides
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - System architecture, crate relationships, and data flow
+- [docs/DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md) - Complete developer setup, workflows, and best practices
+- [docs/SYSTEM_COMPLETENESS_ROADMAP.md](docs/SYSTEM_COMPLETENESS_ROADMAP.md) - Development roadmap and missing features
+- [docs/GLOSSARY.md](docs/GLOSSARY.md) - Comprehensive glossary of ICN terms and concepts
+
+### Quick Start
+- [docs/beginner/README.md](docs/beginner/README.md) - Quickest setup steps
+- [docs/ONBOARDING.md](docs/ONBOARDING.md) - Comprehensive walkthrough
+- [icn-devnet/README.md](icn-devnet/README.md) - Multi-node federation testing
+
+### API Documentation
+- [docs/API.md](docs/API.md) - HTTP API endpoints and authentication
+- [docs/troubleshooting.md](docs/troubleshooting.md) - Common issues and solutions
 
 ## Overview
 
@@ -72,6 +89,7 @@ The project has achieved a significant milestone with a production-ready foundat
 - **Modular Crate Structure**: Well-defined crates for all major domains
 - **Real Protocol Data Models**: DIDs, CIDs, DagBlocks, governance primitives
 - **Multiple Storage Backends**: SQLite, RocksDB, Sled, File-based persistence
+- **Event Sourcing**: Append-only event log via `icn-eventstore` for replayable state
 - **API Layer**: Comprehensive REST endpoints with authentication and TLS
 - **P2P Mesh Networking**: real libp2p networking stack with Kademlia peer discovery
 - **PostgresDagStore**: scalable PostgreSQL backend for DAG storage
@@ -111,6 +129,22 @@ The project has achieved a significant milestone with a production-ready foundat
 
 See [docs/ICN_FEATURE_OVERVIEW.md](docs/ICN_FEATURE_OVERVIEW.md) for the complete feature breakdown and roadmap.
 
+### **🎯 Next Development Phase**
+
+The project is ready for the next phase of development. See [docs/SYSTEM_COMPLETENESS_ROADMAP.md](docs/SYSTEM_COMPLETENESS_ROADMAP.md) for a comprehensive analysis of remaining work, including:
+
+#### Critical Path (Must Have)
+1. **Zero-Knowledge Credential Disclosure** - Privacy-preserving cooperative membership
+2. **Scoped Token Economy** - Core cooperative resource sharing
+3. **Federation Sync Protocol Hardening** - Multi-node federation reliability
+
+#### High Value (Should Have)
+4. **Dynamic Governance Policies** - Truly programmable cooperative governance
+5. **Web UI / Wallet / Explorer Suite** - Critical for user adoption
+6. **Federation Bootstrap CLI/UX** - Cooperative formation tools
+
+The roadmap includes detailed action items, success metrics, and implementation priorities for transforming ICN from a solid foundation into a complete cooperative digital infrastructure platform.
+
 ### Rust Toolchain
 
 This repository uses the stable Rust toolchain via `rust-toolchain.toml`.
@@ -123,7 +157,7 @@ rustup override set stable
 
 ## Getting Started
 
-Refer to `docs/ONBOARDING.md` for detailed instructions on prerequisites, setup, building, testing, and running the components. The latest API documentation is available at [https://intercooperative.network/docs](https://intercooperative.network/docs).
+Start with `docs/beginner/README.md` for the quickest setup steps. Then see `docs/ONBOARDING.md` for a comprehensive walkthrough. The latest API documentation is available at [https://intercooperative.network/docs](https://intercooperative.network/docs).
 
 ### Quick CLI Examples:
 
@@ -179,6 +213,20 @@ cargo build --no-default-features --features "with-libp2p persist-rocksdb"
 ./target/debug/icn-cli federation list-peers
 ```
 
+## Production vs Test Modes
+
+`icn-node` runs with production services by default. Use `--test-mode` or set
+`ICN_TEST_MODE=true` to launch with stub networking and in-memory storage.
+Persistent DAG paths and the signing key are configured via CLI or environment
+variables:
+
+```bash
+ICN_STORAGE_PATH=./icn_data/dag.sqlite \
+ICN_NODE_DID_PATH=./icn_data/node.did \
+ICN_NODE_PRIVATE_KEY_PATH=./icn_data/node.key \
+icn-node --storage-backend sqlite
+```
+
 ## 🌐 Quick Start: Devnet Testing
 
 For the fastest way to test ICN features, use the containerized devnet that launches a 3-node federation:
@@ -202,13 +250,8 @@ curl -X POST http://localhost:5001/mesh/submit \
   -H "X-API-Key: devnet-a-key" \
   -d '{
     "manifest_cid": "bafybeiczsscdsbs7ffqz55asqdf3smv6klcw3gofszvwlyarci47bgf354",
-    "spec_json": {
-      "kind": {
-        "Echo": {
-          "payload": "Hello ICN!"
-        }
-      }
-    },
+    "spec_bytes": "BASE64_SPEC",
+    "spec_json": null,
     "cost_mana": 50
   }'
 
@@ -381,9 +424,10 @@ More detailed information can be found in the `README.md` file within each crate
 ## Further Reading
 
 ### **Architecture & Design**
+* [Beginner Quickstart](docs/beginner/README.md) – minimal setup steps
 * [Complete Feature Overview](docs/ICN_FEATURE_OVERVIEW.md) – comprehensive feature breakdown
 * [Context & Philosophy](CONTEXT.md) – core principles and architectural vision
-* [Development Workflow](docs/ONBOARDING.md) – getting started guide
+* [Development Workflow](docs/ONBOARDING.md) – full onboarding guide
 * [Async Overview](docs/ASYNC_OVERVIEW.md) – networking and storage concurrency
 * [Multi-Node Setup](MULTI_NODE_GUIDE.md) – federation deployment guide
 
@@ -391,8 +435,11 @@ More detailed information can be found in the `README.md` file within each crate
 * [RFC Index](icn-docs/rfcs/README.md) – design proposals and specifications
 * [RFC 0010: ICN Governance Core](icn-docs/rfcs/0010-governance-core.md) – governance framework
 * [Mana Policies](docs/mana_policies.md) – economic policy examples
+* [Resource Tokens](docs/resource_tokens.md) – token classes and mana integration
 * [CCL Language Reference](docs/CCL_LANGUAGE_REFERENCE.md) – full syntax guide
 * [CCL Examples](icn-ccl/examples/) – governance contract templates
+* [Governance Onboarding Guide](docs/governance_onboarding.md) – using templates
+* [Contract Creation Guide](docs/howto-create-contract.md) – compile and submit CCL jobs
 
 ### **Development Resources**
 * Crate documentation: [icn-common](crates/icn-common/README.md), [icn-dag](crates/icn-dag/README.md), [icn-identity](crates/icn-identity/README.md), [icn-mesh](crates/icn-mesh/README.md), [icn-governance](crates/icn-governance/README.md), [icn-runtime](crates/icn-runtime/README.md), [icn-network](crates/icn-network/README.md), [icn-templates](crates/icn-templates/README.md)
@@ -401,6 +448,7 @@ More detailed information can be found in the `README.md` file within each crate
 * [API Documentation](docs/API.md) – HTTP endpoints and programmatic interfaces
 * [Deployment Guide](docs/deployment-guide.md) – production deployment instructions (see [circuit breaker & retry settings](docs/deployment-guide.md#circuit-breaker-and-retry))
 * [Troubleshooting Guide](docs/TROUBLESHOOTING.md) – common issues and solutions
+* [Custom Circuit Development](docs/zk_circuit_development.md) – implement and profile new zero-knowledge circuits
 
 ## Community & Contribution
 

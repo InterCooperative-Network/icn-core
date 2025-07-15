@@ -1,0 +1,22 @@
+// Pantry Credit Token Example
+// Demonstrates soul-bound and transferable tokens
+
+// Define a transferable token for trading pantry credits
+class PantryCredit {
+    transferable: true
+}
+
+// Define a soul-bound badge for volunteers
+class VolunteerBadge {
+    transferable: false
+}
+
+fn run() -> Integer {
+    // In a real contract these functions would interact with the runtime
+    // Here we simply illustrate the intended flows
+    mint("PantryCredit", 10, caller());
+    mint("VolunteerBadge", 1, caller());
+    transfer("PantryCredit", caller(), "did:key:bob", 5);
+    burn("PantryCredit", caller(), 2);
+    return 0;
+}

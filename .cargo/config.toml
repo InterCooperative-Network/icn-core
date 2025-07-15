@@ -1,0 +1,12 @@
+[build]
+# Use Clang for C++ compilation to avoid GCC 13 segfault issues with RocksDB
+target-dir = "target"
+
+[env]
+# Set Clang as the C++ compiler for RocksDB builds
+CXX = "clang++"
+CC = "clang"
+
+[target.x86_64-unknown-linux-gnu]
+linker = "clang"
+rustflags = ["-C", "link-arg=-fuse-ld=lld"]
