@@ -1411,7 +1411,7 @@
 <a href=#1411 id=1411 data-nosnippet>1411</a>        </span>JOBS_BIDDING_GAUGE.inc();
 <a href=#1412 id=1412 data-nosnippet>1412</a>
 <a href=#1413 id=1413 data-nosnippet>1413</a>        <span class="comment">// 2. Collect bids for a defined period
-<a href=#1414 id=1414 data-nosnippet>1414</a>        </span><span class="kw">let </span>bidding_duration = StdDuration::from_secs(<span class="number">30</span>); <span class="comment">// Configurable
+<a href=#1414 id=1414 data-nosnippet>1414</a>        </span><span class="kw">let </span>bidding_duration = StdDuration::from_secs(<span class="number">10</span>); <span class="comment">// Configurable
 <a href=#1415 id=1415 data-nosnippet>1415</a>        </span><span class="macro">log::info!</span>(
 <a href=#1416 id=1416 data-nosnippet>1416</a>            <span class="string">"[manage_job_lifecycle] Collecting bids for {} seconds"</span>,
 <a href=#1417 id=1417 data-nosnippet>1417</a>            bidding_duration.as_secs()
@@ -2457,7 +2457,7 @@
 <a href=#2457 id=2457 data-nosnippet>2457</a>            </span>.map_err(|e| HostAbiError::NetworkError(<span class="macro">format!</span>(<span class="string">"Job announcement failed: {}"</span>, e)))<span class="question-mark">?</span>;
 <a href=#2458 id=2458 data-nosnippet>2458</a>
 <a href=#2459 id=2459 data-nosnippet>2459</a>        <span class="comment">// Step 2: Collect bids from executors
-<a href=#2460 id=2460 data-nosnippet>2460</a>        </span><span class="kw">let </span>bid_duration = StdDuration::from_secs(<span class="number">30</span>); <span class="comment">// 30 second bidding window
+<a href=#2460 id=2460 data-nosnippet>2460</a>        </span><span class="kw">let </span>bid_duration = StdDuration::from_secs(<span class="number">10</span>); <span class="comment">// 10 second bidding window
 <a href=#2461 id=2461 data-nosnippet>2461</a>        </span><span class="macro">log::info!</span>(
 <a href=#2462 id=2462 data-nosnippet>2462</a>            <span class="string">"[JobManager] Step 2: Collecting bids for job {:?} ({}s window)"</span>,
 <a href=#2463 id=2463 data-nosnippet>2463</a>            job_id,
@@ -2868,7 +2868,7 @@
 <a href=#2868 id=2868 data-nosnippet>2868</a>                        <span class="macro">log::error!</span>(<span class="string">"[ExecutorManager] Failed to subscribe to network: {}"</span>, e);
 <a href=#2869 id=2869 data-nosnippet>2869</a>
 <a href=#2870 id=2870 data-nosnippet>2870</a>                        <span class="comment">// Fall back to polling approach
-<a href=#2871 id=2871 data-nosnippet>2871</a>                        </span><span class="kw">let </span><span class="kw-2">mut </span>interval = tokio::time::interval(std::time::Duration::from_secs(<span class="number">5</span>));
+<a href=#2871 id=2871 data-nosnippet>2871</a>                        </span><span class="kw">let </span><span class="kw-2">mut </span>interval = tokio::time::interval(std::time::Duration::from_secs(<span class="number">1</span>));
 <a href=#2872 id=2872 data-nosnippet>2872</a>                        <span class="kw">loop </span>{
 <a href=#2873 id=2873 data-nosnippet>2873</a>                            interval.tick().<span class="kw">await</span>;
 <a href=#2874 id=2874 data-nosnippet>2874</a>                            <span class="kw">if let </span><span class="prelude-val">Err</span>(e) = <span class="self">Self</span>::process_executor_tasks(<span class="kw-2">&amp;</span>ctx, <span class="kw-2">&amp;mut </span>evaluated_jobs).<span class="kw">await </span>{
@@ -2884,7 +2884,7 @@
 <a href=#2884 id=2884 data-nosnippet>2884</a>                <span class="macro">log::info!</span>(<span class="string">"[ExecutorManager] Using stub network service - polling mode"</span>);
 <a href=#2885 id=2885 data-nosnippet>2885</a>
 <a href=#2886 id=2886 data-nosnippet>2886</a>                <span class="comment">// Polling approach for stub network
-<a href=#2887 id=2887 data-nosnippet>2887</a>                </span><span class="kw">let </span><span class="kw-2">mut </span>interval = tokio::time::interval(std::time::Duration::from_secs(<span class="number">5</span>));
+<a href=#2887 id=2887 data-nosnippet>2887</a>                </span><span class="kw">let </span><span class="kw-2">mut </span>interval = tokio::time::interval(std::time::Duration::from_secs(<span class="number">1</span>));
 <a href=#2888 id=2888 data-nosnippet>2888</a>                <span class="kw">loop </span>{
 <a href=#2889 id=2889 data-nosnippet>2889</a>                    interval.tick().<span class="kw">await</span>;
 <a href=#2890 id=2890 data-nosnippet>2890</a>                    <span class="kw">if let </span><span class="prelude-val">Err</span>(e) = <span class="self">Self</span>::process_executor_tasks(<span class="kw-2">&amp;</span>ctx, <span class="kw-2">&amp;mut </span>evaluated_jobs).<span class="kw">await </span>{
