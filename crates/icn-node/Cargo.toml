@@ -8,7 +8,7 @@ license.workspace = true
 [dependencies]
 icn-common = { path = "../icn-common" }
 icn-api = { path = "../icn-api", default-features = false, features = ["types-only"] }
-icn-network = { path = "../icn-network", default-features = false }
+icn-network = { path = "../icn-network", default-features = false, features = ["libp2p"] }
 icn-dag = { path = "../icn-dag", features = ["async"] }
 icn-governance = { path = "../icn-governance", features = ["serde"] }
 icn-runtime = { path = "../icn-runtime", features = ["cli", "async"] }

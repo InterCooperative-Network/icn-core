@@ -46,7 +46,7 @@ services:
       - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
       - ICN_ENABLE_P2P=true
       - ICN_ENABLE_MDNS=true
-      - ICN_BOOTSTRAP_PEERS=/ip4/172.20.0.2/tcp/4001
+      - ICN_BOOTSTRAP_PEERS=/ip4/172.20.0.3/tcp/4001
       - ICN_STORAGE_BACKEND=memory
       - ICN_HTTP_API_KEY=devnet-b-key
       - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
@@ -80,7 +80,7 @@ services:
       - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
       - ICN_ENABLE_P2P=true
       - ICN_ENABLE_MDNS=true
-      - ICN_BOOTSTRAP_PEERS=/ip4/172.20.0.2/tcp/4001
+      - ICN_BOOTSTRAP_PEERS=/ip4/172.20.0.3/tcp/4001
       - ICN_STORAGE_BACKEND=memory
       - ICN_HTTP_API_KEY=devnet-c-key
       - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
@@ -114,7 +114,7 @@ services:
       - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
       - ICN_ENABLE_P2P=true
       - ICN_ENABLE_MDNS=true
-      - ICN_BOOTSTRAP_PEERS=/ip4/172.20.0.2/tcp/4001
+      - ICN_BOOTSTRAP_PEERS=/ip4/172.20.0.3/tcp/4001
       - ICN_STORAGE_BACKEND=memory
       - ICN_HTTP_API_KEY=devnet-d-key
       - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
@@ -148,7 +148,7 @@ services:
       - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
       - ICN_ENABLE_P2P=true
       - ICN_ENABLE_MDNS=true
-      - ICN_BOOTSTRAP_PEERS=/ip4/172.20.0.2/tcp/4001
+      - ICN_BOOTSTRAP_PEERS=/ip4/172.20.0.3/tcp/4001
       - ICN_STORAGE_BACKEND=memory
       - ICN_HTTP_API_KEY=devnet-e-key
       - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
@@ -182,7 +182,7 @@ services:
       - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
       - ICN_ENABLE_P2P=true
       - ICN_ENABLE_MDNS=true
-      - ICN_BOOTSTRAP_PEERS=/ip4/172.20.0.2/tcp/4001
+      - ICN_BOOTSTRAP_PEERS=/ip4/172.20.0.3/tcp/4001
       - ICN_STORAGE_BACKEND=memory
       - ICN_HTTP_API_KEY=devnet-f-key
       - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
@@ -216,7 +216,7 @@ services:
       - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
       - ICN_ENABLE_P2P=true
       - ICN_ENABLE_MDNS=true
-      - ICN_BOOTSTRAP_PEERS=/ip4/172.20.0.2/tcp/4001
+      - ICN_BOOTSTRAP_PEERS=/ip4/172.20.0.3/tcp/4001
       - ICN_STORAGE_BACKEND=memory
       - ICN_HTTP_API_KEY=devnet-g-key
       - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
@@ -250,7 +250,7 @@ services:
       - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
       - ICN_ENABLE_P2P=true
       - ICN_ENABLE_MDNS=true
-      - ICN_BOOTSTRAP_PEERS=/ip4/172.20.0.2/tcp/4001
+      - ICN_BOOTSTRAP_PEERS=/ip4/172.20.0.3/tcp/4001
       - ICN_STORAGE_BACKEND=memory
       - ICN_HTTP_API_KEY=devnet-h-key
       - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
@@ -284,7 +284,7 @@ services:
       - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
       - ICN_ENABLE_P2P=true
       - ICN_ENABLE_MDNS=true
-      - ICN_BOOTSTRAP_PEERS=/ip4/172.20.0.2/tcp/4001
+      - ICN_BOOTSTRAP_PEERS=/ip4/172.20.0.3/tcp/4001
       - ICN_STORAGE_BACKEND=memory
       - ICN_HTTP_API_KEY=devnet-i-key
       - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
@@ -318,7 +318,7 @@ services:
       - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
       - ICN_ENABLE_P2P=true
       - ICN_ENABLE_MDNS=true
-      - ICN_BOOTSTRAP_PEERS=/ip4/172.20.0.2/tcp/4001
+      - ICN_BOOTSTRAP_PEERS=/ip4/172.20.0.3/tcp/4001
       - ICN_STORAGE_BACKEND=memory
       - ICN_HTTP_API_KEY=devnet-j-key
       - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
