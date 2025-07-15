@@ -58,10 +58,10 @@ pub async fn record_resource_event(
         resource_id,
         action,
         timestamp,
-        cid: Cid::default(),
+        cid: Cid::new_v1_dummy(0x55, 0x12, b"resource_event"),
         scope: scope.clone(),
     };
-    let data = bincode::serialize(&entry_tmp)?;
+    let data = bincode::serialize(&entry_tmp).map_err(|e| CommonError::SerializationError(e.to_string()))?;
     let cid = compute_merkle_cid(0x71, &data, &[], timestamp, did, &None, &scope);
     let entry = ResourceLedgerEntry {
         cid: cid.clone(),

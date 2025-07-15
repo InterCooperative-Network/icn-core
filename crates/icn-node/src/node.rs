@@ -17,6 +17,7 @@
 
 use crate::circuit_registry::CircuitRegistry;
 use crate::parameter_store::ParameterStore;
+use icn_economics::ManaLedger;
 use dashmap::DashSet;
 use icn_api::governance_trait::{
     CastVoteRequest as ApiCastVoteRequest, DelegateRequest as ApiDelegateRequest,
@@ -582,9 +583,6 @@ async fn correlation_id_middleware(
         .insert("x-correlation-id", cid.parse().unwrap());
     let latency = start.elapsed();
     let status = res.status().as_u16();
-<<<<<<< HEAD
-    tracing::info!(status = %status, latency_ms = latency, "request_complete");
-=======
     info!(target: "request", "end cid={} status={} latency_ms={}", cid, status, latency.as_millis());
     
     // Track HTTP metrics
@@ -594,8 +592,6 @@ async fn correlation_id_middleware(
     if status >= 400 {
         icn_api::metrics::system::HTTP_ERRORS_TOTAL.inc();
     }
-    
->>>>>>> develop
     res
 }
 
@@ -707,20 +703,12 @@ pub async fn app_router_with_options(
     // GovernanceModule is initialized inside RuntimeContext::new
 
     // Create production-ready RuntimeContext with proper services
-<<<<<<< HEAD
-    let node_did_string = node_did.to_string();
-
-    // Create mana ledger with initial balance
-    let mana_ledger = icn_runtime::context::SimpleManaLedger::new(
-        mana_ledger_path.unwrap_or_else(|| PathBuf::from("./mana_ledger.sqlite")),
-=======
     let _node_did_string = node_did.to_string();
 
     // Create mana ledger with initial balance
     let mana_ledger = icn_runtime::context::SimpleManaLedger::new_with_backend(
         mana_ledger_path.unwrap_or_else(|| PathBuf::from("./tests/fixtures/mana_ledger.json")),
         _mana_ledger_backend.unwrap_or(icn_runtime::context::LedgerBackend::File),
->>>>>>> develop
     );
     mana_ledger
         .set_balance(&node_did, 1000)

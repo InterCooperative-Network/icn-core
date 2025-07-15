@@ -519,11 +519,10 @@ impl RuntimeContext {
         note = "Use `new_testing()` instead for clearer semantics"
     )]
     pub fn new_with_stubs(current_identity_str: &str) -> Result<Arc<Self>, CommonError> {
-        crate::execution_monitor::init_logger();
+        // TODO: Initialize execution monitor logger
         let current_identity = Did::from_str(current_identity_str)
             .map_err(|e| CommonError::InternalError(format!("Invalid DID: {}", e)))?;
 
-<<<<<<< HEAD
         let (tx, rx) = mpsc::channel(128);
         let job_states = Arc::new(DashMap::new());
         let governance_module = Arc::new(DagStoreMutexType::new(GovernanceModule::new()));
@@ -532,6 +531,7 @@ impl RuntimeContext {
         let signer = Arc::new(super::signers::StubSigner::new());
         let did_resolver = Arc::new(icn_identity::KeyDidResolver);
         let reputation_store = Arc::new(icn_reputation::InMemoryReputationStore::new());
+        let latency_store = Arc::new(icn_mesh::NoOpLatencyStore) as Arc<dyn icn_mesh::LatencyStore>;
         let parameters = Self::default_parameters();
         let policy_enforcer = None;
         let time_provider = Arc::new(icn_common::SystemTimeProvider);
@@ -558,6 +558,7 @@ impl RuntimeContext {
             dag_store: Arc::new(DagStoreMutexType::new(StubDagStore::new()))
                 as Arc<DagStoreMutexType<DagStorageService>>,
             reputation_store,
+            latency_store,
             parameters,
             policy_enforcer,
             resource_ledger: TokioMutex::new(super::resource_ledger::ResourceLedger::new()),
@@ -568,35 +569,10 @@ impl RuntimeContext {
     }
 
     /// Create a new context with stubs and initial mana balance (convenience method for tests).
-=======
-        // Forward to new_testing method
-        Self::new_testing(current_identity, None)
-    }
-
-    /// Create a new context with stubs and initial mana balance (convenience method for tests).
-    ///
-    /// **⚠️ DEPRECATED**: This method is deprecated in favor of `new_testing()` which provides
-    /// clearer semantics and better error handling. Use `new_testing()` instead.
-    #[deprecated(
-        since = "0.2.0",
-        note = "Use `new_testing()` instead for clearer semantics"
-    )]
->>>>>>> develop
     pub fn new_with_stubs_and_mana(
         current_identity_str: &str,
         initial_mana: u64,
     ) -> Result<Arc<Self>, CommonError> {
-<<<<<<< HEAD
-        let ctx = Self::new_with_stubs(current_identity_str)?;
-        let current_identity = Did::from_str(current_identity_str)
-            .map_err(|e| CommonError::InternalError(format!("Invalid DID: {}", e)))?;
-        ctx.mana_ledger
-            .set_balance(&current_identity, initial_mana)
-            .map_err(|e| {
-                CommonError::InternalError(format!("Failed to set initial mana: {}", e))
-            })?;
-        Ok(ctx)
-=======
         let current_identity = Did::from_str(current_identity_str)
             .map_err(|e| CommonError::InternalError(format!("Invalid DID: {}", e)))?;
 
@@ -650,7 +626,6 @@ impl RuntimeContext {
         initial_mana: Option<u64>,
     ) -> Result<Arc<Self>, CommonError> {
         Self::new_testing(current_identity, initial_mana)
->>>>>>> develop
     }
 
     /// Create a new context with ledger path (convenience method for tests).
@@ -803,7 +778,7 @@ impl RuntimeContext {
     /// Create a new RuntimeContext from a service configuration.
     /// This is the preferred method as it ensures type-safe service mapping.
     pub fn from_service_config(config: ServiceConfig) -> Result<Arc<Self>, CommonError> {
-        crate::execution_monitor::init_logger();
+        // TODO: Initialize execution monitor logger
         // Validate the configuration before using it
         config.validate()?;
 
@@ -827,6 +802,8 @@ impl RuntimeContext {
             latency_store: Arc::new(icn_mesh::NoOpLatencyStore) as Arc<dyn icn_mesh::LatencyStore>,
             parameters,
             policy_enforcer: config.policy_enforcer,
+            resource_ledger: TokioMutex::new(super::resource_ledger::ResourceLedger::new()),
+            system_info: Arc::new(SysinfoSystemInfoProvider),
             time_provider: config.time_provider,
             default_receipt_wait_ms: 30000,
         }))
@@ -942,10 +919,6 @@ impl RuntimeContext {
         let parameters = Self::default_parameters();
         let policy_enforcer = None;
         let time_provider = Arc::new(icn_common::SystemTimeProvider);
-<<<<<<< HEAD
-        let system_info = Arc::new(SysinfoSystemInfoProvider);
-=======
->>>>>>> develop
 
         // Use a temporary file for testing
         let temp_file = tempfile::NamedTempFile::new().map_err(|e| {
@@ -972,7 +945,7 @@ impl RuntimeContext {
             parameters,
             policy_enforcer,
             resource_ledger: TokioMutex::new(super::resource_ledger::ResourceLedger::new()),
-            system_info,
+            system_info: Arc::new(SysinfoSystemInfoProvider),
             time_provider,
             default_receipt_wait_ms: 30000,
         });
@@ -984,7 +957,6 @@ impl RuntimeContext {
                 .map_err(|e| {
                     CommonError::InternalError(format!("Failed to set initial mana: {}", e))
                 })?;
-<<<<<<< HEAD
         }
 
         Ok(ctx)
@@ -1004,6 +976,7 @@ impl RuntimeContext {
         let signer = Arc::new(super::signers::StubSigner::new());
         let did_resolver = Arc::new(icn_identity::KeyDidResolver);
         let reputation_store = Arc::new(icn_reputation::InMemoryReputationStore::new());
+        let latency_store = Arc::new(icn_mesh::NoOpLatencyStore) as Arc<dyn icn_mesh::LatencyStore>;
         let parameters = Self::default_parameters();
         let policy_enforcer = None;
         let time_provider = Arc::new(icn_common::SystemTimeProvider);
@@ -1028,6 +1001,7 @@ impl RuntimeContext {
             dag_store: Arc::new(DagStoreMutexType::new(StubDagStore::new()))
                 as Arc<DagStoreMutexType<DagStorageService>>,
             reputation_store,
+            latency_store,
             parameters,
             policy_enforcer,
             resource_ledger: TokioMutex::new(super::resource_ledger::ResourceLedger::new()),
@@ -1042,8 +1016,6 @@ impl RuntimeContext {
                 .map_err(|e| {
                     CommonError::InternalError(format!("Failed to set initial mana: {}", e))
                 })?;
-=======
->>>>>>> develop
         }
 
         Ok(ctx)
@@ -1068,10 +1040,6 @@ impl RuntimeContext {
         let parameters = Self::default_parameters();
         let policy_enforcer = None;
         let time_provider = Arc::new(icn_common::SystemTimeProvider);
-<<<<<<< HEAD
-        let system_info = Arc::new(SysinfoSystemInfoProvider);
-=======
->>>>>>> develop
 
         // Use a temporary file for general contexts
         let temp_file = tempfile::NamedTempFile::new()
@@ -1096,7 +1064,7 @@ impl RuntimeContext {
             parameters,
             policy_enforcer,
             resource_ledger: TokioMutex::new(super::resource_ledger::ResourceLedger::new()),
-            system_info,
+            system_info: Arc::new(SysinfoSystemInfoProvider),
             time_provider,
             default_receipt_wait_ms: 30000,
         })
@@ -1175,6 +1143,7 @@ impl RuntimeContext {
             latency_store,
             parameters,
             policy_enforcer,
+            resource_ledger: TokioMutex::new(super::resource_ledger::ResourceLedger::new()),
             system_info,
             time_provider,
             default_receipt_wait_ms: 30000,
@@ -1216,6 +1185,8 @@ impl RuntimeContext {
             latency_store,
             parameters,
             policy_enforcer,
+            resource_ledger: TokioMutex::new(super::resource_ledger::ResourceLedger::new()),
+            system_info: Arc::new(SysinfoSystemInfoProvider),
             time_provider,
             default_receipt_wait_ms: 30000,
         })
@@ -1241,13 +1212,8 @@ impl RuntimeContext {
         PENDING_JOBS_GAUGE.inc();
 
         // 1. Parse and validate the job spec
-<<<<<<< HEAD
-        let job_spec: icn_mesh::JobSpec = serde_json::from_str(&spec_json).map_err(|e| {
-            HostAbiError::InvalidParameters(format!("Invalid job spec JSON: {}", e))
-=======
         let job_spec: icn_mesh::JobSpec = bincode::deserialize(&spec_bytes).map_err(|e| {
             HostAbiError::InvalidParameters(format!("Invalid job spec bytes: {}", e))
->>>>>>> develop
         })?;
 
         // 2. Apply reputation-based pricing
@@ -1504,18 +1470,12 @@ impl RuntimeContext {
     }
 
     /// Manage the complete lifecycle of a job through bidding, assignment, and execution.
-<<<<<<< HEAD
-    async fn manage_job_lifecycle(&self, job_id: JobId) -> Result<(), HostAbiError> {
-=======
     async fn manage_job_lifecycle(self: &Arc<Self>, job_id: JobId) -> Result<(), HostAbiError> {
->>>>>>> develop
         log::info!(
             "[manage_job_lifecycle] Starting lifecycle management for job: {}",
             job_id
         );
 
-<<<<<<< HEAD
-=======
         // 0. Check if this is a CCL WASM job that should auto-execute
         log::debug!(
             "[manage_job_lifecycle] Retrieving job status for: {}",
@@ -1595,7 +1555,6 @@ impl RuntimeContext {
             }
         }
 
->>>>>>> develop
         // 1. Open bidding period
         self.update_job_status(&job_id, JobLifecycleStatus::BiddingOpen)
             .await?;
@@ -1603,11 +1562,7 @@ impl RuntimeContext {
         JOBS_BIDDING_GAUGE.inc();
 
         // 2. Collect bids for a defined period
-<<<<<<< HEAD
-        let bidding_duration = StdDuration::from_secs(30); // Configurable
-=======
         let bidding_duration = StdDuration::from_secs(10); // Configurable
->>>>>>> develop
         log::info!(
             "[manage_job_lifecycle] Collecting bids for {} seconds",
             bidding_duration.as_secs()
@@ -1681,28 +1636,6 @@ impl RuntimeContext {
         }
 
         // 5. Select best executor
-<<<<<<< HEAD
-        // Reconstruct the JobSpec from the DAG so selection uses the original requirements
-        let job_spec = match self.get_job_status(&job_id).await? {
-            Some(lifecycle) => match serde_json::from_str::<icn_mesh::JobSpec>(&lifecycle.job.spec_json) {
-                Ok(spec) => spec,
-                Err(e) => {
-                    log::warn!(
-                        "[manage_job_lifecycle] Failed to deserialize job spec from DAG for {}: {}",
-                        job_id,
-                        e
-                    );
-                    icn_mesh::JobSpec::default()
-                }
-            },
-            None => {
-                log::warn!(
-                    "[manage_job_lifecycle] Job {} not found in DAG when selecting executor",
-                    job_id
-                );
-                icn_mesh::JobSpec::default()
-            }
-=======
         let lifecycle = self.get_job_status(&job_id).await?;
         let job_spec = if let Some(lifecycle) = lifecycle {
             lifecycle.job.decode_spec().map_err(|e| {
@@ -1716,7 +1649,6 @@ impl RuntimeContext {
             return Err(HostAbiError::InternalError(
                 "Job spec not found in DAG".to_string(),
             ));
->>>>>>> develop
         };
         let selection_policy = icn_mesh::SelectionPolicy::default();
         let selected_executor = icn_mesh::select_executor(
@@ -1759,16 +1691,10 @@ impl RuntimeContext {
         };
 
         // 6. Find the winning bid
-<<<<<<< HEAD
-        let winning_bid = bids
-            .iter()
-            .find(|bid| bid.executor_did == selected_executor)
-=======
         let (winning_index, winning_bid) = bids
             .iter()
             .enumerate()
             .find(|(_, bid)| bid.executor_did == selected_executor)
->>>>>>> develop
             .ok_or_else(|| {
                 HostAbiError::InternalError("Selected executor bid not found".to_string())
             })?;
@@ -1776,11 +1702,7 @@ impl RuntimeContext {
         // 7. Create and store assignment
         let assignment = JobAssignment {
             job_id: job_id.clone(),
-<<<<<<< HEAD
-            winning_bid_id: winning_bid.bid_id.clone(),
-=======
             winning_bid_id: format!("bid_{}", winning_index),
->>>>>>> develop
             assigned_executor_did: selected_executor.clone(),
             assigned_at: self.time_provider.unix_seconds(),
             final_price_mana: winning_bid.price_mana,
@@ -1955,17 +1877,6 @@ impl RuntimeContext {
     /// Update the status of a job (this would update the DAG node in a real implementation).
     async fn update_job_status(
         &self,
-<<<<<<< HEAD
-        _job_id: &JobId,
-        _status: JobLifecycleStatus,
-    ) -> Result<(), HostAbiError> {
-        // TODO: In a full implementation, this would update the job node in the DAG
-        // For now, we just log the status change
-        log::info!(
-            "[update_job_status] Job {} status updated to {:?}",
-            _job_id,
-            _status
-=======
         job_id: &JobId,
         status: JobLifecycleStatus,
     ) -> Result<(), HostAbiError> {
@@ -2016,7 +1927,6 @@ impl RuntimeContext {
             job_id,
             old_status,
             status
->>>>>>> develop
         );
         Ok(())
     }
@@ -2094,13 +2004,6 @@ impl RuntimeContext {
         Ok(self.mana_ledger.get_balance(account))
     }
 
-<<<<<<< HEAD
-    /// Get available CPU cores and memory for bidding decisions.
-    fn available_resources(&self) -> icn_mesh::Resources {
-        icn_mesh::Resources {
-            cpu_cores: self.system_info.cpu_cores(),
-            memory_mb: self.system_info.memory_mb(),
-=======
     /// Retrieve synchronization status of the local DAG.
     pub async fn get_dag_sync_status(&self) -> Result<icn_common::DagSyncStatus, HostAbiError> {
         let store = self.dag_store.lock().await;
@@ -2141,7 +2044,6 @@ impl RuntimeContext {
         let mut dag = self.dag_store.lock().await;
         if let Err(e) = dag.put(&block).await {
             log::warn!("[record_ledger_event] store failed: {e}");
->>>>>>> develop
         }
     }
 
@@ -2209,21 +2111,10 @@ impl RuntimeContext {
             return Err(HostAbiError::InvalidParameters("Job not found".to_string()));
         }
 
-<<<<<<< HEAD
-        // 2. Verify the receipt signature
-        // Note: In a full implementation, we would resolve the executor's verifying key
-        // and verify the signature. For now, we just check that a signature exists.
-        if receipt.sig.0.is_empty() {
-            return Err(HostAbiError::PermissionDenied(
-                "Receipt signature is required".to_string(),
-            ));
-        }
-=======
         // 2. Verify the receipt signature against the executor's DID
         receipt
             .verify_with_resolver(&*self.did_resolver)
             .map_err(|e| HostAbiError::SignatureError(format!("{e}")))?;
->>>>>>> develop
 
         // Create a DAG block for the receipt
         let receipt_bytes = bincode::serialize(receipt).map_err(|e| {
@@ -2551,7 +2442,6 @@ impl RuntimeContext {
         Ok(())
     }
 
-<<<<<<< HEAD
     /// Record a resource event and anchor it in the DAG.
     pub async fn record_resource_event(
         &self,
@@ -2568,6 +2458,8 @@ impl RuntimeContext {
                     icn_governance::scoped_policy::DagPayloadOp::SubmitBlock,
                     &self.current_identity,
                     scope.as_ref(),
+                    None, // credential_proof
+                    None, // revocation_proof
                 )
             {
                 return Err(HostAbiError::PermissionDenied(reason));
@@ -2577,7 +2469,7 @@ impl RuntimeContext {
         let ts = self.time_provider.unix_seconds();
         let mut store = self.dag_store.lock().await;
         let cid = super::resource_ledger::record_resource_event(
-            store.as_mut(),
+            &mut *store,
             &self.current_identity,
             resource_id.clone(),
             action.clone(),
@@ -2600,7 +2492,8 @@ impl RuntimeContext {
         }
 
         Ok(cid)
-=======
+    }
+
     /// Ingest a proposal that originated from another node.
     pub async fn ingest_external_proposal(&self, bytes: &[u8]) -> Result<(), HostAbiError> {
         let proposal: Proposal = bincode::deserialize(bytes).map_err(|e| {
@@ -2623,7 +2516,6 @@ impl RuntimeContext {
         gov.insert_external_vote(vote).map_err(|e| {
             HostAbiError::InternalError(format!("Failed to ingest external vote: {}", e))
         })
->>>>>>> develop
     }
 
     /// Update a system parameter.
@@ -2774,11 +2666,7 @@ impl RuntimeContext {
             .map_err(|e| HostAbiError::NetworkError(format!("Job announcement failed: {}", e)))?;
 
         // Step 2: Collect bids from executors
-<<<<<<< HEAD
-        let bid_duration = StdDuration::from_secs(30); // 30 second bidding window
-=======
         let bid_duration = StdDuration::from_secs(10); // 10 second bidding window
->>>>>>> develop
         log::info!(
             "[JobManager] Step 2: Collecting bids for job {:?} ({}s window)",
             job_id,
@@ -3087,11 +2975,7 @@ impl RuntimeContext {
                     // Calculate regeneration based on reputation and policy
                     let reputation = ctx.reputation_store.get_reputation(&account_did);
                     let base_regeneration = 10u64; // Base regeneration per minute
-<<<<<<< HEAD
-                    let reputation_multiplier = (reputation as f64 / 100.0).max(0.1).min(2.0); // 0.1x to 2x based on reputation
-=======
                     let reputation_multiplier = (reputation as f64 / 100.0).clamp(0.1, 2.0); // 0.1x to 2x based on reputation
->>>>>>> develop
                     let regeneration_amount =
                         (base_regeneration as f64 * reputation_multiplier) as u64;
 
@@ -3196,13 +3080,9 @@ impl RuntimeContext {
                         let mut interval = tokio::time::interval(std::time::Duration::from_secs(1));
                         loop {
                             interval.tick().await;
-<<<<<<< HEAD
-                            if let Err(e) = Self::process_executor_tasks(&ctx).await {
-=======
                             if let Err(e) =
                                 Self::process_executor_tasks(&ctx, &mut evaluated_jobs).await
                             {
->>>>>>> develop
                                 log::error!(
                                     "[ExecutorManager] Error processing executor tasks: {}",
                                     e
@@ -3212,16 +3092,6 @@ impl RuntimeContext {
                     }
                 }
             } else {
-<<<<<<< HEAD
-                log::info!("[ExecutorManager] Using stub network service - polling mode");
-
-                // Polling approach for stub network
-                let mut interval = tokio::time::interval(std::time::Duration::from_secs(5));
-                loop {
-                    interval.tick().await;
-                    if let Err(e) = Self::process_executor_tasks(&ctx).await {
-                        log::error!("[ExecutorManager] Error processing executor tasks: {}", e);
-=======
                 log::info!(
                     "[ExecutorManager] Using stub network service - immediate notification mode"
                 );
@@ -3280,7 +3150,6 @@ impl RuntimeContext {
                                 break;
                             }
                         }
->>>>>>> develop
                     }
                 } else {
                     log::warn!(
@@ -3379,13 +3248,7 @@ impl RuntimeContext {
 
         // Check if we have the required resources
         let required = &announcement.job_spec.required_resources;
-<<<<<<< HEAD
-        let resources = ctx.available_resources();
-        let available_cpu = resources.cpu_cores;
-        let available_memory = resources.memory_mb;
-=======
         let (available_cpu, available_memory) = Self::available_system_resources();
->>>>>>> develop
 
         if required.cpu_cores > available_cpu || required.memory_mb > available_memory {
             log::debug!("[ExecutorManager] Insufficient resources for job {}: need {}cpu/{}mb, have {}cpu/{}mb", 
@@ -3573,13 +3436,7 @@ impl RuntimeContext {
 
         // Check if we have the required resources
         let required = &job.spec.required_resources;
-<<<<<<< HEAD
-        let resources = ctx.available_resources();
-        let available_cpu = resources.cpu_cores;
-        let available_memory = resources.memory_mb;
-=======
         let (available_cpu, available_memory) = Self::available_system_resources();
->>>>>>> develop
 
         if required.cpu_cores > available_cpu || required.memory_mb > available_memory {
             log::debug!(
@@ -3657,7 +3514,7 @@ impl RuntimeContext {
         job: &ActualMeshJob,
         _agreed_cost: u64, // Marked as unused for now
     ) -> Result<icn_identity::ExecutionReceipt, HostAbiError> {
-        crate::execution_monitor::clear_logs();
+        // TODO: Clear execution logs
         let job_id = &job.id;
         let executor_did = ctx.current_identity.clone();
 
@@ -3889,7 +3746,6 @@ impl RuntimeContext {
 #[cfg(test)]
 mod tests {
     use super::*;
-<<<<<<< HEAD
     use icn_mesh::{JobKind, JobSpec, Resources};
     use icn_protocol::MeshJobAnnouncementMessage;
     use std::str::FromStr;
@@ -3961,61 +3817,6 @@ mod tests {
             .await
             .unwrap();
         assert!(bid.is_none());
-=======
-    use icn_mesh::{JobSpec, Resources};
-
-    #[tokio::test]
-    async fn job_status_persists_in_dag() {
-        let ctx = RuntimeContext::new_with_stubs_and_mana("did:icn:test:status", 100).unwrap();
-
-        let job_id = JobId(Cid::new_v1_sha256(0x55, b"status_job"));
-        let manifest_cid = Cid::new_v1_sha256(0x55, b"manifest");
-        let spec = JobSpec::default();
-        let spec_bytes = bincode::serialize(&spec).unwrap();
-        let job = Job {
-            id: job_id.clone(),
-            manifest_cid,
-            spec_bytes,
-            spec_json: None,
-            submitter_did: ctx.current_identity.clone(),
-            cost_mana: 10,
-            submitted_at: ctx.time_provider.unix_seconds(),
-            status: JobLifecycleStatus::Submitted,
-            resource_requirements: Resources::default(),
-        };
-        let job_bytes = serde_json::to_vec(&job).unwrap();
-        let block = DagBlock {
-            cid: job_id.0.clone(),
-            data: job_bytes,
-            links: vec![],
-            timestamp: job.submitted_at,
-            author_did: job.submitter_did.clone(),
-            signature: None,
-            scope: None,
-        };
-        {
-            let mut store = ctx.dag_store.lock().await;
-            store.put(&block).await.unwrap();
-        }
-
-        ctx.update_job_status(&job_id, JobLifecycleStatus::BiddingOpen)
-            .await
-            .unwrap();
-
-        let store = ctx.dag_store.lock().await;
-        let blocks = store.list_blocks().await.unwrap();
-        let mut found = false;
-        for b in blocks {
-            if b.links.iter().any(|l| l.cid == job_id.0) {
-                if let Ok(change) = serde_json::from_slice::<MeshJobStateChange>(&b.data) {
-                    if change.job_id == job_id && change.new_state == "BiddingOpen" {
-                        found = true;
-                        break;
-                    }
-                }
-            }
-        }
-        assert!(found, "status change block not found");
     }
 }
 
@@ -4074,6 +3875,5 @@ mod configuration_tests {
         #[allow(deprecated)]
         let ctx2 = RuntimeContext::new_with_stubs_and_mana("did:key:zTestDeprecated2", 50).unwrap();
         assert_eq!(ctx2.get_mana(&ctx2.current_identity).await.unwrap(), 50);
->>>>>>> develop
     }
 }

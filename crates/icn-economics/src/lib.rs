@@ -19,7 +19,7 @@ pub mod mutual_aid;
 pub mod reputation_tokens;
 pub use explorer::{FlowStats, LedgerExplorer};
 pub use ledger::FileManaLedger;
-pub use ledger::{FileResourceLedger, ResourceLedger};
+pub use ledger::FileResourceLedger;
 #[cfg(feature = "persist-rocksdb")]
 pub use ledger::{RocksdbManaLedger, RocksdbResourceLedger};
 #[cfg(feature = "persist-sled")]

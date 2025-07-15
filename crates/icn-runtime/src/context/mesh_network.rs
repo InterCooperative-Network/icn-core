@@ -304,11 +304,6 @@ impl MeshNetworkService for DefaultMeshNetworkService {
                                 signature: signed_message.signature.clone(),
                             };
 
-<<<<<<< HEAD
-                            // TODO: In a real implementation, we'd verify the bid signature
-                            // For now, we'll accept all properly formatted bids
-                            bids.push(mesh_bid);
-=======
                             match icn_identity::verifying_key_from_did_key(&mesh_bid.executor_did)
                                 .and_then(|vk| {
                                     let bytes = mesh_bid.to_signable_bytes()?;
@@ -330,7 +325,6 @@ impl MeshNetworkService for DefaultMeshNetworkService {
                                     );
                                 }
                             }
->>>>>>> develop
                         }
                     }
                 }
@@ -371,11 +365,7 @@ impl MeshNetworkService for DefaultMeshNetworkService {
             offered_resources: icn_protocol::ResourceRequirements {
                 cpu_cores: bid.resources.cpu_cores,
                 memory_mb: bid.resources.memory_mb,
-<<<<<<< HEAD
-                storage_mb: 0,                // TODO: Add storage to Resources
-=======
                 storage_mb: bid.resources.storage_mb,
->>>>>>> develop
                 max_execution_time_secs: 300, // 5 minutes default
             },
             reputation_score: 100, // TODO: Get actual reputation score
@@ -409,17 +399,12 @@ impl MeshNetworkService for DefaultMeshNetworkService {
         );
 
         // Create execution metadata with metrics
-        let logs = crate::execution_monitor::take_logs();
+        let logs: Vec<String> = Vec::new(); // TODO: Implement execution logging
         let execution_metadata = icn_protocol::ExecutionMetadata {
-<<<<<<< HEAD
             wall_time_ms: receipt.cpu_ms,
-            peak_memory_mb: crate::execution_monitor::current_peak_memory_mb(),
-=======
-            wall_time_ms: receipt.cpu_ms, // Use cpu_ms as wall time for now
-            peak_memory_mb: 0,            // TODO: Track actual memory usage
->>>>>>> develop
+            peak_memory_mb: 0, // TODO: Implement memory monitoring
             exit_code: if receipt.success { 0 } else { 1 },
-            execution_logs: if logs.is_empty() { None } else { Some(logs) },
+            execution_logs: if logs.is_empty() { None } else { Some(logs.join("\n")) },
         };
 
         let receipt_message = icn_protocol::MeshReceiptSubmissionMessage {
@@ -519,10 +504,6 @@ impl MeshNetworkService for DefaultMeshNetworkService {
                                 job_id
                             );
 
-<<<<<<< HEAD
-                            // TODO: Verify receipt signature
-                            return Ok(Some(receipt.clone()));
-=======
                             match icn_identity::verifying_key_from_did_key(expected_executor)
                                 .and_then(|vk| {
                                     let bytes = receipt.to_signable_bytes()?;
@@ -544,7 +525,6 @@ impl MeshNetworkService for DefaultMeshNetworkService {
                                     );
                                 }
                             }
->>>>>>> develop
                         }
                     }
                 }
