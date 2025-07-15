@@ -16,6 +16,7 @@ use serde_json::Value as JsonValue; // For generic JSON data if needed
 use std::io::{self, Read};
 use std::path::PathBuf;
 use std::process::exit; // Added for reading from stdin
+use std::str::FromStr;
 
 // Types from our ICN crates that CLI will interact with (serialize/deserialize)
 // These types are expected to be sent to/received from the icn-node HTTP API.
