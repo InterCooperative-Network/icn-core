@@ -1411,7 +1411,7 @@ impl RuntimeContext {
         JOBS_BIDDING_GAUGE.inc();
 
         // 2. Collect bids for a defined period
-        let bidding_duration = StdDuration::from_secs(30); // Configurable
+        let bidding_duration = StdDuration::from_secs(10); // Configurable
         log::info!(
             "[manage_job_lifecycle] Collecting bids for {} seconds",
             bidding_duration.as_secs()
@@ -2457,7 +2457,7 @@ impl RuntimeContext {
             .map_err(|e| HostAbiError::NetworkError(format!("Job announcement failed: {}", e)))?;
 
         // Step 2: Collect bids from executors
-        let bid_duration = StdDuration::from_secs(30); // 30 second bidding window
+        let bid_duration = StdDuration::from_secs(10); // 10 second bidding window
         log::info!(
             "[JobManager] Step 2: Collecting bids for job {:?} ({}s window)",
             job_id,
@@ -2868,7 +2868,7 @@ impl RuntimeContext {
                         log::error!("[ExecutorManager] Failed to subscribe to network: {}", e);
 
                         // Fall back to polling approach
-                        let mut interval = tokio::time::interval(std::time::Duration::from_secs(5));
+                        let mut interval = tokio::time::interval(std::time::Duration::from_secs(1));
                         loop {
                             interval.tick().await;
                             if let Err(e) = Self::process_executor_tasks(&ctx, &mut evaluated_jobs).await {
@@ -2884,7 +2884,7 @@ impl RuntimeContext {
                 log::info!("[ExecutorManager] Using stub network service - polling mode");
 
                 // Polling approach for stub network
-                let mut interval = tokio::time::interval(std::time::Duration::from_secs(5));
+                let mut interval = tokio::time::interval(std::time::Duration::from_secs(1));
                 loop {
                     interval.tick().await;
                     if let Err(e) = Self::process_executor_tasks(&ctx, &mut evaluated_jobs).await {
