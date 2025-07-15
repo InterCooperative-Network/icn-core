@@ -105,6 +105,7 @@ use icn_mesh::{
     JobState,
 };
 use serde_json;
+use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration as StdDuration;
@@ -2830,6 +2831,9 @@ impl RuntimeContext {
         tokio::spawn(async move {
             log::info!("Starting mesh executor manager - this node can now execute jobs");
 
+            // Track which jobs we've already evaluated for bidding (to prevent duplicate bids)
+            let mut evaluated_jobs = std::collections::HashSet::new();
+
             // Subscribe to network messages to listen for job announcements and assignments
             let network_service = match &*ctx.mesh_network_service {
                 MeshNetworkServiceType::Default(service) => Some(service),
@@ -2867,7 +2871,7 @@ impl RuntimeContext {
                         let mut interval = tokio::time::interval(std::time::Duration::from_secs(5));
                         loop {
                             interval.tick().await;
-                            if let Err(e) = Self::process_executor_tasks(&ctx).await {
+                            if let Err(e) = Self::process_executor_tasks(&ctx, &mut evaluated_jobs).await {
                                 log::error!(
                                     "[ExecutorManager] Error processing executor tasks: {}",
                                     e
@@ -2883,7 +2887,7 @@ impl RuntimeContext {
                 let mut interval = tokio::time::interval(std::time::Duration::from_secs(5));
                 loop {
                     interval.tick().await;
-                    if let Err(e) = Self::process_executor_tasks(&ctx).await {
+                    if let Err(e) = Self::process_executor_tasks(&ctx, &mut evaluated_jobs).await {
                         log::error!("[ExecutorManager] Error processing executor tasks: {}", e);
                     }
                 }
@@ -3408,11 +3412,50 @@ impl RuntimeContext {
     }
 
     /// Process executor tasks in polling mode (fallback when network subscription fails).
-    async fn process_executor_tasks(_ctx: &Arc<RuntimeContext>) -> Result<(), HostAbiError> {
+    async fn process_executor_tasks(ctx: &Arc<RuntimeContext>, evaluated_jobs: &mut std::collections::HashSet<JobId>) -> Result<(), HostAbiError> {
         // This is a fallback mode for when network message subscription fails
-        // In a real implementation, this could poll for work or check local state
-        // For now, it's mostly a placeholder
+        // In stub networking mode, we need to check for announced jobs and bid on them
         log::debug!("[ExecutorManager] Polling for executor tasks");
+        
+        // Check if we're using stub networking
+        if let MeshNetworkServiceType::Stub(stub_service) = &*ctx.mesh_network_service {
+            // Get announced jobs from the stub service
+            let announced_jobs = stub_service.get_announced_jobs().await;
+            
+            // Check if there are any new jobs we should bid on
+            for job in announced_jobs {
+                // Check if we've already evaluated this job for bidding
+                if evaluated_jobs.contains(&job.id) {
+                    continue; // Skip jobs we've already evaluated
+                }
+                
+                // Skip jobs we submitted ourselves
+                if job.creator_did == ctx.current_identity {
+                    evaluated_jobs.insert(job.id.clone());
+                    continue;
+                }
+                
+                log::info!("[ExecutorManager] Found announced job {:?} for evaluation", job.id);
+                
+                // Mark this job as evaluated
+                evaluated_jobs.insert(job.id.clone());
+                
+                // Evaluate the job and create a bid if appropriate
+                if let Ok(Some(bid)) = Self::evaluate_and_bid_on_job(ctx, &job).await {
+                    log::info!("[ExecutorManager] Submitting bid for job {:?}: {} mana", job.id, bid.price_mana);
+                    
+                    // Submit the bid through the stub service
+                    if let Err(e) = stub_service.submit_bid_for_job(&bid).await {
+                        log::error!("[ExecutorManager] Failed to submit bid for job {:?}: {}", job.id, e);
+                    } else {
+                        log::info!("[ExecutorManager] Successfully submitted bid for job {:?}", job.id);
+                    }
+                } else {
+                    log::debug!("[ExecutorManager] Decided not to bid on job {:?}", job.id);
+                }
+            }
+        }
+        
         Ok(())
     }
 }
