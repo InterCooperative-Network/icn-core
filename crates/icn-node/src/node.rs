@@ -43,7 +43,7 @@ use icn_identity::{
     did_key_from_verifying_key, generate_ed25519_keypair,
     zk::{DummyProver, ZkProver},
     Credential, DisclosedCredential, ExecutionReceipt as IdentityExecutionReceipt,
-    InMemoryCredentialStore, SignatureBytes,
+    InMemoryCredentialStore, SignatureBytes, CooperativeRegistry,
 };
 use icn_mesh::{ActualMeshJob, JobId, JobSpec};
 #[allow(unused_imports)]
@@ -487,6 +487,7 @@ struct AppState {
     paused_credentials: DashSet<Cid>,
     frozen_reputations: DashSet<Did>,
     ws_broadcaster: broadcast::Sender<WebSocketEvent>,
+    cooperative_registry: Arc<CooperativeRegistry>,
 }
 
 struct RateLimitData {
@@ -842,6 +843,9 @@ pub async fn app_router_with_options(
         }
     }
 
+    // Initialize cooperative registry
+    let cooperative_registry = Arc::new(CooperativeRegistry::new(dag_store_for_rt.clone()));
+
     let app_state = AppState {
         runtime_context: rt_ctx.clone(),
         node_name: "ICN Test/Embedded Node".to_string(),
@@ -861,6 +865,7 @@ pub async fn app_router_with_options(
             let (tx, _) = broadcast::channel(1000);
             tx
         },
+        cooperative_registry,
     };
 
     // Register governance callback for parameter changes
@@ -991,6 +996,13 @@ pub async fn app_router_with_options(
             .route("/federation/status", get(federation_status_handler))
             .route("/federation/init", post(federation_init_handler))
             .route("/federation/sync", post(federation_sync_handler))
+            .route("/cooperative/register", post(cooperative_register_handler))
+            .route("/cooperative/search", post(cooperative_search_handler))
+            .route("/cooperative/profile/{did}", get(cooperative_get_profile_handler))
+            .route("/cooperative/trust", post(cooperative_add_trust_handler))
+            .route("/cooperative/trust/{did}", get(cooperative_get_trust_handler))
+            .route("/cooperative/capabilities/{capability_type}", get(cooperative_get_capability_providers_handler))
+            .route("/cooperative/registry/stats", get(cooperative_registry_stats_handler))
             .route("/ws", get(websocket_handler))
             .with_state(app_state.clone())
             .layer(middleware::from_fn_with_state(
@@ -1041,6 +1053,9 @@ pub async fn app_router_from_context(
 
     let config = Arc::new(TokioMutex::new(NodeConfig::default()));
 
+    // Initialize cooperative registry using the context's DAG store
+    let cooperative_registry = Arc::new(CooperativeRegistry::new(ctx.dag_store.clone()));
+
     let app_state = AppState {
         runtime_context: ctx.clone(),
         node_name: "ICN Test/Embedded Node".to_string(),
@@ -1060,6 +1075,7 @@ pub async fn app_router_from_context(
             let (tx, _) = broadcast::channel(1000);
             tx
         },
+        cooperative_registry,
     };
 
     {
@@ -1179,11 +1195,13 @@ pub async fn app_router_from_context(
         .route("/federation/status", get(federation_status_handler))
         .route("/federation/init", post(federation_init_handler))
         .route("/federation/sync", post(federation_sync_handler))
-        .route("/federation/join", post(federation_join_handler))
-        .route("/federation/leave", post(federation_leave_handler))
-        .route("/federation/status", get(federation_status_handler))
-        .route("/federation/init", post(federation_init_handler))
-        .route("/federation/sync", post(federation_sync_handler))
+        .route("/cooperative/register", post(cooperative_register_handler))
+        .route("/cooperative/search", post(cooperative_search_handler))
+        .route("/cooperative/profile/{did}", get(cooperative_get_profile_handler))
+        .route("/cooperative/trust", post(cooperative_add_trust_handler))
+        .route("/cooperative/trust/{did}", get(cooperative_get_trust_handler))
+        .route("/cooperative/capabilities/{capability_type}", get(cooperative_get_capability_providers_handler))
+        .route("/cooperative/registry/stats", get(cooperative_registry_stats_handler))
         .route("/ws", get(websocket_handler))
         .with_state(app_state.clone())
         .layer(
@@ -1399,6 +1417,9 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
+    // Initialize cooperative registry
+    let cooperative_registry = Arc::new(CooperativeRegistry::new(rt_ctx.dag_store.clone()));
+
     let app_state = AppState {
         runtime_context: rt_ctx.clone(),
         node_name: node_name.clone(),
@@ -1418,6 +1439,7 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
             let (tx, _) = broadcast::channel(1000);
             tx
         },
+        cooperative_registry,
     };
 
     {
@@ -1508,6 +1530,14 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
         .route("/federation/status", get(federation_status_handler))
         .route("/federation/init", post(federation_init_handler))
         .route("/federation/sync", post(federation_sync_handler))
+        .route("/cooperative/register", post(cooperative_register_handler))
+        .route("/cooperative/search", post(cooperative_search_handler))
+        .route("/cooperative/profile/{did}", get(cooperative_get_profile_handler))
+        .route("/cooperative/trust", post(cooperative_add_trust_handler))
+        .route("/cooperative/trust/{did}", get(cooperative_get_trust_handler))
+        .route("/cooperative/capabilities/{capability_type}", get(cooperative_get_capability_providers_handler))
+        .route("/cooperative/registry/stats", get(cooperative_registry_stats_handler))
+        .route("/ws", get(websocket_handler))
         .with_state(app_state.clone())
         .layer(middleware::from_fn_with_state(
             app_state.clone(),
@@ -4000,3 +4030,134 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
     }
 }
+
+// --- Cooperative Discovery Handlers ---
+
+use icn_identity::{
+    CooperativeSearchFilter, CooperativeSearchResult, CooperativeProfile, TrustRelationship, RegistryStats
+};
+
+// POST /cooperative/register - Register a cooperative profile
+async fn cooperative_register_handler(
+    State(state): State<AppState>,
+    Json(profile): Json<CooperativeProfile>,
+) -> impl IntoResponse {
+    match state.cooperative_registry.register_cooperative(profile).await {
+        Ok(cid) => (
+            StatusCode::CREATED,
+            Json(serde_json::json!({ "cid": cid.to_string(), "status": "registered" })),
+        )
+            .into_response(),
+        Err(e) => map_rust_error_to_json_response(
+            format!("Registration failed: {}", e),
+            StatusCode::BAD_REQUEST,
+        )
+        .into_response(),
+    }
+}
+
+// POST /cooperative/search - Search for cooperatives
+async fn cooperative_search_handler(
+    State(state): State<AppState>,
+    Json(filter): Json<CooperativeSearchFilter>,
+) -> impl IntoResponse {
+    match state.cooperative_registry.search_cooperatives(filter).await {
+        Ok(results) => (StatusCode::OK, Json(results)).into_response(),
+        Err(e) => map_rust_error_to_json_response(
+            format!("Search failed: {}", e),
+            StatusCode::BAD_REQUEST,
+        )
+        .into_response(),
+    }
+}
+
+// GET /cooperative/profile/{did} - Get a cooperative profile
+async fn cooperative_get_profile_handler(
+    State(state): State<AppState>,
+    AxumPath(did_str): AxumPath<String>,
+) -> impl IntoResponse {
+    match Did::from_str(&did_str) {
+        Ok(did) => match state.cooperative_registry.get_cooperative(&did).await {
+            Ok(Some(profile)) => (StatusCode::OK, Json(profile)).into_response(),
+            Ok(None) => map_rust_error_to_json_response(
+                "Cooperative not found",
+                StatusCode::NOT_FOUND,
+            )
+            .into_response(),
+            Err(e) => map_rust_error_to_json_response(
+                format!("Query failed: {}", e),
+                StatusCode::INTERNAL_SERVER_ERROR,
+            )
+            .into_response(),
+        },
+        Err(e) => map_rust_error_to_json_response(
+            format!("Invalid DID: {}", e),
+            StatusCode::BAD_REQUEST,
+        )
+        .into_response(),
+    }
+}
+
+// POST /cooperative/trust - Add a trust relationship
+async fn cooperative_add_trust_handler(
+    State(state): State<AppState>,
+    Json(trust): Json<TrustRelationship>,
+) -> impl IntoResponse {
+    match state.cooperative_registry.add_trust_relationship(trust).await {
+        Ok(cid) => (
+            StatusCode::CREATED,
+            Json(serde_json::json!({ "cid": cid.to_string(), "status": "trust_added" })),
+        )
+            .into_response(),
+        Err(e) => map_rust_error_to_json_response(
+            format!("Failed to add trust relationship: {}", e),
+            StatusCode::BAD_REQUEST,
+        )
+        .into_response(),
+    }
+}
+
+// GET /cooperative/trust/{did} - Get trust relationships for a cooperative
+async fn cooperative_get_trust_handler(
+    State(state): State<AppState>,
+    AxumPath(did_str): AxumPath<String>,
+) -> impl IntoResponse {
+    match Did::from_str(&did_str) {
+        Ok(did) => {
+            let relationships = state.cooperative_registry.get_trust_relationships(&did);
+            (StatusCode::OK, Json(relationships)).into_response()
+        }
+        Err(e) => map_rust_error_to_json_response(
+            format!("Invalid DID: {}", e),
+            StatusCode::BAD_REQUEST,
+        )
+        .into_response(),
+    }
+}
+
+// GET /cooperative/capabilities/{capability_type} - Find providers of a capability
+async fn cooperative_get_capability_providers_handler(
+    State(state): State<AppState>,
+    AxumPath(capability_type): AxumPath<String>,
+) -> impl IntoResponse {
+    match state
+        .cooperative_registry
+        .find_capability_providers(&capability_type)
+        .await
+    {
+        Ok(providers) => (StatusCode::OK, Json(providers)).into_response(),
+        Err(e) => map_rust_error_to_json_response(
+            format!("Query failed: {}", e),
+            StatusCode::INTERNAL_SERVER_ERROR,
+        )
+        .into_response(),
+    }
+}
+
+// GET /cooperative/registry/stats - Get registry statistics
+async fn cooperative_registry_stats_handler(State(state): State<AppState>) -> impl IntoResponse {
+    let stats = state.cooperative_registry.get_registry_stats();
+    (StatusCode::OK, Json(stats)).into_response()
+}
+
+// --- Test module (can be expanded later) ---

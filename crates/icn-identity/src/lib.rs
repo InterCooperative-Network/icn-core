@@ -27,6 +27,15 @@ pub mod credential;
 pub use credential::{Credential, CredentialIssuer, DisclosedCredential};
 pub mod credential_store;
 pub use credential_store::InMemoryCredentialStore;
+pub mod cooperative_schemas;
+pub use cooperative_schemas::{
+    schemas, CooperativeCapability, CooperativeMembershipBuilder, CooperativeProfile,
+    CooperativeType, GeographicScope, ServiceProviderBuilder, TrustLevel, TrustRelationship,
+};
+pub mod cooperative_registry;
+pub use cooperative_registry::{
+    CooperativeRegistry, CooperativeSearchFilter, CooperativeSearchResult, RegistryStats,
+};
 pub mod metrics;
 
 // --- Core Cryptographic Operations & DID:key generation ---

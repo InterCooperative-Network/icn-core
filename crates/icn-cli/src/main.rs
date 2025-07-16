@@ -31,6 +31,7 @@ use icn_governance::{Proposal, ProposalId};
 use icn_identity::generate_ed25519_keypair;
 use icn_runtime::context::{Ed25519Signer, Signer};
 use icn_templates;
+use chrono;
 
 fn anyhow_to_common(e: anyhow::Error) -> CommonError {
     if let Some(c) = e.downcast_ref::<CommonError>() {
@@ -178,6 +179,66 @@ enum Commands {
     Wizard {
         #[clap(subcommand)]
         command: WizardCommands,
+    },
+    /// Cooperative discovery and management
+    Cooperative {
+        #[clap(subcommand)]
+        command: CooperativeCommands,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum CooperativeCommands {
+    /// Register a new cooperative in the federation
+    Register {
+        #[clap(help = "Cooperative profile JSON or '-' for stdin")]
+        profile_json_or_stdin: String,
+    },
+    /// Search for cooperatives in the federation
+    Search {
+        #[clap(long, help = "Cooperative type filter")]
+        coop_type: Option<String>,
+        #[clap(long, help = "Required capabilities (comma-separated)")]
+        capabilities: Option<String>,
+        #[clap(long, help = "Country filter")]
+        country: Option<String>,
+        #[clap(long, help = "Region filter")]
+        region: Option<String>,
+        #[clap(long, help = "Locality filter")]
+        locality: Option<String>,
+        #[clap(long, help = "Federation filter")]
+        federation: Option<String>,
+        #[clap(long, help = "Search query")]
+        query: Option<String>,
+        #[clap(long, help = "Maximum results", default_value = "10")]
+        limit: usize,
+    },
+    /// Get a cooperative profile by DID
+    Profile {
+        #[clap(help = "Cooperative DID")]
+        did: String,
+    },
+    /// Add a trust relationship with another cooperative
+    Trust {
+        #[clap(help = "Trust relationship JSON or '-' for stdin")]
+        trust_json_or_stdin: String,
+    },
+    /// List trust relationships for a cooperative
+    TrustList {
+        #[clap(help = "Cooperative DID")]
+        did: String,
+    },
+    /// Find providers of a specific capability
+    Providers {
+        #[clap(help = "Capability type")]
+        capability_type: String,
+    },
+    /// Show registry statistics
+    Stats,
+    /// Interactive cooperative onboarding wizard
+    Onboard {
+        #[clap(long, help = "Skip registration with node")]
+        dry_run: bool,
     },
 }
 
@@ -634,6 +695,29 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
         Commands::Wizard { command } => match command {
             WizardCommands::Cooperative { output } => handle_wizard_cooperative(output.clone())?,
             WizardCommands::Setup { config } => handle_wizard_setup(config)?,
+        },
+        Commands::Cooperative { command } => match command {
+            CooperativeCommands::Register { profile_json_or_stdin } => {
+                handle_coop_register(cli, client, profile_json_or_stdin).await?
+            }
+            CooperativeCommands::Search {
+                coop_type,
+                capabilities,
+                country,
+                region,
+                locality,
+                federation,
+                query,
+                limit,
+            } => handle_coop_search(cli, client, coop_type, capabilities, country, region, locality, federation, query, limit).await?,
+            CooperativeCommands::Profile { did } => handle_coop_profile(cli, client, did).await?,
+            CooperativeCommands::Trust { trust_json_or_stdin } => {
+                handle_coop_trust(cli, client, trust_json_or_stdin).await?
+            }
+            CooperativeCommands::TrustList { did } => handle_coop_trust_list(cli, client, did).await?,
+            CooperativeCommands::Providers { capability_type } => handle_coop_providers(cli, client, capability_type).await?,
+            CooperativeCommands::Stats => handle_coop_stats(cli, client).await?,
+            CooperativeCommands::Onboard { dry_run } => handle_coop_onboard(cli, client, dry_run).await?,
         },
         Commands::Monitor { command } => match command {
             MonitorCommands::Uptime => handle_monitor_uptime(cli, client).await?,
@@ -1503,6 +1587,369 @@ fn handle_wizard_setup(config: &str) -> Result<(), anyhow::Error> {
     std::fs::write(config, toml::to_string_pretty(&cfg)?)?;
     println!("Configuration written to {}", config);
     println!("Node DID: {}", did);
+    Ok(())
+}
+
+// --- Cooperative Discovery Handlers ---
+
+async fn handle_coop_register(
+    cli: &Cli,
+    client: &Client,
+    profile_json_or_stdin: &str,
+) -> Result<(), anyhow::Error> {
+    let profile_content = if profile_json_or_stdin == "-" {
+        let mut buffer = String::new();
+        io::stdin().read_to_string(&mut buffer)?;
+        buffer
+    } else {
+        profile_json_or_stdin.to_string()
+    };
+
+    let profile: JsonValue = serde_json::from_str(&profile_content)?;
+    let response: JsonValue = post_request(
+        &cli.api_url,
+        client,
+        "/cooperative/register",
+        &profile,
+        cli.api_key.as_deref(),
+    )
+    .await?;
+    println!("{}", serde_json::to_string_pretty(&response)?);
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn handle_coop_search(
+    cli: &Cli,
+    client: &Client,
+    coop_type: &Option<String>,
+    capabilities: &Option<String>,
+    country: &Option<String>,
+    region: &Option<String>,
+    locality: &Option<String>,
+    federation: &Option<String>,
+    query: &Option<String>,
+    limit: &usize,
+) -> Result<(), anyhow::Error> {
+    let capabilities_vec = if let Some(caps) = capabilities {
+        caps.split(',').map(|s| s.trim().to_string()).collect()
+    } else {
+        Vec::new()
+    };
+
+    let search_filter = serde_json::json!({
+        "cooperative_type": coop_type,
+        "required_capabilities": capabilities_vec,
+        "country": country,
+        "region": region,
+        "locality": locality,
+        "federation": federation,
+        "search_query": query,
+        "limit": limit
+    });
+
+    let results: JsonValue = post_request(
+        &cli.api_url,
+        client,
+        "/cooperative/search",
+        &search_filter,
+        cli.api_key.as_deref(),
+    )
+    .await?;
+    println!("{}", serde_json::to_string_pretty(&results)?);
+    Ok(())
+}
+
+async fn handle_coop_profile(
+    cli: &Cli,
+    client: &Client,
+    did: &str,
+) -> Result<(), anyhow::Error> {
+    let profile: JsonValue = get_request(
+        &cli.api_url,
+        client,
+        &format!("/cooperative/profile/{}", did),
+        cli.api_key.as_deref(),
+    )
+    .await?;
+    println!("{}", serde_json::to_string_pretty(&profile)?);
+    Ok(())
+}
+
+async fn handle_coop_trust(
+    cli: &Cli,
+    client: &Client,
+    trust_json_or_stdin: &str,
+) -> Result<(), anyhow::Error> {
+    let trust_content = if trust_json_or_stdin == "-" {
+        let mut buffer = String::new();
+        io::stdin().read_to_string(&mut buffer)?;
+        buffer
+    } else {
+        trust_json_or_stdin.to_string()
+    };
+
+    let trust: JsonValue = serde_json::from_str(&trust_content)?;
+    let response: JsonValue = post_request(
+        &cli.api_url,
+        client,
+        "/cooperative/trust",
+        &trust,
+        cli.api_key.as_deref(),
+    )
+    .await?;
+    println!("{}", serde_json::to_string_pretty(&response)?);
+    Ok(())
+}
+
+async fn handle_coop_trust_list(
+    cli: &Cli,
+    client: &Client,
+    did: &str,
+) -> Result<(), anyhow::Error> {
+    let relationships: JsonValue = get_request(
+        &cli.api_url,
+        client,
+        &format!("/cooperative/trust/{}", did),
+        cli.api_key.as_deref(),
+    )
+    .await?;
+    println!("{}", serde_json::to_string_pretty(&relationships)?);
+    Ok(())
+}
+
+async fn handle_coop_providers(
+    cli: &Cli,
+    client: &Client,
+    capability_type: &str,
+) -> Result<(), anyhow::Error> {
+    let providers: JsonValue = get_request(
+        &cli.api_url,
+        client,
+        &format!("/cooperative/capabilities/{}", capability_type),
+        cli.api_key.as_deref(),
+    )
+    .await?;
+    println!("{}", serde_json::to_string_pretty(&providers)?);
+    Ok(())
+}
+
+async fn handle_coop_stats(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
+    let stats: JsonValue = get_request(
+        &cli.api_url,
+        client,
+        "/cooperative/registry/stats",
+        cli.api_key.as_deref(),
+    )
+    .await?;
+    println!("{}", serde_json::to_string_pretty(&stats)?);
+    Ok(())
+}
+
+async fn handle_coop_onboard(
+    cli: &Cli,
+    client: &Client,
+    dry_run: &bool,
+) -> Result<(), anyhow::Error> {
+    use std::io::{self, Write};
+
+    println!("🌟 Welcome to ICN Cooperative Onboarding!");
+    println!("Let's get your cooperative registered in the federation.");
+    println!();
+
+    // Basic cooperative information
+    print!("Cooperative name: ");
+    io::stdout().flush()?;
+    let mut name = String::new();
+    io::stdin().read_line(&mut name)?;
+    let name = name.trim().to_string();
+
+    print!("Brief description: ");
+    io::stdout().flush()?;
+    let mut description = String::new();
+    io::stdin().read_line(&mut description)?;
+    let description = description.trim().to_string();
+
+    // Cooperative type
+    println!("\nSelect cooperative type:");
+    println!("1) Worker cooperative");
+    println!("2) Consumer cooperative");
+    println!("3) Multi-stakeholder cooperative");
+    println!("4) Housing cooperative");
+    println!("5) Financial/Credit union");
+    println!("6) Platform cooperative");
+    println!("7) Agricultural cooperative");
+    println!("8) Education/Research cooperative");
+    println!("9) Energy cooperative");
+    println!("10) Healthcare cooperative");
+    println!("11) Commons/Community land trust");
+    println!("12) General purpose");
+    print!("Choice (1-12): ");
+    io::stdout().flush()?;
+    let mut choice = String::new();
+    io::stdin().read_line(&mut choice)?;
+
+    let cooperative_type = match choice.trim() {
+        "1" => "Worker",
+        "2" => "Consumer",
+        "3" => "MultiStakeholder",
+        "4" => "Housing",
+        "5" => "Financial",
+        "6" => "Platform",
+        "7" => "Agricultural",
+        "8" => "Education",
+        "9" => "Energy",
+        "10" => "Healthcare",
+        "11" => "Commons",
+        _ => "General",
+    };
+
+    // Geographic scope
+    print!("\nCountry (optional): ");
+    io::stdout().flush()?;
+    let mut country = String::new();
+    io::stdin().read_line(&mut country)?;
+    let country = country.trim();
+
+    print!("Region/State (optional): ");
+    io::stdout().flush()?;
+    let mut region = String::new();
+    io::stdin().read_line(&mut region)?;
+    let region = region.trim();
+
+    print!("City/Locality (optional): ");
+    io::stdout().flush()?;
+    let mut locality = String::new();
+    io::stdin().read_line(&mut locality)?;
+    let locality = locality.trim();
+
+    print!("Operates globally? (y/n): ");
+    io::stdout().flush()?;
+    let mut global_input = String::new();
+    io::stdin().read_line(&mut global_input)?;
+    let global = global_input.trim().to_lowercase() == "y" || global_input.trim().to_lowercase() == "yes";
+
+    // Capabilities
+    println!("\nWhat capabilities does your cooperative offer?");
+    println!("Enter capability types (one per line, empty line to finish):");
+    println!("Examples: web_development, housing, food_production, education, healthcare, etc.");
+    
+    let mut capabilities = Vec::new();
+    loop {
+        print!("> ");
+        io::stdout().flush()?;
+        let mut capability = String::new();
+        io::stdin().read_line(&mut capability)?;
+        let capability = capability.trim();
+        if capability.is_empty() {
+            break;
+        }
+
+        print!("  Description for '{}': ", capability);
+        io::stdout().flush()?;
+        let mut desc = String::new();
+        io::stdin().read_line(&mut desc)?;
+        let desc = desc.trim();
+
+        print!("  Exchange model (time_bank/mutual_credit/mana/market): ");
+        io::stdout().flush()?;
+        let mut exchange = String::new();
+        io::stdin().read_line(&mut exchange)?;
+        let exchange = exchange.trim();
+
+        capabilities.push(serde_json::json!({
+            "capability_type": capability,
+            "description": desc,
+            "specifications": {},
+            "available": true,
+            "exchange_model": exchange
+        }));
+    }
+
+    // Member count
+    print!("\nApproximate member count (optional): ");
+    io::stdout().flush()?;
+    let mut member_count_str = String::new();
+    io::stdin().read_line(&mut member_count_str)?;
+    let member_count = member_count_str.trim().parse::<u32>().ok();
+
+    // Contact information
+    print!("Website URL (optional): ");
+    io::stdout().flush()?;
+    let mut website = String::new();
+    io::stdin().read_line(&mut website)?;
+    let website = website.trim();
+
+    print!("Contact email (optional): ");
+    io::stdout().flush()?;
+    let mut email = String::new();
+    io::stdin().read_line(&mut email)?;
+    let email = email.trim();
+
+    // Get node DID for the cooperative
+    let node_info: JsonValue = get_request(&cli.api_url, client, "/keys", cli.api_key.as_deref()).await?;
+    let did = node_info["did"].as_str().unwrap_or("did:key:unknown").to_string();
+
+    // Build the cooperative profile
+    let profile = serde_json::json!({
+        "did": did,
+        "name": name,
+        "cooperative_type": cooperative_type,
+        "description": description,
+        "website": if website.is_empty() { null } else { serde_json::Value::String(website.to_string()) },
+        "contact_email": if email.is_empty() { null } else { serde_json::Value::String(email.to_string()) },
+        "geographic_scope": {
+            "country": if country.is_empty() { null } else { serde_json::Value::String(country.to_string()) },
+            "region": if region.is_empty() { null } else { serde_json::Value::String(region.to_string()) },
+            "locality": if locality.is_empty() { null } else { serde_json::Value::String(locality.to_string()) },
+            "global": global
+        },
+        "capabilities": capabilities,
+        "member_count": member_count,
+        "founded_year": null,
+        "legal_structure": null,
+        "federation_memberships": [],
+        "trusted_cooperatives": [],
+        "public_keys": {},
+        "created_at": chrono::Utc::now().timestamp(),
+        "updated_at": chrono::Utc::now().timestamp(),
+        "signature": null
+    });
+
+    println!("\n🎉 Cooperative profile created!");
+    println!("{}", serde_json::to_string_pretty(&profile)?);
+
+    if *dry_run {
+        println!("\n⚠️  Dry run mode - profile not registered with node");
+        return Ok(());
+    }
+
+    println!("\nRegister this profile with the federation? (y/n): ");
+    let mut confirm = String::new();
+    io::stdin().read_line(&mut confirm)?;
+    
+    if confirm.trim().to_lowercase() == "y" || confirm.trim().to_lowercase() == "yes" {
+        let response: JsonValue = post_request(
+            &cli.api_url,
+            client,
+            "/cooperative/register",
+            &profile,
+            cli.api_key.as_deref(),
+        )
+        .await?;
+        
+        println!("\n✅ Cooperative successfully registered!");
+        println!("{}", serde_json::to_string_pretty(&response)?);
+        
+        println!("\n🔍 Next steps:");
+        println!("1. Search for other cooperatives: icn-cli cooperative search");
+        println!("2. Build trust relationships: icn-cli cooperative trust");
+        println!("3. Explore capabilities: icn-cli cooperative providers <capability>");
+        println!("4. Check federation stats: icn-cli cooperative stats");
+    } else {
+        println!("Registration cancelled.");
+    }
+
     Ok(())
 }
 
