@@ -443,7 +443,6 @@ struct ProposalIdPayload {
 }
 
 // --- Application State ---
-#[derive(Clone)]
 // WebSocket event types for real-time updates
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
@@ -471,6 +470,7 @@ pub enum WebSocketEvent {
     },
 }
 
+#[derive(Clone)]
 struct AppState {
     runtime_context: Arc<RuntimeContext>,
     node_name: String,
@@ -3546,7 +3546,7 @@ async fn handle_websocket(socket: WebSocket, state: AppState) {
         serde_json::json!({
             "type": "connected",
             "message": "WebSocket connection established"
-        }).to_string()
+        }).to_string().into()
     )).await {
         return;
     }
@@ -3562,7 +3562,7 @@ async fn handle_websocket(socket: WebSocket, state: AppState) {
                 }
             };
 
-            if sender.send(Message::Text(event_json)).await.is_err() {
+            if sender.send(Message::Text(event_json.into())).await.is_err() {
                 break;
             }
         }
