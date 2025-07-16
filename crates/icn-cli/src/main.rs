@@ -1896,12 +1896,12 @@ async fn handle_coop_onboard(
         "name": name,
         "cooperative_type": cooperative_type,
         "description": description,
-        "website": if website.is_empty() { null } else { serde_json::Value::String(website.to_string()) },
-        "contact_email": if email.is_empty() { null } else { serde_json::Value::String(email.to_string()) },
-        "geographic_scope": {
-            "country": if country.is_empty() { null } else { serde_json::Value::String(country.to_string()) },
-            "region": if region.is_empty() { null } else { serde_json::Value::String(region.to_string()) },
-            "locality": if locality.is_empty() { null } else { serde_json::Value::String(locality.to_string()) },
+                        "website": if website.is_empty() { serde_json::Value::Null } else { serde_json::Value::String(website.to_string()) },
+                "contact_email": if email.is_empty() { serde_json::Value::Null } else { serde_json::Value::String(email.to_string()) },
+                "geographic_scope": {
+                    "country": if country.is_empty() { serde_json::Value::Null } else { serde_json::Value::String(country.to_string()) },
+                    "region": if region.is_empty() { serde_json::Value::Null } else { serde_json::Value::String(region.to_string()) },
+                    "locality": if locality.is_empty() { serde_json::Value::Null } else { serde_json::Value::String(locality.to_string()) },
             "global": global
         },
         "capabilities": capabilities,
