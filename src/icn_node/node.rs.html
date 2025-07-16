@@ -988,22 +988,22 @@
 <a href=#988 id=988 data-nosnippet>988</a>            .route(<span class="string">"/federation/sync"</span>, post(federation_sync_handler))
 <a href=#989 id=989 data-nosnippet>989</a>            .route(<span class="string">"/ws"</span>, get(websocket_handler))
 <a href=#990 id=990 data-nosnippet>990</a>            .with_state(app_state.clone())
-<a href=#991 id=991 data-nosnippet>991</a>            .layer(
-<a href=#992 id=992 data-nosnippet>992</a>                CorsLayer::new()
-<a href=#993 id=993 data-nosnippet>993</a>                    .allow_origin(Any)
-<a href=#994 id=994 data-nosnippet>994</a>                    .allow_methods(Any)
-<a href=#995 id=995 data-nosnippet>995</a>                    .allow_headers(Any)
-<a href=#996 id=996 data-nosnippet>996</a>                    .allow_credentials(<span class="bool-val">true</span>)
-<a href=#997 id=997 data-nosnippet>997</a>            )
-<a href=#998 id=998 data-nosnippet>998</a>            .layer(middleware::from_fn(correlation_id_middleware))
-<a href=#999 id=999 data-nosnippet>999</a>            .layer(middleware::from_fn_with_state(
-<a href=#1000 id=1000 data-nosnippet>1000</a>                app_state.clone(),
-<a href=#1001 id=1001 data-nosnippet>1001</a>                require_api_key,
-<a href=#1002 id=1002 data-nosnippet>1002</a>            ))
-<a href=#1003 id=1003 data-nosnippet>1003</a>            .layer(middleware::from_fn_with_state(
-<a href=#1004 id=1004 data-nosnippet>1004</a>                app_state.clone(),
-<a href=#1005 id=1005 data-nosnippet>1005</a>                rate_limit_middleware,
-<a href=#1006 id=1006 data-nosnippet>1006</a>            )),
+<a href=#991 id=991 data-nosnippet>991</a>            .layer(middleware::from_fn_with_state(
+<a href=#992 id=992 data-nosnippet>992</a>                app_state.clone(),
+<a href=#993 id=993 data-nosnippet>993</a>                rate_limit_middleware,
+<a href=#994 id=994 data-nosnippet>994</a>            ))
+<a href=#995 id=995 data-nosnippet>995</a>            .layer(middleware::from_fn_with_state(
+<a href=#996 id=996 data-nosnippet>996</a>                app_state.clone(),
+<a href=#997 id=997 data-nosnippet>997</a>                require_api_key,
+<a href=#998 id=998 data-nosnippet>998</a>            ))
+<a href=#999 id=999 data-nosnippet>999</a>            .layer(middleware::from_fn(correlation_id_middleware))
+<a href=#1000 id=1000 data-nosnippet>1000</a>            .layer(
+<a href=#1001 id=1001 data-nosnippet>1001</a>                CorsLayer::new()
+<a href=#1002 id=1002 data-nosnippet>1002</a>                    .allow_origin(Any)
+<a href=#1003 id=1003 data-nosnippet>1003</a>                    .allow_methods(Any)
+<a href=#1004 id=1004 data-nosnippet>1004</a>                    .allow_headers(Any)
+<a href=#1005 id=1005 data-nosnippet>1005</a>                    .allow_credentials(<span class="bool-val">true</span>)
+<a href=#1006 id=1006 data-nosnippet>1006</a>            ),
 <a href=#1007 id=1007 data-nosnippet>1007</a>        rt_ctx,
 <a href=#1008 id=1008 data-nosnippet>1008</a>    )
 <a href=#1009 id=1009 data-nosnippet>1009</a>}
