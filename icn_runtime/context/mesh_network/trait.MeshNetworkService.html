@@ -5,7 +5,7 @@
     // Required methods
     fn <a href="#tymethod.announce_job" class="fn">announce_job</a>&lt;'life0, 'life1, 'async_trait&gt;(
         &amp;'life0 self,
-        job: &amp;'life1 ActualMeshJob,
+        job: &amp;'life1 <a class="struct" href="../../../icn_mesh/struct.ActualMeshJob.html" title="struct icn_mesh::ActualMeshJob">ActualMeshJob</a>,
     ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.88.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.88.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.88.0/std/primitive.unit.html">()</a>, <a class="enum" href="../errors/enum.HostAbiError.html" title="enum icn_runtime::context::errors::HostAbiError">HostAbiError</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;
        <span class="where">where Self: 'async_trait,
              'life0: 'async_trait,
@@ -24,9 +24,9 @@
              'life0: 'async_trait</span>;
 <span class="item-spacer"></span>    fn <a href="#tymethod.collect_bids_for_job" class="fn">collect_bids_for_job</a>&lt;'life0, 'life1, 'async_trait&gt;(
         &amp;'life0 self,
-        job_id: &amp;'life1 JobId,
+        job_id: &amp;'life1 <a class="struct" href="../../../icn_mesh/struct.JobId.html" title="struct icn_mesh::JobId">JobId</a>,
         duration: <a class="struct" href="https://doc.rust-lang.org/1.88.0/core/time/struct.Duration.html" title="struct core::time::Duration">StdDuration</a>,
-    ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.88.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.88.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;MeshJobBid&gt;, <a class="enum" href="../errors/enum.HostAbiError.html" title="enum icn_runtime::context::errors::HostAbiError">HostAbiError</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;
+    ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.88.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.88.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="struct" href="../../../icn_mesh/struct.MeshJobBid.html" title="struct icn_mesh::MeshJobBid">MeshJobBid</a>&gt;, <a class="enum" href="../errors/enum.HostAbiError.html" title="enum icn_runtime::context::errors::HostAbiError">HostAbiError</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;
        <span class="where">where Self: 'async_trait,
              'life0: 'async_trait,
              'life1: 'async_trait</span>;
@@ -39,8 +39,8 @@
              'life1: 'async_trait</span>;
 <span class="item-spacer"></span>    fn <a href="#tymethod.try_receive_receipt" class="fn">try_receive_receipt</a>&lt;'life0, 'life1, 'life2, 'async_trait&gt;(
         &amp;'life0 self,
-        job_id: &amp;'life1 JobId,
-        expected_executor: &amp;'life2 <a class="struct" href="../../../icn_common/struct.Did.html" title="struct icn_common::Did">Did</a>,
+        job_id: &amp;'life1 <a class="struct" href="../../../icn_mesh/struct.JobId.html" title="struct icn_mesh::JobId">JobId</a>,
+        expected_executor: &amp;'life2 Did,
         timeout: <a class="struct" href="https://doc.rust-lang.org/1.88.0/core/time/struct.Duration.html" title="struct core::time::Duration">StdDuration</a>,
     ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.88.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.88.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="enum" href="https://doc.rust-lang.org/1.88.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;IdentityExecutionReceipt&gt;, <a class="enum" href="../errors/enum.HostAbiError.html" title="enum icn_runtime::context::errors::HostAbiError">HostAbiError</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;
        <span class="where">where Self: 'async_trait,
@@ -49,7 +49,7 @@
              'life2: 'async_trait</span>;
 <span class="item-spacer"></span>    fn <a href="#tymethod.submit_bid_for_job" class="fn">submit_bid_for_job</a>&lt;'life0, 'life1, 'async_trait&gt;(
         &amp;'life0 self,
-        bid: &amp;'life1 MeshJobBid,
+        bid: &amp;'life1 <a class="struct" href="../../../icn_mesh/struct.MeshJobBid.html" title="struct icn_mesh::MeshJobBid">MeshJobBid</a>,
     ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.88.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.88.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.88.0/std/primitive.unit.html">()</a>, <a class="enum" href="../errors/enum.HostAbiError.html" title="enum icn_runtime::context::errors::HostAbiError">HostAbiError</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;
        <span class="where">where Self: 'async_trait,
              'life0: 'async_trait,
@@ -66,7 +66,7 @@
 Using async_trait to make it object-safe</p>
 </div></details><h2 id="required-methods" class="section-header">Required Methods<a href="#required-methods" class="anchor">§</a></h2><div class="methods"><section id="tymethod.announce_job" class="method"><a class="src rightside" href="../../../src/icn_runtime/context/mesh_network.rs.html#67">Source</a><h4 class="code-header">fn <a href="#tymethod.announce_job" class="fn">announce_job</a>&lt;'life0, 'life1, 'async_trait&gt;(
     &amp;'life0 self,
-    job: &amp;'life1 ActualMeshJob,
+    job: &amp;'life1 <a class="struct" href="../../../icn_mesh/struct.ActualMeshJob.html" title="struct icn_mesh::ActualMeshJob">ActualMeshJob</a>,
 ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.88.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.88.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.88.0/std/primitive.unit.html">()</a>, <a class="enum" href="../errors/enum.HostAbiError.html" title="enum icn_runtime::context::errors::HostAbiError">HostAbiError</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;<div class="where">where
     Self: 'async_trait,
     'life0: 'async_trait,
@@ -82,9 +82,9 @@ Using async_trait to make it object-safe</p>
     Self: 'async_trait,
     'life0: 'async_trait,</div></h4></section><section id="tymethod.collect_bids_for_job" class="method"><a class="src rightside" href="../../../src/icn_runtime/context/mesh_network.rs.html#70-74">Source</a><h4 class="code-header">fn <a href="#tymethod.collect_bids_for_job" class="fn">collect_bids_for_job</a>&lt;'life0, 'life1, 'async_trait&gt;(
     &amp;'life0 self,
-    job_id: &amp;'life1 JobId,
+    job_id: &amp;'life1 <a class="struct" href="../../../icn_mesh/struct.JobId.html" title="struct icn_mesh::JobId">JobId</a>,
     duration: <a class="struct" href="https://doc.rust-lang.org/1.88.0/core/time/struct.Duration.html" title="struct core::time::Duration">StdDuration</a>,
-) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.88.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.88.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;MeshJobBid&gt;, <a class="enum" href="../errors/enum.HostAbiError.html" title="enum icn_runtime::context::errors::HostAbiError">HostAbiError</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;<div class="where">where
+) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.88.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.88.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="struct" href="../../../icn_mesh/struct.MeshJobBid.html" title="struct icn_mesh::MeshJobBid">MeshJobBid</a>&gt;, <a class="enum" href="../errors/enum.HostAbiError.html" title="enum icn_runtime::context::errors::HostAbiError">HostAbiError</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;<div class="where">where
     Self: 'async_trait,
     'life0: 'async_trait,
     'life1: 'async_trait,</div></h4></section><section id="tymethod.notify_executor_of_assignment" class="method"><a class="src rightside" href="../../../src/icn_runtime/context/mesh_network.rs.html#75-78">Source</a><h4 class="code-header">fn <a href="#tymethod.notify_executor_of_assignment" class="fn">notify_executor_of_assignment</a>&lt;'life0, 'life1, 'async_trait&gt;(
@@ -95,8 +95,8 @@ Using async_trait to make it object-safe</p>
     'life0: 'async_trait,
     'life1: 'async_trait,</div></h4></section><section id="tymethod.try_receive_receipt" class="method"><a class="src rightside" href="../../../src/icn_runtime/context/mesh_network.rs.html#79-84">Source</a><h4 class="code-header">fn <a href="#tymethod.try_receive_receipt" class="fn">try_receive_receipt</a>&lt;'life0, 'life1, 'life2, 'async_trait&gt;(
     &amp;'life0 self,
-    job_id: &amp;'life1 JobId,
-    expected_executor: &amp;'life2 <a class="struct" href="../../../icn_common/struct.Did.html" title="struct icn_common::Did">Did</a>,
+    job_id: &amp;'life1 <a class="struct" href="../../../icn_mesh/struct.JobId.html" title="struct icn_mesh::JobId">JobId</a>,
+    expected_executor: &amp;'life2 Did,
     timeout: <a class="struct" href="https://doc.rust-lang.org/1.88.0/core/time/struct.Duration.html" title="struct core::time::Duration">StdDuration</a>,
 ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.88.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.88.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="enum" href="https://doc.rust-lang.org/1.88.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;IdentityExecutionReceipt&gt;, <a class="enum" href="../errors/enum.HostAbiError.html" title="enum icn_runtime::context::errors::HostAbiError">HostAbiError</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;<div class="where">where
     Self: 'async_trait,
@@ -104,7 +104,7 @@ Using async_trait to make it object-safe</p>
     'life1: 'async_trait,
     'life2: 'async_trait,</div></h4></section><section id="tymethod.submit_bid_for_job" class="method"><a class="src rightside" href="../../../src/icn_runtime/context/mesh_network.rs.html#85">Source</a><h4 class="code-header">fn <a href="#tymethod.submit_bid_for_job" class="fn">submit_bid_for_job</a>&lt;'life0, 'life1, 'async_trait&gt;(
     &amp;'life0 self,
-    bid: &amp;'life1 MeshJobBid,
+    bid: &amp;'life1 <a class="struct" href="../../../icn_mesh/struct.MeshJobBid.html" title="struct icn_mesh::MeshJobBid">MeshJobBid</a>,
 ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.88.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.88.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.88.0/std/primitive.unit.html">()</a>, <a class="enum" href="../errors/enum.HostAbiError.html" title="enum icn_runtime::context::errors::HostAbiError">HostAbiError</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;<div class="where">where
     Self: 'async_trait,
     'life0: 'async_trait,

@@ -1,32 +1,448 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="ICN API Crate"><title>icn_api - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-1a91846b.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="icn_api" data-themes="" data-resource-suffix="" data-rustdoc-version="1.88.0 (6b00bc388 2025-06-23)" data-channel="1.88.0" data-search-js="search-f7877310.js" data-settings-js="settings-5514c975.js" ><script src="../static.files/storage-4e99c027.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-7ef8a74a.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-044be391.svg"></head><body class="rustdoc mod crate"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button></nav><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../icn_api/index.html">icn_api</a><span class="version">0.2.0</span></h2></div><div class="sidebar-elems"><ul class="block"><li><a id="all-types" href="all.html">All Items</a></li></ul><section id="rustdoc-toc"><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#icn-api-crate" title="ICN API Crate">ICN API Crate</a><ul><li><a href="#purpose" title="Purpose">Purpose</a></li><li><a href="#public-api-style" title="Public API Style">Public API Style</a></li><li><a href="#contributing" title="Contributing">Contributing</a></li><li><a href="#license" title="License">License</a></li></ul></li><li><a href="#icn-api-crate-1" title="ICN API Crate">ICN API Crate</a></li></ul><h3><a href="#modules">Crate Items</a></h3><ul class="block"><li><a href="#modules" title="Modules">Modules</a></li><li><a href="#structs" title="Structs">Structs</a></li><li><a href="#traits" title="Traits">Traits</a></li><li><a href="#functions" title="Functions">Functions</a></li></ul></section><div id="rustdoc-modnav"></div></div></nav><div class="sidebar-resizer"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1>Crate <span>icn_api</span><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/icn_api/lib.rs.html#1-1419">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><h2 id="icn-api-crate"><a class="doc-anchor" href="#icn-api-crate">§</a>ICN API Crate</h2>
-<p>This crate provides the primary API endpoints for interacting with InterCooperative Network (ICN) nodes.</p>
-<p>See <a href="../../CONTEXT.md">CONTEXT.md</a> for ICN Core design philosophy and crate roles.
-See <a href="../../docs/ASYNC_OVERVIEW.md">docs/ASYNC_OVERVIEW.md</a> for async API guidelines.</p>
-<h3 id="purpose"><a class="doc-anchor" href="#purpose">§</a>Purpose</h3>
-<p>The <code>icn-api</code> crate defines the service interfaces, data structures for requests and responses, and potentially server/client implementations for ICN node APIs. This typically includes functionalities like querying node status, submitting transactions or messages, and interacting with specific ICN protocols (e.g., governance, economics).</p>
-<h3 id="public-api-style"><a class="doc-anchor" href="#public-api-style">§</a>Public API Style</h3>
-<p>The API is designed to be accessible via common RPC mechanisms such as JSON-RPC or gRPC. The style emphasizes:</p>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="ICN API Crate"><title>icn_api - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-1a91846b.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="icn_api" data-themes="" data-resource-suffix="" data-rustdoc-version="1.88.0 (6b00bc388 2025-06-23)" data-channel="1.88.0" data-search-js="search-f7877310.js" data-settings-js="settings-5514c975.js" ><script src="../static.files/storage-4e99c027.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-7ef8a74a.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-044be391.svg"></head><body class="rustdoc mod crate"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button></nav><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../icn_api/index.html">icn_api</a><span class="version">0.2.0</span></h2></div><div class="sidebar-elems"><ul class="block"><li><a id="all-types" href="all.html">All Items</a></li></ul><section id="rustdoc-toc"><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#icn-api-crate" title="ICN API Crate">ICN API Crate</a><ul><li><a href="#overview" title="Overview">Overview</a></li><li><a href="#core-api-modules" title="Core API Modules">Core API Modules</a></li></ul></li><li><a href="#http-api-reference-for-web-ui-integration" title="HTTP API Reference for Web UI Integration">HTTP API Reference for Web UI Integration</a><ul><li><a href="#authentication" title="Authentication">Authentication</a></li><li><a href="#base-url" title="Base URL">Base URL</a></li><li><a href="#common-response-formats" title="Common Response Formats">Common Response Formats</a></li><li><a href="#governance-api" title="Governance API">Governance API</a></li><li><a href="#identity--credentials-api" title="Identity &#38; Credentials API">Identity &amp; Credentials API</a></li><li><a href="#federation-management-api" title="Federation Management API">Federation Management API</a></li><li><a href="#mesh-computing-api" title="Mesh Computing API">Mesh Computing API</a></li><li><a href="#account--mana-api" title="Account &#38; Mana API">Account &amp; Mana API</a></li><li><a href="#reputation-api" title="Reputation API">Reputation API</a></li><li><a href="#dag-storage-api" title="DAG Storage API">DAG Storage API</a></li><li><a href="#system-information-api" title="System Information API">System Information API</a></li><li><a href="#error-codes" title="Error Codes">Error Codes</a></li><li><a href="#rate-limiting" title="Rate Limiting">Rate Limiting</a></li><li><a href="#websocket-support-planned" title="WebSocket Support (Planned)">WebSocket Support (Planned)</a></li><li><a href="#typescript-client-sdk-planned" title="TypeScript Client SDK (Planned)">TypeScript Client SDK (Planned)</a></li></ul></li><li><a href="#icn-api-crate-1" title="ICN API Crate">ICN API Crate</a></li></ul><h3><a href="#modules">Crate Items</a></h3><ul class="block"><li><a href="#modules" title="Modules">Modules</a></li><li><a href="#structs" title="Structs">Structs</a></li><li><a href="#traits" title="Traits">Traits</a></li><li><a href="#functions" title="Functions">Functions</a></li></ul></section><div id="rustdoc-modnav"></div></div></nav><div class="sidebar-resizer"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1>Crate <span>icn_api</span><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/icn_api/lib.rs.html#1-1420">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><h2 id="icn-api-crate"><a class="doc-anchor" href="#icn-api-crate">§</a>ICN API Crate</h2>
+<p>This crate provides the primary API interfaces for interacting with InterCooperative Network (ICN) nodes. It defines service traits, data structures for requests and responses, and comprehensive HTTP API documentation for external consumption.</p>
+<h3 id="overview"><a class="doc-anchor" href="#overview">§</a>Overview</h3>
+<p>The ICN API is designed for clarity, modularity, and extensibility. It provides:</p>
 <ul>
-<li><strong>Clarity:</strong> Well-defined request and response types.</li>
-<li><strong>Modularity:</strong> Separating concerns for different aspects of the ICN functionality.</li>
-<li><strong>Extensibility:</strong> Allowing for new API endpoints and versions to be added as the ICN evolves.</li>
+<li><strong>Service Traits</strong>: Abstract interfaces for core ICN functionality</li>
+<li><strong>Data Transfer Objects (DTOs)</strong>: Standardized request/response structures</li>
+<li><strong>HTTP API Endpoints</strong>: RESTful interface for external applications</li>
+<li><strong>Type Safety</strong>: Rust-first design with comprehensive type definitions</li>
 </ul>
-<p>Networking helpers like <code>discover_peers_api</code> and <code>send_network_message_api</code> now
-accept a generic [<code>NetworkService</code>] trait object. This allows callers to inject
-the real <code>Libp2pNetworkService</code> when running in a full node, while tests can
-pass the <code>StubNetworkService</code> for deterministic behavior.</p>
-<p>Refer to the <code>lib.rs</code> documentation for specific API function signatures and data types.</p>
-<h3 id="contributing"><a class="doc-anchor" href="#contributing">§</a>Contributing</h3>
-<p>Contributions are welcome! Please see the main <a href="../../CONTRIBUTING.md">CONTRIBUTING.md</a> in the root of the <code>icn-core</code> repository for guidelines.</p>
-<h3 id="license"><a class="doc-anchor" href="#license">§</a>License</h3>
-<p>Licensed under the Apache License, Version 2.0. See <a href="../../LICENSE">LICENSE</a>.</p>
+<h3 id="core-api-modules"><a class="doc-anchor" href="#core-api-modules">§</a>Core API Modules</h3>
+<ul>
+<li><code>governance_trait</code> - Proposal submission, voting, and delegation</li>
+<li><code>identity_trait</code> - DID management and credential operations</li>
+<li><code>federation_trait</code> - Multi-node federation management</li>
+<li><code>mutual_aid_trait</code> - Resource sharing and mutual aid</li>
+<li><code>dag_trait</code> - Content-addressed storage operations</li>
+</ul>
+<hr />
+<h2 id="http-api-reference-for-web-ui-integration"><a class="doc-anchor" href="#http-api-reference-for-web-ui-integration">§</a>HTTP API Reference for Web UI Integration</h2>
+<p>This section provides comprehensive documentation for all HTTP endpoints available for <code>icn-web-ui</code> integration.</p>
+<h3 id="authentication"><a class="doc-anchor" href="#authentication">§</a>Authentication</h3>
+<p>All API endpoints require authentication via one of these methods:</p>
+<h4 id="api-key-authentication"><a class="doc-anchor" href="#api-key-authentication">§</a>API Key Authentication</h4><div class="example-wrap"><pre class="language-http"><code>x-api-key: your-api-key-here</code></pre></div><h4 id="bearer-token-authentication"><a class="doc-anchor" href="#bearer-token-authentication">§</a>Bearer Token Authentication</h4><div class="example-wrap"><pre class="language-http"><code>Authorization: Bearer your-bearer-token-here</code></pre></div><h4 id="did-based-authentication-coming-soon"><a class="doc-anchor" href="#did-based-authentication-coming-soon">§</a>DID-Based Authentication (Coming Soon)</h4><div class="example-wrap"><pre class="language-http"><code>Authorization: DID did:example:123... &lt;signature&gt;</code></pre></div><h3 id="base-url"><a class="doc-anchor" href="#base-url">§</a>Base URL</h3>
+<p>Default base URL: <code>http://localhost:7845</code></p>
+<p>For HTTPS (with TLS configured): <code>https://localhost:7845</code></p>
+<h3 id="common-response-formats"><a class="doc-anchor" href="#common-response-formats">§</a>Common Response Formats</h3><h4 id="success-response"><a class="doc-anchor" href="#success-response">§</a>Success Response</h4><div class="example-wrap"><pre class="language-json"><code>{
+  &quot;status&quot;: &quot;success&quot;,
+  &quot;data&quot;: { ... }
+}</code></pre></div><h4 id="error-response"><a class="doc-anchor" href="#error-response">§</a>Error Response</h4><div class="example-wrap"><pre class="language-json"><code>{
+  &quot;error&quot;: &quot;Error description&quot;,
+  &quot;details&quot;: { ... },
+  &quot;correlation_id&quot;: &quot;uuid&quot;
+}</code></pre></div>
+<hr />
+<h3 id="governance-api"><a class="doc-anchor" href="#governance-api">§</a>Governance API</h3><h4 id="submit-proposal"><a class="doc-anchor" href="#submit-proposal">§</a>Submit Proposal</h4>
+<p>Submit a new governance proposal for community voting.</p>
+<div class="example-wrap"><pre class="language-http"><code>POST /governance/submit
+Content-Type: application/json</code></pre></div>
+<p><strong>Request Body:</strong></p>
+<div class="example-wrap"><pre class="language-json"><code>{
+  &quot;proposer_did&quot;: &quot;did:example:alice&quot;,
+  &quot;proposal&quot;: {
+    &quot;type&quot;: &quot;SystemParameterChange&quot;,
+    &quot;data&quot;: {
+      &quot;param&quot;: &quot;mana_regeneration_rate&quot;,
+      &quot;value&quot;: &quot;0.1&quot;
+    }
+  },
+  &quot;description&quot;: &quot;Increase mana regeneration rate to improve network participation&quot;,
+  &quot;duration_secs&quot;: 604800,
+  &quot;quorum&quot;: 10,
+  &quot;threshold&quot;: 0.6,
+  &quot;body&quot;: null,
+  &quot;credential_proof&quot;: null,
+  &quot;revocation_proof&quot;: null
+}</code></pre></div>
+<p><strong>Proposal Types:</strong></p>
+<ul>
+<li><code>SystemParameterChange</code> - Modify network parameters</li>
+<li><code>MemberAdmission</code> - Add new cooperative member</li>
+<li><code>RemoveMember</code> - Remove existing member</li>
+<li><code>SoftwareUpgrade</code> - Propose software version upgrade</li>
+<li><code>GenericText</code> - General discussion proposal</li>
+<li><code>Resolution</code> - Execute specific actions</li>
+</ul>
+<p><strong>Response:</strong></p>
+<div class="example-wrap"><pre class="language-json"><code>&quot;proposal_id_string&quot;</code></pre></div><h4 id="cast-vote"><a class="doc-anchor" href="#cast-vote">§</a>Cast Vote</h4>
+<p>Vote on an active proposal.</p>
+<div class="example-wrap"><pre class="language-http"><code>POST /governance/vote
+Content-Type: application/json</code></pre></div>
+<p><strong>Request Body:</strong></p>
+<div class="example-wrap"><pre class="language-json"><code>{
+  &quot;voter_did&quot;: &quot;did:example:bob&quot;,
+  &quot;proposal_id&quot;: &quot;proposal_id_string&quot;,
+  &quot;vote_option&quot;: &quot;Yes&quot;,
+  &quot;credential_proof&quot;: null,
+  &quot;revocation_proof&quot;: null
+}</code></pre></div>
+<p><strong>Vote Options:</strong> <code>"Yes"</code>, <code>"No"</code>, <code>"Abstain"</code></p>
+<p><strong>Response:</strong></p>
+<div class="example-wrap"><pre class="language-json"><code>&quot;Vote cast successfully&quot;</code></pre></div><h4 id="list-proposals"><a class="doc-anchor" href="#list-proposals">§</a>List Proposals</h4>
+<p>Get all governance proposals with their current status.</p>
+<div class="example-wrap"><pre class="language-http"><code>GET /governance/proposals</code></pre></div>
+<p><strong>Response:</strong></p>
+<div class="example-wrap"><pre class="language-json"><code>[
+  {
+    &quot;id&quot;: &quot;proposal_id&quot;,
+    &quot;proposer&quot;: &quot;did:example:alice&quot;,
+    &quot;proposal_type&quot;: { ... },
+    &quot;description&quot;: &quot;Proposal description&quot;,
+    &quot;status&quot;: &quot;Open&quot;,
+    &quot;created_at&quot;: &quot;2025-01-08T10:00:00Z&quot;,
+    &quot;voting_deadline&quot;: &quot;2025-01-15T10:00:00Z&quot;,
+    &quot;votes&quot;: {
+      &quot;yes&quot;: 5,
+      &quot;no&quot;: 2,
+      &quot;abstain&quot;: 1
+    },
+    &quot;quorum&quot;: 10,
+    &quot;threshold&quot;: 0.6
+  }
+]</code></pre></div><h4 id="get-proposal-details"><a class="doc-anchor" href="#get-proposal-details">§</a>Get Proposal Details</h4>
+<p>Get detailed information about a specific proposal.</p>
+<div class="example-wrap"><pre class="language-http"><code>GET /governance/proposal/{proposal_id}</code></pre></div>
+<p><strong>Response:</strong></p>
+<div class="example-wrap"><pre class="language-json"><code>{
+  &quot;id&quot;: &quot;proposal_id&quot;,
+  &quot;proposer&quot;: &quot;did:example:alice&quot;,
+  &quot;proposal_type&quot;: { ... },
+  &quot;description&quot;: &quot;Detailed proposal description&quot;,
+  &quot;status&quot;: &quot;Open&quot;,
+  &quot;created_at&quot;: &quot;2025-01-08T10:00:00Z&quot;,
+  &quot;voting_deadline&quot;: &quot;2025-01-15T10:00:00Z&quot;,
+  &quot;votes&quot;: {
+    &quot;yes&quot;: 5,
+    &quot;no&quot;: 2,
+    &quot;abstain&quot;: 1
+  },
+  &quot;detailed_votes&quot;: [
+    {
+      &quot;voter&quot;: &quot;did:example:bob&quot;,
+      &quot;option&quot;: &quot;Yes&quot;,
+      &quot;timestamp&quot;: &quot;2025-01-08T11:00:00Z&quot;
+    }
+  ],
+  &quot;quorum&quot;: 10,
+  &quot;threshold&quot;: 0.6
+}</code></pre></div><h4 id="delegate-vote"><a class="doc-anchor" href="#delegate-vote">§</a>Delegate Vote</h4>
+<p>Delegate voting power to another member.</p>
+<div class="example-wrap"><pre class="language-http"><code>POST /governance/delegate
+Content-Type: application/json</code></pre></div>
+<p><strong>Request Body:</strong></p>
+<div class="example-wrap"><pre class="language-json"><code>{
+  &quot;from_did&quot;: &quot;did:example:alice&quot;,
+  &quot;to_did&quot;: &quot;did:example:bob&quot;
+}</code></pre></div><h4 id="revoke-delegation"><a class="doc-anchor" href="#revoke-delegation">§</a>Revoke Delegation</h4>
+<p>Revoke previously delegated voting power.</p>
+<div class="example-wrap"><pre class="language-http"><code>POST /governance/revoke
+Content-Type: application/json</code></pre></div>
+<p><strong>Request Body:</strong></p>
+<div class="example-wrap"><pre class="language-json"><code>{
+  &quot;from_did&quot;: &quot;did:example:alice&quot;
+}</code></pre></div>
+<hr />
+<h3 id="identity--credentials-api"><a class="doc-anchor" href="#identity--credentials-api">§</a>Identity &amp; Credentials API</h3><h4 id="issue-credential"><a class="doc-anchor" href="#issue-credential">§</a>Issue Credential</h4>
+<p>Issue a new verifiable credential.</p>
+<div class="example-wrap"><pre class="language-http"><code>POST /identity/credentials/issue
+Content-Type: application/json</code></pre></div>
+<p><strong>Request Body:</strong></p>
+<div class="example-wrap"><pre class="language-json"><code>{
+  &quot;issuer&quot;: &quot;did:example:issuer&quot;,
+  &quot;holder&quot;: &quot;did:example:holder&quot;,
+  &quot;attributes&quot;: {
+    &quot;name&quot;: &quot;Alice Smith&quot;,
+    &quot;role&quot;: &quot;cooperative_member&quot;,
+    &quot;membership_level&quot;: &quot;verified&quot;
+  },
+  &quot;schema&quot;: &quot;QmSchemaHash...&quot;,
+  &quot;expiration&quot;: 1735689600
+}</code></pre></div>
+<p><strong>Response:</strong></p>
+<div class="example-wrap"><pre class="language-json"><code>{
+  &quot;cid&quot;: &quot;QmCredentialHash...&quot;,
+  &quot;credential&quot;: {
+    &quot;issuer&quot;: &quot;did:example:issuer&quot;,
+    &quot;holder&quot;: &quot;did:example:holder&quot;,
+    &quot;attributes&quot;: { ... },
+    &quot;schema&quot;: &quot;QmSchemaHash...&quot;,
+    &quot;expiration&quot;: 1735689600,
+    &quot;signature&quot;: &quot;...&quot;
+  }
+}</code></pre></div><h4 id="verify-credential"><a class="doc-anchor" href="#verify-credential">§</a>Verify Credential</h4>
+<p>Verify the authenticity of a credential.</p>
+<div class="example-wrap"><pre class="language-http"><code>POST /identity/credentials/verify
+Content-Type: application/json</code></pre></div>
+<p><strong>Request Body:</strong></p>
+<div class="example-wrap"><pre class="language-json"><code>{
+  &quot;credential&quot;: {
+    &quot;issuer&quot;: &quot;did:example:issuer&quot;,
+    &quot;holder&quot;: &quot;did:example:holder&quot;,
+    &quot;attributes&quot;: { ... },
+    &quot;schema&quot;: &quot;QmSchemaHash...&quot;,
+    &quot;expiration&quot;: 1735689600,
+    &quot;signature&quot;: &quot;...&quot;
+  }
+}</code></pre></div>
+<p><strong>Response:</strong></p>
+<div class="example-wrap"><pre class="language-json"><code>{
+  &quot;valid&quot;: true
+}</code></pre></div><h4 id="get-credential"><a class="doc-anchor" href="#get-credential">§</a>Get Credential</h4>
+<p>Retrieve a credential by its CID.</p>
+<div class="example-wrap"><pre class="language-http"><code>GET /identity/credentials/{cid}</code></pre></div>
+<p><strong>Response:</strong></p>
+<div class="example-wrap"><pre class="language-json"><code>{
+  &quot;cid&quot;: &quot;QmCredentialHash...&quot;,
+  &quot;credential&quot;: { ... }
+}</code></pre></div><h4 id="list-credential-schemas"><a class="doc-anchor" href="#list-credential-schemas">§</a>List Credential Schemas</h4>
+<p>Get all available credential schemas.</p>
+<div class="example-wrap"><pre class="language-http"><code>GET /identity/credentials/schemas</code></pre></div>
+<p><strong>Response:</strong></p>
+<div class="example-wrap"><pre class="language-json"><code>[
+  &quot;QmSchemaHash1...&quot;,
+  &quot;QmSchemaHash2...&quot;,
+  &quot;QmSchemaHash3...&quot;
+]</code></pre></div><h4 id="generate-zero-knowledge-proof"><a class="doc-anchor" href="#generate-zero-knowledge-proof">§</a>Generate Zero-Knowledge Proof</h4>
+<p>Generate a ZK proof for credential claims.</p>
+<div class="example-wrap"><pre class="language-http"><code>POST /identity/generate-proof
+Content-Type: application/json</code></pre></div>
+<p><strong>Request Body:</strong></p>
+<div class="example-wrap"><pre class="language-json"><code>{
+  &quot;issuer&quot;: &quot;did:example:issuer&quot;,
+  &quot;holder&quot;: &quot;did:example:holder&quot;,
+  &quot;claim_type&quot;: &quot;membership_verification&quot;,
+  &quot;schema&quot;: &quot;QmSchemaHash...&quot;,
+  &quot;backend&quot;: &quot;groth16&quot;,
+  &quot;public_inputs&quot;: {
+    &quot;min_membership_level&quot;: 1
+  }
+}</code></pre></div><h4 id="verify-zero-knowledge-proof"><a class="doc-anchor" href="#verify-zero-knowledge-proof">§</a>Verify Zero-Knowledge Proof</h4>
+<p>Verify a ZK proof without revealing underlying data.</p>
+<div class="example-wrap"><pre class="language-http"><code>POST /identity/verify
+Content-Type: application/json</code></pre></div>
+<hr />
+<h3 id="federation-management-api"><a class="doc-anchor" href="#federation-management-api">§</a>Federation Management API</h3><h4 id="list-federation-peers"><a class="doc-anchor" href="#list-federation-peers">§</a>List Federation Peers</h4>
+<p>Get all peers in the current federation.</p>
+<div class="example-wrap"><pre class="language-http"><code>GET /federation/peers</code></pre></div>
+<p><strong>Response:</strong></p>
+<div class="example-wrap"><pre class="language-json"><code>[
+  &quot;12D3KooWPeer1...&quot;,
+  &quot;12D3KooWPeer2...&quot;,
+  &quot;12D3KooWPeer3...&quot;
+]</code></pre></div><h4 id="join-federation"><a class="doc-anchor" href="#join-federation">§</a>Join Federation</h4>
+<p>Join an existing federation by connecting to a peer.</p>
+<div class="example-wrap"><pre class="language-http"><code>POST /federation/join
+Content-Type: application/json</code></pre></div>
+<p><strong>Request Body:</strong></p>
+<div class="example-wrap"><pre class="language-json"><code>{
+  &quot;peer&quot;: &quot;12D3KooWPeerAddress...&quot;
+}</code></pre></div><h4 id="leave-federation"><a class="doc-anchor" href="#leave-federation">§</a>Leave Federation</h4>
+<p>Leave the current federation.</p>
+<div class="example-wrap"><pre class="language-http"><code>POST /federation/leave
+Content-Type: application/json</code></pre></div>
+<p><strong>Request Body:</strong></p>
+<div class="example-wrap"><pre class="language-json"><code>{
+  &quot;peer&quot;: &quot;12D3KooWPeerAddress...&quot;
+}</code></pre></div><h4 id="federation-status"><a class="doc-anchor" href="#federation-status">§</a>Federation Status</h4>
+<p>Get current federation status and statistics.</p>
+<div class="example-wrap"><pre class="language-http"><code>GET /federation/status</code></pre></div>
+<p><strong>Response:</strong></p>
+<div class="example-wrap"><pre class="language-json"><code>{
+  &quot;peer_count&quot;: 5,
+  &quot;peers&quot;: [
+    &quot;12D3KooWPeer1...&quot;,
+    &quot;12D3KooWPeer2...&quot;
+  ]
+}</code></pre></div>
+<hr />
+<h3 id="mesh-computing-api"><a class="doc-anchor" href="#mesh-computing-api">§</a>Mesh Computing API</h3><h4 id="submit-mesh-job"><a class="doc-anchor" href="#submit-mesh-job">§</a>Submit Mesh Job</h4>
+<p>Submit a computational job to the mesh network.</p>
+<div class="example-wrap"><pre class="language-http"><code>POST /mesh/submit
+Content-Type: application/json</code></pre></div>
+<p><strong>Request Body:</strong></p>
+<div class="example-wrap"><pre class="language-json"><code>{
+  &quot;job_spec&quot;: {
+    &quot;image&quot;: &quot;python:3.9&quot;,
+    &quot;command&quot;: [&quot;python&quot;, &quot;-c&quot;, &quot;print(&#39;Hello, ICN!&#39;)&quot;],
+    &quot;resources&quot;: {
+      &quot;cpu_cores&quot;: 1,
+      &quot;memory_mb&quot;: 512,
+      &quot;storage_mb&quot;: 1024
+    }
+  },
+  &quot;submitter_did&quot;: &quot;did:example:submitter&quot;,
+  &quot;max_cost&quot;: 1000,
+  &quot;timeout_seconds&quot;: 300
+}</code></pre></div>
+<p><strong>Response:</strong></p>
+<div class="example-wrap"><pre class="language-json"><code>{
+  &quot;job_id&quot;: &quot;job_uuid_string&quot;
+}</code></pre></div><h4 id="list-jobs"><a class="doc-anchor" href="#list-jobs">§</a>List Jobs</h4>
+<p>Get all jobs with their current status.</p>
+<div class="example-wrap"><pre class="language-http"><code>GET /mesh/jobs</code></pre></div>
+<p><strong>Response:</strong></p>
+<div class="example-wrap"><pre class="language-json"><code>[
+  {
+    &quot;id&quot;: &quot;job_uuid&quot;,
+    &quot;submitter&quot;: &quot;did:example:submitter&quot;,
+    &quot;status&quot;: &quot;Running&quot;,
+    &quot;submitted_at&quot;: &quot;2025-01-08T10:00:00Z&quot;,
+    &quot;executor&quot;: &quot;did:example:executor&quot;,
+    &quot;cost&quot;: 850,
+    &quot;progress&quot;: 0.7
+  }
+]</code></pre></div><h4 id="get-job-status"><a class="doc-anchor" href="#get-job-status">§</a>Get Job Status</h4>
+<p>Get detailed status of a specific job.</p>
+<div class="example-wrap"><pre class="language-http"><code>GET /mesh/jobs/{job_id}</code></pre></div>
+<p><strong>Response:</strong></p>
+<div class="example-wrap"><pre class="language-json"><code>{
+  &quot;id&quot;: &quot;job_uuid&quot;,
+  &quot;submitter&quot;: &quot;did:example:submitter&quot;,
+  &quot;status&quot;: &quot;Completed&quot;,
+  &quot;submitted_at&quot;: &quot;2025-01-08T10:00:00Z&quot;,
+  &quot;started_at&quot;: &quot;2025-01-08T10:05:00Z&quot;,
+  &quot;completed_at&quot;: &quot;2025-01-08T10:15:00Z&quot;,
+  &quot;executor&quot;: &quot;did:example:executor&quot;,
+  &quot;cost&quot;: 850,
+  &quot;result&quot;: {
+    &quot;output&quot;: &quot;Hello, ICN!&quot;,
+    &quot;exit_code&quot;: 0
+  }
+}</code></pre></div>
+<hr />
+<h3 id="account--mana-api"><a class="doc-anchor" href="#account--mana-api">§</a>Account &amp; Mana API</h3><h4 id="get-mana-balance"><a class="doc-anchor" href="#get-mana-balance">§</a>Get Mana Balance</h4>
+<p>Get the current mana balance for a DID.</p>
+<div class="example-wrap"><pre class="language-http"><code>GET /account/{did}/mana</code></pre></div>
+<p><strong>Response:</strong></p>
+<div class="example-wrap"><pre class="language-json"><code>{
+  &quot;balance&quot;: 5000
+}</code></pre></div><h4 id="get-account-information"><a class="doc-anchor" href="#get-account-information">§</a>Get Account Information</h4>
+<p>Get comprehensive account information.</p>
+<div class="example-wrap"><pre class="language-http"><code>GET /keys</code></pre></div>
+<p><strong>Response:</strong></p>
+<div class="example-wrap"><pre class="language-json"><code>{
+  &quot;did&quot;: &quot;did:example:node&quot;,
+  &quot;public_key_bs58&quot;: &quot;5Gv8YR1c2...&quot;
+}</code></pre></div>
+<hr />
+<h3 id="reputation-api"><a class="doc-anchor" href="#reputation-api">§</a>Reputation API</h3><h4 id="get-reputation-score"><a class="doc-anchor" href="#get-reputation-score">§</a>Get Reputation Score</h4>
+<p>Get the reputation score for a DID.</p>
+<div class="example-wrap"><pre class="language-http"><code>GET /reputation/{did}</code></pre></div>
+<p><strong>Response:</strong></p>
+<div class="example-wrap"><pre class="language-json"><code>{
+  &quot;score&quot;: 0.85,
+  &quot;frozen&quot;: false
+}</code></pre></div>
+<hr />
+<h3 id="dag-storage-api"><a class="doc-anchor" href="#dag-storage-api">§</a>DAG Storage API</h3><h4 id="store-dag-block"><a class="doc-anchor" href="#store-dag-block">§</a>Store DAG Block</h4>
+<p>Store a new block in the DAG.</p>
+<div class="example-wrap"><pre class="language-http"><code>POST /dag/put
+Content-Type: application/json</code></pre></div>
+<p><strong>Request Body:</strong></p>
+<div class="example-wrap"><pre class="language-json"><code>{
+  &quot;data&quot;: &quot;base64_encoded_data&quot;,
+  &quot;links&quot;: [&quot;QmParentHash1...&quot;, &quot;QmParentHash2...&quot;],
+  &quot;author_did&quot;: &quot;did:example:author&quot;,
+  &quot;scope&quot;: &quot;public&quot;
+}</code></pre></div><h4 id="retrieve-dag-block"><a class="doc-anchor" href="#retrieve-dag-block">§</a>Retrieve DAG Block</h4>
+<p>Get a block from the DAG by CID.</p>
+<div class="example-wrap"><pre class="language-http"><code>POST /dag/get
+Content-Type: application/json</code></pre></div>
+<p><strong>Request Body:</strong></p>
+<div class="example-wrap"><pre class="language-json"><code>{
+  &quot;cid&quot;: &quot;QmBlockHash...&quot;
+}</code></pre></div>
+<hr />
+<h3 id="system-information-api"><a class="doc-anchor" href="#system-information-api">§</a>System Information API</h3><h4 id="node-information"><a class="doc-anchor" href="#node-information">§</a>Node Information</h4>
+<p>Get basic node information.</p>
+<div class="example-wrap"><pre class="language-http"><code>GET /info</code></pre></div>
+<p><strong>Response:</strong></p>
+<div class="example-wrap"><pre class="language-json"><code>{
+  &quot;name&quot;: &quot;ICN Node&quot;,
+  &quot;version&quot;: &quot;0.1.0&quot;,
+  &quot;did&quot;: &quot;did:example:node&quot;,
+  &quot;capabilities&quot;: [&quot;governance&quot;, &quot;mesh&quot;, &quot;federation&quot;]
+}</code></pre></div><h4 id="node-status"><a class="doc-anchor" href="#node-status">§</a>Node Status</h4>
+<p>Get current node operational status.</p>
+<div class="example-wrap"><pre class="language-http"><code>GET /status</code></pre></div>
+<p><strong>Response:</strong></p>
+<div class="example-wrap"><pre class="language-json"><code>{
+  &quot;is_online&quot;: true,
+  &quot;peer_count&quot;: 8,
+  &quot;current_block_height&quot;: 12450,
+  &quot;version&quot;: &quot;0.1.0&quot;
+}</code></pre></div><h4 id="health-check"><a class="doc-anchor" href="#health-check">§</a>Health Check</h4>
+<p>Simple health check endpoint.</p>
+<div class="example-wrap"><pre class="language-http"><code>GET /health</code></pre></div>
+<p><strong>Response:</strong></p>
+<div class="example-wrap"><pre class="language-json"><code>{
+  &quot;status&quot;: &quot;healthy&quot;
+}</code></pre></div><h4 id="metrics"><a class="doc-anchor" href="#metrics">§</a>Metrics</h4>
+<p>Get Prometheus-format metrics.</p>
+<div class="example-wrap"><pre class="language-http"><code>GET /metrics</code></pre></div>
+<hr />
+<h3 id="error-codes"><a class="doc-anchor" href="#error-codes">§</a>Error Codes</h3>
+<p>Common HTTP status codes and their meanings:</p>
+<ul>
+<li><code>200 OK</code> - Request successful</li>
+<li><code>201 Created</code> - Resource created successfully</li>
+<li><code>400 Bad Request</code> - Invalid request format or parameters</li>
+<li><code>401 Unauthorized</code> - Authentication required or failed</li>
+<li><code>403 Forbidden</code> - Insufficient permissions</li>
+<li><code>404 Not Found</code> - Resource not found</li>
+<li><code>429 Too Many Requests</code> - Rate limit exceeded</li>
+<li><code>500 Internal Server Error</code> - Server error</li>
+</ul>
+<hr />
+<h3 id="rate-limiting"><a class="doc-anchor" href="#rate-limiting">§</a>Rate Limiting</h3>
+<p>The API implements rate limiting to prevent abuse:</p>
+<ul>
+<li><strong>Authenticated requests</strong>: No limit (with valid API key/token)</li>
+<li><strong>Unauthenticated requests</strong>: 60 requests per minute by default</li>
+<li><strong>Rate limit headers</strong>: Included in responses when applicable</li>
+</ul>
+<hr />
+<h3 id="websocket-support-planned"><a class="doc-anchor" href="#websocket-support-planned">§</a>WebSocket Support (Planned)</h3>
+<p>Real-time updates for web UI will be available via WebSocket connections:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code>wss:<span class="comment">//localhost:7845/ws</span></code></pre></div>
+<p><strong>Planned events:</strong></p>
+<ul>
+<li>Proposal status changes</li>
+<li>Job progress updates</li>
+<li>New federation peers</li>
+<li>Mana balance changes</li>
+<li>Network events</li>
+</ul>
+<hr />
+<h3 id="typescript-client-sdk-planned"><a class="doc-anchor" href="#typescript-client-sdk-planned">§</a>TypeScript Client SDK (Planned)</h3>
+<p>A comprehensive TypeScript client SDK will be available for web applications:</p>
+<div class="example-wrap"><pre class="language-typescript"><code>import { IcnClient } from &#39;@icn/client-sdk&#39;;
+
+const client = new IcnClient({
+  baseUrl: &#39;http://localhost:7845&#39;,
+  apiKey: &#39;your-api-key&#39;
+});
+
+// Type-safe API calls
+const proposals = await client.governance.listProposals();
+const jobStatus = await client.mesh.getJobStatus(jobId);</code></pre></div>
+<p>This SDK will provide:</p>
+<ul>
+<li>Full TypeScript type definitions</li>
+<li>Automatic request/response validation</li>
+<li>Built-in error handling</li>
+<li>WebSocket event subscriptions</li>
+<li>Authentication management</li>
+</ul>
 <h2 id="icn-api-crate-1"><a class="doc-anchor" href="#icn-api-crate-1">§</a>ICN API Crate</h2>
 <p>This crate provides the primary API endpoints for interacting with InterCooperative Network (ICN) nodes.
 It defines service interfaces, data structures for requests and responses, and potentially server/client implementations.
 The API aims for clarity, modularity, and extensibility, typically using JSON-RPC or gRPC.</p>
-</div></details><h2 id="modules" class="section-header">Modules<a href="#modules" class="anchor">§</a></h2><dl class="item-table"><dt><a class="mod" href="circuits/index.html" title="mod icn_api::circuits">circuits</a></dt><dt><a class="mod" href="dag_trait/index.html" title="mod icn_api::dag_trait">dag_<wbr>trait</a></dt><dt><a class="mod" href="federation_trait/index.html" title="mod icn_api::federation_trait">federation_<wbr>trait</a></dt><dt><a class="mod" href="governance_trait/index.html" title="mod icn_api::governance_trait">governance_<wbr>trait</a></dt><dt><a class="mod" href="identity_trait/index.html" title="mod icn_api::identity_trait">identity_<wbr>trait</a></dt><dt><a class="mod" href="metrics/index.html" title="mod icn_api::metrics">metrics</a></dt><dd>Prometheus metrics helpers</dd><dt><a class="mod" href="mutual_aid_trait/index.html" title="mod icn_api::mutual_aid_trait">mutual_<wbr>aid_<wbr>trait</a></dt></dl><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><dl class="item-table"><dt><a class="struct" href="struct.BurnTokensRequest.html" title="struct icn_api::BurnTokensRequest">Burn<wbr>Tokens<wbr>Request</a></dt><dd>Request to burn tokens from an account.</dd><dt><a class="struct" href="struct.CreateTokenClassRequest.html" title="struct icn_api::CreateTokenClassRequest">Create<wbr>Token<wbr>Class<wbr>Request</a></dt><dd>Request body for creating a new token class.</dd><dt><a class="struct" href="struct.DagApiImpl.html" title="struct icn_api::DagApiImpl">DagApi<wbr>Impl</a></dt><dd>Concrete implementation for DAG API operations.</dd><dt><a class="struct" href="struct.GovernanceApiImpl.html" title="struct icn_api::GovernanceApiImpl">Governance<wbr>ApiImpl</a></dt><dd>Concrete implementation for the Governance API</dd><dt><a class="struct" href="struct.MintTokensRequest.html" title="struct icn_api::MintTokensRequest">Mint<wbr>Tokens<wbr>Request</a></dt><dd>Request to mint new tokens.</dd><dt><a class="struct" href="struct.TokenBalance.html" title="struct icn_api::TokenBalance">Token<wbr>Balance</a></dt><dd>Balance information for a single token class.</dd><dt><a class="struct" href="struct.TokenClass.html" title="struct icn_api::TokenClass">Token<wbr>Class</a></dt><dd>Representation of a token class.</dd><dt><a class="struct" href="struct.TransferTokensRequest.html" title="struct icn_api::TransferTokensRequest">Transfer<wbr>Tokens<wbr>Request</a></dt><dd>Request to transfer tokens between accounts.</dd></dl><h2 id="traits" class="section-header">Traits<a href="#traits" class="anchor">§</a></h2><dl class="item-table"><dt><a class="trait" href="trait.TokensApi.html" title="trait icn_api::TokensApi">Tokens<wbr>Api</a></dt><dd>API surface for token management and balance queries.</dd></dl><h2 id="functions" class="section-header">Functions<a href="#functions" class="anchor">§</a></h2><dl class="item-table"><dt><a class="fn" href="fn.discover_peers_api.html" title="fn icn_api::discover_peers_api">discover_<wbr>peers_<wbr>api</a></dt><dd>API endpoint to discover network peers. The caller supplies a [<code>NetworkService</code>]
+</div></details><h2 id="modules" class="section-header">Modules<a href="#modules" class="anchor">§</a></h2><dl class="item-table"><dt><a class="mod" href="circuits/index.html" title="mod icn_api::circuits">circuits</a></dt><dt><a class="mod" href="client_sdk/index.html" title="mod icn_api::client_sdk">client_<wbr>sdk</a></dt><dd>TypeScript Client SDK Generation</dd><dt><a class="mod" href="dag_trait/index.html" title="mod icn_api::dag_trait">dag_<wbr>trait</a></dt><dt><a class="mod" href="federation_trait/index.html" title="mod icn_api::federation_trait">federation_<wbr>trait</a></dt><dt><a class="mod" href="governance_trait/index.html" title="mod icn_api::governance_trait">governance_<wbr>trait</a></dt><dt><a class="mod" href="identity_trait/index.html" title="mod icn_api::identity_trait">identity_<wbr>trait</a></dt><dt><a class="mod" href="metrics/index.html" title="mod icn_api::metrics">metrics</a></dt><dd>Prometheus metrics helpers</dd><dt><a class="mod" href="mutual_aid_trait/index.html" title="mod icn_api::mutual_aid_trait">mutual_<wbr>aid_<wbr>trait</a></dt></dl><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><dl class="item-table"><dt><a class="struct" href="struct.BurnTokensRequest.html" title="struct icn_api::BurnTokensRequest">Burn<wbr>Tokens<wbr>Request</a></dt><dd>Request to burn tokens from an account.</dd><dt><a class="struct" href="struct.CreateTokenClassRequest.html" title="struct icn_api::CreateTokenClassRequest">Create<wbr>Token<wbr>Class<wbr>Request</a></dt><dd>Request body for creating a new token class.</dd><dt><a class="struct" href="struct.DagApiImpl.html" title="struct icn_api::DagApiImpl">DagApi<wbr>Impl</a></dt><dd>Concrete implementation for DAG API operations.</dd><dt><a class="struct" href="struct.GovernanceApiImpl.html" title="struct icn_api::GovernanceApiImpl">Governance<wbr>ApiImpl</a></dt><dd>Concrete implementation for the Governance API</dd><dt><a class="struct" href="struct.MintTokensRequest.html" title="struct icn_api::MintTokensRequest">Mint<wbr>Tokens<wbr>Request</a></dt><dd>Request to mint new tokens.</dd><dt><a class="struct" href="struct.TokenBalance.html" title="struct icn_api::TokenBalance">Token<wbr>Balance</a></dt><dd>Balance information for a single token class.</dd><dt><a class="struct" href="struct.TokenClass.html" title="struct icn_api::TokenClass">Token<wbr>Class</a></dt><dd>Representation of a token class.</dd><dt><a class="struct" href="struct.TransferTokensRequest.html" title="struct icn_api::TransferTokensRequest">Transfer<wbr>Tokens<wbr>Request</a></dt><dd>Request to transfer tokens between accounts.</dd></dl><h2 id="traits" class="section-header">Traits<a href="#traits" class="anchor">§</a></h2><dl class="item-table"><dt><a class="trait" href="trait.TokensApi.html" title="trait icn_api::TokensApi">Tokens<wbr>Api</a></dt><dd>API surface for token management and balance queries.</dd></dl><h2 id="functions" class="section-header">Functions<a href="#functions" class="anchor">§</a></h2><dl class="item-table"><dt><a class="fn" href="fn.discover_peers_api.html" title="fn icn_api::discover_peers_api">discover_<wbr>peers_<wbr>api</a></dt><dd>API endpoint to discover network peers. The caller supplies a [<code>NetworkService</code>]
 implementation, allowing either the default stub or a real libp2p service.
-<code>bootstrap_nodes_str</code> are optional bootstrap addresses for discovery.</dd><dt><a class="fn" href="fn.get_dag_metadata.html" title="fn icn_api::get_dag_metadata">get_<wbr>dag_<wbr>metadata</a></dt><dd>Retrieve <a href="../icn_common/struct.DagBlock.html" title="struct icn_common::DagBlock"><code>DagBlock</code></a> metadata by CID.</dd><dt><a class="fn" href="fn.get_node_info.html" title="fn icn_api::get_node_info">get_<wbr>node_<wbr>info</a></dt><dd>Retrieves basic information about the ICN node.
+<code>bootstrap_nodes_str</code> are optional bootstrap addresses for discovery.</dd><dt><a class="fn" href="fn.get_dag_metadata.html" title="fn icn_api::get_dag_metadata">get_<wbr>dag_<wbr>metadata</a></dt><dd>Retrieve [<code>DagBlock</code>] metadata by CID.</dd><dt><a class="fn" href="fn.get_node_info.html" title="fn icn_api::get_node_info">get_<wbr>node_<wbr>info</a></dt><dd>Retrieves basic information about the ICN node.
 This function would typically be part of an RPC service.</dd><dt><a class="fn" href="fn.get_node_status.html" title="fn icn_api::get_node_status">get_<wbr>node_<wbr>status</a></dt><dd>Retrieves the current operational status of the ICN node.
 This function simulates a potential error if the node is considered “offline”.</dd><dt><a class="fn" href="fn.http_get_local_peer_id.html" title="fn icn_api::http_get_local_peer_id">http_<wbr>get_<wbr>local_<wbr>peer_<wbr>id</a></dt><dd>Retrieve the local peer ID from an ICN node via HTTP.</dd><dt><a class="fn" href="fn.http_get_peer_list.html" title="fn icn_api::http_get_peer_list">http_<wbr>get_<wbr>peer_<wbr>list</a></dt><dd>Retrieve the list of peers from an ICN node via HTTP.</dd><dt><a class="fn" href="fn.query_data.html" title="fn icn_api::query_data">query_<wbr>data</a></dt><dd>Queries data from the provided DAG store by CID.</dd><dt><a class="fn" href="fn.retrieve_dag_block.html" title="fn icn_api::retrieve_dag_block">retrieve_<wbr>dag_<wbr>block</a></dt><dd>Retrieves a DagBlock from the provided DAG store by its CID.
 The result is an Option<DagBlock> to indicate if the block was found.</dd><dt><a class="fn" href="fn.send_network_message_api.html" title="fn icn_api::send_network_message_api">send_<wbr>network_<wbr>message_<wbr>api</a></dt><dd>API endpoint to send a message to a specific peer. The caller supplies a [<code>NetworkService</code>]
