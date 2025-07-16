@@ -1896,12 +1896,12 @@
 <a href=#1896 id=1896 data-nosnippet>1896</a>        <span class="string">"name"</span>: name,
 <a href=#1897 id=1897 data-nosnippet>1897</a>        <span class="string">"cooperative_type"</span>: cooperative_type,
 <a href=#1898 id=1898 data-nosnippet>1898</a>        <span class="string">"description"</span>: description,
-<a href=#1899 id=1899 data-nosnippet>1899</a>        <span class="string">"website"</span>: <span class="kw">if </span>website.is_empty() { null } <span class="kw">else </span>{ serde_json::Value::String(website.to_string()) },
-<a href=#1900 id=1900 data-nosnippet>1900</a>        <span class="string">"contact_email"</span>: <span class="kw">if </span>email.is_empty() { null } <span class="kw">else </span>{ serde_json::Value::String(email.to_string()) },
-<a href=#1901 id=1901 data-nosnippet>1901</a>        <span class="string">"geographic_scope"</span>: {
-<a href=#1902 id=1902 data-nosnippet>1902</a>            <span class="string">"country"</span>: <span class="kw">if </span>country.is_empty() { null } <span class="kw">else </span>{ serde_json::Value::String(country.to_string()) },
-<a href=#1903 id=1903 data-nosnippet>1903</a>            <span class="string">"region"</span>: <span class="kw">if </span>region.is_empty() { null } <span class="kw">else </span>{ serde_json::Value::String(region.to_string()) },
-<a href=#1904 id=1904 data-nosnippet>1904</a>            <span class="string">"locality"</span>: <span class="kw">if </span>locality.is_empty() { null } <span class="kw">else </span>{ serde_json::Value::String(locality.to_string()) },
+<a href=#1899 id=1899 data-nosnippet>1899</a>                        <span class="string">"website"</span>: <span class="kw">if </span>website.is_empty() { serde_json::Value::Null } <span class="kw">else </span>{ serde_json::Value::String(website.to_string()) },
+<a href=#1900 id=1900 data-nosnippet>1900</a>                <span class="string">"contact_email"</span>: <span class="kw">if </span>email.is_empty() { serde_json::Value::Null } <span class="kw">else </span>{ serde_json::Value::String(email.to_string()) },
+<a href=#1901 id=1901 data-nosnippet>1901</a>                <span class="string">"geographic_scope"</span>: {
+<a href=#1902 id=1902 data-nosnippet>1902</a>                    <span class="string">"country"</span>: <span class="kw">if </span>country.is_empty() { serde_json::Value::Null } <span class="kw">else </span>{ serde_json::Value::String(country.to_string()) },
+<a href=#1903 id=1903 data-nosnippet>1903</a>                    <span class="string">"region"</span>: <span class="kw">if </span>region.is_empty() { serde_json::Value::Null } <span class="kw">else </span>{ serde_json::Value::String(region.to_string()) },
+<a href=#1904 id=1904 data-nosnippet>1904</a>                    <span class="string">"locality"</span>: <span class="kw">if </span>locality.is_empty() { serde_json::Value::Null } <span class="kw">else </span>{ serde_json::Value::String(locality.to_string()) },
 <a href=#1905 id=1905 data-nosnippet>1905</a>            <span class="string">"global"</span>: global
 <a href=#1906 id=1906 data-nosnippet>1906</a>        },
 <a href=#1907 id=1907 data-nosnippet>1907</a>        <span class="string">"capabilities"</span>: capabilities,
