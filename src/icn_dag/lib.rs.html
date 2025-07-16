@@ -100,7 +100,7 @@
 <a href=#100 id=100 data-nosnippet>100</a>
 <a href=#101 id=101 data-nosnippet>101</a></span><span class="doccomment">/// Defines the interface for a DAG block storage backend.
 <a href=#102 id=102 data-nosnippet>102</a>/// Generic over the block type `B` which must implement `Clone` and be serializable/deserializable.
-<a href=#103 id=103 data-nosnippet>103</a></span><span class="kw">pub trait </span>StorageService&lt;B: Clone + Serialize + <span class="kw">for</span>&lt;<span class="lifetime">'de</span>&gt; Deserialize&lt;<span class="lifetime">'de</span>&gt;&gt; {
+<a href=#103 id=103 data-nosnippet>103</a></span><span class="kw">pub trait </span>StorageService&lt;B: Clone + Serialize + <span class="kw">for</span>&lt;<span class="lifetime">'de</span>&gt; Deserialize&lt;<span class="lifetime">'de</span>&gt;&gt;: Send + Sync {
 <a href=#104 id=104 data-nosnippet>104</a>    <span class="doccomment">/// Puts a block into the store.
 <a href=#105 id=105 data-nosnippet>105</a>    /// If a block with the same CID already exists, it may be overwritten or an error may be returned,
 <a href=#106 id=106 data-nosnippet>106</a>    /// depending on the implementation.
