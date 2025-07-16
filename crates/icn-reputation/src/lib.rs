@@ -22,6 +22,20 @@ pub mod rocksdb_store;
 pub use rocksdb_store::RocksdbReputationStore;
 pub mod metrics;
 
+// Trust Graph modules for advanced trust calculation and pathfinding
+pub mod trust_graph;
+pub mod trust_calculation;
+pub mod trust_pathfinding;
+pub mod trust_decay;
+pub mod trust_aggregation;
+
+// Re-export key types for convenient access
+pub use trust_graph::{TrustGraph, TrustEdge};
+pub use trust_calculation::{TrustCalculationEngine, TrustCalculationConfig};
+pub use trust_pathfinding::{TrustPathfinder, TrustPath, PathDiscoveryConfig};
+pub use trust_decay::{TrustDecayCalculator, DecayModel, DistanceDecayConfig, InteractionDecayConfig, DecayStatistics};
+pub use trust_aggregation::{TrustAggregator, TrustSignal, AggregatedTrust, AggregationConfig, CombinationMethod};
+
 /// Store for retrieving and updating executor reputation scores.
 pub trait ReputationStore: Send + Sync {
     /// Returns the numeric reputation score for the given executor DID.
