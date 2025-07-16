@@ -10,9 +10,10 @@ anyhow = "1.0"
 thiserror = "2.0"
 serde = { version = "1.0", features = ["derive"] }
 icn-common = { path = "../icn-common" }
-icn-dag = { path = "../icn-dag" }
+icn-dag = { path = "../icn-dag", features = ["async"] }
 dashmap = "5"
 chrono = { version = "0.4", features = ["serde"] }
+tokio = { workspace = true, features = ["sync"] }
 
 # --- crypto ---
 ed25519-dalek = { version = "2.0.0-pre.3", features = ["rand_core"] }

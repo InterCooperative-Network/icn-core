@@ -100,7 +100,7 @@ pub fn choose_canonical_root(mut candidates: Vec<(Cid, u64)>) -> Option<Cid> {
 
 /// Defines the interface for a DAG block storage backend.
 /// Generic over the block type `B` which must implement `Clone` and be serializable/deserializable.
-pub trait StorageService<B: Clone + Serialize + for<'de> Deserialize<'de>> {
+pub trait StorageService<B: Clone + Serialize + for<'de> Deserialize<'de>>: Send + Sync {
     /// Puts a block into the store.
     /// If a block with the same CID already exists, it may be overwritten or an error may be returned,
     /// depending on the implementation.

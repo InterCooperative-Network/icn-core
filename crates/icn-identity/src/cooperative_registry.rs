@@ -5,14 +5,14 @@
 
 use crate::cooperative_schemas::{CooperativeProfile, CooperativeType, TrustRelationship};
 use icn_common::{Cid, CommonError, DagBlock, Did, SystemTimeProvider, TimeProvider};
-use icn_dag::StorageService;
+use icn_dag::AsyncStorageService;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 
 /// Registry for discovering cooperatives in the federation
 pub struct CooperativeRegistry {
-    dag_store: Arc<std::sync::Mutex<dyn StorageService<icn_common::DagBlock>>>,
+    dag_store: Arc<tokio::sync::Mutex<dyn AsyncStorageService<icn_common::DagBlock>>>,
     /// Local cache of cooperative profiles for fast lookup
     profile_cache: dashmap::DashMap<Did, CooperativeProfile>,
     /// Index of cooperatives by capability type
@@ -75,7 +75,7 @@ pub struct CooperativeSearchResult {
 
 impl CooperativeRegistry {
     /// Create a new cooperative registry
-    pub fn new(dag_store: Arc<std::sync::Mutex<dyn StorageService<icn_common::DagBlock>>>) -> Self {
+    pub fn new(dag_store: Arc<tokio::sync::Mutex<dyn AsyncStorageService<icn_common::DagBlock>>>) -> Self {
         Self {
             dag_store,
             profile_cache: dashmap::DashMap::new(),
@@ -123,8 +123,8 @@ impl CooperativeRegistry {
         };
         
         // Store in DAG
-        let mut store = self.dag_store.lock().map_err(|_| CommonError::InternalError("Mutex poisoned".to_string()))?;
-        store.put(&block)?;
+        let mut store = self.dag_store.lock().await;
+        store.put(&block).await?;
 
         // Update local cache
         self.profile_cache.insert(profile.did.clone(), profile.clone());
@@ -161,9 +161,9 @@ impl CooperativeRegistry {
 
         // Try to load from DAG using deterministic CID based on DID
         let cid = self.compute_profile_cid(did);
-        let store = self.dag_store.lock().map_err(|_| CommonError::InternalError("Mutex poisoned".to_string()))?;
+        let store = self.dag_store.lock().await;
         
-        if let Some(block) = store.get(&cid)? {
+        if let Some(block) = store.get(&cid).await? {
             if let Ok(profile) = serde_json::from_slice::<CooperativeProfile>(&block.data) {
                 if profile.did == *did {
                     // Update cache
@@ -258,8 +258,8 @@ impl CooperativeRegistry {
         };
         
         // Store in DAG
-        let mut store = self.dag_store.lock().map_err(|_| CommonError::InternalError("Mutex poisoned".to_string()))?;
-        store.put(&block)?;
+        let mut store = self.dag_store.lock().await;
+        store.put(&block).await?;
 
         // Update local trust index
         let mut entry = self
@@ -351,8 +351,8 @@ impl CooperativeRegistry {
         let mut loaded_count = 0;
 
         // Scan all blocks and try to parse as cooperative profiles
-        let store = self.dag_store.lock().map_err(|_| CommonError::InternalError("Mutex poisoned".to_string()))?;
-        let all_blocks = store.list_blocks()?;
+        let store = self.dag_store.lock().await;
+        let all_blocks = store.list_blocks().await?;
         drop(store); // Release the lock before processing
         
         for block in all_blocks {
@@ -567,11 +567,11 @@ pub struct RegistryStats {
 mod tests {
     use super::*;
     use crate::cooperative_schemas::{CooperativeCapability, GeographicScope};
-    use icn_dag::InMemoryDagStore;
+    use icn_dag::{InMemoryDagStore, CompatAsyncStore};
 
     #[tokio::test]
     async fn test_cooperative_registration_and_search() {
-        let dag_store = Arc::new(std::sync::Mutex::new(InMemoryDagStore::new()));
+        let dag_store = Arc::new(tokio::sync::Mutex::new(CompatAsyncStore::new(InMemoryDagStore::new())));
         let registry = CooperativeRegistry::new(dag_store);
 
         // Create a test cooperative profile
@@ -634,7 +634,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_trust_relationships() {
-        let dag_store = Arc::new(std::sync::Mutex::new(InMemoryDagStore::new()));
+        let dag_store = Arc::new(tokio::sync::Mutex::new(CompatAsyncStore::new(InMemoryDagStore::new())));
         let registry = CooperativeRegistry::new(dag_store);
 
         let coop_a = Did::new("key", "coop_a");
