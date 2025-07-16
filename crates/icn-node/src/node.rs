@@ -501,6 +501,11 @@ async fn require_api_key(
     req: axum::http::Request<axum::body::Body>,
     next: Next,
 ) -> impl IntoResponse {
+    // Skip authentication for OPTIONS requests (CORS preflight)
+    if req.method() == axum::http::Method::OPTIONS {
+        return next.run(req).await;
+    }
+    
     if let Some(ref expected) = state.api_key {
         let provided = req.headers().get("x-api-key").and_then(|v| v.to_str().ok());
         let valid = provided
