@@ -613,9 +613,9 @@ export const ICNUtils = {{
    */
   formatMana(balance: number): string {{
     if (balance >= 1000000) {{
-      return `${{(balance / 1000000).toFixed(1)}}}M`;
+      return `${{(balance / 1000000).toFixed(1)}}M`;
     }} else if (balance >= 1000) {{
-      return `${{(balance / 1000).toFixed(1)}}}K`;
+      return `${{(balance / 1000).toFixed(1)}}K`;
     }} else {{
       return balance.toString();
     }}
