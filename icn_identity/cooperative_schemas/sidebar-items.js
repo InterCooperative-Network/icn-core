@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["CooperativeType","TrustLevel"],"mod":["schemas"],"struct":["CooperativeCapability","CooperativeMembershipBuilder","CooperativeProfile","GeographicScope","ServiceProviderBuilder","TrustRelationship"]};

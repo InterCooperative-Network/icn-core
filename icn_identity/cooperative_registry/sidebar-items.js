@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":["CooperativeRegistry","CooperativeSearchFilter","CooperativeSearchResult","RegistryStats"]};
