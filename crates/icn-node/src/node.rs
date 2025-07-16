@@ -988,22 +988,22 @@ pub async fn app_router_with_options(
             .route("/federation/sync", post(federation_sync_handler))
             .route("/ws", get(websocket_handler))
             .with_state(app_state.clone())
+            .layer(middleware::from_fn_with_state(
+                app_state.clone(),
+                rate_limit_middleware,
+            ))
+            .layer(middleware::from_fn_with_state(
+                app_state.clone(),
+                require_api_key,
+            ))
+            .layer(middleware::from_fn(correlation_id_middleware))
             .layer(
                 CorsLayer::new()
                     .allow_origin(Any)
                     .allow_methods(Any)
                     .allow_headers(Any)
                     .allow_credentials(true)
-            )
-            .layer(middleware::from_fn(correlation_id_middleware))
-            .layer(middleware::from_fn_with_state(
-                app_state.clone(),
-                require_api_key,
-            ))
-            .layer(middleware::from_fn_with_state(
-                app_state.clone(),
-                rate_limit_middleware,
-            )),
+            ),
         rt_ctx,
     )
 }
