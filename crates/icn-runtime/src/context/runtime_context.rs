@@ -3349,8 +3349,11 @@ impl RuntimeContext {
         let our_reputation = ctx.reputation_store.get_reputation(&ctx.current_identity);
         let reputation_multiplier = 1.0 + (our_reputation as f64 / 1000.0); // Up to 2x for high reputation
 
-        // Add some randomness to avoid bid collisions
-        let random_factor = 0.9 + (fastrand::f64() * 0.2); // 0.9x to 1.1x
+        // Derive a deterministic factor from the job ID and our reputation
+        let random_factor = Self::deterministic_factor(
+            announcement.job_id.to_string().as_bytes(),
+            our_reputation,
+        );
 
         let final_price = ((base_cost as f64) * reputation_multiplier * random_factor) as u64;
 
@@ -3451,7 +3454,7 @@ impl RuntimeContext {
         }
 
         // Calculate our bid price based on job requirements and our reputation
-        let base_price = Self::calculate_bid_price(&job.spec, ctx).await?;
+        let base_price = Self::calculate_bid_price(&job.id, &job.spec, ctx).await?;
 
         // Create and sign the bid
         let bid = icn_mesh::MeshJobBid {
@@ -3488,6 +3491,7 @@ impl RuntimeContext {
 
     /// Calculate a competitive bid price for a job.
     async fn calculate_bid_price(
+        job_id: &icn_mesh::JobId,
         job_spec: &icn_mesh::JobSpec,
         ctx: &Arc<RuntimeContext>,
     ) -> Result<u64, HostAbiError> {
@@ -3500,12 +3504,27 @@ impl RuntimeContext {
         let our_reputation = ctx.reputation_store.get_reputation(&ctx.current_identity);
         let reputation_multiplier = 1.0 + (our_reputation as f64 / 1000.0); // Up to 2x for high reputation
 
-        // Add some randomness to avoid bid collisions
-        let random_factor = 0.9 + (fastrand::f64() * 0.2); // 0.9x to 1.1x
+        // Derive a deterministic factor from the job ID and our reputation
+        let random_factor = Self::deterministic_factor(
+            job_id.to_string().as_bytes(),
+            our_reputation,
+        );
 
         let final_price = ((base_cost as f64) * reputation_multiplier * random_factor) as u64;
 
         Ok(final_price.max(1)) // Minimum 1 mana
+    }
+
+    fn deterministic_factor(seed: &[u8], reputation: u64) -> f64 {
+        use sha2::{Digest, Sha256};
+        use std::convert::TryInto;
+
+        let mut hasher = Sha256::new();
+        hasher.update(seed);
+        hasher.update(&reputation.to_le_bytes());
+        let hash = hasher.finalize();
+        let val = u64::from_le_bytes(hash[0..8].try_into().expect("slice"));
+        0.9 + (val as f64 / u64::MAX as f64) * 0.2
     }
 
     /// Execute an assigned job and create an execution receipt.
@@ -3746,8 +3765,8 @@ impl RuntimeContext {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use icn_mesh::{JobKind, JobSpec, Resources};
-    use icn_protocol::MeshJobAnnouncementMessage;
+    use icn_mesh::JobKind;
+    use icn_protocol::{JobSpec, MeshJobAnnouncementMessage, ResourceRequirements};
     use std::str::FromStr;
 
     #[tokio::test]
@@ -3767,13 +3786,16 @@ mod tests {
             max_cost_mana: 10,
             job_spec: JobSpec {
                 kind: JobKind::Echo {
-                    message: "hi".into(),
+                    payload: "hi".into(),
                 },
-                required_resources: Resources {
+                inputs: vec![],
+                outputs: vec![],
+                required_resources: ResourceRequirements {
                     cpu_cores: 2,
                     memory_mb: 512,
+                    storage_mb: 0,
+                    max_execution_time_secs: 0,
                 },
-                ..Default::default()
             },
             bid_deadline: ctx.time_provider.unix_seconds() + 100,
         };
@@ -3802,13 +3824,16 @@ mod tests {
             max_execution_wait_ms: None,
             spec: JobSpec {
                 kind: JobKind::Echo {
-                    message: "hi".into(),
+                    payload: "hi".into(),
                 },
-                required_resources: Resources {
+                inputs: vec![],
+                outputs: vec![],
+                required_resources: ResourceRequirements {
                     cpu_cores: 8,
                     memory_mb: 2048,
+                    storage_mb: 0,
+                    max_execution_time_secs: 0,
                 },
-                ..Default::default()
             },
             signature: icn_identity::SignatureBytes(vec![]),
         };
