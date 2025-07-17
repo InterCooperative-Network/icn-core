@@ -80,6 +80,9 @@ closed via `host_close_governance_proposal_voting`, returning the final
 `host_execute_governance_proposal`, which broadcasts the updated proposal and
 rewards the proposer.
 
+Executing a `SystemParameterChange` proposal also anchors a `ParameterUpdate`
+record in the DAG so parameter history remains tamper-evident.
+
 ```rust,no_run
 use icn_runtime::{
     context::RuntimeContext,

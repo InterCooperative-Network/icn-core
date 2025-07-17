@@ -1,11 +1,12 @@
 use icn_common::Did;
 use icn_governance::{ProposalId, ProposalStatus, VoteOption};
-use icn_runtime::context::RuntimeContext;
+use icn_runtime::context::{ParameterUpdate, RuntimeContext};
 use icn_runtime::{
     host_cast_governance_vote, host_close_governance_proposal_voting,
     host_create_governance_proposal, host_execute_governance_proposal,
 };
 use serde_json;
+use bincode;
 use std::str::FromStr;
 
 #[tokio::test]
@@ -343,6 +344,19 @@ async fn parameter_change_execution_updates_runtime() {
     host_close_governance_proposal_voting(&ctx, &pid_str).await.unwrap();
     host_execute_governance_proposal(&ctx, &pid_str).await.unwrap();
     assert_eq!(ctx.parameters.get("test_limit").unwrap().value().as_str(), "10");
+
+    let store = ctx.dag_store.lock().await;
+    let blocks = store.list_blocks().await.unwrap();
+    let mut found = false;
+    for block in blocks {
+        if let Ok(update) = bincode::deserialize::<ParameterUpdate>(&block.data) {
+            if update.name == "test_limit" && update.value == "10" {
+                found = true;
+                break;
+            }
+        }
+    }
+    assert!(found, "parameter update not anchored");
 }
 
 #[tokio::test]

@@ -9,6 +9,7 @@ pub mod host_environment;
 pub mod mana;
 pub mod mesh_network;
 pub mod resource_ledger;
+pub mod parameter_update;
 pub mod runtime_context;
 pub mod service_config;
 pub mod signers;
@@ -27,8 +28,8 @@ pub use resource_ledger::{
     record_resource_event, ResourceAction, ResourceLedger, ResourceLedgerEntry,
 };
 pub use runtime_context::{
-    RuntimeContext, RuntimeContextParams, RuntimeContextBuilder, EnvironmentType, MeshNetworkServiceType, CreateProposalPayload, CastVotePayload, CloseProposalResult,
-    MANA_MAX_CAPACITY_KEY,
+    RuntimeContext, RuntimeContextParams, RuntimeContextBuilder, EnvironmentType, MeshNetworkServiceType,
+    CreateProposalPayload, CastVotePayload, CloseProposalResult, ParameterUpdate, MANA_MAX_CAPACITY_KEY,
 };
 pub use service_config::{ServiceConfig, ServiceConfigBuilder, ServiceEnvironment};
 pub use signers::{Ed25519Signer, HsmKeyStore, Signer, StubSigner};

@@ -87,6 +87,7 @@ use super::mesh_network::{
 use super::service_config::ServiceConfig;
 use super::signers::Signer;
 use super::stubs::{StubDagStore, StubMeshNetworkService};
+pub use super::parameter_update::ParameterUpdate;
 use super::{DagStorageService, DagStoreMutexType};
 use crate::metrics::{JOBS_ACTIVE_GAUGE, JOBS_COMPLETED, JOBS_FAILED, JOBS_SUBMITTED};
 use bincode;
@@ -2518,10 +2519,50 @@ impl RuntimeContext {
         })
     }
 
+    /// Anchor a [`ParameterUpdate`] block in the DAG.
+    pub async fn anchor_parameter_update(
+        &self,
+        update: &ParameterUpdate,
+    ) -> Result<Cid, HostAbiError> {
+        let data = bincode::serialize(update).map_err(|e| {
+            HostAbiError::DagOperationFailed(format!("Failed to serialize parameter update: {}", e))
+        })?;
+        let cid = compute_merkle_cid(
+            0x71,
+            &data,
+            &[],
+            update.timestamp,
+            &update.signer,
+            &None,
+            &None,
+        );
+        let block = DagBlock {
+            cid: cid.clone(),
+            data,
+            links: vec![],
+            timestamp: update.timestamp,
+            author_did: update.signer.clone(),
+            signature: None,
+            scope: None,
+        };
+        let mut dag = self.dag_store.lock().await;
+        dag.put(&block).await.map_err(|e| {
+            HostAbiError::DagOperationFailed(format!("Failed to store parameter update: {}", e))
+        })?;
+        Ok(cid)
+    }
+
     /// Update a system parameter.
     async fn update_parameter(&self, key: String, value: String) -> Result<(), HostAbiError> {
         self.parameters.insert(key.clone(), value.clone());
         log::info!("Updated parameter {} to {}", key, value);
+        let update = ParameterUpdate {
+            name: key,
+            value,
+            timestamp: self.time_provider.unix_seconds(),
+            signer: self.current_identity.clone(),
+        };
+        self.anchor_parameter_update(&update).await?;
         Ok(())
     }
 
@@ -3746,8 +3787,8 @@ impl RuntimeContext {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use icn_mesh::{JobKind, JobSpec, Resources};
-    use icn_protocol::MeshJobAnnouncementMessage;
+    use icn_mesh::{ActualMeshJob, JobId as MeshJobId, JobSpec as MeshJobSpec, JobKind as MeshJobKind, Resources};
+    use icn_protocol::{JobKind, JobSpec, MeshJobAnnouncementMessage, ResourceRequirements};
     use std::str::FromStr;
 
     #[tokio::test]
@@ -3767,13 +3808,16 @@ mod tests {
             max_cost_mana: 10,
             job_spec: JobSpec {
                 kind: JobKind::Echo {
-                    message: "hi".into(),
+                    payload: "hi".into(),
                 },
-                required_resources: Resources {
+                inputs: vec![],
+                outputs: vec![],
+                required_resources: ResourceRequirements {
                     cpu_cores: 2,
                     memory_mb: 512,
+                    storage_mb: 0,
+                    max_execution_time_secs: 0,
                 },
-                ..Default::default()
             },
             bid_deadline: ctx.time_provider.unix_seconds() + 100,
         };
@@ -3794,21 +3838,23 @@ mod tests {
         )
         .unwrap();
 
-        let job = icn_mesh::ActualMeshJob {
-            id: icn_mesh::JobId(Cid::new_v1_sha256(0x71, b"job2")),
+        let job = ActualMeshJob {
+            id: MeshJobId(Cid::new_v1_sha256(0x71, b"job2")),
             manifest_cid: Cid::new_v1_sha256(0x71, b"man2"),
             creator_did: did.clone(),
             cost_mana: 5,
             max_execution_wait_ms: None,
-            spec: JobSpec {
-                kind: JobKind::Echo {
-                    message: "hi".into(),
+            spec: MeshJobSpec {
+                kind: MeshJobKind::Echo {
+                    payload: "hi".into(),
                 },
+                inputs: vec![],
+                outputs: vec![],
                 required_resources: Resources {
                     cpu_cores: 8,
                     memory_mb: 2048,
+                    storage_mb: 0,
                 },
-                ..Default::default()
             },
             signature: icn_identity::SignatureBytes(vec![]),
         };
