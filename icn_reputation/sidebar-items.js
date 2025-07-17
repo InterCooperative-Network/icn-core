@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["metrics","sled_store"],"struct":["InMemoryReputationStore"],"trait":["ReputationStore"]};
+window.SIDEBAR_ITEMS = {"mod":["metrics","sled_store","trust_aggregation","trust_calculation","trust_decay","trust_graph","trust_pathfinding"],"struct":["InMemoryReputationStore"],"trait":["ReputationStore"]};

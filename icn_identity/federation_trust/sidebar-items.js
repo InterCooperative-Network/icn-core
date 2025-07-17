@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["TrustContext","TrustValidationResult"],"struct":["BridgeConfig","FederationId","FederationTrustBridge","ScopedTrustRelationship","TrustInheritance","TrustPolicyEngine","TrustPolicyRule"]};
