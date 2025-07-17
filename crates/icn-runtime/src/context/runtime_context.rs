@@ -3533,7 +3533,6 @@ impl RuntimeContext {
             executor_capabilities: vec![], // TODO: Get from node config
             executor_federations: vec![], // TODO: Get from node federation
             executor_trust_scope: None, // TODO: Get from context
-            signature: icn_common::SignatureBytes(vec![]),
             signature: icn_identity::SignatureBytes(vec![]), // Will be filled by sign()
         };
 

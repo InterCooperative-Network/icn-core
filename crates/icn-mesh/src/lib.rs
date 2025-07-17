@@ -1075,6 +1075,9 @@ mod tests {
                 memory_mb: 1024,
                 storage_mb: 0,
             },
+            executor_capabilities: vec![],
+            executor_federations: vec![],
+            executor_trust_scope: None,
             signature: SignatureBytes(vec![]),
         }
         .sign(&sk_high)
@@ -1088,6 +1091,9 @@ mod tests {
                 memory_mb: 512,
                 storage_mb: 0,
             },
+            executor_capabilities: vec![],
+            executor_federations: vec![],
+            executor_trust_scope: None,
             signature: SignatureBytes(vec![]),
         }
         .sign(&sk_low)
@@ -1132,6 +1138,9 @@ mod tests {
             executor_did: a.clone(),
             price_mana: 20,
             resources: Resources::default(),
+            executor_capabilities: vec![],
+            executor_federations: vec![],
+            executor_trust_scope: None,
             signature: SignatureBytes(vec![]),
         }
         .sign(&sk_a)
@@ -1141,6 +1150,9 @@ mod tests {
             executor_did: b.clone(),
             price_mana: 5,
             resources: Resources::default(),
+            executor_capabilities: vec![],
+            executor_federations: vec![],
+            executor_trust_scope: None,
             signature: SignatureBytes(vec![]),
         }
         .sign(&sk_b)
@@ -1183,6 +1195,9 @@ mod tests {
             executor_did: high_rep.clone(),
             price_mana: 50,
             resources: Resources::default(),
+            executor_capabilities: vec![],
+            executor_federations: vec![],
+            executor_trust_scope: None,
             signature: SignatureBytes(vec![]),
         };
         let bid_cheap = MeshJobBid {
@@ -1190,6 +1205,9 @@ mod tests {
             executor_did: cheap.clone(),
             price_mana: 5,
             resources: Resources::default(),
+            executor_capabilities: vec![],
+            executor_federations: vec![],
+            executor_trust_scope: None,
             signature: SignatureBytes(vec![]),
         };
 
@@ -1236,6 +1254,9 @@ mod tests {
             executor_did: a.clone(),
             price_mana: 10,
             resources: Resources::default(),
+            executor_capabilities: vec![],
+            executor_federations: vec![],
+            executor_trust_scope: None,
             signature: SignatureBytes(vec![]),
         };
         let bid_b = MeshJobBid {
@@ -1243,6 +1264,9 @@ mod tests {
             executor_did: b.clone(),
             price_mana: 10,
             resources: Resources::default(),
+            executor_capabilities: vec![],
+            executor_federations: vec![],
+            executor_trust_scope: None,
             signature: SignatureBytes(vec![]),
         };
 
@@ -1288,6 +1312,9 @@ mod tests {
                 memory_mb: 4096,
                 storage_mb: 0,
             },
+            executor_capabilities: vec![],
+            executor_federations: vec![],
+            executor_trust_scope: None,
             signature: SignatureBytes(vec![]),
         }
         .sign(&sk_fast)
@@ -1302,6 +1329,9 @@ mod tests {
                 memory_mb: 512,
                 storage_mb: 0,
             },
+            executor_capabilities: vec![],
+            executor_federations: vec![],
+            executor_trust_scope: None,
             signature: SignatureBytes(vec![]),
         }
         .sign(&sk_slow)
@@ -1351,6 +1381,9 @@ mod tests {
                 memory_mb: 1024,
                 storage_mb: 0,
             },
+            executor_capabilities: vec![],
+            executor_federations: vec![],
+            executor_trust_scope: None,
             signature: SignatureBytes(vec![]),
         };
 
@@ -1408,6 +1441,9 @@ mod tests {
             executor_did: did_a.clone(),
             price_mana: 10,
             resources: Resources::default(),
+            executor_capabilities: vec![],
+            executor_federations: vec![],
+            executor_trust_scope: None,
             signature: SignatureBytes(vec![]),
         };
         let bid_b = MeshJobBid {
@@ -1415,6 +1451,9 @@ mod tests {
             executor_did: did_b.clone(),
             price_mana: 15,
             resources: Resources::default(),
+            executor_capabilities: vec![],
+            executor_federations: vec![],
+            executor_trust_scope: None,
             signature: SignatureBytes(vec![]),
         };
 
@@ -1452,6 +1491,9 @@ mod tests {
             executor_did: did_a.clone(),
             price_mana: 10,
             resources: Resources::default(),
+            executor_capabilities: vec![],
+            executor_federations: vec![],
+            executor_trust_scope: None,
             signature: SignatureBytes(vec![]),
         };
         let bid_b = MeshJobBid {
@@ -1459,6 +1501,9 @@ mod tests {
             executor_did: did_b.clone(),
             price_mana: 10,
             resources: Resources::default(),
+            executor_capabilities: vec![],
+            executor_federations: vec![],
+            executor_trust_scope: None,
             signature: SignatureBytes(vec![]),
         };
 
