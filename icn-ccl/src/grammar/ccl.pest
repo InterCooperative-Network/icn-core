@@ -14,13 +14,18 @@ string_literal = @{ "\"" ~ string_inner* ~ "\"" }
 boolean_literal = { "true" | "false" }
 
 // Top-level: A CCL policy is a sequence of statements or definitions
-policy = { SOI ~ (function_definition | struct_definition | policy_statement)* ~ EOI }
+policy = { SOI ~ (function_definition | struct_definition | const_definition | macro_definition | policy_statement)* ~ EOI }
 
 // Example: Function Definition
 function_definition = { "fn" ~ identifier ~ "(" ~ (parameter ~ ("," ~ parameter)*)? ~ ")" ~ "->" ~ type_annotation ~ block }
 struct_definition = { "struct" ~ identifier ~ "{" ~ (parameter ~ ("," ~ parameter)*)? ~ "}" }
+const_definition = { "const" ~ identifier ~ ":" ~ type_annotation ~ "=" ~ expression ~ ";" }
+macro_definition = { "macro" ~ identifier ~ "(" ~ (identifier ~ ("," ~ identifier)*)? ~ ")" ~ "{" ~ (!"}") ~ ANY* ~ "}" }
 parameter = { identifier ~ ":" ~ type_annotation }
-type_annotation = { identifier }
+type_annotation = { option_type | result_type | array_type | identifier }
+option_type = { "Option" ~ "<" ~ type_annotation ~ ">" }
+result_type = { "Result" ~ "<" ~ type_annotation ~ "," ~ type_annotation ~ ">" }
+array_type = { "Array" ~ "<" ~ type_annotation ~ ">" }
 
 // Example: Policy Statement (e.g., a rule)
 policy_statement = { rule_definition | import_statement }
@@ -41,7 +46,8 @@ break_statement = { "break" ~ ";" }
 continue_statement = { "continue" ~ ";" }
 
 // Example: Expressions with proper precedence and unary operators
-expression = { match_expression | logical_or }
+expression = { try_expression | match_expression | logical_or }
+try_expression = { "try" ~ logical_or ~ ("catch" ~ logical_or)? }
 match_expression = { "match" ~ logical_or ~ "{" ~ match_arm+ ~ "}" }
 match_arm = { match_pattern ~ "=>" ~ expression ~ (","? ) }
 match_pattern = { integer_literal | boolean_literal | identifier | "_" }

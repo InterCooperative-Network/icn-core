@@ -189,6 +189,7 @@ pub(crate) fn parse_expression(pair: Pair<Rule>) -> Result<ExpressionNode, CclEr
                 .ok_or_else(|| CclError::ParsingError("Expression missing inner".to_string()))?;
             parse_expression(inner)
         }
+        Rule::try_expression => parse_try_expression(pair),
         Rule::match_expression => {
             let mut inner = pair.into_inner();
             let value = parse_expression(inner.next().unwrap())?;
@@ -465,32 +466,64 @@ pub(crate) fn parse_block(pair: Pair<Rule>) -> Result<BlockNode, CclError> {
     Ok(BlockNode { statements })
 }
 pub(crate) fn parse_type_annotation(pair: Pair<Rule>) -> Result<TypeAnnotationNode, CclError> {
-    // `type_annotation` rule in Pest is now `{ identifier }`.
-    // So, the `pair` passed here should have `pair.as_rule() == Rule::identifier` if Pest rule `type_annotation = { identifier }` was used directly in `function_definition`.
-    // However, the `function_definition` rule is `... ~ type_annotation ~ ...`
-    // So the `pair` here *is* the `type_annotation` rule itself. Its inner rule should be `identifier`.
-    let type_identifier_pair = pair
-        .into_inner()
-        .next()
-        .ok_or_else(|| CclError::ParsingError("Type annotation missing identifier".to_string()))?;
+    // `type_annotation` rule in Pest can now be complex (option_type | result_type | array_type | identifier)
+    match pair.as_rule() {
+        Rule::type_annotation => {
+            let inner = pair.into_inner().next().unwrap();
+            parse_type_annotation(inner)
+        }
+        Rule::option_type => {
+            let mut inner = pair.into_inner();
+            let inner_type = parse_type_annotation(inner.next().unwrap())?;
+            Ok(TypeAnnotationNode::Option(Box::new(inner_type)))
+        }
+        Rule::result_type => {
+            let mut inner = pair.into_inner();
+            let ok_type = parse_type_annotation(inner.next().unwrap())?;
+            let err_type = parse_type_annotation(inner.next().unwrap())?;
+            Ok(TypeAnnotationNode::Result {
+                ok_type: Box::new(ok_type),
+                err_type: Box::new(err_type),
+            })
+        }
+        Rule::array_type => {
+            let mut inner = pair.into_inner();
+            let element_type = parse_type_annotation(inner.next().unwrap())?;
+            Ok(TypeAnnotationNode::Array(Box::new(element_type)))
+        }
+        Rule::identifier => match pair.as_str() {
+            "Integer" => Ok(TypeAnnotationNode::Integer),
+            "Bool" => Ok(TypeAnnotationNode::Bool),
+            "String" => Ok(TypeAnnotationNode::String),
+            "Mana" => Ok(TypeAnnotationNode::Mana),
+            "Did" => Ok(TypeAnnotationNode::Did),
+            "Proposal" => Ok(TypeAnnotationNode::Proposal),
+            "Vote" => Ok(TypeAnnotationNode::Vote),
+            other => Ok(TypeAnnotationNode::Custom(other.to_string())),
+        },
+        _ => {
+            // Legacy handling - try to extract identifier from inner
+            let type_identifier_pair = pair
+                .into_inner()
+                .next()
+                .ok_or_else(|| CclError::ParsingError("Type annotation missing identifier".to_string()))?;
 
-    if type_identifier_pair.as_rule() != Rule::identifier {
-        return Err(CclError::ParsingError(format!(
-            "Expected identifier for type annotation, got {:?}",
-            type_identifier_pair.as_rule()
-        )));
-    }
+            if type_identifier_pair.as_rule() != Rule::identifier {
+                return Err(CclError::ParsingError(format!(
+                    "Expected identifier for type annotation, got {:?}",
+                    type_identifier_pair.as_rule()
+                )));
+            }
 
-    match type_identifier_pair.as_str() {
-        // The matched identifier string
-        "Integer" => Ok(TypeAnnotationNode::Integer),
-        "Bool" => Ok(TypeAnnotationNode::Bool),
-        "String" => Ok(TypeAnnotationNode::String),
-        "Mana" => Ok(TypeAnnotationNode::Mana),
-        "DID" => Ok(TypeAnnotationNode::Did),
-        "Option" => Ok(TypeAnnotationNode::Option),
-        "Result" => Ok(TypeAnnotationNode::Result),
-        other => Err(CclError::TypeError(format!("Unknown type: {}", other))), // This error should now be correctly triggered
+            match type_identifier_pair.as_str() {
+                "Integer" => Ok(TypeAnnotationNode::Integer),
+                "Bool" => Ok(TypeAnnotationNode::Bool),
+                "String" => Ok(TypeAnnotationNode::String),
+                "Mana" => Ok(TypeAnnotationNode::Mana),
+                "DID" => Ok(TypeAnnotationNode::Did),
+                other => Ok(TypeAnnotationNode::Custom(other.to_string())),
+            }
+        }
     }
 }
 
@@ -663,6 +696,12 @@ pub fn parse_ccl_source(source: &str) -> Result<AstNode, CclError> {
                             parse_struct_definition(pair_in_policy)?,
                         ));
                     }
+                    Rule::const_definition => {
+                        ast_nodes_for_policy.push(parse_const_definition(pair_in_policy)?);
+                    }
+                    Rule::macro_definition => {
+                        ast_nodes_for_policy.push(parse_macro_definition(pair_in_policy)?);
+                    }
                     Rule::policy_statement => {
                         ast_nodes_for_policy.push(parse_policy_statement(pair_in_policy)?);
                     }
@@ -684,6 +723,52 @@ pub fn parse_ccl_source(source: &str) -> Result<AstNode, CclError> {
         }
         Err(e) => Err(CclError::ParsingError(format!("Pest parsing error: {}", e))),
     }
+}
+
+pub(crate) fn parse_const_definition(pair: Pair<Rule>) -> Result<PolicyStatementNode, CclError> {
+    // const_definition = { "const" ~ identifier ~ ":" ~ type_annotation ~ "=" ~ expression ~ ";" }
+    let mut inner = pair.into_inner();
+    let name = inner.next().unwrap().as_str().to_string();
+    let type_ann = parse_type_annotation(inner.next().unwrap())?;
+    let value = parse_expression(inner.next().unwrap())?;
+    
+    Ok(PolicyStatementNode::ConstDef { name, value, type_ann })
+}
+
+pub(crate) fn parse_macro_definition(pair: Pair<Rule>) -> Result<PolicyStatementNode, CclError> {
+    // macro_definition = { "macro" ~ identifier ~ "(" ~ (identifier ~ ("," ~ identifier)*)? ~ ")" ~ "{" ~ (!"}") ~ ANY* ~ "}" }
+    let mut inner = pair.into_inner();
+    let name = inner.next().unwrap().as_str().to_string();
+    
+    let mut params = Vec::new();
+    let mut body = String::new();
+    
+    for item in inner {
+        if item.as_rule() == Rule::identifier {
+            params.push(item.as_str().to_string());
+        } else {
+            // This is the macro body content
+            body = item.as_str().to_string();
+        }
+    }
+    
+    Ok(PolicyStatementNode::MacroDef { name, params, body })
+}
+
+pub(crate) fn parse_try_expression(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
+    // try_expression = { "try" ~ logical_or ~ ("catch" ~ logical_or)? }
+    let mut inner = pair.into_inner();
+    let expr = parse_expression(inner.next().unwrap())?;
+    let catch_arm = if let Some(catch_pair) = inner.next() {
+        Some(Box::new(parse_expression(catch_pair)?))
+    } else {
+        None
+    };
+    
+    Ok(ExpressionNode::TryExpr {
+        expr: Box::new(expr),
+        catch_arm,
+    })
 }
 
 // Example test for the parser

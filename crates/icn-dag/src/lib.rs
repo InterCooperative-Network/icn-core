@@ -26,13 +26,16 @@ pub mod metrics;
 pub mod mutual_aid;
 #[cfg(feature = "persist-postgres")]
 pub mod postgres_store;
+pub mod pruning;
 pub mod recognition;
 #[cfg(feature = "persist-rocksdb")]
 pub mod rocksdb_store;
 #[cfg(feature = "persist-sled")]
 pub mod sled_store;
+pub mod snapshot;
 #[cfg(feature = "persist-sqlite")]
 pub mod sqlite_store;
+pub mod sync_monitor;
 
 /// Metadata associated with a stored DAG block.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

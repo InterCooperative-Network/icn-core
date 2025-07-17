@@ -183,6 +183,12 @@ fn policy_stmt_to_string(stmt: &PolicyStatementNode, indent: usize) -> String {
             format!("import \"{}\" as {};", path, alias)
         }
         PolicyStatementNode::StructDef(_) => "struct".to_string(),
+        PolicyStatementNode::ConstDef { name, type_ann, .. } => {
+            format!("const {}: {}", name, type_to_string(type_ann))
+        }
+        PolicyStatementNode::MacroDef { name, params, .. } => {
+            format!("macro {}({})", name, params.join(", "))
+        }
     }
 }
 
@@ -314,6 +320,13 @@ fn expr_to_string(expr: &ExpressionNode) -> String {
         ExpressionNode::ErrExpr(inner) => format!("Err({})", expr_to_string(inner)),
         ExpressionNode::RequireProof(inner) => format!("require_proof({})", expr_to_string(inner)),
         ExpressionNode::Match { value, .. } => format!("match {} ...", expr_to_string(value)),
+        ExpressionNode::TryExpr { expr, catch_arm } => {
+            if let Some(catch_expr) = catch_arm {
+                format!("try {} catch {}", expr_to_string(expr), expr_to_string(catch_expr))
+            } else {
+                format!("try {}", expr_to_string(expr))
+            }
+        }
     }
 }
 
@@ -328,8 +341,8 @@ fn type_to_string(ty: &TypeAnnotationNode) -> String {
         TypeAnnotationNode::Proposal => "Proposal".to_string(),
         TypeAnnotationNode::Vote => "Vote".to_string(),
         TypeAnnotationNode::Custom(s) => s.clone(),
-        TypeAnnotationNode::Option => "Option".to_string(),
-        TypeAnnotationNode::Result => "Result".to_string(),
+        TypeAnnotationNode::Option(_) => "Option".to_string(),
+        TypeAnnotationNode::Result { .. } => "Result".to_string(),
     }
 }
 
@@ -386,6 +399,16 @@ fn explain_ast(ast: &AstNode, target: Option<&str>) -> String {
                     PolicyStatementNode::StructDef(_) => {
                         if target.is_none() {
                             lines.push("Struct definition".to_string());
+                        }
+                    }
+                    PolicyStatementNode::ConstDef { name, type_ann, .. } => {
+                        if target.is_none() || target == Some(name) {
+                            lines.push(format!("Constant `{}` of type `{}`.", name, type_to_string(type_ann)));
+                        }
+                    }
+                    PolicyStatementNode::MacroDef { name, params, .. } => {
+                        if target.is_none() || target == Some(name) {
+                            lines.push(format!("Macro `{}` with {} parameters.", name, params.len()));
                         }
                     }
                 }

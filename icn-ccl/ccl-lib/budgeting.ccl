@@ -1,0 +1,187 @@
+// CCL Library - Budgeting and Resource Allocation Template
+// Implements cooperative budgeting with multi-tier approval
+
+const BUDGET_SMALL_LIMIT: Mana = 1000;
+const BUDGET_MEDIUM_LIMIT: Mana = 10000;
+const BUDGET_LARGE_LIMIT: Mana = 100000;
+
+const APPROVAL_SIMPLE: Integer = 1;
+const APPROVAL_COMMITTEE: Integer = 2;
+const APPROVAL_ASSEMBLY: Integer = 3;
+
+struct BudgetRequest {
+    id: Integer,
+    requestor: Did,
+    amount: Mana,
+    category: String,
+    description: String,
+    approval_level: Integer,
+    approved_by: Array<Did>,
+    status: String,
+    created_at: Integer,
+    deadline: Integer
+}
+
+struct BudgetCategory {
+    name: String,
+    allocated: Mana,
+    spent: Mana,
+    reserved: Mana,
+    approval_threshold: Integer
+}
+
+// Budget creation and management
+fn create_budget_request(
+    requestor: Did,
+    amount: Mana,
+    category: String,
+    description: String
+) -> BudgetRequest {
+    let approval_level = determine_approval_level(amount);
+    
+    let request = BudgetRequest {
+        id: host_get_current_time(),
+        requestor: requestor,
+        amount: amount,
+        category: category,
+        description: description,
+        approval_level: approval_level,
+        approved_by: [],
+        status: "pending",
+        created_at: host_get_current_time(),
+        deadline: host_get_current_time() + (30 * DAY)
+    };
+    
+    return request;
+}
+
+fn determine_approval_level(amount: Mana) -> Integer {
+    if amount <= BUDGET_SMALL_LIMIT {
+        return APPROVAL_SIMPLE;
+    } else if amount <= BUDGET_MEDIUM_LIMIT {
+        return APPROVAL_COMMITTEE;
+    } else {
+        return APPROVAL_ASSEMBLY;
+    }
+}
+
+fn approve_budget_request(
+    request: BudgetRequest,
+    approver: Did
+) -> BudgetRequest {
+    // Check if approver has authority for this approval level
+    if !has_approval_authority(approver, request.approval_level) {
+        return request;
+    }
+    
+    // Check if already approved by this person
+    if array_contains_did(request.approved_by, approver) {
+        return request;
+    }
+    
+    // Add approval
+    let updated_request = request;
+    array_push_did(updated_request.approved_by, approver);
+    
+    // Check if sufficient approvals
+    if has_sufficient_approvals(updated_request) {
+        updated_request.status = "approved";
+    }
+    
+    return updated_request;
+}
+
+fn has_approval_authority(approver: Did, level: Integer) -> Bool {
+    let reputation = host_get_reputation();
+    
+    if level == APPROVAL_SIMPLE {
+        return reputation >= 100;
+    } else if level == APPROVAL_COMMITTEE {
+        return reputation >= 500;
+    } else if level == APPROVAL_ASSEMBLY {
+        return reputation >= 1000;
+    }
+    
+    return false;
+}
+
+fn has_sufficient_approvals(request: BudgetRequest) -> Bool {
+    let approval_count = array_len(request.approved_by);
+    
+    if request.approval_level == APPROVAL_SIMPLE {
+        return approval_count >= 1;
+    } else if request.approval_level == APPROVAL_COMMITTEE {
+        return approval_count >= 3;
+    } else if request.approval_level == APPROVAL_ASSEMBLY {
+        return approval_count >= 7;
+    }
+    
+    return false;
+}
+
+fn execute_budget_request(request: BudgetRequest) -> Bool {
+    // Check if approved and within deadline
+    if request.status != "approved" {
+        return false;
+    }
+    
+    if host_get_current_time() > request.deadline {
+        return false;
+    }
+    
+    // Check if funds are available
+    let available_funds = get_category_available_funds(request.category);
+    if available_funds < request.amount {
+        return false;
+    }
+    
+    // Execute the transfer
+    allocate_funds(request.category, request.amount);
+    transfer_mana(request.requestor, request.amount);
+    
+    return true;
+}
+
+fn get_category_available_funds(category: String) -> Mana {
+    // TODO: Implement category budget tracking
+    return 50000; // Placeholder
+}
+
+fn allocate_funds(category: String, amount: Mana) -> Bool {
+    // TODO: Implement fund allocation tracking
+    return true;
+}
+
+fn transfer_mana(recipient: Did, amount: Mana) -> Bool {
+    // TODO: Implement actual mana transfer
+    return true;
+}
+
+// Helper functions for Did arrays (simplified)
+fn array_contains_did(arr: Array<Did>, item: Did) -> Bool {
+    // TODO: Implement proper DID comparison
+    return false;
+}
+
+fn array_push_did(arr: Array<Did>, item: Did) -> Bool {
+    // TODO: Implement array push for DIDs
+    return true;
+}
+
+// Main execution function
+fn run() -> Bool {
+    let request = create_budget_request(
+        host_get_caller(),
+        5000,
+        "infrastructure",
+        "Server maintenance and upgrades"
+    );
+    
+    let approved_request = approve_budget_request(request, host_get_caller());
+    
+    if approved_request.status == "approved" {
+        return execute_budget_request(approved_request);
+    }
+    
+    return false;
+}

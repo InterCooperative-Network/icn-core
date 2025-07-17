@@ -31,6 +31,8 @@ pub enum PolicyStatementNode {
     RuleDef(AstNode),     // Using AstNode::RuleDefinition
     StructDef(AstNode),
     Import { path: String, alias: String },
+    ConstDef { name: String, value: ExpressionNode, type_ann: TypeAnnotationNode },
+    MacroDef { name: String, params: Vec<String>, body: String },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -49,8 +51,11 @@ pub enum TypeAnnotationNode {
     Array(Box<TypeAnnotationNode>), // Arrays of any type, e.g., Array<Integer>
     Proposal,                       // Governance proposal type
     Vote,                           // Vote type for governance
-    Option,
-    Result,
+    Option(Box<TypeAnnotationNode>), // Option type with inner type
+    Result {
+        ok_type: Box<TypeAnnotationNode>,
+        err_type: Box<TypeAnnotationNode>,
+    }, // Result type with success and error types
     Custom(String), // For user-defined types or imported ones
 }
 
@@ -161,6 +166,10 @@ pub enum ExpressionNode {
     Match {
         value: Box<ExpressionNode>,
         arms: Vec<(ExpressionNode, ExpressionNode)>,
+    },
+    TryExpr {
+        expr: Box<ExpressionNode>,
+        catch_arm: Option<Box<ExpressionNode>>,
     },
     // ... other expression types (member access, etc.)
 }
@@ -287,6 +296,12 @@ pub fn pair_to_ast(
             }
             PolicyStatementNode::FunctionDef(func) => Ok(func),
             PolicyStatementNode::StructDef(def) => Ok(def),
+            PolicyStatementNode::ConstDef { name, value, type_ann } => {
+                Ok(AstNode::Policy(vec![PolicyStatementNode::ConstDef { name, value, type_ann }]))
+            }
+            PolicyStatementNode::MacroDef { name, params, body } => {
+                Ok(AstNode::Policy(vec![PolicyStatementNode::MacroDef { name, params, body }]))
+            }
         },
         Rule::statement => Ok(AstNode::Block(BlockNode {
             statements: vec![parser::parse_statement(pair)?],

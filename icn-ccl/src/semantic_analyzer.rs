@@ -1,7 +1,7 @@
 // icn-ccl/src/semantic_analyzer.rs
 use crate::ast::{
     ActionNode, AstNode, BinaryOperator, BlockNode, ExpressionNode, StatementNode,
-    TypeAnnotationNode, UnaryOperator,
+    TypeAnnotationNode, UnaryOperator, PolicyStatementNode,
 };
 use crate::error::CclError;
 use std::collections::HashMap;
@@ -221,6 +221,30 @@ impl SemanticAnalyzer {
             crate::ast::PolicyStatementNode::StructDef(def) => {
                 self.visit_node(def)?;
             }
+            PolicyStatementNode::ConstDef { name, value, type_ann } => {
+                let expr_type = self.evaluate_expression(value)?;
+                if !expr_type.compatible_with(type_ann) {
+                    return Err(CclError::TypeError(format!(
+                        "Constant {} type mismatch: expected {:?}, found {:?}",
+                        name, type_ann, expr_type
+                    )));
+                }
+                self.insert_symbol(
+                    name.clone(),
+                    Symbol::Variable {
+                        type_ann: type_ann.clone(),
+                    },
+                )?;
+            }
+            PolicyStatementNode::MacroDef { name, .. } => {
+                // Macros are compile-time constructs, just register the name
+                self.insert_symbol(
+                    name.clone(),
+                    Symbol::Variable {
+                        type_ann: TypeAnnotationNode::Custom("Macro".to_string()),
+                    },
+                )?;
+            }
         }
         Ok(())
     }
@@ -380,13 +404,23 @@ impl SemanticAnalyzer {
                 }
             }
             ExpressionNode::SomeExpr(inner) => {
-                let _ = self.evaluate_expression(inner)?;
-                Ok(TypeAnnotationNode::Option)
+                let inner_type = self.evaluate_expression(inner)?;
+                Ok(TypeAnnotationNode::Option(Box::new(inner_type)))
             }
-            ExpressionNode::NoneExpr => Ok(TypeAnnotationNode::Option),
-            ExpressionNode::OkExpr(inner) | ExpressionNode::ErrExpr(inner) => {
-                let _ = self.evaluate_expression(inner)?;
-                Ok(TypeAnnotationNode::Result)
+            ExpressionNode::NoneExpr => Ok(TypeAnnotationNode::Option(Box::new(TypeAnnotationNode::Custom("Unknown".to_string())))),
+            ExpressionNode::OkExpr(inner) => {
+                let inner_type = self.evaluate_expression(inner)?;
+                Ok(TypeAnnotationNode::Result {
+                    ok_type: Box::new(inner_type),
+                    err_type: Box::new(TypeAnnotationNode::String),
+                })
+            }
+            ExpressionNode::ErrExpr(inner) => {
+                let inner_type = self.evaluate_expression(inner)?;
+                Ok(TypeAnnotationNode::Result {
+                    ok_type: Box::new(TypeAnnotationNode::Custom("Unknown".to_string())),
+                    err_type: Box::new(inner_type),
+                })
             }
             ExpressionNode::RequireProof(inner) => {
                 let ty = self.evaluate_expression(inner)?;
@@ -411,6 +445,20 @@ impl SemanticAnalyzer {
                     }
                 }
                 Ok(branch_ty.unwrap_or(TypeAnnotationNode::Integer))
+            }
+            ExpressionNode::TryExpr { expr, catch_arm } => {
+                let expr_type = self.evaluate_expression(expr)?;
+                if let Some(catch_expr) = catch_arm {
+                    let catch_type = self.evaluate_expression(catch_expr)?;
+                    // For now, return the unified type (or the main expression type)
+                    if expr_type.compatible_with(&catch_type) {
+                        Ok(expr_type)
+                    } else {
+                        Ok(expr_type)  // Prefer the main expression type
+                    }
+                } else {
+                    Ok(expr_type)
+                }
             }
             ExpressionNode::Identifier(name) => match self.lookup_symbol(name) {
                 Some(Symbol::Variable { type_ann }) => Ok(type_ann.clone()),
