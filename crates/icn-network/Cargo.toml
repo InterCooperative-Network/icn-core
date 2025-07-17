@@ -38,7 +38,7 @@ libp2p-tcp = { version = "0.44", features = ["tokio"], optional = true }
 anyhow = "1.0"
 env_logger = "0.10"
 libp2p = { version = "0.56", features = ["tokio", "tcp", "dns", "kad", "gossipsub", "noise", "yamux", "macros", "request-response"] }
-rand = "0.8"
+rand = "0.9"
 icn-common = { path = "../icn-common" }
 icn-mesh = { path = "../icn-mesh" }
 icn-runtime = { path = "../icn-runtime" }
