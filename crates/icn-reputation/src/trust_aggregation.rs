@@ -320,7 +320,7 @@ impl TrustAggregator {
             };
 
             // If multiple signals of same type, take the maximum
-            let current_score = scores.get(signal_type).copied().unwrap_or(0.0);
+            let current_score: f64 = scores.get(signal_type).copied().unwrap_or(0.0);
             scores.insert(signal_type.to_string(), current_score.max(score));
         }
 
@@ -451,7 +451,7 @@ impl TrustAggregator {
         let consistency_factor = (-std_dev).exp();
         
         // Scale by number of signals (more signals = higher confidence, with diminishing returns)
-        let signal_factor = 1.0 - (-values.len() as f64 / 5.0).exp();
+        let signal_factor = 1.0 - (-(values.len() as f64) / 5.0).exp();
         
         (consistency_factor * signal_factor).clamp(0.0, 1.0)
     }

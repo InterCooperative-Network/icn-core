@@ -79,7 +79,7 @@ impl TrustCalculationEngine {
 
         for _iteration in 0..self.config.max_iterations {
             let mut new_scores = HashMap::new();
-            let mut max_change = 0.0;
+            let mut max_change: f64 = 0.0;
 
             for node in &nodes {
                 let mut score = (1.0 - self.config.damping_factor) / n as f64;
@@ -196,7 +196,7 @@ impl TrustCalculationEngine {
         }
 
         let current_time = time_provider.unix_seconds();
-        let mut best_trust = 0.0;
+        let mut best_trust: f64 = 0.0;
 
         for path in paths {
             let path_trust = self.calculate_path_trust(&path, current_time);

@@ -36,12 +36,24 @@ pub struct CooperativeSearchFilter {
     pub locality: Option<String>,
     /// Filter by minimum trust level from a specific cooperative
     pub trusted_by: Option<Did>,
+    /// Filter by minimum trust level
+    pub min_trust_level: Option<crate::cooperative_schemas::TrustLevel>,
+    /// Filter by trust context
+    pub trust_context: Option<String>,
     /// Filter by federation membership
     pub federation: Option<String>,
     /// Search query for name/description
     pub search_query: Option<String>,
     /// Maximum number of results
     pub limit: Option<usize>,
+    /// Include cooperatives with inherited trust
+    pub include_inherited_trust: bool,
+    /// Include cooperatives with cross-federation trust
+    pub include_cross_federation_trust: bool,
+    /// Minimum trust score (0.0 to 1.0)
+    pub min_trust_score: Option<f64>,
+    /// Sort by trust score descending
+    pub sort_by_trust: bool,
 }
 
 impl Default for CooperativeSearchFilter {
@@ -53,9 +65,15 @@ impl Default for CooperativeSearchFilter {
             region: None,
             locality: None,
             trusted_by: None,
+            min_trust_level: None,
+            trust_context: None,
             federation: None,
             search_query: None,
             limit: Some(50),
+            include_inherited_trust: true,
+            include_cross_federation_trust: true,
+            min_trust_score: None,
+            sort_by_trust: false,
         }
     }
 }
@@ -69,6 +87,14 @@ pub struct CooperativeSearchResult {
     pub relevance_score: f64,
     /// Trust level if filtered by trusted_by
     pub trust_level: Option<crate::cooperative_schemas::TrustLevel>,
+    /// Overall trust score (0.0 to 1.0)
+    pub trust_score: Option<f64>,
+    /// Trust context used for filtering
+    pub trust_context: Option<String>,
+    /// Whether trust is inherited or direct
+    pub trust_inherited: bool,
+    /// Whether trust crosses federation boundaries
+    pub trust_cross_federation: bool,
     /// Matching capabilities
     pub matching_capabilities: Vec<String>,
 }
@@ -215,8 +241,17 @@ impl CooperativeRegistry {
             }
         }
 
-        // Sort by relevance score (highest first)
-        results.sort_by(|a, b| b.relevance_score.partial_cmp(&a.relevance_score).unwrap());
+        // Sort by trust score if requested, otherwise by relevance score
+        if filter.sort_by_trust {
+            results.sort_by(|a, b| {
+                let a_trust = a.trust_score.unwrap_or(0.0);
+                let b_trust = b.trust_score.unwrap_or(0.0);
+                b_trust.partial_cmp(&a_trust).unwrap_or(std::cmp::Ordering::Equal)
+                    .then_with(|| b.relevance_score.partial_cmp(&a.relevance_score).unwrap_or(std::cmp::Ordering::Equal))
+            });
+        } else {
+            results.sort_by(|a, b| b.relevance_score.partial_cmp(&a.relevance_score).unwrap_or(std::cmp::Ordering::Equal));
+        }
 
         // Apply limit
         if let Some(limit) = filter.limit {
@@ -280,6 +315,38 @@ impl CooperativeRegistry {
     }
 
     /// Check trust level between two cooperatives
+    /// Check if one trust level meets the minimum requirement of another
+    fn meets_minimum_trust_level(
+        &self,
+        actual: &crate::cooperative_schemas::TrustLevel,
+        required: &crate::cooperative_schemas::TrustLevel,
+    ) -> bool {
+        use crate::cooperative_schemas::TrustLevel::*;
+        match (actual, required) {
+            (Full, _) => true,
+            (Partial, Partial) | (Partial, Basic) | (Partial, None) => true,
+            (Basic, Basic) | (Basic, None) => true,
+            (None, None) => true,
+            _ => false,
+        }
+    }
+
+    /// Check if trust is inherited (simplified implementation)
+    fn is_trust_inherited(&self, attestor: &Did, subject: &Did, _context: &str) -> bool {
+        // In a real implementation, this would check if the trust relationship
+        // comes through federation membership or other inheritance mechanisms
+        // For now, return false to indicate direct trust
+        false
+    }
+
+    /// Check if trust crosses federation boundaries (simplified implementation)
+    fn is_cross_federation_trust(&self, attestor: &Did, subject: &Did) -> bool {
+        // In a real implementation, this would check if the attestor and subject
+        // belong to different federations but have trust through bridges
+        // For now, return false to indicate same-federation trust
+        false
+    }
+
     pub fn get_trust_level(
         &self,
         attestor: &Did,
@@ -482,20 +549,74 @@ impl CooperativeRegistry {
             }
         }
 
-        // Check trust level
-        let trust_level = if let Some(ref trusted_by) = filter.trusted_by {
-            self.get_trust_level(trusted_by, &profile.did, "*")
-        } else {
-            None
-        };
+        // Check trust level and trust-related filters
+        let mut trust_level = None;
+        let mut trust_score = None;
+        let mut trust_inherited = false;
+        let mut trust_cross_federation = false;
+        let mut trust_context = None;
+
+        if let Some(ref trusted_by) = filter.trusted_by {
+            let context = filter.trust_context.as_deref().unwrap_or("*");
+            trust_level = self.get_trust_level(trusted_by, &profile.did, context);
+            trust_context = Some(context.to_string());
+            
+            // Check if minimum trust level is met
+            if let Some(ref min_level) = filter.min_trust_level {
+                if let Some(ref actual_level) = trust_level {
+                    if !self.meets_minimum_trust_level(actual_level, min_level) {
+                        return Ok(None);
+                    }
+                } else {
+                    return Ok(None); // No trust relationship found
+                }
+            }
+            
+            // Calculate trust score (simplified for demo)
+            trust_score = trust_level.as_ref().map(|level| match level {
+                crate::cooperative_schemas::TrustLevel::Full => 1.0,
+                crate::cooperative_schemas::TrustLevel::Partial => 0.7,
+                crate::cooperative_schemas::TrustLevel::Basic => 0.4,
+                crate::cooperative_schemas::TrustLevel::None => 0.0,
+            });
+            
+            // Check minimum trust score
+            if let Some(min_score) = filter.min_trust_score {
+                if trust_score.unwrap_or(0.0) < min_score {
+                    return Ok(None);
+                }
+            }
+            
+            // Check trust inheritance and cross-federation settings
+            // These would be populated by actual trust validation logic
+            trust_inherited = self.is_trust_inherited(trusted_by, &profile.did, context);
+            trust_cross_federation = self.is_cross_federation_trust(trusted_by, &profile.did);
+            
+            if !filter.include_inherited_trust && trust_inherited {
+                return Ok(None);
+            }
+            
+            if !filter.include_cross_federation_trust && trust_cross_federation {
+                return Ok(None);
+            }
+            
+            // Boost score based on trust level
+            if let Some(score_boost) = trust_score {
+                score += score_boost * 0.3;
+            }
+        }
 
         // Normalize score to 0.0-1.0 range
-        score = (score / 2.0).min(1.0);
+        score = (score / 2.5).min(1.0);
 
         Ok(Some(CooperativeSearchResult {
             profile: profile.clone(),
             relevance_score: score,
             trust_level,
+            trust_score,
+            trust_context,
+            trust_inherited,
+            trust_cross_federation,
             matching_capabilities,
         }))
     }

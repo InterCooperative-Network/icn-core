@@ -9,6 +9,7 @@ use icn_identity::{
     TrustContext, FederationId, TrustPolicyEngine, TrustValidationResult, TrustLevel,
 };
 use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, HashSet};
 /// Result of voting on a proposal
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum VotingResult {
@@ -107,6 +108,16 @@ pub struct FederationGovernanceEngine {
     proposals: HashMap<ProposalId, FederationProposal>,
     /// Federation this engine serves
     federation_id: Option<FederationId>,
+    /// Trust committees
+    trust_committees: HashMap<String, TrustCommittee>,
+    /// Trust threshold policies
+    threshold_policies: HashMap<String, TrustThresholdPolicy>,
+    /// Trust violations
+    violations: HashMap<String, TrustViolation>,
+    /// Membership trust gates
+    membership_gates: HashMap<FederationId, FederationMembershipTrustGate>,
+    /// Active sanctions
+    active_sanctions: HashMap<Did, Vec<TrustSanction>>,
 }
 
 /// Proposal within a federation context
@@ -166,6 +177,11 @@ impl FederationGovernanceEngine {
             policies: HashMap::new(),
             proposals: HashMap::new(),
             federation_id,
+            trust_committees: HashMap::new(),
+            threshold_policies: HashMap::new(),
+            violations: HashMap::new(),
+            membership_gates: HashMap::new(),
+            active_sanctions: HashMap::new(),
         }
     }
 
@@ -202,7 +218,11 @@ impl FederationGovernanceEngine {
         }
 
         // Create proposal
-        let proposal_id = ProposalId(format!("prop_{}_{}", federation.as_str(), chrono::Utc::now().timestamp()));
+        let proposal_id = ProposalId(format!("prop_{}_{}", federation.as_str(), 
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs()));
         let proposal = FederationProposal {
             id: proposal_id.clone(),
             proposer: proposer.clone(),
@@ -211,7 +231,10 @@ impl FederationGovernanceEngine {
             content,
             votes: HashMap::new(),
             status: ProposalStatus::Open,
-            created_at: chrono::Utc::now().timestamp() as u64,
+            created_at: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs(),
             voting_deadline,
         };
 
@@ -233,7 +256,10 @@ impl FederationGovernanceEngine {
             return Err(GovernanceError::ProposalNotOpen(proposal_id.clone()));
         }
 
-        if chrono::Utc::now().timestamp() as u64 > proposal.voting_deadline {
+        if std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs() > proposal.voting_deadline {
             return Err(GovernanceError::VotingDeadlinePassed(proposal_id.clone()));
         }
 
@@ -280,7 +306,10 @@ impl FederationGovernanceEngine {
         }
 
         // Check if voting deadline has passed
-        if chrono::Utc::now().timestamp() as u64 <= proposal.voting_deadline {
+        if std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs() <= proposal.voting_deadline {
             return Err(GovernanceError::VotingStillOpen(proposal_id.clone()));
         }
 
@@ -430,6 +459,643 @@ impl FederationGovernanceEngine {
             .filter(|p| p.status == status)
             .collect()
     }
+
+    // === Trust Committee Management ===
+
+    /// Create a new trust committee
+    pub fn create_trust_committee(
+        &mut self,
+        committee_id: String,
+        federation: FederationId,
+        chair: Did,
+        managed_contexts: HashSet<TrustContext>,
+    ) -> Result<(), FederationGovernanceError> {
+        if self.trust_committees.contains_key(&committee_id) {
+            return Err(FederationGovernanceError::PolicyValidationFailed(
+                format!("Committee {} already exists", committee_id)
+            ));
+        }
+
+        let chair_member = TrustCommitteeMember {
+            did: chair,
+            role: TrustCommitteeRole::Chair,
+            contexts: managed_contexts.clone(),
+            voting_weight: 1.0,
+            joined_at: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs(),
+            active: true,
+        };
+
+        let committee = TrustCommittee {
+            id: committee_id.clone(),
+            federation,
+            members: [(chair_member.did.clone(), chair_member)].into_iter().collect(),
+            managed_contexts,
+            policies: HashMap::new(),
+            created_at: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs(),
+            status: CommitteeStatus::Active,
+        };
+
+        self.trust_committees.insert(committee_id, committee);
+        Ok(())
+    }
+
+    /// Add member to trust committee
+    pub fn add_committee_member(
+        &mut self,
+        committee_id: &str,
+        member: TrustCommitteeMember,
+    ) -> Result<(), FederationGovernanceError> {
+        let committee = self.trust_committees.get_mut(committee_id)
+            .ok_or_else(|| FederationGovernanceError::CommitteeNotFound(committee_id.to_string()))?;
+
+        if committee.status != CommitteeStatus::Active {
+            return Err(FederationGovernanceError::PolicyValidationFailed(
+                "Cannot add members to inactive committee".to_string()
+            ));
+        }
+
+        committee.members.insert(member.did.clone(), member);
+        Ok(())
+    }
+
+    /// Remove member from trust committee
+    pub fn remove_committee_member(
+        &mut self,
+        committee_id: &str,
+        member_did: &Did,
+    ) -> Result<(), FederationGovernanceError> {
+        let committee = self.trust_committees.get_mut(committee_id)
+            .ok_or_else(|| FederationGovernanceError::CommitteeNotFound(committee_id.to_string()))?;
+
+        // Cannot remove the last chair
+        if let Some(member) = committee.members.get(member_did) {
+            if member.role == TrustCommitteeRole::Chair {
+                let chair_count = committee.members.values()
+                    .filter(|m| m.role == TrustCommitteeRole::Chair)
+                    .count();
+                if chair_count <= 1 {
+                    return Err(FederationGovernanceError::PolicyValidationFailed(
+                        "Cannot remove the last committee chair".to_string()
+                    ));
+                }
+            }
+        }
+
+        committee.members.remove(member_did);
+        Ok(())
+    }
+
+    /// Set trust threshold policy
+    pub fn set_threshold_policy(
+        &mut self,
+        activity: String,
+        policy: TrustThresholdPolicy,
+    ) {
+        self.threshold_policies.insert(activity, policy);
+    }
+
+    /// Validate trust threshold for an activity
+    pub fn validate_trust_threshold(
+        &self,
+        actor: &Did,
+        activity: &str,
+        context: &TrustContext,
+    ) -> Result<(), FederationGovernanceError> {
+        if let Some(policy) = self.threshold_policies.get(activity) {
+            // Check minimum trust level
+            if let Some(fed_id) = &self.federation_id {
+                let validation = self.trust_engine.validate_trust(
+                    actor,
+                    actor, // Self-validation for activity permission
+                    context,
+                    activity,
+                );
+
+                match validation {
+                    TrustValidationResult::Allowed { effective_trust, .. } => {
+                        if !self.meets_minimum_trust(&effective_trust, &policy.min_trust_level) {
+                            return Err(FederationGovernanceError::TrustThresholdNotMet(
+                                format!("Trust level {:?} does not meet minimum {:?} for activity '{}'", 
+                                    effective_trust, policy.min_trust_level, activity)
+                            ));
+                        }
+                    }
+                    TrustValidationResult::Denied { reason } => {
+                        return Err(FederationGovernanceError::TrustValidationFailed(reason));
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    // === Trust Violations and Sanctions ===
+
+    /// Report a trust violation
+    pub fn report_violation(
+        &mut self,
+        violator: Did,
+        violation_type: ViolationType,
+        context: TrustContext,
+        description: String,
+        evidence: Vec<String>,
+        reported_by: Did,
+    ) -> Result<String, FederationGovernanceError> {
+        let violation_id = format!("violation_{}_{}", 
+            violator.to_string().chars().take(8).collect::<String>(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs());
+
+        let violation = TrustViolation {
+            id: violation_id.clone(),
+            violator,
+            violation_type,
+            federation: self.federation_id.clone()
+                .ok_or_else(|| FederationGovernanceError::ViolationProcessingFailed(
+                    "No federation context".to_string()))?,
+            context,
+            description,
+            evidence,
+            reported_by,
+            reported_at: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs(),
+            status: ViolationStatus::Reported,
+            committee_decisions: Vec::new(),
+            sanctions: Vec::new(),
+        };
+
+        self.violations.insert(violation_id.clone(), violation);
+        Ok(violation_id)
+    }
+
+    /// Committee member votes on a violation
+    pub fn committee_vote_on_violation(
+        &mut self,
+        violation_id: &str,
+        committee_member: &Did,
+        vote: DecisionVote,
+        reasoning: String,
+        recommended_sanctions: Vec<TrustSanction>,
+    ) -> Result<(), FederationGovernanceError> {
+        let violation = self.violations.get_mut(violation_id)
+            .ok_or_else(|| FederationGovernanceError::ViolationProcessingFailed(
+                format!("Violation {} not found", violation_id)))?;
+
+        // Verify member is on the appropriate committee
+        let committee = self.get_committee_for_context(&violation.context)
+            .ok_or_else(|| FederationGovernanceError::CommitteeNotFound(
+                format!("No committee found for context {:?}", violation.context)))?;
+
+        if !committee.members.contains_key(committee_member) {
+            return Err(FederationGovernanceError::Unauthorized(
+                "Not a committee member".to_string()));
+        }
+
+        let decision = CommitteeDecision {
+            member: committee_member.clone(),
+            vote,
+            reasoning,
+            decided_at: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs(),
+            recommended_sanctions,
+        };
+
+        violation.committee_decisions.push(decision);
+        violation.status = ViolationStatus::UnderReview;
+
+        Ok(())
+    }
+
+    /// Apply sanctions based on committee decision
+    pub fn apply_sanctions(
+        &mut self,
+        violation_id: &str,
+    ) -> Result<(), FederationGovernanceError> {
+        let violation = self.violations.get_mut(violation_id)
+            .ok_or_else(|| FederationGovernanceError::ViolationProcessingFailed(
+                format!("Violation {} not found", violation_id)))?;
+
+        if violation.status != ViolationStatus::UnderReview {
+            return Err(FederationGovernanceError::ViolationProcessingFailed(
+                "Violation not ready for sanction application".to_string()));
+        }
+
+        // Calculate committee consensus
+        let total_votes = violation.committee_decisions.len();
+        let confirm_votes = violation.committee_decisions.iter()
+            .filter(|d| matches!(d.vote, DecisionVote::Confirm))
+            .count();
+
+        let committee = self.get_committee_for_context(&violation.context)
+            .ok_or_else(|| FederationGovernanceError::CommitteeNotFound(
+                format!("No committee found for context {:?}", violation.context)))?;
+
+        // Check if threshold is met (majority vote)
+        let threshold = 0.5; // Could be configurable
+        if (confirm_votes as f64) / (total_votes as f64) >= threshold {
+            // Apply recommended sanctions
+            let mut all_sanctions = Vec::new();
+            for decision in &violation.committee_decisions {
+                if matches!(decision.vote, DecisionVote::Confirm) {
+                    all_sanctions.extend(decision.recommended_sanctions.clone());
+                }
+            }
+
+            // Add sanctions to active sanctions for the violator
+            self.active_sanctions.entry(violation.violator.clone())
+                .or_default()
+                .extend(all_sanctions.clone());
+
+            violation.sanctions = all_sanctions;
+            violation.status = ViolationStatus::Confirmed;
+        } else {
+            violation.status = ViolationStatus::Dismissed;
+        }
+
+        Ok(())
+    }
+
+    // === Federation Membership Trust Gates ===
+
+    /// Set membership trust gate for federation
+    pub fn set_membership_gate(
+        &mut self,
+        federation: FederationId,
+        gate: FederationMembershipTrustGate,
+    ) {
+        self.membership_gates.insert(federation, gate);
+    }
+
+    /// Evaluate membership application
+    pub fn evaluate_membership_application(
+        &self,
+        applicant: &Did,
+        federation: &FederationId,
+        attestations: Vec<(&Did, TrustLevel, TrustContext)>,
+    ) -> Result<MembershipApplicationResult, FederationGovernanceError> {
+        let gate = self.membership_gates.get(federation)
+            .ok_or_else(|| FederationGovernanceError::MembershipGateValidationFailed(
+                format!("No membership gate for federation {}", federation.as_str())))?;
+
+        // Check minimum attestations
+        if attestations.len() < gate.min_attestations {
+            return Ok(MembershipApplicationResult::Rejected {
+                reason: format!("Need {} attestations, got {}", 
+                    gate.min_attestations, attestations.len()),
+                can_reapply_after: Some(std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs() + 2592000), // 30 days
+            });
+        }
+
+        // Check trust levels and contexts
+        let mut valid_contexts = HashSet::new();
+        for (attestor, trust_level, context) in &attestations {
+            if gate.required_contexts.contains(context) {
+                if self.meets_minimum_trust(trust_level, &gate.min_trust_level) {
+                    valid_contexts.insert(context.clone());
+                }
+            }
+        }
+
+        if valid_contexts.len() < gate.required_contexts.len() {
+            return Ok(MembershipApplicationResult::Rejected {
+                reason: "Insufficient trust attestations for required contexts".to_string(),
+                can_reapply_after: Some(std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs() + 2592000), // 30 days
+            });
+        }
+
+        // If we have a committee, check approval
+        if let Some(committee) = self.get_committee_for_federation(federation) {
+            // For now, automatically approve if basic requirements are met
+            // In practice, this would trigger committee review process
+            return Ok(MembershipApplicationResult::Approved {
+                probationary_until: gate.probationary_period.map(|period| 
+                    std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_secs() + period),
+                granted_contexts: valid_contexts,
+            });
+        }
+
+        Ok(MembershipApplicationResult::Approved {
+            probationary_until: gate.probationary_period.map(|period| 
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs() + period),
+            granted_contexts: valid_contexts,
+        })
+    }
+
+    // === Helper Methods ===
+
+    /// Check if trust level meets minimum requirement
+    fn meets_minimum_trust(&self, actual: &TrustLevel, required: &TrustLevel) -> bool {
+        use TrustLevel::*;
+        match (actual, required) {
+            (Full, _) => true,
+            (Partial, Partial) | (Partial, Basic) | (Partial, None) => true,
+            (Basic, Basic) | (Basic, None) => true,
+            (None, None) => true,
+            _ => false,
+        }
+    }
+
+    /// Get committee responsible for a trust context
+    fn get_committee_for_context(&self, context: &TrustContext) -> Option<&TrustCommittee> {
+        self.trust_committees.values()
+            .find(|c| c.managed_contexts.contains(context) && c.status == CommitteeStatus::Active)
+    }
+
+    /// Get committee for a federation
+    fn get_committee_for_federation(&self, federation: &FederationId) -> Option<&TrustCommittee> {
+        self.trust_committees.values()
+            .find(|c| c.federation == *federation && c.status == CommitteeStatus::Active)
+    }
+
+    /// Check if member has active sanctions
+    pub fn has_active_sanctions(&self, member: &Did) -> bool {
+        self.active_sanctions.get(member).map_or(false, |sanctions| !sanctions.is_empty())
+    }
+
+    /// Get violations for a member
+    pub fn get_violations_for_member(&self, member: &Did) -> Vec<&TrustViolation> {
+        self.violations.values()
+            .filter(|v| v.violator == *member)
+            .collect()
+    }
+
+    /// Get committee by ID
+    pub fn get_committee(&self, committee_id: &str) -> Option<&TrustCommittee> {
+        self.trust_committees.get(committee_id)
+    }
+}
+
+/// Trust threshold policy for federation activities
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TrustThresholdPolicy {
+    /// Activity name this policy applies to
+    pub activity: String,
+    /// Minimum trust level required
+    pub min_trust_level: TrustLevel,
+    /// Required trust context
+    pub required_context: TrustContext,
+    /// Minimum committee approval percentage (0.0-1.0)
+    pub committee_threshold: f64,
+    /// Minimum member votes required
+    pub min_votes: usize,
+    /// Whether unanimous committee approval is required
+    pub require_unanimous: bool,
+    /// Additional custom requirements
+    pub custom_requirements: HashMap<String, String>,
+}
+
+/// Trust committee member
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TrustCommitteeMember {
+    /// Member DID
+    pub did: Did,
+    /// Role in the committee
+    pub role: TrustCommitteeRole,
+    /// Trust contexts this member can evaluate
+    pub contexts: HashSet<TrustContext>,
+    /// Voting weight (default 1.0)
+    pub voting_weight: f64,
+    /// When member was added to committee
+    pub joined_at: u64,
+    /// Whether member is currently active
+    pub active: bool,
+}
+
+/// Roles within a trust committee
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum TrustCommitteeRole {
+    /// Committee chair with enhanced privileges
+    Chair,
+    /// Standard voting member
+    Member,
+    /// Advisory member with limited voting rights
+    Advisor,
+    /// Observer without voting rights
+    Observer,
+}
+
+/// Trust committee governance structure
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TrustCommittee {
+    /// Committee ID
+    pub id: String,
+    /// Federation this committee serves
+    pub federation: FederationId,
+    /// Committee members
+    pub members: HashMap<Did, TrustCommitteeMember>,
+    /// Trust contexts this committee handles
+    pub managed_contexts: HashSet<TrustContext>,
+    /// Committee policies
+    pub policies: HashMap<String, TrustThresholdPolicy>,
+    /// When committee was formed
+    pub created_at: u64,
+    /// Committee status
+    pub status: CommitteeStatus,
+}
+
+/// Status of a trust committee
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum CommitteeStatus {
+    /// Active and functioning
+    Active,
+    /// Temporarily suspended
+    Suspended,
+    /// Permanently dissolved
+    Dissolved,
+    /// Under review/restructuring
+    UnderReview,
+}
+
+/// Trust sanction types
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum TrustSanction {
+    /// Warning issued to member
+    Warning { 
+        reason: String, 
+        issued_at: u64, 
+        expires_at: Option<u64> 
+    },
+    /// Temporary trust level reduction
+    TrustReduction { 
+        original_level: TrustLevel, 
+        reduced_level: TrustLevel, 
+        duration_seconds: u64,
+        reason: String,
+    },
+    /// Temporary suspension from certain contexts
+    ContextSuspension { 
+        suspended_contexts: HashSet<TrustContext>, 
+        duration_seconds: u64,
+        reason: String,
+    },
+    /// Full federation suspension
+    FederationSuspension { 
+        duration_seconds: u64,
+        reason: String, 
+    },
+    /// Permanent expulsion from federation
+    Expulsion { 
+        reason: String, 
+        decided_at: u64 
+    },
+}
+
+/// Trust violation record
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TrustViolation {
+    /// Unique violation ID
+    pub id: String,
+    /// DID of the violating member
+    pub violator: Did,
+    /// Type of violation
+    pub violation_type: ViolationType,
+    /// Federation where violation occurred
+    pub federation: FederationId,
+    /// Trust context of the violation
+    pub context: TrustContext,
+    /// Detailed description
+    pub description: String,
+    /// Evidence supporting the violation
+    pub evidence: Vec<String>,
+    /// Reporter DID
+    pub reported_by: Did,
+    /// When violation was reported
+    pub reported_at: u64,
+    /// Current status
+    pub status: ViolationStatus,
+    /// Committee decisions on this violation
+    pub committee_decisions: Vec<CommitteeDecision>,
+    /// Applied sanctions
+    pub sanctions: Vec<TrustSanction>,
+}
+
+/// Types of trust violations
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ViolationType {
+    /// Malicious behavior
+    Malicious,
+    /// Resource abuse
+    ResourceAbuse,
+    /// Governance manipulation
+    GovernanceManipulation,
+    /// Identity misrepresentation
+    IdentityMisrepresentation,
+    /// Economic misconduct
+    EconomicMisconduct,
+    /// Data privacy violation
+    DataPrivacyViolation,
+    /// Infrastructure abuse
+    InfrastructureAbuse,
+    /// Custom violation type
+    Custom(String),
+}
+
+/// Status of a trust violation case
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum ViolationStatus {
+    /// Just reported, under initial review
+    Reported,
+    /// Under investigation by committee
+    UnderInvestigation,
+    /// Investigation complete, pending decision
+    UnderReview,
+    /// Violation confirmed, sanctions applied
+    Confirmed,
+    /// Violation dismissed as unfounded
+    Dismissed,
+    /// Case closed with remediation
+    Remediated,
+}
+
+/// Committee decision on a violation
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CommitteeDecision {
+    /// Committee member making decision
+    pub member: Did,
+    /// Decision vote
+    pub vote: DecisionVote,
+    /// Reasoning for the decision
+    pub reasoning: String,
+    /// When decision was made
+    pub decided_at: u64,
+    /// Recommended sanctions
+    pub recommended_sanctions: Vec<TrustSanction>,
+}
+
+/// Vote options for committee decisions
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum DecisionVote {
+    /// Confirm violation and apply sanctions
+    Confirm,
+    /// Dismiss as unfounded
+    Dismiss,
+    /// Recommend remediation without sanctions
+    Remediate,
+    /// Abstain from voting
+    Abstain,
+}
+
+/// Federation membership trust gate
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FederationMembershipTrustGate {
+    /// Federation this gate applies to
+    pub federation: FederationId,
+    /// Minimum trust level from existing members
+    pub min_trust_level: TrustLevel,
+    /// Required trust contexts to be evaluated
+    pub required_contexts: HashSet<TrustContext>,
+    /// Minimum number of existing member attestations
+    pub min_attestations: usize,
+    /// Required committee approval percentage (0.0-1.0)
+    pub committee_approval_threshold: f64,
+    /// Probationary period for new members (seconds)
+    pub probationary_period: Option<u64>,
+    /// Additional requirements
+    pub additional_requirements: HashMap<String, String>,
+}
+
+/// Result of membership application evaluation
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum MembershipApplicationResult {
+    /// Application approved
+    Approved {
+        probationary_until: Option<u64>,
+        granted_contexts: HashSet<TrustContext>,
+    },
+    /// Application rejected
+    Rejected {
+        reason: String,
+        can_reapply_after: Option<u64>,
+    },
+    /// Application pending additional review
+    Pending {
+        required_actions: Vec<String>,
+        review_deadline: u64,
+    },
 }
 
 /// Error types for federation governance
@@ -458,6 +1124,21 @@ pub enum FederationGovernanceError {
     
     #[error("Unauthorized action: {0}")]
     Unauthorized(String),
+
+    #[error("Committee not found: {0}")]
+    CommitteeNotFound(String),
+
+    #[error("Trust threshold not met: {0}")]
+    TrustThresholdNotMet(String),
+
+    #[error("Insufficient committee approval: {0}")]
+    InsufficientCommitteeApproval(String),
+
+    #[error("Trust violation processing failed: {0}")]
+    ViolationProcessingFailed(String),
+
+    #[error("Membership gate validation failed: {0}")]
+    MembershipGateValidationFailed(String),
 }
 
 #[cfg(test)]
