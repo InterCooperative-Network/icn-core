@@ -31,3 +31,14 @@ default = ["persist-sled"]
 persist-sled = ["dep:sled", "dep:serde", "dep:bincode", "serde"]
 federation = ["dep:icn-network", "dep:icn-protocol"]
 serde = ["dep:serde"]
+allow-nondeterminism = []
+
+[package.metadata.clippy]
+disallowed-methods = [
+    { path = "std::time::SystemTime::now", reason = "use deterministic time provider" },
+    { path = "fastrand::f64", reason = "use deterministic RNG" },
+    { path = "fastrand::u64", reason = "use deterministic RNG" },
+    { path = "fastrand::u32", reason = "use deterministic RNG" },
+    { path = "fastrand::usize", reason = "use deterministic RNG" },
+    { path = "fastrand::fill", reason = "use deterministic RNG" }
+]

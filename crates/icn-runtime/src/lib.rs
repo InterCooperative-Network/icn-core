@@ -4,6 +4,7 @@
 #![allow(clippy::to_string_in_format_args)]
 #![allow(clippy::needless_borrow)]
 #![allow(clippy::unnecessary_mut_passed)]
+#![cfg_attr(not(feature = "allow-nondeterminism"), deny(clippy::disallowed_methods))]
 
 //! This is the core ICN Runtime crate.
 //!

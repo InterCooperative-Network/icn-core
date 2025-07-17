@@ -76,6 +76,7 @@ cli = ["dep:clap"]
 async = ["icn-dag/async"]
 production = []
 allow-stubs = []
+allow-nondeterminism = []
 
 # Integration tests for cross-node functionality
 [[test]]
@@ -93,3 +94,13 @@ name = "ten_node_propagation"
 path = "tests/integration/ten_node_propagation.rs"
 required-features = ["enable-libp2p"]
 
+
+[package.metadata.clippy]
+disallowed-methods = [
+    { path = "std::time::SystemTime::now", reason = "use deterministic time provider" },
+    { path = "fastrand::f64", reason = "use deterministic RNG" },
+    { path = "fastrand::u64", reason = "use deterministic RNG" },
+    { path = "fastrand::u32", reason = "use deterministic RNG" },
+    { path = "fastrand::usize", reason = "use deterministic RNG" },
+    { path = "fastrand::fill", reason = "use deterministic RNG" }
+]
