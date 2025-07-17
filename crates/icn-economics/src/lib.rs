@@ -1,4 +1,5 @@
 #![doc = include_str!("../README.md")]
+#![cfg_attr(not(feature = "allow-nondeterminism"), deny(clippy::disallowed_methods))]
 
 //! # ICN Economics Crate
 //! This crate handles the economic protocols of the InterCooperative Network (ICN).

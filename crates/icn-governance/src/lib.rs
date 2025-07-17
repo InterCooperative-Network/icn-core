@@ -2,6 +2,7 @@
 #![allow(clippy::new_without_default)]
 #![allow(clippy::uninlined_format_args)]
 #![allow(clippy::to_string_in_format_args)]
+#![cfg_attr(not(feature = "allow-nondeterminism"), deny(clippy::disallowed_methods))]
 
 //! # ICN Governance Crate
 //! This crate defines the mechanisms for network governance within the InterCooperative Network (ICN).
