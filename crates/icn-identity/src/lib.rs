@@ -36,6 +36,12 @@ pub mod cooperative_registry;
 pub use cooperative_registry::{
     CooperativeRegistry, CooperativeSearchFilter, CooperativeSearchResult, RegistryStats,
 };
+pub mod federation_trust;
+pub use federation_trust::{
+    TrustContext, FederationId, ScopedTrustRelationship, TrustInheritance,
+    FederationTrustBridge, BridgeConfig, TrustPolicyRule, TrustPolicyEngine,
+    TrustValidationResult,
+};
 pub mod metrics;
 
 // --- Core Cryptographic Operations & DID:key generation ---
