@@ -1,4 +1,4 @@
-# ICN Core Developer Guide
+`# ICN Core Developer Guide
 
 This guide provides comprehensive information for developers working on the InterCooperative Network (ICN) Core project. It covers setup, development workflows, testing strategies, and contribution guidelines.
 
