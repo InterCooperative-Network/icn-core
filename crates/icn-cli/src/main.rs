@@ -119,6 +119,11 @@ enum Commands {
         #[clap(subcommand)]
         command: AccountCommands,
     },
+    /// Token operations (mint, transfer, balance)
+    Token {
+        #[clap(subcommand)]
+        command: TokenCommands,
+    },
     /// Key management
     Keys {
         #[clap(subcommand)]
@@ -744,6 +749,58 @@ enum AccountCommands {
 }
 
 #[derive(Subcommand, Debug)]
+enum TokenCommands {
+    /// Mint new scoped tokens
+    Mint {
+        #[clap(help = "Token class ID")]
+        class_id: String,
+        #[clap(help = "Target recipient DID")]
+        to_did: String,
+        #[clap(help = "Amount to mint")]
+        amount: u64,
+        #[clap(long, help = "Issuer DID (defaults to node DID)")]
+        issuer: Option<String>,
+        #[clap(long, help = "Optional scope for token")]
+        scope: Option<String>,
+    },
+    /// Transfer tokens between accounts
+    Transfer {
+        #[clap(help = "Token class ID")]
+        class_id: String,
+        #[clap(help = "Source DID")]
+        from_did: String,
+        #[clap(help = "Target DID")]
+        to_did: String,
+        #[clap(help = "Amount to transfer")]
+        amount: u64,
+        #[clap(long, help = "Issuer DID (defaults to node DID)")]
+        issuer: Option<String>,
+        #[clap(long, help = "Optional scope for transfer")]
+        scope: Option<String>,
+    },
+    /// Check token balance for an account
+    Balance {
+        #[clap(help = "Token class ID")]
+        class_id: String,
+        #[clap(help = "Account DID")]
+        did: String,
+    },
+    /// Burn tokens from an account
+    Burn {
+        #[clap(help = "Token class ID")]
+        class_id: String,
+        #[clap(help = "Owner DID")]
+        from_did: String,
+        #[clap(help = "Amount to burn")]
+        amount: u64,
+        #[clap(long, help = "Issuer DID (defaults to node DID)")]
+        issuer: Option<String>,
+        #[clap(long, help = "Optional scope for burn")]
+        scope: Option<String>,
+    },
+}
+
+#[derive(Subcommand, Debug)]
 enum KeyCommands {
     /// Show node DID and public key
     Show,
@@ -893,6 +950,20 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
         },
         Commands::Accounts { command } => match command {
             AccountCommands::Balance { did } => handle_account_balance(cli, client, did).await?,
+        },
+        Commands::Token { command } => match command {
+            TokenCommands::Mint { class_id, to_did, amount, issuer, scope } => {
+                handle_token_mint(cli, client, class_id, to_did, *amount, issuer, scope).await?
+            }
+            TokenCommands::Transfer { class_id, from_did, to_did, amount, issuer, scope } => {
+                handle_token_transfer(cli, client, class_id, from_did, to_did, *amount, issuer, scope).await?
+            }
+            TokenCommands::Balance { class_id, did } => {
+                handle_token_balance(cli, client, class_id, did).await?
+            }
+            TokenCommands::Burn { class_id, from_did, amount, issuer, scope } => {
+                handle_token_burn(cli, client, class_id, from_did, *amount, issuer, scope).await?
+            }
         },
         Commands::Keys { command } => match command {
             KeyCommands::Show => handle_keys_show(cli, client).await?,
@@ -2998,3 +3069,163 @@ async fn handle_trust_recalculate(
     Ok(())
 }
 
+// === Token Command Handlers ===
+
+async fn handle_token_mint(
+    cli: &Cli,
+    client: &Client,
+    class_id: &str,
+    to_did: &str,
+    amount: u64,
+    issuer: &Option<String>,
+    scope: &Option<String>,
+) -> Result<(), anyhow::Error> {
+    let issuer_did = if let Some(issuer) = issuer {
+        issuer.clone()
+    } else {
+        // Get node DID as default issuer
+        let node_info: serde_json::Value = get_request(&cli.api_url, client, "/keys", cli.api_key.as_deref()).await?;
+        node_info["did"].as_str().unwrap_or("did:key:unknown").to_string()
+    };
+
+    let request = serde_json::json!({
+        "class_id": class_id,
+        "to_did": to_did,
+        "amount": amount,
+        "issuer_did": issuer_did,
+        "scope": scope
+    });
+
+    let response: serde_json::Value = post_request(
+        &cli.api_url,
+        client,
+        "/tokens/mint",
+        &request,
+        cli.api_key.as_deref(),
+    ).await?;
+    
+    println!("✅ Tokens minted successfully!");
+    println!("Class: {}", class_id);
+    println!("Recipient: {}", to_did);
+    println!("Amount: {}", amount);
+    println!("Issuer: {}", issuer_did);
+    if let Some(scope) = scope {
+        println!("Scope: {}", scope);
+    }
+    println!("Response: {}", serde_json::to_string_pretty(&response)?);
+    Ok(())
+}
+
+async fn handle_token_transfer(
+    cli: &Cli,
+    client: &Client,
+    class_id: &str,
+    from_did: &str,
+    to_did: &str,
+    amount: u64,
+    issuer: &Option<String>,
+    scope: &Option<String>,
+) -> Result<(), anyhow::Error> {
+    let issuer_did = if let Some(issuer) = issuer {
+        issuer.clone()
+    } else {
+        // Get node DID as default issuer
+        let node_info: serde_json::Value = get_request(&cli.api_url, client, "/keys", cli.api_key.as_deref()).await?;
+        node_info["did"].as_str().unwrap_or("did:key:unknown").to_string()
+    };
+
+    let request = serde_json::json!({
+        "class_id": class_id,
+        "from_did": from_did,
+        "to_did": to_did,
+        "amount": amount,
+        "issuer_did": issuer_did,
+        "scope": scope
+    });
+
+    let response: serde_json::Value = post_request(
+        &cli.api_url,
+        client,
+        "/tokens/transfer",
+        &request,
+        cli.api_key.as_deref(),
+    ).await?;
+    
+    println!("✅ Tokens transferred successfully!");
+    println!("Class: {}", class_id);
+    println!("From: {}", from_did);
+    println!("To: {}", to_did);
+    println!("Amount: {}", amount);
+    println!("Issuer: {}", issuer_did);
+    if let Some(scope) = scope {
+        println!("Scope: {}", scope);
+    }
+    println!("Response: {}", serde_json::to_string_pretty(&response)?);
+    Ok(())
+}
+
+async fn handle_token_balance(
+    cli: &Cli,
+    client: &Client,
+    class_id: &str,
+    did: &str,
+) -> Result<(), anyhow::Error> {
+    let path = format!("/tokens/balance?class_id={}&did={}", class_id, did);
+    let response: serde_json::Value = get_request(&cli.api_url, client, &path, cli.api_key.as_deref()).await?;
+    
+    println!("💰 Token Balance");
+    println!("Class: {}", class_id);
+    println!("Account: {}", did);
+    if let Some(balance) = response.get("balance") {
+        println!("Balance: {}", balance);
+    } else {
+        println!("Balance: 0");
+    }
+    println!("Details: {}", serde_json::to_string_pretty(&response)?);
+    Ok(())
+}
+
+async fn handle_token_burn(
+    cli: &Cli,
+    client: &Client,
+    class_id: &str,
+    from_did: &str,
+    amount: u64,
+    issuer: &Option<String>,
+    scope: &Option<String>,
+) -> Result<(), anyhow::Error> {
+    let issuer_did = if let Some(issuer) = issuer {
+        issuer.clone()
+    } else {
+        // Get node DID as default issuer
+        let node_info: serde_json::Value = get_request(&cli.api_url, client, "/keys", cli.api_key.as_deref()).await?;
+        node_info["did"].as_str().unwrap_or("did:key:unknown").to_string()
+    };
+
+    let request = serde_json::json!({
+        "class_id": class_id,
+        "from_did": from_did,
+        "amount": amount,
+        "issuer_did": issuer_did,
+        "scope": scope
+    });
+
+    let response: serde_json::Value = post_request(
+        &cli.api_url,
+        client,
+        "/tokens/burn",
+        &request,
+        cli.api_key.as_deref(),
+    ).await?;
+    
+    println!("🔥 Tokens burned successfully!");
+    println!("Class: {}", class_id);
+    println!("From: {}", from_did);
+    println!("Amount: {}", amount);
+    println!("Issuer: {}", issuer_did);
+    if let Some(scope) = scope {
+        println!("Scope: {}", scope);
+    }
+    println!("Response: {}", serde_json::to_string_pretty(&response)?);
+    Ok(())
+}
