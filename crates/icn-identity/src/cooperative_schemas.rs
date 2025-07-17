@@ -3,7 +3,7 @@
 //! This module defines standard schemas and credential types for cooperatives
 //! to discover, trust, and collaborate with each other in the ICN federation.
 
-use icn_common::{Cid, Did};
+use icn_common::Did;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 

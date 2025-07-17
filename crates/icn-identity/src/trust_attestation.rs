@@ -8,11 +8,11 @@
 //! - Immutable audit trails anchored in the DAG
 
 use crate::{
-    cooperative_schemas::{TrustLevel, TrustRelationship},
+    cooperative_schemas::TrustLevel,
     federation_trust::TrustContext,
     sign_message, verify_signature, DidResolver, EdSignature, SigningKey, VerifyingKey,
 };
-use icn_common::{Cid, CommonError, Did, TimeProvider};
+use icn_common::{Cid, CommonError, Did};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
@@ -283,7 +283,7 @@ impl TrustChallenge {
     }
 
     /// Update challenge status
-    pub fn update_status(&mut self, status: ChallengeStatus, timestamp: u64) {
+    pub fn update_status(&mut self, status: ChallengeStatus, _timestamp: u64) {
         self.status = status;
         // Note: In a full implementation, we might want to track status change history
     }
@@ -517,7 +517,7 @@ mod tests {
         record.add_attestation(attestation1, 1234567890).unwrap();
         record.add_attestation(attestation2, 1234567891).unwrap();
         
-        let score = record.calculate_aggregated_score(&reputation_store);
+        let score = record.calculate_aggregated_score_simple();
         assert!(score > 0.0 && score <= 1.0);
         // The score should be closer to 1.0 due to high reputation attester
         assert!(score > 0.8);

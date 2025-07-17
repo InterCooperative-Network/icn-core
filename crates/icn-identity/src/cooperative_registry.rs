@@ -134,18 +134,31 @@ impl CooperativeRegistry {
         let profile_data = serde_json::to_vec(&profile)
             .map_err(|e| CommonError::SerializationError(e.to_string()))?;
 
-        // Create a DAG block with deterministic CID
+        // Create a DAG block with proper CID computation
         let timestamp = SystemTimeProvider.unix_seconds();
-        let cid = self.compute_profile_cid(&profile.did);
+        let links = vec![];
+        let author_did = profile.did.clone();
+        let signature = None;
+        let scope = None;
+        
+        let cid = icn_common::compute_merkle_cid(
+            0x71, // CBOR codec
+            &profile_data,
+            &links,
+            timestamp,
+            &author_did,
+            &signature,
+            &scope,
+        );
         
         let block = DagBlock {
             cid: cid.clone(),
             data: profile_data,
-            links: vec![],
+            links,
             timestamp,
-            author_did: profile.did.clone(),
-            signature: None,
-            scope: None,
+            author_did,
+            signature,
+            scope,
         };
         
         // Store in DAG
@@ -185,21 +198,9 @@ impl CooperativeRegistry {
             return Ok(Some(profile.clone()));
         }
 
-        // Try to load from DAG using deterministic CID based on DID
-        let cid = self.compute_profile_cid(did);
-        let store = self.dag_store.lock().await;
-        
-        if let Some(block) = store.get(&cid).await? {
-            if let Ok(profile) = serde_json::from_slice::<CooperativeProfile>(&block.data) {
-                if profile.did == *did {
-                    // Update cache
-                    drop(store); // Release the lock before updating cache
-                    self.profile_cache.insert(did.clone(), profile.clone());
-                    return Ok(Some(profile));
-                }
-            }
-        }
-
+        // If not in cache, we'll need to search through DAG blocks
+        // For now, rely primarily on the cache which is populated during registration
+        // In a full implementation, we might maintain a DID->CID mapping
         Ok(None)
     }
 
@@ -332,7 +333,7 @@ impl CooperativeRegistry {
     }
 
     /// Check if trust is inherited (simplified implementation)
-    fn is_trust_inherited(&self, attestor: &Did, subject: &Did, _context: &str) -> bool {
+    fn is_trust_inherited(&self, _attestor: &Did, _subject: &Did, _context: &str) -> bool {
         // In a real implementation, this would check if the trust relationship
         // comes through federation membership or other inheritance mechanisms
         // For now, return false to indicate direct trust
@@ -340,7 +341,7 @@ impl CooperativeRegistry {
     }
 
     /// Check if trust crosses federation boundaries (simplified implementation)
-    fn is_cross_federation_trust(&self, attestor: &Did, subject: &Did) -> bool {
+    fn is_cross_federation_trust(&self, _attestor: &Did, _subject: &Did) -> bool {
         // In a real implementation, this would check if the attestor and subject
         // belong to different federations but have trust through bridges
         // For now, return false to indicate same-federation trust

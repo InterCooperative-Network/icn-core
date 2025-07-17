@@ -5,7 +5,7 @@
 //! cross-federation trust bridges, and a configurable trust policy engine.
 
 use crate::cooperative_schemas::{TrustLevel, TrustRelationship};
-use icn_common::{Did, CommonError};
+use icn_common::Did;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
@@ -238,7 +238,7 @@ impl TrustPolicyEngine {
         trustor: &Did,
         trustee: &Did,
         context: &TrustContext,
-        operation: &str,
+        _operation: &str,
     ) -> TrustValidationResult {
         // Get applicable rules for this context
         let rules = match self.rules.get(context) {
@@ -520,7 +520,7 @@ impl TrustPolicyEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::str::FromStr;
+
 
     fn setup_test_engine() -> TrustPolicyEngine {
         let mut engine = TrustPolicyEngine::new();

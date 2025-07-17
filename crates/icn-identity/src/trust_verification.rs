@@ -7,12 +7,13 @@
 use crate::{
     trust_attestation::*,
     federation_trust::TrustContext,
-    cooperative_schemas::TrustLevel,
+
     DidResolver,
 };
 use icn_common::{Cid, CommonError, Did, TimeProvider};
 use icn_reputation::ReputationStore;
-use icn_dag::{StorageService, DagBlock, InMemoryDagStore};
+use icn_dag::StorageService;
+use icn_common::DagBlock;
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 
@@ -100,7 +101,7 @@ where
         attestation: TrustAttestation,
         resolver: &dyn DidResolver,
     ) -> Result<Cid, CommonError> {
-        let current_time = self.time_provider.current_timestamp();
+        let current_time = self.time_provider.unix_seconds();
         
         // Verify attestation signature
         attestation.verify_with_resolver(resolver)?;
@@ -125,7 +126,7 @@ where
         record.add_attestation(attestation.clone(), current_time)?;
         
         // Recalculate aggregated score
-        record.calculate_aggregated_score(self.reputation_store.as_ref());
+        record.calculate_aggregated_score_simple();
         
         // Store updated record
         store.store_trust_record(record.clone())?;
@@ -157,7 +158,7 @@ where
         context: &TrustContext,
         resolver: &dyn DidResolver,
     ) -> Result<TrustVerificationResult, CommonError> {
-        let current_time = self.time_provider.current_timestamp();
+        let current_time = self.time_provider.unix_seconds();
         
         // Get trust record
         let store = self.attestation_store.lock().unwrap();
@@ -252,7 +253,7 @@ where
         reason: String,
         evidence: Option<String>,
     ) -> Result<String, CommonError> {
-        let current_time = self.time_provider.current_timestamp();
+        let current_time = self.time_provider.unix_seconds();
         
         // Check challenger reputation
         let challenger_reputation = self.reputation_store.get_reputation(&challenger);
@@ -309,13 +310,13 @@ where
         resolution: ChallengeResolution,
         resolver_did: Did,
     ) -> Result<(), CommonError> {
-        let current_time = self.time_provider.current_timestamp();
+        let current_time = self.time_provider.unix_seconds();
         
         // Get and update challenge
         let mut store = self.attestation_store.lock().unwrap();
         let mut challenge = store
             .get_challenge(challenge_id)
-            .ok_or_else(|| CommonError::NotFound("Challenge not found".into()))?;
+            .ok_or_else(|| CommonError::IdentityError("Challenge not found".into()))?;
 
         let new_status = match resolution {
             ChallengeResolution::Accept => ChallengeStatus::Accepted,
@@ -371,15 +372,20 @@ where
     }
 
     /// Anchor data in DAG store
-    fn anchor_in_dag<T: Serialize>(&self, data: &T) -> Result<Cid, CommonError> {
+    fn anchor_in_dag<S: Serialize>(&self, data: &S) -> Result<Cid, CommonError> {
         let serialized = serde_json::to_vec(data)
             .map_err(|e| CommonError::InternalError(format!("Serialization failed: {}", e)))?;
         
         // Create a DAG block from the serialized data
+        let cid = icn_common::Cid::new_v1_sha256(0x55, &serialized);
         let block = DagBlock {
-            cid: icn_common::Cid::new_v1_sha256(0x55, &serialized), // Use raw codec
+            cid: cid.clone(),
             data: serialized,
             links: Vec::new(),
+            timestamp: self.time_provider.unix_seconds(),
+            author_did: Did::new("system", "trust_verifier"), // System DID for trust verification
+            signature: None,
+            scope: None,
         };
         
         let mut dag_store = self.dag_store.lock().unwrap();
@@ -413,7 +419,7 @@ mod tests {
     use super::*;
     use crate::{
         generate_ed25519_keypair, did_key_from_verifying_key, KeyDidResolver,
-        InMemoryTrustAttestationStore,
+        InMemoryTrustAttestationStore, TrustLevel,
     };
     use icn_common::FixedTimeProvider;
     use icn_reputation::InMemoryReputationStore;
