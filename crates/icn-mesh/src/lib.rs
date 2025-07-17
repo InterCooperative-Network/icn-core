@@ -160,6 +160,18 @@ pub struct JobSpec {
     /// Minimum resources required for the job.
     #[serde(default)]
     pub required_resources: Resources,
+    /// Required capabilities that executors must have to bid on this job.
+    #[serde(default)]
+    pub required_capabilities: Vec<String>,
+    /// Trust scope requirements for federation-aware job execution.
+    #[serde(default)]
+    pub required_trust_scope: Option<String>,
+    /// Minimum reputation score required for executors.
+    #[serde(default)]
+    pub min_executor_reputation: Option<u64>,
+    /// Federation constraints - only executors from these federations can bid.
+    #[serde(default)]
+    pub allowed_federations: Vec<String>,
 }
 
 impl Default for JobSpec {
@@ -169,6 +181,10 @@ impl Default for JobSpec {
             inputs: Vec::new(),
             outputs: Vec::new(),
             required_resources: Resources::default(),
+            required_capabilities: Vec::new(),
+            required_trust_scope: None,
+            min_executor_reputation: None,
+            allowed_federations: Vec::new(),
         }
     }
 }
@@ -184,6 +200,15 @@ pub struct MeshJobBid {
     pub price_mana: u64,
     /// The resources the executor is committing for this job.
     pub resources: Resources,
+    /// Capabilities that this executor offers.
+    #[serde(default)]
+    pub executor_capabilities: Vec<String>,
+    /// Federation memberships of the executor.
+    #[serde(default)]
+    pub executor_federations: Vec<String>,
+    /// Trust scope of the executor for this job.
+    #[serde(default)]
+    pub executor_trust_scope: Option<String>,
     /// Signature from the executor over the bid fields.
     pub signature: SignatureBytes,
 }
@@ -198,6 +223,18 @@ impl MeshJobBid {
         bytes.extend_from_slice(&self.resources.cpu_cores.to_le_bytes());
         bytes.extend_from_slice(&self.resources.memory_mb.to_le_bytes());
         bytes.extend_from_slice(&self.resources.storage_mb.to_le_bytes());
+        
+        // Include federation metadata in signature
+        for capability in &self.executor_capabilities {
+            bytes.extend_from_slice(capability.as_bytes());
+        }
+        for federation in &self.executor_federations {
+            bytes.extend_from_slice(federation.as_bytes());
+        }
+        if let Some(trust_scope) = &self.executor_trust_scope {
+            bytes.extend_from_slice(trust_scope.as_bytes());
+        }
+        
         Ok(bytes)
     }
 
@@ -386,6 +423,44 @@ pub fn score_bid(
 ) -> u64 {
     if available_mana < bid.price_mana {
         return 0;
+    }
+
+    // Federation and capability filtering
+    // If job specifies allowed federations, executor must be in one of them
+    if !job_spec.allowed_federations.is_empty() {
+        let has_allowed_federation = bid.executor_federations.iter()
+            .any(|fed| job_spec.allowed_federations.contains(fed));
+        if !has_allowed_federation {
+            return 0; // Executor not in allowed federation
+        }
+    }
+
+    // Check required capabilities
+    if !job_spec.required_capabilities.is_empty() {
+        let has_all_capabilities = job_spec.required_capabilities.iter()
+            .all(|req_cap| bid.executor_capabilities.contains(req_cap));
+        if !has_all_capabilities {
+            return 0; // Executor missing required capabilities
+        }
+    }
+
+    // Check minimum reputation requirement
+    if let Some(min_rep) = job_spec.min_executor_reputation {
+        let executor_reputation = reputation_store.get_reputation(&bid.executor_did);
+        if executor_reputation < min_rep {
+            return 0; // Executor reputation below minimum
+        }
+    }
+
+    // Check trust scope match
+    if let Some(required_scope) = &job_spec.required_trust_scope {
+        if let Some(executor_scope) = &bid.executor_trust_scope {
+            if executor_scope != required_scope {
+                return 0; // Trust scope mismatch
+            }
+        } else {
+            return 0; // Job requires trust scope but executor doesn't provide one
+        }
     }
 
     // Lower prices rank higher, so we invert the price.
@@ -917,6 +992,9 @@ mod tests {
             executor_did: did.clone(),
             price_mana: 10,
             resources: Resources::default(),
+            executor_capabilities: vec![],
+            executor_federations: vec![],
+            executor_trust_scope: None,
             signature: SignatureBytes(vec![]),
         }
         .sign(&sk)
@@ -1433,5 +1511,263 @@ mod tests {
 
         let (_sk2, vk2) = icn_identity::generate_ed25519_keypair();
         assert!(msg.verify_signature(&vk2).is_err());
+    }
+
+    #[test]
+    fn test_federation_filtering_in_executor_selection() {
+        let job_id = dummy_job_id("federation_test");
+        let (sk_fed_a, vk_fed_a) = icn_identity::generate_ed25519_keypair();
+        let executor_a = Did::from_str(&icn_identity::did_key_from_verifying_key(&vk_fed_a)).unwrap();
+        let (sk_fed_b, vk_fed_b) = icn_identity::generate_ed25519_keypair();
+        let executor_b = Did::from_str(&icn_identity::did_key_from_verifying_key(&vk_fed_b)).unwrap();
+
+        let rep_store = icn_reputation::InMemoryReputationStore::new();
+        rep_store.set_score(executor_a.clone(), 5);
+        rep_store.set_score(executor_b.clone(), 5); // Same reputation
+
+        let ledger = InMemoryLedger::new();
+        ledger.set_balance(&executor_a, 100).unwrap();
+        ledger.set_balance(&executor_b, 100).unwrap();
+
+        // Bid from executor in federation A
+        let bid_fed_a = MeshJobBid {
+            job_id: job_id.clone(),
+            executor_did: executor_a.clone(),
+            price_mana: 10,
+            resources: Resources::default(),
+            executor_capabilities: vec!["compute".to_string()],
+            executor_federations: vec!["federation_a".to_string()],
+            executor_trust_scope: Some("trusted".to_string()),
+            signature: SignatureBytes(vec![]),
+        }
+        .sign(&sk_fed_a)
+        .unwrap();
+
+        // Bid from executor in federation B
+        let bid_fed_b = MeshJobBid {
+            job_id: job_id.clone(),
+            executor_did: executor_b.clone(),
+            price_mana: 10,
+            resources: Resources::default(),
+            executor_capabilities: vec!["compute".to_string()],
+            executor_federations: vec!["federation_b".to_string()],
+            executor_trust_scope: Some("trusted".to_string()),
+            signature: SignatureBytes(vec![]),
+        }
+        .sign(&sk_fed_b)
+        .unwrap();
+
+        // Job that only allows federation A
+        let mut job_spec = JobSpec::default();
+        job_spec.allowed_federations = vec!["federation_a".to_string()];
+
+        let policy = SelectionPolicy::default();
+        let latency = InMemoryLatencyStore::new();
+
+        let selected = select_executor(
+            &job_id,
+            &job_spec,
+            vec![bid_fed_a.clone(), bid_fed_b.clone()],
+            &policy,
+            &rep_store,
+            &ledger,
+            &latency,
+        );
+
+        // Should select executor from federation A only
+        assert_eq!(selected.unwrap(), executor_a);
+    }
+
+    #[test]
+    fn test_capability_filtering_in_executor_selection() {
+        let job_id = dummy_job_id("capability_test");
+        let (sk_a, vk_a) = icn_identity::generate_ed25519_keypair();
+        let executor_a = Did::from_str(&icn_identity::did_key_from_verifying_key(&vk_a)).unwrap();
+        let (sk_b, vk_b) = icn_identity::generate_ed25519_keypair();
+        let executor_b = Did::from_str(&icn_identity::did_key_from_verifying_key(&vk_b)).unwrap();
+
+        let rep_store = icn_reputation::InMemoryReputationStore::new();
+        rep_store.set_score(executor_a.clone(), 5);
+        rep_store.set_score(executor_b.clone(), 5);
+
+        let ledger = InMemoryLedger::new();
+        ledger.set_balance(&executor_a, 100).unwrap();
+        ledger.set_balance(&executor_b, 100).unwrap();
+
+        // Executor A has GPU capability
+        let bid_gpu = MeshJobBid {
+            job_id: job_id.clone(),
+            executor_did: executor_a.clone(),
+            price_mana: 15,
+            resources: Resources::default(),
+            executor_capabilities: vec!["compute".to_string(), "gpu".to_string()],
+            executor_federations: vec!["main_federation".to_string()],
+            executor_trust_scope: None,
+            signature: SignatureBytes(vec![]),
+        }
+        .sign(&sk_a)
+        .unwrap();
+
+        // Executor B only has CPU capability
+        let bid_cpu = MeshJobBid {
+            job_id: job_id.clone(),
+            executor_did: executor_b.clone(),
+            price_mana: 10, // Cheaper price
+            resources: Resources::default(),
+            executor_capabilities: vec!["compute".to_string()],
+            executor_federations: vec!["main_federation".to_string()],
+            executor_trust_scope: None,
+            signature: SignatureBytes(vec![]),
+        }
+        .sign(&sk_b)
+        .unwrap();
+
+        // Job that requires GPU capability
+        let mut job_spec = JobSpec::default();
+        job_spec.required_capabilities = vec!["gpu".to_string()];
+
+        let policy = SelectionPolicy::default();
+        let latency = InMemoryLatencyStore::new();
+
+        let selected = select_executor(
+            &job_id,
+            &job_spec,
+            vec![bid_gpu.clone(), bid_cpu.clone()],
+            &policy,
+            &rep_store,
+            &ledger,
+            &latency,
+        );
+
+        // Should select executor A despite higher price because it has required GPU capability
+        assert_eq!(selected.unwrap(), executor_a);
+    }
+
+    #[test]
+    fn test_reputation_filtering_in_executor_selection() {
+        let job_id = dummy_job_id("reputation_test");
+        let (sk_high, vk_high) = icn_identity::generate_ed25519_keypair();
+        let high_rep = Did::from_str(&icn_identity::did_key_from_verifying_key(&vk_high)).unwrap();
+        let (sk_low, vk_low) = icn_identity::generate_ed25519_keypair();
+        let low_rep = Did::from_str(&icn_identity::did_key_from_verifying_key(&vk_low)).unwrap();
+
+        let rep_store = icn_reputation::InMemoryReputationStore::new();
+        rep_store.set_score(high_rep.clone(), 50);
+        rep_store.set_score(low_rep.clone(), 5); // Below minimum
+
+        let ledger = InMemoryLedger::new();
+        ledger.set_balance(&high_rep, 100).unwrap();
+        ledger.set_balance(&low_rep, 100).unwrap();
+
+        let bid_high_rep = MeshJobBid {
+            job_id: job_id.clone(),
+            executor_did: high_rep.clone(),
+            price_mana: 20, // Higher price
+            resources: Resources::default(),
+            executor_capabilities: vec!["compute".to_string()],
+            executor_federations: vec!["main_federation".to_string()],
+            executor_trust_scope: None,
+            signature: SignatureBytes(vec![]),
+        }
+        .sign(&sk_high)
+        .unwrap();
+
+        let bid_low_rep = MeshJobBid {
+            job_id: job_id.clone(),
+            executor_did: low_rep.clone(),
+            price_mana: 5, // Much cheaper
+            resources: Resources::default(),
+            executor_capabilities: vec!["compute".to_string()],
+            executor_federations: vec!["main_federation".to_string()],
+            executor_trust_scope: None,
+            signature: SignatureBytes(vec![]),
+        }
+        .sign(&sk_low)
+        .unwrap();
+
+        // Job that requires minimum reputation of 10
+        let mut job_spec = JobSpec::default();
+        job_spec.min_executor_reputation = Some(10);
+
+        let policy = SelectionPolicy::default();
+        let latency = InMemoryLatencyStore::new();
+
+        let selected = select_executor(
+            &job_id,
+            &job_spec,
+            vec![bid_high_rep.clone(), bid_low_rep.clone()],
+            &policy,
+            &rep_store,
+            &ledger,
+            &latency,
+        );
+
+        // Should select high reputation executor despite higher price
+        assert_eq!(selected.unwrap(), high_rep);
+    }
+
+    #[test]
+    fn test_trust_scope_filtering() {
+        let job_id = dummy_job_id("trust_scope_test");
+        let (sk_a, vk_a) = icn_identity::generate_ed25519_keypair();
+        let executor_a = Did::from_str(&icn_identity::did_key_from_verifying_key(&vk_a)).unwrap();
+        let (sk_b, vk_b) = icn_identity::generate_ed25519_keypair();
+        let executor_b = Did::from_str(&icn_identity::did_key_from_verifying_key(&vk_b)).unwrap();
+
+        let rep_store = icn_reputation::InMemoryReputationStore::new();
+        rep_store.set_score(executor_a.clone(), 5);
+        rep_store.set_score(executor_b.clone(), 5);
+
+        let ledger = InMemoryLedger::new();
+        ledger.set_balance(&executor_a, 100).unwrap();
+        ledger.set_balance(&executor_b, 100).unwrap();
+
+        // Executor A has high trust scope
+        let bid_high_trust = MeshJobBid {
+            job_id: job_id.clone(),
+            executor_did: executor_a.clone(),
+            price_mana: 15,
+            resources: Resources::default(),
+            executor_capabilities: vec!["compute".to_string()],
+            executor_federations: vec!["main_federation".to_string()],
+            executor_trust_scope: Some("high_security".to_string()),
+            signature: SignatureBytes(vec![]),
+        }
+        .sign(&sk_a)
+        .unwrap();
+
+        // Executor B has basic trust scope
+        let bid_basic_trust = MeshJobBid {
+            job_id: job_id.clone(),
+            executor_did: executor_b.clone(),
+            price_mana: 10,
+            resources: Resources::default(),
+            executor_capabilities: vec!["compute".to_string()],
+            executor_federations: vec!["main_federation".to_string()],
+            executor_trust_scope: Some("basic".to_string()),
+            signature: SignatureBytes(vec![]),
+        }
+        .sign(&sk_b)
+        .unwrap();
+
+        // Job that requires high security trust scope
+        let mut job_spec = JobSpec::default();
+        job_spec.required_trust_scope = Some("high_security".to_string());
+
+        let policy = SelectionPolicy::default();
+        let latency = InMemoryLatencyStore::new();
+
+        let selected = select_executor(
+            &job_id,
+            &job_spec,
+            vec![bid_high_trust.clone(), bid_basic_trust.clone()],
+            &policy,
+            &rep_store,
+            &ledger,
+            &latency,
+        );
+
+        // Should select executor A because it matches required trust scope
+        assert_eq!(selected.unwrap(), executor_a);
     }
 }
