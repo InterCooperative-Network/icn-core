@@ -100,6 +100,9 @@ fn resource_weight_affects_score() {
             memory_mb: 4096,
             storage_mb: 0,
         },
+        executor_capabilities: vec![],
+        executor_federations: vec![],
+        executor_trust_scope: None,
         signature: SignatureBytes(vec![]),
     }
     .sign(&sk_fast)
@@ -114,6 +117,9 @@ fn resource_weight_affects_score() {
             memory_mb: 512,
             storage_mb: 0,
         },
+        executor_capabilities: vec![],
+        executor_federations: vec![],
+        executor_trust_scope: None,
         signature: SignatureBytes(vec![]),
     }
     .sign(&sk_slow)

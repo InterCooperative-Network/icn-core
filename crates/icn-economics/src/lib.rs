@@ -32,6 +32,9 @@ pub use reputation_tokens::{
     grant_reputation_tokens, use_reputation_tokens, REPUTATION_CLASS,
 };
 
+#[cfg(test)]
+mod token_tests;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum LedgerEvent {
     Credit { did: Did, amount: u64 },

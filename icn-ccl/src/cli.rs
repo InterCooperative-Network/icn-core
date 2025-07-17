@@ -327,6 +327,18 @@ fn expr_to_string(expr: &ExpressionNode) -> String {
                 format!("try {}", expr_to_string(expr))
             }
         }
+        ExpressionNode::MapLiteral(entries) => {
+            let pairs: Vec<String> = entries.iter()
+                .map(|(k, v)| format!("{}: {}", expr_to_string(k), expr_to_string(v)))
+                .collect();
+            format!("{{{}}}", pairs.join(", "))
+        }
+        ExpressionNode::MapAccess { map, key } => {
+            format!("{}[{}]", expr_to_string(map), expr_to_string(key))
+        }
+        ExpressionNode::PanicExpr { message } => {
+            format!("panic({})", expr_to_string(message))
+        }
     }
 }
 
@@ -338,6 +350,9 @@ fn type_to_string(ty: &TypeAnnotationNode) -> String {
         TypeAnnotationNode::String => "String".to_string(),
         TypeAnnotationNode::Integer => "Integer".to_string(),
         TypeAnnotationNode::Array(inner_ty) => format!("Array<{}>", type_to_string(inner_ty)),
+        TypeAnnotationNode::Map { key_type, value_type } => {
+            format!("Map<{}, {}>", type_to_string(key_type), type_to_string(value_type))
+        }
         TypeAnnotationNode::Proposal => "Proposal".to_string(),
         TypeAnnotationNode::Vote => "Vote".to_string(),
         TypeAnnotationNode::Custom(s) => s.clone(),

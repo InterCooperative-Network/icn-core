@@ -1,0 +1,120 @@
+// Example governance contract that authorizes token minting
+// This demonstrates scoped token system with policy-based authorization
+
+// Define a token class for cooperative shares
+struct CoopShareToken {
+    name: string,
+    total_supply: integer,
+    max_mint_per_member: integer,
+}
+
+// Define token operation permissions
+struct TokenPermission {
+    can_mint: bool,
+    can_transfer: bool,
+    can_burn: bool,
+    scope: string,
+}
+
+// Global token registry
+let coop_shares = CoopShareToken {
+    name: "Cooperative Shares",
+    total_supply: 0,
+    max_mint_per_member: 100,
+}
+
+// Authorization rules for token operations
+
+rule authorize_token_mint {
+    // Only cooperative members can mint tokens
+    require is_member(actor.did)
+    
+    // Check if minting would exceed per-member limit
+    let current_balance = get_token_balance(actor.did, "coop_shares")
+    require current_balance + request.amount <= coop_shares.max_mint_per_member
+    
+    // Check if actor has sufficient reputation
+    require actor.reputation >= 10
+    
+    // Charge mana for the minting operation
+    charge_mana(actor.did, request.amount)
+    
+    allow
+}
+
+rule authorize_token_transfer {
+    // Tokens can be transferred between verified members
+    require is_member(request.from_did)
+    require is_member(request.to_did)
+    
+    // Check sufficient balance
+    let sender_balance = get_token_balance(request.from_did, "coop_shares")
+    require sender_balance >= request.amount
+    
+    // Small mana cost for transfers
+    charge_mana(actor.did, 1)
+    
+    allow
+}
+
+rule authorize_token_burn {
+    // Only the token owner or authorized issuer can burn tokens
+    require actor.did == request.from_did || is_authorized_issuer(actor.did)
+    
+    // Check sufficient balance
+    let balance = get_token_balance(request.from_did, "coop_shares")
+    require balance >= request.amount
+    
+    // No mana cost for burning (removes tokens from circulation)
+    allow
+}
+
+// Helper functions (would be implemented in stdlib)
+function is_member(did: Did) -> bool {
+    // Check if DID is in cooperative member registry
+    let membership = get_credential(did, "cooperative_membership")
+    return membership.valid && !membership.revoked
+}
+
+function is_authorized_issuer(did: Did) -> bool {
+    // Check if DID has issuer credentials
+    let issuer_cred = get_credential(did, "token_issuer")
+    return issuer_cred.valid && issuer_cred.scope == "coop_shares"
+}
+
+function get_credential(did: Did, type: string) -> Credential {
+    // Stub - would query credential system
+    return Credential { valid: true, revoked: false, scope: "" }
+}
+
+function get_token_balance(did: Did, class_id: string) -> integer {
+    // Stub - would query resource ledger
+    return 0
+}
+
+function charge_mana(did: Did, amount: integer) {
+    // Stub - would interact with mana system
+}
+
+// Example governance proposal for token policy changes
+struct TokenPolicyProposal {
+    proposal_type: "token_policy_change",
+    max_mint_per_member: integer,
+    required_reputation: integer,
+    mana_cost_per_token: integer,
+}
+
+rule evaluate_token_policy_proposal {
+    require proposal.proposal_type == "token_policy_change"
+    
+    // Only members with high reputation can propose policy changes
+    require actor.reputation >= 50
+    
+    // Require 2/3 majority to pass
+    require proposal.yes_votes > (proposal.total_votes * 2) / 3
+    
+    // Apply the changes
+    coop_shares.max_mint_per_member = proposal.max_mint_per_member
+    
+    allow
+}

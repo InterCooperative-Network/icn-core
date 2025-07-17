@@ -82,6 +82,9 @@ fn executor_selection_prefers_reputation() {
         executor_did: high.clone(),
         price_mana: 10,
         resources: Resources::default(),
+        executor_capabilities: vec![],
+        executor_federations: vec![],
+        executor_trust_scope: None,
         signature: SignatureBytes(vec![]),
     }
     .sign(&sk_h)
@@ -91,6 +94,9 @@ fn executor_selection_prefers_reputation() {
         executor_did: low.clone(),
         price_mana: 5,
         resources: Resources::default(),
+        executor_capabilities: vec![],
+        executor_federations: vec![],
+        executor_trust_scope: None,
         signature: SignatureBytes(vec![]),
     }
     .sign(&sk_l)

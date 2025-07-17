@@ -301,6 +301,9 @@ impl MeshNetworkService for DefaultMeshNetworkService {
                                     memory_mb: bid_message.offered_resources.memory_mb,
                                     storage_mb: bid_message.offered_resources.storage_mb,
                                 },
+                                executor_capabilities: vec![], // TODO: Extract from bid message
+                                executor_federations: vec![], // TODO: Extract from bid message
+                                executor_trust_scope: None, // TODO: Extract from bid message
                                 signature: signed_message.signature.clone(),
                             };
 

@@ -822,6 +822,24 @@ impl WasmBackend {
                 }
                 Ok(expr_ty)
             }
+            ExpressionNode::MapLiteral(_entries) => {
+                // TODO: Implement map literal compilation to WASM
+                // Maps require runtime support for dynamic allocation
+                instrs.push(Instruction::Unreachable);
+                Err(CclError::WasmGenerationError("Map literals not yet implemented in WASM backend".to_string()))
+            }
+            ExpressionNode::MapAccess { map: _map, key: _key } => {
+                // TODO: Implement map access compilation to WASM
+                // Maps require runtime support for hash table operations
+                instrs.push(Instruction::Unreachable);
+                Err(CclError::WasmGenerationError("Map access not yet implemented in WASM backend".to_string()))
+            }
+            ExpressionNode::PanicExpr { message: _message } => {
+                // Panic compiles to unreachable instruction
+                instrs.push(Instruction::Unreachable);
+                // Panic never returns a value
+                Ok(ValType::I32) // Placeholder, this should be Never type
+            }
         }
     }
 
@@ -962,6 +980,10 @@ fn map_val_type(ty: &TypeAnnotationNode) -> Result<ValType, CclError> {
         TypeAnnotationNode::String => Ok(ValType::I32),
         TypeAnnotationNode::Array(_) => {
             // Arrays represented as i32 pointer to array metadata
+            Ok(ValType::I32)
+        }
+        TypeAnnotationNode::Map { .. } => {
+            // Maps represented as i32 pointer to hash table structure
             Ok(ValType::I32)
         }
         TypeAnnotationNode::Proposal | TypeAnnotationNode::Vote => {

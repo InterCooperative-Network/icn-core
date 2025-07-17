@@ -49,6 +49,10 @@ pub enum TypeAnnotationNode {
     String,
     Integer,
     Array(Box<TypeAnnotationNode>), // Arrays of any type, e.g., Array<Integer>
+    Map {
+        key_type: Box<TypeAnnotationNode>,
+        value_type: Box<TypeAnnotationNode>,
+    }, // Maps with typed keys and values, e.g., Map<String, Integer>
     Proposal,                       // Governance proposal type
     Vote,                           // Vote type for governance
     Option(Box<TypeAnnotationNode>), // Option type with inner type
@@ -93,12 +97,14 @@ impl TypeAnnotationNode {
     }
 
     /// Returns true if values of this type live in guest memory rather than
-    /// being passed directly on the stack. Strings and arrays are reference
+    /// being passed directly on the stack. Strings, arrays, and maps are reference
     /// types and therefore require memory management in the generated WASM.
     pub fn requires_memory(&self) -> bool {
         matches!(
             self,
-            TypeAnnotationNode::String | TypeAnnotationNode::Array(_)
+            TypeAnnotationNode::String 
+                | TypeAnnotationNode::Array(_)
+                | TypeAnnotationNode::Map { .. }
         )
     }
 }
@@ -140,6 +146,7 @@ pub enum ExpressionNode {
     BooleanLiteral(bool),
     StringLiteral(String),
     ArrayLiteral(Vec<ExpressionNode>), // [1, 2, 3] or ["a", "b", "c"]
+    MapLiteral(Vec<(ExpressionNode, ExpressionNode)>), // {"key": value, "key2": value2}
     Identifier(String),
     FunctionCall {
         name: String,
@@ -158,6 +165,10 @@ pub enum ExpressionNode {
         array: Box<ExpressionNode>,
         index: Box<ExpressionNode>,
     },
+    MapAccess {
+        map: Box<ExpressionNode>,
+        key: Box<ExpressionNode>,
+    },
     SomeExpr(Box<ExpressionNode>),
     NoneExpr,
     OkExpr(Box<ExpressionNode>),
@@ -170,6 +181,9 @@ pub enum ExpressionNode {
     TryExpr {
         expr: Box<ExpressionNode>,
         catch_arm: Option<Box<ExpressionNode>>,
+    },
+    PanicExpr {
+        message: Box<ExpressionNode>,
     },
     // ... other expression types (member access, etc.)
 }

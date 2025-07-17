@@ -1,7 +1,7 @@
 // crates/icn-api/src/credential_trait.rs
 //! HTTP API endpoints for credential lifecycle management
 
-use crate::types::ResponseEnvelope;
+// use crate::types::ResponseEnvelope; // Temporarily removed until types module is available
 use icn_common::{Cid, Did, ZkCredentialProof};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -165,7 +165,13 @@ pub struct TrustAttestationInfo {
     pub context: String,
 }
 
-/// HTTP API trait for credential lifecycle management
+/// Response envelope for API responses (simplified for now)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResponseEnvelope<T> {
+    pub data: T,
+    pub success: bool,
+    pub message: Option<String>,
+}
 pub trait CredentialTrait {
     /// Issue a new credential
     async fn issue_credential(
