@@ -5,6 +5,15 @@ use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::marker::PhantomData;
 use std::path::PathBuf;
 
+/// Event emitted when a runtime parameter is updated.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ParameterUpdate {
+    /// Parameter name.
+    pub name: String,
+    /// New value for the parameter as a string.
+    pub value: String,
+}
+
 pub trait EventStore<E>: Send + Sync
 where
     E: Serialize + for<'de> Deserialize<'de> + Clone + Send + Sync,
