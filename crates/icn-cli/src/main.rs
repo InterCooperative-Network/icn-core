@@ -185,6 +185,11 @@ enum Commands {
         #[clap(subcommand)]
         command: CooperativeCommands,
     },
+    /// Trust management and graph operations
+    Trust {
+        #[clap(subcommand)]
+        command: TrustCommands,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -239,6 +244,119 @@ enum CooperativeCommands {
     Onboard {
         #[clap(long, help = "Skip registration with node")]
         dry_run: bool,
+    },
+}
+
+/// Trust management commands
+#[derive(Subcommand, Debug)]
+enum TrustCommands {
+    /// Get trust relationship between two entities
+    Get {
+        #[clap(help = "Source DID (who extends trust)")]
+        from: String,
+        #[clap(help = "Target DID (who receives trust)")]
+        to: String,
+        #[clap(long, help = "Trust context")]
+        context: String,
+    },
+    /// List trust relationships for an entity
+    List {
+        #[clap(help = "Entity DID")]
+        entity: String,
+        #[clap(long, help = "Filter by trust context")]
+        context: Option<String>,
+        #[clap(long, help = "Filter by minimum trust level")]
+        min_level: Option<String>,
+        #[clap(long, help = "Filter by federation")]
+        federation: Option<String>,
+        #[clap(long, help = "Include inherited trust", default_value = "true")]
+        include_inherited: bool,
+        #[clap(long, help = "Include cross-federation trust", default_value = "true")]
+        include_cross_federation: bool,
+    },
+    /// Find trust paths between two entities
+    Paths {
+        #[clap(help = "Source DID")]
+        from: String,
+        #[clap(help = "Target DID")]
+        to: String,
+        #[clap(long, help = "Trust context")]
+        context: String,
+        #[clap(long, help = "Maximum path length", default_value = "5")]
+        max_length: usize,
+        #[clap(long, help = "Maximum number of paths to return", default_value = "3")]
+        max_paths: usize,
+        #[clap(long, help = "Minimum trust level")]
+        min_level: Option<String>,
+    },
+    /// Get trust score for an entity
+    Score {
+        #[clap(help = "Entity DID")]
+        entity: String,
+    },
+    /// Get trust scores for multiple entities
+    Scores {
+        #[clap(help = "Entity DIDs (comma-separated)")]
+        entities: String,
+    },
+    /// Update trust relationship
+    Update {
+        #[clap(help = "Trust update request JSON or '-' for stdin")]
+        update_json_or_stdin: String,
+    },
+    /// Remove trust relationship
+    Remove {
+        #[clap(help = "Source DID")]
+        from: String,
+        #[clap(help = "Target DID")]
+        to: String,
+        #[clap(long, help = "Trust context")]
+        context: String,
+    },
+    /// Get trust graph statistics
+    Stats,
+    /// Get federation trust statistics
+    FederationStats {
+        #[clap(help = "Federation ID")]
+        federation: String,
+    },
+    /// Search entities by trust criteria
+    Search {
+        #[clap(long, help = "Trust context filter")]
+        context: Option<String>,
+        #[clap(long, help = "Minimum trust level")]
+        min_level: Option<String>,
+        #[clap(long, help = "Federation filter")]
+        federation: Option<String>,
+        #[clap(long, help = "Maximum results", default_value = "10")]
+        limit: usize,
+        #[clap(long, help = "Results offset", default_value = "0")]
+        offset: usize,
+    },
+    /// Validate trust for an operation
+    Validate {
+        #[clap(help = "Actor DID")]
+        actor: String,
+        #[clap(help = "Target DID")]
+        target: String,
+        #[clap(long, help = "Trust context")]
+        context: String,
+        #[clap(long, help = "Operation name")]
+        operation: String,
+    },
+    /// Get trust network neighbors
+    Neighbors {
+        #[clap(help = "Entity DID")]
+        entity: String,
+        #[clap(long, help = "Maximum distance", default_value = "2")]
+        max_distance: usize,
+        #[clap(long, help = "Minimum trust level")]
+        min_level: Option<String>,
+    },
+    /// Recalculate trust scores
+    Recalculate {
+        #[clap(long, help = "Specific entities to recalculate (comma-separated)")]
+        entities: Option<String>,
     },
 }
 
@@ -718,6 +836,67 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
             CooperativeCommands::Providers { capability_type } => handle_coop_providers(cli, client, capability_type).await?,
             CooperativeCommands::Stats => handle_coop_stats(cli, client).await?,
             CooperativeCommands::Onboard { dry_run } => handle_coop_onboard(cli, client, dry_run).await?,
+        },
+        Commands::Trust { command } => match command {
+            TrustCommands::Get { from, to, context } => {
+                handle_trust_get(cli, client, from, to, context).await?
+            }
+            TrustCommands::List { 
+                entity, 
+                context, 
+                min_level, 
+                federation, 
+                include_inherited, 
+                include_cross_federation 
+            } => {
+                handle_trust_list(cli, client, entity, context, min_level, federation, *include_inherited, *include_cross_federation).await?
+            }
+            TrustCommands::Paths { 
+                from, 
+                to, 
+                context, 
+                max_length, 
+                max_paths, 
+                min_level 
+            } => {
+                handle_trust_paths(cli, client, from, to, context, *max_length, *max_paths, min_level).await?
+            }
+            TrustCommands::Score { entity } => {
+                handle_trust_score(cli, client, entity).await?
+            }
+            TrustCommands::Scores { entities } => {
+                handle_trust_scores(cli, client, entities).await?
+            }
+            TrustCommands::Update { update_json_or_stdin } => {
+                handle_trust_update(cli, client, update_json_or_stdin).await?
+            }
+            TrustCommands::Remove { from, to, context } => {
+                handle_trust_remove(cli, client, from, to, context).await?
+            }
+            TrustCommands::Stats => {
+                handle_trust_stats(cli, client).await?
+            }
+            TrustCommands::FederationStats { federation } => {
+                handle_trust_federation_stats(cli, client, federation).await?
+            }
+            TrustCommands::Search { 
+                context, 
+                min_level, 
+                federation, 
+                limit, 
+                offset 
+            } => {
+                handle_trust_search(cli, client, context, min_level, federation, *limit, *offset).await?
+            }
+            TrustCommands::Validate { actor, target, context, operation } => {
+                handle_trust_validate(cli, client, actor, target, context, operation).await?
+            }
+            TrustCommands::Neighbors { entity, max_distance, min_level } => {
+                handle_trust_neighbors(cli, client, entity, *max_distance, min_level).await?
+            }
+            TrustCommands::Recalculate { entities } => {
+                handle_trust_recalculate(cli, client, entities).await?
+            }
         },
         Commands::Monitor { command } => match command {
             MonitorCommands::Uptime => handle_monitor_uptime(cli, client).await?,
@@ -2077,6 +2256,227 @@ async fn handle_identity_verify_remote(
         cli.api_key.as_deref(),
     )
     .await?;
+    println!("{}", serde_json::to_string_pretty(&resp)?);
+    Ok(())
+}
+
+// === Trust Command Handlers ===
+
+async fn handle_trust_get(
+    cli: &Cli,
+    client: &Client,
+    from: &str,
+    to: &str,
+    context: &str,
+) -> Result<(), anyhow::Error> {
+    let path = format!("/trust/relationship?from={}&to={}&context={}", from, to, context);
+    let resp: serde_json::Value = get_request(&cli.api_url, client, &path, cli.api_key.as_deref()).await?;
+    println!("{}", serde_json::to_string_pretty(&resp)?);
+    Ok(())
+}
+
+async fn handle_trust_list(
+    cli: &Cli,
+    client: &Client,
+    entity: &str,
+    context: &Option<String>,
+    min_level: &Option<String>,
+    federation: &Option<String>,
+    include_inherited: bool,
+    include_cross_federation: bool,
+) -> Result<(), anyhow::Error> {
+    let mut path = format!("/trust/relationships?entity={}", entity);
+    if let Some(ctx) = context {
+        path.push_str(&format!("&context={}", ctx));
+    }
+    if let Some(level) = min_level {
+        path.push_str(&format!("&min_level={}", level));
+    }
+    if let Some(fed) = federation {
+        path.push_str(&format!("&federation={}", fed));
+    }
+    path.push_str(&format!("&include_inherited={}&include_cross_federation={}", 
+        include_inherited, include_cross_federation));
+    
+    let resp: serde_json::Value = get_request(&cli.api_url, client, &path, cli.api_key.as_deref()).await?;
+    println!("{}", serde_json::to_string_pretty(&resp)?);
+    Ok(())
+}
+
+async fn handle_trust_paths(
+    cli: &Cli,
+    client: &Client,
+    from: &str,
+    to: &str,
+    context: &str,
+    max_length: usize,
+    max_paths: usize,
+    min_level: &Option<String>,
+) -> Result<(), anyhow::Error> {
+    let mut path = format!("/trust/paths?from={}&to={}&context={}&max_length={}&max_paths={}", 
+        from, to, context, max_length, max_paths);
+    if let Some(level) = min_level {
+        path.push_str(&format!("&min_level={}", level));
+    }
+    
+    let resp: serde_json::Value = get_request(&cli.api_url, client, &path, cli.api_key.as_deref()).await?;
+    println!("{}", serde_json::to_string_pretty(&resp)?);
+    Ok(())
+}
+
+async fn handle_trust_score(
+    cli: &Cli,
+    client: &Client,
+    entity: &str,
+) -> Result<(), anyhow::Error> {
+    let path = format!("/trust/score?entity={}", entity);
+    let resp: serde_json::Value = get_request(&cli.api_url, client, &path, cli.api_key.as_deref()).await?;
+    println!("{}", serde_json::to_string_pretty(&resp)?);
+    Ok(())
+}
+
+async fn handle_trust_scores(
+    cli: &Cli,
+    client: &Client,
+    entities: &str,
+) -> Result<(), anyhow::Error> {
+    let path = format!("/trust/scores?entities={}", entities);
+    let resp: serde_json::Value = get_request(&cli.api_url, client, &path, cli.api_key.as_deref()).await?;
+    println!("{}", serde_json::to_string_pretty(&resp)?);
+    Ok(())
+}
+
+async fn handle_trust_update(
+    cli: &Cli,
+    client: &Client,
+    update_json_or_stdin: &str,
+) -> Result<(), anyhow::Error> {
+    let content = read_input_or_stdin(update_json_or_stdin)?;
+    let update_req: serde_json::Value = serde_json::from_str(&content)?;
+    let resp: serde_json::Value = post_request(
+        &cli.api_url,
+        client,
+        "/trust/update",
+        &update_req,
+        cli.api_key.as_deref(),
+    ).await?;
+    println!("{}", serde_json::to_string_pretty(&resp)?);
+    Ok(())
+}
+
+async fn handle_trust_remove(
+    cli: &Cli,
+    client: &Client,
+    from: &str,
+    to: &str,
+    context: &str,
+) -> Result<(), anyhow::Error> {
+    let path = format!("/trust/remove?from={}&to={}&context={}", from, to, context);
+    let resp: serde_json::Value = post_request(
+        &cli.api_url,
+        client,
+        &path,
+        &serde_json::json!({}),
+        cli.api_key.as_deref(),
+    ).await?;
+    println!("{}", serde_json::to_string_pretty(&resp)?);
+    Ok(())
+}
+
+async fn handle_trust_stats(
+    cli: &Cli,
+    client: &Client,
+) -> Result<(), anyhow::Error> {
+    let resp: serde_json::Value = get_request(&cli.api_url, client, "/trust/stats", cli.api_key.as_deref()).await?;
+    println!("{}", serde_json::to_string_pretty(&resp)?);
+    Ok(())
+}
+
+async fn handle_trust_federation_stats(
+    cli: &Cli,
+    client: &Client,
+    federation: &str,
+) -> Result<(), anyhow::Error> {
+    let path = format!("/trust/federation-stats?federation={}", federation);
+    let resp: serde_json::Value = get_request(&cli.api_url, client, &path, cli.api_key.as_deref()).await?;
+    println!("{}", serde_json::to_string_pretty(&resp)?);
+    Ok(())
+}
+
+async fn handle_trust_search(
+    cli: &Cli,
+    client: &Client,
+    context: &Option<String>,
+    min_level: &Option<String>,
+    federation: &Option<String>,
+    limit: usize,
+    offset: usize,
+) -> Result<(), anyhow::Error> {
+    let mut path = format!("/trust/search?limit={}&offset={}", limit, offset);
+    if let Some(ctx) = context {
+        path.push_str(&format!("&context={}", ctx));
+    }
+    if let Some(level) = min_level {
+        path.push_str(&format!("&min_level={}", level));
+    }
+    if let Some(fed) = federation {
+        path.push_str(&format!("&federation={}", fed));
+    }
+    
+    let resp: serde_json::Value = get_request(&cli.api_url, client, &path, cli.api_key.as_deref()).await?;
+    println!("{}", serde_json::to_string_pretty(&resp)?);
+    Ok(())
+}
+
+async fn handle_trust_validate(
+    cli: &Cli,
+    client: &Client,
+    actor: &str,
+    target: &str,
+    context: &str,
+    operation: &str,
+) -> Result<(), anyhow::Error> {
+    let path = format!("/trust/validate?actor={}&target={}&context={}&operation={}", 
+        actor, target, context, operation);
+    let resp: serde_json::Value = get_request(&cli.api_url, client, &path, cli.api_key.as_deref()).await?;
+    println!("{}", serde_json::to_string_pretty(&resp)?);
+    Ok(())
+}
+
+async fn handle_trust_neighbors(
+    cli: &Cli,
+    client: &Client,
+    entity: &str,
+    max_distance: usize,
+    min_level: &Option<String>,
+) -> Result<(), anyhow::Error> {
+    let mut path = format!("/trust/neighbors?entity={}&max_distance={}", entity, max_distance);
+    if let Some(level) = min_level {
+        path.push_str(&format!("&min_level={}", level));
+    }
+    
+    let resp: serde_json::Value = get_request(&cli.api_url, client, &path, cli.api_key.as_deref()).await?;
+    println!("{}", serde_json::to_string_pretty(&resp)?);
+    Ok(())
+}
+
+async fn handle_trust_recalculate(
+    cli: &Cli,
+    client: &Client,
+    entities: &Option<String>,
+) -> Result<(), anyhow::Error> {
+    let mut path = "/trust/recalculate".to_string();
+    if let Some(ents) = entities {
+        path.push_str(&format!("?entities={}", ents));
+    }
+    
+    let resp: serde_json::Value = post_request(
+        &cli.api_url,
+        client,
+        &path,
+        &serde_json::json!({}),
+        cli.api_key.as_deref(),
+    ).await?;
     println!("{}", serde_json::to_string_pretty(&resp)?);
     Ok(())
 }
