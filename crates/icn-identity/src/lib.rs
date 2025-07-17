@@ -42,6 +42,15 @@ pub use federation_trust::{
     FederationTrustBridge, BridgeConfig, TrustPolicyRule, TrustPolicyEngine,
     TrustValidationResult,
 };
+pub mod trust_attestation;
+pub use trust_attestation::{
+    TrustAttestation, MultiPartyTrustRecord, TrustChallenge, ChallengeStatus,
+    TrustAuditEvent, TrustEventType, TrustAttestationStore, InMemoryTrustAttestationStore,
+};
+pub mod trust_verification;
+pub use trust_verification::{
+    TrustVerificationEngine, TrustVerificationConfig, TrustVerificationResult, ChallengeResolution,
+};
 pub mod metrics;
 
 // --- Core Cryptographic Operations & DID:key generation ---
