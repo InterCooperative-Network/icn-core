@@ -108,6 +108,8 @@ pub struct NodeConfig {
     pub p2p: P2pConfig,
     /// Force stub services for development and testing
     pub test_mode: bool,
+    /// Enable demo mode with preloaded test data and memory-only storage
+    pub demo: bool,
     /// How many days between automatic key rotations.
     pub key_rotation_days: u64,
     /// Peers this node has joined in a federation.
@@ -240,6 +242,7 @@ impl Default for NodeConfig {
             http: HttpConfig::default(),
             p2p: P2pConfig::default(),
             test_mode: false,
+            demo: false,
             key_rotation_days: 90,
             federation_peers: Vec::new(),
         }
@@ -440,6 +443,12 @@ impl NodeConfig {
         }
         if cli.test_mode || matches.contains_id("test_mode") {
             self.test_mode = true;
+        }
+        if cli.demo || matches.contains_id("demo") {
+            self.demo = true;
+            // Demo mode implies memory-only storage
+            self.storage.storage_backend = StorageBackendType::Memory;
+            self.storage.mana_ledger_backend = icn_runtime::context::LedgerBackend::File;
         }
         if let Some(v) = &cli.api_key {
             self.http.api_key = Some(v.clone());

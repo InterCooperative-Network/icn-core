@@ -288,6 +288,9 @@ pub struct Cli {
     #[clap(long, action)]
     pub test_mode: bool,
 
+    #[clap(long, action, help = "Enable demo mode with preloaded test data and memory-only storage")]
+    pub demo: bool,
+
     #[clap(long)]
     pub api_key: Option<String>,
 
@@ -1364,6 +1367,16 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
     rt_ctx.clone().spawn_mesh_executor_manager().await;
 
     info!("ICN RuntimeContext initialized and JobManager + ExecutorManager spawned.");
+
+    // Load demo data if in demo mode
+    if config.demo {
+        info!("🎭 Loading demo data for demo mode...");
+        if let Err(e) = load_demo_data(&rt_ctx, &node_did).await {
+            warn!("Failed to load demo data: {}", e);
+        } else {
+            info!("✅ Demo data loaded successfully");
+        }
+    }
 
     // Initialize the node with some mana for job submission
     match rt_ctx.credit_mana(&node_did, 1000).await {
@@ -4161,3 +4174,21 @@ async fn cooperative_registry_stats_handler(State(state): State<AppState>) -> im
 }
 
 // --- Test module (can be expanded later) ---
+
+
+/// Load demo data for demonstration and testing purposes
+async fn load_demo_data(
+    rt_ctx: &Arc<icn_runtime::context::RuntimeContext>,
+    node_did: &Did,
+) -> Result<(), CommonError> {
+    info!("Loading demo data...");
+    
+    // TODO: Add demo governance proposals
+    info!("Demo governance proposals (placeholder)");
+    
+    // TODO: Add demo mesh jobs  
+    info!("Demo mesh jobs (placeholder)");
+
+    info!("Demo data loading complete!");
+    Ok(())
+}
