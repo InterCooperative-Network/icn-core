@@ -2351,7 +2351,13 @@ async fn handle_trust_update(
     client: &Client,
     update_json_or_stdin: &str,
 ) -> Result<(), anyhow::Error> {
-    let content = read_input_or_stdin(update_json_or_stdin)?;
+    let content = if update_json_or_stdin == "-" {
+        let mut buffer = String::new();
+        io::stdin().read_to_string(&mut buffer)?;
+        buffer
+    } else {
+        update_json_or_stdin.to_string()
+    };
     let update_req: serde_json::Value = serde_json::from_str(&content)?;
     let resp: serde_json::Value = post_request(
         &cli.api_url,
