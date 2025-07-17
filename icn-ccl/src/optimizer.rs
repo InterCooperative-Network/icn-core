@@ -59,6 +59,16 @@ impl Optimizer {
                 PolicyStatementNode::Import { path, alias }
             }
             PolicyStatementNode::StructDef(s) => PolicyStatementNode::StructDef(self.fold_ast(s)),
+            PolicyStatementNode::ConstDef { name, value, type_ann } => {
+                PolicyStatementNode::ConstDef { 
+                    name, 
+                    value: self.fold_expr(value), 
+                    type_ann 
+                }
+            }
+            PolicyStatementNode::MacroDef { name, params, body } => {
+                PolicyStatementNode::MacroDef { name, params, body }
+            }
         }
     }
 
@@ -189,7 +199,32 @@ impl Optimizer {
             ExpressionNode::RequireProof(inner) => {
                 ExpressionNode::RequireProof(Box::new(self.fold_expr(*inner)))
             }
-            e => e,
+            ExpressionNode::TryExpr { expr, catch_arm } => {
+                ExpressionNode::TryExpr {
+                    expr: Box::new(self.fold_expr(*expr)),
+                    catch_arm: catch_arm.map(|c| Box::new(self.fold_expr(*c))),
+                }
+            }
+            // Handle other cases explicitly
+            ExpressionNode::IntegerLiteral(_) |
+            ExpressionNode::BooleanLiteral(_) |
+            ExpressionNode::StringLiteral(_) |
+            ExpressionNode::Identifier(_) |
+            ExpressionNode::NoneExpr => expr,
+            ExpressionNode::SomeExpr(inner) => ExpressionNode::SomeExpr(Box::new(self.fold_expr(*inner))),
+            ExpressionNode::OkExpr(inner) => ExpressionNode::OkExpr(Box::new(self.fold_expr(*inner))),
+            ExpressionNode::ErrExpr(inner) => ExpressionNode::ErrExpr(Box::new(self.fold_expr(*inner))),
+            ExpressionNode::ArrayLiteral(items) => ExpressionNode::ArrayLiteral(
+                items.into_iter().map(|e| self.fold_expr(e)).collect()
+            ),
+            ExpressionNode::ArrayAccess { array, index } => ExpressionNode::ArrayAccess {
+                array: Box::new(self.fold_expr(*array)),
+                index: Box::new(self.fold_expr(*index)),
+            },
+            ExpressionNode::Match { value, arms } => ExpressionNode::Match {
+                value: Box::new(self.fold_expr(*value)),
+                arms: arms.into_iter().map(|(p, e)| (self.fold_expr(p), self.fold_expr(e))).collect(),
+            },
         }
     }
 }

@@ -812,6 +812,16 @@ impl WasmBackend {
                     ))),
                 }
             }
+            ExpressionNode::TryExpr { expr, catch_arm } => {
+                // For now, just emit the main expression
+                // In a full implementation, we'd need proper error handling
+                let expr_ty = self.emit_expression(expr, instrs, locals, indices)?;
+                if let Some(_catch_expr) = catch_arm {
+                    // TODO: Implement proper try/catch with Result handling
+                    // For now, ignore the catch arm
+                }
+                Ok(expr_ty)
+            }
         }
     }
 
@@ -958,7 +968,7 @@ fn map_val_type(ty: &TypeAnnotationNode) -> Result<ValType, CclError> {
             // Governance types represented as i64 handles
             Ok(ValType::I64)
         }
-        TypeAnnotationNode::Option | TypeAnnotationNode::Result => Ok(ValType::I64),
+        TypeAnnotationNode::Option(_) | TypeAnnotationNode::Result { .. } => Ok(ValType::I64),
         TypeAnnotationNode::Custom(name) => Err(CclError::WasmGenerationError(format!(
             "Unsupported type {}",
             name

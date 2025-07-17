@@ -43,6 +43,7 @@ static HTTP_BREAKER: Lazy<AsyncMutex<CircuitBreaker<SystemTimeProvider>>> = Lazy
 
 pub mod circuits;
 pub mod client_sdk;
+pub mod credential_trait;
 pub mod dag_trait;
 pub mod federation_trait;
 pub mod governance_trait;

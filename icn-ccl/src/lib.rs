@@ -16,9 +16,11 @@ pub mod optimizer;
 pub mod parser;
 pub mod semantic_analyzer;
 pub mod wasm_backend; // Expose functions for CLI layer
+pub mod stdlib;
 
 pub use error::CclError;
 pub use metadata::ContractMetadata;
+pub use stdlib::StandardLibrary;
 
 /// Compiles a CCL source string into WASM bytecode and metadata.
 pub fn compile_ccl_source_to_wasm(source: &str) -> Result<(Vec<u8>, ContractMetadata), CclError> {

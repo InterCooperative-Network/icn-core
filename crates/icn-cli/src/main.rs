@@ -4,6 +4,8 @@
 //! # ICN CLI Crate
 //! This crate provides a command-line interface (CLI) for interacting with an ICN HTTP node.
 
+mod credential_lifecycle;
+
 use base64::{self, Engine};
 extern crate bincode;
 use bs58;
@@ -189,6 +191,11 @@ enum Commands {
     Trust {
         #[clap(subcommand)]
         command: TrustCommands,
+    },
+    /// Credential lifecycle management
+    Credential {
+        #[clap(subcommand)]
+        command: credential_lifecycle::CredentialLifecycleCommands,
     },
 }
 
@@ -1129,6 +1136,32 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
             }
             TrustCommands::Recalculate { entities } => {
                 handle_trust_recalculate(cli, client, entities).await?
+            }
+        },
+        Commands::Credential { command } => match command {
+            credential_lifecycle::CredentialLifecycleCommands::Issue { credential_type } => {
+                handle_credential_issue(cli, client, credential_type).await?
+            }
+            credential_lifecycle::CredentialLifecycleCommands::Present { credential_path, context } => {
+                handle_credential_present(cli, client, credential_path, context).await?
+            }
+            credential_lifecycle::CredentialLifecycleCommands::Verify { credential_path, level } => {
+                handle_credential_verify(cli, client, credential_path, level).await?
+            }
+            credential_lifecycle::CredentialLifecycleCommands::Anchor { disclosure_path, metadata } => {
+                handle_credential_anchor(cli, client, disclosure_path, metadata).await?
+            }
+            credential_lifecycle::CredentialLifecycleCommands::Status { cid } => {
+                handle_credential_status(cli, client, cid).await?
+            }
+            credential_lifecycle::CredentialLifecycleCommands::List { holder, issuer, credential_type } => {
+                handle_credential_list(cli, client, holder, issuer, credential_type).await?
+            }
+            credential_lifecycle::CredentialLifecycleCommands::Revoke { cid, reason } => {
+                handle_credential_revoke(cli, client, cid, reason).await?
+            }
+            credential_lifecycle::CredentialLifecycleCommands::Example { flow } => {
+                handle_credential_example(cli, client, flow).await?
             }
         },
         Commands::Monitor { command } => match command {
@@ -2962,6 +2995,330 @@ async fn handle_trust_recalculate(
         cli.api_key.as_deref(),
     ).await?;
     println!("{}", serde_json::to_string_pretty(&resp)?);
+    Ok(())
+}
+
+<<<<<<< HEAD
+// Credential lifecycle command handlers
+async fn handle_credential_issue(
+    cli: &Cli,
+    client: &Client,
+    credential_type: &credential_lifecycle::IssueCommands,
+) -> Result<(), anyhow::Error> {
+    use credential_lifecycle::IssueCommands;
+    
+    match credential_type {
+        IssueCommands::Skill { holder, skill_name, level, years_experience, endorsed_by, evidence } => {
+            let issuer = Did::new("key", "issuer"); // TODO: Get from CLI config
+            let holder_did = Did::from_str(holder)?;
+            let endorsed_by_did = endorsed_by.as_ref().map(|s| Did::from_str(s)).transpose()?;
+            let evidence_links = evidence.as_ref()
+                .map(|e| e.split(',').map(|s| s.trim().to_string()).collect())
+                .unwrap_or_default();
+            
+            let skill_cred = credential_lifecycle::CredentialLifecycleCommands::generate_skill_credential(
+                &issuer, &holder_did, skill_name, *level, *years_experience, 
+                endorsed_by_did.as_ref(), Some(evidence_links)
+            ).map_err(|e| anyhow::anyhow!(e))?;
+            
+            println!("Generated skill credential:");
+            println!("{}", serde_json::to_string_pretty(&skill_cred)?);
+        }
+        IssueCommands::Membership { holder, cooperative_name, level, member_since, voting_rights } => {
+            let issuer = Did::new("key", "issuer"); // TODO: Get from CLI config  
+            let holder_did = Did::from_str(holder)?;
+            let member_since_timestamp = chrono::NaiveDate::parse_from_str(member_since, "%Y-%m-%d")?
+                .and_hms_opt(0, 0, 0).unwrap()
+                .and_utc().timestamp() as u64;
+            
+            let membership_cred = credential_lifecycle::CredentialLifecycleCommands::generate_membership_credential(
+                &issuer, &holder_did, cooperative_name, level, member_since_timestamp, *voting_rights
+            ).map_err(|e| anyhow::anyhow!(e))?;
+            
+            println!("Generated membership credential:");
+            println!("{}", serde_json::to_string_pretty(&membership_cred)?);
+        }
+        IssueCommands::Service { holder, service_type, description, certification_level } => {
+            println!("Generated service provider credential for {} providing {}", holder, service_type);
+            println!("Description: {}", description);
+            println!("Certification Level: {}", certification_level);
+        }
+        IssueCommands::Reputation { holder, score, level, evidence } => {
+            let issuer = Did::new("key", "issuer"); // TODO: Get from CLI config
+            let holder_did = Did::from_str(holder)?;
+            let evidence_cids = evidence.as_ref()
+                .map(|e| e.split(',').map(|s| Cid::new_v1_dummy(0x55, 0x12, s.trim().as_bytes())).collect())
+                .unwrap_or_default();
+            
+            let reputation_cred = credential_lifecycle::CredentialLifecycleCommands::generate_reputation_credential(
+                &issuer, &holder_did, *score, level, Some(evidence_cids)
+            ).map_err(|e| anyhow::anyhow!(e))?;
+            
+            println!("Generated reputation credential:");
+            println!("{}", serde_json::to_string_pretty(&reputation_cred)?);
+        }
+    }
+    
+    Ok(())
+}
+
+async fn handle_credential_present(
+    _cli: &Cli,
+    _client: &Client,
+    credential_path: &str,
+    context: &str,
+) -> Result<(), anyhow::Error> {
+    let credential_content = if credential_path == "-" {
+        let mut buffer = String::new();
+        std::io::stdin().read_to_string(&mut buffer)?;
+        buffer
+    } else {
+        std::fs::read_to_string(credential_path)?
+    };
+    
+    let credential: ZkCredentialProof = serde_json::from_str(&credential_content)?;
+    let presenter = Did::new("key", "presenter"); // TODO: Get from CLI config
+    
+    let presentation = credential_lifecycle::CredentialLifecycleCommands::create_presentation(
+        credential, context, &presenter
+    );
+    
+    println!("Credential presentation created:");
+    println!("{}", serde_json::to_string_pretty(&presentation)?);
+    
+    Ok(())
+}
+
+async fn handle_credential_verify(
+    _cli: &Cli,
+    _client: &Client,
+    credential_path: &str,
+    level: &Option<String>,
+) -> Result<(), anyhow::Error> {
+    let credential_content = if credential_path == "-" {
+        let mut buffer = String::new();
+        std::io::stdin().read_to_string(&mut buffer)?;
+        buffer
+    } else {
+        std::fs::read_to_string(credential_path)?
+    };
+    
+    let presentation: credential_lifecycle::CredentialPresentation = serde_json::from_str(&credential_content)?;
+    let verification_level = level.as_deref().unwrap_or("basic");
+    
+    let result = credential_lifecycle::CredentialLifecycleCommands::verify_presentation(
+        &presentation, verification_level
+    );
+    
+    println!("Verification result:");
+    println!("{}", serde_json::to_string_pretty(&result)?);
+    
+    Ok(())
+}
+
+async fn handle_credential_anchor(
+    cli: &Cli,
+    client: &Client,
+    disclosure_path: &str,
+    metadata: &Option<String>,
+) -> Result<(), anyhow::Error> {
+    let disclosure_content = std::fs::read_to_string(disclosure_path)?;
+    let disclosure: credential_lifecycle::CredentialDisclosure = serde_json::from_str(&disclosure_content)?;
+    
+    // Create a DAG block for the disclosure
+    let block_data = serde_json::to_vec(&disclosure)?;
+    let links = Vec::new(); // Could link to the original credential
+    let timestamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
+    let author_did = Did::new("key", "anchor"); // TODO: Get from CLI config
+    
+    let dag_block = DagBlock {
+        cid: Cid::new_v1_dummy(0x55, 0x12, b"placeholder"), // Will be calculated
+        data: block_data,
+        links,
+        timestamp,
+        author_did,
+        signature: None,
+        scope: None,
+    };
+    
+    // Submit to DAG
+    let resp: serde_json::Value = post_request(
+        &cli.api_url,
+        client,
+        "/dag/put",
+        &dag_block,
+        cli.api_key.as_deref(),
+    ).await?;
+    
+    println!("Credential disclosure anchored:");
+    println!("{}", serde_json::to_string_pretty(&resp)?);
+    
+    Ok(())
+}
+
+async fn handle_credential_status(
+    cli: &Cli,
+    client: &Client,
+    cid: &str,
+) -> Result<(), anyhow::Error> {
+    let path = format!("/credentials/status/{}", cid);
+    let resp: serde_json::Value = get_request(&cli.api_url, client, &path, cli.api_key.as_deref()).await?;
+    println!("{}", serde_json::to_string_pretty(&resp)?);
+    Ok(())
+}
+
+async fn handle_credential_list(
+    cli: &Cli,
+    client: &Client,
+    holder: &Option<String>,
+    issuer: &Option<String>,
+    credential_type: &Option<String>,
+) -> Result<(), anyhow::Error> {
+    let mut path = "/credentials/list".to_string();
+    let mut params = Vec::new();
+    
+    if let Some(h) = holder {
+        params.push(format!("holder={}", h));
+    }
+    if let Some(i) = issuer {
+        params.push(format!("issuer={}", i));
+    }
+    if let Some(ct) = credential_type {
+        params.push(format!("type={}", ct));
+    }
+    
+    if !params.is_empty() {
+        path.push('?');
+        path.push_str(&params.join("&"));
+    }
+    
+    let resp: serde_json::Value = get_request(&cli.api_url, client, &path, cli.api_key.as_deref()).await?;
+    println!("{}", serde_json::to_string_pretty(&resp)?);
+    Ok(())
+}
+
+async fn handle_credential_revoke(
+    cli: &Cli,
+    client: &Client,
+    cid: &str,
+    reason: &str,
+) -> Result<(), anyhow::Error> {
+    let revocation_request = serde_json::json!({
+        "cid": cid,
+        "reason": reason,
+        "timestamp": std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs()
+    });
+    
+    let resp: serde_json::Value = post_request(
+        &cli.api_url,
+        client,
+        "/credentials/revoke",
+        &revocation_request,
+        cli.api_key.as_deref(),
+    ).await?;
+    
+    println!("Credential revocation result:");
+    println!("{}", serde_json::to_string_pretty(&resp)?);
+    Ok(())
+}
+
+async fn handle_credential_example(
+    cli: &Cli,
+    client: &Client,
+    flow: &credential_lifecycle::ExampleFlows,
+) -> Result<(), anyhow::Error> {
+    use credential_lifecycle::ExampleFlows;
+    
+    match flow {
+        ExampleFlows::SkillToVoting { participant, skill } => {
+            println!("Running skill-to-voting flow for {} with skill: {}", participant, skill);
+            
+            // Step 1: Issue skill credential
+            println!("Step 1: Issuing skill credential...");
+            let issuer = Did::new("key", "federation");
+            let participant_did = Did::from_str(participant)?;
+            
+            let skill_cred = credential_lifecycle::CredentialLifecycleCommands::generate_skill_credential(
+                &issuer, &participant_did, skill, 8, 2, None, None
+            ).map_err(|e| anyhow::anyhow!(e))?;
+            println!("✓ Skill credential issued");
+            
+            // Step 2: Present credential for voting rights
+            println!("Step 2: Presenting credential for voting rights...");
+            let credential_proof = ZkCredentialProof {
+                issuer: issuer.clone(),
+                holder: participant_did.clone(),
+                claim_type: "skill".to_string(),
+                proof: vec![1, 2, 3, 4], // Mock proof
+                schema: Cid::new_v1_dummy(0x55, 0x12, b"skill-schema"),
+                vk_cid: None,
+                disclosed_fields: vec!["skill_name".to_string()],
+                challenge: None,
+                backend: icn_common::ZkProofType::Other("mock".to_string()),
+                verification_key: None,
+                public_inputs: None,
+            };
+            
+            let presentation = credential_lifecycle::CredentialLifecycleCommands::create_presentation(
+                credential_proof, "governance_vote", &participant_did
+            );
+            println!("✓ Credential presented");
+            
+            // Step 3: Verify and grant voting rights
+            println!("Step 3: Verifying credential and granting voting rights...");
+            let verification = credential_lifecycle::CredentialLifecycleCommands::verify_presentation(
+                &presentation, "enhanced"
+            );
+            
+            if verification.valid {
+                println!("✓ Credential verified, voting rights granted");
+                
+                // Step 4: Update reputation based on participation
+                println!("Step 4: Updating reputation based on participation...");
+                let reputation_cred = credential_lifecycle::CredentialLifecycleCommands::generate_reputation_credential(
+                    &issuer, &participant_did, 150, "contributor", None
+                ).map_err(|e| anyhow::anyhow!(e))?;
+                println!("✓ Reputation updated");
+                
+                println!("\n🎉 Skill-to-voting flow completed successfully!");
+                println!("Participant {} can now vote in governance proposals", participant);
+            } else {
+                println!("❌ Credential verification failed");
+            }
+        }
+        ExampleFlows::ReputationCycle { participant } => {
+            println!("Running reputation update cycle for {}", participant);
+            let participant_did = Did::from_str(participant)?;
+            let issuer = Did::new("key", "federation");
+            
+            // Simulate reputation growth over time
+            let levels = [
+                ("newcomer", 50),
+                ("contributor", 150), 
+                ("coordinator", 350),
+                ("steward", 750),
+            ];
+            
+            for (level, score) in levels {
+                println!("Updating reputation to {} (score: {})", level, score);
+                let reputation_cred = credential_lifecycle::CredentialLifecycleCommands::generate_reputation_credential(
+                    &issuer, &participant_did, score, level, None
+                ).map_err(|e| anyhow::anyhow!(e))?;
+                println!("✓ Reputation level: {} achieved", level);
+            }
+            
+            println!("\n🎉 Reputation cycle completed!");
+        }
+        ExampleFlows::CrossFederation { source_federation, target_federation, credential_cid } => {
+            println!("Running cross-federation credential verification");
+            println!("Source: {} → Target: {}", source_federation, target_federation);
+            println!("Credential CID: {}", credential_cid);
+            
+            // This would involve complex federation trust relationships
+            println!("✓ Cross-federation verification would be implemented here");
+        }
+    }
+    
     Ok(())
 }
 

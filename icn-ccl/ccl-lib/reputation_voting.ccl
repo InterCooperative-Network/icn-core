@@ -1,0 +1,212 @@
+// CCL Library - Reputation-Weighted Voting Template
+// Implements voting with reputation-based weight and quadratic scaling
+
+const BASE_VOTING_POWER: Integer = 1;
+const REPUTATION_MULTIPLIER: Integer = 10;
+const QUADRATIC_SCALING: Bool = true;
+
+struct ReputationVote {
+    voter: Did,
+    choice: String,
+    weight: Integer,
+    reputation_at_vote: Integer,
+    timestamp: Integer
+}
+
+struct ReputationProposal {
+    id: Integer,
+    title: String,
+    description: String,
+    proposer: Did,
+    created_at: Integer,
+    voting_ends_at: Integer,
+    min_reputation: Integer,
+    votes: Array<ReputationVote>,
+    status: String
+}
+
+// Reputation voting functions
+fn create_reputation_proposal(
+    proposer: Did,
+    title: String,
+    description: String,
+    voting_period: Integer,
+    min_reputation: Integer
+) -> ReputationProposal {
+    let proposal = ReputationProposal {
+        id: host_get_current_time(),
+        title: title,
+        description: description,
+        proposer: proposer,
+        created_at: host_get_current_time(),
+        voting_ends_at: host_get_current_time() + voting_period,
+        min_reputation: min_reputation,
+        votes: [],
+        status: "active"
+    };
+    
+    return proposal;
+}
+
+fn cast_reputation_vote(
+    proposal: ReputationProposal,
+    voter: Did,
+    choice: String
+) -> ReputationProposal {
+    // Check if voting is still open
+    if host_get_current_time() > proposal.voting_ends_at {
+        return proposal;
+    }
+    
+    // Get voter's reputation
+    let voter_reputation = host_get_reputation();
+    
+    // Check minimum reputation requirement
+    if voter_reputation < proposal.min_reputation {
+        return proposal;
+    }
+    
+    // Check if voter already voted
+    if has_already_voted(proposal.votes, voter) {
+        return proposal;
+    }
+    
+    // Calculate voting weight
+    let voting_weight = calculate_reputation_weight(voter_reputation);
+    
+    // Create vote record
+    let vote = ReputationVote {
+        voter: voter,
+        choice: choice,
+        weight: voting_weight,
+        reputation_at_vote: voter_reputation,
+        timestamp: host_get_current_time()
+    };
+    
+    // Add vote to proposal
+    let updated_proposal = proposal;
+    array_push_vote(updated_proposal.votes, vote);
+    
+    return updated_proposal;
+}
+
+fn calculate_reputation_weight(reputation: Integer) -> Integer {
+    if QUADRATIC_SCALING {
+        // Quadratic scaling: weight = sqrt(reputation / REPUTATION_MULTIPLIER)
+        return sqrt_integer(reputation / REPUTATION_MULTIPLIER) + BASE_VOTING_POWER;
+    } else {
+        // Linear scaling: weight = reputation / REPUTATION_MULTIPLIER
+        return (reputation / REPUTATION_MULTIPLIER) + BASE_VOTING_POWER;
+    }
+}
+
+fn sqrt_integer(n: Integer) -> Integer {
+    // Simple integer square root approximation
+    if n <= 1 {
+        return n;
+    }
+    
+    let x = n;
+    let i = 0;
+    while i < 10 { // 10 iterations for approximation
+        let y = (x + (n / x)) / 2;
+        if y >= x {
+            return x;
+        }
+        x = y;
+        i = i + 1;
+    }
+    
+    return x;
+}
+
+fn has_already_voted(votes: Array<ReputationVote>, voter: Did) -> Bool {
+    // TODO: Implement proper vote checking
+    // For now, return false to allow voting
+    return false;
+}
+
+fn array_push_vote(votes: Array<ReputationVote>, vote: ReputationVote) -> Bool {
+    // TODO: Implement array push for votes
+    return true;
+}
+
+fn calculate_reputation_results(proposal: ReputationProposal) -> String {
+    let yes_weight = 0;
+    let no_weight = 0;
+    let abstain_weight = 0;
+    
+    // TODO: Iterate through votes and sum weights by choice
+    // For now, return placeholder result
+    
+    if yes_weight > no_weight {
+        return "passed";
+    } else if no_weight > yes_weight {
+        return "rejected";
+    } else {
+        return "tied";
+    }
+}
+
+fn finalize_reputation_proposal(proposal: ReputationProposal) -> ReputationProposal {
+    // Check if voting period has ended
+    if host_get_current_time() <= proposal.voting_ends_at {
+        return proposal;
+    }
+    
+    let result = calculate_reputation_results(proposal);
+    
+    let updated_proposal = proposal;
+    updated_proposal.status = result;
+    
+    return updated_proposal;
+}
+
+// Reputation management functions
+fn update_voter_reputation(voter: Did, action: String, amount: Integer) -> Bool {
+    // Reputation adjustments based on voting behavior
+    let current_reputation = host_get_reputation();
+    let new_reputation = current_reputation;
+    
+    if action == "constructive_vote" {
+        new_reputation = new_reputation + amount;
+    } else if action == "destructive_vote" {
+        new_reputation = new_reputation - amount;
+    } else if action == "missed_vote" {
+        new_reputation = new_reputation - (amount / 2);
+    }
+    
+    // Ensure reputation doesn't go below 0
+    if new_reputation < 0 {
+        new_reputation = 0;
+    }
+    
+    // TODO: Actually update reputation in the system
+    return true;
+}
+
+fn get_voting_power_preview(voter: Did) -> Integer {
+    let reputation = host_get_reputation();
+    return calculate_reputation_weight(reputation);
+}
+
+// Main execution function
+fn run() -> Bool {
+    let proposal = create_reputation_proposal(
+        host_get_caller(),
+        "Test Reputation Vote",
+        "Testing reputation-weighted voting",
+        WEEK,
+        100
+    );
+    
+    let voted_proposal = cast_reputation_vote(
+        proposal,
+        host_get_caller(),
+        "yes"
+    );
+    
+    let final_proposal = finalize_reputation_proposal(voted_proposal);
+    
+    return final_proposal.status == "passed";
+}
