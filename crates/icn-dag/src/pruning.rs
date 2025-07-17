@@ -119,7 +119,7 @@ impl<S: StorageService<DagBlock>> DagMaintenance<S> {
         // Remove blocks not in the keep set
         for (cid, (block, metadata)) in all_blocks {
             if !blocks_to_keep.contains(&cid) {
-                match self.store.delete(cid) {
+                match self.store.delete(&cid) {
                     Ok(_) => {
                         stats.blocks_removed += 1;
                         stats.bytes_freed += block.data.len() as u64;
