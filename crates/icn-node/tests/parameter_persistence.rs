@@ -1,7 +1,7 @@
 use icn_common::Did;
 use icn_governance::{ProposalSubmission, ProposalType, VoteOption};
 use icn_node::app_router_with_options;
-use icn_node::config::NodeConfig;
+use icn_node::parameter_store::ParameterStore;
 use std::str::FromStr;
 use tempfile::tempdir;
 
@@ -61,8 +61,11 @@ async fn parameter_persists_between_restarts() {
     drop(_router);
     drop(ctx);
 
-    let cfg = NodeConfig::from_file(&param_path).unwrap();
-    assert_eq!(cfg.http.open_rate_limit, 5);
+    // Remove the file so event replay is required
+    std::fs::remove_file(&param_path).unwrap();
+
+    let store = ParameterStore::load(param_path.clone()).unwrap();
+    assert_eq!(store.open_rate_limit(), 5);
 
     let (_r2, _ctx2) = app_router_with_options(
         None,
@@ -77,6 +80,6 @@ async fn parameter_persists_between_restarts() {
         Some(param_path.clone()),
     )
     .await;
-    let cfg2 = NodeConfig::from_file(&param_path).unwrap();
-    assert_eq!(cfg2.http.open_rate_limit, 5);
+    let ps = ParameterStore::load(param_path.clone()).unwrap();
+    assert_eq!(ps.open_rate_limit(), 5);
 }
