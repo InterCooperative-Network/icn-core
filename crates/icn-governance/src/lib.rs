@@ -26,6 +26,13 @@ use serde::{Deserialize, Serialize};
 
 pub mod metrics;
 pub mod scoped_policy;
+pub mod federation_governance;
+
+pub use federation_governance::{
+    GovernanceAction, MembershipAction, TrustAwareGovernancePolicy, 
+    FederationGovernanceEngine, FederationProposal, ProposalStatus as FederationProposalStatus,
+    GovernanceValidationResult, FederationGovernanceError,
+};
 
 // --- Proposal System ---
 
