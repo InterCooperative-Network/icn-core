@@ -281,6 +281,19 @@ pub struct CloseProposalResult {
     pub abstain: usize,
 }
 
+/// Record of a runtime parameter change anchored in the DAG.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ParameterUpdate {
+    /// Name of the updated parameter.
+    pub name: String,
+    /// New value for the parameter.
+    pub value: String,
+    /// Seconds since Unix epoch when the change occurred.
+    pub timestamp: u64,
+    /// DID of the signer applying the update.
+    pub signer: Did,
+}
+
 /// Parameters for [`RuntimeContext`] construction.
 pub struct RuntimeContextParams {
     pub current_identity: Did,
@@ -2145,6 +2158,39 @@ impl RuntimeContext {
         Ok(cid)
     }
 
+    /// Anchor a parameter update event in the DAG.
+    pub async fn anchor_parameter_update(
+        &self,
+        update: &ParameterUpdate,
+    ) -> Result<Cid, HostAbiError> {
+        let data = bincode::serialize(update).map_err(|e| {
+            HostAbiError::DagOperationFailed(format!("Failed to serialize parameter update: {}", e))
+        })?;
+        let cid = compute_merkle_cid(
+            0x71,
+            &data,
+            &[],
+            update.timestamp,
+            &update.signer,
+            &None,
+            &None,
+        );
+        let block = DagBlock {
+            cid: cid.clone(),
+            data,
+            links: vec![],
+            timestamp: update.timestamp,
+            author_did: update.signer.clone(),
+            signature: None,
+            scope: None,
+        };
+        let mut dag = self.dag_store.lock().await;
+        dag.put(&block).await.map_err(|e| {
+            HostAbiError::DagOperationFailed(format!("Failed to store parameter update: {}", e))
+        })?;
+        Ok(cid)
+    }
+
     /// Create a governance proposal.
     pub async fn create_governance_proposal(
         &self,
@@ -2522,6 +2568,17 @@ impl RuntimeContext {
     async fn update_parameter(&self, key: String, value: String) -> Result<(), HostAbiError> {
         self.parameters.insert(key.clone(), value.clone());
         log::info!("Updated parameter {} to {}", key, value);
+
+        let update = ParameterUpdate {
+            name: key,
+            value,
+            timestamp: self.time_provider.unix_seconds(),
+            signer: self.current_identity.clone(),
+        };
+
+        // Persist to DAG
+        self.anchor_parameter_update(&update).await?;
+
         Ok(())
     }
 

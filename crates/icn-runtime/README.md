@@ -90,11 +90,16 @@ use icn_runtime::{
 async fn finalize_proposal(ctx: &RuntimeContext, pid: &str) -> Result<(), icn_runtime::HostAbiError> {
     let status = host_close_governance_proposal_voting(ctx, pid).await?;
     if status == "Accepted" {
-        host_execute_governance_proposal(ctx, pid).await?;
+host_execute_governance_proposal(ctx, pid).await?;
     }
     Ok(())
 }
 ```
+
+When a proposal updates a runtime parameter, the new value is persisted by
+anchoring a `ParameterUpdate` record to the DAG. These records include the
+parameter name, value, timestamp, and the DID of the signer so nodes can
+replay configuration history.
 
 ### Zero-Knowledge Proofs
 

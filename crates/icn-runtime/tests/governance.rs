@@ -1,6 +1,6 @@
 use icn_common::Did;
 use icn_governance::{ProposalId, ProposalStatus, VoteOption};
-use icn_runtime::context::RuntimeContext;
+use icn_runtime::context::{RuntimeContext, PROPOSAL_COST_MANA, VOTE_COST_MANA};
 use icn_runtime::{
     host_cast_governance_vote, host_close_governance_proposal_voting,
     host_create_governance_proposal, host_execute_governance_proposal,
@@ -343,6 +343,57 @@ async fn parameter_change_execution_updates_runtime() {
     host_close_governance_proposal_voting(&ctx, &pid_str).await.unwrap();
     host_execute_governance_proposal(&ctx, &pid_str).await.unwrap();
     assert_eq!(ctx.parameters.get("test_limit").unwrap().value().as_str(), "10");
+}
+
+#[tokio::test]
+async fn parameter_change_anchors_dag_entry() {
+    let ctx = RuntimeContext::new_with_stubs_and_mana(
+        "did:icn:test:paramdag",
+        (PROPOSAL_COST_MANA + VOTE_COST_MANA) * 2,
+    )
+    .unwrap();
+    {
+        let mut gov = ctx.governance_module.lock().await;
+        gov.add_member(Did::from_str("did:icn:test:paramdag").unwrap());
+        gov.add_member(Did::from_str("did:icn:test:bob").unwrap());
+        gov.set_quorum(1);
+        gov.set_threshold(0.5);
+    }
+
+    let payload = serde_json::json!({
+        "proposal_type_str": "SystemParameterChange",
+        "type_specific_payload": serde_json::to_vec(&("dag_limit", "5")).unwrap(),
+        "description": "update limit",
+        "duration_secs": 60
+    });
+    let pid_str = host_create_governance_proposal(&ctx, &payload.to_string())
+        .await
+        .unwrap();
+    let pid = ProposalId(pid_str.clone());
+    {
+        let mut gov = ctx.governance_module.lock().await;
+        gov.open_voting(&pid).unwrap();
+        gov.cast_vote(Did::from_str("did:icn:test:bob").unwrap(), &pid, VoteOption::Yes).unwrap();
+    }
+    host_close_governance_proposal_voting(&ctx, &pid_str)
+        .await
+        .unwrap();
+    host_execute_governance_proposal(&ctx, &pid_str)
+        .await
+        .unwrap();
+
+    let store = ctx.dag_store.lock().await;
+    let blocks = store.list_blocks().await.unwrap();
+    let mut found = false;
+    for block in blocks {
+        if let Ok(update) = bincode::deserialize::<icn_runtime::context::ParameterUpdate>(&block.data) {
+            if update.name == "dag_limit" && update.value == "5" {
+                found = true;
+                break;
+            }
+        }
+    }
+    assert!(found, "parameter update not anchored");
 }
 
 #[tokio::test]

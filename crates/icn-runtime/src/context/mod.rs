@@ -27,7 +27,7 @@ pub use resource_ledger::{
     record_resource_event, ResourceAction, ResourceLedger, ResourceLedgerEntry,
 };
 pub use runtime_context::{
-    RuntimeContext, RuntimeContextParams, RuntimeContextBuilder, EnvironmentType, MeshNetworkServiceType, CreateProposalPayload, CastVotePayload, CloseProposalResult,
+    RuntimeContext, RuntimeContextParams, RuntimeContextBuilder, EnvironmentType, MeshNetworkServiceType, CreateProposalPayload, CastVotePayload, CloseProposalResult, ParameterUpdate,
     MANA_MAX_CAPACITY_KEY,
 };
 pub use service_config::{ServiceConfig, ServiceConfigBuilder, ServiceEnvironment};
