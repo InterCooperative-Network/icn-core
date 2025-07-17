@@ -519,6 +519,165 @@ enum FederationCommands {
     /// Synchronize federation state
     #[clap(name = "sync")]
     Sync,
+    /// Federation trust management commands
+    Trust {
+        #[clap(subcommand)]
+        command: FederationTrustCommands,
+    },
+    /// Federation metadata management commands
+    Metadata {
+        #[clap(subcommand)]
+        command: FederationMetadataCommands,
+    },
+    /// DID document operations
+    Did {
+        #[clap(subcommand)]
+        command: FederationDidCommands,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum FederationTrustCommands {
+    /// Configure trust policy for a federation
+    Configure {
+        #[clap(help = "Federation ID")]
+        federation_id: String,
+        #[clap(help = "Trust policy JSON or '-' for stdin")]
+        policy_json_or_stdin: String,
+    },
+    /// Add a trust relationship to a federation
+    Add {
+        #[clap(help = "Trust relationship JSON or '-' for stdin")]
+        trust_json_or_stdin: String,
+    },
+    /// Remove a trust relationship from a federation
+    Remove {
+        #[clap(help = "Source DID")]
+        from: String,
+        #[clap(help = "Target DID")]
+        to: String,
+        #[clap(long, help = "Trust context")]
+        context: String,
+        #[clap(long, help = "Federation ID")]
+        federation: String,
+    },
+    /// List trust relationships in a federation
+    List {
+        #[clap(help = "Federation ID")]
+        federation_id: String,
+        #[clap(long, help = "Filter by trust context")]
+        context: Option<String>,
+        #[clap(long, help = "Filter by minimum trust level")]
+        min_level: Option<String>,
+    },
+    /// Validate trust for a federation operation
+    Validate {
+        #[clap(help = "Actor DID")]
+        actor: String,
+        #[clap(help = "Target DID")]
+        target: String,
+        #[clap(long, help = "Trust context")]
+        context: String,
+        #[clap(long, help = "Operation name")]
+        operation: String,
+        #[clap(long, help = "Federation ID")]
+        federation: String,
+    },
+    /// Add cross-federation trust bridge
+    Bridge {
+        #[clap(help = "Bridge configuration JSON or '-' for stdin")]
+        bridge_json_or_stdin: String,
+    },
+    /// Bootstrap trust with another federation
+    Bootstrap {
+        #[clap(help = "Target federation peer")]
+        peer: String,
+        #[clap(long, help = "Trust contexts to establish (comma-separated)")]
+        contexts: String,
+        #[clap(long, help = "Initial trust level")]
+        trust_level: String,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum FederationMetadataCommands {
+    /// Get federation metadata
+    Get {
+        #[clap(help = "Federation ID")]
+        federation_id: String,
+    },
+    /// Set federation metadata
+    Set {
+        #[clap(help = "Federation ID")]
+        federation_id: String,
+        #[clap(help = "Metadata JSON or '-' for stdin")]
+        metadata_json_or_stdin: String,
+    },
+    /// Update federation scope configuration
+    Scope {
+        #[clap(help = "Federation ID")]
+        federation_id: String,
+        #[clap(help = "Scope configuration JSON or '-' for stdin")]
+        scope_json_or_stdin: String,
+    },
+    /// Configure federation quorum policies
+    Quorum {
+        #[clap(help = "Federation ID")]
+        federation_id: String,
+        #[clap(help = "Quorum policy JSON or '-' for stdin")]
+        policy_json_or_stdin: String,
+    },
+    /// List member cooperatives in federation
+    Members {
+        #[clap(help = "Federation ID")]
+        federation_id: String,
+    },
+    /// Add member cooperative to federation
+    AddMember {
+        #[clap(help = "Federation ID")]
+        federation_id: String,
+        #[clap(help = "Member DID")]
+        member_did: String,
+        #[clap(help = "Member profile JSON or '-' for stdin")]
+        profile_json_or_stdin: String,
+    },
+    /// Remove member cooperative from federation
+    RemoveMember {
+        #[clap(help = "Federation ID")]
+        federation_id: String,
+        #[clap(help = "Member DID")]
+        member_did: String,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum FederationDidCommands {
+    /// Generate DID document for federation
+    Generate {
+        #[clap(help = "Federation ID")]
+        federation_id: String,
+        #[clap(long, help = "Output file (default: stdout)")]
+        output: Option<String>,
+    },
+    /// Verify DID document
+    Verify {
+        #[clap(help = "DID document JSON or '-' for stdin")]
+        document_json_or_stdin: String,
+    },
+    /// Publish DID document to federation
+    Publish {
+        #[clap(help = "Federation ID")]
+        federation_id: String,
+        #[clap(help = "DID document JSON or '-' for stdin")]
+        document_json_or_stdin: String,
+    },
+    /// Resolve DID document from federation
+    Resolve {
+        #[clap(help = "DID to resolve")]
+        did: String,
+        #[clap(long, help = "Federation ID")]
+        federation: Option<String>,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -816,6 +975,66 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
             FederationCommands::ListPeers => handle_fed_list_peers(cli, client).await?,
             FederationCommands::Status => handle_fed_status(cli, client).await?,
             FederationCommands::Sync => handle_fed_sync(cli, client).await?,
+            FederationCommands::Trust { command } => match command {
+                FederationTrustCommands::Configure { federation_id, policy_json_or_stdin } => {
+                    handle_fed_trust_configure(cli, client, federation_id, policy_json_or_stdin).await?
+                }
+                FederationTrustCommands::Add { trust_json_or_stdin } => {
+                    handle_fed_trust_add(cli, client, trust_json_or_stdin).await?
+                }
+                FederationTrustCommands::Remove { from, to, context, federation } => {
+                    handle_fed_trust_remove(cli, client, from, to, context, federation).await?
+                }
+                FederationTrustCommands::List { federation_id, context, min_level } => {
+                    handle_fed_trust_list(cli, client, federation_id, context, min_level).await?
+                }
+                FederationTrustCommands::Validate { actor, target, context, operation, federation } => {
+                    handle_fed_trust_validate(cli, client, actor, target, context, operation, federation).await?
+                }
+                FederationTrustCommands::Bridge { bridge_json_or_stdin } => {
+                    handle_fed_trust_bridge(cli, client, bridge_json_or_stdin).await?
+                }
+                FederationTrustCommands::Bootstrap { peer, contexts, trust_level } => {
+                    handle_fed_trust_bootstrap(cli, client, peer, contexts, trust_level).await?
+                }
+            },
+            FederationCommands::Metadata { command } => match command {
+                FederationMetadataCommands::Get { federation_id } => {
+                    handle_fed_metadata_get(cli, client, federation_id).await?
+                }
+                FederationMetadataCommands::Set { federation_id, metadata_json_or_stdin } => {
+                    handle_fed_metadata_set(cli, client, federation_id, metadata_json_or_stdin).await?
+                }
+                FederationMetadataCommands::Scope { federation_id, scope_json_or_stdin } => {
+                    handle_fed_metadata_scope(cli, client, federation_id, scope_json_or_stdin).await?
+                }
+                FederationMetadataCommands::Quorum { federation_id, policy_json_or_stdin } => {
+                    handle_fed_metadata_quorum(cli, client, federation_id, policy_json_or_stdin).await?
+                }
+                FederationMetadataCommands::Members { federation_id } => {
+                    handle_fed_metadata_members(cli, client, federation_id).await?
+                }
+                FederationMetadataCommands::AddMember { federation_id, member_did, profile_json_or_stdin } => {
+                    handle_fed_metadata_add_member(cli, client, federation_id, member_did, profile_json_or_stdin).await?
+                }
+                FederationMetadataCommands::RemoveMember { federation_id, member_did } => {
+                    handle_fed_metadata_remove_member(cli, client, federation_id, member_did).await?
+                }
+            },
+            FederationCommands::Did { command } => match command {
+                FederationDidCommands::Generate { federation_id, output } => {
+                    handle_fed_did_generate(cli, client, federation_id, output).await?
+                }
+                FederationDidCommands::Verify { document_json_or_stdin } => {
+                    handle_fed_did_verify(cli, client, document_json_or_stdin).await?
+                }
+                FederationDidCommands::Publish { federation_id, document_json_or_stdin } => {
+                    handle_fed_did_publish(cli, client, federation_id, document_json_or_stdin).await?
+                }
+                FederationDidCommands::Resolve { did, federation } => {
+                    handle_fed_did_resolve(cli, client, did, federation).await?
+                }
+            },
         },
         Commands::Aid { command } => match command {
             AidCommands::List => handle_aid_list(cli, client).await?,
@@ -2779,6 +2998,7 @@ async fn handle_trust_recalculate(
     Ok(())
 }
 
+<<<<<<< HEAD
 // Credential lifecycle command handlers
 async fn handle_credential_issue(
     cli: &Cli,
@@ -3102,4 +3322,480 @@ async fn handle_credential_example(
     Ok(())
 }
 
-// CLI command behavior is covered by tests in `crates/icn-cli/tests`.
+// === Federation Trust Command Handlers ===
+
+async fn handle_fed_trust_configure(
+    cli: &Cli,
+    client: &Client,
+    federation_id: &str,
+    policy_json_or_stdin: &str,
+) -> Result<(), anyhow::Error> {
+    let policy_content = if policy_json_or_stdin == "-" {
+        let mut buffer = String::new();
+        io::stdin().read_to_string(&mut buffer)?;
+        buffer
+    } else {
+        policy_json_or_stdin.to_string()
+    };
+
+    let policy: JsonValue = serde_json::from_str(&policy_content)?;
+    let request = serde_json::json!({
+        "federation_id": federation_id,
+        "policy": policy
+    });
+
+    let response: JsonValue = post_request(
+        &cli.api_url,
+        client,
+        "/federation/trust/configure",
+        &request,
+        cli.api_key.as_deref(),
+    )
+    .await?;
+    
+    println!("{}", serde_json::to_string_pretty(&response)?);
+    Ok(())
+}
+
+async fn handle_fed_trust_add(
+    cli: &Cli,
+    client: &Client,
+    trust_json_or_stdin: &str,
+) -> Result<(), anyhow::Error> {
+    let trust_content = if trust_json_or_stdin == "-" {
+        let mut buffer = String::new();
+        io::stdin().read_to_string(&mut buffer)?;
+        buffer
+    } else {
+        trust_json_or_stdin.to_string()
+    };
+
+    let trust: JsonValue = serde_json::from_str(&trust_content)?;
+    let response: JsonValue = post_request(
+        &cli.api_url,
+        client,
+        "/federation/trust/add",
+        &trust,
+        cli.api_key.as_deref(),
+    )
+    .await?;
+    
+    println!("{}", serde_json::to_string_pretty(&response)?);
+    Ok(())
+}
+
+async fn handle_fed_trust_remove(
+    cli: &Cli,
+    client: &Client,
+    from: &str,
+    to: &str,
+    context: &str,
+    federation: &str,
+) -> Result<(), anyhow::Error> {
+    let path = format!(
+        "/federation/trust/remove?from={}&to={}&context={}&federation={}",
+        from, to, context, federation
+    );
+    
+    let response: JsonValue = post_request(
+        &cli.api_url,
+        client,
+        &path,
+        &serde_json::json!({}),
+        cli.api_key.as_deref(),
+    )
+    .await?;
+    
+    println!("{}", serde_json::to_string_pretty(&response)?);
+    Ok(())
+}
+
+async fn handle_fed_trust_list(
+    cli: &Cli,
+    client: &Client,
+    federation_id: &str,
+    context: &Option<String>,
+    min_level: &Option<String>,
+) -> Result<(), anyhow::Error> {
+    let mut path = format!("/federation/trust/list?federation_id={}", federation_id);
+    
+    if let Some(ctx) = context {
+        path.push_str(&format!("&context={}", ctx));
+    }
+    if let Some(level) = min_level {
+        path.push_str(&format!("&min_level={}", level));
+    }
+    
+    let response: JsonValue = get_request(&cli.api_url, client, &path, cli.api_key.as_deref()).await?;
+    println!("{}", serde_json::to_string_pretty(&response)?);
+    Ok(())
+}
+
+async fn handle_fed_trust_validate(
+    cli: &Cli,
+    client: &Client,
+    actor: &str,
+    target: &str,
+    context: &str,
+    operation: &str,
+    federation: &str,
+) -> Result<(), anyhow::Error> {
+    let path = format!(
+        "/federation/trust/validate?actor={}&target={}&context={}&operation={}&federation={}",
+        actor, target, context, operation, federation
+    );
+    
+    let response: JsonValue = get_request(&cli.api_url, client, &path, cli.api_key.as_deref()).await?;
+    println!("{}", serde_json::to_string_pretty(&response)?);
+    Ok(())
+}
+
+async fn handle_fed_trust_bridge(
+    cli: &Cli,
+    client: &Client,
+    bridge_json_or_stdin: &str,
+) -> Result<(), anyhow::Error> {
+    let bridge_content = if bridge_json_or_stdin == "-" {
+        let mut buffer = String::new();
+        io::stdin().read_to_string(&mut buffer)?;
+        buffer
+    } else {
+        bridge_json_or_stdin.to_string()
+    };
+
+    let bridge: JsonValue = serde_json::from_str(&bridge_content)?;
+    let response: JsonValue = post_request(
+        &cli.api_url,
+        client,
+        "/federation/trust/bridge",
+        &bridge,
+        cli.api_key.as_deref(),
+    )
+    .await?;
+    
+    println!("{}", serde_json::to_string_pretty(&response)?);
+    Ok(())
+}
+
+async fn handle_fed_trust_bootstrap(
+    cli: &Cli,
+    client: &Client,
+    peer: &str,
+    contexts: &str,
+    trust_level: &str,
+) -> Result<(), anyhow::Error> {
+    let context_list: Vec<String> = contexts
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .collect();
+    
+    let request = serde_json::json!({
+        "peer": peer,
+        "contexts": context_list,
+        "trust_level": trust_level
+    });
+
+    let response: JsonValue = post_request(
+        &cli.api_url,
+        client,
+        "/federation/trust/bootstrap",
+        &request,
+        cli.api_key.as_deref(),
+    )
+    .await?;
+    
+    println!("{}", serde_json::to_string_pretty(&response)?);
+    Ok(())
+}
+
+// === Federation Metadata Command Handlers ===
+
+async fn handle_fed_metadata_get(
+    cli: &Cli,
+    client: &Client,
+    federation_id: &str,
+) -> Result<(), anyhow::Error> {
+    let path = format!("/federation/metadata/{}", federation_id);
+    let response: JsonValue = get_request(&cli.api_url, client, &path, cli.api_key.as_deref()).await?;
+    println!("{}", serde_json::to_string_pretty(&response)?);
+    Ok(())
+}
+
+async fn handle_fed_metadata_set(
+    cli: &Cli,
+    client: &Client,
+    federation_id: &str,
+    metadata_json_or_stdin: &str,
+) -> Result<(), anyhow::Error> {
+    let metadata_content = if metadata_json_or_stdin == "-" {
+        let mut buffer = String::new();
+        io::stdin().read_to_string(&mut buffer)?;
+        buffer
+    } else {
+        metadata_json_or_stdin.to_string()
+    };
+
+    let metadata: JsonValue = serde_json::from_str(&metadata_content)?;
+    let request = serde_json::json!({
+        "federation_id": federation_id,
+        "metadata": metadata
+    });
+
+    let response: JsonValue = post_request(
+        &cli.api_url,
+        client,
+        "/federation/metadata/set",
+        &request,
+        cli.api_key.as_deref(),
+    )
+    .await?;
+    
+    println!("{}", serde_json::to_string_pretty(&response)?);
+    Ok(())
+}
+
+async fn handle_fed_metadata_scope(
+    cli: &Cli,
+    client: &Client,
+    federation_id: &str,
+    scope_json_or_stdin: &str,
+) -> Result<(), anyhow::Error> {
+    let scope_content = if scope_json_or_stdin == "-" {
+        let mut buffer = String::new();
+        io::stdin().read_to_string(&mut buffer)?;
+        buffer
+    } else {
+        scope_json_or_stdin.to_string()
+    };
+
+    let scope: JsonValue = serde_json::from_str(&scope_content)?;
+    let request = serde_json::json!({
+        "federation_id": federation_id,
+        "scope": scope
+    });
+
+    let response: JsonValue = post_request(
+        &cli.api_url,
+        client,
+        "/federation/metadata/scope",
+        &request,
+        cli.api_key.as_deref(),
+    )
+    .await?;
+    
+    println!("{}", serde_json::to_string_pretty(&response)?);
+    Ok(())
+}
+
+async fn handle_fed_metadata_quorum(
+    cli: &Cli,
+    client: &Client,
+    federation_id: &str,
+    policy_json_or_stdin: &str,
+) -> Result<(), anyhow::Error> {
+    let policy_content = if policy_json_or_stdin == "-" {
+        let mut buffer = String::new();
+        io::stdin().read_to_string(&mut buffer)?;
+        buffer
+    } else {
+        policy_json_or_stdin.to_string()
+    };
+
+    let policy: JsonValue = serde_json::from_str(&policy_content)?;
+    let request = serde_json::json!({
+        "federation_id": federation_id,
+        "quorum_policy": policy
+    });
+
+    let response: JsonValue = post_request(
+        &cli.api_url,
+        client,
+        "/federation/metadata/quorum",
+        &request,
+        cli.api_key.as_deref(),
+    )
+    .await?;
+    
+    println!("{}", serde_json::to_string_pretty(&response)?);
+    Ok(())
+}
+
+async fn handle_fed_metadata_members(
+    cli: &Cli,
+    client: &Client,
+    federation_id: &str,
+) -> Result<(), anyhow::Error> {
+    let path = format!("/federation/metadata/{}/members", federation_id);
+    let response: JsonValue = get_request(&cli.api_url, client, &path, cli.api_key.as_deref()).await?;
+    println!("{}", serde_json::to_string_pretty(&response)?);
+    Ok(())
+}
+
+async fn handle_fed_metadata_add_member(
+    cli: &Cli,
+    client: &Client,
+    federation_id: &str,
+    member_did: &str,
+    profile_json_or_stdin: &str,
+) -> Result<(), anyhow::Error> {
+    let profile_content = if profile_json_or_stdin == "-" {
+        let mut buffer = String::new();
+        io::stdin().read_to_string(&mut buffer)?;
+        buffer
+    } else {
+        profile_json_or_stdin.to_string()
+    };
+
+    let profile: JsonValue = serde_json::from_str(&profile_content)?;
+    let request = serde_json::json!({
+        "federation_id": federation_id,
+        "member_did": member_did,
+        "profile": profile
+    });
+
+    let response: JsonValue = post_request(
+        &cli.api_url,
+        client,
+        "/federation/metadata/add-member",
+        &request,
+        cli.api_key.as_deref(),
+    )
+    .await?;
+    
+    println!("{}", serde_json::to_string_pretty(&response)?);
+    Ok(())
+}
+
+async fn handle_fed_metadata_remove_member(
+    cli: &Cli,
+    client: &Client,
+    federation_id: &str,
+    member_did: &str,
+) -> Result<(), anyhow::Error> {
+    let request = serde_json::json!({
+        "federation_id": federation_id,
+        "member_did": member_did
+    });
+
+    let response: JsonValue = post_request(
+        &cli.api_url,
+        client,
+        "/federation/metadata/remove-member",
+        &request,
+        cli.api_key.as_deref(),
+    )
+    .await?;
+    
+    println!("{}", serde_json::to_string_pretty(&response)?);
+    Ok(())
+}
+
+// === Federation DID Command Handlers ===
+
+async fn handle_fed_did_generate(
+    cli: &Cli,
+    client: &Client,
+    federation_id: &str,
+    output: &Option<String>,
+) -> Result<(), anyhow::Error> {
+    let request = serde_json::json!({
+        "federation_id": federation_id
+    });
+
+    let response: JsonValue = post_request(
+        &cli.api_url,
+        client,
+        "/federation/did/generate",
+        &request,
+        cli.api_key.as_deref(),
+    )
+    .await?;
+
+    let output_content = serde_json::to_string_pretty(&response)?;
+    
+    if let Some(file_path) = output {
+        std::fs::write(file_path, &output_content)?;
+        println!("DID document saved to: {}", file_path);
+    } else {
+        println!("{}", output_content);
+    }
+    
+    Ok(())
+}
+
+async fn handle_fed_did_verify(
+    cli: &Cli,
+    client: &Client,
+    document_json_or_stdin: &str,
+) -> Result<(), anyhow::Error> {
+    let document_content = if document_json_or_stdin == "-" {
+        let mut buffer = String::new();
+        io::stdin().read_to_string(&mut buffer)?;
+        buffer
+    } else {
+        document_json_or_stdin.to_string()
+    };
+
+    let document: JsonValue = serde_json::from_str(&document_content)?;
+    let response: JsonValue = post_request(
+        &cli.api_url,
+        client,
+        "/federation/did/verify",
+        &document,
+        cli.api_key.as_deref(),
+    )
+    .await?;
+    
+    println!("{}", serde_json::to_string_pretty(&response)?);
+    Ok(())
+}
+
+async fn handle_fed_did_publish(
+    cli: &Cli,
+    client: &Client,
+    federation_id: &str,
+    document_json_or_stdin: &str,
+) -> Result<(), anyhow::Error> {
+    let document_content = if document_json_or_stdin == "-" {
+        let mut buffer = String::new();
+        io::stdin().read_to_string(&mut buffer)?;
+        buffer
+    } else {
+        document_json_or_stdin.to_string()
+    };
+
+    let document: JsonValue = serde_json::from_str(&document_content)?;
+    let request = serde_json::json!({
+        "federation_id": federation_id,
+        "document": document
+    });
+
+    let response: JsonValue = post_request(
+        &cli.api_url,
+        client,
+        "/federation/did/publish",
+        &request,
+        cli.api_key.as_deref(),
+    )
+    .await?;
+    
+    println!("{}", serde_json::to_string_pretty(&response)?);
+    Ok(())
+}
+
+async fn handle_fed_did_resolve(
+    cli: &Cli,
+    client: &Client,
+    did: &str,
+    federation: &Option<String>,
+) -> Result<(), anyhow::Error> {
+    let mut path = format!("/federation/did/resolve?did={}", did);
+    
+    if let Some(fed) = federation {
+        path.push_str(&format!("&federation={}", fed));
+    }
+    
+    let response: JsonValue = get_request(&cli.api_url, client, &path, cli.api_key.as_deref()).await?;
+    println!("{}", serde_json::to_string_pretty(&response)?);
+    Ok(())
+}

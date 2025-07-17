@@ -40,7 +40,14 @@ pub mod federation_trust;
 pub use federation_trust::{
     TrustContext, FederationId, ScopedTrustRelationship, TrustInheritance,
     FederationTrustBridge, BridgeConfig, TrustPolicyRule, TrustPolicyEngine,
-    TrustValidationResult,
+    TrustValidationResult, FederationMetadata, FederationScope, GeographicScope as FederationGeographicScope,
+    SizeLimits, MembershipCriteria, QuorumPolicy, WeightAssignment, FederationMember,
+    MemberStatus, FederationRole, FederationStatus, FederationTrustPolicy,
+    TrustVerificationRequirements, FederationDidDocument, FederationPublicKey,
+    KeyPurpose, FederationService, VerificationMethod, VerificationMaterial,
+    FederationDidMetadata, FederationDidVerifier, DidVerificationPolicy,
+    DidVerificationResult, FederationTrustBootstrap, BootstrapSession,
+    BootstrapStatus, VerificationChallenge, ChallengeType,
 };
 pub mod trust_attestation;
 pub use trust_attestation::{
