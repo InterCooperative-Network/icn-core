@@ -221,6 +221,18 @@ impl Optimizer {
                 array: Box::new(self.fold_expr(*array)),
                 index: Box::new(self.fold_expr(*index)),
             },
+            ExpressionNode::MapAccess { map, key } => ExpressionNode::MapAccess {
+                map: Box::new(self.fold_expr(*map)),
+                key: Box::new(self.fold_expr(*key)),
+            },
+            ExpressionNode::MapLiteral(entries) => ExpressionNode::MapLiteral(
+                entries.into_iter()
+                    .map(|(k, v)| (self.fold_expr(k), self.fold_expr(v)))
+                    .collect()
+            ),
+            ExpressionNode::PanicExpr { message } => ExpressionNode::PanicExpr {
+                message: Box::new(self.fold_expr(*message)),
+            },
             ExpressionNode::Match { value, arms } => ExpressionNode::Match {
                 value: Box::new(self.fold_expr(*value)),
                 arms: arms.into_iter().map(|(p, e)| (self.fold_expr(p), self.fold_expr(e))).collect(),

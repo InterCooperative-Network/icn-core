@@ -1,0 +1,272 @@
+// Enhanced governance contract demonstrating new CCL features
+// This shows arrays, maps, error handling, macros, and standard library functions
+
+import "stdlib" as std;
+
+// Use new map type for tracking member data
+struct MemberData {
+    reputation: integer,
+    voting_weight: integer,
+    last_activity: integer,
+    capabilities: Array<string>,
+    trust_level: string,
+}
+
+// Global member registry using maps
+let member_registry: Map<Did, MemberData> = {};
+let proposal_votes: Map<string, Array<integer>> = {}; // proposal_id -> [yes, no, abstain]
+let federation_capabilities: Array<string> = ["governance", "economic", "technical", "social"];
+
+// Error handling with Result types
+function validate_member(did: Did) -> Result<MemberData, string> {
+    try {
+        let member = member_registry[did];
+        if member.reputation < 10 {
+            return Err("Member reputation too low");
+        }
+        return Ok(member);
+    } catch {
+        return Err("Member not found in registry");
+    }
+}
+
+// Using enhanced stdlib functions
+function calculate_proposal_support(proposal_id: string) -> Result<integer, string> {
+    try {
+        let votes = proposal_votes[proposal_id];
+        if array_is_empty(votes) {
+            return Err("No votes found for proposal");
+        }
+        
+        let total_votes = array_sum(votes);
+        if total_votes == 0 {
+            return Err("No valid votes cast");
+        }
+        
+        // votes[0] = yes, votes[1] = no, votes[2] = abstain
+        let support_percentage = (votes[0] * 100) / total_votes;
+        return Ok(support_percentage);
+    } catch {
+        return Err("Failed to calculate proposal support");
+    }
+}
+
+// Advanced voting with weighted scores and capability requirements
+rule authorize_proposal_submission {
+    // Validate proposer exists and meets requirements
+    let member_result = validate_member(actor.did);
+    match member_result {
+        Ok(member) => {
+            // Check reputation requirements
+            require(member.reputation >= 25, "Insufficient reputation for proposal submission");
+            
+            // Check required capabilities using stdlib contains function
+            let has_governance_cap = array_contains(member.capabilities, "governance");
+            require(has_governance_cap, "Proposer lacks governance capability");
+            
+            // Calculate dynamic mana cost based on proposal complexity
+            let base_cost = 10;
+            let complexity_score = array_len(proposal.required_capabilities);
+            let dynamic_cost = calculate_fee(base_cost, complexity_score);
+            
+            charge_mana(actor.did, dynamic_cost);
+            allow
+        }
+        Err(error_msg) => {
+            panic(error_msg);
+        }
+    }
+}
+
+// Weighted voting system using arrays and maps
+rule evaluate_weighted_proposal {
+    let proposal_id = proposal.id;
+    
+    // Get all member votes and weights
+    let member_dids = get_proposal_voters(proposal_id);
+    let vote_weights: Array<integer> = [];
+    let vote_values: Array<integer> = [];
+    
+    for did in member_dids {
+        let member_result = validate_member(did);
+        match member_result {
+            Ok(member) => {
+                array_push(vote_weights, member.voting_weight);
+                let vote = get_member_vote(proposal_id, did);
+                array_push(vote_values, vote);
+            }
+            Err(_) => {
+                // Skip invalid members
+                continue;
+            }
+        }
+    }
+    
+    // Calculate weighted vote total using stdlib
+    let weighted_total = calculate_weighted_vote(vote_values, vote_weights);
+    let total_weight = array_sum(vote_weights);
+    
+    // Check if quorum is met
+    let participant_count = array_len(member_dids);
+    let total_members = map_size(member_registry);
+    let quorum_met = is_quorum_met(participant_count, total_members, 30); // 30% quorum
+    
+    require(quorum_met, "Quorum not met for proposal");
+    
+    // Determine outcome based on weighted votes
+    let approval_threshold = (total_weight * 60) / 100; // 60% approval needed
+    
+    if weighted_total >= approval_threshold {
+        proposal.status = "approved";
+        
+        // Distribute reputation rewards to participants
+        for did in member_dids {
+            let member_result = validate_member(did);
+            match member_result {
+                Ok(member) => {
+                    let reward = 5; // Base participation reward
+                    credit_reputation(did, reward);
+                }
+                Err(_) => {} // Skip invalid members
+            }
+        }
+        
+        allow
+    } else {
+        proposal.status = "rejected";
+        deny
+    }
+}
+
+// Dynamic capability-based authorization
+rule authorize_economic_action {
+    let action_type = request.action_type;
+    let required_caps = request.required_capabilities;
+    
+    let member_result = validate_member(actor.did);
+    match member_result {
+        Ok(member) => {
+            // Check if member has all required capabilities
+            for cap in required_caps {
+                let has_capability = array_contains(member.capabilities, cap);
+                require(has_capability, "Missing required capability: " + cap);
+            }
+            
+            // Special handling for high-value economic actions
+            if action_type == "token_mint" {
+                let amount = request.amount;
+                let max_single_mint = get_config("max_single_mint", 1000);
+                
+                require(amount <= max_single_mint, "Amount exceeds maximum single mint");
+                
+                // Require additional authorization for large amounts
+                if amount > (max_single_mint / 2) {
+                    let trust_level = member.trust_level;
+                    require(trust_level == "high" || trust_level == "admin", 
+                           "High trust level required for large mints");
+                }
+            }
+            
+            // Calculate variable mana cost
+            let base_cost = get_action_base_cost(action_type);
+            let complexity = array_len(required_caps);
+            let reputation_discount = member.reputation / 100; // Higher reputation = lower cost
+            
+            let final_cost = safe_divide(base_cost * complexity, reputation_discount + 1);
+            match final_cost {
+                Ok(cost) => {
+                    charge_mana(actor.did, cost);
+                    allow
+                }
+                Err(error) => {
+                    panic("Failed to calculate action cost: " + error);
+                }
+            }
+        }
+        Err(error_msg) => {
+            panic("Member validation failed: " + error_msg);
+        }
+    }
+}
+
+// Federation trust verification with error handling
+rule verify_cross_federation_trust {
+    let source_federation = actor.federation;
+    let target_federation = request.target_federation;
+    
+    // Check if source federation is in our trusted list
+    let trusted_federations = get_trusted_federations();
+    let is_trusted = array_contains(trusted_federations, source_federation);
+    
+    if !is_trusted {
+        panic("Source federation not in trusted list");
+    }
+    
+    // Get trust level between federations
+    let trust_map = get_federation_trust_map();
+    let trust_key = source_federation + ":" + target_federation;
+    
+    let trust_level = map_get_or_default(trust_map, trust_key, 0);
+    let min_trust = get_config("min_cross_federation_trust", 50);
+    
+    require(trust_level >= min_trust, "Insufficient trust level between federations");
+    
+    // Apply trust-based mana cost scaling
+    let base_cost = 20;
+    let trust_multiplier = safe_divide(100, trust_level);
+    
+    match trust_multiplier {
+        Ok(multiplier) => {
+            let final_cost = base_cost * multiplier;
+            charge_mana(actor.did, final_cost);
+            allow
+        }
+        Err(_) => {
+            panic("Trust level calculation error");
+        }
+    }
+}
+
+// Utility functions (would be implemented by runtime)
+function get_proposal_voters(proposal_id: string) -> Array<Did> {
+    // Stub - runtime implementation
+    return [];
+}
+
+function get_member_vote(proposal_id: string, did: Did) -> integer {
+    // Stub - runtime implementation
+    return 0;
+}
+
+function array_push(arr: Array<integer>, item: integer) {
+    // Stub - runtime implementation
+}
+
+function get_config(key: string, default_value: integer) -> integer {
+    // Stub - runtime implementation
+    return default_value;
+}
+
+function get_action_base_cost(action_type: string) -> integer {
+    // Stub - runtime implementation
+    return 10;
+}
+
+function get_trusted_federations() -> Array<string> {
+    // Stub - runtime implementation
+    return ["main_federation", "test_federation"];
+}
+
+function get_federation_trust_map() -> Map<string, integer> {
+    // Stub - runtime implementation
+    return {};
+}
+
+function credit_reputation(did: Did, amount: integer) {
+    // Stub - runtime implementation
+}
+
+function map_size(map: Map<Did, MemberData>) -> integer {
+    // Stub - runtime implementation
+    return 0;
+}

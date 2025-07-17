@@ -3366,6 +3366,9 @@ impl RuntimeContext {
                 memory_mb: available_memory,
                 storage_mb: 0,
             },
+            executor_capabilities: vec![], // TODO: Get from node config
+            executor_federations: vec![], // TODO: Get from node federation
+            executor_trust_scope: None, // TODO: Get from context
             signature: icn_identity::SignatureBytes(vec![]), // Will be filled by sign()
         };
 
@@ -3452,6 +3455,10 @@ impl RuntimeContext {
                     memory_mb: 128,
                     storage_mb: 0,
                 },
+                required_capabilities: vec![],
+                required_trust_scope: None,
+                min_executor_reputation: None,
+                allowed_federations: vec![],
             },
             creator_did: icn_common::Did::new("key", "placeholder"), // We don't know the creator from assignment
             cost_mana: assignment.agreed_cost_mana,
@@ -3523,6 +3530,10 @@ impl RuntimeContext {
                 memory_mb: available_memory,
                 storage_mb: 0,
             },
+            executor_capabilities: vec![], // TODO: Get from node config
+            executor_federations: vec![], // TODO: Get from node federation
+            executor_trust_scope: None, // TODO: Get from context
+            signature: icn_common::SignatureBytes(vec![]),
             signature: icn_identity::SignatureBytes(vec![]), // Will be filled by sign()
         };
 

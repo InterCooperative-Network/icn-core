@@ -619,6 +619,60 @@ impl SemanticAnalyzer {
                     }
                 }
             }
+            ExpressionNode::MapLiteral(entries) => {
+                if entries.is_empty() {
+                    // For empty maps, we need explicit type annotation from context
+                    return Err(CclError::TypeError("Empty map literal requires type annotation".to_string()));
+                }
+                
+                // Infer key and value types from first entry
+                let (first_key, first_value) = &entries[0];
+                let key_type = self.evaluate_expression(first_key)?;
+                let value_type = self.evaluate_expression(first_value)?;
+                
+                // Verify all entries have compatible types
+                for (key, value) in entries.iter().skip(1) {
+                    let k_type = self.evaluate_expression(key)?;
+                    let v_type = self.evaluate_expression(value)?;
+                    
+                    if !key_type.compatible_with(&k_type) {
+                        return Err(CclError::TypeError("Inconsistent key types in map literal".to_string()));
+                    }
+                    if !value_type.compatible_with(&v_type) {
+                        return Err(CclError::TypeError("Inconsistent value types in map literal".to_string()));
+                    }
+                }
+                
+                Ok(TypeAnnotationNode::Map {
+                    key_type: Box::new(key_type),
+                    value_type: Box::new(value_type),
+                })
+            }
+            ExpressionNode::MapAccess { map, key } => {
+                let map_type = self.evaluate_expression(map)?;
+                let key_type = self.evaluate_expression(key)?;
+                
+                match map_type {
+                    TypeAnnotationNode::Map { key_type: expected_key, value_type } => {
+                        if key_type.compatible_with(&expected_key) {
+                            Ok(*value_type)
+                        } else {
+                            Err(CclError::TypeError("Map key type mismatch".to_string()))
+                        }
+                    }
+                    _ => Err(CclError::TypeError("Map access on non-map type".to_string()))
+                }
+            }
+            ExpressionNode::PanicExpr { message } => {
+                let msg_type = self.evaluate_expression(message)?;
+                if msg_type == TypeAnnotationNode::String {
+                    // Panic never returns, but for type checking purposes we use a never type
+                    // For simplicity, we'll just return unit type
+                    Ok(TypeAnnotationNode::Custom("never".to_string()))
+                } else {
+                    Err(CclError::TypeError("Panic message must be a string".to_string()))
+                }
+            }
             ExpressionNode::UnaryOp { operator, operand } => {
                 let operand_ty = self.evaluate_expression(operand)?;
                 match operator {

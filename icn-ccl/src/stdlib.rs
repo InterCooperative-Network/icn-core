@@ -147,6 +147,148 @@ impl StandardLibrary {
                 return false;
             }".to_string()
         );
+
+        // Math utility macros
+        self.macros.insert(
+            "array_sum".to_string(),
+            "fn array_sum(arr: Array<Integer>) -> Integer {
+                let sum = 0;
+                let i = 0;
+                while i < array_len(arr) {
+                    sum = sum + arr[i];
+                    i = i + 1;
+                }
+                return sum;
+            }".to_string()
+        );
+
+        self.macros.insert(
+            "array_max".to_string(),
+            "fn array_max(arr: Array<Integer>) -> Integer {
+                if array_is_empty(arr) {
+                    panic(\"Cannot find max of empty array\");
+                }
+                let max = arr[0];
+                let i = 1;
+                while i < array_len(arr) {
+                    if arr[i] > max {
+                        max = arr[i];
+                    }
+                    i = i + 1;
+                }
+                return max;
+            }".to_string()
+        );
+
+        self.macros.insert(
+            "array_min".to_string(),
+            "fn array_min(arr: Array<Integer>) -> Integer {
+                if array_is_empty(arr) {
+                    panic(\"Cannot find min of empty array\");
+                }
+                let min = arr[0];
+                let i = 1;
+                while i < array_len(arr) {
+                    if arr[i] < min {
+                        min = arr[i];
+                    }
+                    i = i + 1;
+                }
+                return min;
+            }".to_string()
+        );
+
+        self.macros.insert(
+            "array_average".to_string(),
+            "fn array_average(arr: Array<Integer>) -> Integer {
+                if array_is_empty(arr) {
+                    panic(\"Cannot find average of empty array\");
+                }
+                return array_sum(arr) / array_len(arr);
+            }".to_string()
+        );
+
+        // Map utility macros
+        self.macros.insert(
+            "map_contains_key".to_string(),
+            "fn map_contains_key(map: Map<String, Integer>, key: String) -> Bool {
+                try {
+                    let _ = map[key];
+                    return true;
+                } catch {
+                    return false;
+                }
+            }".to_string()
+        );
+
+        self.macros.insert(
+            "map_get_or_default".to_string(),
+            "fn map_get_or_default(map: Map<String, Integer>, key: String, default: Integer) -> Integer {
+                try {
+                    return map[key];
+                } catch {
+                    return default;
+                }
+            }".to_string()
+        );
+
+        // String utility macros
+        self.macros.insert(
+            "string_is_empty".to_string(),
+            "fn string_is_empty(str: String) -> Bool {
+                return string_len(str) == 0;
+            }".to_string()
+        );
+
+        self.macros.insert(
+            "string_contains".to_string(),
+            "fn string_contains(haystack: String, needle: String) -> Bool {
+                return string_find(haystack, needle) >= 0;
+            }".to_string()
+        );
+
+        // Error handling macros
+        self.macros.insert(
+            "require".to_string(),
+            "fn require(condition: Bool, message: String) {
+                if !condition {
+                    panic(message);
+                }
+            }".to_string()
+        );
+
+        self.macros.insert(
+            "safe_divide".to_string(),
+            "fn safe_divide(a: Integer, b: Integer) -> Result<Integer, String> {
+                if b == 0 {
+                    return Err(\"Division by zero\");
+                }
+                return Ok(a / b);
+            }".to_string()
+        );
+
+        // Governance utility macros
+        self.macros.insert(
+            "calculate_weighted_vote".to_string(),
+            "fn calculate_weighted_vote(votes: Array<Integer>, weights: Array<Integer>) -> Integer {
+                require(array_len(votes) == array_len(weights), \"Votes and weights arrays must have same length\");
+                let weighted_sum = 0;
+                let i = 0;
+                while i < array_len(votes) {
+                    weighted_sum = weighted_sum + (votes[i] * weights[i]);
+                    i = i + 1;
+                }
+                return weighted_sum;
+            }".to_string()
+        );
+
+        self.macros.insert(
+            "is_quorum_met".to_string(),
+            "fn is_quorum_met(participant_count: Integer, total_members: Integer, quorum_percent: Integer) -> Bool {
+                let required = (total_members * quorum_percent) / 100;
+                return participant_count >= required;
+            }".to_string()
+        );
     }
     
     /// Get a constant value by name
