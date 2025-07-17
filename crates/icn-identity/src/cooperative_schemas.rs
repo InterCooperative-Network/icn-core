@@ -282,6 +282,18 @@ pub enum TrustLevel {
     None,
 }
 
+impl TrustLevel {
+    /// Get string representation of the trust level
+    pub fn as_str(&self) -> &str {
+        match self {
+            TrustLevel::Full => "full",
+            TrustLevel::Partial => "partial", 
+            TrustLevel::Basic => "basic",
+            TrustLevel::None => "none",
+        }
+    }
+}
+
 /// Trust relationship between two cooperatives
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TrustRelationship {
