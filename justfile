@@ -1,5 +1,14 @@
 # Common development commands
 
+# Set up the development environment
+setup:
+    rustup component add clippy rustfmt
+    rustup target add wasm32-unknown-unknown
+    cargo install just --locked 2>/dev/null || echo "just already installed"
+    cargo install pre-commit --locked 2>/dev/null || echo "pre-commit already installed" 
+    pre-commit install 2>/dev/null || echo "pre-commit hooks already installed"
+    @echo "✅ Development environment setup complete!"
+
 # Format the code using cargo fmt
 format:
     cargo fmt --all -- --check
@@ -51,6 +60,10 @@ build-rocksdb:
 
 devnet:
     cd icn-devnet && ./launch_federation.sh
+
+# Alias for devnet (for consistency with quickstart docs)
+run-devnet:
+    just devnet
 
 # Run the complete validation suite (format, lint, test)
 validate:

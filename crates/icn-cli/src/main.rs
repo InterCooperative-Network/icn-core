@@ -526,6 +526,18 @@ enum WizardCommands {
         #[clap(long, help = "Output config file", default_value = "node_config.toml")]
         config: String,
     },
+    /// Developer onboarding wizard - create DID, submit test job, vote on test proposal
+    #[clap(name = "init-dev")]
+    InitDev {
+        #[clap(long, help = "API URL of the target node", default_value = "http://127.0.0.1:7845")]
+        api_url: String,
+    },
+    /// Federation onboarding wizard - prompts for coop info, generates config
+    #[clap(name = "onboard-federation")]
+    OnboardFederation {
+        #[clap(long, help = "Output config file", default_value = "federation_config.toml")]
+        config: String,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -813,6 +825,8 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
         Commands::Wizard { command } => match command {
             WizardCommands::Cooperative { output } => handle_wizard_cooperative(output.clone())?,
             WizardCommands::Setup { config } => handle_wizard_setup(config)?,
+            WizardCommands::InitDev { api_url } => handle_wizard_init_dev(api_url, client).await?,
+            WizardCommands::OnboardFederation { config } => handle_wizard_onboard_federation(config)?,
         },
         Commands::Cooperative { command } => match command {
             CooperativeCommands::Register { profile_json_or_stdin } => {
@@ -1766,6 +1780,251 @@ fn handle_wizard_setup(config: &str) -> Result<(), anyhow::Error> {
     std::fs::write(config, toml::to_string_pretty(&cfg)?)?;
     println!("Configuration written to {}", config);
     println!("Node DID: {}", did);
+    Ok(())
+}
+
+async fn handle_wizard_init_dev(api_url: &str, client: &Client) -> Result<(), anyhow::Error> {
+    use std::io::{self, Write};
+    
+    println!("🚀 ICN Developer Onboarding Wizard");
+    println!("==================================");
+    
+    // Step 1: Generate a DID
+    println!("\n1. Generating DID and keypair...");
+    let (sk, pk) = generate_ed25519_keypair();
+    let did = icn_identity::did_key_from_verifying_key(&pk);
+    let sk_bs58 = bs58::encode(sk.to_bytes()).into_string();
+    
+    println!("✅ DID created: {}", did);
+    println!("   Private key: {}", sk_bs58);
+    
+    // Step 2: Check node connection
+    println!("\n2. Checking node connection...");
+    let url = format!("{}/status", api_url);
+    match client.get(&url).send().await {
+        Ok(response) if response.status().is_success() => {
+            println!("✅ Connected to node at {}", api_url);
+        }
+        Ok(response) => {
+            println!("⚠️  Node responded with status: {}", response.status());
+            println!("   Continuing anyway...");
+        }
+        Err(e) => {
+            println!("❌ Failed to connect to node: {}", e);
+            println!("   Make sure a node is running at {}", api_url);
+            println!("   You can start one with: just run-devnet");
+            return Ok(());
+        }
+    }
+    
+    // Step 3: Submit a test job
+    println!("\n3. Submitting test mesh job...");
+    let test_job = serde_json::json!({
+        "manifest_cid": "bafy2bzaceczkxubnrr4dzs7b2t3vv5jm3z7xzx7xzx7xzx7xzx7xzx7x",
+        "spec_bytes": base64::engine::general_purpose::STANDARD.encode(b"Hello, ICN mesh!"),
+        "cost_mana": 10
+    });
+    
+    let url = format!("{}/mesh/submit", api_url);
+    match client.post(&url).json(&test_job).send().await {
+        Ok(response) if response.status().is_success() => {
+            let result: serde_json::Value = response.json().await?;
+            if let Some(job_id) = result.get("job_id") {
+                println!("✅ Test job submitted with ID: {}", job_id);
+            } else {
+                println!("✅ Test job submitted successfully");
+            }
+        }
+        Ok(response) => {
+            println!("⚠️  Job submission failed with status: {}", response.status());
+            let text = response.text().await.unwrap_or_default();
+            println!("   Response: {}", text);
+        }
+        Err(e) => {
+            println!("⚠️  Job submission error: {}", e);
+        }
+    }
+    
+    // Step 4: Submit a test proposal
+    println!("\n4. Submitting test governance proposal...");
+    let test_proposal = serde_json::json!({
+        "proposer_did": did,
+        "proposal_type_json": {"GenericText": "Test proposal for developer onboarding"},
+        "description": "This is a test proposal created during developer onboarding",
+        "duration_secs": 86400,
+        "quorum": null,
+        "threshold": null
+    });
+    
+    let url = format!("{}/governance/submit", api_url);
+    let mut proposal_id = None;
+    match client.post(&url).json(&test_proposal).send().await {
+        Ok(response) if response.status().is_success() => {
+            let result: serde_json::Value = response.json().await?;
+            if let Some(id) = result.get("proposal_id") {
+                proposal_id = Some(id.to_string().trim_matches('"').to_string());
+                println!("✅ Test proposal submitted with ID: {}", id);
+            } else {
+                println!("✅ Test proposal submitted successfully");
+            }
+        }
+        Ok(response) => {
+            println!("⚠️  Proposal submission failed with status: {}", response.status());
+            let text = response.text().await.unwrap_or_default();
+            println!("   Response: {}", text);
+        }
+        Err(e) => {
+            println!("⚠️  Proposal submission error: {}", e);
+        }
+    }
+    
+    // Step 5: Vote on the proposal if we got an ID
+    if let Some(prop_id) = proposal_id {
+        println!("\n5. Voting on test proposal...");
+        let vote_request = serde_json::json!({
+            "voter_did": did,
+            "proposal_id": prop_id,
+            "vote_option": "yes"
+        });
+        
+        let url = format!("{}/governance/vote", api_url);
+        match client.post(&url).json(&vote_request).send().await {
+            Ok(response) if response.status().is_success() => {
+                println!("✅ Vote cast successfully");
+            }
+            Ok(response) => {
+                println!("⚠️  Vote failed with status: {}", response.status());
+                let text = response.text().await.unwrap_or_default();
+                println!("   Response: {}", text);
+            }
+            Err(e) => {
+                println!("⚠️  Vote error: {}", e);
+            }
+        }
+    } else {
+        println!("\n5. Skipping vote (no proposal ID available)");
+    }
+    
+    println!("\n🎉 Developer onboarding complete!");
+    println!("Next steps:");
+    println!("  - Read the docs at docs/DEVELOPER_GUIDE.md");
+    println!("  - Explore the codebase in crates/");
+    println!("  - Check out open issues on GitHub");
+    println!("  - Join the community discussions");
+    
+    Ok(())
+}
+
+fn handle_wizard_onboard_federation(config: &str) -> Result<(), anyhow::Error> {
+    use std::io::{self, Write};
+    
+    println!("🏛️  ICN Federation Onboarding Wizard");
+    println!("====================================");
+    
+    // Cooperative Information
+    println!("\n1. Cooperative Information");
+    print!("Cooperative name: ");
+    io::stdout().flush()?;
+    let mut coop_name = String::new();
+    io::stdin().read_line(&mut coop_name)?;
+    let coop_name = coop_name.trim();
+    
+    print!("Cooperative type (consumer, worker, platform, multi-stakeholder): ");
+    io::stdout().flush()?;
+    let mut coop_type = String::new();
+    io::stdin().read_line(&mut coop_type)?;
+    let coop_type = coop_type.trim();
+    
+    print!("Brief description: ");
+    io::stdout().flush()?;
+    let mut description = String::new();
+    io::stdin().read_line(&mut description)?;
+    let description = description.trim();
+    
+    // Network Configuration
+    println!("\n2. Network Configuration");
+    print!("Node name (default: {}-node): ", coop_name.replace(' ', "-"));
+    io::stdout().flush()?;
+    let mut node_name = String::new();
+    io::stdin().read_line(&mut node_name)?;
+    let node_name = if node_name.trim().is_empty() {
+        format!("{}-node", coop_name.replace(' ', "-"))
+    } else {
+        node_name.trim().to_string()
+    };
+    
+    print!("HTTP listen address (default: 0.0.0.0:7845): ");
+    io::stdout().flush()?;
+    let mut listen_addr = String::new();
+    io::stdin().read_line(&mut listen_addr)?;
+    let listen_addr = if listen_addr.trim().is_empty() {
+        "0.0.0.0:7845".to_string()
+    } else {
+        listen_addr.trim().to_string()
+    };
+    
+    print!("API key for authentication: ");
+    io::stdout().flush()?;
+    let mut api_key = String::new();
+    io::stdin().read_line(&mut api_key)?;
+    let api_key = api_key.trim();
+    
+    // Federation Peers
+    println!("\n3. Federation Setup");
+    print!("Bootstrap peers (comma-separated, press Enter if starting new federation): ");
+    io::stdout().flush()?;
+    let mut peers_input = String::new();
+    io::stdin().read_line(&mut peers_input)?;
+    let peers: Vec<String> = peers_input
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
+    
+    // Generate identity
+    println!("\n4. Generating federation identity...");
+    let (sk, pk) = generate_ed25519_keypair();
+    let did = icn_identity::did_key_from_verifying_key(&pk);
+    let sk_bs58 = bs58::encode(sk.to_bytes()).into_string();
+    println!("✅ Node DID: {}", did);
+    
+    // Create configuration
+    let cfg = toml::toml! {
+        [cooperative]
+        name = coop_name
+        type = coop_type
+        description = description
+        
+        [node]
+        node_name = node_name
+        http_listen_addr = listen_addr
+        storage_backend = "sqlite"
+        storage_path = "./icn_data/node.sqlite"
+        mana_ledger_backend = "sled"
+        mana_ledger_path = "./icn_data/mana.sled"
+        api_key = api_key
+        open_rate_limit = 60
+        enable_p2p = true
+        p2p_listen_addr = "/ip4/0.0.0.0/tcp/4001"
+        
+        [identity]
+        node_did = did
+        node_private_key_bs58 = sk_bs58
+        
+        [federation]
+        bootstrap_peers = peers
+    };
+    
+    std::fs::write(config, toml::to_string_pretty(&cfg)?)?;
+    
+    println!("\n🎉 Federation configuration complete!");
+    println!("Configuration saved to: {}", config);
+    println!("\nNext steps:");
+    println!("1. Review the configuration file");
+    println!("2. Start your node: cargo run -p icn-node -- --config {}", config);
+    println!("3. Share your node's P2P address with other federations");
+    println!("4. Read the deployment guide: docs/deployment-guide.md");
+    
     Ok(())
 }
 
