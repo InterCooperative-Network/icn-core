@@ -2879,6 +2879,9 @@ async fn mesh_stub_bid_handler(
             memory_mb: 128,
             storage_mb: 0,
         },
+        executor_capabilities: vec!["test-executor".to_string()],
+        executor_federations: vec![],
+        executor_trust_scope: None,
         signature: icn_identity::SignatureBytes(vec![0; 64]), // Dummy signature for testing
     };
 

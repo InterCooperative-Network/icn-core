@@ -16,6 +16,7 @@ icn-identity = { path = "../icn-identity" }
 icn-mesh = { path = "../icn-mesh" }
 icn-reputation = { path = "../icn-reputation" }
 icn-economics = { path = "../icn-economics" }
+icn-eventstore = { path = "../icn-eventstore" }
 icn-ccl = { path = "../../icn-ccl" }
 icn-protocol = { path = "../icn-protocol" }
 base64 = "0.21"

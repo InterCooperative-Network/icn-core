@@ -16,7 +16,7 @@ impl ParameterStore {
     /// defaults are used.
     pub fn load(path: PathBuf) -> Result<Self, CommonError> {
         let events_path = path.with_extension("events.jsonl");
-        let mut store = FileEventStore::new(events_path.clone());
+        let mut store: FileEventStore<ParameterUpdate> = FileEventStore::new(events_path.clone());
         let events = store.query(None)?;
         let mut config = if path.exists() {
             NodeConfig::from_file(&path).map_err(|e| {
