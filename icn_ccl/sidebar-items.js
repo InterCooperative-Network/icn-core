@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["compile_ccl_file_to_wasm","compile_ccl_source_to_wasm"],"mod":["ast","cli","error","metadata","optimizer","parser","semantic_analyzer","wasm_backend"]};
+window.SIDEBAR_ITEMS = {"fn":["compile_ccl_file_to_wasm","compile_ccl_source_to_wasm"],"mod":["ast","cli","error","metadata","optimizer","parser","semantic_analyzer","stdlib","wasm_backend"]};

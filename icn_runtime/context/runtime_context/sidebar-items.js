@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"constant":["DEFAULT_MANA_MAX_CAPACITY","MANA_MAX_CAPACITY_KEY"],"enum":["EnvironmentType","MeshNetworkServiceType"],"struct":["CastVotePayload","CloseProposalResult","CreateProposalPayload","RuntimeContext","RuntimeContextBuilder","RuntimeContextParams"]};
+window.SIDEBAR_ITEMS = {"constant":["DEFAULT_MANA_MAX_CAPACITY","MANA_MAX_CAPACITY_KEY"],"enum":["EnvironmentType","MeshNetworkServiceType"],"struct":["CastVotePayload","CloseProposalResult","CreateProposalPayload","ParameterUpdate","RuntimeContext","RuntimeContextBuilder","RuntimeContextParams"]};

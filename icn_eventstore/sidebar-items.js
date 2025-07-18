@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["FileEventStore","MemoryEventStore"],"trait":["EventStore"]};
+window.SIDEBAR_ITEMS = {"struct":["FileEventStore","MemoryEventStore","ParameterUpdate"],"trait":["EventStore"]};
