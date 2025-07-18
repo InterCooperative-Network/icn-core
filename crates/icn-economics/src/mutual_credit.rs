@@ -292,14 +292,25 @@ pub fn extend_mutual_credit<L: ResourceLedger, C: MutualCreditStore>(
     // Mint tokens to the debtor (this creates the money)
     resource_ledger.mint(token_class, debtor, amount)?;
 
-    // Update credit line usage
+    // Update credit line usage - distribute across available credit lines
+    let mut remaining_amount = amount;
     for credit_line in credit_lines {
-        if credit_line.token_class == *token_class && credit_line.status == CreditLineStatus::Active {
-            let mut updated_credit_line = credit_line;
-            updated_credit_line.credit_used += amount;
-            credit_store.update_credit_line(updated_credit_line)?;
-            break;
+        if credit_line.token_class == *token_class && credit_line.status == CreditLineStatus::Active && remaining_amount > 0 {
+            let available_credit = credit_line.credit_limit - credit_line.credit_used;
+            let amount_to_use = std::cmp::min(remaining_amount, available_credit);
+            
+            if amount_to_use > 0 {
+                let mut updated_credit_line = credit_line;
+                updated_credit_line.credit_used += amount_to_use;
+                credit_store.update_credit_line(updated_credit_line)?;
+                remaining_amount -= amount_to_use;
+            }
         }
+    }
+    
+    // This should never happen if our aggregate limit check is correct
+    if remaining_amount > 0 {
+        return Err(CommonError::InternalError("Unable to allocate credit across available lines".into()));
     }
 
     Ok(transaction_id)
