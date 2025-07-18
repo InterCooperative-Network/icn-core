@@ -28,9 +28,15 @@ result_type = { "Result" ~ "<" ~ type_annotation ~ "," ~ type_annotation ~ ">" }
 array_type = { "Array" ~ "<" ~ type_annotation ~ ">" }
 
 // Example: Policy Statement (e.g., a rule)
-policy_statement = { rule_definition | import_statement }
+policy_statement = { rule_definition | import_statement | event_definition | state_definition | trigger_definition }
 rule_definition = { "rule" ~ identifier ~ "when" ~ expression ~ "then" ~ action }
 import_statement = { "import" ~ string_literal ~ "as" ~ identifier ~ ";" }
+
+// Governance DSL statements
+event_definition = { "event" ~ identifier ~ "{" ~ (event_field ~ ("," ~ event_field)*)? ~ "}" }
+event_field = { identifier ~ ":" ~ type_annotation }
+state_definition = { "state" ~ identifier ~ ":" ~ type_annotation ~ ("=" ~ expression)? ~ ";" }
+trigger_definition = { "trigger" ~ identifier ~ "when" ~ expression ~ "then" ~ expression ~ ";" }
 
 // Example: Block of statements
 block = { "{" ~ statement* ~ "}" }
@@ -59,7 +65,7 @@ addition = { multiplication ~ ((ADD_OP | SUB_OP) ~ multiplication)* }
 multiplication = { unary ~ ((MUL_OP | DIV_OP) ~ unary)* }
 unary = { (NOT_OP | SUB_OP) ~ unary | primary }
 primary = { atom ~ ("[" ~ expression ~ "]")* }
-atom = { integer_literal | boolean_literal | string_literal | some_expr | none_expr | ok_expr | err_expr | require_proof_expr | function_call | identifier | array_literal | "(" ~ expression ~ ")" }
+atom = { integer_literal | boolean_literal | string_literal | some_expr | none_expr | ok_expr | err_expr | require_proof_expr | event_emit | state_read | state_write | trigger_action | cross_contract_call | function_call | identifier | array_literal | "(" ~ expression ~ ")" }
 require_proof_expr = { "require_proof" ~ "(" ~ expression ~ ")" }
 some_expr = { "Some" ~ "(" ~ expression ~ ")" }
 none_expr = { "None" }
@@ -67,6 +73,14 @@ ok_expr = { "Ok" ~ "(" ~ expression ~ ")" }
 err_expr = { "Err" ~ "(" ~ expression ~ ")" }
 array_literal = { "[" ~ expression ~ ("," ~ expression)* ~ "]" }
 function_call = { identifier ~ "(" ~ (expression ~ ("," ~ expression)*)? ~ ")" }
+
+// Governance DSL expressions
+event_emit = { "emit" ~ identifier ~ "{" ~ (field_assignment ~ ("," ~ field_assignment)*)? ~ "}" }
+field_assignment = { identifier ~ ":" ~ expression }
+state_read = { "state" ~ identifier }
+state_write = { "set_state" ~ identifier ~ "=" ~ expression }
+trigger_action = { "trigger" ~ identifier ~ "(" ~ (expression ~ ("," ~ expression)*)? ~ ")" }
+cross_contract_call = { "call" ~ expression ~ "." ~ identifier ~ "(" ~ (expression ~ ("," ~ expression)*)? ~ ")" }
 
 ADD_OP = { "+" }
 SUB_OP = { "-" }

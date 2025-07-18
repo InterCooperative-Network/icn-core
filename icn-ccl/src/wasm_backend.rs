@@ -49,14 +49,61 @@ const IMPORT_COUNT: u32 = 5;
 pub struct WasmBackend {
     data: wasm_encoder::DataSection,
     data_offset: u32,
+    // Gas/mana metering
+    gas_metering_enabled: bool,
+    gas_per_instruction: u32,
+    max_gas_limit: u32,
 }
 
 impl WasmBackend {
     pub fn new() -> Self {
         WasmBackend {
             data: wasm_encoder::DataSection::new(),
-            data_offset: 0,
+            data_offset: 1024, // Reserve first 1KB for runtime
+            gas_metering_enabled: true,
+            gas_per_instruction: 1,
+            max_gas_limit: 1_000_000, // 1M gas units
         }
+    }
+    
+    pub fn new_with_gas_config(enable_metering: bool, gas_per_instruction: u32, max_gas: u32) -> Self {
+        WasmBackend {
+            data: wasm_encoder::DataSection::new(),
+            data_offset: 1024,
+            gas_metering_enabled: enable_metering,
+            gas_per_instruction,
+            max_gas_limit: max_gas,
+        }
+    }
+    
+    /// Emit gas metering instructions if enabled
+    fn emit_gas_check(&self, instrs: &mut Vec<Instruction>, cost: u32) {
+        if !self.gas_metering_enabled {
+            return;
+        }
+        
+        // Load current gas usage from global
+        instrs.push(Instruction::GlobalGet(1)); // gas_used global
+        instrs.push(Instruction::I32Const(cost as i32));
+        instrs.push(Instruction::I32Add);
+        
+        // Check if exceeds limit
+        instrs.push(Instruction::GlobalGet(1)); // load again for comparison
+        instrs.push(Instruction::I32Const(cost as i32));
+        instrs.push(Instruction::I32Add);
+        instrs.push(Instruction::I32Const(self.max_gas_limit as i32));
+        instrs.push(Instruction::I32GtU);
+        
+        // If exceeds limit, trap
+        instrs.push(Instruction::If(wasm_encoder::BlockType::Empty));
+        instrs.push(Instruction::Unreachable);
+        instrs.push(Instruction::End);
+        
+        // Update gas usage
+        instrs.push(Instruction::GlobalGet(1));
+        instrs.push(Instruction::I32Const(cost as i32));
+        instrs.push(Instruction::I32Add);
+        instrs.push(Instruction::GlobalSet(1));
     }
 
     pub fn compile_to_wasm(
@@ -220,6 +267,8 @@ impl WasmBackend {
             exports.export("memory", ExportKind::Memory, 0);
             export_names.push("memory".to_string());
         }
+        
+        // Global 0: memory allocator offset
         globals.global(
             wasm_encoder::GlobalType {
                 val_type: ValType::I32,
@@ -228,6 +277,19 @@ impl WasmBackend {
             },
             &wasm_encoder::ConstExpr::i32_const(self.data_offset as i32),
         );
+        
+        // Global 1: gas usage counter (if metering enabled)
+        if self.gas_metering_enabled {
+            globals.global(
+                wasm_encoder::GlobalType {
+                    val_type: ValType::I32,
+                    mutable: true,
+                    shared: false,
+                },
+                &wasm_encoder::ConstExpr::i32_const(0),
+            );
+        }
+        
         module.section(&globals);
         if exports.len() > 0 {
             module.section(&exports);
@@ -262,6 +324,9 @@ impl WasmBackend {
         locals: &mut LocalEnv,
         indices: &HashMap<String, u32>,
     ) -> Result<ValType, CclError> {
+        // Add gas metering for expression evaluation
+        self.emit_gas_check(instrs, self.gas_per_instruction);
+        
         match expr {
             ExpressionNode::IntegerLiteral(i) => {
                 instrs.push(Instruction::I64Const(*i));
@@ -851,6 +916,9 @@ impl WasmBackend {
         return_ty: &TypeAnnotationNode,
         indices: &HashMap<String, u32>,
     ) -> Result<(), CclError> {
+        // Add gas metering for statement execution
+        self.emit_gas_check(instrs, self.gas_per_instruction * 2); // Statements cost more
+        
         match stmt {
             StatementNode::Let { name, value } => {
                 let ty = self.emit_expression(value, instrs, locals, indices)?;
