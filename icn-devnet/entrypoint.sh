@@ -34,6 +34,8 @@ ARGS+=(--storage-path "/app/data/node_store")
 ARGS+=(--mana-ledger-path "/app/data/mana_ledger")
 ARGS+=(--reputation-db-path "/app/data/reputation_db")
 ARGS+=(--governance-db-path "/app/data/governance_db")
+ARGS+=(--node-did-path "/app/data/node_did.txt")
+ARGS+=(--node-private-key-path "/app/data/node_sk.bs58")
 
 # Enable P2P if requested
 if [ "${ICN_ENABLE_P2P}" = "true" ]; then

@@ -32,21 +32,25 @@ COPY tests/ ./tests/
 
 # Build the ICN node binary
 # Increase rustc stack size to avoid segfaults during optimized builds
-# 16 MiB should be sufficient (as suggested by rustc error)
-ENV RUST_MIN_STACK=16777216
+# 32 MiB as suggested by rustc error message
+ENV RUST_MIN_STACK=33554432
 
 # Additional memory optimizations for the build
 ENV CARGO_NET_RETRY=10
 ENV CARGO_NET_TIMEOUT=300
 
-# Reduce debug info complexity to avoid LLVM SIGSEGV
-ENV RUSTFLAGS="-C debuginfo=1 -C opt-level=1"
-ENV CARGO_PROFILE_DEV_DEBUG=1
-ENV CARGO_PROFILE_RELEASE_DEBUG=1
+# More conservative compilation flags to reduce memory usage
+ENV RUSTFLAGS="-C debuginfo=0 -C opt-level=2 -C strip=symbols -C codegen-units=1"
+ENV CARGO_PROFILE_RELEASE_DEBUG=0
+ENV CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1
+ENV CARGO_PROFILE_RELEASE_LTO=false
 
-# Reduce optimization for C dependencies to avoid GCC crashes
+# Reduce optimization for C dependencies to avoid crashes
 ENV CFLAGS="-O1"
 ENV CXXFLAGS="-O1"
+
+# Limit parallel compilation to reduce memory pressure
+ENV CARGO_BUILD_JOBS=2
 
 # Build with increased stack size and memory limits
 # Use release mode with reduced debug info to avoid LLVM issues
@@ -61,9 +65,9 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Create app user
+# Create app user and directories
 RUN useradd -r -s /bin/false -d /app icn
-RUN mkdir -p /app/data && chown icn:icn /app/data
+RUN mkdir -p /app/data /app/icn_data && chown -R icn:icn /app
 
 # Copy binary from builder stage (built in release mode)
 COPY --from=builder /app/target/release/icn-node /usr/local/bin/icn-node

@@ -642,20 +642,31 @@ async fn correlation_id_middleware(
 pub async fn build_network_service(
     config: &NodeConfig,
 ) -> Result<Arc<dyn NetworkService>, CommonError> {
+    info!("🚀 Building network service - test_mode: {}, enable_p2p: {}", config.test_mode, config.p2p.enable_p2p);
+    
     if config.test_mode {
+        info!("🧪 Test mode enabled - using stub network service");
         return Ok(Arc::new(icn_network::StubNetworkService::default()));
     }
 
     if config.p2p.enable_p2p {
         #[cfg(feature = "enable-libp2p")]
         {
+            info!("🔧 Attempting to create libp2p network service...");
             let net_cfg = config.libp2p_config()?;
-            let service = icn_network::libp2p_service::Libp2pNetworkService::new(net_cfg)
-                .await
-                .map_err(|e| {
-                    CommonError::NetworkError(format!("Failed to create libp2p service: {}", e))
-                })?;
-            return Ok(Arc::new(service));
+            info!("✅ libp2p config created successfully");
+            
+            match icn_network::libp2p_service::Libp2pNetworkService::new(net_cfg).await {
+                Ok(service) => {
+                    info!("✅ Libp2p network service created successfully!");
+                    return Ok(Arc::new(service));
+                }
+                Err(e) => {
+                    error!("❌ Libp2p service creation failed: {}", e);
+                    error!("🔄 Falling back to stub network service due to libp2p failure");
+                    return Err(CommonError::NetworkError(format!("Failed to create libp2p service: {}", e)));
+                }
+            }
         }
         #[cfg(not(feature = "enable-libp2p"))]
         {
@@ -665,6 +676,7 @@ pub async fn build_network_service(
         }
     }
 
+    info!("🔄 P2P disabled - using stub network service");
     Ok(Arc::new(icn_network::StubNetworkService::default()))
 }
 
