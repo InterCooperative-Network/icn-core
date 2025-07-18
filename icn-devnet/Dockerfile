@@ -32,22 +32,30 @@ COPY tests/ ./tests/
 
 # Build the ICN node binary
 # Increase rustc stack size to avoid segfaults during optimized builds
-# 32 MiB as suggested by rustc error message
-ENV RUST_MIN_STACK=33554432
+# 64 MiB as suggested by rustc error message (67108864 bytes)
+ENV RUST_MIN_STACK=67108864
 
 # Additional memory optimizations for the build
 ENV CARGO_NET_RETRY=10
 ENV CARGO_NET_TIMEOUT=300
 
-# More conservative compilation flags to reduce memory usage
-ENV RUSTFLAGS="-C debuginfo=0 -C opt-level=2 -C strip=symbols -C codegen-units=1"
+# Ultra-conservative compilation flags to minimize memory usage
+ENV RUSTFLAGS="-C debuginfo=0 -C opt-level=1 -C strip=symbols -C codegen-units=16 -C incremental=false"
 ENV CARGO_PROFILE_RELEASE_DEBUG=0
-ENV CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1
+ENV CARGO_PROFILE_RELEASE_OPT_LEVEL=1
+ENV CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16
+
+# Limit concurrent compilation jobs to reduce memory pressure
+ENV CARGO_BUILD_JOBS=2
 ENV CARGO_PROFILE_RELEASE_LTO=false
 
 # Reduce optimization for C dependencies to avoid crashes
-ENV CFLAGS="-O1"
-ENV CXXFLAGS="-O1"
+ENV CFLAGS="-O1 -g0"
+ENV CXXFLAGS="-O1 -g0"
+
+# Additional LLVM memory optimizations
+ENV LLVM_DISABLE_LLVM_DYLIB=1
+ENV CARGO_INCREMENTAL=0
 
 # Limit parallel compilation to reduce memory pressure
 ENV CARGO_BUILD_JOBS=2
