@@ -245,6 +245,46 @@ impl SemanticAnalyzer {
                     },
                 )?;
             }
+            // Handle governance DSL statements
+            PolicyStatementNode::EventDef { name, fields } => {
+                // Register event definition
+                self.insert_symbol(
+                    name.clone(),
+                    Symbol::Variable {
+                        type_ann: TypeAnnotationNode::Custom("Event".to_string()),
+                    },
+                )?;
+                // Validate field types - basic validation
+                for (_field_name, _field_type) in fields {
+                    // TODO: Add proper type validation
+                }
+            }
+            PolicyStatementNode::StateDef { name, type_ann, initial_value } => {
+                // Register state variable
+                self.insert_symbol(
+                    name.clone(),
+                    Symbol::Variable {
+                        type_ann: type_ann.clone(),
+                    },
+                )?;
+                // Validate initial value if present
+                if let Some(init_value) = initial_value {
+                    let _value_type = self.evaluate_expression(init_value)?;
+                    // TODO: Add type compatibility check
+                }
+            }
+            PolicyStatementNode::TriggerDef { name, condition, action } => {
+                // Register trigger
+                self.insert_symbol(
+                    name.clone(),
+                    Symbol::Variable {
+                        type_ann: TypeAnnotationNode::Custom("Trigger".to_string()),
+                    },
+                )?;
+                // Validate condition and action
+                let _condition_type = self.evaluate_expression(condition)?;
+                self.evaluate_expression(action)?;
+            }
         }
         Ok(())
     }
@@ -672,6 +712,74 @@ impl SemanticAnalyzer {
                 } else {
                     Err(CclError::TypeError("Panic message must be a string".to_string()))
                 }
+            }
+            // Handle governance DSL expressions
+            ExpressionNode::EventEmit { event_name, fields } => {
+                // Check if event is defined - simplified check
+                if self.lookup_symbol(event_name).is_none() {
+                    return Err(CclError::TypeError(format!("Undefined event: {}", event_name)));
+                }
+                // Type check field values
+                for (_, field_expr) in fields {
+                    self.evaluate_expression(field_expr)?;
+                }
+                Ok(TypeAnnotationNode::Custom("Unit".to_string()))
+            }
+            ExpressionNode::StateRead { state_name } => {
+                // Check if state variable exists and return its type
+                if let Some(symbol) = self.lookup_symbol(state_name) {
+                    if let Symbol::Variable { type_ann } = symbol {
+                        Ok(type_ann.clone())
+                    } else {
+                        Err(CclError::TypeError(format!("{} is not a state variable", state_name)))
+                    }
+                } else {
+                    Err(CclError::TypeError(format!("Undefined state variable: {}", state_name)))
+                }
+            }
+            ExpressionNode::StateWrite { state_name, value } => {
+                // Check if state variable exists
+                if let Some(symbol) = self.lookup_symbol(state_name) {
+                    if let Symbol::Variable { type_ann: _type_ann } = symbol {
+                        let _value_type = self.evaluate_expression(value)?;
+                        // TODO: Add type compatibility check
+                        Ok(TypeAnnotationNode::Custom("Unit".to_string()))
+                    } else {
+                        Err(CclError::TypeError(format!("{} is not a state variable", state_name)))
+                    }
+                } else {
+                    Err(CclError::TypeError(format!("Undefined state variable: {}", state_name)))
+                }
+            }
+            ExpressionNode::TriggerAction { trigger_name, params } => {
+                // Check if trigger exists
+                if self.lookup_symbol(trigger_name).is_none() {
+                    return Err(CclError::TypeError(format!("Undefined trigger: {}", trigger_name)));
+                }
+                // Type check parameters
+                for param in params {
+                    self.evaluate_expression(param)?;
+                }
+                Ok(TypeAnnotationNode::Custom("Unit".to_string()))
+            }
+            ExpressionNode::CrossContractCall { contract_address, function_name: _, params } => {
+                // Validate contract address
+                let addr_type = self.evaluate_expression(contract_address)?;
+                if !matches!(addr_type, TypeAnnotationNode::String | TypeAnnotationNode::Did) {
+                    return Err(CclError::TypeError("Contract address must be string or DID".to_string()));
+                }
+                // Type check parameters
+                for param in params {
+                    self.evaluate_expression(param)?;
+                }
+                // Cross-contract calls can return any type, use generic for now
+                Ok(TypeAnnotationNode::Custom("Any".to_string()))
+            }
+            ExpressionNode::BreakExpr => {
+                Ok(TypeAnnotationNode::Custom("never".to_string()))
+            }
+            ExpressionNode::ContinueExpr => {
+                Ok(TypeAnnotationNode::Custom("never".to_string()))
             }
             ExpressionNode::UnaryOp { operator, operand } => {
                 let operand_ty = self.evaluate_expression(operand)?;

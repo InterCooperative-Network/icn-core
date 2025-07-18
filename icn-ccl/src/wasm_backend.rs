@@ -49,14 +49,61 @@ const IMPORT_COUNT: u32 = 5;
 pub struct WasmBackend {
     data: wasm_encoder::DataSection,
     data_offset: u32,
+    // Mana metering
+    mana_metering_enabled: bool,
+    mana_per_instruction: u32,
+    max_mana_limit: u32,
 }
 
 impl WasmBackend {
     pub fn new() -> Self {
         WasmBackend {
             data: wasm_encoder::DataSection::new(),
-            data_offset: 0,
+            data_offset: 1024, // Reserve first 1KB for runtime
+            mana_metering_enabled: true,
+            mana_per_instruction: 1,
+            max_mana_limit: 1_000_000, // 1M mana units
         }
+    }
+    
+    pub fn new_with_mana_config(enable_metering: bool, mana_per_instruction: u32, max_mana: u32) -> Self {
+        WasmBackend {
+            data: wasm_encoder::DataSection::new(),
+            data_offset: 1024,
+            mana_metering_enabled: enable_metering,
+            mana_per_instruction,
+            max_mana_limit: max_mana,
+        }
+    }
+    
+    /// Emit mana metering instructions if enabled
+    fn emit_mana_check(&self, instrs: &mut Vec<Instruction>, cost: u32) {
+        if !self.mana_metering_enabled {
+            return;
+        }
+        
+        // Load current mana usage from global
+        instrs.push(Instruction::GlobalGet(1)); // mana_used global
+        instrs.push(Instruction::I32Const(cost as i32));
+        instrs.push(Instruction::I32Add);
+        
+        // Check if exceeds limit
+        instrs.push(Instruction::GlobalGet(1)); // load again for comparison
+        instrs.push(Instruction::I32Const(cost as i32));
+        instrs.push(Instruction::I32Add);
+        instrs.push(Instruction::I32Const(self.max_mana_limit as i32));
+        instrs.push(Instruction::I32GtU);
+        
+        // If exceeds limit, trap
+        instrs.push(Instruction::If(wasm_encoder::BlockType::Empty));
+        instrs.push(Instruction::Unreachable);
+        instrs.push(Instruction::End);
+        
+        // Update mana usage
+        instrs.push(Instruction::GlobalGet(1));
+        instrs.push(Instruction::I32Const(cost as i32));
+        instrs.push(Instruction::I32Add);
+        instrs.push(Instruction::GlobalSet(1));
     }
 
     pub fn compile_to_wasm(
@@ -220,6 +267,8 @@ impl WasmBackend {
             exports.export("memory", ExportKind::Memory, 0);
             export_names.push("memory".to_string());
         }
+        
+        // Global 0: memory allocator offset
         globals.global(
             wasm_encoder::GlobalType {
                 val_type: ValType::I32,
@@ -228,6 +277,19 @@ impl WasmBackend {
             },
             &wasm_encoder::ConstExpr::i32_const(self.data_offset as i32),
         );
+        
+        // Global 1: mana usage counter (if metering enabled)
+        if self.mana_metering_enabled {
+            globals.global(
+                wasm_encoder::GlobalType {
+                    val_type: ValType::I32,
+                    mutable: true,
+                    shared: false,
+                },
+                &wasm_encoder::ConstExpr::i32_const(0),
+            );
+        }
+        
         module.section(&globals);
         if exports.len() > 0 {
             module.section(&exports);
@@ -262,6 +324,9 @@ impl WasmBackend {
         locals: &mut LocalEnv,
         indices: &HashMap<String, u32>,
     ) -> Result<ValType, CclError> {
+        // Add mana metering for expression evaluation
+        self.emit_mana_check(instrs, self.mana_per_instruction);
+        
         match expr {
             ExpressionNode::IntegerLiteral(i) => {
                 instrs.push(Instruction::I64Const(*i));
@@ -840,6 +905,42 @@ impl WasmBackend {
                 // Panic never returns a value
                 Ok(ValType::I32) // Placeholder, this should be Never type
             }
+            // Placeholder implementations for governance DSL expressions
+            ExpressionNode::EventEmit { .. } => {
+                // TODO: Implement event emission in WASM
+                instrs.push(Instruction::I32Const(0));
+                Ok(ValType::I32)
+            }
+            ExpressionNode::StateRead { .. } => {
+                // TODO: Implement state reading in WASM
+                instrs.push(Instruction::I32Const(0));
+                Ok(ValType::I32)
+            }
+            ExpressionNode::StateWrite { .. } => {
+                // TODO: Implement state writing in WASM
+                instrs.push(Instruction::I32Const(0));
+                Ok(ValType::I32)
+            }
+            ExpressionNode::TriggerAction { .. } => {
+                // TODO: Implement trigger actions in WASM
+                instrs.push(Instruction::I32Const(0));
+                Ok(ValType::I32)
+            }
+            ExpressionNode::CrossContractCall { .. } => {
+                // TODO: Implement cross-contract calls in WASM
+                instrs.push(Instruction::I32Const(0));
+                Ok(ValType::I32)
+            }
+            ExpressionNode::BreakExpr => {
+                // TODO: Implement break in WASM
+                instrs.push(Instruction::Br(0));
+                Ok(ValType::I32)
+            }
+            ExpressionNode::ContinueExpr => {
+                // TODO: Implement continue in WASM
+                instrs.push(Instruction::Br(1));
+                Ok(ValType::I32)
+            }
         }
     }
 
@@ -851,6 +952,9 @@ impl WasmBackend {
         return_ty: &TypeAnnotationNode,
         indices: &HashMap<String, u32>,
     ) -> Result<(), CclError> {
+        // Add mana metering for statement execution
+        self.emit_mana_check(instrs, self.mana_per_instruction * 2); // Statements cost more
+        
         match stmt {
             StatementNode::Let { name, value } => {
                 let ty = self.emit_expression(value, instrs, locals, indices)?;

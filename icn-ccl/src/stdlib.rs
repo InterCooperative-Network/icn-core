@@ -86,6 +86,80 @@ impl StandardLibrary {
             "FALSE".to_string(),
             (ExpressionNode::BooleanLiteral(false), TypeAnnotationNode::Bool)
         );
+        
+        // Advanced governance constants
+        self.constants.insert(
+            "QUORUM_THRESHOLD".to_string(),
+            (ExpressionNode::IntegerLiteral(50), TypeAnnotationNode::Integer)
+        );
+        
+        self.constants.insert(
+            "HIGH_QUORUM_THRESHOLD".to_string(),
+            (ExpressionNode::IntegerLiteral(75), TypeAnnotationNode::Integer)
+        );
+        
+        self.constants.insert(
+            "MAX_REPUTATION".to_string(),
+            (ExpressionNode::IntegerLiteral(100), TypeAnnotationNode::Integer)
+        );
+        
+        self.constants.insert(
+            "MIN_REPUTATION".to_string(),
+            (ExpressionNode::IntegerLiteral(0), TypeAnnotationNode::Integer)
+        );
+        
+        self.constants.insert(
+            "DEFAULT_REPUTATION".to_string(),
+            (ExpressionNode::IntegerLiteral(50), TypeAnnotationNode::Integer)
+        );
+        
+        // Economic constants
+        self.constants.insert(
+            "BASIS_POINTS_100_PERCENT".to_string(),
+            (ExpressionNode::IntegerLiteral(10000), TypeAnnotationNode::Integer)
+        );
+        
+        self.constants.insert(
+            "DEFAULT_TRANSACTION_FEE".to_string(),
+            (ExpressionNode::IntegerLiteral(10), TypeAnnotationNode::Mana)
+        );
+        
+        self.constants.insert(
+            "DEMURRAGE_RATE_DAILY_BASIS_POINTS".to_string(),
+            (ExpressionNode::IntegerLiteral(27), TypeAnnotationNode::Integer) // ~1% annual
+        );
+        
+        // Proposal type constants
+        self.constants.insert(
+            "PROPOSAL_TYPE_SIMPLE".to_string(),
+            (ExpressionNode::IntegerLiteral(1), TypeAnnotationNode::Integer)
+        );
+        
+        self.constants.insert(
+            "PROPOSAL_TYPE_FINANCIAL".to_string(),
+            (ExpressionNode::IntegerLiteral(2), TypeAnnotationNode::Integer)
+        );
+        
+        self.constants.insert(
+            "PROPOSAL_TYPE_CONSTITUTIONAL".to_string(),
+            (ExpressionNode::IntegerLiteral(3), TypeAnnotationNode::Integer)
+        );
+        
+        // Voting period constants
+        self.constants.insert(
+            "VOTING_PERIOD_SHORT".to_string(),
+            (ExpressionNode::IntegerLiteral(259200), TypeAnnotationNode::Integer) // 3 days
+        );
+        
+        self.constants.insert(
+            "VOTING_PERIOD_STANDARD".to_string(),
+            (ExpressionNode::IntegerLiteral(604800), TypeAnnotationNode::Integer) // 7 days
+        );
+        
+        self.constants.insert(
+            "VOTING_PERIOD_EXTENDED".to_string(),
+            (ExpressionNode::IntegerLiteral(1209600), TypeAnnotationNode::Integer) // 14 days
+        );
     }
     
     fn add_macros(&mut self) {
@@ -145,6 +219,88 @@ impl StandardLibrary {
                     i = i + 1;
                 }
                 return false;
+            }".to_string()
+        );
+        
+        // Advanced governance macros
+        self.macros.insert(
+            "calculate_weighted_vote".to_string(),
+            "fn calculate_weighted_vote(reputation: Integer, stake: Mana, base_weight: Integer) -> Integer {
+                let rep_factor = reputation / 10; // Scale reputation
+                let stake_factor = stake / 100; // Scale stake
+                return base_weight + rep_factor + stake_factor;
+            }".to_string()
+        );
+        
+        self.macros.insert(
+            "is_quorum_met".to_string(),
+            "fn is_quorum_met(participants: Integer, total_members: Integer, quorum_percent: Integer) -> Bool {
+                let required = (total_members * quorum_percent) / 100;
+                return participants >= required;
+            }".to_string()
+        );
+        
+        self.macros.insert(
+            "calculate_quadratic_cost".to_string(),
+            "fn calculate_quadratic_cost(votes: Integer) -> Mana {
+                return votes * votes;
+            }".to_string()
+        );
+        
+        // Resource allocation macros
+        self.macros.insert(
+            "allocate_proportional".to_string(),
+            "fn allocate_proportional(total_budget: Mana, priority_score: Integer, max_priority: Integer) -> Mana {
+                if max_priority == 0 { return 0; }
+                return (total_budget * priority_score) / max_priority;
+            }".to_string()
+        );
+        
+        self.macros.insert(
+            "calculate_dividend".to_string(),
+            "fn calculate_dividend(total_profit: Mana, member_contribution: Integer, total_contribution: Integer) -> Mana {
+                if total_contribution == 0 { return 0; }
+                return (total_profit * member_contribution) / total_contribution;
+            }".to_string()
+        );
+        
+        // Trust and reputation macros
+        self.macros.insert(
+            "update_reputation".to_string(),
+            "fn update_reputation(current: Integer, feedback: Integer, weight: Integer) -> Integer {
+                let weighted_feedback = feedback * weight;
+                let new_rep = (current * 9 + weighted_feedback) / 10; // Exponential moving average
+                if new_rep > 100 { return 100; }
+                if new_rep < 0 { return 0; }
+                return new_rep;
+            }".to_string()
+        );
+        
+        self.macros.insert(
+            "calculate_trust_score".to_string(),
+            "fn calculate_trust_score(interactions: Integer, positive_feedback: Integer) -> Integer {
+                if interactions == 0 { return 50; } // Neutral score for new members
+                let ratio = (positive_feedback * 100) / interactions;
+                return ratio;
+            }".to_string()
+        );
+        
+        // Economic calculation macros
+        self.macros.insert(
+            "apply_demurrage".to_string(),
+            "fn apply_demurrage(balance: Mana, rate_per_day: Integer, days: Integer) -> Mana {
+                let total_rate = rate_per_day * days;
+                let reduction = (balance * total_rate) / 10000; // Basis points
+                return balance - reduction;
+            }".to_string()
+        );
+        
+        self.macros.insert(
+            "calculate_interest".to_string(),
+            "fn calculate_interest(principal: Mana, rate_percent: Integer, time_days: Integer) -> Mana {
+                let daily_rate = rate_percent * 100 / 365; // Convert to daily basis points
+                let interest = (principal * daily_rate * time_days) / 1000000;
+                return interest;
             }".to_string()
         );
 
@@ -320,6 +476,107 @@ impl StandardLibrary {
         } else {
             Err(CclError::SemanticError(format!("Unknown macro: {}", name)))
         }
+    }
+    
+    /// Get all available constant names
+    pub fn get_constant_names(&self) -> Vec<&str> {
+        self.constants.keys().map(|s| s.as_str()).collect()
+    }
+    
+    /// Get all available macro names
+    pub fn get_macro_names(&self) -> Vec<&str> {
+        self.macros.keys().map(|s| s.as_str()).collect()
+    }
+    
+    /// Check if a name is a standard library constant
+    pub fn is_standard_constant(&self, name: &str) -> bool {
+        self.constants.contains_key(name)
+    }
+    
+    /// Check if a name is a standard library macro
+    pub fn is_standard_macro(&self, name: &str) -> bool {
+        self.macros.contains_key(name)
+    }
+    
+    /// Add governance helper functions for common patterns
+    pub fn add_governance_helpers(&mut self) {
+        // Multi-round voting with delegation
+        self.macros.insert(
+            "conduct_delegated_vote".to_string(),
+            "fn conduct_delegated_vote(
+                direct_votes: Integer, 
+                delegated_votes: Integer, 
+                delegation_weight: Integer
+            ) -> Integer {
+                let weighted_delegated = (delegated_votes * delegation_weight) / 100;
+                return direct_votes + weighted_delegated;
+            }".to_string()
+        );
+        
+        // Consensus building with graduated penalties
+        self.macros.insert(
+            "calculate_consensus_penalty".to_string(),
+            "fn calculate_consensus_penalty(
+                dissent_level: Integer, 
+                penalty_rate: Integer
+            ) -> Mana {
+                if dissent_level <= 10 { return 0; } // No penalty for minor dissent
+                let excess_dissent = dissent_level - 10;
+                return (excess_dissent * penalty_rate) / 100;
+            }".to_string()
+        );
+        
+        // Resource allocation with fairness constraints
+        self.macros.insert(
+            "enforce_fair_allocation".to_string(),
+            "fn enforce_fair_allocation(
+                proposed_allocation: Mana,
+                member_max_share: Mana,
+                total_budget: Mana,
+                member_count: Integer
+            ) -> Mana {
+                let fair_share = total_budget / member_count;
+                let max_allowed = if member_max_share < fair_share * 2 { member_max_share } else { fair_share * 2 };
+                return if proposed_allocation > max_allowed { max_allowed } else { proposed_allocation };
+            }".to_string()
+        );
+    }
+    
+    /// Add cooperative economics helpers
+    pub fn add_economics_helpers(&mut self) {
+        // Mutual aid scoring
+        self.macros.insert(
+            "calculate_mutual_aid_score".to_string(),
+            "fn calculate_mutual_aid_score(
+                help_given: Integer,
+                help_received: Integer,
+                community_benefit: Integer
+            ) -> Integer {
+                let aid_balance = if help_given >= help_received { 
+                    help_given - help_received 
+                } else { 
+                    0 
+                };
+                let total_contribution = aid_balance + community_benefit;
+                return if total_contribution > 100 { 100 } else { total_contribution };
+            }".to_string()
+        );
+        
+        // Solidarity economy calculations
+        self.macros.insert(
+            "distribute_solidarity_fund".to_string(),
+            "fn distribute_solidarity_fund(
+                total_fund: Mana,
+                member_need_score: Integer,
+                total_need_score: Integer
+            ) -> Mana {
+                if total_need_score == 0 { return 0; }
+                let base_share = (total_fund * member_need_score) / total_need_score;
+                // Ensure minimum dignity amount
+                let min_amount = total_fund / 100; // 1% minimum
+                return if base_share < min_amount { min_amount } else { base_share };
+            }".to_string()
+        );
     }
     
     /// Generate policy statements for all constants and macros

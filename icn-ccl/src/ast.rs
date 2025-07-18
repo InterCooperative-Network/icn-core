@@ -33,6 +33,22 @@ pub enum PolicyStatementNode {
     Import { path: String, alias: String },
     ConstDef { name: String, value: ExpressionNode, type_ann: TypeAnnotationNode },
     MacroDef { name: String, params: Vec<String>, body: String },
+    
+    // Governance DSL statements
+    EventDef { 
+        name: String, 
+        fields: Vec<(String, TypeAnnotationNode)> 
+    },
+    StateDef { 
+        name: String, 
+        type_ann: TypeAnnotationNode, 
+        initial_value: Option<ExpressionNode> 
+    },
+    TriggerDef { 
+        name: String, 
+        condition: ExpressionNode, 
+        action: ExpressionNode 
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -185,6 +201,36 @@ pub enum ExpressionNode {
     PanicExpr {
         message: Box<ExpressionNode>,
     },
+    
+    // Governance DSL expressions
+    EventEmit {
+        event_name: String,
+        fields: Vec<(String, ExpressionNode)>,
+    },
+    
+    StateRead {
+        state_name: String,
+    },
+    
+    StateWrite {
+        state_name: String,
+        value: Box<ExpressionNode>,
+    },
+    
+    TriggerAction {
+        trigger_name: String,
+        params: Vec<ExpressionNode>,
+    },
+    
+    CrossContractCall {
+        contract_address: Box<ExpressionNode>,
+        function_name: String,
+        params: Vec<ExpressionNode>,
+    },
+    
+    // Advanced control flow
+    BreakExpr,
+    ContinueExpr,
     // ... other expression types (member access, etc.)
 }
 
@@ -315,6 +361,16 @@ pub fn pair_to_ast(
             }
             PolicyStatementNode::MacroDef { name, params, body } => {
                 Ok(AstNode::Policy(vec![PolicyStatementNode::MacroDef { name, params, body }]))
+            }
+            // Placeholder implementations for governance DSL features
+            PolicyStatementNode::EventDef { name, fields } => {
+                Ok(AstNode::Policy(vec![PolicyStatementNode::EventDef { name, fields }]))
+            }
+            PolicyStatementNode::StateDef { name, type_ann, initial_value } => {
+                Ok(AstNode::Policy(vec![PolicyStatementNode::StateDef { name, type_ann, initial_value }]))
+            }
+            PolicyStatementNode::TriggerDef { name, condition, action } => {
+                Ok(AstNode::Policy(vec![PolicyStatementNode::TriggerDef { name, condition, action }]))
             }
         },
         Rule::statement => Ok(AstNode::Block(BlockNode {
