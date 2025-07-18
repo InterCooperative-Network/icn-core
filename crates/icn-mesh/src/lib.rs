@@ -319,6 +319,65 @@ impl LatencyStore for NoOpLatencyStore {
     }
 }
 
+/// Provides dynamic capability checking for executors beyond static bid capabilities.
+/// 
+/// This allows for runtime verification of executor capabilities, such as:
+/// - Real-time resource availability
+/// - Dynamic feature flags
+/// - Network connectivity requirements
+/// - Hardware-specific capabilities that may change
+pub trait DynamicCapabilityChecker: Send + Sync {
+    /// Check if an executor currently has the specified capability.
+    /// 
+    /// # Arguments
+    /// * `executor_did` - The DID of the executor to check
+    /// * `capability` - The capability name to verify
+    /// * `context` - Optional context data for capability checking
+    /// 
+    /// # Returns
+    /// * `Some(true)` if the executor has the capability
+    /// * `Some(false)` if the executor definitively lacks the capability  
+    /// * `None` if the capability status cannot be determined
+    fn check_capability(
+        &self,
+        executor_did: &Did,
+        capability: &str,
+        context: Option<&str>,
+    ) -> Option<bool>;
+
+    /// Get current resource availability for an executor.
+    /// 
+    /// Returns `None` if real-time resource information is not available.
+    fn get_current_resources(&self, executor_did: &Did) -> Option<Resources>;
+
+    /// Check if an executor is currently available for new jobs.
+    fn is_executor_available(&self, executor_did: &Did) -> bool {
+        true // Default implementation assumes availability
+    }
+}
+
+/// No-op implementation of DynamicCapabilityChecker that always returns None/true.
+pub struct NoOpCapabilityChecker;
+
+impl DynamicCapabilityChecker for NoOpCapabilityChecker {
+    fn check_capability(
+        &self,
+        _executor_did: &Did,
+        _capability: &str,
+        _context: Option<&str>,
+    ) -> Option<bool> {
+        None
+    }
+
+    fn get_current_resources(&self, _executor_did: &Did) -> Option<Resources> {
+        None
+    }
+
+    fn is_executor_available(&self, _executor_did: &Did) -> bool {
+        true
+    }
+}
+
 /// Helper type that wraps bid selection based on reputation.
 pub struct ReputationExecutorSelector;
 
@@ -335,6 +394,7 @@ impl ReputationExecutorSelector {
         policy: &SelectionPolicy,
         reputation_store: &dyn icn_reputation::ReputationStore,
         mana_ledger: &dyn icn_economics::ManaLedger,
+        capability_checker: &dyn DynamicCapabilityChecker,
     ) -> Option<Did> {
         // This helper is retained for future stateful selection logic.
         bids.iter()
@@ -343,7 +403,7 @@ impl ReputationExecutorSelector {
                 (bid, balance)
             })
             .max_by_key(|(bid, balance)| {
-                score_bid(bid, job_spec, policy, reputation_store, *balance, None)
+                score_bid(bid, job_spec, policy, reputation_store, *balance, None, capability_checker)
             })
             .map(|(bid, _)| bid.executor_did.clone())
     }
@@ -361,6 +421,7 @@ impl ReputationExecutorSelector {
 /// * `policy` - The `SelectionPolicy` to apply for choosing the best executor.
 /// * `reputation_store` - Source of reputation scores for executors.
 /// * `latency_store` - Source of network latency information for executors.
+/// * `capability_checker` - Dynamic capability validation for executors.
 ///
 /// # Returns
 /// * `Some(Did)` of the selected executor if a suitable one is found.
@@ -373,6 +434,7 @@ pub fn select_executor(
     reputation_store: &dyn icn_reputation::ReputationStore,
     mana_ledger: &dyn icn_economics::ManaLedger,
     latency_store: &dyn LatencyStore,
+    capability_checker: &dyn DynamicCapabilityChecker,
 ) -> Option<Did> {
     metrics::SELECT_EXECUTOR_CALLS.inc();
     // Iterate over bids and pick the executor with the highest score as
@@ -385,11 +447,36 @@ pub fn select_executor(
     );
 
     bids.iter()
-        .filter(|bid| mana_ledger.get_balance(&bid.executor_did) >= bid.price_mana)
+        .filter(|bid| {
+            // Basic mana check
+            if mana_ledger.get_balance(&bid.executor_did) < bid.price_mana {
+                return false;
+            }
+            
+            // Dynamic availability check
+            if !capability_checker.is_executor_available(&bid.executor_did) {
+                log::debug!(
+                    "[Mesh] Executor {} not currently available for job {:?}",
+                    bid.executor_did,
+                    job_id
+                );
+                return false;
+            }
+            
+            true
+        })
         .map(|bid| {
             let balance = mana_ledger.get_balance(&bid.executor_did);
             let latency = latency_store.get_latency(&bid.executor_did);
-            let score = score_bid(bid, job_spec, policy, reputation_store, balance, latency);
+            let score = score_bid(
+                bid, 
+                job_spec, 
+                policy, 
+                reputation_store, 
+                balance, 
+                latency,
+                capability_checker
+            );
             (bid, score)
         })
         .max_by_key(|(_, score)| *score)
@@ -420,6 +507,7 @@ pub fn score_bid(
     reputation_store: &dyn icn_reputation::ReputationStore,
     available_mana: u64,
     latency_ms: Option<u64>,
+    capability_checker: &dyn DynamicCapabilityChecker,
 ) -> u64 {
     if available_mana < bid.price_mana {
         return 0;
@@ -441,6 +529,35 @@ pub fn score_bid(
             .all(|req_cap| bid.executor_capabilities.contains(req_cap));
         if !has_all_capabilities {
             return 0; // Executor missing required capabilities
+        }
+    }
+
+    // Dynamic capability validation
+    for capability in &job_spec.required_capabilities {
+        match capability_checker.check_capability(&bid.executor_did, capability, None) {
+            Some(false) => {
+                log::debug!(
+                    "[Mesh] Executor {} failed dynamic capability check for '{}'",
+                    bid.executor_did,
+                    capability
+                );
+                return 0; // Executor dynamically lacks required capability
+            }
+            Some(true) => {
+                log::debug!(
+                    "[Mesh] Executor {} passed dynamic capability check for '{}'",
+                    bid.executor_did,
+                    capability
+                );
+            }
+            None => {
+                // Cannot determine capability status dynamically, rely on static bid
+                log::debug!(
+                    "[Mesh] Could not determine dynamic capability '{}' for executor {}, using static bid data",
+                    capability,
+                    bid.executor_did
+                );
+            }
         }
     }
 
@@ -474,12 +591,19 @@ pub fn score_bid(
         policy.weight_reputation * reputation_store.get_reputation(&bid.executor_did) as f64;
 
     // Determine how well the offered resources satisfy the job requirements.
+    // Check if dynamic resources are available and use them if more current
+    let effective_resources = capability_checker
+        .get_current_resources(&bid.executor_did)
+        .unwrap_or_else(|| bid.resources.clone());
+
     let req = &job_spec.required_resources;
     let resource_match =
-        if bid.resources.cpu_cores >= req.cpu_cores && bid.resources.memory_mb >= req.memory_mb {
-            let cpu_ratio = bid.resources.cpu_cores as f64 / req.cpu_cores.max(1) as f64;
-            let mem_ratio = bid.resources.memory_mb as f64 / req.memory_mb.max(1) as f64;
-            (cpu_ratio + mem_ratio) / 2.0
+        if effective_resources.cpu_cores >= req.cpu_cores && effective_resources.memory_mb >= req.memory_mb {
+            let cpu_ratio = effective_resources.cpu_cores as f64 / req.cpu_cores.max(1) as f64;
+            let mem_ratio = effective_resources.memory_mb as f64 / req.memory_mb.max(1) as f64;
+            // Bonus for having significantly more resources than required
+            let bonus = if cpu_ratio > 2.0 || mem_ratio > 2.0 { 0.1 } else { 0.0 };
+            (cpu_ratio + mem_ratio) / 2.0 + bonus
         } else {
             // Insufficient resources yields zero score
             0.0
@@ -935,6 +1059,70 @@ mod tests {
         }
     }
 
+    /// Test implementation of DynamicCapabilityChecker for unit tests.
+    #[derive(Default)]
+    struct TestCapabilityChecker {
+        capabilities: Mutex<HashMap<Did, HashMap<String, bool>>>,
+        resources: Mutex<HashMap<Did, Resources>>,
+        availability: Mutex<HashMap<Did, bool>>,
+    }
+
+    impl TestCapabilityChecker {
+        fn new() -> Self {
+            Self {
+                capabilities: Mutex::new(HashMap::new()),
+                resources: Mutex::new(HashMap::new()),
+                availability: Mutex::new(HashMap::new()),
+            }
+        }
+
+        fn set_capability(&self, executor_did: &Did, capability: &str, has_capability: bool) {
+            self.capabilities
+                .lock()
+                .unwrap()
+                .entry(executor_did.clone())
+                .or_insert_with(HashMap::new)
+                .insert(capability.to_string(), has_capability);
+        }
+
+        fn set_resources(&self, executor_did: &Did, resources: Resources) {
+            self.resources.lock().unwrap().insert(executor_did.clone(), resources);
+        }
+
+        fn set_availability(&self, executor_did: &Did, available: bool) {
+            self.availability.lock().unwrap().insert(executor_did.clone(), available);
+        }
+    }
+
+    impl DynamicCapabilityChecker for TestCapabilityChecker {
+        fn check_capability(
+            &self,
+            executor_did: &Did,
+            capability: &str,
+            _context: Option<&str>,
+        ) -> Option<bool> {
+            self.capabilities
+                .lock()
+                .unwrap()
+                .get(executor_did)
+                .and_then(|caps| caps.get(capability))
+                .copied()
+        }
+
+        fn get_current_resources(&self, executor_did: &Did) -> Option<Resources> {
+            self.resources.lock().unwrap().get(executor_did).cloned()
+        }
+
+        fn is_executor_available(&self, executor_did: &Did) -> bool {
+            self.availability
+                .lock()
+                .unwrap()
+                .get(executor_did)
+                .copied()
+                .unwrap_or(true)
+        }
+    }
+
     #[test]
     fn test_schedule_mesh_job() {
         let node_info = NodeInfo {
@@ -1101,9 +1289,11 @@ mod tests {
 
         let policy = SelectionPolicy::default();
         let latency = InMemoryLatencyStore::new();
+        let capability_checker = TestCapabilityChecker::new();
         latency.set_latency(high.clone(), 10);
         latency.set_latency(low.clone(), 20);
         let spec = JobSpec::default();
+        let capability_checker = TestCapabilityChecker::new();
         let selected = select_executor(
             &job_id,
             &spec,
@@ -1111,7 +1301,8 @@ mod tests {
             &policy,
             &rep_store,
             &ledger,
-            &latency,
+            &latency,latency,latency,latency,
+            &capability_checker,
         );
 
         assert_eq!(selected.unwrap(), high);
@@ -1160,9 +1351,11 @@ mod tests {
 
         let policy = SelectionPolicy::default();
         let latency = InMemoryLatencyStore::new();
+        let capability_checker = TestCapabilityChecker::new();
         latency.set_latency(a.clone(), 15);
         latency.set_latency(b.clone(), 5);
         let spec = JobSpec::default();
+        let capability_checker = TestCapabilityChecker::new();
         let selected = select_executor(
             &job_id,
             &spec,
@@ -1170,7 +1363,9 @@ mod tests {
             &policy,
             &rep_store,
             &ledger,
-            &latency,
+            &latency,latency,
+            &capability_checker,
+            &capability_checker,
         );
 
         assert_eq!(selected.unwrap(), b);
@@ -1219,6 +1414,7 @@ mod tests {
         };
 
         let latency = InMemoryLatencyStore::new();
+        let capability_checker = TestCapabilityChecker::new();
         latency.set_latency(high_rep.clone(), 20);
         latency.set_latency(cheap.clone(), 5);
 
@@ -1229,7 +1425,7 @@ mod tests {
             &policy,
             &rep_store,
             &ledger,
-            &latency,
+            &latency,latency,latency,latency,
         );
 
         assert_eq!(selected.unwrap(), cheap);
@@ -1272,6 +1468,7 @@ mod tests {
 
         let policy = SelectionPolicy::default();
         let latency = InMemoryLatencyStore::new();
+        let capability_checker = TestCapabilityChecker::new();
         latency.set_latency(a.clone(), 50);
         latency.set_latency(b.clone(), 10);
         let selected = select_executor(
@@ -1281,7 +1478,7 @@ mod tests {
             &policy,
             &rep_store,
             &ledger,
-            &latency,
+            &latency,latency,latency,latency,
         );
 
         assert_eq!(selected.unwrap(), b);
@@ -1345,6 +1542,7 @@ mod tests {
         };
 
         let latency = InMemoryLatencyStore::new();
+        let capability_checker = TestCapabilityChecker::new();
         latency.set_latency(fast.clone(), 5);
         latency.set_latency(slow.clone(), 50);
 
@@ -1355,7 +1553,7 @@ mod tests {
             &policy,
             &rep_store,
             &ledger,
-            &latency,
+            &latency,latency,latency,latency,
         );
 
         assert_eq!(selected.unwrap(), fast);
@@ -1389,6 +1587,7 @@ mod tests {
 
         let policy = SelectionPolicy::default();
         let latency = InMemoryLatencyStore::new();
+        let capability_checker = TestCapabilityChecker::new();
         latency.set_latency(bidder.clone(), 15);
         let score = score_bid(
             &bid,
@@ -1397,6 +1596,7 @@ mod tests {
             &rep_store,
             ledger.get_balance(&bid.executor_did),
             latency.get_latency(&bid.executor_did),
+            &capability_checker,
         );
         assert_eq!(score, 0);
     }
@@ -1409,6 +1609,7 @@ mod tests {
         let policy = SelectionPolicy::default();
 
         let latency = InMemoryLatencyStore::new();
+        let capability_checker = TestCapabilityChecker::new();
         let selected = select_executor(
             &job_id,
             &JobSpec::default(),
@@ -1416,7 +1617,7 @@ mod tests {
             &policy,
             &rep_store,
             &ledger,
-            &latency,
+            &latency,latency,latency,latency,
         );
 
         assert!(selected.is_none());
@@ -1459,6 +1660,7 @@ mod tests {
 
         let policy = SelectionPolicy::default();
         let latency = InMemoryLatencyStore::new();
+        let capability_checker = TestCapabilityChecker::new();
         let selected = select_executor(
             &job_id,
             &JobSpec::default(),
@@ -1466,7 +1668,7 @@ mod tests {
             &policy,
             &rep_store,
             &ledger,
-            &latency,
+            &latency,latency,latency,latency,
         );
 
         assert!(selected.is_none());
@@ -1509,6 +1711,8 @@ mod tests {
 
         let policy = SelectionPolicy::default();
         let latency = InMemoryLatencyStore::new();
+        let capability_checker = TestCapabilityChecker::new();
+        let capability_checker = TestCapabilityChecker::new();
         latency.set_latency(did_a.clone(), 5);
         latency.set_latency(did_b.clone(), 30);
         let score_a = score_bid(
@@ -1518,6 +1722,7 @@ mod tests {
             &rep_store,
             ledger.get_balance(&bid_a.executor_did),
             latency.get_latency(&bid_a.executor_did),
+            &capability_checker,
         );
         let score_b = score_bid(
             &bid_b,
@@ -1526,6 +1731,7 @@ mod tests {
             &rep_store,
             ledger.get_balance(&bid_b.executor_did),
             latency.get_latency(&bid_b.executor_did),
+            &capability_checker,
         );
 
         assert!(score_a > score_b);
@@ -1608,6 +1814,7 @@ mod tests {
 
         let policy = SelectionPolicy::default();
         let latency = InMemoryLatencyStore::new();
+        let capability_checker = TestCapabilityChecker::new();
 
         let selected = select_executor(
             &job_id,
@@ -1616,7 +1823,7 @@ mod tests {
             &policy,
             &rep_store,
             &ledger,
-            &latency,
+            &latency,latency,latency,latency,
         );
 
         // Should select executor from federation A only
@@ -1673,6 +1880,7 @@ mod tests {
 
         let policy = SelectionPolicy::default();
         let latency = InMemoryLatencyStore::new();
+        let capability_checker = TestCapabilityChecker::new();
 
         let selected = select_executor(
             &job_id,
@@ -1681,7 +1889,7 @@ mod tests {
             &policy,
             &rep_store,
             &ledger,
-            &latency,
+            &latency,latency,latency,latency,
         );
 
         // Should select executor A despite higher price because it has required GPU capability
@@ -1736,6 +1944,7 @@ mod tests {
 
         let policy = SelectionPolicy::default();
         let latency = InMemoryLatencyStore::new();
+        let capability_checker = TestCapabilityChecker::new();
 
         let selected = select_executor(
             &job_id,
@@ -1744,7 +1953,7 @@ mod tests {
             &policy,
             &rep_store,
             &ledger,
-            &latency,
+            &latency,latency,latency,latency,
         );
 
         // Should select high reputation executor despite higher price
@@ -1801,6 +2010,7 @@ mod tests {
 
         let policy = SelectionPolicy::default();
         let latency = InMemoryLatencyStore::new();
+        let capability_checker = TestCapabilityChecker::new();
 
         let selected = select_executor(
             &job_id,
@@ -1809,7 +2019,7 @@ mod tests {
             &policy,
             &rep_store,
             &ledger,
-            &latency,
+            &latency,latency,latency,latency,
         );
 
         // Should select executor A because it matches required trust scope
