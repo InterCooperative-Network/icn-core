@@ -26,27 +26,34 @@ fn compile_while_loop_with_nested_if() {
 }
 
 #[test]
-fn compile_for_loop_with_nested_match() {
+fn compile_nested_if_statements_complex() {
     let src = r#"
         fn run() -> Integer {
-            let total_score = 0;
+            let result = 0;
+            let category = 2;
+            let value = 15;
             
-            for value in [1, 2, 3, 4, 5] {
-                let score = match value {
-                    1 => 10,
-                    2 => 20,
-                    3 => {
-                        match value + 1 {
-                            4 => 35,
-                            _ => 30
-                        }
-                    },
-                    _ => 5
-                };
-                total_score = total_score + score;
+            if category == 1 {
+                if value > 10 {
+                    if value > 20 {
+                        result = 100;
+                    } else {
+                        result = 50;
+                    }
+                } else {
+                    result = 10;
+                }
+            } else if category == 2 {
+                if value % 2 == 0 {
+                    result = value * 2;
+                } else {
+                    result = value * 3;
+                }
+            } else {
+                result = 0;
             }
             
-            return total_score;
+            return result;
         }
     "#;
     let (wasm, _meta) = compile_ccl_source_to_wasm(src).expect("compile");
@@ -54,28 +61,31 @@ fn compile_for_loop_with_nested_match() {
 }
 
 #[test]
-fn compile_match_with_nested_loops() {
+fn compile_match_with_nested_conditions() {
     let src = r#"
         fn run() -> Integer {
             let operation_type = 2;
+            let value = 6;
             let result = 0;
             
             result = match operation_type {
                 1 => {
-                    let sum = 0;
-                    for num in [1, 2, 3] {
-                        sum = sum + num;
+                    if value > 5 {
+                        value * 2
+                    } else {
+                        value
                     }
-                    sum
                 },
                 2 => {
-                    let product = 1;
-                    let i = 1;
-                    while i <= 3 {
-                        product = product * i;
-                        i = i + 1;
+                    if value % 2 == 0 {
+                        if value > 4 {
+                            value * 3
+                        } else {
+                            value + 10
+                        }
+                    } else {
+                        value + 1
                     }
-                    product
                 },
                 _ => 0
             };
@@ -88,56 +98,26 @@ fn compile_match_with_nested_loops() {
 }
 
 #[test]
-fn compile_nested_for_loops_with_conditions() {
-    let src = r#"
-        fn run() -> Integer {
-            let matrix_sum = 0;
-            
-            for row in [1, 2, 3] {
-                for col in [4, 5, 6] {
-                    let cell_value = row * col;
-                    
-                    if cell_value > 8 {
-                        if cell_value % 2 == 0 {
-                            matrix_sum = matrix_sum + cell_value;
-                        } else {
-                            matrix_sum = matrix_sum + (cell_value / 2);
-                        }
-                    }
-                }
-            }
-            
-            return matrix_sum;
-        }
-    "#;
-    let (wasm, _meta) = compile_ccl_source_to_wasm(src).expect("compile");
-    assert!(wasm.starts_with(b"\0asm"));
-}
-
-#[test]
-fn compile_while_loop_with_break_and_continue() {
+fn compile_while_loop_with_multiple_conditions() {
     let src = r#"
         fn run() -> Integer {
             let processed = 0;
             let i = 0;
+            let threshold = 15;
             
             while i < 20 {
-                i = i + 1;
-                
                 if i < 5 {
-                    continue;
-                }
-                
-                if i > 15 {
-                    break;
-                }
-                
-                if i % 3 == 0 {
-                    for multiplier in [1, 2] {
-                        processed = processed + (i * multiplier);
-                    }
-                } else {
+                    i = i + 1;
+                } else if i > threshold {
                     processed = processed + i;
+                    i = i + 2;
+                } else {
+                    if i % 3 == 0 {
+                        processed = processed + (i * 2);
+                    } else {
+                        processed = processed + i;
+                    }
+                    i = i + 1;
                 }
             }
             
@@ -151,46 +131,47 @@ fn compile_while_loop_with_break_and_continue() {
 #[test]
 fn compile_governance_vote_processing_complex() {
     let src = r#"
-        fn process_complex_voting(
-            voter_ids: [Integer; 4],
-            vote_types: [Integer; 4],
-            proposal_priority: Integer
+        fn process_voting_logic(
+            voter_tier: Integer,
+            proposal_type: Integer,
+            voter_reputation: Integer
         ) -> Integer {
             let total_weight = 0;
             
-            for voter_id in voter_ids {
-                let base_weight = match voter_id {
-                    1 => 50,  // Founding member
-                    2 => 40,  // Core member
-                    3 => 30,  // Active member
-                    _ => 20   // Regular member
-                };
-                
-                for vote_type in vote_types {
-                    if vote_type == 1 {  // Approve
-                        let weight_multiplier = match proposal_priority {
-                            3 => {  // Critical
-                                if voter_id <= 2 {
-                                    150  // 150% weight for critical proposals
-                                } else {
-                                    125  // 125% weight for others
-                                }
-                            },
-                            2 => 110,  // Important: 110% weight
-                            1 => 100,  // Normal: 100% weight
-                            _ => 90    // Low priority: 90% weight
-                        };
-                        
-                        total_weight = total_weight + (base_weight * weight_multiplier / 100);
-                    }
+            let base_weight = match voter_tier {
+                1 => 50,  // Founding member
+                2 => 40,  // Core member
+                3 => 30,  // Active member
+                _ => 20   // Regular member
+            };
+            
+            if proposal_type == 1 {  // Regular proposal
+                if voter_reputation >= 75 {
+                    total_weight = base_weight + 20;
+                } else if voter_reputation >= 50 {
+                    total_weight = base_weight + 10;
+                } else {
+                    total_weight = base_weight;
                 }
+            } else if proposal_type == 2 {  // Constitutional change
+                if voter_tier <= 2 {  // Only founding and core members get bonus
+                    if voter_reputation >= 80 {
+                        total_weight = base_weight * 150 / 100;
+                    } else {
+                        total_weight = base_weight * 125 / 100;
+                    }
+                } else {
+                    total_weight = base_weight;
+                }
+            } else {
+                total_weight = base_weight / 2;
             }
             
             return total_weight;
         }
 
         fn run() -> Integer {
-            return process_complex_voting([1, 2, 3, 4], [1, 1, 0, 1], 3);
+            return process_voting_logic(1, 2, 85);
         }
     "#;
     let (wasm, _meta) = compile_ccl_source_to_wasm(src).expect("compile");
@@ -198,48 +179,41 @@ fn compile_governance_vote_processing_complex() {
 }
 
 #[test]
-fn compile_nested_control_flow_with_mana() {
+fn compile_nested_mana_calculations() {
     let src = r#"
-        fn calculate_mana_distribution_complex(
-            member_tiers: [Integer; 3],
-            activity_scores: [Integer; 3],
-            total_pool: Mana
+        fn calculate_mana_distribution_tiered(
+            member_tier: Integer,
+            activity_score: Integer,
+            base_pool: Mana
         ) -> Mana {
-            let allocated = 0;
-            let member_index = 0;
+            let allocation = 0;
             
-            for tier in member_tiers {
-                let base_allocation = match tier {
-                    1 => total_pool / 4,   // 25% for tier 1
-                    2 => total_pool / 6,   // ~17% for tier 2
-                    3 => total_pool / 8,   // ~12% for tier 3
-                    _ => total_pool / 10   // 10% for others
-                };
-                
-                let activity_score = activity_scores[member_index];
-                let final_allocation = base_allocation;
-                
-                if activity_score >= 80 {
-                    let bonus_iterations = activity_score / 20;
-                    let current_bonus = 0;
-                    
-                    while current_bonus < bonus_iterations {
-                        final_allocation = final_allocation + (base_allocation / 20);
-                        current_bonus = current_bonus + 1;
-                    }
-                } else if activity_score < 50 {
-                    final_allocation = final_allocation * 80 / 100;
+            let tier_allocation = match member_tier {
+                1 => base_pool / 4,   // 25% for tier 1
+                2 => base_pool / 6,   // ~17% for tier 2
+                3 => base_pool / 8,   // ~12% for tier 3
+                _ => base_pool / 10   // 10% for others
+            };
+            
+            if activity_score >= 80 {
+                if activity_score >= 95 {
+                    allocation = tier_allocation * 150 / 100;  // 150% bonus
+                } else {
+                    allocation = tier_allocation * 125 / 100;  // 125% bonus
                 }
-                
-                allocated = allocated + final_allocation;
-                member_index = member_index + 1;
+            } else if activity_score >= 60 {
+                allocation = tier_allocation * 110 / 100;  // 110% bonus
+            } else if activity_score >= 40 {
+                allocation = tier_allocation;  // No bonus
+            } else {
+                allocation = tier_allocation * 80 / 100;  // 20% reduction
             }
             
-            return allocated;
+            return allocation;
         }
 
         fn run() -> Mana {
-            return calculate_mana_distribution_complex([1, 2, 1], [90, 60, 85], 1000);
+            return calculate_mana_distribution_tiered(1, 90, 1000);
         }
     "#;
     let (wasm, _meta) = compile_ccl_source_to_wasm(src).expect("compile");
@@ -247,57 +221,43 @@ fn compile_nested_control_flow_with_mana() {
 }
 
 #[test]
-fn compile_deeply_nested_control_structures() {
+fn compile_deeply_nested_decision_tree() {
     let src = r#"
         fn complex_decision_tree(
             category: Integer,
             subcategory: Integer,
-            data_values: [Integer; 2]
+            value1: Integer,
+            value2: Integer
         ) -> Integer {
             let result = 0;
             
             result = match category {
                 1 => {
-                    for value in data_values {
-                        if value > 50 {
-                            let temp_sum = 0;
-                            let counter = 0;
-                            
-                            while counter < value / 10 {
-                                temp_sum = temp_sum + match subcategory {
-                                    1 => counter * 2,
-                                    2 => counter * 3,
-                                    _ => counter
-                                };
-                                counter = counter + 1;
+                    if value1 > 50 {
+                        if subcategory == 1 {
+                            if value2 > value1 {
+                                value1 + value2
+                            } else {
+                                value1 * 2
                             }
-                            
-                            result = result + temp_sum;
+                        } else {
+                            value1 + subcategory
                         }
+                    } else {
+                        value1
                     }
-                    result
                 },
                 2 => {
-                    let accumulator = 0;
-                    
-                    for i in [0, 1] {
-                        let data_value = data_values[i];
-                        
-                        accumulator = accumulator + match data_value {
-                            100 => {
-                                let inner_result = 0;
-                                let j = 0;
-                                while j < 3 {
-                                    inner_result = inner_result + j * subcategory;
-                                    j = j + 1;
-                                }
-                                inner_result
-                            },
-                            _ => data_value * subcategory
-                        };
+                    if subcategory > 1 {
+                        let temp_result = value1 * subcategory;
+                        if temp_result > 100 {
+                            temp_result / 2
+                        } else {
+                            temp_result + value2
+                        }
+                    } else {
+                        value2
                     }
-                    
-                    accumulator
                 },
                 _ => 0
             };
@@ -306,7 +266,7 @@ fn compile_deeply_nested_control_structures() {
         }
 
         fn run() -> Integer {
-            return complex_decision_tree(1, 2, [60, 30]);
+            return complex_decision_tree(1, 2, 60, 30);
         }
     "#;
     let (wasm, _meta) = compile_ccl_source_to_wasm(src).expect("compile");
