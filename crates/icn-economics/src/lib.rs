@@ -19,7 +19,7 @@ pub mod metrics;
 pub mod mutual_aid;
 pub mod reputation_tokens;
 pub use explorer::{FlowStats, LedgerExplorer};
-pub use ledger::FileManaLedger;
+pub use ledger::{FileManaLedger, ResourceLedger, TokenClass, TokenType, TransferabilityRule, ScopingRules, TransferRecord, TokenClassId};
 pub use ledger::FileResourceLedger;
 #[cfg(feature = "persist-rocksdb")]
 pub use ledger::{RocksdbManaLedger, RocksdbResourceLedger};
@@ -113,13 +113,7 @@ impl<T: ManaLedger + ?Sized> ManaLedger for &T {
     }
 }
 
-/// Ledger for scoped resource tokens keyed by class ID and DID.
-pub trait ResourceLedger: Send + Sync {
-    fn get_balance(&self, did: &Did, class_id: &str) -> u64;
-    fn set_balance(&self, did: &Did, class_id: &str, amount: u64) -> Result<(), CommonError>;
-    fn credit(&self, did: &Did, class_id: &str, amount: u64) -> Result<(), CommonError>;
-    fn debit(&self, did: &Did, class_id: &str, amount: u64) -> Result<(), CommonError>;
-}
+
 
 /// Thin wrapper exposing convenience methods over a [`ManaLedger`].
 pub struct ManaRepositoryAdapter<L: ManaLedger> {
@@ -369,7 +363,7 @@ impl<L: ResourceLedger> ResourceRepositoryAdapter<L> {
                 return Err(CommonError::PolicyDenied("issuer not authorized".into()));
             }
         }
-        self.ledger.credit(recipient, class_id, amount)?;
+        self.ledger.mint(&class_id.to_string(), recipient, amount)?;
         self.record_event(&TokenEvent::Mint {
             class_id: class_id.to_string(),
             amount,
@@ -393,7 +387,7 @@ impl<L: ResourceLedger> ResourceRepositoryAdapter<L> {
                 return Err(CommonError::PolicyDenied("issuer not authorized".into()));
             }
         }
-        self.ledger.debit(owner, class_id, amount)?;
+        self.ledger.burn(&class_id.to_string(), owner, amount)?;
         self.record_event(&TokenEvent::Burn {
             class_id: class_id.to_string(),
             amount,
@@ -418,8 +412,7 @@ impl<L: ResourceLedger> ResourceRepositoryAdapter<L> {
                 return Err(CommonError::PolicyDenied("issuer not authorized".into()));
             }
         }
-        self.ledger.debit(from, class_id, amount)?;
-        self.ledger.credit(to, class_id, amount)?;
+        self.ledger.transfer(&class_id.to_string(), from, to, amount)?;
         self.record_event(&TokenEvent::Transfer {
             class_id: class_id.to_string(),
             amount,
