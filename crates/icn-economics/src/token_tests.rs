@@ -395,4 +395,117 @@ mod scoped_token_tests {
 
         println!("✅ Token helper function tests passed!");
     }
+
+    #[test]
+    fn test_marketplace_functionality() {
+        use crate::{MarketplaceOffer, MarketplaceBid, InMemoryMarketplaceStore, MarketplaceStore, ItemType, OfferStatus, BidStatus, OfferFilter};
+        
+        let marketplace = InMemoryMarketplaceStore::new();
+        let seller = Did::from_str("did:key:seller123").unwrap();
+        let buyer = Did::from_str("did:key:buyer456").unwrap();
+
+        // Create an offer for physical goods
+        let offer = MarketplaceOffer::new_physical_good(
+            "offer_001".to_string(),
+            seller.clone(),
+            "Organic tomatoes from local farm".to_string(),
+            "vegetables".to_string(),
+            "fresh".to_string(),
+            100, // 100 units
+            5,   // 5 tokens per unit
+            "local_currency".to_string(),
+        );
+
+        // Create the offer
+        marketplace.create_offer(offer.clone()).unwrap();
+
+        // Verify offer was created
+        let retrieved_offer = marketplace.get_offer("offer_001").unwrap();
+        assert_eq!(retrieved_offer.seller, seller);
+        assert_eq!(retrieved_offer.quantity, 100);
+        assert_eq!(retrieved_offer.price_per_unit, 5);
+
+        // Create a bid
+        let bid = MarketplaceBid::new_bid(
+            "bid_001".to_string(),
+            buyer.clone(),
+            "offer_001".to_string(),
+            20, // Want 20 units
+            5,  // Willing to pay 5 tokens per unit
+            "local_currency".to_string(),
+            24, // Expires in 24 hours
+        );
+
+        marketplace.create_bid(bid.clone()).unwrap();
+
+        // Verify bid was created
+        let retrieved_bid = marketplace.get_bid("bid_001").unwrap();
+        assert_eq!(retrieved_bid.buyer, buyer);
+        assert_eq!(retrieved_bid.quantity, 20);
+        assert_eq!(retrieved_bid.price_per_unit, 5);
+
+        // List bids for the offer
+        let bids_for_offer = marketplace.list_bids_for_offer("offer_001");
+        assert_eq!(bids_for_offer.len(), 1);
+        assert_eq!(bids_for_offer[0].bid_id, "bid_001");
+
+        // Test filtering offers
+        let filter = OfferFilter {
+            seller: Some(seller.clone()),
+            status: Some(OfferStatus::Active),
+            ..Default::default()
+        };
+        let filtered_offers = marketplace.list_offers(filter);
+        assert_eq!(filtered_offers.len(), 1);
+        assert_eq!(filtered_offers[0].offer_id, "offer_001");
+
+        println!("✅ Marketplace functionality tests passed!");
+    }
+
+    #[test]
+    fn test_marketplace_item_types() {
+        use crate::{MarketplaceOffer, ItemType};
+        
+        let seller = Did::from_str("did:key:seller123").unwrap();
+
+        // Test service offer
+        let service_offer = MarketplaceOffer::new_service(
+            "service_001".to_string(),
+            seller.clone(),
+            "Web development services".to_string(),
+            "software_development".to_string(),
+            Some("per_hour".to_string()),
+            40, // 40 hours available
+            50, // 50 tokens per hour
+            "time_banking".to_string(),
+        );
+
+        if let ItemType::Service { service_type, duration } = &service_offer.item_type {
+            assert_eq!(service_type, "software_development");
+            assert_eq!(duration, &Some("per_hour".to_string()));
+        } else {
+            panic!("Expected Service item type");
+        }
+
+        // Test labor hours offer
+        let labor_offer = MarketplaceOffer::new_labor_hours(
+            "labor_001".to_string(),
+            seller.clone(),
+            "Carpentry work".to_string(),
+            "carpentry".to_string(),
+            "experienced".to_string(),
+            80, // 80 hours
+            25, // 25 tokens per hour
+            "time_banking".to_string(),
+        );
+
+        if let ItemType::LaborHours { skill_type, experience_level } = &labor_offer.item_type {
+            assert_eq!(skill_type, "carpentry");
+            assert_eq!(experience_level, "experienced");
+        } else {
+            panic!("Expected LaborHours item type");
+        }
+
+        println!("✅ Marketplace item type tests passed!");
+    }
 }

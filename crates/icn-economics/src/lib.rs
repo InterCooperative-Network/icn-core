@@ -15,12 +15,27 @@ use log::{debug, info};
 use serde::{Deserialize, Serialize};
 pub mod explorer;
 pub mod ledger;
+pub mod marketplace;
 pub mod metrics;
 pub mod mutual_aid;
+pub mod mutual_credit;
 pub mod reputation_tokens;
+pub mod time_banking;
 pub use explorer::{FlowStats, LedgerExplorer};
 pub use ledger::{FileManaLedger, ResourceLedger, TokenClass, TokenType, TransferabilityRule, ScopingRules, TransferRecord, TokenClassId};
 pub use ledger::FileResourceLedger;
+pub use marketplace::{
+    MarketplaceOffer, MarketplaceBid, MarketplaceTransaction, ItemType, OfferStatus, BidStatus, 
+    TransactionStatus, FulfillmentDetails, FulfillmentMethod, MarketplaceStore, OfferFilter,
+    InMemoryMarketplaceStore
+};
+pub use mutual_credit::{
+    CreditLine, CreditLineStatus, CreditScore, MutualCreditTransaction, CreditTransactionStatus,
+    RepaymentRecord, RepaymentMethod, MutualCreditStore, InMemoryMutualCreditStore, CommunityStats
+};
+pub use time_banking::{
+    TimeRecord, TimeRecordStatus, TimeBankingStore, InMemoryTimeBankingStore, WorkStatistics
+};
 #[cfg(feature = "persist-rocksdb")]
 pub use ledger::{RocksdbManaLedger, RocksdbResourceLedger};
 #[cfg(feature = "persist-sled")]
@@ -426,6 +441,147 @@ impl<L: ResourceLedger> ResourceRepositoryAdapter<L> {
 }
 
 const TOKEN_FEE: u64 = 1;
+
+/// Execute a marketplace transaction by transferring tokens and updating records.
+pub fn execute_marketplace_transaction<L: ResourceLedger, M: ManaLedger, S: marketplace::MarketplaceStore>(
+    resource_repo: &ResourceRepositoryAdapter<L>,
+    mana_ledger: &M,
+    marketplace_store: &S,
+    offer_id: &str,
+    bid_id: &str,
+    executor: &Did, // Could be seller, buyer, or marketplace operator
+) -> Result<marketplace::MarketplaceTransaction, CommonError> {
+    // Get the offer and bid
+    let offer = marketplace_store.get_offer(offer_id)
+        .ok_or_else(|| CommonError::InvalidInputError(format!("Offer {} not found", offer_id)))?;
+    
+    let bid = marketplace_store.get_bid(bid_id)
+        .ok_or_else(|| CommonError::InvalidInputError(format!("Bid {} not found", bid_id)))?;
+
+    // Validate the transaction
+    if bid.offer_id != offer.offer_id {
+        return Err(CommonError::InvalidInputError("Bid does not match offer".into()));
+    }
+
+    if bid.status != marketplace::BidStatus::Active {
+        return Err(CommonError::PolicyDenied("Bid is not active".into()));
+    }
+
+    if offer.status != marketplace::OfferStatus::Active {
+        return Err(CommonError::PolicyDenied("Offer is not active".into()));
+    }
+
+    if bid.quantity > offer.quantity {
+        return Err(CommonError::PolicyDenied("Bid quantity exceeds available quantity".into()));
+    }
+
+    // Calculate total price
+    let total_price = bid.price_per_unit * bid.quantity;
+
+    // Transfer tokens from buyer to seller
+    resource_repo.transfer(
+        executor,
+        &bid.payment_token_class,
+        total_price,
+        &bid.buyer,
+        &offer.seller,
+        None, // marketplace transactions can be cross-scope
+    )?;
+
+    // Charge mana fee for marketplace transaction
+    charge_mana(mana_ledger, executor, TOKEN_FEE)?;
+
+    // Create transaction record
+    let transaction = marketplace::MarketplaceTransaction {
+        transaction_id: format!("tx_{}_{}", offer_id, bid_id),
+        offer_id: offer.offer_id.clone(),
+        bid_id: bid.bid_id.clone(),
+        seller: offer.seller.clone(),
+        buyer: bid.buyer.clone(),
+        item_type: offer.item_type.clone(),
+        quantity: bid.quantity,
+        price_per_unit: bid.price_per_unit,
+        total_price,
+        payment_token_class: bid.payment_token_class.clone(),
+        completed_at: SystemTimeProvider.unix_seconds(),
+        status: marketplace::TransactionStatus::Pending,
+        fulfillment: marketplace::FulfillmentDetails {
+            method: marketplace::FulfillmentMethod::Remote, // Default, should be updated
+            expected_date: None,
+            actual_date: None,
+            tracking_info: None,
+        },
+    };
+
+    // Record the transaction
+    marketplace_store.record_transaction(transaction.clone())?;
+
+    // Update offer quantity
+    let mut updated_offer = offer.clone();
+    updated_offer.quantity -= bid.quantity;
+    if updated_offer.quantity == 0 {
+        updated_offer.status = marketplace::OfferStatus::Fulfilled;
+    }
+    marketplace_store.update_offer(updated_offer)?;
+
+    // Update bid status
+    let mut updated_bid = bid.clone();
+    updated_bid.status = marketplace::BidStatus::Accepted;
+    marketplace_store.update_bid(updated_bid)?;
+
+    Ok(transaction)
+}
+
+/// Create a marketplace offer with token validation.
+pub fn create_marketplace_offer<L: ResourceLedger, M: ManaLedger, S: marketplace::MarketplaceStore>(
+    resource_ledger: &L,
+    mana_ledger: &M,
+    marketplace_store: &S,
+    offer: marketplace::MarketplaceOffer,
+) -> Result<(), CommonError> {
+    // Validate that the payment token class exists
+    if resource_ledger.get_class(&offer.payment_token_class).is_none() {
+        return Err(CommonError::InvalidInputError(
+            format!("Payment token class {} does not exist", offer.payment_token_class)
+        ));
+    }
+
+    // Charge mana fee for creating offer
+    charge_mana(mana_ledger, &offer.seller, TOKEN_FEE)?;
+
+    // Create the offer
+    marketplace_store.create_offer(offer)?;
+
+    Ok(())
+}
+
+/// Create a marketplace bid with balance validation.
+pub fn create_marketplace_bid<L: ResourceLedger, M: ManaLedger, S: marketplace::MarketplaceStore>(
+    resource_ledger: &L,
+    mana_ledger: &M,
+    marketplace_store: &S,
+    bid: marketplace::MarketplaceBid,
+) -> Result<(), CommonError> {
+    // Validate that the offer exists
+    let _offer = marketplace_store.get_offer(&bid.offer_id)
+        .ok_or_else(|| CommonError::InvalidInputError(format!("Offer {} not found", bid.offer_id)))?;
+
+    // Validate that buyer has sufficient token balance
+    let required_tokens = bid.price_per_unit * bid.quantity;
+    let buyer_balance = resource_ledger.get_balance(&bid.payment_token_class, &bid.buyer);
+    
+    if buyer_balance < required_tokens {
+        return Err(CommonError::PolicyDenied("Insufficient token balance for bid".into()));
+    }
+
+    // Charge mana fee for creating bid
+    charge_mana(mana_ledger, &bid.buyer, TOKEN_FEE)?;
+
+    // Create the bid
+    marketplace_store.create_bid(bid)?;
+
+    Ok(())
+}
 
 pub fn mint_tokens<L: ResourceLedger, M: ManaLedger>(
     repo: &ResourceRepositoryAdapter<L>,
