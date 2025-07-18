@@ -43,8 +43,8 @@ pub enum CclError {
     #[error("Resource limit exceeded: {resource} limit of {limit} exceeded with value {actual}")]
     ResourceLimitExceeded { resource: String, limit: u64, actual: u64 },
     
-    #[error("Gas limit exceeded: used {used} gas, limit is {limit}")]
-    GasLimitExceeded { used: u64, limit: u64 },
+    #[error("Mana limit exceeded: used {used} mana, limit is {limit}")]
+    ManaLimitExceeded { used: u64, limit: u64 },
     
     #[error("Memory allocation failed: requested {requested} bytes, available {available}")]
     MemoryAllocationFailed { requested: usize, available: usize },
@@ -113,9 +113,9 @@ impl CclError {
         }
     }
     
-    /// Create a gas limit error
-    pub fn gas_limit_exceeded(used: u64, limit: u64) -> Self {
-        CclError::GasLimitExceeded { used, limit }
+    /// Create a mana limit error
+    pub fn mana_limit_exceeded(used: u64, limit: u64) -> Self {
+        CclError::ManaLimitExceeded { used, limit }
     }
     
     /// Check if this error is recoverable
@@ -129,7 +129,7 @@ impl CclError {
             CclError::FunctionSignatureMismatch { .. } => true,
             
             CclError::StackOverflow { .. } |
-            CclError::GasLimitExceeded { .. } |
+            CclError::ManaLimitExceeded { .. } |
             CclError::MemoryAllocationFailed { .. } => false,
             
             _ => true, // Default to recoverable for new error types
@@ -149,7 +149,7 @@ impl CclError {
             CclError::NonExhaustivePatterns { .. } => ErrorSeverity::Warning,
             
             CclError::StackOverflow { .. } |
-            CclError::GasLimitExceeded { .. } |
+            CclError::ManaLimitExceeded { .. } |
             CclError::DivisionByZero { .. } => ErrorSeverity::Fatal,
             
             _ => ErrorSeverity::Error,
@@ -173,7 +173,7 @@ impl CclError {
                     "Verify variable assignments".to_string(),
                 ]
             }
-            CclError::GasLimitExceeded { .. } => {
+            CclError::ManaLimitExceeded { .. } => {
                 vec![
                     "Optimize your contract to use fewer operations".to_string(),
                     "Break large operations into smaller chunks".to_string(),
