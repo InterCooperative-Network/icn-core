@@ -1,4 +1,4 @@
-use icn_common::{CommonError, Did};
+use icn_common::{CommonError, Did, SystemTimeProvider, TimeProvider};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs::{rename, File, OpenOptions};
@@ -10,11 +10,100 @@ use std::sync::Mutex;
 /// Identifier for a particular token class stored in a [`ResourceLedger`].
 pub type TokenClassId = String;
 
-/// Basic metadata for a token class.
+/// Record of a token transfer for audit trails.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TransferRecord {
+    /// Unique identifier for this transfer.
+    pub transfer_id: String,
+    /// Token class being transferred.
+    pub class_id: TokenClassId,
+    /// Account sending the tokens.
+    pub from: icn_common::Did,
+    /// Account receiving the tokens.
+    pub to: icn_common::Did,
+    /// Amount transferred.
+    pub amount: u64,
+    /// Unix timestamp of the transfer.
+    pub timestamp: u64,
+    /// Transaction hash or CID for verification.
+    pub transaction_hash: String,
+    /// Optional metadata about the transfer.
+    pub metadata: std::collections::HashMap<String, String>,
+}
+
+/// Defines the type of token and its properties.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum TokenType {
+    /// Fungible tokens where each unit is interchangeable (e.g., currencies, credits)
+    Fungible,
+    /// Non-fungible tokens representing unique items (e.g., certificates, assets)
+    NonFungible,
+    /// Semi-fungible tokens with both fungible and unique properties
+    SemiFungible,
+    /// Time banking tokens representing labor hours
+    TimeBanking,
+    /// Mutual credit tokens for community exchange
+    MutualCredit,
+    /// Local currency tokens with geographic/community restrictions
+    LocalCurrency,
+    /// Bulk purchasing tokens for collective buying power
+    BulkPurchasing,
+}
+
+/// Defines how tokens can be transferred between accounts.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum TransferabilityRule {
+    /// Tokens can be freely transferred to any account
+    FreelyTransferable,
+    /// Tokens can only be transferred to authorized accounts
+    RestrictedTransfer {
+        /// List of authorized recipient DIDs
+        authorized_recipients: Vec<icn_common::Did>,
+    },
+    /// Tokens cannot be transferred once issued
+    NonTransferable,
+    /// Tokens can only be transferred back to the issuer
+    IssuerOnly,
+}
+
+/// Defines scoping rules for token operations.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ScopingRules {
+    /// Geographic scope limitations
+    pub geographic_scope: Option<String>,
+    /// Community/federation scope limitations
+    pub community_scope: Option<String>,
+    /// Time-based validity restrictions
+    pub validity_period: Option<(u64, u64)>, // (start_timestamp, end_timestamp)
+    /// Maximum supply limit
+    pub max_supply: Option<u64>,
+    /// Minimum balance required for operations
+    pub min_balance: Option<u64>,
+}
+
+/// Enhanced metadata for a token class with comprehensive properties.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TokenClass {
     /// Human readable name for the token.
     pub name: String,
+    /// Detailed description of the token's purpose.
+    pub description: String,
+    /// Symbol or abbreviation for the token.
+    pub symbol: String,
+    /// Number of decimal places for display (0 for whole numbers only).
+    pub decimals: u8,
+    /// Type of token defining its core properties.
+    pub token_type: TokenType,
+    /// Rules governing how tokens can be transferred.
+    pub transferability: TransferabilityRule,
+    /// Scoping rules and limitations.
+    pub scoping_rules: ScopingRules,
+    /// DID of the issuer/creator of this token class.
+    pub issuer: icn_common::Did,
+    /// Unix timestamp when this token class was created.
+    pub created_at: u64,
+    /// Optional metadata for specialized token types.
+    pub metadata: std::collections::HashMap<String, String>,
 }
 
 /// Trait defining generic token accounting behaviour.
@@ -23,6 +112,10 @@ pub trait ResourceLedger: Send + Sync {
     fn create_class(&self, class_id: &TokenClassId, class: TokenClass) -> Result<(), CommonError>;
     /// Fetch metadata for a token class if it exists.
     fn get_class(&self, class_id: &TokenClassId) -> Option<TokenClass>;
+    /// Update metadata for an existing token class (only issuer can update).
+    fn update_class(&self, class_id: &TokenClassId, class: TokenClass) -> Result<(), CommonError>;
+    /// List all token classes in the ledger.
+    fn list_classes(&self) -> Vec<(TokenClassId, TokenClass)>;
     /// Increase the balance of `owner` in the given class by `amount`.
     fn mint(&self, class_id: &TokenClassId, owner: &Did, amount: u64) -> Result<(), CommonError>;
     /// Decrease the balance of `owner` in the given class by `amount`.
@@ -37,6 +130,10 @@ pub trait ResourceLedger: Send + Sync {
     ) -> Result<(), CommonError>;
     /// Retrieve the balance for `owner` in the specified class.
     fn get_balance(&self, class_id: &TokenClassId, owner: &Did) -> u64;
+    /// Check if a transfer operation is allowed under token rules.
+    fn can_transfer(&self, class_id: &TokenClassId, from: &Did, to: &Did, amount: u64) -> Result<bool, CommonError>;
+    /// Get transfer history for an account in a specific token class.
+    fn get_transfer_history(&self, class_id: &TokenClassId, did: &Did) -> Vec<TransferRecord>;
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -218,6 +315,7 @@ impl crate::ManaLedger for FileManaLedger {
 struct ResourceLedgerFileFormat {
     classes: HashMap<TokenClassId, TokenClass>,
     balances: HashMap<TokenClassId, HashMap<String, u64>>, // did string
+    transfer_history: HashMap<TokenClassId, HashMap<String, Vec<TransferRecord>>>, // class_id -> did -> transfers
 }
 
 #[derive(Debug)]
@@ -281,11 +379,39 @@ impl FileResourceLedger {
         })?;
         Ok(())
     }
+
+    fn burn_locked(&self, data: &mut ResourceLedgerFileFormat, class_id: &TokenClassId, owner: &Did, amount: u64) -> Result<(), CommonError> {
+        let entry = data
+            .balances
+            .entry(class_id.clone())
+            .or_default()
+            .entry(owner.to_string())
+            .or_insert(0);
+        if *entry < amount {
+            return Err(CommonError::PolicyDenied("Insufficient balance".into()));
+        }
+        *entry -= amount;
+        Ok(())
+    }
+
+    fn mint_locked(&self, data: &mut ResourceLedgerFileFormat, class_id: &TokenClassId, owner: &Did, amount: u64) -> Result<(), CommonError> {
+        let entry = data
+            .balances
+            .entry(class_id.clone())
+            .or_default()
+            .entry(owner.to_string())
+            .or_insert(0);
+        *entry += amount;
+        Ok(())
+    }
 }
 
 impl ResourceLedger for FileResourceLedger {
     fn create_class(&self, class_id: &TokenClassId, class: TokenClass) -> Result<(), CommonError> {
         let mut data = self.data.lock().unwrap();
+        if data.classes.contains_key(class_id) {
+            return Err(CommonError::InvalidInputError(format!("Token class {} already exists", class_id)));
+        }
         data.classes.insert(class_id.clone(), class);
         self.persist_locked(&data)
     }
@@ -293,6 +419,25 @@ impl ResourceLedger for FileResourceLedger {
     fn get_class(&self, class_id: &TokenClassId) -> Option<TokenClass> {
         let data = self.data.lock().unwrap();
         data.classes.get(class_id).cloned()
+    }
+
+    fn update_class(&self, class_id: &TokenClassId, class: TokenClass) -> Result<(), CommonError> {
+        let mut data = self.data.lock().unwrap();
+        if let Some(existing_class) = data.classes.get(class_id) {
+            // Only issuer can update the class
+            if existing_class.issuer != class.issuer {
+                return Err(CommonError::PolicyDenied("Only issuer can update token class".into()));
+            }
+            data.classes.insert(class_id.clone(), class);
+            self.persist_locked(&data)
+        } else {
+            Err(CommonError::InvalidInputError(format!("Token class {} not found", class_id)))
+        }
+    }
+
+    fn list_classes(&self) -> Vec<(TokenClassId, TokenClass)> {
+        let data = self.data.lock().unwrap();
+        data.classes.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
     }
 
     fn mint(&self, class_id: &TokenClassId, owner: &Did, amount: u64) -> Result<(), CommonError> {
@@ -323,8 +468,44 @@ impl ResourceLedger for FileResourceLedger {
     }
 
     fn transfer(&self, class_id: &TokenClassId, from: &Did, to: &Did, amount: u64) -> Result<(), CommonError> {
-        self.burn(class_id, from, amount)?;
-        self.mint(class_id, to, amount)
+        // Check if transfer is allowed
+        if !self.can_transfer(class_id, from, to, amount)? {
+            return Err(CommonError::PolicyDenied("Transfer not allowed by token rules".into()));
+        }
+
+        let mut data = self.data.lock().unwrap();
+        
+        // Perform the transfer
+        self.burn_locked(&mut data, class_id, from, amount)?;
+        self.mint_locked(&mut data, class_id, to, amount)?;
+
+        // Record the transfer
+        let transfer_record = TransferRecord {
+            transfer_id: format!("{}:{}:{}", class_id, from, icn_common::SystemTimeProvider.unix_seconds()),
+            class_id: class_id.clone(),
+            from: from.clone(),
+            to: to.clone(),
+            amount,
+            timestamp: icn_common::SystemTimeProvider.unix_seconds(),
+            transaction_hash: format!("hash_{}", icn_common::SystemTimeProvider.unix_seconds()),
+            metadata: HashMap::new(),
+        };
+
+        data.transfer_history
+            .entry(class_id.clone())
+            .or_default()
+            .entry(from.to_string())
+            .or_default()
+            .push(transfer_record.clone());
+
+        data.transfer_history
+            .entry(class_id.clone())
+            .or_default()
+            .entry(to.to_string())
+            .or_default()
+            .push(transfer_record);
+
+        self.persist_locked(&data)
     }
 
     fn get_balance(&self, class_id: &TokenClassId, owner: &Did) -> u64 {
@@ -333,6 +514,33 @@ impl ResourceLedger for FileResourceLedger {
             .get(class_id)
             .and_then(|m| m.get(&owner.to_string()).cloned())
             .unwrap_or(0)
+    }
+
+    fn can_transfer(&self, class_id: &TokenClassId, from: &Did, to: &Did, amount: u64) -> Result<bool, CommonError> {
+        let data = self.data.lock().unwrap();
+        
+        // Get token class to check transferability rules
+        let token_class = data.classes.get(class_id)
+            .ok_or_else(|| CommonError::InvalidInputError(format!("Token class {} not found", class_id)))?;
+
+        // Check transferability rules
+        match &token_class.transferability {
+            TransferabilityRule::FreelyTransferable => Ok(true),
+            TransferabilityRule::RestrictedTransfer { authorized_recipients } => {
+                Ok(authorized_recipients.contains(to))
+            },
+            TransferabilityRule::NonTransferable => Ok(false),
+            TransferabilityRule::IssuerOnly => Ok(to == &token_class.issuer),
+        }
+    }
+
+    fn get_transfer_history(&self, class_id: &TokenClassId, did: &Did) -> Vec<TransferRecord> {
+        let data = self.data.lock().unwrap();
+        data.transfer_history
+            .get(class_id)
+            .and_then(|class_history| class_history.get(&did.to_string()))
+            .cloned()
+            .unwrap_or_default()
     }
 }
 
@@ -547,11 +755,41 @@ impl SledResourceLedger {
 #[cfg(feature = "persist-sled")]
 impl ResourceLedger for SledResourceLedger {
     fn create_class(&self, id: &TokenClassId, class: TokenClass) -> Result<(), CommonError> {
+        if self.read_class(id)?.is_some() {
+            return Err(CommonError::InvalidInputError(format!("Token class {} already exists", id)));
+        }
         self.write_class(id, &class)
     }
 
     fn get_class(&self, id: &TokenClassId) -> Option<TokenClass> {
         self.read_class(id).ok().flatten()
+    }
+
+    fn update_class(&self, id: &TokenClassId, class: TokenClass) -> Result<(), CommonError> {
+        if let Some(existing_class) = self.read_class(id)? {
+            // Only issuer can update the class
+            if existing_class.issuer != class.issuer {
+                return Err(CommonError::PolicyDenied("Only issuer can update token class".into()));
+            }
+            self.write_class(id, &class)
+        } else {
+            Err(CommonError::InvalidInputError(format!("Token class {} not found", id)))
+        }
+    }
+
+    fn list_classes(&self) -> Vec<(TokenClassId, TokenClass)> {
+        let mut classes = Vec::new();
+        for result in self.classes.iter() {
+            if let Ok((key, value)) = result {
+                if let (Ok(class_id), Ok(class)) = (
+                    std::str::from_utf8(&key),
+                    bincode::deserialize::<TokenClass>(&value)
+                ) {
+                    classes.push((class_id.to_string(), class));
+                }
+            }
+        }
+        classes
     }
 
     fn mint(&self, class: &TokenClassId, owner: &Did, amount: u64) -> Result<(), CommonError> {
@@ -568,12 +806,43 @@ impl ResourceLedger for SledResourceLedger {
     }
 
     fn transfer(&self, class: &TokenClassId, from: &Did, to: &Did, amount: u64) -> Result<(), CommonError> {
+        // Check if transfer is allowed
+        if !self.can_transfer(class, from, to, amount)? {
+            return Err(CommonError::PolicyDenied("Transfer not allowed by token rules".into()));
+        }
+
         self.burn(class, from, amount)?;
-        self.mint(class, to, amount)
+        self.mint(class, to, amount)?;
+        
+        // For now, Sled implementation doesn't store transfer history
+        // This could be enhanced to store transfer records in a separate tree
+        Ok(())
     }
 
     fn get_balance(&self, class: &TokenClassId, owner: &Did) -> u64 {
         self.read_balance(class, owner).unwrap_or(0)
+    }
+
+    fn can_transfer(&self, class_id: &TokenClassId, _from: &Did, to: &Did, _amount: u64) -> Result<bool, CommonError> {
+        // Get token class to check transferability rules
+        let token_class = self.get_class(class_id)
+            .ok_or_else(|| CommonError::InvalidInputError(format!("Token class {} not found", class_id)))?;
+
+        // Check transferability rules
+        match &token_class.transferability {
+            TransferabilityRule::FreelyTransferable => Ok(true),
+            TransferabilityRule::RestrictedTransfer { authorized_recipients } => {
+                Ok(authorized_recipients.contains(to))
+            },
+            TransferabilityRule::NonTransferable => Ok(false),
+            TransferabilityRule::IssuerOnly => Ok(to == &token_class.issuer),
+        }
+    }
+
+    fn get_transfer_history(&self, _class_id: &TokenClassId, _did: &Did) -> Vec<TransferRecord> {
+        // For now, Sled implementation doesn't store transfer history
+        // This could be enhanced to store transfer records in a separate tree
+        Vec::new()
     }
 }
 
@@ -586,4 +855,167 @@ pub use sqlite::{SqliteManaLedger, SqliteResourceLedger};
 pub mod rocksdb;
 #[cfg(feature = "persist-rocksdb")]
 pub use rocksdb::{RocksdbManaLedger, RocksdbResourceLedger};
+
+/// Helper functions for creating common token types.
+impl TokenClass {
+    /// Create a new fungible token class.
+    pub fn new_fungible(
+        name: String,
+        description: String,
+        symbol: String,
+        decimals: u8,
+        issuer: Did,
+    ) -> Self {
+        Self {
+            name,
+            description,
+            symbol,
+            decimals,
+            token_type: TokenType::Fungible,
+            transferability: TransferabilityRule::FreelyTransferable,
+            scoping_rules: ScopingRules {
+                geographic_scope: None,
+                community_scope: None,
+                validity_period: None,
+                max_supply: None,
+                min_balance: None,
+            },
+            issuer,
+            created_at: icn_common::SystemTimeProvider.unix_seconds(),
+            metadata: HashMap::new(),
+        }
+    }
+
+    /// Create a new time banking token class.
+    pub fn new_time_banking(
+        name: String,
+        description: String,
+        issuer: Did,
+        community_scope: Option<String>,
+    ) -> Self {
+        let mut metadata = HashMap::new();
+        metadata.insert("unit".to_string(), "hours".to_string());
+        metadata.insert("rate_type".to_string(), "equal".to_string()); // All labor hours equal
+
+        Self {
+            name,
+            description,
+            symbol: "TIME".to_string(),
+            decimals: 2, // Allow fractional hours (e.g., 1.5 hours)
+            token_type: TokenType::TimeBanking,
+            transferability: TransferabilityRule::FreelyTransferable,
+            scoping_rules: ScopingRules {
+                geographic_scope: None,
+                community_scope,
+                validity_period: None,
+                max_supply: None,
+                min_balance: Some(0), // Can't go into debt without mutual agreement
+            },
+            issuer,
+            created_at: icn_common::SystemTimeProvider.unix_seconds(),
+            metadata,
+        }
+    }
+
+    /// Create a new mutual credit token class.
+    pub fn new_mutual_credit(
+        name: String,
+        description: String,
+        symbol: String,
+        issuer: Did,
+        community_scope: String,
+        credit_limit: u64,
+    ) -> Self {
+        let mut metadata = HashMap::new();
+        metadata.insert("credit_limit".to_string(), credit_limit.to_string());
+        metadata.insert("interest_rate".to_string(), "0".to_string()); // Typically no interest
+        
+        Self {
+            name,
+            description,
+            symbol,
+            decimals: 2,
+            token_type: TokenType::MutualCredit,
+            transferability: TransferabilityRule::FreelyTransferable,
+            scoping_rules: ScopingRules {
+                geographic_scope: None,
+                community_scope: Some(community_scope),
+                validity_period: None,
+                max_supply: Some(credit_limit * 100), // Allow reasonable expansion
+                min_balance: None, // Can go negative (credit)
+            },
+            issuer,
+            created_at: icn_common::SystemTimeProvider.unix_seconds(),
+            metadata,
+        }
+    }
+
+    /// Create a new local currency token class.
+    pub fn new_local_currency(
+        name: String,
+        description: String,
+        symbol: String,
+        issuer: Did,
+        geographic_scope: String,
+    ) -> Self {
+        let mut metadata = HashMap::new();
+        metadata.insert("currency_type".to_string(), "local".to_string());
+        metadata.insert("backing".to_string(), "community_value".to_string());
+        
+        Self {
+            name,
+            description,
+            symbol,
+            decimals: 2,
+            token_type: TokenType::LocalCurrency,
+            transferability: TransferabilityRule::FreelyTransferable,
+            scoping_rules: ScopingRules {
+                geographic_scope: Some(geographic_scope),
+                community_scope: None,
+                validity_period: None,
+                max_supply: None,
+                min_balance: Some(0),
+            },
+            issuer,
+            created_at: icn_common::SystemTimeProvider.unix_seconds(),
+            metadata,
+        }
+    }
+
+    /// Create a new bulk purchasing token class.
+    pub fn new_bulk_purchasing(
+        name: String,
+        description: String,
+        issuer: Did,
+        target_product: String,
+        minimum_quantity: u64,
+    ) -> Self {
+        let mut metadata = HashMap::new();
+        metadata.insert("target_product".to_string(), target_product);
+        metadata.insert("minimum_quantity".to_string(), minimum_quantity.to_string());
+        metadata.insert("aggregation_period".to_string(), "30_days".to_string());
+        
+        Self {
+            name,
+            description,
+            symbol: "BULK".to_string(),
+            decimals: 0, // Whole units only
+            token_type: TokenType::BulkPurchasing,
+            transferability: TransferabilityRule::NonTransferable, // Can't transfer purchase commitments
+            scoping_rules: ScopingRules {
+                geographic_scope: None,
+                community_scope: None,
+                validity_period: Some((
+                    icn_common::SystemTimeProvider.unix_seconds(),
+                    icn_common::SystemTimeProvider.unix_seconds() + (30 * 24 * 60 * 60), // 30 days
+                )),
+                max_supply: None,
+                min_balance: Some(1), // Must commit to at least 1 unit
+            },
+            issuer,
+            created_at: icn_common::SystemTimeProvider.unix_seconds(),
+            metadata,
+        }
+    }
+}
 
