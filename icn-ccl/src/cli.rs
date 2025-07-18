@@ -189,6 +189,16 @@ fn policy_stmt_to_string(stmt: &PolicyStatementNode, indent: usize) -> String {
         PolicyStatementNode::MacroDef { name, params, .. } => {
             format!("macro {}({})", name, params.join(", "))
         }
+        // Placeholder implementations for governance DSL
+        PolicyStatementNode::EventDef { name, .. } => {
+            format!("event {}", name)
+        }
+        PolicyStatementNode::StateDef { name, .. } => {
+            format!("state {}", name)
+        }
+        PolicyStatementNode::TriggerDef { name, .. } => {
+            format!("trigger {}", name)
+        }
     }
 }
 
@@ -339,6 +349,24 @@ fn expr_to_string(expr: &ExpressionNode) -> String {
         ExpressionNode::PanicExpr { message } => {
             format!("panic({})", expr_to_string(message))
         }
+        // Placeholder implementations for governance DSL expressions
+        ExpressionNode::EventEmit { event_name, .. } => {
+            format!("emit {}", event_name)
+        }
+        ExpressionNode::StateRead { state_name } => {
+            format!("state {}", state_name)
+        }
+        ExpressionNode::StateWrite { state_name, value } => {
+            format!("set_state {} = {}", state_name, expr_to_string(value))
+        }
+        ExpressionNode::TriggerAction { trigger_name, .. } => {
+            format!("trigger {}", trigger_name)
+        }
+        ExpressionNode::CrossContractCall { function_name, .. } => {
+            format!("call {}", function_name)
+        }
+        ExpressionNode::BreakExpr => "break".to_string(),
+        ExpressionNode::ContinueExpr => "continue".to_string(),
     }
 }
 
@@ -424,6 +452,22 @@ fn explain_ast(ast: &AstNode, target: Option<&str>) -> String {
                     PolicyStatementNode::MacroDef { name, params, .. } => {
                         if target.is_none() || target == Some(name) {
                             lines.push(format!("Macro `{}` with {} parameters.", name, params.len()));
+                        }
+                    }
+                    // Placeholder implementations for governance DSL
+                    PolicyStatementNode::EventDef { name, .. } => {
+                        if target.is_none() || target == Some(name) {
+                            lines.push(format!("Event `{}` definition.", name));
+                        }
+                    }
+                    PolicyStatementNode::StateDef { name, .. } => {
+                        if target.is_none() || target == Some(name) {
+                            lines.push(format!("State variable `{}`.", name));
+                        }
+                    }
+                    PolicyStatementNode::TriggerDef { name, .. } => {
+                        if target.is_none() || target == Some(name) {
+                            lines.push(format!("Trigger `{}` definition.", name));
                         }
                     }
                 }

@@ -905,6 +905,42 @@ impl WasmBackend {
                 // Panic never returns a value
                 Ok(ValType::I32) // Placeholder, this should be Never type
             }
+            // Placeholder implementations for governance DSL expressions
+            ExpressionNode::EventEmit { .. } => {
+                // TODO: Implement event emission in WASM
+                instrs.push(Instruction::I32Const(0));
+                Ok(ValType::I32)
+            }
+            ExpressionNode::StateRead { .. } => {
+                // TODO: Implement state reading in WASM
+                instrs.push(Instruction::I32Const(0));
+                Ok(ValType::I32)
+            }
+            ExpressionNode::StateWrite { .. } => {
+                // TODO: Implement state writing in WASM
+                instrs.push(Instruction::I32Const(0));
+                Ok(ValType::I32)
+            }
+            ExpressionNode::TriggerAction { .. } => {
+                // TODO: Implement trigger actions in WASM
+                instrs.push(Instruction::I32Const(0));
+                Ok(ValType::I32)
+            }
+            ExpressionNode::CrossContractCall { .. } => {
+                // TODO: Implement cross-contract calls in WASM
+                instrs.push(Instruction::I32Const(0));
+                Ok(ValType::I32)
+            }
+            ExpressionNode::BreakExpr => {
+                // TODO: Implement break in WASM
+                instrs.push(Instruction::Br(0));
+                Ok(ValType::I32)
+            }
+            ExpressionNode::ContinueExpr => {
+                // TODO: Implement continue in WASM
+                instrs.push(Instruction::Br(1));
+                Ok(ValType::I32)
+            }
         }
     }
 

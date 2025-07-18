@@ -362,6 +362,16 @@ pub fn pair_to_ast(
             PolicyStatementNode::MacroDef { name, params, body } => {
                 Ok(AstNode::Policy(vec![PolicyStatementNode::MacroDef { name, params, body }]))
             }
+            // Placeholder implementations for governance DSL features
+            PolicyStatementNode::EventDef { name, fields } => {
+                Ok(AstNode::Policy(vec![PolicyStatementNode::EventDef { name, fields }]))
+            }
+            PolicyStatementNode::StateDef { name, type_ann, initial_value } => {
+                Ok(AstNode::Policy(vec![PolicyStatementNode::StateDef { name, type_ann, initial_value }]))
+            }
+            PolicyStatementNode::TriggerDef { name, condition, action } => {
+                Ok(AstNode::Policy(vec![PolicyStatementNode::TriggerDef { name, condition, action }]))
+            }
         },
         Rule::statement => Ok(AstNode::Block(BlockNode {
             statements: vec![parser::parse_statement(pair)?],

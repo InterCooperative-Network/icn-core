@@ -69,6 +69,24 @@ impl Optimizer {
             PolicyStatementNode::MacroDef { name, params, body } => {
                 PolicyStatementNode::MacroDef { name, params, body }
             }
+            // Pass through governance DSL statements unchanged
+            PolicyStatementNode::EventDef { name, fields } => {
+                PolicyStatementNode::EventDef { name, fields }
+            }
+            PolicyStatementNode::StateDef { name, type_ann, initial_value } => {
+                PolicyStatementNode::StateDef { 
+                    name, 
+                    type_ann, 
+                    initial_value: initial_value.map(|v| self.fold_expr(v))
+                }
+            }
+            PolicyStatementNode::TriggerDef { name, condition, action } => {
+                PolicyStatementNode::TriggerDef { 
+                    name, 
+                    condition: self.fold_expr(condition), 
+                    action: self.fold_expr(action) 
+                }
+            }
         }
     }
 
@@ -233,6 +251,29 @@ impl Optimizer {
             ExpressionNode::PanicExpr { message } => ExpressionNode::PanicExpr {
                 message: Box::new(self.fold_expr(*message)),
             },
+            // Pass through governance DSL expressions with optimization
+            ExpressionNode::EventEmit { event_name, fields } => ExpressionNode::EventEmit {
+                event_name,
+                fields: fields.into_iter().map(|(name, expr)| (name, self.fold_expr(expr))).collect(),
+            },
+            ExpressionNode::StateRead { state_name } => ExpressionNode::StateRead { state_name },
+            ExpressionNode::StateWrite { state_name, value } => ExpressionNode::StateWrite {
+                state_name,
+                value: Box::new(self.fold_expr(*value)),
+            },
+            ExpressionNode::TriggerAction { trigger_name, params } => ExpressionNode::TriggerAction {
+                trigger_name,
+                params: params.into_iter().map(|p| self.fold_expr(p)).collect(),
+            },
+            ExpressionNode::CrossContractCall { contract_address, function_name, params } => {
+                ExpressionNode::CrossContractCall {
+                    contract_address: Box::new(self.fold_expr(*contract_address)),
+                    function_name,
+                    params: params.into_iter().map(|p| self.fold_expr(p)).collect(),
+                }
+            },
+            ExpressionNode::BreakExpr => ExpressionNode::BreakExpr,
+            ExpressionNode::ContinueExpr => ExpressionNode::ContinueExpr,
             ExpressionNode::Match { value, arms } => ExpressionNode::Match {
                 value: Box::new(self.fold_expr(*value)),
                 arms: arms.into_iter().map(|(p, e)| (self.fold_expr(p), self.fold_expr(e))).collect(),
