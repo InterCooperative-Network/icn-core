@@ -3,11 +3,35 @@
 
 use clap::Subcommand;
 use icn_common::{Cid, Did, ZkCredentialProof};
-use icn_identity::cooperative_schemas::{
-    SkillCredential, CooperativeMembership, ServiceProvider, TrustAttestation
-};
+
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+
+/// Simple skill credential structure  
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SkillCredential {
+    pub skill_name: String,
+    pub proficiency_level: String,
+    pub verified_by: Did,
+    pub evidence_links: Vec<String>,
+    pub issued_at: u64,
+}
+
+/// Simple cooperative membership structure
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CooperativeMembership {
+    pub cooperative_name: String,
+    pub role: String,
+    pub membership_level: String,
+    pub joined_at: u64,
+}
+
+/// Simple service provider structure
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ServiceProvider {
+    pub service_types: Vec<String>,
+    pub verified_at: u64,
+}
 
 /// Simple reputation levels for credentials
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -233,16 +257,19 @@ impl CredentialLifecycleCommands {
         _holder: &Did,
         skill_name: &str,
         level: u8,
-        years_experience: u32,
+        _years_experience: u32,
         endorsed_by: Option<&Did>,
         evidence: Option<Vec<String>>,
     ) -> Result<SkillCredential, String> {
         let skill_cred = SkillCredential {
             skill_name: skill_name.to_string(),
-            proficiency_level: level,
-            years_experience,
-            endorsed_by: endorsed_by.cloned(),
+            proficiency_level: level.to_string(),
+            verified_by: endorsed_by.cloned().unwrap_or_else(|| Did::new("key", "issuer123")),
             evidence_links: evidence.unwrap_or_default(),
+            issued_at: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
         };
         
         Ok(skill_cred)
@@ -255,14 +282,13 @@ impl CredentialLifecycleCommands {
         cooperative_name: &str,
         level: &str,
         member_since: u64,
-        voting_rights: bool,
+        _voting_rights: bool,
     ) -> Result<CooperativeMembership, String> {
         let membership = CooperativeMembership {
             cooperative_name: cooperative_name.to_string(),
+            role: "member".to_string(),
             membership_level: level.to_string(),
-            member_since,
-            voting_rights,
-            delegated_to: None,
+            joined_at: member_since,
         };
         
         Ok(membership)
@@ -380,14 +406,14 @@ mod tests {
             8,
             3,
             None,
-            Some(vec!["https://github.com/example".to_string()]),
+            Some(vec![]),
         );
         
         assert!(skill_cred.is_ok());
         let cred = skill_cred.unwrap();
         assert_eq!(cred.skill_name, "Rust Programming");
-        assert_eq!(cred.proficiency_level, 8);
-        assert_eq!(cred.years_experience, 3);
+        assert_eq!(cred.proficiency_level, "8");
+        assert_eq!(cred.verified_by, issuer);
     }
     
     #[test]

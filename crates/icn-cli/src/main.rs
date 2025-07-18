@@ -2107,7 +2107,6 @@ fn handle_wizard_setup(config: &str) -> Result<(), anyhow::Error> {
 }
 
 async fn handle_wizard_init_dev(api_url: &str, client: &Client) -> Result<(), anyhow::Error> {
-    use std::io::{self, Write};
     
     println!("🚀 ICN Developer Onboarding Wizard");
     println!("==================================");
@@ -3227,5 +3226,270 @@ async fn handle_token_burn(
         println!("Scope: {}", scope);
     }
     println!("Response: {}", serde_json::to_string_pretty(&response)?);
+    Ok(())
+}
+
+// Missing federation trust functions
+async fn handle_fed_trust_configure(
+    _cli: &Cli,
+    _client: &Client,
+    _federation_id: &str,
+    _policy_json_or_stdin: &str,
+) -> Result<(), anyhow::Error> {
+    println!("🚧 Federation trust configuration not yet implemented");
+    Ok(())
+}
+
+async fn handle_fed_trust_add(
+    _cli: &Cli,
+    _client: &Client,
+    _trust_json_or_stdin: &str,
+) -> Result<(), anyhow::Error> {
+    println!("🚧 Federation trust addition not yet implemented");
+    Ok(())
+}
+
+async fn handle_fed_trust_remove(
+    _cli: &Cli,
+    _client: &Client,
+    _from: &str,
+    _to: &str,
+    _context: &str,
+    _federation: &str,
+) -> Result<(), anyhow::Error> {
+    println!("🚧 Federation trust removal not yet implemented");
+    Ok(())
+}
+
+async fn handle_fed_trust_list(
+    _cli: &Cli,
+    _client: &Client,
+    _federation_id: &str,
+    _context: &Option<String>,
+    _min_level: &Option<String>,
+) -> Result<(), anyhow::Error> {
+    println!("🚧 Federation trust listing not yet implemented");
+    Ok(())
+}
+
+async fn handle_fed_trust_validate(
+    _cli: &Cli,
+    _client: &Client,
+    _actor: &str,
+    _target: &str,
+    _context: &str,
+    _operation: &str,
+    _federation: &str,
+) -> Result<(), anyhow::Error> {
+    println!("🚧 Federation trust validation not yet implemented");
+    Ok(())
+}
+
+async fn handle_fed_trust_bridge(
+    _cli: &Cli,
+    _client: &Client,
+    _bridge_json_or_stdin: &str,
+) -> Result<(), anyhow::Error> {
+    println!("🚧 Federation trust bridging not yet implemented");
+    Ok(())
+}
+
+async fn handle_fed_trust_bootstrap(
+    _cli: &Cli,
+    _client: &Client,
+    _peer: &str,
+    _contexts: &String,
+    _trust_level: &str,
+) -> Result<(), anyhow::Error> {
+    println!("🚧 Federation trust bootstrap not yet implemented");
+    Ok(())
+}
+
+// Missing federation metadata functions
+async fn handle_fed_metadata_get(
+    _cli: &Cli,
+    _client: &Client,
+    _federation_id: &str,
+) -> Result<(), anyhow::Error> {
+    println!("🚧 Federation metadata get not yet implemented");
+    Ok(())
+}
+
+async fn handle_fed_metadata_set(
+    _cli: &Cli,
+    _client: &Client,
+    _federation_id: &str,
+    _metadata_json_or_stdin: &str,
+) -> Result<(), anyhow::Error> {
+    println!("🚧 Federation metadata set not yet implemented");
+    Ok(())
+}
+
+async fn handle_fed_metadata_scope(
+    _cli: &Cli,
+    _client: &Client,
+    _federation_id: &str,
+    _scope_json_or_stdin: &str,
+) -> Result<(), anyhow::Error> {
+    println!("🚧 Federation metadata scope not yet implemented");
+    Ok(())
+}
+
+async fn handle_fed_metadata_quorum(
+    _cli: &Cli,
+    _client: &Client,
+    _federation_id: &str,
+    _policy_json_or_stdin: &str,
+) -> Result<(), anyhow::Error> {
+    println!("🚧 Federation metadata quorum not yet implemented");
+    Ok(())
+}
+
+async fn handle_fed_metadata_members(
+    _cli: &Cli,
+    _client: &Client,
+    _federation_id: &str,
+) -> Result<(), anyhow::Error> {
+    println!("🚧 Federation metadata members not yet implemented");
+    Ok(())
+}
+
+async fn handle_fed_metadata_add_member(
+    _cli: &Cli,
+    _client: &Client,
+    _federation_id: &str,
+    _member_did: &str,
+    _profile_json_or_stdin: &str,
+) -> Result<(), anyhow::Error> {
+    println!("🚧 Federation metadata add member not yet implemented");
+    Ok(())
+}
+
+async fn handle_fed_metadata_remove_member(
+    _cli: &Cli,
+    _client: &Client,
+    _federation_id: &str,
+    _member_did: &str,
+) -> Result<(), anyhow::Error> {
+    println!("🚧 Federation metadata remove member not yet implemented");
+    Ok(())
+}
+
+// Missing federation DID functions
+async fn handle_fed_did_generate(
+    _cli: &Cli,
+    _client: &Client,
+    _federation_id: &str,
+    _output: &Option<String>,
+) -> Result<(), anyhow::Error> {
+    println!("🚧 Federation DID generation not yet implemented");
+    Ok(())
+}
+
+async fn handle_fed_did_verify(
+    _cli: &Cli,
+    _client: &Client,
+    _document_json_or_stdin: &str,
+) -> Result<(), anyhow::Error> {
+    println!("🚧 Federation DID verification not yet implemented");
+    Ok(())
+}
+
+async fn handle_fed_did_publish(
+    _cli: &Cli,
+    _client: &Client,
+    _federation_id: &str,
+    _document_json_or_stdin: &str,
+) -> Result<(), anyhow::Error> {
+    println!("🚧 Federation DID publishing not yet implemented");
+    Ok(())
+}
+
+async fn handle_fed_did_resolve(
+    _cli: &Cli,
+    _client: &Client,
+    _did: &str,
+    _federation: &Option<String>,
+) -> Result<(), anyhow::Error> {
+    println!("🚧 Federation DID resolution not yet implemented");
+    Ok(())
+}
+
+// Missing credential functions
+async fn handle_credential_issue(
+    _cli: &Cli,
+    _client: &Client,
+    _credential_type: &crate::credential_lifecycle::IssueCommands,
+) -> Result<(), anyhow::Error> {
+    println!("🚧 Credential issuance not yet implemented");
+    Ok(())
+}
+
+async fn handle_credential_present(
+    _cli: &Cli,
+    _client: &Client,
+    _credential_path: &str,
+    _context: &str,
+) -> Result<(), anyhow::Error> {
+    println!("🚧 Credential presentation not yet implemented");
+    Ok(())
+}
+
+async fn handle_credential_verify(
+    _cli: &Cli,
+    _client: &Client,
+    _credential_path: &str,
+    _level: &Option<String>,
+) -> Result<(), anyhow::Error> {
+    println!("🚧 Credential verification not yet implemented");
+    Ok(())
+}
+
+async fn handle_credential_anchor(
+    _cli: &Cli,
+    _client: &Client,
+    _disclosure_path: &str,
+    _metadata: &Option<String>,
+) -> Result<(), anyhow::Error> {
+    println!("🚧 Credential anchoring not yet implemented");
+    Ok(())
+}
+
+async fn handle_credential_status(
+    _cli: &Cli,
+    _client: &Client,
+    _cid: &str,
+) -> Result<(), anyhow::Error> {
+    println!("🚧 Credential status check not yet implemented");
+    Ok(())
+}
+
+async fn handle_credential_list(
+    _cli: &Cli,
+    _client: &Client,
+    _holder: &Option<String>,
+    _issuer: &Option<String>,
+    _credential_type: &Option<String>,
+) -> Result<(), anyhow::Error> {
+    println!("🚧 Credential listing not yet implemented");
+    Ok(())
+}
+
+async fn handle_credential_revoke(
+    _cli: &Cli,
+    _client: &Client,
+    _cid: &str,
+    _reason: &str,
+) -> Result<(), anyhow::Error> {
+    println!("🚧 Credential revocation not yet implemented");
+    Ok(())
+}
+
+async fn handle_credential_example(
+    _cli: &Cli,
+    _client: &Client,
+    _flow: &crate::credential_lifecycle::ExampleFlows,
+) -> Result<(), anyhow::Error> {
+    println!("🚧 Credential examples not yet implemented");
     Ok(())
 }
