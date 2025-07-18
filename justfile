@@ -59,6 +59,7 @@ build-rocksdb:
 # Requires Docker and docker-compose
 
 devnet:
+    ./build-devnet.sh
     cd icn-devnet && ./launch_federation.sh
 
 # Alias for devnet (for consistency with quickstart docs)
