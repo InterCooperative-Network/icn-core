@@ -73,9 +73,11 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Create app user and directories
+# Create app user and directories  
 RUN useradd -r -s /bin/false -d /app icn
-RUN mkdir -p /app/data /app/icn_data && chown -R icn:icn /app
+RUN mkdir -p /app/data /app/icn_data /app/.icn /app/config /app/.local /app/.cache && \
+    chown -R icn:icn /app && \
+    chmod -R 755 /app
 
 # Copy binary from builder stage (built in release mode)
 COPY --from=builder /app/target/release/icn-node /usr/local/bin/icn-node

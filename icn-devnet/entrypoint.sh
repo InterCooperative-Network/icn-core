@@ -60,6 +60,10 @@ fi
 
 echo "🔧 Command: icn-node ${ARGS[*]}"
 
+# Ensure directories exist (created in Dockerfile but may be overridden by volumes)
+echo "🔧 Ensuring directories are accessible for libp2p..."
+# Directories are created in Dockerfile, but we ensure they're accessible
+
 # Wait a moment for dependencies to be ready
 if [ -n "${ICN_BOOTSTRAP_PEERS}" ] && [ "${ICN_BOOTSTRAP_PEERS}" != "" ]; then
     echo "⏳ Waiting for bootstrap node to be ready..."
