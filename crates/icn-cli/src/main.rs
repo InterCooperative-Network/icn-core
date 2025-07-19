@@ -524,6 +524,9 @@ enum FederationCommands {
     /// Synchronize federation state
     #[clap(name = "sync")]
     Sync,
+    /// Discover federations on the network
+    #[clap(name = "discover")]
+    Discover,
     /// Federation trust management commands
     Trust {
         #[clap(subcommand)]
@@ -1046,6 +1049,7 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
             FederationCommands::ListPeers => handle_fed_list_peers(cli, client).await?,
             FederationCommands::Status => handle_fed_status(cli, client).await?,
             FederationCommands::Sync => handle_fed_sync(cli, client).await?,
+            FederationCommands::Discover => handle_fed_discover(cli, client).await?,
             FederationCommands::Trust { command } => match command {
                 FederationTrustCommands::Configure { federation_id, policy_json_or_stdin } => {
                     handle_fed_trust_configure(cli, client, federation_id, policy_json_or_stdin).await?
@@ -1775,6 +1779,13 @@ async fn handle_fed_init(cli: &Cli, client: &Client) -> Result<(), anyhow::Error
 async fn handle_fed_sync(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
     let resp: serde_json::Value =
         post_request(&cli.api_url, client, "/federation/sync", &(), cli.api_key.as_deref()).await?;
+    println!("{}", serde_json::to_string_pretty(&resp)?);
+    Ok(())
+}
+
+async fn handle_fed_discover(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
+    let resp: serde_json::Value =
+        get_request(&cli.api_url, client, "/federation/discover", cli.api_key.as_deref()).await?;
     println!("{}", serde_json::to_string_pretty(&resp)?);
     Ok(())
 }

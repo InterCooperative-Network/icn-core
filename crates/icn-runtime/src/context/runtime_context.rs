@@ -96,7 +96,10 @@ use icn_common::{
 };
 use icn_economics::{LedgerEvent, ManaLedger};
 use icn_governance::GovernanceModule;
-use icn_identity::ExecutionReceipt as IdentityExecutionReceipt;
+use icn_identity::{
+    ExecutionReceipt as IdentityExecutionReceipt, TrustContext, TrustPolicyEngine,
+    TrustValidationResult,
+};
 use icn_mesh::metrics::{
     BIDS_RECEIVED_TOTAL, JOBS_ASSIGNED_TOTAL, JOBS_BIDDING_GAUGE, JOBS_COMPLETED_TOTAL,
     JOBS_EXECUTING_GAUGE, JOBS_FAILED_TOTAL, JOBS_SUBMITTED_TOTAL, JOB_PROCESS_TIME,
@@ -225,6 +228,7 @@ pub struct RuntimeContext {
     pub did_resolver: Arc<dyn icn_identity::DidResolver>,
     pub dag_store: Arc<DagStoreMutexType<DagStorageService>>,
     pub reputation_store: Arc<dyn icn_reputation::ReputationStore>,
+    pub trust_engine: Arc<TokioMutex<TrustPolicyEngine>>,
     pub latency_store: Arc<dyn icn_mesh::LatencyStore>,
     pub parameters: Arc<DashMap<String, String>>,
     pub policy_enforcer: Option<Arc<dyn icn_governance::scoped_policy::ScopedPolicyEnforcer>>,
@@ -571,6 +575,7 @@ impl RuntimeContext {
             dag_store: Arc::new(DagStoreMutexType::new(StubDagStore::new()))
                 as Arc<DagStoreMutexType<DagStorageService>>,
             reputation_store,
+            trust_engine: Arc::new(TokioMutex::new(TrustPolicyEngine::new())),
             latency_store,
             parameters,
             policy_enforcer,
@@ -684,6 +689,7 @@ impl RuntimeContext {
             dag_store: Arc::new(DagStoreMutexType::new(StubDagStore::new()))
                 as Arc<DagStoreMutexType<DagStorageService>>,
             reputation_store,
+            trust_engine: Arc::new(TokioMutex::new(TrustPolicyEngine::new())),
             latency_store,
             parameters,
             policy_enforcer,
@@ -737,6 +743,7 @@ impl RuntimeContext {
             dag_store: Arc::new(DagStoreMutexType::new(StubDagStore::new()))
                 as Arc<DagStoreMutexType<DagStorageService>>,
             reputation_store,
+            trust_engine: Arc::new(TokioMutex::new(TrustPolicyEngine::new())),
             latency_store,
             parameters,
             policy_enforcer,
@@ -812,6 +819,7 @@ impl RuntimeContext {
             did_resolver: config.did_resolver,
             dag_store: config.dag_store,
             reputation_store: config.reputation_store,
+            trust_engine: Arc::new(TokioMutex::new(TrustPolicyEngine::new())),
             latency_store: Arc::new(icn_mesh::NoOpLatencyStore) as Arc<dyn icn_mesh::LatencyStore>,
             parameters,
             policy_enforcer: config.policy_enforcer,
@@ -954,6 +962,7 @@ impl RuntimeContext {
             dag_store: Arc::new(DagStoreMutexType::new(StubDagStore::new()))
                 as Arc<DagStoreMutexType<DagStorageService>>,
             reputation_store,
+            trust_engine: Arc::new(TokioMutex::new(TrustPolicyEngine::new())),
             latency_store: Arc::new(icn_mesh::NoOpLatencyStore) as Arc<dyn icn_mesh::LatencyStore>,
             parameters,
             policy_enforcer,
@@ -1014,6 +1023,7 @@ impl RuntimeContext {
             dag_store: Arc::new(DagStoreMutexType::new(StubDagStore::new()))
                 as Arc<DagStoreMutexType<DagStorageService>>,
             reputation_store,
+            trust_engine: Arc::new(TokioMutex::new(TrustPolicyEngine::new())),
             latency_store,
             parameters,
             policy_enforcer,
@@ -1073,6 +1083,7 @@ impl RuntimeContext {
             did_resolver,
             dag_store,
             reputation_store,
+            trust_engine: Arc::new(TokioMutex::new(TrustPolicyEngine::new())),
             latency_store,
             parameters,
             policy_enforcer,
@@ -1153,6 +1164,7 @@ impl RuntimeContext {
             did_resolver,
             dag_store,
             reputation_store,
+            trust_engine: Arc::new(TokioMutex::new(TrustPolicyEngine::new())),
             latency_store,
             parameters,
             policy_enforcer,
@@ -1195,6 +1207,7 @@ impl RuntimeContext {
             did_resolver,
             dag_store,
             reputation_store,
+            trust_engine: Arc::new(TokioMutex::new(TrustPolicyEngine::new())),
             latency_store,
             parameters,
             policy_enforcer,
@@ -1664,7 +1677,6 @@ impl RuntimeContext {
             ));
         };
         let selection_policy = icn_mesh::SelectionPolicy::default();
-        let capability_checker = icn_mesh::NoOpCapabilityChecker;
         let selected_executor = icn_mesh::select_executor(
             &job_id,
             &job_spec,
@@ -1673,7 +1685,7 @@ impl RuntimeContext {
             self.reputation_store.as_ref(),
             &self.mana_ledger,
             self.latency_store.as_ref(),
-            &capability_checker,
+            &icn_mesh::NoOpCapabilityChecker,
         );
 
         let selected_executor = match selected_executor {
@@ -2773,7 +2785,6 @@ impl RuntimeContext {
         // Create selection policy (could be configurable via governance)
         let selection_policy = icn_mesh::SelectionPolicy::default();
 
-        let capability_checker = icn_mesh::NoOpCapabilityChecker;
         let selected_executor = icn_mesh::select_executor(
             job_id,
             &job.spec,
@@ -2782,7 +2793,7 @@ impl RuntimeContext {
             ctx.reputation_store.as_ref(),
             &ctx.mana_ledger,
             ctx.latency_store.as_ref(),
-            &capability_checker,
+            &icn_mesh::NoOpCapabilityChecker,
         );
 
         let executor_did = match selected_executor {
@@ -2993,6 +3004,19 @@ impl RuntimeContext {
         job: &ActualMeshJob,
     ) -> Result<icn_identity::ExecutionReceipt, HostAbiError> {
         use crate::executor::{JobExecutor, WasmExecutor, WasmExecutorConfig};
+
+        if let Some(scope) = &job.spec.required_trust_scope {
+            let context = TrustContext::from_str(scope);
+            let executor_did = ctx.current_identity.clone();
+            let creator_did = job.creator_did.clone();
+            let engine = ctx.trust_engine.lock().await;
+            match engine.validate_trust(&executor_did, &creator_did, &context, "execute_job") {
+                TrustValidationResult::Allowed { .. } => {}
+                TrustValidationResult::Denied { reason } => {
+                    return Err(HostAbiError::PermissionDenied(reason));
+                }
+            }
+        }
 
         // Create a WASM executor
         let executor = WasmExecutor::new(
@@ -3842,8 +3866,8 @@ impl RuntimeContext {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use icn_mesh::JobKind;
-    use icn_protocol::{JobSpec, MeshJobAnnouncementMessage, ResourceRequirements};
+    use icn_mesh::{JobKind, JobSpec};
+    use icn_protocol::{MeshJobAnnouncementMessage, ResourceRequirements};
     use std::str::FromStr;
 
     #[tokio::test]

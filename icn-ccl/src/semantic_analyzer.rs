@@ -1,7 +1,7 @@
 // icn-ccl/src/semantic_analyzer.rs
 use crate::ast::{
-    ActionNode, AstNode, BinaryOperator, BlockNode, ExpressionNode, StatementNode,
-    TypeAnnotationNode, UnaryOperator, PolicyStatementNode,
+    ActionNode, AstNode, BinaryOperator, BlockNode, ExpressionNode, PolicyStatementNode,
+    StatementNode, TypeAnnotationNode, UnaryOperator,
 };
 use crate::error::CclError;
 use std::collections::HashMap;
@@ -221,7 +221,11 @@ impl SemanticAnalyzer {
             crate::ast::PolicyStatementNode::StructDef(def) => {
                 self.visit_node(def)?;
             }
-            PolicyStatementNode::ConstDef { name, value, type_ann } => {
+            PolicyStatementNode::ConstDef {
+                name,
+                value,
+                type_ann,
+            } => {
                 let expr_type = self.evaluate_expression(value)?;
                 if !expr_type.compatible_with(type_ann) {
                     return Err(CclError::TypeError(format!(
@@ -259,7 +263,11 @@ impl SemanticAnalyzer {
                     // TODO: Add proper type validation
                 }
             }
-            PolicyStatementNode::StateDef { name, type_ann, initial_value } => {
+            PolicyStatementNode::StateDef {
+                name,
+                type_ann,
+                initial_value,
+            } => {
                 // Register state variable
                 self.insert_symbol(
                     name.clone(),
@@ -273,7 +281,11 @@ impl SemanticAnalyzer {
                     // TODO: Add type compatibility check
                 }
             }
-            PolicyStatementNode::TriggerDef { name, condition, action } => {
+            PolicyStatementNode::TriggerDef {
+                name,
+                condition,
+                action,
+            } => {
                 // Register trigger
                 self.insert_symbol(
                     name.clone(),
@@ -447,7 +459,9 @@ impl SemanticAnalyzer {
                 let inner_type = self.evaluate_expression(inner)?;
                 Ok(TypeAnnotationNode::Option(Box::new(inner_type)))
             }
-            ExpressionNode::NoneExpr => Ok(TypeAnnotationNode::Option(Box::new(TypeAnnotationNode::Custom("Unknown".to_string())))),
+            ExpressionNode::NoneExpr => Ok(TypeAnnotationNode::Option(Box::new(
+                TypeAnnotationNode::Custom("Unknown".to_string()),
+            ))),
             ExpressionNode::OkExpr(inner) => {
                 let inner_type = self.evaluate_expression(inner)?;
                 Ok(TypeAnnotationNode::Result {
@@ -490,12 +504,11 @@ impl SemanticAnalyzer {
                 let expr_type = self.evaluate_expression(expr)?;
                 if let Some(catch_expr) = catch_arm {
                     let catch_type = self.evaluate_expression(catch_expr)?;
-                    // For now, return the unified type (or the main expression type)
-                    if expr_type.compatible_with(&catch_type) {
-                        Ok(expr_type)
-                    } else {
-                        Ok(expr_type)  // Prefer the main expression type
-                    }
+                    // TODO: unify types for try expressions once the type system
+                    // supports proper union evaluation. The catch arm currently
+                    // does not influence the resulting type.
+                    let _ = catch_type;
+                    Ok(expr_type)
                 } else {
                     Ok(expr_type)
                 }
@@ -662,27 +675,33 @@ impl SemanticAnalyzer {
             ExpressionNode::MapLiteral(entries) => {
                 if entries.is_empty() {
                     // For empty maps, we need explicit type annotation from context
-                    return Err(CclError::TypeError("Empty map literal requires type annotation".to_string()));
+                    return Err(CclError::TypeError(
+                        "Empty map literal requires type annotation".to_string(),
+                    ));
                 }
-                
+
                 // Infer key and value types from first entry
                 let (first_key, first_value) = &entries[0];
                 let key_type = self.evaluate_expression(first_key)?;
                 let value_type = self.evaluate_expression(first_value)?;
-                
+
                 // Verify all entries have compatible types
                 for (key, value) in entries.iter().skip(1) {
                     let k_type = self.evaluate_expression(key)?;
                     let v_type = self.evaluate_expression(value)?;
-                    
+
                     if !key_type.compatible_with(&k_type) {
-                        return Err(CclError::TypeError("Inconsistent key types in map literal".to_string()));
+                        return Err(CclError::TypeError(
+                            "Inconsistent key types in map literal".to_string(),
+                        ));
                     }
                     if !value_type.compatible_with(&v_type) {
-                        return Err(CclError::TypeError("Inconsistent value types in map literal".to_string()));
+                        return Err(CclError::TypeError(
+                            "Inconsistent value types in map literal".to_string(),
+                        ));
                     }
                 }
-                
+
                 Ok(TypeAnnotationNode::Map {
                     key_type: Box::new(key_type),
                     value_type: Box::new(value_type),
@@ -691,16 +710,21 @@ impl SemanticAnalyzer {
             ExpressionNode::MapAccess { map, key } => {
                 let map_type = self.evaluate_expression(map)?;
                 let key_type = self.evaluate_expression(key)?;
-                
+
                 match map_type {
-                    TypeAnnotationNode::Map { key_type: expected_key, value_type } => {
+                    TypeAnnotationNode::Map {
+                        key_type: expected_key,
+                        value_type,
+                    } => {
                         if key_type.compatible_with(&expected_key) {
                             Ok(*value_type)
                         } else {
                             Err(CclError::TypeError("Map key type mismatch".to_string()))
                         }
                     }
-                    _ => Err(CclError::TypeError("Map access on non-map type".to_string()))
+                    _ => Err(CclError::TypeError(
+                        "Map access on non-map type".to_string(),
+                    )),
                 }
             }
             ExpressionNode::PanicExpr { message } => {
@@ -710,14 +734,19 @@ impl SemanticAnalyzer {
                     // For simplicity, we'll just return unit type
                     Ok(TypeAnnotationNode::Custom("never".to_string()))
                 } else {
-                    Err(CclError::TypeError("Panic message must be a string".to_string()))
+                    Err(CclError::TypeError(
+                        "Panic message must be a string".to_string(),
+                    ))
                 }
             }
             // Handle governance DSL expressions
             ExpressionNode::EventEmit { event_name, fields } => {
                 // Check if event is defined - simplified check
                 if self.lookup_symbol(event_name).is_none() {
-                    return Err(CclError::TypeError(format!("Undefined event: {}", event_name)));
+                    return Err(CclError::TypeError(format!(
+                        "Undefined event: {}",
+                        event_name
+                    )));
                 }
                 // Type check field values
                 for (_, field_expr) in fields {
@@ -731,30 +760,51 @@ impl SemanticAnalyzer {
                     if let Symbol::Variable { type_ann } = symbol {
                         Ok(type_ann.clone())
                     } else {
-                        Err(CclError::TypeError(format!("{} is not a state variable", state_name)))
+                        Err(CclError::TypeError(format!(
+                            "{} is not a state variable",
+                            state_name
+                        )))
                     }
                 } else {
-                    Err(CclError::TypeError(format!("Undefined state variable: {}", state_name)))
+                    Err(CclError::TypeError(format!(
+                        "Undefined state variable: {}",
+                        state_name
+                    )))
                 }
             }
             ExpressionNode::StateWrite { state_name, value } => {
                 // Check if state variable exists
                 if let Some(symbol) = self.lookup_symbol(state_name) {
-                    if let Symbol::Variable { type_ann: _type_ann } = symbol {
+                    if let Symbol::Variable {
+                        type_ann: _type_ann,
+                    } = symbol
+                    {
                         let _value_type = self.evaluate_expression(value)?;
                         // TODO: Add type compatibility check
                         Ok(TypeAnnotationNode::Custom("Unit".to_string()))
                     } else {
-                        Err(CclError::TypeError(format!("{} is not a state variable", state_name)))
+                        Err(CclError::TypeError(format!(
+                            "{} is not a state variable",
+                            state_name
+                        )))
                     }
                 } else {
-                    Err(CclError::TypeError(format!("Undefined state variable: {}", state_name)))
+                    Err(CclError::TypeError(format!(
+                        "Undefined state variable: {}",
+                        state_name
+                    )))
                 }
             }
-            ExpressionNode::TriggerAction { trigger_name, params } => {
+            ExpressionNode::TriggerAction {
+                trigger_name,
+                params,
+            } => {
                 // Check if trigger exists
                 if self.lookup_symbol(trigger_name).is_none() {
-                    return Err(CclError::TypeError(format!("Undefined trigger: {}", trigger_name)));
+                    return Err(CclError::TypeError(format!(
+                        "Undefined trigger: {}",
+                        trigger_name
+                    )));
                 }
                 // Type check parameters
                 for param in params {
@@ -762,11 +812,20 @@ impl SemanticAnalyzer {
                 }
                 Ok(TypeAnnotationNode::Custom("Unit".to_string()))
             }
-            ExpressionNode::CrossContractCall { contract_address, function_name: _, params } => {
+            ExpressionNode::CrossContractCall {
+                contract_address,
+                function_name: _,
+                params,
+            } => {
                 // Validate contract address
                 let addr_type = self.evaluate_expression(contract_address)?;
-                if !matches!(addr_type, TypeAnnotationNode::String | TypeAnnotationNode::Did) {
-                    return Err(CclError::TypeError("Contract address must be string or DID".to_string()));
+                if !matches!(
+                    addr_type,
+                    TypeAnnotationNode::String | TypeAnnotationNode::Did
+                ) {
+                    return Err(CclError::TypeError(
+                        "Contract address must be string or DID".to_string(),
+                    ));
                 }
                 // Type check parameters
                 for param in params {
@@ -775,12 +834,8 @@ impl SemanticAnalyzer {
                 // Cross-contract calls can return any type, use generic for now
                 Ok(TypeAnnotationNode::Custom("Any".to_string()))
             }
-            ExpressionNode::BreakExpr => {
-                Ok(TypeAnnotationNode::Custom("never".to_string()))
-            }
-            ExpressionNode::ContinueExpr => {
-                Ok(TypeAnnotationNode::Custom("never".to_string()))
-            }
+            ExpressionNode::BreakExpr => Ok(TypeAnnotationNode::Custom("never".to_string())),
+            ExpressionNode::ContinueExpr => Ok(TypeAnnotationNode::Custom("never".to_string())),
             ExpressionNode::UnaryOp { operator, operand } => {
                 let operand_ty = self.evaluate_expression(operand)?;
                 match operator {
