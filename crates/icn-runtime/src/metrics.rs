@@ -37,6 +37,9 @@ pub static WASM_TABLE_GROWTH_DENIED: Lazy<Counter> = Lazy::new(Counter::default)
 /// Counts calls to `host_anchor_receipt`.
 pub static HOST_ANCHOR_RECEIPT_CALLS: Lazy<Counter> = Lazy::new(Counter::default);
 
+/// Counts calls to `host_submit_job_checkpoint`.
+pub static HOST_SUBMIT_JOB_CHECKPOINT_CALLS: Lazy<Counter> = Lazy::new(Counter::default);
+
 /// Counts calls to `host_account_credit_mana`.
 pub static HOST_ACCOUNT_CREDIT_MANA_CALLS: Lazy<Counter> = Lazy::new(Counter::default);
 

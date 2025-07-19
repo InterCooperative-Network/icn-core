@@ -397,6 +397,7 @@ pub async fn host_submit_job_checkpoint(
     ctx: &RuntimeContext,
     checkpoint_json: &str,
 ) -> Result<(), HostAbiError> {
+    metrics::HOST_SUBMIT_JOB_CHECKPOINT_CALLS.inc();
     debug!(
         "[host_submit_job_checkpoint] Received checkpoint JSON: {}",
         checkpoint_json
