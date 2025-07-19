@@ -38,9 +38,9 @@ path = "test_cooperative_contracts.rs"
 name = "test_individual_contracts"
 path = "test_individual_contracts.rs"
 
-[[bin]]
-name = "generate_ccl_job_spec"
-path = "src/bin/generate_ccl_job_spec.rs"
+# [[bin]]
+# name = "generate_ccl_job_spec"
+# path = "src/bin/generate_ccl_job_spec.rs"
 
 
 [dependencies]
