@@ -13,7 +13,7 @@ fn callback_runs_on_execute() {
     let executed = Arc::new(AtomicBool::new(false));
     let mut gov = GovernanceModule::new();
     let flag = executed.clone();
-    gov.set_callback(move |_p| {
+    gov.set_callback(move |_p: &icn_governance::Proposal| {
         flag.store(true, Ordering::SeqCst);
         Ok(())
     });

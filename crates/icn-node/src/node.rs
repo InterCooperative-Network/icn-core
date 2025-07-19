@@ -892,7 +892,7 @@ pub async fn app_router_with_options(
         let frozen_set = app_state.frozen_reputations.clone();
         let handle = tokio::runtime::Handle::current();
         let mut gov = gov_mod.lock().await;
-        gov.set_callback(move |proposal| {
+        gov.set_callback(move |proposal: &icn_governance::Proposal| {
             if let icn_governance::ProposalType::SystemParameterChange(param, value) =
                 &proposal.proposal_type
             {
@@ -1101,7 +1101,7 @@ pub async fn app_router_from_context(
         let frozen_set = app_state.frozen_reputations.clone();
         let handle = tokio::runtime::Handle::current();
         let mut gov = gov_mod.lock().await;
-        gov.set_callback(move |proposal| {
+        gov.set_callback(move |proposal: &icn_governance::Proposal| {
             if let icn_governance::ProposalType::SystemParameterChange(param, value) =
                 &proposal.proposal_type
             {
@@ -1474,7 +1474,7 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
         let frozen_set = app_state.frozen_reputations.clone();
         let handle = tokio::runtime::Handle::current();
         let mut gov = gov_mod.lock().await;
-        gov.set_callback(move |proposal| {
+        gov.set_callback(move |proposal: &icn_governance::Proposal| {
             if let icn_governance::ProposalType::SystemParameterChange(param, value) =
                 &proposal.proposal_type
             {

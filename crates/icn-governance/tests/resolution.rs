@@ -16,7 +16,7 @@ fn execute_resolution_proposal() {
     let pause_f = paused.clone();
     let freeze_f = frozen.clone();
     let mut gov = GovernanceModule::new();
-    gov.set_callback(move |p| {
+    gov.set_callback(move |p: &icn_governance::Proposal| {
         if let ProposalType::Resolution(res) = &p.proposal_type {
             for a in &res.actions {
                 match a {
