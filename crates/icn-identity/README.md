@@ -59,6 +59,34 @@ Zero-knowledge revocation proofs allow verifiers to check that a credential rema
 2. The holder includes this proof when presenting the credential or a credential proof.
 3. Verifiers call `verify_revocation` using their configured `ZkRevocationVerifier`. A successful result confirms the credential is not revoked.
 
+## Delegated Credentials
+
+Delegated credentials allow one DID to delegate authority to another. A chain
+of such credentials proves transitive delegation from the original issuer to the
+final holder.
+
+```rust
+use icn_identity::{
+    delegated_credential::{DelegatedCredential, verify_delegation_chain},
+    generate_ed25519_keypair, did_key_from_verifying_key, KeyDidResolver,
+};
+use icn_common::Did;
+use std::str::FromStr;
+
+let (sk_a, vk_a) = generate_ed25519_keypair();
+let did_a = Did::from_str(&did_key_from_verifying_key(&vk_a)).unwrap();
+let (sk_b, vk_b) = generate_ed25519_keypair();
+let did_b = Did::from_str(&did_key_from_verifying_key(&vk_b)).unwrap();
+let (sk_c, vk_c) = generate_ed25519_keypair();
+let did_c = Did::from_str(&did_key_from_verifying_key(&vk_c)).unwrap();
+
+let d1 = DelegatedCredential::new(did_a.clone(), did_b.clone(), &sk_a);
+let d2 = DelegatedCredential::new(did_b.clone(), did_c.clone(), &sk_b);
+
+let resolver = KeyDidResolver;
+verify_delegation_chain(&did_a, &[d1, d2], &resolver).unwrap();
+```
+
 ## Contributing
 
 Contributions are welcome! Please see the main [CONTRIBUTING.md](../../CONTRIBUTING.md) in the root of the `icn-core` repository for guidelines.
