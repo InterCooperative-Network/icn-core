@@ -15,8 +15,8 @@ pub mod metadata;
 pub mod optimizer;
 pub mod parser;
 pub mod semantic_analyzer;
-pub mod wasm_backend; // Expose functions for CLI layer
 pub mod stdlib;
+pub mod wasm_backend; // Expose functions for CLI layer
 
 pub use error::CclError;
 pub use metadata::ContractMetadata;
@@ -24,10 +24,11 @@ pub use stdlib::StandardLibrary;
 
 /// Compiles a CCL source string into WASM bytecode and metadata.
 pub fn compile_ccl_source_to_wasm(source: &str) -> Result<(Vec<u8>, ContractMetadata), CclError> {
-    use sha2::{Digest, Sha256};
     use icn_common::{compute_merkle_cid, Did};
+    use sha2::{Digest, Sha256};
 
-    let ast_node = parser::parse_ccl_source(source)?;
+    let mut ast_node = parser::parse_ccl_source(source)?;
+    ast_node = expand_macros(ast_node, &StandardLibrary::new())?;
 
     let mut semantic_analyzer = semantic_analyzer::SemanticAnalyzer::new();
     semantic_analyzer.analyze(&ast_node)?;
@@ -77,3 +78,31 @@ pub fn compile_ccl_file_to_wasm(
 
 // Re-export CLI helper functions for easier access by icn-cli
 pub use cli::{check_ccl_file, compile_ccl_file, explain_ccl_policy, format_ccl_file};
+
+/// Expand macro definitions in the given AST using the standard library.
+fn expand_macros(ast: ast::AstNode, stdlib: &StandardLibrary) -> Result<ast::AstNode, CclError> {
+    use ast::{AstNode, PolicyStatementNode};
+
+    if let AstNode::Policy(stmts) = ast {
+        let mut expanded = Vec::new();
+        for stmt in stmts {
+            match stmt {
+                PolicyStatementNode::MacroDef { name, params, body } => {
+                    let args: Vec<String> = body
+                        .split(',')
+                        .map(|s| s.trim().to_string())
+                        .filter(|s| !s.is_empty())
+                        .collect();
+                    let expanded_src = stdlib.expand_macro(&name, &params, &args)?;
+                    if let AstNode::Policy(mut inner) = parser::parse_ccl_source(&expanded_src)? {
+                        expanded.append(&mut inner);
+                    }
+                }
+                other => expanded.push(other),
+            }
+        }
+        Ok(AstNode::Policy(expanded))
+    } else {
+        Ok(ast)
+    }
+}
