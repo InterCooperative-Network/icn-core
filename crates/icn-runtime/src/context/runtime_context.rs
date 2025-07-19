@@ -1664,6 +1664,7 @@ impl RuntimeContext {
             ));
         };
         let selection_policy = icn_mesh::SelectionPolicy::default();
+        let capability_checker = icn_mesh::NoOpCapabilityChecker;
         let selected_executor = icn_mesh::select_executor(
             &job_id,
             &job_spec,
@@ -1672,6 +1673,7 @@ impl RuntimeContext {
             self.reputation_store.as_ref(),
             &self.mana_ledger,
             self.latency_store.as_ref(),
+            &capability_checker,
         );
 
         let selected_executor = match selected_executor {
@@ -2771,6 +2773,7 @@ impl RuntimeContext {
         // Create selection policy (could be configurable via governance)
         let selection_policy = icn_mesh::SelectionPolicy::default();
 
+        let capability_checker = icn_mesh::NoOpCapabilityChecker;
         let selected_executor = icn_mesh::select_executor(
             job_id,
             &job.spec,
@@ -2779,6 +2782,7 @@ impl RuntimeContext {
             ctx.reputation_store.as_ref(),
             &ctx.mana_ledger,
             ctx.latency_store.as_ref(),
+            &capability_checker,
         );
 
         let executor_did = match selected_executor {
@@ -3368,7 +3372,10 @@ impl RuntimeContext {
             },
             executor_capabilities: vec![], // TODO: Get from node config
             executor_federations: vec![], // TODO: Get from node federation
-            executor_trust_scope: None, // TODO: Get from context
+            executor_trust_scope: ctx
+                .parameters
+                .get("executor_trust_scope")
+                .map(|v| v.value().clone()),
             signature: icn_identity::SignatureBytes(vec![]), // Will be filled by sign()
         };
 
@@ -3532,7 +3539,10 @@ impl RuntimeContext {
             },
             executor_capabilities: vec![], // TODO: Get from node config
             executor_federations: vec![], // TODO: Get from node federation
-            executor_trust_scope: None, // TODO: Get from context
+            executor_trust_scope: ctx
+                .parameters
+                .get("executor_trust_scope")
+                .map(|v| v.value().clone()),
             signature: icn_identity::SignatureBytes(vec![]), // Will be filled by sign()
         };
 
