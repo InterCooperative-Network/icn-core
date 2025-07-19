@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["Rule"],"fn":["parse_ccl_source","unescape_string"],"struct":["CclParser"]};
+window.SIDEBAR_ITEMS = {"enum":["Rule"],"fn":["parse_ccl_file","parse_ccl_source","unescape_string"],"struct":["CclParser"]};

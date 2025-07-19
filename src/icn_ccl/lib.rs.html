@@ -63,18 +63,32 @@
 <a href=#63 id=63 data-nosnippet>63</a></span><span class="kw">pub fn </span>compile_ccl_file_to_wasm(
 <a href=#64 id=64 data-nosnippet>64</a>    path: <span class="kw-2">&amp;</span>std::path::Path,
 <a href=#65 id=65 data-nosnippet>65</a>) -&gt; <span class="prelude-ty">Result</span>&lt;(Vec&lt;u8&gt;, ContractMetadata), CclError&gt; {
-<a href=#66 id=66 data-nosnippet>66</a>    <span class="kw">use </span>std::fs;
-<a href=#67 id=67 data-nosnippet>67</a>
-<a href=#68 id=68 data-nosnippet>68</a>    <span class="kw">let </span>source_code = fs::read_to_string(path).map_err(|e| {
-<a href=#69 id=69 data-nosnippet>69</a>        CclError::IoError(<span class="macro">format!</span>(
-<a href=#70 id=70 data-nosnippet>70</a>            <span class="string">"Failed to read source file {}: {}"</span>,
-<a href=#71 id=71 data-nosnippet>71</a>            path.display(),
-<a href=#72 id=72 data-nosnippet>72</a>            e
-<a href=#73 id=73 data-nosnippet>73</a>        ))
-<a href=#74 id=74 data-nosnippet>74</a>    })<span class="question-mark">?</span>;
-<a href=#75 id=75 data-nosnippet>75</a>
-<a href=#76 id=76 data-nosnippet>76</a>    compile_ccl_source_to_wasm(<span class="kw-2">&amp;</span>source_code)
-<a href=#77 id=77 data-nosnippet>77</a>}
-<a href=#78 id=78 data-nosnippet>78</a>
-<a href=#79 id=79 data-nosnippet>79</a><span class="comment">// Re-export CLI helper functions for easier access by icn-cli
-<a href=#80 id=80 data-nosnippet>80</a></span><span class="kw">pub use </span>cli::{check_ccl_file, compile_ccl_file, explain_ccl_policy, format_ccl_file};</code></pre></div></section></main></body></html>
+<a href=#66 id=66 data-nosnippet>66</a>    <span class="kw">use </span>sha2::{Digest, Sha256};
+<a href=#67 id=67 data-nosnippet>67</a>    <span class="kw">use </span>icn_common::{compute_merkle_cid, Did};
+<a href=#68 id=68 data-nosnippet>68</a>
+<a href=#69 id=69 data-nosnippet>69</a>    <span class="kw">let </span>ast_node = parser::parse_ccl_file(path)<span class="question-mark">?</span>;
+<a href=#70 id=70 data-nosnippet>70</a>
+<a href=#71 id=71 data-nosnippet>71</a>    <span class="kw">let </span><span class="kw-2">mut </span>semantic_analyzer = semantic_analyzer::SemanticAnalyzer::new();
+<a href=#72 id=72 data-nosnippet>72</a>    semantic_analyzer.analyze(<span class="kw-2">&amp;</span>ast_node)<span class="question-mark">?</span>;
+<a href=#73 id=73 data-nosnippet>73</a>
+<a href=#74 id=74 data-nosnippet>74</a>    <span class="kw">let </span>optimizer = optimizer::Optimizer::new();
+<a href=#75 id=75 data-nosnippet>75</a>    <span class="kw">let </span>optimized_ast = optimizer.optimize(ast_node)<span class="question-mark">?</span>;
+<a href=#76 id=76 data-nosnippet>76</a>
+<a href=#77 id=77 data-nosnippet>77</a>    <span class="kw">let </span><span class="kw-2">mut </span>backend = wasm_backend::WasmBackend::new();
+<a href=#78 id=78 data-nosnippet>78</a>    <span class="kw">let </span>(wasm, <span class="kw-2">mut </span>meta) = backend.compile_to_wasm(<span class="kw-2">&amp;</span>optimized_ast)<span class="question-mark">?</span>;
+<a href=#79 id=79 data-nosnippet>79</a>
+<a href=#80 id=80 data-nosnippet>80</a>    <span class="kw">let </span>ts = <span class="number">0u64</span>;
+<a href=#81 id=81 data-nosnippet>81</a>    <span class="kw">let </span>author = Did::new(<span class="string">"key"</span>, <span class="string">"tester"</span>);
+<a href=#82 id=82 data-nosnippet>82</a>    <span class="kw">let </span>sig_opt = <span class="prelude-val">None</span>;
+<a href=#83 id=83 data-nosnippet>83</a>    <span class="kw">let </span>cid = compute_merkle_cid(<span class="number">0x71</span>, <span class="kw-2">&amp;</span>wasm, <span class="kw-2">&amp;</span>[], ts, <span class="kw-2">&amp;</span>author, <span class="kw-2">&amp;</span>sig_opt, <span class="kw-2">&amp;</span><span class="prelude-val">None</span>);
+<a href=#84 id=84 data-nosnippet>84</a>    meta.cid = cid.to_string();
+<a href=#85 id=85 data-nosnippet>85</a>
+<a href=#86 id=86 data-nosnippet>86</a>    <span class="kw">let </span>source_code = std::fs::read_to_string(path)<span class="question-mark">?</span>;
+<a href=#87 id=87 data-nosnippet>87</a>    <span class="kw">let </span>digest = Sha256::digest(source_code.as_bytes());
+<a href=#88 id=88 data-nosnippet>88</a>    meta.source_hash = <span class="macro">format!</span>(<span class="string">"sha256:{:x}"</span>, digest);
+<a href=#89 id=89 data-nosnippet>89</a>
+<a href=#90 id=90 data-nosnippet>90</a>    <span class="prelude-val">Ok</span>((wasm, meta))
+<a href=#91 id=91 data-nosnippet>91</a>}
+<a href=#92 id=92 data-nosnippet>92</a>
+<a href=#93 id=93 data-nosnippet>93</a><span class="comment">// Re-export CLI helper functions for easier access by icn-cli
+<a href=#94 id=94 data-nosnippet>94</a></span><span class="kw">pub use </span>cli::{check_ccl_file, compile_ccl_file, explain_ccl_policy, format_ccl_file};</code></pre></div></section></main></body></html>
