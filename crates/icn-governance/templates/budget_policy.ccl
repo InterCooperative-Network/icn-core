@@ -1,0 +1,9 @@
+// Example budgeting policy
+class DevelopmentFund {
+    transferable: true
+}
+
+fn allocate(recipient: Did, amount: Integer) -> Integer {
+    mint("DevelopmentFund", amount, recipient);
+    return amount;
+}

@@ -890,6 +890,7 @@ pub async fn app_router_with_options(
         let param_store_opt = parameter_store.clone();
         let paused_set = app_state.paused_credentials.clone();
         let frozen_set = app_state.frozen_reputations.clone();
+        let ctx_clone = rt_ctx.clone();
         let handle = tokio::runtime::Handle::current();
         let mut gov = gov_mod.lock().await;
         gov.set_callback(move |proposal: &icn_governance::Proposal| {
@@ -1099,6 +1100,7 @@ pub async fn app_router_from_context(
         let param_store_opt: Option<Arc<TokioMutex<ParameterStore>>> = None;
         let paused_set = app_state.paused_credentials.clone();
         let frozen_set = app_state.frozen_reputations.clone();
+        let ctx_clone = ctx.clone();
         let handle = tokio::runtime::Handle::current();
         let mut gov = gov_mod.lock().await;
         gov.set_callback(move |proposal: &icn_governance::Proposal| {
@@ -1472,6 +1474,7 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
         let rate_opt = rate_limiter.clone();
         let paused_set = app_state.paused_credentials.clone();
         let frozen_set = app_state.frozen_reputations.clone();
+        let ctx_clone = rt_ctx.clone();
         let handle = tokio::runtime::Handle::current();
         let mut gov = gov_mod.lock().await;
         gov.set_callback(move |proposal: &icn_governance::Proposal| {

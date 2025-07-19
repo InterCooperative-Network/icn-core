@@ -171,6 +171,7 @@ vote. Operators may enforce mandatory proofs by creating the
 - **Monitoring**: Track implementation progress
 - **Compliance Checking**: Ensure proper execution
 - **Runtime Updates**: Parameters changed, members invited, and budgets allocated
+- **Budget Tracking**: Approved budget proposals credit recipients through the token ledger
 - **Feedback Collection**: Gather post-implementation insights
 
 ### **5. Amendment Process**
@@ -362,6 +363,7 @@ fn emergency_decision(crisis: Crisis) -> EmergencyResponse {
 - **[Consensus Decision-Making](../icn-ccl/tests/contracts/consensus_voting.ccl)**: Template for consensus-based decisions
 - **[Liquid Democracy](../icn-ccl/tests/contracts/liquid_delegation.ccl)**: Delegated voting implementation
 - **[Resource Allocation](../icn-ccl/tests/contracts/resource_allocation.ccl)**: Budget and resource distribution
+- **[Budget Policy](../crates/icn-governance/templates/budget_policy.ccl)**: Simple development fund example
 - **[Membership Management](../icn-ccl/tests/contracts/membership.ccl)**: Member onboarding and management
 
 ### **Getting Started**

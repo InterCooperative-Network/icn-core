@@ -2239,14 +2239,14 @@ impl RuntimeContext {
                 ProposalType::SoftwareUpgrade(version)
             }
             "budgetallocation" | "budget_allocation" => {
-                let tup: (u64, String) = serde_json::from_slice(&payload.type_specific_payload)
+                let tup: (Did, u64, String) = serde_json::from_slice(&payload.type_specific_payload)
                     .map_err(|e| {
                         HostAbiError::InvalidParameters(format!(
                             "Failed to parse budget payload: {}",
                             e
                         ))
                     })?;
-                ProposalType::BudgetAllocation(tup.0, tup.1)
+                ProposalType::BudgetAllocation(tup.0, tup.1, tup.2)
             }
             "generictext" | "generic_text" => {
                 let text = String::from_utf8(payload.type_specific_payload).map_err(|e| {
@@ -2428,6 +2428,14 @@ impl RuntimeContext {
                     match &proposal.proposal_type {
                         ProposalType::SystemParameterChange(key, value) => {
                             self.update_parameter(key.clone(), value.clone()).await?;
+                        }
+                        ProposalType::BudgetAllocation(recipient, amount, _purpose) => {
+                            self.credit_mana(recipient, *amount).await.map_err(|e| {
+                                HostAbiError::InternalError(format!(
+                                    "Failed to credit mana to recipient {}: {}",
+                                    recipient, e
+                                ))
+                            })?;
                         }
                         _ => {
                             // For other proposal types, just log success

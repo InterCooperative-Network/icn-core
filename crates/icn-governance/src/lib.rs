@@ -32,11 +32,8 @@ pub mod federation_governance;
 pub mod metrics;
 pub mod scoped_policy;
 
-pub use federation_governance::{
-    FederationGovernanceEngine, FederationGovernanceError, FederationProposal, GovernanceAction,
-    GovernanceValidationResult, MembershipAction, ProposalStatus as FederationProposalStatus,
-    TrustAwareGovernancePolicy,
 };
+pub use budgeting::{apply_budget_allocation, BudgetProposal};
 
 /// Trait for governance execution hooks.
 ///
@@ -88,7 +85,7 @@ pub enum ProposalType {
     RemoveMember(Did),                     // DID of the member to remove
     SoftwareUpgrade(String),               // Version or identifier for the upgrade
     GenericText(String),                   // For general purpose proposals
-    BudgetAllocation(u64, String),         // amount, purpose
+    BudgetAllocation(Did, u64, String),    // recipient, amount, purpose
     Resolution(ResolutionProposal),        // Dispute or remediation actions
 }
 
