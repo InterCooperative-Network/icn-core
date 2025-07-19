@@ -63,17 +63,31 @@ pub fn compile_ccl_source_to_wasm(source: &str) -> Result<(Vec<u8>, ContractMeta
 pub fn compile_ccl_file_to_wasm(
     path: &std::path::Path,
 ) -> Result<(Vec<u8>, ContractMetadata), CclError> {
-    use std::fs;
+    use sha2::{Digest, Sha256};
+    use icn_common::{compute_merkle_cid, Did};
 
-    let source_code = fs::read_to_string(path).map_err(|e| {
-        CclError::IoError(format!(
-            "Failed to read source file {}: {}",
-            path.display(),
-            e
-        ))
-    })?;
+    let ast_node = parser::parse_ccl_file(path)?;
 
-    compile_ccl_source_to_wasm(&source_code)
+    let mut semantic_analyzer = semantic_analyzer::SemanticAnalyzer::new();
+    semantic_analyzer.analyze(&ast_node)?;
+
+    let optimizer = optimizer::Optimizer::new();
+    let optimized_ast = optimizer.optimize(ast_node)?;
+
+    let mut backend = wasm_backend::WasmBackend::new();
+    let (wasm, mut meta) = backend.compile_to_wasm(&optimized_ast)?;
+
+    let ts = 0u64;
+    let author = Did::new("key", "tester");
+    let sig_opt = None;
+    let cid = compute_merkle_cid(0x71, &wasm, &[], ts, &author, &sig_opt, &None);
+    meta.cid = cid.to_string();
+
+    let source_code = std::fs::read_to_string(path)?;
+    let digest = Sha256::digest(source_code.as_bytes());
+    meta.source_hash = format!("sha256:{:x}", digest);
+
+    Ok((wasm, meta))
 }
 
 // Re-export CLI helper functions for easier access by icn-cli
