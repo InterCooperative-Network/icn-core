@@ -1,3 +1,21 @@
+// Re-export types from client SDK
+export type {
+  Proposal,
+  ProposalInputType,
+  SubmitProposalRequest,
+  CastVoteRequest,
+  FederationPeerRequest,
+  FederationStatus,
+  NodeInfo,
+  NodeStatus,
+  JobStatus,
+  ManaBalance,
+  ReputationScore,
+  VerifiableCredential,
+  ZkCredentialProof,
+  ZkRevocationProof,
+} from '@icn/client-sdk'
+
 export interface ICNClientOptions {
   nodeEndpoint: string
   privateKey?: string
@@ -45,4 +63,68 @@ export interface ManaTransferOptions {
   recipient: string
   amount: number
   memo?: string
+}
+
+// Additional UI-specific types for Federation Dashboard
+export interface FederationCreateRequest {
+  name: string
+  description: string
+  admins: string[]
+  metadata?: Record<string, any>
+}
+
+export interface CooperativeInfo {
+  did: string
+  name: string
+  description?: string
+  status: 'active' | 'inactive' | 'pending'
+  memberCount: number
+  reputation: number
+  capabilities: string[]
+  joinedAt: string
+}
+
+export interface FederationMetadata {
+  name: string
+  description: string
+  created: string
+  admins: string[]
+  totalMembers: number
+  totalCooperatives: number
+  governance: {
+    activeProposals: number
+    totalProposals: number
+  }
+  mesh: {
+    activeJobs: number
+    totalJobs: number
+  }
+  dag: {
+    blockCount: number
+    syncStatus: 'synced' | 'syncing' | 'error'
+  }
+}
+
+// CCL Template types for governance
+export interface CCLTemplate {
+  id: string
+  name: string
+  description: string
+  category: 'membership' | 'governance' | 'economic' | 'technical'
+  template: string
+  parameters: CCLParameter[]
+}
+
+export interface CCLParameter {
+  name: string
+  type: 'string' | 'number' | 'boolean' | 'did' | 'duration'
+  description: string
+  required: boolean
+  default?: any
+  validation?: {
+    min?: number
+    max?: number
+    pattern?: string
+    options?: string[]
+  }
 } 
