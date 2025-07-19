@@ -465,7 +465,63 @@ impl SimpleExecutor {
                         None,
                     ).await?;
                     
-                    self.checkpoint_manager.save_checkpoint(&job.id, checkpoint).await?;
+                    self.checkpoint_manager.save_checkpoint(&job.id, checkpoint.clone()).await?;
+                    
+                    // Anchor checkpoint to DAG if context is available
+                    if let Some(ctx) = &self.ctx {
+                        match ctx.anchor_checkpoint(&checkpoint).await {
+                            Ok(checkpoint_cid) => {
+                                info!(
+                                    "[SimpleExecutor] Checkpoint for job {:?} anchored to DAG with CID: {}",
+                                    job.id, checkpoint_cid
+                                );
+                            }
+                            Err(e) => {
+                                warn!(
+                                    "[SimpleExecutor] Failed to anchor checkpoint for job {:?}: {}",
+                                    job.id, e
+                                );
+                                // Continue execution even if DAG anchoring fails
+                            }
+                        }
+                    }
+                    
+                    // Create partial output for this stage if it produces meaningful data
+                    if progress_percent > 0.0 && i > 0 {
+                        let partial_output = PartialOutputReceipt {
+                            job_id: job.id.clone(),
+                            output_id: format!("stage_{}_{}", i, stage),
+                            stage: stage.to_string(),
+                            timestamp: SystemTime::now().duration_since(std::time::UNIX_EPOCH)
+                                .unwrap_or_default().as_secs(),
+                            output_cid: Cid::new_v1_sha256(0x55, result.as_bytes()),
+                            output_size: result.len() as u64,
+                            output_format: Some("text/plain".to_string()),
+                            executor_did: self.node_did.clone(),
+                            signature: icn_identity::SignatureBytes(vec![]),
+                        }.sign(&self.signing_key)?;
+                        
+                        self.checkpoint_manager.save_partial_output(&job.id, partial_output.clone()).await?;
+                        
+                        // Anchor partial output to DAG if context is available
+                        if let Some(ctx) = &self.ctx {
+                            match ctx.anchor_partial_output(&partial_output).await {
+                                Ok(output_cid) => {
+                                    info!(
+                                        "[SimpleExecutor] Partial output for job {:?} stage '{}' anchored to DAG with CID: {}",
+                                        job.id, stage, output_cid
+                                    );
+                                }
+                                Err(e) => {
+                                    warn!(
+                                        "[SimpleExecutor] Failed to anchor partial output for job {:?}: {}",
+                                        job.id, e
+                                    );
+                                    // Continue execution even if DAG anchoring fails
+                                }
+                            }
+                        }
+                    }
                     
                     // Update progress
                     let progress = ProgressReport {

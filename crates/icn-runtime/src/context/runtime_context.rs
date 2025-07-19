@@ -2172,6 +2172,124 @@ impl RuntimeContext {
         Ok(cid)
     }
 
+    /// Anchor a job checkpoint to the DAG.
+    pub async fn anchor_checkpoint(
+        &self,
+        checkpoint: &icn_mesh::JobCheckpoint,
+    ) -> Result<Cid, HostAbiError> {
+        // 1. Validate that the job exists
+        let job_id = &checkpoint.job_id;
+        let job_state = self.job_states.get(job_id);
+        if job_state.is_none() {
+            return Err(HostAbiError::InvalidParameters("Job not found".to_string()));
+        }
+
+        // 2. Verify the checkpoint signature against the executor's DID
+        let verifying_key = self.did_resolver
+            .resolve_verifying_key(&checkpoint.executor_did)
+            .map_err(|e| HostAbiError::DidResolutionFailed(format!("{e}")))?;
+        
+        checkpoint.verify_signature(&verifying_key)
+            .map_err(|e| HostAbiError::SignatureError(format!("{e}")))?;
+
+        // 3. Create a DAG block for the checkpoint
+        let checkpoint_bytes = bincode::serialize(checkpoint).map_err(|e| {
+            HostAbiError::DagOperationFailed(format!("Failed to serialize checkpoint: {}", e))
+        })?;
+
+        // Create a unique CID for the checkpoint
+        let checkpoint_cid = compute_merkle_cid(
+            0x71, // Raw codec
+            &checkpoint_bytes,
+            &[],
+            checkpoint.timestamp,
+            &checkpoint.executor_did,
+            &None,
+            &None,
+        );
+
+        let block = DagBlock {
+            cid: checkpoint_cid.clone(),
+            data: checkpoint_bytes,
+            links: vec![],
+            timestamp: checkpoint.timestamp,
+            author_did: checkpoint.executor_did.clone(),
+            signature: None,
+            scope: Some(format!("checkpoint:{}", checkpoint.job_id)),
+        };
+
+        // 4. Store in DAG
+        {
+            let mut dag_store = self.dag_store.lock().await;
+            dag_store.put(&block).await.map_err(|e| {
+                HostAbiError::DagOperationFailed(format!("Failed to store checkpoint: {}", e))
+            })?;
+        }
+
+        crate::metrics::CHECKPOINTS_ANCHORED.inc();
+
+        Ok(checkpoint_cid)
+    }
+
+    /// Anchor a partial output receipt to the DAG.
+    pub async fn anchor_partial_output(
+        &self,
+        partial_output: &icn_mesh::PartialOutputReceipt,
+    ) -> Result<Cid, HostAbiError> {
+        // 1. Validate that the job exists
+        let job_id = &partial_output.job_id;
+        let job_state = self.job_states.get(job_id);
+        if job_state.is_none() {
+            return Err(HostAbiError::InvalidParameters("Job not found".to_string()));
+        }
+
+        // 2. Verify the partial output signature against the executor's DID
+        let verifying_key = self.did_resolver
+            .resolve_verifying_key(&partial_output.executor_did)
+            .map_err(|e| HostAbiError::DidResolutionFailed(format!("{e}")))?;
+        
+        partial_output.verify_signature(&verifying_key)
+            .map_err(|e| HostAbiError::SignatureError(format!("{e}")))?;
+
+        // 3. Create a DAG block for the partial output
+        let partial_output_bytes = bincode::serialize(partial_output).map_err(|e| {
+            HostAbiError::DagOperationFailed(format!("Failed to serialize partial output: {}", e))
+        })?;
+
+        // Create a unique CID for the partial output
+        let partial_output_cid = compute_merkle_cid(
+            0x71, // Raw codec
+            &partial_output_bytes,
+            &[],
+            partial_output.timestamp,
+            &partial_output.executor_did,
+            &None,
+            &None,
+        );
+
+        let block = DagBlock {
+            cid: partial_output_cid.clone(),
+            data: partial_output_bytes,
+            links: vec![],
+            timestamp: partial_output.timestamp,
+            author_did: partial_output.executor_did.clone(),
+            signature: None,
+            scope: Some(format!("partial_output:{}", partial_output.job_id)),
+        };
+
+        // 4. Store in DAG
+        {
+            let mut dag_store = self.dag_store.lock().await;
+            dag_store.put(&block).await.map_err(|e| {
+                HostAbiError::DagOperationFailed(format!("Failed to store partial output: {}", e))
+            })?;
+        }
+
+        crate::metrics::PARTIAL_OUTPUTS_ANCHORED.inc();
+
+        Ok(partial_output_cid)
+    }
+
     /// Anchor a parameter update event in the DAG.
     pub async fn anchor_parameter_update(
         &self,

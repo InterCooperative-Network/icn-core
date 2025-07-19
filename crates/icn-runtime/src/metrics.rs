@@ -42,3 +42,18 @@ pub static HOST_ACCOUNT_CREDIT_MANA_CALLS: Lazy<Counter> = Lazy::new(Counter::de
 
 /// Tracks the number of known mana ledger accounts.
 pub static MANA_ACCOUNTS_GAUGE: Lazy<Gauge<i64>> = Lazy::new(Gauge::default);
+
+/// Counts checkpoints anchored to the DAG.
+pub static CHECKPOINTS_ANCHORED: Lazy<Counter> = Lazy::new(Counter::default);
+
+/// Counts partial outputs anchored to the DAG.
+pub static PARTIAL_OUTPUTS_ANCHORED: Lazy<Counter> = Lazy::new(Counter::default);
+
+/// Tracks the number of jobs with active checkpoints (long-running jobs).
+pub static LONG_RUNNING_JOBS_GAUGE: Lazy<Gauge<i64>> = Lazy::new(Gauge::default);
+
+/// Counts successful job resumes from checkpoints.
+pub static JOB_RESUMES: Lazy<Counter> = Lazy::new(Counter::default);
+
+/// Counts job cancellations.
+pub static JOB_CANCELLATIONS: Lazy<Counter> = Lazy::new(Counter::default);
