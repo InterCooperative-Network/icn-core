@@ -3,7 +3,8 @@ import { Link, useLocation } from 'react-router-dom'
 import { useICNClient } from '@icn/ts-sdk'
 
 const navigation = [
-  { name: 'Dashboard', href: '/', icon: '🏠' },
+  { name: 'Demo', href: '/', icon: '🎯' },
+  { name: 'Dashboard', href: '/dashboard', icon: '🏠' },
   { name: 'Federation', href: '/federation', icon: '🤝' },
   { name: 'Governance', href: '/governance', icon: '🗳️' },
   { name: 'Cooperatives', href: '/cooperatives', icon: '🏢' },

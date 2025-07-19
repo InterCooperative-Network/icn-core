@@ -7,6 +7,8 @@ import { Dashboard } from './components/Dashboard'
 import { Navigation } from './components/Navigation'
 import { FederationPage } from './pages/FederationPage'
 import { GovernancePage } from './pages/GovernancePage'
+import { CooperativesPage } from './pages/CooperativesPage'
+import { DemoPage } from './pages/DemoPage'
 import './index.css'
 
 function App() {
@@ -24,11 +26,12 @@ function App() {
               <Navigation />
               <main className="container mx-auto px-4 py-8">
                 <Routes>
-                  <Route path="/" element={<Dashboard />} />
+                  <Route path="/" element={<DemoPage />} />
+                  <Route path="/demo" element={<DemoPage />} />
                   <Route path="/dashboard" element={<Dashboard />} />
                   <Route path="/federation" element={<FederationPage />} />
                   <Route path="/governance" element={<GovernancePage />} />
-                  <Route path="/cooperatives" element={<div>Cooperatives Management (Coming Soon)</div>} />
+                  <Route path="/cooperatives" element={<CooperativesPage />} />
                   <Route path="/jobs" element={<div>Mesh Jobs Management (Coming Soon)</div>} />
                   <Route path="/settings" element={<div>Settings (Coming Soon)</div>} />
                 </Routes>
