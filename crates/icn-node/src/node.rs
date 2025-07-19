@@ -3388,6 +3388,7 @@ async fn credential_issue_handler(
         claims.clone(),
         Some(req.schema),
     );
+    cred.expires_at = Some(req.expiration);
 
     for (k, v) in claims {
         let mut bytes = req.issuer.to_string().into_bytes();

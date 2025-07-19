@@ -61,6 +61,8 @@ pub use trust_verification::{
     TrustVerificationEngine, TrustVerificationConfig, TrustVerificationResult, ChallengeResolution,
 };
 pub mod metrics;
+pub mod delegated_credential;
+pub use delegated_credential::{DelegatedCredential, verify_delegation_chain};
 
 // --- Core Cryptographic Operations & DID:key generation ---
 

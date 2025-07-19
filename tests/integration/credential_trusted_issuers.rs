@@ -43,6 +43,7 @@ async fn verify_trusted_and_untrusted_issuers() {
     let mut claims = HashMap::new();
     claims.insert("role".to_string(), "tester".to_string());
     let mut cred = Credential::new(trusted_did.clone(), Did::new("key", "holder"), claims, Some(Cid::new_v1_sha256(0x55, b"schema")));
+    cred.expires_at = Some(chrono::Utc::now().timestamp() as u64 + 60);
     cred.sign_claims(&sk_trusted);
     let resp = client.post(&url).json(&cred).send().await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
@@ -53,6 +54,7 @@ async fn verify_trusted_and_untrusted_issuers() {
     let mut claims2 = HashMap::new();
     claims2.insert("role".to_string(), "tester".to_string());
     let mut cred2 = Credential::new(untrusted_did, Did::new("key", "holder"), claims2, Some(Cid::new_v1_sha256(0x55, b"schema")));
+    cred2.expires_at = Some(chrono::Utc::now().timestamp() as u64 + 60);
     cred2.sign_claims(&sk_untrusted);
     let resp = client.post(&url).json(&cred2).send().await.unwrap();
     assert_eq!(resp.status(), StatusCode::FORBIDDEN);

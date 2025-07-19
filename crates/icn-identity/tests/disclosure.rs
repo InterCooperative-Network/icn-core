@@ -40,3 +40,22 @@ fn selective_disclosure_with_proof() {
     let verifier = DummyVerifier;
     assert!(verifier.verify(&proof).unwrap());
 }
+
+#[test]
+fn expired_credential_fails() {
+    let (sk, vk) = generate_ed25519_keypair();
+    let issuer_did = Did::new("key", "issuer");
+    let holder_did = Did::new("key", "holder");
+
+    let mut claims = HashMap::new();
+    claims.insert("age".to_string(), "30".to_string());
+
+    let mut cred = CredentialIssuer::new(issuer_did, sk)
+        .issue(holder_did, claims, None, None, None, None)
+        .unwrap()
+        .0;
+    cred.expires_at = Some(chrono::Utc::now().timestamp() as u64 - 1);
+
+    assert!(cred.verify_claim("age", &vk).is_err());
+    assert!(cred.disclose_with_proof(&["age"], &DummyProver).is_err());
+}
