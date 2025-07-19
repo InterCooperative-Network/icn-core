@@ -816,8 +816,24 @@ impl WasmBackend {
                 instrs.push(Instruction::I64Const(0));
                 Ok(ValType::I64)
             }
-            ExpressionNode::OkExpr(inner) | ExpressionNode::ErrExpr(inner) => {
+            ExpressionNode::OkExpr(inner) => {
                 self.emit_expression(inner, instrs, locals, indices)?;
+                instrs.push(Instruction::I32WrapI64);
+                instrs.push(Instruction::I64ExtendI32U);
+                instrs.push(Instruction::I64Const(0));
+                instrs.push(Instruction::I64Const(32));
+                instrs.push(Instruction::I64Shl);
+                instrs.push(Instruction::I64Or);
+                Ok(ValType::I64)
+            }
+            ExpressionNode::ErrExpr(inner) => {
+                self.emit_expression(inner, instrs, locals, indices)?;
+                instrs.push(Instruction::I32WrapI64);
+                instrs.push(Instruction::I64ExtendI32U);
+                instrs.push(Instruction::I64Const(1));
+                instrs.push(Instruction::I64Const(32));
+                instrs.push(Instruction::I64Shl);
+                instrs.push(Instruction::I64Or);
                 Ok(ValType::I64)
             }
             ExpressionNode::RequireProof(inner) => {
@@ -878,14 +894,22 @@ impl WasmBackend {
                 }
             }
             ExpressionNode::TryExpr { expr, catch_arm } => {
-                // For now, just emit the main expression
-                // In a full implementation, we'd need proper error handling
-                let expr_ty = self.emit_expression(expr, instrs, locals, indices)?;
-                if let Some(_catch_expr) = catch_arm {
-                    // TODO: Implement proper try/catch with Result handling
-                    // For now, ignore the catch arm
+                let res_local = locals.get_or_add("__try_res", ValType::I64);
+                self.emit_expression(expr, instrs, locals, indices)?;
+                instrs.push(Instruction::LocalTee(res_local));
+                instrs.push(Instruction::I64Const(32));
+                instrs.push(Instruction::I64ShrU);
+                instrs.push(Instruction::I32WrapI64);
+                instrs.push(Instruction::If(wasm_encoder::BlockType::Result(ValType::I64)));
+                if let Some(catch_expr) = catch_arm {
+                    self.emit_expression(catch_expr, instrs, locals, indices)?;
+                } else {
+                    instrs.push(Instruction::LocalGet(res_local));
                 }
-                Ok(expr_ty)
+                instrs.push(Instruction::Else);
+                instrs.push(Instruction::LocalGet(res_local));
+                instrs.push(Instruction::End);
+                Ok(ValType::I64)
             }
             ExpressionNode::MapLiteral(_entries) => {
                 // TODO: Implement map literal compilation to WASM
