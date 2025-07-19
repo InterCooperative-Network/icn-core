@@ -55,6 +55,9 @@ pub const SERVICE_AD_PREFIX: &str = "/icn/service/";
 /// `/icn/did/did:web:example.com`.
 pub const DID_DOC_PREFIX: &str = "/icn/did/";
 
+/// Prefix for federation info records stored in the DHT.
+pub const FEDERATION_INFO_PREFIX: &str = "/icn/fedinfo/";
+
 /// Legacy type aliases for compatibility
 pub type Job = icn_protocol::MeshJobAnnouncementMessage;
 pub type Bid = icn_protocol::MeshBidSubmissionMessage;
@@ -240,6 +243,10 @@ pub trait NetworkService: Send + Sync + Debug + DowncastSync + 'static {
         &self,
         target_peer_id_str: Option<String>,
     ) -> Result<Vec<PeerId>, MeshNetworkError>;
+    /// Discover federations known to connected peers.
+    async fn discover_federations(&self) -> Result<Vec<icn_protocol::FederationInfo>, MeshNetworkError> {
+        Err(MeshNetworkError::InvalidInput("Federation discovery not supported".into()))
+    }
     async fn send_message(
         &self,
         peer: &PeerId,
@@ -293,12 +300,14 @@ impl_downcast!(sync NetworkService);
 #[derive(Debug)]
 pub struct StubNetworkService {
     records: std::sync::Arc<tokio::sync::Mutex<HashMap<String, Vec<u8>>>>,
+    federations: std::sync::Arc<tokio::sync::Mutex<Vec<icn_protocol::FederationInfo>>>,
 }
 
 impl Default for StubNetworkService {
     fn default() -> Self {
         Self {
             records: std::sync::Arc::new(tokio::sync::Mutex::new(HashMap::new())),
+            federations: std::sync::Arc::new(tokio::sync::Mutex::new(Vec::new())),
         }
     }
 }
@@ -390,6 +399,10 @@ impl NetworkService for StubNetworkService {
         .await
     }
 
+    async fn discover_federations(&self) -> Result<Vec<icn_protocol::FederationInfo>, MeshNetworkError> {
+        Ok(self.federations.lock().await.clone())
+    }
+
     async fn get_network_stats(&self) -> Result<NetworkStats, MeshNetworkError> {
         with_resilience(|| async { Ok(NetworkStats::default()) }).await
     }
@@ -436,7 +449,15 @@ impl NetworkService for StubNetworkService {
             let v = val_cl.clone();
             async move {
                 let mut map = self.records.lock().await;
-                map.insert(k, v);
+                map.insert(k.clone(), v.clone());
+                if k.starts_with(FEDERATION_INFO_PREFIX) {
+                    if let Ok(info) = bincode::deserialize::<icn_protocol::FederationInfo>(&v) {
+                        let mut feds = self.federations.lock().await;
+                        if !feds.iter().any(|i| i.federation_id == info.federation_id) {
+                            feds.push(info);
+                        }
+                    }
+                }
                 Ok(())
             }
         })
@@ -899,6 +920,7 @@ pub mod libp2p_service {
         config: NetworkConfig,
         listening_addresses: Arc<Mutex<Vec<Multiaddr>>>,
         event_loop_handle: task::JoinHandle<()>, // Hold the handle to prevent task cancellation
+        federations: Arc<Mutex<Vec<icn_protocol::FederationInfo>>>,
     }
 
     impl Clone for Libp2pNetworkService {
@@ -911,6 +933,7 @@ pub mod libp2p_service {
                 config: self.config.clone(),
                 listening_addresses: self.listening_addresses.clone(),
                 event_loop_handle: task::spawn(async {}), // Dummy handle for clones
+                federations: self.federations.clone(),
             }
         }
     }
@@ -1217,6 +1240,9 @@ pub mod libp2p_service {
             crate::metrics::KADEMLIA_PEERS_GAUGE.set(0);
             let stats_clone = stats.clone();
 
+            let federations = Arc::new(Mutex::new(Vec::new()));
+            let federations_clone = federations.clone();
+
             // Clone bootstrap_peers for use in the async task
             let bootstrap_peers_clone = config.bootstrap_peers.clone();
             let has_bootstrap_peers = !bootstrap_peers_clone.is_empty();
@@ -1275,7 +1301,7 @@ pub mod libp2p_service {
                                 log::info!("✅ [LIBP2P] Listening on {}", address);
                                 listening_addresses_clone.lock().unwrap().push(address.clone());
                             }
-                            Self::handle_swarm_event(event, &stats_clone, &mut subscribers, &mut swarm, &mut pending_kad_queries).await;
+                            Self::handle_swarm_event(event, &stats_clone, &federations_clone, &mut subscribers, &mut swarm, &mut pending_kad_queries).await;
                             log::debug!("🔧 [LIBP2P] Finished handling swarm event");
                         }
                         Some(command) = cmd_rx.recv() => {
@@ -1429,12 +1455,14 @@ pub mod libp2p_service {
                 config,
                 listening_addresses,
                 event_loop_handle,
+                federations,
             })
         }
 
         async fn handle_swarm_event(
             event: SwarmEvent<CombinedBehaviourEvent>,
             stats: &Arc<Mutex<EnhancedNetworkStats>>,
+            federations: &Arc<Mutex<Vec<icn_protocol::FederationInfo>>>,
             subscribers: &mut Vec<mpsc::Sender<super::ProtocolMessage>>,
             swarm: &mut Swarm<CombinedBehaviour>,
             pending_kad_queries: &mut HashMap<QueryId, PendingQuery>,
@@ -1588,10 +1616,17 @@ pub mod libp2p_service {
                                     type_stats.bytes_received += message_size;
                                 }
                                 subscribers.retain_mut(|sub| sub.try_send(request.clone()).is_ok());
+                                let mut response = request.clone();
+                                if let MessagePayload::FederationDiscoverRequest(_) = &request.payload {
+                                    let feds = federations.lock().unwrap().clone();
+                                    response.payload = MessagePayload::FederationDiscoverResponse(
+                                        icn_protocol::FederationDiscoverResponseMessage { federations: feds },
+                                    );
+                                }
                                 if let Err(e) = swarm
                                     .behaviour_mut()
                                     .request_response
-                                    .send_response(channel, request)
+                                    .send_response(channel, response)
                                 {
                                     log::error!("Failed to send response: {:?}", e);
                                 }
@@ -1813,6 +1848,31 @@ pub mod libp2p_service {
             .await
         }
 
+        async fn discover_federations(&self) -> Result<Vec<icn_protocol::FederationInfo>, MeshNetworkError> {
+            let peers = self.discover_peers(None).await?;
+            let mut sub = self.subscribe().await?;
+            for peer in &peers {
+                let req = icn_protocol::ProtocolMessage::new(
+                    icn_protocol::MessagePayload::FederationDiscoverRequest(
+                        icn_protocol::FederationDiscoverRequestMessage,
+                    ),
+                    Did::default(),
+                    None,
+                );
+                let _ = self.send_message(peer, req).await;
+            }
+            use tokio::time::{timeout, Duration};
+            let mut results = Vec::new();
+            for _ in 0..peers.len() {
+                if let Ok(Some(msg)) = timeout(Duration::from_secs(5), sub.recv()).await {
+                    if let icn_protocol::MessagePayload::FederationDiscoverResponse(resp) = msg.payload {
+                        results.extend(resp.federations);
+                    }
+                }
+            }
+            Ok(results)
+        }
+
         async fn get_network_stats(&self) -> Result<super::NetworkStats, MeshNetworkError> {
             with_resilience(|| {
                 let cmd = self.cmd_tx.clone();
@@ -1834,12 +1894,13 @@ pub mod libp2p_service {
                 let cmd = self.cmd_tx.clone();
                 let key_bytes = key.clone().into_bytes();
                 let val = value.clone();
+                let key_clone2 = key.clone();
                 async move {
                     let (tx, rx) = oneshot::channel();
                     let record_key = KademliaKey::new(&key_bytes);
                     cmd.send(Command::PutKademliaRecord {
                         key: record_key,
-                        value: val,
+                        value: val.clone(),
                         rsp: tx,
                     })
                     .await
@@ -1847,6 +1908,14 @@ pub mod libp2p_service {
                     let _ = rx.await.map_err(|e| {
                         MeshNetworkError::Libp2p(format!("Put record response failed: {}", e))
                     })?;
+                    if key_clone2.starts_with(FEDERATION_INFO_PREFIX) {
+                        if let Ok(info) = bincode::deserialize::<icn_protocol::FederationInfo>(&val) {
+                            let mut feds = self.federations.lock().unwrap();
+                            if !feds.iter().any(|i| i.federation_id == info.federation_id) {
+                                feds.push(info);
+                            }
+                        }
+                    }
                     Ok(())
                 }
             })

@@ -69,6 +69,10 @@ pub enum MessagePayload {
     FederationJoinResponse(FederationJoinResponseMessage),
     /// Request federation state synchronization
     FederationSyncRequest(FederationSyncRequestMessage),
+    /// Request list of known federations
+    FederationDiscoverRequest(FederationDiscoverRequestMessage),
+    /// Response containing discovered federations
+    FederationDiscoverResponse(FederationDiscoverResponseMessage),
 
     // === Network Management ===
     /// Generic gossip message for flexible communication
@@ -398,6 +402,26 @@ pub enum SyncDataType {
     Reputation,
 }
 
+/// Request a list of known federations from a peer
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FederationDiscoverRequestMessage;
+
+/// Information about a federation for discovery purposes
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FederationInfo {
+    /// Identifier of the federation
+    pub federation_id: String,
+    /// Known members within the federation
+    pub members: Vec<Did>,
+}
+
+/// Response containing federations advertised by a peer
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FederationDiscoverResponseMessage {
+    /// Federations known to the responding peer
+    pub federations: Vec<FederationInfo>,
+}
+
 // === Network Management Messages ===
 
 /// Generic gossip message for flexible communication
@@ -484,6 +508,8 @@ impl MessagePayload {
             MessagePayload::FederationJoinRequest(_) => "FederationJoinRequest",
             MessagePayload::FederationJoinResponse(_) => "FederationJoinResponse",
             MessagePayload::FederationSyncRequest(_) => "FederationSyncRequest",
+            MessagePayload::FederationDiscoverRequest(_) => "FederationDiscoverRequest",
+            MessagePayload::FederationDiscoverResponse(_) => "FederationDiscoverResponse",
             MessagePayload::GossipMessage(_) => "GossipMessage",
             MessagePayload::HeartbeatMessage(_) => "HeartbeatMessage",
             MessagePayload::PeerDiscoveryMessage(_) => "PeerDiscoveryMessage",
