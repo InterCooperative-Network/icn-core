@@ -2,7 +2,10 @@
 #![allow(clippy::new_without_default)]
 #![allow(clippy::uninlined_format_args)]
 #![allow(clippy::to_string_in_format_args)]
-#![cfg_attr(not(feature = "allow-nondeterminism"), deny(clippy::disallowed_methods))]
+#![cfg_attr(
+    not(feature = "allow-nondeterminism"),
+    deny(clippy::disallowed_methods)
+)]
 
 //! # ICN Governance Crate
 //! This crate defines the mechanisms for network governance within the InterCooperative Network (ICN).
@@ -25,14 +28,14 @@ use std::path::PathBuf;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
+pub mod federation_governance;
 pub mod metrics;
 pub mod scoped_policy;
-pub mod federation_governance;
 
 pub use federation_governance::{
-    GovernanceAction, MembershipAction, TrustAwareGovernancePolicy, 
-    FederationGovernanceEngine, FederationProposal, ProposalStatus as FederationProposalStatus,
-    GovernanceValidationResult, FederationGovernanceError,
+    FederationGovernanceEngine, FederationGovernanceError, FederationProposal, GovernanceAction,
+    GovernanceValidationResult, MembershipAction, ProposalStatus as FederationProposalStatus,
+    TrustAwareGovernancePolicy,
 };
 
 // --- Proposal System ---
@@ -89,12 +92,14 @@ pub struct ResolutionProposal {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ProposalStatus {
-    Pending,    // Newly created, awaiting votes
-    VotingOpen, // Actively collecting votes
-    Accepted,   // Voting period ended, quorum and threshold met
-    Rejected,   // Voting period ended, quorum or threshold not met
-    Executed,   // For proposals that have an on-chain/system effect
-    Failed,     // Execution failed
+    /// Newly created and under discussion before voting opens
+    Deliberation,
+    /// Actively collecting votes
+    VotingOpen,
+    Accepted, // Voting period ended, quorum and threshold met
+    Rejected, // Voting period ended, quorum or threshold not met
+    Executed, // For proposals that have an on-chain/system effect
+    Failed,   // Execution failed
 }
 
 /// Full proposal record stored in the governance module.
@@ -119,10 +124,12 @@ pub struct Proposal {
 }
 
 pub fn canonical_proposal(proposals: &[Proposal]) -> Option<&Proposal> {
-    proposals.iter().min_by(|a, b| match a.created_at.cmp(&b.created_at) {
-        std::cmp::Ordering::Equal => a.id.0.cmp(&b.id.0),
-        other => other,
-    })
+    proposals
+        .iter()
+        .min_by(|a, b| match a.created_at.cmp(&b.created_at) {
+            std::cmp::Ordering::Equal => a.id.0.cmp(&b.id.0),
+            other => other,
+        })
 }
 
 /// Possible voting options.
@@ -307,7 +314,7 @@ impl GovernanceModule {
             description: submission.description,
             created_at: now,
             voting_deadline: now + submission.duration_secs,
-            status: ProposalStatus::Pending,
+            status: ProposalStatus::Deliberation,
             votes: HashMap::new(),
             quorum: submission.quorum,
             threshold: submission.threshold,
@@ -377,7 +384,7 @@ impl GovernanceModule {
         Ok(proposal_id)
     }
 
-    /// Transition a proposal from `Pending` to `VotingOpen`.
+    /// Transition a proposal from `Deliberation` to `VotingOpen`.
     pub fn open_voting(&mut self, proposal_id: &ProposalId) -> Result<(), CommonError> {
         match &mut self.backend {
             Backend::InMemory { proposals } => {
@@ -387,9 +394,9 @@ impl GovernanceModule {
                         proposal_id.0
                     ))
                 })?;
-                if proposal.status != ProposalStatus::Pending {
+                if proposal.status != ProposalStatus::Deliberation {
                     return Err(CommonError::InvalidInputError(format!(
-                        "Proposal {} not pending, current status: {:?}",
+                        "Proposal {} not ready for voting, current status: {:?}",
                         proposal_id.0, proposal.status
                     )));
                 }
@@ -425,9 +432,9 @@ impl GovernanceModule {
                             proposal_id.0, e
                         ))
                     })?;
-                if proposal.status != ProposalStatus::Pending {
+                if proposal.status != ProposalStatus::Deliberation {
                     return Err(CommonError::InvalidInputError(format!(
-                        "Proposal {} not pending, current status: {:?}",
+                        "Proposal {} not ready for voting, current status: {:?}",
                         proposal_id.0, proposal.status
                     )));
                 }
