@@ -30,10 +30,29 @@ pub mod scoped_policy;
 pub mod federation_governance;
 
 pub use federation_governance::{
-    GovernanceAction, MembershipAction, TrustAwareGovernancePolicy, 
+    GovernanceAction, MembershipAction, TrustAwareGovernancePolicy,
     FederationGovernanceEngine, FederationProposal, ProposalStatus as FederationProposalStatus,
     GovernanceValidationResult, FederationGovernanceError,
 };
+
+/// Trait for governance execution hooks.
+///
+/// Hooks are invoked when a proposal is executed and can perform
+/// additional actions such as minting tokens or triggering runtime
+/// upgrades. Implementors may hold references to other ICN crates
+/// to access the necessary APIs.
+pub trait ProposalCallback: Send + Sync {
+    fn on_execute(&self, proposal: &Proposal) -> Result<(), CommonError>;
+}
+
+impl<F> ProposalCallback for F
+where
+    F: Fn(&Proposal) -> Result<(), CommonError> + Send + Sync,
+{
+    fn on_execute(&self, proposal: &Proposal) -> Result<(), CommonError> {
+        self(proposal)
+    }
+}
 
 // --- Proposal System ---
 
@@ -177,7 +196,7 @@ pub struct GovernanceModule {
     quorum: usize,
     threshold: f32,
     #[allow(clippy::type_complexity)]
-    proposal_callback: Option<Box<dyn Fn(&Proposal) -> Result<(), CommonError> + Send + Sync>>,
+    proposal_callbacks: Vec<Box<dyn ProposalCallback>>,
     #[allow(clippy::type_complexity)]
     event_store: Option<std::sync::Mutex<Box<dyn icn_eventstore::EventStore<GovernanceEvent>>>>,
 }
@@ -205,7 +224,7 @@ impl GovernanceModule {
             delegations: HashMap::new(),
             quorum: 1,
             threshold: 0.5,
-            proposal_callback: None,
+            proposal_callbacks: Vec::new(),
             event_store: None,
         }
     }
@@ -276,7 +295,7 @@ impl GovernanceModule {
             delegations: HashMap::new(),
             quorum: 1,
             threshold: 0.5,
-            proposal_callback: None,
+            proposal_callbacks: Vec::new(),
             event_store: None,
         })
     }
@@ -718,9 +737,9 @@ impl GovernanceModule {
     /// Register a callback executed when proposals are run via [`execute_proposal`].
     pub fn set_callback<F>(&mut self, cb: F)
     where
-        F: Fn(&Proposal) -> Result<(), CommonError> + Send + Sync + 'static,
+        F: ProposalCallback + 'static,
     {
-        self.proposal_callback = Some(Box::new(cb));
+        self.proposal_callbacks.push(Box::new(cb));
     }
 
     /// Inserts a proposal that originated from another node into the governance module.
@@ -1165,8 +1184,8 @@ impl GovernanceModule {
                     }
                     _ => {}
                 }
-                if let Some(cb) = &self.proposal_callback {
-                    if let Err(e) = cb(proposal) {
+                for cb in &self.proposal_callbacks {
+                    if let Err(e) = cb.on_execute(proposal) {
                         proposal.status = ProposalStatus::Failed;
                         if let Some(store) = &self.event_store {
                             let _ = store
@@ -1240,8 +1259,8 @@ impl GovernanceModule {
                     }
                     _ => {}
                 }
-                if let Some(cb) = &self.proposal_callback {
-                    if let Err(e) = cb(&proposal) {
+                for cb in &self.proposal_callbacks {
+                    if let Err(e) = cb.on_execute(&proposal) {
                         proposal.status = ProposalStatus::Failed;
                         let encoded = bincode::serialize(&proposal).map_err(|e| {
                             CommonError::SerializationError(format!(
