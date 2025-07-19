@@ -3490,15 +3490,12 @@ async fn handle_credential_revoke(
     cli: &Cli,
     client: &Client,
     cid: &str,
-    reason: &str,
+    _reason: &str, // Note: reason parameter not used by current API endpoint
 ) -> Result<(), anyhow::Error> {
-    use std::str::FromStr;
-
     let cid = icn_common::parse_cid_from_string(cid)?;
-    let request = icn_api::credential_trait::RevokeCredentialRequest {
-        credential_cid: cid,
-        reason: reason.to_string(),
-        revoked_by: Did::from_str("did:key:cli")?,
+    
+    let request = icn_api::identity_trait::RevokeCredentialRequest {
+        cid,
     };
 
     let resp: serde_json::Value = post_request(
