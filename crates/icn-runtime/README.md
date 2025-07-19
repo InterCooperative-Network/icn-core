@@ -160,6 +160,13 @@ a fuel allowance. Fuel metering is enabled via Wasmtime and each instruction
 consumes fuel. When a module exhausts its fuel or attempts to grow memory beyond
 the configured limit, execution is aborted.
 
+## Trust Validation
+
+Before executing a CCL contract, the runtime checks that the executor is trusted
+by the job creator for the required scope using
+`TrustPolicyEngine::validate_trust`. If the validation fails, the job is
+rejected with a `PermissionDenied` error.
+
 ## Error Types
 
 `CommonError` is used for all runtime failures.
