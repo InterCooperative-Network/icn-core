@@ -85,24 +85,38 @@ fn expand_macros(ast: ast::AstNode, stdlib: &StandardLibrary) -> Result<ast::Ast
 
     if let AstNode::Policy(stmts) = ast {
         let mut expanded = Vec::new();
+        let mut local_stdlib = stdlib.clone();
+        
+        // First pass: collect macro definitions and register them
+        for stmt in &stmts {
+            if let PolicyStatementNode::MacroDef { name, params, body } = stmt {
+                local_stdlib.register_macro(name.clone(), params.clone(), body.clone());
+            }
+        }
+        
+        // Second pass: process statements 
+        // For now, we just keep all statements including macro definitions
+        // TODO: Implement full macro expansion in expressions
         for stmt in stmts {
             match stmt {
-                PolicyStatementNode::MacroDef { name, params, body } => {
-                    let args: Vec<String> = body
-                        .split(',')
-                        .map(|s| s.trim().to_string())
-                        .filter(|s| !s.is_empty())
-                        .collect();
-                    let expanded_src = stdlib.expand_macro(&name, &params, &args)?;
-                    if let AstNode::Policy(mut inner) = parser::parse_ccl_source(&expanded_src)? {
-                        expanded.append(&mut inner);
-                    }
+                PolicyStatementNode::MacroDef { .. } => {
+                    // Keep macro definitions in the output
+                    expanded.push(stmt);
                 }
-                other => expanded.push(other),
+                other => {
+                    // For now, just keep other statements as-is
+                    // TODO: In a full implementation, we would recursively 
+                    // traverse expressions in these statements to find and expand macro calls
+                    expanded.push(other);
+                }
             }
         }
         Ok(AstNode::Policy(expanded))
     } else {
+        // For non-Policy nodes, return as-is for now
+        // TODO: Implement macro expansion for other node types
         Ok(ast)
     }
 }
+
+
