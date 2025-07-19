@@ -3487,12 +3487,26 @@ async fn handle_credential_list(
 }
 
 async fn handle_credential_revoke(
-    _cli: &Cli,
-    _client: &Client,
-    _cid: &str,
-    _reason: &str,
+    cli: &Cli,
+    client: &Client,
+    cid: &str,
+    _reason: &str, // Note: reason parameter not used by current API endpoint
 ) -> Result<(), anyhow::Error> {
-    println!("🚧 Credential revocation not yet implemented");
+    let cid = icn_common::parse_cid_from_string(cid)?;
+    
+    let request = icn_api::identity_trait::RevokeCredentialRequest {
+        cid,
+    };
+
+    let resp: serde_json::Value = post_request(
+        &cli.api_url,
+        client,
+        "/identity/credentials/revoke",
+        &request,
+        cli.api_key.as_deref(),
+    )
+    .await?;
+    println!("{}", serde_json::to_string_pretty(&resp)?);
     Ok(())
 }
 

@@ -220,10 +220,14 @@ impl DisclosedCredential {
     }
 }
 
+use std::sync::Arc;
+use crate::revocation_registry::RevocationRegistry;
+
 pub struct CredentialIssuer {
     did: Did,
     signing_key: SigningKey,
     prover: Option<Box<dyn ZkProver>>,
+    revocation_registry: Option<Arc<dyn RevocationRegistry>>,
 }
 
 impl CredentialIssuer {
@@ -232,11 +236,20 @@ impl CredentialIssuer {
             did,
             signing_key,
             prover: None,
+            revocation_registry: None,
         }
     }
 
     pub fn with_prover(mut self, prover: Box<dyn ZkProver>) -> Self {
         self.prover = Some(prover);
+        self
+    }
+
+    pub fn with_revocation_registry(
+        mut self,
+        registry: Arc<dyn RevocationRegistry>,
+    ) -> Self {
+        self.revocation_registry = Some(registry);
         self
     }
 
@@ -267,6 +280,12 @@ impl CredentialIssuer {
         } else {
             None
         };
+        if let Some(ref reg) = self.revocation_registry {
+            if let Ok(bytes) = serde_json::to_vec(&cred) {
+                let cid = Cid::new_v1_sha256(0x71, &bytes);
+                reg.record(cid);
+            }
+        }
         crate::metrics::CREDENTIALS_ISSUED.inc();
         Ok((cred, proof))
     }

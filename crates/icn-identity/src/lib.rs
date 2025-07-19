@@ -27,6 +27,8 @@ pub mod credential;
 pub use credential::{Credential, CredentialIssuer, DisclosedCredential};
 pub mod credential_store;
 pub use credential_store::InMemoryCredentialStore;
+pub mod revocation_registry;
+pub use revocation_registry::{InMemoryRevocationRegistry, RevocationRegistry};
 pub mod cooperative_schemas;
 pub use cooperative_schemas::{
     schemas, CooperativeCapability, CooperativeMembershipBuilder, CooperativeProfile,

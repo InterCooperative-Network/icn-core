@@ -59,6 +59,9 @@ Zero-knowledge revocation proofs allow verifiers to check that a credential rema
 2. The holder includes this proof when presenting the credential or a credential proof.
 3. Verifiers call `verify_revocation` using their configured `ZkRevocationVerifier`. A successful result confirms the credential is not revoked.
 
+
+Revocation registries implement the `RevocationRegistry` trait. `InMemoryRevocationRegistry` offers a simple off-chain store for issued and revoked credential CIDs.
+=======
 ## Delegated Credentials
 
 Delegated credentials allow one DID to delegate authority to another. A chain
@@ -86,6 +89,7 @@ let d2 = DelegatedCredential::new(did_b.clone(), did_c.clone(), &sk_b);
 let resolver = KeyDidResolver;
 verify_delegation_chain(&did_a, &[d1, d2], &resolver).unwrap();
 ```
+
 
 ## Contributing
 

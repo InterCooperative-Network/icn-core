@@ -61,8 +61,9 @@ cargo run -p icn-cli -- \
 `icn-devnet/launch_federation.sh` runs these commands automatically when the
 containers start so the federation is ready for testing.
 *   **Identity Operations:**
-    *   `icn-cli identity generate-proof <PROOF_REQUEST_JSON>`: Produce a zero-knowledge proof from the supplied request JSON.
-    *   `icn-cli identity verify-proof <PROOF_JSON>`: Verify a proof and print whether it is valid.
+*   `icn-cli identity generate-proof <PROOF_REQUEST_JSON>`: Produce a zero-knowledge proof from the supplied request JSON.
+*   `icn-cli identity verify-proof <PROOF_JSON>`: Verify a proof and print whether it is valid.
+*   `icn-cli credential revoke <CID> --reason <TEXT>`: Mark a credential revoked in the connected node.
 *   **Monitoring:**
     *   `icn-cli monitor uptime`: Display node uptime using the metrics endpoint.
 *   **Zero-Knowledge Operations:**
