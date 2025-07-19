@@ -4,7 +4,7 @@
     bids: <a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="struct" href="struct.MeshJobBid.html" title="struct icn_mesh::MeshJobBid">MeshJobBid</a>&gt;,
     policy: &amp;<a class="struct" href="struct.SelectionPolicy.html" title="struct icn_mesh::SelectionPolicy">SelectionPolicy</a>,
     reputation_store: &amp;dyn ReputationStore,
-    mana_ledger: &amp;dyn ManaLedger,
+    mana_ledger: &amp;dyn <a class="trait" href="../icn_economics/trait.ManaLedger.html" title="trait icn_economics::ManaLedger">ManaLedger</a>,
     latency_store: &amp;dyn <a class="trait" href="trait.LatencyStore.html" title="trait icn_mesh::LatencyStore">LatencyStore</a>,
     capability_checker: &amp;dyn <a class="trait" href="trait.DynamicCapabilityChecker.html" title="trait icn_mesh::DynamicCapabilityChecker">DynamicCapabilityChecker</a>,
 ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.88.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="struct" href="../icn_common/struct.Did.html" title="struct icn_common::Did">Did</a>&gt;</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Selects the best executor from a list of bids.</p>
