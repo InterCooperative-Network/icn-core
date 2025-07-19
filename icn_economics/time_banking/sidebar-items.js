@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["TimeRecordStatus"],"fn":["calculate_total_hours","get_community_work_stats","record_and_mint_time_tokens","verify_time_record"],"struct":["InMemoryTimeBankingStore","TimeRecord","WorkStatistics"],"trait":["TimeBankingStore"]};

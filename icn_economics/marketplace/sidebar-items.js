@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["BidStatus","FulfillmentMethod","ItemType","OfferStatus","TransactionStatus"],"struct":["FulfillmentDetails","InMemoryMarketplaceStore","MarketplaceBid","MarketplaceOffer","MarketplaceTransaction","OfferFilter"],"trait":["MarketplaceStore"]};

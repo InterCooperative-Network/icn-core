@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["CclError"]};
+window.SIDEBAR_ITEMS = {"enum":["CclError","ErrorSeverity"]};
