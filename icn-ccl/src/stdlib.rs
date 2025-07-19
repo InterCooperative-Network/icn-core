@@ -5,9 +5,11 @@
 
 use crate::ast::{ExpressionNode, TypeAnnotationNode, PolicyStatementNode};
 use crate::error::CclError;
+use crate::governance_std;
 use std::collections::HashMap;
 
 /// Standard constants available in CCL
+#[derive(Clone)]
 pub struct StandardLibrary {
     pub constants: HashMap<String, (ExpressionNode, TypeAnnotationNode)>,
     pub macros: HashMap<String, String>,
@@ -23,6 +25,7 @@ impl StandardLibrary {
         // Add standard constants
         stdlib.add_constants();
         stdlib.add_macros();
+        stdlib.add_governance_helpers();
         
         stdlib
     }
@@ -232,13 +235,6 @@ impl StandardLibrary {
             }".to_string()
         );
         
-        self.macros.insert(
-            "is_quorum_met".to_string(),
-            "fn is_quorum_met(participants: Integer, total_members: Integer, quorum_percent: Integer) -> Bool {
-                let required = (total_members * quorum_percent) / 100;
-                return participants >= required;
-            }".to_string()
-        );
         
         self.macros.insert(
             "calculate_quadratic_cost".to_string(),
@@ -438,13 +434,6 @@ impl StandardLibrary {
             }".to_string()
         );
 
-        self.macros.insert(
-            "is_quorum_met".to_string(),
-            "fn is_quorum_met(participant_count: Integer, total_members: Integer, quorum_percent: Integer) -> Bool {
-                let required = (total_members * quorum_percent) / 100;
-                return participant_count >= required;
-            }".to_string()
-        );
     }
     
     /// Get a constant value by name
@@ -498,20 +487,18 @@ impl StandardLibrary {
         self.macros.contains_key(name)
     }
     
+    /// Register a new macro with the standard library
+    pub fn register_macro(&mut self, name: String, _params: Vec<String>, body: String) {
+        // For now, we just store the body. In a full implementation,
+        // we'd store the parameters too for proper expansion
+        self.macros.insert(name, body);
+    }
+    
     /// Add governance helper functions for common patterns
     pub fn add_governance_helpers(&mut self) {
-        // Multi-round voting with delegation
-        self.macros.insert(
-            "conduct_delegated_vote".to_string(),
-            "fn conduct_delegated_vote(
-                direct_votes: Integer, 
-                delegated_votes: Integer, 
-                delegation_weight: Integer
-            ) -> Integer {
-                let weighted_delegated = (delegated_votes * delegation_weight) / 100;
-                return direct_votes + weighted_delegated;
-            }".to_string()
-        );
+        for (name, body) in governance_std::governance_macros() {
+            self.macros.insert(name, body);
+        }
         
         // Consensus building with graduated penalties
         self.macros.insert(

@@ -135,6 +135,19 @@ fn run() -> String {
 }
 ```
 
+## Macro Usage
+
+Macros expand to regular statements during compilation using
+`StandardLibrary::expand_macro`.
+
+```ccl
+macro is_majority(yes_votes, total_votes) {}
+
+fn run() -> Bool {
+    return is_majority(15, total_votes);
+}
+```
+
 ### Remaining Limitations
 
 - `for` loops are not yet implemented; only `while` loops are available.

@@ -5,7 +5,7 @@ use icn_governance::{
 use std::str::FromStr;
 
 #[test]
-fn open_voting_transitions_from_pending() {
+fn open_voting_transitions_from_deliberation() {
     let mut gov = GovernanceModule::new();
     let pid = gov
         .submit_proposal(ProposalSubmission {
@@ -19,7 +19,7 @@ fn open_voting_transitions_from_pending() {
         })
         .unwrap();
     let prop = gov.get_proposal(&pid).unwrap().unwrap();
-    assert_eq!(prop.status, ProposalStatus::Pending);
+    assert_eq!(prop.status, ProposalStatus::Deliberation);
 
     gov.open_voting(&pid).unwrap();
     let prop = gov.get_proposal(&pid).unwrap().unwrap();

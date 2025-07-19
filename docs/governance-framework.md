@@ -180,6 +180,14 @@ vote. Operators may enforce mandatory proofs by creating the
 - **Iterative Refinement**: Continuous improvement cycle
 - **Historical Analysis**: Learn from past decisions
 
+### **Proposal Status Flow**
+The `ProposalStatus` enum tracks each stage:
+1. `Deliberation` – proposal submitted and discussed
+2. `VotingOpen` – ballots may be cast
+3. `Accepted` or `Rejected` – outcome after tallying
+4. `Executed` – approved actions applied
+5. `Failed` – execution could not complete
+
 ---
 
 ## 🤝 **Participation Models**

@@ -14,6 +14,7 @@ Cargo.lock
 
 # Logs and temporary
 *.log
+*.events.jsonl
 tmp/
 icn-ccl/governance_db/
 *.sled
@@ -21,6 +22,11 @@ icn_data/
 icn-devnet/certs/cert.pem
 icn-devnet/certs/key.pem
 rustc-ice-*.txt
+
+# Development and test configuration files (should not be committed)
+node_config.toml
+node_config.events.jsonl
+*_config.events.jsonl
 
 # Ignore ledger artifacts at the repository root
 /mana_ledger.*
