@@ -667,6 +667,22 @@ impl IcnClient {
         self.post("/governance/execute", body).await
     }
 
+    /// Revoke a credential by CID.
+    pub async fn revoke_credential<B: Serialize>(
+        &self,
+        body: &B,
+    ) -> Result<serde_json::Value, reqwest::Error> {
+        self.post("/identity/credentials/revoke", body).await
+    }
+
+    /// Verify a revocation proof.
+    pub async fn verify_revocation<B: Serialize>(
+        &self,
+        body: &B,
+    ) -> Result<serde_json::Value, reqwest::Error> {
+        self.post("/identity/verify/revocation", body).await
+    }
+
     // === DAG Operations ===
 
     /// Store data in the DAG.

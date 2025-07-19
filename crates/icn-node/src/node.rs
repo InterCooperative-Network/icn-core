@@ -486,6 +486,7 @@ struct AppState {
     parameter_store: Option<Arc<TokioMutex<ParameterStore>>>,
     circuit_registry: Arc<TokioMutex<CircuitRegistry>>,
     credential_store: icn_identity::InMemoryCredentialStore,
+    revocation_registry: icn_identity::InMemoryRevocationRegistry,
     trusted_issuers: std::collections::HashMap<Did, icn_identity::VerifyingKey>,
     paused_credentials: DashSet<Cid>,
     frozen_reputations: DashSet<Did>,
@@ -873,6 +874,7 @@ pub async fn app_router_with_options(
         parameter_store: parameter_store.clone(),
         circuit_registry: Arc::new(TokioMutex::new(CircuitRegistry::default())),
         credential_store: icn_identity::InMemoryCredentialStore::new(),
+        revocation_registry: icn_identity::InMemoryRevocationRegistry::new(),
         trusted_issuers: trusted_map,
         paused_credentials: DashSet::new(),
         frozen_reputations: DashSet::new(),
@@ -1084,6 +1086,7 @@ pub async fn app_router_from_context(
         parameter_store: None,
         circuit_registry: Arc::new(TokioMutex::new(CircuitRegistry::default())),
         credential_store: icn_identity::InMemoryCredentialStore::new(),
+        revocation_registry: icn_identity::InMemoryRevocationRegistry::new(),
         trusted_issuers: trusted_map,
         paused_credentials: DashSet::new(),
         frozen_reputations: DashSet::new(),
@@ -1459,6 +1462,7 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
         parameter_store: Some(parameter_store.clone()),
         circuit_registry: Arc::new(TokioMutex::new(CircuitRegistry::default())),
         credential_store: icn_identity::InMemoryCredentialStore::new(),
+        revocation_registry: icn_identity::InMemoryRevocationRegistry::new(),
         trusted_issuers: trusted_map,
         paused_credentials: DashSet::new(),
         frozen_reputations: DashSet::new(),
@@ -3410,6 +3414,7 @@ async fn credential_issue_handler(
     };
     let cid = Cid::new_v1_sha256(0x71, &bytes);
     state.credential_store.insert(cid.clone(), cred.clone());
+    state.revocation_registry.record(cid.clone());
 
     (
         StatusCode::CREATED,
@@ -3466,6 +3471,10 @@ async fn credential_verify_handler(
                 return map_rust_error_to_json_response("Credential paused", StatusCode::FORBIDDEN)
                     .into_response();
             }
+            if state.revocation_registry.is_revoked(&cid) {
+                return map_rust_error_to_json_response("Credential revoked", StatusCode::FORBIDDEN)
+                    .into_response();
+            }
         }
         for (k, _) in &cred.claims {
             if let Err(e) = cred.verify_claim(k, vk) {
@@ -3486,6 +3495,7 @@ async fn credential_revoke_handler(
     Json(req): Json<RevokeCredentialRequest>,
 ) -> impl IntoResponse {
     if state.credential_store.revoke(&req.cid) {
+        state.revocation_registry.revoke(&req.cid);
         (
             StatusCode::OK,
             Json(serde_json::json!({"revoked": req.cid.to_string()})),

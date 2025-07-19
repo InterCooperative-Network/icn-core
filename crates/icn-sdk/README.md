@@ -98,6 +98,8 @@ println!("Ready: {}", ready.ready);
 ### Identity and Security
 - `keys()` - Get node keys
 - `reputation(did)` - Get reputation score
+- `revoke_credential()` - Revoke a credential by CID
+- `verify_revocation()` - Verify a revocation proof
 
 ### Data Operations
 - `data_query()` - Query stored data

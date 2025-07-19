@@ -59,6 +59,8 @@ Zero-knowledge revocation proofs allow verifiers to check that a credential rema
 2. The holder includes this proof when presenting the credential or a credential proof.
 3. Verifiers call `verify_revocation` using their configured `ZkRevocationVerifier`. A successful result confirms the credential is not revoked.
 
+Revocation registries implement the `RevocationRegistry` trait. `InMemoryRevocationRegistry` offers a simple off-chain store for issued and revoked credential CIDs.
+
 ## Contributing
 
 Contributions are welcome! Please see the main [CONTRIBUTING.md](../../CONTRIBUTING.md) in the root of the `icn-core` repository for guidelines.
