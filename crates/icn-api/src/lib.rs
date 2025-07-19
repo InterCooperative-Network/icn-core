@@ -48,6 +48,7 @@ pub mod dag_trait;
 pub mod federation_trait;
 pub mod governance_trait;
 pub mod identity_trait;
+pub mod mesh_trait;
 pub mod mutual_aid_trait;
 pub mod trust_trait;
 /// Prometheus metrics helpers
