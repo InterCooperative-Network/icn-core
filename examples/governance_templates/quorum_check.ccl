@@ -1,0 +1,12 @@
+// Governance helper: check if quorum is met
+fn is_quorum_met(participant_count: Integer, total_members: Integer, quorum_percent: Integer) -> Bool {
+    let required = (total_members * quorum_percent) / 100;
+    return participant_count >= required;
+}
+
+// Example using the quorum helper
+fn run() -> Bool {
+    let participants = 30;
+    let total_members = 50;
+    return is_quorum_met(participants, total_members, 60);
+}

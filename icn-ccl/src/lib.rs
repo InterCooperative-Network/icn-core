@@ -17,6 +17,7 @@ pub mod parser;
 pub mod semantic_analyzer;
 pub mod wasm_backend; // Expose functions for CLI layer
 pub mod stdlib;
+pub mod governance_std;
 
 pub use error::CclError;
 pub use metadata::ContractMetadata;
