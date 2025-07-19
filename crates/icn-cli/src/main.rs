@@ -462,6 +462,32 @@ enum MeshCommands {
         #[clap(help = "Mesh job submission request as a JSON string, or '-' to read from stdin")]
         job_request_json_or_stdin: String,
     },
+    /// Get progress information for a job
+    Progress {
+        #[clap(help = "Job ID (CID string)")]
+        job_id: String,
+    },
+    /// Stream output from a job (tail-like behavior)
+    Tail {
+        #[clap(help = "Job ID (CID string)")]
+        job_id: String,
+        #[clap(short, long, help = "Follow output (like tail -f)", default_value = "false")]
+        follow: bool,
+        #[clap(short, long, help = "Start from sequence number")]
+        from: Option<u64>,
+    },
+    /// Cancel a running job
+    Cancel {
+        #[clap(help = "Job ID (CID string)")]
+        job_id: String,
+    },
+    /// Resume a failed job from checkpoint
+    Resume {
+        #[clap(help = "Job ID (CID string)")]
+        job_id: String,
+    },
+    /// Get mesh execution metrics
+    Metrics,
 }
 
 #[derive(Subcommand, Debug)]
@@ -945,6 +971,11 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
             MeshCommands::Submit {
                 job_request_json_or_stdin,
             } => handle_mesh_submit(cli, client, job_request_json_or_stdin).await?,
+            MeshCommands::Progress { job_id } => handle_mesh_progress(cli, client, job_id).await?,
+            MeshCommands::Tail { job_id, follow, from } => handle_mesh_tail(cli, client, job_id, *follow, *from).await?,
+            MeshCommands::Cancel { job_id } => handle_mesh_cancel(cli, client, job_id).await?,
+            MeshCommands::Resume { job_id } => handle_mesh_resume(cli, client, job_id).await?,
+            MeshCommands::Metrics => handle_mesh_metrics(cli, client).await?,
         },
         Commands::Network { command } => match command {
             NetworkCommands::Stats => handle_network_stats(cli, client).await?,
@@ -1655,6 +1686,219 @@ async fn handle_mesh_submit(
     let response: serde_json::Value =
         post_request(&cli.api_url, client, "/mesh/submit", &request_value, cli.api_key.as_deref()).await?;
     println!("{}", serde_json::to_string_pretty(&response)?);
+    Ok(())
+}
+
+/// Get progress information for a mesh job
+async fn handle_mesh_progress(cli: &Cli, client: &Client, job_id: &str) -> Result<(), anyhow::Error> {
+    let path = format!("/mesh/jobs/{}/progress", job_id);
+    let response: serde_json::Value = get_request(&cli.api_url, client, &path, cli.api_key.as_deref()).await?;
+    
+    // Pretty print progress information
+    if let Some(progress) = response.get("progress") {
+        println!("Job Progress for: {}", job_id);
+        println!("================");
+        
+        if let Some(stage) = progress.get("current_stage") {
+            println!("Current Stage: {}", stage.as_str().unwrap_or("unknown"));
+        }
+        
+        if let Some(percent) = progress.get("progress_percent") {
+            println!("Progress: {:.1}%", percent.as_f64().unwrap_or(0.0));
+        }
+        
+        if let Some(eta) = progress.get("eta_seconds") {
+            if !eta.is_null() {
+                let eta_secs = eta.as_u64().unwrap_or(0);
+                let minutes = eta_secs / 60;
+                let seconds = eta_secs % 60;
+                println!("ETA: {}m {}s", minutes, seconds);
+            }
+        }
+        
+        if let Some(message) = progress.get("message") {
+            println!("Status: {}", message.as_str().unwrap_or(""));
+        }
+        
+        if let Some(completed) = progress.get("completed_stages") {
+            if let Some(stages) = completed.as_array() {
+                if !stages.is_empty() {
+                    println!("Completed Stages: {}", 
+                        stages.iter()
+                            .filter_map(|s| s.as_str())
+                            .collect::<Vec<_>>()
+                            .join(", "));
+                }
+            }
+        }
+        
+        if let Some(remaining) = progress.get("remaining_stages") {
+            if let Some(stages) = remaining.as_array() {
+                if !stages.is_empty() {
+                    println!("Remaining Stages: {}", 
+                        stages.iter()
+                            .filter_map(|s| s.as_str())
+                            .collect::<Vec<_>>()
+                            .join(", "));
+                }
+            }
+        }
+    }
+    
+    // Show checkpoints count
+    if let Some(checkpoints) = response.get("checkpoints") {
+        if let Some(cp_array) = checkpoints.as_array() {
+            println!("Checkpoints: {}", cp_array.len());
+        }
+    }
+    
+    // Show partial outputs count
+    if let Some(outputs) = response.get("partial_outputs") {
+        if let Some(out_array) = outputs.as_array() {
+            println!("Partial Outputs: {}", out_array.len());
+        }
+    }
+    
+    Ok(())
+}
+
+/// Stream/tail output from a mesh job
+async fn handle_mesh_tail(
+    cli: &Cli, 
+    client: &Client, 
+    job_id: &str, 
+    follow: bool, 
+    from: Option<u64>
+) -> Result<(), anyhow::Error> {
+    let mut current_sequence = from.unwrap_or(0);
+    
+    loop {
+        let path = format!("/mesh/jobs/{}/stream?from={}", job_id, current_sequence);
+        let response: serde_json::Value = get_request(&cli.api_url, client, &path, cli.api_key.as_deref()).await?;
+        
+        if let Some(chunks) = response.as_array() {
+            for chunk in chunks {
+                if let (Some(sequence), Some(stage), Some(data_b64), Some(timestamp)) = (
+                    chunk.get("sequence").and_then(|s| s.as_u64()),
+                    chunk.get("stage").and_then(|s| s.as_str()),
+                    chunk.get("data").and_then(|d| d.as_str()),
+                    chunk.get("timestamp").and_then(|t| t.as_u64()),
+                ) {
+                    // Decode base64 data
+                    if let Ok(data_bytes) = base64::engine::general_purpose::STANDARD.decode(data_b64) {
+                        if let Ok(data_str) = String::from_utf8(data_bytes) {
+                            let dt = chrono::DateTime::from_timestamp(timestamp as i64, 0)
+                                .unwrap_or_else(|| chrono::Utc::now());
+                            println!("[{}] [{}] #{}: {}", 
+                                dt.format("%H:%M:%S"), 
+                                stage, 
+                                sequence, 
+                                data_str
+                            );
+                        }
+                    }
+                    
+                    current_sequence = sequence + 1;
+                    
+                    // Check if this is the final chunk
+                    if chunk.get("is_final").and_then(|f| f.as_bool()).unwrap_or(false) {
+                        if !follow {
+                            return Ok(());
+                        }
+                    }
+                }
+            }
+        }
+        
+        if !follow {
+            break;
+        }
+        
+        // Wait before checking for more output
+        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+    }
+    
+    Ok(())
+}
+
+/// Cancel a running mesh job
+async fn handle_mesh_cancel(cli: &Cli, client: &Client, job_id: &str) -> Result<(), anyhow::Error> {
+    let path = format!("/mesh/jobs/{}/cancel", job_id);
+    let response: serde_json::Value = post_request(&cli.api_url, client, &path, &serde_json::json!({}), cli.api_key.as_deref()).await?;
+    
+    if let Some(success) = response.get("success").and_then(|s| s.as_bool()) {
+        if success {
+            println!("✅ Job {} cancellation requested", job_id);
+        } else {
+            println!("❌ Failed to cancel job {}", job_id);
+            if let Some(message) = response.get("message").and_then(|m| m.as_str()) {
+                println!("Reason: {}", message);
+            }
+        }
+    }
+    
+    Ok(())
+}
+
+/// Resume a failed mesh job from checkpoint
+async fn handle_mesh_resume(cli: &Cli, client: &Client, job_id: &str) -> Result<(), anyhow::Error> {
+    let path = format!("/mesh/jobs/{}/resume", job_id);
+    let response: serde_json::Value = post_request(&cli.api_url, client, &path, &serde_json::json!({}), cli.api_key.as_deref()).await?;
+    
+    if let Some(success) = response.get("success").and_then(|s| s.as_bool()) {
+        if success {
+            println!("✅ Job {} resume initiated", job_id);
+        } else {
+            println!("❌ Failed to resume job {}", job_id);
+            if let Some(message) = response.get("message").and_then(|m| m.as_str()) {
+                println!("Reason: {}", message);
+            }
+        }
+    }
+    
+    Ok(())
+}
+
+/// Get mesh execution metrics
+async fn handle_mesh_metrics(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
+    let response: serde_json::Value = get_request(&cli.api_url, client, "/mesh/metrics", cli.api_key.as_deref()).await?;
+    
+    println!("Mesh Execution Metrics");
+    println!("=====================");
+    
+    if let Some(total) = response.get("total_jobs").and_then(|t| t.as_u64()) {
+        println!("Total Jobs: {}", total);
+    }
+    
+    if let Some(running) = response.get("running_jobs").and_then(|r| r.as_u64()) {
+        println!("Running Jobs: {}", running);
+    }
+    
+    if let Some(long_running) = response.get("long_running_jobs").and_then(|l| l.as_u64()) {
+        println!("Long-Running Jobs: {}", long_running);
+    }
+    
+    if let Some(completed) = response.get("completed_jobs").and_then(|c| c.as_u64()) {
+        println!("Completed Jobs: {}", completed);
+    }
+    
+    if let Some(failed) = response.get("failed_jobs").and_then(|f| f.as_u64()) {
+        println!("Failed Jobs: {}", failed);
+    }
+    
+    if let Some(avg_time) = response.get("avg_execution_time_secs").and_then(|a| a.as_f64()) {
+        println!("Average Execution Time: {:.2}s", avg_time);
+    }
+    
+    if let Some(custom) = response.get("custom_metrics").and_then(|c| c.as_object()) {
+        println!("\nCustom Metrics:");
+        for (key, value) in custom {
+            if let Some(val) = value.as_f64() {
+                println!("  {}: {}", key, val);
+            }
+        }
+    }
+    
     Ok(())
 }
 
