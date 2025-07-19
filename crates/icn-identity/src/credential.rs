@@ -57,6 +57,10 @@ impl Credential {
             bytes.extend_from_slice(self.holder.to_string().as_bytes());
             bytes.extend_from_slice(k.as_bytes());
             bytes.extend_from_slice(v.as_bytes());
+            // Include expires_at in the signature to prevent tampering
+            if let Some(expires_at) = self.expires_at {
+                bytes.extend_from_slice(&expires_at.to_le_bytes());
+            }
             let sig = sign_message(key, &bytes);
             self.signatures
                 .insert(k.clone(), SignatureBytes::from_ed_signature(sig));
@@ -66,7 +70,14 @@ impl Credential {
     /// Returns `true` if the credential is expired.
     pub fn is_expired(&self) -> bool {
         if let Some(ts) = self.expires_at {
-            chrono::Utc::now().timestamp() as u64 >= ts
+            let now = chrono::Utc::now().timestamp();
+            // Handle negative timestamps properly by comparing as i64
+            if now < 0 {
+                // If current time is before Unix epoch, credential is not expired
+                false
+            } else {
+                (now as u64) >= ts
+            }
         } else {
             false
         }
@@ -88,6 +99,10 @@ impl Credential {
         bytes.extend_from_slice(self.holder.to_string().as_bytes());
         bytes.extend_from_slice(claim.as_bytes());
         bytes.extend_from_slice(value.as_bytes());
+        // Include expires_at in signature verification to prevent tampering
+        if let Some(expires_at) = self.expires_at {
+            bytes.extend_from_slice(&expires_at.to_le_bytes());
+        }
         let ed = sig.to_ed_signature()?;
         if verify_signature(key, &bytes, &ed) {
             Ok(())
@@ -160,7 +175,9 @@ impl DisclosedCredential {
     /// Verify all disclosed claim signatures against the issuer key.
     pub fn verify(&self, key: &VerifyingKey) -> Result<(), CommonError> {
         if let Some(ts) = self.expires_at {
-            if chrono::Utc::now().timestamp() as u64 >= ts {
+            let now = chrono::Utc::now().timestamp();
+            // Handle negative timestamps properly by comparing as i64
+            if now >= 0 && (now as u64) >= ts {
                 return Err(CommonError::IdentityError("credential expired".into()));
             }
         }
@@ -172,6 +189,10 @@ impl DisclosedCredential {
             bytes.extend_from_slice(self.holder.to_string().as_bytes());
             bytes.extend_from_slice(k.as_bytes());
             bytes.extend_from_slice(v.as_bytes());
+            // Include expires_at in signature verification to prevent tampering
+            if let Some(expires_at) = self.expires_at {
+                bytes.extend_from_slice(&expires_at.to_le_bytes());
+            }
             let ed = sig.to_ed_signature()?;
             if !verify_signature(key, &bytes, &ed) {
                 return Err(CommonError::IdentityError(format!(
@@ -185,7 +206,14 @@ impl DisclosedCredential {
     /// Returns `true` if the credential is expired.
     pub fn is_expired(&self) -> bool {
         if let Some(ts) = self.expires_at {
-            chrono::Utc::now().timestamp() as u64 >= ts
+            let now = chrono::Utc::now().timestamp();
+            // Handle negative timestamps properly by comparing as i64
+            if now < 0 {
+                // If current time is before Unix epoch, credential is not expired
+                false
+            } else {
+                (now as u64) >= ts
+            }
         } else {
             false
         }
