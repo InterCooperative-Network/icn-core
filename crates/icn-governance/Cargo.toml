@@ -11,6 +11,7 @@ readme = "README.md"
 icn-common = { path = "../icn-common" }
 icn-eventstore = { path = "../icn-eventstore" }
 icn-identity = { path = "../icn-identity" }
+icn-economics = { path = "../icn-economics" }
 icn-network = { path = "../icn-network", optional = true } # For federation sync
 icn-protocol = { path = "../icn-protocol", optional = true }
 sled = { version = "0.34", optional = true }

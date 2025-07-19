@@ -28,12 +28,14 @@ use serde::{Deserialize, Serialize};
 pub mod metrics;
 pub mod scoped_policy;
 pub mod federation_governance;
+pub mod budgeting;
 
 pub use federation_governance::{
-    GovernanceAction, MembershipAction, TrustAwareGovernancePolicy, 
+    GovernanceAction, MembershipAction, TrustAwareGovernancePolicy,
     FederationGovernanceEngine, FederationProposal, ProposalStatus as FederationProposalStatus,
     GovernanceValidationResult, FederationGovernanceError,
 };
+pub use budgeting::{apply_budget_allocation, BudgetProposal};
 
 // --- Proposal System ---
 

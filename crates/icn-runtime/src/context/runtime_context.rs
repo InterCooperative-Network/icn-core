@@ -2429,6 +2429,9 @@ impl RuntimeContext {
                         ProposalType::SystemParameterChange(key, value) => {
                             self.update_parameter(key.clone(), value.clone()).await?;
                         }
+                        ProposalType::BudgetAllocation(amount, _purpose) => {
+                            self.credit_mana(&proposal.proposer, *amount).await?;
+                        }
                         _ => {
                             // For other proposal types, just log success
                             log::info!("Executed proposal {:?}", proposal_id);
