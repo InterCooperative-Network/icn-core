@@ -19,6 +19,7 @@ members = [
     "tests",
     "crates/icn-sdk",
     "crates/icn-zk",
+    "crates/job-audit",
 ]
 resolver = "2"
 
