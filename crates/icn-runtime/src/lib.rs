@@ -386,6 +386,39 @@ pub async fn host_anchor_receipt(
     Ok(anchored_cid)
 }
 
+/// ABI Index: (defined in `abi::ABI_HOST_SUBMIT_JOB_CHECKPOINT`)
+/// Submits a checkpoint for a running job to the mesh network.
+///
+/// The `checkpoint_json` is expected to be a JSON string serializing `icn_mesh::JobCheckpoint`.
+///
+/// WebAssembly callers should use [`wasm_host_submit_job_checkpoint`], which reads the
+/// checkpoint JSON from guest memory and returns success/failure status.
+pub async fn host_submit_job_checkpoint(
+    ctx: &RuntimeContext,
+    checkpoint_json: &str,
+) -> Result<(), HostAbiError> {
+    debug!(
+        "[host_submit_job_checkpoint] Received checkpoint JSON: {}",
+        checkpoint_json
+    );
+    
+    let checkpoint: icn_mesh::JobCheckpoint =
+        serde_json::from_str(checkpoint_json).map_err(|e| {
+            HostAbiError::InvalidParameters(format!("Failed to deserialize checkpoint JSON: {}", e))
+        })?;
+
+    // Submit the checkpoint via the mesh network service
+    ctx.mesh_network_service.submit_job_checkpoint(&checkpoint).await?;
+
+    info!(
+        "[host_submit_job_checkpoint] Checkpoint {} for job {:?} submitted successfully",
+        checkpoint.checkpoint_sequence,
+        checkpoint.job_id
+    );
+
+    Ok(())
+}
+
 /// WASM wrapper for [`host_submit_mesh_job`].
 ///
 /// # Memory Layout
@@ -625,6 +658,34 @@ pub fn wasm_host_generate_zk_proof(
         Ok(w) => w,
         Err(e) => {
             log::error!("wasm_host_generate_zk_proof write error: {e:?}");
+            0
+        }
+    }
+}
+
+/// WASM wrapper for [`host_submit_job_checkpoint`].
+///
+/// # Memory Layout
+/// * `ptr`/`len` – UTF-8 JSON representing a [`JobCheckpoint`](icn_mesh::JobCheckpoint).
+///
+/// Returns `1` on success or `0` on error.
+pub fn wasm_host_submit_job_checkpoint(
+    mut caller: wasmtime::Caller<'_, std::sync::Arc<RuntimeContext>>,
+    ptr: u32,
+    len: u32,
+) -> u32 {
+    let json = match memory::read_string_safe(&mut caller, ptr, len) {
+        Ok(j) => j,
+        Err(e) => {
+            log::error!("wasm_host_submit_job_checkpoint read error: {e:?}");
+            return 0;
+        }
+    };
+    let handle = tokio::runtime::Handle::current();
+    match handle.block_on(host_submit_job_checkpoint(caller.data(), &json)) {
+        Ok(()) => 1,
+        Err(e) => {
+            log::error!("wasm_host_submit_job_checkpoint runtime error: {e:?}");
             0
         }
     }
@@ -1383,5 +1444,95 @@ mod tests {
                 panic!("Host function should work: {}", e);
             }
         }
+    }
+
+    #[tokio::test]
+    async fn test_host_submit_job_checkpoint() {
+        let ctx = create_test_context_with_mana(100);
+        
+        // Create a test checkpoint
+        let checkpoint = icn_mesh::JobCheckpoint {
+            job_id: JobId(Cid::new_v1_sha256(0x55, b"test_checkpoint_job")),
+            checkpoint_sequence: 1,
+            executor_did: ctx.current_identity.clone(),
+            intermediate_result_cid: Cid::new_v1_sha256(0x55, b"checkpoint_result"),
+            timestamp: 1000,
+            progress_info: Some("Test checkpoint".to_string()),
+            signature: SignatureBytes(vec![1, 2, 3]), // Dummy signature for test
+        };
+
+        let checkpoint_json = serde_json::to_string(&checkpoint).unwrap();
+        
+        // Test the host function
+        let result = host_submit_job_checkpoint(&ctx, &checkpoint_json).await;
+        assert!(result.is_ok(), "Checkpoint submission should succeed: {:?}", result.err());
+    }
+
+    #[tokio::test]
+    async fn test_host_submit_job_checkpoint_invalid_json() {
+        let ctx = create_test_context_with_mana(100);
+        
+        let invalid_json = "{ invalid json }";
+        let result = host_submit_job_checkpoint(&ctx, invalid_json).await;
+        
+        assert!(result.is_err());
+        match result.err().unwrap() {
+            HostAbiError::InvalidParameters(msg) => {
+                assert!(msg.contains("Failed to deserialize checkpoint JSON"));
+            }
+            e => panic!("Expected InvalidParameters error, got {:?}", e),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_job_spec_with_checkpoint_configuration() {
+        let ctx = create_test_context_with_mana(100);
+        
+        // Create a job spec with checkpoint configuration
+        let mut spec = JobSpec::default();
+        spec.checkpoint_interval_secs = Some(60); // 1 minute checkpoints
+        spec.streaming_output = true;
+        
+        let job = ActualMeshJob {
+            id: JobId(Cid::new_v1_sha256(0x55, b"test_checkpoint_config")),
+            manifest_cid: Cid::new_v1_sha256(0x55, b"test_manifest"),
+            spec: spec.clone(),
+            creator_did: ctx.current_identity.clone(),
+            cost_mana: 50,
+            max_execution_wait_ms: None,
+            signature: SignatureBytes(vec![0u8; 64]), // Dummy signature for tests
+        };
+
+        let job_json = serde_json::to_string(&job).unwrap();
+        let result = host_submit_mesh_job(&ctx, &job_json).await;
+        assert!(result.is_ok(), "Job submission with checkpoint config should succeed");
+
+        // Verify the job was stored with checkpoint configuration
+        let job_id = result.unwrap();
+        let job_status = ctx.get_job_status(&job_id).await;
+        if let Ok(Some(lifecycle)) = job_status {
+            let stored_spec = lifecycle.job.decode_spec().unwrap();
+            assert_eq!(stored_spec.checkpoint_interval_secs, Some(60));
+            assert_eq!(stored_spec.streaming_output, true);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_mesh_network_service_checkpoint_submission() {
+        let ctx = create_test_context_with_mana(100);
+        
+        let checkpoint = icn_mesh::JobCheckpoint {
+            job_id: JobId(Cid::new_v1_sha256(0x55, b"test_mesh_checkpoint")),
+            checkpoint_sequence: 2,
+            executor_did: ctx.current_identity.clone(),
+            intermediate_result_cid: Cid::new_v1_sha256(0x55, b"mesh_checkpoint_result"),
+            timestamp: 2000,
+            progress_info: Some("Mesh network checkpoint test".to_string()),
+            signature: SignatureBytes(vec![4, 5, 6]),
+        };
+
+        // Test direct mesh network service call
+        let result = ctx.mesh_network_service.submit_job_checkpoint(&checkpoint).await;
+        assert!(result.is_ok(), "Mesh network checkpoint submission should succeed: {:?}", result.err());
     }
 }

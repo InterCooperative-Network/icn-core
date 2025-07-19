@@ -410,4 +410,20 @@ impl MeshNetworkService for StubMeshNetworkService {
         
         Ok(())
     }
+
+    async fn submit_job_checkpoint(
+        &self,
+        checkpoint: &icn_mesh::JobCheckpoint,
+    ) -> Result<(), HostAbiError> {
+        log::info!(
+            "[StubMeshNetwork] Submitting checkpoint {} for job {:?} from {}",
+            checkpoint.checkpoint_sequence,
+            checkpoint.job_id,
+            checkpoint.executor_did
+        );
+        
+        // For stub implementation, we'll just log the checkpoint
+        // In a full implementation, this would be stored or staged for retrieval
+        Ok(())
+    }
 } 

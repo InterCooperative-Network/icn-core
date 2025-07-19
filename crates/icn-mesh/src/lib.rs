@@ -172,6 +172,14 @@ pub struct JobSpec {
     /// Federation constraints - only executors from these federations can bid.
     #[serde(default)]
     pub allowed_federations: Vec<String>,
+    /// Optional checkpoint interval in seconds for long-running jobs.
+    /// If specified, executors should create checkpoints at this interval.
+    #[serde(default)]
+    pub checkpoint_interval_secs: Option<u32>,
+    /// Whether the job should stream output as it's produced.
+    /// When true, executors can send intermediate results before final completion.
+    #[serde(default)]
+    pub streaming_output: bool,
 }
 
 impl Default for JobSpec {
@@ -185,6 +193,8 @@ impl Default for JobSpec {
             required_trust_scope: None,
             min_executor_reputation: None,
             allowed_federations: Vec::new(),
+            checkpoint_interval_secs: None,
+            streaming_output: false,
         }
     }
 }
@@ -889,6 +899,65 @@ pub struct JobReceipt {
     pub signature: SignatureBytes,
 }
 
+/// Represents a job checkpoint stored in the DAG for intermediate results.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct JobCheckpoint {
+    /// The ID of the job this checkpoint belongs to.
+    pub job_id: JobId,
+    /// The sequence number of this checkpoint (starts from 1).
+    pub checkpoint_sequence: u32,
+    /// The executor that created this checkpoint.
+    pub executor_did: Did,
+    /// CID of the intermediate result data.
+    pub intermediate_result_cid: Cid,
+    /// Timestamp when the checkpoint was created.
+    pub timestamp: u64,
+    /// Optional progress information (e.g., "50% complete", "processed 1000 items").
+    pub progress_info: Option<String>,
+    /// Signature from the executor over the checkpoint data.
+    pub signature: SignatureBytes,
+}
+
+impl JobCheckpoint {
+    /// Creates the canonical message bytes for signing the checkpoint.
+    pub fn to_signable_bytes(&self) -> Result<Vec<u8>, CommonError> {
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(self.job_id.to_string().as_bytes());
+        bytes.extend_from_slice(&self.checkpoint_sequence.to_le_bytes());
+        bytes.extend_from_slice(self.executor_did.to_string().as_bytes());
+        bytes.extend_from_slice(self.intermediate_result_cid.to_string().as_bytes());
+        bytes.extend_from_slice(&self.timestamp.to_le_bytes());
+        if let Some(progress) = &self.progress_info {
+            bytes.extend_from_slice(progress.as_bytes());
+        }
+        Ok(bytes)
+    }
+
+    /// Sign this checkpoint with the provided key.
+    pub fn sign(mut self, signing_key: &IdentitySigningKey) -> Result<Self, CommonError> {
+        let message = self.to_signable_bytes()?;
+        let ed_sig = identity_sign_message(signing_key, &message);
+        self.signature = SignatureBytes(ed_sig.to_bytes().to_vec());
+        Ok(self)
+    }
+
+    /// Verify the signature with the executor's verifying key.
+    pub fn verify_signature(
+        &self,
+        verifying_key: &IdentityVerifyingKey,
+    ) -> Result<(), CommonError> {
+        let message = self.to_signable_bytes()?;
+        let ed_sig = self.signature.to_ed_signature()?;
+        if identity_verify_signature(verifying_key, &message, &ed_sig) {
+            Ok(())
+        } else {
+            Err(CommonError::InternalError(
+                "JobCheckpoint signature verification failed".into(),
+            ))
+        }
+    }
+}
+
 /// Status of a job in its lifecycle.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum JobLifecycleStatus {
@@ -938,6 +1007,8 @@ pub struct JobLifecycle {
     pub assignment: Option<JobAssignment>,
     /// Execution receipt if the job was completed.
     pub receipt: Option<JobReceipt>,
+    /// Checkpoints created during job execution, ordered by sequence number.
+    pub checkpoints: Vec<JobCheckpoint>,
 }
 
 impl JobLifecycle {
@@ -948,6 +1019,7 @@ impl JobLifecycle {
             bids: Vec::new(),
             assignment: None,
             receipt: None,
+            checkpoints: Vec::new(),
         }
     }
 
@@ -964,6 +1036,14 @@ impl JobLifecycle {
     /// Set the receipt for this lifecycle.
     pub fn set_receipt(&mut self, receipt: JobReceipt) {
         self.receipt = Some(receipt);
+    }
+
+    /// Add a checkpoint to this lifecycle.
+    /// Checkpoints are automatically sorted by sequence number.
+    pub fn add_checkpoint(&mut self, checkpoint: JobCheckpoint) {
+        self.checkpoints.push(checkpoint);
+        // Keep checkpoints sorted by sequence number
+        self.checkpoints.sort_by_key(|c| c.checkpoint_sequence);
     }
 
     /// Get the current status based on what lifecycle events exist.
@@ -2024,5 +2104,127 @@ mod tests {
 
         // Should select executor A because it matches required trust scope
         assert_eq!(selected.unwrap(), executor_a);
+    }
+
+    #[test]
+    fn test_job_spec_with_checkpoint_fields() {
+        // Test JobSpec with checkpoint configuration
+        let mut spec = JobSpec::default();
+        spec.checkpoint_interval_secs = Some(300); // 5 minutes
+        spec.streaming_output = true;
+
+        // Verify default values
+        assert_eq!(spec.checkpoint_interval_secs, Some(300));
+        assert_eq!(spec.streaming_output, true);
+
+        // Test serialization/deserialization
+        let serialized = serde_json::to_string(&spec).unwrap();
+        let deserialized: JobSpec = serde_json::from_str(&serialized).unwrap();
+        
+        assert_eq!(deserialized.checkpoint_interval_secs, Some(300));
+        assert_eq!(deserialized.streaming_output, true);
+    }
+
+    #[test]
+    fn test_job_checkpoint_creation_and_signing() {
+        let (sk, vk) = icn_identity::generate_ed25519_keypair();
+        let executor_did = Did::from_str(&icn_identity::did_key_from_verifying_key(&vk)).unwrap();
+
+        let checkpoint = JobCheckpoint {
+            job_id: dummy_job_id("checkpoint_test"),
+            checkpoint_sequence: 1,
+            executor_did: executor_did.clone(),
+            intermediate_result_cid: dummy_cid("checkpoint_result"),
+            timestamp: 1000,
+            progress_info: Some("50% complete".to_string()),
+            signature: SignatureBytes(vec![]),
+        };
+
+        // Sign the checkpoint
+        let signed_checkpoint = checkpoint.sign(&sk).unwrap();
+        assert_ne!(signed_checkpoint.signature.0, Vec::<u8>::new());
+
+        // Verify the signature
+        assert!(signed_checkpoint.verify_signature(&vk).is_ok());
+
+        // Verification should fail with wrong key
+        let (_sk2, vk2) = icn_identity::generate_ed25519_keypair();
+        assert!(signed_checkpoint.verify_signature(&vk2).is_err());
+
+        // Verification should fail if data is tampered
+        let mut tampered = signed_checkpoint.clone();
+        tampered.checkpoint_sequence = 2;
+        assert!(tampered.verify_signature(&vk).is_err());
+    }
+
+    #[test]
+    fn test_job_lifecycle_with_checkpoints() {
+        let job = Job {
+            id: dummy_job_id("lifecycle_test"),
+            manifest_cid: dummy_cid("lifecycle_manifest"),
+            spec_bytes: bincode::serialize(&JobSpec::default()).unwrap(),
+            spec_json: None,
+            submitter_did: Did::from_str("did:icn:test:submitter").unwrap(),
+            cost_mana: 100,
+            submitted_at: 1000,
+            status: JobLifecycleStatus::Submitted,
+            resource_requirements: Resources::default(),
+        };
+
+        let mut lifecycle = JobLifecycle::new(job);
+
+        // Add checkpoints
+        let checkpoint1 = JobCheckpoint {
+            job_id: lifecycle.job.id.clone(),
+            checkpoint_sequence: 1,
+            executor_did: Did::from_str("did:icn:test:executor").unwrap(),
+            intermediate_result_cid: dummy_cid("checkpoint1"),
+            timestamp: 2000,
+            progress_info: Some("25% complete".to_string()),
+            signature: SignatureBytes(vec![1, 2, 3]),
+        };
+
+        let checkpoint2 = JobCheckpoint {
+            job_id: lifecycle.job.id.clone(),
+            checkpoint_sequence: 2,
+            executor_did: Did::from_str("did:icn:test:executor").unwrap(),
+            intermediate_result_cid: dummy_cid("checkpoint2"),
+            timestamp: 3000,
+            progress_info: Some("50% complete".to_string()),
+            signature: SignatureBytes(vec![4, 5, 6]),
+        };
+
+        lifecycle.add_checkpoint(checkpoint2.clone());
+        lifecycle.add_checkpoint(checkpoint1.clone());
+
+        // Checkpoints should be sorted by sequence number
+        assert_eq!(lifecycle.checkpoints.len(), 2);
+        assert_eq!(lifecycle.checkpoints[0].checkpoint_sequence, 1);
+        assert_eq!(lifecycle.checkpoints[1].checkpoint_sequence, 2);
+    }
+
+    #[test]
+    fn test_checkpoint_signable_bytes() {
+        let checkpoint = JobCheckpoint {
+            job_id: dummy_job_id("sig_test"),
+            checkpoint_sequence: 5,
+            executor_did: Did::from_str("did:icn:test:executor").unwrap(),
+            intermediate_result_cid: dummy_cid("sig_result"),
+            timestamp: 4000,
+            progress_info: Some("progress info".to_string()),
+            signature: SignatureBytes(vec![]),
+        };
+
+        let bytes1 = checkpoint.to_signable_bytes().unwrap();
+        let bytes2 = checkpoint.to_signable_bytes().unwrap();
+        
+        // Should be deterministic
+        assert_eq!(bytes1, bytes2);
+
+        // Different checkpoint should produce different bytes
+        let mut different_checkpoint = checkpoint.clone();
+        different_checkpoint.checkpoint_sequence = 6;
+        let bytes3 = different_checkpoint.to_signable_bytes().unwrap();
+        assert_ne!(bytes1, bytes3);
     }
 }
