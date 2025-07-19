@@ -1,137 +1,203 @@
-# ICN Web UI
+# ICN Web UI - Federation Dashboard
 
-Federation and cooperative management dashboard for the InterCooperative Network.
-
-## Overview
-
-ICN Web UI is a browser-based administration dashboard for managing ICN federations, cooperatives, and communities. It provides comprehensive tools for network administration, member management, and system monitoring.
-
-## Technology Stack
-
-- **React**: Modern React 18 with hooks
-- **Vite**: Fast development and build tooling
-- **TypeScript**: Type safety and developer experience
-- **Tailwind CSS**: Utility-first styling
-- **React Router**: Client-side routing
-- **Headless UI**: Accessible component primitives
-
-## Platform Support
-
-| Platform | Status | Build Command | Notes |
-|----------|--------|---------------|-------|
-| **Web** | ✅ | `pnpm build` | Modern browser support |
-| **PWA** | ✅ | `pnpm build` | Progressive Web App |
-| **Desktop** | 🔄 | Future Tauri support | Optional desktop wrapper |
+A comprehensive web interface for managing InterCooperative Network (ICN) federations and participating in cooperative governance.
 
 ## Features
 
-### Dashboard Overview
-- ✅ Network status and health monitoring
-- ✅ Real-time statistics and metrics
-- ✅ System alerts and notifications
-- ✅ Quick action buttons
-- ✅ Recent activity feed
+### 🎯 Demo Mode
+- Interactive demonstration of all UI features
+- Mock data showing real-world usage scenarios
+- Technical architecture overview
+- Navigation guide for new users
 
-### Member Management
-- ✅ Member directory and profiles
-- ✅ Role and permission management
-- ✅ DID verification and validation
-- ✅ Reputation tracking
-- ✅ Member onboarding workflows
+### 🏠 Dashboard
+- Real-time federation health monitoring
+- Key metrics: cooperatives, members, proposals, network peers
+- Visual health indicators for network connectivity, governance activity
+- Recent cooperatives and proposals overview
+- System information display
 
-### Job Management
-- ✅ Mesh job monitoring
-- ✅ Job queue management
-- ✅ Resource allocation tracking
-- ✅ Performance analytics
-- ✅ Cost and billing analysis
+### 🤝 Federation Management
+- Create new federations with DID generation and metadata
+- Join existing federations via peer addresses
+- Trust configuration and peer management
+- Real-time federation status monitoring
+- Active cooperatives and members management
 
-### Governance Administration
-- ✅ Proposal management
-- ✅ Voting oversight
-- ✅ Policy configuration
-- ✅ Consensus monitoring
-- ✅ Election administration
+### 🗳️ Governance System
+- CCL (Cooperative Contract Language) template-based proposal creation
+- Interactive voting with real-time progress tracking
+- Quorum and threshold monitoring
+- Multiple proposal types:
+  - Member admission with background checks
+  - Budget allocation with accountability
+  - Governance rule changes with impact assessment
+- Execution receipt viewing and history
+- Template parameter validation and CCL code generation
 
-### System Configuration
-- ✅ Network parameters
-- ✅ Economic policy settings
-- ✅ Security configurations
-- ✅ API key management
-- ✅ Audit logs
+### 🏢 Cooperative Management
+- Add and manage cooperatives within federations
+- Capability-based filtering and search
+- Health scoring and reputation tracking
+- Member count and status monitoring
+- Interactive cooperative cards with detailed information
 
-## Development
+## Technical Architecture
+
+```
+React + TypeScript UI
+        ↓
+   ICN TypeScript SDK
+        ↓
+   ICN Client SDK (@icn/client-sdk)
+        ↓
+   ICN API Traits (Rust)
+        ↓
+   ICN Core Protocol
+```
+
+### Key Components
+
+- **React Context Providers**: FederationContext, GovernanceContext for state management
+- **TypeScript SDK**: Extended with Federation and Governance utilities
+- **CCL Integration**: Template system with parameter validation
+- **Responsive Design**: Mobile-first with Tailwind CSS
+- **Mock Data Support**: Development-friendly with realistic scenarios
+
+## Development Setup
 
 ### Prerequisites
-```bash
-# Node.js 18+ and pnpm
-node --version  # >= 18.0.0
-pnpm --version  # >= 8.0.0
-```
+- Node.js 18+
+- pnpm 8.0+
 
-### Start Development Server
+### Installation
 ```bash
-# Install dependencies
+# From the ICN core repository root
 pnpm install
 
-# Start development server
-pnpm dev
+# Development mode
+pnpm dev:web-ui
 
-# Access at http://localhost:3000
-```
-
-### Build for Production
-```bash
 # Build for production
-pnpm build
-
-# Preview production build
-pnpm preview
-
-# Output in dist/ directory
+pnpm build:web-ui
 ```
-
-## Configuration
 
 ### Environment Variables
-Create `.env.local` file:
+Create a `.env` file in the web-ui directory:
 
-```bash
-# ICN Node Configuration
+```env
 VITE_ICN_NODE_ENDPOINT=http://localhost:8080
 VITE_ICN_NETWORK=devnet
-
-# Dashboard Configuration
-VITE_APP_TITLE="ICN Federation Dashboard"
-VITE_FEDERATION_NAME="My Federation"
-VITE_ENABLE_ANALYTICS=true
-
-# Feature Flags
-VITE_ENABLE_MEMBER_REGISTRATION=true
-VITE_ENABLE_JOB_SUBMISSION=true
-VITE_ENABLE_GOVERNANCE_VOTING=true
 ```
 
-### Theme Customization
-Update `tailwind.config.js`:
+## Usage
 
-```javascript
-export default {
-  theme: {
-    extend: {
-      colors: {
-        primary: {
-          // Custom brand colors
-          500: '#your-primary-color',
-        },
-        secondary: {
-          // Custom secondary colors
-        }
-      }
+### Demo Mode (Recommended for First Time)
+1. Visit the root URL to see the demo page
+2. Explore features overview and technical architecture
+3. Follow the navigation guide to understand each section
+4. Review CCL templates and governance workflows
+
+### Dashboard
+1. Monitor federation health and key metrics
+2. View active cooperatives and recent proposals
+3. Check system status and network connectivity
+4. Track governance activity and mesh job statistics
+
+### Federation Management
+1. **Create Federation**: Use the form to set up a new federation with metadata
+2. **Join Federation**: Enter peer address to connect to existing federations
+3. **Manage Peers**: Add/remove trusted peers and configure trust relationships
+4. **Monitor Status**: Track peer count, sync status, and federation health
+
+### Governance Workflows
+1. **Create Proposals**: 
+   - Choose from CCL templates or create custom proposals
+   - Fill in template parameters with validation
+   - Set voting duration, quorum, and threshold requirements
+2. **Vote on Proposals**:
+   - View active proposals with progress indicators
+   - Cast votes (Yes/No/Abstain) with real-time updates
+   - Monitor quorum achievement and time remaining
+3. **Track History**: Review all proposals with outcomes and detailed votes
+
+### Cooperative Management
+1. **Add Cooperatives**: Create new cooperative entries with capabilities
+2. **Filter and Search**: Find cooperatives by status, capabilities, or name
+3. **Monitor Health**: Track reputation scores and member counts
+4. **Manage Relationships**: Edit cooperative details and manage memberships
+
+## CCL Templates
+
+The system includes three pre-built CCL templates:
+
+### Member Admission Template
+```ccl
+cooperative "{{cooperative_name}}" {
+  propose admission {
+    candidate: "{{candidate_did}}"
+    sponsor: "{{sponsor_did}}"
+    requirements {
+      background_check: {{require_background_check}}
+      commitment_period: {{commitment_months}} months
+    }
+    voting {
+      threshold: {{approval_threshold}}
+      quorum: {{quorum_percentage}}
     }
   }
 }
 ```
+
+### Budget Allocation Template
+```ccl
+cooperative "{{cooperative_name}}" {
+  propose budget_allocation {
+    purpose: "{{purpose}}"
+    amount: {{amount}} mana
+    category: "{{category}}"
+    timeline {
+      start_date: "{{start_date}}"
+      end_date: "{{end_date}}"
+    }
+    accountability {
+      responsible_member: "{{responsible_did}}"
+      reporting_frequency: "{{reporting_frequency}}"
+    }
+  }
+}
+```
+
+### Governance Change Template
+```ccl
+cooperative "{{cooperative_name}}" {
+  propose governance_change {
+    rule_name: "{{rule_name}}"
+    current_value: "{{current_value}}"
+    proposed_value: "{{proposed_value}}"
+    rationale: "{{rationale}}"
+    impact_assessment {
+      affected_members: {{affected_members}}
+      implementation_complexity: "{{complexity}}"
+      reversible: {{reversible}}
+    }
+    voting {
+      threshold: {{approval_threshold}}
+      super_majority: true
+    }
+  }
+}
+```
+
+## API Integration
+
+The UI integrates with ICN APIs through the TypeScript SDK:
+
+- **Federation API**: Peer management, status monitoring, join/leave operations
+- **Governance API**: Proposal submission, voting, proposal retrieval
+- **Identity API**: Credential management and verification
+- **Mesh API**: Job submission and status tracking
+- **System API**: Node information and health status
 
 ## Project Structure
 
@@ -139,196 +205,42 @@ export default {
 apps/web-ui/
 ├── src/
 │   ├── components/          # Reusable UI components
-│   │   ├── common/         # Generic components
-│   │   ├── dashboard/      # Dashboard-specific
-│   │   ├── members/        # Member management
-│   │   ├── jobs/          # Job management
-│   │   └── governance/     # Governance tools
-│   ├── pages/              # Route components
-│   ├── hooks/              # Custom React hooks
-│   ├── utils/              # Utility functions
-│   ├── types/              # TypeScript definitions
-│   └── styles/             # Global styles
-├── public/                 # Static assets
-├── dist/                   # Build output
-└── vite.config.ts         # Vite configuration
+│   │   ├── Dashboard.tsx    # Main dashboard component
+│   │   └── Navigation.tsx   # Navigation component
+│   ├── pages/               # Route components
+│   │   ├── FederationPage.tsx    # Federation management
+│   │   ├── GovernancePage.tsx    # Governance interface
+│   │   ├── CooperativesPage.tsx  # Cooperative management
+│   │   └── DemoPage.tsx          # Demo and documentation
+│   ├── contexts/            # React context providers
+│   │   ├── FederationContext.tsx # Federation state management
+│   │   └── GovernanceContext.tsx # Governance state management
+│   ├── hooks/               # Custom React hooks
+│   ├── utils/               # Utility functions
+│   ├── types/               # TypeScript definitions
+│   └── index.css           # Global styles
+├── public/                  # Static assets
+├── dist/                    # Build output
+└── vite.config.ts          # Vite configuration
 ```
-
-## Key Components
-
-### Dashboard Widgets
-```tsx
-import { NetworkStatus } from '@/components/dashboard/NetworkStatus'
-import { JobMetrics } from '@/components/dashboard/JobMetrics'
-import { MemberActivity } from '@/components/dashboard/MemberActivity'
-
-function Dashboard() {
-  return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      <NetworkStatus />
-      <JobMetrics />
-      <MemberActivity />
-    </div>
-  )
-}
-```
-
-### Data Tables
-```tsx
-import { useMembers } from '@/hooks/useMembers'
-import { DataTable } from '@/components/common/DataTable'
-
-function MemberList() {
-  const { members, loading } = useMembers()
-  
-  const columns = [
-    { key: 'did', label: 'DID' },
-    { key: 'name', label: 'Name' },
-    { key: 'role', label: 'Role' },
-    { key: 'reputation', label: 'Reputation' },
-  ]
-  
-  return (
-    <DataTable 
-      data={members}
-      columns={columns}
-      loading={loading}
-    />
-  )
-}
-```
-
-### Forms and Modals
-```tsx
-import { useForm } from 'react-hook-form'
-import { Modal } from '@/components/common/Modal'
-import { Button } from '@/components/common/Button'
-
-function CreateJobModal({ isOpen, onClose }) {
-  const { register, handleSubmit } = useForm()
-  
-  const onSubmit = async (data) => {
-    // Submit job logic
-  }
-  
-  return (
-    <Modal isOpen={isOpen} onClose={onClose}>
-      <form onSubmit={handleSubmit(onSubmit)}>
-        {/* Form fields */}
-        <Button type="submit">Create Job</Button>
-      </form>
-    </Modal>
-  )
-}
-```
-
-## API Integration
-
-### ICN SDK Usage
-```tsx
-import { useICNClient, useICNConnection } from '@icn/ts-sdk'
-
-function NetworkStatus() {
-  const { connected, error } = useICNConnection()
-  const { client } = useICNClient()
-  
-  return (
-    <div className="bg-white p-6 rounded-lg shadow">
-      <h3 className="text-lg font-medium">Network Status</h3>
-      <div className={`mt-2 ${connected ? 'text-green-600' : 'text-red-600'}`}>
-        {connected ? 'Connected' : 'Disconnected'}
-      </div>
-      {error && (
-        <div className="mt-2 text-red-600 text-sm">{error}</div>
-      )}
-    </div>
-  )
-}
-```
-
-## Testing
-
-```bash
-# Run unit tests
-pnpm test
-
-# Run tests with UI
-pnpm test:ui
-
-# Run tests with coverage
-pnpm test --coverage
-```
-
-## Deployment
-
-### Static Hosting
-```bash
-# Build for production
-pnpm build
-
-# Deploy dist/ to:
-# - Vercel, Netlify, GitHub Pages
-# - AWS S3 + CloudFront
-# - Your web server
-```
-
-### Docker Deployment
-```dockerfile
-FROM node:18-alpine AS builder
-WORKDIR /app
-COPY package*.json ./
-RUN pnpm install
-COPY . .
-RUN pnpm build
-
-FROM nginx:alpine
-COPY --from=builder /app/dist /usr/share/nginx/html
-EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
-```
-
-### Environment-Specific Builds
-```bash
-# Development build
-VITE_ICN_NETWORK=devnet pnpm build
-
-# Staging build
-VITE_ICN_NETWORK=testnet pnpm build
-
-# Production build
-VITE_ICN_NETWORK=mainnet pnpm build
-```
-
-## Security Considerations
-
-### Authentication
-- Secure session management
-- Role-based access control
-- API key protection
-- DID-based authentication
-
-### Data Protection
-- Input validation and sanitization
-- XSS protection
-- CSRF protection
-- Secure API communication
-
-## Accessibility
-
-- WCAG 2.1 AA compliance
-- Keyboard navigation support
-- Screen reader compatibility
-- High contrast mode
-- Responsive design
 
 ## Contributing
 
-1. Follow React and TypeScript best practices
-2. Use Tailwind CSS for styling
-3. Write comprehensive tests
-4. Ensure accessibility compliance
-5. Update documentation
+1. Follow the existing component structure and naming conventions
+2. Use TypeScript strictly with proper type definitions
+3. Implement responsive design patterns with Tailwind CSS
+4. Add comprehensive error handling and loading states
+5. Include mock data for development scenarios
+6. Document new features and API integrations
+
+## Related Documentation
+
+- [ICN Core Documentation](../../README.md)
+- [TypeScript SDK](../../packages/ts-sdk/README.md)
+- [ICN API Reference](../../ICN_API_REFERENCE.md)
+- [Governance Documentation](../../docs/governance.md)
+- [Federation Guide](../../FEDERATION_CLI_EXAMPLES.md)
 
 ## License
 
-Apache-2.0 
+Apache-2.0 - See [LICENSE](../../LICENSE) for details. 
