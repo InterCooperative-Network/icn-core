@@ -20,9 +20,11 @@ pub mod context;
 pub mod executor;
 pub mod memory;
 pub mod metrics;
+pub mod result_encoding;
 
 // Re-export important types for convenience
 pub use context::{DagStoreMutexType, HostAbiError, RuntimeContext, Signer};
+pub use result_encoding::{decode_result_i32, encode_result_i32};
 #[cfg(feature = "async")]
 pub use icn_dag::AsyncStorageService as StorageService;
 #[cfg(not(feature = "async"))]

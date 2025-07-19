@@ -104,6 +104,7 @@ The project has achieved a significant milestone with a production-ready foundat
 - **Identity Management**: DID-based identity with verifiable credentials
 - **Reputation System**: Contribution tracking and trust metrics with persistence
 - **Federation Sync**: Cross-federation governance synchronization
+- **Governance Helpers**: Reusable quorum, delegation, and council rotation macros in `examples/governance_templates`
 
 ### **✅ Distributed Computing**
 - **Mesh Job Execution**: WASM-sandboxed distributed computation
@@ -471,6 +472,7 @@ More detailed information can be found in the `README.md` file within each crate
 * [Resource Tokens](docs/resource_tokens.md) – token classes and mana integration
 * [CCL Language Reference](docs/CCL_LANGUAGE_REFERENCE.md) – full syntax guide
 * [CCL Examples](icn-ccl/examples/) – governance contract templates
+* [Governance Templates](examples/governance_templates/) – reusable macros and sample policies
 * [Governance Onboarding Guide](docs/governance_onboarding.md) – using templates
 * [Contract Creation Guide](docs/howto-create-contract.md) – compile and submit CCL jobs
 

@@ -1,0 +1,13 @@
+// Governance helper: tally direct and delegated votes
+fn conduct_delegated_vote(direct_votes: Integer, delegated_votes: Integer, delegation_weight: Integer) -> Integer {
+    let weighted_delegated = (delegated_votes * delegation_weight) / 100;
+    return direct_votes + weighted_delegated;
+}
+
+// Example using the delegated voting helper
+fn run() -> Integer {
+    let direct = 5;
+    let delegated = 3;
+    let weight = 50; // 50% of delegated votes count
+    return conduct_delegated_vote(direct, delegated, weight);
+}
