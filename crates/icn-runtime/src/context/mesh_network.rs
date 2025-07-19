@@ -87,6 +87,11 @@ pub trait MeshNetworkService: Send + Sync + std::fmt::Debug {
         &self,
         receipt: &icn_identity::ExecutionReceipt,
     ) -> Result<(), HostAbiError>;
+    /// Submit a checkpoint for a running job.
+    async fn submit_job_checkpoint(
+        &self,
+        checkpoint: &icn_mesh::JobCheckpoint,
+    ) -> Result<(), HostAbiError>;
     fn as_any(&self) -> &dyn std::any::Any;
 }
 
@@ -548,5 +553,45 @@ impl MeshNetworkService for DefaultMeshNetworkService {
             job_id
         );
         Ok(None)
+    }
+
+    /// Submit a checkpoint for a running job (used by executor nodes)
+    async fn submit_job_checkpoint(
+        &self,
+        checkpoint: &icn_mesh::JobCheckpoint,
+    ) -> Result<(), HostAbiError> {
+        log::info!(
+            "[MeshNetwork] Submitting checkpoint {} for job {:?} from {}",
+            checkpoint.checkpoint_sequence,
+            checkpoint.job_id,
+            checkpoint.executor_did
+        );
+
+        // For now, we'll broadcast checkpoint information as a gossip message
+        // In a more sophisticated implementation, this could be a dedicated message type
+        let checkpoint_data = serde_json::to_string(checkpoint)
+            .map_err(|e| HostAbiError::SerializationError(e.to_string()))?;
+
+        let gossip = GossipMessage {
+            topic: format!("job_checkpoint_{}", checkpoint.job_id),
+            data: checkpoint_data.into_bytes(),
+            sender: self.signer.did(),
+            timestamp: current_timestamp(),
+        };
+
+        let message = ProtocolMessage {
+            payload: MessagePayload::Gossip(gossip),
+            timestamp: current_timestamp(),
+            sender: self.signer.did(),
+            recipient: None, // Broadcast to all
+            signature: checkpoint.signature.clone(),
+            version: 1,
+        };
+
+        let signed = self.sign_message(&message)?;
+        self.inner
+            .broadcast_signed_message(signed)
+            .await
+            .map_err(|e| HostAbiError::NetworkError(format!("Failed to broadcast checkpoint: {}", e)))
     }
 }
