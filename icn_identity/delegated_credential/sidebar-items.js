@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["verify_delegation_chain"],"struct":["DelegatedCredential"]};

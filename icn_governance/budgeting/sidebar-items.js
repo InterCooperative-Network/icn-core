@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["apply_budget_allocation"],"struct":["BudgetProposal"]};
