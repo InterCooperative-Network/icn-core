@@ -8,6 +8,7 @@ use crate::error::CclError;
 use std::collections::HashMap;
 
 /// Standard constants available in CCL
+#[derive(Clone)]
 pub struct StandardLibrary {
     pub constants: HashMap<String, (ExpressionNode, TypeAnnotationNode)>,
     pub macros: HashMap<String, String>,
@@ -496,6 +497,13 @@ impl StandardLibrary {
     /// Check if a name is a standard library macro
     pub fn is_standard_macro(&self, name: &str) -> bool {
         self.macros.contains_key(name)
+    }
+    
+    /// Register a new macro with the standard library
+    pub fn register_macro(&mut self, name: String, _params: Vec<String>, body: String) {
+        // For now, we just store the body. In a full implementation,
+        // we'd store the parameters too for proper expansion
+        self.macros.insert(name, body);
     }
     
     /// Add governance helper functions for common patterns
