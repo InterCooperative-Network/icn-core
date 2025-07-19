@@ -2,7 +2,10 @@
 #![allow(clippy::new_without_default)]
 #![allow(clippy::uninlined_format_args)]
 #![allow(clippy::to_string_in_format_args)]
-#![cfg_attr(not(feature = "allow-nondeterminism"), deny(clippy::disallowed_methods))]
+#![cfg_attr(
+    not(feature = "allow-nondeterminism"),
+    deny(clippy::disallowed_methods)
+)]
 
 //! # ICN Governance Crate
 //! This crate defines the mechanisms for network governance within the InterCooperative Network (ICN).
@@ -25,14 +28,14 @@ use std::path::PathBuf;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
+pub mod federation_governance;
 pub mod metrics;
 pub mod scoped_policy;
-pub mod federation_governance;
 
 pub use federation_governance::{
-    GovernanceAction, MembershipAction, TrustAwareGovernancePolicy,
-    FederationGovernanceEngine, FederationProposal, ProposalStatus as FederationProposalStatus,
-    GovernanceValidationResult, FederationGovernanceError,
+    FederationGovernanceEngine, FederationGovernanceError, FederationProposal, GovernanceAction,
+    GovernanceValidationResult, MembershipAction, ProposalStatus as FederationProposalStatus,
+    TrustAwareGovernancePolicy,
 };
 
 /// Trait for governance execution hooks.
@@ -108,12 +111,14 @@ pub struct ResolutionProposal {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ProposalStatus {
-    Pending,    // Newly created, awaiting votes
-    VotingOpen, // Actively collecting votes
-    Accepted,   // Voting period ended, quorum and threshold met
-    Rejected,   // Voting period ended, quorum or threshold not met
-    Executed,   // For proposals that have an on-chain/system effect
-    Failed,     // Execution failed
+    /// Newly created and under discussion before voting opens
+    Deliberation,
+    /// Actively collecting votes
+    VotingOpen,
+    Accepted, // Voting period ended, quorum and threshold met
+    Rejected, // Voting period ended, quorum or threshold not met
+    Executed, // For proposals that have an on-chain/system effect
+    Failed,   // Execution failed
 }
 
 /// Full proposal record stored in the governance module.
@@ -138,10 +143,12 @@ pub struct Proposal {
 }
 
 pub fn canonical_proposal(proposals: &[Proposal]) -> Option<&Proposal> {
-    proposals.iter().min_by(|a, b| match a.created_at.cmp(&b.created_at) {
-        std::cmp::Ordering::Equal => a.id.0.cmp(&b.id.0),
-        other => other,
-    })
+    proposals
+        .iter()
+        .min_by(|a, b| match a.created_at.cmp(&b.created_at) {
+            std::cmp::Ordering::Equal => a.id.0.cmp(&b.id.0),
+            other => other,
+        })
 }
 
 /// Possible voting options.
@@ -326,7 +333,7 @@ impl GovernanceModule {
             description: submission.description,
             created_at: now,
             voting_deadline: now + submission.duration_secs,
-            status: ProposalStatus::Pending,
+            status: ProposalStatus::Deliberation,
             votes: HashMap::new(),
             quorum: submission.quorum,
             threshold: submission.threshold,
@@ -396,7 +403,7 @@ impl GovernanceModule {
         Ok(proposal_id)
     }
 
-    /// Transition a proposal from `Pending` to `VotingOpen`.
+    /// Transition a proposal from `Deliberation` to `VotingOpen`.
     pub fn open_voting(&mut self, proposal_id: &ProposalId) -> Result<(), CommonError> {
         match &mut self.backend {
             Backend::InMemory { proposals } => {
@@ -406,9 +413,9 @@ impl GovernanceModule {
                         proposal_id.0
                     ))
                 })?;
-                if proposal.status != ProposalStatus::Pending {
+                if proposal.status != ProposalStatus::Deliberation {
                     return Err(CommonError::InvalidInputError(format!(
-                        "Proposal {} not pending, current status: {:?}",
+                        "Proposal {} not ready for voting, current status: {:?}",
                         proposal_id.0, proposal.status
                     )));
                 }
@@ -444,9 +451,9 @@ impl GovernanceModule {
                             proposal_id.0, e
                         ))
                     })?;
-                if proposal.status != ProposalStatus::Pending {
+                if proposal.status != ProposalStatus::Deliberation {
                     return Err(CommonError::InvalidInputError(format!(
-                        "Proposal {} not pending, current status: {:?}",
+                        "Proposal {} not ready for voting, current status: {:?}",
                         proposal_id.0, proposal.status
                     )));
                 }
@@ -901,7 +908,8 @@ impl GovernanceModule {
         match &mut self.backend {
             Backend::InMemory { proposals } => {
                 for proposal in proposals.values_mut() {
-                    if proposal.status == ProposalStatus::VotingOpen
+                    if (proposal.status == ProposalStatus::VotingOpen 
+                        || proposal.status == ProposalStatus::Deliberation)
                         && proposal.voting_deadline <= now
                     {
                         proposal.status = ProposalStatus::Rejected;
@@ -934,7 +942,10 @@ impl GovernanceModule {
                             e
                         ))
                     })?;
-                    if prop.status == ProposalStatus::VotingOpen && prop.voting_deadline <= now {
+                    if (prop.status == ProposalStatus::VotingOpen 
+                        || prop.status == ProposalStatus::Deliberation)
+                        && prop.voting_deadline <= now 
+                    {
                         prop.status = ProposalStatus::Rejected;
                         updates.push((key, prop));
                     }
@@ -972,12 +983,35 @@ impl GovernanceModule {
             .as_secs();
         match &mut self.backend {
             Backend::InMemory { proposals } => {
-                let expired: Vec<ProposalId> = proposals
+                let expired_voting: Vec<ProposalId> = proposals
                     .values()
                     .filter(|p| p.voting_deadline <= now && p.status == ProposalStatus::VotingOpen)
                     .map(|p| p.id.clone())
                     .collect();
-                for id in expired {
+                let expired_deliberation: Vec<ProposalId> = proposals
+                    .values()
+                    .filter(|p| p.voting_deadline <= now && p.status == ProposalStatus::Deliberation)
+                    .map(|p| p.id.clone())
+                    .collect();
+                
+                // For deliberation proposals, directly mark as rejected
+                for id in expired_deliberation {
+                    if let Some(proposal) = proposals.get_mut(&id) {
+                        proposal.status = ProposalStatus::Rejected;
+                        if let Some(store) = &self.event_store {
+                            let _ = store
+                                .lock()
+                                .unwrap()
+                                .append(&GovernanceEvent::StatusUpdated(
+                                    id.clone(),
+                                    ProposalStatus::Rejected,
+                                ));
+                        }
+                    }
+                }
+                
+                // For voting proposals, properly close with vote tallying
+                for id in expired_voting {
                     let _ = self.close_voting_period(&id)?;
                 }
                 Ok(())
@@ -993,7 +1027,9 @@ impl GovernanceModule {
                         e
                     ))
                 })?;
-                let mut expired = Vec::new();
+                let mut expired_voting = Vec::new();
+                let mut expired_deliberation = Vec::new();
+                
                 for item in tree.iter() {
                     let (key, val) = item.map_err(|e| {
                         CommonError::DatabaseError(format!(
@@ -1007,18 +1043,83 @@ impl GovernanceModule {
                             e
                         ))
                     })?;
-                    if prop.voting_deadline <= now && prop.status == ProposalStatus::VotingOpen {
+                    if prop.voting_deadline <= now {
                         let id_str = String::from_utf8(key.to_vec()).map_err(|e| {
                             CommonError::DeserializationError(format!(
                                 "Invalid UTF-8 in proposal key: {}",
                                 e
                             ))
                         })?;
-                        expired.push(ProposalId(id_str));
+                        let proposal_id = ProposalId(id_str);
+                        
+                        if prop.status == ProposalStatus::VotingOpen {
+                            expired_voting.push(proposal_id);
+                        } else if prop.status == ProposalStatus::Deliberation {
+                            expired_deliberation.push(proposal_id);
+                        }
                     }
                 }
+                
+                // Handle deliberation proposals - mark as rejected directly
+                for id in expired_deliberation {
+                    let key = id.0.as_bytes();
+                    let proposal_bytes = tree
+                        .get(key)
+                        .map_err(|e| {
+                            CommonError::DatabaseError(format!(
+                                "Failed to get proposal {} from sled: {}",
+                                id.0, e
+                            ))
+                        })?
+                        .ok_or_else(|| {
+                            CommonError::ResourceNotFound(format!(
+                                "Proposal with ID {} not found for expiration",
+                                id.0
+                            ))
+                        })?;
+                    let mut proposal: Proposal =
+                        bincode::deserialize(&proposal_bytes).map_err(|e| {
+                            CommonError::DeserializationError(format!(
+                                "Failed to deserialize proposal {}: {}",
+                                id.0, e
+                            ))
+                        })?;
+                    
+                    proposal.status = ProposalStatus::Rejected;
+                    let encoded = bincode::serialize(&proposal).map_err(|e| {
+                        CommonError::SerializationError(format!(
+                            "Failed to serialize expired proposal {}: {}",
+                            id.0, e
+                        ))
+                    })?;
+                    tree.insert(key, encoded).map_err(|e| {
+                        CommonError::DatabaseError(format!(
+                            "Failed to persist expired proposal {}: {}",
+                            id.0, e
+                        ))
+                    })?;
+                    
+                    if let Some(store) = &self.event_store {
+                        let _ = store
+                            .lock()
+                            .unwrap()
+                            .append(&GovernanceEvent::StatusUpdated(
+                                id.clone(),
+                                ProposalStatus::Rejected,
+                            ));
+                    }
+                }
+                
+                tree.flush().map_err(|e| {
+                    CommonError::DatabaseError(format!(
+                        "Failed to flush sled tree for expired deliberation proposals: {}",
+                        e
+                    ))
+                })?;
                 drop(tree);
-                for id in expired {
+                
+                // Handle voting proposals - properly close with vote tallying
+                for id in expired_voting {
                     let _ = self.close_voting_period(&id)?;
                 }
                 Ok(())
@@ -1407,5 +1508,86 @@ mod tests {
         };
         let result = submit_governance_proposal(&node_info, 123);
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_expire_deliberation_proposals() {
+        let mut gov = GovernanceModule::new();
+        let proposer = Did::default();
+        
+        // Submit a proposal that will expire while in Deliberation status
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        
+        let submission = ProposalSubmission {
+            proposer: proposer.clone(),
+            proposal_type: ProposalType::GenericText("Test proposal".to_string()),
+            description: "A test proposal".to_string(),
+            duration_secs: 10, // Short duration for testing
+            quorum: None,
+            threshold: None,
+            content_cid: None,
+        };
+        
+        let proposal_id = gov.submit_proposal(submission).unwrap();
+        
+        // Verify proposal is in Deliberation status
+        let proposal = gov.get_proposal(&proposal_id).unwrap().unwrap();
+        assert_eq!(proposal.status, ProposalStatus::Deliberation);
+        
+        // Simulate time passing beyond the deadline
+        let future_time = now + 20; // Past the 10-second deadline
+        
+        // Call expire_proposals - this should mark the Deliberation proposal as Rejected
+        gov.expire_proposals(future_time).unwrap();
+        
+        // Verify the proposal is now Rejected
+        let proposal = gov.get_proposal(&proposal_id).unwrap().unwrap();
+        assert_eq!(proposal.status, ProposalStatus::Rejected);
+    }
+
+    #[test]
+    fn test_close_expired_deliberation_proposals() {
+        let mut gov = GovernanceModule::new();
+        let proposer = Did::default();
+        
+        // Submit a proposal that will expire while in Deliberation status
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        
+        let submission = ProposalSubmission {
+            proposer: proposer.clone(),
+            proposal_type: ProposalType::GenericText("Test proposal".to_string()),
+            description: "A test proposal".to_string(),
+            duration_secs: 10, // Short duration for testing
+            quorum: None,
+            threshold: None,
+            content_cid: None,
+        };
+        
+        let proposal_id = gov.submit_proposal(submission).unwrap();
+        
+        // Verify proposal is in Deliberation status
+        let proposal = gov.get_proposal(&proposal_id).unwrap().unwrap();
+        assert_eq!(proposal.status, ProposalStatus::Deliberation);
+        
+        // Simulate time passing beyond the deadline by manipulating the proposal's deadline
+        // We need to update the proposal's voting_deadline to be in the past
+        if let Backend::InMemory { proposals } = &mut gov.backend {
+            if let Some(prop) = proposals.get_mut(&proposal_id) {
+                prop.voting_deadline = now - 10; // Set deadline to past
+            }
+        }
+        
+        // Call close_expired_proposals - this should handle the Deliberation proposal
+        gov.close_expired_proposals().unwrap();
+        
+        // Verify the proposal is now Rejected
+        let proposal = gov.get_proposal(&proposal_id).unwrap().unwrap();
+        assert_eq!(proposal.status, ProposalStatus::Rejected);
     }
 }
