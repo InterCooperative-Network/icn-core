@@ -892,7 +892,7 @@
 <a href=#892 id=892 data-nosnippet>892</a>        <span class="kw">let </span>frozen_set = app_state.frozen_reputations.clone();
 <a href=#893 id=893 data-nosnippet>893</a>        <span class="kw">let </span>handle = tokio::runtime::Handle::current();
 <a href=#894 id=894 data-nosnippet>894</a>        <span class="kw">let </span><span class="kw-2">mut </span>gov = gov_mod.lock().<span class="kw">await</span>;
-<a href=#895 id=895 data-nosnippet>895</a>        gov.set_callback(<span class="kw">move </span>|proposal| {
+<a href=#895 id=895 data-nosnippet>895</a>        gov.set_callback(<span class="kw">move </span>|proposal: <span class="kw-2">&amp;</span>icn_governance::Proposal| {
 <a href=#896 id=896 data-nosnippet>896</a>            <span class="kw">if let </span>icn_governance::ProposalType::SystemParameterChange(param, value) =
 <a href=#897 id=897 data-nosnippet>897</a>                <span class="kw-2">&amp;</span>proposal.proposal_type
 <a href=#898 id=898 data-nosnippet>898</a>            {
@@ -1101,7 +1101,7 @@
 <a href=#1101 id=1101 data-nosnippet>1101</a>        <span class="kw">let </span>frozen_set = app_state.frozen_reputations.clone();
 <a href=#1102 id=1102 data-nosnippet>1102</a>        <span class="kw">let </span>handle = tokio::runtime::Handle::current();
 <a href=#1103 id=1103 data-nosnippet>1103</a>        <span class="kw">let </span><span class="kw-2">mut </span>gov = gov_mod.lock().<span class="kw">await</span>;
-<a href=#1104 id=1104 data-nosnippet>1104</a>        gov.set_callback(<span class="kw">move </span>|proposal| {
+<a href=#1104 id=1104 data-nosnippet>1104</a>        gov.set_callback(<span class="kw">move </span>|proposal: <span class="kw-2">&amp;</span>icn_governance::Proposal| {
 <a href=#1105 id=1105 data-nosnippet>1105</a>            <span class="kw">if let </span>icn_governance::ProposalType::SystemParameterChange(param, value) =
 <a href=#1106 id=1106 data-nosnippet>1106</a>                <span class="kw-2">&amp;</span>proposal.proposal_type
 <a href=#1107 id=1107 data-nosnippet>1107</a>            {
@@ -1474,7 +1474,7 @@
 <a href=#1474 id=1474 data-nosnippet>1474</a>        <span class="kw">let </span>frozen_set = app_state.frozen_reputations.clone();
 <a href=#1475 id=1475 data-nosnippet>1475</a>        <span class="kw">let </span>handle = tokio::runtime::Handle::current();
 <a href=#1476 id=1476 data-nosnippet>1476</a>        <span class="kw">let </span><span class="kw-2">mut </span>gov = gov_mod.lock().<span class="kw">await</span>;
-<a href=#1477 id=1477 data-nosnippet>1477</a>        gov.set_callback(<span class="kw">move </span>|proposal| {
+<a href=#1477 id=1477 data-nosnippet>1477</a>        gov.set_callback(<span class="kw">move </span>|proposal: <span class="kw-2">&amp;</span>icn_governance::Proposal| {
 <a href=#1478 id=1478 data-nosnippet>1478</a>            <span class="kw">if let </span>icn_governance::ProposalType::SystemParameterChange(param, value) =
 <a href=#1479 id=1479 data-nosnippet>1479</a>                <span class="kw-2">&amp;</span>proposal.proposal_type
 <a href=#1480 id=1480 data-nosnippet>1480</a>            {
