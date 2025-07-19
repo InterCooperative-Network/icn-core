@@ -1,0 +1,1 @@
+searchState.loadedDescShard("job_audit", 0, "Audit a job by JobId\nReturns the argument unchanged.\nReturns the argument unchanged.\nCalls <code>U::from(self)</code>.\nCalls <code>U::from(self)</code>.\nPath to DAG directory\nJobId CID string")
