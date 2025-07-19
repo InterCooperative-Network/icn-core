@@ -3396,604 +3396,610 @@
 <a href=#3396 id=3396 data-nosnippet>3396</a>            },
 <a href=#3397 id=3397 data-nosnippet>3397</a>            executor_capabilities: <span class="macro">vec!</span>[], <span class="comment">// TODO: Get from node config
 <a href=#3398 id=3398 data-nosnippet>3398</a>            </span>executor_federations: <span class="macro">vec!</span>[], <span class="comment">// TODO: Get from node federation
-<a href=#3399 id=3399 data-nosnippet>3399</a>            </span>executor_trust_scope: <span class="prelude-val">None</span>, <span class="comment">// TODO: Get from context
-<a href=#3400 id=3400 data-nosnippet>3400</a>            </span>signature: icn_identity::SignatureBytes(<span class="macro">vec!</span>[]), <span class="comment">// Will be filled by sign()
-<a href=#3401 id=3401 data-nosnippet>3401</a>        </span>};
-<a href=#3402 id=3402 data-nosnippet>3402</a>
-<a href=#3403 id=3403 data-nosnippet>3403</a>        <span class="comment">// Sign the bid
-<a href=#3404 id=3404 data-nosnippet>3404</a>        </span><span class="kw">let </span>signable_bytes = bid.to_signable_bytes().map_err(|e| {
-<a href=#3405 id=3405 data-nosnippet>3405</a>            HostAbiError::InternalError(<span class="macro">format!</span>(<span class="string">"Failed to create signable bytes: {}"</span>, e))
-<a href=#3406 id=3406 data-nosnippet>3406</a>        })<span class="question-mark">?</span>;
-<a href=#3407 id=3407 data-nosnippet>3407</a>        <span class="kw">let </span>signature = ctx.signer.sign(<span class="kw-2">&amp;</span>signable_bytes)<span class="question-mark">?</span>;
-<a href=#3408 id=3408 data-nosnippet>3408</a>
-<a href=#3409 id=3409 data-nosnippet>3409</a>        <span class="kw">let </span>signed_bid = icn_mesh::MeshJobBid {
-<a href=#3410 id=3410 data-nosnippet>3410</a>            signature: icn_identity::SignatureBytes(signature),
-<a href=#3411 id=3411 data-nosnippet>3411</a>            ..bid
-<a href=#3412 id=3412 data-nosnippet>3412</a>        };
-<a href=#3413 id=3413 data-nosnippet>3413</a>
-<a href=#3414 id=3414 data-nosnippet>3414</a>        <span class="macro">log::info!</span>(
-<a href=#3415 id=3415 data-nosnippet>3415</a>            <span class="string">"[ExecutorManager] Created bid for job {}: price={} mana"</span>,
-<a href=#3416 id=3416 data-nosnippet>3416</a>            announcement.job_id,
-<a href=#3417 id=3417 data-nosnippet>3417</a>            base_price
-<a href=#3418 id=3418 data-nosnippet>3418</a>        );
-<a href=#3419 id=3419 data-nosnippet>3419</a>
-<a href=#3420 id=3420 data-nosnippet>3420</a>        <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(signed_bid))
-<a href=#3421 id=3421 data-nosnippet>3421</a>    }
+<a href=#3399 id=3399 data-nosnippet>3399</a>            </span>executor_trust_scope: ctx
+<a href=#3400 id=3400 data-nosnippet>3400</a>                .parameters
+<a href=#3401 id=3401 data-nosnippet>3401</a>                .get(<span class="string">"executor_trust_scope"</span>)
+<a href=#3402 id=3402 data-nosnippet>3402</a>                .map(|v| v.value().clone()),
+<a href=#3403 id=3403 data-nosnippet>3403</a>            signature: icn_identity::SignatureBytes(<span class="macro">vec!</span>[]), <span class="comment">// Will be filled by sign()
+<a href=#3404 id=3404 data-nosnippet>3404</a>        </span>};
+<a href=#3405 id=3405 data-nosnippet>3405</a>
+<a href=#3406 id=3406 data-nosnippet>3406</a>        <span class="comment">// Sign the bid
+<a href=#3407 id=3407 data-nosnippet>3407</a>        </span><span class="kw">let </span>signable_bytes = bid.to_signable_bytes().map_err(|e| {
+<a href=#3408 id=3408 data-nosnippet>3408</a>            HostAbiError::InternalError(<span class="macro">format!</span>(<span class="string">"Failed to create signable bytes: {}"</span>, e))
+<a href=#3409 id=3409 data-nosnippet>3409</a>        })<span class="question-mark">?</span>;
+<a href=#3410 id=3410 data-nosnippet>3410</a>        <span class="kw">let </span>signature = ctx.signer.sign(<span class="kw-2">&amp;</span>signable_bytes)<span class="question-mark">?</span>;
+<a href=#3411 id=3411 data-nosnippet>3411</a>
+<a href=#3412 id=3412 data-nosnippet>3412</a>        <span class="kw">let </span>signed_bid = icn_mesh::MeshJobBid {
+<a href=#3413 id=3413 data-nosnippet>3413</a>            signature: icn_identity::SignatureBytes(signature),
+<a href=#3414 id=3414 data-nosnippet>3414</a>            ..bid
+<a href=#3415 id=3415 data-nosnippet>3415</a>        };
+<a href=#3416 id=3416 data-nosnippet>3416</a>
+<a href=#3417 id=3417 data-nosnippet>3417</a>        <span class="macro">log::info!</span>(
+<a href=#3418 id=3418 data-nosnippet>3418</a>            <span class="string">"[ExecutorManager] Created bid for job {}: price={} mana"</span>,
+<a href=#3419 id=3419 data-nosnippet>3419</a>            announcement.job_id,
+<a href=#3420 id=3420 data-nosnippet>3420</a>            base_price
+<a href=#3421 id=3421 data-nosnippet>3421</a>        );
 <a href=#3422 id=3422 data-nosnippet>3422</a>
-<a href=#3423 id=3423 data-nosnippet>3423</a>    <span class="doccomment">/// Calculate bid price based on job announcement.
-<a href=#3424 id=3424 data-nosnippet>3424</a>    </span><span class="kw">async fn </span>calculate_bid_price_from_announcement(
-<a href=#3425 id=3425 data-nosnippet>3425</a>        announcement: <span class="kw-2">&amp;</span>icn_protocol::MeshJobAnnouncementMessage,
-<a href=#3426 id=3426 data-nosnippet>3426</a>        ctx: <span class="kw-2">&amp;</span>Arc&lt;RuntimeContext&gt;,
-<a href=#3427 id=3427 data-nosnippet>3427</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;u64, HostAbiError&gt; {
-<a href=#3428 id=3428 data-nosnippet>3428</a>        <span class="kw">let </span>required = <span class="kw-2">&amp;</span>announcement.job_spec.required_resources;
-<a href=#3429 id=3429 data-nosnippet>3429</a>
-<a href=#3430 id=3430 data-nosnippet>3430</a>        <span class="comment">// Base price calculation based on resource requirements
-<a href=#3431 id=3431 data-nosnippet>3431</a>        </span><span class="kw">let </span>cpu_cost = required.cpu_cores <span class="kw">as </span>u64 * <span class="number">2</span>; <span class="comment">// 2 mana per CPU core
-<a href=#3432 id=3432 data-nosnippet>3432</a>        </span><span class="kw">let </span>memory_cost = required.memory_mb <span class="kw">as </span>u64 / <span class="number">100</span>; <span class="comment">// 1 mana per 100MB
-<a href=#3433 id=3433 data-nosnippet>3433</a>        </span><span class="kw">let </span>time_cost = required.max_execution_time_secs / <span class="number">60</span>; <span class="comment">// 1 mana per minute
-<a href=#3434 id=3434 data-nosnippet>3434</a>        </span><span class="kw">let </span>base_cost = cpu_cost + memory_cost + time_cost + <span class="number">5</span>; <span class="comment">// 5 mana base fee
-<a href=#3435 id=3435 data-nosnippet>3435</a>
-<a href=#3436 id=3436 data-nosnippet>3436</a>        // Adjust based on our reputation (higher reputation = can charge more)
-<a href=#3437 id=3437 data-nosnippet>3437</a>        </span><span class="kw">let </span>our_reputation = ctx.reputation_store.get_reputation(<span class="kw-2">&amp;</span>ctx.current_identity);
-<a href=#3438 id=3438 data-nosnippet>3438</a>        <span class="kw">let </span>reputation_multiplier = <span class="number">1.0 </span>+ (our_reputation <span class="kw">as </span>f64 / <span class="number">1000.0</span>); <span class="comment">// Up to 2x for high reputation
-<a href=#3439 id=3439 data-nosnippet>3439</a>
-<a href=#3440 id=3440 data-nosnippet>3440</a>        // Derive a deterministic factor from the job ID and our reputation
-<a href=#3441 id=3441 data-nosnippet>3441</a>        </span><span class="kw">let </span>random_factor = <span class="self">Self</span>::deterministic_factor(
-<a href=#3442 id=3442 data-nosnippet>3442</a>            announcement.job_id.to_string().as_bytes(),
-<a href=#3443 id=3443 data-nosnippet>3443</a>            our_reputation,
-<a href=#3444 id=3444 data-nosnippet>3444</a>        );
-<a href=#3445 id=3445 data-nosnippet>3445</a>
-<a href=#3446 id=3446 data-nosnippet>3446</a>        <span class="kw">let </span>final_price = ((base_cost <span class="kw">as </span>f64) * reputation_multiplier * random_factor) <span class="kw">as </span>u64;
-<a href=#3447 id=3447 data-nosnippet>3447</a>
-<a href=#3448 id=3448 data-nosnippet>3448</a>        <span class="comment">// Don't exceed the max cost
-<a href=#3449 id=3449 data-nosnippet>3449</a>        </span><span class="prelude-val">Ok</span>(final_price.min(announcement.max_cost_mana).max(<span class="number">1</span>)) <span class="comment">// Minimum 1 mana
-<a href=#3450 id=3450 data-nosnippet>3450</a>    </span>}
-<a href=#3451 id=3451 data-nosnippet>3451</a>
-<a href=#3452 id=3452 data-nosnippet>3452</a>    <span class="doccomment">/// Handle a job assignment by executing the job and submitting a receipt.
-<a href=#3453 id=3453 data-nosnippet>3453</a>    </span><span class="kw">async fn </span>handle_job_assignment(
-<a href=#3454 id=3454 data-nosnippet>3454</a>        ctx: <span class="kw-2">&amp;</span>Arc&lt;RuntimeContext&gt;,
-<a href=#3455 id=3455 data-nosnippet>3455</a>        assignment: <span class="kw-2">&amp;</span>icn_protocol::MeshJobAssignmentMessage,
-<a href=#3456 id=3456 data-nosnippet>3456</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), HostAbiError&gt; {
-<a href=#3457 id=3457 data-nosnippet>3457</a>        <span class="macro">log::info!</span>(
-<a href=#3458 id=3458 data-nosnippet>3458</a>            <span class="string">"[ExecutorManager] Starting execution of assigned job {}"</span>,
-<a href=#3459 id=3459 data-nosnippet>3459</a>            assignment.job_id
-<a href=#3460 id=3460 data-nosnippet>3460</a>        );
-<a href=#3461 id=3461 data-nosnippet>3461</a>
-<a href=#3462 id=3462 data-nosnippet>3462</a>        <span class="comment">// We need to reconstruct the job from the assignment
-<a href=#3463 id=3463 data-nosnippet>3463</a>        // In a real implementation, we'd either:
-<a href=#3464 id=3464 data-nosnippet>3464</a>        // 1. Cache job details from the announcement
-<a href=#3465 id=3465 data-nosnippet>3465</a>        // 2. Request job details from the submitter
-<a href=#3466 id=3466 data-nosnippet>3466</a>        // 3. Download the manifest from the DAG
-<a href=#3467 id=3467 data-nosnippet>3467</a>
-<a href=#3468 id=3468 data-nosnippet>3468</a>        // For now, we'll create a minimal job structure for execution
-<a href=#3469 id=3469 data-nosnippet>3469</a>        </span><span class="kw">let </span>job = ActualMeshJob {
-<a href=#3470 id=3470 data-nosnippet>3470</a>            id: icn_mesh::JobId(assignment.job_id.clone()),
-<a href=#3471 id=3471 data-nosnippet>3471</a>            manifest_cid: assignment
-<a href=#3472 id=3472 data-nosnippet>3472</a>                .manifest_cid
-<a href=#3473 id=3473 data-nosnippet>3473</a>                .clone()
-<a href=#3474 id=3474 data-nosnippet>3474</a>                .unwrap_or_else(|| assignment.job_id.clone()),
-<a href=#3475 id=3475 data-nosnippet>3475</a>            spec: icn_mesh::JobSpec {
-<a href=#3476 id=3476 data-nosnippet>3476</a>                kind: icn_mesh::JobKind::Echo {
-<a href=#3477 id=3477 data-nosnippet>3477</a>                    payload: <span class="string">"Assigned job execution"</span>.to_string(),
-<a href=#3478 id=3478 data-nosnippet>3478</a>                }, <span class="comment">// Placeholder
-<a href=#3479 id=3479 data-nosnippet>3479</a>                </span>inputs: <span class="macro">vec!</span>[],
-<a href=#3480 id=3480 data-nosnippet>3480</a>                outputs: <span class="macro">vec!</span>[<span class="string">"result"</span>.to_string()],
-<a href=#3481 id=3481 data-nosnippet>3481</a>                required_resources: icn_mesh::Resources {
-<a href=#3482 id=3482 data-nosnippet>3482</a>                    cpu_cores: <span class="number">1</span>,
-<a href=#3483 id=3483 data-nosnippet>3483</a>                    memory_mb: <span class="number">128</span>,
-<a href=#3484 id=3484 data-nosnippet>3484</a>                    storage_mb: <span class="number">0</span>,
-<a href=#3485 id=3485 data-nosnippet>3485</a>                },
-<a href=#3486 id=3486 data-nosnippet>3486</a>                required_capabilities: <span class="macro">vec!</span>[],
-<a href=#3487 id=3487 data-nosnippet>3487</a>                required_trust_scope: <span class="prelude-val">None</span>,
-<a href=#3488 id=3488 data-nosnippet>3488</a>                min_executor_reputation: <span class="prelude-val">None</span>,
-<a href=#3489 id=3489 data-nosnippet>3489</a>                allowed_federations: <span class="macro">vec!</span>[],
-<a href=#3490 id=3490 data-nosnippet>3490</a>            },
-<a href=#3491 id=3491 data-nosnippet>3491</a>            creator_did: icn_common::Did::new(<span class="string">"key"</span>, <span class="string">"placeholder"</span>), <span class="comment">// We don't know the creator from assignment
-<a href=#3492 id=3492 data-nosnippet>3492</a>            </span>cost_mana: assignment.agreed_cost_mana,
-<a href=#3493 id=3493 data-nosnippet>3493</a>            max_execution_wait_ms: <span class="prelude-val">None</span>,
-<a href=#3494 id=3494 data-nosnippet>3494</a>            signature: icn_identity::SignatureBytes(<span class="macro">vec!</span>[]),
-<a href=#3495 id=3495 data-nosnippet>3495</a>        };
-<a href=#3496 id=3496 data-nosnippet>3496</a>
-<a href=#3497 id=3497 data-nosnippet>3497</a>        <span class="comment">// Execute the job
-<a href=#3498 id=3498 data-nosnippet>3498</a>        </span><span class="kw">let </span>receipt = <span class="self">Self</span>::execute_assigned_job(ctx, <span class="kw-2">&amp;</span>job, assignment.agreed_cost_mana).<span class="kw">await</span><span class="question-mark">?</span>;
+<a href=#3423 id=3423 data-nosnippet>3423</a>        <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(signed_bid))
+<a href=#3424 id=3424 data-nosnippet>3424</a>    }
+<a href=#3425 id=3425 data-nosnippet>3425</a>
+<a href=#3426 id=3426 data-nosnippet>3426</a>    <span class="doccomment">/// Calculate bid price based on job announcement.
+<a href=#3427 id=3427 data-nosnippet>3427</a>    </span><span class="kw">async fn </span>calculate_bid_price_from_announcement(
+<a href=#3428 id=3428 data-nosnippet>3428</a>        announcement: <span class="kw-2">&amp;</span>icn_protocol::MeshJobAnnouncementMessage,
+<a href=#3429 id=3429 data-nosnippet>3429</a>        ctx: <span class="kw-2">&amp;</span>Arc&lt;RuntimeContext&gt;,
+<a href=#3430 id=3430 data-nosnippet>3430</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;u64, HostAbiError&gt; {
+<a href=#3431 id=3431 data-nosnippet>3431</a>        <span class="kw">let </span>required = <span class="kw-2">&amp;</span>announcement.job_spec.required_resources;
+<a href=#3432 id=3432 data-nosnippet>3432</a>
+<a href=#3433 id=3433 data-nosnippet>3433</a>        <span class="comment">// Base price calculation based on resource requirements
+<a href=#3434 id=3434 data-nosnippet>3434</a>        </span><span class="kw">let </span>cpu_cost = required.cpu_cores <span class="kw">as </span>u64 * <span class="number">2</span>; <span class="comment">// 2 mana per CPU core
+<a href=#3435 id=3435 data-nosnippet>3435</a>        </span><span class="kw">let </span>memory_cost = required.memory_mb <span class="kw">as </span>u64 / <span class="number">100</span>; <span class="comment">// 1 mana per 100MB
+<a href=#3436 id=3436 data-nosnippet>3436</a>        </span><span class="kw">let </span>time_cost = required.max_execution_time_secs / <span class="number">60</span>; <span class="comment">// 1 mana per minute
+<a href=#3437 id=3437 data-nosnippet>3437</a>        </span><span class="kw">let </span>base_cost = cpu_cost + memory_cost + time_cost + <span class="number">5</span>; <span class="comment">// 5 mana base fee
+<a href=#3438 id=3438 data-nosnippet>3438</a>
+<a href=#3439 id=3439 data-nosnippet>3439</a>        // Adjust based on our reputation (higher reputation = can charge more)
+<a href=#3440 id=3440 data-nosnippet>3440</a>        </span><span class="kw">let </span>our_reputation = ctx.reputation_store.get_reputation(<span class="kw-2">&amp;</span>ctx.current_identity);
+<a href=#3441 id=3441 data-nosnippet>3441</a>        <span class="kw">let </span>reputation_multiplier = <span class="number">1.0 </span>+ (our_reputation <span class="kw">as </span>f64 / <span class="number">1000.0</span>); <span class="comment">// Up to 2x for high reputation
+<a href=#3442 id=3442 data-nosnippet>3442</a>
+<a href=#3443 id=3443 data-nosnippet>3443</a>        // Derive a deterministic factor from the job ID and our reputation
+<a href=#3444 id=3444 data-nosnippet>3444</a>        </span><span class="kw">let </span>random_factor = <span class="self">Self</span>::deterministic_factor(
+<a href=#3445 id=3445 data-nosnippet>3445</a>            announcement.job_id.to_string().as_bytes(),
+<a href=#3446 id=3446 data-nosnippet>3446</a>            our_reputation,
+<a href=#3447 id=3447 data-nosnippet>3447</a>        );
+<a href=#3448 id=3448 data-nosnippet>3448</a>
+<a href=#3449 id=3449 data-nosnippet>3449</a>        <span class="kw">let </span>final_price = ((base_cost <span class="kw">as </span>f64) * reputation_multiplier * random_factor) <span class="kw">as </span>u64;
+<a href=#3450 id=3450 data-nosnippet>3450</a>
+<a href=#3451 id=3451 data-nosnippet>3451</a>        <span class="comment">// Don't exceed the max cost
+<a href=#3452 id=3452 data-nosnippet>3452</a>        </span><span class="prelude-val">Ok</span>(final_price.min(announcement.max_cost_mana).max(<span class="number">1</span>)) <span class="comment">// Minimum 1 mana
+<a href=#3453 id=3453 data-nosnippet>3453</a>    </span>}
+<a href=#3454 id=3454 data-nosnippet>3454</a>
+<a href=#3455 id=3455 data-nosnippet>3455</a>    <span class="doccomment">/// Handle a job assignment by executing the job and submitting a receipt.
+<a href=#3456 id=3456 data-nosnippet>3456</a>    </span><span class="kw">async fn </span>handle_job_assignment(
+<a href=#3457 id=3457 data-nosnippet>3457</a>        ctx: <span class="kw-2">&amp;</span>Arc&lt;RuntimeContext&gt;,
+<a href=#3458 id=3458 data-nosnippet>3458</a>        assignment: <span class="kw-2">&amp;</span>icn_protocol::MeshJobAssignmentMessage,
+<a href=#3459 id=3459 data-nosnippet>3459</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), HostAbiError&gt; {
+<a href=#3460 id=3460 data-nosnippet>3460</a>        <span class="macro">log::info!</span>(
+<a href=#3461 id=3461 data-nosnippet>3461</a>            <span class="string">"[ExecutorManager] Starting execution of assigned job {}"</span>,
+<a href=#3462 id=3462 data-nosnippet>3462</a>            assignment.job_id
+<a href=#3463 id=3463 data-nosnippet>3463</a>        );
+<a href=#3464 id=3464 data-nosnippet>3464</a>
+<a href=#3465 id=3465 data-nosnippet>3465</a>        <span class="comment">// We need to reconstruct the job from the assignment
+<a href=#3466 id=3466 data-nosnippet>3466</a>        // In a real implementation, we'd either:
+<a href=#3467 id=3467 data-nosnippet>3467</a>        // 1. Cache job details from the announcement
+<a href=#3468 id=3468 data-nosnippet>3468</a>        // 2. Request job details from the submitter
+<a href=#3469 id=3469 data-nosnippet>3469</a>        // 3. Download the manifest from the DAG
+<a href=#3470 id=3470 data-nosnippet>3470</a>
+<a href=#3471 id=3471 data-nosnippet>3471</a>        // For now, we'll create a minimal job structure for execution
+<a href=#3472 id=3472 data-nosnippet>3472</a>        </span><span class="kw">let </span>job = ActualMeshJob {
+<a href=#3473 id=3473 data-nosnippet>3473</a>            id: icn_mesh::JobId(assignment.job_id.clone()),
+<a href=#3474 id=3474 data-nosnippet>3474</a>            manifest_cid: assignment
+<a href=#3475 id=3475 data-nosnippet>3475</a>                .manifest_cid
+<a href=#3476 id=3476 data-nosnippet>3476</a>                .clone()
+<a href=#3477 id=3477 data-nosnippet>3477</a>                .unwrap_or_else(|| assignment.job_id.clone()),
+<a href=#3478 id=3478 data-nosnippet>3478</a>            spec: icn_mesh::JobSpec {
+<a href=#3479 id=3479 data-nosnippet>3479</a>                kind: icn_mesh::JobKind::Echo {
+<a href=#3480 id=3480 data-nosnippet>3480</a>                    payload: <span class="string">"Assigned job execution"</span>.to_string(),
+<a href=#3481 id=3481 data-nosnippet>3481</a>                }, <span class="comment">// Placeholder
+<a href=#3482 id=3482 data-nosnippet>3482</a>                </span>inputs: <span class="macro">vec!</span>[],
+<a href=#3483 id=3483 data-nosnippet>3483</a>                outputs: <span class="macro">vec!</span>[<span class="string">"result"</span>.to_string()],
+<a href=#3484 id=3484 data-nosnippet>3484</a>                required_resources: icn_mesh::Resources {
+<a href=#3485 id=3485 data-nosnippet>3485</a>                    cpu_cores: <span class="number">1</span>,
+<a href=#3486 id=3486 data-nosnippet>3486</a>                    memory_mb: <span class="number">128</span>,
+<a href=#3487 id=3487 data-nosnippet>3487</a>                    storage_mb: <span class="number">0</span>,
+<a href=#3488 id=3488 data-nosnippet>3488</a>                },
+<a href=#3489 id=3489 data-nosnippet>3489</a>                required_capabilities: <span class="macro">vec!</span>[],
+<a href=#3490 id=3490 data-nosnippet>3490</a>                required_trust_scope: <span class="prelude-val">None</span>,
+<a href=#3491 id=3491 data-nosnippet>3491</a>                min_executor_reputation: <span class="prelude-val">None</span>,
+<a href=#3492 id=3492 data-nosnippet>3492</a>                allowed_federations: <span class="macro">vec!</span>[],
+<a href=#3493 id=3493 data-nosnippet>3493</a>            },
+<a href=#3494 id=3494 data-nosnippet>3494</a>            creator_did: icn_common::Did::new(<span class="string">"key"</span>, <span class="string">"placeholder"</span>), <span class="comment">// We don't know the creator from assignment
+<a href=#3495 id=3495 data-nosnippet>3495</a>            </span>cost_mana: assignment.agreed_cost_mana,
+<a href=#3496 id=3496 data-nosnippet>3496</a>            max_execution_wait_ms: <span class="prelude-val">None</span>,
+<a href=#3497 id=3497 data-nosnippet>3497</a>            signature: icn_identity::SignatureBytes(<span class="macro">vec!</span>[]),
+<a href=#3498 id=3498 data-nosnippet>3498</a>        };
 <a href=#3499 id=3499 data-nosnippet>3499</a>
-<a href=#3500 id=3500 data-nosnippet>3500</a>        <span class="comment">// Submit the receipt
-<a href=#3501 id=3501 data-nosnippet>3501</a>        </span><span class="kw">if let </span>MeshNetworkServiceType::Default(service) = <span class="kw-2">&amp;*</span>ctx.mesh_network_service {
-<a href=#3502 id=3502 data-nosnippet>3502</a>            service.submit_execution_receipt(<span class="kw-2">&amp;</span>receipt).<span class="kw">await</span><span class="question-mark">?</span>;
-<a href=#3503 id=3503 data-nosnippet>3503</a>            <span class="macro">log::info!</span>(
-<a href=#3504 id=3504 data-nosnippet>3504</a>                <span class="string">"[ExecutorManager] Submitted execution receipt for job {}"</span>,
-<a href=#3505 id=3505 data-nosnippet>3505</a>                assignment.job_id
-<a href=#3506 id=3506 data-nosnippet>3506</a>            );
-<a href=#3507 id=3507 data-nosnippet>3507</a>        }
-<a href=#3508 id=3508 data-nosnippet>3508</a>
-<a href=#3509 id=3509 data-nosnippet>3509</a>        <span class="prelude-val">Ok</span>(())
-<a href=#3510 id=3510 data-nosnippet>3510</a>    }
+<a href=#3500 id=3500 data-nosnippet>3500</a>        <span class="comment">// Execute the job
+<a href=#3501 id=3501 data-nosnippet>3501</a>        </span><span class="kw">let </span>receipt = <span class="self">Self</span>::execute_assigned_job(ctx, <span class="kw-2">&amp;</span>job, assignment.agreed_cost_mana).<span class="kw">await</span><span class="question-mark">?</span>;
+<a href=#3502 id=3502 data-nosnippet>3502</a>
+<a href=#3503 id=3503 data-nosnippet>3503</a>        <span class="comment">// Submit the receipt
+<a href=#3504 id=3504 data-nosnippet>3504</a>        </span><span class="kw">if let </span>MeshNetworkServiceType::Default(service) = <span class="kw-2">&amp;*</span>ctx.mesh_network_service {
+<a href=#3505 id=3505 data-nosnippet>3505</a>            service.submit_execution_receipt(<span class="kw-2">&amp;</span>receipt).<span class="kw">await</span><span class="question-mark">?</span>;
+<a href=#3506 id=3506 data-nosnippet>3506</a>            <span class="macro">log::info!</span>(
+<a href=#3507 id=3507 data-nosnippet>3507</a>                <span class="string">"[ExecutorManager] Submitted execution receipt for job {}"</span>,
+<a href=#3508 id=3508 data-nosnippet>3508</a>                assignment.job_id
+<a href=#3509 id=3509 data-nosnippet>3509</a>            );
+<a href=#3510 id=3510 data-nosnippet>3510</a>        }
 <a href=#3511 id=3511 data-nosnippet>3511</a>
-<a href=#3512 id=3512 data-nosnippet>3512</a>    <span class="doccomment">/// Evaluate a job announcement and decide whether to bid.
-<a href=#3513 id=3513 data-nosnippet>3513</a>    </span><span class="kw">pub async fn </span>evaluate_and_bid_on_job(
-<a href=#3514 id=3514 data-nosnippet>3514</a>        ctx: <span class="kw-2">&amp;</span>Arc&lt;RuntimeContext&gt;,
-<a href=#3515 id=3515 data-nosnippet>3515</a>        job: <span class="kw-2">&amp;</span>ActualMeshJob,
-<a href=#3516 id=3516 data-nosnippet>3516</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;icn_mesh::MeshJobBid&gt;, HostAbiError&gt; {
-<a href=#3517 id=3517 data-nosnippet>3517</a>        <span class="kw">let </span>executor_did = ctx.current_identity.clone();
-<a href=#3518 id=3518 data-nosnippet>3518</a>
-<a href=#3519 id=3519 data-nosnippet>3519</a>        <span class="macro">log::info!</span>(<span class="string">"[Executor] Evaluating job {:?} for potential bid"</span>, job.id);
-<a href=#3520 id=3520 data-nosnippet>3520</a>
-<a href=#3521 id=3521 data-nosnippet>3521</a>        <span class="comment">// Check if we have enough mana to participate
-<a href=#3522 id=3522 data-nosnippet>3522</a>        </span><span class="kw">let </span>current_mana = ctx.get_mana(<span class="kw-2">&amp;</span>executor_did).<span class="kw">await</span><span class="question-mark">?</span>;
-<a href=#3523 id=3523 data-nosnippet>3523</a>        <span class="kw">if </span>current_mana &lt; <span class="number">50 </span>{
-<a href=#3524 id=3524 data-nosnippet>3524</a>            <span class="macro">log::debug!</span>(
-<a href=#3525 id=3525 data-nosnippet>3525</a>                <span class="string">"[Executor] Insufficient mana ({}) to bid on job {:?}"</span>,
-<a href=#3526 id=3526 data-nosnippet>3526</a>                current_mana,
-<a href=#3527 id=3527 data-nosnippet>3527</a>                job.id
-<a href=#3528 id=3528 data-nosnippet>3528</a>            );
-<a href=#3529 id=3529 data-nosnippet>3529</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>);
-<a href=#3530 id=3530 data-nosnippet>3530</a>        }
-<a href=#3531 id=3531 data-nosnippet>3531</a>
-<a href=#3532 id=3532 data-nosnippet>3532</a>        <span class="comment">// Check if we have the required resources
-<a href=#3533 id=3533 data-nosnippet>3533</a>        </span><span class="kw">let </span>required = <span class="kw-2">&amp;</span>job.spec.required_resources;
-<a href=#3534 id=3534 data-nosnippet>3534</a>        <span class="kw">let </span>(available_cpu, available_memory) = <span class="self">Self</span>::available_system_resources();
-<a href=#3535 id=3535 data-nosnippet>3535</a>
-<a href=#3536 id=3536 data-nosnippet>3536</a>        <span class="kw">if </span>required.cpu_cores &gt; available_cpu || required.memory_mb &gt; available_memory {
-<a href=#3537 id=3537 data-nosnippet>3537</a>            <span class="macro">log::debug!</span>(
-<a href=#3538 id=3538 data-nosnippet>3538</a>                <span class="string">"[Executor] Insufficient resources for job {:?}: need {}cpu/{}mb, have {}cpu/{}mb"</span>,
-<a href=#3539 id=3539 data-nosnippet>3539</a>                job.id,
-<a href=#3540 id=3540 data-nosnippet>3540</a>                required.cpu_cores,
-<a href=#3541 id=3541 data-nosnippet>3541</a>                required.memory_mb,
-<a href=#3542 id=3542 data-nosnippet>3542</a>                available_cpu,
-<a href=#3543 id=3543 data-nosnippet>3543</a>                available_memory
-<a href=#3544 id=3544 data-nosnippet>3544</a>            );
-<a href=#3545 id=3545 data-nosnippet>3545</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>);
-<a href=#3546 id=3546 data-nosnippet>3546</a>        }
-<a href=#3547 id=3547 data-nosnippet>3547</a>
-<a href=#3548 id=3548 data-nosnippet>3548</a>        <span class="comment">// Calculate our bid price based on job requirements and our reputation
-<a href=#3549 id=3549 data-nosnippet>3549</a>        </span><span class="kw">let </span>base_price = <span class="self">Self</span>::calculate_bid_price(<span class="kw-2">&amp;</span>job.id, <span class="kw-2">&amp;</span>job.spec, ctx).<span class="kw">await</span><span class="question-mark">?</span>;
+<a href=#3512 id=3512 data-nosnippet>3512</a>        <span class="prelude-val">Ok</span>(())
+<a href=#3513 id=3513 data-nosnippet>3513</a>    }
+<a href=#3514 id=3514 data-nosnippet>3514</a>
+<a href=#3515 id=3515 data-nosnippet>3515</a>    <span class="doccomment">/// Evaluate a job announcement and decide whether to bid.
+<a href=#3516 id=3516 data-nosnippet>3516</a>    </span><span class="kw">pub async fn </span>evaluate_and_bid_on_job(
+<a href=#3517 id=3517 data-nosnippet>3517</a>        ctx: <span class="kw-2">&amp;</span>Arc&lt;RuntimeContext&gt;,
+<a href=#3518 id=3518 data-nosnippet>3518</a>        job: <span class="kw-2">&amp;</span>ActualMeshJob,
+<a href=#3519 id=3519 data-nosnippet>3519</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;icn_mesh::MeshJobBid&gt;, HostAbiError&gt; {
+<a href=#3520 id=3520 data-nosnippet>3520</a>        <span class="kw">let </span>executor_did = ctx.current_identity.clone();
+<a href=#3521 id=3521 data-nosnippet>3521</a>
+<a href=#3522 id=3522 data-nosnippet>3522</a>        <span class="macro">log::info!</span>(<span class="string">"[Executor] Evaluating job {:?} for potential bid"</span>, job.id);
+<a href=#3523 id=3523 data-nosnippet>3523</a>
+<a href=#3524 id=3524 data-nosnippet>3524</a>        <span class="comment">// Check if we have enough mana to participate
+<a href=#3525 id=3525 data-nosnippet>3525</a>        </span><span class="kw">let </span>current_mana = ctx.get_mana(<span class="kw-2">&amp;</span>executor_did).<span class="kw">await</span><span class="question-mark">?</span>;
+<a href=#3526 id=3526 data-nosnippet>3526</a>        <span class="kw">if </span>current_mana &lt; <span class="number">50 </span>{
+<a href=#3527 id=3527 data-nosnippet>3527</a>            <span class="macro">log::debug!</span>(
+<a href=#3528 id=3528 data-nosnippet>3528</a>                <span class="string">"[Executor] Insufficient mana ({}) to bid on job {:?}"</span>,
+<a href=#3529 id=3529 data-nosnippet>3529</a>                current_mana,
+<a href=#3530 id=3530 data-nosnippet>3530</a>                job.id
+<a href=#3531 id=3531 data-nosnippet>3531</a>            );
+<a href=#3532 id=3532 data-nosnippet>3532</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>);
+<a href=#3533 id=3533 data-nosnippet>3533</a>        }
+<a href=#3534 id=3534 data-nosnippet>3534</a>
+<a href=#3535 id=3535 data-nosnippet>3535</a>        <span class="comment">// Check if we have the required resources
+<a href=#3536 id=3536 data-nosnippet>3536</a>        </span><span class="kw">let </span>required = <span class="kw-2">&amp;</span>job.spec.required_resources;
+<a href=#3537 id=3537 data-nosnippet>3537</a>        <span class="kw">let </span>(available_cpu, available_memory) = <span class="self">Self</span>::available_system_resources();
+<a href=#3538 id=3538 data-nosnippet>3538</a>
+<a href=#3539 id=3539 data-nosnippet>3539</a>        <span class="kw">if </span>required.cpu_cores &gt; available_cpu || required.memory_mb &gt; available_memory {
+<a href=#3540 id=3540 data-nosnippet>3540</a>            <span class="macro">log::debug!</span>(
+<a href=#3541 id=3541 data-nosnippet>3541</a>                <span class="string">"[Executor] Insufficient resources for job {:?}: need {}cpu/{}mb, have {}cpu/{}mb"</span>,
+<a href=#3542 id=3542 data-nosnippet>3542</a>                job.id,
+<a href=#3543 id=3543 data-nosnippet>3543</a>                required.cpu_cores,
+<a href=#3544 id=3544 data-nosnippet>3544</a>                required.memory_mb,
+<a href=#3545 id=3545 data-nosnippet>3545</a>                available_cpu,
+<a href=#3546 id=3546 data-nosnippet>3546</a>                available_memory
+<a href=#3547 id=3547 data-nosnippet>3547</a>            );
+<a href=#3548 id=3548 data-nosnippet>3548</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>);
+<a href=#3549 id=3549 data-nosnippet>3549</a>        }
 <a href=#3550 id=3550 data-nosnippet>3550</a>
-<a href=#3551 id=3551 data-nosnippet>3551</a>        <span class="comment">// Create and sign the bid
-<a href=#3552 id=3552 data-nosnippet>3552</a>        </span><span class="kw">let </span>bid = icn_mesh::MeshJobBid {
-<a href=#3553 id=3553 data-nosnippet>3553</a>            job_id: job.id.clone(),
-<a href=#3554 id=3554 data-nosnippet>3554</a>            executor_did: executor_did.clone(),
-<a href=#3555 id=3555 data-nosnippet>3555</a>            price_mana: base_price,
-<a href=#3556 id=3556 data-nosnippet>3556</a>            resources: icn_mesh::Resources {
-<a href=#3557 id=3557 data-nosnippet>3557</a>                cpu_cores: available_cpu,
-<a href=#3558 id=3558 data-nosnippet>3558</a>                memory_mb: available_memory,
-<a href=#3559 id=3559 data-nosnippet>3559</a>                storage_mb: <span class="number">0</span>,
-<a href=#3560 id=3560 data-nosnippet>3560</a>            },
-<a href=#3561 id=3561 data-nosnippet>3561</a>            executor_capabilities: <span class="macro">vec!</span>[], <span class="comment">// TODO: Get from node config
-<a href=#3562 id=3562 data-nosnippet>3562</a>            </span>executor_federations: <span class="macro">vec!</span>[], <span class="comment">// TODO: Get from node federation
-<a href=#3563 id=3563 data-nosnippet>3563</a>            </span>executor_trust_scope: <span class="prelude-val">None</span>, <span class="comment">// TODO: Get from context
-<a href=#3564 id=3564 data-nosnippet>3564</a>            </span>signature: icn_identity::SignatureBytes(<span class="macro">vec!</span>[]), <span class="comment">// Will be filled by sign()
-<a href=#3565 id=3565 data-nosnippet>3565</a>        </span>};
-<a href=#3566 id=3566 data-nosnippet>3566</a>
-<a href=#3567 id=3567 data-nosnippet>3567</a>        <span class="comment">// Sign the bid
-<a href=#3568 id=3568 data-nosnippet>3568</a>        </span><span class="kw">let </span>signable_bytes = bid.to_signable_bytes().map_err(|e| {
-<a href=#3569 id=3569 data-nosnippet>3569</a>            HostAbiError::InternalError(<span class="macro">format!</span>(<span class="string">"Failed to create signable bytes: {}"</span>, e))
-<a href=#3570 id=3570 data-nosnippet>3570</a>        })<span class="question-mark">?</span>;
-<a href=#3571 id=3571 data-nosnippet>3571</a>        <span class="kw">let </span>signature = ctx.signer.sign(<span class="kw-2">&amp;</span>signable_bytes)<span class="question-mark">?</span>;
+<a href=#3551 id=3551 data-nosnippet>3551</a>        <span class="comment">// Calculate our bid price based on job requirements and our reputation
+<a href=#3552 id=3552 data-nosnippet>3552</a>        </span><span class="kw">let </span>base_price = <span class="self">Self</span>::calculate_bid_price(<span class="kw-2">&amp;</span>job.id, <span class="kw-2">&amp;</span>job.spec, ctx).<span class="kw">await</span><span class="question-mark">?</span>;
+<a href=#3553 id=3553 data-nosnippet>3553</a>
+<a href=#3554 id=3554 data-nosnippet>3554</a>        <span class="comment">// Create and sign the bid
+<a href=#3555 id=3555 data-nosnippet>3555</a>        </span><span class="kw">let </span>bid = icn_mesh::MeshJobBid {
+<a href=#3556 id=3556 data-nosnippet>3556</a>            job_id: job.id.clone(),
+<a href=#3557 id=3557 data-nosnippet>3557</a>            executor_did: executor_did.clone(),
+<a href=#3558 id=3558 data-nosnippet>3558</a>            price_mana: base_price,
+<a href=#3559 id=3559 data-nosnippet>3559</a>            resources: icn_mesh::Resources {
+<a href=#3560 id=3560 data-nosnippet>3560</a>                cpu_cores: available_cpu,
+<a href=#3561 id=3561 data-nosnippet>3561</a>                memory_mb: available_memory,
+<a href=#3562 id=3562 data-nosnippet>3562</a>                storage_mb: <span class="number">0</span>,
+<a href=#3563 id=3563 data-nosnippet>3563</a>            },
+<a href=#3564 id=3564 data-nosnippet>3564</a>            executor_capabilities: <span class="macro">vec!</span>[], <span class="comment">// TODO: Get from node config
+<a href=#3565 id=3565 data-nosnippet>3565</a>            </span>executor_federations: <span class="macro">vec!</span>[], <span class="comment">// TODO: Get from node federation
+<a href=#3566 id=3566 data-nosnippet>3566</a>            </span>executor_trust_scope: ctx
+<a href=#3567 id=3567 data-nosnippet>3567</a>                .parameters
+<a href=#3568 id=3568 data-nosnippet>3568</a>                .get(<span class="string">"executor_trust_scope"</span>)
+<a href=#3569 id=3569 data-nosnippet>3569</a>                .map(|v| v.value().clone()),
+<a href=#3570 id=3570 data-nosnippet>3570</a>            signature: icn_identity::SignatureBytes(<span class="macro">vec!</span>[]), <span class="comment">// Will be filled by sign()
+<a href=#3571 id=3571 data-nosnippet>3571</a>        </span>};
 <a href=#3572 id=3572 data-nosnippet>3572</a>
-<a href=#3573 id=3573 data-nosnippet>3573</a>        <span class="kw">let </span>signed_bid = icn_mesh::MeshJobBid {
-<a href=#3574 id=3574 data-nosnippet>3574</a>            signature: icn_identity::SignatureBytes(signature),
-<a href=#3575 id=3575 data-nosnippet>3575</a>            ..bid
-<a href=#3576 id=3576 data-nosnippet>3576</a>        };
-<a href=#3577 id=3577 data-nosnippet>3577</a>
-<a href=#3578 id=3578 data-nosnippet>3578</a>        <span class="macro">log::info!</span>(
-<a href=#3579 id=3579 data-nosnippet>3579</a>            <span class="string">"[Executor] Created bid for job {:?}: price={} mana"</span>,
-<a href=#3580 id=3580 data-nosnippet>3580</a>            job.id,
-<a href=#3581 id=3581 data-nosnippet>3581</a>            base_price
-<a href=#3582 id=3582 data-nosnippet>3582</a>        );
+<a href=#3573 id=3573 data-nosnippet>3573</a>        <span class="comment">// Sign the bid
+<a href=#3574 id=3574 data-nosnippet>3574</a>        </span><span class="kw">let </span>signable_bytes = bid.to_signable_bytes().map_err(|e| {
+<a href=#3575 id=3575 data-nosnippet>3575</a>            HostAbiError::InternalError(<span class="macro">format!</span>(<span class="string">"Failed to create signable bytes: {}"</span>, e))
+<a href=#3576 id=3576 data-nosnippet>3576</a>        })<span class="question-mark">?</span>;
+<a href=#3577 id=3577 data-nosnippet>3577</a>        <span class="kw">let </span>signature = ctx.signer.sign(<span class="kw-2">&amp;</span>signable_bytes)<span class="question-mark">?</span>;
+<a href=#3578 id=3578 data-nosnippet>3578</a>
+<a href=#3579 id=3579 data-nosnippet>3579</a>        <span class="kw">let </span>signed_bid = icn_mesh::MeshJobBid {
+<a href=#3580 id=3580 data-nosnippet>3580</a>            signature: icn_identity::SignatureBytes(signature),
+<a href=#3581 id=3581 data-nosnippet>3581</a>            ..bid
+<a href=#3582 id=3582 data-nosnippet>3582</a>        };
 <a href=#3583 id=3583 data-nosnippet>3583</a>
-<a href=#3584 id=3584 data-nosnippet>3584</a>        <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(signed_bid))
-<a href=#3585 id=3585 data-nosnippet>3585</a>    }
-<a href=#3586 id=3586 data-nosnippet>3586</a>
-<a href=#3587 id=3587 data-nosnippet>3587</a>    <span class="doccomment">/// Calculate a competitive bid price for a job.
-<a href=#3588 id=3588 data-nosnippet>3588</a>    </span><span class="kw">async fn </span>calculate_bid_price(
-<a href=#3589 id=3589 data-nosnippet>3589</a>        job_id: <span class="kw-2">&amp;</span>icn_mesh::JobId,
-<a href=#3590 id=3590 data-nosnippet>3590</a>        job_spec: <span class="kw-2">&amp;</span>icn_mesh::JobSpec,
-<a href=#3591 id=3591 data-nosnippet>3591</a>        ctx: <span class="kw-2">&amp;</span>Arc&lt;RuntimeContext&gt;,
-<a href=#3592 id=3592 data-nosnippet>3592</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;u64, HostAbiError&gt; {
-<a href=#3593 id=3593 data-nosnippet>3593</a>        <span class="comment">// Base price calculation based on resource requirements
-<a href=#3594 id=3594 data-nosnippet>3594</a>        </span><span class="kw">let </span>cpu_cost = job_spec.required_resources.cpu_cores <span class="kw">as </span>u64 * <span class="number">2</span>; <span class="comment">// 2 mana per CPU core
-<a href=#3595 id=3595 data-nosnippet>3595</a>        </span><span class="kw">let </span>memory_cost = job_spec.required_resources.memory_mb <span class="kw">as </span>u64 / <span class="number">100</span>; <span class="comment">// 1 mana per 100MB
-<a href=#3596 id=3596 data-nosnippet>3596</a>        </span><span class="kw">let </span>base_cost = cpu_cost + memory_cost + <span class="number">5</span>; <span class="comment">// 5 mana base fee
-<a href=#3597 id=3597 data-nosnippet>3597</a>
-<a href=#3598 id=3598 data-nosnippet>3598</a>        // Adjust based on our reputation (higher reputation = can charge more)
-<a href=#3599 id=3599 data-nosnippet>3599</a>        </span><span class="kw">let </span>our_reputation = ctx.reputation_store.get_reputation(<span class="kw-2">&amp;</span>ctx.current_identity);
-<a href=#3600 id=3600 data-nosnippet>3600</a>        <span class="kw">let </span>reputation_multiplier = <span class="number">1.0 </span>+ (our_reputation <span class="kw">as </span>f64 / <span class="number">1000.0</span>); <span class="comment">// Up to 2x for high reputation
-<a href=#3601 id=3601 data-nosnippet>3601</a>
-<a href=#3602 id=3602 data-nosnippet>3602</a>        // Derive a deterministic factor from the job ID and our reputation
-<a href=#3603 id=3603 data-nosnippet>3603</a>        </span><span class="kw">let </span>random_factor = <span class="self">Self</span>::deterministic_factor(
-<a href=#3604 id=3604 data-nosnippet>3604</a>            job_id.to_string().as_bytes(),
-<a href=#3605 id=3605 data-nosnippet>3605</a>            our_reputation,
-<a href=#3606 id=3606 data-nosnippet>3606</a>        );
+<a href=#3584 id=3584 data-nosnippet>3584</a>        <span class="macro">log::info!</span>(
+<a href=#3585 id=3585 data-nosnippet>3585</a>            <span class="string">"[Executor] Created bid for job {:?}: price={} mana"</span>,
+<a href=#3586 id=3586 data-nosnippet>3586</a>            job.id,
+<a href=#3587 id=3587 data-nosnippet>3587</a>            base_price
+<a href=#3588 id=3588 data-nosnippet>3588</a>        );
+<a href=#3589 id=3589 data-nosnippet>3589</a>
+<a href=#3590 id=3590 data-nosnippet>3590</a>        <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(signed_bid))
+<a href=#3591 id=3591 data-nosnippet>3591</a>    }
+<a href=#3592 id=3592 data-nosnippet>3592</a>
+<a href=#3593 id=3593 data-nosnippet>3593</a>    <span class="doccomment">/// Calculate a competitive bid price for a job.
+<a href=#3594 id=3594 data-nosnippet>3594</a>    </span><span class="kw">async fn </span>calculate_bid_price(
+<a href=#3595 id=3595 data-nosnippet>3595</a>        job_id: <span class="kw-2">&amp;</span>icn_mesh::JobId,
+<a href=#3596 id=3596 data-nosnippet>3596</a>        job_spec: <span class="kw-2">&amp;</span>icn_mesh::JobSpec,
+<a href=#3597 id=3597 data-nosnippet>3597</a>        ctx: <span class="kw-2">&amp;</span>Arc&lt;RuntimeContext&gt;,
+<a href=#3598 id=3598 data-nosnippet>3598</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;u64, HostAbiError&gt; {
+<a href=#3599 id=3599 data-nosnippet>3599</a>        <span class="comment">// Base price calculation based on resource requirements
+<a href=#3600 id=3600 data-nosnippet>3600</a>        </span><span class="kw">let </span>cpu_cost = job_spec.required_resources.cpu_cores <span class="kw">as </span>u64 * <span class="number">2</span>; <span class="comment">// 2 mana per CPU core
+<a href=#3601 id=3601 data-nosnippet>3601</a>        </span><span class="kw">let </span>memory_cost = job_spec.required_resources.memory_mb <span class="kw">as </span>u64 / <span class="number">100</span>; <span class="comment">// 1 mana per 100MB
+<a href=#3602 id=3602 data-nosnippet>3602</a>        </span><span class="kw">let </span>base_cost = cpu_cost + memory_cost + <span class="number">5</span>; <span class="comment">// 5 mana base fee
+<a href=#3603 id=3603 data-nosnippet>3603</a>
+<a href=#3604 id=3604 data-nosnippet>3604</a>        // Adjust based on our reputation (higher reputation = can charge more)
+<a href=#3605 id=3605 data-nosnippet>3605</a>        </span><span class="kw">let </span>our_reputation = ctx.reputation_store.get_reputation(<span class="kw-2">&amp;</span>ctx.current_identity);
+<a href=#3606 id=3606 data-nosnippet>3606</a>        <span class="kw">let </span>reputation_multiplier = <span class="number">1.0 </span>+ (our_reputation <span class="kw">as </span>f64 / <span class="number">1000.0</span>); <span class="comment">// Up to 2x for high reputation
 <a href=#3607 id=3607 data-nosnippet>3607</a>
-<a href=#3608 id=3608 data-nosnippet>3608</a>        <span class="kw">let </span>final_price = ((base_cost <span class="kw">as </span>f64) * reputation_multiplier * random_factor) <span class="kw">as </span>u64;
-<a href=#3609 id=3609 data-nosnippet>3609</a>
-<a href=#3610 id=3610 data-nosnippet>3610</a>        <span class="prelude-val">Ok</span>(final_price.max(<span class="number">1</span>)) <span class="comment">// Minimum 1 mana
-<a href=#3611 id=3611 data-nosnippet>3611</a>    </span>}
-<a href=#3612 id=3612 data-nosnippet>3612</a>
-<a href=#3613 id=3613 data-nosnippet>3613</a>    <span class="kw">fn </span>deterministic_factor(seed: <span class="kw-2">&amp;</span>[u8], reputation: u64) -&gt; f64 {
-<a href=#3614 id=3614 data-nosnippet>3614</a>        <span class="kw">use </span>sha2::{Digest, Sha256};
-<a href=#3615 id=3615 data-nosnippet>3615</a>        <span class="kw">use </span>std::convert::TryInto;
-<a href=#3616 id=3616 data-nosnippet>3616</a>
-<a href=#3617 id=3617 data-nosnippet>3617</a>        <span class="kw">let </span><span class="kw-2">mut </span>hasher = Sha256::new();
-<a href=#3618 id=3618 data-nosnippet>3618</a>        hasher.update(seed);
-<a href=#3619 id=3619 data-nosnippet>3619</a>        hasher.update(<span class="kw-2">&amp;</span>reputation.to_le_bytes());
-<a href=#3620 id=3620 data-nosnippet>3620</a>        <span class="kw">let </span>hash = hasher.finalize();
-<a href=#3621 id=3621 data-nosnippet>3621</a>        <span class="kw">let </span>val = u64::from_le_bytes(hash[<span class="number">0</span>..<span class="number">8</span>].try_into().expect(<span class="string">"slice"</span>));
-<a href=#3622 id=3622 data-nosnippet>3622</a>        <span class="number">0.9 </span>+ (val <span class="kw">as </span>f64 / u64::MAX <span class="kw">as </span>f64) * <span class="number">0.2
-<a href=#3623 id=3623 data-nosnippet>3623</a>    </span>}
-<a href=#3624 id=3624 data-nosnippet>3624</a>
-<a href=#3625 id=3625 data-nosnippet>3625</a>    <span class="doccomment">/// Execute an assigned job and create an execution receipt.
-<a href=#3626 id=3626 data-nosnippet>3626</a>    </span><span class="kw">pub async fn </span>execute_assigned_job(
-<a href=#3627 id=3627 data-nosnippet>3627</a>        ctx: <span class="kw-2">&amp;</span>Arc&lt;RuntimeContext&gt;,
-<a href=#3628 id=3628 data-nosnippet>3628</a>        job: <span class="kw-2">&amp;</span>ActualMeshJob,
-<a href=#3629 id=3629 data-nosnippet>3629</a>        _agreed_cost: u64, <span class="comment">// Marked as unused for now
-<a href=#3630 id=3630 data-nosnippet>3630</a>    </span>) -&gt; <span class="prelude-ty">Result</span>&lt;icn_identity::ExecutionReceipt, HostAbiError&gt; {
-<a href=#3631 id=3631 data-nosnippet>3631</a>        <span class="comment">// TODO: Clear execution logs
-<a href=#3632 id=3632 data-nosnippet>3632</a>        </span><span class="kw">let </span>job_id = <span class="kw-2">&amp;</span>job.id;
-<a href=#3633 id=3633 data-nosnippet>3633</a>        <span class="kw">let </span>executor_did = ctx.current_identity.clone();
-<a href=#3634 id=3634 data-nosnippet>3634</a>
-<a href=#3635 id=3635 data-nosnippet>3635</a>        <span class="macro">log::info!</span>(<span class="string">"[Executor] Starting execution of assigned job {:?}"</span>, job_id);
-<a href=#3636 id=3636 data-nosnippet>3636</a>
-<a href=#3637 id=3637 data-nosnippet>3637</a>        <span class="kw">let </span>_start_time = std::time::SystemTime::now(); <span class="comment">// Marked as unused for now
-<a href=#3638 id=3638 data-nosnippet>3638</a>        </span><span class="kw">let </span>execution_start = std::time::Instant::now();
-<a href=#3639 id=3639 data-nosnippet>3639</a>
-<a href=#3640 id=3640 data-nosnippet>3640</a>        <span class="comment">// Execute the job based on its type
-<a href=#3641 id=3641 data-nosnippet>3641</a>        </span><span class="kw">let </span>(result_cid, success) = <span class="kw">match </span><span class="kw-2">&amp;</span>job.spec.kind {
-<a href=#3642 id=3642 data-nosnippet>3642</a>            icn_mesh::JobKind::Echo { payload } =&gt; {
-<a href=#3643 id=3643 data-nosnippet>3643</a>                <span class="comment">// Simple echo job - just return the payload
-<a href=#3644 id=3644 data-nosnippet>3644</a>                </span><span class="macro">log::info!</span>(<span class="string">"[Executor] Executing Echo job with payload: {}"</span>, payload);
+<a href=#3608 id=3608 data-nosnippet>3608</a>        // Derive a deterministic factor from the job ID and our reputation
+<a href=#3609 id=3609 data-nosnippet>3609</a>        </span><span class="kw">let </span>random_factor = <span class="self">Self</span>::deterministic_factor(
+<a href=#3610 id=3610 data-nosnippet>3610</a>            job_id.to_string().as_bytes(),
+<a href=#3611 id=3611 data-nosnippet>3611</a>            our_reputation,
+<a href=#3612 id=3612 data-nosnippet>3612</a>        );
+<a href=#3613 id=3613 data-nosnippet>3613</a>
+<a href=#3614 id=3614 data-nosnippet>3614</a>        <span class="kw">let </span>final_price = ((base_cost <span class="kw">as </span>f64) * reputation_multiplier * random_factor) <span class="kw">as </span>u64;
+<a href=#3615 id=3615 data-nosnippet>3615</a>
+<a href=#3616 id=3616 data-nosnippet>3616</a>        <span class="prelude-val">Ok</span>(final_price.max(<span class="number">1</span>)) <span class="comment">// Minimum 1 mana
+<a href=#3617 id=3617 data-nosnippet>3617</a>    </span>}
+<a href=#3618 id=3618 data-nosnippet>3618</a>
+<a href=#3619 id=3619 data-nosnippet>3619</a>    <span class="kw">fn </span>deterministic_factor(seed: <span class="kw-2">&amp;</span>[u8], reputation: u64) -&gt; f64 {
+<a href=#3620 id=3620 data-nosnippet>3620</a>        <span class="kw">use </span>sha2::{Digest, Sha256};
+<a href=#3621 id=3621 data-nosnippet>3621</a>        <span class="kw">use </span>std::convert::TryInto;
+<a href=#3622 id=3622 data-nosnippet>3622</a>
+<a href=#3623 id=3623 data-nosnippet>3623</a>        <span class="kw">let </span><span class="kw-2">mut </span>hasher = Sha256::new();
+<a href=#3624 id=3624 data-nosnippet>3624</a>        hasher.update(seed);
+<a href=#3625 id=3625 data-nosnippet>3625</a>        hasher.update(<span class="kw-2">&amp;</span>reputation.to_le_bytes());
+<a href=#3626 id=3626 data-nosnippet>3626</a>        <span class="kw">let </span>hash = hasher.finalize();
+<a href=#3627 id=3627 data-nosnippet>3627</a>        <span class="kw">let </span>val = u64::from_le_bytes(hash[<span class="number">0</span>..<span class="number">8</span>].try_into().expect(<span class="string">"slice"</span>));
+<a href=#3628 id=3628 data-nosnippet>3628</a>        <span class="number">0.9 </span>+ (val <span class="kw">as </span>f64 / u64::MAX <span class="kw">as </span>f64) * <span class="number">0.2
+<a href=#3629 id=3629 data-nosnippet>3629</a>    </span>}
+<a href=#3630 id=3630 data-nosnippet>3630</a>
+<a href=#3631 id=3631 data-nosnippet>3631</a>    <span class="doccomment">/// Execute an assigned job and create an execution receipt.
+<a href=#3632 id=3632 data-nosnippet>3632</a>    </span><span class="kw">pub async fn </span>execute_assigned_job(
+<a href=#3633 id=3633 data-nosnippet>3633</a>        ctx: <span class="kw-2">&amp;</span>Arc&lt;RuntimeContext&gt;,
+<a href=#3634 id=3634 data-nosnippet>3634</a>        job: <span class="kw-2">&amp;</span>ActualMeshJob,
+<a href=#3635 id=3635 data-nosnippet>3635</a>        _agreed_cost: u64, <span class="comment">// Marked as unused for now
+<a href=#3636 id=3636 data-nosnippet>3636</a>    </span>) -&gt; <span class="prelude-ty">Result</span>&lt;icn_identity::ExecutionReceipt, HostAbiError&gt; {
+<a href=#3637 id=3637 data-nosnippet>3637</a>        <span class="comment">// TODO: Clear execution logs
+<a href=#3638 id=3638 data-nosnippet>3638</a>        </span><span class="kw">let </span>job_id = <span class="kw-2">&amp;</span>job.id;
+<a href=#3639 id=3639 data-nosnippet>3639</a>        <span class="kw">let </span>executor_did = ctx.current_identity.clone();
+<a href=#3640 id=3640 data-nosnippet>3640</a>
+<a href=#3641 id=3641 data-nosnippet>3641</a>        <span class="macro">log::info!</span>(<span class="string">"[Executor] Starting execution of assigned job {:?}"</span>, job_id);
+<a href=#3642 id=3642 data-nosnippet>3642</a>
+<a href=#3643 id=3643 data-nosnippet>3643</a>        <span class="kw">let </span>_start_time = std::time::SystemTime::now(); <span class="comment">// Marked as unused for now
+<a href=#3644 id=3644 data-nosnippet>3644</a>        </span><span class="kw">let </span>execution_start = std::time::Instant::now();
 <a href=#3645 id=3645 data-nosnippet>3645</a>
-<a href=#3646 id=3646 data-nosnippet>3646</a>                <span class="comment">// Simulate some work
-<a href=#3647 id=3647 data-nosnippet>3647</a>                </span>tokio::time::sleep(std::time::Duration::from_millis(<span class="number">100</span>)).<span class="kw">await</span>;
-<a href=#3648 id=3648 data-nosnippet>3648</a>
-<a href=#3649 id=3649 data-nosnippet>3649</a>                <span class="comment">// Create result
-<a href=#3650 id=3650 data-nosnippet>3650</a>                </span><span class="kw">let </span>result_data = <span class="macro">format!</span>(<span class="string">"Echo result: {}"</span>, payload);
-<a href=#3651 id=3651 data-nosnippet>3651</a>                <span class="kw">let </span>result_cid = icn_common::Cid::new_v1_sha256(<span class="number">0x55</span>, result_data.as_bytes());
-<a href=#3652 id=3652 data-nosnippet>3652</a>
-<a href=#3653 id=3653 data-nosnippet>3653</a>                <span class="comment">// Store the result in our DAG
-<a href=#3654 id=3654 data-nosnippet>3654</a>                </span><span class="kw">let </span>result_block = icn_common::DagBlock {
-<a href=#3655 id=3655 data-nosnippet>3655</a>                    cid: result_cid.clone(),
-<a href=#3656 id=3656 data-nosnippet>3656</a>                    data: result_data.into_bytes(),
-<a href=#3657 id=3657 data-nosnippet>3657</a>                    links: <span class="macro">vec!</span>[],
-<a href=#3658 id=3658 data-nosnippet>3658</a>                    timestamp: ctx.time_provider.unix_seconds(),
-<a href=#3659 id=3659 data-nosnippet>3659</a>                    author_did: executor_did.clone(),
-<a href=#3660 id=3660 data-nosnippet>3660</a>                    signature: <span class="prelude-val">None</span>,
-<a href=#3661 id=3661 data-nosnippet>3661</a>                    scope: <span class="prelude-val">None</span>,
-<a href=#3662 id=3662 data-nosnippet>3662</a>                };
-<a href=#3663 id=3663 data-nosnippet>3663</a>
-<a href=#3664 id=3664 data-nosnippet>3664</a>                {
-<a href=#3665 id=3665 data-nosnippet>3665</a>                    <span class="kw">let </span><span class="kw-2">mut </span>dag_store = ctx.dag_store.lock().<span class="kw">await</span>;
-<a href=#3666 id=3666 data-nosnippet>3666</a>                    dag_store.put(<span class="kw-2">&amp;</span>result_block).<span class="kw">await</span>.map_err(|e| {
-<a href=#3667 id=3667 data-nosnippet>3667</a>                        HostAbiError::DagOperationFailed(<span class="macro">format!</span>(<span class="string">"Failed to store result: {}"</span>, e))
-<a href=#3668 id=3668 data-nosnippet>3668</a>                    })<span class="question-mark">?</span>;
-<a href=#3669 id=3669 data-nosnippet>3669</a>                }
-<a href=#3670 id=3670 data-nosnippet>3670</a>
-<a href=#3671 id=3671 data-nosnippet>3671</a>                (result_cid, <span class="bool-val">true</span>)
-<a href=#3672 id=3672 data-nosnippet>3672</a>            }
-<a href=#3673 id=3673 data-nosnippet>3673</a>            icn_mesh::JobKind::CclWasm =&gt; {
-<a href=#3674 id=3674 data-nosnippet>3674</a>                <span class="comment">// For CCL WASM jobs, we would load and execute the WASM module
-<a href=#3675 id=3675 data-nosnippet>3675</a>                // For now, simulate successful execution
-<a href=#3676 id=3676 data-nosnippet>3676</a>                </span><span class="macro">log::info!</span>(<span class="string">"[Executor] Executing CCL WASM job (simulated)"</span>);
-<a href=#3677 id=3677 data-nosnippet>3677</a>
-<a href=#3678 id=3678 data-nosnippet>3678</a>                tokio::time::sleep(std::time::Duration::from_millis(<span class="number">500</span>)).<span class="kw">await</span>;
-<a href=#3679 id=3679 data-nosnippet>3679</a>
-<a href=#3680 id=3680 data-nosnippet>3680</a>                <span class="kw">let </span>result_cid = icn_common::Cid::new_v1_sha256(<span class="number">0x55</span>, <span class="string">b"wasm_result"</span>);
-<a href=#3681 id=3681 data-nosnippet>3681</a>                (result_cid, <span class="bool-val">true</span>)
-<a href=#3682 id=3682 data-nosnippet>3682</a>            }
-<a href=#3683 id=3683 data-nosnippet>3683</a>            icn_mesh::JobKind::GenericPlaceholder =&gt; {
-<a href=#3684 id=3684 data-nosnippet>3684</a>                <span class="macro">log::warn!</span>(<span class="string">"[Executor] Generic placeholder job - marking as successful"</span>);
-<a href=#3685 id=3685 data-nosnippet>3685</a>                <span class="kw">let </span>result_cid = icn_common::Cid::new_v1_sha256(<span class="number">0x55</span>, <span class="string">b"placeholder_result"</span>);
-<a href=#3686 id=3686 data-nosnippet>3686</a>                (result_cid, <span class="bool-val">true</span>)
-<a href=#3687 id=3687 data-nosnippet>3687</a>            }
-<a href=#3688 id=3688 data-nosnippet>3688</a>        };
-<a href=#3689 id=3689 data-nosnippet>3689</a>
-<a href=#3690 id=3690 data-nosnippet>3690</a>        <span class="kw">let </span>execution_time = execution_start.elapsed();
-<a href=#3691 id=3691 data-nosnippet>3691</a>        <span class="kw">let </span>cpu_ms = execution_time.as_millis() <span class="kw">as </span>u64;
-<a href=#3692 id=3692 data-nosnippet>3692</a>
-<a href=#3693 id=3693 data-nosnippet>3693</a>        <span class="macro">log::info!</span>(
-<a href=#3694 id=3694 data-nosnippet>3694</a>            <span class="string">"[Executor] Job {:?} execution completed in {:.2}s, success: {}"</span>,
-<a href=#3695 id=3695 data-nosnippet>3695</a>            job_id,
-<a href=#3696 id=3696 data-nosnippet>3696</a>            execution_time.as_secs_f64(),
-<a href=#3697 id=3697 data-nosnippet>3697</a>            success
-<a href=#3698 id=3698 data-nosnippet>3698</a>        );
-<a href=#3699 id=3699 data-nosnippet>3699</a>
-<a href=#3700 id=3700 data-nosnippet>3700</a>        <span class="comment">// Create execution receipt
-<a href=#3701 id=3701 data-nosnippet>3701</a>        </span><span class="kw">let </span>receipt = icn_identity::ExecutionReceipt {
-<a href=#3702 id=3702 data-nosnippet>3702</a>            job_id: job_id.clone().into(),
-<a href=#3703 id=3703 data-nosnippet>3703</a>            executor_did: executor_did.clone(),
-<a href=#3704 id=3704 data-nosnippet>3704</a>            result_cid,
-<a href=#3705 id=3705 data-nosnippet>3705</a>            cpu_ms,
-<a href=#3706 id=3706 data-nosnippet>3706</a>            success,
-<a href=#3707 id=3707 data-nosnippet>3707</a>            sig: icn_identity::SignatureBytes(<span class="macro">vec!</span>[]), <span class="comment">// Will be filled by sign_with_signer
-<a href=#3708 id=3708 data-nosnippet>3708</a>        </span>};
-<a href=#3709 id=3709 data-nosnippet>3709</a>
-<a href=#3710 id=3710 data-nosnippet>3710</a>        <span class="comment">// Sign the receipt
-<a href=#3711 id=3711 data-nosnippet>3711</a>        </span><span class="kw">let </span>signable_bytes = receipt.to_signable_bytes().map_err(|e| {
-<a href=#3712 id=3712 data-nosnippet>3712</a>            HostAbiError::InternalError(<span class="macro">format!</span>(<span class="string">"Failed to create signable bytes: {}"</span>, e))
-<a href=#3713 id=3713 data-nosnippet>3713</a>        })<span class="question-mark">?</span>;
-<a href=#3714 id=3714 data-nosnippet>3714</a>        <span class="kw">let </span>signature = ctx.signer.sign(<span class="kw-2">&amp;</span>signable_bytes)<span class="question-mark">?</span>;
+<a href=#3646 id=3646 data-nosnippet>3646</a>        <span class="comment">// Execute the job based on its type
+<a href=#3647 id=3647 data-nosnippet>3647</a>        </span><span class="kw">let </span>(result_cid, success) = <span class="kw">match </span><span class="kw-2">&amp;</span>job.spec.kind {
+<a href=#3648 id=3648 data-nosnippet>3648</a>            icn_mesh::JobKind::Echo { payload } =&gt; {
+<a href=#3649 id=3649 data-nosnippet>3649</a>                <span class="comment">// Simple echo job - just return the payload
+<a href=#3650 id=3650 data-nosnippet>3650</a>                </span><span class="macro">log::info!</span>(<span class="string">"[Executor] Executing Echo job with payload: {}"</span>, payload);
+<a href=#3651 id=3651 data-nosnippet>3651</a>
+<a href=#3652 id=3652 data-nosnippet>3652</a>                <span class="comment">// Simulate some work
+<a href=#3653 id=3653 data-nosnippet>3653</a>                </span>tokio::time::sleep(std::time::Duration::from_millis(<span class="number">100</span>)).<span class="kw">await</span>;
+<a href=#3654 id=3654 data-nosnippet>3654</a>
+<a href=#3655 id=3655 data-nosnippet>3655</a>                <span class="comment">// Create result
+<a href=#3656 id=3656 data-nosnippet>3656</a>                </span><span class="kw">let </span>result_data = <span class="macro">format!</span>(<span class="string">"Echo result: {}"</span>, payload);
+<a href=#3657 id=3657 data-nosnippet>3657</a>                <span class="kw">let </span>result_cid = icn_common::Cid::new_v1_sha256(<span class="number">0x55</span>, result_data.as_bytes());
+<a href=#3658 id=3658 data-nosnippet>3658</a>
+<a href=#3659 id=3659 data-nosnippet>3659</a>                <span class="comment">// Store the result in our DAG
+<a href=#3660 id=3660 data-nosnippet>3660</a>                </span><span class="kw">let </span>result_block = icn_common::DagBlock {
+<a href=#3661 id=3661 data-nosnippet>3661</a>                    cid: result_cid.clone(),
+<a href=#3662 id=3662 data-nosnippet>3662</a>                    data: result_data.into_bytes(),
+<a href=#3663 id=3663 data-nosnippet>3663</a>                    links: <span class="macro">vec!</span>[],
+<a href=#3664 id=3664 data-nosnippet>3664</a>                    timestamp: ctx.time_provider.unix_seconds(),
+<a href=#3665 id=3665 data-nosnippet>3665</a>                    author_did: executor_did.clone(),
+<a href=#3666 id=3666 data-nosnippet>3666</a>                    signature: <span class="prelude-val">None</span>,
+<a href=#3667 id=3667 data-nosnippet>3667</a>                    scope: <span class="prelude-val">None</span>,
+<a href=#3668 id=3668 data-nosnippet>3668</a>                };
+<a href=#3669 id=3669 data-nosnippet>3669</a>
+<a href=#3670 id=3670 data-nosnippet>3670</a>                {
+<a href=#3671 id=3671 data-nosnippet>3671</a>                    <span class="kw">let </span><span class="kw-2">mut </span>dag_store = ctx.dag_store.lock().<span class="kw">await</span>;
+<a href=#3672 id=3672 data-nosnippet>3672</a>                    dag_store.put(<span class="kw-2">&amp;</span>result_block).<span class="kw">await</span>.map_err(|e| {
+<a href=#3673 id=3673 data-nosnippet>3673</a>                        HostAbiError::DagOperationFailed(<span class="macro">format!</span>(<span class="string">"Failed to store result: {}"</span>, e))
+<a href=#3674 id=3674 data-nosnippet>3674</a>                    })<span class="question-mark">?</span>;
+<a href=#3675 id=3675 data-nosnippet>3675</a>                }
+<a href=#3676 id=3676 data-nosnippet>3676</a>
+<a href=#3677 id=3677 data-nosnippet>3677</a>                (result_cid, <span class="bool-val">true</span>)
+<a href=#3678 id=3678 data-nosnippet>3678</a>            }
+<a href=#3679 id=3679 data-nosnippet>3679</a>            icn_mesh::JobKind::CclWasm =&gt; {
+<a href=#3680 id=3680 data-nosnippet>3680</a>                <span class="comment">// For CCL WASM jobs, we would load and execute the WASM module
+<a href=#3681 id=3681 data-nosnippet>3681</a>                // For now, simulate successful execution
+<a href=#3682 id=3682 data-nosnippet>3682</a>                </span><span class="macro">log::info!</span>(<span class="string">"[Executor] Executing CCL WASM job (simulated)"</span>);
+<a href=#3683 id=3683 data-nosnippet>3683</a>
+<a href=#3684 id=3684 data-nosnippet>3684</a>                tokio::time::sleep(std::time::Duration::from_millis(<span class="number">500</span>)).<span class="kw">await</span>;
+<a href=#3685 id=3685 data-nosnippet>3685</a>
+<a href=#3686 id=3686 data-nosnippet>3686</a>                <span class="kw">let </span>result_cid = icn_common::Cid::new_v1_sha256(<span class="number">0x55</span>, <span class="string">b"wasm_result"</span>);
+<a href=#3687 id=3687 data-nosnippet>3687</a>                (result_cid, <span class="bool-val">true</span>)
+<a href=#3688 id=3688 data-nosnippet>3688</a>            }
+<a href=#3689 id=3689 data-nosnippet>3689</a>            icn_mesh::JobKind::GenericPlaceholder =&gt; {
+<a href=#3690 id=3690 data-nosnippet>3690</a>                <span class="macro">log::warn!</span>(<span class="string">"[Executor] Generic placeholder job - marking as successful"</span>);
+<a href=#3691 id=3691 data-nosnippet>3691</a>                <span class="kw">let </span>result_cid = icn_common::Cid::new_v1_sha256(<span class="number">0x55</span>, <span class="string">b"placeholder_result"</span>);
+<a href=#3692 id=3692 data-nosnippet>3692</a>                (result_cid, <span class="bool-val">true</span>)
+<a href=#3693 id=3693 data-nosnippet>3693</a>            }
+<a href=#3694 id=3694 data-nosnippet>3694</a>        };
+<a href=#3695 id=3695 data-nosnippet>3695</a>
+<a href=#3696 id=3696 data-nosnippet>3696</a>        <span class="kw">let </span>execution_time = execution_start.elapsed();
+<a href=#3697 id=3697 data-nosnippet>3697</a>        <span class="kw">let </span>cpu_ms = execution_time.as_millis() <span class="kw">as </span>u64;
+<a href=#3698 id=3698 data-nosnippet>3698</a>
+<a href=#3699 id=3699 data-nosnippet>3699</a>        <span class="macro">log::info!</span>(
+<a href=#3700 id=3700 data-nosnippet>3700</a>            <span class="string">"[Executor] Job {:?} execution completed in {:.2}s, success: {}"</span>,
+<a href=#3701 id=3701 data-nosnippet>3701</a>            job_id,
+<a href=#3702 id=3702 data-nosnippet>3702</a>            execution_time.as_secs_f64(),
+<a href=#3703 id=3703 data-nosnippet>3703</a>            success
+<a href=#3704 id=3704 data-nosnippet>3704</a>        );
+<a href=#3705 id=3705 data-nosnippet>3705</a>
+<a href=#3706 id=3706 data-nosnippet>3706</a>        <span class="comment">// Create execution receipt
+<a href=#3707 id=3707 data-nosnippet>3707</a>        </span><span class="kw">let </span>receipt = icn_identity::ExecutionReceipt {
+<a href=#3708 id=3708 data-nosnippet>3708</a>            job_id: job_id.clone().into(),
+<a href=#3709 id=3709 data-nosnippet>3709</a>            executor_did: executor_did.clone(),
+<a href=#3710 id=3710 data-nosnippet>3710</a>            result_cid,
+<a href=#3711 id=3711 data-nosnippet>3711</a>            cpu_ms,
+<a href=#3712 id=3712 data-nosnippet>3712</a>            success,
+<a href=#3713 id=3713 data-nosnippet>3713</a>            sig: icn_identity::SignatureBytes(<span class="macro">vec!</span>[]), <span class="comment">// Will be filled by sign_with_signer
+<a href=#3714 id=3714 data-nosnippet>3714</a>        </span>};
 <a href=#3715 id=3715 data-nosnippet>3715</a>
-<a href=#3716 id=3716 data-nosnippet>3716</a>        <span class="kw">let </span>signed_receipt = icn_identity::ExecutionReceipt {
-<a href=#3717 id=3717 data-nosnippet>3717</a>            sig: icn_identity::SignatureBytes(signature),
-<a href=#3718 id=3718 data-nosnippet>3718</a>            ..receipt
-<a href=#3719 id=3719 data-nosnippet>3719</a>        };
-<a href=#3720 id=3720 data-nosnippet>3720</a>
-<a href=#3721 id=3721 data-nosnippet>3721</a>        <span class="macro">log::info!</span>(<span class="string">"[Executor] Created execution receipt for job {:?}"</span>, job_id);
-<a href=#3722 id=3722 data-nosnippet>3722</a>
-<a href=#3723 id=3723 data-nosnippet>3723</a>        <span class="prelude-val">Ok</span>(signed_receipt)
-<a href=#3724 id=3724 data-nosnippet>3724</a>    }
-<a href=#3725 id=3725 data-nosnippet>3725</a>
-<a href=#3726 id=3726 data-nosnippet>3726</a>    <span class="doccomment">/// Perform a single integrity check on the DAG store.
-<a href=#3727 id=3727 data-nosnippet>3727</a>    </span><span class="kw">pub async fn </span>integrity_check_once(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;(), CommonError&gt; {
-<a href=#3728 id=3728 data-nosnippet>3728</a>        <span class="macro">log::info!</span>(<span class="string">"Performing integrity check on DAG store"</span>);
-<a href=#3729 id=3729 data-nosnippet>3729</a>
-<a href=#3730 id=3730 data-nosnippet>3730</a>        <span class="kw">let </span>store = <span class="self">self</span>.dag_store.lock().<span class="kw">await</span>;
+<a href=#3716 id=3716 data-nosnippet>3716</a>        <span class="comment">// Sign the receipt
+<a href=#3717 id=3717 data-nosnippet>3717</a>        </span><span class="kw">let </span>signable_bytes = receipt.to_signable_bytes().map_err(|e| {
+<a href=#3718 id=3718 data-nosnippet>3718</a>            HostAbiError::InternalError(<span class="macro">format!</span>(<span class="string">"Failed to create signable bytes: {}"</span>, e))
+<a href=#3719 id=3719 data-nosnippet>3719</a>        })<span class="question-mark">?</span>;
+<a href=#3720 id=3720 data-nosnippet>3720</a>        <span class="kw">let </span>signature = ctx.signer.sign(<span class="kw-2">&amp;</span>signable_bytes)<span class="question-mark">?</span>;
+<a href=#3721 id=3721 data-nosnippet>3721</a>
+<a href=#3722 id=3722 data-nosnippet>3722</a>        <span class="kw">let </span>signed_receipt = icn_identity::ExecutionReceipt {
+<a href=#3723 id=3723 data-nosnippet>3723</a>            sig: icn_identity::SignatureBytes(signature),
+<a href=#3724 id=3724 data-nosnippet>3724</a>            ..receipt
+<a href=#3725 id=3725 data-nosnippet>3725</a>        };
+<a href=#3726 id=3726 data-nosnippet>3726</a>
+<a href=#3727 id=3727 data-nosnippet>3727</a>        <span class="macro">log::info!</span>(<span class="string">"[Executor] Created execution receipt for job {:?}"</span>, job_id);
+<a href=#3728 id=3728 data-nosnippet>3728</a>
+<a href=#3729 id=3729 data-nosnippet>3729</a>        <span class="prelude-val">Ok</span>(signed_receipt)
+<a href=#3730 id=3730 data-nosnippet>3730</a>    }
 <a href=#3731 id=3731 data-nosnippet>3731</a>
-<a href=#3732 id=3732 data-nosnippet>3732</a>        <span class="comment">// Get all blocks and verify their integrity
-<a href=#3733 id=3733 data-nosnippet>3733</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>verified_count = <span class="number">0</span>;
-<a href=#3734 id=3734 data-nosnippet>3734</a>        <span class="kw">let </span>error_count = <span class="number">0</span>;
+<a href=#3732 id=3732 data-nosnippet>3732</a>    <span class="doccomment">/// Perform a single integrity check on the DAG store.
+<a href=#3733 id=3733 data-nosnippet>3733</a>    </span><span class="kw">pub async fn </span>integrity_check_once(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;(), CommonError&gt; {
+<a href=#3734 id=3734 data-nosnippet>3734</a>        <span class="macro">log::info!</span>(<span class="string">"Performing integrity check on DAG store"</span>);
 <a href=#3735 id=3735 data-nosnippet>3735</a>
-<a href=#3736 id=3736 data-nosnippet>3736</a>        <span class="comment">// In a proper implementation, we'd iterate through all blocks
-<a href=#3737 id=3737 data-nosnippet>3737</a>        // For now, we'll implement basic validation that can be extended
-<a href=#3738 id=3738 data-nosnippet>3738</a>
-<a href=#3739 id=3739 data-nosnippet>3739</a>        // Verify the store is accessible and consistent
-<a href=#3740 id=3740 data-nosnippet>3740</a>        </span><span class="kw">match </span>store.get(<span class="kw-2">&amp;</span>Cid::new_v1_sha256(<span class="number">0x00</span>, <span class="string">b"test"</span>)).<span class="kw">await </span>{
-<a href=#3741 id=3741 data-nosnippet>3741</a>            <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; {
-<a href=#3742 id=3742 data-nosnippet>3742</a>                <span class="comment">// Store is accessible, basic health check passed
-<a href=#3743 id=3743 data-nosnippet>3743</a>                </span>verified_count += <span class="number">1</span>;
-<a href=#3744 id=3744 data-nosnippet>3744</a>            }
-<a href=#3745 id=3745 data-nosnippet>3745</a>            <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
-<a href=#3746 id=3746 data-nosnippet>3746</a>                <span class="comment">// Expected for non-existent test block, this is fine
-<a href=#3747 id=3747 data-nosnippet>3747</a>            </span>}
-<a href=#3748 id=3748 data-nosnippet>3748</a>        }
-<a href=#3749 id=3749 data-nosnippet>3749</a>
-<a href=#3750 id=3750 data-nosnippet>3750</a>        <span class="kw">if </span>error_count &gt; <span class="number">0 </span>{
-<a href=#3751 id=3751 data-nosnippet>3751</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(CommonError::InternalError(<span class="macro">format!</span>(
-<a href=#3752 id=3752 data-nosnippet>3752</a>                <span class="string">"DAG integrity check failed: {} errors found"</span>,
-<a href=#3753 id=3753 data-nosnippet>3753</a>                error_count
-<a href=#3754 id=3754 data-nosnippet>3754</a>            )));
-<a href=#3755 id=3755 data-nosnippet>3755</a>        }
-<a href=#3756 id=3756 data-nosnippet>3756</a>
-<a href=#3757 id=3757 data-nosnippet>3757</a>        <span class="macro">log::info!</span>(
-<a href=#3758 id=3758 data-nosnippet>3758</a>            <span class="string">"DAG integrity check completed: {} blocks verified"</span>,
-<a href=#3759 id=3759 data-nosnippet>3759</a>            verified_count
-<a href=#3760 id=3760 data-nosnippet>3760</a>        );
-<a href=#3761 id=3761 data-nosnippet>3761</a>        <span class="prelude-val">Ok</span>(())
-<a href=#3762 id=3762 data-nosnippet>3762</a>    }
-<a href=#3763 id=3763 data-nosnippet>3763</a>
-<a href=#3764 id=3764 data-nosnippet>3764</a>    <span class="doccomment">/// Shutdown network services.
-<a href=#3765 id=3765 data-nosnippet>3765</a>    </span><span class="kw">pub async fn </span>shutdown_network(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;(), CommonError&gt; {
-<a href=#3766 id=3766 data-nosnippet>3766</a>        <span class="comment">// For now, this is a stub implementation
-<a href=#3767 id=3767 data-nosnippet>3767</a>        // In a full implementation, this would properly shutdown the network service
-<a href=#3768 id=3768 data-nosnippet>3768</a>        </span><span class="macro">log::info!</span>(<span class="string">"Network shutdown requested (stub implementation)"</span>);
-<a href=#3769 id=3769 data-nosnippet>3769</a>        <span class="prelude-val">Ok</span>(())
-<a href=#3770 id=3770 data-nosnippet>3770</a>    }
-<a href=#3771 id=3771 data-nosnippet>3771</a>
-<a href=#3772 id=3772 data-nosnippet>3772</a>    <span class="doccomment">/// Get access to the underlying libp2p service if available.
-<a href=#3773 id=3773 data-nosnippet>3773</a>    </span><span class="attr">#[cfg(feature = <span class="string">"enable-libp2p"</span>)]
-<a href=#3774 id=3774 data-nosnippet>3774</a>    </span><span class="kw">pub fn </span>get_libp2p_service(
-<a href=#3775 id=3775 data-nosnippet>3775</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
-<a href=#3776 id=3776 data-nosnippet>3776</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;Arc&lt;icn_network::libp2p_service::Libp2pNetworkService&gt;, CommonError&gt; {
-<a href=#3777 id=3777 data-nosnippet>3777</a>        <span class="kw">match </span><span class="kw-2">&amp;*</span><span class="self">self</span>.mesh_network_service {
-<a href=#3778 id=3778 data-nosnippet>3778</a>            MeshNetworkServiceType::Default(default_service) =&gt; {
-<a href=#3779 id=3779 data-nosnippet>3779</a>                default_service.get_underlying_broadcast_service()
-<a href=#3780 id=3780 data-nosnippet>3780</a>            }
-<a href=#3781 id=3781 data-nosnippet>3781</a>            MeshNetworkServiceType::Stub(<span class="kw">_</span>) =&gt; <span class="prelude-val">Err</span>(CommonError::InternalError(
-<a href=#3782 id=3782 data-nosnippet>3782</a>                <span class="string">"Cannot get libp2p service from stub implementation"</span>.to_string(),
-<a href=#3783 id=3783 data-nosnippet>3783</a>            )),
-<a href=#3784 id=3784 data-nosnippet>3784</a>        }
-<a href=#3785 id=3785 data-nosnippet>3785</a>    }
-<a href=#3786 id=3786 data-nosnippet>3786</a>
-<a href=#3787 id=3787 data-nosnippet>3787</a>    <span class="attr">#[cfg(not(feature = <span class="string">"enable-libp2p"</span>))]
-<a href=#3788 id=3788 data-nosnippet>3788</a>    </span><span class="kw">pub fn </span>get_libp2p_service(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;(), CommonError&gt; {
-<a href=#3789 id=3789 data-nosnippet>3789</a>        <span class="prelude-val">Err</span>(CommonError::InternalError(
-<a href=#3790 id=3790 data-nosnippet>3790</a>            <span class="string">"libp2p feature not enabled"</span>.to_string(),
-<a href=#3791 id=3791 data-nosnippet>3791</a>        ))
-<a href=#3792 id=3792 data-nosnippet>3792</a>    }
-<a href=#3793 id=3793 data-nosnippet>3793</a>
-<a href=#3794 id=3794 data-nosnippet>3794</a>    <span class="doccomment">/// Process executor tasks in polling mode (fallback when network subscription fails).
-<a href=#3795 id=3795 data-nosnippet>3795</a>    </span><span class="kw">async fn </span>process_executor_tasks(
-<a href=#3796 id=3796 data-nosnippet>3796</a>        ctx: <span class="kw-2">&amp;</span>Arc&lt;RuntimeContext&gt;,
-<a href=#3797 id=3797 data-nosnippet>3797</a>        evaluated_jobs: <span class="kw-2">&amp;mut </span>std::collections::HashSet&lt;JobId&gt;,
-<a href=#3798 id=3798 data-nosnippet>3798</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), HostAbiError&gt; {
-<a href=#3799 id=3799 data-nosnippet>3799</a>        <span class="comment">// This is a fallback mode for when network message subscription fails
-<a href=#3800 id=3800 data-nosnippet>3800</a>        // In stub networking mode, we need to check for announced jobs and bid on them
-<a href=#3801 id=3801 data-nosnippet>3801</a>        </span><span class="macro">log::debug!</span>(<span class="string">"[ExecutorManager] Polling for executor tasks"</span>);
-<a href=#3802 id=3802 data-nosnippet>3802</a>
-<a href=#3803 id=3803 data-nosnippet>3803</a>        <span class="comment">// Check if we're using stub networking
-<a href=#3804 id=3804 data-nosnippet>3804</a>        </span><span class="kw">if let </span>MeshNetworkServiceType::Stub(stub_service) = <span class="kw-2">&amp;*</span>ctx.mesh_network_service {
-<a href=#3805 id=3805 data-nosnippet>3805</a>            <span class="comment">// Get announced jobs from the stub service
-<a href=#3806 id=3806 data-nosnippet>3806</a>            </span><span class="kw">let </span>announced_jobs = stub_service.get_announced_jobs().<span class="kw">await</span>;
-<a href=#3807 id=3807 data-nosnippet>3807</a>
-<a href=#3808 id=3808 data-nosnippet>3808</a>            <span class="comment">// Check if there are any new jobs we should bid on
-<a href=#3809 id=3809 data-nosnippet>3809</a>            </span><span class="kw">for </span>job <span class="kw">in </span>announced_jobs {
-<a href=#3810 id=3810 data-nosnippet>3810</a>                <span class="comment">// Check if we've already evaluated this job for bidding
-<a href=#3811 id=3811 data-nosnippet>3811</a>                </span><span class="kw">if </span>evaluated_jobs.contains(<span class="kw-2">&amp;</span>job.id) {
-<a href=#3812 id=3812 data-nosnippet>3812</a>                    <span class="kw">continue</span>; <span class="comment">// Skip jobs we've already evaluated
-<a href=#3813 id=3813 data-nosnippet>3813</a>                </span>}
-<a href=#3814 id=3814 data-nosnippet>3814</a>
-<a href=#3815 id=3815 data-nosnippet>3815</a>                <span class="comment">// Skip jobs we submitted ourselves
-<a href=#3816 id=3816 data-nosnippet>3816</a>                </span><span class="kw">if </span>job.creator_did == ctx.current_identity {
-<a href=#3817 id=3817 data-nosnippet>3817</a>                    evaluated_jobs.insert(job.id.clone());
-<a href=#3818 id=3818 data-nosnippet>3818</a>                    <span class="kw">continue</span>;
-<a href=#3819 id=3819 data-nosnippet>3819</a>                }
+<a href=#3736 id=3736 data-nosnippet>3736</a>        <span class="kw">let </span>store = <span class="self">self</span>.dag_store.lock().<span class="kw">await</span>;
+<a href=#3737 id=3737 data-nosnippet>3737</a>
+<a href=#3738 id=3738 data-nosnippet>3738</a>        <span class="comment">// Get all blocks and verify their integrity
+<a href=#3739 id=3739 data-nosnippet>3739</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>verified_count = <span class="number">0</span>;
+<a href=#3740 id=3740 data-nosnippet>3740</a>        <span class="kw">let </span>error_count = <span class="number">0</span>;
+<a href=#3741 id=3741 data-nosnippet>3741</a>
+<a href=#3742 id=3742 data-nosnippet>3742</a>        <span class="comment">// In a proper implementation, we'd iterate through all blocks
+<a href=#3743 id=3743 data-nosnippet>3743</a>        // For now, we'll implement basic validation that can be extended
+<a href=#3744 id=3744 data-nosnippet>3744</a>
+<a href=#3745 id=3745 data-nosnippet>3745</a>        // Verify the store is accessible and consistent
+<a href=#3746 id=3746 data-nosnippet>3746</a>        </span><span class="kw">match </span>store.get(<span class="kw-2">&amp;</span>Cid::new_v1_sha256(<span class="number">0x00</span>, <span class="string">b"test"</span>)).<span class="kw">await </span>{
+<a href=#3747 id=3747 data-nosnippet>3747</a>            <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; {
+<a href=#3748 id=3748 data-nosnippet>3748</a>                <span class="comment">// Store is accessible, basic health check passed
+<a href=#3749 id=3749 data-nosnippet>3749</a>                </span>verified_count += <span class="number">1</span>;
+<a href=#3750 id=3750 data-nosnippet>3750</a>            }
+<a href=#3751 id=3751 data-nosnippet>3751</a>            <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
+<a href=#3752 id=3752 data-nosnippet>3752</a>                <span class="comment">// Expected for non-existent test block, this is fine
+<a href=#3753 id=3753 data-nosnippet>3753</a>            </span>}
+<a href=#3754 id=3754 data-nosnippet>3754</a>        }
+<a href=#3755 id=3755 data-nosnippet>3755</a>
+<a href=#3756 id=3756 data-nosnippet>3756</a>        <span class="kw">if </span>error_count &gt; <span class="number">0 </span>{
+<a href=#3757 id=3757 data-nosnippet>3757</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(CommonError::InternalError(<span class="macro">format!</span>(
+<a href=#3758 id=3758 data-nosnippet>3758</a>                <span class="string">"DAG integrity check failed: {} errors found"</span>,
+<a href=#3759 id=3759 data-nosnippet>3759</a>                error_count
+<a href=#3760 id=3760 data-nosnippet>3760</a>            )));
+<a href=#3761 id=3761 data-nosnippet>3761</a>        }
+<a href=#3762 id=3762 data-nosnippet>3762</a>
+<a href=#3763 id=3763 data-nosnippet>3763</a>        <span class="macro">log::info!</span>(
+<a href=#3764 id=3764 data-nosnippet>3764</a>            <span class="string">"DAG integrity check completed: {} blocks verified"</span>,
+<a href=#3765 id=3765 data-nosnippet>3765</a>            verified_count
+<a href=#3766 id=3766 data-nosnippet>3766</a>        );
+<a href=#3767 id=3767 data-nosnippet>3767</a>        <span class="prelude-val">Ok</span>(())
+<a href=#3768 id=3768 data-nosnippet>3768</a>    }
+<a href=#3769 id=3769 data-nosnippet>3769</a>
+<a href=#3770 id=3770 data-nosnippet>3770</a>    <span class="doccomment">/// Shutdown network services.
+<a href=#3771 id=3771 data-nosnippet>3771</a>    </span><span class="kw">pub async fn </span>shutdown_network(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;(), CommonError&gt; {
+<a href=#3772 id=3772 data-nosnippet>3772</a>        <span class="comment">// For now, this is a stub implementation
+<a href=#3773 id=3773 data-nosnippet>3773</a>        // In a full implementation, this would properly shutdown the network service
+<a href=#3774 id=3774 data-nosnippet>3774</a>        </span><span class="macro">log::info!</span>(<span class="string">"Network shutdown requested (stub implementation)"</span>);
+<a href=#3775 id=3775 data-nosnippet>3775</a>        <span class="prelude-val">Ok</span>(())
+<a href=#3776 id=3776 data-nosnippet>3776</a>    }
+<a href=#3777 id=3777 data-nosnippet>3777</a>
+<a href=#3778 id=3778 data-nosnippet>3778</a>    <span class="doccomment">/// Get access to the underlying libp2p service if available.
+<a href=#3779 id=3779 data-nosnippet>3779</a>    </span><span class="attr">#[cfg(feature = <span class="string">"enable-libp2p"</span>)]
+<a href=#3780 id=3780 data-nosnippet>3780</a>    </span><span class="kw">pub fn </span>get_libp2p_service(
+<a href=#3781 id=3781 data-nosnippet>3781</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
+<a href=#3782 id=3782 data-nosnippet>3782</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;Arc&lt;icn_network::libp2p_service::Libp2pNetworkService&gt;, CommonError&gt; {
+<a href=#3783 id=3783 data-nosnippet>3783</a>        <span class="kw">match </span><span class="kw-2">&amp;*</span><span class="self">self</span>.mesh_network_service {
+<a href=#3784 id=3784 data-nosnippet>3784</a>            MeshNetworkServiceType::Default(default_service) =&gt; {
+<a href=#3785 id=3785 data-nosnippet>3785</a>                default_service.get_underlying_broadcast_service()
+<a href=#3786 id=3786 data-nosnippet>3786</a>            }
+<a href=#3787 id=3787 data-nosnippet>3787</a>            MeshNetworkServiceType::Stub(<span class="kw">_</span>) =&gt; <span class="prelude-val">Err</span>(CommonError::InternalError(
+<a href=#3788 id=3788 data-nosnippet>3788</a>                <span class="string">"Cannot get libp2p service from stub implementation"</span>.to_string(),
+<a href=#3789 id=3789 data-nosnippet>3789</a>            )),
+<a href=#3790 id=3790 data-nosnippet>3790</a>        }
+<a href=#3791 id=3791 data-nosnippet>3791</a>    }
+<a href=#3792 id=3792 data-nosnippet>3792</a>
+<a href=#3793 id=3793 data-nosnippet>3793</a>    <span class="attr">#[cfg(not(feature = <span class="string">"enable-libp2p"</span>))]
+<a href=#3794 id=3794 data-nosnippet>3794</a>    </span><span class="kw">pub fn </span>get_libp2p_service(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;(), CommonError&gt; {
+<a href=#3795 id=3795 data-nosnippet>3795</a>        <span class="prelude-val">Err</span>(CommonError::InternalError(
+<a href=#3796 id=3796 data-nosnippet>3796</a>            <span class="string">"libp2p feature not enabled"</span>.to_string(),
+<a href=#3797 id=3797 data-nosnippet>3797</a>        ))
+<a href=#3798 id=3798 data-nosnippet>3798</a>    }
+<a href=#3799 id=3799 data-nosnippet>3799</a>
+<a href=#3800 id=3800 data-nosnippet>3800</a>    <span class="doccomment">/// Process executor tasks in polling mode (fallback when network subscription fails).
+<a href=#3801 id=3801 data-nosnippet>3801</a>    </span><span class="kw">async fn </span>process_executor_tasks(
+<a href=#3802 id=3802 data-nosnippet>3802</a>        ctx: <span class="kw-2">&amp;</span>Arc&lt;RuntimeContext&gt;,
+<a href=#3803 id=3803 data-nosnippet>3803</a>        evaluated_jobs: <span class="kw-2">&amp;mut </span>std::collections::HashSet&lt;JobId&gt;,
+<a href=#3804 id=3804 data-nosnippet>3804</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), HostAbiError&gt; {
+<a href=#3805 id=3805 data-nosnippet>3805</a>        <span class="comment">// This is a fallback mode for when network message subscription fails
+<a href=#3806 id=3806 data-nosnippet>3806</a>        // In stub networking mode, we need to check for announced jobs and bid on them
+<a href=#3807 id=3807 data-nosnippet>3807</a>        </span><span class="macro">log::debug!</span>(<span class="string">"[ExecutorManager] Polling for executor tasks"</span>);
+<a href=#3808 id=3808 data-nosnippet>3808</a>
+<a href=#3809 id=3809 data-nosnippet>3809</a>        <span class="comment">// Check if we're using stub networking
+<a href=#3810 id=3810 data-nosnippet>3810</a>        </span><span class="kw">if let </span>MeshNetworkServiceType::Stub(stub_service) = <span class="kw-2">&amp;*</span>ctx.mesh_network_service {
+<a href=#3811 id=3811 data-nosnippet>3811</a>            <span class="comment">// Get announced jobs from the stub service
+<a href=#3812 id=3812 data-nosnippet>3812</a>            </span><span class="kw">let </span>announced_jobs = stub_service.get_announced_jobs().<span class="kw">await</span>;
+<a href=#3813 id=3813 data-nosnippet>3813</a>
+<a href=#3814 id=3814 data-nosnippet>3814</a>            <span class="comment">// Check if there are any new jobs we should bid on
+<a href=#3815 id=3815 data-nosnippet>3815</a>            </span><span class="kw">for </span>job <span class="kw">in </span>announced_jobs {
+<a href=#3816 id=3816 data-nosnippet>3816</a>                <span class="comment">// Check if we've already evaluated this job for bidding
+<a href=#3817 id=3817 data-nosnippet>3817</a>                </span><span class="kw">if </span>evaluated_jobs.contains(<span class="kw-2">&amp;</span>job.id) {
+<a href=#3818 id=3818 data-nosnippet>3818</a>                    <span class="kw">continue</span>; <span class="comment">// Skip jobs we've already evaluated
+<a href=#3819 id=3819 data-nosnippet>3819</a>                </span>}
 <a href=#3820 id=3820 data-nosnippet>3820</a>
-<a href=#3821 id=3821 data-nosnippet>3821</a>                <span class="macro">log::info!</span>(
-<a href=#3822 id=3822 data-nosnippet>3822</a>                    <span class="string">"[ExecutorManager] Found announced job {:?} for evaluation"</span>,
-<a href=#3823 id=3823 data-nosnippet>3823</a>                    job.id
-<a href=#3824 id=3824 data-nosnippet>3824</a>                );
-<a href=#3825 id=3825 data-nosnippet>3825</a>
-<a href=#3826 id=3826 data-nosnippet>3826</a>                <span class="comment">// Mark this job as evaluated
-<a href=#3827 id=3827 data-nosnippet>3827</a>                </span>evaluated_jobs.insert(job.id.clone());
-<a href=#3828 id=3828 data-nosnippet>3828</a>
-<a href=#3829 id=3829 data-nosnippet>3829</a>                <span class="comment">// Evaluate the job and create a bid if appropriate
-<a href=#3830 id=3830 data-nosnippet>3830</a>                </span><span class="kw">if let </span><span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(bid)) = <span class="self">Self</span>::evaluate_and_bid_on_job(ctx, <span class="kw-2">&amp;</span>job).<span class="kw">await </span>{
-<a href=#3831 id=3831 data-nosnippet>3831</a>                    <span class="macro">log::info!</span>(
-<a href=#3832 id=3832 data-nosnippet>3832</a>                        <span class="string">"[ExecutorManager] Submitting bid for job {:?}: {} mana"</span>,
-<a href=#3833 id=3833 data-nosnippet>3833</a>                        job.id,
-<a href=#3834 id=3834 data-nosnippet>3834</a>                        bid.price_mana
-<a href=#3835 id=3835 data-nosnippet>3835</a>                    );
-<a href=#3836 id=3836 data-nosnippet>3836</a>
-<a href=#3837 id=3837 data-nosnippet>3837</a>                    <span class="comment">// Submit the bid through the stub service
-<a href=#3838 id=3838 data-nosnippet>3838</a>                    </span><span class="kw">if let </span><span class="prelude-val">Err</span>(e) = stub_service.submit_bid_for_job(<span class="kw-2">&amp;</span>bid).<span class="kw">await </span>{
-<a href=#3839 id=3839 data-nosnippet>3839</a>                        <span class="macro">log::error!</span>(
-<a href=#3840 id=3840 data-nosnippet>3840</a>                            <span class="string">"[ExecutorManager] Failed to submit bid for job {:?}: {}"</span>,
-<a href=#3841 id=3841 data-nosnippet>3841</a>                            job.id,
-<a href=#3842 id=3842 data-nosnippet>3842</a>                            e
-<a href=#3843 id=3843 data-nosnippet>3843</a>                        );
-<a href=#3844 id=3844 data-nosnippet>3844</a>                    } <span class="kw">else </span>{
-<a href=#3845 id=3845 data-nosnippet>3845</a>                        <span class="macro">log::info!</span>(
-<a href=#3846 id=3846 data-nosnippet>3846</a>                            <span class="string">"[ExecutorManager] Successfully submitted bid for job {:?}"</span>,
-<a href=#3847 id=3847 data-nosnippet>3847</a>                            job.id
-<a href=#3848 id=3848 data-nosnippet>3848</a>                        );
-<a href=#3849 id=3849 data-nosnippet>3849</a>                    }
-<a href=#3850 id=3850 data-nosnippet>3850</a>                } <span class="kw">else </span>{
-<a href=#3851 id=3851 data-nosnippet>3851</a>                    <span class="macro">log::debug!</span>(<span class="string">"[ExecutorManager] Decided not to bid on job {:?}"</span>, job.id);
-<a href=#3852 id=3852 data-nosnippet>3852</a>                }
-<a href=#3853 id=3853 data-nosnippet>3853</a>            }
-<a href=#3854 id=3854 data-nosnippet>3854</a>        }
-<a href=#3855 id=3855 data-nosnippet>3855</a>
-<a href=#3856 id=3856 data-nosnippet>3856</a>        <span class="prelude-val">Ok</span>(())
-<a href=#3857 id=3857 data-nosnippet>3857</a>    }
-<a href=#3858 id=3858 data-nosnippet>3858</a>}
-<a href=#3859 id=3859 data-nosnippet>3859</a>
-<a href=#3860 id=3860 data-nosnippet>3860</a><span class="attr">#[cfg(test)]
-<a href=#3861 id=3861 data-nosnippet>3861</a></span><span class="kw">mod </span>tests {
-<a href=#3862 id=3862 data-nosnippet>3862</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-<a href=#3863 id=3863 data-nosnippet>3863</a>    <span class="kw">use </span>icn_mesh::{JobKind, JobSpec};
-<a href=#3864 id=3864 data-nosnippet>3864</a>    <span class="kw">use </span>icn_protocol::{MeshJobAnnouncementMessage, ResourceRequirements};
-<a href=#3865 id=3865 data-nosnippet>3865</a>    <span class="kw">use </span>std::str::FromStr;
-<a href=#3866 id=3866 data-nosnippet>3866</a>
-<a href=#3867 id=3867 data-nosnippet>3867</a>    <span class="attr">#[tokio::test]
-<a href=#3868 id=3868 data-nosnippet>3868</a>    </span><span class="kw">async fn </span>test_should_bid_on_job_with_resources() {
-<a href=#3869 id=3869 data-nosnippet>3869</a>        <span class="kw">let </span>did = Did::from_str(<span class="string">"did:icn:test:exec"</span>).unwrap();
-<a href=#3870 id=3870 data-nosnippet>3870</a>        <span class="kw">let </span>ctx = RuntimeContext::new_testing_with_system_info(
-<a href=#3871 id=3871 data-nosnippet>3871</a>            did.clone(),
-<a href=#3872 id=3872 data-nosnippet>3872</a>            <span class="prelude-val">Some</span>(<span class="number">100</span>),
-<a href=#3873 id=3873 data-nosnippet>3873</a>            Arc::new(icn_common::FixedSystemInfoProvider::new(<span class="number">8</span>, <span class="number">4096</span>)),
-<a href=#3874 id=3874 data-nosnippet>3874</a>        )
-<a href=#3875 id=3875 data-nosnippet>3875</a>        .unwrap();
-<a href=#3876 id=3876 data-nosnippet>3876</a>
-<a href=#3877 id=3877 data-nosnippet>3877</a>        <span class="kw">let </span>announcement = MeshJobAnnouncementMessage {
-<a href=#3878 id=3878 data-nosnippet>3878</a>            job_id: Cid::new_v1_sha256(<span class="number">0x71</span>, <span class="string">b"job"</span>),
-<a href=#3879 id=3879 data-nosnippet>3879</a>            manifest_cid: Cid::new_v1_sha256(<span class="number">0x71</span>, <span class="string">b"man"</span>),
-<a href=#3880 id=3880 data-nosnippet>3880</a>            creator_did: did.clone(),
-<a href=#3881 id=3881 data-nosnippet>3881</a>            max_cost_mana: <span class="number">10</span>,
-<a href=#3882 id=3882 data-nosnippet>3882</a>            job_spec: JobSpec {
-<a href=#3883 id=3883 data-nosnippet>3883</a>                kind: JobKind::Echo {
-<a href=#3884 id=3884 data-nosnippet>3884</a>                    payload: <span class="string">"hi"</span>.into(),
-<a href=#3885 id=3885 data-nosnippet>3885</a>                },
-<a href=#3886 id=3886 data-nosnippet>3886</a>                inputs: <span class="macro">vec!</span>[],
-<a href=#3887 id=3887 data-nosnippet>3887</a>                outputs: <span class="macro">vec!</span>[],
-<a href=#3888 id=3888 data-nosnippet>3888</a>                required_resources: ResourceRequirements {
-<a href=#3889 id=3889 data-nosnippet>3889</a>                    cpu_cores: <span class="number">2</span>,
-<a href=#3890 id=3890 data-nosnippet>3890</a>                    memory_mb: <span class="number">512</span>,
-<a href=#3891 id=3891 data-nosnippet>3891</a>                    storage_mb: <span class="number">0</span>,
-<a href=#3892 id=3892 data-nosnippet>3892</a>                    max_execution_time_secs: <span class="number">0</span>,
-<a href=#3893 id=3893 data-nosnippet>3893</a>                },
-<a href=#3894 id=3894 data-nosnippet>3894</a>            },
-<a href=#3895 id=3895 data-nosnippet>3895</a>            bid_deadline: ctx.time_provider.unix_seconds() + <span class="number">100</span>,
-<a href=#3896 id=3896 data-nosnippet>3896</a>        };
-<a href=#3897 id=3897 data-nosnippet>3897</a>
-<a href=#3898 id=3898 data-nosnippet>3898</a>        <span class="kw">let </span>bid = <span class="kw">super</span>::RuntimeContext::should_bid_on_job(<span class="kw-2">&amp;</span>ctx, <span class="kw-2">&amp;</span>announcement)
-<a href=#3899 id=3899 data-nosnippet>3899</a>            .<span class="kw">await
-<a href=#3900 id=3900 data-nosnippet>3900</a>            </span>.unwrap();
-<a href=#3901 id=3901 data-nosnippet>3901</a>        <span class="macro">assert!</span>(bid.is_some());
-<a href=#3902 id=3902 data-nosnippet>3902</a>    }
+<a href=#3821 id=3821 data-nosnippet>3821</a>                <span class="comment">// Skip jobs we submitted ourselves
+<a href=#3822 id=3822 data-nosnippet>3822</a>                </span><span class="kw">if </span>job.creator_did == ctx.current_identity {
+<a href=#3823 id=3823 data-nosnippet>3823</a>                    evaluated_jobs.insert(job.id.clone());
+<a href=#3824 id=3824 data-nosnippet>3824</a>                    <span class="kw">continue</span>;
+<a href=#3825 id=3825 data-nosnippet>3825</a>                }
+<a href=#3826 id=3826 data-nosnippet>3826</a>
+<a href=#3827 id=3827 data-nosnippet>3827</a>                <span class="macro">log::info!</span>(
+<a href=#3828 id=3828 data-nosnippet>3828</a>                    <span class="string">"[ExecutorManager] Found announced job {:?} for evaluation"</span>,
+<a href=#3829 id=3829 data-nosnippet>3829</a>                    job.id
+<a href=#3830 id=3830 data-nosnippet>3830</a>                );
+<a href=#3831 id=3831 data-nosnippet>3831</a>
+<a href=#3832 id=3832 data-nosnippet>3832</a>                <span class="comment">// Mark this job as evaluated
+<a href=#3833 id=3833 data-nosnippet>3833</a>                </span>evaluated_jobs.insert(job.id.clone());
+<a href=#3834 id=3834 data-nosnippet>3834</a>
+<a href=#3835 id=3835 data-nosnippet>3835</a>                <span class="comment">// Evaluate the job and create a bid if appropriate
+<a href=#3836 id=3836 data-nosnippet>3836</a>                </span><span class="kw">if let </span><span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(bid)) = <span class="self">Self</span>::evaluate_and_bid_on_job(ctx, <span class="kw-2">&amp;</span>job).<span class="kw">await </span>{
+<a href=#3837 id=3837 data-nosnippet>3837</a>                    <span class="macro">log::info!</span>(
+<a href=#3838 id=3838 data-nosnippet>3838</a>                        <span class="string">"[ExecutorManager] Submitting bid for job {:?}: {} mana"</span>,
+<a href=#3839 id=3839 data-nosnippet>3839</a>                        job.id,
+<a href=#3840 id=3840 data-nosnippet>3840</a>                        bid.price_mana
+<a href=#3841 id=3841 data-nosnippet>3841</a>                    );
+<a href=#3842 id=3842 data-nosnippet>3842</a>
+<a href=#3843 id=3843 data-nosnippet>3843</a>                    <span class="comment">// Submit the bid through the stub service
+<a href=#3844 id=3844 data-nosnippet>3844</a>                    </span><span class="kw">if let </span><span class="prelude-val">Err</span>(e) = stub_service.submit_bid_for_job(<span class="kw-2">&amp;</span>bid).<span class="kw">await </span>{
+<a href=#3845 id=3845 data-nosnippet>3845</a>                        <span class="macro">log::error!</span>(
+<a href=#3846 id=3846 data-nosnippet>3846</a>                            <span class="string">"[ExecutorManager] Failed to submit bid for job {:?}: {}"</span>,
+<a href=#3847 id=3847 data-nosnippet>3847</a>                            job.id,
+<a href=#3848 id=3848 data-nosnippet>3848</a>                            e
+<a href=#3849 id=3849 data-nosnippet>3849</a>                        );
+<a href=#3850 id=3850 data-nosnippet>3850</a>                    } <span class="kw">else </span>{
+<a href=#3851 id=3851 data-nosnippet>3851</a>                        <span class="macro">log::info!</span>(
+<a href=#3852 id=3852 data-nosnippet>3852</a>                            <span class="string">"[ExecutorManager] Successfully submitted bid for job {:?}"</span>,
+<a href=#3853 id=3853 data-nosnippet>3853</a>                            job.id
+<a href=#3854 id=3854 data-nosnippet>3854</a>                        );
+<a href=#3855 id=3855 data-nosnippet>3855</a>                    }
+<a href=#3856 id=3856 data-nosnippet>3856</a>                } <span class="kw">else </span>{
+<a href=#3857 id=3857 data-nosnippet>3857</a>                    <span class="macro">log::debug!</span>(<span class="string">"[ExecutorManager] Decided not to bid on job {:?}"</span>, job.id);
+<a href=#3858 id=3858 data-nosnippet>3858</a>                }
+<a href=#3859 id=3859 data-nosnippet>3859</a>            }
+<a href=#3860 id=3860 data-nosnippet>3860</a>        }
+<a href=#3861 id=3861 data-nosnippet>3861</a>
+<a href=#3862 id=3862 data-nosnippet>3862</a>        <span class="prelude-val">Ok</span>(())
+<a href=#3863 id=3863 data-nosnippet>3863</a>    }
+<a href=#3864 id=3864 data-nosnippet>3864</a>}
+<a href=#3865 id=3865 data-nosnippet>3865</a>
+<a href=#3866 id=3866 data-nosnippet>3866</a><span class="attr">#[cfg(test)]
+<a href=#3867 id=3867 data-nosnippet>3867</a></span><span class="kw">mod </span>tests {
+<a href=#3868 id=3868 data-nosnippet>3868</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+<a href=#3869 id=3869 data-nosnippet>3869</a>    <span class="kw">use </span>icn_mesh::{JobKind, JobSpec};
+<a href=#3870 id=3870 data-nosnippet>3870</a>    <span class="kw">use </span>icn_protocol::{MeshJobAnnouncementMessage, ResourceRequirements};
+<a href=#3871 id=3871 data-nosnippet>3871</a>    <span class="kw">use </span>std::str::FromStr;
+<a href=#3872 id=3872 data-nosnippet>3872</a>
+<a href=#3873 id=3873 data-nosnippet>3873</a>    <span class="attr">#[tokio::test]
+<a href=#3874 id=3874 data-nosnippet>3874</a>    </span><span class="kw">async fn </span>test_should_bid_on_job_with_resources() {
+<a href=#3875 id=3875 data-nosnippet>3875</a>        <span class="kw">let </span>did = Did::from_str(<span class="string">"did:icn:test:exec"</span>).unwrap();
+<a href=#3876 id=3876 data-nosnippet>3876</a>        <span class="kw">let </span>ctx = RuntimeContext::new_testing_with_system_info(
+<a href=#3877 id=3877 data-nosnippet>3877</a>            did.clone(),
+<a href=#3878 id=3878 data-nosnippet>3878</a>            <span class="prelude-val">Some</span>(<span class="number">100</span>),
+<a href=#3879 id=3879 data-nosnippet>3879</a>            Arc::new(icn_common::FixedSystemInfoProvider::new(<span class="number">8</span>, <span class="number">4096</span>)),
+<a href=#3880 id=3880 data-nosnippet>3880</a>        )
+<a href=#3881 id=3881 data-nosnippet>3881</a>        .unwrap();
+<a href=#3882 id=3882 data-nosnippet>3882</a>
+<a href=#3883 id=3883 data-nosnippet>3883</a>        <span class="kw">let </span>announcement = MeshJobAnnouncementMessage {
+<a href=#3884 id=3884 data-nosnippet>3884</a>            job_id: Cid::new_v1_sha256(<span class="number">0x71</span>, <span class="string">b"job"</span>),
+<a href=#3885 id=3885 data-nosnippet>3885</a>            manifest_cid: Cid::new_v1_sha256(<span class="number">0x71</span>, <span class="string">b"man"</span>),
+<a href=#3886 id=3886 data-nosnippet>3886</a>            creator_did: did.clone(),
+<a href=#3887 id=3887 data-nosnippet>3887</a>            max_cost_mana: <span class="number">10</span>,
+<a href=#3888 id=3888 data-nosnippet>3888</a>            job_spec: JobSpec {
+<a href=#3889 id=3889 data-nosnippet>3889</a>                kind: JobKind::Echo {
+<a href=#3890 id=3890 data-nosnippet>3890</a>                    payload: <span class="string">"hi"</span>.into(),
+<a href=#3891 id=3891 data-nosnippet>3891</a>                },
+<a href=#3892 id=3892 data-nosnippet>3892</a>                inputs: <span class="macro">vec!</span>[],
+<a href=#3893 id=3893 data-nosnippet>3893</a>                outputs: <span class="macro">vec!</span>[],
+<a href=#3894 id=3894 data-nosnippet>3894</a>                required_resources: ResourceRequirements {
+<a href=#3895 id=3895 data-nosnippet>3895</a>                    cpu_cores: <span class="number">2</span>,
+<a href=#3896 id=3896 data-nosnippet>3896</a>                    memory_mb: <span class="number">512</span>,
+<a href=#3897 id=3897 data-nosnippet>3897</a>                    storage_mb: <span class="number">0</span>,
+<a href=#3898 id=3898 data-nosnippet>3898</a>                    max_execution_time_secs: <span class="number">0</span>,
+<a href=#3899 id=3899 data-nosnippet>3899</a>                },
+<a href=#3900 id=3900 data-nosnippet>3900</a>            },
+<a href=#3901 id=3901 data-nosnippet>3901</a>            bid_deadline: ctx.time_provider.unix_seconds() + <span class="number">100</span>,
+<a href=#3902 id=3902 data-nosnippet>3902</a>        };
 <a href=#3903 id=3903 data-nosnippet>3903</a>
-<a href=#3904 id=3904 data-nosnippet>3904</a>    <span class="attr">#[tokio::test]
-<a href=#3905 id=3905 data-nosnippet>3905</a>    </span><span class="kw">async fn </span>test_evaluate_and_bid_on_job_respects_resources() {
-<a href=#3906 id=3906 data-nosnippet>3906</a>        <span class="kw">let </span>did = Did::from_str(<span class="string">"did:icn:test:exec2"</span>).unwrap();
-<a href=#3907 id=3907 data-nosnippet>3907</a>        <span class="kw">let </span>ctx = RuntimeContext::new_testing_with_system_info(
-<a href=#3908 id=3908 data-nosnippet>3908</a>            did.clone(),
-<a href=#3909 id=3909 data-nosnippet>3909</a>            <span class="prelude-val">Some</span>(<span class="number">100</span>),
-<a href=#3910 id=3910 data-nosnippet>3910</a>            Arc::new(icn_common::FixedSystemInfoProvider::new(<span class="number">4</span>, <span class="number">1024</span>)),
-<a href=#3911 id=3911 data-nosnippet>3911</a>        )
-<a href=#3912 id=3912 data-nosnippet>3912</a>        .unwrap();
-<a href=#3913 id=3913 data-nosnippet>3913</a>
-<a href=#3914 id=3914 data-nosnippet>3914</a>        <span class="kw">let </span>job = icn_mesh::ActualMeshJob {
-<a href=#3915 id=3915 data-nosnippet>3915</a>            id: icn_mesh::JobId(Cid::new_v1_sha256(<span class="number">0x71</span>, <span class="string">b"job2"</span>)),
-<a href=#3916 id=3916 data-nosnippet>3916</a>            manifest_cid: Cid::new_v1_sha256(<span class="number">0x71</span>, <span class="string">b"man2"</span>),
-<a href=#3917 id=3917 data-nosnippet>3917</a>            creator_did: did.clone(),
-<a href=#3918 id=3918 data-nosnippet>3918</a>            cost_mana: <span class="number">5</span>,
-<a href=#3919 id=3919 data-nosnippet>3919</a>            max_execution_wait_ms: <span class="prelude-val">None</span>,
-<a href=#3920 id=3920 data-nosnippet>3920</a>            spec: JobSpec {
-<a href=#3921 id=3921 data-nosnippet>3921</a>                kind: JobKind::Echo {
-<a href=#3922 id=3922 data-nosnippet>3922</a>                    payload: <span class="string">"hi"</span>.into(),
-<a href=#3923 id=3923 data-nosnippet>3923</a>                },
-<a href=#3924 id=3924 data-nosnippet>3924</a>                inputs: <span class="macro">vec!</span>[],
-<a href=#3925 id=3925 data-nosnippet>3925</a>                outputs: <span class="macro">vec!</span>[],
-<a href=#3926 id=3926 data-nosnippet>3926</a>                required_resources: ResourceRequirements {
-<a href=#3927 id=3927 data-nosnippet>3927</a>                    cpu_cores: <span class="number">8</span>,
-<a href=#3928 id=3928 data-nosnippet>3928</a>                    memory_mb: <span class="number">2048</span>,
-<a href=#3929 id=3929 data-nosnippet>3929</a>                    storage_mb: <span class="number">0</span>,
-<a href=#3930 id=3930 data-nosnippet>3930</a>                    max_execution_time_secs: <span class="number">0</span>,
-<a href=#3931 id=3931 data-nosnippet>3931</a>                },
-<a href=#3932 id=3932 data-nosnippet>3932</a>            },
-<a href=#3933 id=3933 data-nosnippet>3933</a>            signature: icn_identity::SignatureBytes(<span class="macro">vec!</span>[]),
-<a href=#3934 id=3934 data-nosnippet>3934</a>        };
-<a href=#3935 id=3935 data-nosnippet>3935</a>
-<a href=#3936 id=3936 data-nosnippet>3936</a>        <span class="kw">let </span>bid = RuntimeContext::evaluate_and_bid_on_job(<span class="kw-2">&amp;</span>ctx, <span class="kw-2">&amp;</span>job)
-<a href=#3937 id=3937 data-nosnippet>3937</a>            .<span class="kw">await
-<a href=#3938 id=3938 data-nosnippet>3938</a>            </span>.unwrap();
-<a href=#3939 id=3939 data-nosnippet>3939</a>        <span class="macro">assert!</span>(bid.is_none());
-<a href=#3940 id=3940 data-nosnippet>3940</a>    }
-<a href=#3941 id=3941 data-nosnippet>3941</a>}
-<a href=#3942 id=3942 data-nosnippet>3942</a>
-<a href=#3943 id=3943 data-nosnippet>3943</a><span class="attr">#[cfg(test)]
-<a href=#3944 id=3944 data-nosnippet>3944</a></span><span class="kw">mod </span>configuration_tests {
-<a href=#3945 id=3945 data-nosnippet>3945</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-<a href=#3946 id=3946 data-nosnippet>3946</a>    <span class="kw">use </span>std::str::FromStr;
-<a href=#3947 id=3947 data-nosnippet>3947</a>
-<a href=#3948 id=3948 data-nosnippet>3948</a>    <span class="attr">#[tokio::test]
-<a href=#3949 id=3949 data-nosnippet>3949</a>    </span><span class="kw">async fn </span>test_runtime_context_builder_testing() {
-<a href=#3950 id=3950 data-nosnippet>3950</a>        <span class="kw">let </span>test_did = Did::from_str(<span class="string">"did:key:zTestBuilder"</span>).unwrap();
-<a href=#3951 id=3951 data-nosnippet>3951</a>
-<a href=#3952 id=3952 data-nosnippet>3952</a>        <span class="kw">let </span>ctx = RuntimeContextBuilder::new(EnvironmentType::Testing)
-<a href=#3953 id=3953 data-nosnippet>3953</a>            .with_identity(test_did.clone())
-<a href=#3954 id=3954 data-nosnippet>3954</a>            .with_initial_mana(<span class="number">100</span>)
-<a href=#3955 id=3955 data-nosnippet>3955</a>            .build()
-<a href=#3956 id=3956 data-nosnippet>3956</a>            .unwrap();
+<a href=#3904 id=3904 data-nosnippet>3904</a>        <span class="kw">let </span>bid = <span class="kw">super</span>::RuntimeContext::should_bid_on_job(<span class="kw-2">&amp;</span>ctx, <span class="kw-2">&amp;</span>announcement)
+<a href=#3905 id=3905 data-nosnippet>3905</a>            .<span class="kw">await
+<a href=#3906 id=3906 data-nosnippet>3906</a>            </span>.unwrap();
+<a href=#3907 id=3907 data-nosnippet>3907</a>        <span class="macro">assert!</span>(bid.is_some());
+<a href=#3908 id=3908 data-nosnippet>3908</a>    }
+<a href=#3909 id=3909 data-nosnippet>3909</a>
+<a href=#3910 id=3910 data-nosnippet>3910</a>    <span class="attr">#[tokio::test]
+<a href=#3911 id=3911 data-nosnippet>3911</a>    </span><span class="kw">async fn </span>test_evaluate_and_bid_on_job_respects_resources() {
+<a href=#3912 id=3912 data-nosnippet>3912</a>        <span class="kw">let </span>did = Did::from_str(<span class="string">"did:icn:test:exec2"</span>).unwrap();
+<a href=#3913 id=3913 data-nosnippet>3913</a>        <span class="kw">let </span>ctx = RuntimeContext::new_testing_with_system_info(
+<a href=#3914 id=3914 data-nosnippet>3914</a>            did.clone(),
+<a href=#3915 id=3915 data-nosnippet>3915</a>            <span class="prelude-val">Some</span>(<span class="number">100</span>),
+<a href=#3916 id=3916 data-nosnippet>3916</a>            Arc::new(icn_common::FixedSystemInfoProvider::new(<span class="number">4</span>, <span class="number">1024</span>)),
+<a href=#3917 id=3917 data-nosnippet>3917</a>        )
+<a href=#3918 id=3918 data-nosnippet>3918</a>        .unwrap();
+<a href=#3919 id=3919 data-nosnippet>3919</a>
+<a href=#3920 id=3920 data-nosnippet>3920</a>        <span class="kw">let </span>job = icn_mesh::ActualMeshJob {
+<a href=#3921 id=3921 data-nosnippet>3921</a>            id: icn_mesh::JobId(Cid::new_v1_sha256(<span class="number">0x71</span>, <span class="string">b"job2"</span>)),
+<a href=#3922 id=3922 data-nosnippet>3922</a>            manifest_cid: Cid::new_v1_sha256(<span class="number">0x71</span>, <span class="string">b"man2"</span>),
+<a href=#3923 id=3923 data-nosnippet>3923</a>            creator_did: did.clone(),
+<a href=#3924 id=3924 data-nosnippet>3924</a>            cost_mana: <span class="number">5</span>,
+<a href=#3925 id=3925 data-nosnippet>3925</a>            max_execution_wait_ms: <span class="prelude-val">None</span>,
+<a href=#3926 id=3926 data-nosnippet>3926</a>            spec: JobSpec {
+<a href=#3927 id=3927 data-nosnippet>3927</a>                kind: JobKind::Echo {
+<a href=#3928 id=3928 data-nosnippet>3928</a>                    payload: <span class="string">"hi"</span>.into(),
+<a href=#3929 id=3929 data-nosnippet>3929</a>                },
+<a href=#3930 id=3930 data-nosnippet>3930</a>                inputs: <span class="macro">vec!</span>[],
+<a href=#3931 id=3931 data-nosnippet>3931</a>                outputs: <span class="macro">vec!</span>[],
+<a href=#3932 id=3932 data-nosnippet>3932</a>                required_resources: ResourceRequirements {
+<a href=#3933 id=3933 data-nosnippet>3933</a>                    cpu_cores: <span class="number">8</span>,
+<a href=#3934 id=3934 data-nosnippet>3934</a>                    memory_mb: <span class="number">2048</span>,
+<a href=#3935 id=3935 data-nosnippet>3935</a>                    storage_mb: <span class="number">0</span>,
+<a href=#3936 id=3936 data-nosnippet>3936</a>                    max_execution_time_secs: <span class="number">0</span>,
+<a href=#3937 id=3937 data-nosnippet>3937</a>                },
+<a href=#3938 id=3938 data-nosnippet>3938</a>            },
+<a href=#3939 id=3939 data-nosnippet>3939</a>            signature: icn_identity::SignatureBytes(<span class="macro">vec!</span>[]),
+<a href=#3940 id=3940 data-nosnippet>3940</a>        };
+<a href=#3941 id=3941 data-nosnippet>3941</a>
+<a href=#3942 id=3942 data-nosnippet>3942</a>        <span class="kw">let </span>bid = RuntimeContext::evaluate_and_bid_on_job(<span class="kw-2">&amp;</span>ctx, <span class="kw-2">&amp;</span>job)
+<a href=#3943 id=3943 data-nosnippet>3943</a>            .<span class="kw">await
+<a href=#3944 id=3944 data-nosnippet>3944</a>            </span>.unwrap();
+<a href=#3945 id=3945 data-nosnippet>3945</a>        <span class="macro">assert!</span>(bid.is_none());
+<a href=#3946 id=3946 data-nosnippet>3946</a>    }
+<a href=#3947 id=3947 data-nosnippet>3947</a>}
+<a href=#3948 id=3948 data-nosnippet>3948</a>
+<a href=#3949 id=3949 data-nosnippet>3949</a><span class="attr">#[cfg(test)]
+<a href=#3950 id=3950 data-nosnippet>3950</a></span><span class="kw">mod </span>configuration_tests {
+<a href=#3951 id=3951 data-nosnippet>3951</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+<a href=#3952 id=3952 data-nosnippet>3952</a>    <span class="kw">use </span>std::str::FromStr;
+<a href=#3953 id=3953 data-nosnippet>3953</a>
+<a href=#3954 id=3954 data-nosnippet>3954</a>    <span class="attr">#[tokio::test]
+<a href=#3955 id=3955 data-nosnippet>3955</a>    </span><span class="kw">async fn </span>test_runtime_context_builder_testing() {
+<a href=#3956 id=3956 data-nosnippet>3956</a>        <span class="kw">let </span>test_did = Did::from_str(<span class="string">"did:key:zTestBuilder"</span>).unwrap();
 <a href=#3957 id=3957 data-nosnippet>3957</a>
-<a href=#3958 id=3958 data-nosnippet>3958</a>        <span class="macro">assert_eq!</span>(ctx.current_identity, test_did);
-<a href=#3959 id=3959 data-nosnippet>3959</a>        <span class="macro">assert_eq!</span>(ctx.get_mana(<span class="kw-2">&amp;</span>test_did).<span class="kw">await</span>.unwrap(), <span class="number">100</span>);
-<a href=#3960 id=3960 data-nosnippet>3960</a>    }
-<a href=#3961 id=3961 data-nosnippet>3961</a>
-<a href=#3962 id=3962 data-nosnippet>3962</a>    <span class="attr">#[test]
-<a href=#3963 id=3963 data-nosnippet>3963</a>    </span><span class="kw">fn </span>test_runtime_context_builder_validation() {
-<a href=#3964 id=3964 data-nosnippet>3964</a>        <span class="comment">// Should fail without identity
-<a href=#3965 id=3965 data-nosnippet>3965</a>        </span><span class="kw">let </span>result = RuntimeContextBuilder::new(EnvironmentType::Testing).build();
-<a href=#3966 id=3966 data-nosnippet>3966</a>
-<a href=#3967 id=3967 data-nosnippet>3967</a>        <span class="macro">assert!</span>(result.is_err());
-<a href=#3968 id=3968 data-nosnippet>3968</a>        <span class="macro">assert!</span>(result
-<a href=#3969 id=3969 data-nosnippet>3969</a>            .unwrap_err()
-<a href=#3970 id=3970 data-nosnippet>3970</a>            .to_string()
-<a href=#3971 id=3971 data-nosnippet>3971</a>            .contains(<span class="string">"Current identity is required"</span>));
-<a href=#3972 id=3972 data-nosnippet>3972</a>    }
-<a href=#3973 id=3973 data-nosnippet>3973</a>
-<a href=#3974 id=3974 data-nosnippet>3974</a>    <span class="attr">#[test]
-<a href=#3975 id=3975 data-nosnippet>3975</a>    </span><span class="kw">fn </span>test_production_validation() {
-<a href=#3976 id=3976 data-nosnippet>3976</a>        <span class="kw">let </span>test_did = Did::from_str(<span class="string">"did:key:zTestValidation"</span>).unwrap();
-<a href=#3977 id=3977 data-nosnippet>3977</a>
-<a href=#3978 id=3978 data-nosnippet>3978</a>        <span class="comment">// Create a testing context (which uses stubs)
-<a href=#3979 id=3979 data-nosnippet>3979</a>        </span><span class="kw">let </span>ctx = RuntimeContext::new_testing(test_did, <span class="prelude-val">Some</span>(<span class="number">100</span>)).unwrap();
-<a href=#3980 id=3980 data-nosnippet>3980</a>
-<a href=#3981 id=3981 data-nosnippet>3981</a>        <span class="comment">// Validation should fail because it's using stub services
-<a href=#3982 id=3982 data-nosnippet>3982</a>        </span><span class="kw">let </span>result = ctx.validate_production_services();
-<a href=#3983 id=3983 data-nosnippet>3983</a>        <span class="macro">assert!</span>(result.is_err());
-<a href=#3984 id=3984 data-nosnippet>3984</a>        <span class="macro">assert!</span>(result.unwrap_err().to_string().contains(<span class="string">"PRODUCTION ERROR"</span>));
-<a href=#3985 id=3985 data-nosnippet>3985</a>    }
+<a href=#3958 id=3958 data-nosnippet>3958</a>        <span class="kw">let </span>ctx = RuntimeContextBuilder::new(EnvironmentType::Testing)
+<a href=#3959 id=3959 data-nosnippet>3959</a>            .with_identity(test_did.clone())
+<a href=#3960 id=3960 data-nosnippet>3960</a>            .with_initial_mana(<span class="number">100</span>)
+<a href=#3961 id=3961 data-nosnippet>3961</a>            .build()
+<a href=#3962 id=3962 data-nosnippet>3962</a>            .unwrap();
+<a href=#3963 id=3963 data-nosnippet>3963</a>
+<a href=#3964 id=3964 data-nosnippet>3964</a>        <span class="macro">assert_eq!</span>(ctx.current_identity, test_did);
+<a href=#3965 id=3965 data-nosnippet>3965</a>        <span class="macro">assert_eq!</span>(ctx.get_mana(<span class="kw-2">&amp;</span>test_did).<span class="kw">await</span>.unwrap(), <span class="number">100</span>);
+<a href=#3966 id=3966 data-nosnippet>3966</a>    }
+<a href=#3967 id=3967 data-nosnippet>3967</a>
+<a href=#3968 id=3968 data-nosnippet>3968</a>    <span class="attr">#[test]
+<a href=#3969 id=3969 data-nosnippet>3969</a>    </span><span class="kw">fn </span>test_runtime_context_builder_validation() {
+<a href=#3970 id=3970 data-nosnippet>3970</a>        <span class="comment">// Should fail without identity
+<a href=#3971 id=3971 data-nosnippet>3971</a>        </span><span class="kw">let </span>result = RuntimeContextBuilder::new(EnvironmentType::Testing).build();
+<a href=#3972 id=3972 data-nosnippet>3972</a>
+<a href=#3973 id=3973 data-nosnippet>3973</a>        <span class="macro">assert!</span>(result.is_err());
+<a href=#3974 id=3974 data-nosnippet>3974</a>        <span class="macro">assert!</span>(result
+<a href=#3975 id=3975 data-nosnippet>3975</a>            .unwrap_err()
+<a href=#3976 id=3976 data-nosnippet>3976</a>            .to_string()
+<a href=#3977 id=3977 data-nosnippet>3977</a>            .contains(<span class="string">"Current identity is required"</span>));
+<a href=#3978 id=3978 data-nosnippet>3978</a>    }
+<a href=#3979 id=3979 data-nosnippet>3979</a>
+<a href=#3980 id=3980 data-nosnippet>3980</a>    <span class="attr">#[test]
+<a href=#3981 id=3981 data-nosnippet>3981</a>    </span><span class="kw">fn </span>test_production_validation() {
+<a href=#3982 id=3982 data-nosnippet>3982</a>        <span class="kw">let </span>test_did = Did::from_str(<span class="string">"did:key:zTestValidation"</span>).unwrap();
+<a href=#3983 id=3983 data-nosnippet>3983</a>
+<a href=#3984 id=3984 data-nosnippet>3984</a>        <span class="comment">// Create a testing context (which uses stubs)
+<a href=#3985 id=3985 data-nosnippet>3985</a>        </span><span class="kw">let </span>ctx = RuntimeContext::new_testing(test_did, <span class="prelude-val">Some</span>(<span class="number">100</span>)).unwrap();
 <a href=#3986 id=3986 data-nosnippet>3986</a>
-<a href=#3987 id=3987 data-nosnippet>3987</a>    <span class="attr">#[tokio::test]
-<a href=#3988 id=3988 data-nosnippet>3988</a>    </span><span class="kw">async fn </span>test_deprecated_methods_still_work() {
-<a href=#3989 id=3989 data-nosnippet>3989</a>        <span class="attr">#[allow(deprecated)]
-<a href=#3990 id=3990 data-nosnippet>3990</a>        </span><span class="kw">let </span>ctx = RuntimeContext::new_with_stubs(<span class="string">"did:key:zTestDeprecated"</span>).unwrap();
-<a href=#3991 id=3991 data-nosnippet>3991</a>
-<a href=#3992 id=3992 data-nosnippet>3992</a>        <span class="comment">// Should still create a valid context
-<a href=#3993 id=3993 data-nosnippet>3993</a>        </span><span class="macro">assert!</span>(ctx.current_identity.to_string().contains(<span class="string">"zTestDeprecated"</span>));
-<a href=#3994 id=3994 data-nosnippet>3994</a>
+<a href=#3987 id=3987 data-nosnippet>3987</a>        <span class="comment">// Validation should fail because it's using stub services
+<a href=#3988 id=3988 data-nosnippet>3988</a>        </span><span class="kw">let </span>result = ctx.validate_production_services();
+<a href=#3989 id=3989 data-nosnippet>3989</a>        <span class="macro">assert!</span>(result.is_err());
+<a href=#3990 id=3990 data-nosnippet>3990</a>        <span class="macro">assert!</span>(result.unwrap_err().to_string().contains(<span class="string">"PRODUCTION ERROR"</span>));
+<a href=#3991 id=3991 data-nosnippet>3991</a>    }
+<a href=#3992 id=3992 data-nosnippet>3992</a>
+<a href=#3993 id=3993 data-nosnippet>3993</a>    <span class="attr">#[tokio::test]
+<a href=#3994 id=3994 data-nosnippet>3994</a>    </span><span class="kw">async fn </span>test_deprecated_methods_still_work() {
 <a href=#3995 id=3995 data-nosnippet>3995</a>        <span class="attr">#[allow(deprecated)]
-<a href=#3996 id=3996 data-nosnippet>3996</a>        </span><span class="kw">let </span>ctx2 = RuntimeContext::new_with_stubs_and_mana(<span class="string">"did:key:zTestDeprecated2"</span>, <span class="number">50</span>).unwrap();
-<a href=#3997 id=3997 data-nosnippet>3997</a>        <span class="macro">assert_eq!</span>(ctx2.get_mana(<span class="kw-2">&amp;</span>ctx2.current_identity).<span class="kw">await</span>.unwrap(), <span class="number">50</span>);
-<a href=#3998 id=3998 data-nosnippet>3998</a>    }
-<a href=#3999 id=3999 data-nosnippet>3999</a>}</code></pre></div></section></main></body></html>
+<a href=#3996 id=3996 data-nosnippet>3996</a>        </span><span class="kw">let </span>ctx = RuntimeContext::new_with_stubs(<span class="string">"did:key:zTestDeprecated"</span>).unwrap();
+<a href=#3997 id=3997 data-nosnippet>3997</a>
+<a href=#3998 id=3998 data-nosnippet>3998</a>        <span class="comment">// Should still create a valid context
+<a href=#3999 id=3999 data-nosnippet>3999</a>        </span><span class="macro">assert!</span>(ctx.current_identity.to_string().contains(<span class="string">"zTestDeprecated"</span>));
+<a href=#4000 id=4000 data-nosnippet>4000</a>
+<a href=#4001 id=4001 data-nosnippet>4001</a>        <span class="attr">#[allow(deprecated)]
+<a href=#4002 id=4002 data-nosnippet>4002</a>        </span><span class="kw">let </span>ctx2 = RuntimeContext::new_with_stubs_and_mana(<span class="string">"did:key:zTestDeprecated2"</span>, <span class="number">50</span>).unwrap();
+<a href=#4003 id=4003 data-nosnippet>4003</a>        <span class="macro">assert_eq!</span>(ctx2.get_mana(<span class="kw-2">&amp;</span>ctx2.current_identity).<span class="kw">await</span>.unwrap(), <span class="number">50</span>);
+<a href=#4004 id=4004 data-nosnippet>4004</a>    }
+<a href=#4005 id=4005 data-nosnippet>4005</a>}</code></pre></div></section></main></body></html>
