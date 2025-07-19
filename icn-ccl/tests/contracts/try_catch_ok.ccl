@@ -1,0 +1,7 @@
+fn may_fail(x: Integer) -> Result<Integer> {
+    if x > 0 { Ok(x) } else { Err(1) }
+}
+
+fn run() -> Result<Integer> {
+    try may_fail(0) catch Ok(42)
+}

@@ -1,0 +1,7 @@
+fn may_fail() -> Result<Integer> {
+    Err(9)
+}
+
+fn run() -> Result<Integer> {
+    try may_fail()
+}
