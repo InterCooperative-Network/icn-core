@@ -92,27 +92,139 @@ See [Architecture Documentation](docs/ARCHITECTURE.md) for detailed component re
 
 ---
 
+## 📱 Cross-Platform Applications
+
+ICN provides comprehensive user interfaces across all major platforms. Built with modern technologies for maximum code sharing and native performance.
+
+### **Mobile & Desktop Apps** (React Native + Expo + Tauri)
+- **`wallet-ui`** 📱 – Secure DID and key management interface
+  - Platforms: iOS, Android, Web, Desktop
+  - Features: DID creation, private key storage, mana tracking, job submission
+  - Technology: React Native + Tamagui + Expo + Tauri
+
+- **`agoranet`** 🗳️ – Governance deliberation and voting platform  
+  - Platforms: iOS, Android, Web, Desktop
+  - Features: Proposal creation, community deliberation, voting interface
+  - Technology: React Native + Tamagui + Expo + Tauri
+
+### **Web Applications** (React + Vite + Tailwind)
+- **`web-ui`** 🌐 – Federation administration dashboard
+  - Platform: Web browser (PWA-enabled)
+  - Features: Member management, system monitoring, network configuration
+  - Technology: React + Vite + TypeScript + Tailwind CSS
+
+- **`explorer`** 🔍 – DAG viewer and network activity browser
+  - Platform: Web browser (PWA-enabled)  
+  - Features: DAG visualization, job tracking, network analytics
+  - Technology: React + Vite + D3.js + Tailwind CSS
+
+### **Shared Infrastructure**
+- **`ui-kit`** 🎨 – Cross-platform component library (Tamagui)
+- **`ts-sdk`** 🛠️ – TypeScript SDK for all frontend applications
+
+### **Development Commands**
+```bash
+# Frontend development setup
+just setup-frontend
+just install-frontend
+
+# Start individual apps
+just dev-wallet      # Wallet UI (all platforms)
+just dev-agoranet    # Governance interface
+just dev-web-ui      # Admin dashboard  
+just dev-explorer    # Network explorer
+
+# Mobile development
+just dev-mobile      # React Native apps on iOS/Android
+
+# Desktop development  
+just dev-desktop     # Tauri desktop apps
+
+# Build for production
+just build-frontend  # Build all frontend apps
+```
+
+**Platform Support Matrix**:
+| App | Web | iOS | Android | Desktop (Windows/Mac/Linux) |
+|-----|-----|-----|---------|------------------------------|
+| Wallet UI | ✅ | ✅ | ✅ | ✅ |
+| AgoraNet | ✅ | ✅ | ✅ | ✅ |
+| Web UI | ✅ | 📱 | 📱 | 🔄 |
+| Explorer | ✅ | 📱 | 📱 | 🔄 |
+
+*Legend: ✅ Native app • 📱 Responsive web • 🔄 Future support*
+
+See individual app READMEs for detailed setup and deployment instructions.
+
+---
+
 ## 🛠️ Development
 
 ### Prerequisites
+
+#### **Backend Development (Rust)**
 - **Rust** (stable toolchain via `rust-toolchain.toml`)
 - **Just** command runner
 - **Git** with pre-commit hooks
 
+#### **Frontend Development**
+- **Node.js** 18+ ([Download](https://nodejs.org/))
+- **pnpm** 8+ (package manager)
+- **iOS Development** (macOS only): Xcode and iOS Simulator
+- **Android Development**: Android Studio and Android SDK
+- **Desktop Development**: Rust toolchain (for Tauri)
+
 ### Development Workflow
+
+#### **Complete Stack Development**
 ```bash
-# Setup development environment
+# Setup entire development environment (Rust + Frontend)
+just setup-all
+
+# Full stack validation
+just validate-all-stack
+
+# Build everything (backend + frontend)
+just build-all-stack
+```
+
+#### **Backend Development (Rust)**
+```bash
+# Setup Rust development environment
 just setup
 
 # Core development commands
 just test          # Run all tests
 just lint          # Check code quality  
 just build         # Build all crates
-just dev           # Start development server
 
 # Federation testing
 just devnet        # Start 3-node test federation
 just test-e2e      # End-to-end testing
+```
+
+#### **Frontend Development**
+```bash
+# Setup frontend development environment
+just setup-frontend
+
+# Start all frontend apps
+just dev-frontend
+
+# Start specific apps
+just dev-wallet    # Cross-platform wallet
+just dev-agoranet  # Governance interface
+just dev-web-ui    # Admin dashboard
+just dev-explorer  # Network explorer
+
+# Platform-specific development
+just dev-mobile    # Mobile apps (iOS/Android)
+just dev-desktop   # Desktop apps (Tauri)
+
+# Frontend validation
+just lint-frontend
+just test-frontend
+just build-frontend
 ```
 
 **Detailed Guides**:

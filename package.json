@@ -1,0 +1,64 @@
+{
+  "name": "icn-monorepo",
+  "version": "0.2.0",
+  "description": "InterCooperative Network - Cross-platform infrastructure for cooperative digital economy",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "crates/icn-api/client-sdk"
+  ],
+  "packageManager": "pnpm@8.0.0",
+  "scripts": {
+    "dev": "pnpm --parallel --recursive dev",
+    "build": "pnpm --recursive build",
+    "test": "pnpm --recursive test",
+    "lint": "pnpm --recursive lint",
+    "format": "pnpm --recursive format",
+    "type-check": "pnpm --recursive type-check",
+    "clean": "pnpm --recursive clean && rm -rf node_modules",
+    "dev:wallet": "pnpm --filter wallet-ui dev",
+    "dev:agoranet": "pnpm --filter agoranet dev",
+    "dev:web-ui": "pnpm --filter web-ui dev",
+    "dev:explorer": "pnpm --filter explorer dev",
+    "build:wallet": "pnpm --filter wallet-ui build",
+    "build:agoranet": "pnpm --filter agoranet build",
+    "build:web-ui": "pnpm --filter web-ui build",
+    "build:explorer": "pnpm --filter explorer build",
+    "tauri:dev": "pnpm --recursive tauri:dev",
+    "tauri:build": "pnpm --recursive tauri:build",
+    "mobile:dev": "pnpm --recursive mobile:dev",
+    "mobile:build": "pnpm --recursive mobile:build"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.50.0",
+    "prettier": "^3.0.0",
+    "typescript": "^5.2.0",
+    "turbo": "^1.10.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "keywords": [
+    "icn",
+    "intercooperative",
+    "network",
+    "cooperative",
+    "federation",
+    "governance",
+    "mesh-computing",
+    "cross-platform",
+    "react-native",
+    "tamagui",
+    "expo"
+  ],
+  "author": "ICN Core Contributors",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/InterCooperative/icn-core"
+  }
+} 

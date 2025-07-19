@@ -1,0 +1,62 @@
+{
+  "name": "@icn/ts-sdk",
+  "version": "0.1.0",
+  "description": "TypeScript SDK for ICN applications - React Native and Web compatible",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist/**/*",
+    "src/**/*",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint src/**/*.ts",
+    "format": "prettier --write src/**/*.ts",
+    "test": "vitest",
+    "clean": "rm -rf dist .turbo"
+  },
+  "dependencies": {
+    "@icn/client-sdk": "workspace:*"
+  },
+  "peerDependencies": {
+    "@react-native-async-storage/async-storage": "^1.19.0"
+  },
+  "peerDependenciesMeta": {
+    "@react-native-async-storage/async-storage": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.50.0",
+    "prettier": "^3.0.0",
+    "tsup": "^7.2.0",
+    "typescript": "^5.2.0",
+    "vitest": "^0.34.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "icn",
+    "typescript",
+    "sdk",
+    "client",
+    "react-native",
+    "web",
+    "cross-platform"
+  ],
+  "author": "ICN Core Contributors",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/InterCooperative/icn-core",
+    "directory": "packages/ts-sdk"
+  }
+} 

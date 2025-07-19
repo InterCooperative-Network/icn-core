@@ -101,3 +101,103 @@ metrics:
 # Build documentation for all crates
 docs:
     cargo doc --workspace --no-deps
+
+# Frontend Development Commands
+# Requires Node.js 18+ and pnpm
+
+# Set up frontend development environment
+setup-frontend:
+    @echo "Setting up frontend development environment..."
+    @if ! command -v node >/dev/null 2>&1; then echo "❌ Node.js not found. Please install Node.js 18+"; exit 1; fi
+    @if ! command -v pnpm >/dev/null 2>&1; then echo "❌ pnpm not found. Installing pnpm..."; npm install -g pnpm; fi
+    pnpm install
+    @echo "✅ Frontend development environment setup complete!"
+
+# Install all frontend dependencies
+install-frontend:
+    pnpm install
+
+# Start all frontend apps in development mode
+dev-frontend:
+    pnpm dev
+
+# Start specific frontend app
+dev-wallet:
+    pnpm dev:wallet
+
+dev-agoranet:
+    pnpm dev:agoranet
+
+dev-web-ui:
+    pnpm dev:web-ui
+
+dev-explorer:
+    pnpm dev:explorer
+
+# Build all frontend apps for production
+build-frontend:
+    pnpm build
+
+# Build specific frontend app
+build-wallet:
+    pnpm build:wallet
+
+build-agoranet:
+    pnpm build:agoranet
+
+build-web-ui:
+    pnpm build:web-ui
+
+build-explorer:
+    pnpm build:explorer
+
+# Test frontend applications
+test-frontend:
+    pnpm test
+
+# Lint frontend code
+lint-frontend:
+    pnpm lint
+
+# Format frontend code
+format-frontend:
+    pnpm format
+
+# Type check frontend code
+type-check-frontend:
+    pnpm type-check
+
+# Clean frontend build artifacts
+clean-frontend:
+    pnpm clean
+
+# Mobile development commands
+dev-mobile:
+    pnpm mobile:dev
+
+build-mobile:
+    pnpm mobile:build
+
+# Desktop development commands (Tauri)
+dev-desktop:
+    pnpm tauri:dev
+
+build-desktop:
+    pnpm tauri:build
+
+# Complete development setup (Rust + Frontend)
+setup-all:
+    just setup
+    just setup-frontend
+
+# Complete validation (Rust + Frontend)
+validate-all-stack:
+    just validate-all
+    just lint-frontend
+    just type-check-frontend
+    just test-frontend
+
+# Build everything (Rust + Frontend)
+build-all-stack:
+    just build-all-features
+    just build-frontend
