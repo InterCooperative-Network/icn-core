@@ -938,6 +938,171 @@ pub struct JobLifecycle {
     pub assignment: Option<JobAssignment>,
     /// Execution receipt if the job was completed.
     pub receipt: Option<JobReceipt>,
+    /// Checkpoints saved during job execution.
+    #[serde(default)]
+    pub checkpoints: Vec<JobCheckpoint>,
+    /// Partial output receipts for long-running jobs.
+    #[serde(default)]
+    pub partial_outputs: Vec<PartialOutputReceipt>,
+}
+
+// --- Long-Running Job Support ---
+
+/// Represents a snapshot of a job's execution state for long-running jobs.
+/// This allows jobs to be resumed from checkpoints if they are interrupted.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct JobCheckpoint {
+    /// The ID of the job this checkpoint belongs to.
+    pub job_id: JobId,
+    /// Unique identifier for this checkpoint.
+    pub checkpoint_id: String,
+    /// Timestamp when the checkpoint was created.
+    pub timestamp: u64,
+    /// Current execution stage/step.
+    pub stage: String,
+    /// Percentage completion (0-100).
+    pub progress_percent: f32,
+    /// Serialized execution state that can be used to resume.
+    pub execution_state: Vec<u8>,
+    /// CID of any intermediate data produced up to this point.
+    pub intermediate_data_cid: Option<Cid>,
+    /// Executor that created this checkpoint.
+    pub executor_did: Did,
+    /// Signature from the executor over the checkpoint data.
+    pub signature: SignatureBytes,
+}
+
+impl JobCheckpoint {
+    /// Creates the canonical message bytes for signing the checkpoint.
+    pub fn to_signable_bytes(&self) -> Result<Vec<u8>, CommonError> {
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(self.job_id.to_string().as_bytes());
+        bytes.extend_from_slice(self.checkpoint_id.as_bytes());
+        bytes.extend_from_slice(&self.timestamp.to_le_bytes());
+        bytes.extend_from_slice(self.stage.as_bytes());
+        bytes.extend_from_slice(&self.progress_percent.to_le_bytes());
+        bytes.extend_from_slice(self.executor_did.to_string().as_bytes());
+        if let Some(cid) = &self.intermediate_data_cid {
+            bytes.extend_from_slice(cid.to_string().as_bytes());
+        }
+        Ok(bytes)
+    }
+
+    /// Sign the checkpoint using the executor's signing key.
+    pub fn sign(mut self, signing_key: &IdentitySigningKey) -> Result<Self, CommonError> {
+        let message = self.to_signable_bytes()?;
+        let ed_sig = identity_sign_message(signing_key, &message);
+        self.signature = SignatureBytes(ed_sig.to_bytes().to_vec());
+        Ok(self)
+    }
+
+    /// Verify the checkpoint signature against the executor's verifying key.
+    pub fn verify_signature(
+        &self,
+        verifying_key: &IdentityVerifyingKey,
+    ) -> Result<(), CommonError> {
+        let message = self.to_signable_bytes()?;
+        let ed_sig = self.signature.to_ed_signature()?;
+        if identity_verify_signature(verifying_key, &message, &ed_sig) {
+            Ok(())
+        } else {
+            Err(CommonError::InternalError(
+                "JobCheckpoint signature verification failed".into(),
+            ))
+        }
+    }
+}
+
+/// Represents intermediate output produced during a long-running job execution.
+/// Multiple partial outputs can be produced for a single job.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PartialOutputReceipt {
+    /// The ID of the job this partial output belongs to.
+    pub job_id: JobId,
+    /// Unique identifier for this partial output.
+    pub output_id: String,
+    /// The execution stage that produced this output.
+    pub stage: String,
+    /// Timestamp when this output was produced.
+    pub timestamp: u64,
+    /// CID of the partial output data.
+    pub output_cid: Cid,
+    /// Size of the output data in bytes.
+    pub output_size: u64,
+    /// MIME type or format of the output.
+    pub output_format: Option<String>,
+    /// Executor that produced this output.
+    pub executor_did: Did,
+    /// Signature from the executor over the output receipt.
+    pub signature: SignatureBytes,
+}
+
+impl PartialOutputReceipt {
+    /// Creates the canonical message bytes for signing the partial output receipt.
+    pub fn to_signable_bytes(&self) -> Result<Vec<u8>, CommonError> {
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(self.job_id.to_string().as_bytes());
+        bytes.extend_from_slice(self.output_id.as_bytes());
+        bytes.extend_from_slice(self.stage.as_bytes());
+        bytes.extend_from_slice(&self.timestamp.to_le_bytes());
+        bytes.extend_from_slice(self.output_cid.to_string().as_bytes());
+        bytes.extend_from_slice(&self.output_size.to_le_bytes());
+        bytes.extend_from_slice(self.executor_did.to_string().as_bytes());
+        if let Some(format) = &self.output_format {
+            bytes.extend_from_slice(format.as_bytes());
+        }
+        Ok(bytes)
+    }
+
+    /// Sign the partial output receipt using the executor's signing key.
+    pub fn sign(mut self, signing_key: &IdentitySigningKey) -> Result<Self, CommonError> {
+        let message = self.to_signable_bytes()?;
+        let ed_sig = identity_sign_message(signing_key, &message);
+        self.signature = SignatureBytes(ed_sig.to_bytes().to_vec());
+        Ok(self)
+    }
+
+    /// Verify the partial output receipt signature against the executor's verifying key.
+    pub fn verify_signature(
+        &self,
+        verifying_key: &IdentityVerifyingKey,
+    ) -> Result<(), CommonError> {
+        let message = self.to_signable_bytes()?;
+        let ed_sig = self.signature.to_ed_signature()?;
+        if identity_verify_signature(verifying_key, &message, &ed_sig) {
+            Ok(())
+        } else {
+            Err(CommonError::InternalError(
+                "PartialOutputReceipt signature verification failed".into(),
+            ))
+        }
+    }
+}
+
+/// Represents the current progress status of a job execution.
+/// This is used for real-time progress reporting and streaming APIs.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProgressReport {
+    /// The ID of the job this progress report belongs to.
+    pub job_id: JobId,
+    /// Current execution stage/step.
+    pub current_stage: String,
+    /// Percentage completion (0.0-100.0).
+    pub progress_percent: f32,
+    /// Estimated time to completion in seconds (if available).
+    pub eta_seconds: Option<u64>,
+    /// Human-readable progress message.
+    pub message: String,
+    /// Timestamp when this progress was reported.
+    pub timestamp: u64,
+    /// Executor reporting this progress.
+    pub executor_did: Did,
+    /// List of completed stages.
+    #[serde(default)]
+    pub completed_stages: Vec<String>,
+    /// List of remaining stages.
+    #[serde(default)]
+    pub remaining_stages: Vec<String>,
 }
 
 impl JobLifecycle {
@@ -948,6 +1113,8 @@ impl JobLifecycle {
             bids: Vec::new(),
             assignment: None,
             receipt: None,
+            checkpoints: Vec::new(),
+            partial_outputs: Vec::new(),
         }
     }
 
@@ -966,6 +1133,33 @@ impl JobLifecycle {
         self.receipt = Some(receipt);
     }
 
+    /// Add a checkpoint to this lifecycle.
+    pub fn add_checkpoint(&mut self, checkpoint: JobCheckpoint) {
+        self.checkpoints.push(checkpoint);
+    }
+
+    /// Add a partial output receipt to this lifecycle.
+    pub fn add_partial_output(&mut self, partial_output: PartialOutputReceipt) {
+        self.partial_outputs.push(partial_output);
+    }
+
+    /// Get the latest checkpoint for this job.
+    pub fn latest_checkpoint(&self) -> Option<&JobCheckpoint> {
+        self.checkpoints.iter().max_by_key(|c| c.timestamp)
+    }
+
+    /// Get the current progress based on the latest checkpoint.
+    pub fn current_progress(&self) -> Option<f32> {
+        self.latest_checkpoint().map(|c| c.progress_percent)
+    }
+
+    /// Get all partial outputs ordered by timestamp.
+    pub fn ordered_partial_outputs(&self) -> Vec<&PartialOutputReceipt> {
+        let mut outputs = self.partial_outputs.iter().collect::<Vec<_>>();
+        outputs.sort_by_key(|o| o.timestamp);
+        outputs
+    }
+
     /// Get the current status based on what lifecycle events exist.
     pub fn current_status(&self) -> JobLifecycleStatus {
         if let Some(receipt) = &self.receipt {
@@ -975,12 +1169,22 @@ impl JobLifecycle {
                 JobLifecycleStatus::Failed
             }
         } else if self.assignment.is_some() {
-            JobLifecycleStatus::Executing
+            // Check if we have recent checkpoint activity to determine if still executing
+            if !self.checkpoints.is_empty() {
+                JobLifecycleStatus::Executing
+            } else {
+                JobLifecycleStatus::Assigned
+            }
         } else if !self.bids.is_empty() {
             JobLifecycleStatus::BiddingClosed // Could be more nuanced
         } else {
             self.job.status.clone()
         }
+    }
+
+    /// Check if this is a long-running job (has checkpoints or partial outputs).
+    pub fn is_long_running(&self) -> bool {
+        !self.checkpoints.is_empty() || !self.partial_outputs.is_empty()
     }
 }
 
@@ -1301,7 +1505,8 @@ mod tests {
             &policy,
             &rep_store,
             &ledger,
-            &latency,latency,latency,latency,
+            &latency,
+            &capability_checker,
             &capability_checker,
         );
 
@@ -1363,7 +1568,8 @@ mod tests {
             &policy,
             &rep_store,
             &ledger,
-            &latency,latency,
+            &latency,
+            &capability_checker,
             &capability_checker,
             &capability_checker,
         );
@@ -1425,7 +1631,8 @@ mod tests {
             &policy,
             &rep_store,
             &ledger,
-            &latency,latency,latency,latency,
+            &latency,
+            &capability_checker,
         );
 
         assert_eq!(selected.unwrap(), cheap);
@@ -1478,7 +1685,8 @@ mod tests {
             &policy,
             &rep_store,
             &ledger,
-            &latency,latency,latency,latency,
+            &latency,
+            &capability_checker,
         );
 
         assert_eq!(selected.unwrap(), b);
@@ -1553,7 +1761,8 @@ mod tests {
             &policy,
             &rep_store,
             &ledger,
-            &latency,latency,latency,latency,
+            &latency,
+            &capability_checker,
         );
 
         assert_eq!(selected.unwrap(), fast);
@@ -1617,7 +1826,8 @@ mod tests {
             &policy,
             &rep_store,
             &ledger,
-            &latency,latency,latency,latency,
+            &latency,
+            &capability_checker,
         );
 
         assert!(selected.is_none());
@@ -1668,7 +1878,8 @@ mod tests {
             &policy,
             &rep_store,
             &ledger,
-            &latency,latency,latency,latency,
+            &latency,
+            &capability_checker,
         );
 
         assert!(selected.is_none());
@@ -1823,7 +2034,8 @@ mod tests {
             &policy,
             &rep_store,
             &ledger,
-            &latency,latency,latency,latency,
+            &latency,
+            &capability_checker,
         );
 
         // Should select executor from federation A only
@@ -1889,7 +2101,8 @@ mod tests {
             &policy,
             &rep_store,
             &ledger,
-            &latency,latency,latency,latency,
+            &latency,
+            &capability_checker,
         );
 
         // Should select executor A despite higher price because it has required GPU capability
@@ -1953,7 +2166,8 @@ mod tests {
             &policy,
             &rep_store,
             &ledger,
-            &latency,latency,latency,latency,
+            &latency,
+            &capability_checker,
         );
 
         // Should select high reputation executor despite higher price
@@ -2019,10 +2233,142 @@ mod tests {
             &policy,
             &rep_store,
             &ledger,
-            &latency,latency,latency,latency,
+            &latency,
+            &capability_checker,
         );
 
         // Should select executor A because it matches required trust scope
         assert_eq!(selected.unwrap(), executor_a);
+    }
+
+    #[test]
+    fn test_job_checkpoint_signing_and_verification() {
+        let (sk, vk) = icn_identity::generate_ed25519_keypair();
+        let executor_did = Did::from_str(&icn_identity::did_key_from_verifying_key(&vk)).unwrap();
+
+        let checkpoint = JobCheckpoint {
+            job_id: dummy_job_id("checkpoint_test"),
+            checkpoint_id: "checkpoint_001".to_string(),
+            timestamp: 1000,
+            stage: "processing".to_string(),
+            progress_percent: 50.0,
+            execution_state: vec![1, 2, 3, 4],
+            intermediate_data_cid: Some(dummy_cid("intermediate")),
+            executor_did: executor_did.clone(),
+            signature: SignatureBytes(vec![]),
+        }
+        .sign(&sk)
+        .unwrap();
+
+        assert!(checkpoint.verify_signature(&vk).is_ok());
+
+        let (_sk2, vk2) = icn_identity::generate_ed25519_keypair();
+        assert!(checkpoint.verify_signature(&vk2).is_err());
+
+        let mut tampered = checkpoint.clone();
+        tampered.progress_percent = 75.0;
+        assert!(tampered.verify_signature(&vk).is_err());
+    }
+
+    #[test]
+    fn test_partial_output_receipt_signing_and_verification() {
+        let (sk, vk) = icn_identity::generate_ed25519_keypair();
+        let executor_did = Did::from_str(&icn_identity::did_key_from_verifying_key(&vk)).unwrap();
+
+        let partial_output = PartialOutputReceipt {
+            job_id: dummy_job_id("output_test"),
+            output_id: "output_001".to_string(),
+            stage: "stage1".to_string(),
+            timestamp: 2000,
+            output_cid: dummy_cid("output_data"),
+            output_size: 1024,
+            output_format: Some("application/json".to_string()),
+            executor_did: executor_did.clone(),
+            signature: SignatureBytes(vec![]),
+        }
+        .sign(&sk)
+        .unwrap();
+
+        assert!(partial_output.verify_signature(&vk).is_ok());
+
+        let (_sk2, vk2) = icn_identity::generate_ed25519_keypair();
+        assert!(partial_output.verify_signature(&vk2).is_err());
+
+        let mut tampered = partial_output.clone();
+        tampered.output_size = 2048;
+        assert!(tampered.verify_signature(&vk).is_err());
+    }
+
+    #[test]
+    fn test_job_lifecycle_with_checkpoints() {
+        let job = Job {
+            id: dummy_job_id("lifecycle_test"),
+            manifest_cid: dummy_cid("manifest"),
+            spec_bytes: vec![],
+            spec_json: None,
+            submitter_did: Did::from_str("did:key:submitter").unwrap(),
+            cost_mana: 100,
+            submitted_at: 1000,
+            status: JobLifecycleStatus::Submitted,
+            resource_requirements: Resources::default(),
+        };
+
+        let mut lifecycle = JobLifecycle::new(job);
+
+        // Add a checkpoint
+        let checkpoint = JobCheckpoint {
+            job_id: dummy_job_id("lifecycle_test"),
+            checkpoint_id: "cp1".to_string(),
+            timestamp: 2000,
+            stage: "processing".to_string(),
+            progress_percent: 30.0,
+            execution_state: vec![],
+            intermediate_data_cid: None,
+            executor_did: Did::from_str("did:key:executor").unwrap(),
+            signature: SignatureBytes(vec![]),
+        };
+
+        lifecycle.add_checkpoint(checkpoint);
+
+        // Add a partial output
+        let partial_output = PartialOutputReceipt {
+            job_id: dummy_job_id("lifecycle_test"),
+            output_id: "out1".to_string(),
+            stage: "stage1".to_string(),
+            timestamp: 2500,
+            output_cid: dummy_cid("output"),
+            output_size: 512,
+            output_format: None,
+            executor_did: Did::from_str("did:key:executor").unwrap(),
+            signature: SignatureBytes(vec![]),
+        };
+
+        lifecycle.add_partial_output(partial_output);
+
+        assert!(lifecycle.is_long_running());
+        assert_eq!(lifecycle.current_progress(), Some(30.0));
+        assert_eq!(lifecycle.checkpoints.len(), 1);
+        assert_eq!(lifecycle.partial_outputs.len(), 1);
+        assert_eq!(lifecycle.latest_checkpoint().unwrap().checkpoint_id, "cp1");
+    }
+
+    #[test]
+    fn test_progress_report_creation() {
+        let progress = ProgressReport {
+            job_id: dummy_job_id("progress_test"),
+            current_stage: "data_processing".to_string(),
+            progress_percent: 65.5,
+            eta_seconds: Some(300),
+            message: "Processing batch 3 of 5".to_string(),
+            timestamp: 3000,
+            executor_did: Did::from_str("did:key:executor").unwrap(),
+            completed_stages: vec!["initialization".to_string(), "validation".to_string()],
+            remaining_stages: vec!["finalization".to_string(), "cleanup".to_string()],
+        };
+
+        assert_eq!(progress.progress_percent, 65.5);
+        assert_eq!(progress.eta_seconds, Some(300));
+        assert_eq!(progress.completed_stages.len(), 2);
+        assert_eq!(progress.remaining_stages.len(), 2);
     }
 }

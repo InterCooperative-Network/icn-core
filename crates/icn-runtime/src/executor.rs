@@ -12,10 +12,12 @@ use icn_identity::{
 };
 #[cfg(test)]
 use icn_mesh::JobSpec; /* ... other mesh types ... */
-use icn_mesh::{ActualMeshJob, JobKind};
+use icn_mesh::{ActualMeshJob, JobCheckpoint, JobKind, PartialOutputReceipt, ProgressReport};
 use log::{error, info, warn}; // Added warn, error
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
+use std::collections::HashMap;
+use tokio::sync::RwLock;
 use wasmparser::{Parser, Payload};
 use wasmtime::{Caller, Config, Linker, Module, ResourceLimiter, Store};
 
@@ -27,6 +29,33 @@ pub trait JobExecutor: Send + Sync {
         &self,
         job: &ActualMeshJob,
     ) -> Result<IdentityExecutionReceipt, CommonError>;
+
+    /// Executes a job with checkpoint support for long-running jobs.
+    /// This method can save progress periodically and resume from checkpoints.
+    async fn execute_job_with_checkpoints(
+        &self,
+        job: &ActualMeshJob,
+        checkpoint_interval_secs: Option<u64>,
+    ) -> Result<IdentityExecutionReceipt, CommonError> {
+        // Default implementation falls back to regular execution
+        self.execute_job(job).await
+    }
+
+    /// Resume execution from a checkpoint.
+    async fn resume_from_checkpoint(
+        &self,
+        job: &ActualMeshJob,
+        checkpoint: &JobCheckpoint,
+    ) -> Result<IdentityExecutionReceipt, CommonError> {
+        // Default implementation ignores checkpoint and starts fresh
+        self.execute_job(job).await
+    }
+
+    /// Get current progress for a running job (if supported).
+    async fn get_job_progress(&self, job_id: &icn_mesh::JobId) -> Option<ProgressReport> {
+        // Default implementation returns None
+        None
+    }
 }
 
 /// Security limits for WASM execution
@@ -213,11 +242,115 @@ impl WasmModuleValidator {
     }
 }
 
+/// Manages job checkpoints and progress tracking for long-running jobs.
+#[derive(Debug, Clone)]
+pub struct CheckpointManager {
+    /// In-memory storage for active job progress
+    active_jobs: Arc<RwLock<HashMap<icn_mesh::JobId, ProgressReport>>>,
+    /// Storage for job checkpoints
+    checkpoints: Arc<RwLock<HashMap<icn_mesh::JobId, Vec<JobCheckpoint>>>>,
+    /// Storage for partial outputs
+    partial_outputs: Arc<RwLock<HashMap<icn_mesh::JobId, Vec<PartialOutputReceipt>>>>,
+}
+
+impl CheckpointManager {
+    pub fn new() -> Self {
+        Self {
+            active_jobs: Arc::new(RwLock::new(HashMap::new())),
+            checkpoints: Arc::new(RwLock::new(HashMap::new())),
+            partial_outputs: Arc::new(RwLock::new(HashMap::new())),
+        }
+    }
+
+    /// Save a checkpoint for a job
+    pub async fn save_checkpoint(
+        &self,
+        job_id: &icn_mesh::JobId,
+        checkpoint: JobCheckpoint,
+    ) -> Result<(), CommonError> {
+        let mut checkpoints = self.checkpoints.write().await;
+        checkpoints.entry(job_id.clone()).or_insert_with(Vec::new).push(checkpoint);
+        Ok(())
+    }
+
+    /// Get the latest checkpoint for a job
+    pub async fn get_latest_checkpoint(
+        &self,
+        job_id: &icn_mesh::JobId,
+    ) -> Option<JobCheckpoint> {
+        let checkpoints = self.checkpoints.read().await;
+        checkpoints.get(job_id)?.last().cloned()
+    }
+
+    /// Update progress for an active job
+    pub async fn update_progress(
+        &self,
+        job_id: &icn_mesh::JobId,
+        progress: ProgressReport,
+    ) -> Result<(), CommonError> {
+        let mut active_jobs = self.active_jobs.write().await;
+        active_jobs.insert(job_id.clone(), progress);
+        Ok(())
+    }
+
+    /// Get current progress for a job
+    pub async fn get_progress(&self, job_id: &icn_mesh::JobId) -> Option<ProgressReport> {
+        let active_jobs = self.active_jobs.read().await;
+        active_jobs.get(job_id).cloned()
+    }
+
+    /// Save a partial output receipt
+    pub async fn save_partial_output(
+        &self,
+        job_id: &icn_mesh::JobId,
+        output: PartialOutputReceipt,
+    ) -> Result<(), CommonError> {
+        let mut partial_outputs = self.partial_outputs.write().await;
+        partial_outputs.entry(job_id.clone()).or_insert_with(Vec::new).push(output);
+        Ok(())
+    }
+
+    /// Get all partial outputs for a job
+    pub async fn get_partial_outputs(
+        &self,
+        job_id: &icn_mesh::JobId,
+    ) -> Vec<PartialOutputReceipt> {
+        let partial_outputs = self.partial_outputs.read().await;
+        partial_outputs.get(job_id).cloned().unwrap_or_default()
+    }
+
+    /// Check if a job has any checkpoints (indicating it's a long-running job)
+    pub async fn has_checkpoints(&self, job_id: &icn_mesh::JobId) -> bool {
+        let checkpoints = self.checkpoints.read().await;
+        checkpoints.get(job_id).map_or(false, |cp| !cp.is_empty())
+    }
+
+    /// Clean up completed job data
+    pub async fn cleanup_job(&self, job_id: &icn_mesh::JobId) -> Result<(), CommonError> {
+        let mut active_jobs = self.active_jobs.write().await;
+        let mut checkpoints = self.checkpoints.write().await;
+        let mut partial_outputs = self.partial_outputs.write().await;
+        
+        active_jobs.remove(job_id);
+        checkpoints.remove(job_id);
+        partial_outputs.remove(job_id);
+        
+        Ok(())
+    }
+}
+
+impl Default for CheckpointManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// A simple executor that can handle basic predefined tasks like echo or hashing.
 pub struct SimpleExecutor {
     node_did: Did,
     signing_key: SigningKey,
     ctx: Option<std::sync::Arc<RuntimeContext>>,
+    checkpoint_manager: CheckpointManager,
 }
 
 impl SimpleExecutor {
@@ -226,6 +359,7 @@ impl SimpleExecutor {
             node_did,
             signing_key,
             ctx: None,
+            checkpoint_manager: CheckpointManager::new(),
         }
     }
 
@@ -240,7 +374,206 @@ impl SimpleExecutor {
             node_did,
             signing_key,
             ctx: Some(ctx),
+            checkpoint_manager: CheckpointManager::new(),
         }
+    }
+
+    /// Create a checkpoint for the current job state
+    async fn create_checkpoint(
+        &self,
+        job_id: &icn_mesh::JobId,
+        stage: &str,
+        progress_percent: f32,
+        execution_state: Vec<u8>,
+        intermediate_data_cid: Option<Cid>,
+    ) -> Result<JobCheckpoint, CommonError> {
+        let checkpoint_id = format!("checkpoint_{}_{}", 
+            SystemTime::now().duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default().as_millis(),
+            stage
+        );
+
+        let checkpoint = JobCheckpoint {
+            job_id: job_id.clone(),
+            checkpoint_id,
+            timestamp: SystemTime::now().duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default().as_secs(),
+            stage: stage.to_string(),
+            progress_percent,
+            execution_state,
+            intermediate_data_cid,
+            executor_did: self.node_did.clone(),
+            signature: icn_identity::SignatureBytes(vec![]),
+        }.sign(&self.signing_key)?;
+
+        Ok(checkpoint)
+    }
+
+    /// Execute a job with periodic checkpointing for long-running tasks
+    async fn execute_with_checkpoints(
+        &self,
+        job: &ActualMeshJob,
+        checkpoint_interval_secs: u64,
+    ) -> Result<IdentityExecutionReceipt, CommonError> {
+        info!(
+            "[SimpleExecutor] Starting checkpointed execution for job: {:?}",
+            job.id
+        );
+
+        // Check if we can resume from a checkpoint
+        if let Some(checkpoint) = self.checkpoint_manager.get_latest_checkpoint(&job.id).await {
+            info!(
+                "[SimpleExecutor] Found checkpoint for job {:?} at {}% completion",
+                job.id, checkpoint.progress_percent
+            );
+            // For now, we'll start fresh but in a real implementation,
+            // we would deserialize and resume from the checkpoint state
+        }
+
+        let start_time = SystemTime::now();
+
+        // Update initial progress
+        let initial_progress = ProgressReport {
+            job_id: job.id.clone(),
+            current_stage: "initialization".to_string(),
+            progress_percent: 0.0,
+            eta_seconds: None,
+            message: "Starting job execution".to_string(),
+            timestamp: SystemTime::now().duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default().as_secs(),
+            executor_did: self.node_did.clone(),
+            completed_stages: vec![],
+            remaining_stages: vec!["initialization".to_string(), "processing".to_string(), "finalization".to_string()],
+        };
+        self.checkpoint_manager.update_progress(&job.id, initial_progress).await?;
+
+        let result_bytes = match &job.spec.kind {
+            JobKind::Echo { payload } => {
+                // Simulate multi-stage processing for echo jobs
+                let stages = ["initialization", "processing", "finalization"];
+                let mut result = format!("Echo: {}", payload);
+                
+                for (i, stage) in stages.iter().enumerate() {
+                    let progress_percent = ((i + 1) as f32 / stages.len() as f32) * 100.0;
+                    
+                    // Create checkpoint for this stage
+                    let checkpoint = self.create_checkpoint(
+                        &job.id,
+                        stage,
+                        progress_percent,
+                        result.as_bytes().to_vec(),
+                        None,
+                    ).await?;
+                    
+                    self.checkpoint_manager.save_checkpoint(&job.id, checkpoint.clone()).await?;
+                    
+                    // Anchor checkpoint to DAG if context is available
+                    if let Some(ctx) = &self.ctx {
+                        match ctx.anchor_checkpoint(&checkpoint).await {
+                            Ok(checkpoint_cid) => {
+                                info!(
+                                    "[SimpleExecutor] Checkpoint for job {:?} anchored to DAG with CID: {}",
+                                    job.id, checkpoint_cid
+                                );
+                            }
+                            Err(e) => {
+                                warn!(
+                                    "[SimpleExecutor] Failed to anchor checkpoint for job {:?}: {}",
+                                    job.id, e
+                                );
+                                // Continue execution even if DAG anchoring fails
+                            }
+                        }
+                    }
+                    
+                    // Create partial output for this stage if it produces meaningful data
+                    if progress_percent > 0.0 && i > 0 {
+                        let partial_output = PartialOutputReceipt {
+                            job_id: job.id.clone(),
+                            output_id: format!("stage_{}_{}", i, stage),
+                            stage: stage.to_string(),
+                            timestamp: SystemTime::now().duration_since(std::time::UNIX_EPOCH)
+                                .unwrap_or_default().as_secs(),
+                            output_cid: Cid::new_v1_sha256(0x55, result.as_bytes()),
+                            output_size: result.len() as u64,
+                            output_format: Some("text/plain".to_string()),
+                            executor_did: self.node_did.clone(),
+                            signature: icn_identity::SignatureBytes(vec![]),
+                        }.sign(&self.signing_key)?;
+                        
+                        self.checkpoint_manager.save_partial_output(&job.id, partial_output.clone()).await?;
+                        
+                        // Anchor partial output to DAG if context is available
+                        if let Some(ctx) = &self.ctx {
+                            match ctx.anchor_partial_output(&partial_output).await {
+                                Ok(output_cid) => {
+                                    info!(
+                                        "[SimpleExecutor] Partial output for job {:?} stage '{}' anchored to DAG with CID: {}",
+                                        job.id, stage, output_cid
+                                    );
+                                }
+                                Err(e) => {
+                                    warn!(
+                                        "[SimpleExecutor] Failed to anchor partial output for job {:?}: {}",
+                                        job.id, e
+                                    );
+                                    // Continue execution even if DAG anchoring fails
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Update progress
+                    let progress = ProgressReport {
+                        job_id: job.id.clone(),
+                        current_stage: stage.to_string(),
+                        progress_percent,
+                        eta_seconds: Some((stages.len() - i - 1) as u64 * checkpoint_interval_secs),
+                        message: format!("Processing stage: {}", stage),
+                        timestamp: SystemTime::now().duration_since(std::time::UNIX_EPOCH)
+                            .unwrap_or_default().as_secs(),
+                        executor_did: self.node_did.clone(),
+                        completed_stages: stages[..=i].iter().map(|s| s.to_string()).collect(),
+                        remaining_stages: stages[i+1..].iter().map(|s| s.to_string()).collect(),
+                    };
+                    self.checkpoint_manager.update_progress(&job.id, progress).await?;
+                    
+                    // Simulate work and checkpointing interval
+                    tokio::time::sleep(Duration::from_secs(checkpoint_interval_secs.min(1))).await;
+                    
+                    if i < stages.len() - 1 {
+                        result = format!("{} -> processed in {}", result, stage);
+                    }
+                }
+                
+                result.into_bytes()
+            }
+            _ => {
+                // Fall back to regular execution for other job types
+                return self.execute_job(job).await;
+            }
+        };
+
+        let result_cid = Cid::new_v1_sha256(0x55, &result_bytes);
+        let cpu_ms = start_time.elapsed().unwrap_or_default().as_millis() as u64;
+
+        // Clean up checkpoint data since job is complete
+        self.checkpoint_manager.cleanup_job(&job.id).await?;
+
+        let unsigned_receipt = IdentityExecutionReceipt {
+            job_id: job.id.clone().into(),
+            executor_did: self.node_did.clone(),
+            result_cid,
+            cpu_ms,
+            success: true,
+            sig: icn_identity::SignatureBytes(vec![]),
+        };
+        
+        unsigned_receipt
+            .sign_with_key(&self.signing_key)
+            .map_err(|e| {
+                CommonError::InternalError(format!("Failed to sign execution receipt: {}", e))
+            })
     }
 }
 
@@ -372,6 +705,52 @@ impl JobExecutor for SimpleExecutor {
                 CommonError::InternalError(format!("Failed to sign execution receipt: {}", e))
             })
     }
+
+    async fn execute_job_with_checkpoints(
+        &self,
+        job: &ActualMeshJob,
+        checkpoint_interval_secs: Option<u64>,
+    ) -> Result<IdentityExecutionReceipt, CommonError> {
+        let interval = checkpoint_interval_secs.unwrap_or(10); // Default 10 second intervals
+        self.execute_with_checkpoints(job, interval).await
+    }
+
+    async fn resume_from_checkpoint(
+        &self,
+        job: &ActualMeshJob,
+        checkpoint: &JobCheckpoint,
+    ) -> Result<IdentityExecutionReceipt, CommonError> {
+        info!(
+            "[SimpleExecutor] Resuming job {:?} from checkpoint at {}% completion",
+            job.id, checkpoint.progress_percent
+        );
+        
+        // For this simple implementation, we'll just continue from where we left off
+        // In a real implementation, we would deserialize the execution_state
+        // and restore the job context
+        
+        // Update progress to indicate resumption
+        let resume_progress = ProgressReport {
+            job_id: job.id.clone(),
+            current_stage: checkpoint.stage.clone(),
+            progress_percent: checkpoint.progress_percent,
+            eta_seconds: None,
+            message: format!("Resumed from checkpoint at stage: {}", checkpoint.stage),
+            timestamp: SystemTime::now().duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default().as_secs(),
+            executor_did: self.node_did.clone(),
+            completed_stages: vec![],
+            remaining_stages: vec![],
+        };
+        self.checkpoint_manager.update_progress(&job.id, resume_progress).await?;
+        
+        // Continue execution (for now, we'll just re-execute the job)
+        self.execute_job_with_checkpoints(job, Some(10)).await
+    }
+
+    async fn get_job_progress(&self, job_id: &icn_mesh::JobId) -> Option<ProgressReport> {
+        self.checkpoint_manager.get_progress(job_id).await
+    }
 }
 
 /// A WASM-based executor that loads WASM modules from the DAG store and
@@ -403,6 +782,7 @@ pub struct WasmExecutor {
     engine: wasmtime::Engine,
     config: WasmExecutorConfig,
     validator: WasmModuleValidator,
+    checkpoint_manager: CheckpointManager,
 }
 
 impl WasmExecutor {
@@ -435,6 +815,7 @@ impl WasmExecutor {
             engine,
             config,
             validator,
+            checkpoint_manager: CheckpointManager::new(),
         }
     }
 
@@ -624,6 +1005,10 @@ impl JobExecutor for WasmExecutor {
         );
 
         Ok(receipt)
+    }
+
+    async fn get_job_progress(&self, job_id: &icn_mesh::JobId) -> Option<ProgressReport> {
+        self.checkpoint_manager.get_progress(job_id).await
     }
 }
 

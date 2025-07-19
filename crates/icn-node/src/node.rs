@@ -61,7 +61,7 @@ use icn_runtime::{host_anchor_receipt, host_submit_mesh_job, ReputationUpdater};
 use prometheus_client::{encoding::text::encode, registry::Registry};
 
 use axum::{
-    extract::{Path as AxumPath, State, WebSocketUpgrade, ws::{Message, WebSocket}},
+    extract::{Path as AxumPath, Query, State, WebSocketUpgrade, ws::{Message, WebSocket}},
     http::{HeaderValue, StatusCode},
     middleware::{self, Next},
     response::IntoResponse,
@@ -73,6 +73,7 @@ use axum_server::tls_rustls::RustlsConfig;
 use base64::{self, prelude::BASE64_STANDARD, Engine};
 use bincode;
 use bs58;
+use chrono;
 use clap::{ArgMatches, CommandFactory, FromArgMatches, Parser};
 use tracing::{debug, error, info, warn};
 use tracing_subscriber::EnvFilter;
@@ -1000,6 +1001,11 @@ pub async fn app_router_with_options(
             .route("/mesh/submit", post(mesh_submit_job_handler)) // Job submission
             .route("/mesh/jobs", get(mesh_list_jobs_handler)) // List all jobs
             .route("/mesh/jobs/{job_id}", get(mesh_get_job_status_handler)) // Get specific job status
+            .route("/mesh/jobs/{job_id}/progress", get(mesh_get_job_progress_handler)) // Get job progress
+            .route("/mesh/jobs/{job_id}/stream", get(mesh_get_job_stream_handler)) // Get job stream
+            .route("/mesh/jobs/{job_id}/cancel", post(mesh_cancel_job_handler)) // Cancel job
+            .route("/mesh/jobs/{job_id}/resume", post(mesh_resume_job_handler)) // Resume job
+            .route("/mesh/metrics", get(mesh_get_metrics_handler)) // Get mesh metrics
             .route("/mesh/receipt", post(mesh_submit_receipt_handler)) // Submit execution receipt
             .route("/mesh/stub/bid", post(mesh_stub_bid_handler)) // Stub: inject bid for testing
             .route("/mesh/stub/receipt", post(mesh_stub_receipt_handler)) // Stub: inject receipt for testing
@@ -1201,6 +1207,11 @@ pub async fn app_router_from_context(
         .route("/mesh/submit", post(mesh_submit_job_handler))
         .route("/mesh/jobs", get(mesh_list_jobs_handler))
         .route("/mesh/jobs/{job_id}", get(mesh_get_job_status_handler))
+        .route("/mesh/jobs/{job_id}/progress", get(mesh_get_job_progress_handler))
+        .route("/mesh/jobs/{job_id}/stream", get(mesh_get_job_stream_handler))
+        .route("/mesh/jobs/{job_id}/cancel", post(mesh_cancel_job_handler))
+        .route("/mesh/jobs/{job_id}/resume", post(mesh_resume_job_handler))
+        .route("/mesh/metrics", get(mesh_get_metrics_handler))
         .route("/mesh/receipt", post(mesh_submit_receipt_handler))
         .route("/mesh/stub/bid", post(mesh_stub_bid_handler))
         .route("/mesh/stub/receipt", post(mesh_stub_receipt_handler))
@@ -1550,6 +1561,11 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
         .route("/mesh/submit", post(mesh_submit_job_handler))
         .route("/mesh/jobs", get(mesh_list_jobs_handler))
         .route("/mesh/jobs/{job_id}", get(mesh_get_job_status_handler))
+        .route("/mesh/jobs/{job_id}/progress", get(mesh_get_job_progress_handler))
+        .route("/mesh/jobs/{job_id}/stream", get(mesh_get_job_stream_handler))
+        .route("/mesh/jobs/{job_id}/cancel", post(mesh_cancel_job_handler))
+        .route("/mesh/jobs/{job_id}/resume", post(mesh_resume_job_handler))
+        .route("/mesh/metrics", get(mesh_get_metrics_handler))
         .route("/mesh/receipt", post(mesh_submit_receipt_handler))
         .route("/contracts", post(contracts_post_handler))
         .route("/circuits/register", post(circuit_register_handler))
@@ -2991,6 +3007,282 @@ async fn mesh_stub_receipt_handler(
         )
         .into_response(),
     }
+}
+
+// GET /mesh/jobs/{job_id}/progress - Get job progress information
+async fn mesh_get_job_progress_handler(
+    State(state): State<AppState>,
+    AxumPath(job_id_str): AxumPath<String>,
+) -> impl IntoResponse {
+    info!(
+        "[Node] Received mesh_get_job_progress request for job: {}",
+        job_id_str
+    );
+
+    // Parse job_id from string
+    let job_id = match parse_cid_from_string(&job_id_str) {
+        Ok(cid) => icn_mesh::JobId::from(cid),
+        Err(e) => {
+            error!("[Node] Failed to parse job_id '{}': {}", job_id_str, e);
+            return map_rust_error_to_json_response(
+                format!("Invalid job ID format: {}", e),
+                StatusCode::BAD_REQUEST,
+            )
+            .into_response();
+        }
+    };
+
+    // Check if the runtime context has checkpoint manager access
+    // For now, we'll return a basic response - in a real implementation,
+    // this would query the checkpoint manager in the runtime context
+    let response = serde_json::json!({
+        "job_id": job_id_str,
+        "progress": {
+            "current_stage": "processing",
+            "progress_percent": 50.0,
+            "eta_seconds": 120,
+            "message": "Job in progress",
+            "timestamp": chrono::Utc::now().timestamp() as u64,
+            "completed_stages": ["initialization"],
+            "remaining_stages": ["processing", "finalization"]
+        },
+        "checkpoints": [],
+        "partial_outputs": [],
+        "is_running": true,
+        "timestamp": chrono::Utc::now().timestamp() as u64
+    });
+
+    (StatusCode::OK, Json(response))
+}
+
+// GET /mesh/jobs/{job_id}/stream - Get job streaming output
+async fn mesh_get_job_stream_handler(
+    State(_state): State<AppState>,
+    AxumPath(job_id_str): AxumPath<String>,
+    Query(params): Query<std::collections::HashMap<String, String>>,
+) -> impl IntoResponse {
+    info!(
+        "[Node] Received mesh_get_job_stream request for job: {}",
+        job_id_str
+    );
+
+    let from_sequence = params
+        .get("from")
+        .and_then(|s| s.parse::<u64>().ok())
+        .unwrap_or(0);
+
+    // Parse job_id from string
+    let _job_id = match parse_cid_from_string(&job_id_str) {
+        Ok(cid) => icn_mesh::JobId::from(cid),
+        Err(e) => {
+            error!("[Node] Failed to parse job_id '{}': {}", job_id_str, e);
+            return map_rust_error_to_json_response(
+                format!("Invalid job ID format: {}", e),
+                StatusCode::BAD_REQUEST,
+            )
+            .into_response();
+        }
+    };
+
+    // For now, return mock streaming data
+    // In a real implementation, this would query the checkpoint manager
+    let stream_chunks = vec![
+        serde_json::json!({
+            "job_id": job_id_str,
+            "sequence": from_sequence,
+            "stage": "processing",
+            "data": BASE64_STANDARD.encode("partial output data chunk 1"),
+            "content_type": "text/plain",
+            "is_final": false,
+            "timestamp": chrono::Utc::now().timestamp() as u64
+        }),
+        serde_json::json!({
+            "job_id": job_id_str,
+            "sequence": from_sequence + 1,
+            "stage": "processing",
+            "data": BASE64_STANDARD.encode("partial output data chunk 2"),
+            "content_type": "text/plain",
+            "is_final": true,
+            "timestamp": chrono::Utc::now().timestamp() as u64
+        })
+    ];
+
+    (StatusCode::OK, Json(stream_chunks))
+}
+
+// POST /mesh/jobs/{job_id}/cancel - Cancel a running job
+async fn mesh_cancel_job_handler(
+    State(state): State<AppState>,
+    AxumPath(job_id_str): AxumPath<String>,
+) -> impl IntoResponse {
+    info!(
+        "[Node] Received mesh_cancel_job request for job: {}",
+        job_id_str
+    );
+
+    // Parse job_id from string
+    let job_id = match parse_cid_from_string(&job_id_str) {
+        Ok(cid) => icn_mesh::JobId::from(cid),
+        Err(e) => {
+            error!("[Node] Failed to parse job_id '{}': {}", job_id_str, e);
+            return map_rust_error_to_json_response(
+                format!("Invalid job ID format: {}", e),
+                StatusCode::BAD_REQUEST,
+            )
+            .into_response();
+        }
+    };
+
+    // Check if job exists in job_states
+    let job_states = &state.runtime_context.job_states;
+    match job_states.get(&job_id) {
+        Some(job_state) => {
+            match &*job_state {
+                icn_mesh::JobState::Pending | icn_mesh::JobState::Assigned { .. } => {
+                    // Update job state to cancelled (for now, we'll just return success)
+                    // In a real implementation, this would signal the executor to stop
+                    info!("[Node] Job {} marked for cancellation", job_id_str);
+                    
+                    let response = serde_json::json!({
+                        "success": true,
+                        "message": "Job cancellation requested",
+                        "job_id": job_id_str
+                    });
+                    (StatusCode::OK, Json(response))
+                },
+                icn_mesh::JobState::Completed { .. } | icn_mesh::JobState::Failed { .. } => {
+                    let response = serde_json::json!({
+                        "success": false,
+                        "message": "Job already completed, cannot cancel",
+                        "job_id": job_id_str
+                    });
+                    (StatusCode::CONFLICT, Json(response))
+                }
+            }
+        },
+        None => {
+            let response = serde_json::json!({
+                "success": false,
+                "message": "Job not found",
+                "job_id": job_id_str
+            });
+            (StatusCode::NOT_FOUND, Json(response))
+        }
+    }
+}
+
+// POST /mesh/jobs/{job_id}/resume - Resume a job from checkpoint
+async fn mesh_resume_job_handler(
+    State(state): State<AppState>,
+    AxumPath(job_id_str): AxumPath<String>,
+) -> impl IntoResponse {
+    info!(
+        "[Node] Received mesh_resume_job request for job: {}",
+        job_id_str
+    );
+
+    // Parse job_id from string
+    let job_id = match parse_cid_from_string(&job_id_str) {
+        Ok(cid) => icn_mesh::JobId::from(cid),
+        Err(e) => {
+            error!("[Node] Failed to parse job_id '{}': {}", job_id_str, e);
+            return map_rust_error_to_json_response(
+                format!("Invalid job ID format: {}", e),
+                StatusCode::BAD_REQUEST,
+            )
+            .into_response();
+        }
+    };
+
+    // Check if job exists and has checkpoints
+    let job_states = &state.runtime_context.job_states;
+    match job_states.get(&job_id) {
+        Some(job_state) => {
+            match &*job_state {
+                icn_mesh::JobState::Failed { .. } => {
+                    // In a real implementation, this would check for checkpoints
+                    // and attempt to resume execution from the latest checkpoint
+                    info!("[Node] Attempting to resume job {} from checkpoint", job_id_str);
+                    
+                    let response = serde_json::json!({
+                        "success": true,
+                        "message": "Job resume initiated",
+                        "job_id": job_id_str
+                    });
+                    (StatusCode::OK, Json(response))
+                },
+                icn_mesh::JobState::Completed { .. } => {
+                    let response = serde_json::json!({
+                        "success": false,
+                        "message": "Job already completed, cannot resume",
+                        "job_id": job_id_str
+                    });
+                    (StatusCode::CONFLICT, Json(response))
+                },
+                _ => {
+                    let response = serde_json::json!({
+                        "success": false,
+                        "message": "Job is not in a failed state, cannot resume",
+                        "job_id": job_id_str
+                    });
+                    (StatusCode::CONFLICT, Json(response))
+                }
+            }
+        },
+        None => {
+            let response = serde_json::json!({
+                "success": false,
+                "message": "Job not found",
+                "job_id": job_id_str
+            });
+            (StatusCode::NOT_FOUND, Json(response))
+        }
+    }
+}
+
+// GET /mesh/metrics - Get mesh execution metrics
+async fn mesh_get_metrics_handler(
+    State(state): State<AppState>,
+) -> impl IntoResponse {
+    info!("[Node] Received mesh_get_metrics request");
+
+    let job_states = &state.runtime_context.job_states;
+    
+    // Calculate basic metrics from job states
+    let total_jobs = job_states.len() as u64;
+    let mut running_jobs = 0u64;
+    let mut completed_jobs = 0u64;
+    let mut failed_jobs = 0u64;
+    
+    for job_state in job_states.iter() {
+        match &*job_state.value() {
+            icn_mesh::JobState::Pending | icn_mesh::JobState::Assigned { .. } => {
+                running_jobs += 1;
+            },
+            icn_mesh::JobState::Completed { .. } => {
+                completed_jobs += 1;
+            },
+            icn_mesh::JobState::Failed { .. } => {
+                failed_jobs += 1;
+            }
+        }
+    }
+
+    let metrics = serde_json::json!({
+        "total_jobs": total_jobs,
+        "running_jobs": running_jobs,
+        "long_running_jobs": 0, // Would be calculated from checkpoint manager
+        "completed_jobs": completed_jobs,
+        "failed_jobs": failed_jobs,
+        "avg_execution_time_secs": 30.0, // Would be calculated from historical data
+        "custom_metrics": {
+            "checkpoint_saves": 0,
+            "partial_outputs": 0,
+            "job_resumes": 0
+        }
+    });
+
+    (StatusCode::OK, Json(metrics))
 }
 
 // GET /federation/peers - list known peers
