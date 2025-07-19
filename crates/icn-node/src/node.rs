@@ -928,12 +928,14 @@ pub async fn app_router_with_options(
                     }
                 }
             }
-            if let icn_governance::ProposalType::BudgetAllocation(amount, _p) = &proposal.proposal_type {
+            if let icn_governance::ProposalType::BudgetAllocation(recipient, amount, _p) = &proposal.proposal_type {
                 let amt = *amount;
-                let did = proposal.proposer.clone();
+                let did = recipient.clone();
                 let ctx = ctx_clone.clone();
                 handle.block_on(async move {
-                    let _ = ctx.credit_mana(&did, amt).await;
+                    if let Err(e) = ctx.credit_mana(&did, amt).await {
+                        log::error!("Failed to credit mana to recipient {}: {}", did, e);
+                    }
                 });
             }
             Ok(())
@@ -1146,12 +1148,14 @@ pub async fn app_router_from_context(
                     }
                 }
             }
-            if let icn_governance::ProposalType::BudgetAllocation(amount, _p) = &proposal.proposal_type {
+            if let icn_governance::ProposalType::BudgetAllocation(recipient, amount, _p) = &proposal.proposal_type {
                 let amt = *amount;
-                let did = proposal.proposer.clone();
+                let did = recipient.clone();
                 let ctx = ctx_clone.clone();
                 handle.block_on(async move {
-                    let _ = ctx.credit_mana(&did, amt).await;
+                    if let Err(e) = ctx.credit_mana(&did, amt).await {
+                        log::error!("Failed to credit mana to recipient {}: {}", did, e);
+                    }
                 });
             }
             Ok(())
@@ -1521,12 +1525,14 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
             }
-            if let icn_governance::ProposalType::BudgetAllocation(amount, _p) = &proposal.proposal_type {
+            if let icn_governance::ProposalType::BudgetAllocation(recipient, amount, _p) = &proposal.proposal_type {
                 let amt = *amount;
-                let did = proposal.proposer.clone();
+                let did = recipient.clone();
                 let ctx = ctx_clone.clone();
                 handle.block_on(async move {
-                    let _ = ctx.credit_mana(&did, amt).await;
+                    if let Err(e) = ctx.credit_mana(&did, amt).await {
+                        log::error!("Failed to credit mana to recipient {}: {}", did, e);
+                    }
                 });
             }
             Ok(())

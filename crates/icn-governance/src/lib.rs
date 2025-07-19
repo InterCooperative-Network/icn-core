@@ -68,7 +68,7 @@ pub enum ProposalType {
     RemoveMember(Did),                     // DID of the member to remove
     SoftwareUpgrade(String),               // Version or identifier for the upgrade
     GenericText(String),                   // For general purpose proposals
-    BudgetAllocation(u64, String),         // amount, purpose
+    BudgetAllocation(Did, u64, String),    // recipient, amount, purpose
     Resolution(ResolutionProposal),        // Dispute or remediation actions
 }
 
