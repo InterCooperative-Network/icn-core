@@ -184,6 +184,61 @@ ICN_NETWORK_RETRY_MAX_DELAY_MS=1000
 Environment variables override values from the config file, allowing quick tuning
 without editing files.
 
+## Job Retries and Blacklist
+
+Mesh jobs may fail due to executor errors or temporary network issues. The node
+will retry a job several times before giving up and will temporarily blacklist
+executors that repeatedly fail.
+
+### Configuring Retry Count
+
+Set the maximum attempts in the `[mesh]` section:
+
+```toml
+[mesh]
+job_retry_count = 5
+```
+
+The same value can be provided via environment variable:
+
+```bash
+ICN_MESH_JOB_RETRY_COUNT=5
+```
+
+### Executor Blacklist
+
+Executors that exceed the failure threshold are banned for a cooldown period.
+
+```toml
+[mesh]
+blacklist_after_failures = 3
+blacklist_cooldown_secs = 600
+```
+
+Check the current blacklist using the CLI:
+
+```bash
+icn-cli mesh blacklist
+```
+
+Refer to [API.md](API.md#mesh-computing-endpoints) for mesh job endpoints and
+[TROUBLESHOOTING.md](TROUBLESHOOTING.md#executor-blacklist) for recovery tips.
+
+## Rollback Semantics
+
+When a job execution fails after exhausting retries, the runtime emits a
+`RollbackEvent` and restores the previous state. Rollbacks are persisted in the
+event store.
+
+Inspect recent rollbacks with:
+
+```bash
+icn-cli events --type rollback --tail 20
+```
+
+You can also query `/events?type=rollback` via the HTTP API. See
+[EVENT_SOURCING.md](EVENT_SOURCING.md) for event store design details.
+
 ## Monitoring with Prometheus & Grafana
 
 The devnet includes optional monitoring services. Launch the stack with the

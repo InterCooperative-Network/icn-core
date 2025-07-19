@@ -273,6 +273,39 @@ curl -H "X-API-Key: devnet-a-key" http://localhost:5001/mesh/jobs
 - Mana is automatically refunded when jobs fail
 - See [icn-devnet/README.md](icn-devnet/README.md) for complete documentation
 
+### Job Retries, Blacklisting & Rollbacks
+
+ICN automatically retries failed jobs a configurable number of times and
+temporarily blacklists executors that exceed a failure threshold. Rollbacks are
+recorded in the event log so state can be restored if an execution goes wrong.
+
+```toml
+[mesh]
+job_retry_count = 5        # number of attempts before giving up
+blacklist_after_failures = 3
+blacklist_cooldown_secs = 600
+```
+
+Set the same values via environment variables:
+
+```bash
+ICN_MESH_JOB_RETRY_COUNT=5 \
+ICN_MESH_BLACKLIST_AFTER_FAILURES=3 \
+ICN_MESH_BLACKLIST_COOLDOWN_SECS=600
+```
+
+Inspect the blacklist and recent rollback events using the CLI:
+
+```bash
+icn-cli mesh blacklist          # list temporarily banned executors
+icn-cli events --type rollback  # show rollback history
+```
+
+See [deployment guide](docs/deployment-guide.md#job-retries-and-blacklist) for
+more options and [EVENT_SOURCING.md](docs/EVENT_SOURCING.md) for rollback
+details. Troubleshooting tips are in
+[docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md#executor-blacklist).
+
 ### Recent Fix: Mana Initialization ✅
 
 A critical bug was recently fixed where nodes failed to initialize mana accounts, causing `"Account not found"` errors during job submission. This issue is now resolved - you should see `✅ Node initialized with 1000 mana` in startup logs.
@@ -446,7 +479,7 @@ More detailed information can be found in the `README.md` file within each crate
 * [Rust API Documentation](https://intercooperative-network.github.io/icn-core/) – automatically built by [docs.yml](.github/workflows/docs.yml)
 * Build docs locally with `cargo doc --workspace --no-deps` (or `just docs`) and open them from `target/doc`
 * [API Documentation](docs/API.md) – HTTP endpoints and programmatic interfaces
-* [Deployment Guide](docs/deployment-guide.md) – production deployment instructions (see [circuit breaker & retry settings](docs/deployment-guide.md#circuit-breaker-and-retry))
+* [Deployment Guide](docs/deployment-guide.md) – production deployment instructions (see [job retry & blacklist](docs/deployment-guide.md#job-retries-and-blacklist) and [rollback](docs/deployment-guide.md#rollback-semantics))
 * [Troubleshooting Guide](docs/TROUBLESHOOTING.md) – common issues and solutions
 * [Custom Circuit Development](docs/zk_circuit_development.md) – implement and profile new zero-knowledge circuits
 
