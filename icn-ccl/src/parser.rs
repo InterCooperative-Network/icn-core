@@ -725,6 +725,108 @@ pub fn parse_ccl_source(source: &str) -> Result<AstNode, CclError> {
     }
 }
 
+/// Parse a CCL file from disk, recursively loading any imported modules.
+///
+/// Imported modules are merged into the returned [`AstNode::Policy`] with all
+/// top-level items prefixed by the provided alias. Paths are resolved relative
+/// to the directory of `path`.
+pub fn parse_ccl_file(path: &std::path::Path) -> Result<AstNode, CclError> {
+    use std::fs;
+
+    let source = fs::read_to_string(path).map_err(|e| {
+        CclError::IoError(format!("Failed to read {}: {}", path.display(), e))
+    })?;
+
+    let base_dir = path.parent().unwrap_or_else(|| std::path::Path::new("."));
+    let mut ast = parse_ccl_source(&source)?;
+    load_imports(&mut ast, base_dir)?;
+    Ok(ast)
+}
+
+fn alias_ast(ast: AstNode, alias: &str) -> AstNode {
+    match ast {
+        AstNode::FunctionDefinition { name, parameters, return_type, body } => {
+            AstNode::FunctionDefinition {
+                name: format!("{}_{}", alias, name),
+                parameters,
+                return_type,
+                body,
+            }
+        }
+        AstNode::StructDefinition { name, fields } => AstNode::StructDefinition {
+            name: format!("{}_{}", alias, name),
+            fields,
+        },
+        AstNode::RuleDefinition { name, condition, action } => AstNode::RuleDefinition {
+            name: format!("{}_{}", alias, name),
+            condition,
+            action,
+        },
+        AstNode::Policy(stmts) => AstNode::Policy(stmts.into_iter().map(|s| alias_stmt(s, alias)).collect()),
+        other => other,
+    }
+}
+
+fn alias_stmt(stmt: PolicyStatementNode, alias: &str) -> PolicyStatementNode {
+    match stmt {
+        PolicyStatementNode::FunctionDef(f) => PolicyStatementNode::FunctionDef(alias_ast(f, alias)),
+        PolicyStatementNode::StructDef(s) => PolicyStatementNode::StructDef(alias_ast(s, alias)),
+        PolicyStatementNode::RuleDef(r) => PolicyStatementNode::RuleDef(alias_ast(r, alias)),
+        PolicyStatementNode::ConstDef { name, value, type_ann } => PolicyStatementNode::ConstDef {
+            name: format!("{}_{}", alias, name),
+            value,
+            type_ann,
+        },
+        PolicyStatementNode::MacroDef { name, params, body } => PolicyStatementNode::MacroDef {
+            name: format!("{}_{}", alias, name),
+            params,
+            body,
+        },
+        PolicyStatementNode::EventDef { name, fields } => PolicyStatementNode::EventDef {
+            name: format!("{}_{}", alias, name),
+            fields,
+        },
+        PolicyStatementNode::StateDef { name, type_ann, initial_value } => {
+            PolicyStatementNode::StateDef {
+                name: format!("{}_{}", alias, name),
+                type_ann,
+                initial_value,
+            }
+        }
+        PolicyStatementNode::TriggerDef { name, condition, action } => PolicyStatementNode::TriggerDef {
+            name: format!("{}_{}", alias, name),
+            condition,
+            action,
+        },
+        other => other,
+    }
+}
+
+fn load_imports(ast: &mut AstNode, base: &std::path::Path) -> Result<(), CclError> {
+    if let AstNode::Policy(ref mut items) = ast {
+        let mut result = Vec::new();
+        for item in std::mem::take(items) {
+            match item {
+                PolicyStatementNode::Import { path, alias } => {
+                    let import_path = base.join(&path);
+                    let imported = parse_ccl_file(&import_path).map_err(|e| {
+                        CclError::ModuleImportError {
+                            module: path.clone(),
+                            reason: e.to_string(),
+                        }
+                    })?;
+                    if let AstNode::Policy(mut stmts) = alias_ast(imported, &alias) {
+                        result.append(&mut stmts);
+                    }
+                }
+                other => result.push(other),
+            }
+        }
+        *items = result;
+    }
+    Ok(())
+}
+
 pub(crate) fn parse_const_definition(pair: Pair<Rule>) -> Result<PolicyStatementNode, CclError> {
     // const_definition = { "const" ~ identifier ~ ":" ~ type_annotation ~ "=" ~ expression ~ ";" }
     let mut inner = pair.into_inner();
