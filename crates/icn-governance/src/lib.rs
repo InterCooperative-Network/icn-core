@@ -31,8 +31,8 @@ use serde::{Deserialize, Serialize};
 pub mod federation_governance;
 pub mod metrics;
 pub mod scoped_policy;
+pub mod budgeting;
 
-};
 pub use budgeting::{apply_budget_allocation, BudgetProposal};
 
 /// Trait for governance execution hooks.
