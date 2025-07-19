@@ -1,23 +1,17 @@
-// DID validation
+import { ICNUtils } from '@icn/client-sdk'
+
+// Re-export utilities from client SDK
+export { ICNUtils }
+
+// Legacy utilities (keeping for compatibility)
 export function validateDid(did: string): boolean {
-  if (!did || typeof did !== 'string') return false
-  
-  // Basic DID format validation
-  const didRegex = /^did:[a-z0-9]+:[a-zA-Z0-9._-]+$/
-  return didRegex.test(did)
+  return ICNUtils.isValidDid(did)
 }
 
-// Mana formatting
 export function formatMana(amount: number): string {
-  if (amount >= 1000000) {
-    return `${(amount / 1000000).toFixed(1)}M`
-  } else if (amount >= 1000) {
-    return `${(amount / 1000).toFixed(1)}K`
-  }
-  return amount.toString()
+  return ICNUtils.formatMana(amount)
 }
 
-// Job ID formatting
 export function formatJobId(jobId: string): string {
   if (!jobId) return ''
   
@@ -28,21 +22,230 @@ export function formatJobId(jobId: string): string {
   return jobId
 }
 
-// Address validation
+// Additional utilities for Federation Dashboard and Governance
+export const FederationUtils = {
+  /**
+   * Generate a federation DID based on metadata
+   */
+  generateFederationDid(name: string): string {
+    const timestamp = Date.now()
+    const hash = btoa(name + timestamp).replace(/[^a-zA-Z0-9]/g, '').substring(0, 20)
+    return `did:federation:${hash}`
+  },
+
+  /**
+   * Validate federation name
+   */
+  isValidFederationName(name: string): boolean {
+    return /^[a-zA-Z0-9][a-zA-Z0-9_\-\s]{2,49}$/.test(name)
+  },
+
+  /**
+   * Calculate federation health score based on various metrics
+   */
+  calculateHealthScore(metadata: any): number {
+    let score = 0
+    const factors = {
+      memberCount: metadata.totalMembers || 0,
+      activeProposals: metadata.governance?.activeProposals || 0,
+      activeJobs: metadata.mesh?.activeJobs || 0,
+      syncStatus: metadata.dag?.syncStatus === 'synced' ? 1 : 0,
+    }
+
+    // Member count (0-40 points)
+    score += Math.min(factors.memberCount * 2, 40)
+    
+    // Active governance (0-20 points)
+    score += Math.min(factors.activeProposals * 5, 20)
+    
+    // Mesh activity (0-20 points)
+    score += Math.min(factors.activeJobs * 2, 20)
+    
+    // DAG sync status (0-20 points)
+    score += factors.syncStatus * 20
+
+    return Math.min(score, 100)
+  }
+}
+
+export const GovernanceUtils = {
+  /**
+   * Calculate voting progress percentage
+   */
+  calculateVotingProgress(proposal: any): number {
+    const totalVotes = (proposal.votes?.yes || 0) + (proposal.votes?.no || 0) + (proposal.votes?.abstain || 0)
+    const quorum = proposal.quorum || 50
+    return Math.min((totalVotes / quorum) * 100, 100)
+  },
+
+  /**
+   * Determine if proposal has reached quorum
+   */
+  hasReachedQuorum(proposal: any): boolean {
+    const totalVotes = (proposal.votes?.yes || 0) + (proposal.votes?.no || 0) + (proposal.votes?.abstain || 0)
+    const quorum = proposal.quorum || 50
+    return totalVotes >= quorum
+  },
+
+  /**
+   * Determine proposal outcome
+   */
+  getProposalOutcome(proposal: any): 'passed' | 'failed' | 'pending' {
+    if (proposal.status === 'Closed' || proposal.status === 'Executed') {
+      const threshold = proposal.threshold || 0.5
+      const totalVotes = (proposal.votes?.yes || 0) + (proposal.votes?.no || 0)
+      const yesPercentage = totalVotes > 0 ? (proposal.votes?.yes || 0) / totalVotes : 0
+      return yesPercentage >= threshold ? 'passed' : 'failed'
+    }
+    return 'pending'
+  },
+
+  /**
+   * Format proposal type for display
+   */
+  formatProposalType(proposalType: any): string {
+    if (typeof proposalType === 'object' && proposalType.type) {
+      switch (proposalType.type) {
+        case 'SystemParameterChange':
+          return 'System Parameter Change'
+        case 'MemberAdmission':
+          return 'Member Admission'
+        case 'RemoveMember':
+          return 'Remove Member'
+        case 'SoftwareUpgrade':
+          return 'Software Upgrade'
+        case 'GenericText':
+          return 'Text Proposal'
+        case 'Resolution':
+          return 'Resolution'
+        default:
+          return proposalType.type
+      }
+    }
+    return 'Unknown'
+  },
+
+  /**
+   * Generate proposal summary based on type and data
+   */
+  generateProposalSummary(proposalType: any): string {
+    if (typeof proposalType === 'object' && proposalType.type) {
+      switch (proposalType.type) {
+        case 'SystemParameterChange':
+          return `Change ${proposalType.data?.param} to ${proposalType.data?.value}`
+        case 'MemberAdmission':
+          return `Admit ${proposalType.data?.did} as member`
+        case 'RemoveMember':
+          return `Remove ${proposalType.data?.did} from membership`
+        case 'SoftwareUpgrade':
+          return `Upgrade to version ${proposalType.data?.version}`
+        case 'GenericText':
+          return proposalType.data?.text?.substring(0, 100) + (proposalType.data?.text?.length > 100 ? '...' : '')
+        case 'Resolution':
+          return `Resolution with ${proposalType.data?.actions?.length || 0} action(s)`
+        default:
+          return 'Unknown proposal type'
+      }
+    }
+    return 'Unknown proposal'
+  }
+}
+
+export const CCLUtils = {
+  /**
+   * Validate CCL template parameters
+   */
+  validateTemplateParameters(template: any, parameters: Record<string, any>): { valid: boolean; errors: string[] } {
+    const errors: string[] = []
+    
+    if (!template.parameters) {
+      return { valid: true, errors: [] }
+    }
+
+    for (const param of template.parameters) {
+      const value = parameters[param.name]
+      
+      // Check required parameters
+      if (param.required && (value === undefined || value === null || value === '')) {
+        errors.push(`${param.name} is required`)
+        continue
+      }
+
+      // Skip validation if value is not provided and not required
+      if (value === undefined || value === null || value === '') {
+        continue
+      }
+
+      // Type validation
+      switch (param.type) {
+        case 'number':
+          if (typeof value !== 'number' && isNaN(Number(value))) {
+            errors.push(`${param.name} must be a number`)
+          } else {
+            const numValue = Number(value)
+            if (param.validation?.min !== undefined && numValue < param.validation.min) {
+              errors.push(`${param.name} must be at least ${param.validation.min}`)
+            }
+            if (param.validation?.max !== undefined && numValue > param.validation.max) {
+              errors.push(`${param.name} must be at most ${param.validation.max}`)
+            }
+          }
+          break
+        case 'string':
+          if (typeof value !== 'string') {
+            errors.push(`${param.name} must be a string`)
+          } else {
+            if (param.validation?.pattern && !new RegExp(param.validation.pattern).test(value)) {
+              errors.push(`${param.name} format is invalid`)
+            }
+            if (param.validation?.options && !param.validation.options.includes(value)) {
+              errors.push(`${param.name} must be one of: ${param.validation.options.join(', ')}`)
+            }
+          }
+          break
+        case 'boolean':
+          if (typeof value !== 'boolean') {
+            errors.push(`${param.name} must be true or false`)
+          }
+          break
+        case 'did':
+          if (!ICNUtils.isValidDid(value)) {
+            errors.push(`${param.name} must be a valid DID`)
+          }
+          break
+      }
+    }
+
+    return { valid: errors.length === 0, errors }
+  },
+
+  /**
+   * Generate CCL code from template and parameters
+   */
+  generateCCLFromTemplate(template: any, parameters: Record<string, any>): string {
+    let ccl = template.template
+    
+    // Replace parameter placeholders
+    for (const [key, value] of Object.entries(parameters)) {
+      const placeholder = new RegExp(`\\{\\{${key}\\}\\}`, 'g')
+      ccl = ccl.replace(placeholder, String(value))
+    }
+    
+    return ccl
+  }
+}
+
+// Keep existing utilities for compatibility
 export function validateAddress(address: string): boolean {
   if (!address || typeof address !== 'string') return false
-  
-  // Basic address format validation (adjust based on ICN address format)
   return address.length >= 10 && address.length <= 100
 }
 
-// Network validation
 export function validateNetwork(network: string): boolean {
   const validNetworks = ['mainnet', 'testnet', 'devnet']
   return validNetworks.includes(network)
 }
 
-// Error formatting
 export function formatError(error: unknown): string {
   if (error instanceof Error) {
     return error.message
@@ -53,7 +256,6 @@ export function formatError(error: unknown): string {
   return 'An unknown error occurred'
 }
 
-// URL validation
 export function validateUrl(url: string): boolean {
   try {
     new URL(url)
@@ -63,7 +265,6 @@ export function validateUrl(url: string): boolean {
   }
 }
 
-// Time formatting
 export function formatRelativeTime(timestamp: number): string {
   const now = Date.now()
   const diff = now - timestamp
@@ -79,7 +280,6 @@ export function formatRelativeTime(timestamp: number): string {
   return 'just now'
 }
 
-// Data size formatting
 export function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B'
   

@@ -11,10 +11,27 @@ export type {
   ICNClientOptions,
   StorageAdapter,
   ConfigOptions,
+  FederationCreateRequest,
+  CooperativeInfo,
+  FederationMetadata,
+  CCLTemplate,
+  CCLParameter,
 } from './types'
 
 // Utilities
-export { validateDid, formatMana, formatJobId } from './utils'
+export { 
+  validateDid, 
+  formatMana, 
+  formatJobId,
+  FederationUtils,
+  GovernanceUtils,
+  CCLUtils,
+  ICNUtils,
+  formatError,
+  validateUrl,
+  formatRelativeTime,
+  formatBytes,
+} from './utils'
 
 // React Native specific exports (optional)
 export { useICNClient, ICNProvider } from './react' 

@@ -1,0 +1,277 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom utility classes for ICN UI */
+@layer components {
+  .btn-primary {
+    @apply px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2;
+  }
+  
+  .btn-secondary {
+    @apply px-4 py-2 bg-gray-200 text-gray-900 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2;
+  }
+  
+  .btn-success {
+    @apply px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2;
+  }
+  
+  .btn-danger {
+    @apply px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2;
+  }
+  
+  .card {
+    @apply bg-white rounded-lg border border-gray-200 shadow-sm;
+  }
+  
+  .card-header {
+    @apply px-6 py-4 border-b border-gray-200;
+  }
+  
+  .card-body {
+    @apply px-6 py-4;
+  }
+  
+  .card-footer {
+    @apply px-6 py-4 border-t border-gray-200 bg-gray-50;
+  }
+  
+  .status-badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+  
+  .status-badge-success {
+    @apply status-badge bg-green-100 text-green-800;
+  }
+  
+  .status-badge-warning {
+    @apply status-badge bg-yellow-100 text-yellow-800;
+  }
+  
+  .status-badge-error {
+    @apply status-badge bg-red-100 text-red-800;
+  }
+  
+  .status-badge-info {
+    @apply status-badge bg-blue-100 text-blue-800;
+  }
+  
+  .form-input {
+    @apply block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500;
+  }
+  
+  .form-input-error {
+    @apply form-input border-red-300 focus:border-red-500 focus:ring-red-500;
+  }
+  
+  .form-label {
+    @apply block text-sm font-medium text-gray-700;
+  }
+  
+  .form-error {
+    @apply mt-1 text-sm text-red-600;
+  }
+  
+  .progress-bar {
+    @apply w-full bg-gray-200 rounded-full h-2;
+  }
+  
+  .progress-bar-fill {
+    @apply h-2 rounded-full transition-all duration-300;
+  }
+  
+  .health-good {
+    @apply progress-bar-fill bg-green-500;
+  }
+  
+  .health-warning {
+    @apply progress-bar-fill bg-yellow-500;
+  }
+  
+  .health-poor {
+    @apply progress-bar-fill bg-red-500;
+  }
+}
+
+/* Animation utilities */
+@layer utilities {
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-in-out;
+  }
+  
+  .animate-slide-up {
+    animation: slideUp 0.3s ease-out;
+  }
+  
+  .animate-bounce-subtle {
+    animation: bounceSubtle 2s infinite;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(10px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes bounceSubtle {
+  0%, 20%, 50%, 80%, 100% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(-2px);
+  }
+  60% {
+    transform: translateY(-1px);
+  }
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Responsive design helpers */
+@media (max-width: 640px) {
+  .container {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+}
+
+/* Federation-specific styles */
+.federation-health-indicator {
+  @apply relative;
+}
+
+.federation-health-indicator::before {
+  content: '';
+  @apply absolute -inset-1 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg blur opacity-25;
+}
+
+.federation-health-good::before {
+  @apply from-green-600 to-emerald-600;
+}
+
+.federation-health-warning::before {
+  @apply from-yellow-600 to-orange-600;
+}
+
+.federation-health-poor::before {
+  @apply from-red-600 to-pink-600;
+}
+
+/* Governance-specific styles */
+.proposal-card {
+  @apply card transition-shadow duration-200 hover:shadow-md;
+}
+
+.proposal-card:hover {
+  @apply border-blue-200;
+}
+
+.vote-button {
+  @apply px-4 py-2 rounded-md text-sm font-medium border transition-all duration-200;
+}
+
+.vote-button-yes {
+  @apply vote-button border-green-500 text-green-700 bg-green-50 hover:bg-green-100 hover:border-green-600;
+}
+
+.vote-button-no {
+  @apply vote-button border-red-500 text-red-700 bg-red-50 hover:bg-red-100 hover:border-red-600;
+}
+
+.vote-button-abstain {
+  @apply vote-button border-gray-300 text-gray-700 bg-gray-50 hover:bg-gray-100 hover:border-gray-400;
+}
+
+.ccl-code-preview {
+  @apply bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto;
+}
+
+.ccl-code-preview .keyword {
+  @apply text-blue-400;
+}
+
+.ccl-code-preview .string {
+  @apply text-green-400;
+}
+
+.ccl-code-preview .comment {
+  @apply text-gray-500;
+}
+
+/* Loading states */
+.skeleton {
+  @apply animate-pulse bg-gray-200 rounded;
+}
+
+.skeleton-text {
+  @apply skeleton h-4;
+}
+
+.skeleton-text-sm {
+  @apply skeleton h-3;
+}
+
+.skeleton-button {
+  @apply skeleton h-10 w-24;
+}
+
+.skeleton-card {
+  @apply skeleton h-32 w-full;
+}
+
+/* Dark mode support (for future enhancement) */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --tw-bg-opacity: 1;
+    background-color: rgb(17 24 39 / var(--tw-bg-opacity));
+  }
+}
+
+/* Print styles */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  
+  body {
+    font-size: 12pt;
+    line-height: 1.4;
+  }
+  
+  .card {
+    break-inside: avoid;
+    border: 1px solid #ccc;
+    margin-bottom: 1rem;
+  }
+}
