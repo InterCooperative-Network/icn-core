@@ -27,6 +27,8 @@ pub struct Credential {
     pub signatures: HashMap<String, SignatureBytes>,
     /// Claims that should remain private when sharing the credential.
     pub private_fields: HashSet<String>,
+    /// Optional expiration timestamp as seconds since the Unix epoch.
+    pub expires_at: Option<u64>,
 }
 
 impl Credential {
@@ -44,6 +46,7 @@ impl Credential {
             schema,
             signatures: HashMap::new(),
             private_fields: HashSet::new(),
+            expires_at: None,
         }
     }
 
@@ -60,8 +63,20 @@ impl Credential {
         }
     }
 
+    /// Returns `true` if the credential is expired.
+    pub fn is_expired(&self) -> bool {
+        if let Some(ts) = self.expires_at {
+            chrono::Utc::now().timestamp() as u64 >= ts
+        } else {
+            false
+        }
+    }
+
     /// Verify a single claim against the issuer's verifying key.
     pub fn verify_claim(&self, claim: &str, key: &VerifyingKey) -> Result<(), CommonError> {
+        if self.is_expired() {
+            return Err(CommonError::IdentityError("credential expired".into()));
+        }
         let value = self
             .claims
             .get(claim)
@@ -99,6 +114,7 @@ impl Credential {
             claims,
             schema: self.schema.clone(),
             signatures,
+            expires_at: self.expires_at,
         }
     }
 
@@ -108,6 +124,9 @@ impl Credential {
         fields: &[&str],
         prover: &dyn ZkProver,
     ) -> Result<(DisclosedCredential, ZkCredentialProof), ZkError> {
+        if self.is_expired() {
+            return Err(ZkError::VerificationFailed);
+        }
         let disclosed = self.selective_disclosure(fields);
         let undisclosed: Vec<&str> = self
             .claims
@@ -133,11 +152,18 @@ pub struct DisclosedCredential {
     pub schema: Option<Cid>,
     /// Signatures for disclosed claims.
     pub signatures: HashMap<String, SignatureBytes>,
+    /// Optional expiration timestamp carried from the original credential.
+    pub expires_at: Option<u64>,
 }
 
 impl DisclosedCredential {
     /// Verify all disclosed claim signatures against the issuer key.
     pub fn verify(&self, key: &VerifyingKey) -> Result<(), CommonError> {
+        if let Some(ts) = self.expires_at {
+            if chrono::Utc::now().timestamp() as u64 >= ts {
+                return Err(CommonError::IdentityError("credential expired".into()));
+            }
+        }
         for (k, v) in &self.claims {
             let sig = self.signatures.get(k).ok_or_else(|| {
                 CommonError::IdentityError(format!("missing signature for claim: {k}"))
@@ -154,6 +180,15 @@ impl DisclosedCredential {
             }
         }
         Ok(())
+    }
+
+    /// Returns `true` if the credential is expired.
+    pub fn is_expired(&self) -> bool {
+        if let Some(ts) = self.expires_at {
+            chrono::Utc::now().timestamp() as u64 >= ts
+        } else {
+            false
+        }
     }
 }
 
