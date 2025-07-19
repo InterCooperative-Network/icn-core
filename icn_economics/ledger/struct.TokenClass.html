@@ -6,7 +6,7 @@
     pub token_type: <a class="enum" href="enum.TokenType.html" title="enum icn_economics::ledger::TokenType">TokenType</a>,
     pub transferability: <a class="enum" href="enum.TransferabilityRule.html" title="enum icn_economics::ledger::TransferabilityRule">TransferabilityRule</a>,
     pub scoping_rules: <a class="struct" href="struct.ScopingRules.html" title="struct icn_economics::ledger::ScopingRules">ScopingRules</a>,
-    pub issuer: Did,
+    pub issuer: <a class="struct" href="../../icn_common/struct.Did.html" title="struct icn_common::Did">Did</a>,
     pub created_at: <a class="primitive" href="https://doc.rust-lang.org/1.88.0/std/primitive.u64.html">u64</a>,
     pub metadata: <a class="struct" href="https://doc.rust-lang.org/1.88.0/std/collections/hash/map/struct.HashMap.html" title="struct std::collections::hash::map::HashMap">HashMap</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>, <a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>&gt;,
 }</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Enhanced metadata for a token class with comprehensive properties.</p>
@@ -17,7 +17,7 @@
 </div><span id="structfield.token_type" class="structfield section-header"><a href="#structfield.token_type" class="anchor field">§</a><code>token_type: <a class="enum" href="enum.TokenType.html" title="enum icn_economics::ledger::TokenType">TokenType</a></code></span><div class="docblock"><p>Type of token defining its core properties.</p>
 </div><span id="structfield.transferability" class="structfield section-header"><a href="#structfield.transferability" class="anchor field">§</a><code>transferability: <a class="enum" href="enum.TransferabilityRule.html" title="enum icn_economics::ledger::TransferabilityRule">TransferabilityRule</a></code></span><div class="docblock"><p>Rules governing how tokens can be transferred.</p>
 </div><span id="structfield.scoping_rules" class="structfield section-header"><a href="#structfield.scoping_rules" class="anchor field">§</a><code>scoping_rules: <a class="struct" href="struct.ScopingRules.html" title="struct icn_economics::ledger::ScopingRules">ScopingRules</a></code></span><div class="docblock"><p>Scoping rules and limitations.</p>
-</div><span id="structfield.issuer" class="structfield section-header"><a href="#structfield.issuer" class="anchor field">§</a><code>issuer: Did</code></span><div class="docblock"><p>DID of the issuer/creator of this token class.</p>
+</div><span id="structfield.issuer" class="structfield section-header"><a href="#structfield.issuer" class="anchor field">§</a><code>issuer: <a class="struct" href="../../icn_common/struct.Did.html" title="struct icn_common::Did">Did</a></code></span><div class="docblock"><p>DID of the issuer/creator of this token class.</p>
 </div><span id="structfield.created_at" class="structfield section-header"><a href="#structfield.created_at" class="anchor field">§</a><code>created_at: <a class="primitive" href="https://doc.rust-lang.org/1.88.0/std/primitive.u64.html">u64</a></code></span><div class="docblock"><p>Unix timestamp when this token class was created.</p>
 </div><span id="structfield.metadata" class="structfield section-header"><a href="#structfield.metadata" class="anchor field">§</a><code>metadata: <a class="struct" href="https://doc.rust-lang.org/1.88.0/std/collections/hash/map/struct.HashMap.html" title="struct std::collections::hash::map::HashMap">HashMap</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>, <a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>&gt;</code></span><div class="docblock"><p>Optional metadata for specialized token types.</p>
 </div><h2 id="implementations" class="section-header">Implementations<a href="#implementations" class="anchor">§</a></h2><div id="implementations-list"><details class="toggle implementors-toggle" open><summary><section id="impl-TokenClass" class="impl"><a class="src rightside" href="../../src/icn_economics/ledger.rs.html#860-1020">Source</a><a href="#impl-TokenClass" class="anchor">§</a><h3 class="code-header">impl <a class="struct" href="struct.TokenClass.html" title="struct icn_economics::ledger::TokenClass">TokenClass</a></h3><div class="docblock"><p>Helper functions for creating common token types.</p>
@@ -26,19 +26,19 @@
     description: <a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>,
     symbol: <a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>,
     decimals: <a class="primitive" href="https://doc.rust-lang.org/1.88.0/std/primitive.u8.html">u8</a>,
-    issuer: Did,
+    issuer: <a class="struct" href="../../icn_common/struct.Did.html" title="struct icn_common::Did">Did</a>,
 ) -&gt; Self</h4></section></summary><div class="docblock"><p>Create a new fungible token class.</p>
 </div></details><details class="toggle method-toggle" open><summary><section id="method.new_time_banking" class="method"><a class="src rightside" href="../../src/icn_economics/ledger.rs.html#890-918">Source</a><h4 class="code-header">pub fn <a href="#method.new_time_banking" class="fn">new_time_banking</a>(
     name: <a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>,
     description: <a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>,
-    issuer: Did,
+    issuer: <a class="struct" href="../../icn_common/struct.Did.html" title="struct icn_common::Did">Did</a>,
     community_scope: <a class="enum" href="https://doc.rust-lang.org/1.88.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>&gt;,
 ) -&gt; Self</h4></section></summary><div class="docblock"><p>Create a new time banking token class.</p>
 </div></details><details class="toggle method-toggle" open><summary><section id="method.new_mutual_credit" class="method"><a class="src rightside" href="../../src/icn_economics/ledger.rs.html#921-951">Source</a><h4 class="code-header">pub fn <a href="#method.new_mutual_credit" class="fn">new_mutual_credit</a>(
     name: <a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>,
     description: <a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>,
     symbol: <a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>,
-    issuer: Did,
+    issuer: <a class="struct" href="../../icn_common/struct.Did.html" title="struct icn_common::Did">Did</a>,
     community_scope: <a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>,
     credit_limit: <a class="primitive" href="https://doc.rust-lang.org/1.88.0/std/primitive.u64.html">u64</a>,
 ) -&gt; Self</h4></section></summary><div class="docblock"><p>Create a new mutual credit token class.</p>
@@ -46,13 +46,13 @@
     name: <a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>,
     description: <a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>,
     symbol: <a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>,
-    issuer: Did,
+    issuer: <a class="struct" href="../../icn_common/struct.Did.html" title="struct icn_common::Did">Did</a>,
     geographic_scope: <a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>,
 ) -&gt; Self</h4></section></summary><div class="docblock"><p>Create a new local currency token class.</p>
 </div></details><details class="toggle method-toggle" open><summary><section id="method.new_bulk_purchasing" class="method"><a class="src rightside" href="../../src/icn_economics/ledger.rs.html#986-1019">Source</a><h4 class="code-header">pub fn <a href="#method.new_bulk_purchasing" class="fn">new_bulk_purchasing</a>(
     name: <a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>,
     description: <a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>,
-    issuer: Did,
+    issuer: <a class="struct" href="../../icn_common/struct.Did.html" title="struct icn_common::Did">Did</a>,
     target_product: <a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>,
     minimum_quantity: <a class="primitive" href="https://doc.rust-lang.org/1.88.0/std/primitive.u64.html">u64</a>,
 ) -&gt; Self</h4></section></summary><div class="docblock"><p>Create a new bulk purchasing token class.</p>
