@@ -401,6 +401,60 @@ impl StdLibrary {
             description: "Convert string to lowercase".to_string(),
             category: StdCategory::String,
         });
+
+        // Enhanced string operations for CCL WASM Backend
+        self.register_function(StdFunction {
+            name: "string_format".to_string(),
+            params: vec![
+                TypeAnnotationNode::String, // format string
+                TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::String)), // arguments
+            ],
+            return_type: TypeAnnotationNode::String,
+            description: "Format string with arguments (simplified version)".to_string(),
+            category: StdCategory::String,
+        });
+
+        self.register_function(StdFunction {
+            name: "string_char_at".to_string(),
+            params: vec![
+                TypeAnnotationNode::String,
+                TypeAnnotationNode::Integer, // index
+            ],
+            return_type: TypeAnnotationNode::Integer, // character code
+            description: "Get character at index (same as string[index])".to_string(),
+            category: StdCategory::String,
+        });
+
+        self.register_function(StdFunction {
+            name: "string_split".to_string(),
+            params: vec![
+                TypeAnnotationNode::String, // input string
+                TypeAnnotationNode::String, // delimiter
+            ],
+            return_type: TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::String)),
+            description: "Split string by delimiter".to_string(),
+            category: StdCategory::String,
+        });
+
+        self.register_function(StdFunction {
+            name: "string_trim".to_string(),
+            params: vec![TypeAnnotationNode::String],
+            return_type: TypeAnnotationNode::String,
+            description: "Remove leading and trailing whitespace".to_string(),
+            category: StdCategory::String,
+        });
+
+        self.register_function(StdFunction {
+            name: "string_replace".to_string(),
+            params: vec![
+                TypeAnnotationNode::String, // input string
+                TypeAnnotationNode::String, // search pattern
+                TypeAnnotationNode::String, // replacement
+            ],
+            return_type: TypeAnnotationNode::String,
+            description: "Replace all occurrences of pattern with replacement".to_string(),
+            category: StdCategory::String,
+        });
     }
 
     /// Register array manipulation functions
