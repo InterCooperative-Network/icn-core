@@ -24,6 +24,7 @@ pub struct Symbol {
 #[derive(Debug, Clone)]
 pub struct FunctionSignature {
     pub name: String,
+    pub type_parameters: Vec<String>, // Names of type parameters
     pub params: Vec<TypeAnnotationNode>,
     pub return_type: TypeAnnotationNode,
 }
@@ -32,7 +33,22 @@ pub struct FunctionSignature {
 #[derive(Debug, Clone)]
 pub struct StructType {
     pub name: String,
+    pub type_parameters: Vec<String>, // Names of type parameters
     pub fields: HashMap<String, TypeAnnotationNode>,
+}
+
+/// Type parameter scope for tracking generic type parameters
+#[derive(Debug, Clone)]
+pub struct TypeParameterScope {
+    pub parameters: HashMap<String, Vec<String>>, // param_name -> bounds
+}
+
+/// Monomorphized instance of a generic type or function
+#[derive(Debug, Clone)]
+pub struct MonomorphizedInstance {
+    pub original_name: String,
+    pub concrete_types: Vec<TypeAnnotationNode>,
+    pub monomorphized_name: String,
 }
 
 /// The semantic analyzer performs type checking and ensures the AST is semantically valid
@@ -40,6 +56,8 @@ pub struct SemanticAnalyzer {
     symbol_table: HashMap<String, Symbol>,
     function_table: HashMap<String, FunctionSignature>,
     struct_table: HashMap<String, StructType>, // Track struct definitions
+    type_parameter_scope: TypeParameterScope, // Current generic type parameters in scope
+    monomorphized_instances: Vec<MonomorphizedInstance>, // Track instantiated generics
     current_scope_level: usize,
     current_return_type: Option<TypeAnnotationNode>,
     errors: Vec<CclError>,
@@ -51,6 +69,8 @@ impl SemanticAnalyzer {
             symbol_table: HashMap::new(),
             function_table: HashMap::new(),
             struct_table: HashMap::new(),
+            type_parameter_scope: TypeParameterScope { parameters: HashMap::new() },
+            monomorphized_instances: Vec::new(),
             current_scope_level: 0,
             current_return_type: None,
             errors: Vec::new(),
@@ -70,6 +90,7 @@ impl SemanticAnalyzer {
         for (name, std_func) in stdlib.get_all_function_pairs() {
             self.function_table.insert(name.clone(), FunctionSignature {
                 name: std_func.name.clone(),
+                type_parameters: Vec::new(), // Standard library functions are not generic for now
                 params: std_func.params.clone(),
                 return_type: std_func.return_type.clone(),
             });
@@ -109,6 +130,7 @@ impl SemanticAnalyzer {
                             // Analyze standalone function
                             self.analyze_function_definition(
                                 &function.name,
+                                &function.type_parameters,
                                 &function.parameters,
                                 function.return_type.as_ref(),
                                 &function.body
@@ -131,10 +153,10 @@ impl SemanticAnalyzer {
                     self.analyze_policy_statement(stmt)?;
                 }
             }
-            AstNode::FunctionDefinition { name, parameters, return_type, body } => {
-                self.analyze_function_definition(name, parameters, return_type.as_ref(), body)?;
+            AstNode::FunctionDefinition { name, parameters, return_type, body, .. } => {
+                self.analyze_function_definition(name, &[], parameters, return_type.as_ref(), body)?;
             }
-            AstNode::StructDefinition { name, fields } => {
+            AstNode::StructDefinition { name, fields, .. } => {
                 self.analyze_struct_definition(name, fields)?;
             }
             AstNode::ContractDeclaration { name, metadata: _, body } => {
@@ -170,7 +192,7 @@ impl SemanticAnalyzer {
                     self.analyze_proposal(proposal)?;
                 }
                 crate::ast::ContractBodyNode::Function(func) => {
-                    self.analyze_function_definition(&func.name, &func.parameters, func.return_type.as_ref(), &func.body)?;
+                    self.analyze_function_definition(&func.name, &func.type_parameters, &func.parameters, func.return_type.as_ref(), &func.body)?;
                 }
                 crate::ast::ContractBodyNode::State(state) => {
                     self.analyze_state_declaration(state)?;
@@ -217,18 +239,31 @@ impl SemanticAnalyzer {
     fn analyze_function_definition(
         &mut self,
         name: &str,
+        type_parameters: &[crate::ast::TypeParameterNode],
         parameters: &[ParameterNode],
         return_type: Option<&TypeExprNode>,
         body: &BlockNode,
     ) -> Result<(), CclError> {
+        // Enter type parameter scope
+        let old_type_scope = self.type_parameter_scope.clone();
+        for type_param in type_parameters {
+            self.type_parameter_scope.parameters.insert(
+                type_param.name.clone(), 
+                type_param.bounds.clone()
+            );
+        }
+
         // Register function in function table
         let return_type_ann = return_type
-            .map(|rt| rt.to_type_annotation())
-            .unwrap_or(TypeAnnotationNode::Custom("void".to_string()));
+            .map(|rt| self.resolve_type_expr(rt))
+            .unwrap_or_else(|| Ok(TypeAnnotationNode::Custom("void".to_string())))?;
             
         self.function_table.insert(name.to_string(), FunctionSignature {
             name: name.to_string(),
-            params: parameters.iter().map(|p| p.type_expr.to_type_annotation()).collect(),
+            type_parameters: type_parameters.iter().map(|tp| tp.name.clone()).collect(),
+            params: parameters.iter()
+                .map(|p| self.resolve_type_expr(&p.type_expr))
+                .collect::<Result<Vec<_>, _>>()?,
             return_type: return_type_ann.clone(),
         });
 
@@ -238,9 +273,10 @@ impl SemanticAnalyzer {
 
         // Add parameters to symbol table
         for param in parameters {
+            let resolved_type = self.resolve_type_expr(&param.type_expr)?;
             self.symbol_table.insert(param.name.clone(), Symbol {
                 name: param.name.clone(),
-                symbol_type: param.type_expr.to_type_annotation(),
+                symbol_type: resolved_type,
                 is_mutable: false,
                 scope_level: self.current_scope_level,
             });
@@ -249,11 +285,77 @@ impl SemanticAnalyzer {
         // Analyze function body
         self.analyze_block(body)?;
 
-        // Exit function scope
+        // Exit function scope and restore type parameter scope
         self.exit_scope();
         self.current_return_type = None;
+        self.type_parameter_scope = old_type_scope;
 
         Ok(())
+    }
+
+    /// Resolve a TypeExprNode to a TypeAnnotationNode, handling generic type parameters
+    fn resolve_type_expr(&self, type_expr: &TypeExprNode) -> Result<TypeAnnotationNode, CclError> {
+        match type_expr {
+            TypeExprNode::Integer => Ok(TypeAnnotationNode::Integer),
+            TypeExprNode::String => Ok(TypeAnnotationNode::String),
+            TypeExprNode::Boolean => Ok(TypeAnnotationNode::Bool),
+            TypeExprNode::Mana => Ok(TypeAnnotationNode::Mana),
+            TypeExprNode::Did => Ok(TypeAnnotationNode::Did),
+            TypeExprNode::Timestamp => Ok(TypeAnnotationNode::Custom("Timestamp".to_string())),
+            TypeExprNode::Duration => Ok(TypeAnnotationNode::Custom("Duration".to_string())),
+            
+            TypeExprNode::Array(inner) => {
+                let inner_type = self.resolve_type_expr(inner)?;
+                Ok(TypeAnnotationNode::Array(Box::new(inner_type)))
+            }
+            
+            TypeExprNode::Map { key_type, value_type } => {
+                let key_type_ann = self.resolve_type_expr(key_type)?;
+                let value_type_ann = self.resolve_type_expr(value_type)?;
+                Ok(TypeAnnotationNode::Map {
+                    key_type: Box::new(key_type_ann),
+                    value_type: Box::new(value_type_ann),
+                })
+            }
+            
+            TypeExprNode::Option(inner) => {
+                let inner_type = self.resolve_type_expr(inner)?;
+                Ok(TypeAnnotationNode::Option(Box::new(inner_type)))
+            }
+            
+            TypeExprNode::Result { ok_type, err_type } => {
+                let ok_type_ann = self.resolve_type_expr(ok_type)?;
+                let err_type_ann = self.resolve_type_expr(err_type)?;
+                Ok(TypeAnnotationNode::Result {
+                    ok_type: Box::new(ok_type_ann),
+                    err_type: Box::new(err_type_ann),
+                })
+            }
+            
+            TypeExprNode::Custom(name) => Ok(TypeAnnotationNode::Custom(name.clone())),
+            
+            TypeExprNode::TypeParameter(name) => {
+                // Check if this type parameter is in scope
+                if self.type_parameter_scope.parameters.contains_key(name) {
+                    Ok(TypeAnnotationNode::Custom(name.clone()))
+                } else {
+                    Err(CclError::SemanticError(format!(
+                        "Type parameter '{}' is not in scope", name
+                    )))
+                }
+            }
+            
+            TypeExprNode::GenericInstantiation { base_type, type_args } => {
+                // For now, convert to a mangled name representing the instantiation
+                let arg_names: Result<Vec<String>, CclError> = type_args.iter()
+                    .map(|arg| self.resolve_type_expr(arg).map(|t| format!("{:?}", t)))
+                    .collect();
+                
+                let arg_names = arg_names?;
+                let mangled_name = format!("{}<{}>", base_type, arg_names.join(","));
+                Ok(TypeAnnotationNode::Custom(mangled_name))
+            }
+        }
     }
 
     fn analyze_struct_definition(&mut self, name: &str, fields: &[FieldNode]) -> Result<(), CclError> {
@@ -268,7 +370,7 @@ impl SemanticAnalyzer {
             }
         }
 
-        // Register struct type
+        // Register struct type in symbol table for reference
         let struct_type = TypeAnnotationNode::Custom(name.to_string());
         self.symbol_table.insert(name.to_string(), Symbol {
             name: name.to_string(),
@@ -276,6 +378,20 @@ impl SemanticAnalyzer {
             is_mutable: false,
             scope_level: self.current_scope_level,
         });
+
+        // Create and register the full struct type definition
+        let mut struct_fields = HashMap::new();
+        for field in fields {
+            struct_fields.insert(field.name.clone(), field.type_expr.to_type_annotation());
+        }
+        
+        let struct_type_def = StructType {
+            name: name.to_string(),
+            type_parameters: Vec::new(), // Regular structs don't have generics here
+            fields: struct_fields,
+        };
+        
+        self.struct_table.insert(name.to_string(), struct_type_def);
 
         Ok(())
     }
@@ -375,7 +491,7 @@ impl SemanticAnalyzer {
         for item in body {
             match item {
                 crate::ast::ContractBodyNode::Function(func) => {
-                    self.analyze_function_definition(&func.name, &func.parameters, func.return_type.as_ref(), &func.body)?;
+                    self.analyze_function_definition(&func.name, &func.type_parameters, &func.parameters, func.return_type.as_ref(), &func.body)?;
                 }
                 _ => {
                     // Other items already processed or analyzed separately
@@ -396,6 +512,7 @@ impl SemanticAnalyzer {
         
         let struct_type = StructType {
             name: struct_def.name.clone(),
+            type_parameters: struct_def.type_parameters.iter().map(|tp| tp.name.clone()).collect(),
             fields,
         };
         
@@ -406,12 +523,12 @@ impl SemanticAnalyzer {
     fn analyze_policy_statement(&mut self, stmt: &PolicyStatementNode) -> Result<(), CclError> {
         match stmt {
             PolicyStatementNode::FunctionDef(func_ast) => {
-                if let AstNode::FunctionDefinition { name, parameters, return_type, body } = func_ast {
-                    self.analyze_function_definition(name, parameters, return_type.as_ref(), body)?;
+                if let AstNode::FunctionDefinition { name, type_parameters, parameters, return_type, body, .. } = func_ast {
+                    self.analyze_function_definition(name, type_parameters, parameters, return_type.as_ref(), body)?;
                 }
             }
             PolicyStatementNode::StructDef(struct_ast) => {
-                if let AstNode::StructDefinition { name, fields } = struct_ast {
+                if let AstNode::StructDefinition { name, fields, .. } = struct_ast {
                     self.analyze_struct_definition(name, fields)?;
                 }
             }
@@ -556,13 +673,9 @@ impl SemanticAnalyzer {
                 
                 for arm in arms {
                     // TODO: Pattern type checking
-                    match &arm.body {
-                        crate::ast::Either::Left(expr) => {
-                            self.evaluate_expression(expr)?;
-                        }
-                        crate::ast::Either::Right(block) => {
-                            self.analyze_block(block)?;
-                        }
+                    self.evaluate_expression(&arm.body)?;
+                    if let Some(guard) = &arm.guard {
+                        self.evaluate_expression(guard)?;
                     }
                 }
             }
@@ -910,6 +1023,31 @@ impl SemanticAnalyzer {
                     key_type: Box::new(TypeAnnotationNode::String),
                     value_type: Box::new(TypeAnnotationNode::Integer),
                 })
+            }
+            ExpressionNode::Match { expr, arms } => {
+                // Evaluate the match expression type
+                let _expr_type = self.evaluate_expression(expr)?;
+                
+                // For now, assume all arms return the same type
+                // TODO: Implement proper exhaustiveness checking and type unification
+                if let Some(first_arm) = arms.first() {
+                    let arm_type = self.evaluate_expression(&first_arm.body)?;
+                    
+                    // Check guard if present
+                    if let Some(guard) = &first_arm.guard {
+                        let guard_type = self.evaluate_expression(guard)?;
+                        if !matches!(guard_type, TypeAnnotationNode::Bool) {
+                            return Err(CclError::TypeMismatchError {
+                                expected: TypeAnnotationNode::Bool,
+                                found: guard_type,
+                            });
+                        }
+                    }
+                    
+                    Ok(arm_type)
+                } else {
+                    Err(CclError::SemanticError("Match expression must have at least one arm".to_string()))
+                }
             }
         }
     }
