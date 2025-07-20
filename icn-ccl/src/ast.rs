@@ -495,7 +495,6 @@ pub enum ExpressionNode {
     
     // Compound expressions
     ArrayLiteral(Vec<ExpressionNode>),
-    MapLiteral(Vec<(ExpressionNode, ExpressionNode)>), // Key-value pairs
     StructLiteral {
         type_name: String,
         fields: Vec<FieldInitNode>,

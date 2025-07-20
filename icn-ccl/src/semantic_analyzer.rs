@@ -898,19 +898,6 @@ impl SemanticAnalyzer {
                     }),
                 }
             }
-            ExpressionNode::MapLiteral(pairs) => {
-                // For now, assume all maps are String -> Integer
-                // TODO: Add proper generic type inference
-                for (key, value) in pairs {
-                    let _key_type = self.evaluate_expression(key)?;
-                    let _value_type = self.evaluate_expression(value)?;
-                    // TODO: Validate all pairs have consistent types
-                }
-                Ok(TypeAnnotationNode::Map {
-                    key_type: Box::new(TypeAnnotationNode::String),
-                    value_type: Box::new(TypeAnnotationNode::Integer),
-                })
-            }
         }
     }
 
