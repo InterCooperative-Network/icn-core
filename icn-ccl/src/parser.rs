@@ -1706,6 +1706,22 @@ pub fn parse_ccl_source(source: &str) -> Result<AstNode, CclError> {
                         let contract = parse_contract_declaration(pair_in_program)?;
                         top_level_nodes.push(crate::ast::TopLevelNode::Contract(contract));
                     }
+                    Rule::fn_decl => {
+                        let function = parse_function_definition_new(pair_in_program)?;
+                        top_level_nodes.push(crate::ast::TopLevelNode::Function(function));
+                    }
+                    Rule::struct_decl => {
+                        let struct_def = parse_struct_declaration(pair_in_program)?;
+                        top_level_nodes.push(crate::ast::TopLevelNode::Struct(struct_def));
+                    }
+                    Rule::enum_decl => {
+                        let enum_def = parse_enum_declaration(pair_in_program)?;
+                        top_level_nodes.push(crate::ast::TopLevelNode::Enum(enum_def));
+                    }
+                    // Rule::const_decl => {
+                    //     let const_def = parse_const_declaration(pair_in_program)?;
+                    //     top_level_nodes.push(crate::ast::TopLevelNode::Const(const_def));
+                    // }
                     Rule::EOI => (),
                     _ => {
                         return Err(CclError::ParsingError(format!(
