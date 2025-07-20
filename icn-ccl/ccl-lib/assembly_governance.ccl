@@ -24,6 +24,9 @@ struct Delegate {
     weight: Integer
 }
 
+// Stored delegation records
+state delegations: Array<Delegate> = [];
+
 // Core assembly functions
 fn create_assembly_proposal(
     proposer: Did,
@@ -68,7 +71,9 @@ fn delegate_voting_power(
         scope: scope,
         weight: weight
     };
-    
+
+    array_push(delegations, delegation);
+
     return true;
 }
 
@@ -99,9 +104,16 @@ fn vote_on_assembly_proposal(
 }
 
 fn calculate_voting_weight(voter: Did) -> Integer {
-    let base_weight = host_get_reputation();
-    // TODO: Add delegated voting power calculation
-    return base_weight;
+    let total = host_get_reputation();
+    let i = 0;
+    while i < array_len(delegations) {
+        let del = delegations[i];
+        if del.delegate == voter && del.weight <= DELEGATION_LIMIT {
+            total = total + del.weight;
+        }
+        i = i + 1;
+    }
+    return total;
 }
 
 fn finalize_assembly_proposal(proposal: AssemblyProposal) -> Bool {

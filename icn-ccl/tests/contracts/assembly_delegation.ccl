@@ -1,0 +1,8 @@
+import "../../ccl-lib/assembly_governance.ccl" as Assembly;
+
+fn run() -> Integer {
+    let prop = Assembly.create_assembly_proposal(did:example:alice, "Delegation Test", 10);
+    Assembly.delegate_voting_power(did:example:alice, did:example:bob, "gen", 1);
+    let voted = Assembly.vote_on_assembly_proposal(prop, did:example:bob, "yes");
+    return voted.yes_votes;
+}
