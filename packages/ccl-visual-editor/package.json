@@ -1,0 +1,78 @@
+{
+  "name": "@icn/ccl-visual-editor",
+  "version": "0.1.0",
+  "description": "Cross-platform visual editor for CCL contracts - works in React Native and Web",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs", 
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist/**/*",
+    "src/**/*",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint src/**/*.{ts,tsx}",
+    "format": "prettier --write src/**/*.{ts,tsx}",
+    "clean": "rm -rf dist .turbo"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0",
+    "react-native": ">=0.70.0",
+    "@tamagui/core": "^1.70.0",
+    "@tamagui/config": "^1.70.0"
+  },
+  "dependencies": {
+    "@icn/ts-sdk": "workspace:*",
+    "@icn/ui-kit": "workspace:*",
+    "@tamagui/animations-react-native": "^1.70.0",
+    "@tamagui/button": "^1.70.0",
+    "@tamagui/card": "^1.70.0",
+    "@tamagui/form": "^1.70.0",
+    "@tamagui/input": "^1.70.0",
+    "@tamagui/text": "^1.70.0",
+    "@tamagui/theme": "^1.70.0",
+    "@tamagui/tokens": "^1.70.0",
+    "@tamagui/stacks": "^1.70.0",
+    "@tamagui/scroll-view": "^1.70.0",
+    "@tamagui/select": "^1.70.0",
+    "@tamagui/tabs": "^1.70.0",
+    "@tamagui/sheet": "^1.70.0",
+    "@tamagui/popover": "^1.70.0",
+    "react-native-gesture-handler": "^2.12.0",
+    "react-native-reanimated": "^3.4.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "@types/react-native": "^0.72.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.50.0",
+    "prettier": "^3.0.0",
+    "tsup": "^7.2.0",
+    "typescript": "^5.2.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "icn",
+    "ccl",
+    "visual-editor",
+    "contract-editor",
+    "tamagui",
+    "react-native",
+    "cross-platform",
+    "governance",
+    "cooperative"
+  ],
+  "author": "ICN Core Contributors",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/InterCooperative/icn-core",
+    "directory": "packages/ccl-visual-editor"
+  }
+} 
