@@ -1501,6 +1501,16 @@ fn protected_function() {
 
 ---
 
+## 17 · Conclusion
+
+The Cooperative Contract Language (CCL) provides a complete framework for encoding legal contracts, governance systems, and economic rules as deterministic, verifiable code. By treating code as law, CCL enables communities and cooperatives to operate with transparent, enforceable agreements that evolve through democratic processes.
+
+CCL's federation system allows for seamless scaling from local cooperatives to global governance networks, while maintaining the autonomy and self-determination of each participating community.
+
+This specification serves as the foundation for implementing CCL compilers, runtimes, and tooling that will support the cooperative digital economy of the InterCooperative Network.
+
+---
+
 ## 18 · Examples
 
 ### 18.1 Basic Housing Collective
@@ -1800,7 +1810,1070 @@ contract NortheastCoopFederation {
 
 ---
 
-## 17 · Conclusion
+## 19 · Privacy, Confidentiality, and Consent
+
+### 19.1 Private State and Redacted Records
+
+Contracts may define private state variables that are only readable by authorized roles or via explicit audit triggers.
+
+```ccl
+state member_private_data: map<did, PersonalData> private;
+
+fn get_my_private_data() -> PersonalData {
+    require(caller() == self);
+    return member_private_data[caller()];
+}
+
+fn audit_member_data(target: did) -> PersonalData {
+    require(caller_has_role(Auditor));
+    emit AuditAccessed { 
+        target: target, 
+        auditor: caller(), 
+        timestamp: now() 
+    };
+    return member_private_data[target];
+}
+```
+
+**Privacy Rules:**
+- All private data must be encrypted at rest (by default, with contract-scoped keys)
+- Data access events generate audit receipts for forensic traceability
+- Private state cannot be read by unauthorized roles or contracts
+- Audit access requires explicit role authorization and generates permanent logs
+
+### 19.2 Consent and Data Use Patterns
+
+Explicit consent patterns can be encoded for any personal or sensitive operation.
+
+```ccl
+fn process_member_data(
+    member: did, 
+    data: PersonalData, 
+    consent_token: ConsentToken
+) {
+    require(consent::has_valid_consent(member, data.data_type, consent_token));
+    
+    // Process data
+    store_member_data(member, data);
+    
+    emit DataProcessed { 
+        subject: member, 
+        by: caller(), 
+        timestamp: now(),
+        purpose: data.processing_purpose
+    };
+}
+
+fn revoke_consent(data_type: DataType, processor: did) {
+    consent::revoke_consent(caller(), data_type, processor);
+    
+    emit ConsentRevoked {
+        subject: caller(),
+        data_type: data_type,
+        processor: processor,
+        timestamp: now()
+    };
+}
+```
+
+**Consent Framework:**
+- **Opt-in by default**: No data processing without explicit consent
+- **Purpose limitation**: Consent scoped to specific use cases
+- **Revocable**: Subjects can withdraw consent at any time
+- **Expiration**: Consent tokens have time limits and must be renewed
+- **Granular**: Different consent levels for different data types
+
+### 19.3 GDPR and Privacy Compliance
+
+```ccl
+import "compliance::gdpr";
+
+fn gdpr_compliant_data_processing(
+    subject: did,
+    data: PersonalData,
+    legal_basis: LegalBasis
+) {
+    require(gdpr::validate_legal_basis(subject, data.data_type, legal_basis));
+    
+    match legal_basis {
+        LegalBasis::Consent => {
+            require(gdpr::has_active_consent(subject, data.data_type));
+        },
+        LegalBasis::LegitimateInterest => {
+            require(gdpr::legitimate_interest_assessment_passed(data.data_type));
+        },
+        LegalBasis::ContractualNecessity => {
+            require(gdpr::required_for_contract_performance(subject, data.data_type));
+        }
+    }
+    
+    // Log processing activity
+    gdpr::log_processing_activity(ProcessingRecord {
+        subject: subject,
+        data_type: data.data_type,
+        processor: caller(),
+        legal_basis: legal_basis,
+        purpose: data.purpose,
+        timestamp: now()
+    });
+    
+    // Process data
+    process_data_internal(subject, data);
+}
+
+fn handle_gdpr_subject_request(request_type: SubjectRightType, subject: did) {
+    require(verify_subject_identity(subject));
+    
+    match request_type {
+        SubjectRightType::Access => {
+            let data = get_all_subject_data(subject);
+            emit SubjectDataProvided { subject: subject, data_hash: hash(data) };
+        },
+        SubjectRightType::Rectification => {
+            // Allow subject to correct their data
+            enable_data_correction_mode(subject);
+        },
+        SubjectRightType::Erasure => {
+            // Right to be forgotten (with limitations)
+            schedule_data_erasure(subject);
+        },
+        SubjectRightType::Portability => {
+            let portable_data = export_subject_data(subject);
+            emit DataPortabilityProvided { subject: subject, export_hash: hash(portable_data) };
+        }
+    }
+}
+```
+
+---
+
+## 20 · Zero-Knowledge Proof (ZKP) and Selective Disclosure
+
+### 20.1 ZKP-Backed Credential Checks
+
+Contracts may require ZKPs instead of, or in addition to, normal credentials for access or voting.
+
+```ccl
+fn vote_on_secret_ballot(
+    proposal_id: int,
+    vote_choice: VoteChoice,
+    membership_proof: ZKProof, 
+    nullifier: Nullifier
+) {
+    require(zkp::verify_membership(membership_proof, "eligible_voters"));
+    require(!zkp::nullifier_used(nullifier)); // Prevent double-vote
+    
+    zkp::mark_nullifier(nullifier);
+
+    // Record anonymous vote
+    proposal_votes[proposal_id].push(AnonymousVote {
+        choice: vote_choice,
+        nullifier: nullifier,
+        timestamp: now()
+    });
+    
+    emit AnonymousVoteCast { 
+        proposal_id: proposal_id, 
+        nullifier: nullifier, 
+        timestamp: now() 
+    };
+}
+
+fn prove_mana_sufficiency_anonymous(
+    required_amount: token<Mana>,
+    mana_proof: ZKProof,
+    action: string
+) -> bool {
+    // Prove mana >= required_amount without revealing actual balance or identity
+    let proof_valid = zkp::verify_range_proof(
+        mana_proof,
+        "mana_balance",
+        min: required_amount.value(),
+        max: None
+    );
+    
+    if proof_valid {
+        emit AnonymousManaProofVerified {
+            required_amount: required_amount,
+            action: action,
+            timestamp: now()
+        };
+    }
+    
+    proof_valid
+}
+```
+
+**ZKP Use Cases:**
+- **Anonymous voting**: Prove eligibility without revealing identity
+- **Mana proofs**: Prove sufficient capacity without revealing balance
+- **Credential verification**: Prove qualifications without revealing details
+- **Threshold proofs**: Prove values above/below limits without revealing amounts
+
+### 20.2 Selective Disclosure
+
+Data subjects can reveal only specific fields or attestations, even to auditors.
+
+```ccl
+fn prove_income_qualification(
+    income_proof: ZKProof,
+    threshold: token<USD>
+) -> bool {
+    // Prove income > threshold without disclosing actual value
+    zkp::verify_range_proof(
+        income_proof, 
+        "annual_income", 
+        min: threshold.value(),
+        max: None
+    )
+}
+
+fn prove_age_verification(
+    age_proof: ZKProof,
+    minimum_age: int
+) -> bool {
+    // Prove age >= minimum without revealing exact age
+    zkp::verify_range_proof(
+        age_proof,
+        "age",
+        min: minimum_age,
+        max: None
+    )
+}
+
+fn selective_audit_disclosure(
+    auditor: did,
+    disclosure_proof: ZKProof,
+    requested_fields: [string]
+) {
+    require(caller_has_role(auditor, Auditor));
+    
+    // Verify proof allows disclosure of only requested fields
+    require(zkp::verify_selective_disclosure(
+        disclosure_proof,
+        requested_fields,
+        audit_scope: get_audit_scope(auditor)
+    ));
+    
+    // Provide only disclosed fields
+    let disclosed_data = extract_disclosed_fields(disclosure_proof, requested_fields);
+    
+    emit SelectiveDisclosureProvided {
+        auditor: auditor,
+        fields: requested_fields,
+        data_hash: hash(disclosed_data),
+        timestamp: now()
+    };
+}
+```
+
+### 20.3 ZKP Standard Library (std::zkp)
+
+```ccl
+module std::zkp {
+    /// Verify membership in a group without revealing identity
+    fn verify_membership(proof: ZKProof, group_id: string) -> bool;
+    
+    /// Verify a value is within a range without revealing the value
+    fn verify_range_proof(
+        proof: ZKProof, 
+        field: string, 
+        min: int, 
+        max: Option<int>
+    ) -> bool;
+    
+    /// Check if nullifier has been used (prevents double-spending/voting)
+    fn nullifier_used(nullifier: Nullifier) -> bool;
+    
+    /// Mark nullifier as used
+    fn mark_nullifier(nullifier: Nullifier);
+    
+    /// Verify selective disclosure of specific fields
+    fn verify_selective_disclosure(
+        proof: ZKProof,
+        fields: [string],
+        disclosure_scope: string
+    ) -> bool;
+    
+    /// Generate anonymous mana charge proof
+    fn prove_mana_charge(
+        amount: token<Mana>,
+        account_proof: ZKProof
+    ) -> ZKProof;
+    
+    /// Verify anonymous reputation update authority
+    fn verify_reputation_reporter(
+        reporter_proof: ZKProof,
+        reputation_scope: string
+    ) -> bool;
+}
+```
+
+**ZKP Properties:**
+- All ZKP operations are deterministic and reproducible
+- Proofs are anchored in the DAG for permanent verification
+- Circuit definitions are versioned and upgradeable via governance
+- Trusted setup parameters are transparent and auditable
+
+---
+
+## 21 · Soft Law: Mediation, Restorative Justice, and Community Review
+
+### 21.1 Mediation Workflows
+
+Contracts may define mediation procedures for disputes before (or instead of) formal adjudication.
+
+```ccl
+state mediation_cases: [MediationCase];
+state available_mediators: [did];
+
+struct MediationCase {
+    id: int,
+    parties: [did],
+    mediator: did,
+    status: MediationStatus,
+    context: string,
+    created_at: timestamp,
+    resolution: Option<string>,
+    outcome: Option<MediationOutcome>
+}
+
+enum MediationStatus {
+    Pending,
+    InProgress,
+    Resolved,
+    Abandoned
+}
+
+enum MediationOutcome {
+    AgreementReached,
+    PartialResolution,
+    NoAgreement,
+    EscalatedToReview
+}
+
+fn propose_mediation_case(
+    other_party: did, 
+    context: string,
+    preferred_mediator: Option<did>
+) -> int {
+    require(caller() != other_party);
+    
+    let mediator = match preferred_mediator {
+        Some(med) if is_qualified_mediator(med) => med,
+        _ => select_random_mediator()
+    };
+    
+    let case_id = mediation_cases.len();
+    mediation_cases.push(MediationCase {
+        id: case_id,
+        parties: [caller(), other_party],
+        mediator: mediator,
+        status: MediationStatus::Pending,
+        context: context,
+        created_at: now(),
+        resolution: None,
+        outcome: None
+    });
+    
+    // Charge mana for mediation request
+    charge_mana(caller(), token<Mana>(20), "mediation_request");
+    
+    emit MediationInitiated { 
+        case_id: case_id,
+        parties: [caller(), other_party], 
+        mediator: mediator, 
+        context: context, 
+        timestamp: now() 
+    };
+    
+    case_id
+}
+
+fn resolve_mediation(
+    case_id: int, 
+    resolution: string, 
+    outcome: MediationOutcome
+) {
+    let mut case = mediation_cases[case_id];
+    require(caller() == case.mediator);
+    require(case.status == MediationStatus::InProgress);
+    
+    case.status = MediationStatus::Resolved;
+    case.resolution = Some(resolution);
+    case.outcome = Some(outcome);
+    mediation_cases[case_id] = case;
+    
+    // Update reputation based on outcome
+    match outcome {
+        MediationOutcome::AgreementReached => {
+            // Reward all participants
+            for party in case.parties {
+                update_reputation(
+                    party,
+                    ReputationEventType::MediationParticipation,
+                    case.mediator,
+                    "Successful mediation participation"
+                );
+            }
+            update_reputation(
+                case.mediator,
+                ReputationEventType::MediationSuccess,
+                contract_address(),
+                "Successful mediation facilitation"
+            );
+        },
+        MediationOutcome::EscalatedToReview => {
+            // Initiate community review process
+            initiate_community_review(case.parties, case.context);
+        },
+        _ => {
+            // Neutral outcome - no reputation change
+        }
+    }
+    
+    emit MediationResolved { 
+        case_id: case_id, 
+        resolution: resolution, 
+        outcome: outcome, 
+        timestamp: now() 
+    };
+}
+```
+
+### 21.2 Community Review and Peer Panels
+
+Create community panels for transformative or restorative justice, with peer-selected or randomized jurors.
+
+```ccl
+state review_panels: [ReviewPanel];
+state panel_pool: [did]; // Eligible panel members
+
+struct ReviewPanel {
+    id: int,
+    target: did,
+    alleged_violation: string,
+    panel_members: [did],
+    status: ReviewStatus,
+    created_at: timestamp,
+    verdict: Option<string>,
+    recommendations: Option<string>,
+    votes: map<did, PanelVote>
+}
+
+enum ReviewStatus {
+    Constituting,
+    Active,
+    Deliberating,
+    Closed
+}
+
+struct PanelVote {
+    verdict: PanelVerdict,
+    reasoning: string,
+    recommendations: [string],
+    timestamp: timestamp
+}
+
+enum PanelVerdict {
+    NoViolation,
+    MinorViolation,
+    ModerateViolation,
+    SevereViolation
+}
+
+fn convene_review_panel(
+    target: did, 
+    alleged_violation: string,
+    evidence: [string]
+) -> int {
+    require(caller_has_role(Member) || caller_has_role(Mediator));
+    require(target != caller());
+    
+    // Select random panel members (excluding target and reporter)
+    let panel_size = 5;
+    let excluded = [target, caller()];
+    let panel_members = random_select_from_pool(panel_pool, panel_size, excluded);
+    
+    let panel_id = review_panels.len();
+    review_panels.push(ReviewPanel {
+        id: panel_id,
+        target: target,
+        alleged_violation: alleged_violation,
+        panel_members: panel_members,
+        status: ReviewStatus::Constituting,
+        created_at: now(),
+        verdict: None,
+        recommendations: None,
+        votes: map::new()
+    });
+    
+    // Charge mana for panel convening
+    charge_mana(caller(), token<Mana>(100), "convene_review_panel");
+    
+    // Notify panel members
+    for member in panel_members {
+        emit PanelMemberSelected { 
+            panel_id: panel_id, 
+            member: member, 
+            target: target,
+            timestamp: now() 
+        };
+    }
+    
+    emit ReviewPanelConstituted { 
+        panel_id: panel_id,
+        target: target, 
+        panel_members: panel_members, 
+        alleged_violation: alleged_violation,
+        timestamp: now() 
+    };
+    
+    panel_id
+}
+
+fn accept_panel_duty(panel_id: int) {
+    let mut panel = review_panels[panel_id];
+    require(panel.panel_members.contains(caller()));
+    require(panel.status == ReviewStatus::Constituting);
+    
+    // Track acceptance and activate panel when all members accept
+    let acceptance_count = count_panel_acceptances(panel_id);
+    if acceptance_count + 1 >= panel.panel_members.len() {
+        panel.status = ReviewStatus::Active;
+        review_panels[panel_id] = panel;
+        
+        emit ReviewPanelActivated { 
+            panel_id: panel_id, 
+            timestamp: now() 
+        };
+    }
+    
+    // Reward panel participation
+    update_reputation(
+        caller(),
+        ReputationEventType::CommunityServiceParticipation,
+        contract_address(),
+        format!("Accepted panel duty for panel {}", panel_id)
+    );
+}
+
+fn submit_panel_vote(
+    panel_id: int, 
+    verdict: PanelVerdict, 
+    reasoning: string,
+    recommendations: [string]
+) {
+    let mut panel = review_panels[panel_id];
+    require(panel.panel_members.contains(caller()));
+    require(panel.status == ReviewStatus::Active || panel.status == ReviewStatus::Deliberating);
+    require(!panel.votes.contains_key(caller()));
+    
+    panel.votes[caller()] = PanelVote {
+        verdict: verdict,
+        reasoning: reasoning,
+        recommendations: recommendations,
+        timestamp: now()
+    };
+    
+    // Check if all votes are in
+    if panel.votes.len() >= panel.panel_members.len() {
+        panel.status = ReviewStatus::Deliberating;
+        finalize_panel_decision(panel_id);
+    }
+    
+    review_panels[panel_id] = panel;
+    
+    emit PanelVoteSubmitted { 
+        panel_id: panel_id, 
+        voter: caller(), 
+        verdict: verdict,
+        timestamp: now() 
+    };
+}
+
+fn finalize_panel_decision(panel_id: int) {
+    let mut panel = review_panels[panel_id];
+    require(panel.status == ReviewStatus::Deliberating);
+    
+    // Tally votes and determine consensus
+    let vote_tally = tally_panel_votes(panel.votes);
+    let consensus_verdict = determine_consensus_verdict(vote_tally);
+    let consensus_recommendations = aggregate_recommendations(panel.votes);
+    
+    panel.verdict = Some(format!("{:?}", consensus_verdict));
+    panel.recommendations = Some(consensus_recommendations);
+    panel.status = ReviewStatus::Closed;
+    review_panels[panel_id] = panel;
+    
+    // Apply consequences based on verdict
+    apply_panel_decision(panel.target, consensus_verdict, consensus_recommendations);
+    
+    // Reward panel members for service
+    for member in panel.panel_members {
+        update_reputation(
+            member,
+            ReputationEventType::CommunityServiceCompletion,
+            contract_address(),
+            "Completed community review panel service"
+        );
+    }
+    
+    emit PanelDecisionFinalized { 
+        panel_id: panel_id, 
+        target: panel.target,
+        verdict: consensus_verdict, 
+        recommendations: consensus_recommendations, 
+        timestamp: now() 
+    };
+}
+
+fn apply_panel_decision(
+    target: did, 
+    verdict: PanelVerdict, 
+    recommendations: string
+) {
+    match verdict {
+        PanelVerdict::NoViolation => {
+            // Clear any pending reputation penalties
+            update_reputation(
+                target,
+                ReputationEventType::ExonerationByPeers,
+                contract_address(),
+                "Cleared of allegations by peer review"
+            );
+        },
+        PanelVerdict::MinorViolation => {
+            update_reputation(
+                target,
+                ReputationEventType::MinorViolation,
+                contract_address(),
+                "Minor violation found by peer review"
+            );
+        },
+        PanelVerdict::ModerateViolation => {
+            update_reputation(
+                target,
+                ReputationEventType::ModerateViolation,
+                contract_address(),
+                "Moderate violation found by peer review"
+            );
+            // Suggest restorative justice process
+            suggest_restorative_process(target, recommendations);
+        },
+        PanelVerdict::SevereViolation => {
+            update_reputation(
+                target,
+                ReputationEventType::SevereViolation,
+                contract_address(),
+                "Severe violation found by peer review"
+            );
+            // Mandatory restorative justice or potential suspension
+            initiate_mandatory_restorative_process(target, recommendations);
+        }
+    }
+}
+```
+
+### 21.3 Restorative Actions and Community Healing
+
+Contracts can encode restorative justice—actions for harm repair, reconciliation, and accountability.
+
+```ccl
+state restorative_sessions: [RestorativeSession];
+state community_service_opportunities: [ServiceOpportunity];
+
+struct RestorativeSession {
+    id: int,
+    offender: did,
+    harmed: did,
+    facilitator: did,
+    status: SessionStatus,
+    scheduled_date: timestamp,
+    outcome: Option<RestorativeOutcome>,
+    agreement: Option<string>,
+    follow_up_required: bool
+}
+
+enum SessionStatus {
+    Proposed,
+    Accepted,
+    Scheduled,
+    InProgress,
+    Completed,
+    Cancelled
+}
+
+enum RestorativeOutcome {
+    FullReconciliation,
+    PartialResolution,
+    AgreementReached,
+    ProcessIncomplete,
+    EscalatedToAuthority
+}
+
+struct ServiceOpportunity {
+    id: int,
+    title: string,
+    description: string,
+    hours_required: int,
+    skills_needed: [string],
+    organizer: did,
+    participants: [did],
+    status: ServiceStatus
+}
+
+enum ServiceStatus {
+    Open,
+    InProgress,
+    Completed,
+    Cancelled
+}
+
+fn propose_restorative_session(
+    harmed_party: did, 
+    facilitator: did,
+    proposed_date: timestamp
+) -> int {
+    let offender = caller();
+    require(offender != harmed_party);
+    require(is_qualified_facilitator(facilitator));
+    
+    let session_id = restorative_sessions.len();
+    restorative_sessions.push(RestorativeSession {
+        id: session_id,
+        offender: offender,
+        harmed: harmed_party,
+        facilitator: facilitator,
+        status: SessionStatus::Proposed,
+        scheduled_date: proposed_date,
+        outcome: None,
+        agreement: None,
+        follow_up_required: false
+    });
+    
+    emit RestorativeSessionProposed { 
+        session_id: session_id,
+        offender: offender, 
+        harmed: harmed_party, 
+        facilitator: facilitator,
+        proposed_date: proposed_date,
+        timestamp: now() 
+    };
+    
+    session_id
+}
+
+fn accept_restorative_session(session_id: int) {
+    let mut session = restorative_sessions[session_id];
+    require(caller() == session.harmed || caller() == session.facilitator);
+    require(session.status == SessionStatus::Proposed);
+    
+    session.status = SessionStatus::Accepted;
+    restorative_sessions[session_id] = session;
+    
+    emit RestorativeSessionAccepted { 
+        session_id: session_id,
+        accepted_by: caller(),
+        timestamp: now() 
+    };
+}
+
+fn schedule_restorative_session(
+    session_id: int,
+    final_date: timestamp
+) {
+    let mut session = restorative_sessions[session_id];
+    require(caller() == session.facilitator);
+    require(session.status == SessionStatus::Accepted);
+    
+    session.status = SessionStatus::Scheduled;
+    session.scheduled_date = final_date;
+    restorative_sessions[session_id] = session;
+    
+    emit RestorativeSessionScheduled { 
+        session_id: session_id,
+        date: final_date,
+        timestamp: now() 
+    };
+}
+
+fn record_restorative_outcome(
+    session_id: int, 
+    outcome: RestorativeOutcome,
+    agreement: string,
+    follow_up_required: bool
+) {
+    let mut session = restorative_sessions[session_id];
+    require(caller() == session.facilitator);
+    require(session.status == SessionStatus::InProgress || session.status == SessionStatus::Scheduled);
+    
+    session.status = SessionStatus::Completed;
+    session.outcome = Some(outcome);
+    session.agreement = Some(agreement);
+    session.follow_up_required = follow_up_required;
+    restorative_sessions[session_id] = session;
+    
+    // Update reputation based on outcome
+    match outcome {
+        RestorativeOutcome::FullReconciliation => {
+            update_reputation(
+                session.offender,
+                ReputationEventType::RestorativeJusticeCompleted,
+                session.facilitator,
+                "Completed restorative justice process with full reconciliation"
+            );
+            update_reputation(
+                session.harmed,
+                ReputationEventType::CommunityParticipation,
+                session.facilitator,
+                "Participated in restorative justice process"
+            );
+        },
+        RestorativeOutcome::AgreementReached => {
+            update_reputation(
+                session.offender,
+                ReputationEventType::RestorativeJusticePartial,
+                session.facilitator,
+                "Reached agreement in restorative justice process"
+            );
+        },
+        RestorativeOutcome::ProcessIncomplete => {
+            update_reputation(
+                session.offender,
+                ReputationEventType::RestorativeJusticeRefused,
+                session.facilitator,
+                "Did not complete restorative justice process"
+            );
+        },
+        _ => {
+            // Other outcomes may require follow-up
+        }
+    }
+    
+    emit RestorativeSessionCompleted { 
+        session_id: session_id, 
+        outcome: outcome,
+        agreement: agreement,
+        timestamp: now() 
+    };
+}
+
+fn create_community_service_opportunity(
+    title: string,
+    description: string,
+    hours_required: int,
+    skills_needed: [string]
+) -> int {
+    let opportunity_id = community_service_opportunities.len();
+    community_service_opportunities.push(ServiceOpportunity {
+        id: opportunity_id,
+        title: title,
+        description: description,
+        hours_required: hours_required,
+        skills_needed: skills_needed,
+        organizer: caller(),
+        participants: [],
+        status: ServiceStatus::Open
+    });
+    
+    emit CommunityServiceOpportunityCreated { 
+        opportunity_id: opportunity_id,
+        title: title,
+        organizer: caller(),
+        timestamp: now() 
+    };
+    
+    opportunity_id
+}
+
+fn volunteer_for_community_service(opportunity_id: int) {
+    let mut opportunity = community_service_opportunities[opportunity_id];
+    require(opportunity.status == ServiceStatus::Open);
+    require(!opportunity.participants.contains(caller()));
+    
+    opportunity.participants.push(caller());
+    community_service_opportunities[opportunity_id] = opportunity;
+    
+    update_reputation(
+        caller(),
+        ReputationEventType::CommunityServiceVolunteering,
+        opportunity.organizer,
+        format!("Volunteered for community service: {}", opportunity.title)
+    );
+    
+    emit CommunityServiceVolunteer { 
+        opportunity_id: opportunity_id,
+        volunteer: caller(),
+        timestamp: now() 
+    };
+}
+
+fn complete_community_service(
+    opportunity_id: int,
+    participant: did,
+    hours_completed: int
+) {
+    let opportunity = community_service_opportunities[opportunity_id];
+    require(caller() == opportunity.organizer);
+    require(opportunity.participants.contains(participant));
+    require(hours_completed >= opportunity.hours_required);
+    
+    // Award reputation for service completion
+    let reputation_bonus = match hours_completed {
+        h if h >= opportunity.hours_required * 2 => 5.0, // Exceeded expectations
+        h if h >= opportunity.hours_required => 3.0,     // Met requirements
+        _ => 1.0                                         // Partial completion
+    };
+    
+    update_reputation(
+        participant,
+        ReputationEventType::CommunityServiceCompletion,
+        caller(),
+        format!("Completed {} hours of community service", hours_completed)
+    );
+    
+    emit CommunityServiceCompleted { 
+        opportunity_id: opportunity_id,
+        participant: participant,
+        hours_completed: hours_completed,
+        timestamp: now() 
+    };
+}
+```
+
+---
+
+## 22 · Anonymous Restorative Governance Example
+
+Combining privacy, ZKP, and soft law for comprehensive community justice:
+
+```ccl
+proposal AnonymousRestorativeVoting {
+    description: "Anonymous community vote on proposed restorative plan";
+    eligible: Member;
+    voting_method: ZKPBallot;
+    quorum: 50%;
+    threshold: majority;
+    
+    execution: {
+        let total_votes = count_anonymous_votes();
+        let approve_votes = count_votes_for_choice(VoteChoice::Approve);
+        
+        if approve_votes > total_votes / 2 {
+            implement_restorative_plan();
+            emit RestorativePlanApproved { 
+                total_votes: total_votes,
+                approve_votes: approve_votes,
+                timestamp: now() 
+            };
+        } else {
+            escalate_to_review_panel();
+            emit RestorativePlanRejected { 
+                total_votes: total_votes,
+                approve_votes: approve_votes,
+                timestamp: now() 
+            };
+        }
+    };
+}
+
+fn anonymous_restorative_vote(
+    proposal_id: int,
+    vote_choice: VoteChoice,
+    membership_proof: ZKProof,
+    mana_proof: ZKProof,
+    nullifier: Nullifier
+) {
+    // Verify voter eligibility without revealing identity
+    require(zkp::verify_membership(membership_proof, "eligible_voters"));
+    
+    // Verify voter has sufficient mana without revealing balance
+    require(zkp::verify_range_proof(mana_proof, "mana_balance", min: 2, max: None));
+    
+    // Prevent double voting
+    require(!zkp::nullifier_used(nullifier));
+    zkp::mark_nullifier(nullifier);
+    
+    // Charge mana anonymously
+    anonymous_mana_charge(nullifier, token<Mana>(2));
+    
+    // Record anonymous vote
+    proposal_votes[proposal_id].push(AnonymousVote {
+        choice: vote_choice,
+        nullifier: nullifier,
+        timestamp: now()
+    });
+    
+    emit AnonymousRestorativeVote { 
+        proposal_id: proposal_id,
+        nullifier: nullifier,
+        timestamp: now() 
+    };
+}
+```
+
+---
+
+## 23 · Privacy and Soft Law Integration Summary
+
+### 23.1 Complete Cooperative Justice System
+
+The integration of privacy, ZKP, and soft law creates a comprehensive framework for community governance:
+
+**Identity Layer (DID)**
+- Cryptographically verified identity
+- Can be anonymous via ZKP when needed
+- Scoped to communities and federations
+
+**Capacity Layer (Mana)**
+- Merit-based participation credits
+- Regenerates based on reputation
+- Can be used anonymously via ZKP proofs
+
+**Trust Layer (Reputation)**
+- Community-validated trust scores
+- Updated through transparent processes
+- Can be reported anonymously to prevent retaliation
+
+**Privacy Layer (ZKP)**
+- Anonymous but verifiable participation
+- Selective disclosure of personal information
+- GDPR and consent compliance
+
+**Justice Layer (Soft Law)**
+- Community-driven conflict resolution
+- Restorative justice and healing processes
+- Graduated consequences with rehabilitation focus
+
+### 23.2 Emergent Properties
+
+This integrated system enables:
+
+**Anonymous Accountability**: Bad actors face consequences without exposing reporters to retaliation
+
+**Privacy-Preserving Merit**: Contributions are recognized without compromising personal privacy
+
+**Community Healing**: Focus on restoration and rehabilitation rather than punishment
+
+**Graduated Justice**: Soft law → mediation → community review → formal consequences
+
+**Transformative Conflict Resolution**: Address root causes and repair relationships
+
+**Democratic Privacy**: Transparent governance with individual privacy protection
+
+### 23.3 Technical Implementation
+
+All privacy and soft law features are:
+- **Deterministic**: Same inputs produce same outputs
+- **Verifiable**: All operations generate cryptographic proofs
+- **Auditable**: Actions are logged in the DAG with proper privacy protections
+- **Upgradeable**: Governance can evolve privacy and justice mechanisms
+- **Interoperable**: Works across federations and scales
+
+---
+
+## 24 · Conclusion
 
 The Cooperative Contract Language (CCL) provides a complete framework for encoding legal contracts, governance systems, and economic rules as deterministic, verifiable code. By treating code as law, CCL enables communities and cooperatives to operate with transparent, enforceable agreements that evolve through democratic processes.
 
