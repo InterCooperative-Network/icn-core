@@ -1,6 +1,6 @@
 import { ICNClient as BaseICNClient, ICNClientConfig } from '@icn/client-sdk'
 import { ICNClientOptions, ICNConnectionState, JobSubmissionOptions } from './types'
-import { ICNStorage, createStorage } from './storage'
+import { ICNStorage, createStorage, createSecureStorage } from './storage'
 
 export class ICNClient {
   private options: ICNClientOptions
@@ -10,9 +10,14 @@ export class ICNClient {
 
   constructor(options: ICNClientOptions) {
     this.options = options
-    this.storage = new ICNStorage(
-      options.storage || createStorage()
-    )
+    
+    // Create storage with encryption configuration
+    if (options.storage) {
+      this.storage = new ICNStorage(options.storage, options.encryptionConfig)
+    } else {
+      this.storage = createSecureStorage('@icn:', options.encryptionConfig)
+    }
+    
     this.connectionState = {
       connected: false,
       nodeEndpoint: options.nodeEndpoint,

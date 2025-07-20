@@ -3,8 +3,10 @@ export * from '@icn/client-sdk'
 
 // Platform-specific storage and utilities
 export { ICNClient } from './client'
-export { ICNStorage, createStorage } from './storage'
-export { ICNConfig, createConfig } from './config'
+export { ICNStorage, createStorage, createSecureStorage } from './storage'
+export type { EncryptionConfig } from './storage'
+export { createConfig } from './config'
+export type { ICNConfig } from './config'
 
 // Types
 export type {

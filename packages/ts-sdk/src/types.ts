@@ -22,6 +22,12 @@ export interface ICNClientOptions {
   storage?: StorageAdapter
   network?: 'mainnet' | 'testnet' | 'devnet'
   timeout?: number
+  encryptionConfig?: EncryptionConfig
+}
+
+export interface EncryptionConfig {
+  passphrase?: string
+  enableEncryption?: boolean
 }
 
 export interface StorageAdapter {
