@@ -78,6 +78,18 @@ path = "test_arrays.rs"
 name = "test_assignment"
 path = "test_assignment.rs"
 
+[[bin]]
+name = "test_strings"
+path = "test_strings.rs"
+
+[[bin]]
+name = "test_string_bool"
+path = "test_string_bool.rs"
+
+[[bin]]
+name = "test_strings_fixed"
+path = "test_strings_fixed.rs"
+
 # [[bin]]
 # name = "generate_ccl_job_spec"
 # path = "src/bin/generate_ccl_job_spec.rs"

@@ -678,13 +678,13 @@ impl SemanticAnalyzer {
                 
                 match method.as_str() {
                     "length" => {
-                        // Validate that object is an array
+                        // Validate that object is an array or string
                         match object_type {
-                            TypeAnnotationNode::Array(_) => {
+                            TypeAnnotationNode::Array(_) | TypeAnnotationNode::String => {
                                 // length() takes no arguments
                                 if !args.is_empty() {
                                     return Err(CclError::ArgumentCountMismatchError {
-                                        function: format!("{}.length", "array"),
+                                        function: format!("{}.length", "array_or_string"),
                                         expected: 0,
                                         found: args.len(),
                                     });
@@ -693,7 +693,7 @@ impl SemanticAnalyzer {
                             }
                             _ => {
                                 Err(CclError::SemanticError(format!(
-                                    "Method 'length' is only available on arrays, got: {:?}",
+                                    "Method 'length' is only available on arrays and strings, got: {:?}",
                                     object_type
                                 )))
                             }
@@ -868,6 +868,7 @@ impl SemanticAnalyzer {
             
             // String concatenation
             (String, Concat, String) => Ok(String),
+            (String, Add, String) => Ok(String), // String + String for concatenation
             
             _ => Err(CclError::InvalidBinaryOperationError {
                 left_type: left.clone(),

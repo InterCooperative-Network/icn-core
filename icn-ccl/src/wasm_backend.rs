@@ -566,13 +566,28 @@ impl WasmBackend {
             ExpressionNode::MethodCall { object, method, args: _ } => {
                 match method.as_str() {
                     "length" => {
-                        // Handle array.length() method
-                        self.emit_expression(object, instrs, locals, indices)?;
-                        // For now, return a constant length (arrays are fixed size in our current implementation)
-                        // TODO: Implement proper array length retrieval from memory
-                        instrs.push(Instruction::Drop); // Drop array reference
-                        instrs.push(Instruction::I64Const(5)); // Return fixed length for now
-                        Ok(ValType::I64)
+                        // Handle array.length() or string.length() method
+                        let object_type = self.emit_expression(object, instrs, locals, indices)?;
+                        
+                        match object_type {
+                            ValType::I32 => {
+                                // String length: strings are stored as [len: u32][bytes]
+                                // Load the length from the first 4 bytes
+                                instrs.push(Instruction::I32Load(wasm_encoder::MemArg {
+                                    offset: 0,
+                                    align: 0,
+                                    memory_index: 0,
+                                }));
+                                instrs.push(Instruction::I64ExtendI32U); // Convert to I64
+                                Ok(ValType::I64)
+                            }
+                            _ => {
+                                // Array length (arrays not fully implemented yet)
+                                instrs.push(Instruction::Drop); // Drop array reference
+                                instrs.push(Instruction::I64Const(5)); // Return fixed length for now
+                                Ok(ValType::I64)
+                            }
+                        }
                     }
                     _ => {
                         Err(CclError::WasmGenerationError(format!(
@@ -646,7 +661,8 @@ impl WasmBackend {
                         instrs.push(Instruction::I32Ne);
                         Ok(ValType::I32)
                     }
-                    (ValType::I32, ValType::I32, BinaryOperator::Concat) => {
+                    (ValType::I32, ValType::I32, BinaryOperator::Concat) | 
+                    (ValType::I32, ValType::I32, BinaryOperator::Add) => {
                         // Runtime string concatenation. Strings are stored as
                         // [len: u32][bytes]. Allocate new memory and copy bytes.
 
