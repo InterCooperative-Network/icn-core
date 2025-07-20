@@ -817,6 +817,7 @@ pub(crate) fn parse_expression(pair: Pair<Rule>) -> Result<ExpressionNode, CclEr
         Rule::timestamp_literal => parse_literal_expression(pair),
         Rule::array_literal => parse_array_literal(pair),
         Rule::struct_literal => parse_struct_literal(pair),
+        Rule::enum_value => parse_enum_value(pair),
         Rule::some_expr => parse_some_expr(pair),
         Rule::none_expr => Ok(ExpressionNode::None),
         Rule::ok_expr => parse_ok_expr(pair),
@@ -1176,6 +1177,15 @@ fn parse_array_literal(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
     }
     
     Ok(ExpressionNode::ArrayLiteral(elements))
+}
+
+fn parse_enum_value(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
+    // enum_value = { identifier ~ "::" ~ identifier }
+    let mut inner = pair.into_inner();
+    let enum_name = inner.next().unwrap().as_str().to_string();
+    let variant = inner.next().unwrap().as_str().to_string();
+    
+    Ok(ExpressionNode::EnumValue { enum_name, variant })
 }
 
 fn parse_struct_literal(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {

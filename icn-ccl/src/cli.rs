@@ -411,6 +411,7 @@ fn expr_to_string(expr: &ExpressionNode) -> String {
         ExpressionNode::None => "None".to_string(),
         ExpressionNode::Ok(inner) => format!("Ok({})", expr_to_string(inner)),
         ExpressionNode::Err(inner) => format!("Err({})", expr_to_string(inner)),
+        ExpressionNode::EnumValue { enum_name, variant } => format!("{}::{}", enum_name, variant),
     }
 }
 

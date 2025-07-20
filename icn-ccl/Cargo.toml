@@ -118,6 +118,18 @@ path = "test_simple_struct.rs"
 name = "test_struct_instantiation"
 path = "test_struct_instantiation.rs"
 
+[[bin]]
+name = "ultimate_governance_contract"
+path = "ultimate_governance_contract.rs"
+
+[[bin]]
+name = "final_demo_contract"
+path = "final_demo_contract.rs"
+
+[[bin]]
+name = "working_features_demo"
+path = "working_features_demo.rs"
+
 # [[bin]]
 # name = "generate_ccl_job_spec"
 # path = "src/bin/generate_ccl_job_spec.rs"

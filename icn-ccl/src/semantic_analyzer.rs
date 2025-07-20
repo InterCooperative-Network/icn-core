@@ -857,6 +857,10 @@ impl SemanticAnalyzer {
             ExpressionNode::IntegerLiteral(_) => Ok(TypeAnnotationNode::Integer),
             ExpressionNode::StringLiteral(_) => Ok(TypeAnnotationNode::String),
             ExpressionNode::BooleanLiteral(_) => Ok(TypeAnnotationNode::Bool),
+            ExpressionNode::EnumValue { enum_name, variant: _ } => {
+                // For now, just return the enum type
+                Ok(TypeAnnotationNode::Custom(enum_name.clone()))
+            }
             ExpressionNode::ArrayAccess { array, index } => {
                 let array_type = self.evaluate_expression(array)?;
                 let index_type = self.evaluate_expression(index)?;

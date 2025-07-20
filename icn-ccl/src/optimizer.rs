@@ -502,6 +502,9 @@ impl Optimizer {
                     index: Box::new(self.fold_expr(*index)),
                 }
             }
+            ExpressionNode::EnumValue { enum_name, variant } => {
+                ExpressionNode::EnumValue { enum_name, variant }
+            }
         }
     }
 
