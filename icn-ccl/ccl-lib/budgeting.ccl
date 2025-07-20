@@ -9,6 +9,8 @@ const APPROVAL_SIMPLE: Integer = 1;
 const APPROVAL_COMMITTEE: Integer = 2;
 const APPROVAL_ASSEMBLY: Integer = 3;
 
+const DAY: Integer = 86400; // Seconds in a day
+
 struct BudgetRequest {
     id: Integer,
     requestor: Did,
@@ -139,6 +141,22 @@ fn execute_budget_request(request: BudgetRequest) -> Bool {
     return true;
 }
 
+// Token/mana API helper functions (placeholders for host functions)
+fn get_token_balance(category: String, holder: Did) -> Mana {
+    // Placeholder - should call host function for token balance
+    return 10000; // Stub return value
+}
+
+fn burn_tokens(category: String, holder: Did, amount: Mana) -> Bool {
+    // Placeholder - should call host function to burn tokens
+    return true; // Stub return value
+}
+
+fn transfer_tokens(token_type: String, from: Did, to: Did, amount: Mana) -> Bool {
+    // Placeholder - should call host function to transfer tokens
+    return true; // Stub return value
+}
+
 fn get_category_available_funds(category: String) -> Mana {
     // Query the token balance for this budget category.
     // Categories are represented as token classes held by the caller
@@ -164,7 +182,7 @@ fn array_contains_did(arr: Array<Did>, item: Did) -> Bool {
         if arr[i] == item {
             return true;
         }
-        let i = i + 1;
+        i = i + 1;
     }
     return false;
 }

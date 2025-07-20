@@ -1,0 +1,59 @@
+// Minimal Budgeting Contract - Testing infinite loop fix only
+// This version has only basic functions to test the core fix
+
+// Array helper functions - THIS IS WHERE THE BUG WAS FIXED
+fn array_contains_did(arr: Array<Did>, item: Did) -> Bool {
+    let i = 0;
+    while i < array_len(arr) {
+        if arr[i] == item {
+            return true;
+        }
+        i = i + 1;  // FIXED: was "let i = i + 1;" which created infinite loop
+    }
+    return false;
+}
+
+fn array_push_did(arr: Array<Did>, item: Did) -> Bool {
+    array_push(arr, item);
+    return true;
+}
+
+// Test the fixed array_contains_did function
+fn test_array_contains() -> Bool {
+    let test_did = host_get_caller();
+    let test_array = [test_did];
+    
+    // This should NOT cause an infinite loop anymore
+    let contains_result = array_contains_did(test_array, test_did);
+    
+    return contains_result; // Should return true
+}
+
+// Simple budget approval level logic
+fn determine_approval_level(amount: Mana) -> Integer {
+    if amount <= 1000 {
+        return 1; // Simple approval
+    } else if amount <= 10000 {
+        return 2; // Committee approval  
+    } else {
+        return 3; // Assembly approval
+    }
+}
+
+// Main execution function demonstrating the fix
+fn run() -> Bool {
+    // Test that the infinite loop bug is fixed
+    let loop_test_passed = test_array_contains();
+    
+    // Test approval level determination
+    let small_budget_level = determine_approval_level(500);
+    let medium_budget_level = determine_approval_level(5000);
+    let large_budget_level = determine_approval_level(50000);
+    
+    // Verify correct approval levels
+    let levels_correct = (small_budget_level == 1) &&
+                        (medium_budget_level == 2) &&
+                        (large_budget_level == 3);
+    
+    return loop_test_passed && levels_correct;
+} 

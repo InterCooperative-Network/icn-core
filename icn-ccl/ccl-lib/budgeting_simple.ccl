@@ -1,0 +1,111 @@
+// Simplified Budgeting Contract - Testing infinite loop fix
+// This version removes struct definitions to test core functionality
+
+const BUDGET_SMALL_LIMIT: Mana = 1000;
+const BUDGET_MEDIUM_LIMIT: Mana = 10000;
+const BUDGET_LARGE_LIMIT: Mana = 100000;
+
+const APPROVAL_SIMPLE: Integer = 1;
+const APPROVAL_COMMITTEE: Integer = 2;
+const APPROVAL_ASSEMBLY: Integer = 3;
+
+const DAY: Integer = 86400; // Seconds in a day
+
+// Token/mana API helper functions (placeholders for host functions)
+fn get_token_balance(category: String, holder: Did) -> Mana {
+    // Placeholder - should call host function for token balance
+    return 10000; // Stub return value
+}
+
+fn burn_tokens(category: String, holder: Did, amount: Mana) -> Bool {
+    // Placeholder - should call host function to burn tokens
+    return true; // Stub return value
+}
+
+fn transfer_tokens(token_type: String, from: Did, to: Did, amount: Mana) -> Bool {
+    // Placeholder - should call host function to transfer tokens
+    return true; // Stub return value
+}
+
+// Array helper functions - THIS IS WHERE THE BUG WAS FIXED
+fn array_contains_did(arr: Array<Did>, item: Did) -> Bool {
+    let i = 0;
+    while i < array_len(arr) {
+        if arr[i] == item {
+            return true;
+        }
+        i = i + 1;  // FIXED: was "let i = i + 1;" which created infinite loop
+    }
+    return false;
+}
+
+fn array_push_did(arr: Array<Did>, item: Did) -> Bool {
+    array_push(arr, item);
+    return true;
+}
+
+// Simplified budget functions
+fn determine_approval_level(amount: Mana) -> Integer {
+    if amount <= BUDGET_SMALL_LIMIT {
+        return APPROVAL_SIMPLE;
+    } else if amount <= BUDGET_MEDIUM_LIMIT {
+        return APPROVAL_COMMITTEE;
+    } else {
+        return APPROVAL_ASSEMBLY;
+    }
+}
+
+fn has_approval_authority(approver: Did, level: Integer) -> Bool {
+    let reputation = host_get_reputation();
+
+    if level == APPROVAL_SIMPLE {
+        return reputation >= 100;
+    } else if level == APPROVAL_COMMITTEE {
+        return reputation >= 500;
+    } else if level == APPROVAL_ASSEMBLY {
+        return reputation >= 1000;
+    }
+
+    return false;
+}
+
+fn check_approval_count(approval_count: Integer, level: Integer) -> Bool {
+    if level == APPROVAL_SIMPLE {
+        return approval_count >= 1;
+    } else if level == APPROVAL_COMMITTEE {
+        return approval_count >= 3;
+    } else if level == APPROVAL_ASSEMBLY {
+        return approval_count >= 7;
+    }
+
+    return false;
+}
+
+// Test the fixed array_contains_did function
+fn test_array_contains() -> Bool {
+    let test_did = host_get_caller();
+    let test_array = [test_did];
+    
+    // This should NOT cause an infinite loop anymore
+    let contains_result = array_contains_did(test_array, test_did);
+    
+    return contains_result; // Should return true
+}
+
+// Main execution function demonstrating the fix
+fn run() -> Bool {
+    // Test that the infinite loop bug is fixed
+    let loop_test_passed = test_array_contains();
+    
+    // Test approval level determination
+    let small_budget_level = determine_approval_level(500);
+    let medium_budget_level = determine_approval_level(5000);
+    let large_budget_level = determine_approval_level(50000);
+    
+    // Verify correct approval levels
+    let levels_correct = (small_budget_level == APPROVAL_SIMPLE) &&
+                        (medium_budget_level == APPROVAL_COMMITTEE) &&
+                        (large_budget_level == APPROVAL_ASSEMBLY);
+    
+    return loop_test_passed && levels_correct;
+} 

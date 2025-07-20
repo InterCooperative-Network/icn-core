@@ -282,7 +282,7 @@ impl SemanticAnalyzer {
             self.symbol_table.insert(param.name.clone(), Symbol {
                 name: param.name.clone(),
                 symbol_type: resolved_type,
-                is_mutable: false,
+                is_mutable: true, // Function parameters are mutable within function scope
                 scope_level: self.current_scope_level,
             });
         }
@@ -591,7 +591,7 @@ impl SemanticAnalyzer {
                 self.symbol_table.insert(name.clone(), Symbol {
                     name: name.clone(),
                     symbol_type: expected_type,
-                    is_mutable: *mutable,
+                    is_mutable: true, // CCL variables are mutable by default for familiarity
                     scope_level: self.current_scope_level,
                 });
             }

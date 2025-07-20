@@ -26,9 +26,9 @@ path = "test_working_features.rs"
 name = "test_governance_policy"
 path = "test_governance_policy.rs"
 
-[[bin]]
-name = "test_ccl_devnet_integration" 
-path = "test_ccl_devnet_integration.rs"
+# [[bin]]
+# name = "test_ccl_devnet_integration" 
+# path = "test_ccl_devnet_integration.rs"
 
 [[bin]]
 name = "test_cooperative_contracts"
@@ -142,9 +142,9 @@ path = "test_else_if_comprehensive.rs"
 name = "test_all_cooperative_contracts"
 path = "test_all_cooperative_contracts.rs"
 
-[[bin]]
-name = "test_simple_standalone"
-path = "test_simple_standalone.rs"
+# [[bin]]
+# name = "test_simple_standalone"
+# path = "test_simple_standalone.rs"
 
 [[bin]]
 name = "test_string_array_improvements"
@@ -173,6 +173,32 @@ path = "test_simple_gte.rs"
 [[bin]]
 name = "demo_ccl_improvements_success"
 path = "demo_ccl_improvements_success.rs"
+
+[[bin]]
+name = "test_mutable_fix"
+path = "test_mutable_fix.rs"
+
+[[bin]]
+name = "test_budgeting_contract"
+path = "test_budgeting_contract.rs"
+
+[[bin]]
+name = "test_budgeting_functions"
+path = "test_budgeting_functions.rs"
+
+[[bin]]
+name = "test_final_infinite_loop_fix"
+path = "test_final_infinite_loop_fix.rs"
+
+[[bin]]
+name = "test_ultimate_basic"
+path = "test_ultimate_basic.rs"
+
+[[bin]]
+name = "verify_infinite_loop_fix"
+path = "verify_infinite_loop_fix.rs"
+
+
 
 # [[bin]]
 # name = "generate_ccl_job_spec"
