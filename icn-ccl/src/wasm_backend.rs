@@ -54,7 +54,7 @@ impl LocalEnv {
     }
 }
 
-const IMPORT_COUNT: u32 = 5;
+const IMPORT_COUNT: u32 = 15; // 5 original + 10 new functions
 
 pub struct WasmBackend {
     data: wasm_encoder::DataSection,
@@ -245,6 +245,129 @@ impl WasmBackend {
             wasm_encoder::EntityType::Function(ty_verify),
         );
         fn_indices.insert("host_verify_zk_proof".to_string(), next_index);
+        next_index += 1;
+
+        // === NEW ECONOMICS FUNCTIONS ===
+        
+        // Token system functions
+        let ty_create_token = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I32, ValType::I32, ValType::I32], // class_id, name, symbol, issuer (all string/DID pointers)
+            vec![ValType::I32] // bool
+        );
+        imports.import("icn", "host_create_token_class", wasm_encoder::EntityType::Function(ty_create_token));
+        fn_indices.insert("host_create_token_class".to_string(), next_index);
+        next_index += 1;
+
+        let ty_mint_tokens = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I32, ValType::I64], // class_id, recipient, amount
+            vec![ValType::I32] // bool
+        );
+        imports.import("icn", "host_mint_tokens", wasm_encoder::EntityType::Function(ty_mint_tokens));
+        fn_indices.insert("host_mint_tokens".to_string(), next_index);
+        next_index += 1;
+
+        let ty_transfer_tokens = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I32, ValType::I32, ValType::I64], // class_id, from, to, amount
+            vec![ValType::I32] // bool
+        );
+        imports.import("icn", "host_transfer_tokens", wasm_encoder::EntityType::Function(ty_transfer_tokens));
+        fn_indices.insert("host_transfer_tokens".to_string(), next_index);
+        next_index += 1;
+
+        let ty_burn_tokens = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I32, ValType::I64], // class_id, from, amount
+            vec![ValType::I32] // bool
+        );
+        imports.import("icn", "host_burn_tokens", wasm_encoder::EntityType::Function(ty_burn_tokens));
+        fn_indices.insert("host_burn_tokens".to_string(), next_index);
+        next_index += 1;
+
+        let ty_get_token_balance = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I32], // class_id, account
+            vec![ValType::I64] // balance
+        );
+        imports.import("icn", "host_get_token_balance", wasm_encoder::EntityType::Function(ty_get_token_balance));
+        fn_indices.insert("host_get_token_balance".to_string(), next_index);
+        next_index += 1;
+
+        // Reputation-linked functions
+        let ty_price_by_rep = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I64, ValType::I64], // base_price, reputation
+            vec![ValType::I64] // adjusted_price
+        );
+        imports.import("icn", "host_price_by_reputation", wasm_encoder::EntityType::Function(ty_price_by_rep));
+        fn_indices.insert("host_price_by_reputation".to_string(), next_index);
+        next_index += 1;
+
+        let ty_credit_by_rep = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I64], // account, base_amount
+            vec![ValType::I32] // bool
+        );
+        imports.import("icn", "host_credit_by_reputation", wasm_encoder::EntityType::Function(ty_credit_by_rep));
+        fn_indices.insert("host_credit_by_reputation".to_string(), next_index);
+        next_index += 1;
+
+        let ty_mint_with_rep = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I32, ValType::I64, ValType::I32], // class_id, recipient, amount, issuer
+            vec![ValType::I32] // bool
+        );
+        imports.import("icn", "host_mint_tokens_with_reputation", wasm_encoder::EntityType::Function(ty_mint_with_rep));
+        fn_indices.insert("host_mint_tokens_with_reputation".to_string(), next_index);
+        next_index += 1;
+
+        // === NEW IDENTITY FUNCTIONS ===
+        
+        let ty_create_did = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I32], // method, identifier
+            vec![ValType::I32] // DID pointer
+        );
+        imports.import("icn", "host_create_did", wasm_encoder::EntityType::Function(ty_create_did));
+        fn_indices.insert("host_create_did".to_string(), next_index);
+        next_index += 1;
+
+        let ty_resolve_did = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32], // did
+            vec![ValType::I32] // document JSON pointer
+        );
+        imports.import("icn", "host_resolve_did", wasm_encoder::EntityType::Function(ty_resolve_did));
+        fn_indices.insert("host_resolve_did".to_string(), next_index);
+        next_index += 1;
+
+        let ty_verify_did_sig = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I32, ValType::I32], // signer_did, message, signature
+            vec![ValType::I32] // bool
+        );
+        imports.import("icn", "host_verify_did_signature", wasm_encoder::EntityType::Function(ty_verify_did_sig));
+        fn_indices.insert("host_verify_did_signature".to_string(), next_index);
+        next_index += 1;
+
+        let ty_issue_cred = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I32, ValType::I32, ValType::I32, ValType::I64], // issuer, holder, type, claims, expiration
+            vec![ValType::I32] // credential JSON pointer
+        );
+        imports.import("icn", "host_issue_credential", wasm_encoder::EntityType::Function(ty_issue_cred));
+        fn_indices.insert("host_issue_credential".to_string(), next_index);
+        next_index += 1;
+
+        let ty_verify_cred = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I32], // credential, expected_issuer
+            vec![ValType::I32] // bool
+        );
+        imports.import("icn", "host_verify_credential", wasm_encoder::EntityType::Function(ty_verify_cred));
+        fn_indices.insert("host_verify_credential".to_string(), next_index);
         next_index += 1;
 
         let policy_items = match ast {
@@ -1258,6 +1381,140 @@ impl WasmBackend {
                         Ok(ValType::I32)
                     }
                     
+                    // === NEW ECONOMICS STDLIB FUNCTIONS ===
+                    
+                    "create_token_class" => {
+                        // Map to host_create_token_class(class_id, name, symbol, issuer)
+                        for arg in args {
+                            self.emit_expression(arg, instrs, locals, indices)?;
+                        }
+                        let idx = indices.get("host_create_token_class").unwrap();
+                        instrs.push(Instruction::Call(*idx));
+                        Ok(ValType::I32)
+                    }
+                    
+                    "mint_tokens" => {
+                        // Map to host_mint_tokens(class_id, recipient, amount)
+                        for arg in args {
+                            self.emit_expression(arg, instrs, locals, indices)?;
+                        }
+                        let idx = indices.get("host_mint_tokens").unwrap();
+                        instrs.push(Instruction::Call(*idx));
+                        Ok(ValType::I32)
+                    }
+                    
+                    "transfer_tokens" => {
+                        // Map to host_transfer_tokens(class_id, from, to, amount)
+                        for arg in args {
+                            self.emit_expression(arg, instrs, locals, indices)?;
+                        }
+                        let idx = indices.get("host_transfer_tokens").unwrap();
+                        instrs.push(Instruction::Call(*idx));
+                        Ok(ValType::I32)
+                    }
+                    
+                    "burn_tokens" => {
+                        // Map to host_burn_tokens(class_id, from, amount)
+                        for arg in args {
+                            self.emit_expression(arg, instrs, locals, indices)?;
+                        }
+                        let idx = indices.get("host_burn_tokens").unwrap();
+                        instrs.push(Instruction::Call(*idx));
+                        Ok(ValType::I32)
+                    }
+                    
+                    "get_token_balance" => {
+                        // Map to host_get_token_balance(class_id, account)
+                        for arg in args {
+                            self.emit_expression(arg, instrs, locals, indices)?;
+                        }
+                        let idx = indices.get("host_get_token_balance").unwrap();
+                        instrs.push(Instruction::Call(*idx));
+                        Ok(ValType::I64)
+                    }
+                    
+                    "price_by_reputation" => {
+                        // Map to host_price_by_reputation(base_price, reputation)
+                        for arg in args {
+                            self.emit_expression(arg, instrs, locals, indices)?;
+                        }
+                        let idx = indices.get("host_price_by_reputation").unwrap();
+                        instrs.push(Instruction::Call(*idx));
+                        Ok(ValType::I64)
+                    }
+                    
+                    "credit_by_reputation" => {
+                        // Map to host_credit_by_reputation(account, base_amount)
+                        for arg in args {
+                            self.emit_expression(arg, instrs, locals, indices)?;
+                        }
+                        let idx = indices.get("host_credit_by_reputation").unwrap();
+                        instrs.push(Instruction::Call(*idx));
+                        Ok(ValType::I32)
+                    }
+                    
+                    "mint_tokens_with_reputation" => {
+                        // Map to host_mint_tokens_with_reputation(class_id, recipient, amount, issuer)
+                        for arg in args {
+                            self.emit_expression(arg, instrs, locals, indices)?;
+                        }
+                        let idx = indices.get("host_mint_tokens_with_reputation").unwrap();
+                        instrs.push(Instruction::Call(*idx));
+                        Ok(ValType::I32)
+                    }
+                    
+                    // === NEW IDENTITY STDLIB FUNCTIONS ===
+                    
+                    "create_did" => {
+                        // Map to host_create_did(method, identifier)
+                        for arg in args {
+                            self.emit_expression(arg, instrs, locals, indices)?;
+                        }
+                        let idx = indices.get("host_create_did").unwrap();
+                        instrs.push(Instruction::Call(*idx));
+                        Ok(ValType::I32) // DID pointer
+                    }
+                    
+                    "resolve_did" => {
+                        // Map to host_resolve_did(did)
+                        for arg in args {
+                            self.emit_expression(arg, instrs, locals, indices)?;
+                        }
+                        let idx = indices.get("host_resolve_did").unwrap();
+                        instrs.push(Instruction::Call(*idx));
+                        Ok(ValType::I32) // Document JSON pointer
+                    }
+                    
+                    "verify_did_signature" => {
+                        // Map to host_verify_did_signature(signer_did, message, signature)
+                        for arg in args {
+                            self.emit_expression(arg, instrs, locals, indices)?;
+                        }
+                        let idx = indices.get("host_verify_did_signature").unwrap();
+                        instrs.push(Instruction::Call(*idx));
+                        Ok(ValType::I32)
+                    }
+                    
+                    "issue_credential" => {
+                        // Map to host_issue_credential(issuer, holder, type, claims, expiration)
+                        for arg in args {
+                            self.emit_expression(arg, instrs, locals, indices)?;
+                        }
+                        let idx = indices.get("host_issue_credential").unwrap();
+                        instrs.push(Instruction::Call(*idx));
+                        Ok(ValType::I32) // Credential JSON pointer
+                    }
+                    
+                    "verify_credential" => {
+                        // Map to host_verify_credential(credential, expected_issuer)
+                        for arg in args {
+                            self.emit_expression(arg, instrs, locals, indices)?;
+                        }
+                        let idx = indices.get("host_verify_credential").unwrap();
+                        instrs.push(Instruction::Call(*idx));
+                        Ok(ValType::I32)
+                    }
+                    
                     _ => {
                         let idx = indices.get(name).ok_or_else(|| {
                             CclError::WasmGenerationError(format!("Unknown function {}", name))
@@ -1267,8 +1524,16 @@ impl WasmBackend {
                         }
                         instrs.push(Instruction::Call(*idx));
                         let ret = match name.as_str() {
-                            "host_account_get_mana" | "host_get_reputation" => ValType::I64,
-                            "host_submit_mesh_job" | "host_anchor_receipt" => ValType::I32,
+                            "host_account_get_mana" | "host_get_reputation" 
+                            | "host_get_token_balance" | "host_price_by_reputation" => ValType::I64,
+                            
+                            "host_submit_mesh_job" | "host_anchor_receipt" 
+                            | "host_create_token_class" | "host_mint_tokens" | "host_transfer_tokens" 
+                            | "host_burn_tokens" | "host_credit_by_reputation" | "host_mint_tokens_with_reputation"
+                            | "host_verify_did_signature" | "host_verify_credential" => ValType::I32,
+                            
+                            "host_create_did" | "host_resolve_did" | "host_issue_credential" => ValType::I32, // pointers
+                            
                             _ => ValType::I64,
                         };
                         Ok(ret)
@@ -1980,6 +2245,12 @@ impl WasmBackend {
             ExpressionNode::Burn { from: _, amount: _ } => {
                 // TODO: Implement token burning
                 instrs.push(Instruction::I32Const(1)); // success
+                Ok(ValType::I32)
+            }
+            
+            ExpressionNode::Match { .. } => {
+                // TODO: Implement pattern matching in WASM backend
+                instrs.push(Instruction::I32Const(0)); // placeholder return value
                 Ok(ValType::I32)
             }
             

@@ -420,6 +420,7 @@ fn expr_to_string(expr: &ExpressionNode) -> String {
             format!("{{{}}}", items)
         }
         ExpressionNode::EnumValue { enum_name, variant } => format!("{}::{}", enum_name, variant),
+        ExpressionNode::Match { .. } => "match { ... }".to_string(), // Placeholder for pattern matching expressions
     }
 }
 
