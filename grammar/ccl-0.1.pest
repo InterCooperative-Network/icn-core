@@ -1,0 +1,641 @@
+// CCL 0.1 Grammar - Cooperative Contract Language
+// This grammar defines the syntax for legally-binding contracts, governance rules, and economic agreements
+
+//////////////////////////
+// Lexical Elements
+//////////////////////////
+
+WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
+COMMENT = _{ 
+    "//" ~ (!"\n" ~ ANY)* |
+    "/*" ~ (!"*/" ~ ANY)* ~ "*/"
+}
+
+// Identifiers and Keywords
+identifier = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
+keyword = @{ 
+    "contract" | "role" | "proposal" | "fn" | "state" | "import" | "export" |
+    "when" | "then" | "if" | "else" | "match" | "for" | "while" | "loop" | 
+    "let" | "mut" | "return" | "break" | "continue" |
+    "true" | "false" | "Some" | "None" | "Ok" | "Err" |
+    "transfer" | "mint" | "burn" | "emit" | "require" |
+    "can" | "requires" | "extends" | "scope" | "version" |
+    "eligible" | "quorum" | "threshold" | "duration" | "execution" |
+    "majority" | "supermajority" | "consensus" | "unanimous"
+}
+
+// Literals
+integer = @{ ASCII_DIGIT+ }
+float = @{ ASCII_DIGIT+ ~ "." ~ ASCII_DIGIT+ }
+string = @{ "\"" ~ ( "\\\"" | (!"\"" ~ ANY) )* ~ "\"" }
+boolean = { "true" | "false" }
+
+// Special literals
+did_literal = @{ "did:" ~ (ASCII_ALPHANUMERIC | ":" | "-" | "_")+ }
+scope_literal = @{ "\"" ~ (ASCII_ALPHANUMERIC | ":" | "_" | "-" | ".")+ ~ "\"" }
+timestamp_literal = @{ ASCII_DIGIT{4} ~ "-" ~ ASCII_DIGIT{2} ~ "-" ~ ASCII_DIGIT{2} ~ "T" ~ ASCII_DIGIT{2} ~ ":" ~ ASCII_DIGIT{2} ~ ":" ~ ASCII_DIGIT{2} ~ "Z" }
+
+//////////////////////////
+// Top-level Structure
+//////////////////////////
+
+program = { SOI ~ (import_stmt | contract_decl)* ~ EOI }
+
+//////////////////////////
+// Import Statements
+//////////////////////////
+
+import_stmt = { "import" ~ string ~ ("as" ~ identifier)? ~ ";" }
+export_stmt = { "export" ~ identifier ~ ";" }
+
+//////////////////////////
+// Contract Declarations
+//////////////////////////
+
+contract_decl = {
+    "contract" ~ identifier ~ "{" ~
+        contract_meta* ~
+        contract_body* ~
+    "}"
+}
+
+contract_meta = {
+    scope_meta | version_meta | extends_meta
+}
+
+scope_meta = { "scope:" ~ scope_literal ~ ";" }
+version_meta = { "version:" ~ string ~ ";" }
+extends_meta = { "extends:" ~ identifier ~ ";" }
+
+contract_body = _{
+    role_decl |
+    proposal_decl |
+    fn_decl |
+    state_decl |
+    struct_decl |
+    enum_decl |
+    const_decl
+}
+
+//////////////////////////
+// Role Declarations
+//////////////////////////
+
+role_decl = {
+    "role" ~ identifier ~ ("extends" ~ identifier)? ~ "{" ~
+        role_body* ~
+    "}"
+}
+
+role_body = {
+    can_clause | requires_clause
+}
+
+can_clause = {
+    "can:" ~ "[" ~ permission_list? ~ "]" ~ ";"
+}
+
+requires_clause = {
+    "requires:" ~ "[" ~ requirement_list? ~ "]" ~ ";"
+}
+
+permission_list = {
+    identifier ~ ("," ~ identifier)*
+}
+
+requirement_list = {
+    requirement ~ ("," ~ requirement)*
+}
+
+requirement = {
+    identifier ~ ":" ~ expr
+}
+
+//////////////////////////
+// Proposal Declarations
+//////////////////////////
+
+proposal_decl = {
+    "proposal" ~ identifier ~ "{" ~
+        proposal_field* ~
+    "}"
+}
+
+proposal_field = {
+    proposal_meta_field |
+    proposal_governance_field |
+    proposal_execution_field
+}
+
+proposal_meta_field = {
+    "description:" ~ expr ~ ";" |
+    "amount:" ~ expr ~ ";" |
+    "recipient:" ~ expr ~ ";"
+}
+
+proposal_governance_field = {
+    "eligible:" ~ expr ~ ";" |
+    "quorum:" ~ expr ~ ";" |
+    "threshold:" ~ expr ~ ";" |
+    "duration:" ~ expr ~ ";" |
+    "stages:" ~ "[" ~ stage_list? ~ "]" ~ ";"
+}
+
+proposal_execution_field = {
+    "execution:" ~ block ~ ";"
+}
+
+stage_list = {
+    stage_def ~ ("," ~ stage_def)*
+}
+
+stage_def = {
+    "Stage" ~ "{" ~
+        stage_field* ~
+    "}"
+}
+
+stage_field = {
+    "name:" ~ expr ~ ";" |
+    "quorum:" ~ expr ~ ";" |
+    "threshold:" ~ expr ~ ";" |
+    "duration:" ~ expr ~ ";"
+}
+
+//////////////////////////
+// Function Declarations
+//////////////////////////
+
+fn_decl = {
+    "fn" ~ identifier ~ "(" ~ fn_params? ~ ")" ~ ("->" ~ type_expr)? ~ block
+}
+
+fn_params = {
+    fn_param ~ ("," ~ fn_param)*
+}
+
+fn_param = {
+    identifier ~ ":" ~ type_expr
+}
+
+//////////////////////////
+// State Declarations
+//////////////////////////
+
+state_decl = {
+    "state" ~ identifier ~ ":" ~ type_expr ~ ("=" ~ expr)? ~ ";"
+}
+
+//////////////////////////
+// Type Declarations
+//////////////////////////
+
+struct_decl = {
+    "struct" ~ identifier ~ "{" ~
+        struct_field* ~
+    "}"
+}
+
+struct_field = {
+    identifier ~ ":" ~ type_expr ~ ","?
+}
+
+enum_decl = {
+    "enum" ~ identifier ~ "{" ~
+        enum_variant* ~
+    "}"
+}
+
+enum_variant = {
+    identifier ~ ("(" ~ type_expr ~ ("," ~ type_expr)* ~ ")")? ~ ","?
+}
+
+const_decl = {
+    "const" ~ identifier ~ ":" ~ type_expr ~ "=" ~ expr ~ ";"
+}
+
+//////////////////////////
+// Type Expressions
+//////////////////////////
+
+type_expr = {
+    generic_type |
+    array_type |
+    token_type |
+    primitive_type |
+    identifier
+}
+
+primitive_type = {
+    "int" | "float" | "bool" | "string" | "timestamp" | 
+    "did" | "vc" | "address" | "scope" | "role"
+}
+
+token_type = {
+    "token" ~ "<" ~ identifier ~ ">" ~ ("{" ~ token_config* ~ "}")?
+}
+
+token_config = {
+    "decimals:" ~ integer ~ "," |
+    "transferable:" ~ boolean ~ "," |
+    "mintable:" ~ boolean ~ ","
+}
+
+array_type = {
+    "[" ~ type_expr ~ "]"
+}
+
+generic_type = {
+    identifier ~ "<" ~ type_expr ~ ("," ~ type_expr)* ~ ">"
+}
+
+//////////////////////////
+// Statements & Blocks
+//////////////////////////
+
+block = {
+    "{" ~ stmt* ~ "}"
+}
+
+stmt = _{
+    let_stmt |
+    if_stmt |
+    match_stmt |
+    for_stmt |
+    while_stmt |
+    loop_stmt |
+    return_stmt |
+    break_stmt |
+    continue_stmt |
+    transfer_stmt |
+    mint_stmt |
+    burn_stmt |
+    emit_stmt |
+    require_stmt |
+    expr_stmt
+}
+
+let_stmt = {
+    "let" ~ ("mut" ~ )? ~ identifier ~ (":" ~ type_expr)? ~ ("=" ~ expr)? ~ ";"
+}
+
+if_stmt = {
+    "if" ~ expr ~ block ~ ("else" ~ (if_stmt | block))?
+}
+
+match_stmt = {
+    "match" ~ expr ~ "{" ~ match_arm* ~ "}"
+}
+
+match_arm = {
+    match_pattern ~ "=>" ~ (expr | block) ~ ","?
+}
+
+match_pattern = {
+    identifier ~ ("(" ~ match_pattern ~ ("," ~ match_pattern)* ~ ")")? |
+    integer |
+    boolean |
+    string |
+    "_"
+}
+
+for_stmt = {
+    "for" ~ identifier ~ "in" ~ expr ~ block
+}
+
+while_stmt = {
+    "while" ~ expr ~ block
+}
+
+loop_stmt = {
+    "loop" ~ block
+}
+
+return_stmt = {
+    "return" ~ expr? ~ ";"
+}
+
+break_stmt = {
+    "break" ~ ";"
+}
+
+continue_stmt = {
+    "continue" ~ ";"
+}
+
+//////////////////////////
+// Economic Statements
+//////////////////////////
+
+transfer_stmt = {
+    "transfer" ~ "(" ~ transfer_args ~ ")" ~ ";"
+}
+
+transfer_args = {
+    transfer_arg ~ ("," ~ transfer_arg)*
+}
+
+transfer_arg = {
+    "to:" ~ expr |
+    "from:" ~ expr |
+    "amount:" ~ expr
+}
+
+mint_stmt = {
+    "mint" ~ "(" ~ mint_args ~ ")" ~ ";"
+}
+
+mint_args = {
+    mint_arg ~ ("," ~ mint_arg)*
+}
+
+mint_arg = {
+    "to:" ~ expr |
+    "amount:" ~ expr
+}
+
+burn_stmt = {
+    "burn" ~ "(" ~ burn_args ~ ")" ~ ";"
+}
+
+burn_args = {
+    burn_arg ~ ("," ~ burn_arg)*
+}
+
+burn_arg = {
+    "from:" ~ expr |
+    "amount:" ~ expr
+}
+
+emit_stmt = {
+    "emit" ~ identifier ~ "{" ~ emit_field* ~ "}" ~ ";"
+}
+
+emit_field = {
+    identifier ~ ":" ~ expr ~ ","?
+}
+
+require_stmt = {
+    "require" ~ "(" ~ expr ~ ")" ~ ";"
+}
+
+expr_stmt = {
+    expr ~ ";"
+}
+
+//////////////////////////
+// Expressions
+//////////////////////////
+
+expr = {
+    logic_or_expr
+}
+
+logic_or_expr = {
+    logic_and_expr ~ ("||" ~ logic_and_expr)*
+}
+
+logic_and_expr = {
+    equality_expr ~ ("&&" ~ equality_expr)*
+}
+
+equality_expr = {
+    comparison_expr ~ (("==" | "!=") ~ comparison_expr)*
+}
+
+comparison_expr = {
+    range_expr ~ (("<=" | ">=" | "<" | ">") ~ range_expr)*
+}
+
+range_expr = {
+    addition_expr ~ (".." ~ addition_expr)?
+}
+
+addition_expr = {
+    multiplication_expr ~ (("+" | "-") ~ multiplication_expr)*
+}
+
+multiplication_expr = {
+    unary_expr ~ (("*" | "/" | "%") ~ unary_expr)*
+}
+
+unary_expr = {
+    ("!" | "-" | "&" | "*") ~ unary_expr |
+    postfix_expr
+}
+
+postfix_expr = {
+    primary_expr ~ (
+        "." ~ identifier ~ ("(" ~ call_args? ~ ")")? |
+        "[" ~ expr ~ "]" |
+        "(" ~ call_args? ~ ")"
+    )*
+}
+
+primary_expr = {
+    literal |
+    array_literal |
+    struct_literal |
+    tuple_literal |
+    block_expr |
+    identifier |
+    "(" ~ expr ~ ")"
+}
+
+//////////////////////////
+// Literals and Compounds
+//////////////////////////
+
+literal = {
+    integer |
+    float |
+    string |
+    boolean |
+    did_literal |
+    timestamp_literal |
+    token_literal |
+    none_literal |
+    some_literal
+}
+
+token_literal = {
+    "token" ~ "<" ~ identifier ~ ">" ~ "(" ~ expr ~ ")"
+}
+
+none_literal = {
+    "None"
+}
+
+some_literal = {
+    "Some" ~ "(" ~ expr ~ ")"
+}
+
+array_literal = {
+    "[" ~ (expr ~ ("," ~ expr)*)? ~ "]"
+}
+
+struct_literal = {
+    identifier ~ "{" ~ (struct_field_init ~ ("," ~ struct_field_init)*)? ~ "}"
+}
+
+struct_field_init = {
+    identifier ~ ":" ~ expr
+}
+
+tuple_literal = {
+    "(" ~ expr ~ ("," ~ expr)+ ~ ")"
+}
+
+block_expr = {
+    "{" ~ stmt* ~ expr? ~ "}"
+}
+
+//////////////////////////
+// Function Calls
+//////////////////////////
+
+call_args = {
+    expr ~ ("," ~ expr)*
+}
+
+//////////////////////////
+// Governance Expressions
+//////////////////////////
+
+vote_threshold = {
+    "majority" |
+    "supermajority" ~ "(" ~ expr ~ ")" |
+    "consensus" |
+    "unanimous" |
+    expr
+}
+
+duration_expr = {
+    integer ~ "." ~ ("days" | "hours" | "minutes" | "seconds" | "weeks" | "months" | "years")
+}
+
+percentage_expr = {
+    (integer | float) ~ "%"
+}
+
+//////////////////////////
+// Standard Library Constructs
+//////////////////////////
+
+std_governance_call = {
+    "std::governance::" ~ identifier ~ "(" ~ call_args? ~ ")"
+}
+
+std_economics_call = {
+    "std::economics::" ~ identifier ~ "(" ~ call_args? ~ ")"
+}
+
+std_identity_call = {
+    "std::identity::" ~ identifier ~ "(" ~ call_args? ~ ")"
+}
+
+std_federation_call = {
+    "std::federation::" ~ identifier ~ "(" ~ call_args? ~ ")"
+}
+
+//////////////////////////
+// Built-in Functions
+//////////////////////////
+
+builtin_fn = {
+    "now" ~ "(" ~ ")" |
+    "caller" ~ "(" ~ ")" |
+    "contract_address" ~ "(" ~ ")" |
+    "get_balance" ~ "(" ~ expr ~ ")" |
+    "is_member_coop" ~ "(" ~ expr ~ ")" |
+    "caller_has_role" ~ "(" ~ expr ~ ")" |
+    "verify_signature" ~ "(" ~ expr ~ "," ~ expr ~ "," ~ expr ~ ")"
+}
+
+//////////////////////////
+// Cross-Contract Calls
+//////////////////////////
+
+cross_contract_call = {
+    expr ~ "." ~ identifier ~ "(" ~ call_args? ~ ")"
+}
+
+//////////////////////////
+// Federation Operations
+//////////////////////////
+
+federation_join = {
+    "join_federation" ~ "(" ~ expr ~ ")"
+}
+
+federation_leave = {
+    "leave_federation" ~ "(" ~ expr ~ ")"
+}
+
+federation_discover = {
+    "discover_federations" ~ "(" ~ expr ~ ")"
+}
+
+//////////////////////////
+// Governance Operations
+//////////////////////////
+
+delegate_vote = {
+    "delegate" ~ "to:" ~ expr ~ ("until:" ~ expr)? ~ ("scope:" ~ expr)?
+}
+
+revoke_delegation = {
+    "revoke_delegation" ~ "(" ~ expr ~ ")"
+}
+
+//////////////////////////
+// Time and Duration
+//////////////////////////
+
+time_unit = {
+    "seconds" | "minutes" | "hours" | "days" | "weeks" | "months" | "years"
+}
+
+//////////////////////////
+// Operators (for precedence)
+//////////////////////////
+
+// Logical operators
+logical_or_op = { "||" }
+logical_and_op = { "&&" }
+
+// Comparison operators  
+eq_op = { "==" }
+ne_op = { "!=" }
+le_op = { "<=" }
+ge_op = { ">=" }
+lt_op = { "<" }
+gt_op = { ">" }
+
+// Arithmetic operators
+add_op = { "+" }
+sub_op = { "-" }
+mul_op = { "*" }
+div_op = { "/" }
+mod_op = { "%" }
+
+// Unary operators
+not_op = { "!" }
+neg_op = { "-" }
+ref_op = { "&" }
+deref_op = { "*" }
+
+// Assignment operators
+assign_op = { "=" }
+add_assign_op = { "+=" }
+sub_assign_op = { "-=" }
+
+//////////////////////////
+// Reserved for Future Use
+//////////////////////////
+
+// Placeholder for additional constructs
+reserved = {
+    "async" | "await" | "yield" | "macro" | "impl" | "trait" | 
+    "pub" | "priv" | "protected" | "static" | "const" | "final"
+} 

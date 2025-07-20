@@ -1,0 +1,49 @@
+// Test file for CCL 0.1 Grammar validation
+import "std::governance";
+import "std::economics";
+
+contract TestCollective {
+    scope: "local:test:collective";
+    version: "1.0.0";
+    
+    role Member {
+        can: [vote, propose, view_financials];
+        requires: [background_check: true];
+    }
+    
+    role Admin extends Member {
+        can: [execute, manage_funds];
+    }
+    
+    state treasury: token<USD> = token<USD>(10000);
+    state member_count: int = 0;
+    
+    proposal TestProposal {
+        description: "Test proposal for grammar validation";
+        amount: token<USD>(1000);
+        recipient: did:test:recipient;
+        eligible: Member;
+        quorum: 50%;
+        threshold: majority;
+        duration: 7.days;
+        execution: {
+            transfer(to: recipient, amount: amount);
+            emit ProposalExecuted { amount: amount };
+        };
+    }
+    
+    fn add_member(new_member: did) {
+        require(caller_has_role(Admin));
+        
+        member_count += 1;
+        
+        emit MemberAdded { 
+            member: new_member, 
+            total_members: member_count 
+        };
+    }
+    
+    fn get_treasury_balance() -> token<USD> {
+        treasury
+    }
+} 

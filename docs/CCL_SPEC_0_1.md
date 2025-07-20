@@ -839,9 +839,617 @@ fn expensive_operation() {
 
 ---
 
-## 11 · Security Considerations
+## 11 · Error Handling and Recovery
 
-### 11.1 Determinism Enforcement
+### 11.1 Error Categories
+
+CCL distinguishes between three types of errors:
+
+#### Fatal Errors (Contract Termination)
+```ccl
+// These errors terminate execution immediately
+require(caller_has_role(Admin));     // Access control violation
+require(amount > 0);                 // Logic constraint violation
+require(balance >= amount);          // Resource constraint violation
+```
+
+#### Recoverable Errors (Handled in Code)
+```ccl
+// These errors can be caught and handled
+fn safe_transfer(to: did, amount: token<USD>) -> Result<(), TransferError> {
+    match get_balance(caller()) {
+        Ok(balance) if balance >= amount => {
+            transfer(to: to, amount: amount);
+            Ok(())
+        },
+        Ok(_) => Err(TransferError::InsufficientFunds),
+        Err(e) => Err(TransferError::BalanceCheckFailed(e))
+    }
+}
+```
+
+#### Runtime Errors (System Level)
+```ccl
+// These are reported to the runtime for investigation
+enum RuntimeError {
+    OutOfMana,
+    ContractNotFound,
+    NetworkTimeout,
+    StorageCorruption,
+    InvalidSignature
+}
+```
+
+### 11.2 Error Reporting and Legal Evidence
+
+All errors generate legal receipts:
+
+```ccl
+struct ErrorReceipt {
+    contract_address: address,
+    function_name: string,
+    error_type: ErrorType,
+    error_message: string,
+    caller: did,
+    timestamp: timestamp,
+    call_stack: [string],
+    contract_state_hash: [u8; 32],
+    signature: Signature
+}
+```
+
+### 11.3 Error Recovery Patterns
+
+#### Circuit Breaker for External Calls
+```ccl
+state circuit_breaker: CircuitState = CircuitState::Closed;
+state failure_count: int = 0;
+
+fn protected_external_call(target: address, function: string) -> Result<(), CallError> {
+    match circuit_breaker {
+        CircuitState::Open => Err(CallError::CircuitOpen),
+        _ => {
+            match call_external(target, function) {
+                Ok(result) => {
+                    failure_count = 0;
+                    circuit_breaker = CircuitState::Closed;
+                    Ok(result)
+                },
+                Err(e) => {
+                    failure_count += 1;
+                    if failure_count >= 5 {
+                        circuit_breaker = CircuitState::Open;
+                    }
+                    Err(e)
+                }
+            }
+        }
+    }
+}
+```
+
+---
+
+## 12 · Contract Versioning and Upgrade Semantics
+
+### 12.1 Contract Versioning
+
+Every contract has explicit version metadata:
+
+```ccl
+contract HousingCollective {
+    version: "2.1.0";
+    previous_version: "2.0.5";
+    upgrade_policy: UpgradePolicy::Democratic;
+    
+    // Contract implementation
+}
+```
+
+### 12.2 Upgrade Mechanisms
+
+#### Democratic Upgrade Process
+```ccl
+proposal UpgradeContract {
+    new_contract_code: string;
+    migration_plan: MigrationPlan;
+    eligible: Member;
+    threshold: supermajority(2/3);
+    quorum: 75%;
+    
+    execution: {
+        // Validate new contract
+        let new_contract = compile_and_validate(new_contract_code)?;
+        
+        // Execute migration
+        let migration_result = execute_migration(migration_plan, new_contract)?;
+        
+        // Deploy new version
+        deploy_contract_upgrade(new_contract, migration_result)?;
+        
+        emit ContractUpgraded {
+            old_version: version,
+            new_version: new_contract.version,
+            migration_hash: hash(migration_plan)
+        };
+    };
+}
+```
+
+#### Migration Data Structures
+```ccl
+struct MigrationPlan {
+    state_mappings: [(string, string)],    // old_field -> new_field
+    data_transformations: [DataTransform], // Custom transformation logic
+    backwards_compatibility: bool,
+    rollback_plan: Option<RollbackPlan>
+}
+
+struct DataTransform {
+    source_field: string,
+    target_field: string,
+    transform_function: string // CCL function name
+}
+```
+
+#### Automated Migration Utilities
+```ccl
+// Built-in migration helpers
+fn migrate_state<T, U>(old_state: T, transform: fn(T) -> U) -> U {
+    transform(old_state)
+}
+
+fn preserve_balances(old_contract: address, new_contract: address) {
+    for (account, balance) in old_contract.get_all_balances() {
+        new_contract.set_balance(account, balance);
+    }
+}
+```
+
+### 12.3 Deprecation and Sunset Process
+
+```ccl
+proposal DeprecateContract {
+    sunset_date: timestamp;
+    replacement_contract: Option<address>;
+    data_export_plan: ExportPlan;
+    
+    execution: {
+        contract_status = ContractStatus::Deprecated;
+        sunset_timestamp = sunset_date;
+        
+        // Begin read-only mode after sunset
+        if now() > sunset_date {
+            enable_read_only_mode();
+        }
+        
+        emit ContractDeprecated {
+            sunset_date: sunset_date,
+            replacement: replacement_contract
+        };
+    };
+}
+```
+
+---
+
+## 13 · Interoperability and Legal Bridging
+
+### 13.1 External Law Integration
+
+CCL contracts can interface with traditional legal systems during transition periods:
+
+#### Legal Entity Binding
+```ccl
+contract CooperativeLLC {
+    scope: "local:california:sacramento";
+    legal_entity: LegalEntity {
+        jurisdiction: "California, USA",
+        entity_type: "Limited Liability Company", 
+        registration_number: "LLC-2024-001234",
+        registered_agent: "Alice Cooper, Esq."
+    };
+    
+    // CCL governance binds the legal entity
+    proposal AmendByLaws {
+        new_bylaws: string;
+        eligible: Member;
+        threshold: supermajority(2/3);
+        
+        execution: {
+            // Update internal governance
+            bylaws = new_bylaws;
+            
+            // Generate legal filing documents
+            let filing_docs = generate_legal_documents(new_bylaws, legal_entity);
+            
+            emit LegalFilingRequired {
+                documents: filing_docs,
+                deadline: now() + 30.days,
+                jurisdiction: legal_entity.jurisdiction
+            };
+        };
+    }
+}
+```
+
+#### Legal Evidence Export
+```ccl
+fn export_legal_evidence(case_id: string, date_range: (timestamp, timestamp)) -> LegalEvidence {
+    let relevant_receipts = query_receipts(date_range);
+    let governance_actions = query_governance_actions(date_range);
+    
+    LegalEvidence {
+        case_id: case_id,
+        contract_address: contract_address(),
+        time_period: date_range,
+        receipts: relevant_receipts,
+        governance_actions: governance_actions,
+        chain_of_custody: generate_custody_chain(relevant_receipts),
+        legal_certification: generate_legal_cert()
+    }
+}
+```
+
+### 13.2 Cross-Jurisdictional Recognition
+
+```ccl
+// Recognition across different legal systems
+struct LegalRecognition {
+    recognizing_jurisdiction: string,
+    recognized_actions: [ActionType],
+    legal_weight: LegalWeight,
+    conditions: [string]
+}
+
+enum LegalWeight {
+    FullyBinding,
+    PrimeFacieEvidence,
+    SupportingEvidence,
+    InformationalOnly
+}
+```
+
+### 13.3 Regulatory Compliance Modules
+
+```ccl
+import "compliance::gdpr";
+import "compliance::tax_reporting";
+import "compliance::anti_money_laundering";
+
+contract RegulatedCoop {
+    compliance_modules: [
+        ComplianceModule::GDPR,
+        ComplianceModule::TaxReporting("US-IRS"),
+        ComplianceModule::AML("FinCEN")
+    ];
+    
+    fn process_member_data(member: did, data: PersonalData) {
+        // GDPR compliance checks
+        require(gdpr::has_consent(member, data.data_types));
+        
+        // Process data
+        store_member_data(member, data);
+        
+        // Generate compliance audit trail
+        emit ComplianceEvent {
+            module: "GDPR",
+            action: "DataProcessed",
+            subject: member,
+            legal_basis: "Consent"
+        };
+    }
+}
+```
+
+---
+
+## 14 · Security Test Scenarios and Edge Cases
+
+### 14.1 Reentrancy Protection Tests
+
+```ccl
+// Test: Prevent reentrancy attacks
+contract ReentrancyTest {
+    state balances: map<did, token<USD>>;
+    state reentrancy_guard: bool = false;
+    
+    fn vulnerable_withdraw(amount: token<USD>) {
+        require(!reentrancy_guard);
+        reentrancy_guard = true;
+        
+        let caller_balance = balances[caller()];
+        require(caller_balance >= amount);
+        
+        // External call that could reenter
+        external_transfer(caller(), amount);
+        
+        // State update after external call (vulnerable)
+        balances[caller()] = caller_balance - amount;
+        
+        reentrancy_guard = false;
+    }
+    
+    fn secure_withdraw(amount: token<USD>) {
+        require(!reentrancy_guard);
+        reentrancy_guard = true;
+        
+        let caller_balance = balances[caller()];
+        require(caller_balance >= amount);
+        
+        // State update before external call (secure)
+        balances[caller()] = caller_balance - amount;
+        
+        external_transfer(caller(), amount);
+        
+        reentrancy_guard = false;
+    }
+}
+```
+
+### 14.2 Token Overflow Protection
+
+```ccl
+// Test: Prevent integer overflow in token operations
+fn safe_add_tokens(a: token<USD>, b: token<USD>) -> Result<token<USD>, MathError> {
+    let result = a.checked_add(b)?;
+    require(result >= a && result >= b); // Overflow check
+    Ok(result)
+}
+
+fn safe_multiply_tokens(amount: token<USD>, multiplier: float) -> Result<token<USD>, MathError> {
+    require(multiplier >= 0.0);
+    require(multiplier <= MAX_MULTIPLIER);
+    
+    let result = amount.checked_mul(multiplier)?;
+    require(result >= amount || multiplier == 0.0);
+    Ok(result)
+}
+```
+
+### 14.3 Multi-Level Delegation Abuse Prevention
+
+```ccl
+// Test: Prevent delegation chain manipulation
+contract DelegationSecurity {
+    state delegations: map<did, Delegation>;
+    state delegation_history: [DelegationEvent];
+    
+    fn delegate_vote_secure(delegate_to: did, scope: string) {
+        let caller_did = caller();
+        
+        // Prevent self-delegation
+        require(caller_did != delegate_to);
+        
+        // Check delegation chain length
+        let chain_length = calculate_delegation_chain_length(delegate_to);
+        require(chain_length < MAX_DELEGATION_CHAIN);
+        
+        // Prevent circular delegation
+        require(!creates_delegation_cycle(caller_did, delegate_to));
+        
+        // Rate limit delegation changes
+        let recent_changes = count_recent_delegation_changes(caller_did, 24.hours);
+        require(recent_changes < MAX_DELEGATION_CHANGES_PER_DAY);
+        
+        // Record delegation
+        delegations[caller_did] = Delegation {
+            delegate: delegate_to,
+            scope: scope,
+            timestamp: now(),
+            revocable: true
+        };
+        
+        // Audit trail
+        delegation_history.push(DelegationEvent {
+            delegator: caller_did,
+            delegate: delegate_to,
+            action: "Created",
+            timestamp: now()
+        });
+    }
+    
+    fn calculate_delegation_chain_length(delegate: did) -> int {
+        let mut current = delegate;
+        let mut length = 0;
+        let mut visited = [];
+        
+        while delegations.contains_key(current) && length < MAX_DELEGATION_CHAIN {
+            if visited.contains(current) {
+                // Cycle detected
+                return MAX_DELEGATION_CHAIN;
+            }
+            
+            visited.push(current);
+            current = delegations[current].delegate;
+            length += 1;
+        }
+        
+        length
+    }
+}
+```
+
+### 14.4 Economic Attack Scenarios
+
+```ccl
+// Test: Prevent flash loan attacks and economic manipulation
+contract EconomicSecurity {
+    state price_history: [PricePoint];
+    state trade_volume: map<timestamp, token<USD>>;
+    
+    fn secure_price_oracle() -> token<USD> {
+        let recent_prices = get_recent_prices(1.hour);
+        let median_price = calculate_median(recent_prices);
+        let price_volatility = calculate_volatility(recent_prices);
+        
+        // Reject if price too volatile
+        require(price_volatility < MAX_PRICE_VOLATILITY);
+        
+        // Use time-weighted average to prevent manipulation
+        let twap = calculate_twap(recent_prices);
+        require(abs(median_price - twap) < PRICE_DEVIATION_THRESHOLD);
+        
+        twap
+    }
+    
+    fn detect_wash_trading(trader: did, time_window: timestamp) -> bool {
+        let trades = get_trader_activity(trader, time_window);
+        let self_trades = trades.filter(|t| t.buyer == t.seller);
+        let self_trade_ratio = self_trades.len() as float / trades.len() as float;
+        
+        self_trade_ratio > WASH_TRADING_THRESHOLD
+    }
+}
+```
+
+---
+
+## 15 · Standard Library Specification
+
+### 15.1 Core Modules (Required)
+
+#### std::governance
+```ccl
+module std::governance {
+    // Required functions
+    fn calculate_quorum(votes: [Vote], eligible: [did]) -> bool;
+    fn tally_votes(votes: [Vote]) -> VoteTally;
+    fn check_threshold(tally: VoteTally, threshold: VoteThreshold) -> bool;
+    fn get_effective_voter(voter: did) -> did; // Follows delegation chain
+    
+    // Types
+    enum VoteType { Majority, Supermajority(float), Consensus, Unanimous, Quadratic }
+    struct Vote { voter: did, choice: VoteChoice, weight: float, timestamp: timestamp }
+    struct VoteTally { yes: float, no: float, abstain: float, total_weight: float }
+    
+    // Version: 1.0.0
+    // Upgradable: Yes, via governance proposal
+}
+```
+
+#### std::economics  
+```ccl
+module std::economics {
+    // Token operations
+    fn transfer_tokens(from: did, to: did, amount: token<T>) -> Result<(), TransferError>;
+    fn mint_tokens(to: did, amount: token<T>) -> Result<(), MintError>;
+    fn burn_tokens(from: did, amount: token<T>) -> Result<(), BurnError>;
+    fn get_balance(account: did) -> token<T>;
+    
+    // Mana management
+    fn charge_mana(account: did, amount: token<Mana>) -> Result<(), ManaError>;
+    fn regenerate_mana(account: did) -> token<Mana>;
+    fn get_mana_balance(account: did) -> token<Mana>;
+    
+    // Economic calculations
+    fn calculate_tax(amount: token<T>, rate: float) -> token<T>;
+    fn compound_interest(principal: token<T>, rate: float, periods: int) -> token<T>;
+    
+    // Version: 1.0.0
+    // Upgradable: Via federation consensus
+}
+```
+
+#### std::identity
+```ccl
+module std::identity {
+    // DID operations
+    fn verify_did(did: did) -> bool;
+    fn resolve_did_document(did: did) -> Option<DidDocument>;
+    fn create_did_from_key(public_key: PublicKey) -> did;
+    
+    // Credential management
+    fn verify_credential(credential: VerifiableCredential, trusted_issuers: [did]) -> bool;
+    fn issue_credential(issuer: did, subject: did, claims: [Claim]) -> VerifiableCredential;
+    fn revoke_credential(credential_id: string, issuer: did) -> bool;
+    
+    // Signature operations
+    fn verify_signature(message: [u8], signature: Signature, public_key: PublicKey) -> bool;
+    fn sign_message(message: [u8], private_key: PrivateKey) -> Signature;
+    
+    // Version: 1.0.0  
+    // Upgradable: Security-critical, requires supermajority
+}
+```
+
+### 15.2 Extended Modules (Optional)
+
+#### std::federation
+```ccl
+module std::federation {
+    fn join_federation(federation: address) -> Result<(), FederationError>;
+    fn leave_federation(federation: address) -> Result<(), FederationError>;
+    fn discover_federations(scope_filter: string) -> [FederationInfo];
+    fn cross_federation_call(target: address, function: string, args: [u8]) -> Result<[u8], CallError>;
+    
+    // Version: 1.0.0
+    // Upgradable: Yes, with federation approval
+}
+```
+
+#### std::reputation
+```ccl
+module std::reputation {
+    fn calculate_reputation(account: did, time_window: timestamp) -> float;
+    fn update_reputation(account: did, event: ReputationEvent) -> float;
+    fn get_reputation_history(account: did) -> [ReputationPoint];
+    
+    // Version: 1.0.0
+    // Upgradable: Algorithm updates via governance
+}
+```
+
+#### std::time
+```ccl
+module std::time {
+    fn parse_duration(duration_str: string) -> Duration;
+    fn add_duration(timestamp: timestamp, duration: Duration) -> timestamp;
+    fn time_until(target: timestamp) -> Duration;
+    fn is_business_day(date: timestamp, jurisdiction: string) -> bool;
+    
+    // Version: 1.0.0
+    // Upgradable: Timezone/calendar updates
+}
+```
+
+### 15.3 Module Upgrade Policy
+
+```ccl
+// Standard library upgrade governance
+proposal UpgradeStandardLibrary {
+    module_name: string;
+    new_version: string;
+    upgrade_type: UpgradeType;
+    
+    execution: {
+        match upgrade_type {
+            UpgradeType::SecurityPatch => {
+                // Immediate deployment, minimal approval
+                require_threshold(majority);
+                deploy_std_module(module_name, new_version);
+            },
+            UpgradeType::FeatureAddition => {
+                // Standard approval process
+                require_threshold(supermajority(0.6));
+                deploy_std_module(module_name, new_version);
+            },
+            UpgradeType::BreakingChange => {
+                // High bar for breaking changes
+                require_threshold(supermajority(0.8));
+                require_quorum(80%);
+                deploy_std_module_with_migration(module_name, new_version);
+            }
+        }
+    };
+}
+```
+
+---
+
+## 16 · Security Considerations
+
+### 16.1 Determinism Enforcement
 
 The compiler **rejects** non-deterministic operations:
 
@@ -862,7 +1470,7 @@ fn deterministic_operations(timestamp: timestamp, seed: int) {
 }
 ```
 
-### 11.2 Access Control
+### 16.2 Access Control
 
 ```ccl
 // Role-based access control
@@ -875,7 +1483,7 @@ fn sensitive_operation() {
 }
 ```
 
-### 11.3 Reentrancy Protection
+### 16.3 Reentrancy Protection
 
 ```ccl
 state reentrancy_guard: bool = false;
@@ -893,9 +1501,9 @@ fn protected_function() {
 
 ---
 
-## 12 · Examples
+## 18 · Examples
 
-### 12.1 Basic Housing Collective
+### 18.1 Basic Housing Collective
 
 ```ccl
 import "std::governance";
@@ -981,7 +1589,7 @@ contract HousingCollective {
 }
 ```
 
-### 12.2 Worker Cooperative
+### 18.2 Worker Cooperative
 
 ```ccl
 import "std::governance";
@@ -1082,7 +1690,7 @@ contract TechWorkerCoop {
 }
 ```
 
-### 12.3 Regional Federation
+### 18.3 Regional Federation
 
 ```ccl
 import "std::federation";
@@ -1192,7 +1800,7 @@ contract NortheastCoopFederation {
 
 ---
 
-## 13 · Conclusion
+## 17 · Conclusion
 
 The Cooperative Contract Language (CCL) provides a complete framework for encoding legal contracts, governance systems, and economic rules as deterministic, verifiable code. By treating code as law, CCL enables communities and cooperatives to operate with transparent, enforceable agreements that evolve through democratic processes.
 

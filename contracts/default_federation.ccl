@@ -1,0 +1,624 @@
+// Default Federation Contract v1.0.0
+// The foundational contract that bootstraps the InterCooperative Network
+// All new contracts are automatically enrolled for discovery and basic services
+
+import "std::governance";
+import "std::economics"; 
+import "std::identity";
+import "std::federation";
+
+contract DefaultFederation {
+    scope: "global";
+    version: "1.0.0";
+    discoverable: true;
+    auto_enroll: true;
+
+    // ========================
+    // ROLES & PERMISSIONS
+    // ========================
+
+    role NetworkNode {
+        can: [register_contract, update_status, participate_governance];
+        requires: [valid_node_identity: true, stake_deposited: true];
+    }
+
+    role Bootstrap {
+        can: [initialize_network, manage_core_parameters, emergency_shutdown];
+        requires: [founding_member: true, security_clearance: "genesis"];
+    }
+
+    role RegisteredContract {
+        can: [discover_peers, join_federations, access_std_library];
+        requires: [valid_ccl_contract: true, non_malicious: true];
+    }
+
+    role FederationDelegate {
+        can: [vote_on_network_matters, propose_improvements, represent_contracts];
+        requires: [elected_by_contracts: true, reputation_score: 75];
+    }
+
+    // ========================
+    // NETWORK STATE
+    // ========================
+
+    state registry: map<address, ContractInfo>;
+    state federation_members: [address];
+    state network_parameters: NetworkConfig;
+    state discovery_index: map<string, [address]>; // scope -> contracts
+    state delegation_registry: map<address, Delegation>;
+    state reputation_scores: map<address, ReputationScore>;
+    state bootstrap_complete: bool = false;
+
+    // Network economics
+    state network_treasury: token<Mana> = token<Mana>(0);
+    state registration_fee: token<Mana> = token<Mana>(100);
+    state maintenance_fund: token<Mana> = token<Mana>(0);
+
+    // Emergency controls
+    state emergency_mode: bool = false;
+    state network_version: string = "1.0.0";
+
+    // ========================
+    // DATA STRUCTURES
+    // ========================
+
+    struct ContractInfo {
+        address: address,
+        scope: string,
+        contract_type: string,
+        registration_time: timestamp,
+        last_heartbeat: timestamp,
+        status: ContractStatus,
+        metadata: ContractMetadata
+    }
+
+    struct ContractMetadata {
+        name: string,
+        description: string,
+        governance_type: string,
+        member_count: int,
+        economic_model: string
+    }
+
+    enum ContractStatus {
+        Active,
+        Inactive,
+        Deprecated,
+        Suspended,
+        Migrated(address) // Points to new contract
+    }
+
+    struct NetworkConfig {
+        min_reputation_for_proposals: float,
+        proposal_duration_default: timestamp,
+        quorum_threshold: float,
+        emergency_pause_threshold: float,
+        max_federations_per_contract: int
+    }
+
+    struct ReputationScore {
+        current_score: float,
+        historical_average: float,
+        last_updated: timestamp,
+        positive_interactions: int,
+        negative_interactions: int
+    }
+
+    struct Delegation {
+        delegator: address,
+        delegate: address,
+        scope: string,
+        weight: float,
+        expires: timestamp,
+        revocable: bool
+    }
+
+    // ========================
+    // INITIALIZATION & BOOTSTRAP
+    // ========================
+
+    proposal InitializeNetwork {
+        description: "Bootstrap the ICN Default Federation";
+        eligible: Bootstrap;
+        threshold: consensus;
+        
+        execution: {
+            require(!bootstrap_complete);
+            
+            // Set initial network parameters
+            network_parameters = NetworkConfig {
+                min_reputation_for_proposals: 50.0,
+                proposal_duration_default: now() + 7.days,
+                quorum_threshold: 0.25,
+                emergency_pause_threshold: 0.90,
+                max_federations_per_contract: 10
+            };
+            
+            // Initialize discovery index
+            discovery_index["global"] = [];
+            discovery_index["regional"] = [];
+            discovery_index["local"] = [];
+            
+            bootstrap_complete = true;
+            
+            emit NetworkInitialized {
+                timestamp: now(),
+                version: network_version,
+                initial_parameters: network_parameters
+            };
+        };
+    }
+
+    // ========================
+    // CONTRACT REGISTRATION
+    // ========================
+
+    fn register_contract(
+        contract_addr: address, 
+        metadata: ContractMetadata
+    ) {
+        require(bootstrap_complete);
+        require(!registry.contains_key(contract_addr));
+        require(verify_contract_validity(contract_addr));
+        
+        // Charge registration fee
+        charge_mana(caller(), registration_fee);
+        network_treasury += registration_fee;
+        
+        // Extract scope from contract
+        let contract_scope = get_contract_scope(contract_addr);
+        
+        // Register contract
+        registry[contract_addr] = ContractInfo {
+            address: contract_addr,
+            scope: contract_scope,
+            contract_type: metadata.governance_type,
+            registration_time: now(),
+            last_heartbeat: now(),
+            status: ContractStatus::Active,
+            metadata: metadata
+        };
+        
+        // Add to federation members
+        federation_members.push(contract_addr);
+        
+        // Update discovery index
+        add_to_discovery_index(contract_scope, contract_addr);
+        
+        // Initialize reputation
+        reputation_scores[contract_addr] = ReputationScore {
+            current_score: 100.0, // Start with base reputation
+            historical_average: 100.0,
+            last_updated: now(),
+            positive_interactions: 0,
+            negative_interactions: 0
+        };
+        
+        emit ContractRegistered {
+            contract: contract_addr,
+            scope: contract_scope,
+            registration_time: now(),
+            metadata: metadata
+        };
+    }
+
+    fn update_contract_status(contract_addr: address, new_status: ContractStatus) {
+        require(caller() == contract_addr || caller_has_role(Bootstrap));
+        require(registry.contains_key(contract_addr));
+        
+        let mut contract_info = registry[contract_addr];
+        contract_info.status = new_status;
+        contract_info.last_heartbeat = now();
+        registry[contract_addr] = contract_info;
+        
+        emit ContractStatusUpdated {
+            contract: contract_addr,
+            new_status: new_status,
+            timestamp: now()
+        };
+    }
+
+    // ========================
+    // DISCOVERY SERVICES
+    // ========================
+
+    fn discover_contracts(scope_filter: string, contract_type_filter: string) -> [ContractInfo] {
+        let mut results = [];
+        
+        // Search by scope
+        let scope_matches = discovery_index.get(scope_filter).unwrap_or([]);
+        
+        for contract_addr in scope_matches {
+            let contract_info = registry[contract_addr];
+            
+            // Filter by type if specified
+            if contract_type_filter == "*" || contract_info.contract_type == contract_type_filter {
+                // Only include active contracts
+                if contract_info.status == ContractStatus::Active {
+                    results.push(contract_info);
+                }
+            }
+        }
+        
+        results
+    }
+
+    fn get_contract_info(contract_addr: address) -> Option<ContractInfo> {
+        registry.get(contract_addr)
+    }
+
+    fn search_contracts_by_keyword(keyword: string) -> [ContractInfo] {
+        let mut results = [];
+        
+        for (addr, info) in registry.iter() {
+            if info.metadata.name.contains(keyword) || 
+               info.metadata.description.contains(keyword) {
+                if info.status == ContractStatus::Active {
+                    results.push(info);
+                }
+            }
+        }
+        
+        results
+    }
+
+    // ========================
+    // FEDERATION GOVERNANCE
+    // ========================
+
+    proposal UpdateNetworkParameters {
+        description: "Update core network configuration";
+        new_parameters: NetworkConfig;
+        eligible: FederationDelegate;
+        quorum: 60%;
+        threshold: supermajority(2/3);
+        duration: 14.days;
+        
+        execution: {
+            // Validate parameters
+            require(new_parameters.quorum_threshold >= 0.1);
+            require(new_parameters.quorum_threshold <= 0.9);
+            require(new_parameters.min_reputation_for_proposals >= 0.0);
+            
+            let old_parameters = network_parameters;
+            network_parameters = new_parameters;
+            
+            emit NetworkParametersUpdated {
+                old_parameters: old_parameters,
+                new_parameters: new_parameters,
+                updated_by: caller()
+            };
+        };
+    }
+
+    proposal SuspendMaliciousContract {
+        description: "Suspend a contract for malicious behavior";
+        target_contract: address;
+        reason: string;
+        evidence: [string]; // CIDs of evidence
+        eligible: FederationDelegate;
+        quorum: 40%;
+        threshold: supermajority(0.75);
+        
+        execution: {
+            require(registry.contains_key(target_contract));
+            
+            // Update status
+            let mut contract_info = registry[target_contract];
+            contract_info.status = ContractStatus::Suspended;
+            registry[target_contract] = contract_info;
+            
+            // Remove from discovery
+            remove_from_discovery_index(target_contract);
+            
+            // Penalize reputation
+            if let Some(mut reputation) = reputation_scores.get_mut(target_contract) {
+                reputation.current_score = 0.0;
+                reputation.negative_interactions += 1;
+                reputation.last_updated = now();
+            }
+            
+            emit ContractSuspended {
+                contract: target_contract,
+                reason: reason,
+                evidence: evidence,
+                suspended_by: caller()
+            };
+        };
+    }
+
+    // ========================
+    // REPUTATION SYSTEM
+    // ========================
+
+    fn update_reputation(
+        contract_addr: address, 
+        interaction_type: InteractionType,
+        weight: float
+    ) {
+        require(registry.contains_key(contract_addr));
+        require(caller_has_role(NetworkNode) || registry.contains_key(caller()));
+        
+        if let Some(mut reputation) = reputation_scores.get_mut(contract_addr) {
+            match interaction_type {
+                InteractionType::Positive => {
+                    reputation.current_score += weight;
+                    reputation.positive_interactions += 1;
+                },
+                InteractionType::Negative => {
+                    reputation.current_score -= weight;
+                    reputation.negative_interactions += 1;
+                }
+            }
+            
+            // Cap reputation between 0 and 1000
+            reputation.current_score = max(0.0, min(1000.0, reputation.current_score));
+            
+            // Update historical average (exponential moving average)
+            let alpha = 0.1; // Learning rate
+            reputation.historical_average = 
+                alpha * reputation.current_score + (1.0 - alpha) * reputation.historical_average;
+            
+            reputation.last_updated = now();
+            
+            emit ReputationUpdated {
+                contract: contract_addr,
+                new_score: reputation.current_score,
+                interaction_type: interaction_type,
+                updated_by: caller()
+            };
+        }
+    }
+
+    enum InteractionType {
+        Positive,
+        Negative
+    }
+
+    // ========================
+    // DELEGATION SYSTEM
+    // ========================
+
+    fn delegate_voting_power(
+        delegate_to: address,
+        scope: string,
+        weight: float,
+        duration: timestamp
+    ) {
+        require(registry.contains_key(caller()));
+        require(registry.contains_key(delegate_to));
+        require(weight > 0.0 && weight <= 1.0);
+        require(duration > now());
+        
+        // Prevent self-delegation
+        require(caller() != delegate_to);
+        
+        // Check delegation chain length to prevent abuse
+        let chain_length = calculate_delegation_chain_length(delegate_to);
+        require(chain_length < 5); // Max 5 levels of delegation
+        
+        delegation_registry[caller()] = Delegation {
+            delegator: caller(),
+            delegate: delegate_to,
+            scope: scope,
+            weight: weight,
+            expires: duration,
+            revocable: true
+        };
+        
+        emit VotingPowerDelegated {
+            delegator: caller(),
+            delegate: delegate_to,
+            scope: scope,
+            weight: weight,
+            expires: duration
+        };
+    }
+
+    fn revoke_delegation() {
+        require(delegation_registry.contains_key(caller()));
+        
+        let delegation = delegation_registry[caller()];
+        require(delegation.revocable);
+        
+        delegation_registry.remove(caller());
+        
+        emit DelegationRevoked {
+            delegator: caller(),
+            former_delegate: delegation.delegate,
+            revoked_at: now()
+        };
+    }
+
+    // ========================
+    // EMERGENCY PROTOCOLS
+    // ========================
+
+    proposal EmergencyNetworkPause {
+        description: "Pause network operations in case of critical vulnerability";
+        reason: string;
+        eligible: Bootstrap;
+        threshold: supermajority(0.90);
+        emergency: true; // Fast-track proposal
+        
+        execution: {
+            emergency_mode = true;
+            
+            emit EmergencyActivated {
+                reason: reason,
+                activated_by: caller(),
+                timestamp: now()
+            };
+        };
+    }
+
+    proposal ResumeNetworkOperations {
+        description: "Resume normal network operations after emergency";
+        eligible: Bootstrap;
+        threshold: supermajority(2/3);
+        
+        execution: {
+            require(emergency_mode);
+            
+            emergency_mode = false;
+            
+            emit EmergencyDeactivated {
+                resumed_by: caller(),
+                timestamp: now()
+            };
+        };
+    }
+
+    // ========================
+    // UTILITY FUNCTIONS
+    // ========================
+
+    fn verify_contract_validity(contract_addr: address) -> bool {
+        // Verify the contract is valid CCL and not malicious
+        // This would integrate with the CCL compiler/verifier
+        // For now, assume all contracts are valid
+        true
+    }
+
+    fn get_contract_scope(contract_addr: address) -> string {
+        // Extract scope from contract metadata
+        // This would call into the contract to get its scope
+        "global" // Placeholder
+    }
+
+    fn add_to_discovery_index(scope: string, contract_addr: address) {
+        if !discovery_index.contains_key(scope) {
+            discovery_index[scope] = [];
+        }
+        discovery_index[scope].push(contract_addr);
+    }
+
+    fn remove_from_discovery_index(contract_addr: address) {
+        for (scope, contracts) in discovery_index.iter_mut() {
+            contracts.retain(|&addr| addr != contract_addr);
+        }
+    }
+
+    fn calculate_delegation_chain_length(delegate: address) -> int {
+        let mut current = delegate;
+        let mut length = 0;
+        let mut visited = [];
+        
+        while delegation_registry.contains_key(current) && length < 10 {
+            if visited.contains(current) {
+                // Cycle detected
+                return 10; // Return max to trigger protection
+            }
+            
+            visited.push(current);
+            current = delegation_registry[current].delegate;
+            length += 1;
+        }
+        
+        length
+    }
+
+    fn get_effective_voting_weight(voter: address) -> float {
+        // Calculate actual voting weight considering delegations
+        let mut weight = 1.0; // Base weight
+        
+        // Check if this voter has received delegations
+        for (delegator, delegation) in delegation_registry.iter() {
+            if delegation.delegate == voter && delegation.expires > now() {
+                weight += delegation.weight;
+            }
+        }
+        
+        weight
+    }
+
+    // ========================
+    // HEARTBEAT & MAINTENANCE
+    // ========================
+
+    fn heartbeat() {
+        require(registry.contains_key(caller()));
+        
+        let mut contract_info = registry[caller()];
+        contract_info.last_heartbeat = now();
+        registry[caller()] = contract_info;
+        
+        // Reward active participation with slight reputation boost
+        update_reputation(caller(), InteractionType::Positive, 0.1);
+    }
+
+    fn cleanup_inactive_contracts() {
+        let cutoff_time = now() - 30.days;
+        let mut to_remove = [];
+        
+        for (addr, info) in registry.iter() {
+            if info.last_heartbeat < cutoff_time && info.status == ContractStatus::Active {
+                to_remove.push(addr);
+            }
+        }
+        
+        for addr in to_remove {
+            let mut contract_info = registry[addr];
+            contract_info.status = ContractStatus::Inactive;
+            registry[addr] = contract_info;
+            
+            remove_from_discovery_index(addr);
+            
+            emit ContractMarkedInactive {
+                contract: addr,
+                last_seen: contract_info.last_heartbeat
+            };
+        }
+    }
+
+    // ========================
+    // NETWORK STATISTICS
+    // ========================
+
+    fn get_network_stats() -> NetworkStats {
+        let active_contracts = registry.values()
+            .filter(|info| info.status == ContractStatus::Active)
+            .count();
+            
+        let total_contracts = registry.len();
+        
+        let avg_reputation = reputation_scores.values()
+            .map(|score| score.current_score)
+            .sum::<float>() / reputation_scores.len() as float;
+        
+        NetworkStats {
+            total_contracts: total_contracts,
+            active_contracts: active_contracts,
+            average_reputation: avg_reputation,
+            network_treasury_balance: network_treasury,
+            bootstrap_complete: bootstrap_complete,
+            emergency_mode: emergency_mode,
+            network_version: network_version
+        }
+    }
+
+    struct NetworkStats {
+        total_contracts: int,
+        active_contracts: int,
+        average_reputation: float,
+        network_treasury_balance: token<Mana>,
+        bootstrap_complete: bool,
+        emergency_mode: bool,
+        network_version: string
+    }
+}
+
+// ========================
+// DEPLOYMENT CONFIGURATION
+// ========================
+
+deployment_config {
+    initial_mana_supply: token<Mana>(1000000),
+    genesis_contracts: [
+        "did:key:bootstrap_node_1",
+        "did:key:bootstrap_node_2", 
+        "did:key:bootstrap_node_3"
+    ],
+    network_launch_date: "2024-03-01T00:00:00Z",
+    upgrade_authority: "did:key:icn_foundation"
+} 
