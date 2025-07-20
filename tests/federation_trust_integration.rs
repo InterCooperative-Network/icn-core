@@ -262,12 +262,93 @@ fn test_cross_federation_bridges() {
     
     match bridge_result {
         TrustValidationResult::Allowed { trust_path, .. } => {
-            assert!(trust_path.iter().any(|path| path.contains("bridge:")));
+            let expected = format!("bridge:{}→{}", federation_a.as_str(), federation_b.as_str());
+            assert!(trust_path.iter().any(|p| p == &expected), "trust path missing {}", expected);
         }
         TrustValidationResult::Denied { reason } => {
             panic!("Cross-federation bridge trust failed: {}", reason);
         }
     }
+}
+
+#[test]
+fn test_bridge_path_and_failures() {
+    let mut engine = TrustPolicyEngine::new();
+
+    let federation_a = FederationId::new("alpha_fed".to_string());
+    let federation_b = FederationId::new("beta_fed".to_string());
+
+    let alice = Did::new("key", "alice_a");
+    let bob = Did::new("key", "bob_b");
+
+    engine.add_federation_membership(alice.clone(), federation_a.clone());
+    engine.add_federation_membership(bob.clone(), federation_b.clone());
+
+    let mut bridge_config = BridgeConfig::default();
+    bridge_config.allowed_contexts = [TrustContext::ResourceSharing].into_iter().collect();
+    bridge_config.max_bridge_trust = TrustLevel::Partial;
+
+    let bridge_trust = ScopedTrustRelationship {
+        base: TrustRelationship::new(
+            Did::new("key", "alpha_admin"),
+            Did::new("key", "beta_admin"),
+            TrustLevel::Full,
+            vec!["resource_sharing".to_string()],
+        ),
+        context: TrustContext::ResourceSharing,
+        federation: Some(federation_a.clone()),
+        inheritance: TrustInheritance::default(),
+        metadata: HashMap::new(),
+    };
+
+    let valid_bridge = FederationTrustBridge {
+        from_federation: federation_a.clone(),
+        to_federation: federation_b.clone(),
+        trust: bridge_trust.clone(),
+        bridge_config: bridge_config.clone(),
+        established_at: chrono::Utc::now().timestamp() as u64,
+        expires_at: Some((chrono::Utc::now().timestamp() + 3600) as u64),
+    };
+
+    engine.add_bridge(valid_bridge);
+
+    let rule = TrustPolicyRule {
+        name: "allow_bridge".to_string(),
+        applicable_contexts: [TrustContext::ResourceSharing, TrustContext::Governance]
+            .into_iter()
+            .collect(),
+        min_trust_level: TrustLevel::Basic,
+        require_federation_membership: false,
+        max_inheritance_depth: Some(1),
+        allow_cross_federation: true,
+        custom_validator: None,
+    };
+    engine.add_rule(rule);
+
+    let result = engine.validate_trust(&alice, &bob, &TrustContext::ResourceSharing, "share");
+    match result {
+        TrustValidationResult::Allowed { trust_path, .. } => {
+            let expected = format!("bridge:{}→{}", federation_a.as_str(), federation_b.as_str());
+            assert!(trust_path.iter().any(|p| p == &expected));
+        }
+        other => panic!("Unexpected result: {:?}", other),
+    }
+
+    let denied = engine.validate_trust(&alice, &bob, &TrustContext::Governance, "vote");
+    assert!(matches!(denied, TrustValidationResult::Denied { .. }));
+
+    let expired_bridge = FederationTrustBridge {
+        from_federation: federation_a.clone(),
+        to_federation: federation_b.clone(),
+        trust: bridge_trust,
+        bridge_config,
+        established_at: chrono::Utc::now().timestamp() as u64,
+        expires_at: Some((chrono::Utc::now().timestamp() - 10) as u64),
+    };
+    engine.add_bridge(expired_bridge);
+
+    let expired_result = engine.validate_trust(&alice, &bob, &TrustContext::ResourceSharing, "share");
+    assert!(matches!(expired_result, TrustValidationResult::Denied { .. }));
 }
 
 #[test]
