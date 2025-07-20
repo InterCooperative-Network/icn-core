@@ -423,8 +423,9 @@ arg_list = {
 }
 
 primary = {
-    literal | struct_literal | enum_value | identifier | "(" ~ expr ~ ")" | array_literal |
-    some_expr | none_expr | ok_expr | err_expr
+    literal | struct_literal | enum_value | array_literal |
+    some_expr | none_expr | ok_expr | err_expr |
+    identifier | "(" ~ expr ~ ")"
 }
 
 literal = {

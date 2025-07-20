@@ -407,7 +407,7 @@ impl StdLibrary {
     fn register_array_functions(&mut self) {
         self.register_function(StdFunction {
             name: "array_length".to_string(),
-            params: vec![TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Custom("T".to_string())))],
+            params: vec![TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Integer))], // More specific type
             return_type: TypeAnnotationNode::Integer,
             description: "Get array length".to_string(),
             category: StdCategory::Array,
@@ -416,18 +416,18 @@ impl StdLibrary {
         self.register_function(StdFunction {
             name: "array_push".to_string(),
             params: vec![
-                TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Custom("T".to_string()))),
-                TypeAnnotationNode::Custom("T".to_string()),
+                TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Integer)), // More specific type
+                TypeAnnotationNode::Integer,
             ],
-            return_type: TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Custom("T".to_string()))),
+            return_type: TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Integer)),
             description: "Add element to end of array".to_string(),
             category: StdCategory::Array,
         });
 
         self.register_function(StdFunction {
             name: "array_pop".to_string(),
-            params: vec![TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Custom("T".to_string())))],
-            return_type: TypeAnnotationNode::Option(Box::new(TypeAnnotationNode::Custom("T".to_string()))),
+            params: vec![TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Integer))], // More specific type
+            return_type: TypeAnnotationNode::Option(Box::new(TypeAnnotationNode::Integer)),
             description: "Remove and return last element".to_string(),
             category: StdCategory::Array,
         });
@@ -435,8 +435,8 @@ impl StdLibrary {
         self.register_function(StdFunction {
             name: "array_contains".to_string(),
             params: vec![
-                TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Custom("T".to_string()))),
-                TypeAnnotationNode::Custom("T".to_string()),
+                TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Integer)), // More specific type
+                TypeAnnotationNode::Integer,
             ],
             return_type: TypeAnnotationNode::Bool,
             description: "Check if array contains element".to_string(),
@@ -446,11 +446,11 @@ impl StdLibrary {
         self.register_function(StdFunction {
             name: "array_slice".to_string(),
             params: vec![
-                TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Custom("T".to_string()))),
+                TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Integer)), // More specific type
                 TypeAnnotationNode::Integer, // start
                 TypeAnnotationNode::Integer, // end
             ],
-            return_type: TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Custom("T".to_string()))),
+            return_type: TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Integer)),
             description: "Extract slice of array".to_string(),
             category: StdCategory::Array,
         });
@@ -462,8 +462,8 @@ impl StdLibrary {
             name: "map_new".to_string(),
             params: vec![],
             return_type: TypeAnnotationNode::Map {
-                key_type: Box::new(TypeAnnotationNode::Custom("K".to_string())),
-                value_type: Box::new(TypeAnnotationNode::Custom("V".to_string())),
+                key_type: Box::new(TypeAnnotationNode::String),
+                value_type: Box::new(TypeAnnotationNode::Integer),
             },
             description: "Create a new empty map".to_string(),
             category: StdCategory::Map,
@@ -473,15 +473,15 @@ impl StdLibrary {
             name: "map_insert".to_string(),
             params: vec![
                 TypeAnnotationNode::Map {
-                    key_type: Box::new(TypeAnnotationNode::Custom("K".to_string())),
-                    value_type: Box::new(TypeAnnotationNode::Custom("V".to_string())),
+                    key_type: Box::new(TypeAnnotationNode::String), // More specific
+                    value_type: Box::new(TypeAnnotationNode::Integer), // More specific
                 },
-                TypeAnnotationNode::Custom("K".to_string()),
-                TypeAnnotationNode::Custom("V".to_string()),
+                TypeAnnotationNode::String, // More specific
+                TypeAnnotationNode::Integer, // More specific
             ],
             return_type: TypeAnnotationNode::Map {
-                key_type: Box::new(TypeAnnotationNode::Custom("K".to_string())),
-                value_type: Box::new(TypeAnnotationNode::Custom("V".to_string())),
+                key_type: Box::new(TypeAnnotationNode::String),
+                value_type: Box::new(TypeAnnotationNode::Integer),
             },
             description: "Insert key-value pair into map".to_string(),
             category: StdCategory::Map,
@@ -491,12 +491,12 @@ impl StdLibrary {
             name: "map_get".to_string(),
             params: vec![
                 TypeAnnotationNode::Map {
-                    key_type: Box::new(TypeAnnotationNode::Custom("K".to_string())),
-                    value_type: Box::new(TypeAnnotationNode::Custom("V".to_string())),
+                    key_type: Box::new(TypeAnnotationNode::String),
+                    value_type: Box::new(TypeAnnotationNode::Integer),
                 },
-                TypeAnnotationNode::Custom("K".to_string()),
+                TypeAnnotationNode::String,
             ],
-            return_type: TypeAnnotationNode::Option(Box::new(TypeAnnotationNode::Custom("V".to_string()))),
+            return_type: TypeAnnotationNode::Option(Box::new(TypeAnnotationNode::Integer)),
             description: "Get value by key from map".to_string(),
             category: StdCategory::Map,
         });
@@ -505,10 +505,10 @@ impl StdLibrary {
             name: "map_contains_key".to_string(),
             params: vec![
                 TypeAnnotationNode::Map {
-                    key_type: Box::new(TypeAnnotationNode::Custom("K".to_string())),
-                    value_type: Box::new(TypeAnnotationNode::Custom("V".to_string())),
+                    key_type: Box::new(TypeAnnotationNode::String),
+                    value_type: Box::new(TypeAnnotationNode::Integer),
                 },
-                TypeAnnotationNode::Custom("K".to_string()),
+                TypeAnnotationNode::String,
             ],
             return_type: TypeAnnotationNode::Bool,
             description: "Check if map contains key".to_string(),
@@ -519,12 +519,12 @@ impl StdLibrary {
             name: "map_remove".to_string(),
             params: vec![
                 TypeAnnotationNode::Map {
-                    key_type: Box::new(TypeAnnotationNode::Custom("K".to_string())),
-                    value_type: Box::new(TypeAnnotationNode::Custom("V".to_string())),
+                    key_type: Box::new(TypeAnnotationNode::String),
+                    value_type: Box::new(TypeAnnotationNode::Integer),
                 },
-                TypeAnnotationNode::Custom("K".to_string()),
+                TypeAnnotationNode::String,
             ],
-            return_type: TypeAnnotationNode::Option(Box::new(TypeAnnotationNode::Custom("V".to_string()))),
+            return_type: TypeAnnotationNode::Option(Box::new(TypeAnnotationNode::Integer)),
             description: "Remove key-value pair from map".to_string(),
             category: StdCategory::Map,
         });
@@ -533,8 +533,8 @@ impl StdLibrary {
             name: "map_size".to_string(),
             params: vec![
                 TypeAnnotationNode::Map {
-                    key_type: Box::new(TypeAnnotationNode::Custom("K".to_string())),
-                    value_type: Box::new(TypeAnnotationNode::Custom("V".to_string())),
+                    key_type: Box::new(TypeAnnotationNode::String),
+                    value_type: Box::new(TypeAnnotationNode::Integer),
                 },
             ],
             return_type: TypeAnnotationNode::Integer,
