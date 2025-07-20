@@ -654,11 +654,11 @@ pub fn pair_to_ast(
                         let enum_def = parser::parse_enum_declaration(inner)?;
                         items.push(TopLevelNode::Enum(enum_def));
                     }
-                    // Rule::const_decl => {
-                    //     // Parse standalone const declaration
-                    //     let const_def = parser::parse_const_declaration(inner)?;
-                    //     items.push(TopLevelNode::Const(const_def));
-                    // }
+                    Rule::const_decl => {
+                        // Parse standalone const declaration
+                        let const_def = parser::parse_const_declaration(inner)?;
+                        items.push(TopLevelNode::Const(const_def));
+                    }
                     Rule::EOI => (),
                     _ => {
                         return Err(CclError::ParsingError(format!(

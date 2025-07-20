@@ -849,7 +849,7 @@ fn parse_variant(pair: Pair<Rule>) -> Result<EnumVariantNode, CclError> {
     Ok(EnumVariantNode { name, type_expr })
 }
 
-fn parse_const_declaration(pair: Pair<Rule>) -> Result<ConstDeclarationNode, CclError> {
+pub fn parse_const_declaration(pair: Pair<Rule>) -> Result<ConstDeclarationNode, CclError> {
     // const_decl = { "const" ~ identifier ~ ":" ~ type_expr ~ "=" ~ expr ~ ";" }
     let mut inner = pair.into_inner();
     
@@ -2005,10 +2005,10 @@ pub fn parse_ccl_source(source: &str) -> Result<AstNode, CclError> {
                         let enum_def = parse_enum_declaration(pair_in_program)?;
                         top_level_nodes.push(crate::ast::TopLevelNode::Enum(enum_def));
                     }
-                    // Rule::const_decl => {
-                    //     let const_def = parse_const_declaration(pair_in_program)?;
-                    //     top_level_nodes.push(crate::ast::TopLevelNode::Const(const_def));
-                    // }
+                    Rule::const_decl => {
+                        let const_def = parse_const_declaration(pair_in_program)?;
+                        top_level_nodes.push(crate::ast::TopLevelNode::Const(const_def));
+                    }
                     Rule::EOI => (),
                     _ => {
                         return Err(CclError::ParsingError(format!(

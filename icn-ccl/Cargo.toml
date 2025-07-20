@@ -139,6 +139,26 @@ name = "test_while_loops"
 path = "test_while_loops.rs"
 
 [[bin]]
+name = "test_for_loops"
+path = "test_for_loops.rs"
+
+[[bin]]
+name = "test_struct_access"
+path = "test_struct_access.rs"
+
+[[bin]]
+name = "test_const_declarations"
+path = "test_const_declarations.rs"
+
+[[bin]]
+name = "test_array_operations"
+path = "test_array_operations.rs"
+
+[[bin]]
+name = "test_array_operations_simple"
+path = "test_array_operations_simple.rs"
+
+[[bin]]
 name = "test_else_if_comprehensive"
 path = "test_else_if_comprehensive.rs"
 

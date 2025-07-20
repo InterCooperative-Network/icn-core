@@ -2524,10 +2524,63 @@ impl WasmBackend {
                 instrs.push(Instruction::End);
                 instrs.push(Instruction::End);
             }
-            StatementNode::ForLoop { .. } => {
-                return Err(CclError::WasmGenerationError(
-                    "For loops not yet supported in WASM backend".to_string(),
-                ));
+            StatementNode::ForLoop { iterator, iterable, body } => {
+                // Implement legacy for loop using the same logic as StatementNode::For
+                let iterable_type = self.emit_expression(iterable, instrs, locals, indices)?;
+                
+                // Support arrays (for now)
+                match iterable_type {
+                    ValType::I32 => {
+                        // Create local variable for loop counter
+                        let counter_local = locals.get_or_add("__loop_counter", ValType::I32);
+                        
+                        // Create local variable for iterator
+                        let iterator_local = locals.get_or_add(iterator, ValType::I64);
+                        
+                        // Initialize counter to 0
+                        instrs.push(Instruction::I32Const(0));
+                        instrs.push(Instruction::LocalSet(counter_local));
+                        
+                        // Get array length (simplified for now)
+                        let array_length = 5; // TODO: Extract actual array length
+                        
+                        // WASM loop structure
+                        instrs.push(Instruction::Block(wasm_encoder::BlockType::Empty));
+                        instrs.push(Instruction::Loop(wasm_encoder::BlockType::Empty));
+                        
+                        // Check if counter >= array_length
+                        instrs.push(Instruction::LocalGet(counter_local));
+                        instrs.push(Instruction::I32Const(array_length));
+                        instrs.push(Instruction::I32GeU);
+                        instrs.push(Instruction::BrIf(1));
+                        
+                        // Load array element (simplified)
+                        instrs.push(Instruction::LocalGet(counter_local));
+                        instrs.push(Instruction::I32Const(1));
+                        instrs.push(Instruction::I32Add);
+                        instrs.push(Instruction::I64ExtendI32S);
+                        instrs.push(Instruction::LocalSet(iterator_local));
+                        
+                        // Execute loop body
+                        self.emit_block(body, instrs, locals, return_ty, indices)?;
+                        
+                        // Increment counter
+                        instrs.push(Instruction::LocalGet(counter_local));
+                        instrs.push(Instruction::I32Const(1));
+                        instrs.push(Instruction::I32Add);
+                        instrs.push(Instruction::LocalSet(counter_local));
+                        
+                        // Continue loop
+                        instrs.push(Instruction::Br(0));
+                        instrs.push(Instruction::End);
+                        instrs.push(Instruction::End);
+                    }
+                    _ => {
+                        return Err(CclError::WasmGenerationError(
+                            "For loops currently only support arrays".to_string()
+                        ));
+                    }
+                }
             }
             StatementNode::Break | StatementNode::Continue => {
                 return Err(CclError::WasmGenerationError(

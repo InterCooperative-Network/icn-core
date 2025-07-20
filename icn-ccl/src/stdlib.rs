@@ -764,6 +764,14 @@ impl StdLibrary {
         });
 
         self.register_function(StdFunction {
+            name: "array_len".to_string(),
+            params: vec![TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Integer))], // More specific type
+            return_type: TypeAnnotationNode::Integer,
+            description: "Get array length (alias for array_length)".to_string(),
+            category: StdCategory::Array,
+        });
+
+        self.register_function(StdFunction {
             name: "array_push".to_string(),
             params: vec![
                 TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Integer)), // More specific type
