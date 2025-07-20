@@ -32,3 +32,17 @@ node_config.events.jsonl
 /mana_ledger.*
 !tests/fixtures/mana_ledger.json
 tests/fixtures/mana_ledger.tmp
+
+# CCL testing artifacts
+quick_test
+quick_test.rs
+test_contract*.ccl
+test_contract*.rs
+*_output.wasm
+*_meta.json
+*.rcgu.o
+simple_policy.wasm
+test_contracts/
+icn-ccl/test_*.ccl
+icn-ccl/test_*.rs
+icn-devnet/launch_output.txt
