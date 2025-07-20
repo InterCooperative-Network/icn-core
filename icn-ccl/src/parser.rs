@@ -9,7 +9,7 @@ use crate::ast::{
     ImportStatementNode, FieldNode, EnumVariantNode, StateDeclarationNode, 
     ConstDeclarationNode, StructDefinitionNode, EnumDefinitionNode,
     LValueNode, MatchArmNode, PatternNode, FieldInitNode,
-    LiteralNode, Either,
+    LiteralNode, Either, TypeParameterNode,
 };
 use crate::error::CclError;
 use pest::iterators::Pair;
@@ -430,19 +430,23 @@ fn parse_execution_block(pair: Pair<Rule>) -> Result<ProposalFieldNode, CclError
 
 /// Parse a function declaration (CCL 0.1 style)
 pub fn parse_function_declaration(pair: Pair<Rule>) -> Result<FunctionDefinitionNode, CclError> {
-    // fn_decl = { "fn" ~ identifier ~ "(" ~ parameter_list? ~ ")" ~ return_type? ~ block }
+    // fn_decl = { "fn" ~ identifier ~ type_parameters? ~ "(" ~ parameter_list? ~ ")" ~ return_type? ~ block }
     let mut inner = pair.into_inner();
     
     let name_pair = inner.next()
         .ok_or_else(|| CclError::ParsingError("Function missing name".to_string()))?;
     let name = name_pair.as_str().to_string();
     
+    let mut type_parameters = Vec::new();
     let mut parameters = Vec::new();
     let mut return_type = None;
     let mut body = None;
     
     for item in inner {
         match item.as_rule() {
+            Rule::type_parameters => {
+                type_parameters = parse_type_parameters(item)?;
+            }
             Rule::parameter_list => {
                 parameters = parse_parameter_list(item)?;
             }
@@ -470,6 +474,7 @@ pub fn parse_function_declaration(pair: Pair<Rule>) -> Result<FunctionDefinition
     
     Ok(FunctionDefinitionNode {
         name,
+        type_parameters,
         parameters,
         return_type,
         body,
@@ -493,6 +498,80 @@ fn parse_parameter_list(pair: Pair<Rule>) -> Result<Vec<ParameterNode>, CclError
     }
     
     Ok(parameters)
+}
+
+fn parse_type_parameters(pair: Pair<Rule>) -> Result<Vec<TypeParameterNode>, CclError> {
+    // type_parameters = { "<" ~ type_parameter_list ~ ">" }
+    let mut inner = pair.into_inner();
+    
+    for item in inner {
+        if item.as_rule() == Rule::type_parameter_list {
+            return parse_type_parameter_list(item);
+        }
+    }
+    
+    Ok(Vec::new())
+}
+
+fn parse_type_parameter_list(pair: Pair<Rule>) -> Result<Vec<TypeParameterNode>, CclError> {
+    // type_parameter_list = { type_parameter ~ ("," ~ type_parameter)* }
+    let mut type_params = Vec::new();
+    
+    for param_pair in pair.into_inner() {
+        if param_pair.as_rule() == Rule::type_parameter {
+            let param = parse_type_parameter(param_pair)?;
+            type_params.push(param);
+        }
+    }
+    
+    Ok(type_params)
+}
+
+fn parse_type_parameter(pair: Pair<Rule>) -> Result<TypeParameterNode, CclError> {
+    // type_parameter = { identifier ~ (":" ~ type_bounds)? }
+    let mut inner = pair.into_inner();
+    
+    let name_pair = inner.next()
+        .ok_or_else(|| CclError::ParsingError("Type parameter missing name".to_string()))?;
+    let name = name_pair.as_str().to_string();
+    
+    let mut bounds = Vec::new();
+    
+    // Parse optional type bounds
+    for item in inner {
+        if item.as_rule() == Rule::type_bounds {
+            bounds = parse_type_bounds(item)?;
+        }
+    }
+    
+    Ok(TypeParameterNode { name, bounds })
+}
+
+fn parse_type_bounds(pair: Pair<Rule>) -> Result<Vec<String>, CclError> {
+    // type_bounds = { type_bound ~ ("+" ~ type_bound)* }
+    let mut bounds = Vec::new();
+    
+    for bound_pair in pair.into_inner() {
+        if bound_pair.as_rule() == Rule::type_bound {
+            bounds.push(bound_pair.as_str().to_string());
+        }
+    }
+    
+    Ok(bounds)
+}
+
+fn parse_type_expr_list(pair: Pair<Rule>) -> Result<Vec<TypeExprNode>, CclError> {
+    // type_expr_list = { type_expr ~ ("," ~ type_expr)* }
+    let mut type_exprs = Vec::new();
+    
+    for type_pair in pair.into_inner() {
+        if type_pair.as_rule() == Rule::type_expr {
+            let type_expr = parse_type_expr(type_pair)?;
+            type_exprs.push(type_expr);
+        }
+    }
+    
+    Ok(type_exprs)
 }
 
 fn parse_parameter(pair: Pair<Rule>) -> Result<ParameterNode, CclError> {
@@ -588,6 +667,24 @@ pub fn parse_type_expr(pair: Pair<Rule>) -> Result<TypeExprNode, CclError> {
         Rule::identifier => {
             Ok(TypeExprNode::Custom(pair.as_str().to_string()))
         }
+        Rule::generic_instantiation => {
+            // generic_instantiation = { identifier ~ "<" ~ type_expr_list ~ ">" }
+            let mut inner = pair.into_inner();
+            let base_type = inner.next()
+                .ok_or_else(|| CclError::ParsingError("Generic instantiation missing base type".to_string()))?;
+            let type_args_list = inner.next()
+                .ok_or_else(|| CclError::ParsingError("Generic instantiation missing type arguments".to_string()))?;
+            
+            let type_args = parse_type_expr_list(type_args_list)?;
+            
+            Ok(TypeExprNode::GenericInstantiation {
+                base_type: base_type.as_str().to_string(),
+                type_args,
+            })
+        }
+        Rule::type_parameter_ref => {
+            Ok(TypeExprNode::TypeParameter(pair.as_str().to_string()))
+        }
         _ => {
             Err(CclError::ParsingError(format!(
                 "Unexpected type expression rule: {:?}",
@@ -623,20 +720,38 @@ fn parse_state_declaration(pair: Pair<Rule>) -> Result<StateDeclarationNode, Ccl
 }
 
 pub fn parse_struct_declaration(pair: Pair<Rule>) -> Result<StructDefinitionNode, CclError> {
-    // struct_decl = { "struct" ~ identifier ~ "{" ~ field_list? ~ "}" }
+    // struct_decl = { "struct" ~ identifier ~ type_parameters? ~ "{" ~ field_list? ~ "}" }
     let mut inner = pair.into_inner();
     
     let name_pair = inner.next()
         .ok_or_else(|| CclError::ParsingError("Struct missing name".to_string()))?;
     let name = name_pair.as_str().to_string();
     
+    let mut type_parameters = Vec::new();
     let mut fields = Vec::new();
     
-    if let Some(field_list) = inner.next() {
-        fields = parse_field_list(field_list)?;
+    for item in inner {
+        match item.as_rule() {
+            Rule::type_parameters => {
+                type_parameters = parse_type_parameters(item)?;
+            }
+            Rule::field_list => {
+                fields = parse_field_list(item)?;
+            }
+            _ => {
+                return Err(CclError::ParsingError(format!(
+                    "Unexpected rule in struct: {:?}",
+                    item.as_rule()
+                )));
+            }
+        }
     }
     
-    Ok(StructDefinitionNode { name, fields })
+    Ok(StructDefinitionNode { 
+        name, 
+        type_parameters,
+        fields 
+    })
 }
 
 fn parse_field_list(pair: Pair<Rule>) -> Result<Vec<FieldNode>, CclError> {
@@ -669,20 +784,38 @@ fn parse_field(pair: Pair<Rule>) -> Result<FieldNode, CclError> {
 }
 
 pub fn parse_enum_declaration(pair: Pair<Rule>) -> Result<EnumDefinitionNode, CclError> {
-    // enum_decl = { "enum" ~ identifier ~ "{" ~ variant_list? ~ "}" }
+    // enum_decl = { "enum" ~ identifier ~ type_parameters? ~ "{" ~ variant_list? ~ "}" }
     let mut inner = pair.into_inner();
     
     let name_pair = inner.next()
         .ok_or_else(|| CclError::ParsingError("Enum missing name".to_string()))?;
     let name = name_pair.as_str().to_string();
     
+    let mut type_parameters = Vec::new();
     let mut variants = Vec::new();
     
-    if let Some(variant_list) = inner.next() {
-        variants = parse_variant_list(variant_list)?;
+    for item in inner {
+        match item.as_rule() {
+            Rule::type_parameters => {
+                type_parameters = parse_type_parameters(item)?;
+            }
+            Rule::variant_list => {
+                variants = parse_variant_list(item)?;
+            }
+            _ => {
+                return Err(CclError::ParsingError(format!(
+                    "Unexpected rule in enum: {:?}",
+                    item.as_rule()
+                )));
+            }
+        }
     }
     
-    Ok(EnumDefinitionNode { name, variants })
+    Ok(EnumDefinitionNode { 
+        name, 
+        type_parameters,
+        variants 
+    })
 }
 
 fn parse_variant_list(pair: Pair<Rule>) -> Result<Vec<EnumVariantNode>, CclError> {
@@ -1762,16 +1895,18 @@ pub fn parse_ccl_file(path: &std::path::Path) -> Result<AstNode, CclError> {
 
 fn alias_ast(ast: AstNode, alias: &str) -> AstNode {
     match ast {
-        AstNode::FunctionDefinition { name, parameters, return_type, body } => {
+        AstNode::FunctionDefinition { name, parameters, return_type, body, type_parameters } => {
             AstNode::FunctionDefinition {
                 name: format!("{}_{}", alias, name),
+                type_parameters,
                 parameters,
                 return_type,
                 body,
             }
         }
-        AstNode::StructDefinition { name, fields } => AstNode::StructDefinition {
+        AstNode::StructDefinition { name, fields, type_parameters } => AstNode::StructDefinition {
             name: format!("{}_{}", alias, name),
+            type_parameters,
             fields,
         },
         AstNode::Program(nodes) => {

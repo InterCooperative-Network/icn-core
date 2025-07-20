@@ -29,6 +29,7 @@ pub enum AstNode {
     
     FunctionDefinition {
         name: String,
+        type_parameters: Vec<TypeParameterNode>,
         parameters: Vec<ParameterNode>,
         return_type: Option<TypeExprNode>,
         body: BlockNode,
@@ -36,11 +37,13 @@ pub enum AstNode {
     
     StructDefinition {
         name: String,
+        type_parameters: Vec<TypeParameterNode>,
         fields: Vec<FieldNode>,
     },
     
     EnumDefinition {
         name: String,
+        type_parameters: Vec<TypeParameterNode>,
         variants: Vec<EnumVariantNode>,
     },
     
@@ -170,6 +173,7 @@ pub enum DurationUnitNode {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FunctionDefinitionNode {
     pub name: String,
+    pub type_parameters: Vec<TypeParameterNode>,
     pub parameters: Vec<ParameterNode>,
     pub return_type: Option<TypeExprNode>,
     pub body: BlockNode,
@@ -204,12 +208,14 @@ pub struct ConstDeclarationNode {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct StructDefinitionNode {
     pub name: String,
+    pub type_parameters: Vec<TypeParameterNode>,
     pub fields: Vec<FieldNode>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct EnumDefinitionNode {
     pub name: String,
+    pub type_parameters: Vec<TypeParameterNode>,
     pub variants: Vec<EnumVariantNode>,
 }
 
@@ -246,6 +252,12 @@ pub struct ParameterNode {
     pub type_expr: TypeExprNode,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TypeParameterNode {
+    pub name: String,
+    pub bounds: Vec<String>, // Type constraints like "Clone + Debug"
+}
+
 // New unified type system for CCL 0.1
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum TypeExprNode {
@@ -266,6 +278,13 @@ pub enum TypeExprNode {
     
     // Custom types
     Custom(String),
+    
+    // Generic types
+    TypeParameter(String), // Reference to a type parameter like T
+    GenericInstantiation { 
+        base_type: String, 
+        type_args: Vec<TypeExprNode> 
+    }, // Like Vec<T> or Map<K, V>
 }
 
 // Legacy type annotation for backward compatibility
@@ -313,6 +332,8 @@ impl TypeExprNode {
             TypeExprNode::Custom(name) => TypeAnnotationNode::Custom(name.clone()),
             TypeExprNode::Timestamp => TypeAnnotationNode::Custom("Timestamp".to_string()),
             TypeExprNode::Duration => TypeAnnotationNode::Custom("Duration".to_string()),
+            TypeExprNode::TypeParameter(name) => TypeAnnotationNode::Custom(name.clone()),
+            TypeExprNode::GenericInstantiation { base_type, .. } => TypeAnnotationNode::Custom(base_type.clone()),
         }
     }
     
@@ -635,6 +656,7 @@ pub fn pair_to_ast(
             let func = parser::parse_function_definition_new(pair)?;
             Ok(AstNode::FunctionDefinition {
                 name: func.name,
+                type_parameters: func.type_parameters,
                 parameters: func.parameters,
                 return_type: func.return_type,
                 body: func.body,

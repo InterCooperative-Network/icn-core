@@ -131,10 +131,10 @@ impl SemanticAnalyzer {
                     self.analyze_policy_statement(stmt)?;
                 }
             }
-            AstNode::FunctionDefinition { name, parameters, return_type, body } => {
+            AstNode::FunctionDefinition { name, parameters, return_type, body, .. } => {
                 self.analyze_function_definition(name, parameters, return_type.as_ref(), body)?;
             }
-            AstNode::StructDefinition { name, fields } => {
+            AstNode::StructDefinition { name, fields, .. } => {
                 self.analyze_struct_definition(name, fields)?;
             }
             AstNode::ContractDeclaration { name, metadata: _, body } => {
@@ -406,12 +406,12 @@ impl SemanticAnalyzer {
     fn analyze_policy_statement(&mut self, stmt: &PolicyStatementNode) -> Result<(), CclError> {
         match stmt {
             PolicyStatementNode::FunctionDef(func_ast) => {
-                if let AstNode::FunctionDefinition { name, parameters, return_type, body } = func_ast {
+                if let AstNode::FunctionDefinition { name, parameters, return_type, body, .. } = func_ast {
                     self.analyze_function_definition(name, parameters, return_type.as_ref(), body)?;
                 }
             }
             PolicyStatementNode::StructDef(struct_ast) => {
-                if let AstNode::StructDefinition { name, fields } = struct_ast {
+                if let AstNode::StructDefinition { name, fields, .. } = struct_ast {
                     self.analyze_struct_definition(name, fields)?;
                 }
             }

@@ -159,7 +159,27 @@ execution_block = {
 //////////////////////////
 
 fn_decl = {
-    "fn" ~ identifier ~ "(" ~ parameter_list? ~ ")" ~ return_type? ~ block
+    "fn" ~ identifier ~ type_parameters? ~ "(" ~ parameter_list? ~ ")" ~ return_type? ~ block
+}
+
+type_parameters = {
+    "<" ~ type_parameter_list ~ ">"
+}
+
+type_parameter_list = {
+    type_parameter ~ ("," ~ type_parameter)*
+}
+
+type_parameter = {
+    identifier ~ (":" ~ type_bounds)?
+}
+
+type_bounds = {
+    type_bound ~ ("+" ~ type_bound)*
+}
+
+type_bound = {
+    identifier
 }
 
 parameter_list = {
@@ -179,7 +199,7 @@ return_type = {
 //////////////////////////
 
 type_expr = {
-    basic_type | array_type | map_type | option_type | result_type | custom_type
+    basic_type | array_type | map_type | option_type | result_type | custom_type | generic_instantiation | type_parameter_ref
 }
 
 basic_type = {
@@ -187,11 +207,11 @@ basic_type = {
 }
 
 array_type = {
-    "[" ~ type_expr ~ "]"
+    "[" ~ type_expr ~ "]" | "Array" ~ "<" ~ type_expr ~ ">"
 }
 
 map_type = {
-    "map" ~ "<" ~ type_expr ~ "," ~ type_expr ~ ">"
+    "map" ~ "<" ~ type_expr ~ "," ~ type_expr ~ ">" | "Map" ~ "<" ~ type_expr ~ "," ~ type_expr ~ ">"
 }
 
 option_type = {
@@ -203,6 +223,18 @@ result_type = {
 }
 
 custom_type = {
+    identifier
+}
+
+generic_instantiation = {
+    identifier ~ "<" ~ type_expr_list ~ ">"
+}
+
+type_expr_list = {
+    type_expr ~ ("," ~ type_expr)*
+}
+
+type_parameter_ref = {
     identifier
 }
 
@@ -219,7 +251,7 @@ state_decl = {
 //////////////////////////
 
 struct_decl = {
-    "struct" ~ identifier ~ "{" ~ field_list? ~ "}"
+    "struct" ~ identifier ~ type_parameters? ~ "{" ~ field_list? ~ "}"
 }
 
 field_list = {
@@ -231,7 +263,7 @@ field = {
 }
 
 enum_decl = {
-    "enum" ~ identifier ~ "{" ~ variant_list? ~ "}"
+    "enum" ~ identifier ~ type_parameters? ~ "{" ~ variant_list? ~ "}"
 }
 
 variant_list = {
