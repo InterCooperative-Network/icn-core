@@ -743,6 +743,12 @@ fn parse_const_declaration(pair: Pair<Rule>) -> Result<ConstDeclarationNode, Ccl
 
 pub(crate) fn parse_literal_expression(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
     match pair.as_rule() {
+        Rule::literal => {
+            // Handle the wrapper literal rule by extracting the inner literal type
+            let inner = pair.into_inner().next()
+                .ok_or_else(|| CclError::ParsingError("Empty literal rule".to_string()))?;
+            parse_literal_expression(inner)
+        }
         Rule::integer => {
             let value = pair
                 .as_str()
