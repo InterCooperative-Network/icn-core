@@ -146,6 +146,34 @@ path = "test_all_cooperative_contracts.rs"
 name = "test_simple_standalone"
 path = "test_simple_standalone.rs"
 
+[[bin]]
+name = "test_string_array_improvements"
+path = "test_string_array_improvements.rs"
+
+[[bin]]
+name = "test_simple_compilation"
+path = "test_simple_compilation.rs"
+
+[[bin]]
+name = "test_option_result"
+path = "test_option_result.rs"
+
+[[bin]]
+name = "test_comprehensive_improvements"
+path = "test_comprehensive_improvements.rs"
+
+[[bin]]
+name = "test_gte_operator"
+path = "test_gte_operator.rs"
+
+[[bin]]
+name = "test_simple_gte"
+path = "test_simple_gte.rs"
+
+[[bin]]
+name = "demo_ccl_improvements_success"
+path = "demo_ccl_improvements_success.rs"
+
 # [[bin]]
 # name = "generate_ccl_job_spec"
 # path = "src/bin/generate_ccl_job_spec.rs"

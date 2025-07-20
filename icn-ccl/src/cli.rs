@@ -411,6 +411,14 @@ fn expr_to_string(expr: &ExpressionNode) -> String {
         ExpressionNode::None => "None".to_string(),
         ExpressionNode::Ok(inner) => format!("Ok({})", expr_to_string(inner)),
         ExpressionNode::Err(inner) => format!("Err({})", expr_to_string(inner)),
+        ExpressionNode::MapLiteral(pairs) => {
+            let items = pairs
+                .iter()
+                .map(|(k, v)| format!("{}: {}", expr_to_string(k), expr_to_string(v)))
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("{{{}}}", items)
+        }
         ExpressionNode::EnumValue { enum_name, variant } => format!("{}::{}", enum_name, variant),
     }
 }

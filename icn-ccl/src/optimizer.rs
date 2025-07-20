@@ -518,6 +518,13 @@ impl Optimizer {
                     index: Box::new(self.fold_expr(*index)),
                 }
             }
+            ExpressionNode::MapLiteral(pairs) => {
+                let optimized_pairs = pairs
+                    .into_iter()
+                    .map(|(k, v)| (self.fold_expr(k), self.fold_expr(v)))
+                    .collect();
+                ExpressionNode::MapLiteral(optimized_pairs)
+            }
             ExpressionNode::EnumValue { enum_name, variant } => {
                 ExpressionNode::EnumValue { enum_name, variant }
             }
