@@ -1,7 +1,7 @@
 // icn-ccl/src/parser.rs
 #![allow(clippy::while_let_on_iterator)]
 use crate::ast::{
-    ActionNode, AstNode, BinaryOperator, BlockNode, ExpressionNode, ParameterNode,
+    AstNode, BinaryOperator, BlockNode, ExpressionNode, ParameterNode,
     PolicyStatementNode, StatementNode, TypeAnnotationNode, TypeExprNode, UnaryOperator,
     ContractDeclarationNode, ContractMetaNode, ContractBodyNode, RoleDeclarationNode, 
     RoleBodyNode, RequirementNode, ProposalDeclarationNode, ProposalFieldNode,
@@ -415,7 +415,7 @@ fn parse_threshold_type(pair: Pair<Rule>) -> Result<ThresholdTypeNode, CclError>
 
 fn parse_execution_block(pair: Pair<Rule>) -> Result<ProposalFieldNode, CclError> {
     // execution_block = { "execution:" ~ "{" ~ statement* ~ "}" }
-    let mut inner = pair.into_inner();
+    let inner = pair.into_inner();
     let mut statements = Vec::new();
     
     for stmt_pair in inner {

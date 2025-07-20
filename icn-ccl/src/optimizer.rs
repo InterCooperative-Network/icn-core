@@ -1,7 +1,7 @@
 // icn-ccl/src/optimizer.rs
 use crate::ast::{
     AstNode, BinaryOperator, BlockNode, ExpressionNode, LiteralNode,
-    PolicyStatementNode, StatementNode, TypeAnnotationNode, TypeExprNode,
+    PolicyStatementNode, StatementNode, TypeExprNode,
     UnaryOperator, ParameterNode, FunctionDefinitionNode, ContractDeclarationNode,
     RoleDeclarationNode, ProposalDeclarationNode, StateDeclarationNode,
     ConstDeclarationNode, StructDefinitionNode, EnumDefinitionNode,

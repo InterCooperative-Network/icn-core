@@ -4,8 +4,7 @@
 //! This module provides built-in functions and utilities for CCL contracts,
 //! including governance primitives, economic operations, and utility functions.
 
-use crate::ast::{TypeAnnotationNode, ExpressionNode, LiteralNode};
-use crate::error::CclError;
+use crate::ast::TypeAnnotationNode;
 use std::collections::HashMap;
 
 /// Standard library function signature

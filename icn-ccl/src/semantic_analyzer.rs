@@ -2,10 +2,10 @@
 use crate::ast::{
     AstNode, BinaryOperator, BlockNode, ExpressionNode, LiteralNode,
     ParameterNode, PolicyStatementNode, StatementNode, TypeAnnotationNode,
-    TypeExprNode, UnaryOperator, FunctionDefinitionNode, ContractDeclarationNode,
+    TypeExprNode, UnaryOperator, ContractDeclarationNode,
     RoleDeclarationNode, ProposalDeclarationNode, StateDeclarationNode,
-    ConstDeclarationNode, StructDefinitionNode, EnumDefinitionNode,
-    FieldNode, FieldInitNode, LValueNode, MatchArmNode, PatternNode,
+    ConstDeclarationNode, EnumDefinitionNode,
+    FieldNode, LValueNode,
 };
 use crate::error::CclError;
 use std::collections::HashMap;
@@ -485,7 +485,7 @@ impl SemanticAnalyzer {
                 self.analyze_block(body)?;
             }
             StatementNode::Match { expr, arms } => {
-                let expr_type = self.evaluate_expression(expr)?;
+                let _expr_type = self.evaluate_expression(expr)?;
                 
                 for arm in arms {
                     // TODO: Pattern type checking
