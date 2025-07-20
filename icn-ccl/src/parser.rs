@@ -622,7 +622,7 @@ fn parse_state_declaration(pair: Pair<Rule>) -> Result<StateDeclarationNode, Ccl
     })
 }
 
-fn parse_struct_declaration(pair: Pair<Rule>) -> Result<StructDefinitionNode, CclError> {
+pub fn parse_struct_declaration(pair: Pair<Rule>) -> Result<StructDefinitionNode, CclError> {
     // struct_decl = { "struct" ~ identifier ~ "{" ~ field_list? ~ "}" }
     let mut inner = pair.into_inner();
     
@@ -668,7 +668,7 @@ fn parse_field(pair: Pair<Rule>) -> Result<FieldNode, CclError> {
     Ok(FieldNode { name, type_expr })
 }
 
-fn parse_enum_declaration(pair: Pair<Rule>) -> Result<EnumDefinitionNode, CclError> {
+pub fn parse_enum_declaration(pair: Pair<Rule>) -> Result<EnumDefinitionNode, CclError> {
     // enum_decl = { "enum" ~ identifier ~ "{" ~ variant_list? ~ "}" }
     let mut inner = pair.into_inner();
     
@@ -1769,6 +1769,22 @@ fn alias_ast(ast: AstNode, alias: &str) -> AstNode {
                             body: contract.body,
                         };
                         crate::ast::TopLevelNode::Contract(aliased_contract)
+                    }
+                    crate::ast::TopLevelNode::Function(function) => {
+                        // TODO: Alias standalone functions if needed
+                        crate::ast::TopLevelNode::Function(function)
+                    }
+                    crate::ast::TopLevelNode::Struct(struct_def) => {
+                        // TODO: Alias standalone structs if needed
+                        crate::ast::TopLevelNode::Struct(struct_def)
+                    }
+                    crate::ast::TopLevelNode::Enum(enum_def) => {
+                        // TODO: Alias standalone enums if needed
+                        crate::ast::TopLevelNode::Enum(enum_def)
+                    }
+                    crate::ast::TopLevelNode::Const(const_def) => {
+                        // TODO: Alias standalone constants if needed
+                        crate::ast::TopLevelNode::Const(const_def)
                     }
                 }
             }).collect();

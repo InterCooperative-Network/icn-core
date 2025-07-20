@@ -250,7 +250,7 @@ impl WasmBackend {
         let policy_items = match ast {
             AstNode::Policy(items) => items.clone(),
             AstNode::Program(nodes) => {
-                // Extract functions from CCL 0.1 contracts
+                // Extract functions from CCL 0.1 contracts and standalone functions
                 let mut functions = Vec::new();
                 for node in nodes {
                     match node {
@@ -275,7 +275,21 @@ impl WasmBackend {
                                 }
                             }
                         }
-                        _ => {} // Skip imports for now
+                        crate::ast::TopLevelNode::Function(func) => {
+                            // Handle standalone function (legacy syntax support)
+                            let func_ast = AstNode::FunctionDefinition {
+                                name: func.name.clone(),
+                                parameters: func.parameters.clone(),
+                                return_type: func.return_type.clone(),
+                                body: func.body.clone(),
+                            };
+                            functions.push(PolicyStatementNode::FunctionDef(func_ast));
+                        }
+                        crate::ast::TopLevelNode::Const(const_decl) => {
+                            // Handle standalone constants
+                            self.process_constant(const_decl)?;
+                        }
+                        _ => {} // Skip imports, structs, enums for now
                     }
                 }
                 functions

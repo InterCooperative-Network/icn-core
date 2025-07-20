@@ -105,6 +105,24 @@ impl SemanticAnalyzer {
                         crate::ast::TopLevelNode::Contract(contract) => {
                             self.analyze_contract(contract)?;
                         }
+                        crate::ast::TopLevelNode::Function(function) => {
+                            // Analyze standalone function
+                            self.analyze_function_definition(
+                                &function.name,
+                                &function.parameters,
+                                function.return_type.as_ref(),
+                                &function.body
+                            )?;
+                        }
+                        crate::ast::TopLevelNode::Struct(struct_def) => {
+                            // TODO: Analyze standalone struct
+                        }
+                        crate::ast::TopLevelNode::Enum(enum_def) => {
+                            // TODO: Analyze standalone enum
+                        }
+                        crate::ast::TopLevelNode::Const(const_def) => {
+                            // TODO: Analyze standalone const
+                        }
                     }
                 }
             }

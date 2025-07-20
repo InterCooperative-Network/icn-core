@@ -40,7 +40,7 @@ timestamp_literal = @{ ASCII_DIGIT{4} ~ "-" ~ ASCII_DIGIT{2} ~ "-" ~ ASCII_DIGIT
 // Top-level Structure
 //////////////////////////
 
-program = { SOI ~ (import_stmt | contract_decl)* ~ EOI }
+program = { SOI ~ (import_stmt | contract_decl | fn_decl | struct_decl | enum_decl | const_decl)* ~ EOI }
 
 //////////////////////////
 // Import Statements
