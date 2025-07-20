@@ -1,0 +1,76 @@
+// Test DAG storage and content addressing operations in CCL
+fn test_dag_storage_operations() -> Integer {
+    let contract_id = "test_contract_v1";
+    
+    // Test basic DAG operations
+    let test_data = "Hello, DAG World!";
+    let calculated_cid = calculate_cid(test_data);
+    
+    // Store data in DAG
+    let stored_cid = dag_put(test_data);
+    
+    // Verify calculated and stored CIDs match
+    if calculated_cid != stored_cid {
+        return 1; // CID mismatch error
+    }
+    
+    // Retrieve data from DAG
+    let retrieved_data = dag_get(stored_cid);
+    
+    if retrieved_data != test_data {
+        return 2; // Data retrieval mismatch
+    }
+    
+    // Pin the content to prevent garbage collection
+    let pinned = dag_pin(stored_cid);
+    
+    if !pinned {
+        return 3; // Failed to pin content
+    }
+    
+    // Test contract state persistence
+    let contract_state = "{'balance': 1000, 'last_updated': 1234567890}";
+    let version = 1;
+    
+    let state_cid = save_contract_state(contract_id, contract_state, version);
+    
+    // Load the contract state back
+    let loaded_state = load_contract_state(contract_id, version);
+    
+    if loaded_state != contract_state {
+        return 4; // Contract state mismatch
+    }
+    
+    // Test versioning
+    let new_code_cid = dag_put("fn updated_contract() -> Integer { return 42; }");
+    let new_version = version_contract(
+        contract_id, 
+        new_code_cid, 
+        "Updated contract logic for better performance"
+    );
+    
+    if new_version <= version {
+        return 5; // Version increment failed
+    }
+    
+    // Test DAG linking
+    let metadata = "{'description': 'Test contract', 'author': 'ICN'}";
+    let metadata_cid = dag_put(metadata);
+    
+    let linked_cid = dag_link(new_code_cid, metadata_cid, "metadata");
+    
+    // Test path resolution
+    let resolved_metadata = dag_resolve_path(linked_cid, "metadata");
+    
+    // Test link listing
+    let links = dag_list_links(linked_cid);
+    
+    // Unpin when done (optional cleanup)
+    let unpinned = dag_unpin(stored_cid);
+    
+    return 0; // All DAG operations successful
+}
+
+fn run() -> Integer {
+    return test_dag_storage_operations();
+} 

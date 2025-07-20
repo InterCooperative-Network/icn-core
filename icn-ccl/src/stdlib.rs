@@ -51,6 +51,7 @@ impl StdLibrary {
         stdlib.register_array_functions();
         stdlib.register_map_functions(); // Add map functions
         stdlib.register_math_functions();
+        stdlib.register_dag_functions(); // Add DAG functions
         stdlib.register_crypto_functions();
         
         stdlib
@@ -1175,6 +1176,130 @@ impl StdLibrary {
         });
     }
 
+    /// Register DAG storage and content addressing functions  
+    fn register_dag_functions(&mut self) {
+        // Basic DAG operations
+        self.register_function(StdFunction {
+            name: "dag_put".to_string(),
+            params: vec![
+                TypeAnnotationNode::String, // data (serialized)
+            ],
+            return_type: TypeAnnotationNode::String, // CID
+            description: "Store data in the DAG and return its Content Identifier (CID)".to_string(),
+            category: StdCategory::Utility,
+        });
+
+        self.register_function(StdFunction {
+            name: "dag_get".to_string(),
+            params: vec![
+                TypeAnnotationNode::String, // CID
+            ],
+            return_type: TypeAnnotationNode::String, // data (serialized)
+            description: "Retrieve data from the DAG using its Content Identifier (CID)".to_string(),
+            category: StdCategory::Utility,
+        });
+
+        self.register_function(StdFunction {
+            name: "dag_pin".to_string(),
+            params: vec![
+                TypeAnnotationNode::String, // CID
+            ],
+            return_type: TypeAnnotationNode::Bool,
+            description: "Pin content in the DAG to prevent garbage collection".to_string(),
+            category: StdCategory::Utility,
+        });
+
+        self.register_function(StdFunction {
+            name: "dag_unpin".to_string(),
+            params: vec![
+                TypeAnnotationNode::String, // CID
+            ],
+            return_type: TypeAnnotationNode::Bool,
+            description: "Unpin content in the DAG, allowing it to be garbage collected".to_string(),
+            category: StdCategory::Utility,
+        });
+
+        self.register_function(StdFunction {
+            name: "calculate_cid".to_string(),
+            params: vec![
+                TypeAnnotationNode::String, // data
+            ],
+            return_type: TypeAnnotationNode::String, // CID
+            description: "Calculate Content Identifier (CID) for given data without storing it".to_string(),
+            category: StdCategory::Utility,
+        });
+
+        // Contract state persistence
+        self.register_function(StdFunction {
+            name: "save_contract_state".to_string(),
+            params: vec![
+                TypeAnnotationNode::String, // contract_id
+                TypeAnnotationNode::String, // state_data (serialized)
+                TypeAnnotationNode::Integer, // version
+            ],
+            return_type: TypeAnnotationNode::String, // state CID
+            description: "Save contract state to DAG with versioning support".to_string(),
+            category: StdCategory::Utility,
+        });
+
+        self.register_function(StdFunction {
+            name: "load_contract_state".to_string(),
+            params: vec![
+                TypeAnnotationNode::String, // contract_id
+                TypeAnnotationNode::Integer, // version (0 for latest)
+            ],
+            return_type: TypeAnnotationNode::String, // state_data (serialized)
+            description: "Load contract state from DAG by contract ID and version".to_string(),
+            category: StdCategory::Utility,
+        });
+
+        self.register_function(StdFunction {
+            name: "version_contract".to_string(),
+            params: vec![
+                TypeAnnotationNode::String, // contract_id
+                TypeAnnotationNode::String, // new_code_cid
+                TypeAnnotationNode::String, // migration_notes
+            ],
+            return_type: TypeAnnotationNode::Integer, // new version number
+            description: "Create a new version of a contract with code and migration information".to_string(),
+            category: StdCategory::Utility,
+        });
+
+        // Advanced DAG operations
+        self.register_function(StdFunction {
+            name: "dag_link".to_string(),
+            params: vec![
+                TypeAnnotationNode::String, // parent_cid
+                TypeAnnotationNode::String, // child_cid
+                TypeAnnotationNode::String, // link_name
+            ],
+            return_type: TypeAnnotationNode::String, // new merged CID
+            description: "Create a DAG link between two objects, returning new composite CID".to_string(),
+            category: StdCategory::Utility,
+        });
+
+        self.register_function(StdFunction {
+            name: "dag_resolve_path".to_string(),
+            params: vec![
+                TypeAnnotationNode::String, // root_cid
+                TypeAnnotationNode::String, // path (e.g., "metadata/version")
+            ],
+            return_type: TypeAnnotationNode::String, // resolved CID or data
+            description: "Resolve a path within a DAG structure to find nested content".to_string(),
+            category: StdCategory::Utility,
+        });
+
+        self.register_function(StdFunction {
+            name: "dag_list_links".to_string(),
+            params: vec![
+                TypeAnnotationNode::String, // cid
+            ],
+            return_type: TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::String)), // link names
+            description: "List all link names in a DAG object".to_string(),
+            category: StdCategory::Utility,
+        });
+    }
+
     /// Register cryptographic and security functions
     fn register_crypto_functions(&mut self) {
         self.register_function(StdFunction {
@@ -1331,6 +1456,19 @@ mod tests {
         assert!(stdlib.get_function("get_federation_metadata").is_some());
         assert!(stdlib.get_function("verify_federation_membership").is_some());
         assert!(stdlib.get_function("coordinate_cross_federation_action").is_some());
+        
+        // Should have DAG storage functions
+        assert!(stdlib.get_function("dag_put").is_some());
+        assert!(stdlib.get_function("dag_get").is_some());
+        assert!(stdlib.get_function("dag_pin").is_some());
+        assert!(stdlib.get_function("dag_unpin").is_some());
+        assert!(stdlib.get_function("calculate_cid").is_some());
+        assert!(stdlib.get_function("save_contract_state").is_some());
+        assert!(stdlib.get_function("load_contract_state").is_some());
+        assert!(stdlib.get_function("version_contract").is_some());
+        assert!(stdlib.get_function("dag_link").is_some());
+        assert!(stdlib.get_function("dag_resolve_path").is_some());
+        assert!(stdlib.get_function("dag_list_links").is_some());
         
         // Should not have non-existent functions
         assert!(stdlib.get_function("non_existent").is_none());

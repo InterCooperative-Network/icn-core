@@ -219,6 +219,10 @@ name = "test_identity_federation"
 path = "test_identity_federation.rs"
 
 [[bin]]
+name = "test_dag_storage"
+path = "test_dag_storage.rs"
+
+[[bin]]
 name = "test_final_infinite_loop_fix"
 path = "test_final_infinite_loop_fix.rs"
 

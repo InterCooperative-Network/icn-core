@@ -54,7 +54,7 @@ impl LocalEnv {
     }
 }
 
-const IMPORT_COUNT: u32 = 32; // 6 original + 26 new functions (11 economics + 15 identity)
+const IMPORT_COUNT: u32 = 43; // 6 original + 37 new functions (11 economics + 15 identity + 11 DAG)
 
 pub struct WasmBackend {
     data: wasm_encoder::DataSection,
@@ -560,6 +560,107 @@ impl WasmBackend {
         );
         imports.import("icn", "host_coordinate_cross_federation_action", wasm_encoder::EntityType::Function(ty_coordinate_cross_federation));
         fn_indices.insert("host_coordinate_cross_federation_action".to_string(), next_index);
+        next_index += 1;
+
+        // === DAG STORAGE FUNCTIONS ===
+        
+        let ty_dag_put = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32], // data
+            vec![ValType::I32] // CID string pointer
+        );
+        imports.import("icn", "host_dag_put", wasm_encoder::EntityType::Function(ty_dag_put));
+        fn_indices.insert("host_dag_put".to_string(), next_index);
+        next_index += 1;
+
+        let ty_dag_get = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32], // cid
+            vec![ValType::I32] // data string pointer
+        );
+        imports.import("icn", "host_dag_get", wasm_encoder::EntityType::Function(ty_dag_get));
+        fn_indices.insert("host_dag_get".to_string(), next_index);
+        next_index += 1;
+
+        let ty_dag_pin = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32], // cid
+            vec![ValType::I32] // bool
+        );
+        imports.import("icn", "host_dag_pin", wasm_encoder::EntityType::Function(ty_dag_pin));
+        fn_indices.insert("host_dag_pin".to_string(), next_index);
+        next_index += 1;
+
+        let ty_dag_unpin = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32], // cid
+            vec![ValType::I32] // bool
+        );
+        imports.import("icn", "host_dag_unpin", wasm_encoder::EntityType::Function(ty_dag_unpin));
+        fn_indices.insert("host_dag_unpin".to_string(), next_index);
+        next_index += 1;
+
+        let ty_calculate_cid = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32], // data
+            vec![ValType::I32] // cid string pointer
+        );
+        imports.import("icn", "host_calculate_cid", wasm_encoder::EntityType::Function(ty_calculate_cid));
+        fn_indices.insert("host_calculate_cid".to_string(), next_index);
+        next_index += 1;
+
+        let ty_save_contract_state = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I32, ValType::I64], // contract_id, state_data, version
+            vec![ValType::I32] // state_cid string pointer
+        );
+        imports.import("icn", "host_save_contract_state", wasm_encoder::EntityType::Function(ty_save_contract_state));
+        fn_indices.insert("host_save_contract_state".to_string(), next_index);
+        next_index += 1;
+
+        let ty_load_contract_state = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I64], // contract_id, version
+            vec![ValType::I32] // state_data string pointer
+        );
+        imports.import("icn", "host_load_contract_state", wasm_encoder::EntityType::Function(ty_load_contract_state));
+        fn_indices.insert("host_load_contract_state".to_string(), next_index);
+        next_index += 1;
+
+        let ty_version_contract = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I32, ValType::I32], // contract_id, new_code_cid, migration_notes
+            vec![ValType::I64] // new version number
+        );
+        imports.import("icn", "host_version_contract", wasm_encoder::EntityType::Function(ty_version_contract));
+        fn_indices.insert("host_version_contract".to_string(), next_index);
+        next_index += 1;
+
+        let ty_dag_link = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I32, ValType::I32], // parent_cid, child_cid, link_name
+            vec![ValType::I32] // new merged CID string pointer
+        );
+        imports.import("icn", "host_dag_link", wasm_encoder::EntityType::Function(ty_dag_link));
+        fn_indices.insert("host_dag_link".to_string(), next_index);
+        next_index += 1;
+
+        let ty_dag_resolve_path = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I32], // root_cid, path
+            vec![ValType::I32] // resolved data string pointer
+        );
+        imports.import("icn", "host_dag_resolve_path", wasm_encoder::EntityType::Function(ty_dag_resolve_path));
+        fn_indices.insert("host_dag_resolve_path".to_string(), next_index);
+        next_index += 1;
+
+        let ty_dag_list_links = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32], // cid
+            vec![ValType::I32] // link names array pointer
+        );
+        imports.import("icn", "host_dag_list_links", wasm_encoder::EntityType::Function(ty_dag_list_links));
+        fn_indices.insert("host_dag_list_links".to_string(), next_index);
         next_index += 1;
 
         // === ADDITIONAL IDENTITY FUNCTIONS ===
@@ -1973,6 +2074,118 @@ impl WasmBackend {
                         Ok(ValType::I32) // coordination_id string pointer
                     }
                     
+                    // === DAG STORAGE OPERATIONS ===
+                    
+                    "dag_put" => {
+                        // Map to host_dag_put(data)
+                        for arg in args {
+                            self.emit_expression(arg, instrs, locals, indices)?;
+                        }
+                        let idx = indices.get("host_dag_put").unwrap();
+                        instrs.push(Instruction::Call(*idx));
+                        Ok(ValType::I32) // CID string pointer
+                    }
+                    
+                    "dag_get" => {
+                        // Map to host_dag_get(cid)
+                        for arg in args {
+                            self.emit_expression(arg, instrs, locals, indices)?;
+                        }
+                        let idx = indices.get("host_dag_get").unwrap();
+                        instrs.push(Instruction::Call(*idx));
+                        Ok(ValType::I32) // data string pointer
+                    }
+                    
+                    "dag_pin" => {
+                        // Map to host_dag_pin(cid)
+                        for arg in args {
+                            self.emit_expression(arg, instrs, locals, indices)?;
+                        }
+                        let idx = indices.get("host_dag_pin").unwrap();
+                        instrs.push(Instruction::Call(*idx));
+                        Ok(ValType::I32)
+                    }
+                    
+                    "dag_unpin" => {
+                        // Map to host_dag_unpin(cid)
+                        for arg in args {
+                            self.emit_expression(arg, instrs, locals, indices)?;
+                        }
+                        let idx = indices.get("host_dag_unpin").unwrap();
+                        instrs.push(Instruction::Call(*idx));
+                        Ok(ValType::I32)
+                    }
+                    
+                    "calculate_cid" => {
+                        // Map to host_calculate_cid(data)
+                        for arg in args {
+                            self.emit_expression(arg, instrs, locals, indices)?;
+                        }
+                        let idx = indices.get("host_calculate_cid").unwrap();
+                        instrs.push(Instruction::Call(*idx));
+                        Ok(ValType::I32) // CID string pointer
+                    }
+                    
+                    "save_contract_state" => {
+                        // Map to host_save_contract_state(contract_id, state_data, version)
+                        for arg in args {
+                            self.emit_expression(arg, instrs, locals, indices)?;
+                        }
+                        let idx = indices.get("host_save_contract_state").unwrap();
+                        instrs.push(Instruction::Call(*idx));
+                        Ok(ValType::I32) // state_cid string pointer
+                    }
+                    
+                    "load_contract_state" => {
+                        // Map to host_load_contract_state(contract_id, version)
+                        for arg in args {
+                            self.emit_expression(arg, instrs, locals, indices)?;
+                        }
+                        let idx = indices.get("host_load_contract_state").unwrap();
+                        instrs.push(Instruction::Call(*idx));
+                        Ok(ValType::I32) // state_data string pointer
+                    }
+                    
+                    "version_contract" => {
+                        // Map to host_version_contract(contract_id, new_code_cid, migration_notes)
+                        for arg in args {
+                            self.emit_expression(arg, instrs, locals, indices)?;
+                        }
+                        let idx = indices.get("host_version_contract").unwrap();
+                        instrs.push(Instruction::Call(*idx));
+                        Ok(ValType::I64) // new version number
+                    }
+                    
+                    "dag_link" => {
+                        // Map to host_dag_link(parent_cid, child_cid, link_name)
+                        for arg in args {
+                            self.emit_expression(arg, instrs, locals, indices)?;
+                        }
+                        let idx = indices.get("host_dag_link").unwrap();
+                        instrs.push(Instruction::Call(*idx));
+                        Ok(ValType::I32) // new merged CID string pointer
+                    }
+                    
+                    "dag_resolve_path" => {
+                        // Map to host_dag_resolve_path(root_cid, path)
+                        for arg in args {
+                            self.emit_expression(arg, instrs, locals, indices)?;
+                        }
+                        let idx = indices.get("host_dag_resolve_path").unwrap();
+                        instrs.push(Instruction::Call(*idx));
+                        Ok(ValType::I32) // resolved data string pointer
+                    }
+                    
+                    "dag_list_links" => {
+                        // Map to host_dag_list_links(cid)
+                        for arg in args {
+                            self.emit_expression(arg, instrs, locals, indices)?;
+                        }
+                        let idx = indices.get("host_dag_list_links").unwrap();
+                        instrs.push(Instruction::Call(*idx));
+                        Ok(ValType::I32) // link names array pointer
+                    }
+                    
                     "revoke_credential" => {
                         // Map to host_revoke_credential(issuer, credential_id, reason)
                         for arg in args {
@@ -2029,7 +2242,12 @@ impl WasmBackend {
                             | "host_create_marketplace_offer" | "host_execute_marketplace_transaction"
                             | "host_create_cooperative_membership" 
                             | "host_discover_federations" | "host_backup_keys" | "host_get_federation_metadata"
-                            | "host_coordinate_cross_federation_action" => ValType::I32, // pointers/DIDs
+                            | "host_coordinate_cross_federation_action"
+                            | "host_dag_put" | "host_dag_get" | "host_calculate_cid" | "host_save_contract_state"
+                            | "host_load_contract_state" | "host_dag_link" | "host_dag_resolve_path" 
+                            | "host_dag_list_links" => ValType::I32, // pointers/DIDs/CIDs
+
+                            "host_version_contract" => ValType::I64, // version number
                             
                             _ => ValType::I64,
                         };
