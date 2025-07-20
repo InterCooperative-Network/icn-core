@@ -72,7 +72,7 @@ contract GovernanceDemo {
 
     // Test 3: File compilation
     println!("=== Test 3: File Compilation ===");
-    let example_path = Path::new("tests/contracts/example.ccl");
+    let example_path = Path::new("icn-ccl/tests/contracts/example.ccl");
     if example_path.exists() {
         match compile_ccl_file_to_wasm(example_path) {
             Ok((wasm_bytes, metadata)) => {

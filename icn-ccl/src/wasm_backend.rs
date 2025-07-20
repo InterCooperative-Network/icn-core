@@ -192,10 +192,34 @@ impl WasmBackend {
         next_index += 1;
 
         let policy_items = match ast {
-            AstNode::Policy(items) => items,
+            AstNode::Policy(items) => items.clone(),
+            AstNode::Program(nodes) => {
+                // Extract functions from CCL 0.1 contracts
+                let mut functions = Vec::new();
+                for node in nodes {
+                    match node {
+                        crate::ast::TopLevelNode::Contract(contract) => {
+                            for body_item in &contract.body {
+                                if let crate::ast::ContractBodyNode::Function(func) = body_item {
+                                    // Convert to PolicyStatementNode for backward compatibility
+                                    let func_ast = AstNode::FunctionDefinition {
+                                        name: func.name.clone(),
+                                        parameters: func.parameters.clone(),
+                                        return_type: func.return_type.clone(),
+                                        body: func.body.clone(),
+                                    };
+                                    functions.push(PolicyStatementNode::FunctionDef(func_ast));
+                                }
+                            }
+                        }
+                        _ => {} // Skip imports for now
+                    }
+                }
+                functions
+            }
             _ => {
                 return Err(CclError::WasmGenerationError(
-                    "Expected policy as top level AST".to_string(),
+                    "Expected policy or program as top level AST".to_string(),
                 ))
             }
         };
@@ -208,15 +232,15 @@ impl WasmBackend {
                 body,
             }) = item
             {
-                let ret_ty = if let Some(return_type) = return_type {
-                    Some(map_val_type(&return_type.to_type_annotation())?)
+                let ret_ty = if let Some(ref return_type_ref) = return_type {
+                    Some(map_val_type(&return_type_ref.to_type_annotation())?)
                 } else {
                     None
                 };
 
                 // Build parameter types for WASM function signature
                 let mut param_types = Vec::new();
-                for param in parameters {
+                for param in &parameters {
                     param_types.push(map_val_type(&param.type_expr.to_type_annotation())?);
                 }
 
@@ -245,7 +269,7 @@ impl WasmBackend {
                     .as_ref()
                     .map(|rt| rt.to_type_annotation())
                     .unwrap_or(TypeAnnotationNode::Custom("void".to_string()));
-                self.emit_block(body, &mut instrs, &mut locals, &return_type_ann, &fn_indices)?;
+                self.emit_block(&body, &mut instrs, &mut locals, &return_type_ann, &fn_indices)?;
                 instrs.push(Instruction::End);
 
                 let mut func = Function::new_with_locals_types(locals.order.clone());
@@ -255,7 +279,7 @@ impl WasmBackend {
                 codes.function(&func);
 
                 let func_index = IMPORT_COUNT + (functions.len() - 1) as u32;
-                exports.export(name, ExportKind::Func, func_index);
+                exports.export(&name, ExportKind::Func, func_index);
                 export_names.push(name.clone());
             }
         }
