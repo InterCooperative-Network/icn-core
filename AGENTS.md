@@ -31,6 +31,177 @@ This is **not a prototype**—it's working infrastructure with:
 
 ---
 
+## 🤖 **AI Agent Behavioral Expectations**
+
+### **Core Agent Responsibilities**
+
+**YOU ARE EXPECTED TO:**
+- **Make frequent, atomic commits** with clear, descriptive messages
+- **Update documentation continuously** as you make changes
+- **Test thoroughly** before committing any changes
+- **Roll back immediately** if you introduce bugs or unintended consequences
+- **Follow established patterns** and architectural principles
+- **Communicate clearly** about what you're doing and why
+- **Maintain project quality** above all else
+
+### **Commit Frequency & Documentation Standards**
+
+#### **Commit Every Logical Change**
+```bash
+# Make small, focused commits
+git add specific_file.rs
+git commit -m "[icn-api] Add endpoint for federation health status
+
+- Added GET /api/v1/federation/health endpoint
+- Returns comprehensive federation metrics
+- Includes peer count, job queue status, and mana distribution
+- Added corresponding TypeScript SDK method
+- Updated API documentation with examples"
+
+# Update docs in same commit or immediately after
+git add ICN_API_REFERENCE.md docs/api/
+git commit -m "[docs] Document federation health endpoint
+
+- Added federation health endpoint to API reference
+- Included request/response examples
+- Updated TypeScript SDK documentation
+- Added health monitoring guide to operations docs"
+```
+
+#### **Documentation Update Requirements**
+**EVERY CODE CHANGE MUST:**
+1. **Update relevant documentation** (API reference, guides, README files)
+2. **Include code examples** where applicable
+3. **Update TypeScript SDK** if adding new endpoints
+4. **Maintain consistency** across all documentation
+5. **Keep navigation current** in DOCUMENTATION_INDEX.md
+
+### **Error Handling & Recovery Protocols**
+
+#### **When You Make a Mistake**
+```bash
+# Immediate rollback if you break something
+git log --oneline -5  # See recent commits
+git revert HEAD       # Revert the last commit
+git commit -m "[fix] Revert changes that broke X - investigating issue"
+
+# Or reset if you haven't pushed
+git reset --hard HEAD~1  # ONLY if not pushed to remote
+```
+
+#### **Debugging Protocol**
+1. **Reproduce the issue** in isolation
+2. **Document the problem** clearly 
+3. **Test fix thoroughly** before committing
+4. **Verify related functionality** wasn't broken
+5. **Update tests** to prevent regression
+
+### **Code Quality Standards**
+
+#### **Rust Development Standards**
+```rust
+// ALWAYS follow these patterns:
+
+// 1. Comprehensive error handling
+pub async fn submit_job(job: MeshJob, submitter: Did) -> Result<JobId, RuntimeError> {
+    // Validate inputs
+    validate_job_spec(&job)?;
+    validate_submitter_credentials(&submitter).await?;
+    
+    // Check mana requirements
+    let cost = estimate_job_cost(&job)?;
+    ensure_sufficient_mana(&submitter, cost).await?;
+    
+    // Execute with proper error context
+    let job_id = runtime_context
+        .submit_mesh_job(job, submitter)
+        .await
+        .with_context(|| "Failed to submit job to runtime")?;
+    
+    // Update metrics and logs
+    metrics::JOB_SUBMISSIONS.inc();
+    info!("Job submitted successfully: {}", job_id);
+    
+    Ok(job_id)
+}
+
+// 2. Comprehensive documentation
+/// Submits a mesh job for distributed execution across the network.
+/// 
+/// This function validates the job specification, checks mana requirements,
+/// and adds the job to the pending queue for executor bidding.
+/// 
+/// # Arguments
+/// * `job` - The job specification including compute requirements
+/// * `submitter` - DID of the entity submitting the job
+/// 
+/// # Returns
+/// * `Ok(JobId)` - Unique identifier for the submitted job
+/// * `Err(RuntimeError)` - If validation fails or insufficient mana
+/// 
+/// # Examples
+/// ```rust
+/// let job = MeshJob::new("echo hello", ResourceRequirements::default());
+/// let submitter = Did::from_str("did:icn:alice")?;
+/// let job_id = submit_job(job, submitter).await?;
+/// ```
+```
+
+#### **Frontend Development Standards**
+```typescript
+// TypeScript/React standards
+
+// 1. Comprehensive type definitions
+interface FederationHealthResponse {
+  federation_id: string;
+  peer_count: number;
+  job_queue_length: number;
+  mana_distribution: ManaDistribution;
+  last_updated: string;
+  status: 'healthy' | 'degraded' | 'critical';
+}
+
+// 2. Error boundary implementation
+const FederationHealthComponent: React.FC = () => {
+  const [health, setHealth] = useState<FederationHealthResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  
+  useEffect(() => {
+    const fetchHealth = async () => {
+      try {
+        const response = await icnSdk.federation.getHealth();
+        setHealth(response);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Unknown error');
+        // Log for debugging but don't break UI
+        console.error('Failed to fetch federation health:', err);
+      }
+    };
+    
+    fetchHealth();
+    const interval = setInterval(fetchHealth, 30000); // Update every 30s
+    return () => clearInterval(interval);
+  }, []);
+  
+  if (error) return <ErrorDisplay message={error} onRetry={() => window.location.reload()} />;
+  if (!health) return <LoadingSpinner />;
+  
+  return <FederationHealthDisplay health={health} />;
+};
+
+// 3. Update TypeScript SDK simultaneously
+// packages/ts-sdk/src/federation.ts
+export class FederationClient {
+  async getHealth(): Promise<FederationHealthResponse> {
+    const response = await this.http.get('/api/v1/federation/health');
+    return response.data;
+  }
+}
+```
+
+---
+
 ## 🏗️ **Complete Repository Architecture**
 
 ICN Core is a **comprehensive monorepo** containing both deterministic Rust libraries and complete frontend applications across all platforms.
@@ -103,6 +274,119 @@ ICN Core is a **comprehensive monorepo** containing both deterministic Rust libr
 - **Optimize performance** for multi-node federation scenarios
 - **Enhance security** and privacy features
 - **Improve developer experience** and documentation
+
+---
+
+## 💻 **Agent Development Workflow**
+
+### **Before Starting Any Work**
+
+#### **1. Understand the Current State**
+```bash
+# Always start by understanding current status
+git status                    # Check working directory
+git log --oneline -10        # See recent changes
+just validate                # Run full validation
+just test                    # Ensure everything works
+```
+
+#### **2. Read Relevant Documentation**
+- **Always read existing docs** before making changes
+- **Understand the broader context** of your changes
+- **Check for existing patterns** to follow
+- **Look for related issues** or TODOs
+
+#### **3. Plan Your Approach**
+- **Break down complex changes** into smaller commits
+- **Identify documentation** that will need updates
+- **Consider testing requirements** for your changes
+- **Think about potential side effects**
+
+### **Development Cycle (Repeat for Every Change)**
+
+#### **1. Make Small, Focused Changes**
+```bash
+# Work on ONE logical unit at a time
+vim crates/icn-api/src/federation.rs  # Make specific change
+cargo test -p icn-api                 # Test that specific crate
+cargo clippy -p icn-api               # Check that specific crate
+```
+
+#### **2. Test Thoroughly**
+```bash
+# Test the specific change
+cargo test function_you_changed
+
+# Test the affected crate
+cargo test -p affected-crate
+
+# Test integration if needed
+cargo test --test integration_test_name
+
+# Test the full stack if it's a significant change
+just validate-all-stack
+```
+
+#### **3. Update Documentation IMMEDIATELY**
+```bash
+# Update API documentation
+vim ICN_API_REFERENCE.md
+
+# Update relevant guides
+vim docs/api/federation-management.md
+
+# Update TypeScript SDK if needed
+vim packages/ts-sdk/src/federation.ts
+
+# Update examples if needed
+vim examples/federation_health_check.rs
+```
+
+#### **4. Commit Changes**
+```bash
+# Stage specific changes
+git add crates/icn-api/src/federation.rs
+git add ICN_API_REFERENCE.md
+git add packages/ts-sdk/src/federation.ts
+
+# Make clear, descriptive commit
+git commit -m "[icn-api] Add federation health monitoring endpoint
+
+- Added GET /api/v1/federation/health for real-time status
+- Returns peer count, job queue metrics, mana distribution
+- Includes comprehensive error handling and validation
+- Updated TypeScript SDK with typed response interface
+- Added API documentation with request/response examples
+- Includes health status categorization (healthy/degraded/critical)"
+```
+
+#### **5. Verify Your Changes**
+```bash
+# Ensure everything still works
+just validate
+
+# Check that docs are consistent
+just docs
+
+# Test the specific functionality
+just test-federation-health  # If such a command exists
+```
+
+### **Continuous Documentation Maintenance**
+
+#### **Update These Files for Every Relevant Change:**
+- **`ICN_API_REFERENCE.md`** - For any API changes
+- **`README.md`** - For significant new capabilities
+- **`packages/ts-sdk/README.md`** - For SDK changes
+- **Relevant guides in `docs/`** - For workflow changes
+- **`DOCUMENTATION_INDEX.md`** - For new documentation
+
+#### **Documentation Quality Standards:**
+- **Include working examples** for all new APIs
+- **Provide clear explanations** of purpose and usage
+- **Maintain consistent formatting** and style
+- **Link between related documentation** appropriately
+- **Keep navigation up to date**
 
 ---
 
@@ -192,47 +476,7 @@ Goal: Expanded proof system
 
 ---
 
-## 💻 **Development Environment & Workflow**
-
-### **Complete Stack Development**
-```bash
-# Full environment setup
-just setup-all              # Backend + Frontend environment
-just validate-all-stack     # Complete validation
-just build-all-stack        # Build everything
-
-# Multi-node testing
-just devnet                 # 3-node containerized federation
-just health-check           # Federation health validation
-```
-
-### **Backend Development (Rust)**
-```bash
-# Core development cycle
-just setup && just build    # Setup and build all crates
-just test                   # Comprehensive test suite
-just lint                   # Code quality checks
-just validate               # Full validation
-```
-
-### **Frontend Development**
-```bash
-# Frontend development
-just setup-frontend         # Node.js, pnpm, dependencies
-just dev-frontend          # All apps simultaneously
-just dev-web-ui            # Admin dashboard
-just dev-explorer          # Network explorer
-just dev-wallet            # DID/key management
-just dev-agoranet          # Governance interface
-
-# Cross-platform
-just dev-mobile            # React Native (iOS/Android)
-just dev-desktop           # Tauri desktop apps
-```
-
----
-
-## 🔧 **Current Configuration Challenge**
+## 🔧 **Configuration Management (Current Focus)**
 
 ### **Production Services Available**
 | Component | Stub Service | Production Service | Status |
@@ -243,109 +487,209 @@ just dev-desktop           # Tauri desktop apps
 | **P2P Networking** | N/A | `LibP2pNetworkService` | ✅ In Use |
 | **Governance** | N/A | `GovernanceModule` | ✅ In Use |
 
-### **Key Challenge**: Service Selection
-Production services exist but some contexts default to stub services. The solution is configuration management, not implementing missing features.
-
+### **Key Agent Task: Service Selection**
 ```rust
-// Current: Production services available but need configuration
+// CURRENT ISSUE: Some contexts default to stub services
+// YOUR JOB: Update to use production services by default
+
+// BEFORE (using stub):
+let mesh_network_service = Arc::new(StubMeshNetworkService::new());
+
+// AFTER (using production):
 #[cfg(feature = "enable-libp2p")]
 let mesh_network_service = Arc::new(DefaultMeshNetworkService::new(libp2p_service));
+#[cfg(not(feature = "enable-libp2p"))]
+let mesh_network_service = Arc::new(StubMeshNetworkService::new());
 
-let signer = Arc::new(Ed25519Signer::new(private_key));
-let dag_store = select_dag_store(&config.storage); // Multiple backends available
+// Better: Configuration-driven selection
+let mesh_network_service = if config.enable_production_mesh {
+    Arc::new(DefaultMeshNetworkService::new(libp2p_service))
+} else {
+    Arc::new(StubMeshNetworkService::new())
+};
 ```
 
----
-
-## 📱 **Frontend Application Status**
-
-### **Web UI (70% Complete)**
-- ✅ **Demo mode** with comprehensive feature showcase
-- ✅ **Federation management** with peer coordination
-- ✅ **Governance interface** with proposal and voting
-- 🚧 **Advanced monitoring** and analytics
-- 🚧 **Production deployment** configuration
-
-### **Explorer (65% Complete)**
-- ✅ **DAG visualization** with D3.js
-- ✅ **Job tracking** and progress monitoring
-- ✅ **Network analytics** and peer status
-- 🚧 **Real-time updates** via WebSocket
-- 🚧 **Advanced query** capabilities
-
-### **Wallet UI (60% Complete)**
-- ✅ **DID creation** and management
-- ✅ **Private key storage** with security
-- ✅ **Mana tracking** and transactions
-- 🚧 **Credential management** interface
-- 🚧 **Cross-platform deployment**
-
-### **AgoraNet (60% Complete)**
-- ✅ **Proposal creation** with CCL editing
-- ✅ **Voting interface** with delegation
-- ✅ **Community deliberation** tools
-- 🚧 **Advanced governance** patterns
-- 🚧 **Mobile optimization**
+### **Agent Configuration Tasks:**
+1. **Update service creation** to default to production services
+2. **Add configuration options** for service selection
+3. **Improve error handling** when production services fail
+4. **Add health checks** for production service status
+5. **Document configuration** options clearly
 
 ---
 
-## 🛡️ **Security & Production Guidelines**
+## 📱 **Frontend Application Development**
 
-### **Production-Ready Security**
-- ✅ **Ed25519 signatures** for all cryptographic operations
-- ✅ **Multi-backend storage** with encryption at rest
-- ✅ **API authentication** with keys and bearer tokens
-- ✅ **Rate limiting** and abuse prevention
-- ✅ **ZK proofs** for privacy-preserving operations
-- ✅ **Comprehensive audit trails** with event sourcing
+### **Technology Stack Understanding**
+- **Cross-Platform**: React Native + Tamagui (iOS/Android/Web/Desktop)
+- **Web-Only**: React + Vite + TypeScript + Tailwind CSS
+- **Shared**: TypeScript SDK, UI component library
 
-### **Critical Security Invariants**
-- All economic transactions must be mana-enforced
-- All governance actions must be cryptographically verified
-- All network messages must be signed and authenticated
-- All DAG operations must maintain content-addressing integrity
-- All ZK proofs must be properly verified before acceptance
+### **Frontend Development Workflow**
+```bash
+# Setup frontend environment
+just setup-frontend          # One-time setup
 
----
+# Development commands
+just dev-frontend            # All apps simultaneously
+just dev-web-ui             # Federation dashboard
+just dev-explorer           # DAG viewer
+just dev-wallet             # Identity management
+just dev-agoranet           # Governance platform
 
-## 🎯 **Agent Task Categories**
+# Cross-platform testing
+just dev-mobile             # React Native (iOS/Android)
+just dev-desktop            # Tauri desktop apps
+```
 
-### **1. Configuration Management (High Priority)**
-```rust
-// Example: Ensure production services by default
-fn create_default_runtime_context() -> RuntimeContext {
-    RuntimeContext {
-        mesh_network_service: Arc::new(DefaultMeshNetworkService::new()),
-        signer: Arc::new(Ed25519Signer::new()),
-        dag_store: Arc::new(PostgresDagStore::new()), // Not stub!
-        // ... other production services
-    }
+### **Frontend Agent Responsibilities**
+1. **Complete missing features** in each application
+2. **Maintain TypeScript SDK** coverage
+3. **Ensure responsive design** across all platforms
+4. **Add real-time updates** where appropriate
+5. **Improve user experience** and accessibility
+6. **Keep component library** consistent
+
+### **Frontend Code Standards**
+```typescript
+// Example: Adding a new federation management feature
+
+// 1. Update TypeScript SDK first
+// packages/ts-sdk/src/federation.ts
+export interface FederationSettings {
+  id: string;
+  name: string;
+  description: string;
+  governance_policy: string;
+  mana_distribution: ManaPolicy;
 }
+
+export class FederationClient {
+  async updateSettings(settings: FederationSettings): Promise<void> {
+    await this.http.put('/api/v1/federation/settings', settings);
+  }
+}
+
+// 2. Add UI component
+// apps/web-ui/src/components/FederationSettings.tsx
+interface Props {
+  federation: Federation;
+  onUpdate: (settings: FederationSettings) => void;
+}
+
+export const FederationSettings: React.FC<Props> = ({ federation, onUpdate }) => {
+  // Component implementation with proper error handling
+  // Form validation, loading states, success/error feedback
+};
+
+// 3. Update the main app
+// apps/web-ui/src/pages/FederationManagement.tsx
+import { FederationSettings } from '../components/FederationSettings';
+
+// 4. Add to UI kit if reusable
+// packages/ui-kit/src/components/federation/
 ```
 
-### **2. Frontend Application Enhancement**
-- Complete missing features in Web UI dashboard
-- Add real-time updates to Explorer
-- Enhance mobile experience for Wallet and AgoraNet
-- Improve TypeScript SDK coverage and error handling
+---
 
-### **3. API & Integration Improvements**
-- Complete implementation of remaining endpoints
-- Enhance TypeScript SDK with full type coverage
-- Add WebSocket support for real-time events
-- Improve API documentation and examples
+## 💡 **Agent Decision-Making Framework**
 
-### **4. Scale Testing & Performance**
-- Test 10+ node federation scenarios
-- Optimize mesh job execution performance
-- Enhance P2P networking efficiency
-- Add comprehensive performance monitoring
+### **When to Make a Change**
+✅ **DO make changes when:**
+- Configuration can be improved for production readiness
+- Documentation is outdated or missing
+- Frontend features are incomplete but clearly defined
+- API endpoints need better error handling
+- TypeScript SDK coverage is missing
+- Performance can be optimized without architectural changes
+- Security can be enhanced with proven patterns
 
-### **5. Production Operations**
-- Add Prometheus metrics and Grafana dashboards
-- Implement health checks and alerting
-- Create deployment automation
-- Enhance security monitoring and logging
+❌ **DON'T make changes when:**
+- You're unsure about architectural implications
+- Changes would affect core protocol behavior
+- Major refactoring is needed without clear requirements
+- Breaking changes would be introduced
+- You lack context about why something was implemented a certain way
+
+### **When in Doubt**
+1. **Document the question** clearly in commit messages or comments
+2. **Make minimal, reversible changes** first
+3. **Test thoroughly** before proceeding
+4. **Leave detailed comments** explaining your reasoning
+5. **Create TODO items** for larger questions
+
+### **Communication Patterns**
+```bash
+# Good commit messages explain reasoning
+git commit -m "[icn-api] Update default timeout for federation requests
+
+Changed from 5s to 30s based on observed network latency in production.
+Multi-node federations were experiencing frequent timeouts during
+proposal synchronization, especially with 5+ nodes.
+
+Reasoning:
+- Observed P2P message propagation takes 10-15s in real networks
+- Governance proposals require consensus across all nodes
+- Better to be conservative with timeouts in production
+
+TODO: Add configurable timeout setting for different network sizes
+Fixes: Timeout errors in multi-node proposal voting"
+```
+
+---
+
+## 🧪 **Testing and Validation Expectations**
+
+### **Pre-Commit Testing Requirements**
+```bash
+# ALWAYS run these before committing
+just validate                 # Full validation suite
+cargo test -p affected-crate  # Test your specific changes
+cargo clippy -p affected-crate # Check for issues
+
+# For frontend changes
+just test-frontend           # Frontend test suite
+just lint-frontend          # Frontend linting
+
+# For significant changes
+just devnet                 # Test with multi-node setup
+just test-e2e              # End-to-end testing
+```
+
+### **Testing Philosophy**
+- **Test the specific functionality** you're changing
+- **Test integration points** that might be affected
+- **Add new tests** for new functionality
+- **Update existing tests** if behavior changes
+- **Document test cases** that aren't obvious
+
+### **When Tests Fail**
+1. **Fix the issue immediately** - don't commit broken tests
+2. **Understand why the test failed** - don't just make it pass
+3. **Update tests if behavior changed intentionally**
+4. **Add more tests** if you found a gap in coverage
+
+---
+
+## 🔍 **Quality Control and Review**
+
+### **Self-Review Checklist**
+Before committing, ask yourself:
+- [ ] Does this change advance the project goals?
+- [ ] Are all affected tests passing?
+- [ ] Is documentation updated appropriately?
+- [ ] Would another developer understand this change?
+- [ ] Are there any potential security implications?
+- [ ] Does this follow established patterns?
+- [ ] Is error handling appropriate?
+- [ ] Are performance implications considered?
+
+### **Code Review Principles**
+- **Be thorough but efficient** - catch issues early
+- **Focus on correctness and maintainability**
+- **Ensure documentation is accurate and helpful**
+- **Check for security implications**
+- **Verify testing is adequate**
 
 ---
 
@@ -387,8 +731,17 @@ You're working on **production-ready infrastructure** that's already changing ho
 - Resources can be shared using **regenerating mana economics**
 - Privacy can be preserved through **zero-knowledge credentials**
 
-### **Your Contribution**
+### **Your Contribution Philosophy**
 Every improvement you make to ICN Core directly enhances the infrastructure that cooperatives and communities use to coordinate democratically. You're not building software—you're building the foundation of a **cooperative digital economy**.
+
+**Remember:**
+- **Be thoughtful** about every change
+- **Document thoroughly** as you work
+- **Test comprehensively** before committing
+- **Communicate clearly** about what you're doing
+- **Maintain quality** above all else
+- **Roll back if needed** without hesitation
+- **Learn from mistakes** and improve continuously
 
 ---
 
