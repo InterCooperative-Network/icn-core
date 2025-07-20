@@ -38,6 +38,22 @@ path = "test_cooperative_contracts.rs"
 name = "test_individual_contracts"
 path = "test_individual_contracts.rs"
 
+[[bin]]
+name = "test_else_if"
+path = "test_else_if.rs"
+
+[[bin]]
+name = "test_operators"
+path = "test_operators.rs"
+
+[[bin]]
+name = "test_simple_operators"
+path = "test_simple_operators.rs"
+
+[[bin]]
+name = "debug_equality"
+path = "debug_equality.rs"
+
 # [[bin]]
 # name = "generate_ccl_job_spec"
 # path = "src/bin/generate_ccl_job_spec.rs"

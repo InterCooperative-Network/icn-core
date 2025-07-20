@@ -895,40 +895,56 @@ fn parse_logical_and(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
 
 fn parse_equality(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
     // equality = { comparison ~ (("==" | "!=") ~ comparison)* }
-    let mut inner = pair.into_inner();
-    let mut left = parse_expression(inner.next().unwrap())?;
+    let inner_pairs: Vec<_> = pair.into_inner().collect();
     
-    // Process pairs of (operator, operand)
-    while let Some(next_pair) = inner.next() {
-        // First pair should be the operator
-        let operator = match next_pair.as_str() {
+
+    
+    if inner_pairs.len() == 1 {
+        // No operators, just a single comparison
+        return parse_expression(inner_pairs[0].clone());
+    }
+    
+    // Build left-associative binary operations
+    // Format: [operand, operator, operand, operator, operand, ...]
+    let mut result = parse_expression(inner_pairs[0].clone())?;
+    
+    let mut i = 1;
+    while i < inner_pairs.len() {
+        // Parse operator token
+        if inner_pairs[i].as_rule() != Rule::equality_op {
+            return Err(CclError::ParsingError(format!("Expected equality_op rule, got: {:?}", inner_pairs[i].as_rule())));
+        }
+        
+        let operator_str = inner_pairs[i].as_str();
+        let operator = match operator_str {
             "==" => BinaryOperator::Eq,
             "!=" => BinaryOperator::Neq,
             _ => {
-                return Err(CclError::ParsingError(format!("Expected equality operator, got: {}", next_pair.as_str())));
+                return Err(CclError::ParsingError(format!("Expected equality operator, got: {}", operator_str)));
             }
         };
         
-        // Second pair should be the operand
-        if let Some(right_pair) = inner.next() {
-            let right = parse_expression(right_pair)?;
-            left = ExpressionNode::BinaryOp {
-                left: Box::new(left),
-                operator,
-                right: Box::new(right),
-            };
-        } else {
+        // Parse right operand
+        if i + 1 >= inner_pairs.len() {
             return Err(CclError::ParsingError("Missing right operand in equality".to_string()));
         }
+        
+        let right = parse_expression(inner_pairs[i + 1].clone())?;
+        
+        result = ExpressionNode::BinaryOp {
+            left: Box::new(result),
+            operator,
+            right: Box::new(right),
+        };
+        
+        i += 2; // Skip to next operator
     }
     
-    Ok(left)
+    Ok(result)
 }
 
 fn parse_comparison(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
-    // comparison = { addition ~ (("<" | "<=" | ">" | ">=") ~ addition)* }
-    let full_text = pair.as_str();
-    let pair_span = pair.as_span();
+    // comparison = { addition ~ (comparison_op ~ addition)* }
     let inner_pairs: Vec<_> = pair.into_inner().collect();
     
     if inner_pairs.len() == 1 {
@@ -937,47 +953,48 @@ fn parse_comparison(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
     }
     
     // Build left-associative binary operations
-    // Pest gives us only the operands, we need to infer operators from the source text
+    // Format: [operand, operator, operand, operator, operand, ...]
     let mut result = parse_expression(inner_pairs[0].clone())?;
     
-    for i in 1..inner_pairs.len() {
-        let right = parse_expression(inner_pairs[i].clone())?;
+    let mut i = 1;
+    while i < inner_pairs.len() {
+        // Parse operator token
+        if inner_pairs[i].as_rule() != Rule::comparison_op {
+            return Err(CclError::ParsingError(format!("Expected comparison_op rule, got: {:?}", inner_pairs[i].as_rule())));
+        }
         
-        // Find the operator between the previous operand and this one
-        let left_end = if i == 1 {
-            inner_pairs[0].as_span().end()
-        } else {
-            inner_pairs[i-1].as_span().end()
+        let operator_str = inner_pairs[i].as_str();
+        let operator = match operator_str {
+            "<=" => BinaryOperator::Lte,
+            ">=" => BinaryOperator::Gte,
+            "<" => BinaryOperator::Lt,
+            ">" => BinaryOperator::Gt,
+            _ => {
+                return Err(CclError::ParsingError(format!("Expected comparison operator, got: {}", operator_str)));
+            }
         };
-        let right_start = inner_pairs[i].as_span().start();
         
-        let operator_text = &full_text[left_end - pair_span.start()..right_start - pair_span.start()];
-        let operator = if operator_text.contains("<=") {
-            BinaryOperator::Lte
-        } else if operator_text.contains(">=") {
-            BinaryOperator::Gte
-        } else if operator_text.contains('<') {
-            BinaryOperator::Lt
-        } else if operator_text.contains('>') {
-            BinaryOperator::Gt
-        } else {
-            return Err(CclError::ParsingError(format!("Cannot determine comparison operator in: '{}'", operator_text)));
-        };
+        // Parse right operand
+        if i + 1 >= inner_pairs.len() {
+            return Err(CclError::ParsingError("Missing right operand in comparison".to_string()));
+        }
+        
+        let right = parse_expression(inner_pairs[i + 1].clone())?;
         
         result = ExpressionNode::BinaryOp {
             left: Box::new(result),
             operator,
             right: Box::new(right),
         };
+        
+        i += 2; // Skip to next operator
     }
     
     Ok(result)
 }
 
 fn parse_addition(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
-    // addition = { multiplication ~ (("+" | "-") ~ multiplication)* }
-    let full_text = pair.as_str();
-    let pair_span = pair.as_span();
+    // addition = { multiplication ~ (addition_op ~ multiplication)* }
     let inner_pairs: Vec<_> = pair.into_inner().collect();
     
     if inner_pairs.len() == 1 {
@@ -986,70 +1003,91 @@ fn parse_addition(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
     }
     
     // Build left-associative binary operations
-    // Pest gives us only the operands, we need to infer operators from the source text
+    // Format: [operand, operator, operand, operator, operand, ...]
     let mut result = parse_expression(inner_pairs[0].clone())?;
     
-    for i in 1..inner_pairs.len() {
-        let right = parse_expression(inner_pairs[i].clone())?;
+    let mut i = 1;
+    while i < inner_pairs.len() {
+        // Parse operator token
+        if inner_pairs[i].as_rule() != Rule::addition_op {
+            return Err(CclError::ParsingError(format!("Expected addition_op rule, got: {:?}", inner_pairs[i].as_rule())));
+        }
         
-        // Find the operator between the previous operand and this one
-        let left_end = if i == 1 {
-            inner_pairs[0].as_span().end()
-        } else {
-            inner_pairs[i-1].as_span().end()
+        let operator_str = inner_pairs[i].as_str();
+        let operator = match operator_str {
+            "+" => BinaryOperator::Add,
+            "-" => BinaryOperator::Sub,
+            _ => {
+                return Err(CclError::ParsingError(format!("Expected addition operator, got: {}", operator_str)));
+            }
         };
-        let right_start = inner_pairs[i].as_span().start();
         
-        let operator_text = &full_text[left_end - pair_span.start()..right_start - pair_span.start()];
-        let operator = if operator_text.contains('+') {
-            BinaryOperator::Add
-        } else if operator_text.contains('-') {
-            BinaryOperator::Sub
-        } else {
-            return Err(CclError::ParsingError(format!("Cannot determine addition operator in: '{}'", operator_text)));
-        };
+        // Parse right operand
+        if i + 1 >= inner_pairs.len() {
+            return Err(CclError::ParsingError("Missing right operand in addition".to_string()));
+        }
+        
+        let right = parse_expression(inner_pairs[i + 1].clone())?;
         
         result = ExpressionNode::BinaryOp {
             left: Box::new(result),
             operator,
             right: Box::new(right),
         };
+        
+        i += 2; // Skip to next operator
     }
     
     Ok(result)
 }
 
 fn parse_multiplication(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
-    // multiplication = { unary ~ (("*" | "/" | "%") ~ unary)* }
-    let mut inner = pair.into_inner();
-    let mut left = parse_expression(inner.next().unwrap())?;
+    // multiplication = { unary ~ (multiplication_op ~ unary)* }
+    let inner_pairs: Vec<_> = pair.into_inner().collect();
     
-    // Process pairs of (operator, operand)
-    while let Some(next_pair) = inner.next() {
-        // First pair should be the operator
-        let operator = match next_pair.as_str() {
+    if inner_pairs.len() == 1 {
+        // No operators, just a single unary
+        return parse_expression(inner_pairs[0].clone());
+    }
+    
+    // Build left-associative binary operations
+    // Format: [operand, operator, operand, operator, operand, ...]
+    let mut result = parse_expression(inner_pairs[0].clone())?;
+    
+    let mut i = 1;
+    while i < inner_pairs.len() {
+        // Parse operator token
+        if inner_pairs[i].as_rule() != Rule::multiplication_op {
+            return Err(CclError::ParsingError(format!("Expected multiplication_op rule, got: {:?}", inner_pairs[i].as_rule())));
+        }
+        
+        let operator_str = inner_pairs[i].as_str();
+        let operator = match operator_str {
             "*" => BinaryOperator::Mul,
             "/" => BinaryOperator::Div,
             "%" => BinaryOperator::Mod,
             _ => {
-                return Err(CclError::ParsingError(format!("Expected multiplication operator, got: {}", next_pair.as_str())));
+                return Err(CclError::ParsingError(format!("Expected multiplication operator, got: {}", operator_str)));
             }
         };
         
-        // Second pair should be the operand
-        if let Some(right_pair) = inner.next() {
-            let right = parse_expression(right_pair)?;
-            left = ExpressionNode::BinaryOp {
-                left: Box::new(left),
-                operator,
-                right: Box::new(right),
-            };
-        } else {
+        // Parse right operand
+        if i + 1 >= inner_pairs.len() {
             return Err(CclError::ParsingError("Missing right operand in multiplication".to_string()));
         }
+        
+        let right = parse_expression(inner_pairs[i + 1].clone())?;
+        
+        result = ExpressionNode::BinaryOp {
+            left: Box::new(result),
+            operator,
+            right: Box::new(right),
+        };
+        
+        i += 2; // Skip to next operator
     }
     
-    Ok(left)
+    Ok(result)
 }
 
 fn parse_unary(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {

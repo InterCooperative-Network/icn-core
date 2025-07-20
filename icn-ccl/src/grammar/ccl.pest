@@ -372,20 +372,28 @@ logical_and = {
 }
 
 equality = {
-    comparison ~ (("==" | "!=") ~ comparison)*
+    comparison ~ (equality_op ~ comparison)*
 }
+
+equality_op = { "==" | "!=" }
 
 comparison = {
-    addition ~ (("<" | "<=" | ">" | ">=") ~ addition)*
+    addition ~ (comparison_op ~ addition)*
 }
+
+comparison_op = { "<=" | ">=" | "<" | ">" }
 
 addition = {
-    multiplication ~ (("+" | "-") ~ multiplication)*
+    multiplication ~ (addition_op ~ multiplication)*
 }
 
+addition_op = { "+" | "-" }
+
 multiplication = {
-    unary ~ (("*" | "/" | "%") ~ unary)*
+    unary ~ (multiplication_op ~ unary)*
 }
+
+multiplication_op = { "*" | "/" | "%" }
 
 unary = {
     ("!" | "-") ~ unary | postfix
