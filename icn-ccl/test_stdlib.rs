@@ -16,7 +16,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("Testing governance functions...");
     match compile_ccl_source_to_wasm(source1) {
         Ok((wasm, _metadata)) => {
@@ -27,7 +27,7 @@ fn main() {
             println!("❌ Governance functions failed: {}", e);
         }
     }
-    
+
     // Test 2: Economics functions
     let source2 = r#"
         contract TestEconomics {
@@ -41,7 +41,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("\nTesting economics functions...");
     match compile_ccl_source_to_wasm(source2) {
         Ok((wasm, _metadata)) => {
@@ -52,8 +52,8 @@ fn main() {
             println!("❌ Economics functions failed: {}", e);
         }
     }
-    
-    // Test 3: Utility functions  
+
+    // Test 3: Utility functions
     let source3 = r#"
         contract TestUtilities {
             scope: "test";
@@ -65,7 +65,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("\nTesting utility functions...");
     match compile_ccl_source_to_wasm(source3) {
         Ok((wasm, _metadata)) => {
@@ -76,7 +76,7 @@ fn main() {
             println!("❌ Utility functions failed: {}", e);
         }
     }
-    
+
     // Test 4: Crypto functions
     let source4 = r#"
         contract TestCrypto {
@@ -89,7 +89,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("\nTesting crypto functions...");
     match compile_ccl_source_to_wasm(source4) {
         Ok((wasm, _metadata)) => {
@@ -100,7 +100,7 @@ fn main() {
             println!("❌ Crypto functions failed: {}", e);
         }
     }
-    
+
     // Test 5: Math functions
     let source5 = r#"
         contract TestMath {
@@ -113,7 +113,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("\nTesting math functions...");
     match compile_ccl_source_to_wasm(source5) {
         Ok((wasm, _metadata)) => {
@@ -124,4 +124,4 @@ fn main() {
             println!("❌ Math functions failed: {}", e);
         }
     }
-} 
+}

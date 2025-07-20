@@ -90,7 +90,10 @@ fn execute_remove_member_proposal() {
 
 #[test]
 fn execute_runs_all_callbacks() {
-    use std::sync::{atomic::{AtomicUsize, Ordering}, Arc};
+    use std::sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    };
 
     let mut gov = GovernanceModule::new();
     gov.add_member(Did::from_str("did:example:alice").unwrap());
@@ -121,8 +124,18 @@ fn execute_runs_all_callbacks() {
         })
         .unwrap();
     gov.open_voting(&pid).unwrap();
-    gov.cast_vote(Did::from_str("did:example:alice").unwrap(), &pid, VoteOption::Yes).unwrap();
-    gov.cast_vote(Did::from_str("did:example:bob").unwrap(), &pid, VoteOption::Yes).unwrap();
+    gov.cast_vote(
+        Did::from_str("did:example:alice").unwrap(),
+        &pid,
+        VoteOption::Yes,
+    )
+    .unwrap();
+    gov.cast_vote(
+        Did::from_str("did:example:bob").unwrap(),
+        &pid,
+        VoteOption::Yes,
+    )
+    .unwrap();
     let (status, _) = gov.close_voting_period(&pid).unwrap();
     assert_eq!(status, ProposalStatus::Accepted);
     gov.execute_proposal(&pid).unwrap();

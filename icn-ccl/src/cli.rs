@@ -1,7 +1,7 @@
 // icn-ccl/src/cli.rs
 use crate::ast::{
-    AstNode, BlockNode, ExpressionNode, PolicyStatementNode, StatementNode,
-    TypeAnnotationNode, UnaryOperator,
+    AstNode, BlockNode, ExpressionNode, PolicyStatementNode, StatementNode, TypeAnnotationNode,
+    UnaryOperator,
 };
 use crate::error::CclError;
 use crate::metadata::ContractMetadata;
@@ -40,9 +40,13 @@ pub fn compile_ccl_file(
 
     let mut semantic_analyzer = SemanticAnalyzer::new();
     match semantic_analyzer.analyze(&ast) {
-        Ok(()) => {},
-        Err(errors) => return Err(errors.into_iter().next().unwrap_or_else(|| 
-            CclError::SemanticError("Unknown semantic error".to_string()))),
+        Ok(()) => {}
+        Err(errors) => {
+            return Err(errors
+                .into_iter()
+                .next()
+                .unwrap_or_else(|| CclError::SemanticError("Unknown semantic error".to_string())))
+        }
     }
 
     let mut optimizer = Optimizer::new(crate::optimizer::OptimizationLevel::Basic);
@@ -96,9 +100,13 @@ pub fn check_ccl_file(source_path: &PathBuf) -> Result<(), CclError> {
     let ast = parse_ccl_source(&source_code)?;
     let mut semantic_analyzer = SemanticAnalyzer::new();
     match semantic_analyzer.analyze(&ast) {
-        Ok(()) => {},
-        Err(errors) => return Err(errors.into_iter().next().unwrap_or_else(|| 
-            CclError::SemanticError("Unknown semantic error".to_string()))),
+        Ok(()) => {}
+        Err(errors) => {
+            return Err(errors
+                .into_iter()
+                .next()
+                .unwrap_or_else(|| CclError::SemanticError("Unknown semantic error".to_string())))
+        }
     }
     info!("[CCL CLI Lib] {} passed checks.", source_path.display());
     Ok(())
@@ -160,7 +168,10 @@ fn ast_to_string(ast: &AstNode, indent: usize) -> String {
             s.push_str(&format!(
                 "fn {}() -> {} ",
                 name,
-                return_type.as_ref().map(type_expr_to_string).unwrap_or_else(|| "()".to_string())
+                return_type
+                    .as_ref()
+                    .map(type_expr_to_string)
+                    .unwrap_or_else(|| "()".to_string())
             ));
             s.push_str(&block_to_string(body, indent));
             s
@@ -169,7 +180,7 @@ fn ast_to_string(ast: &AstNode, indent: usize) -> String {
         AstNode::Program(_items) => {
             // TODO: Implement TopLevelNode to string conversion
             "program".to_string()
-        },
+        }
         AstNode::ContractDeclaration { name, .. } => format!("contract {}", name),
         AstNode::RoleDeclaration { name, .. } => format!("role {}", name),
         AstNode::ProposalDeclaration { name, .. } => format!("proposal {}", name),
@@ -225,7 +236,12 @@ fn block_to_string(block: &BlockNode, indent: usize) -> String {
 
 fn stmt_to_string(stmt: &StatementNode, indent: usize) -> String {
     match stmt {
-        StatementNode::Let { mutable: _, name, type_expr: _, value } => {
+        StatementNode::Let {
+            mutable: _,
+            name,
+            type_expr: _,
+            value,
+        } => {
             format!("let {} = {};", name, expr_to_string(value))
         }
         StatementNode::ExpressionStatement(e) => {
@@ -279,7 +295,10 @@ fn stmt_to_string(stmt: &StatementNode, indent: usize) -> String {
         StatementNode::Match { expr, arms: _ } => {
             format!("match {} {{ ... }}", expr_to_string(expr))
         }
-        StatementNode::Emit { event_name, fields: _ } => {
+        StatementNode::Emit {
+            event_name,
+            fields: _,
+        } => {
             format!("emit {} {{ ... }};", event_name)
         }
         StatementNode::Require(condition) => {
@@ -287,7 +306,7 @@ fn stmt_to_string(stmt: &StatementNode, indent: usize) -> String {
         }
         StatementNode::Break => "break;".to_string(),
         StatementNode::Continue => "continue;".to_string(),
-        
+
         // Legacy statements for backward compatibility
         StatementNode::WhileLoop { condition, body } => {
             let mut s = String::new();
@@ -295,9 +314,17 @@ fn stmt_to_string(stmt: &StatementNode, indent: usize) -> String {
             s.push_str(&block_to_string(body, indent));
             s
         }
-        StatementNode::ForLoop { iterator, iterable, body } => {
+        StatementNode::ForLoop {
+            iterator,
+            iterable,
+            body,
+        } => {
             let mut s = String::new();
-            s.push_str(&format!("for {} in {} ", iterator, expr_to_string(iterable)));
+            s.push_str(&format!(
+                "for {} in {} ",
+                iterator,
+                expr_to_string(iterable)
+            ));
             s.push_str(&block_to_string(body, indent));
             s
         }
@@ -315,12 +342,12 @@ fn expr_to_string(expr: &ExpressionNode) -> String {
             crate::ast::LiteralNode::Did(did) => did.clone(),
             crate::ast::LiteralNode::Timestamp(ts) => ts.clone(),
         },
-        
+
         // Legacy literal variants (for backward compatibility)
         ExpressionNode::IntegerLiteral(i) => i.to_string(),
         ExpressionNode::BooleanLiteral(b) => b.to_string(),
         ExpressionNode::StringLiteral(s) => format!("\"{}\"", s),
-        
+
         ExpressionNode::ArrayLiteral(elements) => {
             let items = elements
                 .iter()
@@ -338,7 +365,11 @@ fn expr_to_string(expr: &ExpressionNode) -> String {
                 .join(", ");
             format!("{}({})", name, arg_strs)
         }
-        ExpressionNode::MethodCall { object, method, args } => {
+        ExpressionNode::MethodCall {
+            object,
+            method,
+            args,
+        } => {
             let arg_strs = args
                 .iter()
                 .map(expr_to_string)
@@ -384,7 +415,7 @@ fn expr_to_string(expr: &ExpressionNode) -> String {
         ExpressionNode::ArrayAccess { array, index } => {
             format!("{}[{}]", expr_to_string(array), expr_to_string(index))
         }
-        
+
         // New AST variants
         ExpressionNode::MemberAccess { object, member } => {
             format!("{}.{}", expr_to_string(object), member)
@@ -392,13 +423,21 @@ fn expr_to_string(expr: &ExpressionNode) -> String {
         ExpressionNode::IndexAccess { object, index } => {
             format!("{}[{}]", expr_to_string(object), expr_to_string(index))
         }
-        ExpressionNode::StructLiteral { type_name, fields: _ } => {
+        ExpressionNode::StructLiteral {
+            type_name,
+            fields: _,
+        } => {
             format!("{} {{ ... }}", type_name)
         }
-        
+
         // Governance expressions
         ExpressionNode::Transfer { from, to, amount } => {
-            format!("transfer({}, {}, {})", expr_to_string(from), expr_to_string(to), expr_to_string(amount))
+            format!(
+                "transfer({}, {}, {})",
+                expr_to_string(from),
+                expr_to_string(to),
+                expr_to_string(amount)
+            )
         }
         ExpressionNode::Mint { to, amount } => {
             format!("mint({}, {})", expr_to_string(to), expr_to_string(amount))
@@ -406,7 +445,7 @@ fn expr_to_string(expr: &ExpressionNode) -> String {
         ExpressionNode::Burn { from, amount } => {
             format!("burn({}, {})", expr_to_string(from), expr_to_string(amount))
         }
-        
+
         ExpressionNode::Some(inner) => format!("Some({})", expr_to_string(inner)),
         ExpressionNode::None => "None".to_string(),
         ExpressionNode::Ok(inner) => format!("Ok({})", expr_to_string(inner)),
@@ -436,16 +475,31 @@ fn type_expr_to_string(ty: &crate::ast::TypeExprNode) -> String {
         TypeExprNode::Duration => "Duration".to_string(),
         TypeExprNode::Custom(name) => name.clone(),
         TypeExprNode::Array(inner) => format!("[{}]", type_expr_to_string(inner)),
-        TypeExprNode::Map { key_type, value_type } => {
-            format!("Map<{}, {}>", type_expr_to_string(key_type), type_expr_to_string(value_type))
+        TypeExprNode::Map {
+            key_type,
+            value_type,
+        } => {
+            format!(
+                "Map<{}, {}>",
+                type_expr_to_string(key_type),
+                type_expr_to_string(value_type)
+            )
         }
         TypeExprNode::Option(inner) => format!("Option<{}>", type_expr_to_string(inner)),
         TypeExprNode::Result { ok_type, err_type } => {
-            format!("Result<{}, {}>", type_expr_to_string(ok_type), type_expr_to_string(err_type))
+            format!(
+                "Result<{}, {}>",
+                type_expr_to_string(ok_type),
+                type_expr_to_string(err_type)
+            )
         }
         TypeExprNode::TypeParameter(name) => name.clone(),
-        TypeExprNode::GenericInstantiation { base_type, type_args } => {
-            let args = type_args.iter()
+        TypeExprNode::GenericInstantiation {
+            base_type,
+            type_args,
+        } => {
+            let args = type_args
+                .iter()
                 .map(type_expr_to_string)
                 .collect::<Vec<_>>()
                 .join(", ");
@@ -462,8 +516,15 @@ fn type_to_string(ty: &TypeAnnotationNode) -> String {
         TypeAnnotationNode::String => "String".to_string(),
         TypeAnnotationNode::Integer => "Integer".to_string(),
         TypeAnnotationNode::Array(inner_ty) => format!("Array<{}>", type_to_string(inner_ty)),
-        TypeAnnotationNode::Map { key_type, value_type } => {
-            format!("Map<{}, {}>", type_to_string(key_type), type_to_string(value_type))
+        TypeAnnotationNode::Map {
+            key_type,
+            value_type,
+        } => {
+            format!(
+                "Map<{}, {}>",
+                type_to_string(key_type),
+                type_to_string(value_type)
+            )
         }
         TypeAnnotationNode::Proposal => "Proposal".to_string(),
         TypeAnnotationNode::Vote => "Vote".to_string(),
@@ -472,7 +533,6 @@ fn type_to_string(ty: &TypeAnnotationNode) -> String {
         TypeAnnotationNode::Result { .. } => "Result".to_string(),
     }
 }
-
 
 fn explain_ast(ast: &AstNode, target: Option<&str>) -> String {
     match ast {
@@ -489,14 +549,20 @@ fn explain_ast(ast: &AstNode, target: Option<&str>) -> String {
                                 lines.push(format!(
                                     "Function `{}` returns `{}`.",
                                     name,
-                                    return_type.as_ref().map(|rt| type_expr_to_string(rt)).unwrap_or_else(|| "void".to_string())
+                                    return_type
+                                        .as_ref()
+                                        .map(|rt| type_expr_to_string(rt))
+                                        .unwrap_or_else(|| "void".to_string())
                                 ));
                             }
                         }
                     }
                     PolicyStatementNode::RuleDef(_) => {
                         // Legacy RuleDefinition removed in CCL 0.1
-                        lines.push("Legacy rule definition found - no longer supported in CCL 0.1".to_string());
+                        lines.push(
+                            "Legacy rule definition found - no longer supported in CCL 0.1"
+                                .to_string(),
+                        );
                     }
                     PolicyStatementNode::Import { path, alias } => {
                         if target.is_none() {
@@ -510,12 +576,20 @@ fn explain_ast(ast: &AstNode, target: Option<&str>) -> String {
                     }
                     PolicyStatementNode::ConstDef { name, type_ann, .. } => {
                         if target.is_none() || target == Some(name) {
-                            lines.push(format!("Constant `{}` of type `{}`.", name, type_to_string(type_ann)));
+                            lines.push(format!(
+                                "Constant `{}` of type `{}`.",
+                                name,
+                                type_to_string(type_ann)
+                            ));
                         }
                     }
                     PolicyStatementNode::MacroDef { name, params, .. } => {
                         if target.is_none() || target == Some(name) {
-                            lines.push(format!("Macro `{}` with {} parameters.", name, params.len()));
+                            lines.push(format!(
+                                "Macro `{}` with {} parameters.",
+                                name,
+                                params.len()
+                            ));
                         }
                     }
                     // Placeholder implementations for governance DSL

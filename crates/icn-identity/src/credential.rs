@@ -220,8 +220,8 @@ impl DisclosedCredential {
     }
 }
 
-use std::sync::Arc;
 use crate::revocation_registry::RevocationRegistry;
+use std::sync::Arc;
 
 pub struct CredentialIssuer {
     did: Did,
@@ -245,10 +245,7 @@ impl CredentialIssuer {
         self
     }
 
-    pub fn with_revocation_registry(
-        mut self,
-        registry: Arc<dyn RevocationRegistry>,
-    ) -> Self {
+    pub fn with_revocation_registry(mut self, registry: Arc<dyn RevocationRegistry>) -> Self {
         self.revocation_registry = Some(registry);
         self
     }

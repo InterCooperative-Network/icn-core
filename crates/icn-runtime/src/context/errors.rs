@@ -43,4 +43,4 @@ impl From<CommonError> for HostAbiError {
     fn from(err: CommonError) -> Self {
         HostAbiError::Common(err)
     }
-} 
+}

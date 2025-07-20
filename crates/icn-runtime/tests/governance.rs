@@ -333,16 +333,30 @@ async fn parameter_change_execution_updates_runtime() {
         "description": "update limit",
         "duration_secs": 60
     });
-    let pid_str = host_create_governance_proposal(&ctx, &payload.to_string()).await.unwrap();
+    let pid_str = host_create_governance_proposal(&ctx, &payload.to_string())
+        .await
+        .unwrap();
     let pid = ProposalId(pid_str.clone());
     {
         let mut gov = ctx.governance_module.lock().await;
         gov.open_voting(&pid).unwrap();
-        gov.cast_vote(Did::from_str("did:icn:test:bob").unwrap(), &pid, VoteOption::Yes).unwrap();
+        gov.cast_vote(
+            Did::from_str("did:icn:test:bob").unwrap(),
+            &pid,
+            VoteOption::Yes,
+        )
+        .unwrap();
     }
-    host_close_governance_proposal_voting(&ctx, &pid_str).await.unwrap();
-    host_execute_governance_proposal(&ctx, &pid_str).await.unwrap();
-    assert_eq!(ctx.parameters.get("test_limit").unwrap().value().as_str(), "10");
+    host_close_governance_proposal_voting(&ctx, &pid_str)
+        .await
+        .unwrap();
+    host_execute_governance_proposal(&ctx, &pid_str)
+        .await
+        .unwrap();
+    assert_eq!(
+        ctx.parameters.get("test_limit").unwrap().value().as_str(),
+        "10"
+    );
 }
 
 #[tokio::test]
@@ -373,7 +387,12 @@ async fn parameter_change_anchors_dag_entry() {
     {
         let mut gov = ctx.governance_module.lock().await;
         gov.open_voting(&pid).unwrap();
-        gov.cast_vote(Did::from_str("did:icn:test:bob").unwrap(), &pid, VoteOption::Yes).unwrap();
+        gov.cast_vote(
+            Did::from_str("did:icn:test:bob").unwrap(),
+            &pid,
+            VoteOption::Yes,
+        )
+        .unwrap();
     }
     host_close_governance_proposal_voting(&ctx, &pid_str)
         .await
@@ -386,7 +405,9 @@ async fn parameter_change_anchors_dag_entry() {
     let blocks = store.list_blocks().await.unwrap();
     let mut found = false;
     for block in blocks {
-        if let Ok(update) = bincode::deserialize::<icn_runtime::context::ParameterUpdate>(&block.data) {
+        if let Ok(update) =
+            bincode::deserialize::<icn_runtime::context::ParameterUpdate>(&block.data)
+        {
             if update.name == "dag_limit" && update.value == "5" {
                 found = true;
                 break;
@@ -413,14 +434,25 @@ async fn budget_allocation_credits_mana() {
         "description": "fund dev",
         "duration_secs": 60
     });
-    let pid_str = host_create_governance_proposal(&ctx, &payload.to_string()).await.unwrap();
+    let pid_str = host_create_governance_proposal(&ctx, &payload.to_string())
+        .await
+        .unwrap();
     let pid = ProposalId(pid_str.clone());
     {
         let mut gov = ctx.governance_module.lock().await;
         gov.open_voting(&pid).unwrap();
-        gov.cast_vote(Did::from_str("did:icn:test:bob").unwrap(), &pid, VoteOption::Yes).unwrap();
+        gov.cast_vote(
+            Did::from_str("did:icn:test:bob").unwrap(),
+            &pid,
+            VoteOption::Yes,
+        )
+        .unwrap();
     }
-    host_close_governance_proposal_voting(&ctx, &pid_str).await.unwrap();
-    host_execute_governance_proposal(&ctx, &pid_str).await.unwrap();
+    host_close_governance_proposal_voting(&ctx, &pid_str)
+        .await
+        .unwrap();
+    host_execute_governance_proposal(&ctx, &pid_str)
+        .await
+        .unwrap();
     assert_eq!(ctx.mana_ledger.get_balance(&ctx.current_identity), 50);
 }

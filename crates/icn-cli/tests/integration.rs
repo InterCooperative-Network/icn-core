@@ -1,9 +1,9 @@
 use assert_cmd::prelude::*;
+use base64::prelude::*;
 use icn_node::app_router;
 use predicates::prelude::*;
 use std::process::Command;
 use tokio::task;
-use base64::prelude::*;
 
 /// Test complete DAG workflow: put and get
 #[tokio::test]
@@ -30,7 +30,8 @@ async fn test_dag_put_get_workflow() {
         "author_did": "did:example:alice",
         "signature": null,
         "scope": null
-    }).to_string();
+    })
+    .to_string();
 
     // Put the block
     let put_output = tokio::task::spawn_blocking({
@@ -92,7 +93,8 @@ async fn test_mesh_job_workflow() {
         "spec_bytes": BASE64_STANDARD.encode(b"test job data"),
         "spec_json": null,
         "cost_mana": 10
-    }).to_string();
+    })
+    .to_string();
 
     let submit_output = tokio::task::spawn_blocking({
         let bin = bin.clone();
@@ -109,7 +111,7 @@ async fn test_mesh_job_workflow() {
     .unwrap();
 
     assert!(submit_output.status.success());
-    
+
     let submit_stdout = String::from_utf8(submit_output.stdout).unwrap();
     let submit_json: serde_json::Value = serde_json::from_str(&submit_stdout).unwrap();
     let job_id = submit_json["job_id"].as_str().unwrap();
@@ -179,7 +181,8 @@ async fn test_governance_workflow() {
         },
         "description": "Test proposal description",
         "duration_secs": 3600
-    }).to_string();
+    })
+    .to_string();
 
     let submit_output = tokio::task::spawn_blocking({
         let bin = bin.clone();
@@ -187,7 +190,13 @@ async fn test_governance_workflow() {
         let proposal_request = proposal_request.clone();
         move || {
             Command::new(bin)
-                .args(["--api-url", &base, "governance", "submit", &proposal_request])
+                .args([
+                    "--api-url",
+                    &base,
+                    "governance",
+                    "submit",
+                    &proposal_request,
+                ])
                 .output()
                 .unwrap()
         }
@@ -196,7 +205,7 @@ async fn test_governance_workflow() {
     .unwrap();
 
     assert!(submit_output.status.success());
-    
+
     let submit_stdout = String::from_utf8(submit_output.stdout).unwrap();
     assert!(submit_stdout.contains("Successfully submitted proposal"));
 
@@ -349,10 +358,10 @@ async fn test_identity_workflow() {
     .unwrap();
 
     assert!(generate_output.status.success());
-    
+
     let generate_stdout = String::from_utf8(generate_output.stdout).unwrap();
     let proof_json: serde_json::Value = serde_json::from_str(&generate_stdout).unwrap();
-    
+
     // Verify the proof was generated
     assert!(proof_json["proof"].is_array());
     assert!(proof_json["issuer"].as_str().unwrap().contains("issuer"));
@@ -384,13 +393,13 @@ async fn test_identity_workflow() {
 #[serial_test::serial]
 async fn test_ccl_workflow() {
     use tempfile::tempdir;
-    
+
     let dir = tempdir().unwrap();
     let file_path = dir.path().join("test.ccl");
-    
+
     // Create a simple CCL file
     std::fs::write(&file_path, "fn main() -> Bool { return true; }").unwrap();
-    
+
     let bin = env!("CARGO_BIN_EXE_icn-cli");
     let file_str = file_path.to_str().unwrap();
 
@@ -574,7 +583,8 @@ async fn test_multi_command_workflow() {
         "spec_bytes": BASE64_STANDARD.encode(b"multi-command test"),
         "spec_json": null,
         "cost_mana": 10
-    }).to_string();
+    })
+    .to_string();
 
     let submit_output = tokio::task::spawn_blocking({
         let bin = bin.clone();
@@ -627,4 +637,4 @@ async fn test_multi_command_workflow() {
     assert!(metrics_stdout.contains("mesh_jobs_submitted_total"));
 
     server.abort();
-} 
+}

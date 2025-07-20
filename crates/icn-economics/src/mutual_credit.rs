@@ -1,7 +1,7 @@
+use crate::{ResourceLedger, TokenClass, TokenClassId, TokenType};
 use icn_common::{CommonError, Did, SystemTimeProvider, TimeProvider};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use crate::{ResourceLedger, TokenClass, TokenType, TokenClassId};
 
 /// Specialized functionality for mutual credit systems.
 /// Mutual credit allows communities to create money by extending credit to members.
@@ -140,11 +140,17 @@ pub trait MutualCreditStore: Send + Sync {
     /// Get all credit lines for an account.
     fn get_account_credit_lines(&self, account: &Did) -> Vec<CreditLine>;
     /// Record a mutual credit transaction.
-    fn record_credit_transaction(&self, transaction: MutualCreditTransaction) -> Result<(), CommonError>;
+    fn record_credit_transaction(
+        &self,
+        transaction: MutualCreditTransaction,
+    ) -> Result<(), CommonError>;
     /// Get a credit transaction by ID.
     fn get_credit_transaction(&self, transaction_id: &str) -> Option<MutualCreditTransaction>;
     /// Update a credit transaction.
-    fn update_credit_transaction(&self, transaction: MutualCreditTransaction) -> Result<(), CommonError>;
+    fn update_credit_transaction(
+        &self,
+        transaction: MutualCreditTransaction,
+    ) -> Result<(), CommonError>;
     /// Get credit transaction history for an account.
     fn get_credit_history(&self, account: &Did) -> Vec<MutualCreditTransaction>;
 }
@@ -166,9 +172,10 @@ impl MutualCreditStore for InMemoryMutualCreditStore {
     fn create_credit_line(&self, credit_line: CreditLine) -> Result<(), CommonError> {
         let mut credit_lines = self.credit_lines.lock().unwrap();
         if credit_lines.contains_key(&credit_line.credit_id) {
-            return Err(CommonError::InvalidInputError(
-                format!("Credit line {} already exists", credit_line.credit_id)
-            ));
+            return Err(CommonError::InvalidInputError(format!(
+                "Credit line {} already exists",
+                credit_line.credit_id
+            )));
         }
         credit_lines.insert(credit_line.credit_id.clone(), credit_line);
         Ok(())
@@ -194,12 +201,16 @@ impl MutualCreditStore for InMemoryMutualCreditStore {
             .collect()
     }
 
-    fn record_credit_transaction(&self, transaction: MutualCreditTransaction) -> Result<(), CommonError> {
+    fn record_credit_transaction(
+        &self,
+        transaction: MutualCreditTransaction,
+    ) -> Result<(), CommonError> {
         let mut transactions = self.transactions.lock().unwrap();
         if transactions.contains_key(&transaction.transaction_id) {
-            return Err(CommonError::InvalidInputError(
-                format!("Credit transaction {} already exists", transaction.transaction_id)
-            ));
+            return Err(CommonError::InvalidInputError(format!(
+                "Credit transaction {} already exists",
+                transaction.transaction_id
+            )));
         }
         transactions.insert(transaction.transaction_id.clone(), transaction);
         Ok(())
@@ -210,7 +221,10 @@ impl MutualCreditStore for InMemoryMutualCreditStore {
         transactions.get(transaction_id).cloned()
     }
 
-    fn update_credit_transaction(&self, transaction: MutualCreditTransaction) -> Result<(), CommonError> {
+    fn update_credit_transaction(
+        &self,
+        transaction: MutualCreditTransaction,
+    ) -> Result<(), CommonError> {
         let mut transactions = self.transactions.lock().unwrap();
         transactions.insert(transaction.transaction_id.clone(), transaction);
         Ok(())
@@ -223,7 +237,7 @@ impl MutualCreditStore for InMemoryMutualCreditStore {
             .filter(|tx| &tx.creditor == account || &tx.debtor == account)
             .cloned()
             .collect();
-        
+
         // Sort by creation date (newest first)
         results.sort_by(|a, b| b.created_at.cmp(&a.created_at));
         results
@@ -242,11 +256,14 @@ pub fn extend_mutual_credit<L: ResourceLedger, C: MutualCreditStore>(
     repayment_period_days: u64,
 ) -> Result<String, CommonError> {
     // Validate that the token class is for mutual credit
-    let token_class_info = resource_ledger.get_class(token_class)
-        .ok_or_else(|| CommonError::InvalidInputError(format!("Token class {} not found", token_class)))?;
-    
+    let token_class_info = resource_ledger.get_class(token_class).ok_or_else(|| {
+        CommonError::InvalidInputError(format!("Token class {} not found", token_class))
+    })?;
+
     if token_class_info.token_type != TokenType::MutualCredit {
-        return Err(CommonError::InvalidInputError("Token class is not for mutual credit".into()));
+        return Err(CommonError::InvalidInputError(
+            "Token class is not for mutual credit".into(),
+        ));
     }
 
     // Check if debtor has available credit
@@ -256,7 +273,7 @@ pub fn extend_mutual_credit<L: ResourceLedger, C: MutualCreditStore>(
         .filter(|cl| cl.token_class == *token_class && cl.status == CreditLineStatus::Active)
         .map(|cl| cl.credit_limit)
         .sum();
-    
+
     let total_credit_used: u64 = credit_lines
         .iter()
         .filter(|cl| cl.token_class == *token_class && cl.status == CreditLineStatus::Active)
@@ -271,7 +288,7 @@ pub fn extend_mutual_credit<L: ResourceLedger, C: MutualCreditStore>(
     let transaction_id = format!("credit_{}_{}", debtor, SystemTimeProvider.unix_seconds());
     let now = SystemTimeProvider.unix_seconds();
     let due_date = now + (repayment_period_days * 24 * 60 * 60);
-    
+
     let transaction = MutualCreditTransaction {
         transaction_id: transaction_id.clone(),
         creditor: creditor.clone(),
@@ -295,10 +312,13 @@ pub fn extend_mutual_credit<L: ResourceLedger, C: MutualCreditStore>(
     // Update credit line usage - distribute across available credit lines
     let mut remaining_amount = amount;
     for credit_line in credit_lines {
-        if credit_line.token_class == *token_class && credit_line.status == CreditLineStatus::Active && remaining_amount > 0 {
+        if credit_line.token_class == *token_class
+            && credit_line.status == CreditLineStatus::Active
+            && remaining_amount > 0
+        {
             let available_credit = credit_line.credit_limit - credit_line.credit_used;
             let amount_to_use = std::cmp::min(remaining_amount, available_credit);
-            
+
             if amount_to_use > 0 {
                 let mut updated_credit_line = credit_line;
                 updated_credit_line.credit_used += amount_to_use;
@@ -307,10 +327,12 @@ pub fn extend_mutual_credit<L: ResourceLedger, C: MutualCreditStore>(
             }
         }
     }
-    
+
     // This should never happen if our aggregate limit check is correct
     if remaining_amount > 0 {
-        return Err(CommonError::InternalError("Unable to allocate credit across available lines".into()));
+        return Err(CommonError::InternalError(
+            "Unable to allocate credit across available lines".into(),
+        ));
     }
 
     Ok(transaction_id)
@@ -325,20 +347,30 @@ pub fn repay_mutual_credit<L: ResourceLedger, C: MutualCreditStore>(
     amount: u64,
     method: RepaymentMethod,
 ) -> Result<(), CommonError> {
-    let mut transaction = credit_store.get_credit_transaction(transaction_id)
-        .ok_or_else(|| CommonError::InvalidInputError(format!("Credit transaction {} not found", transaction_id)))?;
+    let mut transaction = credit_store
+        .get_credit_transaction(transaction_id)
+        .ok_or_else(|| {
+            CommonError::InvalidInputError(format!(
+                "Credit transaction {} not found",
+                transaction_id
+            ))
+        })?;
 
     // Validate repayer
     if &transaction.debtor != repayer {
-        return Err(CommonError::PolicyDenied("Only debtor can repay credit".into()));
+        return Err(CommonError::PolicyDenied(
+            "Only debtor can repay credit".into(),
+        ));
     }
 
     // Calculate remaining amount
     let total_repaid: u64 = transaction.repayments.iter().map(|r| r.amount).sum();
     let remaining = transaction.amount.saturating_sub(total_repaid);
-    
+
     if amount > remaining {
-        return Err(CommonError::InvalidInputError("Repayment amount exceeds remaining debt".into()));
+        return Err(CommonError::InvalidInputError(
+            "Repayment amount exceeds remaining debt".into(),
+        ));
     }
 
     // If repayment is via token transfer, burn the tokens
@@ -371,14 +403,14 @@ pub fn calculate_credit_score<C: MutualCreditStore>(
     community_reputation: u16,
 ) -> CreditScore {
     let credit_history = credit_store.get_credit_history(account);
-    
+
     // Calculate payment history score
     let total_transactions = credit_history.len() as f64;
     let repaid_transactions = credit_history
         .iter()
         .filter(|tx| tx.status == CreditTransactionStatus::Repaid)
         .count() as f64;
-    
+
     let payment_history = if total_transactions > 0.0 {
         ((repaid_transactions / total_transactions) * 1000.0) as u16
     } else {
@@ -427,7 +459,7 @@ pub fn create_credit_line<C: MutualCreditStore>(
 ) -> Result<String, CommonError> {
     let credit_id = format!("credit_{}_{}", account, SystemTimeProvider.unix_seconds());
     let credit_score = calculate_credit_score(credit_store, &account, community_reputation);
-    
+
     let credit_line = CreditLine {
         credit_id: credit_id.clone(),
         account,

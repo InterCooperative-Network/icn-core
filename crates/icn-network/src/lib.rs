@@ -244,8 +244,12 @@ pub trait NetworkService: Send + Sync + Debug + DowncastSync + 'static {
         target_peer_id_str: Option<String>,
     ) -> Result<Vec<PeerId>, MeshNetworkError>;
     /// Discover federations known to connected peers.
-    async fn discover_federations(&self) -> Result<Vec<icn_protocol::FederationInfo>, MeshNetworkError> {
-        Err(MeshNetworkError::InvalidInput("Federation discovery not supported".into()))
+    async fn discover_federations(
+        &self,
+    ) -> Result<Vec<icn_protocol::FederationInfo>, MeshNetworkError> {
+        Err(MeshNetworkError::InvalidInput(
+            "Federation discovery not supported".into(),
+        ))
     }
     async fn send_message(
         &self,
@@ -399,7 +403,9 @@ impl NetworkService for StubNetworkService {
         .await
     }
 
-    async fn discover_federations(&self) -> Result<Vec<icn_protocol::FederationInfo>, MeshNetworkError> {
+    async fn discover_federations(
+        &self,
+    ) -> Result<Vec<icn_protocol::FederationInfo>, MeshNetworkError> {
         Ok(self.federations.lock().await.clone())
     }
 
@@ -634,9 +640,9 @@ pub mod libp2p_service {
     // --- Enhanced Statistics and Configuration ---
 
     /// Configuration options for the libp2p networking backend.
-    /// 
+    ///
     /// **🏭 PRODUCTION CONFIGURATION**
-    /// 
+    ///
     /// This configuration is designed for production use with the following characteristics:
     /// - **max_peers**: 1000 concurrent connections (suitable for most production workloads)
     /// - **connection_timeout**: 30s (balances reliability with responsiveness)
@@ -644,14 +650,14 @@ pub mod libp2p_service {
     /// - **bootstrap_interval**: 5min (periodic reconnection to bootstrap peers)
     /// - **peer_discovery_interval**: 1min (regular discovery of new peers)
     /// - **kademlia_replication_factor**: 20 (good balance of redundancy and performance)
-    /// 
+    ///
     /// **📋 CONFIGURATION CHECKLIST FOR PRODUCTION:**
     /// - [ ] Configure `bootstrap_peers` with stable, well-connected nodes
     /// - [ ] Set `listen_addresses` to appropriate network interfaces
     /// - [ ] Consider enabling `enable_mdns` for local network discovery
     /// - [ ] Monitor peer count and connection health
     /// - [ ] Configure firewall rules for p2p port range
-    /// 
+    ///
     /// **🔧 EXAMPLE PRODUCTION CONFIG:**
     /// ```rust
     /// NetworkConfig {
@@ -700,7 +706,7 @@ pub mod libp2p_service {
 
     impl NetworkConfig {
         /// Create a production-ready network configuration with sensible defaults.
-        /// 
+        ///
         /// This configuration is optimized for production deployments with:
         /// - Increased connection limits and timeouts
         /// - Disabled mDNS for security
@@ -722,7 +728,7 @@ pub mod libp2p_service {
         }
 
         /// Create a development-friendly network configuration.
-        /// 
+        ///
         /// This configuration enables mDNS for local peer discovery and uses
         /// more aggressive timings for faster development iteration.
         pub fn development() -> Self {
@@ -742,40 +748,40 @@ pub mod libp2p_service {
         }
 
         /// Validate the network configuration for production readiness.
-        /// 
+        ///
         /// Returns an error if the configuration has settings that are not
         /// suitable for production use.
         pub fn validate_production(&self) -> Result<(), MeshNetworkError> {
             // Check for reasonable connection limits
             if self.max_peers < 10 {
                 return Err(MeshNetworkError::SetupError(
-                    "max_peers too low for production (minimum 10)".to_string()
+                    "max_peers too low for production (minimum 10)".to_string(),
                 ));
             }
 
             if self.max_peers_per_ip > 50 {
                 return Err(MeshNetworkError::SetupError(
-                    "max_peers_per_ip too high for production (maximum 50)".to_string()
+                    "max_peers_per_ip too high for production (maximum 50)".to_string(),
                 ));
             }
 
             // Check for reasonable timeouts
             if self.connection_timeout < Duration::from_secs(5) {
                 return Err(MeshNetworkError::SetupError(
-                    "connection_timeout too low for production (minimum 5s)".to_string()
+                    "connection_timeout too low for production (minimum 5s)".to_string(),
                 ));
             }
 
             if self.request_timeout < Duration::from_secs(1) {
                 return Err(MeshNetworkError::SetupError(
-                    "request_timeout too low for production (minimum 1s)".to_string()
+                    "request_timeout too low for production (minimum 1s)".to_string(),
                 ));
             }
 
             // Check for listen addresses
             if self.listen_addresses.is_empty() {
                 return Err(MeshNetworkError::SetupError(
-                    "No listen addresses configured".to_string()
+                    "No listen addresses configured".to_string(),
                 ));
             }
 
@@ -797,12 +803,12 @@ pub mod libp2p_service {
         }
 
         /// Add a bootstrap peer from a multiaddr string.
-        /// 
+        ///
         /// The multiaddr must include a peer ID component (e.g., `/p2p/12D3...`).
         pub fn add_bootstrap_peer(&mut self, multiaddr: &str) -> Result<(), MeshNetworkError> {
-            let addr = multiaddr.parse::<Multiaddr>().map_err(|e| {
-                MeshNetworkError::InvalidInput(format!("Invalid multiaddr: {}", e))
-            })?;
+            let addr = multiaddr
+                .parse::<Multiaddr>()
+                .map_err(|e| MeshNetworkError::InvalidInput(format!("Invalid multiaddr: {}", e)))?;
 
             // Extract peer ID from multiaddr
             let peer_id = addr
@@ -816,7 +822,7 @@ pub mod libp2p_service {
                 })
                 .ok_or_else(|| {
                     MeshNetworkError::InvalidInput(
-                        "Multiaddr must contain a peer ID component (/p2p/...)".to_string()
+                        "Multiaddr must contain a peer ID component (/p2p/...)".to_string(),
                     )
                 })?;
 
@@ -825,12 +831,18 @@ pub mod libp2p_service {
         }
 
         /// Set listen addresses from string representations.
-        pub fn set_listen_addresses(&mut self, addresses: Vec<&str>) -> Result<(), MeshNetworkError> {
+        pub fn set_listen_addresses(
+            &mut self,
+            addresses: Vec<&str>,
+        ) -> Result<(), MeshNetworkError> {
             let mut parsed_addresses = Vec::new();
-            
+
             for addr_str in addresses {
                 let addr = addr_str.parse::<Multiaddr>().map_err(|e| {
-                    MeshNetworkError::InvalidInput(format!("Invalid listen address '{}': {}", addr_str, e))
+                    MeshNetworkError::InvalidInput(format!(
+                        "Invalid listen address '{}': {}",
+                        addr_str, e
+                    ))
                 })?;
                 parsed_addresses.push(addr);
             }
@@ -1617,10 +1629,14 @@ pub mod libp2p_service {
                                 }
                                 subscribers.retain_mut(|sub| sub.try_send(request.clone()).is_ok());
                                 let mut response = request.clone();
-                                if let MessagePayload::FederationDiscoverRequest(_) = &request.payload {
+                                if let MessagePayload::FederationDiscoverRequest(_) =
+                                    &request.payload
+                                {
                                     let feds = federations.lock().unwrap().clone();
                                     response.payload = MessagePayload::FederationDiscoverResponse(
-                                        icn_protocol::FederationDiscoverResponseMessage { federations: feds },
+                                        icn_protocol::FederationDiscoverResponseMessage {
+                                            federations: feds,
+                                        },
                                     );
                                 }
                                 if let Err(e) = swarm
@@ -1848,7 +1864,9 @@ pub mod libp2p_service {
             .await
         }
 
-        async fn discover_federations(&self) -> Result<Vec<icn_protocol::FederationInfo>, MeshNetworkError> {
+        async fn discover_federations(
+            &self,
+        ) -> Result<Vec<icn_protocol::FederationInfo>, MeshNetworkError> {
             let peers = self.discover_peers(None).await?;
             let mut sub = self.subscribe().await?;
             for peer in &peers {
@@ -1865,7 +1883,9 @@ pub mod libp2p_service {
             let mut results = Vec::new();
             for _ in 0..peers.len() {
                 if let Ok(Some(msg)) = timeout(Duration::from_secs(5), sub.recv()).await {
-                    if let icn_protocol::MessagePayload::FederationDiscoverResponse(resp) = msg.payload {
+                    if let icn_protocol::MessagePayload::FederationDiscoverResponse(resp) =
+                        msg.payload
+                    {
                         results.extend(resp.federations);
                     }
                 }
@@ -1909,7 +1929,8 @@ pub mod libp2p_service {
                         MeshNetworkError::Libp2p(format!("Put record response failed: {}", e))
                     })?;
                     if key_clone2.starts_with(FEDERATION_INFO_PREFIX) {
-                        if let Ok(info) = bincode::deserialize::<icn_protocol::FederationInfo>(&val) {
+                        if let Ok(info) = bincode::deserialize::<icn_protocol::FederationInfo>(&val)
+                        {
                             let mut feds = self.federations.lock().unwrap();
                             if !feds.iter().any(|i| i.federation_id == info.federation_id) {
                                 feds.push(info);

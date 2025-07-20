@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use icn_common::{CommonError, Did};
-use icn_mesh::{JobId, ProgressReport, PartialOutputReceipt, JobCheckpoint};
+use icn_mesh::{JobCheckpoint, JobId, PartialOutputReceipt, ProgressReport};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -80,11 +80,18 @@ pub trait MeshApi {
 
     /// Get streaming output chunks for a job.
     /// Returns available output chunks in order.
-    async fn get_job_stream(&self, job_id: &JobId, from_sequence: Option<u64>) -> Result<Vec<JobStreamChunk>, CommonError>;
+    async fn get_job_stream(
+        &self,
+        job_id: &JobId,
+        from_sequence: Option<u64>,
+    ) -> Result<Vec<JobStreamChunk>, CommonError>;
 
     /// Get the latest streaming chunk for a job.
     /// Useful for real-time monitoring.
-    async fn get_latest_job_chunk(&self, job_id: &JobId) -> Result<Option<JobStreamChunk>, CommonError>;
+    async fn get_latest_job_chunk(
+        &self,
+        job_id: &JobId,
+    ) -> Result<Option<JobStreamChunk>, CommonError>;
 
     /// Cancel a running job.
     /// This will attempt to stop execution and clean up resources.

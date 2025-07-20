@@ -15,16 +15,14 @@ async fn anchor_receipt_denied_by_policy() {
     let did_str = "did:icn:test:denied";
     let did = Did::from_str(did_str).unwrap();
     let signer = Arc::new(StubSigner::new());
-    
-    let ctx = RuntimeContext::new_with_ledger_path(
-        did_str,
-        PathBuf::from("./mana_ledger.sled"),
-        signer,
-    ).unwrap();
-    
+
+    let ctx =
+        RuntimeContext::new_with_ledger_path(did_str, PathBuf::from("./mana_ledger.sled"), signer)
+            .unwrap();
+
     // Set up policy enforcement manually since we can't pass it in constructor
     // Note: This test may need updating based on how policy enforcement is actually configured
-    
+
     let receipt = ExecutionReceipt {
         job_id: Cid::new_v1_sha256(0x55, b"job"),
         executor_did: did.clone(),

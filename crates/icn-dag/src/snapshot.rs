@@ -266,7 +266,7 @@ impl<S: StorageService<DagBlock>> DagSnapshots<S> {
             CompressionType::Gzip => {
                 use flate2::write::GzEncoder;
                 use flate2::Compression;
-                
+
                 let mut encoder = GzEncoder::new(writer, Compression::default());
                 encoder
                     .write_all(&serialized)
@@ -303,7 +303,7 @@ impl<S: StorageService<DagBlock>> DagSnapshots<S> {
             }
             CompressionType::Gzip => {
                 use flate2::read::GzDecoder;
-                
+
                 let mut decoder = GzDecoder::new(reader);
                 let mut data = Vec::new();
                 decoder
@@ -385,7 +385,8 @@ impl<S: StorageService<DagBlock>> DagSnapshots<S> {
         }
 
         // Verify total size
-        let calculated_size: u64 = snapshot.blocks
+        let calculated_size: u64 = snapshot
+            .blocks
             .values()
             .map(|block| block.data.len() as u64)
             .sum();
@@ -416,43 +417,55 @@ impl<S: StorageService<DagBlock>> DagSnapshots<S> {
     }
 
     #[cfg(feature = "async")]
-    async fn get_blocks_from_roots(&self, _roots: &[Cid]) -> Result<HashMap<Cid, DagBlock>, CommonError> {
+    async fn get_blocks_from_roots(
+        &self,
+        _roots: &[Cid],
+    ) -> Result<HashMap<Cid, DagBlock>, CommonError> {
         // Traverse from roots and collect all reachable blocks
         // This would need to be implemented by each store type
         Ok(HashMap::new())
     }
 
-    fn get_blocks_from_roots_sync(&self, _roots: &[Cid]) -> Result<HashMap<Cid, DagBlock>, CommonError> {
+    fn get_blocks_from_roots_sync(
+        &self,
+        _roots: &[Cid],
+    ) -> Result<HashMap<Cid, DagBlock>, CommonError> {
         // Traverse from roots and collect all reachable blocks
         // This would need to be implemented by each store type
         Ok(HashMap::new())
     }
 
     #[cfg(feature = "async")]
-    async fn get_blocks_metadata(&self, _blocks: &HashMap<Cid, DagBlock>) -> Result<HashMap<Cid, crate::BlockMetadata>, CommonError> {
+    async fn get_blocks_metadata(
+        &self,
+        _blocks: &HashMap<Cid, DagBlock>,
+    ) -> Result<HashMap<Cid, crate::BlockMetadata>, CommonError> {
         // Get metadata for all blocks
         Ok(HashMap::new())
     }
 
-    fn get_blocks_metadata_sync(&self, _blocks: &HashMap<Cid, DagBlock>) -> Result<HashMap<Cid, crate::BlockMetadata>, CommonError> {
+    fn get_blocks_metadata_sync(
+        &self,
+        _blocks: &HashMap<Cid, DagBlock>,
+    ) -> Result<HashMap<Cid, crate::BlockMetadata>, CommonError> {
         // Get metadata for all blocks
         Ok(HashMap::new())
     }
 
     fn calculate_content_hash(&self, blocks: &HashMap<Cid, DagBlock>) -> String {
         use sha2::{Digest, Sha256};
-        
+
         let mut hasher = Sha256::new();
-        
+
         // Sort blocks by CID for deterministic hash
         let mut sorted_blocks: Vec<_> = blocks.iter().collect();
         sorted_blocks.sort_by_key(|(cid, _)| cid.to_string());
-        
+
         for (cid, block) in sorted_blocks {
             hasher.update(cid.to_string().as_bytes());
             hasher.update(&block.data);
         }
-        
+
         format!("{:x}", hasher.finalize())
     }
 }
@@ -476,7 +489,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let store = SledDagStore::new(temp_dir.path()).unwrap();
         let snapshots = DagSnapshots::new(store);
-        
+
         // Just verify it can be created
         // The actual functionality would need a working store implementation
     }

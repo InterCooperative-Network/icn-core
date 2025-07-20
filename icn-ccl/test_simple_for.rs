@@ -19,7 +19,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("Testing simplest for loop...");
     match compile_ccl_source_to_wasm(source1) {
         Ok((wasm, _metadata)) => {
@@ -30,7 +30,7 @@ fn main() {
             println!("❌ Simple for loop compilation failed: {}", e);
         }
     }
-    
+
     // Test 2: For loop with variable access but no arithmetic
     let source2 = r#"
         contract TestForAccess {
@@ -47,7 +47,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("\nTesting for loop with variable access...");
     match compile_ccl_source_to_wasm(source2) {
         Ok((wasm, _metadata)) => {
@@ -58,4 +58,4 @@ fn main() {
             println!("❌ For loop with access compilation failed: {}", e);
         }
     }
-} 
+}

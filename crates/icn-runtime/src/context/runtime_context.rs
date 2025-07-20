@@ -92,7 +92,8 @@ use crate::metrics::{JOBS_ACTIVE_GAUGE, JOBS_COMPLETED, JOBS_FAILED, JOBS_SUBMIT
 use bincode;
 use dashmap::DashMap;
 use icn_common::{
-    compute_merkle_cid, Cid, CommonError, DagBlock, Did, NodeScope, SysinfoSystemInfoProvider, SystemInfoProvider,
+    compute_merkle_cid, Cid, CommonError, DagBlock, Did, NodeScope, SysinfoSystemInfoProvider,
+    SystemInfoProvider,
 };
 use icn_economics::{LedgerEvent, ManaLedger};
 use icn_governance::GovernanceModule;
@@ -2185,11 +2186,13 @@ impl RuntimeContext {
         }
 
         // 2. Verify the checkpoint signature against the executor's DID
-        let verifying_key = self.did_resolver
+        let verifying_key = self
+            .did_resolver
             .resolve_verifying_key(&checkpoint.executor_did)
             .map_err(|e| HostAbiError::DidResolutionFailed(format!("{e}")))?;
-        
-        checkpoint.verify_signature(&verifying_key)
+
+        checkpoint
+            .verify_signature(&verifying_key)
             .map_err(|e| HostAbiError::SignatureError(format!("{e}")))?;
 
         // 3. Create a DAG block for the checkpoint
@@ -2244,11 +2247,13 @@ impl RuntimeContext {
         }
 
         // 2. Verify the partial output signature against the executor's DID
-        let verifying_key = self.did_resolver
+        let verifying_key = self
+            .did_resolver
             .resolve_verifying_key(&partial_output.executor_did)
             .map_err(|e| HostAbiError::DidResolutionFailed(format!("{e}")))?;
-        
-        partial_output.verify_signature(&verifying_key)
+
+        partial_output
+            .verify_signature(&verifying_key)
             .map_err(|e| HostAbiError::SignatureError(format!("{e}")))?;
 
         // 3. Create a DAG block for the partial output
@@ -2357,8 +2362,8 @@ impl RuntimeContext {
                 ProposalType::SoftwareUpgrade(version)
             }
             "budgetallocation" | "budget_allocation" => {
-                let tup: (Did, u64, String) = serde_json::from_slice(&payload.type_specific_payload)
-                    .map_err(|e| {
+                let tup: (Did, u64, String) =
+                    serde_json::from_slice(&payload.type_specific_payload).map_err(|e| {
                         HostAbiError::InvalidParameters(format!(
                             "Failed to parse budget payload: {}",
                             e
@@ -3521,7 +3526,7 @@ impl RuntimeContext {
                 storage_mb: 0,
             },
             executor_capabilities: vec![], // TODO: Get from node config
-            executor_federations: vec![], // TODO: Get from node federation
+            executor_federations: vec![],  // TODO: Get from node federation
             executor_trust_scope: ctx
                 .parameters
                 .get("executor_trust_scope")
@@ -3567,10 +3572,8 @@ impl RuntimeContext {
         let reputation_multiplier = 1.0 + (our_reputation as f64 / 1000.0); // Up to 2x for high reputation
 
         // Derive a deterministic factor from the job ID and our reputation
-        let random_factor = Self::deterministic_factor(
-            announcement.job_id.to_string().as_bytes(),
-            our_reputation,
-        );
+        let random_factor =
+            Self::deterministic_factor(announcement.job_id.to_string().as_bytes(), our_reputation);
 
         let final_price = ((base_cost as f64) * reputation_multiplier * random_factor) as u64;
 
@@ -3688,7 +3691,7 @@ impl RuntimeContext {
                 storage_mb: 0,
             },
             executor_capabilities: vec![], // TODO: Get from node config
-            executor_federations: vec![], // TODO: Get from node federation
+            executor_federations: vec![],  // TODO: Get from node federation
             executor_trust_scope: ctx
                 .parameters
                 .get("executor_trust_scope")
@@ -3732,10 +3735,8 @@ impl RuntimeContext {
         let reputation_multiplier = 1.0 + (our_reputation as f64 / 1000.0); // Up to 2x for high reputation
 
         // Derive a deterministic factor from the job ID and our reputation
-        let random_factor = Self::deterministic_factor(
-            job_id.to_string().as_bytes(),
-            our_reputation,
-        );
+        let random_factor =
+            Self::deterministic_factor(job_id.to_string().as_bytes(), our_reputation);
 
         let final_price = ((base_cost as f64) * reputation_multiplier * random_factor) as u64;
 

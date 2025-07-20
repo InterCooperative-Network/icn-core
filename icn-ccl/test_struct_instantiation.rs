@@ -21,7 +21,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("Testing simple struct instantiation...");
     match compile_ccl_source_to_wasm(source1) {
         Ok((wasm, _metadata)) => {
@@ -30,7 +30,7 @@ fn main() {
         }
         Err(e) => {
             println!("❌ Struct instantiation failed: {}", e);
-            
+
             // Let's try even simpler - just the struct literal without assignment
             let simple_test = r#"
                 contract TestSimpleStruct {
@@ -47,11 +47,13 @@ fn main() {
                     }
                 }
             "#;
-            
+
             println!("\nTesting simplified version (no struct instantiation)...");
             match compile_ccl_source_to_wasm(simple_test) {
                 Ok((wasm, _metadata)) => {
-                    println!("✅ Simplified version works - issue is with struct instantiation syntax");
+                    println!(
+                        "✅ Simplified version works - issue is with struct instantiation syntax"
+                    );
                     println!("WASM size: {} bytes", wasm.len());
                 }
                 Err(e2) => {
@@ -60,4 +62,4 @@ fn main() {
             }
         }
     }
-} 
+}

@@ -42,7 +42,7 @@ async fn identity_verify_command() {
     })
     .await
     .unwrap();
-    
+
     // Invalid proof should cause command to fail
     assert!(!output.status.success());
     let stderr = String::from_utf8(output.stderr).unwrap();

@@ -1,11 +1,11 @@
 #[cfg(test)]
 mod scoped_token_tests {
     use crate::{
-        mint_tokens, transfer_tokens, burn_tokens, ResourceRepositoryAdapter, 
-        ManaLedger, ResourceLedger, TokenClass, TokenType, TransferabilityRule, ScopingRules
+        burn_tokens, mint_tokens, transfer_tokens, ManaLedger, ResourceLedger,
+        ResourceRepositoryAdapter, ScopingRules, TokenClass, TokenType, TransferabilityRule,
     };
-    use icn_common::{Did, NodeScope, CommonError, DagBlock};
-    use icn_dag::{TokioFileDagStore, AsyncStorageService};
+    use icn_common::{CommonError, DagBlock, Did, NodeScope};
+    use icn_dag::{AsyncStorageService, TokioFileDagStore};
     use icn_reputation::InMemoryReputationStore;
     use std::collections::HashMap;
     use std::str::FromStr;
@@ -24,7 +24,10 @@ mod scoped_token_tests {
         fn create_class(&self, class_id: &String, class: TokenClass) -> Result<(), CommonError> {
             let mut classes = self.classes.lock().unwrap();
             if classes.contains_key(class_id) {
-                return Err(CommonError::InvalidInputError(format!("Token class {} already exists", class_id)));
+                return Err(CommonError::InvalidInputError(format!(
+                    "Token class {} already exists",
+                    class_id
+                )));
             }
             classes.insert(class_id.clone(), class);
             Ok(())
@@ -39,18 +42,26 @@ mod scoped_token_tests {
             let mut classes = self.classes.lock().unwrap();
             if let Some(existing_class) = classes.get(class_id) {
                 if existing_class.issuer != class.issuer {
-                    return Err(CommonError::PolicyDenied("Only issuer can update token class".into()));
+                    return Err(CommonError::PolicyDenied(
+                        "Only issuer can update token class".into(),
+                    ));
                 }
                 classes.insert(class_id.clone(), class);
                 Ok(())
             } else {
-                Err(CommonError::InvalidInputError(format!("Token class {} not found", class_id)))
+                Err(CommonError::InvalidInputError(format!(
+                    "Token class {} not found",
+                    class_id
+                )))
             }
         }
 
         fn list_classes(&self) -> Vec<(String, TokenClass)> {
             let classes = self.classes.lock().unwrap();
-            classes.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
+            classes
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect()
         }
 
         fn get_balance(&self, class_id: &String, did: &Did) -> u64 {
@@ -75,24 +86,39 @@ mod scoped_token_tests {
             Ok(())
         }
 
-        fn transfer(&self, class_id: &String, from: &Did, to: &Did, amount: u64) -> Result<(), CommonError> {
+        fn transfer(
+            &self,
+            class_id: &String,
+            from: &Did,
+            to: &Did,
+            amount: u64,
+        ) -> Result<(), CommonError> {
             if !self.can_transfer(class_id, from, to, amount)? {
-                return Err(CommonError::PolicyDenied("Transfer not allowed by token rules".into()));
+                return Err(CommonError::PolicyDenied(
+                    "Transfer not allowed by token rules".into(),
+                ));
             }
             self.burn(class_id, from, amount)?;
             self.mint(class_id, to, amount)?;
             Ok(())
         }
 
-        fn can_transfer(&self, class_id: &String, _from: &Did, to: &Did, _amount: u64) -> Result<bool, CommonError> {
-            let token_class = self.get_class(class_id)
-                .ok_or_else(|| CommonError::InvalidInputError(format!("Token class {} not found", class_id)))?;
+        fn can_transfer(
+            &self,
+            class_id: &String,
+            _from: &Did,
+            to: &Did,
+            _amount: u64,
+        ) -> Result<bool, CommonError> {
+            let token_class = self.get_class(class_id).ok_or_else(|| {
+                CommonError::InvalidInputError(format!("Token class {} not found", class_id))
+            })?;
 
             match &token_class.transferability {
                 TransferabilityRule::FreelyTransferable => Ok(true),
-                TransferabilityRule::RestrictedTransfer { authorized_recipients } => {
-                    Ok(authorized_recipients.contains(to))
-                },
+                TransferabilityRule::RestrictedTransfer {
+                    authorized_recipients,
+                } => Ok(authorized_recipients.contains(to)),
                 TransferabilityRule::NonTransferable => Ok(false),
                 TransferabilityRule::IssuerOnly => Ok(to == &token_class.issuer),
             }
@@ -126,9 +152,9 @@ mod scoped_token_tests {
 
         fn spend(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
             let mut balances = self.balances.lock().unwrap();
-            let balance = balances.get_mut(did).ok_or_else(|| {
-                CommonError::PolicyDenied("Account not found".into())
-            })?;
+            let balance = balances
+                .get_mut(did)
+                .ok_or_else(|| CommonError::PolicyDenied("Account not found".into()))?;
             if *balance < amount {
                 return Err(CommonError::PolicyDenied("Insufficient mana".into()));
             }
@@ -175,23 +201,38 @@ mod scoped_token_tests {
         );
 
         // Create token classes
-        resource_ledger.create_class(&"fungible".to_string(), fungible_token.clone()).unwrap();
-        resource_ledger.create_class(&"time".to_string(), time_token.clone()).unwrap();
-        resource_ledger.create_class(&"credit".to_string(), mutual_credit.clone()).unwrap();
+        resource_ledger
+            .create_class(&"fungible".to_string(), fungible_token.clone())
+            .unwrap();
+        resource_ledger
+            .create_class(&"time".to_string(), time_token.clone())
+            .unwrap();
+        resource_ledger
+            .create_class(&"credit".to_string(), mutual_credit.clone())
+            .unwrap();
 
         // Verify they were created correctly
         let retrieved_fungible = resource_ledger.get_class(&"fungible".to_string()).unwrap();
         assert_eq!(retrieved_fungible.name, "Test Coin");
         assert_eq!(retrieved_fungible.token_type, TokenType::Fungible);
-        assert_eq!(retrieved_fungible.transferability, TransferabilityRule::FreelyTransferable);
+        assert_eq!(
+            retrieved_fungible.transferability,
+            TransferabilityRule::FreelyTransferable
+        );
 
         let retrieved_time = resource_ledger.get_class(&"time".to_string()).unwrap();
         assert_eq!(retrieved_time.token_type, TokenType::TimeBanking);
-        assert_eq!(retrieved_time.scoping_rules.community_scope, Some("LocalCommunity".to_string()));
+        assert_eq!(
+            retrieved_time.scoping_rules.community_scope,
+            Some("LocalCommunity".to_string())
+        );
 
         let retrieved_credit = resource_ledger.get_class(&"credit".to_string()).unwrap();
         assert_eq!(retrieved_credit.token_type, TokenType::MutualCredit);
-        assert_eq!(retrieved_credit.metadata.get("credit_limit"), Some(&"10000".to_string()));
+        assert_eq!(
+            retrieved_credit.metadata.get("credit_limit"),
+            Some(&"10000".to_string())
+        );
 
         // Test listing all classes
         let all_classes = resource_ledger.list_classes();
@@ -230,15 +271,25 @@ mod scoped_token_tests {
         );
         non_transferable.transferability = TransferabilityRule::NonTransferable;
 
-        resource_ledger.create_class(&"restricted".to_string(), restricted_token).unwrap();
-        resource_ledger.create_class(&"nontrans".to_string(), non_transferable).unwrap();
+        resource_ledger
+            .create_class(&"restricted".to_string(), restricted_token)
+            .unwrap();
+        resource_ledger
+            .create_class(&"nontrans".to_string(), non_transferable)
+            .unwrap();
 
         // Test restricted transfers
-        assert!(resource_ledger.can_transfer(&"restricted".to_string(), &alice, &bob, 100).unwrap());
-        assert!(!resource_ledger.can_transfer(&"restricted".to_string(), &alice, &charlie, 100).unwrap());
+        assert!(resource_ledger
+            .can_transfer(&"restricted".to_string(), &alice, &bob, 100)
+            .unwrap());
+        assert!(!resource_ledger
+            .can_transfer(&"restricted".to_string(), &alice, &charlie, 100)
+            .unwrap());
 
         // Test non-transferable tokens
-        assert!(!resource_ledger.can_transfer(&"nontrans".to_string(), &alice, &bob, 100).unwrap());
+        assert!(!resource_ledger
+            .can_transfer(&"nontrans".to_string(), &alice, &bob, 100)
+            .unwrap());
 
         println!("✅ Transferability rules tests passed!");
     }
@@ -249,7 +300,7 @@ mod scoped_token_tests {
         let resource_ledger = InMemoryResourceLedger::default();
         let mana_ledger = InMemoryManaLedger::default();
         let reputation_store = InMemoryReputationStore::new();
-        
+
         // Create DAG store for anchoring token events
         let dir = tempdir().unwrap();
         let dag_store = Box::new(TokioFileDagStore::new(dir.keep()).unwrap());
@@ -269,8 +320,11 @@ mod scoped_token_tests {
             0,
             issuer.clone(),
         );
-        
-        token_repo.ledger().create_class(&"coop_shares".to_string(), coop_shares).unwrap();
+
+        token_repo
+            .ledger()
+            .create_class(&"coop_shares".to_string(), coop_shares)
+            .unwrap();
 
         // Authorize issuer for this scope
         token_repo.add_issuer(scope.clone().unwrap(), issuer.clone());
@@ -298,14 +352,24 @@ mod scoped_token_tests {
             &alice,
             scope.clone(),
         );
-        assert!(mint_result.is_ok(), "Minting should succeed: {:?}", mint_result);
+        assert!(
+            mint_result.is_ok(),
+            "Minting should succeed: {:?}",
+            mint_result
+        );
 
         // Verify Alice's balance
-        let alice_balance = token_repo.ledger().get_balance(&class_id.to_string(), &alice);
+        let alice_balance = token_repo
+            .ledger()
+            .get_balance(&class_id.to_string(), &alice);
         assert_eq!(alice_balance, 50, "Alice should have 50 tokens");
 
         // Verify issuer paid mana fee
-        assert_eq!(mana_ledger.get_balance(&issuer), 999, "Issuer should have paid 1 mana");
+        assert_eq!(
+            mana_ledger.get_balance(&issuer),
+            999,
+            "Issuer should have paid 1 mana"
+        );
 
         // Test 2: Transfer tokens from Alice to Bob
         println!("=== Test 2: Transferring tokens ===");
@@ -319,16 +383,29 @@ mod scoped_token_tests {
             &bob,
             scope.clone(),
         );
-        assert!(transfer_result.is_ok(), "Transfer should succeed: {:?}", transfer_result);
+        assert!(
+            transfer_result.is_ok(),
+            "Transfer should succeed: {:?}",
+            transfer_result
+        );
 
         // Verify balances after transfer
-        let alice_balance = token_repo.ledger().get_balance(&class_id.to_string(), &alice);
+        let alice_balance = token_repo
+            .ledger()
+            .get_balance(&class_id.to_string(), &alice);
         let bob_balance = token_repo.ledger().get_balance(&class_id.to_string(), &bob);
-        assert_eq!(alice_balance, 30, "Alice should have 30 tokens after transfer");
+        assert_eq!(
+            alice_balance, 30,
+            "Alice should have 30 tokens after transfer"
+        );
         assert_eq!(bob_balance, 20, "Bob should have 20 tokens after transfer");
 
         // Verify issuer paid another mana fee
-        assert_eq!(mana_ledger.get_balance(&issuer), 998, "Issuer should have paid another 1 mana");
+        assert_eq!(
+            mana_ledger.get_balance(&issuer),
+            998,
+            "Issuer should have paid another 1 mana"
+        );
 
         // Test 3: Burn tokens from Bob
         println!("=== Test 3: Burning tokens ===");
@@ -341,14 +418,22 @@ mod scoped_token_tests {
             &bob,
             scope.clone(),
         );
-        assert!(burn_result.is_ok(), "Burning should succeed: {:?}", burn_result);
+        assert!(
+            burn_result.is_ok(),
+            "Burning should succeed: {:?}",
+            burn_result
+        );
 
         // Verify Bob's balance after burning
         let bob_balance = token_repo.ledger().get_balance(&class_id.to_string(), &bob);
         assert_eq!(bob_balance, 10, "Bob should have 10 tokens after burning");
 
         // Verify issuer paid another mana fee
-        assert_eq!(mana_ledger.get_balance(&issuer), 997, "Issuer should have paid another 1 mana");
+        assert_eq!(
+            mana_ledger.get_balance(&issuer),
+            997,
+            "Issuer should have paid another 1 mana"
+        );
 
         println!("✅ All scoped token lifecycle tests passed!");
     }
@@ -364,7 +449,7 @@ mod scoped_token_tests {
             issuer.clone(),
             Some("TestCommunity".to_string()),
         );
-        
+
         assert_eq!(time_token.token_type, TokenType::TimeBanking);
         assert_eq!(time_token.symbol, "TIME");
         assert_eq!(time_token.decimals, 2);
@@ -377,9 +462,12 @@ mod scoped_token_tests {
             issuer.clone(),
             "Ithaca, NY".to_string(),
         );
-        
+
         assert_eq!(local_currency.token_type, TokenType::LocalCurrency);
-        assert_eq!(local_currency.scoping_rules.geographic_scope, Some("Ithaca, NY".to_string()));
+        assert_eq!(
+            local_currency.scoping_rules.geographic_scope,
+            Some("Ithaca, NY".to_string())
+        );
 
         let bulk_token = TokenClass::new_bulk_purchasing(
             "Bulk Solar Panels".to_string(),
@@ -388,18 +476,27 @@ mod scoped_token_tests {
             "Solar Panels 300W".to_string(),
             10,
         );
-        
+
         assert_eq!(bulk_token.token_type, TokenType::BulkPurchasing);
-        assert_eq!(bulk_token.transferability, TransferabilityRule::NonTransferable);
-        assert_eq!(bulk_token.metadata.get("target_product"), Some(&"Solar Panels 300W".to_string()));
+        assert_eq!(
+            bulk_token.transferability,
+            TransferabilityRule::NonTransferable
+        );
+        assert_eq!(
+            bulk_token.metadata.get("target_product"),
+            Some(&"Solar Panels 300W".to_string())
+        );
 
         println!("✅ Token helper function tests passed!");
     }
 
     #[test]
     fn test_marketplace_functionality() {
-        use crate::{MarketplaceOffer, MarketplaceBid, InMemoryMarketplaceStore, MarketplaceStore, ItemType, OfferStatus, BidStatus, OfferFilter};
-        
+        use crate::{
+            BidStatus, InMemoryMarketplaceStore, ItemType, MarketplaceBid, MarketplaceOffer,
+            MarketplaceStore, OfferFilter, OfferStatus,
+        };
+
         let marketplace = InMemoryMarketplaceStore::new();
         let seller = Did::from_str("did:key:seller123").unwrap();
         let buyer = Did::from_str("did:key:buyer456").unwrap();
@@ -464,8 +561,8 @@ mod scoped_token_tests {
 
     #[test]
     fn test_marketplace_item_types() {
-        use crate::{MarketplaceOffer, ItemType};
-        
+        use crate::{ItemType, MarketplaceOffer};
+
         let seller = Did::from_str("did:key:seller123").unwrap();
 
         // Test service offer
@@ -480,7 +577,11 @@ mod scoped_token_tests {
             "time_banking".to_string(),
         );
 
-        if let ItemType::Service { service_type, duration } = &service_offer.item_type {
+        if let ItemType::Service {
+            service_type,
+            duration,
+        } = &service_offer.item_type
+        {
             assert_eq!(service_type, "software_development");
             assert_eq!(duration, &Some("per_hour".to_string()));
         } else {
@@ -499,7 +600,11 @@ mod scoped_token_tests {
             "time_banking".to_string(),
         );
 
-        if let ItemType::LaborHours { skill_type, experience_level } = &labor_offer.item_type {
+        if let ItemType::LaborHours {
+            skill_type,
+            experience_level,
+        } = &labor_offer.item_type
+        {
             assert_eq!(skill_type, "carpentry");
             assert_eq!(experience_level, "experienced");
         } else {

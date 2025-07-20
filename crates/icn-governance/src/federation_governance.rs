@@ -3,10 +3,10 @@
 //! This module extends the governance system to work with the scoped federation trust framework.
 //! It provides governance mechanisms that respect federation trust contexts and inheritance.
 
-use crate::{ProposalId};
-use icn_common::{Did, CommonError};
+use crate::ProposalId;
+use icn_common::{CommonError, Did};
 use icn_identity::{
-    TrustContext, FederationId, TrustPolicyEngine, TrustValidationResult, TrustLevel,
+    FederationId, TrustContext, TrustLevel, TrustPolicyEngine, TrustValidationResult,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -28,22 +28,22 @@ pub enum VotingResult {
 pub enum GovernanceError {
     #[error("Unauthorized: {0}")]
     Unauthorized(String),
-    
+
     #[error("Proposal not found: {0:?}")]
     ProposalNotFound(ProposalId),
-    
+
     #[error("Proposal not open: {0:?}")]
     ProposalNotOpen(ProposalId),
-    
+
     #[error("Voting deadline passed: {0:?}")]
     VotingDeadlinePassed(ProposalId),
-    
+
     #[error("Voting still open: {0:?}")]
     VotingStillOpen(ProposalId),
-    
+
     #[error("Additional validation required: {0:?}")]
     AdditionalValidationRequired(Vec<String>),
-    
+
     #[error("Common error: {0}")]
     Common(#[from] CommonError),
 }
@@ -58,7 +58,10 @@ pub enum GovernanceAction {
     /// Execute a proposal
     ExecuteProposal { proposal_id: ProposalId },
     /// Modify federation membership
-    ModifyMembership { target: Did, action: MembershipAction },
+    ModifyMembership {
+        target: Did,
+        action: MembershipAction,
+    },
     /// Update trust relationships
     UpdateTrust { target: Did, new_level: TrustLevel },
     /// Bridge federations
@@ -213,16 +216,21 @@ impl FederationGovernanceEngine {
                 return Err(GovernanceError::Unauthorized(reason));
             }
             GovernanceValidationResult::RequiresValidation { additional_checks } => {
-                return Err(GovernanceError::AdditionalValidationRequired(additional_checks));
+                return Err(GovernanceError::AdditionalValidationRequired(
+                    additional_checks,
+                ));
             }
         }
 
         // Create proposal
-        let proposal_id = ProposalId(format!("prop_{}_{}", federation.as_str(), 
+        let proposal_id = ProposalId(format!(
+            "prop_{}_{}",
+            federation.as_str(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
-                .as_secs()));
+                .as_secs()
+        ));
         let proposal = FederationProposal {
             id: proposal_id.clone(),
             proposer: proposer.clone(),
@@ -249,7 +257,9 @@ impl FederationGovernanceEngine {
         proposal_id: &ProposalId,
         vote: bool,
     ) -> Result<(), GovernanceError> {
-        let proposal = self.proposals.get(proposal_id)
+        let proposal = self
+            .proposals
+            .get(proposal_id)
             .ok_or_else(|| GovernanceError::ProposalNotFound(proposal_id.clone()))?;
 
         if proposal.status != ProposalStatus::Open {
@@ -259,7 +269,9 @@ impl FederationGovernanceEngine {
         if std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
-            .as_secs() > proposal.voting_deadline {
+            .as_secs()
+            > proposal.voting_deadline
+        {
             return Err(GovernanceError::VotingDeadlinePassed(proposal_id.clone()));
         }
 
@@ -272,16 +284,21 @@ impl FederationGovernanceEngine {
         );
 
         match validation_result {
-            TrustValidationResult::Allowed { .. } => {},
+            TrustValidationResult::Allowed { .. } => {}
             TrustValidationResult::Denied { reason } => {
-                return Err(GovernanceError::Unauthorized(format!("Vote denied: {}", reason)));
+                return Err(GovernanceError::Unauthorized(format!(
+                    "Vote denied: {}",
+                    reason
+                )));
             }
         }
 
         // Check if voter is federation member (if required)
         if let Some(policy) = self.get_voting_policy(&proposal.trust_context) {
             if policy.require_federation_membership
-                && !self.trust_engine.is_federation_member(voter, &proposal.federation)
+                && !self
+                    .trust_engine
+                    .is_federation_member(voter, &proposal.federation)
             {
                 return Err(GovernanceError::Unauthorized(
                     "Federation membership required for voting".to_string(),
@@ -297,10 +314,15 @@ impl FederationGovernanceEngine {
     }
 
     /// Finalize a proposal and determine the result
-    pub fn finalize_proposal(&mut self, proposal_id: &ProposalId) -> Result<VotingResult, GovernanceError> {
+    pub fn finalize_proposal(
+        &mut self,
+        proposal_id: &ProposalId,
+    ) -> Result<VotingResult, GovernanceError> {
         // First, extract needed data while we have the mutable borrow
         let (total_votes, yes_votes, trust_context, federation, _voting_deadline, _status) = {
-            let proposal = self.proposals.get_mut(proposal_id)
+            let proposal = self
+                .proposals
+                .get_mut(proposal_id)
                 .ok_or_else(|| GovernanceError::ProposalNotFound(proposal_id.clone()))?;
 
             if proposal.status != ProposalStatus::Open {
@@ -311,15 +333,24 @@ impl FederationGovernanceEngine {
             if std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
-                .as_secs() <= proposal.voting_deadline {
+                .as_secs()
+                <= proposal.voting_deadline
+            {
                 return Err(GovernanceError::VotingStillOpen(proposal_id.clone()));
             }
 
             // Calculate results
             let total_votes = proposal.votes.len();
             let yes_votes = proposal.votes.values().filter(|&&v| v).count();
-            
-            (total_votes, yes_votes, proposal.trust_context.clone(), proposal.federation.clone(), proposal.voting_deadline, proposal.status.clone())
+
+            (
+                total_votes,
+                yes_votes,
+                proposal.trust_context.clone(),
+                proposal.federation.clone(),
+                proposal.voting_deadline,
+                proposal.status.clone(),
+            )
         }; // Mutable borrow ends here
 
         let no_votes = total_votes - yes_votes;
@@ -342,8 +373,11 @@ impl FederationGovernanceEngine {
             if let Some(proposal) = self.proposals.get_mut(proposal_id) {
                 proposal.status = ProposalStatus::Failed;
             }
-            return Ok(VotingResult::Failed(format!("Quorum not met: {}/{} votes required", 
-                (federation_size as f64 * required_quorum) as usize, federation_size)));
+            return Ok(VotingResult::Failed(format!(
+                "Quorum not met: {}/{} votes required",
+                (federation_size as f64 * required_quorum) as usize,
+                federation_size
+            )));
         }
 
         // Check threshold
@@ -360,8 +394,11 @@ impl FederationGovernanceEngine {
                 total_eligible: federation_size,
             }
         } else {
-            VotingResult::Failed(format!("Threshold not met: {:.2}% yes votes, {:.2}% required", 
-                yes_ratio * 100.0, required_threshold * 100.0))
+            VotingResult::Failed(format!(
+                "Threshold not met: {:.2}% yes votes, {:.2}% required",
+                yes_ratio * 100.0,
+                required_threshold * 100.0
+            ))
         };
 
         // Update proposal status based on result
@@ -382,7 +419,7 @@ impl FederationGovernanceEngine {
         action: &GovernanceAction,
     ) -> GovernanceValidationResult {
         let action_key = self.action_key(action);
-        
+
         if let Some(policy) = self.policies.get(&action_key) {
             // Check federation membership if required
             if policy.require_federation_membership {
@@ -405,7 +442,7 @@ impl FederationGovernanceEngine {
                             &proposal.trust_context,
                             "vote",
                         );
-                        
+
                         match validation {
                             TrustValidationResult::Allowed { .. } => {
                                 GovernanceValidationResult::Allowed
@@ -488,9 +525,10 @@ impl FederationGovernanceEngine {
         managed_contexts: HashSet<TrustContext>,
     ) -> Result<(), FederationGovernanceError> {
         if self.trust_committees.contains_key(&committee_id) {
-            return Err(FederationGovernanceError::PolicyValidationFailed(
-                format!("Committee {} already exists", committee_id)
-            ));
+            return Err(FederationGovernanceError::PolicyValidationFailed(format!(
+                "Committee {} already exists",
+                committee_id
+            )));
         }
 
         let chair_member = TrustCommitteeMember {
@@ -508,7 +546,9 @@ impl FederationGovernanceEngine {
         let committee = TrustCommittee {
             id: committee_id.clone(),
             federation,
-            members: [(chair_member.did.clone(), chair_member)].into_iter().collect(),
+            members: [(chair_member.did.clone(), chair_member)]
+                .into_iter()
+                .collect(),
             managed_contexts,
             policies: HashMap::new(),
             created_at: std::time::SystemTime::now()
@@ -528,12 +568,13 @@ impl FederationGovernanceEngine {
         committee_id: &str,
         member: TrustCommitteeMember,
     ) -> Result<(), FederationGovernanceError> {
-        let committee = self.trust_committees.get_mut(committee_id)
-            .ok_or_else(|| FederationGovernanceError::CommitteeNotFound(committee_id.to_string()))?;
+        let committee = self.trust_committees.get_mut(committee_id).ok_or_else(|| {
+            FederationGovernanceError::CommitteeNotFound(committee_id.to_string())
+        })?;
 
         if committee.status != CommitteeStatus::Active {
             return Err(FederationGovernanceError::PolicyValidationFailed(
-                "Cannot add members to inactive committee".to_string()
+                "Cannot add members to inactive committee".to_string(),
             ));
         }
 
@@ -547,18 +588,21 @@ impl FederationGovernanceEngine {
         committee_id: &str,
         member_did: &Did,
     ) -> Result<(), FederationGovernanceError> {
-        let committee = self.trust_committees.get_mut(committee_id)
-            .ok_or_else(|| FederationGovernanceError::CommitteeNotFound(committee_id.to_string()))?;
+        let committee = self.trust_committees.get_mut(committee_id).ok_or_else(|| {
+            FederationGovernanceError::CommitteeNotFound(committee_id.to_string())
+        })?;
 
         // Cannot remove the last chair
         if let Some(member) = committee.members.get(member_did) {
             if member.role == TrustCommitteeRole::Chair {
-                let chair_count = committee.members.values()
+                let chair_count = committee
+                    .members
+                    .values()
                     .filter(|m| m.role == TrustCommitteeRole::Chair)
                     .count();
                 if chair_count <= 1 {
                     return Err(FederationGovernanceError::PolicyValidationFailed(
-                        "Cannot remove the last committee chair".to_string()
+                        "Cannot remove the last committee chair".to_string(),
                     ));
                 }
             }
@@ -569,11 +613,7 @@ impl FederationGovernanceEngine {
     }
 
     /// Set trust threshold policy
-    pub fn set_threshold_policy(
-        &mut self,
-        activity: String,
-        policy: TrustThresholdPolicy,
-    ) {
+    pub fn set_threshold_policy(&mut self, activity: String, policy: TrustThresholdPolicy) {
         self.threshold_policies.insert(activity, policy);
     }
 
@@ -588,19 +628,19 @@ impl FederationGovernanceEngine {
             // Check minimum trust level
             if let Some(_fed_id) = &self.federation_id {
                 let validation = self.trust_engine.validate_trust(
-                    actor,
-                    actor, // Self-validation for activity permission
-                    context,
-                    activity,
+                    actor, actor, // Self-validation for activity permission
+                    context, activity,
                 );
 
                 match validation {
-                    TrustValidationResult::Allowed { effective_trust, .. } => {
+                    TrustValidationResult::Allowed {
+                        effective_trust, ..
+                    } => {
                         if !self.meets_minimum_trust(&effective_trust, &policy.min_trust_level) {
-                            return Err(FederationGovernanceError::TrustThresholdNotMet(
-                                format!("Trust level {:?} does not meet minimum {:?} for activity '{}'", 
-                                    effective_trust, policy.min_trust_level, activity)
-                            ));
+                            return Err(FederationGovernanceError::TrustThresholdNotMet(format!(
+                                "Trust level {:?} does not meet minimum {:?} for activity '{}'",
+                                effective_trust, policy.min_trust_level, activity
+                            )));
                         }
                     }
                     TrustValidationResult::Denied { reason } => {
@@ -624,20 +664,24 @@ impl FederationGovernanceEngine {
         evidence: Vec<String>,
         reported_by: Did,
     ) -> Result<String, FederationGovernanceError> {
-        let violation_id = format!("violation_{}_{}", 
+        let violation_id = format!(
+            "violation_{}_{}",
             violator.to_string().chars().take(8).collect::<String>(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
-                .as_secs());
+                .as_secs()
+        );
 
         let violation = TrustViolation {
             id: violation_id.clone(),
             violator,
             violation_type,
-            federation: self.federation_id.clone()
-                .ok_or_else(|| FederationGovernanceError::ViolationProcessingFailed(
-                    "No federation context".to_string()))?,
+            federation: self.federation_id.clone().ok_or_else(|| {
+                FederationGovernanceError::ViolationProcessingFailed(
+                    "No federation context".to_string(),
+                )
+            })?,
             context,
             description,
             evidence,
@@ -666,20 +710,27 @@ impl FederationGovernanceEngine {
     ) -> Result<(), FederationGovernanceError> {
         // First get the context while we have access
         let context = {
-            let violation = self.violations.get(violation_id)
-                .ok_or_else(|| FederationGovernanceError::ViolationProcessingFailed(
-                    format!("Violation {} not found", violation_id)))?;
+            let violation = self.violations.get(violation_id).ok_or_else(|| {
+                FederationGovernanceError::ViolationProcessingFailed(format!(
+                    "Violation {} not found",
+                    violation_id
+                ))
+            })?;
             violation.context.clone()
         };
 
         // Verify member is on the appropriate committee
-        let committee = self.get_committee_for_context(&context)
-            .ok_or_else(|| FederationGovernanceError::CommitteeNotFound(
-                format!("No committee found for context {:?}", context)))?;
+        let committee = self.get_committee_for_context(&context).ok_or_else(|| {
+            FederationGovernanceError::CommitteeNotFound(format!(
+                "No committee found for context {:?}",
+                context
+            ))
+        })?;
 
         if !committee.members.contains_key(committee_member) {
             return Err(FederationGovernanceError::Unauthorized(
-                "Not a committee member".to_string()));
+                "Not a committee member".to_string(),
+            ));
         }
 
         let decision = CommitteeDecision {
@@ -694,10 +745,13 @@ impl FederationGovernanceEngine {
         };
 
         // Now update the violation with the decision
-        let violation = self.violations.get_mut(violation_id)
-            .ok_or_else(|| FederationGovernanceError::ViolationProcessingFailed(
-                format!("Violation {} not found", violation_id)))?;
-        
+        let violation = self.violations.get_mut(violation_id).ok_or_else(|| {
+            FederationGovernanceError::ViolationProcessingFailed(format!(
+                "Violation {} not found",
+                violation_id
+            ))
+        })?;
+
         violation.committee_decisions.push(decision);
         violation.status = ViolationStatus::UnderReview;
 
@@ -705,54 +759,68 @@ impl FederationGovernanceEngine {
     }
 
     /// Apply sanctions based on committee decision
-    pub fn apply_sanctions(
-        &mut self,
-        violation_id: &str,
-    ) -> Result<(), FederationGovernanceError> {
+    pub fn apply_sanctions(&mut self, violation_id: &str) -> Result<(), FederationGovernanceError> {
         // Extract needed data first
         let (context, violator, committee_decisions, total_votes, confirm_votes) = {
-            let violation = self.violations.get(violation_id)
-                .ok_or_else(|| FederationGovernanceError::ViolationProcessingFailed(
-                    format!("Violation {} not found", violation_id)))?;
+            let violation = self.violations.get(violation_id).ok_or_else(|| {
+                FederationGovernanceError::ViolationProcessingFailed(format!(
+                    "Violation {} not found",
+                    violation_id
+                ))
+            })?;
 
             if violation.status != ViolationStatus::UnderReview {
                 return Err(FederationGovernanceError::ViolationProcessingFailed(
-                    "Violation not ready for sanction application".to_string()));
+                    "Violation not ready for sanction application".to_string(),
+                ));
             }
 
             // Calculate committee consensus
             let total_votes = violation.committee_decisions.len();
-            let confirm_votes = violation.committee_decisions.iter()
+            let confirm_votes = violation
+                .committee_decisions
+                .iter()
                 .filter(|d| matches!(d.vote, DecisionVote::Confirm))
                 .count();
 
-            (violation.context.clone(), violation.violator.clone(), violation.committee_decisions.clone(), total_votes, confirm_votes)
+            (
+                violation.context.clone(),
+                violation.violator.clone(),
+                violation.committee_decisions.clone(),
+                total_votes,
+                confirm_votes,
+            )
         };
 
-        let _committee = self.get_committee_for_context(&context)
-            .ok_or_else(|| FederationGovernanceError::CommitteeNotFound(
-                format!("No committee found for context {:?}", context)))?;
+        let _committee = self.get_committee_for_context(&context).ok_or_else(|| {
+            FederationGovernanceError::CommitteeNotFound(format!(
+                "No committee found for context {:?}",
+                context
+            ))
+        })?;
 
         // Check if threshold is met (majority vote)
         let threshold = 0.5; // Could be configurable
-        let (new_status, all_sanctions) = if (confirm_votes as f64) / (total_votes as f64) >= threshold {
-            // Apply recommended sanctions
-            let mut all_sanctions = Vec::new();
-            for decision in &committee_decisions {
-                if matches!(decision.vote, DecisionVote::Confirm) {
-                    all_sanctions.extend(decision.recommended_sanctions.clone());
+        let (new_status, all_sanctions) =
+            if (confirm_votes as f64) / (total_votes as f64) >= threshold {
+                // Apply recommended sanctions
+                let mut all_sanctions = Vec::new();
+                for decision in &committee_decisions {
+                    if matches!(decision.vote, DecisionVote::Confirm) {
+                        all_sanctions.extend(decision.recommended_sanctions.clone());
+                    }
                 }
-            }
 
-            // Add sanctions to active sanctions for the violator
-            self.active_sanctions.entry(violator.clone())
-                .or_default()
-                .extend(all_sanctions.clone());
+                // Add sanctions to active sanctions for the violator
+                self.active_sanctions
+                    .entry(violator.clone())
+                    .or_default()
+                    .extend(all_sanctions.clone());
 
-            (ViolationStatus::Confirmed, all_sanctions)
-        } else {
-            (ViolationStatus::Dismissed, Vec::new())
-        };
+                (ViolationStatus::Confirmed, all_sanctions)
+            } else {
+                (ViolationStatus::Dismissed, Vec::new())
+            };
 
         // Update the violation with the results
         if let Some(violation) = self.violations.get_mut(violation_id) {
@@ -781,19 +849,28 @@ impl FederationGovernanceEngine {
         federation: &FederationId,
         attestations: Vec<(&Did, TrustLevel, TrustContext)>,
     ) -> Result<MembershipApplicationResult, FederationGovernanceError> {
-        let gate = self.membership_gates.get(federation)
-            .ok_or_else(|| FederationGovernanceError::MembershipGateValidationFailed(
-                format!("No membership gate for federation {}", federation.as_str())))?;
+        let gate = self.membership_gates.get(federation).ok_or_else(|| {
+            FederationGovernanceError::MembershipGateValidationFailed(format!(
+                "No membership gate for federation {}",
+                federation.as_str()
+            ))
+        })?;
 
         // Check minimum attestations
         if attestations.len() < gate.min_attestations {
             return Ok(MembershipApplicationResult::Rejected {
-                reason: format!("Need {} attestations, got {}", 
-                    gate.min_attestations, attestations.len()),
-                can_reapply_after: Some(std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap_or_default()
-                    .as_secs() + 2592000), // 30 days
+                reason: format!(
+                    "Need {} attestations, got {}",
+                    gate.min_attestations,
+                    attestations.len()
+                ),
+                can_reapply_after: Some(
+                    std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_secs()
+                        + 2592000,
+                ), // 30 days
             });
         }
 
@@ -810,10 +887,13 @@ impl FederationGovernanceEngine {
         if valid_contexts.len() < gate.required_contexts.len() {
             return Ok(MembershipApplicationResult::Rejected {
                 reason: "Insufficient trust attestations for required contexts".to_string(),
-                can_reapply_after: Some(std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap_or_default()
-                    .as_secs() + 2592000), // 30 days
+                can_reapply_after: Some(
+                    std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_secs()
+                        + 2592000,
+                ), // 30 days
             });
         }
 
@@ -822,21 +902,25 @@ impl FederationGovernanceEngine {
             // For now, automatically approve if basic requirements are met
             // In practice, this would trigger committee review process
             return Ok(MembershipApplicationResult::Approved {
-                probationary_until: gate.probationary_period.map(|period| 
+                probationary_until: gate.probationary_period.map(|period| {
                     std::time::SystemTime::now()
                         .duration_since(std::time::UNIX_EPOCH)
                         .unwrap_or_default()
-                        .as_secs() + period),
+                        .as_secs()
+                        + period
+                }),
                 granted_contexts: valid_contexts,
             });
         }
 
         Ok(MembershipApplicationResult::Approved {
-            probationary_until: gate.probationary_period.map(|period| 
+            probationary_until: gate.probationary_period.map(|period| {
                 std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
                     .unwrap_or_default()
-                    .as_secs() + period),
+                    .as_secs()
+                    + period
+            }),
             granted_contexts: valid_contexts,
         })
     }
@@ -857,24 +941,29 @@ impl FederationGovernanceEngine {
 
     /// Get committee responsible for a trust context
     fn get_committee_for_context(&self, context: &TrustContext) -> Option<&TrustCommittee> {
-        self.trust_committees.values()
+        self.trust_committees
+            .values()
             .find(|c| c.managed_contexts.contains(context) && c.status == CommitteeStatus::Active)
     }
 
     /// Get committee for a federation
     fn get_committee_for_federation(&self, federation: &FederationId) -> Option<&TrustCommittee> {
-        self.trust_committees.values()
+        self.trust_committees
+            .values()
             .find(|c| c.federation == *federation && c.status == CommitteeStatus::Active)
     }
 
     /// Check if member has active sanctions
     pub fn has_active_sanctions(&self, member: &Did) -> bool {
-        self.active_sanctions.get(member).map_or(false, |sanctions| !sanctions.is_empty())
+        self.active_sanctions
+            .get(member)
+            .map_or(false, |sanctions| !sanctions.is_empty())
     }
 
     /// Get violations for a member
     pub fn get_violations_for_member(&self, member: &Did) -> Vec<&TrustViolation> {
-        self.violations.values()
+        self.violations
+            .values()
             .filter(|v| v.violator == *member)
             .collect()
     }
@@ -970,34 +1059,31 @@ pub enum CommitteeStatus {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum TrustSanction {
     /// Warning issued to member
-    Warning { 
-        reason: String, 
-        issued_at: u64, 
-        expires_at: Option<u64> 
+    Warning {
+        reason: String,
+        issued_at: u64,
+        expires_at: Option<u64>,
     },
     /// Temporary trust level reduction
-    TrustReduction { 
-        original_level: TrustLevel, 
-        reduced_level: TrustLevel, 
+    TrustReduction {
+        original_level: TrustLevel,
+        reduced_level: TrustLevel,
         duration_seconds: u64,
         reason: String,
     },
     /// Temporary suspension from certain contexts
-    ContextSuspension { 
-        suspended_contexts: HashSet<TrustContext>, 
+    ContextSuspension {
+        suspended_contexts: HashSet<TrustContext>,
         duration_seconds: u64,
         reason: String,
     },
     /// Full federation suspension
-    FederationSuspension { 
+    FederationSuspension {
         duration_seconds: u64,
-        reason: String, 
+        reason: String,
     },
     /// Permanent expulsion from federation
-    Expulsion { 
-        reason: String, 
-        decided_at: u64 
-    },
+    Expulsion { reason: String, decided_at: u64 },
 }
 
 /// Trust violation record
@@ -1139,25 +1225,25 @@ pub enum MembershipApplicationResult {
 pub enum FederationGovernanceError {
     #[error("Trust validation failed: {0}")]
     TrustValidationFailed(String),
-    
+
     #[error("Federation membership required")]
     FederationMembershipRequired,
-    
+
     #[error("Proposal not found: {0:?}")]
     ProposalNotFound(ProposalId),
-    
+
     #[error("Proposal not open for voting: {0:?}")]
     ProposalNotOpen(ProposalId),
-    
+
     #[error("Voting deadline passed: {0:?}")]
     VotingDeadlinePassed(ProposalId),
-    
+
     #[error("Voting still open: {0:?}")]
     VotingStillOpen(ProposalId),
-    
+
     #[error("Policy validation failed: {0}")]
     PolicyValidationFailed(String),
-    
+
     #[error("Unauthorized action: {0}")]
     Unauthorized(String),
 
@@ -1180,12 +1266,12 @@ pub enum FederationGovernanceError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use icn_identity::{TrustPolicyRule, TrustLevel};
+    use icn_identity::{TrustLevel, TrustPolicyRule};
     use std::str::FromStr;
 
     fn setup_test_governance() -> FederationGovernanceEngine {
         let mut trust_engine = TrustPolicyEngine::new();
-        
+
         // Add governance rule
         let rule = TrustPolicyRule {
             name: "governance_basic".to_string(),
@@ -1222,12 +1308,12 @@ mod tests {
     #[test]
     fn test_governance_action_key_generation() {
         let engine = setup_test_governance();
-        
+
         let action = GovernanceAction::SubmitProposal {
             proposal_id: ProposalId("test".to_string()),
         };
         assert_eq!(engine.action_key(&action), "submit_proposal");
-        
+
         let vote_action = GovernanceAction::Vote {
             proposal_id: ProposalId("test".to_string()),
             vote: true,
@@ -1238,7 +1324,7 @@ mod tests {
     #[test]
     fn test_proposal_status_lifecycle() {
         let engine = setup_test_governance();
-        
+
         let proposal = FederationProposal {
             id: ProposalId("test_proposal".to_string()),
             proposer: Did::new("key", "alice"),
@@ -1250,7 +1336,7 @@ mod tests {
             created_at: chrono::Utc::now().timestamp() as u64,
             voting_deadline: (chrono::Utc::now().timestamp() + 3600) as u64,
         };
-        
+
         assert_eq!(proposal.status, ProposalStatus::Open);
     }
 
@@ -1268,7 +1354,7 @@ mod tests {
             quorum_requirement: 0.5,
             allow_cross_federation: false,
         };
-        
+
         assert_eq!(policy.min_trust_level, TrustLevel::Partial);
         assert_eq!(policy.voting_threshold, 0.67);
         assert!(policy.require_federation_membership);

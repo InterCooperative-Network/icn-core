@@ -223,7 +223,7 @@ impl MeshJobBid {
         bytes.extend_from_slice(&self.resources.cpu_cores.to_le_bytes());
         bytes.extend_from_slice(&self.resources.memory_mb.to_le_bytes());
         bytes.extend_from_slice(&self.resources.storage_mb.to_le_bytes());
-        
+
         // Include federation metadata in signature
         for capability in &self.executor_capabilities {
             bytes.extend_from_slice(capability.as_bytes());
@@ -234,7 +234,7 @@ impl MeshJobBid {
         if let Some(trust_scope) = &self.executor_trust_scope {
             bytes.extend_from_slice(trust_scope.as_bytes());
         }
-        
+
         Ok(bytes)
     }
 
@@ -320,7 +320,7 @@ impl LatencyStore for NoOpLatencyStore {
 }
 
 /// Provides dynamic capability checking for executors beyond static bid capabilities.
-/// 
+///
 /// This allows for runtime verification of executor capabilities, such as:
 /// - Real-time resource availability
 /// - Dynamic feature flags
@@ -328,12 +328,12 @@ impl LatencyStore for NoOpLatencyStore {
 /// - Hardware-specific capabilities that may change
 pub trait DynamicCapabilityChecker: Send + Sync {
     /// Check if an executor currently has the specified capability.
-    /// 
+    ///
     /// # Arguments
     /// * `executor_did` - The DID of the executor to check
     /// * `capability` - The capability name to verify
     /// * `context` - Optional context data for capability checking
-    /// 
+    ///
     /// # Returns
     /// * `Some(true)` if the executor has the capability
     /// * `Some(false)` if the executor definitively lacks the capability  
@@ -346,7 +346,7 @@ pub trait DynamicCapabilityChecker: Send + Sync {
     ) -> Option<bool>;
 
     /// Get current resource availability for an executor.
-    /// 
+    ///
     /// Returns `None` if real-time resource information is not available.
     fn get_current_resources(&self, executor_did: &Did) -> Option<Resources>;
 
@@ -403,7 +403,15 @@ impl ReputationExecutorSelector {
                 (bid, balance)
             })
             .max_by_key(|(bid, balance)| {
-                score_bid(bid, job_spec, policy, reputation_store, *balance, None, capability_checker)
+                score_bid(
+                    bid,
+                    job_spec,
+                    policy,
+                    reputation_store,
+                    *balance,
+                    None,
+                    capability_checker,
+                )
             })
             .map(|(bid, _)| bid.executor_did.clone())
     }
@@ -452,7 +460,7 @@ pub fn select_executor(
             if mana_ledger.get_balance(&bid.executor_did) < bid.price_mana {
                 return false;
             }
-            
+
             // Dynamic availability check
             if !capability_checker.is_executor_available(&bid.executor_did) {
                 log::debug!(
@@ -462,20 +470,20 @@ pub fn select_executor(
                 );
                 return false;
             }
-            
+
             true
         })
         .map(|bid| {
             let balance = mana_ledger.get_balance(&bid.executor_did);
             let latency = latency_store.get_latency(&bid.executor_did);
             let score = score_bid(
-                bid, 
-                job_spec, 
-                policy, 
-                reputation_store, 
-                balance, 
+                bid,
+                job_spec,
+                policy,
+                reputation_store,
+                balance,
                 latency,
-                capability_checker
+                capability_checker,
             );
             (bid, score)
         })
@@ -516,7 +524,9 @@ pub fn score_bid(
     // Federation and capability filtering
     // If job specifies allowed federations, executor must be in one of them
     if !job_spec.allowed_federations.is_empty() {
-        let has_allowed_federation = bid.executor_federations.iter()
+        let has_allowed_federation = bid
+            .executor_federations
+            .iter()
             .any(|fed| job_spec.allowed_federations.contains(fed));
         if !has_allowed_federation {
             return 0; // Executor not in allowed federation
@@ -525,7 +535,9 @@ pub fn score_bid(
 
     // Check required capabilities
     if !job_spec.required_capabilities.is_empty() {
-        let has_all_capabilities = job_spec.required_capabilities.iter()
+        let has_all_capabilities = job_spec
+            .required_capabilities
+            .iter()
             .all(|req_cap| bid.executor_capabilities.contains(req_cap));
         if !has_all_capabilities {
             return 0; // Executor missing required capabilities
@@ -597,17 +609,22 @@ pub fn score_bid(
         .unwrap_or_else(|| bid.resources.clone());
 
     let req = &job_spec.required_resources;
-    let resource_match =
-        if effective_resources.cpu_cores >= req.cpu_cores && effective_resources.memory_mb >= req.memory_mb {
-            let cpu_ratio = effective_resources.cpu_cores as f64 / req.cpu_cores.max(1) as f64;
-            let mem_ratio = effective_resources.memory_mb as f64 / req.memory_mb.max(1) as f64;
-            // Bonus for having significantly more resources than required
-            let bonus = if cpu_ratio > 2.0 || mem_ratio > 2.0 { 0.1 } else { 0.0 };
-            (cpu_ratio + mem_ratio) / 2.0 + bonus
+    let resource_match = if effective_resources.cpu_cores >= req.cpu_cores
+        && effective_resources.memory_mb >= req.memory_mb
+    {
+        let cpu_ratio = effective_resources.cpu_cores as f64 / req.cpu_cores.max(1) as f64;
+        let mem_ratio = effective_resources.memory_mb as f64 / req.memory_mb.max(1) as f64;
+        // Bonus for having significantly more resources than required
+        let bonus = if cpu_ratio > 2.0 || mem_ratio > 2.0 {
+            0.1
         } else {
-            // Insufficient resources yields zero score
             0.0
         };
+        (cpu_ratio + mem_ratio) / 2.0 + bonus
+    } else {
+        // Insufficient resources yields zero score
+        0.0
+    };
 
     let resource_score = policy.weight_resources * resource_match;
 
@@ -1290,11 +1307,17 @@ mod tests {
         }
 
         fn set_resources(&self, executor_did: &Did, resources: Resources) {
-            self.resources.lock().unwrap().insert(executor_did.clone(), resources);
+            self.resources
+                .lock()
+                .unwrap()
+                .insert(executor_did.clone(), resources);
         }
 
         fn set_availability(&self, executor_did: &Did, available: bool) {
-            self.availability.lock().unwrap().insert(executor_did.clone(), available);
+            self.availability
+                .lock()
+                .unwrap()
+                .insert(executor_did.clone(), available);
         }
     }
 
@@ -1613,7 +1636,7 @@ mod tests {
         };
 
         let policy = SelectionPolicy {
-            weight_price: 100.0,  // Much higher weight to truly override reputation
+            weight_price: 100.0, // Much higher weight to truly override reputation
             weight_reputation: 1.0,
             weight_resources: 1.0,
             weight_latency: 1.0,
@@ -1979,9 +2002,11 @@ mod tests {
     fn test_federation_filtering_in_executor_selection() {
         let job_id = dummy_job_id("federation_test");
         let (sk_fed_a, vk_fed_a) = icn_identity::generate_ed25519_keypair();
-        let executor_a = Did::from_str(&icn_identity::did_key_from_verifying_key(&vk_fed_a)).unwrap();
+        let executor_a =
+            Did::from_str(&icn_identity::did_key_from_verifying_key(&vk_fed_a)).unwrap();
         let (sk_fed_b, vk_fed_b) = icn_identity::generate_ed25519_keypair();
-        let executor_b = Did::from_str(&icn_identity::did_key_from_verifying_key(&vk_fed_b)).unwrap();
+        let executor_b =
+            Did::from_str(&icn_identity::did_key_from_verifying_key(&vk_fed_b)).unwrap();
 
         let rep_store = icn_reputation::InMemoryReputationStore::new();
         rep_store.set_score(executor_a.clone(), 5);

@@ -17,7 +17,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("Testing simple variable assignment...");
     match compile_ccl_source_to_wasm(source1) {
         Ok((wasm, _metadata)) => {
@@ -28,7 +28,7 @@ fn main() {
             println!("❌ Simple assignment failed: {}", e);
         }
     }
-    
+
     // Test 2: Array indexing in assignment (simplified)
     let source2 = r#"
         contract TestArrayAssign {
@@ -42,7 +42,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("\nTesting array assignment...");
     match compile_ccl_source_to_wasm(source2) {
         Ok((wasm, _metadata)) => {
@@ -53,7 +53,7 @@ fn main() {
             println!("❌ Array assignment failed: {}", e);
         }
     }
-    
+
     // Test 3: Array assignment with expression
     let source3 = r#"
         contract TestArrayExprAssign {
@@ -68,7 +68,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("\nTesting array assignment with expression...");
     match compile_ccl_source_to_wasm(source3) {
         Ok((wasm, _metadata)) => {
@@ -79,4 +79,4 @@ fn main() {
             println!("❌ Array expression assignment failed: {}", e);
         }
     }
-} 
+}

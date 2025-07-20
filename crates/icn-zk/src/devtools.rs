@@ -1,5 +1,7 @@
 use super::Fr;
-use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystem, ConstraintSystemRef, SynthesisError};
+use ark_relations::r1cs::{
+    ConstraintSynthesizer, ConstraintSystem, ConstraintSystemRef, SynthesisError,
+};
 
 /// Count the number of constraints for the provided circuit.
 pub fn count_constraints<C: ConstraintSynthesizer<Fr>>(

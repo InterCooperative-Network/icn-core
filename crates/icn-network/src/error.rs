@@ -1,7 +1,7 @@
 // crates/icn-network/src/error.rs
 
-use thiserror::Error;
 use bincode::Error as BincodeError;
+use thiserror::Error;
 
 /// Errors that can occur during mesh network operations within the `icn-network` crate.
 #[derive(Debug, Error)]

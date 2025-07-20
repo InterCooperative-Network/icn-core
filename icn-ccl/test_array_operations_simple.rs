@@ -7,9 +7,9 @@ fn main() {
     println!();
     println!("🔍 Testing core array functionality that's production-ready...");
     println!();
-    
+
     let test_path = PathBuf::from("test_array_operations_simple.ccl");
-    
+
     match compile_ccl_file_to_wasm(&test_path) {
         Ok((wasm, metadata)) => {
             println!("🎉 🎉 🎉 CORE ARRAY OPERATIONS WORK PERFECTLY! 🎉 🎉 🎉");
@@ -45,14 +45,14 @@ fn main() {
             println!();
             println!("🎖️  **READY FOR GOVERNANCE CONTRACTS:**");
             println!("    Member lists, vote counting, proposal arrays, and data processing!");
-        },
+        }
         Err(e) => {
             println!("❌ ARRAY OPERATIONS TEST FAILED:");
             println!("   Error: {}", e);
             println!();
             println!("🔍 Analyzing the issue:");
             let error_str = e.to_string();
-            
+
             if error_str.contains("array") || error_str.contains("Array") {
                 println!("   • Core array operation issue");
             } else if error_str.contains("Type mismatch") {
@@ -64,4 +64,4 @@ fn main() {
             }
         }
     }
-} 
+}

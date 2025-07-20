@@ -1,6 +1,6 @@
 // icn-ccl/src/stdlib.rs
 //! CCL Standard Library
-//! 
+//!
 //! This module provides built-in functions and utilities for CCL contracts,
 //! including governance primitives, economic operations, and utility functions.
 
@@ -42,7 +42,7 @@ impl StdLibrary {
         let mut stdlib = StdLibrary {
             functions: HashMap::new(),
         };
-        
+
         stdlib.register_governance_functions();
         stdlib.register_economic_functions();
         stdlib.register_identity_functions();
@@ -53,7 +53,7 @@ impl StdLibrary {
         stdlib.register_math_functions();
         stdlib.register_dag_functions(); // Add DAG functions
         stdlib.register_crypto_functions();
-        
+
         stdlib
     }
 
@@ -188,8 +188,8 @@ impl StdLibrary {
         self.register_function(StdFunction {
             name: "transfer".to_string(),
             params: vec![
-                TypeAnnotationNode::Did, // from
-                TypeAnnotationNode::Did, // to
+                TypeAnnotationNode::Did,  // from
+                TypeAnnotationNode::Did,  // to
                 TypeAnnotationNode::Mana, // amount
             ],
             return_type: TypeAnnotationNode::Bool,
@@ -200,7 +200,7 @@ impl StdLibrary {
         self.register_function(StdFunction {
             name: "mint_mana".to_string(),
             params: vec![
-                TypeAnnotationNode::Did, // to
+                TypeAnnotationNode::Did,  // to
                 TypeAnnotationNode::Mana, // amount
             ],
             return_type: TypeAnnotationNode::Bool,
@@ -211,7 +211,7 @@ impl StdLibrary {
         self.register_function(StdFunction {
             name: "burn_mana".to_string(),
             params: vec![
-                TypeAnnotationNode::Did, // from
+                TypeAnnotationNode::Did,  // from
                 TypeAnnotationNode::Mana, // amount
             ],
             return_type: TypeAnnotationNode::Bool,
@@ -223,7 +223,7 @@ impl StdLibrary {
         self.register_function(StdFunction {
             name: "calculate_fee".to_string(),
             params: vec![
-                TypeAnnotationNode::Mana, // base amount
+                TypeAnnotationNode::Mana,    // base amount
                 TypeAnnotationNode::Integer, // fee percentage (basis points)
             ],
             return_type: TypeAnnotationNode::Mana,
@@ -234,7 +234,7 @@ impl StdLibrary {
         self.register_function(StdFunction {
             name: "compound_interest".to_string(),
             params: vec![
-                TypeAnnotationNode::Mana, // principal
+                TypeAnnotationNode::Mana,    // principal
                 TypeAnnotationNode::Integer, // rate (basis points)
                 TypeAnnotationNode::Integer, // periods
             ],
@@ -264,7 +264,7 @@ impl StdLibrary {
         });
 
         // === CRITICAL ECONOMICS FUNCTIONS - Phase 1 ===
-        
+
         // Token system operations
         self.register_function(StdFunction {
             name: "create_token_class".to_string(),
@@ -282,8 +282,8 @@ impl StdLibrary {
         self.register_function(StdFunction {
             name: "mint_tokens".to_string(),
             params: vec![
-                TypeAnnotationNode::String, // class_id
-                TypeAnnotationNode::Did,    // recipient
+                TypeAnnotationNode::String,  // class_id
+                TypeAnnotationNode::Did,     // recipient
                 TypeAnnotationNode::Integer, // amount
             ],
             return_type: TypeAnnotationNode::Bool,
@@ -294,9 +294,9 @@ impl StdLibrary {
         self.register_function(StdFunction {
             name: "transfer_tokens".to_string(),
             params: vec![
-                TypeAnnotationNode::String, // class_id
-                TypeAnnotationNode::Did,    // from
-                TypeAnnotationNode::Did,    // to
+                TypeAnnotationNode::String,  // class_id
+                TypeAnnotationNode::Did,     // from
+                TypeAnnotationNode::Did,     // to
                 TypeAnnotationNode::Integer, // amount
             ],
             return_type: TypeAnnotationNode::Bool,
@@ -307,8 +307,8 @@ impl StdLibrary {
         self.register_function(StdFunction {
             name: "burn_tokens".to_string(),
             params: vec![
-                TypeAnnotationNode::String, // class_id
-                TypeAnnotationNode::Did,    // from
+                TypeAnnotationNode::String,  // class_id
+                TypeAnnotationNode::Did,     // from
                 TypeAnnotationNode::Integer, // amount
             ],
             return_type: TypeAnnotationNode::Bool,
@@ -335,7 +335,8 @@ impl StdLibrary {
                 TypeAnnotationNode::Integer, // reputation_score
             ],
             return_type: TypeAnnotationNode::Integer,
-            description: "Calculate price adjusted by reputation (higher rep = lower price)".to_string(),
+            description: "Calculate price adjusted by reputation (higher rep = lower price)"
+                .to_string(),
             category: StdCategory::Economics,
         });
 
@@ -353,10 +354,10 @@ impl StdLibrary {
         self.register_function(StdFunction {
             name: "mint_tokens_with_reputation".to_string(),
             params: vec![
-                TypeAnnotationNode::String, // class_id
-                TypeAnnotationNode::Did,    // recipient
+                TypeAnnotationNode::String,  // class_id
+                TypeAnnotationNode::Did,     // recipient
                 TypeAnnotationNode::Integer, // amount
-                TypeAnnotationNode::Did,    // issuer (for reputation check)
+                TypeAnnotationNode::Did,     // issuer (for reputation check)
             ],
             return_type: TypeAnnotationNode::Bool,
             description: "Mint tokens with mana cost adjusted by issuer reputation".to_string(),
@@ -380,8 +381,8 @@ impl StdLibrary {
         self.register_function(StdFunction {
             name: "mint_time_tokens".to_string(),
             params: vec![
-                TypeAnnotationNode::String, // time_record_id
-                TypeAnnotationNode::Did,    // worker
+                TypeAnnotationNode::String,  // time_record_id
+                TypeAnnotationNode::Did,     // worker
                 TypeAnnotationNode::Integer, // hours
             ],
             return_type: TypeAnnotationNode::Bool,
@@ -399,14 +400,15 @@ impl StdLibrary {
                 TypeAnnotationNode::Integer, // interest_rate_bps (basis points)
             ],
             return_type: TypeAnnotationNode::String, // returns credit_line_id
-            description: "Establish mutual credit relationship between community members".to_string(),
+            description: "Establish mutual credit relationship between community members"
+                .to_string(),
             category: StdCategory::Economics,
         });
 
         self.register_function(StdFunction {
             name: "extend_mutual_credit".to_string(),
             params: vec![
-                TypeAnnotationNode::String, // credit_line_id
+                TypeAnnotationNode::String,  // credit_line_id
                 TypeAnnotationNode::Integer, // amount
                 TypeAnnotationNode::String,  // purpose
             ],
@@ -443,7 +445,7 @@ impl StdLibrary {
         });
 
         // === SCOPED TOKEN OPERATIONS ===
-        
+
         self.register_function(StdFunction {
             name: "create_scoped_token".to_string(),
             params: vec![
@@ -490,7 +492,7 @@ impl StdLibrary {
     /// Register identity and credential functions
     fn register_identity_functions(&mut self) {
         // === CRITICAL IDENTITY FUNCTIONS - Phase 2 ===
-        
+
         // DID operations
         self.register_function(StdFunction {
             name: "create_did".to_string(),
@@ -509,7 +511,8 @@ impl StdLibrary {
                 TypeAnnotationNode::Did, // did to resolve
             ],
             return_type: TypeAnnotationNode::String, // DID document JSON
-            description: "Resolve a DID to its document containing public keys and services".to_string(),
+            description: "Resolve a DID to its document containing public keys and services"
+                .to_string(),
             category: StdCategory::Identity,
         });
 
@@ -541,10 +544,10 @@ impl StdLibrary {
         self.register_function(StdFunction {
             name: "issue_credential".to_string(),
             params: vec![
-                TypeAnnotationNode::Did,    // issuer DID
-                TypeAnnotationNode::Did,    // holder DID  
-                TypeAnnotationNode::String, // credential type
-                TypeAnnotationNode::String, // claims JSON
+                TypeAnnotationNode::Did,     // issuer DID
+                TypeAnnotationNode::Did,     // holder DID
+                TypeAnnotationNode::String,  // credential type
+                TypeAnnotationNode::String,  // claims JSON
                 TypeAnnotationNode::Integer, // expiration timestamp (0 for none)
             ],
             return_type: TypeAnnotationNode::String, // credential JSON
@@ -579,9 +582,9 @@ impl StdLibrary {
         self.register_function(StdFunction {
             name: "create_cooperative_membership".to_string(),
             params: vec![
-                TypeAnnotationNode::Did,    // member DID
-                TypeAnnotationNode::String, // cooperative ID
-                TypeAnnotationNode::String, // membership type
+                TypeAnnotationNode::Did,     // member DID
+                TypeAnnotationNode::String,  // cooperative ID
+                TypeAnnotationNode::String,  // membership type
                 TypeAnnotationNode::Integer, // membership level
             ],
             return_type: TypeAnnotationNode::String, // membership credential
@@ -592,8 +595,8 @@ impl StdLibrary {
         self.register_function(StdFunction {
             name: "verify_cooperative_membership".to_string(),
             params: vec![
-                TypeAnnotationNode::Did,    // member DID
-                TypeAnnotationNode::String, // cooperative ID
+                TypeAnnotationNode::Did,     // member DID
+                TypeAnnotationNode::String,  // cooperative ID
                 TypeAnnotationNode::Integer, // required level
             ],
             return_type: TypeAnnotationNode::Bool,
@@ -602,11 +605,11 @@ impl StdLibrary {
         });
 
         // === FEDERATION DISCOVERY & COORDINATION ===
-        
+
         self.register_function(StdFunction {
             name: "discover_federations".to_string(),
             params: vec![
-                TypeAnnotationNode::String, // search_criteria
+                TypeAnnotationNode::String,  // search_criteria
                 TypeAnnotationNode::Integer, // max_results
             ],
             return_type: TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::String)), // federation IDs
@@ -652,7 +655,7 @@ impl StdLibrary {
         });
 
         // === KEY ROTATION & MANAGEMENT ===
-        
+
         self.register_function(StdFunction {
             name: "rotate_keys".to_string(),
             params: vec![
@@ -661,7 +664,8 @@ impl StdLibrary {
                 TypeAnnotationNode::String, // signature from old key
             ],
             return_type: TypeAnnotationNode::Bool,
-            description: "Rotate DID document keys while maintaining identity continuity".to_string(),
+            description: "Rotate DID document keys while maintaining identity continuity"
+                .to_string(),
             category: StdCategory::Identity,
         });
 
@@ -690,14 +694,16 @@ impl StdLibrary {
         });
 
         // === ADVANCED FEDERATION OPERATIONS ===
-        
+
         self.register_function(StdFunction {
             name: "get_federation_metadata".to_string(),
             params: vec![
                 TypeAnnotationNode::String, // federation ID
             ],
             return_type: TypeAnnotationNode::String, // metadata JSON
-            description: "Get detailed metadata about a federation including policies and governance".to_string(),
+            description:
+                "Get detailed metadata about a federation including policies and governance"
+                    .to_string(),
             category: StdCategory::Identity,
         });
 
@@ -708,14 +714,15 @@ impl StdLibrary {
                 TypeAnnotationNode::String, // federation ID
             ],
             return_type: TypeAnnotationNode::Bool,
-            description: "Check if a DID is currently a member of the specified federation".to_string(),
+            description: "Check if a DID is currently a member of the specified federation"
+                .to_string(),
             category: StdCategory::Identity,
         });
 
         self.register_function(StdFunction {
             name: "coordinate_cross_federation_action".to_string(),
             params: vec![
-                TypeAnnotationNode::Did,    // coordinator DID
+                TypeAnnotationNode::Did, // coordinator DID
                 TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::String)), // federation IDs
                 TypeAnnotationNode::String, // action type
                 TypeAnnotationNode::String, // action parameters
@@ -927,7 +934,9 @@ impl StdLibrary {
         // Generic array functions for Integer arrays
         self.register_function(StdFunction {
             name: "array_length".to_string(),
-            params: vec![TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Integer))],
+            params: vec![TypeAnnotationNode::Array(Box::new(
+                TypeAnnotationNode::Integer,
+            ))],
             return_type: TypeAnnotationNode::Integer,
             description: "Get array length".to_string(),
             category: StdCategory::Array,
@@ -935,7 +944,9 @@ impl StdLibrary {
 
         self.register_function(StdFunction {
             name: "array_len".to_string(),
-            params: vec![TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Integer))],
+            params: vec![TypeAnnotationNode::Array(Box::new(
+                TypeAnnotationNode::Integer,
+            ))],
             return_type: TypeAnnotationNode::Integer,
             description: "Get array length (alias for array_length)".to_string(),
             category: StdCategory::Array,
@@ -954,7 +965,9 @@ impl StdLibrary {
 
         self.register_function(StdFunction {
             name: "array_pop".to_string(),
-            params: vec![TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Integer))],
+            params: vec![TypeAnnotationNode::Array(Box::new(
+                TypeAnnotationNode::Integer,
+            ))],
             return_type: TypeAnnotationNode::Option(Box::new(TypeAnnotationNode::Integer)),
             description: "Remove and return last element".to_string(),
             category: StdCategory::Array,
@@ -1035,7 +1048,7 @@ impl StdLibrary {
                     key_type: Box::new(TypeAnnotationNode::String), // More specific
                     value_type: Box::new(TypeAnnotationNode::Integer), // More specific
                 },
-                TypeAnnotationNode::String, // More specific
+                TypeAnnotationNode::String,  // More specific
                 TypeAnnotationNode::Integer, // More specific
             ],
             return_type: TypeAnnotationNode::Map {
@@ -1090,12 +1103,10 @@ impl StdLibrary {
 
         self.register_function(StdFunction {
             name: "map_size".to_string(),
-            params: vec![
-                TypeAnnotationNode::Map {
-                    key_type: Box::new(TypeAnnotationNode::String),
-                    value_type: Box::new(TypeAnnotationNode::Integer),
-                },
-            ],
+            params: vec![TypeAnnotationNode::Map {
+                key_type: Box::new(TypeAnnotationNode::String),
+                value_type: Box::new(TypeAnnotationNode::Integer),
+            }],
             return_type: TypeAnnotationNode::Integer,
             description: "Get number of entries in map".to_string(),
             category: StdCategory::Map,
@@ -1146,7 +1157,9 @@ impl StdLibrary {
 
         self.register_function(StdFunction {
             name: "sum".to_string(),
-            params: vec![TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Integer))],
+            params: vec![TypeAnnotationNode::Array(Box::new(
+                TypeAnnotationNode::Integer,
+            ))],
             return_type: TypeAnnotationNode::Integer,
             description: "Sum all elements in an integer array".to_string(),
             category: StdCategory::Math,
@@ -1185,7 +1198,8 @@ impl StdLibrary {
                 TypeAnnotationNode::String, // data (serialized)
             ],
             return_type: TypeAnnotationNode::String, // CID
-            description: "Store data in the DAG and return its Content Identifier (CID)".to_string(),
+            description: "Store data in the DAG and return its Content Identifier (CID)"
+                .to_string(),
             category: StdCategory::Utility,
         });
 
@@ -1195,7 +1209,8 @@ impl StdLibrary {
                 TypeAnnotationNode::String, // CID
             ],
             return_type: TypeAnnotationNode::String, // data (serialized)
-            description: "Retrieve data from the DAG using its Content Identifier (CID)".to_string(),
+            description: "Retrieve data from the DAG using its Content Identifier (CID)"
+                .to_string(),
             category: StdCategory::Utility,
         });
 
@@ -1215,7 +1230,8 @@ impl StdLibrary {
                 TypeAnnotationNode::String, // CID
             ],
             return_type: TypeAnnotationNode::Bool,
-            description: "Unpin content in the DAG, allowing it to be garbage collected".to_string(),
+            description: "Unpin content in the DAG, allowing it to be garbage collected"
+                .to_string(),
             category: StdCategory::Utility,
         });
 
@@ -1225,7 +1241,8 @@ impl StdLibrary {
                 TypeAnnotationNode::String, // data
             ],
             return_type: TypeAnnotationNode::String, // CID
-            description: "Calculate Content Identifier (CID) for given data without storing it".to_string(),
+            description: "Calculate Content Identifier (CID) for given data without storing it"
+                .to_string(),
             category: StdCategory::Utility,
         });
 
@@ -1233,8 +1250,8 @@ impl StdLibrary {
         self.register_function(StdFunction {
             name: "save_contract_state".to_string(),
             params: vec![
-                TypeAnnotationNode::String, // contract_id
-                TypeAnnotationNode::String, // state_data (serialized)
+                TypeAnnotationNode::String,  // contract_id
+                TypeAnnotationNode::String,  // state_data (serialized)
                 TypeAnnotationNode::Integer, // version
             ],
             return_type: TypeAnnotationNode::String, // state CID
@@ -1245,7 +1262,7 @@ impl StdLibrary {
         self.register_function(StdFunction {
             name: "load_contract_state".to_string(),
             params: vec![
-                TypeAnnotationNode::String, // contract_id
+                TypeAnnotationNode::String,  // contract_id
                 TypeAnnotationNode::Integer, // version (0 for latest)
             ],
             return_type: TypeAnnotationNode::String, // state_data (serialized)
@@ -1261,7 +1278,8 @@ impl StdLibrary {
                 TypeAnnotationNode::String, // migration_notes
             ],
             return_type: TypeAnnotationNode::Integer, // new version number
-            description: "Create a new version of a contract with code and migration information".to_string(),
+            description: "Create a new version of a contract with code and migration information"
+                .to_string(),
             category: StdCategory::Utility,
         });
 
@@ -1274,7 +1292,8 @@ impl StdLibrary {
                 TypeAnnotationNode::String, // link_name
             ],
             return_type: TypeAnnotationNode::String, // new merged CID
-            description: "Create a DAG link between two objects, returning new composite CID".to_string(),
+            description: "Create a DAG link between two objects, returning new composite CID"
+                .to_string(),
             category: StdCategory::Utility,
         });
 
@@ -1340,7 +1359,9 @@ impl StdLibrary {
 
         self.register_function(StdFunction {
             name: "merkle_root".to_string(),
-            params: vec![TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::String))],
+            params: vec![TypeAnnotationNode::Array(Box::new(
+                TypeAnnotationNode::String,
+            ))],
             return_type: TypeAnnotationNode::String,
             description: "Calculate Merkle tree root".to_string(),
             category: StdCategory::Crypto,
@@ -1358,9 +1379,9 @@ impl Default for StdLibrary {
 pub fn generate_stdlib_docs() -> String {
     let stdlib = StdLibrary::new();
     let mut docs = String::new();
-    
+
     docs.push_str("# CCL Standard Library Functions\n\n");
-    
+
     for category in [
         StdCategory::Governance,
         StdCategory::Economics,
@@ -1372,14 +1393,14 @@ pub fn generate_stdlib_docs() -> String {
         StdCategory::Crypto,
     ] {
         docs.push_str(&format!("## {:?} Functions\n\n", category));
-        
+
         let mut functions = stdlib.get_functions_by_category(category);
         functions.sort_by(|a, b| a.name.cmp(&b.name));
-        
+
         for func in functions {
             docs.push_str(&format!("### `{}`\n\n", func.name));
             docs.push_str(&format!("**Description:** {}\n\n", func.description));
-            
+
             docs.push_str("**Parameters:**\n");
             if func.params.is_empty() {
                 docs.push_str("- None\n");
@@ -1388,12 +1409,12 @@ pub fn generate_stdlib_docs() -> String {
                     docs.push_str(&format!("- `arg{}`: {:?}\n", i + 1, param));
                 }
             }
-            
+
             docs.push_str(&format!("\n**Returns:** {:?}\n\n", func.return_type));
             docs.push_str("---\n\n");
         }
     }
-    
+
     docs
 }
 
@@ -1404,7 +1425,7 @@ mod tests {
     #[test]
     fn test_stdlib_creation() {
         let stdlib = StdLibrary::new();
-        
+
         // Should have functions from all categories
         assert!(stdlib.get_function("transfer").is_some());
         assert!(stdlib.get_function("create_proposal").is_some());
@@ -1412,7 +1433,7 @@ mod tests {
         assert!(stdlib.get_function("array_length").is_some());
         assert!(stdlib.get_function("now").is_some());
         assert!(stdlib.get_function("hash").is_some());
-        
+
         // Should have new economics functions
         assert!(stdlib.get_function("create_token_class").is_some());
         assert!(stdlib.get_function("mint_tokens").is_some());
@@ -1427,13 +1448,15 @@ mod tests {
         assert!(stdlib.get_function("create_credit_line").is_some());
         assert!(stdlib.get_function("extend_mutual_credit").is_some());
         assert!(stdlib.get_function("create_marketplace_offer").is_some());
-        assert!(stdlib.get_function("execute_marketplace_transaction").is_some());
-        
+        assert!(stdlib
+            .get_function("execute_marketplace_transaction")
+            .is_some());
+
         // Should have scoped token functions
         assert!(stdlib.get_function("create_scoped_token").is_some());
         assert!(stdlib.get_function("transfer_scoped").is_some());
         assert!(stdlib.get_function("verify_token_constraints").is_some());
-        
+
         // Should have new identity functions
         assert!(stdlib.get_function("create_did").is_some());
         assert!(stdlib.get_function("resolve_did").is_some());
@@ -1442,9 +1465,13 @@ mod tests {
         assert!(stdlib.get_function("issue_credential").is_some());
         assert!(stdlib.get_function("verify_credential").is_some());
         assert!(stdlib.get_function("revoke_credential").is_some());
-        assert!(stdlib.get_function("create_cooperative_membership").is_some());
-        assert!(stdlib.get_function("verify_cooperative_membership").is_some());
-        
+        assert!(stdlib
+            .get_function("create_cooperative_membership")
+            .is_some());
+        assert!(stdlib
+            .get_function("verify_cooperative_membership")
+            .is_some());
+
         // Should have federation and key management functions
         assert!(stdlib.get_function("discover_federations").is_some());
         assert!(stdlib.get_function("join_federation").is_some());
@@ -1454,9 +1481,13 @@ mod tests {
         assert!(stdlib.get_function("backup_keys").is_some());
         assert!(stdlib.get_function("recover_keys").is_some());
         assert!(stdlib.get_function("get_federation_metadata").is_some());
-        assert!(stdlib.get_function("verify_federation_membership").is_some());
-        assert!(stdlib.get_function("coordinate_cross_federation_action").is_some());
-        
+        assert!(stdlib
+            .get_function("verify_federation_membership")
+            .is_some());
+        assert!(stdlib
+            .get_function("coordinate_cross_federation_action")
+            .is_some());
+
         // Should have DAG storage functions
         assert!(stdlib.get_function("dag_put").is_some());
         assert!(stdlib.get_function("dag_get").is_some());
@@ -1469,7 +1500,7 @@ mod tests {
         assert!(stdlib.get_function("dag_link").is_some());
         assert!(stdlib.get_function("dag_resolve_path").is_some());
         assert!(stdlib.get_function("dag_list_links").is_some());
-        
+
         // Should not have non-existent functions
         assert!(stdlib.get_function("non_existent").is_none());
     }
@@ -1477,26 +1508,26 @@ mod tests {
     #[test]
     fn test_function_categories() {
         let stdlib = StdLibrary::new();
-        
+
         let governance_funcs = stdlib.get_functions_by_category(StdCategory::Governance);
         assert!(!governance_funcs.is_empty());
-        
+
         let economic_funcs = stdlib.get_functions_by_category(StdCategory::Economics);
         assert!(!economic_funcs.is_empty());
-        
+
         let identity_funcs = stdlib.get_functions_by_category(StdCategory::Identity);
         assert!(!identity_funcs.is_empty());
-        
+
         // All governance functions should be in governance category
         for func in governance_funcs {
             assert_eq!(func.category, StdCategory::Governance);
         }
-        
+
         // All economics functions should be in economics category
         for func in economic_funcs {
             assert_eq!(func.category, StdCategory::Economics);
         }
-        
+
         // All identity functions should be in identity category
         for func in identity_funcs {
             assert_eq!(func.category, StdCategory::Identity);
@@ -1507,7 +1538,7 @@ mod tests {
     fn test_transfer_function_signature() {
         let stdlib = StdLibrary::new();
         let transfer = stdlib.get_function("transfer").unwrap();
-        
+
         assert_eq!(transfer.params.len(), 3);
         assert_eq!(transfer.params[0], TypeAnnotationNode::Did);
         assert_eq!(transfer.params[1], TypeAnnotationNode::Did);
@@ -1518,7 +1549,7 @@ mod tests {
     #[test]
     fn test_docs_generation() {
         let docs = generate_stdlib_docs();
-        
+
         assert!(docs.contains("# CCL Standard Library Functions"));
         assert!(docs.contains("## Governance Functions"));
         assert!(docs.contains("## Economics Functions"));
@@ -1534,21 +1565,21 @@ mod tests {
     #[test]
     fn test_new_economics_functions() {
         let stdlib = StdLibrary::new();
-        
+
         // Test token system functions
         let create_token = stdlib.get_function("create_token_class").unwrap();
         assert_eq!(create_token.params.len(), 4);
         assert_eq!(create_token.return_type, TypeAnnotationNode::Bool);
-        
+
         let mint_tokens = stdlib.get_function("mint_tokens").unwrap();
         assert_eq!(mint_tokens.params.len(), 3);
         assert_eq!(mint_tokens.return_type, TypeAnnotationNode::Bool);
-        
+
         // Test reputation functions
         let price_by_rep = stdlib.get_function("price_by_reputation").unwrap();
         assert_eq!(price_by_rep.params.len(), 2);
         assert_eq!(price_by_rep.return_type, TypeAnnotationNode::Integer);
-        
+
         // Test marketplace functions
         let create_offer = stdlib.get_function("create_marketplace_offer").unwrap();
         assert_eq!(create_offer.params.len(), 5);
@@ -1558,21 +1589,21 @@ mod tests {
     #[test]
     fn test_new_identity_functions() {
         let stdlib = StdLibrary::new();
-        
+
         // Test DID functions
         let create_did = stdlib.get_function("create_did").unwrap();
         assert_eq!(create_did.params.len(), 2);
         assert_eq!(create_did.return_type, TypeAnnotationNode::Did);
-        
+
         let resolve_did = stdlib.get_function("resolve_did").unwrap();
         assert_eq!(resolve_did.params.len(), 1);
         assert_eq!(resolve_did.return_type, TypeAnnotationNode::String);
-        
+
         // Test credential functions
         let issue_cred = stdlib.get_function("issue_credential").unwrap();
         assert_eq!(issue_cred.params.len(), 5);
         assert_eq!(issue_cred.return_type, TypeAnnotationNode::String);
-        
+
         let verify_cred = stdlib.get_function("verify_credential").unwrap();
         assert_eq!(verify_cred.params.len(), 2);
         assert_eq!(verify_cred.return_type, TypeAnnotationNode::Bool);

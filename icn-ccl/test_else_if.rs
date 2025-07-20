@@ -21,7 +21,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("Testing else-if chain compilation...");
     match compile_ccl_source_to_wasm(source1) {
         Ok((wasm, metadata)) => {
@@ -33,7 +33,7 @@ fn main() {
             println!("❌ Else-if chain compilation failed: {}", e);
         }
     }
-    
+
     // Test 2: More complex else-if chain
     let source2 = r#"
         contract TestGrading {
@@ -55,7 +55,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("\nTesting complex else-if chain...");
     match compile_ccl_source_to_wasm(source2) {
         Ok((wasm, _metadata)) => {
@@ -66,7 +66,7 @@ fn main() {
             println!("❌ Complex else-if chain compilation failed: {}", e);
         }
     }
-    
+
     // Test 3: Nested if with else-if
     let source3 = r#"
         contract TestDiscount {
@@ -88,7 +88,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("\nTesting nested if with else-if...");
     match compile_ccl_source_to_wasm(source3) {
         Ok((wasm, _metadata)) => {
@@ -99,4 +99,4 @@ fn main() {
             println!("❌ Nested if with else-if compilation failed: {}", e);
         }
     }
-} 
+}

@@ -24,7 +24,10 @@ impl CircuitRegistry {
         proving_key: Vec<u8>,
         verification_key: Vec<u8>,
     ) {
-        let record = CircuitRecord { proving_key, verification_key };
+        let record = CircuitRecord {
+            proving_key,
+            verification_key,
+        };
         self.inner
             .entry(slug.to_string())
             .or_default()
@@ -33,10 +36,7 @@ impl CircuitRegistry {
 
     /// Fetch a circuit record if present.
     pub fn get(&self, slug: &str, version: &str) -> Option<CircuitRecord> {
-        self.inner
-            .get(slug)
-            .and_then(|m| m.get(version))
-            .cloned()
+        self.inner.get(slug).and_then(|m| m.get(version)).cloned()
     }
 
     /// List all known versions for a circuit slug.

@@ -7,9 +7,9 @@ fn main() {
     println!();
     println!("🔍 Testing struct definition and field access functionality...");
     println!();
-    
+
     let test_path = PathBuf::from("test_struct_access.ccl");
-    
+
     match compile_ccl_file_to_wasm(&test_path) {
         Ok((wasm, metadata)) => {
             println!("🎉 🎉 🎉 STRUCT FIELD ACCESS WORKS! 🎉 🎉 🎉");
@@ -45,15 +45,18 @@ fn main() {
             println!();
             println!("🎖️  **COMPLEX GOVERNANCE CONTRACTS NOW POSSIBLE:**");
             println!("    Rich member management, detailed proposals, and complex voting!");
-        },
+        }
         Err(e) => {
             println!("❌ STRUCT FIELD ACCESS TEST FAILED:");
             println!("   Error: {}", e);
             println!();
             println!("🔍 Analyzing struct implementation issue:");
             let error_str = e.to_string();
-            
-            if error_str.contains("struct") || error_str.contains("member") || error_str.contains("field") {
+
+            if error_str.contains("struct")
+                || error_str.contains("member")
+                || error_str.contains("field")
+            {
                 println!("   • Struct definition or field access issue");
                 println!("   • May need improved field offset calculation");
             } else if error_str.contains("parsing") {
@@ -65,7 +68,7 @@ fn main() {
             } else {
                 println!("   • Unexpected issue: {}", error_str);
             }
-            
+
             println!();
             println!("📝 **AREAS TO IMPROVE:**");
             println!("   1. Dynamic field offset calculation from struct definitions");
@@ -74,4 +77,4 @@ fn main() {
             println!("   4. Struct method support (future enhancement)");
         }
     }
-} 
+}

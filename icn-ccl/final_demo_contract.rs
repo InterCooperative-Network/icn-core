@@ -119,7 +119,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("🏛️  Compiling CCL Final Demonstration Contract...");
     println!();
     println!("🌟 **FEATURES SHOWCASED:**");
@@ -133,7 +133,7 @@ fn main() {
     println!("   ✨ **Member Access:** Struct field access (member.reputation)");
     println!("   ✨ **Business Logic:** Real governance algorithms");
     println!();
-    
+
     match compile_ccl_source_to_wasm(demo_contract) {
         Ok((wasm, metadata)) => {
             println!("🎉 🎉 🎉 FINAL DEMO CONTRACT COMPILED SUCCESSFULLY! 🎉 🎉 🎉");
@@ -172,4 +172,4 @@ fn main() {
             println!("❌ Final demo contract compilation failed: {}", e);
         }
     }
-} 
+}

@@ -1,9 +1,9 @@
 use crate::JobSpec;
-use icn_common::Did;
-use serde::{Deserialize, Serialize};
-use icn_dag::mutual_aid::{MutualAidRegistry, AidResource};
 use icn_common::DagBlock;
+use icn_common::Did;
+use icn_dag::mutual_aid::{AidResource, MutualAidRegistry};
 use icn_dag::StorageService;
+use serde::{Deserialize, Serialize};
 
 /// Request for community aid.
 #[derive(Debug, Clone, Serialize, Deserialize)]

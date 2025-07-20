@@ -45,7 +45,7 @@ pub struct SyncConfig {
 impl Default for SyncConfig {
     fn default() -> Self {
         Self {
-            check_interval: 300, // 5 minutes
+            check_interval: 300,   // 5 minutes
             max_missing_age: 3600, // 1 hour
             max_tracked_missing: 1000,
             auto_reanchor: false,
@@ -145,15 +145,18 @@ impl<S: StorageService<DagBlock>> DagSyncMonitor<S> {
                 }
 
                 let priority = self.calculate_block_priority(&cid, &referenced_by, &all_blocks);
-                
-                self.missing_blocks.insert(cid.clone(), MissingBlock {
-                    cid,
-                    referenced_by,
-                    first_detected: current_time,
-                    last_requested: None,
-                    request_count: 0,
-                    priority,
-                });
+
+                self.missing_blocks.insert(
+                    cid.clone(),
+                    MissingBlock {
+                        cid,
+                        referenced_by,
+                        first_detected: current_time,
+                        last_requested: None,
+                        request_count: 0,
+                        priority,
+                    },
+                );
             }
         }
 
@@ -169,14 +172,14 @@ impl<S: StorageService<DagBlock>> DagSyncMonitor<S> {
         if self.missing_blocks.len() > self.config.max_tracked_missing {
             let mut sorted_missing: Vec<_> = self.missing_blocks.iter().collect();
             sorted_missing.sort_by_key(|(_, mb)| (mb.priority, mb.first_detected));
-            
+
             // Keep highest priority and most recent
             let to_keep: HashSet<Cid> = sorted_missing
                 .into_iter()
                 .take(self.config.max_tracked_missing)
                 .map(|(cid, _)| cid.clone())
                 .collect();
-            
+
             self.missing_blocks.retain(|cid, _| to_keep.contains(cid));
         }
 
@@ -229,15 +232,18 @@ impl<S: StorageService<DagBlock>> DagSyncMonitor<S> {
                 }
 
                 let priority = self.calculate_block_priority(&cid, &referenced_by, &all_blocks);
-                
-                self.missing_blocks.insert(cid.clone(), MissingBlock {
-                    cid,
-                    referenced_by,
-                    first_detected: current_time,
-                    last_requested: None,
-                    request_count: 0,
-                    priority,
-                });
+
+                self.missing_blocks.insert(
+                    cid.clone(),
+                    MissingBlock {
+                        cid,
+                        referenced_by,
+                        first_detected: current_time,
+                        last_requested: None,
+                        request_count: 0,
+                        priority,
+                    },
+                );
             }
         }
 
@@ -259,7 +265,7 @@ impl<S: StorageService<DagBlock>> DagSyncMonitor<S> {
     /// Generate alerts for missing blocks
     pub fn generate_alerts(&self, current_time: u64) -> Vec<MissingBlockAlert> {
         let mut alerts = Vec::new();
-        
+
         // Group missing blocks by severity
         let mut critical_blocks = Vec::new();
         let mut high_blocks = Vec::new();
@@ -267,7 +273,7 @@ impl<S: StorageService<DagBlock>> DagSyncMonitor<S> {
 
         for missing_block in self.missing_blocks.values() {
             let age = current_time - missing_block.first_detected;
-            
+
             if missing_block.priority == BlockPriority::Critical {
                 critical_blocks.push(missing_block.clone());
             } else if age > self.config.max_missing_age {
@@ -328,24 +334,29 @@ impl<S: StorageService<DagBlock>> DagSyncMonitor<S> {
                 .duration_since(UNIX_EPOCH)
                 .unwrap()
                 .as_secs();
-            
+
             missing_block.last_requested = Some(current_time);
             missing_block.request_count += 1;
 
             // TODO: Implement actual peer request logic
             // This would integrate with the network layer to request the block
             // from known peers
-            
+
             Ok(true)
         } else {
             Ok(false)
         }
     }
 
-    fn calculate_block_priority(&self, _cid: &Cid, referenced_by: &HashSet<Cid>, all_blocks: &HashMap<Cid, DagBlock>) -> BlockPriority {
+    fn calculate_block_priority(
+        &self,
+        _cid: &Cid,
+        referenced_by: &HashSet<Cid>,
+        all_blocks: &HashMap<Cid, DagBlock>,
+    ) -> BlockPriority {
         // Calculate priority based on how many blocks reference this missing block
         // and the importance of those blocks
-        
+
         let reference_count = referenced_by.len();
         let mut has_recent_referrer = false;
         let current_time = SystemTime::now()
@@ -356,7 +367,8 @@ impl<S: StorageService<DagBlock>> DagSyncMonitor<S> {
         for referrer_cid in referenced_by {
             if let Some(referrer_block) = all_blocks.get(referrer_cid) {
                 // If a recent block references this missing block, it's higher priority
-                if current_time - referrer_block.timestamp < 3600 { // 1 hour
+                if current_time - referrer_block.timestamp < 3600 {
+                    // 1 hour
                     has_recent_referrer = true;
                     break;
                 }
@@ -376,14 +388,14 @@ impl<S: StorageService<DagBlock>> DagSyncMonitor<S> {
 
     fn calculate_sync_stats(&self, current_time: u64, total_blocks: usize) -> SyncStats {
         let missing_blocks = self.missing_blocks.len();
-        let (missing_critical, missing_high, missing_normal, missing_low) = 
-            self.missing_blocks.values().fold((0, 0, 0, 0), |acc, mb| {
-                match mb.priority {
-                    BlockPriority::Critical => (acc.0 + 1, acc.1, acc.2, acc.3),
-                    BlockPriority::High => (acc.0, acc.1 + 1, acc.2, acc.3),
-                    BlockPriority::Normal => (acc.0, acc.1, acc.2 + 1, acc.3),
-                    BlockPriority::Low => (acc.0, acc.1, acc.2, acc.3 + 1),
-                }
+        let (missing_critical, missing_high, missing_normal, missing_low) = self
+            .missing_blocks
+            .values()
+            .fold((0, 0, 0, 0), |acc, mb| match mb.priority {
+                BlockPriority::Critical => (acc.0 + 1, acc.1, acc.2, acc.3),
+                BlockPriority::High => (acc.0, acc.1 + 1, acc.2, acc.3),
+                BlockPriority::Normal => (acc.0, acc.1, acc.2 + 1, acc.3),
+                BlockPriority::Low => (acc.0, acc.1, acc.2, acc.3 + 1),
             });
 
         // Calculate health score (0.0 to 1.0)
@@ -393,7 +405,7 @@ impl<S: StorageService<DagBlock>> DagSyncMonitor<S> {
             let missing_ratio = missing_blocks as f64 / total_blocks as f64;
             let critical_penalty = missing_critical as f64 * 0.1;
             let high_penalty = missing_high as f64 * 0.05;
-            
+
             (1.0 - missing_ratio - critical_penalty - high_penalty).max(0.0)
         };
 
@@ -463,7 +475,7 @@ mod tests {
         let store = SledDagStore::new(temp_dir.path()).unwrap();
         let config = SyncConfig::default();
         let monitor = DagSyncMonitor::new(store, config);
-        
+
         assert_eq!(monitor.missing_blocks.len(), 0);
     }
 }

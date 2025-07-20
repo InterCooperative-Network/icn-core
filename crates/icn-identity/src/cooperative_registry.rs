@@ -101,7 +101,9 @@ pub struct CooperativeSearchResult {
 
 impl CooperativeRegistry {
     /// Create a new cooperative registry
-    pub fn new(dag_store: Arc<tokio::sync::Mutex<dyn AsyncStorageService<icn_common::DagBlock>>>) -> Self {
+    pub fn new(
+        dag_store: Arc<tokio::sync::Mutex<dyn AsyncStorageService<icn_common::DagBlock>>>,
+    ) -> Self {
         Self {
             dag_store,
             profile_cache: dashmap::DashMap::new(),
@@ -140,7 +142,7 @@ impl CooperativeRegistry {
         let author_did = profile.did.clone();
         let signature = None;
         let scope = None;
-        
+
         let cid = icn_common::compute_merkle_cid(
             0x71, // CBOR codec
             &profile_data,
@@ -150,7 +152,7 @@ impl CooperativeRegistry {
             &signature,
             &scope,
         );
-        
+
         let block = DagBlock {
             cid: cid.clone(),
             data: profile_data,
@@ -160,13 +162,14 @@ impl CooperativeRegistry {
             signature,
             scope,
         };
-        
+
         // Store in DAG
         let mut store = self.dag_store.lock().await;
         store.put(&block).await?;
 
         // Update local cache
-        self.profile_cache.insert(profile.did.clone(), profile.clone());
+        self.profile_cache
+            .insert(profile.did.clone(), profile.clone());
 
         // Update capability index
         for capability in &profile.capabilities {
@@ -192,7 +195,10 @@ impl CooperativeRegistry {
     }
 
     /// Get a cooperative profile by DID
-    pub async fn get_cooperative(&self, did: &Did) -> Result<Option<CooperativeProfile>, CommonError> {
+    pub async fn get_cooperative(
+        &self,
+        did: &Did,
+    ) -> Result<Option<CooperativeProfile>, CommonError> {
         // Check cache first
         if let Some(profile) = self.profile_cache.get(did) {
             return Ok(Some(profile.clone()));
@@ -233,7 +239,7 @@ impl CooperativeRegistry {
 
         // Apply filters and calculate relevance scores
         let mut results = Vec::new();
-        
+
         for did in candidates {
             if let Ok(Some(profile)) = self.get_cooperative(&did).await {
                 if let Some(result) = self.evaluate_cooperative(&profile, &filter).await? {
@@ -247,11 +253,21 @@ impl CooperativeRegistry {
             results.sort_by(|a, b| {
                 let a_trust = a.trust_score.unwrap_or(0.0);
                 let b_trust = b.trust_score.unwrap_or(0.0);
-                b_trust.partial_cmp(&a_trust).unwrap_or(std::cmp::Ordering::Equal)
-                    .then_with(|| b.relevance_score.partial_cmp(&a.relevance_score).unwrap_or(std::cmp::Ordering::Equal))
+                b_trust
+                    .partial_cmp(&a_trust)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+                    .then_with(|| {
+                        b.relevance_score
+                            .partial_cmp(&a.relevance_score)
+                            .unwrap_or(std::cmp::Ordering::Equal)
+                    })
             });
         } else {
-            results.sort_by(|a, b| b.relevance_score.partial_cmp(&a.relevance_score).unwrap_or(std::cmp::Ordering::Equal));
+            results.sort_by(|a, b| {
+                b.relevance_score
+                    .partial_cmp(&a.relevance_score)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
         }
 
         // Apply limit
@@ -282,7 +298,7 @@ impl CooperativeRegistry {
             &None,
             &None,
         );
-        
+
         let block = DagBlock {
             cid: cid.clone(),
             data: trust_data,
@@ -292,7 +308,7 @@ impl CooperativeRegistry {
             signature: None,
             scope: None,
         };
-        
+
         // Store in DAG
         let mut store = self.dag_store.lock().await;
         store.put(&block).await?;
@@ -400,9 +416,7 @@ impl CooperativeRegistry {
         // Count cooperatives by type
         let mut by_type = HashMap::new();
         for entry in self.profile_cache.iter() {
-            let count = by_type
-                .entry(entry.cooperative_type.clone())
-                .or_insert(0);
+            let count = by_type.entry(entry.cooperative_type.clone()).or_insert(0);
             *count += 1;
         }
 
@@ -422,12 +436,13 @@ impl CooperativeRegistry {
         let store = self.dag_store.lock().await;
         let all_blocks = store.list_blocks().await?;
         drop(store); // Release the lock before processing
-        
+
         for block in all_blocks {
             if let Ok(profile) = serde_json::from_slice::<CooperativeProfile>(&block.data) {
                 // Verify this is actually a cooperative profile
-                self.profile_cache.insert(profile.did.clone(), profile.clone());
-                
+                self.profile_cache
+                    .insert(profile.did.clone(), profile.clone());
+
                 // Update indices
                 for capability in &profile.capabilities {
                     let mut entry = self
@@ -458,23 +473,23 @@ impl CooperativeRegistry {
 
     fn generate_location_keys(&self, profile: &CooperativeProfile) -> Vec<String> {
         let mut keys = Vec::new();
-        
+
         if profile.geographic_scope.global {
             keys.push("global".to_string());
         }
-        
+
         if let Some(ref country) = profile.geographic_scope.country {
             keys.push(format!("country:{}", country));
         }
-        
+
         if let Some(ref region) = profile.geographic_scope.region {
             keys.push(format!("region:{}", region));
         }
-        
+
         if let Some(ref locality) = profile.geographic_scope.locality {
             keys.push(format!("locality:{}", locality));
         }
-        
+
         keys
     }
 
@@ -503,11 +518,11 @@ impl CooperativeRegistry {
                     matching_capabilities.push(required_cap.clone());
                 }
             }
-            
+
             if capability_matches == 0 {
                 return Ok(None);
             }
-            
+
             // Boost score based on capability match ratio
             let match_ratio = capability_matches as f64 / filter.required_capabilities.len() as f64;
             score += match_ratio * 0.5;
@@ -537,11 +552,11 @@ impl CooperativeRegistry {
             let query_lower = query.to_lowercase();
             let name_match = profile.name.to_lowercase().contains(&query_lower);
             let desc_match = profile.description.to_lowercase().contains(&query_lower);
-            
+
             if !name_match && !desc_match {
                 return Ok(None);
             }
-            
+
             if name_match {
                 score += 0.2;
             }
@@ -561,7 +576,7 @@ impl CooperativeRegistry {
             let context = filter.trust_context.as_deref().unwrap_or("*");
             trust_level = self.get_trust_level(trusted_by, &profile.did, context);
             trust_context = Some(context.to_string());
-            
+
             // Check if minimum trust level is met
             if let Some(ref min_level) = filter.min_trust_level {
                 if let Some(ref actual_level) = trust_level {
@@ -572,7 +587,7 @@ impl CooperativeRegistry {
                     return Ok(None); // No trust relationship found
                 }
             }
-            
+
             // Calculate trust score (simplified for demo)
             trust_score = trust_level.as_ref().map(|level| match level {
                 crate::cooperative_schemas::TrustLevel::Full => 1.0,
@@ -580,27 +595,27 @@ impl CooperativeRegistry {
                 crate::cooperative_schemas::TrustLevel::Basic => 0.4,
                 crate::cooperative_schemas::TrustLevel::None => 0.0,
             });
-            
+
             // Check minimum trust score
             if let Some(min_score) = filter.min_trust_score {
                 if trust_score.unwrap_or(0.0) < min_score {
                     return Ok(None);
                 }
             }
-            
+
             // Check trust inheritance and cross-federation settings
             // These would be populated by actual trust validation logic
             trust_inherited = self.is_trust_inherited(trusted_by, &profile.did, context);
             trust_cross_federation = self.is_cross_federation_trust(trusted_by, &profile.did);
-            
+
             if !filter.include_inherited_trust && trust_inherited {
                 return Ok(None);
             }
-            
+
             if !filter.include_cross_federation_trust && trust_cross_federation {
                 return Ok(None);
             }
-            
+
             // Boost score based on trust level
             if let Some(score_boost) = trust_score {
                 score += score_boost * 0.3;
@@ -689,11 +704,13 @@ pub struct RegistryStats {
 mod tests {
     use super::*;
     use crate::cooperative_schemas::{CooperativeCapability, GeographicScope};
-    use icn_dag::{InMemoryDagStore, CompatAsyncStore};
+    use icn_dag::{CompatAsyncStore, InMemoryDagStore};
 
     #[tokio::test]
     async fn test_cooperative_registration_and_search() {
-        let dag_store = Arc::new(tokio::sync::Mutex::new(CompatAsyncStore::new(InMemoryDagStore::new())));
+        let dag_store = Arc::new(tokio::sync::Mutex::new(CompatAsyncStore::new(
+            InMemoryDagStore::new(),
+        )));
         let registry = CooperativeRegistry::new(dag_store);
 
         // Create a test cooperative profile
@@ -721,7 +738,10 @@ mod tests {
         });
 
         // Register the cooperative
-        let cid = registry.register_cooperative(profile.clone()).await.unwrap();
+        let cid = registry
+            .register_cooperative(profile.clone())
+            .await
+            .unwrap();
         assert!(!cid.to_string().is_empty());
 
         // Test search by capability
@@ -733,7 +753,9 @@ mod tests {
         let results = registry.search_cooperatives(filter).await.unwrap();
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].profile.did, did);
-        assert!(results[0].matching_capabilities.contains(&"web_development".to_string()));
+        assert!(results[0]
+            .matching_capabilities
+            .contains(&"web_development".to_string()));
 
         // Test search by location
         let filter = CooperativeSearchFilter {
@@ -756,7 +778,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_trust_relationships() {
-        let dag_store = Arc::new(tokio::sync::Mutex::new(CompatAsyncStore::new(InMemoryDagStore::new())));
+        let dag_store = Arc::new(tokio::sync::Mutex::new(CompatAsyncStore::new(
+            InMemoryDagStore::new(),
+        )));
         let registry = CooperativeRegistry::new(dag_store);
 
         let coop_a = Did::new("key", "coop_a");
@@ -773,9 +797,12 @@ mod tests {
         assert!(!cid.to_string().is_empty());
 
         let trust_level = registry.get_trust_level(&coop_a, &coop_b, "mesh_computing");
-        assert_eq!(trust_level, Some(crate::cooperative_schemas::TrustLevel::Partial));
+        assert_eq!(
+            trust_level,
+            Some(crate::cooperative_schemas::TrustLevel::Partial)
+        );
 
         let trust_level = registry.get_trust_level(&coop_a, &coop_b, "financial");
         assert_eq!(trust_level, None);
     }
-} 
+}

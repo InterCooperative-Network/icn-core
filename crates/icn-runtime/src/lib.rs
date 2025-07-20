@@ -4,7 +4,10 @@
 #![allow(clippy::to_string_in_format_args)]
 #![allow(clippy::needless_borrow)]
 #![allow(clippy::unnecessary_mut_passed)]
-#![cfg_attr(not(feature = "allow-nondeterminism"), deny(clippy::disallowed_methods))]
+#![cfg_attr(
+    not(feature = "allow-nondeterminism"),
+    deny(clippy::disallowed_methods)
+)]
 
 //! This is the core ICN Runtime crate.
 //!
@@ -24,11 +27,11 @@ pub mod result_encoding;
 
 // Re-export important types for convenience
 pub use context::{DagStoreMutexType, HostAbiError, RuntimeContext, Signer};
-pub use result_encoding::{decode_result_i32, encode_result_i32};
 #[cfg(feature = "async")]
 pub use icn_dag::AsyncStorageService as StorageService;
 #[cfg(not(feature = "async"))]
 pub use icn_dag::StorageService;
+pub use result_encoding::{decode_result_i32, encode_result_i32};
 
 // Re-export ABI constants
 pub use abi::*;

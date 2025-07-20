@@ -19,7 +19,8 @@ async fn add_and_remove_member_via_http() {
         None, // governance_db_path
         None, // reputation_db_path
         None, // parameter_store_path
-    ).await;
+    )
+    .await;
     let node_did = ctx.current_identity.clone();
     {
         let mut gov = ctx.governance_module.lock().await;
@@ -159,7 +160,8 @@ async fn governance_membership_required_for_vote() {
             None, // governance_db_path
             None, // reputation_db_path
             None, // parameter_store_path
-        ).await;
+        )
+        .await;
         _router
     };
 }

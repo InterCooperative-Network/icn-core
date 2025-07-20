@@ -1,7 +1,7 @@
+use crate::{TokenClassId, TransferRecord};
 use icn_common::{CommonError, Did, SystemTimeProvider, TimeProvider};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use crate::{TokenClassId, TransferRecord};
 
 /// Represents an offer to sell goods or services for tokens.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -270,9 +270,10 @@ impl MarketplaceStore for InMemoryMarketplaceStore {
     fn create_offer(&self, offer: MarketplaceOffer) -> Result<(), CommonError> {
         let mut offers = self.offers.lock().unwrap();
         if offers.contains_key(&offer.offer_id) {
-            return Err(CommonError::InvalidInputError(
-                format!("Offer {} already exists", offer.offer_id)
-            ));
+            return Err(CommonError::InvalidInputError(format!(
+                "Offer {} already exists",
+                offer.offer_id
+            )));
         }
         offers.insert(offer.offer_id.clone(), offer);
         Ok(())
@@ -344,9 +345,10 @@ impl MarketplaceStore for InMemoryMarketplaceStore {
     fn create_bid(&self, bid: MarketplaceBid) -> Result<(), CommonError> {
         let mut bids = self.bids.lock().unwrap();
         if bids.contains_key(&bid.bid_id) {
-            return Err(CommonError::InvalidInputError(
-                format!("Bid {} already exists", bid.bid_id)
-            ));
+            return Err(CommonError::InvalidInputError(format!(
+                "Bid {} already exists",
+                bid.bid_id
+            )));
         }
         bids.insert(bid.bid_id.clone(), bid);
         Ok(())
@@ -379,9 +381,10 @@ impl MarketplaceStore for InMemoryMarketplaceStore {
     fn record_transaction(&self, transaction: MarketplaceTransaction) -> Result<(), CommonError> {
         let mut transactions = self.transactions.lock().unwrap();
         if transactions.contains_key(&transaction.transaction_id) {
-            return Err(CommonError::InvalidInputError(
-                format!("Transaction {} already exists", transaction.transaction_id)
-            ));
+            return Err(CommonError::InvalidInputError(format!(
+                "Transaction {} already exists",
+                transaction.transaction_id
+            )));
         }
         transactions.insert(transaction.transaction_id.clone(), transaction);
         Ok(())
@@ -417,7 +420,10 @@ impl MarketplaceOffer {
         Self {
             offer_id,
             seller,
-            item_type: ItemType::PhysicalGood { category, condition },
+            item_type: ItemType::PhysicalGood {
+                category,
+                condition,
+            },
             description,
             quantity,
             price_per_unit,
@@ -444,7 +450,10 @@ impl MarketplaceOffer {
         Self {
             offer_id,
             seller,
-            item_type: ItemType::Service { service_type, duration },
+            item_type: ItemType::Service {
+                service_type,
+                duration,
+            },
             description,
             quantity,
             price_per_unit,
@@ -471,7 +480,10 @@ impl MarketplaceOffer {
         Self {
             offer_id,
             seller,
-            item_type: ItemType::LaborHours { skill_type, experience_level },
+            item_type: ItemType::LaborHours {
+                skill_type,
+                experience_level,
+            },
             description,
             quantity,
             price_per_unit,

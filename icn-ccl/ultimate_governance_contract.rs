@@ -229,7 +229,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("🏛️  Compiling the ULTIMATE CCL governance contract...");
     println!();
     println!("🌟 Features demonstrated:");
@@ -246,20 +246,23 @@ fn main() {
     println!("   ✨ Multi-variable complex algorithms");
     println!("   ✨ Real-world cooperative governance scenarios");
     println!();
-    
+
     match compile_ccl_source_to_wasm(ultimate_contract) {
         Ok((wasm, metadata)) => {
             println!("🎉 🎉 🎉 ULTIMATE GOVERNANCE CONTRACT COMPILED SUCCESSFULLY! 🎉 🎉 🎉");
             println!();
             println!("📊 **COMPILATION RESULTS:**");
             println!("   🔧 WASM size: {} bytes", wasm.len());
-            println!("   📋 Contract exports: {} functions", metadata.exports.len());
+            println!(
+                "   📋 Contract exports: {} functions",
+                metadata.exports.len()
+            );
             println!("   🏷️  Contract version: {}", metadata.version);
             println!();
             println!("🏆 **ACHIEVEMENT UNLOCKED: COMPLETE PROGRAMMING LANGUAGE**");
             println!("   🌟 CCL now supports ALL major programming language features:");
             println!("   ✅ Control flow (if/else, loops, conditions)");
-            println!("   ✅ Data types (integers, strings, booleans, arrays)"); 
+            println!("   ✅ Data types (integers, strings, booleans, arrays)");
             println!("   ✅ Custom types (structs, enums)");
             println!("   ✅ Constants and complex expressions");
             println!("   ✅ Standard library (math, crypto, utilities)");
@@ -285,4 +288,4 @@ fn main() {
             println!("❌ Ultimate governance contract compilation failed: {}", e);
         }
     }
-} 
+}

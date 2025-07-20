@@ -131,7 +131,13 @@ pub trait ResourceLedger: Send + Sync {
     /// Retrieve the balance for `owner` in the specified class.
     fn get_balance(&self, class_id: &TokenClassId, owner: &Did) -> u64;
     /// Check if a transfer operation is allowed under token rules.
-    fn can_transfer(&self, class_id: &TokenClassId, from: &Did, to: &Did, amount: u64) -> Result<bool, CommonError>;
+    fn can_transfer(
+        &self,
+        class_id: &TokenClassId,
+        from: &Did,
+        to: &Did,
+        amount: u64,
+    ) -> Result<bool, CommonError>;
     /// Get transfer history for an account in a specific token class.
     fn get_transfer_history(&self, class_id: &TokenClassId, did: &Did) -> Vec<TransferRecord>;
 }
@@ -363,7 +369,9 @@ impl FileResourceLedger {
             .write(true)
             .truncate(true)
             .open(&tmp_path)
-            .map_err(|e| CommonError::IoError(format!("Failed to open ledger file {tmp_path:?}: {e}")))?;
+            .map_err(|e| {
+                CommonError::IoError(format!("Failed to open ledger file {tmp_path:?}: {e}"))
+            })?;
         file.write_all(serialized.as_bytes()).map_err(|e| {
             CommonError::IoError(format!("Failed to write ledger file {tmp_path:?}: {e}"))
         })?;
@@ -380,7 +388,13 @@ impl FileResourceLedger {
         Ok(())
     }
 
-    fn burn_locked(&self, data: &mut ResourceLedgerFileFormat, class_id: &TokenClassId, owner: &Did, amount: u64) -> Result<(), CommonError> {
+    fn burn_locked(
+        &self,
+        data: &mut ResourceLedgerFileFormat,
+        class_id: &TokenClassId,
+        owner: &Did,
+        amount: u64,
+    ) -> Result<(), CommonError> {
         let entry = data
             .balances
             .entry(class_id.clone())
@@ -394,7 +408,13 @@ impl FileResourceLedger {
         Ok(())
     }
 
-    fn mint_locked(&self, data: &mut ResourceLedgerFileFormat, class_id: &TokenClassId, owner: &Did, amount: u64) -> Result<(), CommonError> {
+    fn mint_locked(
+        &self,
+        data: &mut ResourceLedgerFileFormat,
+        class_id: &TokenClassId,
+        owner: &Did,
+        amount: u64,
+    ) -> Result<(), CommonError> {
         let entry = data
             .balances
             .entry(class_id.clone())
@@ -410,7 +430,10 @@ impl ResourceLedger for FileResourceLedger {
     fn create_class(&self, class_id: &TokenClassId, class: TokenClass) -> Result<(), CommonError> {
         let mut data = self.data.lock().unwrap();
         if data.classes.contains_key(class_id) {
-            return Err(CommonError::InvalidInputError(format!("Token class {} already exists", class_id)));
+            return Err(CommonError::InvalidInputError(format!(
+                "Token class {} already exists",
+                class_id
+            )));
         }
         data.classes.insert(class_id.clone(), class);
         self.persist_locked(&data)
@@ -426,18 +449,26 @@ impl ResourceLedger for FileResourceLedger {
         if let Some(existing_class) = data.classes.get(class_id) {
             // Only issuer can update the class
             if existing_class.issuer != class.issuer {
-                return Err(CommonError::PolicyDenied("Only issuer can update token class".into()));
+                return Err(CommonError::PolicyDenied(
+                    "Only issuer can update token class".into(),
+                ));
             }
             data.classes.insert(class_id.clone(), class);
             self.persist_locked(&data)
         } else {
-            Err(CommonError::InvalidInputError(format!("Token class {} not found", class_id)))
+            Err(CommonError::InvalidInputError(format!(
+                "Token class {} not found",
+                class_id
+            )))
         }
     }
 
     fn list_classes(&self) -> Vec<(TokenClassId, TokenClass)> {
         let data = self.data.lock().unwrap();
-        data.classes.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
+        data.classes
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect()
     }
 
     fn mint(&self, class_id: &TokenClassId, owner: &Did, amount: u64) -> Result<(), CommonError> {
@@ -467,21 +498,34 @@ impl ResourceLedger for FileResourceLedger {
         self.persist_locked(&data)
     }
 
-    fn transfer(&self, class_id: &TokenClassId, from: &Did, to: &Did, amount: u64) -> Result<(), CommonError> {
+    fn transfer(
+        &self,
+        class_id: &TokenClassId,
+        from: &Did,
+        to: &Did,
+        amount: u64,
+    ) -> Result<(), CommonError> {
         // Check if transfer is allowed
         if !self.can_transfer(class_id, from, to, amount)? {
-            return Err(CommonError::PolicyDenied("Transfer not allowed by token rules".into()));
+            return Err(CommonError::PolicyDenied(
+                "Transfer not allowed by token rules".into(),
+            ));
         }
 
         let mut data = self.data.lock().unwrap();
-        
+
         // Perform the transfer
         self.burn_locked(&mut data, class_id, from, amount)?;
         self.mint_locked(&mut data, class_id, to, amount)?;
 
         // Record the transfer
         let transfer_record = TransferRecord {
-            transfer_id: format!("{}:{}:{}", class_id, from, icn_common::SystemTimeProvider.unix_seconds()),
+            transfer_id: format!(
+                "{}:{}:{}",
+                class_id,
+                from,
+                icn_common::SystemTimeProvider.unix_seconds()
+            ),
             class_id: class_id.clone(),
             from: from.clone(),
             to: to.clone(),
@@ -516,19 +560,26 @@ impl ResourceLedger for FileResourceLedger {
             .unwrap_or(0)
     }
 
-    fn can_transfer(&self, class_id: &TokenClassId, from: &Did, to: &Did, amount: u64) -> Result<bool, CommonError> {
+    fn can_transfer(
+        &self,
+        class_id: &TokenClassId,
+        from: &Did,
+        to: &Did,
+        amount: u64,
+    ) -> Result<bool, CommonError> {
         let data = self.data.lock().unwrap();
-        
+
         // Get token class to check transferability rules
-        let token_class = data.classes.get(class_id)
-            .ok_or_else(|| CommonError::InvalidInputError(format!("Token class {} not found", class_id)))?;
+        let token_class = data.classes.get(class_id).ok_or_else(|| {
+            CommonError::InvalidInputError(format!("Token class {} not found", class_id))
+        })?;
 
         // Check transferability rules
         match &token_class.transferability {
             TransferabilityRule::FreelyTransferable => Ok(true),
-            TransferabilityRule::RestrictedTransfer { authorized_recipients } => {
-                Ok(authorized_recipients.contains(to))
-            },
+            TransferabilityRule::RestrictedTransfer {
+                authorized_recipients,
+            } => Ok(authorized_recipients.contains(to)),
             TransferabilityRule::NonTransferable => Ok(false),
             TransferabilityRule::IssuerOnly => Ok(to == &token_class.issuer),
         }
@@ -685,9 +736,9 @@ impl SledResourceLedger {
         let classes = db
             .open_tree("token_classes")
             .map_err(|e| CommonError::DatabaseError(format!("Failed to open classes tree: {e}")))?;
-        let balances = db
-            .open_tree("token_balances")
-            .map_err(|e| CommonError::DatabaseError(format!("Failed to open balances tree: {e}")))?;
+        let balances = db.open_tree("token_balances").map_err(|e| {
+            CommonError::DatabaseError(format!("Failed to open balances tree: {e}"))
+        })?;
         Ok(Self { classes, balances })
     }
 
@@ -706,7 +757,9 @@ impl SledResourceLedger {
         self.classes
             .insert(Self::class_key(id), data)
             .map_err(|e| CommonError::DatabaseError(format!("Failed to store class: {e}")))?;
-        self.classes.flush().map_err(|e| CommonError::DatabaseError(format!("Failed to flush ledger: {e}")))?;
+        self.classes
+            .flush()
+            .map_err(|e| CommonError::DatabaseError(format!("Failed to flush ledger: {e}")))?;
         Ok(())
     }
 
@@ -725,14 +778,21 @@ impl SledResourceLedger {
         }
     }
 
-    fn write_balance(&self, class: &TokenClassId, did: &Did, amount: u64) -> Result<(), CommonError> {
+    fn write_balance(
+        &self,
+        class: &TokenClassId,
+        did: &Did,
+        amount: u64,
+    ) -> Result<(), CommonError> {
         let data = bincode::serialize(&amount).map_err(|e| {
             CommonError::SerializationError(format!("Failed to serialize balance: {e}"))
         })?;
         self.balances
             .insert(Self::balance_key(class, did), data)
             .map_err(|e| CommonError::DatabaseError(format!("Failed to store balance: {e}")))?;
-        self.balances.flush().map_err(|e| CommonError::DatabaseError(format!("Failed to flush ledger: {e}")))?;
+        self.balances
+            .flush()
+            .map_err(|e| CommonError::DatabaseError(format!("Failed to flush ledger: {e}")))?;
         Ok(())
     }
 
@@ -756,7 +816,10 @@ impl SledResourceLedger {
 impl ResourceLedger for SledResourceLedger {
     fn create_class(&self, id: &TokenClassId, class: TokenClass) -> Result<(), CommonError> {
         if self.read_class(id)?.is_some() {
-            return Err(CommonError::InvalidInputError(format!("Token class {} already exists", id)));
+            return Err(CommonError::InvalidInputError(format!(
+                "Token class {} already exists",
+                id
+            )));
         }
         self.write_class(id, &class)
     }
@@ -769,11 +832,16 @@ impl ResourceLedger for SledResourceLedger {
         if let Some(existing_class) = self.read_class(id)? {
             // Only issuer can update the class
             if existing_class.issuer != class.issuer {
-                return Err(CommonError::PolicyDenied("Only issuer can update token class".into()));
+                return Err(CommonError::PolicyDenied(
+                    "Only issuer can update token class".into(),
+                ));
             }
             self.write_class(id, &class)
         } else {
-            Err(CommonError::InvalidInputError(format!("Token class {} not found", id)))
+            Err(CommonError::InvalidInputError(format!(
+                "Token class {} not found",
+                id
+            )))
         }
     }
 
@@ -783,7 +851,7 @@ impl ResourceLedger for SledResourceLedger {
             if let Ok((key, value)) = result {
                 if let (Ok(class_id), Ok(class)) = (
                     std::str::from_utf8(&key),
-                    bincode::deserialize::<TokenClass>(&value)
+                    bincode::deserialize::<TokenClass>(&value),
                 ) {
                     classes.push((class_id.to_string(), class));
                 }
@@ -805,15 +873,23 @@ impl ResourceLedger for SledResourceLedger {
         self.write_balance(class, owner, current - amount)
     }
 
-    fn transfer(&self, class: &TokenClassId, from: &Did, to: &Did, amount: u64) -> Result<(), CommonError> {
+    fn transfer(
+        &self,
+        class: &TokenClassId,
+        from: &Did,
+        to: &Did,
+        amount: u64,
+    ) -> Result<(), CommonError> {
         // Check if transfer is allowed
         if !self.can_transfer(class, from, to, amount)? {
-            return Err(CommonError::PolicyDenied("Transfer not allowed by token rules".into()));
+            return Err(CommonError::PolicyDenied(
+                "Transfer not allowed by token rules".into(),
+            ));
         }
 
         self.burn(class, from, amount)?;
         self.mint(class, to, amount)?;
-        
+
         // For now, Sled implementation doesn't store transfer history
         // This could be enhanced to store transfer records in a separate tree
         Ok(())
@@ -823,17 +899,24 @@ impl ResourceLedger for SledResourceLedger {
         self.read_balance(class, owner).unwrap_or(0)
     }
 
-    fn can_transfer(&self, class_id: &TokenClassId, _from: &Did, to: &Did, _amount: u64) -> Result<bool, CommonError> {
+    fn can_transfer(
+        &self,
+        class_id: &TokenClassId,
+        _from: &Did,
+        to: &Did,
+        _amount: u64,
+    ) -> Result<bool, CommonError> {
         // Get token class to check transferability rules
-        let token_class = self.get_class(class_id)
-            .ok_or_else(|| CommonError::InvalidInputError(format!("Token class {} not found", class_id)))?;
+        let token_class = self.get_class(class_id).ok_or_else(|| {
+            CommonError::InvalidInputError(format!("Token class {} not found", class_id))
+        })?;
 
         // Check transferability rules
         match &token_class.transferability {
             TransferabilityRule::FreelyTransferable => Ok(true),
-            TransferabilityRule::RestrictedTransfer { authorized_recipients } => {
-                Ok(authorized_recipients.contains(to))
-            },
+            TransferabilityRule::RestrictedTransfer {
+                authorized_recipients,
+            } => Ok(authorized_recipients.contains(to)),
             TransferabilityRule::NonTransferable => Ok(false),
             TransferabilityRule::IssuerOnly => Ok(to == &token_class.issuer),
         }
@@ -929,7 +1012,7 @@ impl TokenClass {
         let mut metadata = HashMap::new();
         metadata.insert("credit_limit".to_string(), credit_limit.to_string());
         metadata.insert("interest_rate".to_string(), "0".to_string()); // Typically no interest
-        
+
         Self {
             name,
             description,
@@ -942,7 +1025,7 @@ impl TokenClass {
                 community_scope: Some(community_scope),
                 validity_period: None,
                 max_supply: Some(credit_limit * 100), // Allow reasonable expansion
-                min_balance: None, // Can go negative (credit)
+                min_balance: None,                    // Can go negative (credit)
             },
             issuer,
             created_at: icn_common::SystemTimeProvider.unix_seconds(),
@@ -961,7 +1044,7 @@ impl TokenClass {
         let mut metadata = HashMap::new();
         metadata.insert("currency_type".to_string(), "local".to_string());
         metadata.insert("backing".to_string(), "community_value".to_string());
-        
+
         Self {
             name,
             description,
@@ -994,7 +1077,7 @@ impl TokenClass {
         metadata.insert("target_product".to_string(), target_product);
         metadata.insert("minimum_quantity".to_string(), minimum_quantity.to_string());
         metadata.insert("aggregation_period".to_string(), "30_days".to_string());
-        
+
         Self {
             name,
             description,
@@ -1018,4 +1101,3 @@ impl TokenClass {
         }
     }
 }
-

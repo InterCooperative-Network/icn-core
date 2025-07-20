@@ -1,8 +1,8 @@
 // Test generic functionality
 #[cfg(test)]
 mod tests {
+    use icn_ccl::ast::{AstNode, TopLevelNode, TypeExprNode};
     use icn_ccl::parser::parse_ccl_source;
-    use icn_ccl::ast::{AstNode, TypeExprNode, TopLevelNode};
 
     #[test]
     fn test_generic_function_parsing() {
@@ -11,10 +11,14 @@ mod tests {
                 return value;
             }
         "#;
-        
+
         let result = parse_ccl_source(source);
-        assert!(result.is_ok(), "Failed to parse generic function: {:?}", result.err());
-        
+        assert!(
+            result.is_ok(),
+            "Failed to parse generic function: {:?}",
+            result.err()
+        );
+
         if let Ok(AstNode::Program(nodes)) = result {
             assert_eq!(nodes.len(), 1);
             if let TopLevelNode::Function(func) = &nodes[0] {
@@ -23,7 +27,7 @@ mod tests {
                 assert_eq!(func.type_parameters[0].name, "T");
                 assert_eq!(func.parameters.len(), 1);
                 assert_eq!(func.parameters[0].name, "value");
-                
+
                 // Check that parameter type is a type parameter reference
                 if let TypeExprNode::Custom(type_name) = &func.parameters[0].type_expr {
                     assert_eq!(type_name, "T");
@@ -41,10 +45,14 @@ mod tests {
                 value: T
             }
         "#;
-        
+
         let result = parse_ccl_source(source);
-        assert!(result.is_ok(), "Failed to parse generic struct: {:?}", result.err());
-        
+        assert!(
+            result.is_ok(),
+            "Failed to parse generic struct: {:?}",
+            result.err()
+        );
+
         if let Ok(AstNode::Program(nodes)) = result {
             assert_eq!(nodes.len(), 1);
             if let TopLevelNode::Struct(struct_def) = &nodes[0] {
@@ -66,9 +74,13 @@ mod tests {
                 return [];
             }
         "#;
-        
+
         let result = parse_ccl_source(source);
-        assert!(result.is_ok(), "Failed to parse Array<String>: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Failed to parse Array<String>: {:?}",
+            result.err()
+        );
     }
 
     #[test]
@@ -78,9 +90,13 @@ mod tests {
                 return {};
             }
         "#;
-        
+
         let result = parse_ccl_source(source);
-        assert!(result.is_ok(), "Failed to parse Map<String, Integer>: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Failed to parse Map<String, Integer>: {:?}",
+            result.err()
+        );
     }
 
     #[test]
@@ -90,10 +106,14 @@ mod tests {
                 return "combined";
             }
         "#;
-        
+
         let result = parse_ccl_source(source);
-        assert!(result.is_ok(), "Failed to parse multiple type parameters: {:?}", result.err());
-        
+        assert!(
+            result.is_ok(),
+            "Failed to parse multiple type parameters: {:?}",
+            result.err()
+        );
+
         if let Ok(AstNode::Program(nodes)) = result {
             if let TopLevelNode::Function(func) = &nodes[0] {
                 assert_eq!(func.type_parameters.len(), 2);

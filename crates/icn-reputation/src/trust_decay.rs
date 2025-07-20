@@ -3,7 +3,7 @@
 //! This module implements various models for trust degradation over time and distance,
 //! allowing for realistic trust relationship dynamics in the cooperative network.
 
-use crate::trust_graph::{TrustGraph, TrustEdge};
+use crate::trust_graph::{TrustEdge, TrustGraph};
 use icn_common::{Did, TimeProvider};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -18,9 +18,15 @@ pub enum DecayModel {
     /// Step decay with discrete levels
     Step { intervals: Vec<DecayInterval> },
     /// Sigmoid decay with configurable steepness
-    Sigmoid { midpoint_seconds: u64, steepness: f64 },
+    Sigmoid {
+        midpoint_seconds: u64,
+        steepness: f64,
+    },
     /// Custom decay function combining multiple factors
-    Composite { models: Vec<DecayModel>, weights: Vec<f64> },
+    Composite {
+        models: Vec<DecayModel>,
+        weights: Vec<f64>,
+    },
 }
 
 /// Represents a step interval for step decay model
@@ -134,7 +140,7 @@ impl TrustDecayCalculator {
         }
 
         let effective_distance = path_length.min(self.distance_config.max_effective_distance);
-        
+
         let decay_factor = if self.distance_config.use_cumulative_decay {
             // Cumulative decay: decay compounds with each hop
             (1.0 - self.distance_config.decay_per_hop).powi(effective_distance as i32)
@@ -149,20 +155,26 @@ impl TrustDecayCalculator {
     /// Calculate interaction-based decay/boost factor for a trust edge
     pub fn calculate_interaction_decay(&self, edge: &TrustEdge, current_time: u64) -> f64 {
         let time_since_update = current_time.saturating_sub(edge.updated_at);
-        
+
         // Base decay for inactivity
-        let inactivity_factor = if time_since_update > self.interaction_config.interaction_timeout_seconds {
-            let excess_time = time_since_update - self.interaction_config.interaction_timeout_seconds;
-            let decay_periods = excess_time as f64 / self.interaction_config.interaction_timeout_seconds as f64;
-            (1.0 - self.interaction_config.inactivity_decay_rate).powf(decay_periods)
-        } else {
-            1.0
-        };
+        let inactivity_factor =
+            if time_since_update > self.interaction_config.interaction_timeout_seconds {
+                let excess_time =
+                    time_since_update - self.interaction_config.interaction_timeout_seconds;
+                let decay_periods =
+                    excess_time as f64 / self.interaction_config.interaction_timeout_seconds as f64;
+                (1.0 - self.interaction_config.inactivity_decay_rate).powf(decay_periods)
+            } else {
+                1.0
+            };
 
         // Boost for interaction count (diminishing returns)
         let interaction_boost = if edge.interaction_count > 0 {
-            let effective_count = edge.interaction_count.min(self.interaction_config.max_interaction_count);
-            let boost = self.interaction_config.interaction_boost_factor * (effective_count as f64).ln();
+            let effective_count = edge
+                .interaction_count
+                .min(self.interaction_config.max_interaction_count);
+            let boost =
+                self.interaction_config.interaction_boost_factor * (effective_count as f64).ln();
             1.0 + boost
         } else {
             1.0
@@ -193,7 +205,9 @@ impl TrustDecayCalculator {
                 let half_lives = age_seconds as f64 / *half_life_seconds as f64;
                 0.5_f64.powf(half_lives)
             }
-            DecayModel::Linear { decay_period_seconds } => {
+            DecayModel::Linear {
+                decay_period_seconds,
+            } => {
                 if age_seconds >= *decay_period_seconds {
                     0.0
                 } else {
@@ -211,19 +225,22 @@ impl TrustDecayCalculator {
                 // If age exceeds all intervals, return the last multiplier
                 intervals.last().map(|i| i.multiplier).unwrap_or(0.0)
             }
-            DecayModel::Sigmoid { midpoint_seconds, steepness } => {
+            DecayModel::Sigmoid {
+                midpoint_seconds,
+                steepness,
+            } => {
                 let x = age_seconds as f64 / *midpoint_seconds as f64;
                 1.0 / (1.0 + (steepness * x).exp())
             }
             DecayModel::Composite { models, weights } => {
                 let mut weighted_sum = 0.0;
                 let mut total_weight = 0.0;
-                
+
                 for (model, weight) in models.iter().zip(weights.iter()) {
                     weighted_sum += self.apply_decay_model(model, age_seconds) * weight;
                     total_weight += weight;
                 }
-                
+
                 if total_weight > 0.0 {
                     weighted_sum / total_weight
                 } else {
@@ -250,7 +267,7 @@ impl TrustDecayCalculator {
                 for (target, edge) in outgoing_edges {
                     let decay_factor = self.calculate_time_decay(edge, current_time);
                     let new_weight = edge.weight * decay_factor;
-                    
+
                     if new_weight < remove_threshold {
                         edges_to_remove.push((node.clone(), target.clone()));
                     } else if decay_factor < 1.0 {
@@ -303,13 +320,13 @@ impl TrustDecayCalculator {
             if let Some(outgoing_edges) = graph.get_outgoing_edges(&node) {
                 for edge in outgoing_edges.values() {
                     stats.total_edges += 1;
-                    
+
                     let age = current_time.saturating_sub(edge.updated_at);
                     age_sum += age;
-                    
+
                     let decay_factor = self.calculate_time_decay(edge, current_time);
                     decay_factor_sum += decay_factor;
-                    
+
                     if decay_factor < 0.5 {
                         stats.significantly_decayed += 1;
                     }
@@ -426,9 +443,18 @@ mod tests {
     #[test]
     fn test_step_decay() {
         let intervals = vec![
-            DecayInterval { duration_seconds: 3600, multiplier: 1.0 }, // First hour: no decay
-            DecayInterval { duration_seconds: 3600, multiplier: 0.8 }, // Second hour: 80%
-            DecayInterval { duration_seconds: 3600, multiplier: 0.5 }, // Third hour: 50%
+            DecayInterval {
+                duration_seconds: 3600,
+                multiplier: 1.0,
+            }, // First hour: no decay
+            DecayInterval {
+                duration_seconds: 3600,
+                multiplier: 0.8,
+            }, // Second hour: 80%
+            DecayInterval {
+                duration_seconds: 3600,
+                multiplier: 0.5,
+            }, // Third hour: 50%
         ];
 
         let calculator = TrustDecayCalculator::with_time_decay(DecayModel::Step { intervals });
@@ -495,7 +521,8 @@ mod tests {
         // Edge with many interactions
         let mut interactive_edge = TrustEdge::new(alice, bob, 1.0, 1000);
         interactive_edge.interaction_count = 50;
-        let interactive_decay = calculator.calculate_interaction_decay(&interactive_edge, 1000 + 3600);
+        let interactive_decay =
+            calculator.calculate_interaction_decay(&interactive_edge, 1000 + 3600);
         assert!(interactive_decay > 1.0); // Should have boost for interactions
     }
 
@@ -538,7 +565,12 @@ mod tests {
 
         // Add edges with different ages
         graph.add_edge(TrustEdge::new(alice.clone(), bob.clone(), 1.0, 1000)); // 2 days old - should be removed
-        graph.add_edge(TrustEdge::new(bob.clone(), charlie.clone(), 1.0, 1000 + 43200)); // 1.5 days old - should be removed
+        graph.add_edge(TrustEdge::new(
+            bob.clone(),
+            charlie.clone(),
+            1.0,
+            1000 + 43200,
+        )); // 1.5 days old - should be removed
 
         assert_eq!(graph.edge_count(), 2);
 
@@ -562,8 +594,18 @@ mod tests {
 
         // Add edges with different ages
         graph.add_edge(TrustEdge::new(alice.clone(), bob.clone(), 1.0, 1000)); // 90 days old
-        graph.add_edge(TrustEdge::new(bob.clone(), charlie.clone(), 1.0, 1000 + 45 * 24 * 3600)); // 45 days old
-        graph.add_edge(TrustEdge::new(charlie.clone(), david.clone(), 1.0, 1000 + 80 * 24 * 3600)); // 10 days old
+        graph.add_edge(TrustEdge::new(
+            bob.clone(),
+            charlie.clone(),
+            1.0,
+            1000 + 45 * 24 * 3600,
+        )); // 45 days old
+        graph.add_edge(TrustEdge::new(
+            charlie.clone(),
+            david.clone(),
+            1.0,
+            1000 + 80 * 24 * 3600,
+        )); // 10 days old
 
         let stats = calculator.calculate_decay_statistics(&graph, &time_provider);
 
@@ -576,12 +618,17 @@ mod tests {
     #[test]
     fn test_composite_decay_model() {
         let models = vec![
-            DecayModel::Exponential { half_life_seconds: 86400 },
-            DecayModel::Linear { decay_period_seconds: 172800 },
+            DecayModel::Exponential {
+                half_life_seconds: 86400,
+            },
+            DecayModel::Linear {
+                decay_period_seconds: 172800,
+            },
         ];
         let weights = vec![0.7, 0.3];
 
-        let calculator = TrustDecayCalculator::with_time_decay(DecayModel::Composite { models, weights });
+        let calculator =
+            TrustDecayCalculator::with_time_decay(DecayModel::Composite { models, weights });
 
         let alice = create_test_did("alice");
         let bob = create_test_did("bob");

@@ -11,9 +11,8 @@ use super::ZkError;
 
 pub(crate) struct PreparedVkCache;
 
-static CACHE: Lazy<Mutex<LruCache<Vec<u8>, PreparedVerifyingKey<Bn254>>>> = Lazy::new(|| {
-    Mutex::new(LruCache::new(NonZeroUsize::new(16).unwrap()))
-});
+static CACHE: Lazy<Mutex<LruCache<Vec<u8>, PreparedVerifyingKey<Bn254>>>> =
+    Lazy::new(|| Mutex::new(LruCache::new(NonZeroUsize::new(16).unwrap())));
 
 impl PreparedVkCache {
     pub fn get_or_insert(bytes: &[u8]) -> Result<PreparedVerifyingKey<Bn254>, ZkError> {

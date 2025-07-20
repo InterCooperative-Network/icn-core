@@ -12,10 +12,13 @@ fn test_enhanced_array_operations_compilation() {
             return value + length;
         }
     "#;
-    
+
     let result = compile_ccl_source_to_wasm(source);
-    assert!(result.is_ok(), "Enhanced array operations should compile successfully");
-    
+    assert!(
+        result.is_ok(),
+        "Enhanced array operations should compile successfully"
+    );
+
     let (wasm, _meta) = result.unwrap();
     assert!(wasm.starts_with(b"\0asm"), "Should produce valid WASM");
 }
@@ -32,10 +35,13 @@ fn test_enhanced_string_operations_compilation() {
             return are_equal && is_less;
         }
     "#;
-    
+
     let result = compile_ccl_source_to_wasm(source);
-    assert!(result.is_ok(), "Enhanced string operations should compile successfully");
-    
+    assert!(
+        result.is_ok(),
+        "Enhanced string operations should compile successfully"
+    );
+
     let (wasm, _meta) = result.unwrap();
     assert!(wasm.starts_with(b"\0asm"), "Should produce valid WASM");
 }
@@ -50,10 +56,13 @@ fn test_enhanced_map_operations_compilation() {
             return if alice_score == None { 0 } else { 100 };
         }
     "#;
-    
+
     let result = compile_ccl_source_to_wasm(source);
-    assert!(result.is_ok(), "Enhanced map operations should compile successfully");
-    
+    assert!(
+        result.is_ok(),
+        "Enhanced map operations should compile successfully"
+    );
+
     let (wasm, _meta) = result.unwrap();
     assert!(wasm.starts_with(b"\0asm"), "Should produce valid WASM");
 }
@@ -80,15 +89,18 @@ fn test_complex_data_structure_operations() {
             return 0;
         }
     "#;
-    
+
     let result = compile_ccl_source_to_wasm(source);
-    assert!(result.is_ok(), "Complex data structure operations should compile successfully");
-    
+    assert!(
+        result.is_ok(),
+        "Complex data structure operations should compile successfully"
+    );
+
     let (wasm, _meta) = result.unwrap();
     assert!(wasm.starts_with(b"\0asm"), "Should produce valid WASM");
 }
 
-#[test]  
+#[test]
 fn test_governance_scenario_with_enhanced_features() {
     let source = r#"
         fn process_proposal() -> Boolean {
@@ -122,10 +134,13 @@ fn test_governance_scenario_with_enhanced_features() {
             return true; // Simplified result
         }
     "#;
-    
+
     let result = compile_ccl_source_to_wasm(source);
-    assert!(result.is_ok(), "Governance scenario with enhanced features should compile successfully");
-    
+    assert!(
+        result.is_ok(),
+        "Governance scenario with enhanced features should compile successfully"
+    );
+
     let (wasm, _meta) = result.unwrap();
     assert!(wasm.starts_with(b"\0asm"), "Should produce valid WASM");
 }

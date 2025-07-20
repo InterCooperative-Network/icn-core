@@ -1099,18 +1099,18 @@ async fn test_full_mesh_job_cycle_libp2p() -> Result<(), anyhow::Error> {
 // Test checkpoint creation and resumption
 #[tokio::test]
 async fn test_job_checkpoint_resume() -> Result<(), Box<dyn std::error::Error>> {
-    use icn_runtime::executor::{SimpleExecutor, JobExecutor};
     use icn_mesh::{JobCheckpoint, ProgressReport};
-    
+    use icn_runtime::executor::{JobExecutor, SimpleExecutor};
+
     let (sk, vk) = generate_ed25519_keypair();
     let executor_did = Did::from_str(&icn_identity::did_key_from_verifying_key(&vk))?;
-    
+
     // Create a context for the executor
     let ctx = create_test_context(&executor_did.to_string(), 1000);
-    
+
     // Create a simple executor with checkpoint support
     let executor = SimpleExecutor::with_context(executor_did.clone(), sk.clone(), ctx.clone());
-    
+
     // Create a job for checkpointed execution
     let manifest_cid = Cid::new_v1_sha256(0x55, b"echo_checkpoint_job");
     let job = ActualMeshJob {
@@ -1127,36 +1127,36 @@ async fn test_job_checkpoint_resume() -> Result<(), Box<dyn std::error::Error>> 
         max_execution_wait_ms: None,
         signature: SignatureBytes(vec![0u8; 64]),
     };
-    
+
     // Execute job with checkpoints
     let receipt = executor.execute_job_with_checkpoints(&job, Some(1)).await?;
-    
+
     assert!(receipt.success);
     assert_eq!(receipt.executor_did, executor_did);
     assert_eq!(receipt.job_id, job.id.clone().into());
-    
+
     // Verify checkpoint was created
     let progress = executor.get_job_progress(&job.id).await;
     assert!(progress.is_none()); // Should be cleaned up after completion
-    
+
     Ok(())
 }
 
 // Test job resumption from checkpoint
 #[tokio::test]
 async fn test_job_resume_from_checkpoint() -> Result<(), Box<dyn std::error::Error>> {
-    use icn_runtime::executor::{SimpleExecutor, JobExecutor};
     use icn_mesh::JobCheckpoint;
-    
+    use icn_runtime::executor::{JobExecutor, SimpleExecutor};
+
     let (sk, vk) = generate_ed25519_keypair();
     let executor_did = Did::from_str(&icn_identity::did_key_from_verifying_key(&vk))?;
-    
+
     // Create a context for the executor
     let ctx = create_test_context(&executor_did.to_string(), 1000);
-    
+
     // Create a simple executor
     let executor = SimpleExecutor::with_context(executor_did.clone(), sk.clone(), ctx.clone());
-    
+
     // Create a job
     let job_id = JobId(Cid::new_v1_sha256(0x55, b"resume_test_job"));
     let manifest_cid = Cid::new_v1_sha256(0x55, b"resume_test_manifest");
@@ -1174,7 +1174,7 @@ async fn test_job_resume_from_checkpoint() -> Result<(), Box<dyn std::error::Err
         max_execution_wait_ms: None,
         signature: SignatureBytes(vec![0u8; 64]),
     };
-    
+
     // Create a simulated checkpoint
     let checkpoint = JobCheckpoint {
         job_id: job_id.clone(),
@@ -1189,15 +1189,16 @@ async fn test_job_resume_from_checkpoint() -> Result<(), Box<dyn std::error::Err
         intermediate_data_cid: Some(Cid::new_v1_sha256(0x55, b"intermediate")),
         executor_did: executor_did.clone(),
         signature: icn_identity::SignatureBytes(vec![]),
-    }.sign(&sk)?;
-    
+    }
+    .sign(&sk)?;
+
     // Test resuming from checkpoint
     let receipt = executor.resume_from_checkpoint(&job, &checkpoint).await?;
-    
+
     assert!(receipt.success);
     assert_eq!(receipt.executor_did, executor_did);
     assert_eq!(receipt.job_id, job.id.clone().into());
-    
+
     Ok(())
 }
 
@@ -1205,19 +1206,22 @@ async fn test_job_resume_from_checkpoint() -> Result<(), Box<dyn std::error::Err
 #[tokio::test]
 async fn test_checkpoint_dag_anchoring() -> Result<(), Box<dyn std::error::Error>> {
     use icn_mesh::JobCheckpoint;
-    
+
     let (sk, vk) = generate_ed25519_keypair();
     let executor_did = Did::from_str(&icn_identity::did_key_from_verifying_key(&vk))?;
-    
+
     // Create a context
     let ctx = create_test_context(&executor_did.to_string(), 1000);
-    
+
     // Create a job state first
     let job_id = JobId(Cid::new_v1_sha256(0x55, b"dag_anchor_test"));
-    ctx.job_states.insert(job_id.clone(), JobState::Assigned { 
-        executor: executor_did.clone() 
-    });
-    
+    ctx.job_states.insert(
+        job_id.clone(),
+        JobState::Assigned {
+            executor: executor_did.clone(),
+        },
+    );
+
     // Create a checkpoint
     let checkpoint = JobCheckpoint {
         job_id: job_id.clone(),
@@ -1232,25 +1236,26 @@ async fn test_checkpoint_dag_anchoring() -> Result<(), Box<dyn std::error::Error
         intermediate_data_cid: None,
         executor_did: executor_did.clone(),
         signature: icn_identity::SignatureBytes(vec![]),
-    }.sign(&sk)?;
-    
+    }
+    .sign(&sk)?;
+
     // Anchor checkpoint to DAG
     let checkpoint_cid = ctx.anchor_checkpoint(&checkpoint).await?;
-    
+
     // Verify checkpoint was stored in DAG
     let dag_store = ctx.dag_store.lock().await;
     let stored_block = dag_store.get(&checkpoint_cid).unwrap().unwrap();
-    
+
     assert_eq!(stored_block.cid, checkpoint_cid);
     assert_eq!(stored_block.author_did, executor_did);
     assert_eq!(stored_block.scope, Some(format!("checkpoint:{}", job_id)));
-    
+
     // Verify we can deserialize the checkpoint from the DAG
     let stored_checkpoint: JobCheckpoint = bincode::deserialize(&stored_block.data)?;
     assert_eq!(stored_checkpoint.job_id, job_id);
     assert_eq!(stored_checkpoint.stage, "computation");
     assert_eq!(stored_checkpoint.progress_percent, 75.0);
-    
+
     Ok(())
 }
 
@@ -1258,19 +1263,22 @@ async fn test_checkpoint_dag_anchoring() -> Result<(), Box<dyn std::error::Error
 #[tokio::test]
 async fn test_partial_output_dag_anchoring() -> Result<(), Box<dyn std::error::Error>> {
     use icn_mesh::PartialOutputReceipt;
-    
+
     let (sk, vk) = generate_ed25519_keypair();
     let executor_did = Did::from_str(&icn_identity::did_key_from_verifying_key(&vk))?;
-    
+
     // Create a context
     let ctx = create_test_context(&executor_did.to_string(), 1000);
-    
+
     // Create a job state first
     let job_id = JobId(Cid::new_v1_sha256(0x55, b"partial_output_test"));
-    ctx.job_states.insert(job_id.clone(), JobState::Assigned { 
-        executor: executor_did.clone() 
-    });
-    
+    ctx.job_states.insert(
+        job_id.clone(),
+        JobState::Assigned {
+            executor: executor_did.clone(),
+        },
+    );
+
     // Create a partial output receipt
     let partial_output = PartialOutputReceipt {
         job_id: job_id.clone(),
@@ -1285,50 +1293,54 @@ async fn test_partial_output_dag_anchoring() -> Result<(), Box<dyn std::error::E
         output_format: Some("application/json".to_string()),
         executor_did: executor_did.clone(),
         signature: icn_identity::SignatureBytes(vec![]),
-    }.sign(&sk)?;
-    
+    }
+    .sign(&sk)?;
+
     // Anchor partial output to DAG
     let output_cid = ctx.anchor_partial_output(&partial_output).await?;
-    
+
     // Verify partial output was stored in DAG
     let dag_store = ctx.dag_store.lock().await;
     let stored_block = dag_store.get(&output_cid).unwrap().unwrap();
-    
+
     assert_eq!(stored_block.cid, output_cid);
     assert_eq!(stored_block.author_did, executor_did);
-    assert_eq!(stored_block.scope, Some(format!("partial_output:{}", job_id)));
-    
+    assert_eq!(
+        stored_block.scope,
+        Some(format!("partial_output:{}", job_id))
+    );
+
     // Verify we can deserialize the partial output from the DAG
     let stored_output: PartialOutputReceipt = bincode::deserialize(&stored_block.data)?;
     assert_eq!(stored_output.job_id, job_id);
     assert_eq!(stored_output.stage, "stage_1");
     assert_eq!(stored_output.output_size, 256);
-    
+
     Ok(())
 }
 
 // Test job cancellation scenario
 #[tokio::test]
 async fn test_job_cancellation() -> Result<(), Box<dyn std::error::Error>> {
-    use icn_runtime::executor::{SimpleExecutor, JobExecutor};
-    
+    use icn_runtime::executor::{JobExecutor, SimpleExecutor};
+
     let (sk, vk) = generate_ed25519_keypair();
     let executor_did = Did::from_str(&icn_identity::did_key_from_verifying_key(&vk))?;
-    
+
     // Create a context
     let ctx = create_test_context(&executor_did.to_string(), 1000);
-    
+
     // Create a simple executor
     let executor = SimpleExecutor::with_context(executor_did.clone(), sk.clone(), ctx.clone());
-    
+
     // Create a job and put it in pending state
     let job_id = JobId(Cid::new_v1_sha256(0x55, b"cancellation_test"));
     ctx.job_states.insert(job_id.clone(), JobState::Pending);
-    
+
     // Verify job can be "cancelled" (for now, this just verifies the job exists)
     let job_state = ctx.job_states.get(&job_id);
     assert!(job_state.is_some());
-    
+
     // In a real implementation, we would test actual cancellation logic
     // For now, we verify the infrastructure is in place
     match job_state.unwrap().value() {
@@ -1338,9 +1350,12 @@ async fn test_job_cancellation() -> Result<(), Box<dyn std::error::Error>> {
         }
         _ => {
             // Job cannot be cancelled
-            assert!(false, "Job should be in pending state for cancellation test");
+            assert!(
+                false,
+                "Job should be in pending state for cancellation test"
+            );
         }
     }
-    
+
     Ok(())
 }

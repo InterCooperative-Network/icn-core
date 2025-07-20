@@ -139,13 +139,11 @@ impl SimpleManaLedger {
 
     /// Spend mana from an account.
     pub fn spend(&self, account: &Did, amount: u64) -> Result<(), HostAbiError> {
-        self.ledger.spend(account, amount).map_err(|err| {
-            match err {
-                CommonError::PolicyDenied(msg) if msg.contains("Insufficient mana") => {
-                    HostAbiError::InsufficientMana
-                }
-                other => HostAbiError::from(other),
+        self.ledger.spend(account, amount).map_err(|err| match err {
+            CommonError::PolicyDenied(msg) if msg.contains("Insufficient mana") => {
+                HostAbiError::InsufficientMana
             }
+            other => HostAbiError::from(other),
         })
     }
 
@@ -186,4 +184,4 @@ impl icn_economics::ManaLedger for SimpleManaLedger {
     fn all_accounts(&self) -> Vec<Did> {
         self.ledger.all_accounts()
     }
-} 
+}

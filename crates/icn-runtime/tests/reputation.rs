@@ -21,8 +21,9 @@ async fn anchor_receipt_updates_reputation() {
         &did_str,
         std::path::PathBuf::from("./mana_ledger.sled"),
         signer.clone(),
-    ).unwrap();
-    
+    )
+    .unwrap();
+
     let job_id = Cid::new_v1_sha256(0x55, b"rep_job");
     let result_cid = Cid::new_v1_sha256(0x55, b"res");
 

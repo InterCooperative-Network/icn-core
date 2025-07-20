@@ -40,29 +40,28 @@ pub use cooperative_registry::{
 };
 pub mod federation_trust;
 pub use federation_trust::{
-    TrustContext, FederationId, ScopedTrustRelationship, TrustInheritance,
-    FederationTrustBridge, BridgeConfig, TrustPolicyRule, TrustPolicyEngine,
-    TrustValidationResult, FederationMetadata, FederationScope, GeographicScope as FederationGeographicScope,
-    SizeLimits, MembershipCriteria, QuorumPolicy, WeightAssignment, FederationMember,
-    MemberStatus, FederationRole, FederationStatus, FederationTrustPolicy,
-    TrustVerificationRequirements, FederationDidDocument, FederationPublicKey,
-    KeyPurpose, FederationService, VerificationMethod, VerificationMaterial,
-    FederationDidMetadata, FederationDidVerifier, DidVerificationPolicy,
-    DidVerificationResult, FederationTrustBootstrap, BootstrapSession,
-    BootstrapStatus, VerificationChallenge, ChallengeType,
+    BootstrapSession, BootstrapStatus, BridgeConfig, ChallengeType, DidVerificationPolicy,
+    DidVerificationResult, FederationDidDocument, FederationDidMetadata, FederationDidVerifier,
+    FederationId, FederationMember, FederationMetadata, FederationPublicKey, FederationRole,
+    FederationScope, FederationService, FederationStatus, FederationTrustBootstrap,
+    FederationTrustBridge, FederationTrustPolicy, GeographicScope as FederationGeographicScope,
+    KeyPurpose, MemberStatus, MembershipCriteria, QuorumPolicy, ScopedTrustRelationship,
+    SizeLimits, TrustContext, TrustInheritance, TrustPolicyEngine, TrustPolicyRule,
+    TrustValidationResult, TrustVerificationRequirements, VerificationChallenge,
+    VerificationMaterial, VerificationMethod, WeightAssignment,
 };
 pub mod trust_attestation;
 pub use trust_attestation::{
-    TrustAttestation, MultiPartyTrustRecord, TrustChallenge, ChallengeStatus,
-    TrustAuditEvent, TrustEventType, TrustAttestationStore, InMemoryTrustAttestationStore,
+    ChallengeStatus, InMemoryTrustAttestationStore, MultiPartyTrustRecord, TrustAttestation,
+    TrustAttestationStore, TrustAuditEvent, TrustChallenge, TrustEventType,
 };
 pub mod trust_verification;
 pub use trust_verification::{
-    TrustVerificationEngine, TrustVerificationConfig, TrustVerificationResult, ChallengeResolution,
+    ChallengeResolution, TrustVerificationConfig, TrustVerificationEngine, TrustVerificationResult,
 };
-pub mod metrics;
 pub mod delegated_credential;
-pub use delegated_credential::{DelegatedCredential, verify_delegation_chain};
+pub mod metrics;
+pub use delegated_credential::{verify_delegation_chain, DelegatedCredential};
 
 // --- Core Cryptographic Operations & DID:key generation ---
 

@@ -1028,4 +1028,4 @@ mod tests {
         assert!(package_json.contains("@icn/client-sdk"));
         assert!(package_json.contains("typescript"));
     }
-} 
+}

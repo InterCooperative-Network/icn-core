@@ -4,20 +4,21 @@ use std::time::Duration;
 #[tokio::test]
 async fn balances_increase_when_regenerator_runs() {
     let ctx = RuntimeContext::new_with_stubs_and_mana("did:icn:test:regen", 0).unwrap();
-    ctx.parameters.insert(MANA_MAX_CAPACITY_KEY.into(), "100".into());
-    
+    ctx.parameters
+        .insert(MANA_MAX_CAPACITY_KEY.into(), "100".into());
+
     // Set up some reputation for the test account
     ctx.reputation_store
         .record_execution(&ctx.current_identity, true, 0);
     ctx.reputation_store
         .record_execution(&ctx.current_identity, true, 0);
-    
+
     // Check initial balance
     assert_eq!(ctx.mana_ledger.get_balance(&ctx.current_identity), 0);
-    
+
     // Start the mana regenerator (it runs every 60 seconds)
     ctx.clone().spawn_mana_regenerator().await;
-    
+
     // For testing, we'll manually trigger regeneration logic
     // by simulating what the regenerator does
     let current_balance = ctx.mana_ledger.get_balance(&ctx.current_identity);
@@ -30,15 +31,17 @@ async fn balances_increase_when_regenerator_runs() {
         .get(MANA_MAX_CAPACITY_KEY)
         .and_then(|v| v.value().parse().ok())
         .unwrap();
-    
+
     let actual_regen = if current_balance < max_capacity {
         let actual_regen = std::cmp::min(regeneration_amount, max_capacity - current_balance);
-        ctx.mana_ledger.set_balance(&ctx.current_identity, current_balance + actual_regen).unwrap();
+        ctx.mana_ledger
+            .set_balance(&ctx.current_identity, current_balance + actual_regen)
+            .unwrap();
         actual_regen
     } else {
         0
     };
-    
+
     let final_balance = ctx.mana_ledger.get_balance(&ctx.current_identity);
     // With reputation of 2, we should get at least some mana
     assert!(final_balance > 0);
@@ -49,7 +52,8 @@ async fn balances_increase_when_regenerator_runs() {
 #[tokio::test]
 async fn capacity_updates_allow_more_mana() {
     let ctx = RuntimeContext::new_with_stubs_and_mana("did:icn:test:cap_var", 0).unwrap();
-    ctx.parameters.insert(MANA_MAX_CAPACITY_KEY.into(), "20".into());
+    ctx.parameters
+        .insert(MANA_MAX_CAPACITY_KEY.into(), "20".into());
     ctx.reputation_store
         .record_execution(&ctx.current_identity, true, 0);
 
@@ -77,7 +81,8 @@ async fn capacity_updates_allow_more_mana() {
     assert!(bal1 <= cap1);
 
     // increase capacity
-    ctx.parameters.insert(MANA_MAX_CAPACITY_KEY.into(), "80".into());
+    ctx.parameters
+        .insert(MANA_MAX_CAPACITY_KEY.into(), "80".into());
 
     let current_balance = ctx.mana_ledger.get_balance(&ctx.current_identity);
     let cap2: u64 = ctx

@@ -1,4 +1,4 @@
-use icn_ccl::{ast::StatementNode, parser::parse_ccl_source, CclError, compile_ccl_source_to_wasm};
+use icn_ccl::{ast::StatementNode, compile_ccl_source_to_wasm, parser::parse_ccl_source, CclError};
 
 #[test]
 fn parse_simple_for_loop() {

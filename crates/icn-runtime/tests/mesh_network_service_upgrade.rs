@@ -170,10 +170,7 @@ fn test_stub_signer_functionality() {
     let is_invalid = signer
         .verify(test_payload, &invalid_signature, &public_key_bytes)
         .unwrap();
-    assert!(
-        !is_invalid,
-        "StubSigner should detect invalid signatures"
-    );
+    assert!(!is_invalid, "StubSigner should detect invalid signatures");
 }
 
 #[test]

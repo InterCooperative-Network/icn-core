@@ -4,8 +4,8 @@ pub enum PolicyCheckResult {
 }
 
 use icn_common::{Did, NodeScope, ZkCredentialProof, ZkRevocationProof};
-use icn_identity::{Groth16Verifier, ZkVerifier};
 use icn_identity::zk::ZkRevocationVerifier;
+use icn_identity::{Groth16Verifier, ZkVerifier};
 
 /// Operations that may be subject to scoped policy checks when writing to the DAG.
 #[derive(Debug, Clone, Copy)]
@@ -67,17 +67,25 @@ impl InMemoryPolicyEnforcer {
 
         let cred_ok = match proof {
             Some(p) => matches!(self.verifier.verify(p), Ok(true)),
-            None => return PolicyCheckResult::Denied { reason: "credential proof required".to_string() },
+            None => {
+                return PolicyCheckResult::Denied {
+                    reason: "credential proof required".to_string(),
+                }
+            }
         };
 
         if !cred_ok {
-            return PolicyCheckResult::Denied { reason: "credential proof invalid".to_string() };
+            return PolicyCheckResult::Denied {
+                reason: "credential proof invalid".to_string(),
+            };
         }
 
         if let Some(rp) = revocation {
             match self.verifier.verify_revocation(rp) {
                 Ok(true) => PolicyCheckResult::Allowed,
-                _ => PolicyCheckResult::Denied { reason: "revocation proof invalid".to_string() },
+                _ => PolicyCheckResult::Denied {
+                    reason: "revocation proof invalid".to_string(),
+                },
             }
         } else {
             PolicyCheckResult::Allowed

@@ -5,9 +5,9 @@ fn main() {
     println!("🏛️  Testing Budgeting Contract After Infinite Loop Fix");
     println!("====================================================");
     println!();
-    
+
     let budgeting_path = PathBuf::from("ccl-lib/budgeting.ccl");
-    
+
     match compile_ccl_file_to_wasm(&budgeting_path) {
         Ok((wasm, metadata)) => {
             println!("🎉 🎉 🎉 BUDGETING CONTRACT COMPILED SUCCESSFULLY! 🎉 🎉 🎉");
@@ -34,14 +34,14 @@ fn main() {
             println!("   ✅ get_category_available_funds()");
             println!("   ✅ transfer_mana()");
             println!("   ✅ calculate_budget_health()");
-        },
+        }
         Err(e) => {
             println!("❌ BUDGETING CONTRACT COMPILATION FAILED:");
             println!("   Error: {}", e);
             println!();
             println!("🔍 Error Analysis:");
             let error_str = e.to_string();
-            
+
             if error_str.contains("Cannot assign to immutable variable") {
                 println!("   • Variable mutability issue - may need additional fixes");
             } else if error_str.contains("struct") {
@@ -55,4 +55,4 @@ fn main() {
             }
         }
     }
-} 
+}

@@ -80,39 +80,37 @@ impl TrustGraph {
     pub fn add_edge(&mut self, edge: TrustEdge) {
         let from = edge.from.clone();
         let to = edge.to.clone();
-        
+
         // Add to forward adjacency list
         self.edges
             .entry(from.clone())
             .or_default()
             .insert(to.clone(), edge.clone());
-        
+
         // Add to reverse adjacency list
         self.incoming_edges
             .entry(to)
             .or_default()
             .insert(from, edge);
-        
+
         // Invalidate cached scores since graph structure changed
         self.cached_scores.clear();
     }
 
     /// Remove a trust edge from the graph
     pub fn remove_edge(&mut self, from: &Did, to: &Did) -> Option<TrustEdge> {
-        let removed = self.edges
-            .get_mut(from)?
-            .remove(to);
-        
+        let removed = self.edges.get_mut(from)?.remove(to);
+
         if removed.is_some() {
             // Also remove from incoming edges
             if let Some(incoming) = self.incoming_edges.get_mut(to) {
                 incoming.remove(from);
             }
-            
+
             // Invalidate cached scores
             self.cached_scores.clear();
         }
-        
+
         removed
     }
 
@@ -134,14 +132,14 @@ impl TrustGraph {
     /// Get all entities (DIDs) in the graph
     pub fn get_all_nodes(&self) -> Vec<Did> {
         let mut nodes = std::collections::HashSet::new();
-        
+
         for (from, edges) in &self.edges {
             nodes.insert(from.clone());
             for to in edges.keys() {
                 nodes.insert(to.clone());
             }
         }
-        
+
         nodes.into_iter().collect()
     }
 
@@ -156,7 +154,11 @@ impl TrustGraph {
     }
 
     /// Clean up expired edges based on a time provider
-    pub fn cleanup_expired_edges(&mut self, time_provider: &dyn TimeProvider, max_age_seconds: u64) {
+    pub fn cleanup_expired_edges(
+        &mut self,
+        time_provider: &dyn TimeProvider,
+        max_age_seconds: u64,
+    ) {
         let current_time = time_provider.unix_seconds();
         let mut edges_to_remove = Vec::new();
 
@@ -182,7 +184,12 @@ impl TrustGraph {
     }
 
     /// Get a cached trust score if available and not stale
-    pub fn get_cached_score(&self, did: &Did, max_cache_age: u64, current_time: u64) -> Option<f64> {
+    pub fn get_cached_score(
+        &self,
+        did: &Did,
+        max_cache_age: u64,
+        current_time: u64,
+    ) -> Option<f64> {
         if current_time.saturating_sub(self.last_score_update) > max_cache_age {
             return None;
         }
@@ -224,11 +231,11 @@ mod tests {
     fn test_trust_edge_weight_clamping() {
         let from = create_test_did("alice");
         let to = create_test_did("bob");
-        
+
         // Test upper bound clamping
         let edge1 = TrustEdge::new(from.clone(), to.clone(), 1.5, 1000);
         assert_eq!(edge1.weight, 1.0);
-        
+
         // Test lower bound clamping
         let edge2 = TrustEdge::new(from, to, -0.5, 1000);
         assert_eq!(edge2.weight, 0.0);
@@ -242,7 +249,7 @@ mod tests {
 
         // Not expired within threshold
         assert!(!edge.is_expired(1500, 1000));
-        
+
         // Expired beyond threshold
         assert!(edge.is_expired(2500, 1000));
     }
@@ -257,7 +264,7 @@ mod tests {
         // Add edges
         let edge1 = TrustEdge::new(alice.clone(), bob.clone(), 0.8, 1000);
         let edge2 = TrustEdge::new(bob.clone(), charlie.clone(), 0.9, 1000);
-        
+
         graph.add_edge(edge1.clone());
         graph.add_edge(edge2.clone());
 

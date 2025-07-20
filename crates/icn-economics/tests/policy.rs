@@ -61,4 +61,3 @@ fn policy_enforcer_exceeds_limit() {
     let result = enforcer.spend_mana(&did, over_limit);
     assert!(matches!(result, Err(CommonError::PolicyDenied(_))));
 }
-

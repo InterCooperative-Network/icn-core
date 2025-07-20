@@ -393,7 +393,9 @@ mod libp2p_mesh_integration {
                 max_cost_mana: job_to_announce.cost_mana,
                 job_spec: icn_protocol::JobSpec {
                     kind: match &job_to_announce.spec.kind {
-                        JobKind::Echo { payload } => icn_protocol::JobKind::Echo { payload: payload.clone() },
+                        JobKind::Echo { payload } => icn_protocol::JobKind::Echo {
+                            payload: payload.clone(),
+                        },
                         JobKind::CclWasm => icn_protocol::JobKind::CclWasm,
                         JobKind::GenericPlaceholder => icn_protocol::JobKind::Generic,
                     },
@@ -651,7 +653,9 @@ mod libp2p_mesh_integration {
                 max_cost_mana: test_job.cost_mana,
                 job_spec: icn_protocol::JobSpec {
                     kind: match &test_job.spec.kind {
-                        JobKind::Echo { payload } => icn_protocol::JobKind::Echo { payload: payload.clone() },
+                        JobKind::Echo { payload } => icn_protocol::JobKind::Echo {
+                            payload: payload.clone(),
+                        },
                         JobKind::CclWasm => icn_protocol::JobKind::CclWasm,
                         JobKind::GenericPlaceholder => icn_protocol::JobKind::Generic,
                     },
@@ -735,7 +739,8 @@ mod libp2p_mesh_integration {
                 completion_deadline: std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
                     .unwrap()
-                    .as_secs() + 300, // 5 minutes from now
+                    .as_secs()
+                    + 300, // 5 minutes from now
                 manifest_cid: None,
             }),
             Did::new("key", "node_a"),
@@ -777,7 +782,9 @@ mod libp2p_mesh_integration {
             signature: SignatureBytes(vec![]),
             spec: icn_mesh::JobSpec {
                 kind: match &received_job.job_spec.kind {
-                    icn_protocol::JobKind::Echo { payload } => JobKind::Echo { payload: payload.clone() },
+                    icn_protocol::JobKind::Echo { payload } => JobKind::Echo {
+                        payload: payload.clone(),
+                    },
                     icn_protocol::JobKind::CclWasm => JobKind::CclWasm,
                     icn_protocol::JobKind::Generic => JobKind::GenericPlaceholder,
                 },
@@ -885,7 +892,9 @@ mod libp2p_mesh_integration {
                 max_cost_mana: test_job.cost_mana,
                 job_spec: icn_protocol::JobSpec {
                     kind: match &test_job.spec.kind {
-                        JobKind::Echo { payload } => icn_protocol::JobKind::Echo { payload: payload.clone() },
+                        JobKind::Echo { payload } => icn_protocol::JobKind::Echo {
+                            payload: payload.clone(),
+                        },
                         JobKind::CclWasm => icn_protocol::JobKind::CclWasm,
                         JobKind::GenericPlaceholder => icn_protocol::JobKind::Generic,
                     },

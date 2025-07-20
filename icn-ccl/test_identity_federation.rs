@@ -18,7 +18,7 @@ fn main() {
             println!("✅ Identity & Federation Operations Compilation SUCCESSFUL!");
             println!("📦 Generated WASM size: {} bytes", wasm_bytes.len());
             println!("📋 Contract CID: {}", metadata.cid);
-            
+
             // Basic validation that WASM was generated
             if wasm_bytes.len() > 0 && wasm_bytes.starts_with(&[0x00, 0x61, 0x73, 0x6D]) {
                 println!("🎯 WASM format validation: PASSED");
@@ -44,4 +44,4 @@ fn main() {
 
     println!("✨ CCL Advanced Identity & Federation Integration: 95% COMPLETE!");
     println!("🎯 Remaining: Host function implementations in icn-runtime");
-} 
+}

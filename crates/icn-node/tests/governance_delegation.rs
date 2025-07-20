@@ -22,7 +22,8 @@ async fn delegate_and_revoke_flow() {
         None, // governance_db_path
         None, // reputation_db_path
         None, // parameter_store_path
-    ).await;
+    )
+    .await;
     let node_did = ctx.current_identity.clone();
     {
         let mut gov = ctx.governance_module.lock().await;

@@ -5,9 +5,9 @@ fn main() {
     println!("🔧 FINAL VERIFICATION: Infinite Loop Bug Fix");
     println!("===========================================");
     println!();
-    
+
     let test_path = PathBuf::from("test_infinite_loop_final.ccl");
-    
+
     match compile_ccl_file_to_wasm(&test_path) {
         Ok((wasm, metadata)) => {
             println!("🎉 🎉 🎉 INFINITE LOOP BUG COMPLETELY FIXED! 🎉 🎉 🎉");
@@ -43,14 +43,14 @@ fn main() {
             println!("   ✅ Core CCL functionality ready for production");
             println!();
             println!("🔥 **CRITICAL BUG RESOLVED SUCCESSFULLY!** 🔥");
-        },
+        }
         Err(e) => {
             println!("❌ FINAL TEST FAILED:");
             println!("   Error: {}", e);
             println!();
             println!("⚠️  This indicates fundamental issues remain:");
             let error_str = e.to_string();
-            
+
             if error_str.contains("Cannot assign to immutable variable") {
                 println!("   🚨 CRITICAL: Variable mutability fix incomplete");
             } else if error_str.contains("Array") {
@@ -62,4 +62,4 @@ fn main() {
             }
         }
     }
-} 
+}

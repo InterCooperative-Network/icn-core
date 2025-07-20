@@ -3,10 +3,10 @@
 //! This module implements algorithms for finding optimal trust paths between
 //! cooperatives through intermediaries, including shortest path and best trust path algorithms.
 
-use crate::trust_graph::{TrustGraph, TrustEdge};
+use crate::trust_graph::{TrustEdge, TrustGraph};
 use icn_common::{Did, TimeProvider};
-use std::collections::{BinaryHeap, HashMap, HashSet, VecDeque};
 use std::cmp::Ordering;
+use std::collections::{BinaryHeap, HashMap, HashSet, VecDeque};
 
 /// Represents a path through the trust graph
 #[derive(Debug, Clone)]
@@ -44,7 +44,7 @@ impl TrustPath {
         } else {
             self.trust_score = self.trust_score.min(edge_weight);
         }
-        
+
         self.edges.push(edge);
         self.length += 1;
     }
@@ -99,7 +99,10 @@ impl PartialEq for PathState {
 impl Ord for PathState {
     fn cmp(&self, other: &Self) -> Ordering {
         // Reverse ordering for max-heap (we want highest trust scores first)
-        other.trust_score.partial_cmp(&self.trust_score).unwrap_or(Ordering::Equal)
+        other
+            .trust_score
+            .partial_cmp(&self.trust_score)
+            .unwrap_or(Ordering::Equal)
     }
 }
 
@@ -211,13 +214,17 @@ impl TrustPathfinder {
 
                     let decay = self.calculate_time_decay(edge, current_time);
                     let edge_weight = edge.weight * decay;
-                    
+
                     // Calculate new trust score (minimum along path)
                     let new_trust_score = current_state.trust_score.min(edge_weight);
-                    
+
                     // Apply distance penalty
-                    let effective_trust = new_trust_score * self.config.distance_penalty.powi(current_state.distance as i32);
-                    
+                    let effective_trust = new_trust_score
+                        * self
+                            .config
+                            .distance_penalty
+                            .powi(current_state.distance as i32);
+
                     if effective_trust >= self.config.min_trust_threshold {
                         let mut new_path = current_state.path.clone();
                         new_path.push(edge.clone());
@@ -256,13 +263,9 @@ impl TrustPathfinder {
 
         // Find multiple paths by excluding previously used intermediate nodes
         for _iteration in 0..self.config.max_paths {
-            if let Some(path) = self.find_path_avoiding_nodes(
-                graph,
-                source,
-                target,
-                &used_nodes,
-                current_time,
-            ) {
+            if let Some(path) =
+                self.find_path_avoiding_nodes(graph, source, target, &used_nodes, current_time)
+            {
                 // Add intermediate nodes to exclusion set for diversity
                 for intermediate in path.get_intermediate_nodes() {
                     used_nodes.insert(intermediate);
@@ -327,7 +330,7 @@ impl TrustPathfinder {
                     if !visited.contains(neighbor) {
                         let decay = self.calculate_time_decay(edge, current_time);
                         let edge_weight = edge.weight * decay;
-                        
+
                         if edge_weight >= self.config.min_trust_threshold {
                             let mut new_path = current_path.clone();
                             new_path.push(edge.clone());
@@ -367,7 +370,7 @@ impl TrustPathfinder {
             }
 
             visited.insert(current_state.node.clone());
-            
+
             if current_state.trust_score >= min_trust {
                 reachable.insert(current_state.node.clone(), current_state.trust_score);
             }
@@ -382,7 +385,7 @@ impl TrustPathfinder {
                         let decay = self.calculate_time_decay(edge, current_time);
                         let edge_weight = edge.weight * decay;
                         let new_trust_score = current_state.trust_score.min(edge_weight);
-                        
+
                         if new_trust_score >= self.config.min_trust_threshold {
                             heap.push(PathState {
                                 node: neighbor.clone(),
@@ -456,7 +459,7 @@ impl TrustPathfinder {
                         let decay = self.calculate_time_decay(edge, current_time);
                         let edge_weight = edge.weight * decay;
                         let new_trust_score = current_state.trust_score.min(edge_weight);
-                        
+
                         if new_trust_score >= self.config.min_trust_threshold {
                             let mut new_path = current_state.path.clone();
                             new_path.push(edge.clone());
@@ -603,7 +606,7 @@ mod tests {
         graph.add_edge(TrustEdge::new(charlie.clone(), david.clone(), 0.9, 960));
 
         let paths = pathfinder.find_multiple_paths(&graph, &alice, &david, &time_provider);
-        
+
         // Should find both 2-hop paths
         assert!(paths.len() >= 2);
         assert!(paths.iter().all(|p| p.length == 2));

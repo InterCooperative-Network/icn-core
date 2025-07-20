@@ -20,7 +20,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("Testing for loop with constant assignment...");
     match compile_ccl_source_to_wasm(source1) {
         Ok((wasm, _metadata)) => {
@@ -31,7 +31,7 @@ fn main() {
             println!("❌ For loop with assignment failed: {}", e);
         }
     }
-    
+
     // Test 2: For loop with iterator addition
     let source2 = r#"
         contract TestForIteratorAdd {
@@ -48,7 +48,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("\nTesting for loop with iterator addition...");
     match compile_ccl_source_to_wasm(source2) {
         Ok((wasm, _metadata)) => {
@@ -59,7 +59,7 @@ fn main() {
             println!("❌ For loop with iterator addition failed: {}", e);
         }
     }
-    
+
     // Test 3: For loop with variable addition
     let source3 = r#"
         contract TestForVarAdd {
@@ -76,7 +76,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("\nTesting for loop with variable addition...");
     match compile_ccl_source_to_wasm(source3) {
         Ok((wasm, _metadata)) => {
@@ -87,8 +87,8 @@ fn main() {
             println!("❌ For loop with variable addition failed: {}", e);
         }
     }
-    
-    // Test 4: For loop with iterator + variable  
+
+    // Test 4: For loop with iterator + variable
     let source4 = r#"
         contract TestForFullAdd {
             scope: "test";
@@ -104,7 +104,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("\nTesting for loop with variable + iterator...");
     match compile_ccl_source_to_wasm(source4) {
         Ok((wasm, _metadata)) => {
@@ -115,4 +115,4 @@ fn main() {
             println!("❌ For loop with variable + iterator failed: {}", e);
         }
     }
-} 
+}

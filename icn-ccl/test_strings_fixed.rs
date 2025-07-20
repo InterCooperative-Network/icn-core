@@ -16,7 +16,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("Testing basic string creation...");
     match compile_ccl_source_to_wasm(source1) {
         Ok((wasm, _metadata)) => {
@@ -27,7 +27,7 @@ fn main() {
             println!("❌ String creation failed: {}", e);
         }
     }
-    
+
     // Test 2: String concatenation with + operator
     let source2 = r#"
         contract TestStringConcat {
@@ -41,7 +41,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("\nTesting string concatenation...");
     match compile_ccl_source_to_wasm(source2) {
         Ok((wasm, _metadata)) => {
@@ -52,7 +52,7 @@ fn main() {
             println!("❌ String concatenation failed: {}", e);
         }
     }
-    
+
     // Test 3: String length method
     let source3 = r#"
         contract TestStringLength {
@@ -65,7 +65,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("\nTesting string length...");
     match compile_ccl_source_to_wasm(source3) {
         Ok((wasm, _metadata)) => {
@@ -76,7 +76,7 @@ fn main() {
             println!("❌ String length failed: {}", e);
         }
     }
-    
+
     // Test 4: String comparison (FIXED - using Boolean instead of Bool)
     let source4 = r#"
         contract TestStringComparison {
@@ -90,7 +90,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("\nTesting string comparison...");
     match compile_ccl_source_to_wasm(source4) {
         Ok((wasm, _metadata)) => {
@@ -101,4 +101,4 @@ fn main() {
             println!("❌ String comparison failed: {}", e);
         }
     }
-} 
+}

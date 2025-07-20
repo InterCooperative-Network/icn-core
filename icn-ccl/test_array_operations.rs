@@ -7,9 +7,9 @@ fn main() {
     println!();
     println!("🔍 Testing production-ready array system functionality...");
     println!();
-    
+
     let test_path = PathBuf::from("test_array_operations.ccl");
-    
+
     match compile_ccl_file_to_wasm(&test_path) {
         Ok((wasm, metadata)) => {
             println!("🎉 🎉 🎉 ARRAY OPERATIONS ARE PRODUCTION-READY! 🎉 🎉 🎉");
@@ -53,14 +53,14 @@ fn main() {
             println!("   • Bounds checking for safe access");
             println!("   • Multiple syntax styles (functions + methods)");
             println!("   • Integration with all other CCL features");
-        },
+        }
         Err(e) => {
             println!("❌ ARRAY OPERATIONS TEST FAILED:");
             println!("   Error: {}", e);
             println!();
             println!("🔍 Analyzing array system issue:");
             let error_str = e.to_string();
-            
+
             if error_str.contains("array") || error_str.contains("Array") {
                 println!("   • Array operation or syntax issue");
                 println!("   • May need fixes to specific array functions");
@@ -73,7 +73,7 @@ fn main() {
             } else {
                 println!("   • Unexpected issue: {}", error_str);
             }
-            
+
             println!();
             println!("📝 **AREAS TO INVESTIGATE:**");
             println!("   1. Array literal creation and memory allocation");
@@ -82,4 +82,4 @@ fn main() {
             println!("   4. Method syntax vs function syntax compatibility");
         }
     }
-} 
+}

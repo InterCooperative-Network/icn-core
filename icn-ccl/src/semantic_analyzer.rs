@@ -1,11 +1,9 @@
 // icn-ccl/src/semantic_analyzer.rs
 use crate::ast::{
-    AstNode, BinaryOperator, BlockNode, ExpressionNode, LiteralNode,
-    ParameterNode, PolicyStatementNode, StatementNode, TypeAnnotationNode,
-    TypeExprNode, UnaryOperator, ContractDeclarationNode,
-    RoleDeclarationNode, ProposalDeclarationNode, StateDeclarationNode,
-    ConstDeclarationNode, EnumDefinitionNode,
-    FieldNode, LValueNode, PatternNode,
+    AstNode, BinaryOperator, BlockNode, ConstDeclarationNode, ContractDeclarationNode,
+    EnumDefinitionNode, ExpressionNode, FieldNode, LValueNode, LiteralNode, ParameterNode,
+    PatternNode, PolicyStatementNode, ProposalDeclarationNode, RoleDeclarationNode,
+    StateDeclarationNode, StatementNode, TypeAnnotationNode, TypeExprNode, UnaryOperator,
 };
 use crate::error::CclError;
 use crate::stdlib::StdLibrary;
@@ -56,7 +54,7 @@ pub struct SemanticAnalyzer {
     symbol_table: HashMap<String, Symbol>,
     function_table: HashMap<String, FunctionSignature>,
     struct_table: HashMap<String, StructType>, // Track struct definitions
-    type_parameter_scope: TypeParameterScope, // Current generic type parameters in scope
+    type_parameter_scope: TypeParameterScope,  // Current generic type parameters in scope
     monomorphized_instances: Vec<MonomorphizedInstance>, // Track instantiated generics
     current_scope_level: usize,
     current_return_type: Option<TypeAnnotationNode>,
@@ -69,31 +67,36 @@ impl SemanticAnalyzer {
             symbol_table: HashMap::new(),
             function_table: HashMap::new(),
             struct_table: HashMap::new(),
-            type_parameter_scope: TypeParameterScope { parameters: HashMap::new() },
+            type_parameter_scope: TypeParameterScope {
+                parameters: HashMap::new(),
+            },
             monomorphized_instances: Vec::new(),
             current_scope_level: 0,
             current_return_type: None,
             errors: Vec::new(),
         };
-        
+
         // Add built-in functions
         analyzer.add_builtin_functions();
-        
+
         analyzer
     }
 
     /// Add built-in functions from the standard library to the function table
     fn add_builtin_functions(&mut self) {
         let stdlib = StdLibrary::new();
-        
+
         // Add all standard library functions to the function table
         for (name, std_func) in stdlib.get_all_function_pairs() {
-            self.function_table.insert(name.clone(), FunctionSignature {
-                name: std_func.name.clone(),
-                type_parameters: Vec::new(), // Standard library functions are not generic for now
-                params: std_func.params.clone(),
-                return_type: std_func.return_type.clone(),
-            });
+            self.function_table.insert(
+                name.clone(),
+                FunctionSignature {
+                    name: std_func.name.clone(),
+                    type_parameters: Vec::new(), // Standard library functions are not generic for now
+                    params: std_func.params.clone(),
+                    return_type: std_func.return_type.clone(),
+                },
+            );
         }
     }
 
@@ -133,7 +136,7 @@ impl SemanticAnalyzer {
                                 &function.type_parameters,
                                 &function.parameters,
                                 function.return_type.as_ref(),
-                                &function.body
+                                &function.body,
                             )?;
                         }
                         crate::ast::TopLevelNode::Struct(struct_def) => {
@@ -158,13 +161,29 @@ impl SemanticAnalyzer {
                     self.analyze_policy_statement(stmt)?;
                 }
             }
-            AstNode::FunctionDefinition { name, parameters, return_type, body, .. } => {
-                self.analyze_function_definition(name, &[], parameters, return_type.as_ref(), body)?;
+            AstNode::FunctionDefinition {
+                name,
+                parameters,
+                return_type,
+                body,
+                ..
+            } => {
+                self.analyze_function_definition(
+                    name,
+                    &[],
+                    parameters,
+                    return_type.as_ref(),
+                    body,
+                )?;
             }
             AstNode::StructDefinition { name, fields, .. } => {
                 self.analyze_struct_definition(name, fields)?;
             }
-            AstNode::ContractDeclaration { name, metadata: _, body } => {
+            AstNode::ContractDeclaration {
+                name,
+                metadata: _,
+                body,
+            } => {
                 self.analyze_contract_body(name, body)?;
             }
             AstNode::Block(block) => {
@@ -178,7 +197,7 @@ impl SemanticAnalyzer {
     fn analyze_contract(&mut self, contract: &ContractDeclarationNode) -> Result<(), CclError> {
         // Enter contract scope
         self.enter_scope();
-        
+
         // First pass: Register struct types so they're available for function analysis
         for item in &contract.body {
             if let crate::ast::ContractBodyNode::Struct(struct_def) = item {
@@ -186,7 +205,7 @@ impl SemanticAnalyzer {
                 self.register_struct_type(struct_def)?;
             }
         }
-        
+
         // Second pass: Analyze everything else (now that struct types are known)
         for item in &contract.body {
             match item {
@@ -197,7 +216,13 @@ impl SemanticAnalyzer {
                     self.analyze_proposal(proposal)?;
                 }
                 crate::ast::ContractBodyNode::Function(func) => {
-                    self.analyze_function_definition(&func.name, &func.type_parameters, &func.parameters, func.return_type.as_ref(), &func.body)?;
+                    self.analyze_function_definition(
+                        &func.name,
+                        &func.type_parameters,
+                        &func.parameters,
+                        func.return_type.as_ref(),
+                        &func.body,
+                    )?;
                 }
                 crate::ast::ContractBodyNode::State(state) => {
                     self.analyze_state_declaration(state)?;
@@ -213,10 +238,10 @@ impl SemanticAnalyzer {
                 }
             }
         }
-        
+
         // Exit contract scope
         self.exit_scope();
-        
+
         Ok(())
     }
 
@@ -252,25 +277,28 @@ impl SemanticAnalyzer {
         // Enter type parameter scope
         let old_type_scope = self.type_parameter_scope.clone();
         for type_param in type_parameters {
-            self.type_parameter_scope.parameters.insert(
-                type_param.name.clone(), 
-                type_param.bounds.clone()
-            );
+            self.type_parameter_scope
+                .parameters
+                .insert(type_param.name.clone(), type_param.bounds.clone());
         }
 
         // Register function in function table
         let return_type_ann = return_type
             .map(|rt| self.resolve_type_expr(rt))
             .unwrap_or_else(|| Ok(TypeAnnotationNode::Custom("void".to_string())))?;
-            
-        self.function_table.insert(name.to_string(), FunctionSignature {
-            name: name.to_string(),
-            type_parameters: type_parameters.iter().map(|tp| tp.name.clone()).collect(),
-            params: parameters.iter()
-                .map(|p| self.resolve_type_expr(&p.type_expr))
-                .collect::<Result<Vec<_>, _>>()?,
-            return_type: return_type_ann.clone(),
-        });
+
+        self.function_table.insert(
+            name.to_string(),
+            FunctionSignature {
+                name: name.to_string(),
+                type_parameters: type_parameters.iter().map(|tp| tp.name.clone()).collect(),
+                params: parameters
+                    .iter()
+                    .map(|p| self.resolve_type_expr(&p.type_expr))
+                    .collect::<Result<Vec<_>, _>>()?,
+                return_type: return_type_ann.clone(),
+            },
+        );
 
         // Enter function scope
         self.enter_scope();
@@ -279,12 +307,15 @@ impl SemanticAnalyzer {
         // Add parameters to symbol table
         for param in parameters {
             let resolved_type = self.resolve_type_expr(&param.type_expr)?;
-            self.symbol_table.insert(param.name.clone(), Symbol {
-                name: param.name.clone(),
-                symbol_type: resolved_type,
-                is_mutable: true, // Function parameters are mutable within function scope
-                scope_level: self.current_scope_level,
-            });
+            self.symbol_table.insert(
+                param.name.clone(),
+                Symbol {
+                    name: param.name.clone(),
+                    symbol_type: resolved_type,
+                    is_mutable: true, // Function parameters are mutable within function scope
+                    scope_level: self.current_scope_level,
+                },
+            );
         }
 
         // Analyze function body
@@ -308,13 +339,16 @@ impl SemanticAnalyzer {
             TypeExprNode::Did => Ok(TypeAnnotationNode::Did),
             TypeExprNode::Timestamp => Ok(TypeAnnotationNode::Custom("Timestamp".to_string())),
             TypeExprNode::Duration => Ok(TypeAnnotationNode::Custom("Duration".to_string())),
-            
+
             TypeExprNode::Array(inner) => {
                 let inner_type = self.resolve_type_expr(inner)?;
                 Ok(TypeAnnotationNode::Array(Box::new(inner_type)))
             }
-            
-            TypeExprNode::Map { key_type, value_type } => {
+
+            TypeExprNode::Map {
+                key_type,
+                value_type,
+            } => {
                 let key_type_ann = self.resolve_type_expr(key_type)?;
                 let value_type_ann = self.resolve_type_expr(value_type)?;
                 Ok(TypeAnnotationNode::Map {
@@ -322,12 +356,12 @@ impl SemanticAnalyzer {
                     value_type: Box::new(value_type_ann),
                 })
             }
-            
+
             TypeExprNode::Option(inner) => {
                 let inner_type = self.resolve_type_expr(inner)?;
                 Ok(TypeAnnotationNode::Option(Box::new(inner_type)))
             }
-            
+
             TypeExprNode::Result { ok_type, err_type } => {
                 let ok_type_ann = self.resolve_type_expr(ok_type)?;
                 let err_type_ann = self.resolve_type_expr(err_type)?;
@@ -336,26 +370,31 @@ impl SemanticAnalyzer {
                     err_type: Box::new(err_type_ann),
                 })
             }
-            
+
             TypeExprNode::Custom(name) => Ok(TypeAnnotationNode::Custom(name.clone())),
-            
+
             TypeExprNode::TypeParameter(name) => {
                 // Check if this type parameter is in scope
                 if self.type_parameter_scope.parameters.contains_key(name) {
                     Ok(TypeAnnotationNode::Custom(name.clone()))
                 } else {
                     Err(CclError::SemanticError(format!(
-                        "Type parameter '{}' is not in scope", name
+                        "Type parameter '{}' is not in scope",
+                        name
                     )))
                 }
             }
-            
-            TypeExprNode::GenericInstantiation { base_type, type_args } => {
+
+            TypeExprNode::GenericInstantiation {
+                base_type,
+                type_args,
+            } => {
                 // For now, convert to a mangled name representing the instantiation
-                let arg_names: Result<Vec<String>, CclError> = type_args.iter()
+                let arg_names: Result<Vec<String>, CclError> = type_args
+                    .iter()
                     .map(|arg| self.resolve_type_expr(arg).map(|t| format!("{:?}", t)))
                     .collect();
-                
+
                 let arg_names = arg_names?;
                 let mangled_name = format!("{}<{}>", base_type, arg_names.join(","));
                 Ok(TypeAnnotationNode::Custom(mangled_name))
@@ -363,7 +402,11 @@ impl SemanticAnalyzer {
         }
     }
 
-    fn analyze_struct_definition(&mut self, name: &str, fields: &[FieldNode]) -> Result<(), CclError> {
+    fn analyze_struct_definition(
+        &mut self,
+        name: &str,
+        fields: &[FieldNode],
+    ) -> Result<(), CclError> {
         // Validate field names are unique
         let mut field_names = std::collections::HashSet::new();
         for field in fields {
@@ -377,25 +420,28 @@ impl SemanticAnalyzer {
 
         // Register struct type in symbol table for reference
         let struct_type = TypeAnnotationNode::Custom(name.to_string());
-        self.symbol_table.insert(name.to_string(), Symbol {
-            name: name.to_string(),
-            symbol_type: struct_type,
-            is_mutable: false,
-            scope_level: self.current_scope_level,
-        });
+        self.symbol_table.insert(
+            name.to_string(),
+            Symbol {
+                name: name.to_string(),
+                symbol_type: struct_type,
+                is_mutable: false,
+                scope_level: self.current_scope_level,
+            },
+        );
 
         // Create and register the full struct type definition
         let mut struct_fields = HashMap::new();
         for field in fields {
             struct_fields.insert(field.name.clone(), field.type_expr.to_type_annotation());
         }
-        
+
         let struct_type_def = StructType {
             name: name.to_string(),
             type_parameters: Vec::new(), // Regular structs don't have generics here
             fields: struct_fields,
         };
-        
+
         self.struct_table.insert(name.to_string(), struct_type_def);
 
         Ok(())
@@ -404,12 +450,15 @@ impl SemanticAnalyzer {
     fn analyze_enum_definition(&mut self, enum_def: &EnumDefinitionNode) -> Result<(), CclError> {
         // Register enum type
         let enum_type = TypeAnnotationNode::Custom(enum_def.name.clone());
-        self.symbol_table.insert(enum_def.name.clone(), Symbol {
-            name: enum_def.name.clone(),
-            symbol_type: enum_type.clone(), // Clone to avoid move
-            is_mutable: false,
-            scope_level: self.current_scope_level,
-        });
+        self.symbol_table.insert(
+            enum_def.name.clone(),
+            Symbol {
+                name: enum_def.name.clone(),
+                symbol_type: enum_type.clone(), // Clone to avoid move
+                is_mutable: false,
+                scope_level: self.current_scope_level,
+            },
+        );
 
         // Register enum variants
         for variant in &enum_def.variants {
@@ -420,7 +469,7 @@ impl SemanticAnalyzer {
                 // Unit variant
                 enum_type.clone()
             };
-            
+
             self.symbol_table.insert(
                 format!("{}::{}", enum_def.name, variant.name),
                 Symbol {
@@ -428,7 +477,7 @@ impl SemanticAnalyzer {
                     symbol_type: variant_type,
                     is_mutable: false,
                     scope_level: self.current_scope_level,
-                }
+                },
             );
         }
 
@@ -440,7 +489,7 @@ impl SemanticAnalyzer {
         if let Some(ref initial_value) = state.initial_value {
             let value_type = self.evaluate_expression(initial_value)?;
             let expected_type = state.type_expr.to_type_annotation();
-            
+
             if !value_type.compatible_with(&expected_type) {
                 return Err(CclError::TypeMismatchError {
                     expected: expected_type,
@@ -450,21 +499,27 @@ impl SemanticAnalyzer {
         }
 
         // Register state variable
-        self.symbol_table.insert(state.name.clone(), Symbol {
-            name: state.name.clone(),
-            symbol_type: state.type_expr.to_type_annotation(),
-            is_mutable: true, // State variables are mutable by default
-            scope_level: self.current_scope_level,
-        });
+        self.symbol_table.insert(
+            state.name.clone(),
+            Symbol {
+                name: state.name.clone(),
+                symbol_type: state.type_expr.to_type_annotation(),
+                is_mutable: true, // State variables are mutable by default
+                scope_level: self.current_scope_level,
+            },
+        );
 
         Ok(())
     }
 
-    fn analyze_const_declaration(&mut self, const_def: &ConstDeclarationNode) -> Result<(), CclError> {
+    fn analyze_const_declaration(
+        &mut self,
+        const_def: &ConstDeclarationNode,
+    ) -> Result<(), CclError> {
         // Check value type
         let value_type = self.evaluate_expression(&const_def.value)?;
         let expected_type = const_def.type_expr.to_type_annotation();
-        
+
         if !value_type.compatible_with(&expected_type) {
             return Err(CclError::TypeMismatchError {
                 expected: expected_type,
@@ -473,17 +528,24 @@ impl SemanticAnalyzer {
         }
 
         // Register constant
-        self.symbol_table.insert(const_def.name.clone(), Symbol {
-            name: const_def.name.clone(),
-            symbol_type: expected_type,
-            is_mutable: false,
-            scope_level: self.current_scope_level,
-        });
+        self.symbol_table.insert(
+            const_def.name.clone(),
+            Symbol {
+                name: const_def.name.clone(),
+                symbol_type: expected_type,
+                is_mutable: false,
+                scope_level: self.current_scope_level,
+            },
+        );
 
         Ok(())
     }
 
-    fn analyze_contract_body(&mut self, _name: &str, body: &[crate::ast::ContractBodyNode]) -> Result<(), CclError> {
+    fn analyze_contract_body(
+        &mut self,
+        _name: &str,
+        body: &[crate::ast::ContractBodyNode],
+    ) -> Result<(), CclError> {
         // First pass: Register all struct types
         for item in body {
             if let crate::ast::ContractBodyNode::Struct(struct_def) = item {
@@ -491,12 +553,18 @@ impl SemanticAnalyzer {
                 self.register_struct_type(struct_def)?;
             }
         }
-        
+
         // Second pass: Analyze functions (now that struct types are known)
         for item in body {
             match item {
                 crate::ast::ContractBodyNode::Function(func) => {
-                    self.analyze_function_definition(&func.name, &func.type_parameters, &func.parameters, func.return_type.as_ref(), &func.body)?;
+                    self.analyze_function_definition(
+                        &func.name,
+                        &func.type_parameters,
+                        &func.parameters,
+                        func.return_type.as_ref(),
+                        &func.body,
+                    )?;
                 }
                 _ => {
                     // Other items already processed or analyzed separately
@@ -507,29 +575,51 @@ impl SemanticAnalyzer {
     }
 
     /// Register a struct type in the struct table for later type checking
-    fn register_struct_type(&mut self, struct_def: &crate::ast::StructDefinitionNode) -> Result<(), CclError> {
+    fn register_struct_type(
+        &mut self,
+        struct_def: &crate::ast::StructDefinitionNode,
+    ) -> Result<(), CclError> {
         let mut fields = HashMap::new();
-        
+
         for field in &struct_def.fields {
             let field_type = field.type_expr.to_type_annotation();
             fields.insert(field.name.clone(), field_type);
         }
-        
+
         let struct_type = StructType {
             name: struct_def.name.clone(),
-            type_parameters: struct_def.type_parameters.iter().map(|tp| tp.name.clone()).collect(),
+            type_parameters: struct_def
+                .type_parameters
+                .iter()
+                .map(|tp| tp.name.clone())
+                .collect(),
             fields,
         };
-        
-        self.struct_table.insert(struct_def.name.clone(), struct_type);
+
+        self.struct_table
+            .insert(struct_def.name.clone(), struct_type);
         Ok(())
     }
 
     fn analyze_policy_statement(&mut self, stmt: &PolicyStatementNode) -> Result<(), CclError> {
         match stmt {
             PolicyStatementNode::FunctionDef(func_ast) => {
-                if let AstNode::FunctionDefinition { name, type_parameters, parameters, return_type, body, .. } = func_ast {
-                    self.analyze_function_definition(name, type_parameters, parameters, return_type.as_ref(), body)?;
+                if let AstNode::FunctionDefinition {
+                    name,
+                    type_parameters,
+                    parameters,
+                    return_type,
+                    body,
+                    ..
+                } = func_ast
+                {
+                    self.analyze_function_definition(
+                        name,
+                        type_parameters,
+                        parameters,
+                        return_type.as_ref(),
+                        body,
+                    )?;
                 }
             }
             PolicyStatementNode::StructDef(struct_ast) => {
@@ -537,7 +627,11 @@ impl SemanticAnalyzer {
                     self.analyze_struct_definition(name, fields)?;
                 }
             }
-            PolicyStatementNode::ConstDef { name, value, type_ann } => {
+            PolicyStatementNode::ConstDef {
+                name,
+                value,
+                type_ann,
+            } => {
                 let value_type = self.evaluate_expression(value)?;
                 if !value_type.compatible_with(type_ann) {
                     return Err(CclError::TypeMismatchError {
@@ -545,12 +639,15 @@ impl SemanticAnalyzer {
                         found: value_type,
                     });
                 }
-                self.symbol_table.insert(name.clone(), Symbol {
-                    name: name.clone(),
-                    symbol_type: type_ann.clone(),
-                    is_mutable: false,
-                    scope_level: self.current_scope_level,
-                });
+                self.symbol_table.insert(
+                    name.clone(),
+                    Symbol {
+                        name: name.clone(),
+                        symbol_type: type_ann.clone(),
+                        is_mutable: false,
+                        scope_level: self.current_scope_level,
+                    },
+                );
             }
             _ => {
                 // Other statements don't need special analysis
@@ -561,20 +658,25 @@ impl SemanticAnalyzer {
 
     fn analyze_block(&mut self, block: &BlockNode) -> Result<(), CclError> {
         self.enter_scope();
-        
+
         for stmt in &block.statements {
             self.analyze_statement(stmt)?;
         }
-        
+
         self.exit_scope();
         Ok(())
     }
 
     fn analyze_statement(&mut self, stmt: &StatementNode) -> Result<(), CclError> {
         match stmt {
-            StatementNode::Let { mutable, name, type_expr, value } => {
+            StatementNode::Let {
+                mutable,
+                name,
+                type_expr,
+                value,
+            } => {
                 let value_type = self.evaluate_expression(value)?;
-                
+
                 let expected_type = if let Some(type_expr) = type_expr {
                     type_expr.to_type_annotation()
                 } else {
@@ -588,17 +690,20 @@ impl SemanticAnalyzer {
                     });
                 }
 
-                self.symbol_table.insert(name.clone(), Symbol {
-                    name: name.clone(),
-                    symbol_type: expected_type,
-                    is_mutable: true, // CCL variables are mutable by default for familiarity
-                    scope_level: self.current_scope_level,
-                });
+                self.symbol_table.insert(
+                    name.clone(),
+                    Symbol {
+                        name: name.clone(),
+                        symbol_type: expected_type,
+                        is_mutable: true, // CCL variables are mutable by default for familiarity
+                        scope_level: self.current_scope_level,
+                    },
+                );
             }
             StatementNode::Assignment { lvalue, value } => {
                 let value_type = self.evaluate_expression(value)?;
                 let lvalue_type = self.evaluate_lvalue(lvalue)?;
-                
+
                 if !value_type.compatible_with(&lvalue_type) {
                     return Err(CclError::TypeMismatchError {
                         expected: lvalue_type,
@@ -606,7 +711,12 @@ impl SemanticAnalyzer {
                     });
                 }
             }
-            StatementNode::If { condition, then_block, else_ifs, else_block } => {
+            StatementNode::If {
+                condition,
+                then_block,
+                else_ifs,
+                else_block,
+            } => {
                 let cond_type = self.evaluate_expression(condition)?;
                 if !matches!(cond_type, TypeAnnotationNode::Bool) {
                     return Err(CclError::TypeMismatchError {
@@ -616,7 +726,7 @@ impl SemanticAnalyzer {
                 }
 
                 self.analyze_block(then_block)?;
-                
+
                 for (elif_cond, elif_block) in else_ifs {
                     let elif_cond_type = self.evaluate_expression(elif_cond)?;
                     if !matches!(elif_cond_type, TypeAnnotationNode::Bool) {
@@ -627,7 +737,7 @@ impl SemanticAnalyzer {
                     }
                     self.analyze_block(elif_block)?;
                 }
-                
+
                 if let Some(else_blk) = else_block {
                     self.analyze_block(else_blk)?;
                 }
@@ -642,9 +752,13 @@ impl SemanticAnalyzer {
                 }
                 self.analyze_block(body)?;
             }
-            StatementNode::For { iterator, iterable, body } => {
+            StatementNode::For {
+                iterator,
+                iterable,
+                body,
+            } => {
                 let iterable_type = self.evaluate_expression(iterable)?;
-                
+
                 // Determine the element type based on the iterable type
                 let element_type = match &iterable_type {
                     TypeAnnotationNode::Array(inner_type) => (**inner_type).clone(),
@@ -655,21 +769,24 @@ impl SemanticAnalyzer {
                         )));
                     }
                 };
-                
+
                 // Create a new scope for the loop body
                 self.enter_scope();
-                
+
                 // Declare the iterator variable in the loop scope
-                self.symbol_table.insert(iterator.clone(), Symbol {
-                    name: iterator.clone(),
-                    symbol_type: element_type,
-                    is_mutable: false, // Iterator variables are immutable
-                    scope_level: self.current_scope_level,
-                });
-                
+                self.symbol_table.insert(
+                    iterator.clone(),
+                    Symbol {
+                        name: iterator.clone(),
+                        symbol_type: element_type,
+                        is_mutable: false, // Iterator variables are immutable
+                        scope_level: self.current_scope_level,
+                    },
+                );
+
                 // Analyze the loop body
                 self.analyze_block(body)?;
-                
+
                 // Exit the loop scope
                 self.exit_scope();
             }
@@ -682,7 +799,10 @@ impl SemanticAnalyzer {
                     if let Some(guard) = &arm.guard {
                         let guard_type = self.evaluate_expression(guard)?;
                         if !matches!(guard_type, TypeAnnotationNode::Bool) {
-                            return Err(CclError::TypeMismatchError { expected: TypeAnnotationNode::Bool, found: guard_type });
+                            return Err(CclError::TypeMismatchError {
+                                expected: TypeAnnotationNode::Bool,
+                                found: guard_type,
+                            });
                         }
                     }
                     self.evaluate_expression(&arm.body)?;
@@ -702,7 +822,10 @@ impl SemanticAnalyzer {
                     }
                 }
             }
-            StatementNode::Emit { event_name: _, fields } => {
+            StatementNode::Emit {
+                event_name: _,
+                fields,
+            } => {
                 for field in fields {
                     self.evaluate_expression(&field.value)?;
                 }
@@ -730,7 +853,11 @@ impl SemanticAnalyzer {
                 }
                 self.analyze_block(body)?;
             }
-            StatementNode::ForLoop { iterator: _, iterable, body } => {
+            StatementNode::ForLoop {
+                iterator: _,
+                iterable,
+                body,
+            } => {
                 let _iterable_type = self.evaluate_expression(iterable)?;
                 self.analyze_block(body)?;
             }
@@ -742,12 +869,19 @@ impl SemanticAnalyzer {
     }
 
     /// Check that a pattern matches the expected type and bind any variables
-    fn check_pattern(&mut self, pattern: &PatternNode, expected: &TypeAnnotationNode) -> Result<(), CclError> {
+    fn check_pattern(
+        &mut self,
+        pattern: &PatternNode,
+        expected: &TypeAnnotationNode,
+    ) -> Result<(), CclError> {
         match pattern {
             PatternNode::Literal(lit) => {
                 let lit_type = self.literal_type(lit);
                 if !lit_type.compatible_with(expected) {
-                    return Err(CclError::TypeMismatchError { expected: expected.clone(), found: lit_type });
+                    return Err(CclError::TypeMismatchError {
+                        expected: expected.clone(),
+                        found: lit_type,
+                    });
                 }
             }
             PatternNode::Variable(name) => {
@@ -796,7 +930,11 @@ impl SemanticAnalyzer {
                     }
                 }
             }
-            PatternNode::Enum { type_name, variant: _, inner } => {
+            PatternNode::Enum {
+                type_name,
+                variant: _,
+                inner,
+            } => {
                 if let TypeAnnotationNode::Custom(t) = expected {
                     if t != type_name {
                         return Err(CclError::TypeMismatchError {
@@ -823,7 +961,10 @@ impl SemanticAnalyzer {
                         self.check_pattern(pat, inner)?;
                     }
                 } else {
-                    return Err(CclError::TypeMismatchError { expected: TypeAnnotationNode::Array(Box::new(expected.clone())), found: expected.clone() });
+                    return Err(CclError::TypeMismatchError {
+                        expected: TypeAnnotationNode::Array(Box::new(expected.clone())),
+                        found: expected.clone(),
+                    });
                 }
             }
         }
@@ -876,18 +1017,20 @@ impl SemanticAnalyzer {
             LValueNode::IndexAccess { object, index } => {
                 let object_type = self.evaluate_expression(object)?;
                 let index_type = self.evaluate_expression(index)?;
-                
+
                 if !matches!(index_type, TypeAnnotationNode::Integer) {
                     return Err(CclError::TypeMismatchError {
                         expected: TypeAnnotationNode::Integer,
                         found: index_type,
                     });
                 }
-                
+
                 match object_type {
                     TypeAnnotationNode::Array(element_type) => Ok(*element_type),
                     _ => Err(CclError::TypeMismatchError {
-                        expected: TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Custom("T".to_string()))),
+                        expected: TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Custom(
+                            "T".to_string(),
+                        ))),
                         found: object_type,
                     }),
                 }
@@ -911,7 +1054,11 @@ impl SemanticAnalyzer {
                     })
                 }
             }
-            ExpressionNode::BinaryOp { left, operator, right } => {
+            ExpressionNode::BinaryOp {
+                left,
+                operator,
+                right,
+            } => {
                 let left_type = self.evaluate_expression(left)?;
                 let right_type = self.evaluate_expression(right)?;
                 self.check_binary_op(&left_type, operator, &right_type)
@@ -930,7 +1077,7 @@ impl SemanticAnalyzer {
                             found: args.len(),
                         });
                     }
-                    
+
                     for (arg, expected_type) in args.iter().zip(&signature.params) {
                         let arg_type = self.evaluate_expression(arg)?;
                         if !arg_type.compatible_with(expected_type) {
@@ -940,18 +1087,27 @@ impl SemanticAnalyzer {
                             });
                         }
                     }
-                    
+
                     Ok(signature.return_type.clone())
                 } else if name.starts_with("host_") {
                     // Handle host functions with known signatures
                     let return_type = match name.as_str() {
-                        "host_get_caller" | "host_create_did" | "host_resolve_did" => TypeAnnotationNode::Did,
-                        "host_account_get_mana" | "host_get_reputation" | "host_get_token_balance" => TypeAnnotationNode::Mana,
-                        "host_submit_mesh_job" | "host_anchor_receipt" | "host_create_proposal" | "host_vote" => TypeAnnotationNode::Bool,
-                        "host_verify_did_signature" | "host_verify_credential" => TypeAnnotationNode::Bool,
+                        "host_get_caller" | "host_create_did" | "host_resolve_did" => {
+                            TypeAnnotationNode::Did
+                        }
+                        "host_account_get_mana"
+                        | "host_get_reputation"
+                        | "host_get_token_balance" => TypeAnnotationNode::Mana,
+                        "host_submit_mesh_job"
+                        | "host_anchor_receipt"
+                        | "host_create_proposal"
+                        | "host_vote" => TypeAnnotationNode::Bool,
+                        "host_verify_did_signature" | "host_verify_credential" => {
+                            TypeAnnotationNode::Bool
+                        }
                         _ => TypeAnnotationNode::Integer, // Default for unknown host functions
                     };
-                    
+
                     // Note: We don't validate host function arguments as they're external
                     Ok(return_type)
                 } else {
@@ -960,9 +1116,13 @@ impl SemanticAnalyzer {
                     })
                 }
             }
-            ExpressionNode::MethodCall { object, method, args } => {
+            ExpressionNode::MethodCall {
+                object,
+                method,
+                args,
+            } => {
                 let object_type = self.evaluate_expression(object)?;
-                
+
                 match method.as_str() {
                     "length" => {
                         // Validate that object is an array or string
@@ -986,16 +1146,16 @@ impl SemanticAnalyzer {
                             }
                         }
                     }
-                    _ => {
-                        Err(CclError::UndefinedFunctionError {
-                            function: format!("method {}", method),
-                        })
-                    }
+                    _ => Err(CclError::UndefinedFunctionError {
+                        function: format!("method {}", method),
+                    }),
                 }
             }
             ExpressionNode::ArrayLiteral(elements) => {
                 if elements.is_empty() {
-                    Ok(TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Custom("unknown".to_string()))))
+                    Ok(TypeAnnotationNode::Array(Box::new(
+                        TypeAnnotationNode::Custom("unknown".to_string()),
+                    )))
                 } else {
                     let first_type = self.evaluate_expression(&elements[0])?;
                     for element in &elements[1..] {
@@ -1039,7 +1199,7 @@ impl SemanticAnalyzer {
             }
             ExpressionNode::MemberAccess { object, member } => {
                 let object_type = self.evaluate_expression(object)?;
-                
+
                 // Check if the object is a struct type and get the member type
                 match object_type {
                     TypeAnnotationNode::Custom(struct_name) => {
@@ -1048,37 +1208,40 @@ impl SemanticAnalyzer {
                                 Ok(member_type.clone())
                             } else {
                                 Err(CclError::SemanticError(format!(
-                                    "Struct {} has no member named {}", struct_name, member
+                                    "Struct {} has no member named {}",
+                                    struct_name, member
                                 )))
                             }
                         } else {
                             Err(CclError::SemanticError(format!(
-                                "Cannot access member {} on non-struct type", member
+                                "Cannot access member {} on non-struct type",
+                                member
                             )))
                         }
                     }
-                    _ => {
-                        Err(CclError::SemanticError(format!(
-                            "Cannot access member {} on type {:?}", member, object_type
-                        )))
-                    }
+                    _ => Err(CclError::SemanticError(format!(
+                        "Cannot access member {} on type {:?}",
+                        member, object_type
+                    ))),
                 }
             }
             ExpressionNode::IndexAccess { object, index } => {
                 let object_type = self.evaluate_expression(object)?;
                 let index_type = self.evaluate_expression(index)?;
-                
+
                 if !matches!(index_type, TypeAnnotationNode::Integer) {
                     return Err(CclError::TypeMismatchError {
                         expected: TypeAnnotationNode::Integer,
                         found: index_type,
                     });
                 }
-                
+
                 match object_type {
                     TypeAnnotationNode::Array(element_type) => Ok(*element_type),
                     _ => Err(CclError::TypeMismatchError {
-                        expected: TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Custom("T".to_string()))),
+                        expected: TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Custom(
+                            "T".to_string(),
+                        ))),
                         found: object_type,
                     }),
                 }
@@ -1088,7 +1251,7 @@ impl SemanticAnalyzer {
                 Ok(TypeAnnotationNode::Option(Box::new(inner_type)))
             }
             ExpressionNode::None => Ok(TypeAnnotationNode::Option(Box::new(
-                TypeAnnotationNode::Custom("unknown".to_string())
+                TypeAnnotationNode::Custom("unknown".to_string()),
             ))),
             ExpressionNode::Ok(inner) => {
                 let inner_type = self.evaluate_expression(inner)?;
@@ -1105,9 +1268,16 @@ impl SemanticAnalyzer {
                 })
             }
             // Governance expressions
-            ExpressionNode::Transfer { from: _, to: _, amount } => {
+            ExpressionNode::Transfer {
+                from: _,
+                to: _,
+                amount,
+            } => {
                 let amount_type = self.evaluate_expression(amount)?;
-                if !matches!(amount_type, TypeAnnotationNode::Mana | TypeAnnotationNode::Integer) {
+                if !matches!(
+                    amount_type,
+                    TypeAnnotationNode::Mana | TypeAnnotationNode::Integer
+                ) {
                     return Err(CclError::TypeMismatchError {
                         expected: TypeAnnotationNode::Mana,
                         found: amount_type,
@@ -1117,7 +1287,10 @@ impl SemanticAnalyzer {
             }
             ExpressionNode::Mint { to: _, amount } => {
                 let amount_type = self.evaluate_expression(amount)?;
-                if !matches!(amount_type, TypeAnnotationNode::Mana | TypeAnnotationNode::Integer) {
+                if !matches!(
+                    amount_type,
+                    TypeAnnotationNode::Mana | TypeAnnotationNode::Integer
+                ) {
                     return Err(CclError::TypeMismatchError {
                         expected: TypeAnnotationNode::Mana,
                         found: amount_type,
@@ -1127,7 +1300,10 @@ impl SemanticAnalyzer {
             }
             ExpressionNode::Burn { from: _, amount } => {
                 let amount_type = self.evaluate_expression(amount)?;
-                if !matches!(amount_type, TypeAnnotationNode::Mana | TypeAnnotationNode::Integer) {
+                if !matches!(
+                    amount_type,
+                    TypeAnnotationNode::Mana | TypeAnnotationNode::Integer
+                ) {
                     return Err(CclError::TypeMismatchError {
                         expected: TypeAnnotationNode::Mana,
                         found: amount_type,
@@ -1139,25 +1315,30 @@ impl SemanticAnalyzer {
             ExpressionNode::IntegerLiteral(_) => Ok(TypeAnnotationNode::Integer),
             ExpressionNode::StringLiteral(_) => Ok(TypeAnnotationNode::String),
             ExpressionNode::BooleanLiteral(_) => Ok(TypeAnnotationNode::Bool),
-            ExpressionNode::EnumValue { enum_name, variant: _ } => {
+            ExpressionNode::EnumValue {
+                enum_name,
+                variant: _,
+            } => {
                 // For now, just return the enum type
                 Ok(TypeAnnotationNode::Custom(enum_name.clone()))
             }
             ExpressionNode::ArrayAccess { array, index } => {
                 let array_type = self.evaluate_expression(array)?;
                 let index_type = self.evaluate_expression(index)?;
-                
+
                 if !matches!(index_type, TypeAnnotationNode::Integer) {
                     return Err(CclError::TypeMismatchError {
                         expected: TypeAnnotationNode::Integer,
                         found: index_type,
                     });
                 }
-                
+
                 match array_type {
                     TypeAnnotationNode::Array(element_type) => Ok(*element_type),
                     _ => Err(CclError::TypeMismatchError {
-                        expected: TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Custom("T".to_string()))),
+                        expected: TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Custom(
+                            "T".to_string(),
+                        ))),
                         found: array_type,
                     }),
                 }
@@ -1178,12 +1359,12 @@ impl SemanticAnalyzer {
             ExpressionNode::Match { expr, arms } => {
                 // Evaluate the match expression type
                 let _expr_type = self.evaluate_expression(expr)?;
-                
+
                 // For now, assume all arms return the same type
                 // TODO: Implement proper exhaustiveness checking and type unification
                 if let Some(first_arm) = arms.first() {
                     let arm_type = self.evaluate_expression(&first_arm.body)?;
-                    
+
                     // Check guard if present
                     if let Some(guard) = &first_arm.guard {
                         let guard_type = self.evaluate_expression(guard)?;
@@ -1194,10 +1375,12 @@ impl SemanticAnalyzer {
                             });
                         }
                     }
-                    
+
                     Ok(arm_type)
                 } else {
-                    Err(CclError::SemanticError("Match expression must have at least one arm".to_string()))
+                    Err(CclError::SemanticError(
+                        "Match expression must have at least one arm".to_string(),
+                    ))
                 }
             }
         }
@@ -1230,7 +1413,7 @@ impl SemanticAnalyzer {
             (Mana, Add | Sub | Mul | Div, Mana) => Ok(Mana),
             (Mana, Add | Sub | Mul | Div, Integer) => Ok(Mana),
             (Integer, Add | Sub | Mul | Div, Mana) => Ok(Mana),
-            
+
             // Comparison operations
             (Integer, Eq | Neq | Lt | Lte | Gt | Gte, Integer) => Ok(Bool),
             (Mana, Eq | Neq | Lt | Lte | Gt | Gte, Mana) => Ok(Bool),
@@ -1239,14 +1422,14 @@ impl SemanticAnalyzer {
             (String, Eq | Neq, String) => Ok(Bool),
             (Bool, Eq | Neq, Bool) => Ok(Bool),
             (Did, Eq | Neq, Did) => Ok(Bool),
-            
+
             // Logical operations
             (Bool, And | Or, Bool) => Ok(Bool),
-            
+
             // String concatenation
             (String, Concat, String) => Ok(String),
             (String, Add, String) => Ok(String), // String + String for concatenation
-            
+
             _ => Err(CclError::InvalidBinaryOperationError {
                 left_type: left.clone(),
                 operator: op.clone(),
@@ -1261,8 +1444,8 @@ impl SemanticAnalyzer {
         op: &UnaryOperator,
         operand: &TypeAnnotationNode,
     ) -> Result<TypeAnnotationNode, CclError> {
-        use UnaryOperator::*;
         use TypeAnnotationNode::*;
+        use UnaryOperator::*;
 
         match (op, operand) {
             (Not, Bool) => Ok(Bool),
@@ -1281,7 +1464,8 @@ impl SemanticAnalyzer {
 
     fn exit_scope(&mut self) {
         // Remove symbols from current scope
-        self.symbol_table.retain(|_, symbol| symbol.scope_level < self.current_scope_level);
+        self.symbol_table
+            .retain(|_, symbol| symbol.scope_level < self.current_scope_level);
         self.current_scope_level -= 1;
     }
 }
@@ -1294,13 +1478,13 @@ mod tests {
     #[test]
     fn test_arithmetic_type_checking() {
         let mut analyzer = SemanticAnalyzer::new();
-        
+
         let expr = ExpressionNode::BinaryOp {
             left: Box::new(ExpressionNode::Literal(LiteralNode::Integer(5))),
             operator: BinaryOperator::Add,
             right: Box::new(ExpressionNode::Literal(LiteralNode::Integer(3))),
         };
-        
+
         let result = analyzer.evaluate_expression(&expr).unwrap();
         assert_eq!(result, TypeAnnotationNode::Integer);
     }
@@ -1308,16 +1492,18 @@ mod tests {
     #[test]
     fn test_type_mismatch_error() {
         let mut analyzer = SemanticAnalyzer::new();
-        
+
         let expr = ExpressionNode::BinaryOp {
             left: Box::new(ExpressionNode::Literal(LiteralNode::Integer(5))),
             operator: BinaryOperator::Add,
-            right: Box::new(ExpressionNode::Literal(LiteralNode::String("hello".to_string()))),
+            right: Box::new(ExpressionNode::Literal(LiteralNode::String(
+                "hello".to_string(),
+            ))),
         };
-        
+
         let result = analyzer.evaluate_expression(&expr);
         assert!(result.is_err());
-        
+
         if let Err(CclError::InvalidBinaryOperationError { .. }) = result {
             // Expected error type
         } else {
@@ -1328,12 +1514,14 @@ mod tests {
     #[test]
     fn test_function_type_checking() {
         let mut analyzer = SemanticAnalyzer::new();
-        
+
         let expr = ExpressionNode::FunctionCall {
             name: "get_mana".to_string(),
-            args: vec![ExpressionNode::Literal(LiteralNode::Did("did:example:123".to_string()))],
+            args: vec![ExpressionNode::Literal(LiteralNode::Did(
+                "did:example:123".to_string(),
+            ))],
         };
-        
+
         let result = analyzer.evaluate_expression(&expr).unwrap();
         assert_eq!(result, TypeAnnotationNode::Mana);
     }

@@ -49,10 +49,10 @@ pub mod federation_trait;
 pub mod governance_trait;
 pub mod identity_trait;
 pub mod mesh_trait;
-pub mod mutual_aid_trait;
-pub mod trust_trait;
 /// Prometheus metrics helpers
 pub mod metrics;
+pub mod mutual_aid_trait;
+pub mod trust_trait;
 use crate::governance_trait::{
     CastVoteRequest as GovernanceCastVoteRequest, // Renamed to avoid conflict
     GovernanceApi,
@@ -1061,7 +1061,9 @@ mod tests {
         // Open the proposal for voting (required step)
         {
             let mut gov_module_guard = gov_module.lock().expect("Failed to lock governance module");
-            gov_module_guard.open_voting(&proposal_id).expect("Failed to open voting");
+            gov_module_guard
+                .open_voting(&proposal_id)
+                .expect("Failed to open voting");
         }
 
         let voter_did_str = "did:key:z6MkjchhcVbWZkAbNGRsM4ac3gR3eNnYtD9tYtFv9T9xL4xH";

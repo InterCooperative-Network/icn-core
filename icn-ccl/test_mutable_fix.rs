@@ -4,7 +4,7 @@ fn main() {
     println!("🔧 Testing Mutable Variable Fix for Infinite Loop Bug");
     println!("======================================================");
     println!();
-    
+
     // Test the exact pattern that was causing infinite loops
     let test_contract = r#"
         fn test_loop_counter_fix() -> Integer {
@@ -25,11 +25,11 @@ fn main() {
             return test_loop_counter_fix();
         }
     "#;
-    
+
     println!("📝 Testing code:");
     println!("{}", test_contract);
     println!();
-    
+
     match compile_ccl_source_to_wasm(test_contract) {
         Ok((wasm, metadata)) => {
             println!("🎉 🎉 🎉 SUCCESS! INFINITE LOOP BUG IS FIXED! 🎉 🎉 🎉");
@@ -49,7 +49,7 @@ fn main() {
             println!("   ✅ Budgeting contracts should now compile");
             println!("   ✅ Loop-based algorithms work correctly");
             println!("   ✅ Variable reassignment patterns functional");
-        },
+        }
         Err(e) => {
             println!("❌ FAILED: Compilation error:");
             println!("   Error: {}", e);
@@ -57,4 +57,4 @@ fn main() {
             println!("🔍 This indicates the mutable variable fix needs more work.");
         }
     }
-} 
+}

@@ -13,13 +13,14 @@ async fn anchor_receipt_uses_time_provider() {
     let did_str = "did:icn:test:time";
     let did = Did::from_str(did_str).unwrap();
     let signer = Arc::new(StubSigner::new());
-    
+
     let ctx = RuntimeContext::new_with_ledger_path_and_time(
         did_str,
         std::path::PathBuf::from("./mana_ledger.sled"),
         provider.clone(),
         signer,
-    ).unwrap();
+    )
+    .unwrap();
 
     let receipt = ExecutionReceipt {
         job_id: Cid::new_v1_sha256(0x55, b"job"),

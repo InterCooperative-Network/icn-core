@@ -1,7 +1,7 @@
+use crate::{ResourceLedger, TokenClass, TokenClassId, TokenType, TransferRecord};
 use icn_common::{CommonError, Did, SystemTimeProvider, TimeProvider};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use crate::{ResourceLedger, TokenClass, TokenType, TransferRecord, TokenClassId};
 
 /// Specialized functionality for time banking tokens.
 /// Time banking allows communities to exchange labor hours on an equal basis.
@@ -78,9 +78,10 @@ impl TimeBankingStore for InMemoryTimeBankingStore {
     fn record_time(&self, record: TimeRecord) -> Result<(), CommonError> {
         let mut records = self.records.lock().unwrap();
         if records.contains_key(&record.record_id) {
-            return Err(CommonError::InvalidInputError(
-                format!("Time record {} already exists", record.record_id)
-            ));
+            return Err(CommonError::InvalidInputError(format!(
+                "Time record {} already exists",
+                record.record_id
+            )));
         }
         records.insert(record.record_id.clone(), record);
         Ok(())
@@ -104,7 +105,7 @@ impl TimeBankingStore for InMemoryTimeBankingStore {
             .filter(|record| &record.worker == worker)
             .cloned()
             .collect();
-        
+
         // Sort by performance date (newest first)
         results.sort_by(|a, b| b.performed_at.cmp(&a.performed_at));
         results
@@ -117,7 +118,7 @@ impl TimeBankingStore for InMemoryTimeBankingStore {
             .filter(|record| &record.beneficiary == beneficiary)
             .cloned()
             .collect();
-        
+
         // Sort by performance date (newest first)
         results.sort_by(|a, b| b.performed_at.cmp(&a.performed_at));
         results
@@ -130,7 +131,7 @@ impl TimeBankingStore for InMemoryTimeBankingStore {
             .filter(|record| record.work_type == work_type)
             .cloned()
             .collect();
-        
+
         // Sort by performance date (newest first)
         results.sort_by(|a, b| b.performed_at.cmp(&a.performed_at));
         results
@@ -150,11 +151,14 @@ pub fn record_and_mint_time_tokens<L: ResourceLedger, T: TimeBankingStore>(
     skill_level: String,
 ) -> Result<String, CommonError> {
     // Validate that the token class is for time banking
-    let token_class = resource_ledger.get_class(time_token_class)
-        .ok_or_else(|| CommonError::InvalidInputError(format!("Token class {} not found", time_token_class)))?;
-    
+    let token_class = resource_ledger.get_class(time_token_class).ok_or_else(|| {
+        CommonError::InvalidInputError(format!("Token class {} not found", time_token_class))
+    })?;
+
     if token_class.token_type != TokenType::TimeBanking {
-        return Err(CommonError::InvalidInputError("Token class is not for time banking".into()));
+        return Err(CommonError::InvalidInputError(
+            "Token class is not for time banking".into(),
+        ));
     }
 
     // Create time record
@@ -191,12 +195,15 @@ pub fn verify_time_record<T: TimeBankingStore>(
     record_id: &str,
     verifier: &Did,
 ) -> Result<(), CommonError> {
-    let mut record = time_store.get_time_record(record_id)
-        .ok_or_else(|| CommonError::InvalidInputError(format!("Time record {} not found", record_id)))?;
+    let mut record = time_store.get_time_record(record_id).ok_or_else(|| {
+        CommonError::InvalidInputError(format!("Time record {} not found", record_id))
+    })?;
 
     // Only beneficiary can verify
     if &record.beneficiary != verifier {
-        return Err(CommonError::PolicyDenied("Only beneficiary can verify time record".into()));
+        return Err(CommonError::PolicyDenied(
+            "Only beneficiary can verify time record".into(),
+        ));
     }
 
     // Update status to verified
@@ -217,9 +224,9 @@ pub fn calculate_total_hours<T: TimeBankingStore>(
     records
         .into_iter()
         .filter(|record| {
-            record.performed_at >= start_time && 
-            record.performed_at <= end_time && 
-            record.status == TimeRecordStatus::Verified
+            record.performed_at >= start_time
+                && record.performed_at <= end_time
+                && record.status == TimeRecordStatus::Verified
         })
         .map(|record| record.hours)
         .sum()
@@ -240,12 +247,13 @@ pub fn get_community_work_stats<T: TimeBankingStore>(
     for worker in workers {
         let records = time_store.get_worker_records(worker);
         for record in records {
-            if record.performed_at >= start_time && 
-               record.performed_at <= end_time && 
-               record.status == TimeRecordStatus::Verified {
+            if record.performed_at >= start_time
+                && record.performed_at <= end_time
+                && record.status == TimeRecordStatus::Verified
+            {
                 total_hours += record.hours;
                 record_count += 1;
-                
+
                 *work_types.entry(record.work_type).or_insert(0.0) += record.hours;
                 *skill_levels.entry(record.skill_level).or_insert(0.0) += record.hours;
             }

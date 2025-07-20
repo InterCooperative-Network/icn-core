@@ -1,15 +1,15 @@
 use anyhow::{anyhow, Result};
 use clap::{Parser, Subcommand};
 use icn_common::{parse_cid_from_string, Cid, Did};
+use icn_dag::TokioFileDagStore;
 use icn_identity::{generate_ed25519_keypair, ExecutionReceipt};
+use icn_mesh::{ActualMeshJob, JobId};
+use icn_runtime::context::mana::SimpleManaLedger;
 use icn_runtime::context::{DagStoreMutexType, RuntimeContext, StubSigner};
 use icn_runtime::executor::{JobExecutor, SimpleExecutor};
-use icn_runtime::context::mana::SimpleManaLedger;
-use icn_dag::TokioFileDagStore;
-use icn_mesh::{ActualMeshJob, JobId};
 use std::path::PathBuf;
-use std::sync::Arc;
 use std::str::FromStr;
+use std::sync::Arc;
 
 #[derive(Parser)]
 #[command(author, version, about = "ICN Job Audit Utility")]
@@ -25,7 +25,7 @@ enum Commands {
         /// JobId CID string
         job_id: String,
         /// Path to DAG directory
-        #[clap(long, default_value = "./dag")] 
+        #[clap(long, default_value = "./dag")]
         dag: PathBuf,
     },
 }
@@ -102,7 +102,10 @@ async fn audit_job(job_id_str: &str, dag_path: PathBuf) -> Result<()> {
     println!("Job: {}", job_id_str);
     println!("Signature valid: true");
     println!("Output match: {}", outputs_match);
-    println!("CPU ms recorded: {} | replayed: {} (diff {})", exec_receipt.cpu_ms, replay.cpu_ms, cpu_diff);
+    println!(
+        "CPU ms recorded: {} | replayed: {} (diff {})",
+        exec_receipt.cpu_ms, replay.cpu_ms, cpu_diff
+    );
     println!("Success flag: {}", exec_receipt.success);
 
     Ok(())

@@ -18,7 +18,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("Testing >= in assignment...");
     match compile_ccl_source_to_wasm(source1) {
         Ok((wasm, _metadata)) => {
@@ -29,7 +29,7 @@ fn main() {
             println!("❌ >= in assignment compilation failed: {}", e);
         }
     }
-    
+
     // Test 2: Just return a comparison
     let source2 = r#"
         contract TestReturn {
@@ -41,7 +41,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("\nTesting > in return...");
     match compile_ccl_source_to_wasm(source2) {
         Ok((wasm, _metadata)) => {
@@ -52,7 +52,7 @@ fn main() {
             println!("❌ > in return compilation failed: {}", e);
         }
     }
-    
+
     // Test 3: Test without spaces
     let source3 = r#"
         contract TestNoSpaces {
@@ -68,7 +68,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("\nTesting >= without spaces...");
     match compile_ccl_source_to_wasm(source3) {
         Ok((wasm, _metadata)) => {
@@ -79,7 +79,7 @@ fn main() {
             println!("❌ >= without spaces compilation failed: {}", e);
         }
     }
-    
+
     // Test 4: Simple equality
     let source4 = r#"
         contract TestSimpleEq {
@@ -93,7 +93,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("\nTesting == in assignment...");
     match compile_ccl_source_to_wasm(source4) {
         Ok((wasm, _metadata)) => {
@@ -104,4 +104,4 @@ fn main() {
             println!("❌ == in assignment compilation failed: {}", e);
         }
     }
-} 
+}

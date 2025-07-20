@@ -20,7 +20,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("Testing struct definition only...");
     match compile_ccl_source_to_wasm(source1) {
         Ok((wasm, _metadata)) => {
@@ -31,7 +31,7 @@ fn main() {
             println!("❌ Struct definition failed: {}", e);
         }
     }
-    
+
     // Test 2: Just constant usage
     let source2 = r#"
         contract TestConstant {
@@ -45,7 +45,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("\nTesting constant definition and usage...");
     match compile_ccl_source_to_wasm(source2) {
         Ok((wasm, _metadata)) => {
@@ -56,7 +56,7 @@ fn main() {
             println!("❌ Constant failed: {}", e);
         }
     }
-    
+
     // Test 3: Just enum definition
     let source3 = r#"
         contract TestEnum {
@@ -73,7 +73,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("\nTesting enum definition only...");
     match compile_ccl_source_to_wasm(source3) {
         Ok((wasm, _metadata)) => {
@@ -84,4 +84,4 @@ fn main() {
             println!("❌ Enum definition failed: {}", e);
         }
     }
-} 
+}

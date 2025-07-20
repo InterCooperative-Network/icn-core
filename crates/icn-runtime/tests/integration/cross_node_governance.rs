@@ -16,13 +16,7 @@ mod cross_node_governance {
         let id = format!("did:key:z6Mkgov{id_suffix}");
         let listen: Vec<Multiaddr> = vec!["/ip4/0.0.0.0/tcp/0".parse().unwrap()];
         let signer = Arc::new(icn_runtime::context::StubSigner::new());
-        let ctx = RuntimeContext::new_with_real_libp2p(
-            &id,
-            listen,
-            bootstrap,
-            signer,
-        )
-        .await?;
+        let ctx = RuntimeContext::new_with_real_libp2p(&id, listen, bootstrap, signer).await?;
         Ok(ctx)
     }
 

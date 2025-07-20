@@ -5,10 +5,8 @@ use tokio::task;
 
 #[tokio::test]
 async fn asset_class_lifecycle_unimplemented() {
-    let (router, _ctx) = app_router_with_options(
-        None, None, None, None, None, None, None, None, None, None,
-    )
-    .await;
+    let (router, _ctx) =
+        app_router_with_options(None, None, None, None, None, None, None, None, None, None).await;
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
@@ -64,4 +62,3 @@ async fn asset_class_lifecycle_unimplemented() {
 
     server.abort();
 }
-

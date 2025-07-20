@@ -144,7 +144,7 @@ pub(crate) fn default_ledger_backend() -> icn_runtime::context::LedgerBackend {
 }
 
 /// Choose the best available persistent storage backend for production use.
-/// 
+///
 /// **🏭 PRODUCTION PRIORITY ORDER:**
 /// 1. **RocksDB** - Best performance for production workloads
 /// 2. **Sled** - Good balance of performance and simplicity  
@@ -601,14 +601,16 @@ impl NodeConfig {
         };
 
         // Set listen address
-        config.set_listen_addresses(vec![&self.p2p.listen_address])
+        config
+            .set_listen_addresses(vec![&self.p2p.listen_address])
             .map_err(|e| CommonError::ConfigError(format!("invalid p2p listen address: {e}")))?;
 
         // Add bootstrap peers
         if let Some(peers) = &self.p2p.bootstrap_peers {
             for peer_str in peers {
-                config.add_bootstrap_peer(peer_str)
-                    .map_err(|e| CommonError::ConfigError(format!("invalid bootstrap peer '{peer_str}': {e}")))?;
+                config.add_bootstrap_peer(peer_str).map_err(|e| {
+                    CommonError::ConfigError(format!("invalid bootstrap peer '{peer_str}': {e}"))
+                })?;
             }
         }
 
@@ -617,8 +619,9 @@ impl NodeConfig {
 
         // Validate configuration for production
         if !self.test_mode {
-            config.validate_production()
-                .map_err(|e| CommonError::ConfigError(format!("production validation failed: {e}")))?;
+            config.validate_production().map_err(|e| {
+                CommonError::ConfigError(format!("production validation failed: {e}"))
+            })?;
         }
 
         Ok(config)
@@ -632,21 +635,41 @@ mod tests {
     #[test]
     fn test_production_ready_defaults() {
         let config = StorageConfig::default();
-        
+
         // Verify that default storage backend is persistent (not Memory)
-        assert_ne!(config.storage_backend, StorageBackendType::Memory, 
-            "❌ PRODUCTION ERROR: Default storage backend should not be Memory");
-        
+        assert_ne!(
+            config.storage_backend,
+            StorageBackendType::Memory,
+            "❌ PRODUCTION ERROR: Default storage backend should not be Memory"
+        );
+
         // Verify that all paths are in icn_data directory (not test fixtures)
-        assert!(config.storage_path.to_string_lossy().contains("icn_data"), 
-            "Storage path should be in icn_data directory");
-        assert!(config.mana_ledger_path.to_string_lossy().contains("icn_data"), 
-            "Mana ledger path should be in icn_data directory");
-        assert!(config.reputation_db_path.to_string_lossy().contains("icn_data"), 
-            "Reputation DB path should be in icn_data directory");
-        assert!(config.governance_db_path.to_string_lossy().contains("icn_data"), 
-            "Governance DB path should be in icn_data directory");
-            
+        assert!(
+            config.storage_path.to_string_lossy().contains("icn_data"),
+            "Storage path should be in icn_data directory"
+        );
+        assert!(
+            config
+                .mana_ledger_path
+                .to_string_lossy()
+                .contains("icn_data"),
+            "Mana ledger path should be in icn_data directory"
+        );
+        assert!(
+            config
+                .reputation_db_path
+                .to_string_lossy()
+                .contains("icn_data"),
+            "Reputation DB path should be in icn_data directory"
+        );
+        assert!(
+            config
+                .governance_db_path
+                .to_string_lossy()
+                .contains("icn_data"),
+            "Governance DB path should be in icn_data directory"
+        );
+
         // Verify mana ledger backend is configured (all available backends are persistent)
         // Valid backends: File, Sqlite, Sled, Rocksdb - all are persistent
         match config.mana_ledger_backend {
@@ -666,23 +689,26 @@ mod tests {
                 println!("  - Using RocksDB backend (persistent)");
             }
         }
-        
+
         println!("✅ Production-ready configuration:");
         println!("  - Storage backend: {:?}", config.storage_backend);
         println!("  - Storage path: {:?}", config.storage_path);
         println!("  - Mana ledger backend: {:?}", config.mana_ledger_backend);
         println!("  - Mana ledger path: {:?}", config.mana_ledger_path);
     }
-    
+
     #[test]
     fn test_storage_backend_priority() {
         let backend = default_storage_backend();
-        
+
         // The actual backend depends on which features are enabled
         // But it should never be Memory in production
-        assert_ne!(backend, StorageBackendType::Memory, 
-            "❌ PRODUCTION ERROR: Default storage backend should not be Memory");
-        
+        assert_ne!(
+            backend,
+            StorageBackendType::Memory,
+            "❌ PRODUCTION ERROR: Default storage backend should not be Memory"
+        );
+
         println!("✅ Default storage backend: {:?}", backend);
     }
 }

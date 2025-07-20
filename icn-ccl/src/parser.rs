@@ -1,15 +1,14 @@
 // icn-ccl/src/parser.rs
 #![allow(clippy::while_let_on_iterator)]
 use crate::ast::{
-    AstNode, BinaryOperator, BlockNode, ExpressionNode, ParameterNode,
-    PolicyStatementNode, StatementNode, TypeExprNode, UnaryOperator,
-    ContractDeclarationNode, ContractMetaNode, ContractBodyNode, RoleDeclarationNode, 
-    RoleBodyNode, RequirementNode, ProposalDeclarationNode, ProposalFieldNode,
-    ThresholdTypeNode, DurationExprNode, DurationUnitNode, FunctionDefinitionNode,
-    ImportStatementNode, FieldNode, EnumVariantNode, StateDeclarationNode, 
-    ConstDeclarationNode, StructDefinitionNode, EnumDefinitionNode,
-    LValueNode, MatchArmNode, PatternNode, FieldInitNode,
-    LiteralNode, Either, TypeParameterNode, StructFieldPattern,
+    AstNode, BinaryOperator, BlockNode, ConstDeclarationNode, ContractBodyNode,
+    ContractDeclarationNode, ContractMetaNode, DurationExprNode, DurationUnitNode, Either,
+    EnumDefinitionNode, EnumVariantNode, ExpressionNode, FieldInitNode, FieldNode,
+    FunctionDefinitionNode, ImportStatementNode, LValueNode, LiteralNode, MatchArmNode,
+    ParameterNode, PatternNode, PolicyStatementNode, ProposalDeclarationNode, ProposalFieldNode,
+    RequirementNode, RoleBodyNode, RoleDeclarationNode, StateDeclarationNode, StatementNode,
+    StructDefinitionNode, StructFieldPattern, ThresholdTypeNode, TypeExprNode, TypeParameterNode,
+    UnaryOperator,
 };
 use crate::error::CclError;
 use pest::iterators::Pair;
@@ -48,17 +47,18 @@ pub fn unescape_string(s: &str) -> Result<String, CclError> {
 pub fn parse_import_statement(pair: Pair<Rule>) -> Result<ImportStatementNode, CclError> {
     // import_stmt = { "import" ~ string ~ ("as" ~ identifier)? ~ ";" }
     let mut inner = pair.into_inner();
-    
-    let path_pair = inner.next()
+
+    let path_pair = inner
+        .next()
         .ok_or_else(|| CclError::ParsingError("Import missing path".to_string()))?;
     let path = path_pair.as_str().trim_matches('"').to_string();
-    
+
     let alias = if let Some(alias_pair) = inner.next() {
         Some(alias_pair.as_str().to_string())
     } else {
         None
     };
-    
+
     Ok(ImportStatementNode { path, alias })
 }
 
@@ -66,14 +66,15 @@ pub fn parse_import_statement(pair: Pair<Rule>) -> Result<ImportStatementNode, C
 pub fn parse_contract_declaration(pair: Pair<Rule>) -> Result<ContractDeclarationNode, CclError> {
     // contract_decl = { "contract" ~ identifier ~ "{" ~ contract_meta* ~ contract_body* ~ "}" }
     let mut inner = pair.into_inner();
-    
-    let name_pair = inner.next()
+
+    let name_pair = inner
+        .next()
         .ok_or_else(|| CclError::ParsingError("Contract missing name".to_string()))?;
     let name = name_pair.as_str().to_string();
-    
+
     let mut metadata = Vec::new();
     let mut body = Vec::new();
-    
+
     for item in inner {
         match item.as_rule() {
             Rule::contract_meta => {
@@ -149,15 +150,20 @@ pub fn parse_contract_declaration(pair: Pair<Rule>) -> Result<ContractDeclaratio
             }
         }
     }
-    
-    Ok(ContractDeclarationNode { name, metadata, body })
+
+    Ok(ContractDeclarationNode {
+        name,
+        metadata,
+        body,
+    })
 }
 
 /// Parse contract metadata
 fn parse_scope_meta(pair: Pair<Rule>) -> Result<ContractMetaNode, CclError> {
     // scope_meta = { "scope:" ~ scope_literal ~ ";" }
     let mut inner = pair.into_inner();
-    let scope_pair = inner.next()
+    let scope_pair = inner
+        .next()
         .ok_or_else(|| CclError::ParsingError("Scope meta missing value".to_string()))?;
     let scope = scope_pair.as_str().trim_matches('"').to_string();
     Ok(ContractMetaNode::Scope(scope))
@@ -166,7 +172,8 @@ fn parse_scope_meta(pair: Pair<Rule>) -> Result<ContractMetaNode, CclError> {
 fn parse_version_meta(pair: Pair<Rule>) -> Result<ContractMetaNode, CclError> {
     // version_meta = { "version:" ~ string ~ ";" }
     let mut inner = pair.into_inner();
-    let version_pair = inner.next()
+    let version_pair = inner
+        .next()
         .ok_or_else(|| CclError::ParsingError("Version meta missing value".to_string()))?;
     let version = version_pair.as_str().trim_matches('"').to_string();
     Ok(ContractMetaNode::Version(version))
@@ -175,7 +182,8 @@ fn parse_version_meta(pair: Pair<Rule>) -> Result<ContractMetaNode, CclError> {
 fn parse_extends_meta(pair: Pair<Rule>) -> Result<ContractMetaNode, CclError> {
     // extends_meta = { "extends:" ~ identifier ~ ";" }
     let mut inner = pair.into_inner();
-    let extends_pair = inner.next()
+    let extends_pair = inner
+        .next()
         .ok_or_else(|| CclError::ParsingError("Extends meta missing value".to_string()))?;
     let extends = extends_pair.as_str().to_string();
     Ok(ContractMetaNode::Extends(extends))
@@ -185,14 +193,15 @@ fn parse_extends_meta(pair: Pair<Rule>) -> Result<ContractMetaNode, CclError> {
 fn parse_role_declaration(pair: Pair<Rule>) -> Result<RoleDeclarationNode, CclError> {
     // role_decl = { "role" ~ identifier ~ ("extends" ~ identifier)? ~ "{" ~ role_body* ~ "}" }
     let mut inner = pair.into_inner();
-    
-    let name_pair = inner.next()
+
+    let name_pair = inner
+        .next()
         .ok_or_else(|| CclError::ParsingError("Role missing name".to_string()))?;
     let name = name_pair.as_str().to_string();
-    
+
     let mut extends = None;
     let mut body = Vec::new();
-    
+
     for item in inner {
         match item.as_rule() {
             Rule::identifier => {
@@ -215,15 +224,19 @@ fn parse_role_declaration(pair: Pair<Rule>) -> Result<RoleDeclarationNode, CclEr
             }
         }
     }
-    
-    Ok(RoleDeclarationNode { name, extends, body })
+
+    Ok(RoleDeclarationNode {
+        name,
+        extends,
+        body,
+    })
 }
 
 fn parse_can_clause(pair: Pair<Rule>) -> Result<Vec<String>, CclError> {
     // can_clause = { "can:" ~ "[" ~ permission_list? ~ "]" ~ ";" }
     let mut inner = pair.into_inner();
     let mut permissions = Vec::new();
-    
+
     if let Some(permission_list) = inner.next() {
         for permission in permission_list.into_inner() {
             if permission.as_rule() == Rule::identifier {
@@ -231,7 +244,7 @@ fn parse_can_clause(pair: Pair<Rule>) -> Result<Vec<String>, CclError> {
             }
         }
     }
-    
+
     Ok(permissions)
 }
 
@@ -239,7 +252,7 @@ fn parse_requires_clause(pair: Pair<Rule>) -> Result<Vec<RequirementNode>, CclEr
     // requires_clause = { "requires:" ~ "[" ~ requirement_list? ~ "]" ~ ";" }
     let mut inner = pair.into_inner();
     let mut requirements = Vec::new();
-    
+
     if let Some(requirement_list) = inner.next() {
         for requirement in requirement_list.into_inner() {
             if requirement.as_rule() == Rule::requirement {
@@ -248,22 +261,24 @@ fn parse_requires_clause(pair: Pair<Rule>) -> Result<Vec<RequirementNode>, CclEr
             }
         }
     }
-    
+
     Ok(requirements)
 }
 
 fn parse_requirement(pair: Pair<Rule>) -> Result<RequirementNode, CclError> {
     // requirement = { identifier ~ ":" ~ expr }
     let mut inner = pair.into_inner();
-    
-    let name_pair = inner.next()
+
+    let name_pair = inner
+        .next()
         .ok_or_else(|| CclError::ParsingError("Requirement missing name".to_string()))?;
     let name = name_pair.as_str().to_string();
-    
-    let expr_pair = inner.next()
+
+    let expr_pair = inner
+        .next()
         .ok_or_else(|| CclError::ParsingError("Requirement missing expression".to_string()))?;
     let expr = parse_expression(expr_pair)?;
-    
+
     Ok(RequirementNode { name, expr })
 }
 
@@ -271,13 +286,14 @@ fn parse_requirement(pair: Pair<Rule>) -> Result<RequirementNode, CclError> {
 fn parse_proposal_declaration(pair: Pair<Rule>) -> Result<ProposalDeclarationNode, CclError> {
     // proposal_decl = { "proposal" ~ identifier ~ "{" ~ proposal_field* ~ "}" }
     let mut inner = pair.into_inner();
-    
-    let name_pair = inner.next()
+
+    let name_pair = inner
+        .next()
         .ok_or_else(|| CclError::ParsingError("Proposal missing name".to_string()))?;
     let name = name_pair.as_str().to_string();
-    
+
     let mut fields = Vec::new();
-    
+
     for item in inner {
         match item.as_rule() {
             Rule::description_meta => {
@@ -312,14 +328,15 @@ fn parse_proposal_declaration(pair: Pair<Rule>) -> Result<ProposalDeclarationNod
             }
         }
     }
-    
+
     Ok(ProposalDeclarationNode { name, fields })
 }
 
 fn parse_description_meta(pair: Pair<Rule>) -> Result<ProposalFieldNode, CclError> {
     // description_meta = { "description:" ~ string ~ ";" }
     let mut inner = pair.into_inner();
-    let desc_pair = inner.next()
+    let desc_pair = inner
+        .next()
         .ok_or_else(|| CclError::ParsingError("Description meta missing value".to_string()))?;
     let description = desc_pair.as_str().trim_matches('"').to_string();
     Ok(ProposalFieldNode::Description(description))
@@ -328,7 +345,8 @@ fn parse_description_meta(pair: Pair<Rule>) -> Result<ProposalFieldNode, CclErro
 fn parse_eligible_meta(pair: Pair<Rule>) -> Result<ProposalFieldNode, CclError> {
     // eligible_meta = { "eligible:" ~ identifier ~ ";" }
     let mut inner = pair.into_inner();
-    let eligible_pair = inner.next()
+    let eligible_pair = inner
+        .next()
         .ok_or_else(|| CclError::ParsingError("Eligible meta missing value".to_string()))?;
     let eligible = eligible_pair.as_str().to_string();
     Ok(ProposalFieldNode::Eligible(eligible))
@@ -337,7 +355,8 @@ fn parse_eligible_meta(pair: Pair<Rule>) -> Result<ProposalFieldNode, CclError> 
 fn parse_duration_meta(pair: Pair<Rule>) -> Result<ProposalFieldNode, CclError> {
     // duration_meta = { "duration:" ~ duration_expr ~ ";" }
     let mut inner = pair.into_inner();
-    let duration_pair = inner.next()
+    let duration_pair = inner
+        .next()
         .ok_or_else(|| CclError::ParsingError("Duration meta missing value".to_string()))?;
     let duration = parse_duration_expr(duration_pair)?;
     Ok(ProposalFieldNode::Duration(duration))
@@ -346,13 +365,17 @@ fn parse_duration_meta(pair: Pair<Rule>) -> Result<ProposalFieldNode, CclError> 
 fn parse_duration_expr(pair: Pair<Rule>) -> Result<DurationExprNode, CclError> {
     // duration_expr = { integer ~ duration_unit }
     let mut inner = pair.into_inner();
-    
-    let value_pair = inner.next()
+
+    let value_pair = inner
+        .next()
         .ok_or_else(|| CclError::ParsingError("Duration missing value".to_string()))?;
-    let value = value_pair.as_str().parse::<i64>()
+    let value = value_pair
+        .as_str()
+        .parse::<i64>()
         .map_err(|e| CclError::ParsingError(format!("Invalid duration value: {}", e)))?;
-    
-    let unit_pair = inner.next()
+
+    let unit_pair = inner
+        .next()
         .ok_or_else(|| CclError::ParsingError("Duration missing unit".to_string()))?;
     let unit = match unit_pair.as_str() {
         "days" => DurationUnitNode::Days,
@@ -361,17 +384,19 @@ fn parse_duration_expr(pair: Pair<Rule>) -> Result<DurationExprNode, CclError> {
         "seconds" => DurationUnitNode::Seconds,
         _ => return Err(CclError::ParsingError("Invalid duration unit".to_string())),
     };
-    
+
     Ok(DurationExprNode { value, unit })
 }
 
 fn parse_quorum_config(pair: Pair<Rule>) -> Result<ProposalFieldNode, CclError> {
     // quorum_config = { "quorum:" ~ percentage ~ ";" }
     let mut inner = pair.into_inner();
-    let percentage_pair = inner.next()
+    let percentage_pair = inner
+        .next()
         .ok_or_else(|| CclError::ParsingError("Quorum missing percentage".to_string()))?;
     let percentage_str = percentage_pair.as_str().trim_end_matches('%');
-    let percentage = percentage_str.parse::<u32>()
+    let percentage = percentage_str
+        .parse::<u32>()
         .map_err(|e| CclError::ParsingError(format!("Invalid percentage: {}", e)))?;
     Ok(ProposalFieldNode::Quorum(percentage))
 }
@@ -379,7 +404,8 @@ fn parse_quorum_config(pair: Pair<Rule>) -> Result<ProposalFieldNode, CclError> 
 fn parse_threshold_config(pair: Pair<Rule>) -> Result<ProposalFieldNode, CclError> {
     // threshold_config = { "threshold:" ~ threshold_type ~ ";" }
     let mut inner = pair.into_inner();
-    let threshold_pair = inner.next()
+    let threshold_pair = inner
+        .next()
         .ok_or_else(|| CclError::ParsingError("Threshold missing type".to_string()))?;
     let threshold = parse_threshold_type(threshold_pair)?;
     Ok(ProposalFieldNode::Threshold(threshold))
@@ -388,26 +414,35 @@ fn parse_threshold_config(pair: Pair<Rule>) -> Result<ProposalFieldNode, CclErro
 fn parse_threshold_type(pair: Pair<Rule>) -> Result<ThresholdTypeNode, CclError> {
     // threshold_type = { "majority" | "supermajority" ~ "(" ~ fraction ~ ")" | "consensus" | "unanimous" }
     let mut inner = pair.into_inner();
-    let first = inner.next()
+    let first = inner
+        .next()
         .ok_or_else(|| CclError::ParsingError("Threshold type missing".to_string()))?;
-    
+
     match first.as_str() {
         "majority" => Ok(ThresholdTypeNode::Majority),
         "consensus" => Ok(ThresholdTypeNode::Consensus),
         "unanimous" => Ok(ThresholdTypeNode::Unanimous),
         "supermajority" => {
-            let fraction_pair = inner.next()
-                .ok_or_else(|| CclError::ParsingError("Supermajority missing fraction".to_string()))?;
+            let fraction_pair = inner.next().ok_or_else(|| {
+                CclError::ParsingError("Supermajority missing fraction".to_string())
+            })?;
             let fraction_str = fraction_pair.as_str();
             let parts: Vec<&str> = fraction_str.split('/').collect();
             if parts.len() != 2 {
-                return Err(CclError::ParsingError("Invalid fraction format".to_string()));
+                return Err(CclError::ParsingError(
+                    "Invalid fraction format".to_string(),
+                ));
             }
-            let numerator = parts[0].parse::<u32>()
+            let numerator = parts[0]
+                .parse::<u32>()
                 .map_err(|e| CclError::ParsingError(format!("Invalid numerator: {}", e)))?;
-            let denominator = parts[1].parse::<u32>()
+            let denominator = parts[1]
+                .parse::<u32>()
                 .map_err(|e| CclError::ParsingError(format!("Invalid denominator: {}", e)))?;
-            Ok(ThresholdTypeNode::Supermajority { numerator, denominator })
+            Ok(ThresholdTypeNode::Supermajority {
+                numerator,
+                denominator,
+            })
         }
         _ => Err(CclError::ParsingError("Unknown threshold type".to_string())),
     }
@@ -417,14 +452,14 @@ fn parse_execution_block(pair: Pair<Rule>) -> Result<ProposalFieldNode, CclError
     // execution_block = { "execution:" ~ "{" ~ statement* ~ "}" }
     let inner = pair.into_inner();
     let mut statements = Vec::new();
-    
+
     for stmt_pair in inner {
         if stmt_pair.as_rule() == Rule::statement {
             let stmt = parse_statement(stmt_pair)?;
             statements.push(stmt);
         }
     }
-    
+
     Ok(ProposalFieldNode::Execution(BlockNode { statements }))
 }
 
@@ -432,16 +467,17 @@ fn parse_execution_block(pair: Pair<Rule>) -> Result<ProposalFieldNode, CclError
 pub fn parse_function_declaration(pair: Pair<Rule>) -> Result<FunctionDefinitionNode, CclError> {
     // fn_decl = { "fn" ~ identifier ~ type_parameters? ~ "(" ~ parameter_list? ~ ")" ~ return_type? ~ block }
     let mut inner = pair.into_inner();
-    
-    let name_pair = inner.next()
+
+    let name_pair = inner
+        .next()
         .ok_or_else(|| CclError::ParsingError("Function missing name".to_string()))?;
     let name = name_pair.as_str().to_string();
-    
+
     let mut type_parameters = Vec::new();
     let mut parameters = Vec::new();
     let mut return_type = None;
     let mut body = None;
-    
+
     for item in inner {
         match item.as_rule() {
             Rule::type_parameters => {
@@ -469,9 +505,9 @@ pub fn parse_function_declaration(pair: Pair<Rule>) -> Result<FunctionDefinition
             }
         }
     }
-    
+
     let body = body.ok_or_else(|| CclError::ParsingError("Function missing body".to_string()))?;
-    
+
     Ok(FunctionDefinitionNode {
         name,
         type_parameters,
@@ -489,110 +525,114 @@ pub fn parse_function_definition_new(pair: Pair<Rule>) -> Result<FunctionDefinit
 fn parse_parameter_list(pair: Pair<Rule>) -> Result<Vec<ParameterNode>, CclError> {
     // parameter_list = { parameter ~ ("," ~ parameter)* }
     let mut parameters = Vec::new();
-    
+
     for param_pair in pair.into_inner() {
         if param_pair.as_rule() == Rule::parameter {
             let param = parse_parameter(param_pair)?;
             parameters.push(param);
         }
     }
-    
+
     Ok(parameters)
 }
 
 fn parse_type_parameters(pair: Pair<Rule>) -> Result<Vec<TypeParameterNode>, CclError> {
     // type_parameters = { "<" ~ type_parameter_list ~ ">" }
     let mut inner = pair.into_inner();
-    
+
     for item in inner {
         if item.as_rule() == Rule::type_parameter_list {
             return parse_type_parameter_list(item);
         }
     }
-    
+
     Ok(Vec::new())
 }
 
 fn parse_type_parameter_list(pair: Pair<Rule>) -> Result<Vec<TypeParameterNode>, CclError> {
     // type_parameter_list = { type_parameter ~ ("," ~ type_parameter)* }
     let mut type_params = Vec::new();
-    
+
     for param_pair in pair.into_inner() {
         if param_pair.as_rule() == Rule::type_parameter {
             let param = parse_type_parameter(param_pair)?;
             type_params.push(param);
         }
     }
-    
+
     Ok(type_params)
 }
 
 fn parse_type_parameter(pair: Pair<Rule>) -> Result<TypeParameterNode, CclError> {
     // type_parameter = { identifier ~ (":" ~ type_bounds)? }
     let mut inner = pair.into_inner();
-    
-    let name_pair = inner.next()
+
+    let name_pair = inner
+        .next()
         .ok_or_else(|| CclError::ParsingError("Type parameter missing name".to_string()))?;
     let name = name_pair.as_str().to_string();
-    
+
     let mut bounds = Vec::new();
-    
+
     // Parse optional type bounds
     for item in inner {
         if item.as_rule() == Rule::type_bounds {
             bounds = parse_type_bounds(item)?;
         }
     }
-    
+
     Ok(TypeParameterNode { name, bounds })
 }
 
 fn parse_type_bounds(pair: Pair<Rule>) -> Result<Vec<String>, CclError> {
     // type_bounds = { type_bound ~ ("+" ~ type_bound)* }
     let mut bounds = Vec::new();
-    
+
     for bound_pair in pair.into_inner() {
         if bound_pair.as_rule() == Rule::type_bound {
             bounds.push(bound_pair.as_str().to_string());
         }
     }
-    
+
     Ok(bounds)
 }
 
 fn parse_type_expr_list(pair: Pair<Rule>) -> Result<Vec<TypeExprNode>, CclError> {
     // type_expr_list = { type_expr ~ ("," ~ type_expr)* }
     let mut type_exprs = Vec::new();
-    
+
     for type_pair in pair.into_inner() {
         if type_pair.as_rule() == Rule::type_expr {
             let type_expr = parse_type_expr(type_pair)?;
             type_exprs.push(type_expr);
         }
     }
-    
+
     Ok(type_exprs)
 }
 
 fn parse_parameter(pair: Pair<Rule>) -> Result<ParameterNode, CclError> {
     // parameter = { identifier ~ ":" ~ type_expr }
     let mut inner = pair.into_inner();
-    
-    let name_pair = inner.next()
+
+    let name_pair = inner
+        .next()
         .ok_or_else(|| CclError::ParsingError("Parameter missing name".to_string()))?;
     let name = name_pair.as_str().to_string();
-    
-    let type_pair = inner.next()
+
+    let type_pair = inner
+        .next()
         .ok_or_else(|| CclError::ParsingError("Parameter missing type".to_string()))?;
     let type_expr = parse_type_expr(type_pair)?;
-    
+
     Ok(ParameterNode { name, type_expr })
 }
 
 fn parse_return_type(pair: Pair<Rule>) -> Result<TypeExprNode, CclError> {
     // return_type = { "->" ~ type_expr }
     let mut inner = pair.into_inner();
-    let type_pair = inner.next()
+    let type_pair = inner
+        .next()
         .ok_or_else(|| CclError::ParsingError("Return type missing type expression".to_string()))?;
     parse_type_expr(type_pair)
 }
@@ -601,36 +641,42 @@ fn parse_return_type(pair: Pair<Rule>) -> Result<TypeExprNode, CclError> {
 pub fn parse_type_expr(pair: Pair<Rule>) -> Result<TypeExprNode, CclError> {
     match pair.as_rule() {
         Rule::type_expr => {
-            let inner = pair.into_inner().next()
+            let inner = pair
+                .into_inner()
+                .next()
                 .ok_or_else(|| CclError::ParsingError("Empty type expression".to_string()))?;
             parse_type_expr(inner)
         }
-        Rule::basic_type => {
-            match pair.as_str() {
-                "Integer" => Ok(TypeExprNode::Integer),
-                "String" => Ok(TypeExprNode::String),
-                "Boolean" | "Bool" => Ok(TypeExprNode::Boolean),
-                "Mana" => Ok(TypeExprNode::Mana),
-                "Did" => Ok(TypeExprNode::Did),
-                "Timestamp" => Ok(TypeExprNode::Timestamp),
-                "Duration" => Ok(TypeExprNode::Duration),
-                _ => Err(CclError::ParsingError(format!("Unknown basic type: {}", pair.as_str()))),
-            }
-        }
+        Rule::basic_type => match pair.as_str() {
+            "Integer" => Ok(TypeExprNode::Integer),
+            "String" => Ok(TypeExprNode::String),
+            "Boolean" | "Bool" => Ok(TypeExprNode::Boolean),
+            "Mana" => Ok(TypeExprNode::Mana),
+            "Did" => Ok(TypeExprNode::Did),
+            "Timestamp" => Ok(TypeExprNode::Timestamp),
+            "Duration" => Ok(TypeExprNode::Duration),
+            _ => Err(CclError::ParsingError(format!(
+                "Unknown basic type: {}",
+                pair.as_str()
+            ))),
+        },
         Rule::array_type => {
             // array_type = { "[" ~ type_expr ~ "]" }
             let mut inner = pair.into_inner();
-            let element_type = inner.next()
-                .ok_or_else(|| CclError::ParsingError("Array type missing element type".to_string()))?;
+            let element_type = inner.next().ok_or_else(|| {
+                CclError::ParsingError("Array type missing element type".to_string())
+            })?;
             let element_type_expr = parse_type_expr(element_type)?;
             Ok(TypeExprNode::Array(Box::new(element_type_expr)))
         }
         Rule::map_type => {
             // map_type = { "map" ~ "<" ~ type_expr ~ "," ~ type_expr ~ ">" }
             let mut inner = pair.into_inner();
-            let key_type = inner.next()
+            let key_type = inner
+                .next()
                 .ok_or_else(|| CclError::ParsingError("Map type missing key type".to_string()))?;
-            let value_type = inner.next()
+            let value_type = inner
+                .next()
                 .ok_or_else(|| CclError::ParsingError("Map type missing value type".to_string()))?;
             let key_type_expr = parse_type_expr(key_type)?;
             let value_type_expr = parse_type_expr(value_type)?;
@@ -642,18 +688,21 @@ pub fn parse_type_expr(pair: Pair<Rule>) -> Result<TypeExprNode, CclError> {
         Rule::option_type => {
             // option_type = { "Option" ~ "<" ~ type_expr ~ ">" }
             let mut inner = pair.into_inner();
-            let inner_type = inner.next()
-                .ok_or_else(|| CclError::ParsingError("Option type missing inner type".to_string()))?;
+            let inner_type = inner.next().ok_or_else(|| {
+                CclError::ParsingError("Option type missing inner type".to_string())
+            })?;
             let inner_type_expr = parse_type_expr(inner_type)?;
             Ok(TypeExprNode::Option(Box::new(inner_type_expr)))
         }
         Rule::result_type => {
             // result_type = { "Result" ~ "<" ~ type_expr ~ "," ~ type_expr ~ ">" }
             let mut inner = pair.into_inner();
-            let ok_type = inner.next()
+            let ok_type = inner
+                .next()
                 .ok_or_else(|| CclError::ParsingError("Result type missing ok type".to_string()))?;
-            let err_type = inner.next()
-                .ok_or_else(|| CclError::ParsingError("Result type missing error type".to_string()))?;
+            let err_type = inner.next().ok_or_else(|| {
+                CclError::ParsingError("Result type missing error type".to_string())
+            })?;
             let ok_type_expr = parse_type_expr(ok_type)?;
             let err_type_expr = parse_type_expr(err_type)?;
             Ok(TypeExprNode::Result {
@@ -661,57 +710,53 @@ pub fn parse_type_expr(pair: Pair<Rule>) -> Result<TypeExprNode, CclError> {
                 err_type: Box::new(err_type_expr),
             })
         }
-        Rule::custom_type => {
-            Ok(TypeExprNode::Custom(pair.as_str().to_string()))
-        }
-        Rule::identifier => {
-            Ok(TypeExprNode::Custom(pair.as_str().to_string()))
-        }
+        Rule::custom_type => Ok(TypeExprNode::Custom(pair.as_str().to_string())),
+        Rule::identifier => Ok(TypeExprNode::Custom(pair.as_str().to_string())),
         Rule::generic_instantiation => {
             // generic_instantiation = { identifier ~ "<" ~ type_expr_list ~ ">" }
             let mut inner = pair.into_inner();
-            let base_type = inner.next()
-                .ok_or_else(|| CclError::ParsingError("Generic instantiation missing base type".to_string()))?;
-            let type_args_list = inner.next()
-                .ok_or_else(|| CclError::ParsingError("Generic instantiation missing type arguments".to_string()))?;
-            
+            let base_type = inner.next().ok_or_else(|| {
+                CclError::ParsingError("Generic instantiation missing base type".to_string())
+            })?;
+            let type_args_list = inner.next().ok_or_else(|| {
+                CclError::ParsingError("Generic instantiation missing type arguments".to_string())
+            })?;
+
             let type_args = parse_type_expr_list(type_args_list)?;
-            
+
             Ok(TypeExprNode::GenericInstantiation {
                 base_type: base_type.as_str().to_string(),
                 type_args,
             })
         }
-        Rule::type_parameter_ref => {
-            Ok(TypeExprNode::TypeParameter(pair.as_str().to_string()))
-        }
-        _ => {
-            Err(CclError::ParsingError(format!(
-                "Unexpected type expression rule: {:?}",
-                pair.as_rule()
-            )))
-        }
+        Rule::type_parameter_ref => Ok(TypeExprNode::TypeParameter(pair.as_str().to_string())),
+        _ => Err(CclError::ParsingError(format!(
+            "Unexpected type expression rule: {:?}",
+            pair.as_rule()
+        ))),
     }
 }
 
 fn parse_state_declaration(pair: Pair<Rule>) -> Result<StateDeclarationNode, CclError> {
     // state_decl = { "state" ~ identifier ~ ":" ~ type_expr ~ ("=" ~ expr)? ~ ";" }
     let mut inner = pair.into_inner();
-    
-    let name_pair = inner.next()
+
+    let name_pair = inner
+        .next()
         .ok_or_else(|| CclError::ParsingError("State declaration missing name".to_string()))?;
     let name = name_pair.as_str().to_string();
-    
-    let type_pair = inner.next()
+
+    let type_pair = inner
+        .next()
         .ok_or_else(|| CclError::ParsingError("State declaration missing type".to_string()))?;
     let type_expr = parse_type_expr(type_pair)?;
-    
+
     let initial_value = if let Some(expr_pair) = inner.next() {
         Some(parse_expression(expr_pair)?)
     } else {
         None
     };
-    
+
     Ok(StateDeclarationNode {
         name,
         type_expr,
@@ -722,14 +767,15 @@ fn parse_state_declaration(pair: Pair<Rule>) -> Result<StateDeclarationNode, Ccl
 pub fn parse_struct_declaration(pair: Pair<Rule>) -> Result<StructDefinitionNode, CclError> {
     // struct_decl = { "struct" ~ identifier ~ type_parameters? ~ "{" ~ field_list? ~ "}" }
     let mut inner = pair.into_inner();
-    
-    let name_pair = inner.next()
+
+    let name_pair = inner
+        .next()
         .ok_or_else(|| CclError::ParsingError("Struct missing name".to_string()))?;
     let name = name_pair.as_str().to_string();
-    
+
     let mut type_parameters = Vec::new();
     let mut fields = Vec::new();
-    
+
     for item in inner {
         match item.as_rule() {
             Rule::type_parameters => {
@@ -746,54 +792,57 @@ pub fn parse_struct_declaration(pair: Pair<Rule>) -> Result<StructDefinitionNode
             }
         }
     }
-    
-    Ok(StructDefinitionNode { 
-        name, 
+
+    Ok(StructDefinitionNode {
+        name,
         type_parameters,
-        fields 
+        fields,
     })
 }
 
 fn parse_field_list(pair: Pair<Rule>) -> Result<Vec<FieldNode>, CclError> {
     // field_list = { field ~ ("," ~ field)* }
     let mut fields = Vec::new();
-    
+
     for field_pair in pair.into_inner() {
         if field_pair.as_rule() == Rule::field {
             let field = parse_field(field_pair)?;
             fields.push(field);
         }
     }
-    
+
     Ok(fields)
 }
 
 fn parse_field(pair: Pair<Rule>) -> Result<FieldNode, CclError> {
     // field = { identifier ~ ":" ~ type_expr }
     let mut inner = pair.into_inner();
-    
-    let name_pair = inner.next()
+
+    let name_pair = inner
+        .next()
         .ok_or_else(|| CclError::ParsingError("Field missing name".to_string()))?;
     let name = name_pair.as_str().to_string();
-    
-    let type_pair = inner.next()
+
+    let type_pair = inner
+        .next()
         .ok_or_else(|| CclError::ParsingError("Field missing type".to_string()))?;
     let type_expr = parse_type_expr(type_pair)?;
-    
+
     Ok(FieldNode { name, type_expr })
 }
 
 pub fn parse_enum_declaration(pair: Pair<Rule>) -> Result<EnumDefinitionNode, CclError> {
     // enum_decl = { "enum" ~ identifier ~ type_parameters? ~ "{" ~ variant_list? ~ "}" }
     let mut inner = pair.into_inner();
-    
-    let name_pair = inner.next()
+
+    let name_pair = inner
+        .next()
         .ok_or_else(|| CclError::ParsingError("Enum missing name".to_string()))?;
     let name = name_pair.as_str().to_string();
-    
+
     let mut type_parameters = Vec::new();
     let mut variants = Vec::new();
-    
+
     for item in inner {
         match item.as_rule() {
             Rule::type_parameters => {
@@ -810,61 +859,65 @@ pub fn parse_enum_declaration(pair: Pair<Rule>) -> Result<EnumDefinitionNode, Cc
             }
         }
     }
-    
-    Ok(EnumDefinitionNode { 
-        name, 
+
+    Ok(EnumDefinitionNode {
+        name,
         type_parameters,
-        variants 
+        variants,
     })
 }
 
 fn parse_variant_list(pair: Pair<Rule>) -> Result<Vec<EnumVariantNode>, CclError> {
     // variant_list = { variant ~ ("," ~ variant)* }
     let mut variants = Vec::new();
-    
+
     for variant_pair in pair.into_inner() {
         if variant_pair.as_rule() == Rule::variant {
             let variant = parse_variant(variant_pair)?;
             variants.push(variant);
         }
     }
-    
+
     Ok(variants)
 }
 
 fn parse_variant(pair: Pair<Rule>) -> Result<EnumVariantNode, CclError> {
     // variant = { identifier ~ ("(" ~ type_expr ~ ")")? }
     let mut inner = pair.into_inner();
-    
-    let name_pair = inner.next()
+
+    let name_pair = inner
+        .next()
         .ok_or_else(|| CclError::ParsingError("Variant missing name".to_string()))?;
     let name = name_pair.as_str().to_string();
-    
+
     let type_expr = if let Some(type_pair) = inner.next() {
         Some(parse_type_expr(type_pair)?)
     } else {
         None
     };
-    
+
     Ok(EnumVariantNode { name, type_expr })
 }
 
 pub fn parse_const_declaration(pair: Pair<Rule>) -> Result<ConstDeclarationNode, CclError> {
     // const_decl = { "const" ~ identifier ~ ":" ~ type_expr ~ "=" ~ expr ~ ";" }
     let mut inner = pair.into_inner();
-    
-    let name_pair = inner.next()
+
+    let name_pair = inner
+        .next()
         .ok_or_else(|| CclError::ParsingError("Const declaration missing name".to_string()))?;
     let name = name_pair.as_str().to_string();
-    
-    let type_pair = inner.next()
+
+    let type_pair = inner
+        .next()
         .ok_or_else(|| CclError::ParsingError("Const declaration missing type".to_string()))?;
     let type_expr = parse_type_expr(type_pair)?;
-    
-    let value_pair = inner.next()
+
+    let value_pair = inner
+        .next()
         .ok_or_else(|| CclError::ParsingError("Const declaration missing value".to_string()))?;
     let value = parse_expression(value_pair)?;
-    
+
     Ok(ConstDeclarationNode {
         name,
         type_expr,
@@ -878,7 +931,9 @@ pub(crate) fn parse_literal_expression(pair: Pair<Rule>) -> Result<ExpressionNod
     match pair.as_rule() {
         Rule::literal => {
             // Handle the wrapper literal rule by extracting the inner literal type
-            let inner = pair.into_inner().next()
+            let inner = pair
+                .into_inner()
+                .next()
                 .ok_or_else(|| CclError::ParsingError("Empty literal rule".to_string()))?;
             parse_literal_expression(inner)
         }
@@ -913,7 +968,9 @@ pub(crate) fn parse_literal_expression(pair: Pair<Rule>) -> Result<ExpressionNod
         }
         Rule::timestamp_literal => {
             let timestamp_str = pair.as_str().to_string();
-            Ok(ExpressionNode::Literal(LiteralNode::Timestamp(timestamp_str)))
+            Ok(ExpressionNode::Literal(LiteralNode::Timestamp(
+                timestamp_str,
+            )))
         }
         Rule::identifier => Ok(ExpressionNode::Identifier(pair.as_str().to_string())),
         _ => Err(CclError::ParsingError(format!(
@@ -927,7 +984,9 @@ pub(crate) fn parse_literal_expression(pair: Pair<Rule>) -> Result<ExpressionNod
 pub(crate) fn parse_expression(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
     match pair.as_rule() {
         Rule::expr => {
-            let inner = pair.into_inner().next()
+            let inner = pair
+                .into_inner()
+                .next()
                 .ok_or_else(|| CclError::ParsingError("Empty expression".to_string()))?;
             parse_expression(inner)
         }
@@ -969,7 +1028,7 @@ fn parse_logical_or(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
     // logical_or = { logical_and ~ ("||" ~ logical_and)* }
     let mut pairs = pair.into_inner();
     let mut left = parse_expression(pairs.next().unwrap())?;
-    
+
     while let Some(op_pair) = pairs.next() {
         if op_pair.as_str() == "||" {
             if let Some(right_pair) = pairs.next() {
@@ -980,7 +1039,9 @@ fn parse_logical_or(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
                     right: Box::new(right),
                 };
             } else {
-                return Err(CclError::ParsingError("Missing right operand in logical OR".to_string()));
+                return Err(CclError::ParsingError(
+                    "Missing right operand in logical OR".to_string(),
+                ));
             }
         } else {
             // This is an expression, not an operator
@@ -992,7 +1053,7 @@ fn parse_logical_or(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
             };
         }
     }
-    
+
     Ok(left)
 }
 
@@ -1000,7 +1061,7 @@ fn parse_logical_and(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
     // logical_and = { equality ~ ("&&" ~ equality)* }
     let mut pairs = pair.into_inner();
     let mut left = parse_expression(pairs.next().unwrap())?;
-    
+
     while let Some(op_pair) = pairs.next() {
         if op_pair.as_str() == "&&" {
             if let Some(right_pair) = pairs.next() {
@@ -1011,7 +1072,9 @@ fn parse_logical_and(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
                     right: Box::new(right),
                 };
             } else {
-                return Err(CclError::ParsingError("Missing right operand in logical AND".to_string()));
+                return Err(CclError::ParsingError(
+                    "Missing right operand in logical AND".to_string(),
+                ));
             }
         } else {
             // This is an expression, not an operator
@@ -1023,80 +1086,89 @@ fn parse_logical_and(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
             };
         }
     }
-    
+
     Ok(left)
 }
 
 fn parse_equality(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
     // equality = { comparison ~ (("==" | "!=") ~ comparison)* }
     let inner_pairs: Vec<_> = pair.into_inner().collect();
-    
 
-    
     if inner_pairs.len() == 1 {
         // No operators, just a single comparison
         return parse_expression(inner_pairs[0].clone());
     }
-    
+
     // Build left-associative binary operations
     // Format: [operand, operator, operand, operator, operand, ...]
     let mut result = parse_expression(inner_pairs[0].clone())?;
-    
+
     let mut i = 1;
     while i < inner_pairs.len() {
         // Parse operator token
         if inner_pairs[i].as_rule() != Rule::equality_op {
-            return Err(CclError::ParsingError(format!("Expected equality_op rule, got: {:?}", inner_pairs[i].as_rule())));
+            return Err(CclError::ParsingError(format!(
+                "Expected equality_op rule, got: {:?}",
+                inner_pairs[i].as_rule()
+            )));
         }
-        
+
         let operator_str = inner_pairs[i].as_str();
         let operator = match operator_str {
             "==" => BinaryOperator::Eq,
             "!=" => BinaryOperator::Neq,
             _ => {
-                return Err(CclError::ParsingError(format!("Expected equality operator, got: {}", operator_str)));
+                return Err(CclError::ParsingError(format!(
+                    "Expected equality operator, got: {}",
+                    operator_str
+                )));
             }
         };
-        
+
         // Parse right operand
         if i + 1 >= inner_pairs.len() {
-            return Err(CclError::ParsingError("Missing right operand in equality".to_string()));
+            return Err(CclError::ParsingError(
+                "Missing right operand in equality".to_string(),
+            ));
         }
-        
+
         let right = parse_expression(inner_pairs[i + 1].clone())?;
-        
+
         result = ExpressionNode::BinaryOp {
             left: Box::new(result),
             operator,
             right: Box::new(right),
         };
-        
+
         i += 2; // Skip to next operator
     }
-    
+
     Ok(result)
 }
 
 fn parse_comparison(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
     // comparison = { addition ~ (comparison_op ~ addition)* }
     let inner_pairs: Vec<_> = pair.into_inner().collect();
-    
+
     if inner_pairs.len() == 1 {
         // No operators, just a single addition
         return parse_expression(inner_pairs[0].clone());
     }
-    
+
     // Build left-associative binary operations
     // Format: [operand, operator, operand, operator, operand, ...]
     let mut result = parse_expression(inner_pairs[0].clone())?;
-    
+
     let mut i = 1;
     while i < inner_pairs.len() {
         // Parse operator token
         if inner_pairs[i].as_rule() != Rule::comparison_op {
-            return Err(CclError::ParsingError(format!("Expected comparison_op rule, got: {:?}", inner_pairs[i].as_rule())));
+            return Err(CclError::ParsingError(format!(
+                "Expected comparison_op rule, got: {:?}",
+                inner_pairs[i].as_rule()
+            )));
         }
-        
+
         let operator_str = inner_pairs[i].as_str();
         let operator = match operator_str {
             "<=" => BinaryOperator::Lte,
@@ -1104,123 +1176,144 @@ fn parse_comparison(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
             "<" => BinaryOperator::Lt,
             ">" => BinaryOperator::Gt,
             _ => {
-                return Err(CclError::ParsingError(format!("Expected comparison operator, got: {}", operator_str)));
+                return Err(CclError::ParsingError(format!(
+                    "Expected comparison operator, got: {}",
+                    operator_str
+                )));
             }
         };
-        
+
         // Parse right operand
         if i + 1 >= inner_pairs.len() {
-            return Err(CclError::ParsingError("Missing right operand in comparison".to_string()));
+            return Err(CclError::ParsingError(
+                "Missing right operand in comparison".to_string(),
+            ));
         }
-        
+
         let right = parse_expression(inner_pairs[i + 1].clone())?;
-        
+
         result = ExpressionNode::BinaryOp {
             left: Box::new(result),
             operator,
             right: Box::new(right),
         };
-        
+
         i += 2; // Skip to next operator
     }
-    
+
     Ok(result)
 }
 
 fn parse_addition(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
     // addition = { multiplication ~ (addition_op ~ multiplication)* }
     let inner_pairs: Vec<_> = pair.into_inner().collect();
-    
+
     if inner_pairs.len() == 1 {
         // No operators, just a single multiplication
         return parse_expression(inner_pairs[0].clone());
     }
-    
+
     // Build left-associative binary operations
     // Format: [operand, operator, operand, operator, operand, ...]
     let mut result = parse_expression(inner_pairs[0].clone())?;
-    
+
     let mut i = 1;
     while i < inner_pairs.len() {
         // Parse operator token
         if inner_pairs[i].as_rule() != Rule::addition_op {
-            return Err(CclError::ParsingError(format!("Expected addition_op rule, got: {:?}", inner_pairs[i].as_rule())));
+            return Err(CclError::ParsingError(format!(
+                "Expected addition_op rule, got: {:?}",
+                inner_pairs[i].as_rule()
+            )));
         }
-        
+
         let operator_str = inner_pairs[i].as_str();
         let operator = match operator_str {
             "+" => BinaryOperator::Add,
             "-" => BinaryOperator::Sub,
             _ => {
-                return Err(CclError::ParsingError(format!("Expected addition operator, got: {}", operator_str)));
+                return Err(CclError::ParsingError(format!(
+                    "Expected addition operator, got: {}",
+                    operator_str
+                )));
             }
         };
-        
+
         // Parse right operand
         if i + 1 >= inner_pairs.len() {
-            return Err(CclError::ParsingError("Missing right operand in addition".to_string()));
+            return Err(CclError::ParsingError(
+                "Missing right operand in addition".to_string(),
+            ));
         }
-        
+
         let right = parse_expression(inner_pairs[i + 1].clone())?;
-        
+
         result = ExpressionNode::BinaryOp {
             left: Box::new(result),
             operator,
             right: Box::new(right),
         };
-        
+
         i += 2; // Skip to next operator
     }
-    
+
     Ok(result)
 }
 
 fn parse_multiplication(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
     // multiplication = { unary ~ (multiplication_op ~ unary)* }
     let inner_pairs: Vec<_> = pair.into_inner().collect();
-    
+
     if inner_pairs.len() == 1 {
         // No operators, just a single unary
         return parse_expression(inner_pairs[0].clone());
     }
-    
+
     // Build left-associative binary operations
     // Format: [operand, operator, operand, operator, operand, ...]
     let mut result = parse_expression(inner_pairs[0].clone())?;
-    
+
     let mut i = 1;
     while i < inner_pairs.len() {
         // Parse operator token
         if inner_pairs[i].as_rule() != Rule::multiplication_op {
-            return Err(CclError::ParsingError(format!("Expected multiplication_op rule, got: {:?}", inner_pairs[i].as_rule())));
+            return Err(CclError::ParsingError(format!(
+                "Expected multiplication_op rule, got: {:?}",
+                inner_pairs[i].as_rule()
+            )));
         }
-        
+
         let operator_str = inner_pairs[i].as_str();
         let operator = match operator_str {
             "*" => BinaryOperator::Mul,
             "/" => BinaryOperator::Div,
             "%" => BinaryOperator::Mod,
             _ => {
-                return Err(CclError::ParsingError(format!("Expected multiplication operator, got: {}", operator_str)));
+                return Err(CclError::ParsingError(format!(
+                    "Expected multiplication operator, got: {}",
+                    operator_str
+                )));
             }
         };
-        
+
         // Parse right operand
         if i + 1 >= inner_pairs.len() {
-            return Err(CclError::ParsingError("Missing right operand in multiplication".to_string()));
+            return Err(CclError::ParsingError(
+                "Missing right operand in multiplication".to_string(),
+            ));
         }
-        
+
         let right = parse_expression(inner_pairs[i + 1].clone())?;
-        
+
         result = ExpressionNode::BinaryOp {
             left: Box::new(result),
             operator,
             right: Box::new(right),
         };
-        
+
         i += 2; // Skip to next operator
     }
-    
+
     Ok(result)
 }
 
@@ -1228,7 +1321,7 @@ fn parse_unary(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
     // unary = { ("!" | "-") ~ unary | postfix }
     let mut inner = pair.into_inner();
     let first = inner.next().unwrap();
-    
+
     match first.as_str() {
         "!" => {
             let operand = parse_expression(inner.next().unwrap())?;
@@ -1255,7 +1348,7 @@ fn parse_postfix(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
     // postfix = { primary ~ (call_suffix | member_suffix | index_suffix)* }
     let mut inner = pair.into_inner();
     let mut expr = parse_expression(inner.next().unwrap())?;
-    
+
     for suffix in inner {
         match suffix.as_rule() {
             Rule::call_suffix => {
@@ -1275,7 +1368,7 @@ fn parse_postfix(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
             }
         }
     }
-    
+
     Ok(expr)
 }
 
@@ -1283,7 +1376,7 @@ fn parse_primary(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
     // primary = { literal | identifier | "(" ~ expr ~ ")" | array_literal | struct_literal | some_expr | none_expr | ok_expr | err_expr }
     let mut inner = pair.into_inner();
     let first = inner.next().unwrap();
-    
+
     match first.as_rule() {
         Rule::literal => parse_literal_expression(first),
         Rule::identifier => Ok(ExpressionNode::Identifier(first.as_str().to_string())),
@@ -1302,14 +1395,14 @@ fn parse_primary(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
 fn parse_array_literal(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
     // array_literal = { "[" ~ (expr ~ ("," ~ expr)*)? ~ "]" }
     let mut elements = Vec::new();
-    
+
     for expr_pair in pair.into_inner() {
         if expr_pair.as_rule() == Rule::expr {
             let expr = parse_expression(expr_pair)?;
             elements.push(expr);
         }
     }
-    
+
     Ok(ExpressionNode::ArrayLiteral(elements))
 }
 
@@ -1318,60 +1411,66 @@ fn parse_enum_value(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
     let mut inner = pair.into_inner();
     let enum_name = inner.next().unwrap().as_str().to_string();
     let variant = inner.next().unwrap().as_str().to_string();
-    
+
     Ok(ExpressionNode::EnumValue { enum_name, variant })
 }
 
 fn parse_struct_literal(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
     // struct_literal = { identifier ~ "{" ~ field_init_list? ~ "}" }
     let mut inner = pair.into_inner();
-    
-    let type_name = inner.next()
+
+    let type_name = inner
+        .next()
         .ok_or_else(|| CclError::ParsingError("Struct literal missing type name".to_string()))?
-        .as_str().to_string();
-    
+        .as_str()
+        .to_string();
+
     let mut fields = Vec::new();
-    
+
     if let Some(field_list) = inner.next() {
         fields = parse_field_init_list(field_list)?;
     }
-    
+
     Ok(ExpressionNode::StructLiteral { type_name, fields })
 }
 
 fn parse_field_init_list(pair: Pair<Rule>) -> Result<Vec<FieldInitNode>, CclError> {
     // field_init_list = { field_init ~ ("," ~ field_init)* }
     let mut fields = Vec::new();
-    
+
     for field_pair in pair.into_inner() {
         if field_pair.as_rule() == Rule::field_init {
             let field = parse_field_init(field_pair)?;
             fields.push(field);
         }
     }
-    
+
     Ok(fields)
 }
 
 fn parse_field_init(pair: Pair<Rule>) -> Result<FieldInitNode, CclError> {
     // field_init = { identifier ~ ":" ~ expr }
     let mut inner = pair.into_inner();
-    
-    let name = inner.next()
+
+    let name = inner
+        .next()
         .ok_or_else(|| CclError::ParsingError("Field init missing name".to_string()))?
-        .as_str().to_string();
-    
-    let value_pair = inner.next()
+        .as_str()
+        .to_string();
+
+    let value_pair = inner
+        .next()
         .ok_or_else(|| CclError::ParsingError("Field init missing value".to_string()))?;
     let value = parse_expression(value_pair)?;
-    
+
     Ok(FieldInitNode { name, value })
 }
 
 fn parse_some_expr(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
     // some_expr = { "Some" ~ "(" ~ expr ~ ")" }
     let mut inner = pair.into_inner();
-    let expr_pair = inner.next()
+    let expr_pair = inner
+        .next()
         .ok_or_else(|| CclError::ParsingError("Some expression missing value".to_string()))?;
     let expr = parse_expression(expr_pair)?;
     Ok(ExpressionNode::Some(Box::new(expr)))
@@ -1380,7 +1479,8 @@ fn parse_some_expr(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
 fn parse_ok_expr(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
     // ok_expr = { "Ok" ~ "(" ~ expr ~ ")" }
     let mut inner = pair.into_inner();
-    let expr_pair = inner.next()
+    let expr_pair = inner
+        .next()
         .ok_or_else(|| CclError::ParsingError("Ok expression missing value".to_string()))?;
     let expr = parse_expression(expr_pair)?;
     Ok(ExpressionNode::Ok(Box::new(expr)))
@@ -1389,7 +1489,8 @@ fn parse_ok_expr(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
 fn parse_err_expr(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
     // err_expr = { "Err" ~ "(" ~ expr ~ ")" }
     let mut inner = pair.into_inner();
-    let expr_pair = inner.next()
+    let expr_pair = inner
+        .next()
         .ok_or_else(|| CclError::ParsingError("Err expression missing value".to_string()))?;
     let expr = parse_expression(expr_pair)?;
     Ok(ExpressionNode::Err(Box::new(expr)))
@@ -1398,11 +1499,11 @@ fn parse_err_expr(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
 fn parse_transfer_expr(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
     // transfer_expr = { "transfer" ~ "(" ~ expr ~ "," ~ expr ~ "," ~ expr ~ ")" }
     let mut inner = pair.into_inner();
-    
+
     let from = parse_expression(inner.next().unwrap())?;
     let to = parse_expression(inner.next().unwrap())?;
     let amount = parse_expression(inner.next().unwrap())?;
-    
+
     Ok(ExpressionNode::Transfer {
         from: Box::new(from),
         to: Box::new(to),
@@ -1413,10 +1514,10 @@ fn parse_transfer_expr(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
 fn parse_mint_expr(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
     // mint_expr = { "mint" ~ "(" ~ expr ~ "," ~ expr ~ ")" }
     let mut inner = pair.into_inner();
-    
+
     let to = parse_expression(inner.next().unwrap())?;
     let amount = parse_expression(inner.next().unwrap())?;
-    
+
     Ok(ExpressionNode::Mint {
         to: Box::new(to),
         amount: Box::new(amount),
@@ -1426,20 +1527,23 @@ fn parse_mint_expr(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
 fn parse_burn_expr(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
     // burn_expr = { "burn" ~ "(" ~ expr ~ "," ~ expr ~ ")" }
     let mut inner = pair.into_inner();
-    
+
     let from = parse_expression(inner.next().unwrap())?;
     let amount = parse_expression(inner.next().unwrap())?;
-    
+
     Ok(ExpressionNode::Burn {
         from: Box::new(from),
         amount: Box::new(amount),
     })
 }
 
-fn parse_function_call_with_expr(expr: ExpressionNode, suffix: Pair<Rule>) -> Result<ExpressionNode, CclError> {
+fn parse_function_call_with_expr(
+    expr: ExpressionNode,
+    suffix: Pair<Rule>,
+) -> Result<ExpressionNode, CclError> {
     // call_suffix = { "(" ~ arg_list? ~ ")" }
     let mut args = Vec::new();
-    
+
     for arg_pair in suffix.into_inner() {
         if arg_pair.as_rule() == Rule::arg_list {
             for arg in arg_pair.into_inner() {
@@ -1447,45 +1551,52 @@ fn parse_function_call_with_expr(expr: ExpressionNode, suffix: Pair<Rule>) -> Re
             }
         }
     }
-    
+
     match expr {
-        ExpressionNode::Identifier(name) => {
-            Ok(ExpressionNode::FunctionCall { name, args })
-        }
+        ExpressionNode::Identifier(name) => Ok(ExpressionNode::FunctionCall { name, args }),
         ExpressionNode::MemberAccess { object, member } => {
             // Handle method calls like numbers.length()
-            Ok(ExpressionNode::MethodCall { 
-                object, 
-                method: member, 
-                args 
+            Ok(ExpressionNode::MethodCall {
+                object,
+                method: member,
+                args,
             })
         }
-        _ => {
-            Err(CclError::ParsingError("Function call only supported on identifiers and member access".to_string()))
-        }
+        _ => Err(CclError::ParsingError(
+            "Function call only supported on identifiers and member access".to_string(),
+        )),
     }
 }
 
-fn parse_member_access_with_expr(expr: ExpressionNode, suffix: Pair<Rule>) -> Result<ExpressionNode, CclError> {
+fn parse_member_access_with_expr(
+    expr: ExpressionNode,
+    suffix: Pair<Rule>,
+) -> Result<ExpressionNode, CclError> {
     // member_suffix = { "." ~ identifier }
     let mut inner = suffix.into_inner();
-    let member = inner.next()
+    let member = inner
+        .next()
         .ok_or_else(|| CclError::ParsingError("Member access missing member name".to_string()))?
-        .as_str().to_string();
-    
+        .as_str()
+        .to_string();
+
     Ok(ExpressionNode::MemberAccess {
         object: Box::new(expr),
         member,
     })
 }
 
-fn parse_index_access_with_expr(expr: ExpressionNode, suffix: Pair<Rule>) -> Result<ExpressionNode, CclError> {
+fn parse_index_access_with_expr(
+    expr: ExpressionNode,
+    suffix: Pair<Rule>,
+) -> Result<ExpressionNode, CclError> {
     // index_suffix = { "[" ~ expr ~ "]" }
     let mut inner = suffix.into_inner();
-    let index_pair = inner.next()
+    let index_pair = inner
+        .next()
         .ok_or_else(|| CclError::ParsingError("Index access missing index".to_string()))?;
     let index = parse_expression(index_pair)?;
-    
+
     Ok(ExpressionNode::IndexAccess {
         object: Box::new(expr),
         index: Box::new(index),
@@ -1530,29 +1641,31 @@ fn parse_let_statement(pair: Pair<Rule>) -> Result<StatementNode, CclError> {
     // let_stmt = { "let" ~ ("mut")? ~ identifier ~ (":" ~ type_expr)? ~ "=" ~ expr ~ ";" }
     let full_text = pair.as_str();
     let inner_pairs: Vec<_> = pair.into_inner().collect();
-    
+
     // Check if the source text contains "mut" keyword (similar to binary operator fix)
     let mutable = full_text.contains(" mut ");
-    
+
     // Get identifier (always the first inner pair)
     let name = inner_pairs[0].as_str().to_string();
-    
+
     // Check for optional type annotation
     let mut type_expr = None;
     let mut value_index = 1;
-    
+
     // If next item is a type_expr, parse it and skip to the next index
     if value_index < inner_pairs.len() && inner_pairs[value_index].as_rule() == Rule::type_expr {
         type_expr = Some(parse_type_expr(inner_pairs[value_index].clone())?);
         value_index += 1;
     }
-    
+
     let value = if value_index < inner_pairs.len() {
         parse_expression(inner_pairs[value_index].clone())?
     } else {
-        return Err(CclError::ParsingError("Let statement missing value".to_string()));
+        return Err(CclError::ParsingError(
+            "Let statement missing value".to_string(),
+        ));
     };
-    
+
     Ok(StatementNode::Let {
         mutable,
         name,
@@ -1565,13 +1678,13 @@ fn parse_assignment_statement(pair: Pair<Rule>) -> Result<StatementNode, CclErro
     // assignment_stmt = { identifier ~ "=" ~ expr ~ ";" | identifier ~ "[" ~ expr ~ "]" ~ "=" ~ expr ~ ";" | ... }
     let inner = pair.into_inner();
     let tokens: Vec<_> = inner.collect();
-    
+
     match tokens.len() {
         2 => {
             // Simple assignment: identifier ~ "=" ~ expr
             let identifier = tokens[0].as_str().to_string();
             let value = parse_expression(tokens[1].clone())?;
-            
+
             let lvalue = LValueNode::Identifier(identifier);
             Ok(StatementNode::Assignment { lvalue, value })
         }
@@ -1580,7 +1693,7 @@ fn parse_assignment_statement(pair: Pair<Rule>) -> Result<StatementNode, CclErro
             let identifier = tokens[0].as_str().to_string();
             let index = parse_expression(tokens[1].clone())?;
             let value = parse_expression(tokens[2].clone())?;
-            
+
             let lvalue = LValueNode::IndexAccess {
                 object: Box::new(ExpressionNode::Identifier(identifier)),
                 index: Box::new(index),
@@ -1590,7 +1703,7 @@ fn parse_assignment_statement(pair: Pair<Rule>) -> Result<StatementNode, CclErro
         _ => Err(CclError::ParsingError(format!(
             "Unexpected assignment statement structure with {} tokens",
             tokens.len()
-        )))
+        ))),
     }
 }
 
@@ -1598,7 +1711,9 @@ fn parse_lvalue(pair: Pair<Rule>) -> Result<LValueNode, CclError> {
     match pair.as_rule() {
         Rule::lvalue => {
             // Handle the wrapper lvalue rule by extracting the inner lvalue type
-            let inner = pair.into_inner().next()
+            let inner = pair
+                .into_inner()
+                .next()
                 .ok_or_else(|| CclError::ParsingError("Empty lvalue rule".to_string()))?;
             parse_lvalue(inner)
         }
@@ -1607,10 +1722,10 @@ fn parse_lvalue(pair: Pair<Rule>) -> Result<LValueNode, CclError> {
             let mut inner = pair.into_inner();
             let object_pair = inner.next().unwrap();
             let member_pair = inner.next().unwrap();
-            
+
             let object = parse_expression(object_pair)?;
             let member = member_pair.as_str().to_string();
-            
+
             Ok(LValueNode::MemberAccess {
                 object: Box::new(object),
                 member,
@@ -1620,10 +1735,10 @@ fn parse_lvalue(pair: Pair<Rule>) -> Result<LValueNode, CclError> {
             let mut inner = pair.into_inner();
             let object_pair = inner.next().unwrap();
             let index_pair = inner.next().unwrap();
-            
+
             let object = parse_expression(object_pair)?;
             let index = parse_expression(index_pair)?;
-            
+
             Ok(LValueNode::IndexAccess {
                 object: Box::new(object),
                 index: Box::new(index),
@@ -1639,13 +1754,13 @@ fn parse_lvalue(pair: Pair<Rule>) -> Result<LValueNode, CclError> {
 fn parse_if_statement(pair: Pair<Rule>) -> Result<StatementNode, CclError> {
     // if_stmt = { "if" ~ expr ~ block ~ ("else" ~ "if" ~ expr ~ block)* ~ ("else" ~ block)? }
     let mut inner = pair.into_inner();
-    
+
     let condition = parse_expression(inner.next().unwrap())?;
     let then_block = parse_block(inner.next().unwrap())?;
-    
+
     let mut else_ifs = Vec::new();
     let mut else_block = None;
-    
+
     while let Some(item) = inner.next() {
         if item.as_str() == "else" {
             if let Some(next_item) = inner.next() {
@@ -1661,7 +1776,7 @@ fn parse_if_statement(pair: Pair<Rule>) -> Result<StatementNode, CclError> {
             }
         }
     }
-    
+
     Ok(StatementNode::If {
         condition,
         then_block,
@@ -1673,21 +1788,21 @@ fn parse_if_statement(pair: Pair<Rule>) -> Result<StatementNode, CclError> {
 fn parse_while_statement(pair: Pair<Rule>) -> Result<StatementNode, CclError> {
     // while_stmt = { "while" ~ expr ~ block }
     let mut inner = pair.into_inner();
-    
+
     let condition = parse_expression(inner.next().unwrap())?;
     let body = parse_block(inner.next().unwrap())?;
-    
+
     Ok(StatementNode::While { condition, body })
 }
 
 fn parse_for_statement(pair: Pair<Rule>) -> Result<StatementNode, CclError> {
     // for_stmt = { "for" ~ identifier ~ "in" ~ expr ~ block }
     let mut inner = pair.into_inner();
-    
+
     let iterator = inner.next().unwrap().as_str().to_string();
     let iterable = parse_expression(inner.next().unwrap())?;
     let body = parse_block(inner.next().unwrap())?;
-    
+
     Ok(StatementNode::For {
         iterator,
         iterable,
@@ -1698,17 +1813,17 @@ fn parse_for_statement(pair: Pair<Rule>) -> Result<StatementNode, CclError> {
 fn parse_match_statement(pair: Pair<Rule>) -> Result<StatementNode, CclError> {
     // match_stmt = { "match" ~ expr ~ "{" ~ match_arm* ~ "}" }
     let mut inner = pair.into_inner();
-    
+
     let expr = parse_expression(inner.next().unwrap())?;
     let mut arms = Vec::new();
-    
+
     for arm_pair in inner {
         if arm_pair.as_rule() == Rule::match_arm {
             let arm = parse_match_arm(arm_pair)?;
             arms.push(arm);
         }
     }
-    
+
     Ok(StatementNode::Match { expr, arms })
 }
 
@@ -1716,10 +1831,10 @@ fn parse_match_arm(pair: Pair<Rule>) -> Result<MatchArmNode, CclError> {
     // For the statement context, we reuse the new match arm structure
     // but convert blocks to expressions as needed
     let mut inner = pair.into_inner();
-    
+
     let pattern_pair = inner.next().unwrap();
     let pattern = parse_pattern(pattern_pair)?;
-    
+
     let body_pair = inner.next().unwrap();
     let body = match body_pair.as_rule() {
         Rule::expr => parse_expression(body_pair)?,
@@ -1727,31 +1842,31 @@ fn parse_match_arm(pair: Pair<Rule>) -> Result<MatchArmNode, CclError> {
             // Convert block to a block expression (we'll need to handle this)
             // For now, we'll create a simple expression that represents the block
             ExpressionNode::Identifier("block_placeholder".to_string())
-        },
+        }
         _ => return Err(CclError::ParsingError("Invalid match arm body".to_string())),
     };
-    
-    Ok(MatchArmNode { 
-        pattern, 
+
+    Ok(MatchArmNode {
+        pattern,
         guard: None, // No guard support in old syntax
-        body 
+        body,
     })
 }
 
 fn parse_match_expression(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
     // match_expr = { "match" ~ expr ~ "{" ~ match_arm+ ~ "}" }
     let mut inner = pair.into_inner();
-    
+
     let expr = parse_expression(inner.next().unwrap())?;
     let mut arms = Vec::new();
-    
+
     for arm_pair in inner {
         if arm_pair.as_rule() == Rule::match_arm {
             let arm = parse_match_arm_expr(arm_pair)?;
             arms.push(arm);
         }
     }
-    
+
     Ok(ExpressionNode::Match {
         expr: Box::new(expr),
         arms,
@@ -1761,23 +1876,27 @@ fn parse_match_expression(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> 
 fn parse_match_arm_expr(pair: Pair<Rule>) -> Result<MatchArmNode, CclError> {
     // match_arm = { pattern ~ ("if" ~ expr)? ~ "=>" ~ expr ~ ","? }
     let mut inner = pair.into_inner();
-    
+
     let pattern_pair = inner.next().unwrap();
     let pattern = parse_pattern(pattern_pair)?;
-    
+
     // Check for optional guard
     let mut guard = None;
     let mut body_pair = inner.next().unwrap();
-    
+
     if body_pair.as_str() == "if" {
         // There's a guard condition
         guard = Some(parse_expression(inner.next().unwrap())?);
         body_pair = inner.next().unwrap();
     }
-    
+
     let body = parse_expression(body_pair)?;
-    
-    Ok(MatchArmNode { pattern, guard, body })
+
+    Ok(MatchArmNode {
+        pattern,
+        guard,
+        body,
+    })
 }
 
 fn parse_pattern(pair: Pair<Rule>) -> Result<PatternNode, CclError> {
@@ -1798,11 +1917,11 @@ fn parse_pattern(pair: Pair<Rule>) -> Result<PatternNode, CclError> {
             let mut inner = pair.into_inner();
             let name = inner.next().unwrap().as_str().to_string();
             let mut fields = Vec::new();
-            
+
             if let Some(field_list) = inner.next() {
                 fields = parse_struct_field_pattern_list(field_list)?;
             }
-            
+
             Ok(PatternNode::Struct { name, fields })
         }
         Rule::enum_pattern => {
@@ -1856,26 +1975,26 @@ fn parse_pattern(pair: Pair<Rule>) -> Result<PatternNode, CclError> {
 fn parse_pattern_list(pair: Pair<Rule>) -> Result<Vec<PatternNode>, CclError> {
     // pattern_list = { pattern ~ ("," ~ pattern)* }
     let mut patterns = Vec::new();
-    
+
     for pattern_pair in pair.into_inner() {
         if pattern_pair.as_rule() == Rule::pattern {
             patterns.push(parse_pattern(pattern_pair)?);
         }
     }
-    
+
     Ok(patterns)
 }
 
 fn parse_struct_field_pattern_list(pair: Pair<Rule>) -> Result<Vec<StructFieldPattern>, CclError> {
     // struct_field_pattern_list = { struct_field_pattern ~ ("," ~ struct_field_pattern)* }
     let mut fields = Vec::new();
-    
+
     for field_pair in pair.into_inner() {
         if field_pair.as_rule() == Rule::struct_field_pattern {
             fields.push(parse_struct_field_pattern(field_pair)?);
         }
     }
-    
+
     Ok(fields)
 }
 
@@ -1883,7 +2002,7 @@ fn parse_struct_field_pattern(pair: Pair<Rule>) -> Result<StructFieldPattern, Cc
     // struct_field_pattern = { identifier ~ ":" ~ pattern | identifier }
     let mut inner = pair.into_inner();
     let name = inner.next().unwrap().as_str().to_string();
-    
+
     if let Some(pattern_pair) = inner.next() {
         // Long form: field: pattern
         let pattern = parse_pattern(pattern_pair)?;
@@ -1904,7 +2023,9 @@ fn parse_literal_node(pair: Pair<Rule>) -> Result<LiteralNode, CclError> {
     match pair.as_rule() {
         Rule::integer => Ok(LiteralNode::Integer(pair.as_str().parse().unwrap())),
         Rule::float => Ok(LiteralNode::Float(pair.as_str().parse().unwrap())),
-        Rule::string => Ok(LiteralNode::String(unescape_string(pair.as_str().trim_matches('"'))?)),
+        Rule::string => Ok(LiteralNode::String(unescape_string(
+            pair.as_str().trim_matches('"'),
+        )?)),
         Rule::boolean => Ok(LiteralNode::Boolean(pair.as_str() == "true")),
         Rule::did_literal => Ok(LiteralNode::Did(pair.as_str().to_string())),
         Rule::timestamp_literal => Ok(LiteralNode::Timestamp(pair.as_str().to_string())),
@@ -1918,27 +2039,27 @@ fn parse_literal_node(pair: Pair<Rule>) -> Result<LiteralNode, CclError> {
 fn parse_return_statement(pair: Pair<Rule>) -> Result<StatementNode, CclError> {
     // return_stmt = { "return" ~ expr? ~ ";" }
     let mut inner = pair.into_inner();
-    
+
     let expr = if let Some(expr_pair) = inner.next() {
         Some(parse_expression(expr_pair)?)
     } else {
         None
     };
-    
+
     Ok(StatementNode::Return(expr))
 }
 
 fn parse_emit_statement(pair: Pair<Rule>) -> Result<StatementNode, CclError> {
     // emit_stmt = { "emit" ~ identifier ~ "{" ~ field_init_list? ~ "}" ~ ";" }
     let mut inner = pair.into_inner();
-    
+
     let event_name = inner.next().unwrap().as_str().to_string();
-    
+
     let mut fields = Vec::new();
     if let Some(field_list) = inner.next() {
         fields = parse_field_init_list(field_list)?;
     }
-    
+
     Ok(StatementNode::Emit { event_name, fields })
 }
 
@@ -2018,28 +2139,25 @@ pub fn parse_ccl_source(source: &str) -> Result<AstNode, CclError> {
                     }
                 }
             }
-            
+
             if top_level_nodes.is_empty() {
                 return Err(CclError::ParsingError(
                     "Program contained no items".to_string(),
                 ));
             }
-            
+
             Ok(AstNode::Program(top_level_nodes))
         }
         Err(e) => Err(CclError::ParsingError(format!("Pest parsing error: {}", e))),
     }
 }
 
-
-
 /// Parse a CCL file from disk, recursively loading any imported modules.
 pub fn parse_ccl_file(path: &std::path::Path) -> Result<AstNode, CclError> {
     use std::fs;
 
-    let source = fs::read_to_string(path).map_err(|e| {
-        CclError::IoError(format!("Failed to read {}: {}", path.display(), e))
-    })?;
+    let source = fs::read_to_string(path)
+        .map_err(|e| CclError::IoError(format!("Failed to read {}: {}", path.display(), e)))?;
 
     let base_dir = path.parent().unwrap_or_else(|| std::path::Path::new("."));
     let mut ast = parse_ccl_source(&source)?;
@@ -2049,64 +2167,75 @@ pub fn parse_ccl_file(path: &std::path::Path) -> Result<AstNode, CclError> {
 
 fn alias_ast(ast: AstNode, alias: &str) -> AstNode {
     match ast {
-        AstNode::FunctionDefinition { name, parameters, return_type, body, type_parameters } => {
-            AstNode::FunctionDefinition {
-                name: format!("{}_{}", alias, name),
-                type_parameters,
-                parameters,
-                return_type,
-                body,
-            }
-        }
-        AstNode::StructDefinition { name, fields, type_parameters } => AstNode::StructDefinition {
+        AstNode::FunctionDefinition {
+            name,
+            parameters,
+            return_type,
+            body,
+            type_parameters,
+        } => AstNode::FunctionDefinition {
+            name: format!("{}_{}", alias, name),
+            type_parameters,
+            parameters,
+            return_type,
+            body,
+        },
+        AstNode::StructDefinition {
+            name,
+            fields,
+            type_parameters,
+        } => AstNode::StructDefinition {
             name: format!("{}_{}", alias, name),
             type_parameters,
             fields,
         },
         AstNode::Program(nodes) => {
-            let aliased_nodes = nodes.into_iter().map(|node| {
-                match node {
-                    crate::ast::TopLevelNode::Import(import) => crate::ast::TopLevelNode::Import(import),
-                    crate::ast::TopLevelNode::Contract(contract) => {
-                        let aliased_contract = crate::ast::ContractDeclarationNode {
-                            name: format!("{}_{}", alias, contract.name),
-                            metadata: contract.metadata,
-                            body: contract.body,
-                        };
-                        crate::ast::TopLevelNode::Contract(aliased_contract)
+            let aliased_nodes = nodes
+                .into_iter()
+                .map(|node| {
+                    match node {
+                        crate::ast::TopLevelNode::Import(import) => {
+                            crate::ast::TopLevelNode::Import(import)
+                        }
+                        crate::ast::TopLevelNode::Contract(contract) => {
+                            let aliased_contract = crate::ast::ContractDeclarationNode {
+                                name: format!("{}_{}", alias, contract.name),
+                                metadata: contract.metadata,
+                                body: contract.body,
+                            };
+                            crate::ast::TopLevelNode::Contract(aliased_contract)
+                        }
+                        crate::ast::TopLevelNode::Function(function) => {
+                            // TODO: Alias standalone functions if needed
+                            crate::ast::TopLevelNode::Function(function)
+                        }
+                        crate::ast::TopLevelNode::Struct(struct_def) => {
+                            // TODO: Alias standalone structs if needed
+                            crate::ast::TopLevelNode::Struct(struct_def)
+                        }
+                        crate::ast::TopLevelNode::Enum(enum_def) => {
+                            // TODO: Alias standalone enums if needed
+                            crate::ast::TopLevelNode::Enum(enum_def)
+                        }
+                        crate::ast::TopLevelNode::Const(const_def) => {
+                            // TODO: Alias standalone constants if needed
+                            crate::ast::TopLevelNode::Const(const_def)
+                        }
                     }
-                    crate::ast::TopLevelNode::Function(function) => {
-                        // TODO: Alias standalone functions if needed
-                        crate::ast::TopLevelNode::Function(function)
-                    }
-                    crate::ast::TopLevelNode::Struct(struct_def) => {
-                        // TODO: Alias standalone structs if needed
-                        crate::ast::TopLevelNode::Struct(struct_def)
-                    }
-                    crate::ast::TopLevelNode::Enum(enum_def) => {
-                        // TODO: Alias standalone enums if needed
-                        crate::ast::TopLevelNode::Enum(enum_def)
-                    }
-                    crate::ast::TopLevelNode::Const(const_def) => {
-                        // TODO: Alias standalone constants if needed
-                        crate::ast::TopLevelNode::Const(const_def)
-                    }
-                }
-            }).collect();
+                })
+                .collect();
             AstNode::Program(aliased_nodes)
         }
         other => other,
     }
 }
 
-
-
 fn load_imports(ast: &mut AstNode, base: &std::path::Path) -> Result<(), CclError> {
     match ast {
         AstNode::Program(ref mut nodes) => {
             let mut result = Vec::new();
             let mut imports_to_process = Vec::new();
-            
+
             // Extract imports and other nodes
             for node in std::mem::take(nodes) {
                 match node {
@@ -2116,30 +2245,30 @@ fn load_imports(ast: &mut AstNode, base: &std::path::Path) -> Result<(), CclErro
                     other => result.push(other),
                 }
             }
-            
+
             // Process imports
             for import in imports_to_process {
                 let import_path = base.join(&import.path);
-                let imported = parse_ccl_file(&import_path).map_err(|e| {
-                    CclError::ModuleImportError {
+                let imported =
+                    parse_ccl_file(&import_path).map_err(|e| CclError::ModuleImportError {
                         module: import.path.clone(),
                         reason: e.to_string(),
-                    }
-                })?;
-                
+                    })?;
+
                 let alias = import.alias.unwrap_or_else(|| {
                     // Generate default alias from filename
-                    import_path.file_stem()
+                    import_path
+                        .file_stem()
                         .and_then(|s| s.to_str())
                         .unwrap_or("imported")
                         .to_string()
                 });
-                
+
                 if let AstNode::Program(mut imported_nodes) = alias_ast(imported, &alias) {
                     result.append(&mut imported_nodes);
                 }
             }
-            
+
             *nodes = result;
         }
         AstNode::Policy(ref mut items) => {
@@ -2168,8 +2297,6 @@ fn load_imports(ast: &mut AstNode, base: &std::path::Path) -> Result<(), CclErro
     }
     Ok(())
 }
-
-
 
 // Note: TryExpr removed in CCL 0.1 - try/catch replaced with Result type
 

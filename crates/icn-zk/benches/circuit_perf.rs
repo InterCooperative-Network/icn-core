@@ -2,14 +2,16 @@ use ark_bn254::Fr;
 use ark_std::rand::{rngs::StdRng, SeedableRng};
 use criterion::{criterion_group, criterion_main, Criterion};
 use icn_zk::{
-    prove, prepare_vk, setup, verify,
-    AgeOver18Circuit, AgeRepMembershipCircuit, BalanceRangeCircuit,
-    MembershipCircuit, MembershipProofCircuit, ReputationCircuit,
+    prepare_vk, prove, setup, verify, AgeOver18Circuit, AgeRepMembershipCircuit,
+    BalanceRangeCircuit, MembershipCircuit, MembershipProofCircuit, ReputationCircuit,
     TimestampValidityCircuit,
 };
 
 fn bench_age_over_18(c: &mut Criterion) {
-    let circuit = AgeOver18Circuit { birth_year: 2000, current_year: 2020 };
+    let circuit = AgeOver18Circuit {
+        birth_year: 2000,
+        current_year: 2020,
+    };
     let mut rng = StdRng::seed_from_u64(42);
     let pk = setup(circuit.clone(), &mut rng).unwrap();
     let vk = prepare_vk(&pk);
@@ -47,7 +49,10 @@ fn bench_membership(c: &mut Criterion) {
 }
 
 fn bench_membership_proof(c: &mut Criterion) {
-    let circuit = MembershipProofCircuit { membership_flag: true, expected: true };
+    let circuit = MembershipProofCircuit {
+        membership_flag: true,
+        expected: true,
+    };
     let mut rng = StdRng::seed_from_u64(42);
     let pk = setup(circuit.clone(), &mut rng).unwrap();
     let vk = prepare_vk(&pk);
@@ -66,7 +71,10 @@ fn bench_membership_proof(c: &mut Criterion) {
 }
 
 fn bench_reputation(c: &mut Criterion) {
-    let circuit = ReputationCircuit { reputation: 10, threshold: 5 };
+    let circuit = ReputationCircuit {
+        reputation: 10,
+        threshold: 5,
+    };
     let mut rng = StdRng::seed_from_u64(42);
     let pk = setup(circuit.clone(), &mut rng).unwrap();
     let vk = prepare_vk(&pk);
@@ -108,7 +116,11 @@ fn bench_timestamp_validity(c: &mut Criterion) {
 }
 
 fn bench_balance_range(c: &mut Criterion) {
-    let circuit = BalanceRangeCircuit { balance: 75, min: 50, max: 100 };
+    let circuit = BalanceRangeCircuit {
+        balance: 75,
+        min: 50,
+        max: 100,
+    };
     let mut rng = StdRng::seed_from_u64(42);
     let pk = setup(circuit.clone(), &mut rng).unwrap();
     let vk = prepare_vk(&pk);
@@ -151,7 +163,8 @@ fn bench_age_rep_membership(c: &mut Criterion) {
     });
 }
 
-criterion_group!(benches,
+criterion_group!(
+    benches,
     bench_age_over_18,
     bench_membership,
     bench_membership_proof,
@@ -161,4 +174,3 @@ criterion_group!(benches,
     bench_age_rep_membership,
 );
 criterion_main!(benches);
-

@@ -19,7 +19,8 @@ async fn submit_and_vote_proposal() {
         None, // governance_db_path
         None, // reputation_db_path
         None, // parameter_store_path
-    ).await;
+    )
+    .await;
     {
         let mut gov = ctx.governance_module.lock().await;
         gov.add_member(Did::from_str("did:example:alice").unwrap());

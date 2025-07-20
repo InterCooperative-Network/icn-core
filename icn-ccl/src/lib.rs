@@ -11,13 +11,13 @@ pub mod ast;
 pub mod error;
 // pub mod grammar; // If ccl.pest is directly included or re-exported - REMOVING THIS
 pub mod cli;
+pub mod governance_std;
 pub mod metadata;
 pub mod optimizer;
 pub mod parser;
 pub mod semantic_analyzer;
 pub mod stdlib;
 pub mod wasm_backend; // Expose functions for CLI layer
-pub mod governance_std;
 
 pub use error::CclError;
 pub use metadata::ContractMetadata;
@@ -33,9 +33,13 @@ pub fn compile_ccl_source_to_wasm(source: &str) -> Result<(Vec<u8>, ContractMeta
 
     let mut semantic_analyzer = semantic_analyzer::SemanticAnalyzer::new();
     match semantic_analyzer.analyze(&ast_node) {
-        Ok(()) => {},
-        Err(errors) => return Err(errors.into_iter().next().unwrap_or_else(|| 
-            CclError::SemanticError("Unknown semantic error".to_string()))),
+        Ok(()) => {}
+        Err(errors) => {
+            return Err(errors
+                .into_iter()
+                .next()
+                .unwrap_or_else(|| CclError::SemanticError("Unknown semantic error".to_string())))
+        }
     }
 
     let mut optimizer = optimizer::Optimizer::new(optimizer::OptimizationLevel::Basic);
@@ -68,16 +72,20 @@ pub fn compile_ccl_source_to_wasm(source: &str) -> Result<(Vec<u8>, ContractMeta
 pub fn compile_ccl_file_to_wasm(
     path: &std::path::Path,
 ) -> Result<(Vec<u8>, ContractMetadata), CclError> {
-    use sha2::{Digest, Sha256};
     use icn_common::{compute_merkle_cid, Did};
+    use sha2::{Digest, Sha256};
 
     let ast_node = parser::parse_ccl_file(path)?;
 
     let mut semantic_analyzer = semantic_analyzer::SemanticAnalyzer::new();
     match semantic_analyzer.analyze(&ast_node) {
-        Ok(()) => {},
-        Err(errors) => return Err(errors.into_iter().next().unwrap_or_else(|| 
-            CclError::SemanticError("Unknown semantic error".to_string()))),
+        Ok(()) => {}
+        Err(errors) => {
+            return Err(errors
+                .into_iter()
+                .next()
+                .unwrap_or_else(|| CclError::SemanticError("Unknown semantic error".to_string())))
+        }
     }
 
     let mut optimizer = optimizer::Optimizer::new(optimizer::OptimizationLevel::Basic);
@@ -109,16 +117,21 @@ fn expand_macros(ast: ast::AstNode, stdlib: &StandardLibrary) -> Result<ast::Ast
     if let AstNode::Policy(stmts) = ast {
         let mut expanded = Vec::new();
         let _local_stdlib = stdlib;
-        
+
         // First pass: collect macro definitions and register them
         // TODO: Implement macro registration in StandardLibrary
         for stmt in &stmts {
-            if let PolicyStatementNode::MacroDef { name: _, params: _, body: _ } = stmt {
+            if let PolicyStatementNode::MacroDef {
+                name: _,
+                params: _,
+                body: _,
+            } = stmt
+            {
                 // local_stdlib.register_macro(name.clone(), params.clone(), body.clone());
             }
         }
-        
-        // Second pass: process statements 
+
+        // Second pass: process statements
         // For now, we just keep all statements including macro definitions
         // TODO: Implement full macro expansion in expressions
         for stmt in stmts {
@@ -129,7 +142,7 @@ fn expand_macros(ast: ast::AstNode, stdlib: &StandardLibrary) -> Result<ast::Ast
                 }
                 other => {
                     // For now, just keep other statements as-is
-                    // TODO: In a full implementation, we would recursively 
+                    // TODO: In a full implementation, we would recursively
                     // traverse expressions in these statements to find and expand macro calls
                     expanded.push(other);
                 }
@@ -142,5 +155,3 @@ fn expand_macros(ast: ast::AstNode, stdlib: &StandardLibrary) -> Result<ast::Ast
         Ok(ast)
     }
 }
-
-

@@ -157,7 +157,10 @@ pub enum IssueCommands {
         holder: String,
         #[clap(long, help = "Reputation score")]
         score: u32,
-        #[clap(long, help = "Reputation level (newcomer|contributor|coordinator|steward)")]
+        #[clap(
+            long,
+            help = "Reputation level (newcomer|contributor|coordinator|steward)"
+        )]
         level: String,
         #[clap(long, help = "Evidence CIDs (comma-separated)")]
         evidence: Option<String>,
@@ -264,17 +267,19 @@ impl CredentialLifecycleCommands {
         let skill_cred = SkillCredential {
             skill_name: skill_name.to_string(),
             proficiency_level: level.to_string(),
-            verified_by: endorsed_by.cloned().unwrap_or_else(|| Did::new("key", "issuer123")),
+            verified_by: endorsed_by
+                .cloned()
+                .unwrap_or_else(|| Did::new("key", "issuer123")),
             evidence_links: evidence.unwrap_or_default(),
             issued_at: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
                 .as_secs(),
         };
-        
+
         Ok(skill_cred)
     }
-    
+
     /// Generate a cooperative membership credential
     pub fn generate_membership_credential(
         _issuer: &Did,
@@ -290,10 +295,10 @@ impl CredentialLifecycleCommands {
             membership_level: level.to_string(),
             joined_at: member_since,
         };
-        
+
         Ok(membership)
     }
-    
+
     /// Generate a reputation credential
     pub fn generate_reputation_credential(
         _issuer: &Did,
@@ -309,7 +314,7 @@ impl CredentialLifecycleCommands {
             "steward" => ReputationLevel::Steward,
             _ => return Err(format!("Invalid reputation level: {}", level)),
         };
-        
+
         let reputation = ReputationCredential {
             score,
             level: reputation_level,
@@ -320,10 +325,10 @@ impl CredentialLifecycleCommands {
                 .unwrap()
                 .as_secs(),
         };
-        
+
         Ok(reputation)
     }
-    
+
     /// Create a credential presentation
     pub fn create_presentation(
         credential: ZkCredentialProof,
@@ -331,10 +336,12 @@ impl CredentialLifecycleCommands {
         presenter: &Did,
     ) -> CredentialPresentation {
         use rand::Rng;
-        
+
         let mut rng = rand::thread_rng();
-        let nonce = (0..16).map(|_| format!("{:02x}", rng.gen::<u8>())).collect::<String>();
-        
+        let nonce = (0..16)
+            .map(|_| format!("{:02x}", rng.gen::<u8>()))
+            .collect::<String>();
+
         CredentialPresentation {
             credential,
             context: context.to_string(),
@@ -346,7 +353,7 @@ impl CredentialLifecycleCommands {
             presenter: presenter.clone(),
         }
     }
-    
+
     /// Verify a credential presentation
     pub fn verify_presentation(
         presentation: &CredentialPresentation,
@@ -355,29 +362,35 @@ impl CredentialLifecycleCommands {
         let mut warnings = Vec::new();
         let mut _errors = Vec::new();
         let mut verified_claims = HashMap::new();
-        
+
         // Basic validation
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_secs();
-        
+
         // Check timestamp freshness (within 1 hour)
         if current_time - presentation.timestamp > 3600 {
             warnings.push("Presentation timestamp is older than 1 hour".to_string());
         }
-        
+
         // Verify the credential itself (simplified)
         // In a real implementation, this would use cryptographic verification
-        verified_claims.insert("issuer".to_string(), 
-            serde_json::Value::String(presentation.credential.issuer.to_string()));
-        verified_claims.insert("holder".to_string(), 
-            serde_json::Value::String(presentation.credential.holder.to_string()));
-        verified_claims.insert("claim_type".to_string(), 
-            serde_json::Value::String(presentation.credential.claim_type.clone()));
-        
+        verified_claims.insert(
+            "issuer".to_string(),
+            serde_json::Value::String(presentation.credential.issuer.to_string()),
+        );
+        verified_claims.insert(
+            "holder".to_string(),
+            serde_json::Value::String(presentation.credential.holder.to_string()),
+        );
+        verified_claims.insert(
+            "claim_type".to_string(),
+            serde_json::Value::String(presentation.credential.claim_type.clone()),
+        );
+
         let valid = _errors.is_empty();
-        
+
         CredentialVerificationResult {
             valid,
             verification_level: required_level.to_string(),
@@ -393,12 +406,12 @@ impl CredentialLifecycleCommands {
 mod tests {
     use super::*;
     use icn_common::Did;
-    
+
     #[test]
     fn test_skill_credential_generation() {
         let issuer = Did::new("key", "issuer123");
         let holder = Did::new("key", "holder456");
-        
+
         let skill_cred = CredentialLifecycleCommands::generate_skill_credential(
             &issuer,
             &holder,
@@ -408,14 +421,14 @@ mod tests {
             None,
             Some(vec![]),
         );
-        
+
         assert!(skill_cred.is_ok());
         let cred = skill_cred.unwrap();
         assert_eq!(cred.skill_name, "Rust Programming");
         assert_eq!(cred.proficiency_level, "8");
         assert_eq!(cred.verified_by, issuer);
     }
-    
+
     #[test]
     fn test_credential_presentation() {
         let presenter = Did::new("key", "presenter789");
@@ -426,18 +439,18 @@ mod tests {
             proof: vec![1, 2, 3, 4],
             schema: Cid::new("test-schema"),
         };
-        
+
         let presentation = CredentialLifecycleCommands::create_presentation(
             credential,
             "governance_vote",
             &presenter,
         );
-        
+
         assert_eq!(presentation.context, "governance_vote");
         assert_eq!(presentation.presenter, presenter);
         assert!(!presentation.nonce.is_empty());
     }
-    
+
     #[test]
     fn test_credential_verification() {
         let presenter = Did::new("key", "presenter789");
@@ -448,18 +461,15 @@ mod tests {
             proof: vec![1, 2, 3, 4],
             schema: Cid::new("test-schema"),
         };
-        
+
         let presentation = CredentialLifecycleCommands::create_presentation(
             credential,
             "governance_vote",
             &presenter,
         );
-        
-        let result = CredentialLifecycleCommands::verify_presentation(
-            &presentation,
-            "basic",
-        );
-        
+
+        let result = CredentialLifecycleCommands::verify_presentation(&presentation, "basic");
+
         assert!(result.valid);
         assert_eq!(result.verification_level, "basic");
         assert!(result.verified_claims.contains_key("issuer"));

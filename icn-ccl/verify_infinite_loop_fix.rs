@@ -5,10 +5,10 @@ fn main() {
     println!("🔧 ICN CCL: Infinite Loop Bug Fix Verification");
     println!("==============================================");
     println!();
-    
+
     // Test the infinite loop fix with a minimal contract
     let loop_fix_path = PathBuf::from("test_loop_fix_minimal.ccl");
-    
+
     match compile_ccl_file_to_wasm(&loop_fix_path) {
         Ok((wasm, metadata)) => {
             println!("✅ SUCCESS: Infinite loop fix verified!");
@@ -20,28 +20,30 @@ fn main() {
             println!("   • Loop counter now properly increments");
             println!("   • Function exits normally instead of hanging");
             println!();
-        },
+        }
         Err(e) => {
             println!("❌ FAILED: Infinite loop fix verification failed:");
             println!("   {}", e);
             println!();
         }
     }
-    
+
     // Now test what happens with the full budgeting contract
     println!("🔍 Testing Full Budgeting Contract (Expected to Fail)");
     println!("=====================================================");
-    
+
     let budgeting_path = PathBuf::from("ccl-lib/budgeting.ccl");
-    
+
     match compile_ccl_file_to_wasm(&budgeting_path) {
         Ok((wasm, metadata)) => {
             println!("✅ UNEXPECTED SUCCESS: Full budgeting contract compiled!");
             println!("📦 WASM size: {} bytes", wasm.len());
             println!("📋 Exports: {:?}", metadata.exports);
-        },
+        }
         Err(e) => {
-            println!("❌ EXPECTED FAILURE: Full budgeting contract blocked by missing CCL features:");
+            println!(
+                "❌ EXPECTED FAILURE: Full budgeting contract blocked by missing CCL features:"
+            );
             println!("   {}", e);
             println!();
             println!("📋 CCL FEATURES NEEDED FOR FULL BUDGETING CONTRACT:");
@@ -62,4 +64,4 @@ fn main() {
             println!("   to support struct definitions and const declarations.");
         }
     }
-} 
+}

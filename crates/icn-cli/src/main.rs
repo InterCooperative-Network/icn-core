@@ -24,6 +24,7 @@ use std::str::FromStr;
 // These types are expected to be sent to/received from the icn-node HTTP API.
 use icn_common::{Cid, DagBlock, Did, NodeInfo, NodeStatus, ZkCredentialProof, ZkProofType};
 // Using aliased request structs from icn-api for clarity, these are what the node expects
+use chrono;
 use icn_api::governance_trait::{
     CastVoteRequest as ApiCastVoteRequest, SubmitProposalRequest as ApiSubmitProposalRequest,
 };
@@ -33,7 +34,6 @@ use icn_governance::{Proposal, ProposalId};
 use icn_identity::generate_ed25519_keypair;
 use icn_runtime::context::{Ed25519Signer, Signer};
 use icn_templates;
-use chrono;
 
 fn anyhow_to_common(e: anyhow::Error) -> CommonError {
     if let Some(c) = e.downcast_ref::<CommonError>() {
@@ -471,7 +471,12 @@ enum MeshCommands {
     Tail {
         #[clap(help = "Job ID (CID string)")]
         job_id: String,
-        #[clap(short, long, help = "Follow output (like tail -f)", default_value = "false")]
+        #[clap(
+            short,
+            long,
+            help = "Follow output (like tail -f)",
+            default_value = "false"
+        )]
         follow: bool,
         #[clap(short, long, help = "Start from sequence number")]
         from: Option<u64>,
@@ -729,13 +734,21 @@ enum WizardCommands {
     /// Developer onboarding wizard - create DID, submit test job, vote on test proposal
     #[clap(name = "init-dev")]
     InitDev {
-        #[clap(long, help = "API URL of the target node", default_value = "http://127.0.0.1:7845")]
+        #[clap(
+            long,
+            help = "API URL of the target node",
+            default_value = "http://127.0.0.1:7845"
+        )]
         api_url: String,
     },
     /// Federation onboarding wizard - prompts for coop info, generates config
     #[clap(name = "onboard-federation")]
     OnboardFederation {
-        #[clap(long, help = "Output config file", default_value = "federation_config.toml")]
+        #[clap(
+            long,
+            help = "Output config file",
+            default_value = "federation_config.toml"
+        )]
         config: String,
     },
 }
@@ -972,7 +985,11 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
                 job_request_json_or_stdin,
             } => handle_mesh_submit(cli, client, job_request_json_or_stdin).await?,
             MeshCommands::Progress { job_id } => handle_mesh_progress(cli, client, job_id).await?,
-            MeshCommands::Tail { job_id, follow, from } => handle_mesh_tail(cli, client, job_id, *follow, *from).await?,
+            MeshCommands::Tail {
+                job_id,
+                follow,
+                from,
+            } => handle_mesh_tail(cli, client, job_id, *follow, *from).await?,
             MeshCommands::Cancel { job_id } => handle_mesh_cancel(cli, client, job_id).await?,
             MeshCommands::Resume { job_id } => handle_mesh_resume(cli, client, job_id).await?,
             MeshCommands::Metrics => handle_mesh_metrics(cli, client).await?,
@@ -986,18 +1003,36 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
             AccountCommands::Balance { did } => handle_account_balance(cli, client, did).await?,
         },
         Commands::Token { command } => match command {
-            TokenCommands::Mint { class_id, to_did, amount, issuer, scope } => {
-                handle_token_mint(cli, client, class_id, to_did, *amount, issuer, scope).await?
-            }
-            TokenCommands::Transfer { class_id, from_did, to_did, amount, issuer, scope } => {
-                handle_token_transfer(cli, client, class_id, from_did, to_did, *amount, issuer, scope).await?
+            TokenCommands::Mint {
+                class_id,
+                to_did,
+                amount,
+                issuer,
+                scope,
+            } => handle_token_mint(cli, client, class_id, to_did, *amount, issuer, scope).await?,
+            TokenCommands::Transfer {
+                class_id,
+                from_did,
+                to_did,
+                amount,
+                issuer,
+                scope,
+            } => {
+                handle_token_transfer(
+                    cli, client, class_id, from_did, to_did, *amount, issuer, scope,
+                )
+                .await?
             }
             TokenCommands::Balance { class_id, did } => {
                 handle_token_balance(cli, client, class_id, did).await?
             }
-            TokenCommands::Burn { class_id, from_did, amount, issuer, scope } => {
-                handle_token_burn(cli, client, class_id, from_did, *amount, issuer, scope).await?
-            }
+            TokenCommands::Burn {
+                class_id,
+                from_did,
+                amount,
+                issuer,
+                scope,
+            } => handle_token_burn(cli, client, class_id, from_did, *amount, issuer, scope).await?,
         },
         Commands::Keys { command } => match command {
             KeyCommands::Show => handle_keys_show(cli, client).await?,
@@ -1054,7 +1089,9 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
                 )
                 .await?;
             }
-            IdentityCommands::VerifyProofRemote { proof_json_or_stdin } => {
+            IdentityCommands::VerifyProofRemote {
+                proof_json_or_stdin,
+            } => {
                 handle_identity_verify_remote(cli, client, proof_json_or_stdin).await?;
             }
         },
@@ -1082,60 +1119,112 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
             FederationCommands::Sync => handle_fed_sync(cli, client).await?,
             FederationCommands::Discover => handle_fed_discover(cli, client).await?,
             FederationCommands::Trust { command } => match command {
-                FederationTrustCommands::Configure { federation_id, policy_json_or_stdin } => {
-                    handle_fed_trust_configure(cli, client, federation_id, policy_json_or_stdin).await?
+                FederationTrustCommands::Configure {
+                    federation_id,
+                    policy_json_or_stdin,
+                } => {
+                    handle_fed_trust_configure(cli, client, federation_id, policy_json_or_stdin)
+                        .await?
                 }
-                FederationTrustCommands::Add { trust_json_or_stdin } => {
-                    handle_fed_trust_add(cli, client, trust_json_or_stdin).await?
+                FederationTrustCommands::Add {
+                    trust_json_or_stdin,
+                } => handle_fed_trust_add(cli, client, trust_json_or_stdin).await?,
+                FederationTrustCommands::Remove {
+                    from,
+                    to,
+                    context,
+                    federation,
+                } => handle_fed_trust_remove(cli, client, from, to, context, federation).await?,
+                FederationTrustCommands::List {
+                    federation_id,
+                    context,
+                    min_level,
+                } => handle_fed_trust_list(cli, client, federation_id, context, min_level).await?,
+                FederationTrustCommands::Validate {
+                    actor,
+                    target,
+                    context,
+                    operation,
+                    federation,
+                } => {
+                    handle_fed_trust_validate(
+                        cli, client, actor, target, context, operation, federation,
+                    )
+                    .await?
                 }
-                FederationTrustCommands::Remove { from, to, context, federation } => {
-                    handle_fed_trust_remove(cli, client, from, to, context, federation).await?
-                }
-                FederationTrustCommands::List { federation_id, context, min_level } => {
-                    handle_fed_trust_list(cli, client, federation_id, context, min_level).await?
-                }
-                FederationTrustCommands::Validate { actor, target, context, operation, federation } => {
-                    handle_fed_trust_validate(cli, client, actor, target, context, operation, federation).await?
-                }
-                FederationTrustCommands::Bridge { bridge_json_or_stdin } => {
-                    handle_fed_trust_bridge(cli, client, bridge_json_or_stdin).await?
-                }
-                FederationTrustCommands::Bootstrap { peer, contexts, trust_level } => {
-                    handle_fed_trust_bootstrap(cli, client, peer, contexts, trust_level).await?
-                }
+                FederationTrustCommands::Bridge {
+                    bridge_json_or_stdin,
+                } => handle_fed_trust_bridge(cli, client, bridge_json_or_stdin).await?,
+                FederationTrustCommands::Bootstrap {
+                    peer,
+                    contexts,
+                    trust_level,
+                } => handle_fed_trust_bootstrap(cli, client, peer, contexts, trust_level).await?,
             },
             FederationCommands::Metadata { command } => match command {
                 FederationMetadataCommands::Get { federation_id } => {
                     handle_fed_metadata_get(cli, client, federation_id).await?
                 }
-                FederationMetadataCommands::Set { federation_id, metadata_json_or_stdin } => {
-                    handle_fed_metadata_set(cli, client, federation_id, metadata_json_or_stdin).await?
+                FederationMetadataCommands::Set {
+                    federation_id,
+                    metadata_json_or_stdin,
+                } => {
+                    handle_fed_metadata_set(cli, client, federation_id, metadata_json_or_stdin)
+                        .await?
                 }
-                FederationMetadataCommands::Scope { federation_id, scope_json_or_stdin } => {
-                    handle_fed_metadata_scope(cli, client, federation_id, scope_json_or_stdin).await?
+                FederationMetadataCommands::Scope {
+                    federation_id,
+                    scope_json_or_stdin,
+                } => {
+                    handle_fed_metadata_scope(cli, client, federation_id, scope_json_or_stdin)
+                        .await?
                 }
-                FederationMetadataCommands::Quorum { federation_id, policy_json_or_stdin } => {
-                    handle_fed_metadata_quorum(cli, client, federation_id, policy_json_or_stdin).await?
+                FederationMetadataCommands::Quorum {
+                    federation_id,
+                    policy_json_or_stdin,
+                } => {
+                    handle_fed_metadata_quorum(cli, client, federation_id, policy_json_or_stdin)
+                        .await?
                 }
                 FederationMetadataCommands::Members { federation_id } => {
                     handle_fed_metadata_members(cli, client, federation_id).await?
                 }
-                FederationMetadataCommands::AddMember { federation_id, member_did, profile_json_or_stdin } => {
-                    handle_fed_metadata_add_member(cli, client, federation_id, member_did, profile_json_or_stdin).await?
+                FederationMetadataCommands::AddMember {
+                    federation_id,
+                    member_did,
+                    profile_json_or_stdin,
+                } => {
+                    handle_fed_metadata_add_member(
+                        cli,
+                        client,
+                        federation_id,
+                        member_did,
+                        profile_json_or_stdin,
+                    )
+                    .await?
                 }
-                FederationMetadataCommands::RemoveMember { federation_id, member_did } => {
-                    handle_fed_metadata_remove_member(cli, client, federation_id, member_did).await?
+                FederationMetadataCommands::RemoveMember {
+                    federation_id,
+                    member_did,
+                } => {
+                    handle_fed_metadata_remove_member(cli, client, federation_id, member_did)
+                        .await?
                 }
             },
             FederationCommands::Did { command } => match command {
-                FederationDidCommands::Generate { federation_id, output } => {
-                    handle_fed_did_generate(cli, client, federation_id, output).await?
-                }
-                FederationDidCommands::Verify { document_json_or_stdin } => {
-                    handle_fed_did_verify(cli, client, document_json_or_stdin).await?
-                }
-                FederationDidCommands::Publish { federation_id, document_json_or_stdin } => {
-                    handle_fed_did_publish(cli, client, federation_id, document_json_or_stdin).await?
+                FederationDidCommands::Generate {
+                    federation_id,
+                    output,
+                } => handle_fed_did_generate(cli, client, federation_id, output).await?,
+                FederationDidCommands::Verify {
+                    document_json_or_stdin,
+                } => handle_fed_did_verify(cli, client, document_json_or_stdin).await?,
+                FederationDidCommands::Publish {
+                    federation_id,
+                    document_json_or_stdin,
+                } => {
+                    handle_fed_did_publish(cli, client, federation_id, document_json_or_stdin)
+                        .await?
                 }
                 FederationDidCommands::Resolve { did, federation } => {
                     handle_fed_did_resolve(cli, client, did, federation).await?
@@ -1144,9 +1233,9 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
         },
         Commands::Aid { command } => match command {
             AidCommands::List => handle_aid_list(cli, client).await?,
-            AidCommands::Register { resource_json_or_stdin } => {
-                handle_aid_register(cli, client, resource_json_or_stdin).await?
-            }
+            AidCommands::Register {
+                resource_json_or_stdin,
+            } => handle_aid_register(cli, client, resource_json_or_stdin).await?,
         },
         Commands::Emergency { command } => match command {
             EmergencyCommands::List => handle_emergency_list(cli, client).await?,
@@ -1158,12 +1247,14 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
             WizardCommands::Cooperative { output } => handle_wizard_cooperative(output.clone())?,
             WizardCommands::Setup { config } => handle_wizard_setup(config)?,
             WizardCommands::InitDev { api_url } => handle_wizard_init_dev(api_url, client).await?,
-            WizardCommands::OnboardFederation { config } => handle_wizard_onboard_federation(config)?,
+            WizardCommands::OnboardFederation { config } => {
+                handle_wizard_onboard_federation(config)?
+            }
         },
         Commands::Cooperative { command } => match command {
-            CooperativeCommands::Register { profile_json_or_stdin } => {
-                handle_coop_register(cli, client, profile_json_or_stdin).await?
-            }
+            CooperativeCommands::Register {
+                profile_json_or_stdin,
+            } => handle_coop_register(cli, client, profile_json_or_stdin).await?,
             CooperativeCommands::Search {
                 coop_type,
                 capabilities,
@@ -1173,73 +1264,115 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
                 federation,
                 query,
                 limit,
-            } => handle_coop_search(cli, client, coop_type, capabilities, country, region, locality, federation, query, limit).await?,
-            CooperativeCommands::Profile { did } => handle_coop_profile(cli, client, did).await?,
-            CooperativeCommands::Trust { trust_json_or_stdin } => {
-                handle_coop_trust(cli, client, trust_json_or_stdin).await?
+            } => {
+                handle_coop_search(
+                    cli,
+                    client,
+                    coop_type,
+                    capabilities,
+                    country,
+                    region,
+                    locality,
+                    federation,
+                    query,
+                    limit,
+                )
+                .await?
             }
-            CooperativeCommands::TrustList { did } => handle_coop_trust_list(cli, client, did).await?,
-            CooperativeCommands::Providers { capability_type } => handle_coop_providers(cli, client, capability_type).await?,
+            CooperativeCommands::Profile { did } => handle_coop_profile(cli, client, did).await?,
+            CooperativeCommands::Trust {
+                trust_json_or_stdin,
+            } => handle_coop_trust(cli, client, trust_json_or_stdin).await?,
+            CooperativeCommands::TrustList { did } => {
+                handle_coop_trust_list(cli, client, did).await?
+            }
+            CooperativeCommands::Providers { capability_type } => {
+                handle_coop_providers(cli, client, capability_type).await?
+            }
             CooperativeCommands::Stats => handle_coop_stats(cli, client).await?,
-            CooperativeCommands::Onboard { dry_run } => handle_coop_onboard(cli, client, dry_run).await?,
+            CooperativeCommands::Onboard { dry_run } => {
+                handle_coop_onboard(cli, client, dry_run).await?
+            }
         },
         Commands::Trust { command } => match command {
             TrustCommands::Get { from, to, context } => {
                 handle_trust_get(cli, client, from, to, context).await?
             }
-            TrustCommands::List { 
-                entity, 
-                context, 
-                min_level, 
-                federation, 
-                include_inherited, 
-                include_cross_federation 
+            TrustCommands::List {
+                entity,
+                context,
+                min_level,
+                federation,
+                include_inherited,
+                include_cross_federation,
             } => {
-                handle_trust_list(cli, client, entity, context, min_level, federation, *include_inherited, *include_cross_federation).await?
+                handle_trust_list(
+                    cli,
+                    client,
+                    entity,
+                    context,
+                    min_level,
+                    federation,
+                    *include_inherited,
+                    *include_cross_federation,
+                )
+                .await?
             }
-            TrustCommands::Paths { 
-                from, 
-                to, 
-                context, 
-                max_length, 
-                max_paths, 
-                min_level 
+            TrustCommands::Paths {
+                from,
+                to,
+                context,
+                max_length,
+                max_paths,
+                min_level,
             } => {
-                handle_trust_paths(cli, client, from, to, context, *max_length, *max_paths, min_level).await?
+                handle_trust_paths(
+                    cli,
+                    client,
+                    from,
+                    to,
+                    context,
+                    *max_length,
+                    *max_paths,
+                    min_level,
+                )
+                .await?
             }
-            TrustCommands::Score { entity } => {
-                handle_trust_score(cli, client, entity).await?
-            }
+            TrustCommands::Score { entity } => handle_trust_score(cli, client, entity).await?,
             TrustCommands::Scores { entities } => {
                 handle_trust_scores(cli, client, entities).await?
             }
-            TrustCommands::Update { update_json_or_stdin } => {
-                handle_trust_update(cli, client, update_json_or_stdin).await?
-            }
+            TrustCommands::Update {
+                update_json_or_stdin,
+            } => handle_trust_update(cli, client, update_json_or_stdin).await?,
             TrustCommands::Remove { from, to, context } => {
                 handle_trust_remove(cli, client, from, to, context).await?
             }
-            TrustCommands::Stats => {
-                handle_trust_stats(cli, client).await?
-            }
+            TrustCommands::Stats => handle_trust_stats(cli, client).await?,
             TrustCommands::FederationStats { federation } => {
                 handle_trust_federation_stats(cli, client, federation).await?
             }
-            TrustCommands::Search { 
-                context, 
-                min_level, 
-                federation, 
-                limit, 
-                offset 
+            TrustCommands::Search {
+                context,
+                min_level,
+                federation,
+                limit,
+                offset,
             } => {
-                handle_trust_search(cli, client, context, min_level, federation, *limit, *offset).await?
+                handle_trust_search(cli, client, context, min_level, federation, *limit, *offset)
+                    .await?
             }
-            TrustCommands::Validate { actor, target, context, operation } => {
-                handle_trust_validate(cli, client, actor, target, context, operation).await?
-            }
-            TrustCommands::Neighbors { entity, max_distance, min_level } => {
-                handle_trust_neighbors(cli, client, entity, *max_distance, min_level).await?
-            }
+            TrustCommands::Validate {
+                actor,
+                target,
+                context,
+                operation,
+            } => handle_trust_validate(cli, client, actor, target, context, operation).await?,
+            TrustCommands::Neighbors {
+                entity,
+                max_distance,
+                min_level,
+            } => handle_trust_neighbors(cli, client, entity, *max_distance, min_level).await?,
             TrustCommands::Recalculate { entities } => {
                 handle_trust_recalculate(cli, client, entities).await?
             }
@@ -1248,21 +1381,26 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
             credential_lifecycle::CredentialLifecycleCommands::Issue { credential_type } => {
                 handle_credential_issue(cli, client, credential_type).await?
             }
-            credential_lifecycle::CredentialLifecycleCommands::Present { credential_path, context } => {
-                handle_credential_present(cli, client, credential_path, context).await?
-            }
-            credential_lifecycle::CredentialLifecycleCommands::Verify { credential_path, level } => {
-                handle_credential_verify(cli, client, credential_path, level).await?
-            }
-            credential_lifecycle::CredentialLifecycleCommands::Anchor { disclosure_path, metadata } => {
-                handle_credential_anchor(cli, client, disclosure_path, metadata).await?
-            }
+            credential_lifecycle::CredentialLifecycleCommands::Present {
+                credential_path,
+                context,
+            } => handle_credential_present(cli, client, credential_path, context).await?,
+            credential_lifecycle::CredentialLifecycleCommands::Verify {
+                credential_path,
+                level,
+            } => handle_credential_verify(cli, client, credential_path, level).await?,
+            credential_lifecycle::CredentialLifecycleCommands::Anchor {
+                disclosure_path,
+                metadata,
+            } => handle_credential_anchor(cli, client, disclosure_path, metadata).await?,
             credential_lifecycle::CredentialLifecycleCommands::Status { cid } => {
                 handle_credential_status(cli, client, cid).await?
             }
-            credential_lifecycle::CredentialLifecycleCommands::List { holder, issuer, credential_type } => {
-                handle_credential_list(cli, client, holder, issuer, credential_type).await?
-            }
+            credential_lifecycle::CredentialLifecycleCommands::List {
+                holder,
+                issuer,
+                credential_type,
+            } => handle_credential_list(cli, client, holder, issuer, credential_type).await?,
             credential_lifecycle::CredentialLifecycleCommands::Revoke { cid, reason } => {
                 handle_credential_revoke(cli, client, cid, reason).await?
             }
@@ -1289,11 +1427,12 @@ async fn get_request<T: for<'de> Deserialize<'de>>(
     let res = icn_common::retry_with_backoff(
         || async {
             let req = client.get(&url);
-            let req = if let Some(k) = api_key { req.header("x-api-key", k) } else { req };
-            req
-                .send()
-                .await
-                .map_err(|e| anyhow::anyhow!(e))
+            let req = if let Some(k) = api_key {
+                req.header("x-api-key", k)
+            } else {
+                req
+            };
+            req.send().await.map_err(|e| anyhow::anyhow!(e))
         },
         3,
         std::time::Duration::from_millis(100),
@@ -1330,11 +1469,12 @@ async fn post_request<S: Serialize, T: for<'de> Deserialize<'de>>(
     let res = icn_common::retry_with_backoff(
         || async {
             let req = client.post(&url).json(body);
-            let req = if let Some(k) = api_key { req.header("x-api-key", k) } else { req };
-            req
-                .send()
-                .await
-                .map_err(|e| anyhow::anyhow!(e))
+            let req = if let Some(k) = api_key {
+                req.header("x-api-key", k)
+            } else {
+                req
+            };
+            req.send().await.map_err(|e| anyhow::anyhow!(e))
         },
         3,
         std::time::Duration::from_millis(100),
@@ -1363,7 +1503,8 @@ async fn post_request<S: Serialize, T: for<'de> Deserialize<'de>>(
 // --- Command Handlers ---
 
 async fn handle_info(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
-    let response: NodeInfo = get_request(&cli.api_url, client, "/info", cli.api_key.as_deref()).await?;
+    let response: NodeInfo =
+        get_request(&cli.api_url, client, "/info", cli.api_key.as_deref()).await?;
     println!("--- Node Information ---");
     println!("Name:    {}", response.name);
     println!("Version: {}", response.version);
@@ -1373,7 +1514,8 @@ async fn handle_info(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
 }
 
 async fn handle_status(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
-    let response: NodeStatus = get_request(&cli.api_url, client, "/status", cli.api_key.as_deref()).await?;
+    let response: NodeStatus =
+        get_request(&cli.api_url, client, "/status", cli.api_key.as_deref()).await?;
     println!("--- Node Status ---");
     println!("Online:         {}", response.is_online);
     println!("Peer Count:     {}", response.peer_count);
@@ -1389,11 +1531,12 @@ async fn handle_metrics(cli: &Cli, client: &Client) -> Result<(), anyhow::Error>
     let res = icn_common::retry_with_backoff(
         || async {
             let req = client.get(&url);
-            let req = if let Some(k) = api_key { req.header("x-api-key", k) } else { req };
-            req
-                .send()
-                .await
-                .map_err(|e| anyhow::anyhow!(e))
+            let req = if let Some(k) = api_key {
+                req.header("x-api-key", k)
+            } else {
+                req
+            };
+            req.send().await.map_err(|e| anyhow::anyhow!(e))
         },
         3,
         std::time::Duration::from_millis(100),
@@ -1434,7 +1577,14 @@ async fn handle_dag_put(
 
     let block: DagBlock = serde_json::from_str(&block_json_content)
         .map_err(|e| anyhow::anyhow!("Invalid DagBlock JSON provided. Error: {}", e))?;
-    let response_cid: Cid = post_request(&cli.api_url, client, "/dag/put", &block, cli.api_key.as_deref()).await?;
+    let response_cid: Cid = post_request(
+        &cli.api_url,
+        client,
+        "/dag/put",
+        &block,
+        cli.api_key.as_deref(),
+    )
+    .await?;
     println!(
         "Successfully submitted block. CID: {}",
         serde_json::to_string_pretty(&response_cid)?
@@ -1445,7 +1595,14 @@ async fn handle_dag_put(
 async fn handle_dag_get(cli: &Cli, client: &Client, cid_json: &str) -> Result<(), anyhow::Error> {
     let cid: Cid = serde_json::from_str(cid_json)
         .map_err(|e| anyhow::anyhow!("Invalid CID JSON provided: {}. Error: {}", cid_json, e))?;
-    let response_block: DagBlock = post_request(&cli.api_url, client, "/dag/get", &cid, cli.api_key.as_deref()).await?;
+    let response_block: DagBlock = post_request(
+        &cli.api_url,
+        client,
+        "/dag/get",
+        &cid,
+        cli.api_key.as_deref(),
+    )
+    .await?;
     println!("--- Retrieved DAG Block ---");
     println!("{}", serde_json::to_string_pretty(&response_block)?);
     println!("-------------------------");
@@ -1455,8 +1612,14 @@ async fn handle_dag_get(cli: &Cli, client: &Client, cid_json: &str) -> Result<()
 async fn handle_dag_meta(cli: &Cli, client: &Client, cid_json: &str) -> Result<(), anyhow::Error> {
     let cid: Cid = serde_json::from_str(cid_json)
         .map_err(|e| anyhow::anyhow!("Invalid CID JSON provided: {}. Error: {}", cid_json, e))?;
-    let meta: icn_dag::DagBlockMetadata =
-        post_request(&cli.api_url, client, "/dag/meta", &cid, cli.api_key.as_deref()).await?;
+    let meta: icn_dag::DagBlockMetadata = post_request(
+        &cli.api_url,
+        client,
+        "/dag/meta",
+        &cid,
+        cli.api_key.as_deref(),
+    )
+    .await?;
     println!("--- DAG Block Metadata ---");
     println!("{}", serde_json::to_string_pretty(&meta)?);
     println!("--------------------------");
@@ -1518,7 +1681,14 @@ async fn handle_dag_pin(
     let cid: Cid = serde_json::from_str(cid_json)
         .map_err(|e| anyhow::anyhow!("Invalid CID JSON: {cid_json}. Error: {e}"))?;
     let body = serde_json::json!({ "cid": cid, "ttl": ttl });
-    let _: JsonValue = post_request(&cli.api_url, client, "/dag/pin", &body, cli.api_key.as_deref()).await?;
+    let _: JsonValue = post_request(
+        &cli.api_url,
+        client,
+        "/dag/pin",
+        &body,
+        cli.api_key.as_deref(),
+    )
+    .await?;
     println!("Pinned block {cid_json}");
     Ok(())
 }
@@ -1526,13 +1696,27 @@ async fn handle_dag_pin(
 async fn handle_dag_unpin(cli: &Cli, client: &Client, cid_json: &str) -> Result<(), anyhow::Error> {
     let cid: Cid = serde_json::from_str(cid_json)
         .map_err(|e| anyhow::anyhow!("Invalid CID JSON: {cid_json}. Error: {e}"))?;
-    let _: JsonValue = post_request(&cli.api_url, client, "/dag/unpin", &cid, cli.api_key.as_deref()).await?;
+    let _: JsonValue = post_request(
+        &cli.api_url,
+        client,
+        "/dag/unpin",
+        &cid,
+        cli.api_key.as_deref(),
+    )
+    .await?;
     println!("Unpinned block {cid_json}");
     Ok(())
 }
 
 async fn handle_dag_prune(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
-    let _: JsonValue = post_request(&cli.api_url, client, "/dag/prune", &(), cli.api_key.as_deref()).await?;
+    let _: JsonValue = post_request(
+        &cli.api_url,
+        client,
+        "/dag/prune",
+        &(),
+        cli.api_key.as_deref(),
+    )
+    .await?;
     println!("Prune triggered");
     Ok(())
 }
@@ -1552,8 +1736,14 @@ async fn handle_gov_submit(
 
     let request: ApiSubmitProposalRequest = serde_json::from_str(&proposal_request_content)
         .map_err(|e| anyhow::anyhow!("Invalid ApiSubmitProposalRequest JSON. Error: {}", e))?;
-    let response_proposal_id: ProposalId =
-        post_request(&cli.api_url, client, "/governance/submit", &request, cli.api_key.as_deref()).await?;
+    let response_proposal_id: ProposalId = post_request(
+        &cli.api_url,
+        client,
+        "/governance/submit",
+        &request,
+        cli.api_key.as_deref(),
+    )
+    .await?;
     println!(
         "Successfully submitted proposal. Proposal ID: {}",
         serde_json::to_string_pretty(&response_proposal_id)?
@@ -1574,8 +1764,14 @@ async fn handle_gov_vote(
         )
     })?;
     // Assuming the response is a simple success message or confirmation JSON
-    let response: JsonValue =
-        post_request(&cli.api_url, client, "/governance/vote", &request, cli.api_key.as_deref()).await?;
+    let response: JsonValue = post_request(
+        &cli.api_url,
+        client,
+        "/governance/vote",
+        &request,
+        cli.api_key.as_deref(),
+    )
+    .await?;
     println!(
         "Vote response: {}",
         serde_json::to_string_pretty(&response)?
@@ -1589,8 +1785,14 @@ async fn handle_gov_tally(
     proposal_id: &str,
 ) -> Result<(), anyhow::Error> {
     let req = serde_json::json!({ "proposal_id": proposal_id });
-    let result: icn_api::governance_trait::CloseProposalResponse =
-        post_request(&cli.api_url, client, "/governance/close", &req, cli.api_key.as_deref()).await?;
+    let result: icn_api::governance_trait::CloseProposalResponse = post_request(
+        &cli.api_url,
+        client,
+        "/governance/close",
+        &req,
+        cli.api_key.as_deref(),
+    )
+    .await?;
     println!(
         "Tally result: yes={} no={} abstain={} status={}",
         result.yes, result.no, result.abstain, result.status
@@ -1599,8 +1801,13 @@ async fn handle_gov_tally(
 }
 
 async fn handle_gov_list_proposals(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
-    let proposals: Vec<Proposal> =
-        get_request(&cli.api_url, client, "/governance/proposals", cli.api_key.as_deref()).await?;
+    let proposals: Vec<Proposal> = get_request(
+        &cli.api_url,
+        client,
+        "/governance/proposals",
+        cli.api_key.as_deref(),
+    )
+    .await?;
     println!("--- All Proposals ---");
     if proposals.is_empty() {
         println!("No proposals found.");
@@ -1617,7 +1824,8 @@ async fn handle_gov_get_proposal(
     proposal_id: &str,
 ) -> Result<(), anyhow::Error> {
     let path = format!("/governance/proposal/{}", proposal_id);
-    let proposal: Proposal = get_request(&cli.api_url, client, &path, cli.api_key.as_deref()).await?;
+    let proposal: Proposal =
+        get_request(&cli.api_url, client, &path, cli.api_key.as_deref()).await?;
     println!("--- Proposal Details (ID: {}) ---", proposal_id);
     println!("{}", serde_json::to_string_pretty(&proposal)?);
     println!("-----------------------------------");
@@ -1625,14 +1833,16 @@ async fn handle_gov_get_proposal(
 }
 
 async fn handle_mesh_jobs(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
-    let response: serde_json::Value = get_request(&cli.api_url, client, "/mesh/jobs", cli.api_key.as_deref()).await?;
+    let response: serde_json::Value =
+        get_request(&cli.api_url, client, "/mesh/jobs", cli.api_key.as_deref()).await?;
     println!("{}", serde_json::to_string_pretty(&response)?);
     Ok(())
 }
 
 async fn handle_mesh_status(cli: &Cli, client: &Client, job_id: &str) -> Result<(), anyhow::Error> {
     let path = format!("/mesh/jobs/{}", job_id);
-    let response: serde_json::Value = get_request(&cli.api_url, client, &path, cli.api_key.as_deref()).await?;
+    let response: serde_json::Value =
+        get_request(&cli.api_url, client, &path, cli.api_key.as_deref()).await?;
     println!("{}", serde_json::to_string_pretty(&response)?);
     Ok(())
 }
@@ -1662,7 +1872,14 @@ async fn handle_mesh_submit(
         let path = PathBuf::from(manifest_path);
         let (wasm, _meta) = compile_ccl_file_to_wasm(&path).map_err(anyhow::Error::msg)?;
         let payload = DagBlockPayload { data: wasm };
-        let cid: Cid = post_request(&cli.api_url, client, "/dag/put", &payload, cli.api_key.as_deref()).await?;
+        let cid: Cid = post_request(
+            &cli.api_url,
+            client,
+            "/dag/put",
+            &payload,
+            cli.api_key.as_deref(),
+        )
+        .await?;
 
         if let Some(obj) = request_value.as_object_mut() {
             obj.insert(
@@ -1683,30 +1900,41 @@ async fn handle_mesh_submit(
         }
     }
 
-    let response: serde_json::Value =
-        post_request(&cli.api_url, client, "/mesh/submit", &request_value, cli.api_key.as_deref()).await?;
+    let response: serde_json::Value = post_request(
+        &cli.api_url,
+        client,
+        "/mesh/submit",
+        &request_value,
+        cli.api_key.as_deref(),
+    )
+    .await?;
     println!("{}", serde_json::to_string_pretty(&response)?);
     Ok(())
 }
 
 /// Get progress information for a mesh job
-async fn handle_mesh_progress(cli: &Cli, client: &Client, job_id: &str) -> Result<(), anyhow::Error> {
+async fn handle_mesh_progress(
+    cli: &Cli,
+    client: &Client,
+    job_id: &str,
+) -> Result<(), anyhow::Error> {
     let path = format!("/mesh/jobs/{}/progress", job_id);
-    let response: serde_json::Value = get_request(&cli.api_url, client, &path, cli.api_key.as_deref()).await?;
-    
+    let response: serde_json::Value =
+        get_request(&cli.api_url, client, &path, cli.api_key.as_deref()).await?;
+
     // Pretty print progress information
     if let Some(progress) = response.get("progress") {
         println!("Job Progress for: {}", job_id);
         println!("================");
-        
+
         if let Some(stage) = progress.get("current_stage") {
             println!("Current Stage: {}", stage.as_str().unwrap_or("unknown"));
         }
-        
+
         if let Some(percent) = progress.get("progress_percent") {
             println!("Progress: {:.1}%", percent.as_f64().unwrap_or(0.0));
         }
-        
+
         if let Some(eta) = progress.get("eta_seconds") {
             if !eta.is_null() {
                 let eta_secs = eta.as_u64().unwrap_or(0);
@@ -1715,67 +1943,74 @@ async fn handle_mesh_progress(cli: &Cli, client: &Client, job_id: &str) -> Resul
                 println!("ETA: {}m {}s", minutes, seconds);
             }
         }
-        
+
         if let Some(message) = progress.get("message") {
             println!("Status: {}", message.as_str().unwrap_or(""));
         }
-        
+
         if let Some(completed) = progress.get("completed_stages") {
             if let Some(stages) = completed.as_array() {
                 if !stages.is_empty() {
-                    println!("Completed Stages: {}", 
-                        stages.iter()
+                    println!(
+                        "Completed Stages: {}",
+                        stages
+                            .iter()
                             .filter_map(|s| s.as_str())
                             .collect::<Vec<_>>()
-                            .join(", "));
+                            .join(", ")
+                    );
                 }
             }
         }
-        
+
         if let Some(remaining) = progress.get("remaining_stages") {
             if let Some(stages) = remaining.as_array() {
                 if !stages.is_empty() {
-                    println!("Remaining Stages: {}", 
-                        stages.iter()
+                    println!(
+                        "Remaining Stages: {}",
+                        stages
+                            .iter()
                             .filter_map(|s| s.as_str())
                             .collect::<Vec<_>>()
-                            .join(", "));
+                            .join(", ")
+                    );
                 }
             }
         }
     }
-    
+
     // Show checkpoints count
     if let Some(checkpoints) = response.get("checkpoints") {
         if let Some(cp_array) = checkpoints.as_array() {
             println!("Checkpoints: {}", cp_array.len());
         }
     }
-    
+
     // Show partial outputs count
     if let Some(outputs) = response.get("partial_outputs") {
         if let Some(out_array) = outputs.as_array() {
             println!("Partial Outputs: {}", out_array.len());
         }
     }
-    
+
     Ok(())
 }
 
 /// Stream/tail output from a mesh job
 async fn handle_mesh_tail(
-    cli: &Cli, 
-    client: &Client, 
-    job_id: &str, 
-    follow: bool, 
-    from: Option<u64>
+    cli: &Cli,
+    client: &Client,
+    job_id: &str,
+    follow: bool,
+    from: Option<u64>,
 ) -> Result<(), anyhow::Error> {
     let mut current_sequence = from.unwrap_or(0);
-    
+
     loop {
         let path = format!("/mesh/jobs/{}/stream?from={}", job_id, current_sequence);
-        let response: serde_json::Value = get_request(&cli.api_url, client, &path, cli.api_key.as_deref()).await?;
-        
+        let response: serde_json::Value =
+            get_request(&cli.api_url, client, &path, cli.api_key.as_deref()).await?;
+
         if let Some(chunks) = response.as_array() {
             for chunk in chunks {
                 if let (Some(sequence), Some(stage), Some(data_b64), Some(timestamp)) = (
@@ -1785,23 +2020,30 @@ async fn handle_mesh_tail(
                     chunk.get("timestamp").and_then(|t| t.as_u64()),
                 ) {
                     // Decode base64 data
-                    if let Ok(data_bytes) = base64::engine::general_purpose::STANDARD.decode(data_b64) {
+                    if let Ok(data_bytes) =
+                        base64::engine::general_purpose::STANDARD.decode(data_b64)
+                    {
                         if let Ok(data_str) = String::from_utf8(data_bytes) {
                             let dt = chrono::DateTime::from_timestamp(timestamp as i64, 0)
                                 .unwrap_or_else(|| chrono::Utc::now());
-                            println!("[{}] [{}] #{}: {}", 
-                                dt.format("%H:%M:%S"), 
-                                stage, 
-                                sequence, 
+                            println!(
+                                "[{}] [{}] #{}: {}",
+                                dt.format("%H:%M:%S"),
+                                stage,
+                                sequence,
                                 data_str
                             );
                         }
                     }
-                    
+
                     current_sequence = sequence + 1;
-                    
+
                     // Check if this is the final chunk
-                    if chunk.get("is_final").and_then(|f| f.as_bool()).unwrap_or(false) {
+                    if chunk
+                        .get("is_final")
+                        .and_then(|f| f.as_bool())
+                        .unwrap_or(false)
+                    {
                         if !follow {
                             return Ok(());
                         }
@@ -1809,23 +2051,30 @@ async fn handle_mesh_tail(
                 }
             }
         }
-        
+
         if !follow {
             break;
         }
-        
+
         // Wait before checking for more output
         tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
     }
-    
+
     Ok(())
 }
 
 /// Cancel a running mesh job
 async fn handle_mesh_cancel(cli: &Cli, client: &Client, job_id: &str) -> Result<(), anyhow::Error> {
     let path = format!("/mesh/jobs/{}/cancel", job_id);
-    let response: serde_json::Value = post_request(&cli.api_url, client, &path, &serde_json::json!({}), cli.api_key.as_deref()).await?;
-    
+    let response: serde_json::Value = post_request(
+        &cli.api_url,
+        client,
+        &path,
+        &serde_json::json!({}),
+        cli.api_key.as_deref(),
+    )
+    .await?;
+
     if let Some(success) = response.get("success").and_then(|s| s.as_bool()) {
         if success {
             println!("✅ Job {} cancellation requested", job_id);
@@ -1836,15 +2085,22 @@ async fn handle_mesh_cancel(cli: &Cli, client: &Client, job_id: &str) -> Result<
             }
         }
     }
-    
+
     Ok(())
 }
 
 /// Resume a failed mesh job from checkpoint
 async fn handle_mesh_resume(cli: &Cli, client: &Client, job_id: &str) -> Result<(), anyhow::Error> {
     let path = format!("/mesh/jobs/{}/resume", job_id);
-    let response: serde_json::Value = post_request(&cli.api_url, client, &path, &serde_json::json!({}), cli.api_key.as_deref()).await?;
-    
+    let response: serde_json::Value = post_request(
+        &cli.api_url,
+        client,
+        &path,
+        &serde_json::json!({}),
+        cli.api_key.as_deref(),
+    )
+    .await?;
+
     if let Some(success) = response.get("success").and_then(|s| s.as_bool()) {
         if success {
             println!("✅ Job {} resume initiated", job_id);
@@ -1855,41 +2111,50 @@ async fn handle_mesh_resume(cli: &Cli, client: &Client, job_id: &str) -> Result<
             }
         }
     }
-    
+
     Ok(())
 }
 
 /// Get mesh execution metrics
 async fn handle_mesh_metrics(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
-    let response: serde_json::Value = get_request(&cli.api_url, client, "/mesh/metrics", cli.api_key.as_deref()).await?;
-    
+    let response: serde_json::Value = get_request(
+        &cli.api_url,
+        client,
+        "/mesh/metrics",
+        cli.api_key.as_deref(),
+    )
+    .await?;
+
     println!("Mesh Execution Metrics");
     println!("=====================");
-    
+
     if let Some(total) = response.get("total_jobs").and_then(|t| t.as_u64()) {
         println!("Total Jobs: {}", total);
     }
-    
+
     if let Some(running) = response.get("running_jobs").and_then(|r| r.as_u64()) {
         println!("Running Jobs: {}", running);
     }
-    
+
     if let Some(long_running) = response.get("long_running_jobs").and_then(|l| l.as_u64()) {
         println!("Long-Running Jobs: {}", long_running);
     }
-    
+
     if let Some(completed) = response.get("completed_jobs").and_then(|c| c.as_u64()) {
         println!("Completed Jobs: {}", completed);
     }
-    
+
     if let Some(failed) = response.get("failed_jobs").and_then(|f| f.as_u64()) {
         println!("Failed Jobs: {}", failed);
     }
-    
-    if let Some(avg_time) = response.get("avg_execution_time_secs").and_then(|a| a.as_f64()) {
+
+    if let Some(avg_time) = response
+        .get("avg_execution_time_secs")
+        .and_then(|a| a.as_f64())
+    {
         println!("Average Execution Time: {:.2}s", avg_time);
     }
-    
+
     if let Some(custom) = response.get("custom_metrics").and_then(|c| c.as_object()) {
         println!("\nCustom Metrics:");
         for (key, value) in custom {
@@ -1898,12 +2163,13 @@ async fn handle_mesh_metrics(cli: &Cli, client: &Client) -> Result<(), anyhow::E
             }
         }
     }
-    
+
     Ok(())
 }
 
 async fn handle_network_stats(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
-    let status: NodeStatus = get_request(&cli.api_url, client, "/status", cli.api_key.as_deref()).await?;
+    let status: NodeStatus =
+        get_request(&cli.api_url, client, "/status", cli.api_key.as_deref()).await?;
     println!("{}", serde_json::to_string_pretty(&status)?);
     Ok(())
 }
@@ -1969,7 +2235,14 @@ async fn handle_compile_ccl_upload(
     let path = PathBuf::from(file);
     let (wasm, meta) = compile_ccl_file_to_wasm(&path)?;
     let payload = DagBlockPayload { data: wasm };
-    let cid: Cid = post_request(&cli.api_url, client, "/dag/put", &payload, cli.api_key.as_deref()).await?;
+    let cid: Cid = post_request(
+        &cli.api_url,
+        client,
+        "/dag/put",
+        &payload,
+        cli.api_key.as_deref(),
+    )
+    .await?;
     println!(
         "{}",
         serde_json::to_string_pretty(&serde_json::json!({
@@ -1981,7 +2254,13 @@ async fn handle_compile_ccl_upload(
 }
 
 async fn handle_fed_list_peers(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
-    let peers: Vec<String> = get_request(&cli.api_url, client, "/federation/peers", cli.api_key.as_deref()).await?;
+    let peers: Vec<String> = get_request(
+        &cli.api_url,
+        client,
+        "/federation/peers",
+        cli.api_key.as_deref(),
+    )
+    .await?;
     println!("{}", serde_json::to_string_pretty(&peers)?);
     Ok(())
 }
@@ -1993,43 +2272,78 @@ struct PeerReq<'a> {
 
 async fn handle_fed_join(cli: &Cli, client: &Client, peer: &str) -> Result<(), anyhow::Error> {
     let req = PeerReq { peer };
-    let resp: serde_json::Value =
-        post_request(&cli.api_url, client, "/federation/join", &req, cli.api_key.as_deref()).await?;
+    let resp: serde_json::Value = post_request(
+        &cli.api_url,
+        client,
+        "/federation/join",
+        &req,
+        cli.api_key.as_deref(),
+    )
+    .await?;
     println!("{}", serde_json::to_string_pretty(&resp)?);
     Ok(())
 }
 
 async fn handle_fed_leave(cli: &Cli, client: &Client, peer: &str) -> Result<(), anyhow::Error> {
     let req = PeerReq { peer };
-    let resp: serde_json::Value =
-        post_request(&cli.api_url, client, "/federation/leave", &req, cli.api_key.as_deref()).await?;
+    let resp: serde_json::Value = post_request(
+        &cli.api_url,
+        client,
+        "/federation/leave",
+        &req,
+        cli.api_key.as_deref(),
+    )
+    .await?;
     println!("{}", serde_json::to_string_pretty(&resp)?);
     Ok(())
 }
 
 async fn handle_fed_status(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
-    let status: serde_json::Value = get_request(&cli.api_url, client, "/federation/status", cli.api_key.as_deref()).await?;
+    let status: serde_json::Value = get_request(
+        &cli.api_url,
+        client,
+        "/federation/status",
+        cli.api_key.as_deref(),
+    )
+    .await?;
     println!("{}", serde_json::to_string_pretty(&status)?);
     Ok(())
 }
 
 async fn handle_fed_init(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
-    let resp: serde_json::Value =
-        post_request(&cli.api_url, client, "/federation/init", &(), cli.api_key.as_deref()).await?;
+    let resp: serde_json::Value = post_request(
+        &cli.api_url,
+        client,
+        "/federation/init",
+        &(),
+        cli.api_key.as_deref(),
+    )
+    .await?;
     println!("{}", serde_json::to_string_pretty(&resp)?);
     Ok(())
 }
 
 async fn handle_fed_sync(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
-    let resp: serde_json::Value =
-        post_request(&cli.api_url, client, "/federation/sync", &(), cli.api_key.as_deref()).await?;
+    let resp: serde_json::Value = post_request(
+        &cli.api_url,
+        client,
+        "/federation/sync",
+        &(),
+        cli.api_key.as_deref(),
+    )
+    .await?;
     println!("{}", serde_json::to_string_pretty(&resp)?);
     Ok(())
 }
 
 async fn handle_fed_discover(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
-    let resp: serde_json::Value =
-        get_request(&cli.api_url, client, "/federation/discover", cli.api_key.as_deref()).await?;
+    let resp: serde_json::Value = get_request(
+        &cli.api_url,
+        client,
+        "/federation/discover",
+        cli.api_key.as_deref(),
+    )
+    .await?;
     println!("{}", serde_json::to_string_pretty(&resp)?);
     Ok(())
 }
@@ -2040,20 +2354,23 @@ async fn handle_account_balance(
     did: &str,
 ) -> Result<(), anyhow::Error> {
     let path = format!("/account/{}/mana", did);
-    let v: serde_json::Value = get_request(&cli.api_url, client, &path, cli.api_key.as_deref()).await?;
+    let v: serde_json::Value =
+        get_request(&cli.api_url, client, &path, cli.api_key.as_deref()).await?;
     println!("{}", serde_json::to_string_pretty(&v)?);
     Ok(())
 }
 
 async fn handle_keys_show(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
-    let v: serde_json::Value = get_request(&cli.api_url, client, "/keys", cli.api_key.as_deref()).await?;
+    let v: serde_json::Value =
+        get_request(&cli.api_url, client, "/keys", cli.api_key.as_deref()).await?;
     println!("{}", serde_json::to_string_pretty(&v)?);
     Ok(())
 }
 
 async fn handle_reputation_get(cli: &Cli, client: &Client, did: &str) -> Result<(), anyhow::Error> {
     let path = format!("/reputation/{}", did);
-    let v: serde_json::Value = get_request(&cli.api_url, client, &path, cli.api_key.as_deref()).await?;
+    let v: serde_json::Value =
+        get_request(&cli.api_url, client, &path, cli.api_key.as_deref()).await?;
     println!("{}", serde_json::to_string_pretty(&v)?);
     Ok(())
 }
@@ -2074,8 +2391,14 @@ async fn handle_identity_verify(
     let proof: ZkCredentialProof = serde_json::from_str(&proof_json_content)
         .map_err(|e| anyhow::anyhow!("Invalid ZkCredentialProof JSON: {}", e))?;
 
-    let resp: serde_json::Value =
-        post_request(&cli.api_url, client, "/identity/verify", &proof, cli.api_key.as_deref()).await?;
+    let resp: serde_json::Value = post_request(
+        &cli.api_url,
+        client,
+        "/identity/verify",
+        &proof,
+        cli.api_key.as_deref(),
+    )
+    .await?;
     println!("{}", serde_json::to_string_pretty(&resp)?);
     Ok(())
 }
@@ -2096,7 +2419,14 @@ async fn handle_identity_verify_revocation(
     let proof: icn_common::ZkRevocationProof = serde_json::from_str(&proof_json_content)
         .map_err(|e| anyhow::anyhow!("Invalid ZkRevocationProof JSON: {}", e))?;
 
-    let resp: serde_json::Value = post_request(&cli.api_url, client, "/identity/verify/revocation", &proof, cli.api_key.as_deref()).await?;
+    let resp: serde_json::Value = post_request(
+        &cli.api_url,
+        client,
+        "/identity/verify/revocation",
+        &proof,
+        cli.api_key.as_deref(),
+    )
+    .await?;
     println!("{}", serde_json::to_string_pretty(&resp)?);
     Ok(())
 }
@@ -2117,8 +2447,14 @@ async fn handle_identity_verify_batch(
     let proofs: Vec<ZkCredentialProof> = serde_json::from_str(&proofs_json_content)
         .map_err(|e| anyhow::anyhow!("Invalid proofs JSON: {}", e))?;
     let req = VerifyProofsRequest { proofs };
-    let resp: BatchVerificationResponse =
-        post_request(&cli.api_url, client, "/identity/verify/batch", &req, cli.api_key.as_deref()).await?;
+    let resp: BatchVerificationResponse = post_request(
+        &cli.api_url,
+        client,
+        "/identity/verify/batch",
+        &req,
+        cli.api_key.as_deref(),
+    )
+    .await?;
     println!("{}", serde_json::to_string_pretty(&resp)?);
     Ok(())
 }
@@ -2362,19 +2698,18 @@ fn handle_wizard_setup(config: &str) -> Result<(), anyhow::Error> {
 }
 
 async fn handle_wizard_init_dev(api_url: &str, client: &Client) -> Result<(), anyhow::Error> {
-    
     println!("🚀 ICN Developer Onboarding Wizard");
     println!("==================================");
-    
+
     // Step 1: Generate a DID
     println!("\n1. Generating DID and keypair...");
     let (sk, pk) = generate_ed25519_keypair();
     let did = icn_identity::did_key_from_verifying_key(&pk);
     let sk_bs58 = bs58::encode(sk.to_bytes()).into_string();
-    
+
     println!("✅ DID created: {}", did);
     println!("   Private key: {}", sk_bs58);
-    
+
     // Step 2: Check node connection
     println!("\n2. Checking node connection...");
     let url = format!("{}/status", api_url);
@@ -2393,7 +2728,7 @@ async fn handle_wizard_init_dev(api_url: &str, client: &Client) -> Result<(), an
             return Ok(());
         }
     }
-    
+
     // Step 3: Submit a test job
     println!("\n3. Submitting test mesh job...");
     let test_job = serde_json::json!({
@@ -2401,7 +2736,7 @@ async fn handle_wizard_init_dev(api_url: &str, client: &Client) -> Result<(), an
         "spec_bytes": base64::engine::general_purpose::STANDARD.encode(b"Hello, ICN mesh!"),
         "cost_mana": 10
     });
-    
+
     let url = format!("{}/mesh/submit", api_url);
     match client.post(&url).json(&test_job).send().await {
         Ok(response) if response.status().is_success() => {
@@ -2413,7 +2748,10 @@ async fn handle_wizard_init_dev(api_url: &str, client: &Client) -> Result<(), an
             }
         }
         Ok(response) => {
-            println!("⚠️  Job submission failed with status: {}", response.status());
+            println!(
+                "⚠️  Job submission failed with status: {}",
+                response.status()
+            );
             let text = response.text().await.unwrap_or_default();
             println!("   Response: {}", text);
         }
@@ -2421,7 +2759,7 @@ async fn handle_wizard_init_dev(api_url: &str, client: &Client) -> Result<(), an
             println!("⚠️  Job submission error: {}", e);
         }
     }
-    
+
     // Step 4: Submit a test proposal
     println!("\n4. Submitting test governance proposal...");
     let test_proposal = serde_json::json!({
@@ -2432,7 +2770,7 @@ async fn handle_wizard_init_dev(api_url: &str, client: &Client) -> Result<(), an
         "quorum": null,
         "threshold": null
     });
-    
+
     let url = format!("{}/governance/submit", api_url);
     let mut proposal_id = None;
     match client.post(&url).json(&test_proposal).send().await {
@@ -2446,7 +2784,10 @@ async fn handle_wizard_init_dev(api_url: &str, client: &Client) -> Result<(), an
             }
         }
         Ok(response) => {
-            println!("⚠️  Proposal submission failed with status: {}", response.status());
+            println!(
+                "⚠️  Proposal submission failed with status: {}",
+                response.status()
+            );
             let text = response.text().await.unwrap_or_default();
             println!("   Response: {}", text);
         }
@@ -2454,7 +2795,7 @@ async fn handle_wizard_init_dev(api_url: &str, client: &Client) -> Result<(), an
             println!("⚠️  Proposal submission error: {}", e);
         }
     }
-    
+
     // Step 5: Vote on the proposal if we got an ID
     if let Some(prop_id) = proposal_id {
         println!("\n5. Voting on test proposal...");
@@ -2463,7 +2804,7 @@ async fn handle_wizard_init_dev(api_url: &str, client: &Client) -> Result<(), an
             "proposal_id": prop_id,
             "vote_option": "yes"
         });
-        
+
         let url = format!("{}/governance/vote", api_url);
         match client.post(&url).json(&vote_request).send().await {
             Ok(response) if response.status().is_success() => {
@@ -2481,23 +2822,23 @@ async fn handle_wizard_init_dev(api_url: &str, client: &Client) -> Result<(), an
     } else {
         println!("\n5. Skipping vote (no proposal ID available)");
     }
-    
+
     println!("\n🎉 Developer onboarding complete!");
     println!("Next steps:");
     println!("  - Read the docs at docs/DEVELOPER_GUIDE.md");
     println!("  - Explore the codebase in crates/");
     println!("  - Check out open issues on GitHub");
     println!("  - Join the community discussions");
-    
+
     Ok(())
 }
 
 fn handle_wizard_onboard_federation(config: &str) -> Result<(), anyhow::Error> {
     use std::io::{self, Write};
-    
+
     println!("🏛️  ICN Federation Onboarding Wizard");
     println!("====================================");
-    
+
     // Cooperative Information
     println!("\n1. Cooperative Information");
     print!("Cooperative name: ");
@@ -2505,22 +2846,25 @@ fn handle_wizard_onboard_federation(config: &str) -> Result<(), anyhow::Error> {
     let mut coop_name = String::new();
     io::stdin().read_line(&mut coop_name)?;
     let coop_name = coop_name.trim();
-    
+
     print!("Cooperative type (consumer, worker, platform, multi-stakeholder): ");
     io::stdout().flush()?;
     let mut coop_type = String::new();
     io::stdin().read_line(&mut coop_type)?;
     let coop_type = coop_type.trim();
-    
+
     print!("Brief description: ");
     io::stdout().flush()?;
     let mut description = String::new();
     io::stdin().read_line(&mut description)?;
     let description = description.trim();
-    
+
     // Network Configuration
     println!("\n2. Network Configuration");
-    print!("Node name (default: {}-node): ", coop_name.replace(' ', "-"));
+    print!(
+        "Node name (default: {}-node): ",
+        coop_name.replace(' ', "-")
+    );
     io::stdout().flush()?;
     let mut node_name = String::new();
     io::stdin().read_line(&mut node_name)?;
@@ -2529,7 +2873,7 @@ fn handle_wizard_onboard_federation(config: &str) -> Result<(), anyhow::Error> {
     } else {
         node_name.trim().to_string()
     };
-    
+
     print!("HTTP listen address (default: 0.0.0.0:7845): ");
     io::stdout().flush()?;
     let mut listen_addr = String::new();
@@ -2539,13 +2883,13 @@ fn handle_wizard_onboard_federation(config: &str) -> Result<(), anyhow::Error> {
     } else {
         listen_addr.trim().to_string()
     };
-    
+
     print!("API key for authentication: ");
     io::stdout().flush()?;
     let mut api_key = String::new();
     io::stdin().read_line(&mut api_key)?;
     let api_key = api_key.trim();
-    
+
     // Federation Peers
     println!("\n3. Federation Setup");
     print!("Bootstrap peers (comma-separated, press Enter if starting new federation): ");
@@ -2557,21 +2901,21 @@ fn handle_wizard_onboard_federation(config: &str) -> Result<(), anyhow::Error> {
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty())
         .collect();
-    
+
     // Generate identity
     println!("\n4. Generating federation identity...");
     let (sk, pk) = generate_ed25519_keypair();
     let did = icn_identity::did_key_from_verifying_key(&pk);
     let sk_bs58 = bs58::encode(sk.to_bytes()).into_string();
     println!("✅ Node DID: {}", did);
-    
+
     // Create configuration
     let cfg = toml::toml! {
         [cooperative]
         name = coop_name
         type = coop_type
         description = description
-        
+
         [node]
         node_name = node_name
         http_listen_addr = listen_addr
@@ -2583,25 +2927,28 @@ fn handle_wizard_onboard_federation(config: &str) -> Result<(), anyhow::Error> {
         open_rate_limit = 60
         enable_p2p = true
         p2p_listen_addr = "/ip4/0.0.0.0/tcp/4001"
-        
+
         [identity]
         node_did = did
         node_private_key_bs58 = sk_bs58
-        
+
         [federation]
         bootstrap_peers = peers
     };
-    
+
     std::fs::write(config, toml::to_string_pretty(&cfg)?)?;
-    
+
     println!("\n🎉 Federation configuration complete!");
     println!("Configuration saved to: {}", config);
     println!("\nNext steps:");
     println!("1. Review the configuration file");
-    println!("2. Start your node: cargo run -p icn-node -- --config {}", config);
+    println!(
+        "2. Start your node: cargo run -p icn-node -- --config {}",
+        config
+    );
     println!("3. Share your node's P2P address with other federations");
     println!("4. Read the deployment guide: docs/deployment-guide.md");
-    
+
     Ok(())
 }
 
@@ -2675,11 +3022,7 @@ async fn handle_coop_search(
     Ok(())
 }
 
-async fn handle_coop_profile(
-    cli: &Cli,
-    client: &Client,
-    did: &str,
-) -> Result<(), anyhow::Error> {
+async fn handle_coop_profile(cli: &Cli, client: &Client, did: &str) -> Result<(), anyhow::Error> {
     let profile: JsonValue = get_request(
         &cli.api_url,
         client,
@@ -2842,13 +3185,14 @@ async fn handle_coop_onboard(
     io::stdout().flush()?;
     let mut global_input = String::new();
     io::stdin().read_line(&mut global_input)?;
-    let global = global_input.trim().to_lowercase() == "y" || global_input.trim().to_lowercase() == "yes";
+    let global =
+        global_input.trim().to_lowercase() == "y" || global_input.trim().to_lowercase() == "yes";
 
     // Capabilities
     println!("\nWhat capabilities does your cooperative offer?");
     println!("Enter capability types (one per line, empty line to finish):");
     println!("Examples: web_development, housing, food_production, education, healthcare, etc.");
-    
+
     let mut capabilities = Vec::new();
     loop {
         print!("> ");
@@ -2902,8 +3246,12 @@ async fn handle_coop_onboard(
     let email = email.trim();
 
     // Get node DID for the cooperative
-    let node_info: JsonValue = get_request(&cli.api_url, client, "/keys", cli.api_key.as_deref()).await?;
-    let did = node_info["did"].as_str().unwrap_or("did:key:unknown").to_string();
+    let node_info: JsonValue =
+        get_request(&cli.api_url, client, "/keys", cli.api_key.as_deref()).await?;
+    let did = node_info["did"]
+        .as_str()
+        .unwrap_or("did:key:unknown")
+        .to_string();
 
     // Build the cooperative profile
     let profile = serde_json::json!({
@@ -2942,7 +3290,7 @@ async fn handle_coop_onboard(
     println!("\nRegister this profile with the federation? (y/n): ");
     let mut confirm = String::new();
     io::stdin().read_line(&mut confirm)?;
-    
+
     if confirm.trim().to_lowercase() == "y" || confirm.trim().to_lowercase() == "yes" {
         let response: JsonValue = post_request(
             &cli.api_url,
@@ -2952,10 +3300,10 @@ async fn handle_coop_onboard(
             cli.api_key.as_deref(),
         )
         .await?;
-        
+
         println!("\n✅ Cooperative successfully registered!");
         println!("{}", serde_json::to_string_pretty(&response)?);
-        
+
         println!("\n🔍 Next steps:");
         println!("1. Search for other cooperatives: icn-cli cooperative search");
         println!("2. Build trust relationships: icn-cli cooperative trust");
@@ -2969,7 +3317,8 @@ async fn handle_coop_onboard(
 }
 
 async fn handle_monitor_uptime(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
-    let metrics = get_request::<String>(&cli.api_url, client, "/metrics", cli.api_key.as_deref()).await?;
+    let metrics =
+        get_request::<String>(&cli.api_url, client, "/metrics", cli.api_key.as_deref()).await?;
     let scrape = prometheus_parse::Scrape::parse(metrics.lines().map(|l| Ok(l.to_string())))?;
     let uptime = scrape
         .samples
@@ -2987,7 +3336,13 @@ async fn handle_monitor_uptime(cli: &Cli, client: &Client) -> Result<(), anyhow:
 }
 
 async fn handle_emergency_list(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
-    let v: serde_json::Value = get_request(&cli.api_url, client, "/emergency/requests", cli.api_key.as_deref()).await?;
+    let v: serde_json::Value = get_request(
+        &cli.api_url,
+        client,
+        "/emergency/requests",
+        cli.api_key.as_deref(),
+    )
+    .await?;
     println!("{}", serde_json::to_string_pretty(&v)?);
     Ok(())
 }
@@ -3006,14 +3361,26 @@ async fn handle_emergency_request(
     };
     let body: serde_json::Value = serde_json::from_str(&content)
         .map_err(|e| anyhow::anyhow!("Invalid aid request JSON: {}", e))?;
-    let _: serde_json::Value =
-        post_request(&cli.api_url, client, "/emergency/request", &body, cli.api_key.as_deref()).await?;
+    let _: serde_json::Value = post_request(
+        &cli.api_url,
+        client,
+        "/emergency/request",
+        &body,
+        cli.api_key.as_deref(),
+    )
+    .await?;
     println!("Aid request submitted");
     Ok(())
 }
 
 async fn handle_aid_list(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
-    let v: serde_json::Value = get_request(&cli.api_url, client, "/aid/resources", cli.api_key.as_deref()).await?;
+    let v: serde_json::Value = get_request(
+        &cli.api_url,
+        client,
+        "/aid/resources",
+        cli.api_key.as_deref(),
+    )
+    .await?;
     println!("{}", serde_json::to_string_pretty(&v)?);
     Ok(())
 }
@@ -3032,7 +3399,14 @@ async fn handle_aid_register(
     };
     let body: serde_json::Value = serde_json::from_str(&content)
         .map_err(|e| anyhow::anyhow!("Invalid aid resource JSON: {}", e))?;
-    let _: serde_json::Value = post_request(&cli.api_url, client, "/aid/resource", &body, cli.api_key.as_deref()).await?;
+    let _: serde_json::Value = post_request(
+        &cli.api_url,
+        client,
+        "/aid/resource",
+        &body,
+        cli.api_key.as_deref(),
+    )
+    .await?;
     println!("Aid resource registered");
     Ok(())
 }
@@ -3105,8 +3479,12 @@ async fn handle_trust_get(
     to: &str,
     context: &str,
 ) -> Result<(), anyhow::Error> {
-    let path = format!("/trust/relationship?from={}&to={}&context={}", from, to, context);
-    let resp: serde_json::Value = get_request(&cli.api_url, client, &path, cli.api_key.as_deref()).await?;
+    let path = format!(
+        "/trust/relationship?from={}&to={}&context={}",
+        from, to, context
+    );
+    let resp: serde_json::Value =
+        get_request(&cli.api_url, client, &path, cli.api_key.as_deref()).await?;
     println!("{}", serde_json::to_string_pretty(&resp)?);
     Ok(())
 }
@@ -3131,10 +3509,13 @@ async fn handle_trust_list(
     if let Some(fed) = federation {
         path.push_str(&format!("&federation={}", fed));
     }
-    path.push_str(&format!("&include_inherited={}&include_cross_federation={}", 
-        include_inherited, include_cross_federation));
-    
-    let resp: serde_json::Value = get_request(&cli.api_url, client, &path, cli.api_key.as_deref()).await?;
+    path.push_str(&format!(
+        "&include_inherited={}&include_cross_federation={}",
+        include_inherited, include_cross_federation
+    ));
+
+    let resp: serde_json::Value =
+        get_request(&cli.api_url, client, &path, cli.api_key.as_deref()).await?;
     println!("{}", serde_json::to_string_pretty(&resp)?);
     Ok(())
 }
@@ -3149,24 +3530,24 @@ async fn handle_trust_paths(
     max_paths: usize,
     min_level: &Option<String>,
 ) -> Result<(), anyhow::Error> {
-    let mut path = format!("/trust/paths?from={}&to={}&context={}&max_length={}&max_paths={}", 
-        from, to, context, max_length, max_paths);
+    let mut path = format!(
+        "/trust/paths?from={}&to={}&context={}&max_length={}&max_paths={}",
+        from, to, context, max_length, max_paths
+    );
     if let Some(level) = min_level {
         path.push_str(&format!("&min_level={}", level));
     }
-    
-    let resp: serde_json::Value = get_request(&cli.api_url, client, &path, cli.api_key.as_deref()).await?;
+
+    let resp: serde_json::Value =
+        get_request(&cli.api_url, client, &path, cli.api_key.as_deref()).await?;
     println!("{}", serde_json::to_string_pretty(&resp)?);
     Ok(())
 }
 
-async fn handle_trust_score(
-    cli: &Cli,
-    client: &Client,
-    entity: &str,
-) -> Result<(), anyhow::Error> {
+async fn handle_trust_score(cli: &Cli, client: &Client, entity: &str) -> Result<(), anyhow::Error> {
     let path = format!("/trust/score?entity={}", entity);
-    let resp: serde_json::Value = get_request(&cli.api_url, client, &path, cli.api_key.as_deref()).await?;
+    let resp: serde_json::Value =
+        get_request(&cli.api_url, client, &path, cli.api_key.as_deref()).await?;
     println!("{}", serde_json::to_string_pretty(&resp)?);
     Ok(())
 }
@@ -3177,7 +3558,8 @@ async fn handle_trust_scores(
     entities: &str,
 ) -> Result<(), anyhow::Error> {
     let path = format!("/trust/scores?entities={}", entities);
-    let resp: serde_json::Value = get_request(&cli.api_url, client, &path, cli.api_key.as_deref()).await?;
+    let resp: serde_json::Value =
+        get_request(&cli.api_url, client, &path, cli.api_key.as_deref()).await?;
     println!("{}", serde_json::to_string_pretty(&resp)?);
     Ok(())
 }
@@ -3201,7 +3583,8 @@ async fn handle_trust_update(
         "/trust/update",
         &update_req,
         cli.api_key.as_deref(),
-    ).await?;
+    )
+    .await?;
     println!("{}", serde_json::to_string_pretty(&resp)?);
     Ok(())
 }
@@ -3220,16 +3603,15 @@ async fn handle_trust_remove(
         &path,
         &serde_json::json!({}),
         cli.api_key.as_deref(),
-    ).await?;
+    )
+    .await?;
     println!("{}", serde_json::to_string_pretty(&resp)?);
     Ok(())
 }
 
-async fn handle_trust_stats(
-    cli: &Cli,
-    client: &Client,
-) -> Result<(), anyhow::Error> {
-    let resp: serde_json::Value = get_request(&cli.api_url, client, "/trust/stats", cli.api_key.as_deref()).await?;
+async fn handle_trust_stats(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
+    let resp: serde_json::Value =
+        get_request(&cli.api_url, client, "/trust/stats", cli.api_key.as_deref()).await?;
     println!("{}", serde_json::to_string_pretty(&resp)?);
     Ok(())
 }
@@ -3240,7 +3622,8 @@ async fn handle_trust_federation_stats(
     federation: &str,
 ) -> Result<(), anyhow::Error> {
     let path = format!("/trust/federation-stats?federation={}", federation);
-    let resp: serde_json::Value = get_request(&cli.api_url, client, &path, cli.api_key.as_deref()).await?;
+    let resp: serde_json::Value =
+        get_request(&cli.api_url, client, &path, cli.api_key.as_deref()).await?;
     println!("{}", serde_json::to_string_pretty(&resp)?);
     Ok(())
 }
@@ -3264,8 +3647,9 @@ async fn handle_trust_search(
     if let Some(fed) = federation {
         path.push_str(&format!("&federation={}", fed));
     }
-    
-    let resp: serde_json::Value = get_request(&cli.api_url, client, &path, cli.api_key.as_deref()).await?;
+
+    let resp: serde_json::Value =
+        get_request(&cli.api_url, client, &path, cli.api_key.as_deref()).await?;
     println!("{}", serde_json::to_string_pretty(&resp)?);
     Ok(())
 }
@@ -3278,9 +3662,12 @@ async fn handle_trust_validate(
     context: &str,
     operation: &str,
 ) -> Result<(), anyhow::Error> {
-    let path = format!("/trust/validate?actor={}&target={}&context={}&operation={}", 
-        actor, target, context, operation);
-    let resp: serde_json::Value = get_request(&cli.api_url, client, &path, cli.api_key.as_deref()).await?;
+    let path = format!(
+        "/trust/validate?actor={}&target={}&context={}&operation={}",
+        actor, target, context, operation
+    );
+    let resp: serde_json::Value =
+        get_request(&cli.api_url, client, &path, cli.api_key.as_deref()).await?;
     println!("{}", serde_json::to_string_pretty(&resp)?);
     Ok(())
 }
@@ -3292,12 +3679,16 @@ async fn handle_trust_neighbors(
     max_distance: usize,
     min_level: &Option<String>,
 ) -> Result<(), anyhow::Error> {
-    let mut path = format!("/trust/neighbors?entity={}&max_distance={}", entity, max_distance);
+    let mut path = format!(
+        "/trust/neighbors?entity={}&max_distance={}",
+        entity, max_distance
+    );
     if let Some(level) = min_level {
         path.push_str(&format!("&min_level={}", level));
     }
-    
-    let resp: serde_json::Value = get_request(&cli.api_url, client, &path, cli.api_key.as_deref()).await?;
+
+    let resp: serde_json::Value =
+        get_request(&cli.api_url, client, &path, cli.api_key.as_deref()).await?;
     println!("{}", serde_json::to_string_pretty(&resp)?);
     Ok(())
 }
@@ -3311,14 +3702,15 @@ async fn handle_trust_recalculate(
     if let Some(ents) = entities {
         path.push_str(&format!("?entities={}", ents));
     }
-    
+
     let resp: serde_json::Value = post_request(
         &cli.api_url,
         client,
         &path,
         &serde_json::json!({}),
         cli.api_key.as_deref(),
-    ).await?;
+    )
+    .await?;
     println!("{}", serde_json::to_string_pretty(&resp)?);
     Ok(())
 }
@@ -3338,8 +3730,12 @@ async fn handle_token_mint(
         issuer.clone()
     } else {
         // Get node DID as default issuer
-        let node_info: serde_json::Value = get_request(&cli.api_url, client, "/keys", cli.api_key.as_deref()).await?;
-        node_info["did"].as_str().unwrap_or("did:key:unknown").to_string()
+        let node_info: serde_json::Value =
+            get_request(&cli.api_url, client, "/keys", cli.api_key.as_deref()).await?;
+        node_info["did"]
+            .as_str()
+            .unwrap_or("did:key:unknown")
+            .to_string()
     };
 
     let request = serde_json::json!({
@@ -3356,8 +3752,9 @@ async fn handle_token_mint(
         "/tokens/mint",
         &request,
         cli.api_key.as_deref(),
-    ).await?;
-    
+    )
+    .await?;
+
     println!("✅ Tokens minted successfully!");
     println!("Class: {}", class_id);
     println!("Recipient: {}", to_did);
@@ -3384,8 +3781,12 @@ async fn handle_token_transfer(
         issuer.clone()
     } else {
         // Get node DID as default issuer
-        let node_info: serde_json::Value = get_request(&cli.api_url, client, "/keys", cli.api_key.as_deref()).await?;
-        node_info["did"].as_str().unwrap_or("did:key:unknown").to_string()
+        let node_info: serde_json::Value =
+            get_request(&cli.api_url, client, "/keys", cli.api_key.as_deref()).await?;
+        node_info["did"]
+            .as_str()
+            .unwrap_or("did:key:unknown")
+            .to_string()
     };
 
     let request = serde_json::json!({
@@ -3403,8 +3804,9 @@ async fn handle_token_transfer(
         "/tokens/transfer",
         &request,
         cli.api_key.as_deref(),
-    ).await?;
-    
+    )
+    .await?;
+
     println!("✅ Tokens transferred successfully!");
     println!("Class: {}", class_id);
     println!("From: {}", from_did);
@@ -3425,8 +3827,9 @@ async fn handle_token_balance(
     did: &str,
 ) -> Result<(), anyhow::Error> {
     let path = format!("/tokens/balance?class_id={}&did={}", class_id, did);
-    let response: serde_json::Value = get_request(&cli.api_url, client, &path, cli.api_key.as_deref()).await?;
-    
+    let response: serde_json::Value =
+        get_request(&cli.api_url, client, &path, cli.api_key.as_deref()).await?;
+
     println!("💰 Token Balance");
     println!("Class: {}", class_id);
     println!("Account: {}", did);
@@ -3452,8 +3855,12 @@ async fn handle_token_burn(
         issuer.clone()
     } else {
         // Get node DID as default issuer
-        let node_info: serde_json::Value = get_request(&cli.api_url, client, "/keys", cli.api_key.as_deref()).await?;
-        node_info["did"].as_str().unwrap_or("did:key:unknown").to_string()
+        let node_info: serde_json::Value =
+            get_request(&cli.api_url, client, "/keys", cli.api_key.as_deref()).await?;
+        node_info["did"]
+            .as_str()
+            .unwrap_or("did:key:unknown")
+            .to_string()
     };
 
     let request = serde_json::json!({
@@ -3470,8 +3877,9 @@ async fn handle_token_burn(
         "/tokens/burn",
         &request,
         cli.api_key.as_deref(),
-    ).await?;
-    
+    )
+    .await?;
+
     println!("🔥 Tokens burned successfully!");
     println!("Class: {}", class_id);
     println!("From: {}", from_did);
@@ -3737,10 +4145,8 @@ async fn handle_credential_revoke(
     _reason: &str, // Note: reason parameter not used by current API endpoint
 ) -> Result<(), anyhow::Error> {
     let cid = icn_common::parse_cid_from_string(cid)?;
-    
-    let request = icn_api::identity_trait::RevokeCredentialRequest {
-        cid,
-    };
+
+    let request = icn_api::identity_trait::RevokeCredentialRequest { cid };
 
     let resp: serde_json::Value = post_request(
         &cli.api_url,

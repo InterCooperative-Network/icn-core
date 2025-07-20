@@ -9,7 +9,7 @@ use std::path::PathBuf;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = env::args().collect();
-    
+
     let output_dir = if args.len() > 1 {
         PathBuf::from(&args[1])
     } else {
@@ -32,4 +32,4 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("The compiled SDK will be in the 'dist' folder.");
 
     Ok(())
-} 
+}

@@ -7,9 +7,9 @@ fn main() {
     println!();
     println!("🔍 Testing comprehensive for loop functionality...");
     println!();
-    
+
     let test_path = PathBuf::from("test_for_loops.ccl");
-    
+
     match compile_ccl_file_to_wasm(&test_path) {
         Ok((wasm, metadata)) => {
             println!("🎉 🎉 🎉 FOR LOOPS IMPLEMENTED SUCCESSFULLY! 🎉 🎉 🎉");
@@ -45,14 +45,14 @@ fn main() {
             println!();
             println!("🎖️  **MAJOR MILESTONE:** CCL now supports all essential loop constructs");
             println!("    for building sophisticated governance and economic algorithms!");
-        },
+        }
         Err(e) => {
             println!("❌ FOR LOOP TEST FAILED:");
             println!("   Error: {}", e);
             println!();
             println!("🔍 Analyzing for loop implementation issue:");
             let error_str = e.to_string();
-            
+
             if error_str.contains("array literal") || error_str.contains("array") {
                 println!("   • Array literal parsing or handling issue");
                 println!("   • For loops require proper array support");
@@ -65,7 +65,7 @@ fn main() {
             } else {
                 println!("   • Unexpected issue: {}", error_str);
             }
-            
+
             println!();
             println!("📝 **NEXT STEPS:**");
             println!("   1. Fix array literal support if needed");
@@ -74,4 +74,4 @@ fn main() {
             println!("   4. Test with simple cases first");
         }
     }
-} 
+}

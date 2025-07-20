@@ -49,7 +49,15 @@ async fn array_reallocation_integers() {
     let author = icn_common::Did::new("key", "tester");
     let sig_opt = None;
     let cid = icn_common::compute_merkle_cid(0x71, &wasm, &[], ts, &author, &sig_opt, &None);
-    let block = DagBlock { cid: cid.clone(), data: wasm.clone(), links: vec![], timestamp: ts, author_did: author, signature: sig_opt, scope: None };
+    let block = DagBlock {
+        cid: cid.clone(),
+        data: wasm.clone(),
+        links: vec![],
+        timestamp: ts,
+        author_did: author,
+        signature: sig_opt,
+        scope: None,
+    };
     {
         let mut store = ctx.dag_store.lock().await;
         store.put(&block).unwrap();
@@ -100,7 +108,15 @@ async fn array_push_bool_and_string() {
     let author = icn_common::Did::new("key", "tester");
     let sig_opt = None;
     let cid = icn_common::compute_merkle_cid(0x71, &wasm, &[], ts, &author, &sig_opt, &None);
-    let block = DagBlock { cid: cid.clone(), data: wasm.clone(), links: vec![], timestamp: ts, author_did: author, signature: sig_opt, scope: None };
+    let block = DagBlock {
+        cid: cid.clone(),
+        data: wasm.clone(),
+        links: vec![],
+        timestamp: ts,
+        author_did: author,
+        signature: sig_opt,
+        scope: None,
+    };
     {
         let mut store = ctx.dag_store.lock().await;
         store.put(&block).unwrap();

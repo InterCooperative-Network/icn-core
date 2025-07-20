@@ -44,7 +44,8 @@ pub type RuntimeStubDagStore = StubDagStore;
 impl icn_dag::StorageService<DagBlock> for StubDagStore {
     fn put(&mut self, block: &DagBlock) -> Result<(), CommonError> {
         self.store.insert(block.cid.clone(), block.clone());
-        self.meta.insert(block.cid.clone(), icn_dag::BlockMetadata::default());
+        self.meta
+            .insert(block.cid.clone(), icn_dag::BlockMetadata::default());
         Ok(())
     }
 
@@ -70,7 +71,10 @@ impl icn_dag::StorageService<DagBlock> for StubDagStore {
         if let Some(meta) = self.meta.get_mut(cid) {
             meta.pinned = true;
         } else {
-            return Err(CommonError::InternalError(format!("Block not found: {}", cid)));
+            return Err(CommonError::InternalError(format!(
+                "Block not found: {}",
+                cid
+            )));
         }
         Ok(())
     }
@@ -79,7 +83,10 @@ impl icn_dag::StorageService<DagBlock> for StubDagStore {
         if let Some(meta) = self.meta.get_mut(cid) {
             meta.pinned = false;
         } else {
-            return Err(CommonError::InternalError(format!("Block not found: {}", cid)));
+            return Err(CommonError::InternalError(format!(
+                "Block not found: {}",
+                cid
+            )));
         }
         Ok(())
     }
@@ -87,7 +94,7 @@ impl icn_dag::StorageService<DagBlock> for StubDagStore {
     fn prune_expired(&mut self, now: u64) -> Result<Vec<Cid>, CommonError> {
         let mut expired = Vec::new();
         let mut to_remove = Vec::new();
-        
+
         for (cid, meta) in &self.meta {
             if let Some(ttl) = meta.ttl {
                 if ttl <= now && !meta.pinned {
@@ -96,12 +103,12 @@ impl icn_dag::StorageService<DagBlock> for StubDagStore {
                 }
             }
         }
-        
+
         for cid in &to_remove {
             self.store.remove(cid);
             self.meta.remove(cid);
         }
-        
+
         Ok(expired)
     }
 
@@ -109,7 +116,10 @@ impl icn_dag::StorageService<DagBlock> for StubDagStore {
         if let Some(meta) = self.meta.get_mut(cid) {
             meta.ttl = ttl;
         } else {
-            return Err(CommonError::InternalError(format!("Block not found: {}", cid)));
+            return Err(CommonError::InternalError(format!(
+                "Block not found: {}",
+                cid
+            )));
         }
         Ok(())
     }
@@ -132,7 +142,8 @@ impl icn_dag::StorageService<DagBlock> for StubDagStore {
 impl icn_dag::AsyncStorageService<DagBlock> for StubDagStore {
     async fn put(&mut self, block: &DagBlock) -> Result<(), CommonError> {
         self.store.insert(block.cid.clone(), block.clone());
-        self.meta.insert(block.cid.clone(), icn_dag::BlockMetadata::default());
+        self.meta
+            .insert(block.cid.clone(), icn_dag::BlockMetadata::default());
         Ok(())
     }
 
@@ -158,7 +169,10 @@ impl icn_dag::AsyncStorageService<DagBlock> for StubDagStore {
         if let Some(meta) = self.meta.get_mut(cid) {
             meta.pinned = true;
         } else {
-            return Err(CommonError::InternalError(format!("Block not found: {}", cid)));
+            return Err(CommonError::InternalError(format!(
+                "Block not found: {}",
+                cid
+            )));
         }
         Ok(())
     }
@@ -167,7 +181,10 @@ impl icn_dag::AsyncStorageService<DagBlock> for StubDagStore {
         if let Some(meta) = self.meta.get_mut(cid) {
             meta.pinned = false;
         } else {
-            return Err(CommonError::InternalError(format!("Block not found: {}", cid)));
+            return Err(CommonError::InternalError(format!(
+                "Block not found: {}",
+                cid
+            )));
         }
         Ok(())
     }
@@ -175,7 +192,7 @@ impl icn_dag::AsyncStorageService<DagBlock> for StubDagStore {
     async fn prune_expired(&mut self, now: u64) -> Result<Vec<Cid>, CommonError> {
         let mut expired = Vec::new();
         let mut to_remove = Vec::new();
-        
+
         for (cid, meta) in &self.meta {
             if let Some(ttl) = meta.ttl {
                 if ttl <= now && !meta.pinned {
@@ -184,12 +201,12 @@ impl icn_dag::AsyncStorageService<DagBlock> for StubDagStore {
                 }
             }
         }
-        
+
         for cid in &to_remove {
             self.store.remove(cid);
             self.meta.remove(cid);
         }
-        
+
         Ok(expired)
     }
 
@@ -197,7 +214,10 @@ impl icn_dag::AsyncStorageService<DagBlock> for StubDagStore {
         if let Some(meta) = self.meta.get_mut(cid) {
             meta.ttl = ttl;
         } else {
-            return Err(CommonError::InternalError(format!("Block not found: {}", cid)));
+            return Err(CommonError::InternalError(format!(
+                "Block not found: {}",
+                cid
+            )));
         }
         Ok(())
     }
@@ -237,7 +257,9 @@ impl StubMeshNetworkService {
     }
 
     /// Set up the job announcement notification channel
-    pub async fn setup_job_announcement_channel(&self) -> tokio::sync::mpsc::UnboundedReceiver<ActualMeshJob> {
+    pub async fn setup_job_announcement_channel(
+        &self,
+    ) -> tokio::sync::mpsc::UnboundedReceiver<ActualMeshJob> {
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
         *self.job_announcement_tx.lock().await = Some(tx);
         rx
@@ -246,13 +268,23 @@ impl StubMeshNetworkService {
     /// Stage a bid for a specific job (for testing)
     pub async fn stage_bid(&self, job_id: JobId, bid: MeshJobBid) {
         let mut staged_bids = self.staged_bids.lock().await;
-        staged_bids.entry(job_id).or_insert_with(VecDeque::new).push_back(bid);
+        staged_bids
+            .entry(job_id)
+            .or_insert_with(VecDeque::new)
+            .push_back(bid);
     }
 
     /// Stage a receipt for a specific job (for testing)
-    pub async fn stage_receipt(&self, job_id: JobId, receipt_message: LocalMeshSubmitReceiptMessage) {
+    pub async fn stage_receipt(
+        &self,
+        job_id: JobId,
+        receipt_message: LocalMeshSubmitReceiptMessage,
+    ) {
         let mut staged_receipts = self.staged_receipts.lock().await;
-        staged_receipts.entry(job_id).or_insert_with(VecDeque::new).push_back(receipt_message);
+        staged_receipts
+            .entry(job_id)
+            .or_insert_with(VecDeque::new)
+            .push_back(receipt_message);
     }
 
     /// Get announced jobs (for testing verification)
@@ -288,21 +320,27 @@ impl MeshNetworkService for StubMeshNetworkService {
 
     async fn announce_job(&self, job: &ActualMeshJob) -> Result<(), HostAbiError> {
         log::info!("[StubMeshNetwork] Announcing job {:?}", job.id);
-        
+
         // Store the announced job for testing verification
         let mut announced_jobs = self.announced_jobs.lock().await;
         announced_jobs.push(job.clone());
         drop(announced_jobs); // Release lock before notifying
-        
+
         // Send immediate notification to executor manager if channel is set up
         if let Some(tx) = &*self.job_announcement_tx.lock().await {
             if let Err(e) = tx.send(job.clone()) {
-                log::warn!("[StubMeshNetwork] Failed to send job announcement notification: {}", e);
+                log::warn!(
+                    "[StubMeshNetwork] Failed to send job announcement notification: {}",
+                    e
+                );
             } else {
-                log::debug!("[StubMeshNetwork] Sent immediate job announcement notification for job {:?}", job.id);
+                log::debug!(
+                    "[StubMeshNetwork] Sent immediate job announcement notification for job {:?}",
+                    job.id
+                );
             }
         }
-        
+
         Ok(())
     }
 
@@ -322,14 +360,18 @@ impl MeshNetworkService for StubMeshNetworkService {
         _duration: StdDuration,
     ) -> Result<Vec<MeshJobBid>, HostAbiError> {
         log::info!("[StubMeshNetwork] Collecting bids for job {:?}", job_id);
-        
+
         let mut staged_bids = self.staged_bids.lock().await;
         if let Some(bids) = staged_bids.get_mut(job_id) {
             let mut collected_bids = Vec::new();
             while let Some(bid) = bids.pop_front() {
                 collected_bids.push(bid);
             }
-            log::info!("[StubMeshNetwork] Collected {} bids for job {:?}", collected_bids.len(), job_id);
+            log::info!(
+                "[StubMeshNetwork] Collected {} bids for job {:?}",
+                collected_bids.len(),
+                job_id
+            );
             Ok(collected_bids)
         } else {
             log::info!("[StubMeshNetwork] No bids found for job {:?}", job_id);
@@ -346,11 +388,11 @@ impl MeshNetworkService for StubMeshNetworkService {
             notice.executor_did,
             notice.job_id
         );
-        
+
         // Store the assignment notice for testing verification
         let mut assignment_notices = self.assignment_notices.lock().await;
         assignment_notices.push(notice.clone());
-        
+
         Ok(())
     }
 
@@ -362,15 +404,20 @@ impl MeshNetworkService for StubMeshNetworkService {
     ) -> Result<Option<IdentityExecutionReceipt>, HostAbiError> {
         log::info!(
             "[StubMeshNetwork] Looking for receipt from {} for job {:?}",
-            expected_executor, job_id
+            expected_executor,
+            job_id
         );
-        
+
         let mut staged_receipts = self.staged_receipts.lock().await;
         if let Some(receipts) = staged_receipts.get_mut(job_id) {
             if let Some(receipt_message) = receipts.pop_front() {
                 let receipt = &receipt_message.receipt;
                 if receipt.executor_did == *expected_executor {
-                    log::info!("[StubMeshNetwork] Found receipt from {} for job {:?}", expected_executor, job_id);
+                    log::info!(
+                        "[StubMeshNetwork] Found receipt from {} for job {:?}",
+                        expected_executor,
+                        job_id
+                    );
                     return Ok(Some(receipt.clone()));
                 } else {
                     // Put it back if it's from a different executor
@@ -378,20 +425,25 @@ impl MeshNetworkService for StubMeshNetworkService {
                 }
             }
         }
-        
-        log::info!("[StubMeshNetwork] No receipt found from {} for job {:?}", expected_executor, job_id);
+
+        log::info!(
+            "[StubMeshNetwork] No receipt found from {} for job {:?}",
+            expected_executor,
+            job_id
+        );
         Ok(None)
     }
 
-    async fn submit_bid_for_job(
-        &self,
-        bid: &icn_mesh::MeshJobBid,
-    ) -> Result<(), HostAbiError> {
-        log::info!("[StubMeshNetwork] Submitting bid for job {:?}: {} mana", bid.job_id, bid.price_mana);
-        
+    async fn submit_bid_for_job(&self, bid: &icn_mesh::MeshJobBid) -> Result<(), HostAbiError> {
+        log::info!(
+            "[StubMeshNetwork] Submitting bid for job {:?}: {} mana",
+            bid.job_id,
+            bid.price_mana
+        );
+
         // For stub implementation, we'll just stage the bid
         self.stage_bid(bid.job_id.clone(), bid.clone()).await;
-        
+
         Ok(())
     }
 
@@ -399,15 +451,22 @@ impl MeshNetworkService for StubMeshNetworkService {
         &self,
         receipt: &icn_identity::ExecutionReceipt,
     ) -> Result<(), HostAbiError> {
-        log::info!("[StubMeshNetwork] Submitting execution receipt for job {:?}", receipt.job_id);
-        
+        log::info!(
+            "[StubMeshNetwork] Submitting execution receipt for job {:?}",
+            receipt.job_id
+        );
+
         // For stub implementation, we'll stage the receipt
         let receipt_message = LocalMeshSubmitReceiptMessage {
             receipt: receipt.clone(),
         };
-        
-        self.stage_receipt(icn_mesh::JobId::from(receipt.job_id.clone()), receipt_message).await;
-        
+
+        self.stage_receipt(
+            icn_mesh::JobId::from(receipt.job_id.clone()),
+            receipt_message,
+        )
+        .await;
+
         Ok(())
     }
-} 
+}

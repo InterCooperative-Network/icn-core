@@ -3,7 +3,7 @@ use icn_identity::credential::Credential;
 use icn_identity::{
     credential::CredentialIssuer,
     generate_ed25519_keypair,
-    zk::{Groth16Circuit, Groth16Verifier, ZkError, ZkProver, key_manager::Groth16KeySource},
+    zk::{key_manager::Groth16KeySource, Groth16Circuit, Groth16Verifier, ZkError, ZkProver},
     ZkVerifier,
 };
 

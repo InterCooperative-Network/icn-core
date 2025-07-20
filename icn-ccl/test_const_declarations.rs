@@ -7,9 +7,9 @@ fn main() {
     println!();
     println!("🔍 Testing const declarations at program and contract levels...");
     println!();
-    
+
     let test_path = PathBuf::from("test_const_declarations.ccl");
-    
+
     match compile_ccl_file_to_wasm(&test_path) {
         Ok((wasm, metadata)) => {
             println!("🎉 🎉 🎉 CONST DECLARATIONS WORK PERFECTLY! 🎉 🎉 🎉");
@@ -45,14 +45,14 @@ fn main() {
             println!();
             println!("🎖️  **GOVERNANCE CONTRACTS CAN NOW DEFINE:**");
             println!("    Quorum thresholds, voting limits, durations, and all key parameters!");
-        },
+        }
         Err(e) => {
             println!("❌ CONST DECLARATIONS TEST FAILED:");
             println!("   Error: {}", e);
             println!();
             println!("🔍 Analyzing const declaration issue:");
             let error_str = e.to_string();
-            
+
             if error_str.contains("const") || error_str.contains("constant") {
                 println!("   • Const declaration or usage issue");
                 println!("   • May need improved top-level const handling");
@@ -65,7 +65,7 @@ fn main() {
             } else {
                 println!("   • Unexpected issue: {}", error_str);
             }
-            
+
             println!();
             println!("📝 **POTENTIAL FIXES:**");
             println!("   1. Ensure top-level const parsing is complete");
@@ -74,4 +74,4 @@ fn main() {
             println!("   4. Test const value evaluation and storage");
         }
     }
-} 
+}

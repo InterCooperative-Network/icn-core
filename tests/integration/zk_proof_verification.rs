@@ -1,12 +1,10 @@
-use icn_common::{Cid, Did, ZkCredentialProof, ZkProofType};
-use icn_node::app_router_with_options;
-use reqwest::Client;
-use icn_identity::{
-    generate_ed25519_keypair, sign_message, verify_signature, SignatureBytes,
-};
-use icn_zk::{prepare_vk, setup, prove, AgeOver18Circuit};
-use rand_core::OsRng;
 use ark_serialize::CanonicalSerialize;
+use icn_common::{Cid, Did, ZkCredentialProof, ZkProofType};
+use icn_identity::{generate_ed25519_keypair, sign_message, verify_signature, SignatureBytes};
+use icn_node::app_router_with_options;
+use icn_zk::{prepare_vk, prove, setup, AgeOver18Circuit};
+use rand_core::OsRng;
+use reqwest::Client;
 use tokio::task;
 use tokio::time::{sleep, Duration};
 
@@ -111,13 +109,21 @@ async fn zk_proof_verification_route() {
         public_inputs: None,
     };
 
-    let resp = client.post(&url).json(&bulletproof_invalid).send().await.unwrap();
+    let resp = client
+        .post(&url)
+        .json(&bulletproof_invalid)
+        .send()
+        .await
+        .unwrap();
     // Invalid proof should result in a 400 Bad Request
     assert_eq!(resp.status().as_u16(), 400);
 
     // Now test a valid Groth16 proof with explicit public inputs
 
-    let circuit = AgeOver18Circuit { birth_year: 2000, current_year: 2020 };
+    let circuit = AgeOver18Circuit {
+        birth_year: 2000,
+        current_year: 2020,
+    };
     let mut rng = OsRng;
     let proof_obj = prove(&manager.pk, circuit, &mut rng).unwrap();
     let mut proof_bytes = Vec::new();

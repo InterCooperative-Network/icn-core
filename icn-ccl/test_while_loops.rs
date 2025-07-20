@@ -7,9 +7,9 @@ fn main() {
     println!();
     println!("🔍 Testing comprehensive while loop functionality...");
     println!();
-    
+
     let test_path = PathBuf::from("test_while_loops.ccl");
-    
+
     match compile_ccl_file_to_wasm(&test_path) {
         Ok((wasm, metadata)) => {
             println!("🎉 🎉 🎉 WHILE LOOPS WORK PERFECTLY! 🎉 🎉 🎉");
@@ -42,14 +42,14 @@ fn main() {
             println!();
             println!("🔥 **WHILE LOOPS ARE PRODUCTION-READY!** 🔥");
             println!("   All governance algorithms requiring iteration now possible!");
-        },
+        }
         Err(e) => {
             println!("❌ WHILE LOOP TEST FAILED:");
             println!("   Error: {}", e);
             println!();
             println!("🔍 This indicates an issue with while loop implementation:");
             let error_str = e.to_string();
-            
+
             if error_str.contains("parsing") {
                 println!("   • Grammar issue with while loop syntax");
             } else if error_str.contains("semantic") {
@@ -61,4 +61,4 @@ fn main() {
             }
         }
     }
-} 
+}

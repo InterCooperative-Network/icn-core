@@ -3,7 +3,7 @@
 //! This module implements various algorithms for calculating trust scores
 //! including PageRank-style algorithms and weighted trust propagation.
 
-use crate::trust_graph::{TrustGraph, TrustEdge};
+use crate::trust_graph::{TrustEdge, TrustGraph};
 use icn_common::{Did, TimeProvider};
 use std::collections::HashMap;
 
@@ -93,7 +93,8 @@ impl TrustCalculationEngine {
                                 // Apply time-based decay to edge weight
                                 let decayed_weight = self.apply_time_decay(edge, current_time);
                                 let source_score = scores.get(source).unwrap_or(&0.0);
-                                score += self.config.damping_factor * source_score * decayed_weight / out_degree;
+                                score += self.config.damping_factor * source_score * decayed_weight
+                                    / out_degree;
                             }
                         }
                     }
@@ -159,11 +160,19 @@ impl TrustCalculationEngine {
             }
 
             // Combine direct and indirect trust
-            let direct_avg = if direct_count > 0 { direct_trust_sum / direct_count as f64 } else { 0.0 };
-            let indirect_avg = if indirect_count > 0 { indirect_trust_sum / indirect_count as f64 } else { 0.0 };
+            let direct_avg = if direct_count > 0 {
+                direct_trust_sum / direct_count as f64
+            } else {
+                0.0
+            };
+            let indirect_avg = if indirect_count > 0 {
+                indirect_trust_sum / indirect_count as f64
+            } else {
+                0.0
+            };
 
-            total_score = self.config.direct_trust_weight * direct_avg 
-                        + (1.0 - self.config.direct_trust_weight) * indirect_avg;
+            total_score = self.config.direct_trust_weight * direct_avg
+                + (1.0 - self.config.direct_trust_weight) * indirect_avg;
 
             total_score = total_score.clamp(self.config.min_score, self.config.max_score);
             scores.insert(node.clone(), total_score);
@@ -213,11 +222,11 @@ impl TrustCalculationEngine {
     fn apply_time_decay(&self, edge: &TrustEdge, current_time: u64) -> f64 {
         let age_seconds = current_time.saturating_sub(edge.updated_at);
         let age_days = age_seconds as f64 / 86400.0; // Convert to days
-        
+
         // Exponential decay with half-life of 90 days
         let half_life_days = 90.0;
         let decay_factor = 0.5_f64.powf(age_days / half_life_days);
-        
+
         edge.weight * decay_factor
     }
 
@@ -314,7 +323,7 @@ impl TrustCalculationEngine {
 
         // Use BFS to find paths of exact length
         let mut queue = Vec::new();
-        
+
         // Initialize with all nodes that have edges to target
         if let Some(incoming_edges) = graph.get_incoming_edges(target) {
             for (source, edge) in incoming_edges {

@@ -302,8 +302,8 @@ impl MeshNetworkService for DefaultMeshNetworkService {
                                     storage_mb: bid_message.offered_resources.storage_mb,
                                 },
                                 executor_capabilities: vec![], // TODO: Extract from bid message
-                                executor_federations: vec![], // TODO: Extract from bid message
-                                executor_trust_scope: None, // TODO: Extract from bid message
+                                executor_federations: vec![],  // TODO: Extract from bid message
+                                executor_trust_scope: None,    // TODO: Extract from bid message
                                 signature: signed_message.signature.clone(),
                             };
 
@@ -407,7 +407,11 @@ impl MeshNetworkService for DefaultMeshNetworkService {
             wall_time_ms: receipt.cpu_ms,
             peak_memory_mb: 0, // TODO: Implement memory monitoring
             exit_code: if receipt.success { 0 } else { 1 },
-            execution_logs: if logs.is_empty() { None } else { Some(logs.join("\n")) },
+            execution_logs: if logs.is_empty() {
+                None
+            } else {
+                Some(logs.join("\n"))
+            },
         };
 
         let receipt_message = icn_protocol::MeshReceiptSubmissionMessage {

@@ -25,11 +25,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     "#;
 
     match compile_ccl_source_to_wasm(string_demo) {
-        Ok((wasm, _)) => println!("   ✅ COMPILED: {} bytes WASM - String manipulation ready for governance!", wasm.len()),
+        Ok((wasm, _)) => println!(
+            "   ✅ COMPILED: {} bytes WASM - String manipulation ready for governance!",
+            wasm.len()
+        ),
         Err(e) => println!("   ❌ FAILED: {}", e),
     }
 
-    // SUCCESS 2: Array Operations ✅  
+    // SUCCESS 2: Array Operations ✅
     println!("\n🔢 SUCCESS: Array Operations");
     let array_demo = r#"
     fn tally_votes() -> Integer {
@@ -44,7 +47,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     "#;
 
     match compile_ccl_source_to_wasm(array_demo) {
-        Ok((wasm, _)) => println!("   ✅ COMPILED: {} bytes WASM - Vote tallying ready for cooperatives!", wasm.len()),
+        Ok((wasm, _)) => println!(
+            "   ✅ COMPILED: {} bytes WASM - Vote tallying ready for cooperatives!",
+            wasm.len()
+        ),
         Err(e) => println!("   ❌ FAILED: {}", e),
     }
 
@@ -61,7 +67,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     "#;
 
     match compile_ccl_source_to_wasm(option_result_demo) {
-        Ok((wasm, _)) => println!("   ✅ COMPILED: {} bytes WASM - Error handling ready for robust governance!", wasm.len()),
+        Ok((wasm, _)) => println!(
+            "   ✅ COMPILED: {} bytes WASM - Error handling ready for robust governance!",
+            wasm.len()
+        ),
         Err(e) => println!("   ❌ FAILED: {}", e),
     }
 
@@ -78,7 +87,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     "#;
 
     match compile_ccl_source_to_wasm(map_demo) {
-        Ok((wasm, _)) => println!("   ✅ COMPILED: {} bytes WASM - Member management ready for cooperatives!", wasm.len()),
+        Ok((wasm, _)) => println!(
+            "   ✅ COMPILED: {} bytes WASM - Member management ready for cooperatives!",
+            wasm.len()
+        ),
         Err(e) => println!("   ❌ FAILED: {}", e),
     }
 
@@ -113,7 +125,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     "#;
 
     match compile_ccl_source_to_wasm(governance_demo) {
-        Ok((wasm, _)) => println!("   ✅ COMPILED: {} bytes WASM - Complete governance workflow ready!", wasm.len()),
+        Ok((wasm, _)) => println!(
+            "   ✅ COMPILED: {} bytes WASM - Complete governance workflow ready!",
+            wasm.len()
+        ),
         Err(e) => println!("   ❌ FAILED: {}", e),
     }
 

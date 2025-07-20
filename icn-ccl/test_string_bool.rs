@@ -15,7 +15,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("Testing Boolean type...");
     match compile_ccl_source_to_wasm(source1) {
         Ok((wasm, _metadata)) => {
@@ -26,7 +26,7 @@ fn main() {
             println!("❌ Boolean type failed: {}", e);
         }
     }
-    
+
     // Test 2: Using Bool (might not be supported)
     let source2 = r#"
         contract TestBool {
@@ -38,7 +38,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("\nTesting Bool type...");
     match compile_ccl_source_to_wasm(source2) {
         Ok((wasm, _metadata)) => {
@@ -49,7 +49,7 @@ fn main() {
             println!("❌ Bool type failed: {}", e);
         }
     }
-    
+
     // Test 3: String comparison with Boolean return type
     let source3 = r#"
         contract TestStringComparison {
@@ -63,7 +63,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("\nTesting string comparison with Boolean...");
     match compile_ccl_source_to_wasm(source3) {
         Ok((wasm, _metadata)) => {
@@ -74,4 +74,4 @@ fn main() {
             println!("❌ String comparison with Boolean failed: {}", e);
         }
     }
-} 
+}

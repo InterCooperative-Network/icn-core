@@ -33,8 +33,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let cid_str: String = resp.json()?;
-    let _cid =
-        parse_cid_from_string(&cid_str).map_err(|e| format!("Invalid CID returned: {e}"))?;
+    let _cid = parse_cid_from_string(&cid_str).map_err(|e| format!("Invalid CID returned: {e}"))?;
 
     let spec = serde_json::json!({
         "manifest_cid": cid_str,

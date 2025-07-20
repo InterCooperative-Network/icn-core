@@ -3,10 +3,10 @@
 //! This module implements algorithms for combining multiple trust signals
 //! into composite scores, enabling comprehensive trust evaluation in the cooperative network.
 
-use crate::trust_graph::{TrustGraph, TrustEdge};
 use crate::trust_calculation::TrustCalculationEngine;
-use crate::trust_pathfinding::TrustPathfinder;
 use crate::trust_decay::TrustDecayCalculator;
+use crate::trust_graph::{TrustEdge, TrustGraph};
+use crate::trust_pathfinding::TrustPathfinder;
 use icn_common::{Did, TimeProvider};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -17,15 +17,32 @@ pub enum TrustSignal {
     /// Direct trust relationship between two entities
     DirectTrust { from: Did, to: Did, weight: f64 },
     /// Indirect trust through intermediaries
-    IndirectTrust { from: Did, to: Did, path_length: usize, weight: f64 },
+    IndirectTrust {
+        from: Did,
+        to: Did,
+        path_length: usize,
+        weight: f64,
+    },
     /// Reputation-based trust (from reputation system)
     ReputationTrust { entity: Did, score: f64 },
     /// Activity-based trust (based on interaction frequency)
-    ActivityTrust { entity: Did, interaction_count: u64, recency_score: f64 },
+    ActivityTrust {
+        entity: Did,
+        interaction_count: u64,
+        recency_score: f64,
+    },
     /// Endorsement from other trusted entities
-    EndorsementTrust { endorser: Did, target: Did, weight: f64 },
+    EndorsementTrust {
+        endorser: Did,
+        target: Did,
+        weight: f64,
+    },
     /// Historical performance metrics
-    PerformanceTrust { entity: Did, success_rate: f64, sample_size: u64 },
+    PerformanceTrust {
+        entity: Did,
+        success_rate: f64,
+        sample_size: u64,
+    },
     /// Network position-based trust (centrality measures)
     NetworkTrust { entity: Did, centrality_score: f64 },
 }
@@ -59,7 +76,10 @@ pub enum CombinationMethod {
     /// Maximum likelihood estimation
     MaximumLikelihood,
     /// Bayesian combination with prior beliefs
-    Bayesian { prior_mean: f64, prior_variance: f64 },
+    Bayesian {
+        prior_mean: f64,
+        prior_variance: f64,
+    },
     /// Fuzzy logic combination
     FuzzyLogic,
     /// Custom weighted combination with non-linear transforms
@@ -144,10 +164,10 @@ impl TrustAggregator {
         time_provider: &dyn TimeProvider,
     ) -> AggregatedTrust {
         let timestamp = time_provider.unix_seconds();
-        
+
         // Filter and categorize signals by type
         let signal_scores = self.extract_signal_scores(&signals, entity);
-        
+
         // Remove outliers if configured
         let filtered_scores = if self.config.outlier_threshold > 0.0 {
             self.remove_outliers(signal_scores)
@@ -157,15 +177,13 @@ impl TrustAggregator {
 
         // Calculate weighted combination
         let (trust_score, confidence) = self.calculate_weighted_score(&filtered_scores);
-        
+
         // Calculate variance for confidence assessment
         let signal_variance = self.calculate_signal_variance(&filtered_scores);
-        
+
         // Apply confidence decay if insufficient signals
-        let adjusted_confidence = self.adjust_confidence_for_signal_count(
-            confidence,
-            filtered_scores.len(),
-        );
+        let adjusted_confidence =
+            self.adjust_confidence_for_signal_count(confidence, filtered_scores.len());
 
         // Normalize score if configured
         let final_score = if self.config.normalize_scores {
@@ -207,7 +225,9 @@ impl TrustAggregator {
 
         // Sort by trust score (highest first)
         results.sort_by(|a, b| {
-            b.trust_score.partial_cmp(&a.trust_score).unwrap_or(std::cmp::Ordering::Equal)
+            b.trust_score
+                .partial_cmp(&a.trust_score)
+                .unwrap_or(std::cmp::Ordering::Equal)
         });
 
         results
@@ -225,7 +245,9 @@ impl TrustAggregator {
 
         // Direct trust signal
         if let Some(edge) = graph.get_edge(observer, target) {
-            let decayed_weight = self.decay_calculator.calculate_time_decay(edge, time_provider.unix_seconds());
+            let decayed_weight = self
+                .decay_calculator
+                .calculate_time_decay(edge, time_provider.unix_seconds());
             signals.push(TrustSignal::DirectTrust {
                 from: observer.clone(),
                 to: target.clone(),
@@ -234,8 +256,11 @@ impl TrustAggregator {
         }
 
         // Indirect trust signals (through paths)
-        let paths = self.pathfinder.find_multiple_paths(graph, observer, target, time_provider);
-        for path in paths.iter().take(3) { // Limit to top 3 paths to avoid noise
+        let paths = self
+            .pathfinder
+            .find_multiple_paths(graph, observer, target, time_provider);
+        for path in paths.iter().take(3) {
+            // Limit to top 3 paths to avoid noise
             if path.length > 1 {
                 signals.push(TrustSignal::IndirectTrust {
                     from: observer.clone(),
@@ -250,13 +275,15 @@ impl TrustAggregator {
         if let Some(incoming_edges) = graph.get_incoming_edges(target) {
             let mut total_weight = 0.0;
             let mut count = 0;
-            
+
             for edge in incoming_edges.values() {
-                let decayed_weight = self.decay_calculator.calculate_time_decay(edge, time_provider.unix_seconds());
+                let decayed_weight = self
+                    .decay_calculator
+                    .calculate_time_decay(edge, time_provider.unix_seconds());
                 total_weight += decayed_weight;
                 count += 1;
             }
-            
+
             if count > 0 {
                 signals.push(TrustSignal::ReputationTrust {
                     entity: target.clone(),
@@ -293,30 +320,49 @@ impl TrustAggregator {
     }
 
     /// Extract numerical scores from signals by type
-    fn extract_signal_scores(&self, signals: &[TrustSignal], _entity: &Did) -> HashMap<String, f64> {
+    fn extract_signal_scores(
+        &self,
+        signals: &[TrustSignal],
+        _entity: &Did,
+    ) -> HashMap<String, f64> {
         let mut scores = HashMap::new();
 
         for signal in signals {
             let (signal_type, score) = match signal {
                 TrustSignal::DirectTrust { weight, .. } => ("direct", *weight),
-                TrustSignal::IndirectTrust { weight, path_length, .. } => {
+                TrustSignal::IndirectTrust {
+                    weight,
+                    path_length,
+                    ..
+                } => {
                     // Apply distance penalty to indirect trust
                     let distance_penalty = 0.8_f64.powi(*path_length as i32 - 1);
                     ("indirect", weight * distance_penalty)
                 }
                 TrustSignal::ReputationTrust { score, .. } => ("reputation", *score),
-                TrustSignal::ActivityTrust { interaction_count, recency_score, .. } => {
+                TrustSignal::ActivityTrust {
+                    interaction_count,
+                    recency_score,
+                    ..
+                } => {
                     // Combine interaction count and recency
-                    let activity_score = ((*interaction_count as f64).ln() / 10.0).min(1.0) * recency_score;
+                    let activity_score =
+                        ((*interaction_count as f64).ln() / 10.0).min(1.0) * recency_score;
                     ("activity", activity_score)
                 }
                 TrustSignal::EndorsementTrust { weight, .. } => ("endorsement", *weight),
-                TrustSignal::PerformanceTrust { success_rate, sample_size, .. } => {
+                TrustSignal::PerformanceTrust {
+                    success_rate,
+                    sample_size,
+                    ..
+                } => {
                     // Weight by sample size
                     let weight = (*sample_size as f64 / 100.0).min(1.0);
                     ("performance", success_rate * weight)
                 }
-                TrustSignal::NetworkTrust { centrality_score, .. } => ("network", *centrality_score),
+                TrustSignal::NetworkTrust {
+                    centrality_score, ..
+                } => ("network", *centrality_score),
             };
 
             // If multiple signals of same type, take the maximum
@@ -343,7 +389,7 @@ impl TrustAggregator {
         }
 
         let threshold = self.config.outlier_threshold * std_dev;
-        
+
         scores.retain(|_, score| (*score - mean).abs() <= threshold);
         scores
     }
@@ -359,7 +405,12 @@ impl TrustAggregator {
         let mut values = Vec::new();
 
         for (signal_type, score) in signal_scores {
-            let weight = self.config.signal_weights.get(signal_type).copied().unwrap_or(1.0);
+            let weight = self
+                .config
+                .signal_weights
+                .get(signal_type)
+                .copied()
+                .unwrap_or(1.0);
             weighted_sum += score * weight;
             total_weight += weight;
             values.push(*score);
@@ -371,69 +422,90 @@ impl TrustAggregator {
 
         let combined_score = match &self.config.combination_method {
             CombinationMethod::WeightedMean => weighted_sum / total_weight,
-            
+
             CombinationMethod::WeightedGeometricMean => {
                 let mut product = 1.0;
                 let mut weight_sum = 0.0;
-                
+
                 for (signal_type, score) in signal_scores {
-                    let weight = self.config.signal_weights.get(signal_type).copied().unwrap_or(1.0);
+                    let weight = self
+                        .config
+                        .signal_weights
+                        .get(signal_type)
+                        .copied()
+                        .unwrap_or(1.0);
                     if *score > 0.0 {
                         product *= score.powf(weight);
                         weight_sum += weight;
                     }
                 }
-                
+
                 if weight_sum > 0.0 {
                     product.powf(1.0 / weight_sum)
                 } else {
                     0.0
                 }
             }
-            
+
             CombinationMethod::WeightedHarmonicMean => {
                 let mut harmonic_sum = 0.0;
                 let mut weight_sum = 0.0;
-                
+
                 for (signal_type, score) in signal_scores {
-                    let weight = self.config.signal_weights.get(signal_type).copied().unwrap_or(1.0);
+                    let weight = self
+                        .config
+                        .signal_weights
+                        .get(signal_type)
+                        .copied()
+                        .unwrap_or(1.0);
                     if *score > 0.0 {
                         harmonic_sum += weight / score;
                         weight_sum += weight;
                     }
                 }
-                
+
                 if harmonic_sum > 0.0 {
                     weight_sum / harmonic_sum
                 } else {
                     0.0
                 }
             }
-            
-            CombinationMethod::Bayesian { prior_mean, prior_variance } => {
+
+            CombinationMethod::Bayesian {
+                prior_mean,
+                prior_variance,
+            } => {
                 let sample_mean = values.iter().sum::<f64>() / values.len() as f64;
-                let sample_variance = values.iter().map(|v| (v - sample_mean).powi(2)).sum::<f64>() / values.len() as f64;
-                
+                let sample_variance = values
+                    .iter()
+                    .map(|v| (v - sample_mean).powi(2))
+                    .sum::<f64>()
+                    / values.len() as f64;
+
                 // Bayesian updating
-                let posterior_precision = 1.0 / prior_variance + values.len() as f64 / sample_variance;
-                let posterior_mean = (prior_mean / prior_variance + sample_mean * values.len() as f64 / sample_variance) / posterior_precision;
-                
+                let posterior_precision =
+                    1.0 / prior_variance + values.len() as f64 / sample_variance;
+                let posterior_mean = (prior_mean / prior_variance
+                    + sample_mean * values.len() as f64 / sample_variance)
+                    / posterior_precision;
+
                 posterior_mean
             }
-            
+
             CombinationMethod::Custom { alpha, beta } => {
                 let base_score = weighted_sum / total_weight;
                 // Apply non-linear transform: score^alpha * (1 - score)^beta normalized
                 let transformed = base_score.powf(*alpha) * (1.0 - base_score).powf(*beta);
-                transformed / (alpha / (alpha + beta)).powf(*alpha) * (beta / (alpha + beta)).powf(*beta)
+                transformed / (alpha / (alpha + beta)).powf(*alpha)
+                    * (beta / (alpha + beta)).powf(*beta)
             }
-            
+
             _ => weighted_sum / total_weight, // Default to weighted mean
         };
 
         // Calculate confidence based on signal consistency
         let confidence = self.calculate_signal_confidence(&values);
-        
+
         (combined_score, confidence)
     }
 
@@ -449,10 +521,10 @@ impl TrustAggregator {
 
         // Confidence inversely related to variance (more consistent = higher confidence)
         let consistency_factor = (-std_dev).exp();
-        
+
         // Scale by number of signals (more signals = higher confidence, with diminishing returns)
         let signal_factor = 1.0 - (-(values.len() as f64) / 5.0).exp();
-        
+
         (consistency_factor * signal_factor).clamp(0.0, 1.0)
     }
 
@@ -480,8 +552,14 @@ impl TrustAggregator {
 
     /// Calculate a simple centrality measure for network position
     fn calculate_simple_centrality(&self, graph: &TrustGraph, entity: &Did) -> f64 {
-        let incoming_count = graph.get_incoming_edges(entity).map(|edges| edges.len()).unwrap_or(0);
-        let outgoing_count = graph.get_outgoing_edges(entity).map(|edges| edges.len()).unwrap_or(0);
+        let incoming_count = graph
+            .get_incoming_edges(entity)
+            .map(|edges| edges.len())
+            .unwrap_or(0);
+        let outgoing_count = graph
+            .get_outgoing_edges(entity)
+            .map(|edges| edges.len())
+            .unwrap_or(0);
         let total_nodes = graph.node_count();
 
         if total_nodes <= 1 {
@@ -519,9 +597,20 @@ mod tests {
         let bob = create_test_did("bob");
 
         let signals = vec![
-            TrustSignal::DirectTrust { from: alice.clone(), to: bob.clone(), weight: 0.8 },
-            TrustSignal::ReputationTrust { entity: bob.clone(), score: 0.9 },
-            TrustSignal::ActivityTrust { entity: bob.clone(), interaction_count: 10, recency_score: 0.7 },
+            TrustSignal::DirectTrust {
+                from: alice.clone(),
+                to: bob.clone(),
+                weight: 0.8,
+            },
+            TrustSignal::ReputationTrust {
+                entity: bob.clone(),
+                score: 0.9,
+            },
+            TrustSignal::ActivityTrust {
+                entity: bob.clone(),
+                interaction_count: 10,
+                recency_score: 0.7,
+            },
         ];
 
         let scores = aggregator.extract_signal_scores(&signals, &bob);
@@ -609,9 +698,19 @@ mod tests {
         let bob = create_test_did("bob");
 
         let signals = vec![
-            TrustSignal::DirectTrust { from: alice.clone(), to: bob.clone(), weight: 0.8 },
-            TrustSignal::ReputationTrust { entity: bob.clone(), score: 0.9 },
-            TrustSignal::NetworkTrust { entity: bob.clone(), centrality_score: 0.6 },
+            TrustSignal::DirectTrust {
+                from: alice.clone(),
+                to: bob.clone(),
+                weight: 0.8,
+            },
+            TrustSignal::ReputationTrust {
+                entity: bob.clone(),
+                score: 0.9,
+            },
+            TrustSignal::NetworkTrust {
+                entity: bob.clone(),
+                centrality_score: 0.6,
+            },
         ];
 
         let result = aggregator.aggregate_trust_for_entity(&bob, signals, &time_provider);
@@ -643,12 +742,16 @@ mod tests {
 
         // Should collect various types of signals
         assert!(!signals.is_empty());
-        
+
         // Should include direct trust signal
-        assert!(signals.iter().any(|s| matches!(s, TrustSignal::DirectTrust { .. })));
-        
+        assert!(signals
+            .iter()
+            .any(|s| matches!(s, TrustSignal::DirectTrust { .. })));
+
         // Should include network trust signal
-        assert!(signals.iter().any(|s| matches!(s, TrustSignal::NetworkTrust { .. })));
+        assert!(signals
+            .iter()
+            .any(|s| matches!(s, TrustSignal::NetworkTrust { .. })));
     }
 
     #[test]
@@ -685,7 +788,7 @@ mod tests {
 
         // Should have penalty for insufficient signals
         assert!(adjusted < base_confidence);
-        
+
         // With minimum signals, should not be penalized
         let sufficient = aggregator.adjust_confidence_for_signal_count(base_confidence, 3);
         assert_eq!(sufficient, base_confidence);

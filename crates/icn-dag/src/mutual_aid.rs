@@ -1,7 +1,7 @@
+use crate::StorageService;
 use icn_common::{
     compute_merkle_cid, CommonError, DagBlock, Did, SystemTimeProvider, TimeProvider,
 };
-use crate::StorageService;
 use serde::{Deserialize, Serialize};
 
 /// Record describing a resource available for mutual aid.
@@ -37,9 +37,8 @@ impl<S: StorageService<DagBlock>> MutualAidRegistry<S> {
         resource: &AidResource,
         author: &Did,
     ) -> Result<String, CommonError> {
-        let data = serde_json::to_vec(resource).map_err(|e| {
-            CommonError::SerializationError(format!("aid resource: {}", e))
-        })?;
+        let data = serde_json::to_vec(resource)
+            .map_err(|e| CommonError::SerializationError(format!("aid resource: {}", e)))?;
         let ts = SystemTimeProvider.unix_seconds();
         let cid = compute_merkle_cid(0x71, &data, &[], ts, author, &None, &None);
         let block = DagBlock {

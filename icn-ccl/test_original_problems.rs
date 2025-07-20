@@ -25,7 +25,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("Testing original problematic else-if with >=...");
     match compile_ccl_source_to_wasm(source1) {
         Ok((wasm, _metadata)) => {
@@ -36,7 +36,7 @@ fn main() {
             println!("❌ Original problematic pattern failed: {}", e);
         }
     }
-    
+
     // Test complex governance logic with == that was mentioned as failing
     let source2 = r#"
         contract TestGovernanceLogic {
@@ -64,7 +64,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("\nTesting complex governance logic with == and >=...");
     match compile_ccl_source_to_wasm(source2) {
         Ok((wasm, _metadata)) => {
@@ -75,7 +75,7 @@ fn main() {
             println!("❌ Complex governance logic failed: {}", e);
         }
     }
-    
+
     // Test that supposedly required mathematical workarounds
     let source3 = r#"
         contract TestMathematicalWorkaround {
@@ -95,7 +95,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("\nTesting complex arithmetic that needed mathematical workarounds...");
     match compile_ccl_source_to_wasm(source3) {
         Ok((wasm, _metadata)) => {
@@ -106,4 +106,4 @@ fn main() {
             println!("❌ Complex arithmetic failed: {}", e);
         }
     }
-} 
+}

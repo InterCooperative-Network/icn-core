@@ -1,6 +1,6 @@
+use super::{ResourceLedger, TokenClass, TokenClassId};
 use icn_common::{CommonError, Did};
 use rocksdb::{WriteBatch, DB};
-use super::{ResourceLedger, TokenClass, TokenClassId};
 use std::path::PathBuf;
 use std::sync::Mutex;
 
@@ -188,7 +188,9 @@ impl RocksdbResourceLedger {
         self.db
             .put(Self::class_key(id), data)
             .map_err(|e| CommonError::DatabaseError(format!("Failed to store class: {e}")))?;
-        self.db.flush().map_err(|e| CommonError::DatabaseError(format!("Failed to flush ledger: {e}")))?;
+        self.db
+            .flush()
+            .map_err(|e| CommonError::DatabaseError(format!("Failed to flush ledger: {e}")))?;
         Ok(())
     }
 
@@ -207,14 +209,21 @@ impl RocksdbResourceLedger {
         }
     }
 
-    fn write_balance(&self, class: &TokenClassId, did: &Did, amount: u64) -> Result<(), CommonError> {
+    fn write_balance(
+        &self,
+        class: &TokenClassId,
+        did: &Did,
+        amount: u64,
+    ) -> Result<(), CommonError> {
         let encoded = bincode::serialize(&amount).map_err(|e| {
             CommonError::SerializationError(format!("Failed to serialize balance: {e}"))
         })?;
         self.db
             .put(Self::balance_key(class, did), encoded)
             .map_err(|e| CommonError::DatabaseError(format!("Failed to store balance: {e}")))?;
-        self.db.flush().map_err(|e| CommonError::DatabaseError(format!("Failed to flush ledger: {e}")))?;
+        self.db
+            .flush()
+            .map_err(|e| CommonError::DatabaseError(format!("Failed to flush ledger: {e}")))?;
         Ok(())
     }
 
@@ -256,7 +265,13 @@ impl ResourceLedger for RocksdbResourceLedger {
         self.write_balance(class, owner, current - amount)
     }
 
-    fn transfer(&self, class: &TokenClassId, from: &Did, to: &Did, amount: u64) -> Result<(), CommonError> {
+    fn transfer(
+        &self,
+        class: &TokenClassId,
+        from: &Did,
+        to: &Did,
+        amount: u64,
+    ) -> Result<(), CommonError> {
         self.burn(class, from, amount)?;
         self.mint(class, to, amount)
     }

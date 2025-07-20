@@ -2,7 +2,8 @@ use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 
 use icn_common::{
-    compute_merkle_cid, Cid, DagBlock, DagLink, Did, NodeScope, ZkCredentialProof, ZkRevocationProof,
+    compute_merkle_cid, Cid, DagBlock, DagLink, Did, NodeScope, ZkCredentialProof,
+    ZkRevocationProof,
 };
 use icn_governance::scoped_policy::{
     DagPayloadOp, InMemoryPolicyEnforcer, PolicyCheckResult, ScopedPolicyEnforcer,

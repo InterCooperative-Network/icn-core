@@ -5,28 +5,28 @@ use serde::{Deserialize, Serialize};
 pub enum AstNode {
     // Top-level program node
     Program(Vec<TopLevelNode>),
-    
+
     // Legacy support for simple policies
     Policy(Vec<PolicyStatementNode>),
-    
+
     // New CCL 0.1 nodes
     ContractDeclaration {
         name: String,
         metadata: Vec<ContractMetaNode>,
         body: Vec<ContractBodyNode>,
     },
-    
+
     RoleDeclaration {
         name: String,
         extends: Option<String>,
         body: Vec<RoleBodyNode>,
     },
-    
+
     ProposalDeclaration {
         name: String,
         fields: Vec<ProposalFieldNode>,
     },
-    
+
     FunctionDefinition {
         name: String,
         type_parameters: Vec<TypeParameterNode>,
@@ -34,36 +34,36 @@ pub enum AstNode {
         return_type: Option<TypeExprNode>,
         body: BlockNode,
     },
-    
+
     StructDefinition {
         name: String,
         type_parameters: Vec<TypeParameterNode>,
         fields: Vec<FieldNode>,
     },
-    
+
     EnumDefinition {
         name: String,
         type_parameters: Vec<TypeParameterNode>,
         variants: Vec<EnumVariantNode>,
     },
-    
+
     StateDeclaration {
         name: String,
         type_expr: TypeExprNode,
         initial_value: Option<ExpressionNode>,
     },
-    
+
     ConstDeclaration {
         name: String,
         type_expr: TypeExprNode,
         value: ExpressionNode,
     },
-    
+
     ImportStatement {
         path: String,
         alias: Option<String>,
     },
-    
+
     Block(BlockNode),
 }
 
@@ -225,24 +225,35 @@ pub enum PolicyStatementNode {
     FunctionDef(AstNode), // Using AstNode::FunctionDefinition
     RuleDef(AstNode),     // Using AstNode::RuleDefinition
     StructDef(AstNode),
-    Import { path: String, alias: String },
-    ConstDef { name: String, value: ExpressionNode, type_ann: TypeAnnotationNode },
-    MacroDef { name: String, params: Vec<String>, body: String },
-    
+    Import {
+        path: String,
+        alias: String,
+    },
+    ConstDef {
+        name: String,
+        value: ExpressionNode,
+        type_ann: TypeAnnotationNode,
+    },
+    MacroDef {
+        name: String,
+        params: Vec<String>,
+        body: String,
+    },
+
     // Governance DSL statements
-    EventDef { 
-        name: String, 
-        fields: Vec<(String, TypeAnnotationNode)> 
+    EventDef {
+        name: String,
+        fields: Vec<(String, TypeAnnotationNode)>,
     },
-    StateDef { 
-        name: String, 
-        type_ann: TypeAnnotationNode, 
-        initial_value: Option<ExpressionNode> 
+    StateDef {
+        name: String,
+        type_ann: TypeAnnotationNode,
+        initial_value: Option<ExpressionNode>,
     },
-    TriggerDef { 
-        name: String, 
-        condition: ExpressionNode, 
-        action: ExpressionNode 
+    TriggerDef {
+        name: String,
+        condition: ExpressionNode,
+        action: ExpressionNode,
     },
 }
 
@@ -269,21 +280,27 @@ pub enum TypeExprNode {
     Did,
     Timestamp,
     Duration,
-    
+
     // Compound types
     Array(Box<TypeExprNode>),
-    Map { key_type: Box<TypeExprNode>, value_type: Box<TypeExprNode> },
+    Map {
+        key_type: Box<TypeExprNode>,
+        value_type: Box<TypeExprNode>,
+    },
     Option(Box<TypeExprNode>),
-    Result { ok_type: Box<TypeExprNode>, err_type: Box<TypeExprNode> },
-    
+    Result {
+        ok_type: Box<TypeExprNode>,
+        err_type: Box<TypeExprNode>,
+    },
+
     // Custom types
     Custom(String),
-    
+
     // Generic types
     TypeParameter(String), // Reference to a type parameter like T
-    GenericInstantiation { 
-        base_type: String, 
-        type_args: Vec<TypeExprNode> 
+    GenericInstantiation {
+        base_type: String,
+        type_args: Vec<TypeExprNode>,
     }, // Like Vec<T> or Map<K, V>
 }
 
@@ -319,12 +336,19 @@ impl TypeExprNode {
             TypeExprNode::Boolean => TypeAnnotationNode::Bool,
             TypeExprNode::Mana => TypeAnnotationNode::Mana,
             TypeExprNode::Did => TypeAnnotationNode::Did,
-            TypeExprNode::Array(inner) => TypeAnnotationNode::Array(Box::new(inner.to_type_annotation())),
-            TypeExprNode::Map { key_type, value_type } => TypeAnnotationNode::Map {
+            TypeExprNode::Array(inner) => {
+                TypeAnnotationNode::Array(Box::new(inner.to_type_annotation()))
+            }
+            TypeExprNode::Map {
+                key_type,
+                value_type,
+            } => TypeAnnotationNode::Map {
                 key_type: Box::new(key_type.to_type_annotation()),
                 value_type: Box::new(value_type.to_type_annotation()),
             },
-            TypeExprNode::Option(inner) => TypeAnnotationNode::Option(Box::new(inner.to_type_annotation())),
+            TypeExprNode::Option(inner) => {
+                TypeAnnotationNode::Option(Box::new(inner.to_type_annotation()))
+            }
             TypeExprNode::Result { ok_type, err_type } => TypeAnnotationNode::Result {
                 ok_type: Box::new(ok_type.to_type_annotation()),
                 err_type: Box::new(err_type.to_type_annotation()),
@@ -333,10 +357,12 @@ impl TypeExprNode {
             TypeExprNode::Timestamp => TypeAnnotationNode::Custom("Timestamp".to_string()),
             TypeExprNode::Duration => TypeAnnotationNode::Custom("Duration".to_string()),
             TypeExprNode::TypeParameter(name) => TypeAnnotationNode::Custom(name.clone()),
-            TypeExprNode::GenericInstantiation { base_type, .. } => TypeAnnotationNode::Custom(base_type.clone()),
+            TypeExprNode::GenericInstantiation { base_type, .. } => {
+                TypeAnnotationNode::Custom(base_type.clone())
+            }
         }
     }
-    
+
     /// Returns true if two types are considered compatible.
     pub fn compatible_with(&self, other: &Self) -> bool {
         self == other
@@ -418,7 +444,7 @@ pub enum StatementNode {
     },
     Require(ExpressionNode),
     ExpressionStatement(ExpressionNode),
-    
+
     // Legacy statements for backward compatibility
     WhileLoop {
         condition: ExpressionNode,
@@ -448,7 +474,7 @@ pub enum LValueNode {
 pub struct MatchArmNode {
     pub pattern: PatternNode,
     pub guard: Option<ExpressionNode>, // Optional guard condition
-    pub body: ExpressionNode, // Simplified: match arms return expressions
+    pub body: ExpressionNode,          // Simplified: match arms return expressions
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -491,7 +517,7 @@ pub struct FieldInitNode {
 pub enum ExpressionNode {
     // Literals
     Literal(LiteralNode),
-    
+
     // Variables and functions
     Identifier(String),
     FunctionCall {
@@ -503,20 +529,20 @@ pub enum ExpressionNode {
         method: String,
         args: Vec<ExpressionNode>,
     },
-    
+
     // Binary operations
     BinaryOp {
         left: Box<ExpressionNode>,
         operator: BinaryOperator,
         right: Box<ExpressionNode>,
     },
-    
+
     // Unary operations
     UnaryOp {
         operator: UnaryOperator,
         operand: Box<ExpressionNode>,
     },
-    
+
     // Member access and indexing
     MemberAccess {
         object: Box<ExpressionNode>,
@@ -526,7 +552,7 @@ pub enum ExpressionNode {
         object: Box<ExpressionNode>,
         index: Box<ExpressionNode>,
     },
-    
+
     // Compound expressions
     ArrayLiteral(Vec<ExpressionNode>),
     MapLiteral(Vec<(ExpressionNode, ExpressionNode)>), // Key-value pairs
@@ -538,13 +564,13 @@ pub enum ExpressionNode {
         enum_name: String,
         variant: String,
     },
-    
+
     // Option and Result expressions
     Some(Box<ExpressionNode>),
     None,
     Ok(Box<ExpressionNode>),
     Err(Box<ExpressionNode>),
-    
+
     // Special governance expressions
     Transfer {
         from: Box<ExpressionNode>,
@@ -559,13 +585,13 @@ pub enum ExpressionNode {
         from: Box<ExpressionNode>,
         amount: Box<ExpressionNode>,
     },
-    
+
     // Match expressions
     Match {
         expr: Box<ExpressionNode>,
         arms: Vec<MatchArmNode>,
     },
-    
+
     // Legacy expressions
     IntegerLiteral(i64),
     StringLiteral(String),
@@ -623,7 +649,7 @@ pub fn pair_to_ast(
 ) -> Result<AstNode, crate::error::CclError> {
     use crate::error::CclError;
     use crate::parser::{self, Rule};
-    
+
     match pair.as_rule() {
         Rule::program => {
             let mut items = Vec::new();
@@ -681,11 +707,9 @@ pub fn pair_to_ast(
                 body: func.body,
             })
         }
-        _ => {
-            Err(CclError::ParsingError(format!(
-                "Unsupported top-level rule: {:?}",
-                pair.as_rule()
-            )))
-        }
+        _ => Err(CclError::ParsingError(format!(
+            "Unsupported top-level rule: {:?}",
+            pair.as_rule()
+        ))),
     }
 }

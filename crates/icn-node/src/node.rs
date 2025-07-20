@@ -17,7 +17,6 @@
 
 use crate::circuit_registry::CircuitRegistry;
 use crate::parameter_store::ParameterStore;
-use icn_economics::ManaLedger;
 use dashmap::DashSet;
 use icn_api::governance_trait::{
     CastVoteRequest as ApiCastVoteRequest, DelegateRequest as ApiDelegateRequest,
@@ -39,11 +38,12 @@ use icn_common::{
     ICN_CORE_VERSION,
 };
 use icn_dag;
+use icn_economics::ManaLedger;
 use icn_identity::{
     did_key_from_verifying_key, generate_ed25519_keypair,
     zk::{DummyProver, ZkProver},
-    Credential, DisclosedCredential, ExecutionReceipt as IdentityExecutionReceipt,
-    InMemoryCredentialStore, SignatureBytes, CooperativeRegistry,
+    CooperativeRegistry, Credential, DisclosedCredential,
+    ExecutionReceipt as IdentityExecutionReceipt, InMemoryCredentialStore, SignatureBytes,
 };
 use icn_mesh::{ActualMeshJob, JobId, JobSpec};
 #[allow(unused_imports)]
@@ -61,23 +61,25 @@ use icn_runtime::{host_anchor_receipt, host_submit_mesh_job, ReputationUpdater};
 use prometheus_client::{encoding::text::encode, registry::Registry};
 
 use axum::{
-    extract::{Path as AxumPath, Query, State, WebSocketUpgrade, ws::{Message, WebSocket}},
+    extract::{
+        ws::{Message, WebSocket},
+        Path as AxumPath, Query, State, WebSocketUpgrade,
+    },
     http::{HeaderValue, StatusCode},
     middleware::{self, Next},
     response::IntoResponse,
     routing::{get, post},
     Json, Router,
 };
-use tower_http::cors::{CorsLayer, Any};
 use axum_server::tls_rustls::RustlsConfig;
 use base64::{self, prelude::BASE64_STANDARD, Engine};
 use bincode;
 use bs58;
 use chrono;
 use clap::{ArgMatches, CommandFactory, FromArgMatches, Parser};
-use tracing::{debug, error, info, warn};
-use tracing_subscriber::EnvFilter;
+use futures_util::{sink::SinkExt, stream::StreamExt};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fs;
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -86,11 +88,12 @@ use std::str::FromStr;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-use std::collections::HashMap;
-use tokio::sync::broadcast;
-use futures_util::{sink::SinkExt, stream::StreamExt};
 use subtle::ConstantTimeEq;
+use tokio::sync::broadcast;
 use tokio::sync::{Mutex as AsyncMutex, Mutex as TokioMutex};
+use tower_http::cors::{Any, CorsLayer};
+use tracing::{debug, error, info, warn};
+use tracing_subscriber::EnvFilter;
 use uuid::Uuid;
 
 use crate::config::{NodeConfig, StorageBackendType, StorageConfig};
@@ -101,8 +104,6 @@ use icn_runtime::context::mesh_network::ZK_VERIFY_COST_MANA;
 use icn_network::libp2p_service::{Libp2pNetworkService, NetworkConfig};
 #[cfg(feature = "enable-libp2p")]
 use libp2p::Multiaddr;
-
-
 
 // Initialize node start time (call this when the node starts)
 fn init_node_start_time() {
@@ -289,7 +290,11 @@ pub struct Cli {
     #[clap(long, action)]
     pub test_mode: bool,
 
-    #[clap(long, action, help = "Enable demo mode with preloaded test data and memory-only storage")]
+    #[clap(
+        long,
+        action,
+        help = "Enable demo mode with preloaded test data and memory-only storage"
+    )]
     pub demo: bool,
 
     #[clap(long)]
@@ -511,7 +516,7 @@ async fn require_api_key(
     if req.method() == axum::http::Method::OPTIONS {
         return next.run(req).await;
     }
-    
+
     if let Some(ref expected) = state.api_key {
         let provided = req.headers().get("x-api-key").and_then(|v| v.to_str().ok());
         let valid = provided
@@ -629,11 +634,11 @@ async fn correlation_id_middleware(
     let latency = start.elapsed();
     let status = res.status().as_u16();
     info!(target: "request", "end cid={} status={} latency_ms={}", cid, status, latency.as_millis());
-    
+
     // Track HTTP metrics
     icn_api::metrics::system::HTTP_REQUESTS_TOTAL.inc();
     icn_api::metrics::system::HTTP_REQUEST_DURATION.observe(latency.as_secs_f64());
-    
+
     if status >= 400 {
         icn_api::metrics::system::HTTP_ERRORS_TOTAL.inc();
     }
@@ -644,8 +649,11 @@ async fn correlation_id_middleware(
 pub async fn build_network_service(
     config: &NodeConfig,
 ) -> Result<Arc<dyn NetworkService>, CommonError> {
-    info!("🚀 Building network service - test_mode: {}, enable_p2p: {}", config.test_mode, config.p2p.enable_p2p);
-    
+    info!(
+        "🚀 Building network service - test_mode: {}, enable_p2p: {}",
+        config.test_mode, config.p2p.enable_p2p
+    );
+
     if config.test_mode {
         info!("🧪 Test mode enabled - using stub network service");
         return Ok(Arc::new(icn_network::StubNetworkService::default()));
@@ -657,7 +665,7 @@ pub async fn build_network_service(
             info!("🔧 Attempting to create libp2p network service...");
             let net_cfg = config.libp2p_config()?;
             info!("✅ libp2p config created successfully");
-            
+
             match icn_network::libp2p_service::Libp2pNetworkService::new(net_cfg).await {
                 Ok(service) => {
                     info!("✅ Libp2p network service created successfully!");
@@ -666,7 +674,10 @@ pub async fn build_network_service(
                 Err(e) => {
                     error!("❌ Libp2p service creation failed: {}", e);
                     error!("🔄 Falling back to stub network service due to libp2p failure");
-                    return Err(CommonError::NetworkError(format!("Failed to create libp2p service: {}", e)));
+                    return Err(CommonError::NetworkError(format!(
+                        "Failed to create libp2p service: {}",
+                        e
+                    )));
                 }
             }
         }
@@ -951,7 +962,10 @@ pub async fn app_router_with_options(
             .route("/identity/verify", post(zk_verify_handler))
             .route("/identity/generate-proof", post(zk_generate_handler))
             .route("/identity/verify-proof", post(zk_verify_handler))
-            .route("/identity/verify/revocation", post(zk_verify_revocation_handler))
+            .route(
+                "/identity/verify/revocation",
+                post(zk_verify_revocation_handler),
+            )
             .route("/identity/verify/batch", post(zk_verify_batch_handler))
             .route(
                 "/identity/credentials/issue",
@@ -1001,8 +1015,14 @@ pub async fn app_router_with_options(
             .route("/mesh/submit", post(mesh_submit_job_handler)) // Job submission
             .route("/mesh/jobs", get(mesh_list_jobs_handler)) // List all jobs
             .route("/mesh/jobs/{job_id}", get(mesh_get_job_status_handler)) // Get specific job status
-            .route("/mesh/jobs/{job_id}/progress", get(mesh_get_job_progress_handler)) // Get job progress
-            .route("/mesh/jobs/{job_id}/stream", get(mesh_get_job_stream_handler)) // Get job stream
+            .route(
+                "/mesh/jobs/{job_id}/progress",
+                get(mesh_get_job_progress_handler),
+            ) // Get job progress
+            .route(
+                "/mesh/jobs/{job_id}/stream",
+                get(mesh_get_job_stream_handler),
+            ) // Get job stream
             .route("/mesh/jobs/{job_id}/cancel", post(mesh_cancel_job_handler)) // Cancel job
             .route("/mesh/jobs/{job_id}/resume", post(mesh_resume_job_handler)) // Resume job
             .route("/mesh/metrics", get(mesh_get_metrics_handler)) // Get mesh metrics
@@ -1022,11 +1042,23 @@ pub async fn app_router_with_options(
             .route("/federation/sync", post(federation_sync_handler))
             .route("/cooperative/register", post(cooperative_register_handler))
             .route("/cooperative/search", post(cooperative_search_handler))
-            .route("/cooperative/profile/{did}", get(cooperative_get_profile_handler))
+            .route(
+                "/cooperative/profile/{did}",
+                get(cooperative_get_profile_handler),
+            )
             .route("/cooperative/trust", post(cooperative_add_trust_handler))
-            .route("/cooperative/trust/{did}", get(cooperative_get_trust_handler))
-            .route("/cooperative/capabilities/{capability_type}", get(cooperative_get_capability_providers_handler))
-            .route("/cooperative/registry/stats", get(cooperative_registry_stats_handler))
+            .route(
+                "/cooperative/trust/{did}",
+                get(cooperative_get_trust_handler),
+            )
+            .route(
+                "/cooperative/capabilities/{capability_type}",
+                get(cooperative_get_capability_providers_handler),
+            )
+            .route(
+                "/cooperative/registry/stats",
+                get(cooperative_registry_stats_handler),
+            )
             .route("/ws", get(websocket_handler))
             .with_state(app_state.clone())
             .layer(middleware::from_fn_with_state(
@@ -1043,7 +1075,7 @@ pub async fn app_router_with_options(
                     .allow_origin(Any)
                     .allow_methods(Any)
                     .allow_headers(Any)
-                    .allow_credentials(true)
+                    .allow_credentials(true),
             ),
         rt_ctx,
     )
@@ -1207,8 +1239,14 @@ pub async fn app_router_from_context(
         .route("/mesh/submit", post(mesh_submit_job_handler))
         .route("/mesh/jobs", get(mesh_list_jobs_handler))
         .route("/mesh/jobs/{job_id}", get(mesh_get_job_status_handler))
-        .route("/mesh/jobs/{job_id}/progress", get(mesh_get_job_progress_handler))
-        .route("/mesh/jobs/{job_id}/stream", get(mesh_get_job_stream_handler))
+        .route(
+            "/mesh/jobs/{job_id}/progress",
+            get(mesh_get_job_progress_handler),
+        )
+        .route(
+            "/mesh/jobs/{job_id}/stream",
+            get(mesh_get_job_stream_handler),
+        )
         .route("/mesh/jobs/{job_id}/cancel", post(mesh_cancel_job_handler))
         .route("/mesh/jobs/{job_id}/resume", post(mesh_resume_job_handler))
         .route("/mesh/metrics", get(mesh_get_metrics_handler))
@@ -1228,11 +1266,23 @@ pub async fn app_router_from_context(
         .route("/federation/sync", post(federation_sync_handler))
         .route("/cooperative/register", post(cooperative_register_handler))
         .route("/cooperative/search", post(cooperative_search_handler))
-        .route("/cooperative/profile/{did}", get(cooperative_get_profile_handler))
+        .route(
+            "/cooperative/profile/{did}",
+            get(cooperative_get_profile_handler),
+        )
         .route("/cooperative/trust", post(cooperative_add_trust_handler))
-        .route("/cooperative/trust/{did}", get(cooperative_get_trust_handler))
-        .route("/cooperative/capabilities/{capability_type}", get(cooperative_get_capability_providers_handler))
-        .route("/cooperative/registry/stats", get(cooperative_registry_stats_handler))
+        .route(
+            "/cooperative/trust/{did}",
+            get(cooperative_get_trust_handler),
+        )
+        .route(
+            "/cooperative/capabilities/{capability_type}",
+            get(cooperative_get_capability_providers_handler),
+        )
+        .route(
+            "/cooperative/registry/stats",
+            get(cooperative_registry_stats_handler),
+        )
         .route("/ws", get(websocket_handler))
         .with_state(app_state.clone())
         .layer(
@@ -1240,7 +1290,7 @@ pub async fn app_router_from_context(
                 .allow_origin(Any)
                 .allow_methods(Any)
                 .allow_headers(Any)
-                .allow_credentials(true)
+                .allow_credentials(true),
         )
         .layer(middleware::from_fn(correlation_id_middleware))
         .layer(middleware::from_fn_with_state(
@@ -1257,7 +1307,7 @@ pub async fn app_router_from_context(
 pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
     // Simple logging initialization - ignore errors if already initialized
     let _ = env_logger::try_init();
-    
+
     init_node_start_time(); // Initialize uptime tracking
 
     let cmd = Cli::command();
@@ -1561,8 +1611,14 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
         .route("/mesh/submit", post(mesh_submit_job_handler))
         .route("/mesh/jobs", get(mesh_list_jobs_handler))
         .route("/mesh/jobs/{job_id}", get(mesh_get_job_status_handler))
-        .route("/mesh/jobs/{job_id}/progress", get(mesh_get_job_progress_handler))
-        .route("/mesh/jobs/{job_id}/stream", get(mesh_get_job_stream_handler))
+        .route(
+            "/mesh/jobs/{job_id}/progress",
+            get(mesh_get_job_progress_handler),
+        )
+        .route(
+            "/mesh/jobs/{job_id}/stream",
+            get(mesh_get_job_stream_handler),
+        )
         .route("/mesh/jobs/{job_id}/cancel", post(mesh_cancel_job_handler))
         .route("/mesh/jobs/{job_id}/resume", post(mesh_resume_job_handler))
         .route("/mesh/metrics", get(mesh_get_metrics_handler))
@@ -1580,11 +1636,23 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
         .route("/federation/sync", post(federation_sync_handler))
         .route("/cooperative/register", post(cooperative_register_handler))
         .route("/cooperative/search", post(cooperative_search_handler))
-        .route("/cooperative/profile/{did}", get(cooperative_get_profile_handler))
+        .route(
+            "/cooperative/profile/{did}",
+            get(cooperative_get_profile_handler),
+        )
         .route("/cooperative/trust", post(cooperative_add_trust_handler))
-        .route("/cooperative/trust/{did}", get(cooperative_get_trust_handler))
-        .route("/cooperative/capabilities/{capability_type}", get(cooperative_get_capability_providers_handler))
-        .route("/cooperative/registry/stats", get(cooperative_registry_stats_handler))
+        .route(
+            "/cooperative/trust/{did}",
+            get(cooperative_get_trust_handler),
+        )
+        .route(
+            "/cooperative/capabilities/{capability_type}",
+            get(cooperative_get_capability_providers_handler),
+        )
+        .route(
+            "/cooperative/registry/stats",
+            get(cooperative_registry_stats_handler),
+        )
         .route("/ws", get(websocket_handler))
         .with_state(app_state.clone())
         .layer(middleware::from_fn_with_state(
@@ -1855,10 +1923,10 @@ async fn metrics_handler() -> impl IntoResponse {
 
     let mut buffer = String::new();
     encode(&mut buffer, &registry).unwrap();
-    
+
     // Track this metrics request
     icn_api::metrics::system::HTTP_REQUESTS_TOTAL.inc();
-    
+
     (StatusCode::OK, buffer)
 }
 
@@ -2313,9 +2381,10 @@ async fn gov_submit_handler(
         icn_api::governance_trait::ProposalInputType::GenericText { text } => {
             ("GenericText".to_string(), text.into_bytes())
         }
-        icn_api::governance_trait::ProposalInputType::Resolution { actions } => {
-            ("Resolution".to_string(), serde_json::to_vec(&actions).unwrap())
-        }
+        icn_api::governance_trait::ProposalInputType::Resolution { actions } => (
+            "Resolution".to_string(),
+            serde_json::to_vec(&actions).unwrap(),
+        ),
     };
 
     let payload = icn_runtime::context::CreateProposalPayload {
@@ -3104,7 +3173,7 @@ async fn mesh_get_job_stream_handler(
             "content_type": "text/plain",
             "is_final": true,
             "timestamp": chrono::Utc::now().timestamp() as u64
-        })
+        }),
     ];
 
     (StatusCode::OK, Json(stream_chunks))
@@ -3142,14 +3211,14 @@ async fn mesh_cancel_job_handler(
                     // Update job state to cancelled (for now, we'll just return success)
                     // In a real implementation, this would signal the executor to stop
                     info!("[Node] Job {} marked for cancellation", job_id_str);
-                    
+
                     let response = serde_json::json!({
                         "success": true,
                         "message": "Job cancellation requested",
                         "job_id": job_id_str
                     });
                     (StatusCode::OK, Json(response))
-                },
+                }
                 icn_mesh::JobState::Completed { .. } | icn_mesh::JobState::Failed { .. } => {
                     let response = serde_json::json!({
                         "success": false,
@@ -3159,7 +3228,7 @@ async fn mesh_cancel_job_handler(
                     (StatusCode::CONFLICT, Json(response))
                 }
             }
-        },
+        }
         None => {
             let response = serde_json::json!({
                 "success": false,
@@ -3202,15 +3271,18 @@ async fn mesh_resume_job_handler(
                 icn_mesh::JobState::Failed { .. } => {
                     // In a real implementation, this would check for checkpoints
                     // and attempt to resume execution from the latest checkpoint
-                    info!("[Node] Attempting to resume job {} from checkpoint", job_id_str);
-                    
+                    info!(
+                        "[Node] Attempting to resume job {} from checkpoint",
+                        job_id_str
+                    );
+
                     let response = serde_json::json!({
                         "success": true,
                         "message": "Job resume initiated",
                         "job_id": job_id_str
                     });
                     (StatusCode::OK, Json(response))
-                },
+                }
                 icn_mesh::JobState::Completed { .. } => {
                     let response = serde_json::json!({
                         "success": false,
@@ -3218,7 +3290,7 @@ async fn mesh_resume_job_handler(
                         "job_id": job_id_str
                     });
                     (StatusCode::CONFLICT, Json(response))
-                },
+                }
                 _ => {
                     let response = serde_json::json!({
                         "success": false,
@@ -3228,7 +3300,7 @@ async fn mesh_resume_job_handler(
                     (StatusCode::CONFLICT, Json(response))
                 }
             }
-        },
+        }
         None => {
             let response = serde_json::json!({
                 "success": false,
@@ -3241,27 +3313,25 @@ async fn mesh_resume_job_handler(
 }
 
 // GET /mesh/metrics - Get mesh execution metrics
-async fn mesh_get_metrics_handler(
-    State(state): State<AppState>,
-) -> impl IntoResponse {
+async fn mesh_get_metrics_handler(State(state): State<AppState>) -> impl IntoResponse {
     info!("[Node] Received mesh_get_metrics request");
 
     let job_states = &state.runtime_context.job_states;
-    
+
     // Calculate basic metrics from job states
     let total_jobs = job_states.len() as u64;
     let mut running_jobs = 0u64;
     let mut completed_jobs = 0u64;
     let mut failed_jobs = 0u64;
-    
+
     for job_state in job_states.iter() {
         match &*job_state.value() {
             icn_mesh::JobState::Pending | icn_mesh::JobState::Assigned { .. } => {
                 running_jobs += 1;
-            },
+            }
             icn_mesh::JobState::Completed { .. } => {
                 completed_jobs += 1;
-            },
+            }
             icn_mesh::JobState::Failed { .. } => {
                 failed_jobs += 1;
             }
@@ -3585,8 +3655,10 @@ async fn zk_verify_handler(
             Json(serde_json::json!({ "verified": true })),
         )
             .into_response(),
-        Ok(false) => map_rust_error_to_json_response("verification failed", StatusCode::BAD_REQUEST)
-            .into_response(),
+        Ok(false) => {
+            map_rust_error_to_json_response("verification failed", StatusCode::BAD_REQUEST)
+                .into_response()
+        }
         Err(e) => map_rust_error_to_json_response(e, StatusCode::BAD_REQUEST).into_response(),
     }
 }
@@ -3660,8 +3732,10 @@ async fn zk_verify_revocation_handler(
             Json(serde_json::json!({ "verified": true })),
         )
             .into_response(),
-        Ok(false) => map_rust_error_to_json_response("verification failed", StatusCode::BAD_REQUEST)
-            .into_response(),
+        Ok(false) => {
+            map_rust_error_to_json_response("verification failed", StatusCode::BAD_REQUEST)
+                .into_response()
+        }
         Err(e) => map_rust_error_to_json_response(e, StatusCode::BAD_REQUEST).into_response(),
     }
 }
@@ -3765,8 +3839,11 @@ async fn credential_verify_handler(
                     .into_response();
             }
             if state.revocation_registry.is_revoked(&cid) {
-                return map_rust_error_to_json_response("Credential revoked", StatusCode::FORBIDDEN)
-                    .into_response();
+                return map_rust_error_to_json_response(
+                    "Credential revoked",
+                    StatusCode::FORBIDDEN,
+                )
+                .into_response();
             }
         }
         for (k, _) in &cred.claims {
@@ -3911,12 +3988,17 @@ async fn handle_websocket(socket: WebSocket, state: AppState) {
     let (mut sender, mut receiver) = socket.split();
 
     // Send a welcome message
-    if let Err(_) = sender.send(Message::Text(
-        serde_json::json!({
-            "type": "connected",
-            "message": "WebSocket connection established"
-        }).to_string().into()
-    )).await {
+    if let Err(_) = sender
+        .send(Message::Text(
+            serde_json::json!({
+                "type": "connected",
+                "message": "WebSocket connection established"
+            })
+            .to_string()
+            .into(),
+        ))
+        .await
+    {
         return;
     }
 
@@ -4368,7 +4450,8 @@ mod tests {
 // --- Cooperative Discovery Handlers ---
 
 use icn_identity::{
-    CooperativeSearchFilter, CooperativeSearchResult, CooperativeProfile, TrustRelationship, RegistryStats
+    CooperativeProfile, CooperativeSearchFilter, CooperativeSearchResult, RegistryStats,
+    TrustRelationship,
 };
 
 // POST /cooperative/register - Register a cooperative profile
@@ -4376,7 +4459,11 @@ async fn cooperative_register_handler(
     State(state): State<AppState>,
     Json(profile): Json<CooperativeProfile>,
 ) -> impl IntoResponse {
-    match state.cooperative_registry.register_cooperative(profile).await {
+    match state
+        .cooperative_registry
+        .register_cooperative(profile)
+        .await
+    {
         Ok(cid) => (
             StatusCode::CREATED,
             Json(serde_json::json!({ "cid": cid.to_string(), "status": "registered" })),
@@ -4413,22 +4500,20 @@ async fn cooperative_get_profile_handler(
     match Did::from_str(&did_str) {
         Ok(did) => match state.cooperative_registry.get_cooperative(&did).await {
             Ok(Some(profile)) => (StatusCode::OK, Json(profile)).into_response(),
-            Ok(None) => map_rust_error_to_json_response(
-                "Cooperative not found",
-                StatusCode::NOT_FOUND,
-            )
-            .into_response(),
+            Ok(None) => {
+                map_rust_error_to_json_response("Cooperative not found", StatusCode::NOT_FOUND)
+                    .into_response()
+            }
             Err(e) => map_rust_error_to_json_response(
                 format!("Query failed: {}", e),
                 StatusCode::INTERNAL_SERVER_ERROR,
             )
             .into_response(),
         },
-        Err(e) => map_rust_error_to_json_response(
-            format!("Invalid DID: {}", e),
-            StatusCode::BAD_REQUEST,
-        )
-        .into_response(),
+        Err(e) => {
+            map_rust_error_to_json_response(format!("Invalid DID: {}", e), StatusCode::BAD_REQUEST)
+                .into_response()
+        }
     }
 }
 
@@ -4437,7 +4522,11 @@ async fn cooperative_add_trust_handler(
     State(state): State<AppState>,
     Json(trust): Json<TrustRelationship>,
 ) -> impl IntoResponse {
-    match state.cooperative_registry.add_trust_relationship(trust).await {
+    match state
+        .cooperative_registry
+        .add_trust_relationship(trust)
+        .await
+    {
         Ok(cid) => (
             StatusCode::CREATED,
             Json(serde_json::json!({ "cid": cid.to_string(), "status": "trust_added" })),
@@ -4461,11 +4550,10 @@ async fn cooperative_get_trust_handler(
             let relationships = state.cooperative_registry.get_trust_relationships(&did);
             (StatusCode::OK, Json(relationships)).into_response()
         }
-        Err(e) => map_rust_error_to_json_response(
-            format!("Invalid DID: {}", e),
-            StatusCode::BAD_REQUEST,
-        )
-        .into_response(),
+        Err(e) => {
+            map_rust_error_to_json_response(format!("Invalid DID: {}", e), StatusCode::BAD_REQUEST)
+                .into_response()
+        }
     }
 }
 
@@ -4496,18 +4584,17 @@ async fn cooperative_registry_stats_handler(State(state): State<AppState>) -> im
 
 // --- Test module (can be expanded later) ---
 
-
 /// Load demo data for demonstration and testing purposes
 async fn load_demo_data(
     rt_ctx: &Arc<icn_runtime::context::RuntimeContext>,
     node_did: &Did,
 ) -> Result<(), CommonError> {
     info!("Loading demo data...");
-    
+
     // TODO: Add demo governance proposals
     info!("Demo governance proposals (placeholder)");
-    
-    // TODO: Add demo mesh jobs  
+
+    // TODO: Add demo mesh jobs
     info!("Demo mesh jobs (placeholder)");
 
     info!("Demo data loading complete!");

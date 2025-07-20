@@ -1,6 +1,6 @@
-use std::sync::Arc;
 use dashmap::DashSet;
 use icn_common::Cid;
+use std::sync::Arc;
 
 /// Registry of issued credentials used to check revocation status.
 pub trait RevocationRegistry: Send + Sync {

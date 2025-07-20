@@ -16,7 +16,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("Parsing source to see AST structure...");
     match parse_ccl_source(source) {
         Ok(ast) => {
@@ -27,7 +27,7 @@ fn main() {
             println!("❌ AST parsing failed: {}", e);
         }
     }
-    
+
     // Test even simpler case
     let simple_source = r#"
         contract TestSimple {
@@ -39,7 +39,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("\nParsing simple equality...");
     match parse_ccl_source(simple_source) {
         Ok(ast) => {
@@ -50,4 +50,4 @@ fn main() {
             println!("❌ Simple equality parsing failed: {}", e);
         }
     }
-} 
+}

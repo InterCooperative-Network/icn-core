@@ -166,7 +166,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("🏛️  Compiling CCL Working Features Demonstration...");
     println!();
     println!("🌟 **ALL WORKING FEATURES:**");
@@ -181,7 +181,7 @@ fn main() {
     println!("   ✨ **Complex Logic:** Multi-step algorithms and validation");
     println!("   ✨ **Real Governance:** Practical cooperative decision-making");
     println!();
-    
+
     match compile_ccl_source_to_wasm(working_contract) {
         Ok((wasm, metadata)) => {
             println!("🎉 🎉 🎉 ALL FEATURES COMPILED SUCCESSFULLY! 🎉 🎉 🎉");
@@ -205,7 +205,7 @@ fn main() {
             println!();
             println!("🌍 **REAL-WORLD IMPACT:**");
             println!("   🏛️  Cooperative governance automation");
-            println!("   ⚖️  Democratic decision-making algorithms"); 
+            println!("   ⚖️  Democratic decision-making algorithms");
             println!("   📊 Transparent metrics and health scoring");
             println!("   🤝 Member management and validation");
             println!("   🔍 Complex business rule enforcement");
@@ -218,4 +218,4 @@ fn main() {
             println!("❌ Working features compilation failed: {}", e);
         }
     }
-} 
+}

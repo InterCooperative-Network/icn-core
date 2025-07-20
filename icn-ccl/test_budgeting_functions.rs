@@ -5,9 +5,9 @@ fn main() {
     println!("🏛️  Testing Simplified Budgeting Functions (No Structs)");
     println!("=======================================================");
     println!();
-    
+
     let budgeting_path = PathBuf::from("test_budgeting_functions.ccl");
-    
+
     match compile_ccl_file_to_wasm(&budgeting_path) {
         Ok((wasm, metadata)) => {
             println!("🎉 🎉 🎉 BUDGETING FUNCTIONS COMPILED SUCCESSFULLY! 🎉 🎉 🎉");
@@ -42,14 +42,14 @@ fn main() {
             println!("   🔧 Add struct support to WASM backend for full budgeting contract");
             println!("   🔧 Implement array_len() function in standard library");
             println!("   🔧 Add real array operations for production use");
-        },
+        }
         Err(e) => {
             println!("❌ BUDGETING FUNCTIONS COMPILATION FAILED:");
             println!("   Error: {}", e);
             println!();
             println!("🔍 Error Analysis:");
             let error_str = e.to_string();
-            
+
             if error_str.contains("Cannot assign to immutable variable") {
                 println!("   • CRITICAL: Mutable variable fix didn't work completely");
             } else if error_str.contains("array_len") {
@@ -63,4 +63,4 @@ fn main() {
             }
         }
     }
-} 
+}

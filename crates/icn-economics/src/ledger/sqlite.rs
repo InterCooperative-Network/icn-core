@@ -1,6 +1,6 @@
+use super::{ResourceLedger, TokenClass, TokenClassId};
 use icn_common::{CommonError, Did};
 use rusqlite::{Connection, OptionalExtension};
-use super::{ResourceLedger, TokenClass, TokenClassId};
 use std::path::PathBuf;
 use std::str::FromStr;
 
@@ -161,8 +161,9 @@ impl SqliteResourceLedger {
     fn write_class(&self, id: &TokenClassId, class: &TokenClass) -> Result<(), CommonError> {
         let conn = Connection::open(&self.path)
             .map_err(|e| CommonError::DatabaseError(format!("Failed to open sqlite DB: {e}")))?;
-        let data = serde_json::to_string(class)
-            .map_err(|e| CommonError::SerializationError(format!("Failed to serialize class: {e}")))?;
+        let data = serde_json::to_string(class).map_err(|e| {
+            CommonError::SerializationError(format!("Failed to serialize class: {e}"))
+        })?;
         conn.execute(
             "INSERT INTO token_classes(id, data) VALUES (?1, ?2) ON CONFLICT(id) DO UPDATE SET data=excluded.data",
             (&id, &data),
@@ -175,7 +176,9 @@ impl SqliteResourceLedger {
         let conn = Connection::open(&self.path)
             .map_err(|e| CommonError::DatabaseError(format!("Failed to open sqlite DB: {e}")))?;
         let data: Option<String> = conn
-            .query_row("SELECT data FROM token_classes WHERE id=?1", [id], |row| row.get(0))
+            .query_row("SELECT data FROM token_classes WHERE id=?1", [id], |row| {
+                row.get(0)
+            })
             .optional()
             .map_err(|e| CommonError::DatabaseError(format!("Failed to read class: {e}")))?;
         if let Some(data) = data {
@@ -187,7 +190,12 @@ impl SqliteResourceLedger {
         }
     }
 
-    fn write_balance(&self, class: &TokenClassId, did: &Did, amount: u64) -> Result<(), CommonError> {
+    fn write_balance(
+        &self,
+        class: &TokenClassId,
+        did: &Did,
+        amount: u64,
+    ) -> Result<(), CommonError> {
         let conn = Connection::open(&self.path)
             .map_err(|e| CommonError::DatabaseError(format!("Failed to open sqlite DB: {e}")))?;
         conn.execute(
@@ -235,7 +243,13 @@ impl ResourceLedger for SqliteResourceLedger {
         self.write_balance(class, owner, current - amount)
     }
 
-    fn transfer(&self, class: &TokenClassId, from: &Did, to: &Did, amount: u64) -> Result<(), CommonError> {
+    fn transfer(
+        &self,
+        class: &TokenClassId,
+        from: &Did,
+        to: &Did,
+        amount: u64,
+    ) -> Result<(), CommonError> {
         self.burn(class, from, amount)?;
         self.mint(class, to, amount)
     }

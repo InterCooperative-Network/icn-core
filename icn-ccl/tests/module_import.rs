@@ -1,14 +1,15 @@
 use icn_ccl::compile_ccl_file_to_wasm;
-use icn_runtime::context::RuntimeContext;
-use icn_runtime::executor::{JobExecutor, WasmExecutor, WasmExecutorConfig};
 use icn_common::{Cid, DagBlock};
 use icn_identity::{did_key_from_verifying_key, generate_ed25519_keypair, SignatureBytes};
 use icn_mesh::{ActualMeshJob, JobId, JobSpec};
+use icn_runtime::context::RuntimeContext;
+use icn_runtime::executor::{JobExecutor, WasmExecutor, WasmExecutorConfig};
 use std::str::FromStr;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn compile_and_run_with_import() {
-    let dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/contracts/module_import");
+    let dir =
+        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/contracts/module_import");
     let main = dir.join("main.ccl");
     let (wasm, _) = compile_ccl_file_to_wasm(&main).expect("compile file");
 

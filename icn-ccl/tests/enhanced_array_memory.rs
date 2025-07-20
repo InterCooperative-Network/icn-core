@@ -46,7 +46,15 @@ async fn array_element_assignment_integers() {
     let author = icn_common::Did::new("key", "tester");
     let sig_opt = None;
     let cid = icn_common::compute_merkle_cid(0x71, &wasm, &[], ts, &author, &sig_opt, &None);
-    let block = DagBlock { cid: cid.clone(), data: wasm.clone(), links: vec![], timestamp: ts, author_did: author, signature: sig_opt, scope: None };
+    let block = DagBlock {
+        cid: cid.clone(),
+        data: wasm.clone(),
+        links: vec![],
+        timestamp: ts,
+        author_did: author,
+        signature: sig_opt,
+        scope: None,
+    };
     {
         let mut store = ctx.dag_store.lock().await;
         store.put(&block).unwrap();
@@ -89,11 +97,11 @@ async fn array_bounds_checking() {
             return result;
         }
     "#;
-    
+
     // This should compile but fail at runtime with bounds check
     let compile_result = compile_ccl_source_to_wasm(source);
     assert!(compile_result.is_ok(), "Should compile successfully");
-    
+
     // TODO: Add runtime bounds checking test when runtime error handling is implemented
 }
 
@@ -117,7 +125,15 @@ async fn array_dynamic_growth_stress_test() {
     let author = icn_common::Did::new("key", "tester");
     let sig_opt = None;
     let cid = icn_common::compute_merkle_cid(0x71, &wasm, &[], ts, &author, &sig_opt, &None);
-    let block = DagBlock { cid: cid.clone(), data: wasm.clone(), links: vec![], timestamp: ts, author_did: author, signature: sig_opt, scope: None };
+    let block = DagBlock {
+        cid: cid.clone(),
+        data: wasm.clone(),
+        links: vec![],
+        timestamp: ts,
+        author_did: author,
+        signature: sig_opt,
+        scope: None,
+    };
     {
         let mut store = ctx.dag_store.lock().await;
         store.put(&block).unwrap();

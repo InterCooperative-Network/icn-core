@@ -1,4 +1,7 @@
-use crate::{burn_tokens, mint_tokens_with_reputation, ManaLedger, NodeScope, ResourceLedger, ResourceRepositoryAdapter};
+use crate::{
+    burn_tokens, mint_tokens_with_reputation, ManaLedger, NodeScope, ResourceLedger,
+    ResourceRepositoryAdapter,
+};
 use icn_common::{CommonError, Did};
 
 /// Resource class identifier for reputation reward tokens.

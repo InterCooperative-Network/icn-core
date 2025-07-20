@@ -3,14 +3,13 @@
 //! This module implements a multi-party trust attestation system where multiple
 //! cooperatives can vouch for trust relationships. The system includes:
 //! - Multi-party trust attestations with cryptographic signatures
-//! - Reputation-based trust weighting 
+//! - Reputation-based trust weighting
 //! - Trust challenge and dispute resolution mechanisms
 //! - Immutable audit trails anchored in the DAG
 
 use crate::{
-    cooperative_schemas::TrustLevel,
-    federation_trust::TrustContext,
-    sign_message, verify_signature, DidResolver, EdSignature, SigningKey, VerifyingKey,
+    cooperative_schemas::TrustLevel, federation_trust::TrustContext, sign_message,
+    verify_signature, DidResolver, EdSignature, SigningKey, VerifyingKey,
 };
 use icn_common::{Cid, CommonError, Did};
 use serde::{Deserialize, Serialize};
@@ -82,11 +81,12 @@ impl TrustAttestation {
     pub fn verify_with_key(&self, verifying_key: &VerifyingKey) -> Result<(), CommonError> {
         let message = self.to_signable_bytes()?;
         let signature = EdSignature::from_bytes(
-            self.signature.as_slice().try_into().map_err(|_| {
-                CommonError::IdentityError("Invalid signature length".into())
-            })?,
+            self.signature
+                .as_slice()
+                .try_into()
+                .map_err(|_| CommonError::IdentityError("Invalid signature length".into()))?,
         );
-        
+
         if verify_signature(verifying_key, &message, &signature) {
             Ok(())
         } else {
@@ -134,7 +134,11 @@ impl MultiPartyTrustRecord {
     }
 
     /// Add an attestation to this record
-    pub fn add_attestation(&mut self, attestation: TrustAttestation, timestamp: u64) -> Result<(), CommonError> {
+    pub fn add_attestation(
+        &mut self,
+        attestation: TrustAttestation,
+        timestamp: u64,
+    ) -> Result<(), CommonError> {
         // Verify the attestation is for the correct subject and context
         if attestation.subject != self.subject {
             return Err(CommonError::InvalidInputError(
@@ -148,19 +152,27 @@ impl MultiPartyTrustRecord {
         }
 
         // Check if attester already has an attestation and replace it
-        if let Some(existing_pos) = self.attestations.iter().position(|a| a.attester == attestation.attester) {
+        if let Some(existing_pos) = self
+            .attestations
+            .iter()
+            .position(|a| a.attester == attestation.attester)
+        {
             self.attestations[existing_pos] = attestation;
         } else {
             self.attestations.push(attestation);
         }
-        
+
         self.last_updated = timestamp;
         Ok(())
     }
 
     /// Remove an attestation by attester DID
     pub fn remove_attestation(&mut self, attester: &Did, timestamp: u64) -> bool {
-        if let Some(pos) = self.attestations.iter().position(|a| &a.attester == attester) {
+        if let Some(pos) = self
+            .attestations
+            .iter()
+            .position(|a| &a.attester == attester)
+        {
             self.attestations.remove(pos);
             self.last_updated = timestamp;
             true
@@ -193,22 +205,31 @@ impl MultiPartyTrustRecord {
 
     /// Get attesters who have vouched for this subject
     pub fn get_attesters(&self) -> HashSet<Did> {
-        self.attestations.iter().map(|a| a.attester.clone()).collect()
+        self.attestations
+            .iter()
+            .map(|a| a.attester.clone())
+            .collect()
     }
 
     /// Verify all attestations in this record
-    pub fn verify_all_attestations(&self, resolver: &dyn DidResolver) -> Result<Vec<Did>, CommonError> {
+    pub fn verify_all_attestations(
+        &self,
+        resolver: &dyn DidResolver,
+    ) -> Result<Vec<Did>, CommonError> {
         let mut verified_attesters = Vec::new();
-        
+
         for attestation in &self.attestations {
             match attestation.verify_with_resolver(resolver) {
                 Ok(_) => verified_attesters.push(attestation.attester.clone()),
                 Err(e) => {
-                    eprintln!("Failed to verify attestation from {}: {}", attestation.attester, e);
+                    eprintln!(
+                        "Failed to verify attestation from {}: {}",
+                        attestation.attester, e
+                    );
                 }
             }
         }
-        
+
         Ok(verified_attesters)
     }
 }
@@ -331,22 +352,26 @@ pub enum TrustEventType {
 pub trait TrustAttestationStore: Send + Sync {
     /// Store a multi-party trust record
     fn store_trust_record(&mut self, record: MultiPartyTrustRecord) -> Result<(), CommonError>;
-    
+
     /// Retrieve a trust record by subject and context
-    fn get_trust_record(&self, subject: &Did, context: &TrustContext) -> Option<MultiPartyTrustRecord>;
-    
+    fn get_trust_record(
+        &self,
+        subject: &Did,
+        context: &TrustContext,
+    ) -> Option<MultiPartyTrustRecord>;
+
     /// Store a trust challenge
     fn store_challenge(&mut self, challenge: TrustChallenge) -> Result<(), CommonError>;
-    
+
     /// Retrieve a challenge by ID
     fn get_challenge(&self, challenge_id: &str) -> Option<TrustChallenge>;
-    
+
     /// List challenges by status
     fn list_challenges_by_status(&self, status: ChallengeStatus) -> Vec<TrustChallenge>;
-    
+
     /// Store an audit event
     fn store_audit_event(&mut self, event: TrustAuditEvent) -> Result<(), CommonError>;
-    
+
     /// Retrieve audit events for a subject
     fn get_audit_events(&self, subject: &Did, context: &TrustContext) -> Vec<TrustAuditEvent>;
 }
@@ -372,21 +397,26 @@ impl TrustAttestationStore for InMemoryTrustAttestationStore {
         self.trust_records.insert(key, record);
         Ok(())
     }
-    
-    fn get_trust_record(&self, subject: &Did, context: &TrustContext) -> Option<MultiPartyTrustRecord> {
+
+    fn get_trust_record(
+        &self,
+        subject: &Did,
+        context: &TrustContext,
+    ) -> Option<MultiPartyTrustRecord> {
         let key = (subject.clone(), context.clone());
         self.trust_records.get(&key).cloned()
     }
-    
+
     fn store_challenge(&mut self, challenge: TrustChallenge) -> Result<(), CommonError> {
-        self.challenges.insert(challenge.challenge_id.clone(), challenge);
+        self.challenges
+            .insert(challenge.challenge_id.clone(), challenge);
         Ok(())
     }
-    
+
     fn get_challenge(&self, challenge_id: &str) -> Option<TrustChallenge> {
         self.challenges.get(challenge_id).cloned()
     }
-    
+
     fn list_challenges_by_status(&self, status: ChallengeStatus) -> Vec<TrustChallenge> {
         self.challenges
             .values()
@@ -394,13 +424,13 @@ impl TrustAttestationStore for InMemoryTrustAttestationStore {
             .cloned()
             .collect()
     }
-    
+
     fn store_audit_event(&mut self, event: TrustAuditEvent) -> Result<(), CommonError> {
         let key = (event.subject.clone(), event.context.clone());
         self.audit_events.entry(key).or_default().push(event);
         Ok(())
     }
-    
+
     fn get_audit_events(&self, subject: &Did, context: &TrustContext) -> Vec<TrustAuditEvent> {
         let key = (subject.clone(), context.clone());
         self.audit_events.get(&key).cloned().unwrap_or_default()
@@ -410,7 +440,7 @@ impl TrustAttestationStore for InMemoryTrustAttestationStore {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{generate_ed25519_keypair, did_key_from_verifying_key, KeyDidResolver};
+    use crate::{did_key_from_verifying_key, generate_ed25519_keypair, KeyDidResolver};
     use icn_reputation::InMemoryReputationStore;
     use std::str::FromStr;
 
@@ -419,7 +449,7 @@ mod tests {
         let (sk, pk) = generate_ed25519_keypair();
         let attester = Did::from_str(&did_key_from_verifying_key(&pk)).unwrap();
         let subject = Did::new("key", "subject123");
-        
+
         let attestation = TrustAttestation::new(
             attester.clone(),
             subject,
@@ -428,13 +458,13 @@ mod tests {
             1234567890,
             Some("Test evidence".to_string()),
         );
-        
+
         let signed_attestation = attestation.sign_with_key(&sk).unwrap();
         assert!(!signed_attestation.signature.is_empty());
-        
+
         // Verification should succeed
         assert!(signed_attestation.verify_with_key(&pk).is_ok());
-        
+
         // Verification with resolver should also succeed
         let resolver = KeyDidResolver;
         assert!(signed_attestation.verify_with_resolver(&resolver).is_ok());
@@ -444,7 +474,7 @@ mod tests {
     fn test_multi_party_trust_record() {
         let subject = Did::new("key", "subject123");
         let mut record = MultiPartyTrustRecord::new(subject.clone(), TrustContext::General);
-        
+
         // Create attestations from different attesters
         let (sk1, pk1) = generate_ed25519_keypair();
         let attester1 = Did::from_str(&did_key_from_verifying_key(&pk1)).unwrap();
@@ -455,8 +485,10 @@ mod tests {
             TrustLevel::Full,
             1234567890,
             None,
-        ).sign_with_key(&sk1).unwrap();
-        
+        )
+        .sign_with_key(&sk1)
+        .unwrap();
+
         let (sk2, pk2) = generate_ed25519_keypair();
         let attester2 = Did::from_str(&did_key_from_verifying_key(&pk2)).unwrap();
         let attestation2 = TrustAttestation::new(
@@ -466,12 +498,14 @@ mod tests {
             TrustLevel::Partial,
             1234567891,
             None,
-        ).sign_with_key(&sk2).unwrap();
-        
+        )
+        .sign_with_key(&sk2)
+        .unwrap();
+
         // Add attestations
         assert!(record.add_attestation(attestation1, 1234567890).is_ok());
         assert!(record.add_attestation(attestation2, 1234567891).is_ok());
-        
+
         assert_eq!(record.attestations.len(), 2);
         assert_eq!(record.get_attesters().len(), 2);
         assert!(record.get_attesters().contains(&attester1));
@@ -482,19 +516,19 @@ mod tests {
     fn test_reputation_based_trust_weighting() {
         let subject = Did::new("key", "subject123");
         let mut record = MultiPartyTrustRecord::new(subject.clone(), TrustContext::General);
-        
+
         // Create reputation store with different scores
         let reputation_store = InMemoryReputationStore::new();
-        
+
         // Create attesters with different reputation
         let (sk1, pk1) = generate_ed25519_keypair();
         let attester1 = Did::from_str(&did_key_from_verifying_key(&pk1)).unwrap();
         reputation_store.set_score(attester1.clone(), 100); // High reputation
-        
+
         let (sk2, pk2) = generate_ed25519_keypair();
         let attester2 = Did::from_str(&did_key_from_verifying_key(&pk2)).unwrap();
         reputation_store.set_score(attester2.clone(), 10); // Low reputation
-        
+
         // Both give high trust, but attester1 should have more weight
         let attestation1 = TrustAttestation::new(
             attester1,
@@ -503,8 +537,10 @@ mod tests {
             TrustLevel::Full,
             1234567890,
             None,
-        ).sign_with_key(&sk1).unwrap();
-        
+        )
+        .sign_with_key(&sk1)
+        .unwrap();
+
         let attestation2 = TrustAttestation::new(
             attester2,
             subject.clone(),
@@ -512,11 +548,13 @@ mod tests {
             TrustLevel::Full,
             1234567891,
             None,
-        ).sign_with_key(&sk2).unwrap();
-        
+        )
+        .sign_with_key(&sk2)
+        .unwrap();
+
         record.add_attestation(attestation1, 1234567890).unwrap();
         record.add_attestation(attestation2, 1234567891).unwrap();
-        
+
         let score = record.calculate_aggregated_score_simple();
         assert!(score > 0.0 && score <= 1.0);
         // The score should be closer to 1.0 due to high reputation attester
@@ -527,7 +565,7 @@ mod tests {
     fn test_trust_challenge_creation() {
         let challenger = Did::new("key", "challenger123");
         let subject = Did::new("key", "subject123");
-        
+
         let challenge = TrustChallenge::new(
             "challenge-001".to_string(),
             challenger.clone(),
@@ -536,7 +574,7 @@ mod tests {
             "Suspicious behavior observed".to_string(),
             1234567890,
         );
-        
+
         assert_eq!(challenge.challenge_id, "challenge-001");
         assert_eq!(challenge.challenger, challenger);
         assert_eq!(challenge.challenged_subject, subject);
@@ -548,18 +586,18 @@ mod tests {
         let mut store = InMemoryTrustAttestationStore::new();
         let subject = Did::new("key", "subject123");
         let context = TrustContext::General;
-        
+
         // Create and store a trust record
         let mut record = MultiPartyTrustRecord::new(subject.clone(), context.clone());
         record.aggregated_score = 0.8;
-        
+
         store.store_trust_record(record.clone()).unwrap();
-        
+
         // Retrieve the record
         let retrieved = store.get_trust_record(&subject, &context).unwrap();
         assert_eq!(retrieved.subject, subject);
         assert_eq!(retrieved.aggregated_score, 0.8);
-        
+
         // Create and store a challenge
         let challenge = TrustChallenge::new(
             "challenge-001".to_string(),
@@ -569,13 +607,13 @@ mod tests {
             "Test challenge".to_string(),
             1234567890,
         );
-        
+
         store.store_challenge(challenge.clone()).unwrap();
-        
+
         // Retrieve the challenge
         let retrieved_challenge = store.get_challenge("challenge-001").unwrap();
         assert_eq!(retrieved_challenge.challenge_id, "challenge-001");
-        
+
         // Test listing challenges by status
         let pending_challenges = store.list_challenges_by_status(ChallengeStatus::Pending);
         assert_eq!(pending_challenges.len(), 1);
@@ -587,7 +625,7 @@ mod tests {
         let subject = Did::new("key", "subject123");
         let actor = Did::new("key", "actor123");
         let context = TrustContext::General;
-        
+
         let audit_event = TrustAuditEvent {
             event_id: "event-001".to_string(),
             event_type: TrustEventType::AttestationCreated,
@@ -598,9 +636,9 @@ mod tests {
             data: serde_json::json!({"test": "data"}),
             dag_cid: None,
         };
-        
+
         store.store_audit_event(audit_event.clone()).unwrap();
-        
+
         let events = store.get_audit_events(&subject, &context);
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].event_id, "event-001");

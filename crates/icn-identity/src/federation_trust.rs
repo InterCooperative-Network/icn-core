@@ -4,7 +4,7 @@
 //! It provides different trust levels for different activities, trust inheritance models,
 //! cross-federation trust bridges, and a configurable trust policy engine.
 
-use crate::cooperative_schemas::{TrustLevel, TrustRelationship, CooperativeProfile};
+use crate::cooperative_schemas::{CooperativeProfile, TrustLevel, TrustRelationship};
 use icn_common::Did;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -35,7 +35,7 @@ impl TrustContext {
     pub fn as_str(&self) -> &str {
         match self {
             TrustContext::Governance => "governance",
-            TrustContext::ResourceSharing => "resource_sharing", 
+            TrustContext::ResourceSharing => "resource_sharing",
             TrustContext::MutualCredit => "mutual_credit",
             TrustContext::Identity => "identity",
             TrustContext::Infrastructure => "infrastructure",
@@ -583,7 +583,9 @@ impl FederationMetadata {
 
     /// Remove a member from the federation
     pub fn remove_member(&mut self, did: &Did) -> Result<FederationMember, String> {
-        let member = self.members.remove(did)
+        let member = self
+            .members
+            .remove(did)
             .ok_or_else(|| "Member not found".to_string())?;
 
         // Check minimum member requirement
@@ -603,7 +605,8 @@ impl FederationMetadata {
 
     /// Get active members
     pub fn get_active_members(&self) -> Vec<&FederationMember> {
-        self.members.values()
+        self.members
+            .values()
             .filter(|m| m.status == MemberStatus::Active)
             .collect()
     }
@@ -612,7 +615,8 @@ impl FederationMetadata {
     pub fn check_quorum(&self, decision_type: &str, participating_members: &[&Did]) -> bool {
         if let Some(policy) = self.quorum_policies.get(decision_type) {
             let active_members = self.get_active_members();
-            let quorum_required = (active_members.len() as f64 * policy.quorum_threshold).ceil() as usize;
+            let quorum_required =
+                (active_members.len() as f64 * policy.quorum_threshold).ceil() as usize;
             participating_members.len() >= quorum_required
         } else {
             // Default: simple majority
@@ -640,7 +644,10 @@ impl TrustPolicyEngine {
     /// Add a policy rule
     pub fn add_rule(&mut self, rule: TrustPolicyRule) {
         for context in &rule.applicable_contexts {
-            self.rules.entry(context.clone()).or_default().push(rule.clone());
+            self.rules
+                .entry(context.clone())
+                .or_default()
+                .push(rule.clone());
         }
     }
 
@@ -650,8 +657,15 @@ impl TrustPolicyEngine {
     }
 
     /// Add a scoped trust relationship to a federation
-    pub fn add_federation_trust(&mut self, federation: FederationId, trust: ScopedTrustRelationship) {
-        self.federation_trusts.entry(federation).or_default().push(trust);
+    pub fn add_federation_trust(
+        &mut self,
+        federation: FederationId,
+        trust: ScopedTrustRelationship,
+    ) {
+        self.federation_trusts
+            .entry(federation)
+            .or_default()
+            .push(trust);
     }
 
     /// Add a cross-federation trust bridge
@@ -728,7 +742,7 @@ impl TrustPolicyEngine {
     ) -> Option<TrustValidationResult> {
         // Get federations that trustor is a member of
         let trustor_federations = self.memberships.get(trustor)?;
-        
+
         // Get federations that trustee is a member of
         let trustee_federations = self.memberships.get(trustee)?;
 
@@ -738,7 +752,7 @@ impl TrustPolicyEngine {
                     // Same federation - check for federation-level trust
                     if let Some(fed_trusts) = self.federation_trusts.get(trustor_fed) {
                         for trust in fed_trusts {
-                            if trust.context == *context 
+                            if trust.context == *context
                                 && trust.inheritance.inheritable
                                 && trust.base.is_valid()
                             {
@@ -748,12 +762,13 @@ impl TrustPolicyEngine {
                                     &trust.inheritance,
                                     1, // inheritance depth
                                 );
-                                
+
                                 return Some(TrustValidationResult::Allowed {
                                     effective_trust: inherited_level,
-                                    trust_path: vec![
-                                        format!("federation_inheritance:{}", trustor_fed.as_str())
-                                    ],
+                                    trust_path: vec![format!(
+                                        "federation_inheritance:{}",
+                                        trustor_fed.as_str()
+                                    )],
                                 });
                             }
                         }
@@ -776,7 +791,10 @@ impl TrustPolicyEngine {
 
         for trustor_fed in trustor_federations {
             for trustee_fed in trustee_federations {
-                if let Some(bridge) = self.bridges.get(&(trustor_fed.clone(), trustee_fed.clone())) {
+                if let Some(bridge) = self
+                    .bridges
+                    .get(&(trustor_fed.clone(), trustee_fed.clone()))
+                {
                     // Skip expired bridges
                     if let Some(expiry) = bridge.expires_at {
                         let now = chrono::Utc::now().timestamp() as u64;
@@ -794,9 +812,11 @@ impl TrustPolicyEngine {
 
                         return Some(TrustValidationResult::Allowed {
                             effective_trust: bridged_level,
-                            trust_path: vec![
-                                format!("bridge:{}→{}", trustor_fed.as_str(), trustee_fed.as_str())
-                            ],
+                            trust_path: vec![format!(
+                                "bridge:{}→{}",
+                                trustor_fed.as_str(),
+                                trustee_fed.as_str()
+                            )],
                         });
                     }
                 }
@@ -1145,7 +1165,7 @@ impl FederationDidVerifier {
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
                 .as_secs();
-            
+
             if now - document.metadata.created > max_age {
                 return DidVerificationResult::Invalid {
                     reason: "Document too old".to_string(),
@@ -1156,8 +1176,11 @@ impl FederationDidVerifier {
 
         // Check required verification methods
         for required_method in &policy.required_methods {
-            if !document.verification_methods.iter()
-                .any(|vm| vm.method_type == *required_method) {
+            if !document
+                .verification_methods
+                .iter()
+                .any(|vm| vm.method_type == *required_method)
+            {
                 return DidVerificationResult::Invalid {
                     reason: format!("Missing required verification method: {}", required_method),
                     did: document.id.clone(),
@@ -1167,8 +1190,11 @@ impl FederationDidVerifier {
 
         // Check required key purposes
         for required_purpose in &policy.required_purposes {
-            if !document.public_keys.iter()
-                .any(|pk| pk.purpose.contains(required_purpose)) {
+            if !document
+                .public_keys
+                .iter()
+                .any(|pk| pk.purpose.contains(required_purpose))
+            {
                 return DidVerificationResult::Invalid {
                     reason: format!("Missing required key purpose: {:?}", required_purpose),
                     did: document.id.clone(),
@@ -1178,9 +1204,11 @@ impl FederationDidVerifier {
 
         // Check trust anchor requirements
         if !policy.required_trust_anchors.is_empty() {
-            let has_required_anchor = policy.required_trust_anchors.iter()
+            let has_required_anchor = policy
+                .required_trust_anchors
+                .iter()
                 .any(|anchor| self.trust_anchors.contains_key(anchor));
-            
+
             if !has_required_anchor {
                 return DidVerificationResult::Pending {
                     required_info: vec!["Trust anchor verification".to_string()],
@@ -1237,7 +1265,11 @@ impl FederationDidVerifier {
     }
 
     /// Resolve DID document from federation network
-    pub async fn resolve_did(&self, did: &Did, _federation: Option<&FederationId>) -> Result<FederationDidDocument, String> {
+    pub async fn resolve_did(
+        &self,
+        did: &Did,
+        _federation: Option<&FederationId>,
+    ) -> Result<FederationDidDocument, String> {
         // Check local cache first
         if let Some(document) = self.known_documents.get(did) {
             return Ok(document.clone());
@@ -1276,12 +1308,14 @@ impl FederationTrustBootstrap {
         contexts: Vec<TrustContext>,
         trust_level: TrustLevel,
     ) -> Result<String, String> {
-        let session_id = format!("bootstrap_{}_{}", 
+        let session_id = format!(
+            "bootstrap_{}_{}",
             self.local_federation.id.as_str(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
-                .as_secs());
+                .as_secs()
+        );
 
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -1311,7 +1345,9 @@ impl FederationTrustBootstrap {
         session_id: &str,
         _response_data: &[u8],
     ) -> Result<BootstrapStatus, String> {
-        let session = self.active_sessions.get_mut(session_id)
+        let session = self
+            .active_sessions
+            .get_mut(session_id)
             .ok_or_else(|| "Session not found".to_string())?;
 
         if session.status != BootstrapStatus::PendingResponse {
@@ -1320,7 +1356,7 @@ impl FederationTrustBootstrap {
 
         // Process the response (simplified)
         session.status = BootstrapStatus::Verifying;
-        
+
         // Add verification challenges
         let challenge = VerificationChallenge {
             challenge_id: format!("challenge_{}", fastrand::u64(..)),
@@ -1330,7 +1366,8 @@ impl FederationTrustBootstrap {
             deadline: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
-                .as_secs() + 300, // 5 minutes
+                .as_secs()
+                + 300, // 5 minutes
             completed: false,
         };
 
@@ -1343,7 +1380,9 @@ impl FederationTrustBootstrap {
         &mut self,
         session_id: &str,
     ) -> Result<ScopedTrustRelationship, String> {
-        let session = self.active_sessions.get_mut(session_id)
+        let session = self
+            .active_sessions
+            .get_mut(session_id)
             .ok_or_else(|| "Session not found".to_string())?;
 
         if session.status != BootstrapStatus::EstablishingTrust {
@@ -1356,7 +1395,11 @@ impl FederationTrustBootstrap {
                 attestor: Did::new("federation", &self.local_federation.id.as_str()),
                 subject: Did::new("federation", &session.remote_federation.as_str()),
                 trust_level: session.proposed_trust_level.clone(),
-                trust_scope: session.proposed_contexts.iter().map(|c| c.as_str().to_string()).collect(),
+                trust_scope: session
+                    .proposed_contexts
+                    .iter()
+                    .map(|c| c.as_str().to_string())
+                    .collect(),
                 justification: Some("Automated federation trust bootstrap".to_string()),
                 established_at: std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
@@ -1365,7 +1408,11 @@ impl FederationTrustBootstrap {
                 expires_at: None,
                 reciprocal: true,
             },
-            context: session.proposed_contexts.first().unwrap_or(&TrustContext::General).clone(),
+            context: session
+                .proposed_contexts
+                .first()
+                .unwrap_or(&TrustContext::General)
+                .clone(),
             federation: Some(self.local_federation.id.clone()),
             inheritance: TrustInheritance::default(),
             metadata: HashMap::new(),
@@ -1377,8 +1424,16 @@ impl FederationTrustBootstrap {
 
     /// Get active bootstrap sessions
     pub fn get_active_sessions(&self) -> Vec<&BootstrapSession> {
-        self.active_sessions.values()
-            .filter(|s| !matches!(s.status, BootstrapStatus::Completed | BootstrapStatus::Failed(_) | BootstrapStatus::Expired))
+        self.active_sessions
+            .values()
+            .filter(|s| {
+                !matches!(
+                    s.status,
+                    BootstrapStatus::Completed
+                        | BootstrapStatus::Failed(_)
+                        | BootstrapStatus::Expired
+                )
+            })
             .collect()
     }
 
@@ -1403,10 +1458,9 @@ impl FederationTrustBootstrap {
 mod tests {
     use super::*;
 
-
     fn setup_test_engine() -> TrustPolicyEngine {
         let mut engine = TrustPolicyEngine::new();
-        
+
         // Add a basic governance rule
         let governance_rule = TrustPolicyRule {
             name: "governance_basic".to_string(),
@@ -1438,10 +1492,10 @@ mod tests {
     fn test_trust_context_conversion() {
         let context = TrustContext::Governance;
         assert_eq!(context.as_str(), "governance");
-        
+
         let parsed = TrustContext::from_str("governance");
         assert_eq!(parsed, TrustContext::Governance);
-        
+
         let custom = TrustContext::from_str("custom_context");
         assert_eq!(custom, TrustContext::Custom("custom_context".to_string()));
     }
@@ -1449,18 +1503,13 @@ mod tests {
     #[test]
     fn test_trust_policy_engine_basic() {
         let engine = setup_test_engine();
-        
+
         let trustor = Did::new("key", "alice");
         let trustee = Did::new("key", "bob");
-        
+
         // Should be denied due to no trust relationship
-        let result = engine.validate_trust(
-            &trustor,
-            &trustee,
-            &TrustContext::Governance,
-            "vote"
-        );
-        
+        let result = engine.validate_trust(&trustor, &trustee, &TrustContext::Governance, "vote");
+
         match result {
             TrustValidationResult::Denied { reason } => {
                 assert!(reason.contains("No valid trust relationship found"));
@@ -1472,14 +1521,14 @@ mod tests {
     #[test]
     fn test_federation_membership() {
         let mut engine = setup_test_engine();
-        
+
         let alice = Did::new("key", "alice");
         let federation = FederationId::new("test_federation".to_string());
-        
+
         engine.add_federation_membership(alice.clone(), federation.clone());
-        
+
         assert!(engine.is_federation_member(&alice, &federation));
-        
+
         let bob = Did::new("key", "bob");
         assert!(!engine.is_federation_member(&bob, &federation));
     }

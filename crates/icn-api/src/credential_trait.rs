@@ -189,7 +189,10 @@ pub trait CredentialTrait {
     async fn verify_credential(
         &self,
         request: VerifyCredentialRequest,
-    ) -> Result<ResponseEnvelope<CredentialVerificationResult>, Box<dyn std::error::Error + Send + Sync>>;
+    ) -> Result<
+        ResponseEnvelope<CredentialVerificationResult>,
+        Box<dyn std::error::Error + Send + Sync>,
+    >;
 
     /// Anchor a credential disclosure to the DAG
     async fn anchor_disclosure(
@@ -224,8 +227,14 @@ mod tests {
     #[test]
     fn test_issue_credential_request_serialization() {
         let mut claims = HashMap::new();
-        claims.insert("skill_name".to_string(), serde_json::Value::String("Rust Programming".to_string()));
-        claims.insert("level".to_string(), serde_json::Value::Number(serde_json::Number::from(8)));
+        claims.insert(
+            "skill_name".to_string(),
+            serde_json::Value::String("Rust Programming".to_string()),
+        );
+        claims.insert(
+            "level".to_string(),
+            serde_json::Value::Number(serde_json::Number::from(8)),
+        );
 
         let request = IssueCredentialRequest {
             credential_type: "skill".to_string(),
@@ -247,7 +256,10 @@ mod tests {
     #[test]
     fn test_credential_verification_result() {
         let mut verified_claims = HashMap::new();
-        verified_claims.insert("skill_name".to_string(), serde_json::Value::String("Rust Programming".to_string()));
+        verified_claims.insert(
+            "skill_name".to_string(),
+            serde_json::Value::String("Rust Programming".to_string()),
+        );
 
         let result = CredentialVerificationResult {
             valid: true,

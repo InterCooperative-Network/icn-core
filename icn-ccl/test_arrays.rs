@@ -16,7 +16,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("Testing basic array creation...");
     match compile_ccl_source_to_wasm(source1) {
         Ok((wasm, _metadata)) => {
@@ -27,7 +27,7 @@ fn main() {
             println!("❌ Array creation failed: {}", e);
         }
     }
-    
+
     // Test 2: Array length access
     let source2 = r#"
         contract TestArrayLength {
@@ -40,7 +40,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("\nTesting array length access...");
     match compile_ccl_source_to_wasm(source2) {
         Ok((wasm, _metadata)) => {
@@ -51,7 +51,7 @@ fn main() {
             println!("❌ Array length failed: {}", e);
         }
     }
-    
+
     // Test 3: Array indexing
     let source3 = r#"
         contract TestArrayIndexing {
@@ -64,7 +64,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("\nTesting array indexing...");
     match compile_ccl_source_to_wasm(source3) {
         Ok((wasm, _metadata)) => {
@@ -75,7 +75,7 @@ fn main() {
             println!("❌ Array indexing failed: {}", e);
         }
     }
-    
+
     // Test 4: Array modification
     let source4 = r#"
         contract TestArrayModification {
@@ -89,7 +89,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("\nTesting array modification...");
     match compile_ccl_source_to_wasm(source4) {
         Ok((wasm, _metadata)) => {
@@ -100,7 +100,7 @@ fn main() {
             println!("❌ Array modification failed: {}", e);
         }
     }
-    
+
     // Test 5: Array with variables
     let source5 = r#"
         contract TestArrayVariables {
@@ -114,7 +114,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("\nTesting array indexing with variables...");
     match compile_ccl_source_to_wasm(source5) {
         Ok((wasm, _metadata)) => {
@@ -125,4 +125,4 @@ fn main() {
             println!("❌ Array variable indexing failed: {}", e);
         }
     }
-} 
+}

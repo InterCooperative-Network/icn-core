@@ -1,7 +1,7 @@
 use icn_common::Did;
+use icn_economics::ManaLedger;
 use icn_identity::{did_key_from_verifying_key, generate_ed25519_keypair, SignatureBytes};
 use icn_mesh::{select_executor, JobId, JobSpec, MeshJobBid, Resources, SelectionPolicy};
-use icn_economics::ManaLedger;
 use icn_reputation::InMemoryReputationStore;
 use std::collections::HashMap;
 use std::str::FromStr;
@@ -13,7 +13,9 @@ struct InMemoryLedger {
 
 impl InMemoryLedger {
     fn new() -> Self {
-        Self { balances: Mutex::new(HashMap::new()) }
+        Self {
+            balances: Mutex::new(HashMap::new()),
+        }
     }
 }
 
@@ -27,7 +29,9 @@ impl icn_economics::ManaLedger for InMemoryLedger {
     }
     fn spend(&self, did: &Did, amount: u64) -> Result<(), icn_common::CommonError> {
         let mut map = self.balances.lock().unwrap();
-        let bal = map.get_mut(did).ok_or_else(|| icn_common::CommonError::DatabaseError("account".into()))?;
+        let bal = map
+            .get_mut(did)
+            .ok_or_else(|| icn_common::CommonError::DatabaseError("account".into()))?;
         if *bal < amount {
             return Err(icn_common::CommonError::PolicyDenied("insufficient".into()));
         }
@@ -48,7 +52,9 @@ struct InMemoryLatencyStore {
 
 impl InMemoryLatencyStore {
     fn new() -> Self {
-        Self { latencies: Mutex::new(HashMap::new()) }
+        Self {
+            latencies: Mutex::new(HashMap::new()),
+        }
     }
     fn set_latency(&self, did: Did, latency: u64) {
         self.latencies.lock().unwrap().insert(did, latency);

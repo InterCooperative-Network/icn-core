@@ -26,7 +26,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("Testing basic struct definition and instantiation...");
     match compile_ccl_source_to_wasm(source1) {
         Ok((wasm, _metadata)) => {
@@ -37,7 +37,7 @@ fn main() {
             println!("❌ Basic structs failed: {}", e);
         }
     }
-    
+
     // Test 2: Struct with array fields
     let source2 = r#"
         contract TestStructArrays {
@@ -60,7 +60,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("\nTesting struct with array fields...");
     match compile_ccl_source_to_wasm(source2) {
         Ok((wasm, _metadata)) => {
@@ -71,7 +71,7 @@ fn main() {
             println!("❌ Struct arrays failed: {}", e);
         }
     }
-    
+
     // Test 3: Enum definitions
     let source3 = r#"
         contract TestEnums {
@@ -91,7 +91,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("\nTesting enum definitions...");
     match compile_ccl_source_to_wasm(source3) {
         Ok((wasm, _metadata)) => {
@@ -102,7 +102,7 @@ fn main() {
             println!("❌ Enums failed: {}", e);
         }
     }
-    
+
     // Test 4: Constants
     let source4 = r#"
         contract TestConstants {
@@ -118,7 +118,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("\nTesting constants...");
     match compile_ccl_source_to_wasm(source4) {
         Ok((wasm, _metadata)) => {
@@ -129,7 +129,7 @@ fn main() {
             println!("❌ Constants failed: {}", e);
         }
     }
-    
+
     // Test 5: Complex governance struct
     let source5 = r#"
         contract TestGovernanceStructs {
@@ -160,7 +160,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("\nTesting complex governance structs...");
     match compile_ccl_source_to_wasm(source5) {
         Ok((wasm, _metadata)) => {
@@ -171,4 +171,4 @@ fn main() {
             println!("❌ Complex governance structs failed: {}", e);
         }
     }
-} 
+}

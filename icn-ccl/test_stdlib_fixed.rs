@@ -16,7 +16,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("Testing utility functions...");
     match compile_ccl_source_to_wasm(source1) {
         Ok((wasm, _metadata)) => {
@@ -27,7 +27,7 @@ fn main() {
             println!("❌ Utility functions failed: {}", e);
         }
     }
-    
+
     // Test 2: Crypto functions
     let source2 = r#"
         contract TestCrypto {
@@ -40,7 +40,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("\nTesting crypto functions...");
     match compile_ccl_source_to_wasm(source2) {
         Ok((wasm, _metadata)) => {
@@ -51,7 +51,7 @@ fn main() {
             println!("❌ Crypto functions failed: {}", e);
         }
     }
-    
+
     // Test 3: Math functions
     let source3 = r#"
         contract TestMath {
@@ -64,7 +64,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("\nTesting math functions...");
     match compile_ccl_source_to_wasm(source3) {
         Ok((wasm, _metadata)) => {
@@ -75,7 +75,7 @@ fn main() {
             println!("❌ Math functions failed: {}", e);
         }
     }
-    
+
     // Test 4: Simple governance functions (avoiding DID type issues for now)
     let source4 = r#"
         contract TestGovernanceSimple {
@@ -90,7 +90,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("\nTesting simple governance/math functions...");
     match compile_ccl_source_to_wasm(source4) {
         Ok((wasm, _metadata)) => {
@@ -101,7 +101,7 @@ fn main() {
             println!("❌ Simple governance functions failed: {}", e);
         }
     }
-    
+
     // Test 5: Time/duration utilities
     let source5 = r#"
         contract TestTimeUtils {
@@ -115,7 +115,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("\nTesting time/duration functions...");
     match compile_ccl_source_to_wasm(source5) {
         Ok((wasm, _metadata)) => {
@@ -126,4 +126,4 @@ fn main() {
             println!("❌ Time/duration functions failed: {}", e);
         }
     }
-} 
+}

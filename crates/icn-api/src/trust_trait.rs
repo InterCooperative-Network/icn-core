@@ -1,8 +1,8 @@
 //! Trust Graph API trait for querying trust relationships and paths
 
 use async_trait::async_trait;
-use icn_common::{Did, CommonError};
-use icn_identity::{TrustContext, FederationId, TrustLevel};
+use icn_common::{CommonError, Did};
+use icn_identity::{FederationId, TrustContext, TrustLevel};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
@@ -224,10 +224,7 @@ pub trait TrustApi {
     async fn get_trust_score(&self, entity: &Did) -> Result<TrustScore, CommonError>;
 
     /// Get trust scores for multiple entities
-    async fn get_trust_scores(
-        &self,
-        entities: &[Did],
-    ) -> Result<Vec<TrustScore>, CommonError>;
+    async fn get_trust_scores(&self, entities: &[Did]) -> Result<Vec<TrustScore>, CommonError>;
 
     /// Update trust relationship
     async fn update_trust_relationship(
@@ -259,10 +256,8 @@ pub trait TrustApi {
     ) -> Result<(), CommonError>;
 
     /// Recalculate trust scores (triggers real-time updates)
-    async fn recalculate_trust_scores(
-        &self,
-        entities: Option<Vec<Did>>,
-    ) -> Result<(), CommonError>;
+    async fn recalculate_trust_scores(&self, entities: Option<Vec<Did>>)
+        -> Result<(), CommonError>;
 
     /// Search entities by trust criteria
     async fn search_by_trust(

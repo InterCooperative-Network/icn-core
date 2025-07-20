@@ -173,7 +173,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("🏛️  Compiling comprehensive cooperative governance contract...");
     println!("Features demonstrated:");
     println!("  • Complex conditional logic with if/else-if chains");
@@ -185,7 +185,7 @@ fn main() {
     println!("  • Multi-variable calculations and state management");
     println!("  • Real-world cooperative governance scenarios");
     println!();
-    
+
     match compile_ccl_source_to_wasm(governance_contract) {
         Ok((wasm, metadata)) => {
             println!("🎉 GOVERNANCE CONTRACT COMPILED SUCCESSFULLY!");
@@ -206,4 +206,4 @@ fn main() {
             println!("❌ Governance contract compilation failed: {}", e);
         }
     }
-} 
+}

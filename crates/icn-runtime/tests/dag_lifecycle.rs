@@ -27,7 +27,10 @@ async fn lifecycle_reconstructs_spec_and_tracks_bid() {
         kind: JobKind::GenericPlaceholder,
         inputs: vec![],
         outputs: vec![],
-        required_resources: Resources { cpu_cores: 2, memory_mb: 0 },
+        required_resources: Resources {
+            cpu_cores: 2,
+            memory_mb: 0,
+        },
     };
     let spec_json = serde_json::to_string(&spec).unwrap();
     let manifest_cid = Cid::new_v1_sha256(0x55, b"manifest_spec");
@@ -41,14 +44,20 @@ async fn lifecycle_reconstructs_spec_and_tracks_bid() {
         job_id: job_id.clone(),
         executor_did: Did::from_str("did:icn:test:exec1").unwrap(),
         price_mana: 1,
-        resources: Resources { cpu_cores: 1, memory_mb: 0 },
+        resources: Resources {
+            cpu_cores: 1,
+            memory_mb: 0,
+        },
         signature: SignatureBytes(vec![]),
     };
     let bid2 = MeshJobBid {
         job_id: job_id.clone(),
         executor_did: Did::from_str("did:icn:test:exec2").unwrap(),
         price_mana: 10,
-        resources: Resources { cpu_cores: 2, memory_mb: 0 },
+        resources: Resources {
+            cpu_cores: 2,
+            memory_mb: 0,
+        },
         signature: SignatureBytes(vec![]),
     };
 
@@ -63,12 +72,13 @@ async fn lifecycle_reconstructs_spec_and_tracks_bid() {
         success: true,
         sig: SignatureBytes(vec![]),
     };
-    stub
-        .stage_receipt(
-            job_id.clone(),
-            LocalMeshSubmitReceiptMessage { receipt: receipt.clone() },
-        )
-        .await;
+    stub.stage_receipt(
+        job_id.clone(),
+        LocalMeshSubmitReceiptMessage {
+            receipt: receipt.clone(),
+        },
+    )
+    .await;
 
     for _ in 0..20 {
         if let Some(lifecycle) = ctx.get_job_status(&job_id).await.unwrap() {

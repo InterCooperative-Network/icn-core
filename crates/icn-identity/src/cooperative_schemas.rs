@@ -13,16 +13,16 @@ pub mod schemas {
 
     /// Schema for cooperative membership credentials
     pub const COOPERATIVE_MEMBERSHIP: &str = "icn:cooperative:membership:v1";
-    
+
     /// Schema for service provider credentials
     pub const SERVICE_PROVIDER: &str = "icn:cooperative:service_provider:v1";
-    
+
     /// Schema for federation membership credentials
     pub const FEDERATION_MEMBERSHIP: &str = "icn:federation:membership:v1";
-    
+
     /// Schema for cooperative profiles stored in DAG
     pub const COOPERATIVE_PROFILE: &str = "icn:cooperative:profile:v1";
-    
+
     /// Schema for trust relationship attestations
     pub const TRUST_RELATIONSHIP: &str = "icn:federation:trust:v1";
 
@@ -137,7 +137,7 @@ impl CooperativeProfile {
         description: String,
     ) -> Self {
         let now = chrono::Utc::now().timestamp() as u64;
-        
+
         Self {
             did,
             name,
@@ -237,7 +237,10 @@ impl CooperativeMembershipBuilder {
         claims.insert("role".to_string(), self.role);
         claims.insert("membership_level".to_string(), self.membership_level);
         claims.insert("joined_at".to_string(), self.joined_at.to_string());
-        claims.insert("credential_type".to_string(), "cooperative_membership".to_string());
+        claims.insert(
+            "credential_type".to_string(),
+            "cooperative_membership".to_string(),
+        );
         claims
     }
 }
@@ -264,7 +267,10 @@ impl ServiceProviderBuilder {
         let mut claims = HashMap::new();
         claims.insert("service_types".to_string(), self.service_types.join(","));
         claims.insert("verified_at".to_string(), self.verified_at.to_string());
-        claims.insert("credential_type".to_string(), "service_provider".to_string());
+        claims.insert(
+            "credential_type".to_string(),
+            "service_provider".to_string(),
+        );
         claims
     }
 }
@@ -287,7 +293,7 @@ impl TrustLevel {
     pub fn as_str(&self) -> &str {
         match self {
             TrustLevel::Full => "full",
-            TrustLevel::Partial => "partial", 
+            TrustLevel::Partial => "partial",
             TrustLevel::Basic => "basic",
             TrustLevel::None => "none",
         }
@@ -431,18 +437,18 @@ mod tests {
         let issuer = Did::new("key", "test_coop");
         let holder = Did::new("key", "alice");
 
-        let claims = CooperativeMembershipBuilder::new(
-            issuer,
-            holder,
-            "Test Cooperative".to_string(),
-        )
-        .with_role("worker_owner".to_string())
-        .with_membership_level("verified".to_string())
-        .build();
+        let claims =
+            CooperativeMembershipBuilder::new(issuer, holder, "Test Cooperative".to_string())
+                .with_role("worker_owner".to_string())
+                .with_membership_level("verified".to_string())
+                .build();
 
         assert_eq!(claims.get("cooperative_name").unwrap(), "Test Cooperative");
         assert_eq!(claims.get("role").unwrap(), "worker_owner");
         assert_eq!(claims.get("membership_level").unwrap(), "verified");
-        assert_eq!(claims.get("credential_type").unwrap(), "cooperative_membership");
+        assert_eq!(
+            claims.get("credential_type").unwrap(),
+            "cooperative_membership"
+        );
     }
-} 
+}

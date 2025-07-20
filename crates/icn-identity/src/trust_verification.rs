@@ -4,16 +4,11 @@
 //! that integrates with DAG system for audit trails. Governance integration
 //! is handled at a higher level to avoid circular dependencies.
 
-use crate::{
-    trust_attestation::*,
-    federation_trust::TrustContext,
-
-    DidResolver,
-};
-use icn_common::{Cid, CommonError, Did, TimeProvider};
-use icn_reputation::ReputationStore;
-use icn_dag::StorageService;
+use crate::{federation_trust::TrustContext, trust_attestation::*, DidResolver};
 use icn_common::DagBlock;
+use icn_common::{Cid, CommonError, Did, TimeProvider};
+use icn_dag::StorageService;
+use icn_reputation::ReputationStore;
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 
@@ -102,10 +97,10 @@ where
         resolver: &dyn DidResolver,
     ) -> Result<Cid, CommonError> {
         let current_time = self.time_provider.unix_seconds();
-        
+
         // Verify attestation signature
         attestation.verify_with_resolver(resolver)?;
-        
+
         // Check attester reputation
         let attester_reputation = self.reputation_store.get_reputation(&attestation.attester);
         if attester_reputation < self.config.min_attester_reputation {
@@ -124,10 +119,10 @@ where
 
         // Add attestation to record
         record.add_attestation(attestation.clone(), current_time)?;
-        
+
         // Recalculate aggregated score
         record.calculate_aggregated_score_simple();
-        
+
         // Store updated record
         store.store_trust_record(record.clone())?;
 
@@ -142,12 +137,12 @@ where
             data: serde_json::to_value(&attestation).unwrap(),
             dag_cid: None,
         };
-        
+
         store.store_audit_event(audit_event.clone())?;
-        
+
         // Anchor audit event in DAG
         let dag_cid = self.anchor_in_dag(&audit_event)?;
-        
+
         Ok(dag_cid)
     }
 
@@ -159,7 +154,7 @@ where
         resolver: &dyn DidResolver,
     ) -> Result<TrustVerificationResult, CommonError> {
         let current_time = self.time_provider.unix_seconds();
-        
+
         // Get trust record
         let store = self.attestation_store.lock().unwrap();
         let record = match store.get_trust_record(subject, context) {
@@ -179,7 +174,7 @@ where
         // Verify all attestations
         let verified_attesters = record.verify_all_attestations(resolver)?;
         let mut issues = Vec::new();
-        
+
         // Check for expired attestations
         let valid_attestations: Vec<_> = record
             .attestations
@@ -195,7 +190,7 @@ where
             .collect();
 
         let attestation_count = valid_attestations.len();
-        
+
         // Calculate total attester reputation
         let attester_reputation: u64 = valid_attestations
             .iter()
@@ -254,7 +249,7 @@ where
         evidence: Option<String>,
     ) -> Result<String, CommonError> {
         let current_time = self.time_provider.unix_seconds();
-        
+
         // Check challenger reputation
         let challenger_reputation = self.reputation_store.get_reputation(&challenger);
         if challenger_reputation < self.config.min_challenger_reputation {
@@ -264,7 +259,10 @@ where
         }
 
         // Create challenge
-        let challenge_id = format!("challenge-{}-{}-{}", challenger, challenged_subject, current_time);
+        let challenge_id = format!(
+            "challenge-{}-{}-{}",
+            challenger, challenged_subject, current_time
+        );
         let mut challenge = TrustChallenge::new(
             challenge_id.clone(),
             challenger.clone(),
@@ -294,9 +292,9 @@ where
             data: serde_json::to_value(&challenge).unwrap(),
             dag_cid: None,
         };
-        
+
         store.store_audit_event(audit_event.clone())?;
-        
+
         // Anchor in DAG
         self.anchor_in_dag(&audit_event)?;
 
@@ -311,7 +309,7 @@ where
         resolver_did: Did,
     ) -> Result<(), CommonError> {
         let current_time = self.time_provider.unix_seconds();
-        
+
         // Get and update challenge
         let mut store = self.attestation_store.lock().unwrap();
         let mut challenge = store
@@ -328,7 +326,9 @@ where
 
         // If challenge was accepted, update trust record
         if resolution == ChallengeResolution::Accept {
-            if let Some(mut record) = store.get_trust_record(&challenge.challenged_subject, &challenge.context) {
+            if let Some(mut record) =
+                store.get_trust_record(&challenge.challenged_subject, &challenge.context)
+            {
                 // For simplicity, remove all attestations - in practice, might be more nuanced
                 record.attestations.clear();
                 record.aggregated_score = 0.0;
@@ -352,9 +352,9 @@ where
             }),
             dag_cid: None,
         };
-        
+
         store.store_audit_event(audit_event.clone())?;
-        
+
         // Anchor in DAG
         self.anchor_in_dag(&audit_event)?;
 
@@ -362,11 +362,7 @@ where
     }
 
     /// Get trust audit trail for a subject
-    pub fn get_audit_trail(
-        &self,
-        subject: &Did,
-        context: &TrustContext,
-    ) -> Vec<TrustAuditEvent> {
+    pub fn get_audit_trail(&self, subject: &Did, context: &TrustContext) -> Vec<TrustAuditEvent> {
         let store = self.attestation_store.lock().unwrap();
         store.get_audit_events(subject, context)
     }
@@ -375,7 +371,7 @@ where
     fn anchor_in_dag<S: Serialize>(&self, data: &S) -> Result<Cid, CommonError> {
         let serialized = serde_json::to_vec(data)
             .map_err(|e| CommonError::InternalError(format!("Serialization failed: {}", e)))?;
-        
+
         // Create a DAG block from the serialized data
         let cid = icn_common::Cid::new_v1_sha256(0x55, &serialized);
         let block = DagBlock {
@@ -387,7 +383,7 @@ where
             signature: None,
             scope: None,
         };
-        
+
         let mut dag_store = self.dag_store.lock().unwrap();
         dag_store.put(&block)?;
         Ok(block.cid)
@@ -418,12 +414,12 @@ pub enum ChallengeResolution {
 mod tests {
     use super::*;
     use crate::{
-        generate_ed25519_keypair, did_key_from_verifying_key, KeyDidResolver,
-        InMemoryTrustAttestationStore, TrustLevel,
+        did_key_from_verifying_key, generate_ed25519_keypair, InMemoryTrustAttestationStore,
+        KeyDidResolver, TrustLevel,
     };
     use icn_common::FixedTimeProvider;
-    use icn_reputation::InMemoryReputationStore;
     use icn_dag::InMemoryDagStore;
+    use icn_reputation::InMemoryReputationStore;
     use std::str::FromStr;
     use std::sync::{Arc, Mutex};
 
@@ -470,7 +466,9 @@ mod tests {
             TrustLevel::Full,
             1234567890,
             None,
-        ).sign_with_key(&sk).unwrap();
+        )
+        .sign_with_key(&sk)
+        .unwrap();
 
         let result = engine.submit_attestation(attestation, &resolver);
         assert!(result.is_ok());
@@ -482,7 +480,7 @@ mod tests {
         let resolver = KeyDidResolver;
 
         let subject = Did::new("key", "subject123");
-        
+
         // Create multiple attesters with good reputation
         for i in 0..3 {
             let (sk, pk) = generate_ed25519_keypair();
@@ -496,12 +494,16 @@ mod tests {
                 TrustLevel::Full,
                 1234567890 + i,
                 None,
-            ).sign_with_key(&sk).unwrap();
+            )
+            .sign_with_key(&sk)
+            .unwrap();
 
             engine.submit_attestation(attestation, &resolver).unwrap();
         }
 
-        let result = engine.verify_trust(&subject, &TrustContext::General, &resolver).unwrap();
+        let result = engine
+            .verify_trust(&subject, &TrustContext::General, &resolver)
+            .unwrap();
         assert!(result.verified);
         assert!(result.trust_score > 0.0);
         assert_eq!(result.attestation_count, 3);
@@ -513,7 +515,7 @@ mod tests {
 
         let challenger = Did::new("key", "challenger");
         let subject = Did::new("key", "subject");
-        
+
         // Set sufficient reputation for challenger
         engine.reputation_store.set_score(challenger.clone(), 50);
 
@@ -548,10 +550,15 @@ mod tests {
             TrustLevel::Full,
             1234567890,
             None,
-        ).sign_with_key(&sk).unwrap();
+        )
+        .sign_with_key(&sk)
+        .unwrap();
 
         let result = engine.submit_attestation(attestation, &resolver);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Insufficient attester reputation"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Insufficient attester reputation"));
     }
 }

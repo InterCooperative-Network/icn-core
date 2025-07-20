@@ -9,10 +9,13 @@ fn test_array_assignment_compilation() {
             return nums[1];
         }
     "#;
-    
+
     let result = compile_ccl_source_to_wasm(source);
-    assert!(result.is_ok(), "Array assignment should compile successfully");
-    
+    assert!(
+        result.is_ok(),
+        "Array assignment should compile successfully"
+    );
+
     let (wasm, _meta) = result.unwrap();
     assert!(wasm.starts_with(b"\0asm"), "Should produce valid WASM");
 }
@@ -26,10 +29,13 @@ fn test_string_comparison_compilation() {
             return name1 == name2;
         }
     "#;
-    
+
     let result = compile_ccl_source_to_wasm(source);
-    assert!(result.is_ok(), "String comparison should compile successfully");
-    
+    assert!(
+        result.is_ok(),
+        "String comparison should compile successfully"
+    );
+
     let (wasm, _meta) = result.unwrap();
     assert!(wasm.starts_with(b"\0asm"), "Should produce valid WASM");
 }
@@ -44,10 +50,10 @@ fn test_map_operations_compilation() {
             return if alice_score == None { 0 } else { 100 };
         }
     "#;
-    
+
     let result = compile_ccl_source_to_wasm(source);
     assert!(result.is_ok(), "Map operations should compile successfully");
-    
+
     let (wasm, _meta) = result.unwrap();
     assert!(wasm.starts_with(b"\0asm"), "Should produce valid WASM");
 }

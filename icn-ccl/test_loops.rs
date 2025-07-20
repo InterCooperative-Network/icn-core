@@ -19,7 +19,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("Testing while loop compilation...");
     match compile_ccl_source_to_wasm(source1) {
         Ok((wasm, _metadata)) => {
@@ -30,7 +30,7 @@ fn main() {
             println!("❌ While loop compilation failed: {}", e);
         }
     }
-    
+
     // Test 2: Simple for loop
     let source2 = r#"
         contract TestForLoop {
@@ -47,7 +47,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("\nTesting for loop compilation...");
     match compile_ccl_source_to_wasm(source2) {
         Ok((wasm, _metadata)) => {
@@ -58,7 +58,7 @@ fn main() {
             println!("❌ For loop compilation failed: {}", e);
         }
     }
-    
+
     // Test 3: Nested loops
     let source3 = r#"
         contract TestNestedLoops {
@@ -80,7 +80,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("\nTesting nested loops...");
     match compile_ccl_source_to_wasm(source3) {
         Ok((wasm, _metadata)) => {
@@ -91,4 +91,4 @@ fn main() {
             println!("❌ Nested loops compilation failed: {}", e);
         }
     }
-} 
+}

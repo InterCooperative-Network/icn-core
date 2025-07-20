@@ -19,7 +19,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("Testing >= operator...");
     match compile_ccl_source_to_wasm(source1) {
         Ok((wasm, _metadata)) => {
@@ -30,7 +30,7 @@ fn main() {
             println!("❌ >= operator compilation failed: {}", e);
         }
     }
-    
+
     // Test 2: Equal to (==)
     let source2 = r#"
         contract TestEquals {
@@ -46,7 +46,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("\nTesting == operator...");
     match compile_ccl_source_to_wasm(source2) {
         Ok((wasm, _metadata)) => {
@@ -57,7 +57,7 @@ fn main() {
             println!("❌ == operator compilation failed: {}", e);
         }
     }
-    
+
     // Test 3: Less than or equal (<=)
     let source3 = r#"
         contract TestLte {
@@ -73,7 +73,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("\nTesting <= operator...");
     match compile_ccl_source_to_wasm(source3) {
         Ok((wasm, _metadata)) => {
@@ -84,7 +84,7 @@ fn main() {
             println!("❌ <= operator compilation failed: {}", e);
         }
     }
-    
+
     // Test 4: Complex arithmetic with operators
     let source4 = r#"
         contract TestArithmetic {
@@ -101,7 +101,7 @@ fn main() {
             }
         }
     "#;
-    
+
     println!("\nTesting complex arithmetic with >=...");
     match compile_ccl_source_to_wasm(source4) {
         Ok((wasm, _metadata)) => {
@@ -112,4 +112,4 @@ fn main() {
             println!("❌ Complex arithmetic compilation failed: {}", e);
         }
     }
-} 
+}

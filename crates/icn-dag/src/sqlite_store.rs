@@ -1,7 +1,7 @@
 use crate::{BlockMetadata, Cid, CommonError, DagBlock, StorageService};
 use rusqlite::{params, Connection};
-use std::sync::{Arc, Mutex};
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 
 #[derive(Debug)]
 pub struct SqliteDagStore {
@@ -93,8 +93,8 @@ impl StorageService<DagBlock> for SqliteDagStore {
             .lock()
             .map_err(|e| CommonError::DatabaseError(format!("Mutex poisoned: {}", e)))?;
         conn.execute(
-                "DELETE FROM blocks WHERE cid = ?1",
-                params![cid.to_string()],
+            "DELETE FROM blocks WHERE cid = ?1",
+            params![cid.to_string()],
         )
         .map_err(|e| {
             CommonError::DatabaseError(format!("Failed to delete block {}: {}", cid, e))
@@ -182,14 +182,13 @@ impl StorageService<DagBlock> for SqliteDagStore {
             .lock()
             .map_err(|e| CommonError::DatabaseError(format!("Mutex poisoned: {}", e)))?;
         for cid in &to_remove {
-            conn
-                .execute(
-                    "DELETE FROM blocks WHERE cid = ?1",
-                    params![cid.to_string()],
-                )
-                .map_err(|e| {
-                    CommonError::DatabaseError(format!("Failed to delete block {}: {}", cid, e))
-                })?;
+            conn.execute(
+                "DELETE FROM blocks WHERE cid = ?1",
+                params![cid.to_string()],
+            )
+            .map_err(|e| {
+                CommonError::DatabaseError(format!("Failed to delete block {}: {}", cid, e))
+            })?;
         }
         for cid in to_remove {
             self.meta.remove(&cid);

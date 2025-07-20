@@ -1,7 +1,7 @@
 // icn-dag/src/pruning.rs
 //! DAG pruning and compaction utilities
 
-use crate::{StorageService, BlockMetadata};
+use crate::{BlockMetadata, StorageService};
 use icn_common::{Cid, CommonError, DagBlock};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -24,7 +24,7 @@ pub struct PruningConfig {
 impl Default for PruningConfig {
     fn default() -> Self {
         Self {
-            max_age_seconds: Some(30 * 24 * 3600), // 30 days
+            max_age_seconds: Some(30 * 24 * 3600),         // 30 days
             max_total_size: Some(10 * 1024 * 1024 * 1024), // 10 GB
             preserve_pinned_references: true,
             min_blocks_to_keep: 1000,
@@ -65,7 +65,7 @@ impl Default for CompactionConfig {
     fn default() -> Self {
         Self {
             compact_older_than: 7 * 24 * 3600, // 7 days
-            max_chunk_size: 64 * 1024 * 1024, // 64 MB
+            max_chunk_size: 64 * 1024 * 1024,  // 64 MB
             compression: CompressionType::Zstd,
         }
     }
@@ -173,34 +173,41 @@ impl<S: StorageService<DagBlock>> DagMaintenance<S> {
     }
 
     #[cfg(feature = "async")]
-    async fn get_all_blocks_with_metadata(&self) -> Result<HashMap<Cid, (DagBlock, BlockMetadata)>, CommonError> {
+    async fn get_all_blocks_with_metadata(
+        &self,
+    ) -> Result<HashMap<Cid, (DagBlock, BlockMetadata)>, CommonError> {
         let blocks = self.store.list_blocks()?;
         let mut result = HashMap::new();
-        
+
         for block in blocks {
             let cid = block.cid.clone();
             let metadata = self.store.get_metadata(&cid)?.unwrap_or_default();
             result.insert(cid, (block, metadata));
         }
-        
+
         Ok(result)
     }
 
-    fn get_all_blocks_with_metadata_sync(&self) -> Result<HashMap<Cid, (DagBlock, BlockMetadata)>, CommonError> {
+    fn get_all_blocks_with_metadata_sync(
+        &self,
+    ) -> Result<HashMap<Cid, (DagBlock, BlockMetadata)>, CommonError> {
         let blocks = self.store.list_blocks()?;
         let mut result = HashMap::new();
-        
+
         for block in blocks {
             let cid = block.cid.clone();
             let metadata = self.store.get_metadata(&cid)?.unwrap_or_default();
             result.insert(cid, (block, metadata));
         }
-        
+
         Ok(result)
     }
 
     #[cfg(feature = "async")]
-    async fn calculate_blocks_to_keep(&self, all_blocks: &HashMap<Cid, (DagBlock, BlockMetadata)>) -> Result<HashSet<Cid>, CommonError> {
+    async fn calculate_blocks_to_keep(
+        &self,
+        all_blocks: &HashMap<Cid, (DagBlock, BlockMetadata)>,
+    ) -> Result<HashSet<Cid>, CommonError> {
         let mut keep_set = HashSet::new();
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -222,7 +229,6 @@ impl<S: StorageService<DagBlock>> DagMaintenance<S> {
                 }
             }
         }
-
 
         // If preserving pinned references, recursively add referenced blocks
         if self.config.preserve_pinned_references {
@@ -253,7 +259,10 @@ impl<S: StorageService<DagBlock>> DagMaintenance<S> {
         Ok(keep_set)
     }
 
-    fn calculate_blocks_to_keep_sync(&self, all_blocks: &HashMap<Cid, (DagBlock, BlockMetadata)>) -> Result<HashSet<Cid>, CommonError> {
+    fn calculate_blocks_to_keep_sync(
+        &self,
+        all_blocks: &HashMap<Cid, (DagBlock, BlockMetadata)>,
+    ) -> Result<HashSet<Cid>, CommonError> {
         let mut keep_set = HashSet::new();
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -275,7 +284,6 @@ impl<S: StorageService<DagBlock>> DagMaintenance<S> {
                 }
             }
         }
-
 
         // If preserving pinned references, recursively add referenced blocks
         if self.config.preserve_pinned_references {
@@ -333,7 +341,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let store = SledDagStore::new(temp_dir.path()).unwrap();
         let maintenance = DagMaintenance::new(store);
-        
+
         // Just verify it can be created
         assert_eq!(maintenance.config.min_blocks_to_keep, 1000);
     }

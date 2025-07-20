@@ -7,9 +7,9 @@ fn main() {
     println!();
     println!("🎯 This fix resolves 45% of contract compilation failures!");
     println!();
-    
+
     let test_path = PathBuf::from("test_else_if_fix.ccl");
-    
+
     match compile_ccl_file_to_wasm(&test_path) {
         Ok((wasm, metadata)) => {
             println!("🎉 🎉 🎉 ELSE-IF CHAINS WORK PERFECTLY! 🎉 🎉 🎉");
@@ -40,14 +40,14 @@ fn main() {
             println!();
             println!("🔥 **CRITICAL BLOCKER ELIMINATED!** 🔥");
             println!("   CCL is now ready for production governance contracts!");
-        },
+        }
         Err(e) => {
             println!("❌ ELSE-IF TEST FAILED:");
             println!("   Error: {}", e);
             println!();
             println!("🚨 This indicates the else-if fix didn't work correctly:");
             let error_str = e.to_string();
-            
+
             if error_str.contains("parsing") {
                 println!("   • Grammar issue - else-if not parsed correctly");
             } else if error_str.contains("semantic") {
@@ -59,4 +59,4 @@ fn main() {
             }
         }
     }
-} 
+}

@@ -1,5 +1,8 @@
 #![doc = include_str!("../README.md")]
-#![cfg_attr(not(feature = "allow-nondeterminism"), deny(clippy::disallowed_methods))]
+#![cfg_attr(
+    not(feature = "allow-nondeterminism"),
+    deny(clippy::disallowed_methods)
+)]
 
 //! # ICN Economics Crate
 //! This crate handles the economic protocols of the InterCooperative Network (ICN).
@@ -22,19 +25,10 @@ pub mod mutual_credit;
 pub mod reputation_tokens;
 pub mod time_banking;
 pub use explorer::{FlowStats, LedgerExplorer};
-pub use ledger::{FileManaLedger, ResourceLedger, TokenClass, TokenType, TransferabilityRule, ScopingRules, TransferRecord, TokenClassId};
 pub use ledger::FileResourceLedger;
-pub use marketplace::{
-    MarketplaceOffer, MarketplaceBid, MarketplaceTransaction, ItemType, OfferStatus, BidStatus, 
-    TransactionStatus, FulfillmentDetails, FulfillmentMethod, MarketplaceStore, OfferFilter,
-    InMemoryMarketplaceStore
-};
-pub use mutual_credit::{
-    CreditLine, CreditLineStatus, CreditScore, MutualCreditTransaction, CreditTransactionStatus,
-    RepaymentRecord, RepaymentMethod, MutualCreditStore, InMemoryMutualCreditStore, CommunityStats
-};
-pub use time_banking::{
-    TimeRecord, TimeRecordStatus, TimeBankingStore, InMemoryTimeBankingStore, WorkStatistics
+pub use ledger::{
+    FileManaLedger, ResourceLedger, ScopingRules, TokenClass, TokenClassId, TokenType,
+    TransferRecord, TransferabilityRule,
 };
 #[cfg(feature = "persist-rocksdb")]
 pub use ledger::{RocksdbManaLedger, RocksdbResourceLedger};
@@ -42,9 +36,20 @@ pub use ledger::{RocksdbManaLedger, RocksdbResourceLedger};
 pub use ledger::{SledManaLedger, SledResourceLedger};
 #[cfg(feature = "persist-sqlite")]
 pub use ledger::{SqliteManaLedger, SqliteResourceLedger};
+pub use marketplace::{
+    BidStatus, FulfillmentDetails, FulfillmentMethod, InMemoryMarketplaceStore, ItemType,
+    MarketplaceBid, MarketplaceOffer, MarketplaceStore, MarketplaceTransaction, OfferFilter,
+    OfferStatus, TransactionStatus,
+};
 pub use mutual_aid::{grant_mutual_aid, use_mutual_aid, MUTUAL_AID_CLASS};
-pub use reputation_tokens::{
-    grant_reputation_tokens, use_reputation_tokens, REPUTATION_CLASS,
+pub use mutual_credit::{
+    CommunityStats, CreditLine, CreditLineStatus, CreditScore, CreditTransactionStatus,
+    InMemoryMutualCreditStore, MutualCreditStore, MutualCreditTransaction, RepaymentMethod,
+    RepaymentRecord,
+};
+pub use reputation_tokens::{grant_reputation_tokens, use_reputation_tokens, REPUTATION_CLASS};
+pub use time_banking::{
+    InMemoryTimeBankingStore, TimeBankingStore, TimeRecord, TimeRecordStatus, WorkStatistics,
 };
 
 #[cfg(test)]
@@ -127,8 +132,6 @@ impl<T: ManaLedger + ?Sized> ManaLedger for &T {
         (**self).all_accounts()
     }
 }
-
-
 
 /// Thin wrapper exposing convenience methods over a [`ManaLedger`].
 pub struct ManaRepositoryAdapter<L: ManaLedger> {
@@ -427,7 +430,8 @@ impl<L: ResourceLedger> ResourceRepositoryAdapter<L> {
                 return Err(CommonError::PolicyDenied("issuer not authorized".into()));
             }
         }
-        self.ledger.transfer(&class_id.to_string(), from, to, amount)?;
+        self.ledger
+            .transfer(&class_id.to_string(), from, to, amount)?;
         self.record_event(&TokenEvent::Transfer {
             class_id: class_id.to_string(),
             amount,
@@ -443,7 +447,11 @@ impl<L: ResourceLedger> ResourceRepositoryAdapter<L> {
 const TOKEN_FEE: u64 = 1;
 
 /// Execute a marketplace transaction by transferring tokens and updating records.
-pub fn execute_marketplace_transaction<L: ResourceLedger, M: ManaLedger, S: marketplace::MarketplaceStore>(
+pub fn execute_marketplace_transaction<
+    L: ResourceLedger,
+    M: ManaLedger,
+    S: marketplace::MarketplaceStore,
+>(
     resource_repo: &ResourceRepositoryAdapter<L>,
     mana_ledger: &M,
     marketplace_store: &S,
@@ -452,15 +460,19 @@ pub fn execute_marketplace_transaction<L: ResourceLedger, M: ManaLedger, S: mark
     executor: &Did, // Could be seller, buyer, or marketplace operator
 ) -> Result<marketplace::MarketplaceTransaction, CommonError> {
     // Get the offer and bid
-    let offer = marketplace_store.get_offer(offer_id)
+    let offer = marketplace_store
+        .get_offer(offer_id)
         .ok_or_else(|| CommonError::InvalidInputError(format!("Offer {} not found", offer_id)))?;
-    
-    let bid = marketplace_store.get_bid(bid_id)
+
+    let bid = marketplace_store
+        .get_bid(bid_id)
         .ok_or_else(|| CommonError::InvalidInputError(format!("Bid {} not found", bid_id)))?;
 
     // Validate the transaction
     if bid.offer_id != offer.offer_id {
-        return Err(CommonError::InvalidInputError("Bid does not match offer".into()));
+        return Err(CommonError::InvalidInputError(
+            "Bid does not match offer".into(),
+        ));
     }
 
     if bid.status != marketplace::BidStatus::Active {
@@ -472,7 +484,9 @@ pub fn execute_marketplace_transaction<L: ResourceLedger, M: ManaLedger, S: mark
     }
 
     if bid.quantity > offer.quantity {
-        return Err(CommonError::PolicyDenied("Bid quantity exceeds available quantity".into()));
+        return Err(CommonError::PolicyDenied(
+            "Bid quantity exceeds available quantity".into(),
+        ));
     }
 
     // Calculate total price
@@ -533,17 +547,25 @@ pub fn execute_marketplace_transaction<L: ResourceLedger, M: ManaLedger, S: mark
 }
 
 /// Create a marketplace offer with token validation.
-pub fn create_marketplace_offer<L: ResourceLedger, M: ManaLedger, S: marketplace::MarketplaceStore>(
+pub fn create_marketplace_offer<
+    L: ResourceLedger,
+    M: ManaLedger,
+    S: marketplace::MarketplaceStore,
+>(
     resource_ledger: &L,
     mana_ledger: &M,
     marketplace_store: &S,
     offer: marketplace::MarketplaceOffer,
 ) -> Result<(), CommonError> {
     // Validate that the payment token class exists
-    if resource_ledger.get_class(&offer.payment_token_class).is_none() {
-        return Err(CommonError::InvalidInputError(
-            format!("Payment token class {} does not exist", offer.payment_token_class)
-        ));
+    if resource_ledger
+        .get_class(&offer.payment_token_class)
+        .is_none()
+    {
+        return Err(CommonError::InvalidInputError(format!(
+            "Payment token class {} does not exist",
+            offer.payment_token_class
+        )));
     }
 
     // Charge mana fee for creating offer
@@ -556,22 +578,29 @@ pub fn create_marketplace_offer<L: ResourceLedger, M: ManaLedger, S: marketplace
 }
 
 /// Create a marketplace bid with balance validation.
-pub fn create_marketplace_bid<L: ResourceLedger, M: ManaLedger, S: marketplace::MarketplaceStore>(
+pub fn create_marketplace_bid<
+    L: ResourceLedger,
+    M: ManaLedger,
+    S: marketplace::MarketplaceStore,
+>(
     resource_ledger: &L,
     mana_ledger: &M,
     marketplace_store: &S,
     bid: marketplace::MarketplaceBid,
 ) -> Result<(), CommonError> {
     // Validate that the offer exists
-    let _offer = marketplace_store.get_offer(&bid.offer_id)
-        .ok_or_else(|| CommonError::InvalidInputError(format!("Offer {} not found", bid.offer_id)))?;
+    let _offer = marketplace_store.get_offer(&bid.offer_id).ok_or_else(|| {
+        CommonError::InvalidInputError(format!("Offer {} not found", bid.offer_id))
+    })?;
 
     // Validate that buyer has sufficient token balance
     let required_tokens = bid.price_per_unit * bid.quantity;
     let buyer_balance = resource_ledger.get_balance(&bid.payment_token_class, &bid.buyer);
-    
+
     if buyer_balance < required_tokens {
-        return Err(CommonError::PolicyDenied("Insufficient token balance for bid".into()));
+        return Err(CommonError::PolicyDenied(
+            "Insufficient token balance for bid".into(),
+        ));
     }
 
     // Charge mana fee for creating bid
