@@ -1,3 +1,8 @@
-fn run() -> Integer {
-    return 11;
+contract ExampleContract {
+    scope: "example.icn.test";
+    version: "1.0.0";
+    
+    fn run() -> Integer {
+        return 11;
+    }
 }

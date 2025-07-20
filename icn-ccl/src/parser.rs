@@ -76,6 +76,31 @@ pub fn parse_contract_declaration(pair: Pair<Rule>) -> Result<ContractDeclaratio
     
     for item in inner {
         match item.as_rule() {
+            Rule::contract_meta => {
+                // Handle nested metadata rules
+                for meta_item in item.into_inner() {
+                    match meta_item.as_rule() {
+                        Rule::scope_meta => {
+                            let meta = parse_scope_meta(meta_item)?;
+                            metadata.push(meta);
+                        }
+                        Rule::version_meta => {
+                            let meta = parse_version_meta(meta_item)?;
+                            metadata.push(meta);
+                        }
+                        Rule::extends_meta => {
+                            let meta = parse_extends_meta(meta_item)?;
+                            metadata.push(meta);
+                        }
+                        _ => {
+                            return Err(CclError::ParsingError(format!(
+                                "Unexpected metadata rule: {:?}",
+                                meta_item.as_rule()
+                            )));
+                        }
+                    }
+                }
+            }
             Rule::scope_meta => {
                 let meta = parse_scope_meta(item)?;
                 metadata.push(meta);

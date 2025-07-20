@@ -8,7 +8,16 @@ fn main() {
 
     // Test 1: Simple inline contract
     println!("=== Test 1: Simple Contract ===");
-    let simple_contract = "fn run() -> Integer { return 42; }";
+    let simple_contract = r#"
+contract SimpleDemo {
+    scope: "demo.icn.example";
+    version: "1.0.0";
+    
+    fn run() -> Integer { 
+        return 42; 
+    }
+}
+"#;
     match compile_ccl_source_to_wasm(simple_contract) {
         Ok((wasm_bytes, metadata)) => {
             println!("✅ Successfully compiled simple contract!");
@@ -25,15 +34,29 @@ fn main() {
     // Test 2: Governance workflow contract
     println!("=== Test 2: Governance Workflow ===");
     let governance_contract = r#"
-        fn create_proposal() -> Integer { return 1; }
-        fn vote_on_proposal(proposal_id: Integer) -> Integer { return proposal_id + 1; }
-        fn finalize_proposal(vote_count: Integer) -> Integer { return vote_count + 1; }
-        fn run() -> Integer { 
-            let proposal_id = create_proposal();
-            let vote_count = vote_on_proposal(proposal_id);
-            return finalize_proposal(vote_count);
-        }
-    "#;
+contract GovernanceDemo {
+    scope: "governance.icn.example";
+    version: "1.0.0";
+    
+    fn create_proposal() -> Integer { 
+        return 1; 
+    }
+    
+    fn vote_on_proposal(proposal_id: Integer) -> Integer { 
+        return proposal_id + 1; 
+    }
+    
+    fn finalize_proposal(vote_count: Integer) -> Integer { 
+        return vote_count + 1; 
+    }
+    
+    fn run() -> Integer { 
+        let proposal_id = create_proposal();
+        let vote_count = vote_on_proposal(proposal_id);
+        return finalize_proposal(vote_count);
+    }
+}
+"#;
     match compile_ccl_source_to_wasm(governance_contract) {
         Ok((wasm_bytes, metadata)) => {
             println!("✅ Successfully compiled governance contract!");
@@ -70,20 +93,25 @@ fn main() {
     // Test 4: Control flow with if/else and a while loop
     println!("=== Test 4: Control Flow ===");
     let control_flow_contract = r#"
-        fn run() -> Integer {
-            let count = 0;
-            let sum = 0;
-            while count < 5 {
-                if count < 3 {
-                    let sum = sum + count;
-                } else {
-                    let sum = sum + 1;
-                }
-                let count = count + 1;
+contract ControlFlowDemo {
+    scope: "control.icn.example";
+    version: "1.0.0";
+    
+    fn run() -> Integer {
+        let count = 0;
+        let sum = 0;
+        while count < 5 {
+            if count < 3 {
+                let sum = sum + count;
+            } else {
+                let sum = sum + 1;
             }
-            return sum;
+            let count = count + 1;
         }
-    "#;
+        return sum;
+    }
+}
+"#;
     match compile_ccl_source_to_wasm(control_flow_contract) {
         Ok((wasm_bytes, metadata)) => {
             println!("✅ Successfully compiled control flow contract!");
