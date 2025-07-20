@@ -5,7 +5,7 @@ use crate::ast::{
     TypeExprNode, UnaryOperator, ContractDeclarationNode,
     RoleDeclarationNode, ProposalDeclarationNode, StateDeclarationNode,
     ConstDeclarationNode, EnumDefinitionNode,
-    FieldNode, LValueNode,
+    FieldNode, LValueNode, PatternNode,
 };
 use crate::error::CclError;
 use crate::stdlib::StdLibrary;
@@ -137,13 +137,18 @@ impl SemanticAnalyzer {
                             )?;
                         }
                         crate::ast::TopLevelNode::Struct(struct_def) => {
-                            // TODO: Analyze standalone struct
+                            // Standalone struct definitions should be validated
+                            // and registered so subsequent items can use them.
+                            self.analyze_struct_definition(&struct_def.name, &struct_def.fields)?;
+                            self.register_struct_type(struct_def)?;
                         }
                         crate::ast::TopLevelNode::Enum(enum_def) => {
-                            // TODO: Analyze standalone enum
+                            // Validate and register standalone enums
+                            self.analyze_enum_definition(enum_def)?;
                         }
                         crate::ast::TopLevelNode::Const(const_def) => {
-                            // TODO: Analyze standalone const
+                            // Analyze top-level constant declarations
+                            self.analyze_const_declaration(const_def)?;
                         }
                     }
                 }
@@ -669,14 +674,19 @@ impl SemanticAnalyzer {
                 self.exit_scope();
             }
             StatementNode::Match { expr, arms } => {
-                let _expr_type = self.evaluate_expression(expr)?;
-                
+                let expr_type = self.evaluate_expression(expr)?;
+
                 for arm in arms {
-                    // TODO: Pattern type checking
-                    self.evaluate_expression(&arm.body)?;
+                    self.enter_scope();
+                    self.check_pattern(&arm.pattern, &expr_type)?;
                     if let Some(guard) = &arm.guard {
-                        self.evaluate_expression(guard)?;
+                        let guard_type = self.evaluate_expression(guard)?;
+                        if !matches!(guard_type, TypeAnnotationNode::Bool) {
+                            return Err(CclError::TypeMismatchError { expected: TypeAnnotationNode::Bool, found: guard_type });
+                        }
                     }
+                    self.evaluate_expression(&arm.body)?;
+                    self.exit_scope();
                 }
             }
             StatementNode::Return(expr) => {
@@ -731,6 +741,95 @@ impl SemanticAnalyzer {
         Ok(())
     }
 
+    /// Check that a pattern matches the expected type and bind any variables
+    fn check_pattern(&mut self, pattern: &PatternNode, expected: &TypeAnnotationNode) -> Result<(), CclError> {
+        match pattern {
+            PatternNode::Literal(lit) => {
+                let lit_type = self.literal_type(lit);
+                if !lit_type.compatible_with(expected) {
+                    return Err(CclError::TypeMismatchError { expected: expected.clone(), found: lit_type });
+                }
+            }
+            PatternNode::Variable(name) => {
+                self.symbol_table.insert(
+                    name.clone(),
+                    Symbol {
+                        name: name.clone(),
+                        symbol_type: expected.clone(),
+                        is_mutable: false,
+                        scope_level: self.current_scope_level,
+                    },
+                );
+            }
+            PatternNode::Wildcard => {}
+            PatternNode::Struct { name, fields } => {
+                if let TypeAnnotationNode::Custom(struct_name) = expected {
+                    if struct_name != name {
+                        return Err(CclError::TypeMismatchError {
+                            expected: TypeAnnotationNode::Custom(name.clone()),
+                            found: expected.clone(),
+                        });
+                    }
+                    if let Some(def) = self.struct_table.get(name).cloned() {
+                        for field_pat in fields {
+                            if let Some(field_type) = def.fields.get(&field_pat.name).cloned() {
+                                if let Some(pat) = &field_pat.pattern {
+                                    self.check_pattern(pat, &field_type)?;
+                                } else {
+                                    self.symbol_table.insert(
+                                        field_pat.name.clone(),
+                                        Symbol {
+                                            name: field_pat.name.clone(),
+                                            symbol_type: field_type.clone(),
+                                            is_mutable: false,
+                                            scope_level: self.current_scope_level,
+                                        },
+                                    );
+                                }
+                            } else {
+                                return Err(CclError::SemanticError(format!(
+                                    "Struct {} has no field {}",
+                                    name, field_pat.name
+                                )));
+                            }
+                        }
+                    }
+                }
+            }
+            PatternNode::Enum { type_name, variant: _, inner } => {
+                if let TypeAnnotationNode::Custom(t) = expected {
+                    if t != type_name {
+                        return Err(CclError::TypeMismatchError {
+                            expected: TypeAnnotationNode::Custom(type_name.clone()),
+                            found: expected.clone(),
+                        });
+                    }
+                }
+                if let Some(inner_pat) = inner {
+                    // We don't know variant field types, so use Any
+                    self.check_pattern(inner_pat, &TypeAnnotationNode::Custom("Any".to_string()))?;
+                }
+            }
+            PatternNode::Tuple(patterns) => {
+                if let TypeAnnotationNode::Custom(_name) = expected {
+                    for pat in patterns {
+                        self.check_pattern(pat, &TypeAnnotationNode::Custom("Any".to_string()))?;
+                    }
+                }
+            }
+            PatternNode::Array(patterns) => {
+                if let TypeAnnotationNode::Array(inner) = expected {
+                    for pat in patterns {
+                        self.check_pattern(pat, inner)?;
+                    }
+                } else {
+                    return Err(CclError::TypeMismatchError { expected: TypeAnnotationNode::Array(Box::new(expected.clone())), found: expected.clone() });
+                }
+            }
+        }
+        Ok(())
+    }
+
     fn evaluate_lvalue(&mut self, lvalue: &LValueNode) -> Result<TypeAnnotationNode, CclError> {
         match lvalue {
             LValueNode::Identifier(name) => {
@@ -747,10 +846,32 @@ impl SemanticAnalyzer {
                     })
                 }
             }
-            LValueNode::MemberAccess { object, member: _ } => {
-                let _object_type = self.evaluate_expression(object)?;
-                // TODO: Implement struct member type lookup
-                Ok(TypeAnnotationNode::Custom("member".to_string()))
+            LValueNode::MemberAccess { object, member } => {
+                let object_type = self.evaluate_expression(object)?;
+
+                match object_type {
+                    TypeAnnotationNode::Custom(struct_name) => {
+                        if let Some(struct_type) = self.struct_table.get(&struct_name) {
+                            if let Some(member_type) = struct_type.fields.get(member) {
+                                Ok(member_type.clone())
+                            } else {
+                                Err(CclError::SemanticError(format!(
+                                    "Struct {} has no member named {}",
+                                    struct_name, member
+                                )))
+                            }
+                        } else {
+                            Err(CclError::SemanticError(format!(
+                                "Cannot access member {} on non-struct type",
+                                member
+                            )))
+                        }
+                    }
+                    _ => Err(CclError::SemanticError(format!(
+                        "Cannot access member {} on type {:?}",
+                        member, object_type
+                    ))),
+                }
             }
             LValueNode::IndexAccess { object, index } => {
                 let object_type = self.evaluate_expression(object)?;
@@ -877,14 +998,32 @@ impl SemanticAnalyzer {
                     Ok(TypeAnnotationNode::Array(Box::new(first_type)))
                 }
             }
-            ExpressionNode::StructLiteral { type_name, fields: _ } => {
-
-                // Validate that the struct type exists
-                if !self.struct_table.contains_key(type_name) {
-                    return Err(CclError::SemanticError(format!("Unknown struct type: {}", type_name)));
+            ExpressionNode::StructLiteral { type_name, fields } => {
+                // Validate that the struct type exists and check field types
+                if let Some(struct_type) = self.struct_table.get(type_name).cloned() {
+                    for field in fields {
+                        if let Some(expected) = struct_type.fields.get(&field.name).cloned() {
+                            let value_type = self.evaluate_expression(&field.value)?;
+                            if !value_type.compatible_with(&expected) {
+                                return Err(CclError::TypeMismatchError {
+                                    expected,
+                                    found: value_type,
+                                });
+                            }
+                        } else {
+                            return Err(CclError::SemanticError(format!(
+                                "Struct {} has no field {}",
+                                type_name, field.name
+                            )));
+                        }
+                    }
+                    Ok(TypeAnnotationNode::Custom(type_name.clone()))
+                } else {
+                    Err(CclError::SemanticError(format!(
+                        "Unknown struct type: {}",
+                        type_name
+                    )))
                 }
-                // TODO: Validate struct fields against definition
-                Ok(TypeAnnotationNode::Custom(type_name.clone()))
             }
             ExpressionNode::MemberAccess { object, member } => {
                 let object_type = self.evaluate_expression(object)?;
