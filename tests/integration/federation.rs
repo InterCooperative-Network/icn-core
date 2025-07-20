@@ -1,6 +1,7 @@
 use base64;
 use bincode;
 use icn_mesh::{JobKind, JobSpec};
+use icn_node::{app_router_with_options, RuntimeMode};
 use once_cell::sync::OnceCell;
 use serde_json::Value;
 use std::{process::Command, time::Duration};
@@ -350,8 +351,8 @@ pub async fn wait_for_federation_ready() -> Result<(), Box<dyn std::error::Error
 
 #[tokio::test]
 async fn join_and_leave_federation_via_http() {
-    let (router, _ctx) = icn_node::app_router_with_options(
-        None, None, None, None, None, None, None, None, None, None,
+    let (router, _ctx) = app_router_with_options(
+        RuntimeMode::Testing, None, None, None, None, None, None, None, None, None, None,
     )
     .await;
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();

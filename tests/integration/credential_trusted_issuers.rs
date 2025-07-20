@@ -1,7 +1,7 @@
 use icn_identity::Credential;
 use icn_identity::generate_ed25519_keypair;
 use icn_identity::{did_key_from_verifying_key};
-use icn_node::app_router_with_options;
+use icn_node::{app_router_with_options, RuntimeMode};
 use reqwest::{Client, StatusCode};
 use tokio::task;
 use tokio::time::{sleep, Duration};
@@ -16,6 +16,7 @@ async fn verify_trusted_and_untrusted_issuers() {
     let trusted_did = Did::from_str(&did_key_from_verifying_key(&pk_trusted)).unwrap();
     std::env::set_var("ICN_TRUSTED_ISSUERS", trusted_did.to_string());
     let (router, _ctx) = app_router_with_options(
+        RuntimeMode::Testing,
         None,
         None,
         None,

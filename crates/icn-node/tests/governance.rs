@@ -1,7 +1,7 @@
 use icn_api::governance_trait::{CastVoteRequest, ProposalInputType, SubmitProposalRequest};
 use icn_common::Did;
 use icn_governance::ProposalId;
-use icn_node::app_router_with_options;
+use icn_node::{app_router_with_options, RuntimeMode};
 use reqwest::Client;
 use std::str::FromStr;
 use tokio::task;
@@ -9,6 +9,7 @@ use tokio::task;
 #[tokio::test]
 async fn submit_and_vote_proposal() {
     let (router, ctx) = app_router_with_options(
+        RuntimeMode::Testing, // runtime_mode
         None, // api_key
         None, // auth_token
         None, // rate_limit
