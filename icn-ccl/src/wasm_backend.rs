@@ -54,7 +54,7 @@ impl LocalEnv {
     }
 }
 
-const IMPORT_COUNT: u32 = 15; // 5 original + 10 new functions
+const IMPORT_COUNT: u32 = 18; // 5 original + 13 new functions (8 economics + 5 identity)
 
 pub struct WasmBackend {
     data: wasm_encoder::DataSection,
@@ -368,6 +368,103 @@ impl WasmBackend {
         );
         imports.import("icn", "host_verify_credential", wasm_encoder::EntityType::Function(ty_verify_cred));
         fn_indices.insert("host_verify_credential".to_string(), next_index);
+        next_index += 1;
+
+        // === ADDITIONAL ECONOMICS FUNCTIONS ===
+        
+        // Time banking functions
+        let ty_record_time = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I32, ValType::I64, ValType::I32], // worker, work_description, hours_worked, verifier
+            vec![ValType::I32] // time_record_id string pointer
+        );
+        imports.import("icn", "host_record_time_work", wasm_encoder::EntityType::Function(ty_record_time));
+        fn_indices.insert("host_record_time_work".to_string(), next_index);
+        next_index += 1;
+
+        let ty_mint_time = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I32, ValType::I64], // time_record_id, worker, hours
+            vec![ValType::I32] // bool
+        );
+        imports.import("icn", "host_mint_time_tokens", wasm_encoder::EntityType::Function(ty_mint_time));
+        fn_indices.insert("host_mint_time_tokens".to_string(), next_index);
+        next_index += 1;
+
+        // Mutual credit functions
+        let ty_create_credit = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I32, ValType::I64, ValType::I64], // creditor, debtor, credit_limit, interest_rate_bps
+            vec![ValType::I32] // credit_line_id string pointer
+        );
+        imports.import("icn", "host_create_credit_line", wasm_encoder::EntityType::Function(ty_create_credit));
+        fn_indices.insert("host_create_credit_line".to_string(), next_index);
+        next_index += 1;
+
+        let ty_extend_credit = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I64, ValType::I32], // credit_line_id, amount, purpose
+            vec![ValType::I32] // bool
+        );
+        imports.import("icn", "host_extend_mutual_credit", wasm_encoder::EntityType::Function(ty_extend_credit));
+        fn_indices.insert("host_extend_mutual_credit".to_string(), next_index);
+        next_index += 1;
+
+        // Marketplace functions
+        let ty_create_offer = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I32, ValType::I64, ValType::I64, ValType::I32], // seller, item_type, quantity, price_per_unit, payment_token_class
+            vec![ValType::I32] // offer_id string pointer
+        );
+        imports.import("icn", "host_create_marketplace_offer", wasm_encoder::EntityType::Function(ty_create_offer));
+        fn_indices.insert("host_create_marketplace_offer".to_string(), next_index);
+        next_index += 1;
+
+        let ty_execute_market = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I32, ValType::I32], // offer_id, bid_id, executor
+            vec![ValType::I32] // transaction_id string pointer
+        );
+        imports.import("icn", "host_execute_marketplace_transaction", wasm_encoder::EntityType::Function(ty_execute_market));
+        fn_indices.insert("host_execute_marketplace_transaction".to_string(), next_index);
+        next_index += 1;
+
+        // === ADDITIONAL IDENTITY FUNCTIONS ===
+        
+        let ty_update_did = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I32, ValType::I32], // did, new_document, signature
+            vec![ValType::I32] // bool
+        );
+        imports.import("icn", "host_update_did_document", wasm_encoder::EntityType::Function(ty_update_did));
+        fn_indices.insert("host_update_did_document".to_string(), next_index);
+        next_index += 1;
+
+        let ty_revoke_cred = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I32, ValType::I32], // issuer, credential_id, reason
+            vec![ValType::I32] // bool
+        );
+        imports.import("icn", "host_revoke_credential", wasm_encoder::EntityType::Function(ty_revoke_cred));
+        fn_indices.insert("host_revoke_credential".to_string(), next_index);
+        next_index += 1;
+
+        let ty_create_coop = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I32, ValType::I32, ValType::I64], // member, cooperative_id, membership_type, membership_level
+            vec![ValType::I32] // membership credential string pointer
+        );
+        imports.import("icn", "host_create_cooperative_membership", wasm_encoder::EntityType::Function(ty_create_coop));
+        fn_indices.insert("host_create_cooperative_membership".to_string(), next_index);
+        next_index += 1;
+
+        let ty_verify_coop = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I32, ValType::I64], // member, cooperative_id, required_level
+            vec![ValType::I32] // bool
+        );
+        imports.import("icn", "host_verify_cooperative_membership", wasm_encoder::EntityType::Function(ty_verify_coop));
+        fn_indices.insert("host_verify_cooperative_membership".to_string(), next_index);
         next_index += 1;
 
         let policy_items = match ast {
@@ -1515,6 +1612,110 @@ impl WasmBackend {
                         Ok(ValType::I32)
                     }
                     
+                    // === ADDITIONAL ECONOMICS STDLIB FUNCTIONS ===
+                    
+                    "record_time_work" => {
+                        // Map to host_record_time_work(worker, work_description, hours_worked, verifier)
+                        for arg in args {
+                            self.emit_expression(arg, instrs, locals, indices)?;
+                        }
+                        let idx = indices.get("host_record_time_work").unwrap();
+                        instrs.push(Instruction::Call(*idx));
+                        Ok(ValType::I32) // time_record_id string pointer
+                    }
+                    
+                    "mint_time_tokens" => {
+                        // Map to host_mint_time_tokens(time_record_id, worker, hours)
+                        for arg in args {
+                            self.emit_expression(arg, instrs, locals, indices)?;
+                        }
+                        let idx = indices.get("host_mint_time_tokens").unwrap();
+                        instrs.push(Instruction::Call(*idx));
+                        Ok(ValType::I32)
+                    }
+                    
+                    "create_credit_line" => {
+                        // Map to host_create_credit_line(creditor, debtor, credit_limit, interest_rate_bps)
+                        for arg in args {
+                            self.emit_expression(arg, instrs, locals, indices)?;
+                        }
+                        let idx = indices.get("host_create_credit_line").unwrap();
+                        instrs.push(Instruction::Call(*idx));
+                        Ok(ValType::I32) // credit_line_id string pointer
+                    }
+                    
+                    "extend_mutual_credit" => {
+                        // Map to host_extend_mutual_credit(credit_line_id, amount, purpose)
+                        for arg in args {
+                            self.emit_expression(arg, instrs, locals, indices)?;
+                        }
+                        let idx = indices.get("host_extend_mutual_credit").unwrap();
+                        instrs.push(Instruction::Call(*idx));
+                        Ok(ValType::I32)
+                    }
+                    
+                    "create_marketplace_offer" => {
+                        // Map to host_create_marketplace_offer(seller, item_type, quantity, price_per_unit, payment_token_class)
+                        for arg in args {
+                            self.emit_expression(arg, instrs, locals, indices)?;
+                        }
+                        let idx = indices.get("host_create_marketplace_offer").unwrap();
+                        instrs.push(Instruction::Call(*idx));
+                        Ok(ValType::I32) // offer_id string pointer
+                    }
+                    
+                    "execute_marketplace_transaction" => {
+                        // Map to host_execute_marketplace_transaction(offer_id, bid_id, executor)
+                        for arg in args {
+                            self.emit_expression(arg, instrs, locals, indices)?;
+                        }
+                        let idx = indices.get("host_execute_marketplace_transaction").unwrap();
+                        instrs.push(Instruction::Call(*idx));
+                        Ok(ValType::I32) // transaction_id string pointer
+                    }
+                    
+                    // === ADDITIONAL IDENTITY STDLIB FUNCTIONS ===
+                    
+                    "update_did_document" => {
+                        // Map to host_update_did_document(did, new_document, signature)
+                        for arg in args {
+                            self.emit_expression(arg, instrs, locals, indices)?;
+                        }
+                        let idx = indices.get("host_update_did_document").unwrap();
+                        instrs.push(Instruction::Call(*idx));
+                        Ok(ValType::I32)
+                    }
+                    
+                    "revoke_credential" => {
+                        // Map to host_revoke_credential(issuer, credential_id, reason)
+                        for arg in args {
+                            self.emit_expression(arg, instrs, locals, indices)?;
+                        }
+                        let idx = indices.get("host_revoke_credential").unwrap();
+                        instrs.push(Instruction::Call(*idx));
+                        Ok(ValType::I32)
+                    }
+                    
+                    "create_cooperative_membership" => {
+                        // Map to host_create_cooperative_membership(member, cooperative_id, membership_type, membership_level)
+                        for arg in args {
+                            self.emit_expression(arg, instrs, locals, indices)?;
+                        }
+                        let idx = indices.get("host_create_cooperative_membership").unwrap();
+                        instrs.push(Instruction::Call(*idx));
+                        Ok(ValType::I32) // membership credential string pointer
+                    }
+                    
+                    "verify_cooperative_membership" => {
+                        // Map to host_verify_cooperative_membership(member, cooperative_id, required_level)
+                        for arg in args {
+                            self.emit_expression(arg, instrs, locals, indices)?;
+                        }
+                        let idx = indices.get("host_verify_cooperative_membership").unwrap();
+                        instrs.push(Instruction::Call(*idx));
+                        Ok(ValType::I32)
+                    }
+                    
                     _ => {
                         let idx = indices.get(name).ok_or_else(|| {
                             CclError::WasmGenerationError(format!("Unknown function {}", name))
@@ -1530,9 +1731,15 @@ impl WasmBackend {
                             "host_submit_mesh_job" | "host_anchor_receipt" 
                             | "host_create_token_class" | "host_mint_tokens" | "host_transfer_tokens" 
                             | "host_burn_tokens" | "host_credit_by_reputation" | "host_mint_tokens_with_reputation"
-                            | "host_verify_did_signature" | "host_verify_credential" => ValType::I32,
+                            | "host_verify_did_signature" | "host_verify_credential"
+                            | "host_mint_time_tokens" | "host_extend_mutual_credit" 
+                            | "host_update_did_document" | "host_revoke_credential" 
+                            | "host_verify_cooperative_membership" => ValType::I32,
                             
-                            "host_create_did" | "host_resolve_did" | "host_issue_credential" => ValType::I32, // pointers
+                            "host_create_did" | "host_resolve_did" | "host_issue_credential"
+                            | "host_record_time_work" | "host_create_credit_line" 
+                            | "host_create_marketplace_offer" | "host_execute_marketplace_transaction"
+                            | "host_create_cooperative_membership" => ValType::I32, // pointers
                             
                             _ => ValType::I64,
                         };
