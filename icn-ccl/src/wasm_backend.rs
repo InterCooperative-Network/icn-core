@@ -563,7 +563,7 @@ impl WasmBackend {
                     }
                 }
             }
-            ExpressionNode::MethodCall { object, method, args } => {
+            ExpressionNode::MethodCall { object, method, args: _ } => {
                 match method.as_str() {
                     "length" => {
                         // Handle array.length() method

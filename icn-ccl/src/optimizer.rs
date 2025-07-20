@@ -409,6 +409,15 @@ impl Optimizer {
                 }
             }
             
+            // Method calls
+            ExpressionNode::MethodCall { object, method, args } => {
+                ExpressionNode::MethodCall {
+                    object: Box::new(self.fold_expr(*object)),
+                    method,
+                    args: args.into_iter().map(|a| self.fold_expr(a)).collect(),
+                }
+            }
+            
             // Binary operations - main optimization target
             ExpressionNode::BinaryOp { left, operator, right } => {
                 let left_folded = self.fold_expr(*left);

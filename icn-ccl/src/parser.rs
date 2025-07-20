@@ -1419,7 +1419,7 @@ fn parse_let_statement(pair: Pair<Rule>) -> Result<StatementNode, CclError> {
 
 fn parse_assignment_statement(pair: Pair<Rule>) -> Result<StatementNode, CclError> {
     // assignment_stmt = { identifier ~ "=" ~ expr ~ ";" | identifier ~ "[" ~ expr ~ "]" ~ "=" ~ expr ~ ";" | ... }
-    let mut inner = pair.into_inner();
+    let inner = pair.into_inner();
     let tokens: Vec<_> = inner.collect();
     
     match tokens.len() {
