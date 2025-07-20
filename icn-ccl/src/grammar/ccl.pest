@@ -268,7 +268,9 @@ let_stmt = {
 }
 
 assignment_stmt = {
-    lvalue ~ "=" ~ expr ~ ";"
+    identifier ~ "=" ~ expr ~ ";" |
+    identifier ~ "[" ~ expr ~ "]" ~ "=" ~ expr ~ ";" |
+    identifier ~ "." ~ identifier ~ "=" ~ expr ~ ";"
 }
 
 lvalue = {

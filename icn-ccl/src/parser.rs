@@ -1308,8 +1308,16 @@ fn parse_function_call_with_expr(expr: ExpressionNode, suffix: Pair<Rule>) -> Re
         ExpressionNode::Identifier(name) => {
             Ok(ExpressionNode::FunctionCall { name, args })
         }
+        ExpressionNode::MemberAccess { object, member } => {
+            // Handle method calls like numbers.length()
+            Ok(ExpressionNode::MethodCall { 
+                object, 
+                method: member, 
+                args 
+            })
+        }
         _ => {
-            Err(CclError::ParsingError("Function call on non-identifier".to_string()))
+            Err(CclError::ParsingError("Function call only supported on identifiers and member access".to_string()))
         }
     }
 }
@@ -1410,18 +1418,36 @@ fn parse_let_statement(pair: Pair<Rule>) -> Result<StatementNode, CclError> {
 }
 
 fn parse_assignment_statement(pair: Pair<Rule>) -> Result<StatementNode, CclError> {
-    // assignment_stmt = { lvalue ~ "=" ~ expr ~ ";" }
+    // assignment_stmt = { identifier ~ "=" ~ expr ~ ";" | identifier ~ "[" ~ expr ~ "]" ~ "=" ~ expr ~ ";" | ... }
     let mut inner = pair.into_inner();
+    let tokens: Vec<_> = inner.collect();
     
-    let lvalue_pair = inner.next()
-        .ok_or_else(|| CclError::ParsingError("Assignment missing lvalue".to_string()))?;
-    let lvalue = parse_lvalue(lvalue_pair)?;
-    
-    let value_pair = inner.next()
-        .ok_or_else(|| CclError::ParsingError("Assignment missing value".to_string()))?;
-    let value = parse_expression(value_pair)?;
-    
-    Ok(StatementNode::Assignment { lvalue, value })
+    match tokens.len() {
+        2 => {
+            // Simple assignment: identifier ~ "=" ~ expr
+            let identifier = tokens[0].as_str().to_string();
+            let value = parse_expression(tokens[1].clone())?;
+            
+            let lvalue = LValueNode::Identifier(identifier);
+            Ok(StatementNode::Assignment { lvalue, value })
+        }
+        3 => {
+            // Index assignment: identifier ~ "[" ~ expr ~ "]" ~ "=" ~ expr
+            let identifier = tokens[0].as_str().to_string();
+            let index = parse_expression(tokens[1].clone())?;
+            let value = parse_expression(tokens[2].clone())?;
+            
+            let lvalue = LValueNode::IndexAccess {
+                object: Box::new(ExpressionNode::Identifier(identifier)),
+                index: Box::new(index),
+            };
+            Ok(StatementNode::Assignment { lvalue, value })
+        }
+        _ => Err(CclError::ParsingError(format!(
+            "Unexpected assignment statement structure with {} tokens",
+            tokens.len()
+        )))
+    }
 }
 
 fn parse_lvalue(pair: Pair<Rule>) -> Result<LValueNode, CclError> {

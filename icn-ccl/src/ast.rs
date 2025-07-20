@@ -455,6 +455,11 @@ pub enum ExpressionNode {
         name: String,
         args: Vec<ExpressionNode>,
     },
+    MethodCall {
+        object: Box<ExpressionNode>,
+        method: String,
+        args: Vec<ExpressionNode>,
+    },
     
     // Binary operations
     BinaryOp {

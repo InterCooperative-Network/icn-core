@@ -479,10 +479,36 @@ impl SemanticAnalyzer {
                 }
                 self.analyze_block(body)?;
             }
-            StatementNode::For { iterator: _, iterable, body } => {
-                let _iterable_type = self.evaluate_expression(iterable)?;
-                // TODO: Validate iterable is actually iterable
+            StatementNode::For { iterator, iterable, body } => {
+                let iterable_type = self.evaluate_expression(iterable)?;
+                
+                // Determine the element type based on the iterable type
+                let element_type = match &iterable_type {
+                    TypeAnnotationNode::Array(inner_type) => (**inner_type).clone(),
+                    _ => {
+                        return Err(CclError::SemanticError(format!(
+                            "Cannot iterate over non-array type: {:?}",
+                            iterable_type
+                        )));
+                    }
+                };
+                
+                // Create a new scope for the loop body
+                self.enter_scope();
+                
+                // Declare the iterator variable in the loop scope
+                self.symbol_table.insert(iterator.clone(), Symbol {
+                    name: iterator.clone(),
+                    symbol_type: element_type,
+                    is_mutable: false, // Iterator variables are immutable
+                    scope_level: self.current_scope_level,
+                });
+                
+                // Analyze the loop body
                 self.analyze_block(body)?;
+                
+                // Exit the loop scope
+                self.exit_scope();
             }
             StatementNode::Match { expr, arms } => {
                 let _expr_type = self.evaluate_expression(expr)?;
@@ -645,6 +671,39 @@ impl SemanticAnalyzer {
                     Err(CclError::UndefinedFunctionError {
                         function: name.clone(),
                     })
+                }
+            }
+            ExpressionNode::MethodCall { object, method, args } => {
+                let object_type = self.evaluate_expression(object)?;
+                
+                match method.as_str() {
+                    "length" => {
+                        // Validate that object is an array
+                        match object_type {
+                            TypeAnnotationNode::Array(_) => {
+                                // length() takes no arguments
+                                if !args.is_empty() {
+                                    return Err(CclError::ArgumentCountMismatchError {
+                                        function: format!("{}.length", "array"),
+                                        expected: 0,
+                                        found: args.len(),
+                                    });
+                                }
+                                Ok(TypeAnnotationNode::Integer)
+                            }
+                            _ => {
+                                Err(CclError::SemanticError(format!(
+                                    "Method 'length' is only available on arrays, got: {:?}",
+                                    object_type
+                                )))
+                            }
+                        }
+                    }
+                    _ => {
+                        Err(CclError::UndefinedFunctionError {
+                            function: format!("method {}", method),
+                        })
+                    }
                 }
             }
             ExpressionNode::ArrayLiteral(elements) => {

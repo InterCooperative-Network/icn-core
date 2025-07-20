@@ -338,6 +338,14 @@ fn expr_to_string(expr: &ExpressionNode) -> String {
                 .join(", ");
             format!("{}({})", name, arg_strs)
         }
+        ExpressionNode::MethodCall { object, method, args } => {
+            let arg_strs = args
+                .iter()
+                .map(expr_to_string)
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("{}.{}({})", expr_to_string(object), method, arg_strs)
+        }
         ExpressionNode::BinaryOp {
             left,
             operator,

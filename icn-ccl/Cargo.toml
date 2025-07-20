@@ -51,8 +51,32 @@ name = "test_simple_operators"
 path = "test_simple_operators.rs"
 
 [[bin]]
+name = "test_simple_for"
+path = "test_simple_for.rs"
+
+[[bin]]
+name = "test_for_arithmetic"
+path = "test_for_arithmetic.rs"
+
+[[bin]]
 name = "debug_equality"
 path = "debug_equality.rs"
+
+[[bin]]
+name = "test_original_problems"
+path = "test_original_problems.rs"
+
+[[bin]]
+name = "test_loops"
+path = "test_loops.rs"
+
+[[bin]]
+name = "test_arrays"
+path = "test_arrays.rs"
+
+[[bin]]
+name = "test_assignment"
+path = "test_assignment.rs"
 
 # [[bin]]
 # name = "generate_ccl_job_spec"
