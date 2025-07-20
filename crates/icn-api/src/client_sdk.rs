@@ -296,6 +296,164 @@ export interface HealthStatus {{
 }}
 
 // ============================================================================
+// Contracts & Circuits API Types
+// ============================================================================
+
+export interface ContractRequest {{
+  source_code: string;
+  schema?: string;
+}}
+
+export interface ContractResponse {{
+  contract_cid: string;
+  wasm_cid: string;
+}}
+
+export interface CircuitRegisterRequest {{
+  slug: string;
+  version: string;
+  circuit_data: Uint8Array;
+  description?: string;
+}}
+
+export interface CircuitResponse {{
+  slug: string;
+  version: string;
+  circuit_cid: string;
+}}
+
+// ============================================================================
+// Cooperative Management API Types
+// ============================================================================
+
+export interface CooperativeProfile {{
+  did: string;
+  name: string;
+  description?: string;
+  capabilities: string[];
+  trust_relationships: TrustRelationship[];
+  metadata: Record<string, any>;
+}}
+
+export interface TrustRelationship {{
+  target_did: string;
+  trust_level: number;
+  trust_type: string;
+  created_at: string;
+}}
+
+export interface CooperativeSearchRequest {{
+  query?: string;
+  capabilities?: string[];
+  region?: string;
+  trust_level?: number;
+}}
+
+export interface CooperativeRegisterRequest {{
+  profile: CooperativeProfile;
+}}
+
+export interface AddTrustRequest {{
+  target_did: string;
+  trust_level: number;
+  trust_type: string;
+}}
+
+export interface RegistryStats {{
+  total_cooperatives: number;
+  total_trust_relationships: number;
+  active_capabilities: string[];
+}}
+
+// ============================================================================
+// Resource Management API Types
+// ============================================================================
+
+export interface ResourceEventRequest {{
+  resource_id: string;
+  action: "acquire" | "consume";
+  scope?: string;
+  mana_cost?: number;
+}}
+
+export interface ResourceLedgerEntry {{
+  resource_id: string;
+  action: "acquire" | "consume";
+  scope?: string;
+  mana_cost: number;
+  timestamp: string;
+}}
+
+// ============================================================================
+// Transaction API Types
+// ============================================================================
+
+export interface Transaction {{
+  id: string;
+  from: string;
+  to: string;
+  amount: number;
+  data?: Uint8Array;
+  signature: string;
+}}
+
+export interface TransactionResponse {{
+  tx_id: string;
+}}
+
+export interface DataQueryRequest {{
+  cid: string;
+}}
+
+// ============================================================================
+// Advanced DAG Operations
+// ============================================================================
+
+export interface DagPinRequest {{
+  cid: string;
+  ttl?: number;
+}}
+
+export interface DagPruneRequest {{
+  max_age_seconds?: number;
+  max_blocks?: number;
+}}
+
+export interface SyncStatus {{
+  is_syncing: boolean;
+  peer_count: number;
+  blocks_synced: number;
+  total_blocks: number;
+}}
+
+// ============================================================================
+// Advanced Mesh Operations
+// ============================================================================
+
+export interface JobProgress {{
+  job_id: string;
+  progress: number;
+  stage: string;
+  estimated_completion?: string;
+}}
+
+export interface JobStream {{
+  job_id: string;
+  stream_type: "stdout" | "stderr";
+  data: string;
+  timestamp: string;
+}}
+
+export interface MeshMetrics {{
+  total_jobs: number;
+  pending_jobs: number;
+  running_jobs: number;
+  completed_jobs: number;
+  failed_jobs: number;
+  average_execution_time: number;
+}}
+
+// ============================================================================
 // ICN Client SDK
 // ============================================================================
 
@@ -332,6 +490,14 @@ export class ICNClient {{
 
     async revokeDelegation(request: RevokeDelegationRequest): Promise<string> {{
       return this.post<string>('/governance/revoke', request);
+    }},
+
+    async closeProposal(proposalId: string): Promise<string> {{
+      return this.post<string>('/governance/close', {{ proposal_id: proposalId }});
+    }},
+
+    async executeProposal(proposalId: string): Promise<string> {{
+      return this.post<string>('/governance/execute', {{ proposal_id: proposalId }});
     }}
   }};
 
@@ -441,6 +607,148 @@ export class ICNClient {{
 
     async getMetrics(): Promise<string> {{
       return this.get<string>('/metrics');
+    }}
+  }};
+
+  // Contracts & Circuits API
+  contracts = {{
+    async compileContract(request: ContractRequest): Promise<ContractResponse> {{
+      return this.post<ContractResponse>('/contracts', request);
+    }},
+
+    async registerCircuit(request: CircuitRegisterRequest): Promise<CircuitResponse> {{
+      return this.post<CircuitResponse>('/circuits/register', request);
+    }},
+
+    async getCircuit(slug: string, version: string): Promise<CircuitResponse> {{
+      return this.get<CircuitResponse>(`/circuits/${{slug}}/${{version}}`);
+    }},
+
+    async getCircuitVersions(slug: string): Promise<string[]> {{
+      return this.get<string[]>(`/circuits/${{slug}}`);
+    }}
+  }};
+
+  // Cooperative Management API
+  cooperative = {{
+    async register(request: CooperativeRegisterRequest): Promise<string> {{
+      return this.post<string>('/cooperative/register', request);
+    }},
+
+    async search(request: CooperativeSearchRequest): Promise<CooperativeProfile[]> {{
+      return this.post<CooperativeProfile[]>('/cooperative/search', request);
+    }},
+
+    async getProfile(did: string): Promise<CooperativeProfile> {{
+      return this.get<CooperativeProfile>(`/cooperative/profile/${{did}}`);
+    }},
+
+    async addTrust(request: AddTrustRequest): Promise<string> {{
+      return this.post<string>('/cooperative/trust', request);
+    }},
+
+    async getTrust(did: string): Promise<TrustRelationship[]> {{
+      return this.get<TrustRelationship[]>(`/cooperative/trust/${{did}}`);
+    }},
+
+    async getCapabilityProviders(capabilityType: string): Promise<CooperativeProfile[]> {{
+      return this.get<CooperativeProfile[]>(`/cooperative/capabilities/${{capabilityType}}`);
+    }},
+
+    async getRegistryStats(): Promise<RegistryStats> {{
+      return this.get<RegistryStats>('/cooperative/registry/stats');
+    }}
+  }};
+
+  // Resource Management API
+  resources = {{
+    async recordEvent(request: ResourceEventRequest): Promise<string> {{
+      return this.post<string>('/resources/event', request);
+    }},
+
+    async getLedger(): Promise<ResourceLedgerEntry[]> {{
+      return this.get<ResourceLedgerEntry[]>('/resources/ledger');
+    }}
+  }};
+
+  // Transaction API
+  transactions = {{
+    async submit(transaction: Transaction): Promise<TransactionResponse> {{
+      return this.post<TransactionResponse>('/transaction/submit', transaction);
+    }},
+
+    async queryData(request: DataQueryRequest): Promise<DagBlock | null> {{
+      return this.post<DagBlock | null>('/data/query', request);
+    }}
+  }};
+
+  // Advanced DAG Operations
+  dagAdvanced = {{
+    async pin(request: DagPinRequest): Promise<string> {{
+      return this.post<string>('/dag/pin', request);
+    }},
+
+    async unpin(cid: string): Promise<string> {{
+      return this.post<string>('/dag/unpin', {{ cid }});
+    }},
+
+    async prune(request: DagPruneRequest): Promise<string> {{
+      return this.post<string>('/dag/prune', request);
+    }},
+
+    async getRoot(): Promise<string> {{
+      return this.get<string>('/dag/root');
+    }},
+
+    async getStatus(): Promise<any> {{
+      return this.get<any>('/dag/status');
+    }},
+
+    async getSyncStatus(): Promise<SyncStatus> {{
+      return this.get<SyncStatus>('/sync/status');
+    }}
+  }};
+
+  // Advanced Mesh Operations
+  meshAdvanced = {{
+    async getJobProgress(jobId: string): Promise<JobProgress> {{
+      return this.get<JobProgress>(`/mesh/jobs/${{jobId}}/progress`);
+    }},
+
+    async getJobStream(jobId: string): Promise<JobStream[]> {{
+      return this.get<JobStream[]>(`/mesh/jobs/${{jobId}}/stream`);
+    }},
+
+    async cancelJob(jobId: string): Promise<string> {{
+      return this.post<string>(`/mesh/jobs/${{jobId}}/cancel`, {{}});
+    }},
+
+    async resumeJob(jobId: string): Promise<string> {{
+      return this.post<string>(`/mesh/jobs/${{jobId}}/resume`, {{}});
+    }},
+
+    async getMetrics(): Promise<MeshMetrics> {{
+      return this.get<MeshMetrics>('/mesh/metrics');
+    }},
+
+    async submitReceipt(receipt: any): Promise<string> {{
+      return this.post<string>('/mesh/receipt', receipt);
+    }}
+  }};
+
+  // Network API
+  network = {{
+    async getLocalPeerId(): Promise<string> {{
+      const response = await this.get<{{ peer_id: string }}>('/network/local-peer-id');
+      return response.peer_id;
+    }},
+
+    async getPeers(): Promise<string[]> {{
+      return this.get<string[]>('/network/peers');
+    }},
+
+    async connect(address: string): Promise<string> {{
+      return this.post<string>('/network/connect', {{ address }});
     }}
   }};
 
