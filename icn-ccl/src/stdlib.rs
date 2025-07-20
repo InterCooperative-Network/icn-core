@@ -22,7 +22,6 @@ pub struct StdFunction {
 pub enum StdCategory {
     Governance,
     Economics,
-    Identity,
     Utility,
     String,
     Array,
@@ -45,7 +44,6 @@ impl StdLibrary {
         
         stdlib.register_governance_functions();
         stdlib.register_economic_functions();
-        stdlib.register_identity_functions();
         stdlib.register_utility_functions();
         stdlib.register_string_functions();
         stdlib.register_array_functions();
@@ -260,300 +258,6 @@ impl StdLibrary {
             return_type: TypeAnnotationNode::Bool,
             description: "Update user's reputation score".to_string(),
             category: StdCategory::Economics,
-        });
-
-        // === CRITICAL ECONOMICS FUNCTIONS - Phase 1 ===
-        
-        // Token system operations
-        self.register_function(StdFunction {
-            name: "create_token_class".to_string(),
-            params: vec![
-                TypeAnnotationNode::String, // class_id
-                TypeAnnotationNode::String, // name
-                TypeAnnotationNode::String, // symbol
-                TypeAnnotationNode::Did,    // issuer
-            ],
-            return_type: TypeAnnotationNode::Bool,
-            description: "Create a new token class with specified properties".to_string(),
-            category: StdCategory::Economics,
-        });
-
-        self.register_function(StdFunction {
-            name: "mint_tokens".to_string(),
-            params: vec![
-                TypeAnnotationNode::String, // class_id
-                TypeAnnotationNode::Did,    // recipient
-                TypeAnnotationNode::Integer, // amount
-            ],
-            return_type: TypeAnnotationNode::Bool,
-            description: "Mint new tokens of specified class to recipient".to_string(),
-            category: StdCategory::Economics,
-        });
-
-        self.register_function(StdFunction {
-            name: "transfer_tokens".to_string(),
-            params: vec![
-                TypeAnnotationNode::String, // class_id
-                TypeAnnotationNode::Did,    // from
-                TypeAnnotationNode::Did,    // to
-                TypeAnnotationNode::Integer, // amount
-            ],
-            return_type: TypeAnnotationNode::Bool,
-            description: "Transfer tokens between accounts".to_string(),
-            category: StdCategory::Economics,
-        });
-
-        self.register_function(StdFunction {
-            name: "burn_tokens".to_string(),
-            params: vec![
-                TypeAnnotationNode::String, // class_id
-                TypeAnnotationNode::Did,    // from
-                TypeAnnotationNode::Integer, // amount
-            ],
-            return_type: TypeAnnotationNode::Bool,
-            description: "Burn tokens from an account".to_string(),
-            category: StdCategory::Economics,
-        });
-
-        self.register_function(StdFunction {
-            name: "get_token_balance".to_string(),
-            params: vec![
-                TypeAnnotationNode::String, // class_id
-                TypeAnnotationNode::Did,    // account
-            ],
-            return_type: TypeAnnotationNode::Integer,
-            description: "Get token balance for a specific class and account".to_string(),
-            category: StdCategory::Economics,
-        });
-
-        // Reputation-linked functions
-        self.register_function(StdFunction {
-            name: "price_by_reputation".to_string(),
-            params: vec![
-                TypeAnnotationNode::Integer, // base_price
-                TypeAnnotationNode::Integer, // reputation_score
-            ],
-            return_type: TypeAnnotationNode::Integer,
-            description: "Calculate price adjusted by reputation (higher rep = lower price)".to_string(),
-            category: StdCategory::Economics,
-        });
-
-        self.register_function(StdFunction {
-            name: "credit_by_reputation".to_string(),
-            params: vec![
-                TypeAnnotationNode::Did,     // account
-                TypeAnnotationNode::Integer, // base_amount
-            ],
-            return_type: TypeAnnotationNode::Bool,
-            description: "Credit mana to account based on reputation multiplier".to_string(),
-            category: StdCategory::Economics,
-        });
-
-        self.register_function(StdFunction {
-            name: "mint_tokens_with_reputation".to_string(),
-            params: vec![
-                TypeAnnotationNode::String, // class_id
-                TypeAnnotationNode::Did,    // recipient
-                TypeAnnotationNode::Integer, // amount
-                TypeAnnotationNode::Did,    // issuer (for reputation check)
-            ],
-            return_type: TypeAnnotationNode::Bool,
-            description: "Mint tokens with mana cost adjusted by issuer reputation".to_string(),
-            category: StdCategory::Economics,
-        });
-
-        // Time banking functions
-        self.register_function(StdFunction {
-            name: "record_time_work".to_string(),
-            params: vec![
-                TypeAnnotationNode::Did,     // worker
-                TypeAnnotationNode::String,  // work_description
-                TypeAnnotationNode::Integer, // hours_worked
-                TypeAnnotationNode::Did,     // verifier
-            ],
-            return_type: TypeAnnotationNode::String, // returns time_record_id
-            description: "Record time-based work contribution for time banking".to_string(),
-            category: StdCategory::Economics,
-        });
-
-        self.register_function(StdFunction {
-            name: "mint_time_tokens".to_string(),
-            params: vec![
-                TypeAnnotationNode::String, // time_record_id
-                TypeAnnotationNode::Did,    // worker
-                TypeAnnotationNode::Integer, // hours
-            ],
-            return_type: TypeAnnotationNode::Bool,
-            description: "Mint time-based tokens for verified work hours".to_string(),
-            category: StdCategory::Economics,
-        });
-
-        // Mutual credit functions
-        self.register_function(StdFunction {
-            name: "create_credit_line".to_string(),
-            params: vec![
-                TypeAnnotationNode::Did,     // creditor
-                TypeAnnotationNode::Did,     // debtor
-                TypeAnnotationNode::Integer, // credit_limit
-                TypeAnnotationNode::Integer, // interest_rate_bps (basis points)
-            ],
-            return_type: TypeAnnotationNode::String, // returns credit_line_id
-            description: "Establish mutual credit relationship between community members".to_string(),
-            category: StdCategory::Economics,
-        });
-
-        self.register_function(StdFunction {
-            name: "extend_mutual_credit".to_string(),
-            params: vec![
-                TypeAnnotationNode::String, // credit_line_id
-                TypeAnnotationNode::Integer, // amount
-                TypeAnnotationNode::String,  // purpose
-            ],
-            return_type: TypeAnnotationNode::Bool,
-            description: "Extend credit within established mutual credit line".to_string(),
-            category: StdCategory::Economics,
-        });
-
-        // Marketplace functions
-        self.register_function(StdFunction {
-            name: "create_marketplace_offer".to_string(),
-            params: vec![
-                TypeAnnotationNode::Did,     // seller
-                TypeAnnotationNode::String,  // item_type
-                TypeAnnotationNode::Integer, // quantity
-                TypeAnnotationNode::Integer, // price_per_unit
-                TypeAnnotationNode::String,  // payment_token_class
-            ],
-            return_type: TypeAnnotationNode::String, // returns offer_id
-            description: "Create marketplace offer for goods or services".to_string(),
-            category: StdCategory::Economics,
-        });
-
-        self.register_function(StdFunction {
-            name: "execute_marketplace_transaction".to_string(),
-            params: vec![
-                TypeAnnotationNode::String, // offer_id
-                TypeAnnotationNode::String, // bid_id
-                TypeAnnotationNode::Did,    // executor
-            ],
-            return_type: TypeAnnotationNode::String, // returns transaction_id
-            description: "Execute marketplace transaction between buyer and seller".to_string(),
-            category: StdCategory::Economics,
-        });
-    }
-
-    /// Register identity and credential functions
-    fn register_identity_functions(&mut self) {
-        // === CRITICAL IDENTITY FUNCTIONS - Phase 2 ===
-        
-        // DID operations
-        self.register_function(StdFunction {
-            name: "create_did".to_string(),
-            params: vec![
-                TypeAnnotationNode::String, // method ("key", "web", "peer")
-                TypeAnnotationNode::String, // identifier (domain for web, empty for key)
-            ],
-            return_type: TypeAnnotationNode::Did,
-            description: "Create a new decentralized identifier with specified method".to_string(),
-            category: StdCategory::Identity,
-        });
-
-        self.register_function(StdFunction {
-            name: "resolve_did".to_string(),
-            params: vec![
-                TypeAnnotationNode::Did, // did to resolve
-            ],
-            return_type: TypeAnnotationNode::String, // DID document JSON
-            description: "Resolve a DID to its document containing public keys and services".to_string(),
-            category: StdCategory::Identity,
-        });
-
-        self.register_function(StdFunction {
-            name: "update_did_document".to_string(),
-            params: vec![
-                TypeAnnotationNode::Did,    // did to update
-                TypeAnnotationNode::String, // new document JSON
-                TypeAnnotationNode::String, // signature from controller
-            ],
-            return_type: TypeAnnotationNode::Bool,
-            description: "Update a DID document with new keys or service endpoints".to_string(),
-            category: StdCategory::Identity,
-        });
-
-        self.register_function(StdFunction {
-            name: "verify_did_signature".to_string(),
-            params: vec![
-                TypeAnnotationNode::Did,    // signer DID
-                TypeAnnotationNode::String, // message
-                TypeAnnotationNode::String, // signature
-            ],
-            return_type: TypeAnnotationNode::Bool,
-            description: "Verify a signature was created by the DID controller".to_string(),
-            category: StdCategory::Identity,
-        });
-
-        // Credential operations
-        self.register_function(StdFunction {
-            name: "issue_credential".to_string(),
-            params: vec![
-                TypeAnnotationNode::Did,    // issuer DID
-                TypeAnnotationNode::Did,    // holder DID  
-                TypeAnnotationNode::String, // credential type
-                TypeAnnotationNode::String, // claims JSON
-                TypeAnnotationNode::Integer, // expiration timestamp (0 for none)
-            ],
-            return_type: TypeAnnotationNode::String, // credential JSON
-            description: "Issue a verifiable credential with specified claims".to_string(),
-            category: StdCategory::Identity,
-        });
-
-        self.register_function(StdFunction {
-            name: "verify_credential".to_string(),
-            params: vec![
-                TypeAnnotationNode::String, // credential JSON
-                TypeAnnotationNode::Did,    // expected issuer (optional check)
-            ],
-            return_type: TypeAnnotationNode::Bool,
-            description: "Verify the authenticity and validity of a credential".to_string(),
-            category: StdCategory::Identity,
-        });
-
-        self.register_function(StdFunction {
-            name: "revoke_credential".to_string(),
-            params: vec![
-                TypeAnnotationNode::Did,    // issuer DID
-                TypeAnnotationNode::String, // credential ID
-                TypeAnnotationNode::String, // revocation reason
-            ],
-            return_type: TypeAnnotationNode::Bool,
-            description: "Revoke a previously issued credential".to_string(),
-            category: StdCategory::Identity,
-        });
-
-        // Enhanced identity functions for cooperative contexts
-        self.register_function(StdFunction {
-            name: "create_cooperative_membership".to_string(),
-            params: vec![
-                TypeAnnotationNode::Did,    // member DID
-                TypeAnnotationNode::String, // cooperative ID
-                TypeAnnotationNode::String, // membership type
-                TypeAnnotationNode::Integer, // membership level
-            ],
-            return_type: TypeAnnotationNode::String, // membership credential
-            description: "Create cooperative membership credential".to_string(),
-            category: StdCategory::Identity,
-        });
-
-        self.register_function(StdFunction {
-            name: "verify_cooperative_membership".to_string(),
-            params: vec![
-                TypeAnnotationNode::Did,    // member DID
-                TypeAnnotationNode::String, // cooperative ID
-                TypeAnnotationNode::Integer, // required level
-            ],
-            return_type: TypeAnnotationNode::Bool,
-            description: "Verify cooperative membership and authorization level".to_string(),
-            category: StdCategory::Identity,
         });
     }
 
@@ -1031,7 +735,6 @@ pub fn generate_stdlib_docs() -> String {
     for category in [
         StdCategory::Governance,
         StdCategory::Economics,
-        StdCategory::Identity,
         StdCategory::Utility,
         StdCategory::String,
         StdCategory::Array,
@@ -1080,33 +783,6 @@ mod tests {
         assert!(stdlib.get_function("now").is_some());
         assert!(stdlib.get_function("hash").is_some());
         
-        // Should have new economics functions
-        assert!(stdlib.get_function("create_token_class").is_some());
-        assert!(stdlib.get_function("mint_tokens").is_some());
-        assert!(stdlib.get_function("transfer_tokens").is_some());
-        assert!(stdlib.get_function("burn_tokens").is_some());
-        assert!(stdlib.get_function("get_token_balance").is_some());
-        assert!(stdlib.get_function("price_by_reputation").is_some());
-        assert!(stdlib.get_function("credit_by_reputation").is_some());
-        assert!(stdlib.get_function("mint_tokens_with_reputation").is_some());
-        assert!(stdlib.get_function("record_time_work").is_some());
-        assert!(stdlib.get_function("mint_time_tokens").is_some());
-        assert!(stdlib.get_function("create_credit_line").is_some());
-        assert!(stdlib.get_function("extend_mutual_credit").is_some());
-        assert!(stdlib.get_function("create_marketplace_offer").is_some());
-        assert!(stdlib.get_function("execute_marketplace_transaction").is_some());
-        
-        // Should have new identity functions
-        assert!(stdlib.get_function("create_did").is_some());
-        assert!(stdlib.get_function("resolve_did").is_some());
-        assert!(stdlib.get_function("update_did_document").is_some());
-        assert!(stdlib.get_function("verify_did_signature").is_some());
-        assert!(stdlib.get_function("issue_credential").is_some());
-        assert!(stdlib.get_function("verify_credential").is_some());
-        assert!(stdlib.get_function("revoke_credential").is_some());
-        assert!(stdlib.get_function("create_cooperative_membership").is_some());
-        assert!(stdlib.get_function("verify_cooperative_membership").is_some());
-        
         // Should not have non-existent functions
         assert!(stdlib.get_function("non_existent").is_none());
     }
@@ -1121,22 +797,9 @@ mod tests {
         let economic_funcs = stdlib.get_functions_by_category(StdCategory::Economics);
         assert!(!economic_funcs.is_empty());
         
-        let identity_funcs = stdlib.get_functions_by_category(StdCategory::Identity);
-        assert!(!identity_funcs.is_empty());
-        
         // All governance functions should be in governance category
         for func in governance_funcs {
             assert_eq!(func.category, StdCategory::Governance);
-        }
-        
-        // All economics functions should be in economics category
-        for func in economic_funcs {
-            assert_eq!(func.category, StdCategory::Economics);
-        }
-        
-        // All identity functions should be in identity category
-        for func in identity_funcs {
-            assert_eq!(func.category, StdCategory::Identity);
         }
     }
 
@@ -1159,59 +822,7 @@ mod tests {
         assert!(docs.contains("# CCL Standard Library Functions"));
         assert!(docs.contains("## Governance Functions"));
         assert!(docs.contains("## Economics Functions"));
-        assert!(docs.contains("## Identity Functions"));
         assert!(docs.contains("transfer"));
         assert!(docs.contains("create_proposal"));
-        assert!(docs.contains("create_token_class"));
-        assert!(docs.contains("mint_tokens"));
-        assert!(docs.contains("create_did"));
-        assert!(docs.contains("issue_credential"));
-    }
-
-    #[test]
-    fn test_new_economics_functions() {
-        let stdlib = StdLibrary::new();
-        
-        // Test token system functions
-        let create_token = stdlib.get_function("create_token_class").unwrap();
-        assert_eq!(create_token.params.len(), 4);
-        assert_eq!(create_token.return_type, TypeAnnotationNode::Bool);
-        
-        let mint_tokens = stdlib.get_function("mint_tokens").unwrap();
-        assert_eq!(mint_tokens.params.len(), 3);
-        assert_eq!(mint_tokens.return_type, TypeAnnotationNode::Bool);
-        
-        // Test reputation functions
-        let price_by_rep = stdlib.get_function("price_by_reputation").unwrap();
-        assert_eq!(price_by_rep.params.len(), 2);
-        assert_eq!(price_by_rep.return_type, TypeAnnotationNode::Integer);
-        
-        // Test marketplace functions
-        let create_offer = stdlib.get_function("create_marketplace_offer").unwrap();
-        assert_eq!(create_offer.params.len(), 5);
-        assert_eq!(create_offer.return_type, TypeAnnotationNode::String);
-    }
-
-    #[test]
-    fn test_new_identity_functions() {
-        let stdlib = StdLibrary::new();
-        
-        // Test DID functions
-        let create_did = stdlib.get_function("create_did").unwrap();
-        assert_eq!(create_did.params.len(), 2);
-        assert_eq!(create_did.return_type, TypeAnnotationNode::Did);
-        
-        let resolve_did = stdlib.get_function("resolve_did").unwrap();
-        assert_eq!(resolve_did.params.len(), 1);
-        assert_eq!(resolve_did.return_type, TypeAnnotationNode::String);
-        
-        // Test credential functions
-        let issue_cred = stdlib.get_function("issue_credential").unwrap();
-        assert_eq!(issue_cred.params.len(), 5);
-        assert_eq!(issue_cred.return_type, TypeAnnotationNode::String);
-        
-        let verify_cred = stdlib.get_function("verify_credential").unwrap();
-        assert_eq!(verify_cred.params.len(), 2);
-        assert_eq!(verify_cred.return_type, TypeAnnotationNode::Bool);
     }
 }
