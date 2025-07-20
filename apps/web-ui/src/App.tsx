@@ -9,6 +9,7 @@ import { FederationPage } from './pages/FederationPage'
 import { GovernancePage } from './pages/GovernancePage'
 import { CooperativesPage } from './pages/CooperativesPage'
 import { DemoPage } from './pages/DemoPage'
+import { JobsPage } from './pages/JobsPage'
 import './index.css'
 
 function App() {
@@ -32,7 +33,7 @@ function App() {
                   <Route path="/federation" element={<FederationPage />} />
                   <Route path="/governance" element={<GovernancePage />} />
                   <Route path="/cooperatives" element={<CooperativesPage />} />
-                  <Route path="/jobs" element={<div>Mesh Jobs Management (Coming Soon)</div>} />
+                  <Route path="/jobs" element={<JobsPage />} />
                   <Route path="/settings" element={<div>Settings (Coming Soon)</div>} />
                 </Routes>
               </main>
