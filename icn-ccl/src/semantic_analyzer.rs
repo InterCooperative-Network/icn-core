@@ -271,7 +271,7 @@ impl SemanticAnalyzer {
         let enum_type = TypeAnnotationNode::Custom(enum_def.name.clone());
         self.symbol_table.insert(enum_def.name.clone(), Symbol {
             name: enum_def.name.clone(),
-                            symbol_type: enum_type,
+            symbol_type: enum_type.clone(), // Clone to avoid move
             is_mutable: false,
             scope_level: self.current_scope_level,
         });
@@ -620,7 +620,8 @@ impl SemanticAnalyzer {
                 self.check_unary_op(operator, &operand_type)
             }
             ExpressionNode::FunctionCall { name, args } => {
-                if let Some(signature) = self.function_table.get(name) {
+                // Clone the signature to avoid borrow conflicts
+                if let Some(signature) = self.function_table.get(name).cloned() {
                     if args.len() != signature.params.len() {
                         return Err(CclError::ArgumentCountMismatchError {
                             function: name.clone(),

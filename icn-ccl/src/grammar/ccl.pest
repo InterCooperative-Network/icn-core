@@ -25,7 +25,7 @@ keyword = @{
 }
 
 // Literals
-integer = @{ ASCII_DIGIT+ }hnb
+integer = @{ ASCII_DIGIT+ }
 float = @{ ASCII_DIGIT+ ~ "." ~ ASCII_DIGIT+ }
 string = @{ "\"" ~ ( "\\\"" | (!"\"" ~ ANY) )* ~ "\"" }
 boolean = { "true" | "false" }

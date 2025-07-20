@@ -160,14 +160,25 @@ fn ast_to_string(ast: &AstNode, indent: usize) -> String {
             s.push_str(&format!(
                 "fn {}() -> {} ",
                 name,
-                type_to_string(return_type)
+                return_type.as_ref().map(type_expr_to_string).unwrap_or_else(|| "()".to_string())
             ));
             s.push_str(&block_to_string(body, indent));
             s
         }
-        // Legacy RuleDefinition removed in CCL 0.1
+        // CCL 0.1 AST variants
+        AstNode::Program(_items) => {
+            // TODO: Implement TopLevelNode to string conversion
+            "program".to_string()
+        },
+        AstNode::ContractDeclaration { name, .. } => format!("contract {}", name),
+        AstNode::RoleDeclaration { name, .. } => format!("role {}", name),
+        AstNode::ProposalDeclaration { name, .. } => format!("proposal {}", name),
+        AstNode::ImportStatement { path, .. } => format!("import {}", path),
         AstNode::Block(b) => block_to_string(b, indent),
-        AstNode::StructDefinition { .. } => "struct".to_string(),
+        AstNode::StructDefinition { name, .. } => format!("struct {}", name),
+        AstNode::EnumDefinition { name, .. } => format!("enum {}", name),
+        AstNode::StateDeclaration { name, .. } => format!("state {}", name),
+        AstNode::ConstDeclaration { name, .. } => format!("const {}", name),
     }
 }
 
@@ -221,7 +232,11 @@ fn stmt_to_string(stmt: &StatementNode, indent: usize) -> String {
             format!("{};", expr_to_string(e))
         }
         StatementNode::Return(e) => {
-            format!("return {};", expr_to_string(e))
+            if let Some(expr) = e {
+                format!("return {};", expr_to_string(expr))
+            } else {
+                "return;".to_string()
+            }
         }
         StatementNode::If {
             condition,
@@ -238,13 +253,16 @@ fn stmt_to_string(stmt: &StatementNode, indent: usize) -> String {
             }
             s
         }
-        StatementNode::WhileLoop { condition, body } => {
+        StatementNode::Assignment { lvalue: _, value } => {
+            format!("assignment = {};", expr_to_string(value))
+        }
+        StatementNode::While { condition, body } => {
             let mut s = String::new();
             s.push_str(&format!("while {} ", expr_to_string(condition)));
             s.push_str(&block_to_string(body, indent));
             s
         }
-        StatementNode::ForLoop {
+        StatementNode::For {
             iterator,
             iterable,
             body,
@@ -258,16 +276,51 @@ fn stmt_to_string(stmt: &StatementNode, indent: usize) -> String {
             s.push_str(&block_to_string(body, indent));
             s
         }
+        StatementNode::Match { expr, arms: _ } => {
+            format!("match {} {{ ... }}", expr_to_string(expr))
+        }
+        StatementNode::Emit { event_name, fields: _ } => {
+            format!("emit {} {{ ... }};", event_name)
+        }
+        StatementNode::Require(condition) => {
+            format!("require({});", expr_to_string(condition))
+        }
         StatementNode::Break => "break;".to_string(),
         StatementNode::Continue => "continue;".to_string(),
+        
+        // Legacy statements for backward compatibility
+        StatementNode::WhileLoop { condition, body } => {
+            let mut s = String::new();
+            s.push_str(&format!("while {} ", expr_to_string(condition)));
+            s.push_str(&block_to_string(body, indent));
+            s
+        }
+        StatementNode::ForLoop { iterator, iterable, body } => {
+            let mut s = String::new();
+            s.push_str(&format!("for {} in {} ", iterator, expr_to_string(iterable)));
+            s.push_str(&block_to_string(body, indent));
+            s
+        }
     }
 }
 
 fn expr_to_string(expr: &ExpressionNode) -> String {
     match expr {
+        // New unified literal handling
+        ExpressionNode::Literal(lit) => match lit {
+            crate::ast::LiteralNode::Integer(i) => i.to_string(),
+            crate::ast::LiteralNode::Float(f) => f.to_string(),
+            crate::ast::LiteralNode::String(s) => format!("\"{}\"", s),
+            crate::ast::LiteralNode::Boolean(b) => b.to_string(),
+            crate::ast::LiteralNode::Did(did) => did.clone(),
+            crate::ast::LiteralNode::Timestamp(ts) => ts.clone(),
+        },
+        
+        // Legacy literal variants (for backward compatibility)
         ExpressionNode::IntegerLiteral(i) => i.to_string(),
         ExpressionNode::BooleanLiteral(b) => b.to_string(),
         ExpressionNode::StringLiteral(s) => format!("\"{}\"", s),
+        
         ExpressionNode::ArrayLiteral(elements) => {
             let items = elements
                 .iter()
@@ -295,6 +348,7 @@ fn expr_to_string(expr: &ExpressionNode) -> String {
                 crate::ast::BinaryOperator::Sub => "-",
                 crate::ast::BinaryOperator::Mul => "*",
                 crate::ast::BinaryOperator::Div => "/",
+                crate::ast::BinaryOperator::Mod => "%",
                 crate::ast::BinaryOperator::Eq => "==",
                 crate::ast::BinaryOperator::Neq => "!=",
                 crate::ast::BinaryOperator::Lt => "<",
@@ -322,12 +376,33 @@ fn expr_to_string(expr: &ExpressionNode) -> String {
         ExpressionNode::ArrayAccess { array, index } => {
             format!("{}[{}]", expr_to_string(array), expr_to_string(index))
         }
+        
+        // New AST variants
+        ExpressionNode::MemberAccess { object, member } => {
+            format!("{}.{}", expr_to_string(object), member)
+        }
+        ExpressionNode::IndexAccess { object, index } => {
+            format!("{}[{}]", expr_to_string(object), expr_to_string(index))
+        }
+        ExpressionNode::StructLiteral { type_name, fields: _ } => {
+            format!("{} {{ ... }}", type_name)
+        }
+        
+        // Governance expressions
+        ExpressionNode::Transfer { from, to, amount } => {
+            format!("transfer({}, {}, {})", expr_to_string(from), expr_to_string(to), expr_to_string(amount))
+        }
+        ExpressionNode::Mint { to, amount } => {
+            format!("mint({}, {})", expr_to_string(to), expr_to_string(amount))
+        }
+        ExpressionNode::Burn { from, amount } => {
+            format!("burn({}, {})", expr_to_string(from), expr_to_string(amount))
+        }
+        
         ExpressionNode::Some(inner) => format!("Some({})", expr_to_string(inner)),
         ExpressionNode::None => "None".to_string(),
         ExpressionNode::Ok(inner) => format!("Ok({})", expr_to_string(inner)),
         ExpressionNode::Err(inner) => format!("Err({})", expr_to_string(inner)),
-        // Legacy expressions removed in CCL 0.1
-        // All governance and legacy expressions removed in CCL 0.1
     }
 }
 

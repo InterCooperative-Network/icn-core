@@ -221,7 +221,7 @@ impl WasmBackend {
                 }
 
                 let type_index = types.len();
-                types.ty().function(param_types.clone(), ret_ty.into_iter().collect());
+                types.ty().function(param_types.clone(), ret_ty.into_iter().collect::<Vec<_>>());
                 functions.function(type_index as u32);
                 let func_index = next_index;
                 fn_indices.insert(name.clone(), func_index);
@@ -242,6 +242,7 @@ impl WasmBackend {
 
                 let mut instrs = Vec::<Instruction>::new();
                 let return_type_ann = return_type
+                    .as_ref()
                     .map(|rt| rt.to_type_annotation())
                     .unwrap_or(TypeAnnotationNode::Custom("void".to_string()));
                 self.emit_block(body, &mut instrs, &mut locals, &return_type_ann, &fn_indices)?;
@@ -870,6 +871,70 @@ impl WasmBackend {
                     ))),
                 }
             }
+            
+            // New unified literal handling
+            ExpressionNode::Literal(lit) => match lit {
+                crate::ast::LiteralNode::Integer(i) => {
+                    instrs.push(Instruction::I64Const(*i));
+                    Ok(ValType::I64)
+                }
+                crate::ast::LiteralNode::Float(f) => {
+                    instrs.push(Instruction::F64Const((*f).into()));
+                    Ok(ValType::F64)
+                }
+                crate::ast::LiteralNode::String(_s) => {
+                    // TODO: Implement string storage in linear memory
+                    instrs.push(Instruction::I32Const(0)); // placeholder
+                    Ok(ValType::I32)
+                }
+                crate::ast::LiteralNode::Boolean(b) => {
+                    instrs.push(Instruction::I32Const(if *b { 1 } else { 0 }));
+                    Ok(ValType::I32)
+                }
+                crate::ast::LiteralNode::Did(_) => {
+                    // TODO: Implement DID handling
+                    instrs.push(Instruction::I32Const(0));
+                    Ok(ValType::I32)
+                }
+                crate::ast::LiteralNode::Timestamp(_) => {
+                    // TODO: Implement timestamp handling
+                    instrs.push(Instruction::I64Const(0));
+                    Ok(ValType::I64)
+                }
+            },
+            
+            // New AST variants - placeholder implementations
+            ExpressionNode::MemberAccess { object: _, member: _ } => {
+                // TODO: Implement member access
+                instrs.push(Instruction::I32Const(0));
+                Ok(ValType::I32)
+            }
+            ExpressionNode::IndexAccess { object: _, index: _ } => {
+                // TODO: Implement index access (use ArrayAccess implementation)
+                instrs.push(Instruction::I32Const(0));
+                Ok(ValType::I32)
+            }
+            ExpressionNode::StructLiteral { type_name: _, fields: _ } => {
+                // TODO: Implement struct literal construction
+                instrs.push(Instruction::I32Const(0));
+                Ok(ValType::I32)
+            }
+            ExpressionNode::Transfer { from: _, to: _, amount: _ } => {
+                // TODO: Implement mana/token transfer
+                instrs.push(Instruction::I32Const(1)); // success
+                Ok(ValType::I32)
+            }
+            ExpressionNode::Mint { to: _, amount: _ } => {
+                // TODO: Implement token minting
+                instrs.push(Instruction::I32Const(1)); // success
+                Ok(ValType::I32)
+            }
+            ExpressionNode::Burn { from: _, amount: _ } => {
+                // TODO: Implement token burning
+                instrs.push(Instruction::I32Const(1)); // success
+                Ok(ValType::I32)
+            }
+            
             // All legacy expressions removed - CCL 0.1 uses new expression variants
         }
     }
