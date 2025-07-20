@@ -146,6 +146,10 @@ path = "test_all_cooperative_contracts.rs"
 name = "test_simple_standalone"
 path = "test_simple_standalone.rs"
 
+[[bin]]
+name = "test_string_array_improvements"
+path = "test_string_array_improvements.rs"
+
 # [[bin]]
 # name = "generate_ccl_job_spec"
 # path = "src/bin/generate_ccl_job_spec.rs"

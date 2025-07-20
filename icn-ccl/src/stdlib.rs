@@ -25,6 +25,7 @@ pub enum StdCategory {
     Utility,
     String,
     Array,
+    Map, // Add Map category
     Math,
     Crypto,
 }
@@ -46,6 +47,7 @@ impl StdLibrary {
         stdlib.register_utility_functions();
         stdlib.register_string_functions();
         stdlib.register_array_functions();
+        stdlib.register_map_functions(); // Add map functions
         stdlib.register_math_functions();
         stdlib.register_crypto_functions();
         
@@ -451,6 +453,93 @@ impl StdLibrary {
             return_type: TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Custom("T".to_string()))),
             description: "Extract slice of array".to_string(),
             category: StdCategory::Array,
+        });
+    }
+
+    /// Register map/dictionary manipulation functions
+    fn register_map_functions(&mut self) {
+        self.register_function(StdFunction {
+            name: "map_new".to_string(),
+            params: vec![],
+            return_type: TypeAnnotationNode::Map {
+                key_type: Box::new(TypeAnnotationNode::Custom("K".to_string())),
+                value_type: Box::new(TypeAnnotationNode::Custom("V".to_string())),
+            },
+            description: "Create a new empty map".to_string(),
+            category: StdCategory::Map,
+        });
+
+        self.register_function(StdFunction {
+            name: "map_insert".to_string(),
+            params: vec![
+                TypeAnnotationNode::Map {
+                    key_type: Box::new(TypeAnnotationNode::Custom("K".to_string())),
+                    value_type: Box::new(TypeAnnotationNode::Custom("V".to_string())),
+                },
+                TypeAnnotationNode::Custom("K".to_string()),
+                TypeAnnotationNode::Custom("V".to_string()),
+            ],
+            return_type: TypeAnnotationNode::Map {
+                key_type: Box::new(TypeAnnotationNode::Custom("K".to_string())),
+                value_type: Box::new(TypeAnnotationNode::Custom("V".to_string())),
+            },
+            description: "Insert key-value pair into map".to_string(),
+            category: StdCategory::Map,
+        });
+
+        self.register_function(StdFunction {
+            name: "map_get".to_string(),
+            params: vec![
+                TypeAnnotationNode::Map {
+                    key_type: Box::new(TypeAnnotationNode::Custom("K".to_string())),
+                    value_type: Box::new(TypeAnnotationNode::Custom("V".to_string())),
+                },
+                TypeAnnotationNode::Custom("K".to_string()),
+            ],
+            return_type: TypeAnnotationNode::Option(Box::new(TypeAnnotationNode::Custom("V".to_string()))),
+            description: "Get value by key from map".to_string(),
+            category: StdCategory::Map,
+        });
+
+        self.register_function(StdFunction {
+            name: "map_contains_key".to_string(),
+            params: vec![
+                TypeAnnotationNode::Map {
+                    key_type: Box::new(TypeAnnotationNode::Custom("K".to_string())),
+                    value_type: Box::new(TypeAnnotationNode::Custom("V".to_string())),
+                },
+                TypeAnnotationNode::Custom("K".to_string()),
+            ],
+            return_type: TypeAnnotationNode::Bool,
+            description: "Check if map contains key".to_string(),
+            category: StdCategory::Map,
+        });
+
+        self.register_function(StdFunction {
+            name: "map_remove".to_string(),
+            params: vec![
+                TypeAnnotationNode::Map {
+                    key_type: Box::new(TypeAnnotationNode::Custom("K".to_string())),
+                    value_type: Box::new(TypeAnnotationNode::Custom("V".to_string())),
+                },
+                TypeAnnotationNode::Custom("K".to_string()),
+            ],
+            return_type: TypeAnnotationNode::Option(Box::new(TypeAnnotationNode::Custom("V".to_string()))),
+            description: "Remove key-value pair from map".to_string(),
+            category: StdCategory::Map,
+        });
+
+        self.register_function(StdFunction {
+            name: "map_size".to_string(),
+            params: vec![
+                TypeAnnotationNode::Map {
+                    key_type: Box::new(TypeAnnotationNode::Custom("K".to_string())),
+                    value_type: Box::new(TypeAnnotationNode::Custom("V".to_string())),
+                },
+            ],
+            return_type: TypeAnnotationNode::Integer,
+            description: "Get number of entries in map".to_string(),
+            category: StdCategory::Map,
         });
     }
 
