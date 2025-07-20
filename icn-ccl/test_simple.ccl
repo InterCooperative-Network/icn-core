@@ -1,7 +1,0 @@
-fn simple_test() -> Integer {
-    return 42;
-}
-
-fn run() -> Integer {
-    return simple_test();
-}

@@ -833,16 +833,30 @@ pub(crate) fn parse_expression(pair: Pair<Rule>) -> Result<ExpressionNode, CclEr
 
 fn parse_logical_or(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
     // logical_or = { logical_and ~ ("||" ~ logical_and)* }
-    let mut inner = pair.into_inner();
-    let mut left = parse_expression(inner.next().unwrap())?;
+    let mut pairs = pair.into_inner();
+    let mut left = parse_expression(pairs.next().unwrap())?;
     
-    for right_pair in inner {
-        let right = parse_expression(right_pair)?;
-        left = ExpressionNode::BinaryOp {
-            left: Box::new(left),
-            operator: BinaryOperator::Or,
-            right: Box::new(right),
-        };
+    while let Some(op_pair) = pairs.next() {
+        if op_pair.as_str() == "||" {
+            if let Some(right_pair) = pairs.next() {
+                let right = parse_expression(right_pair)?;
+                left = ExpressionNode::BinaryOp {
+                    left: Box::new(left),
+                    operator: BinaryOperator::Or,
+                    right: Box::new(right),
+                };
+            } else {
+                return Err(CclError::ParsingError("Missing right operand in logical OR".to_string()));
+            }
+        } else {
+            // This is an expression, not an operator
+            let right = parse_expression(op_pair)?;
+            left = ExpressionNode::BinaryOp {
+                left: Box::new(left),
+                operator: BinaryOperator::Or,
+                right: Box::new(right),
+            };
+        }
     }
     
     Ok(left)
@@ -850,16 +864,30 @@ fn parse_logical_or(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
 
 fn parse_logical_and(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
     // logical_and = { equality ~ ("&&" ~ equality)* }
-    let mut inner = pair.into_inner();
-    let mut left = parse_expression(inner.next().unwrap())?;
+    let mut pairs = pair.into_inner();
+    let mut left = parse_expression(pairs.next().unwrap())?;
     
-    for right_pair in inner {
-        let right = parse_expression(right_pair)?;
-        left = ExpressionNode::BinaryOp {
-            left: Box::new(left),
-            operator: BinaryOperator::And,
-            right: Box::new(right),
-        };
+    while let Some(op_pair) = pairs.next() {
+        if op_pair.as_str() == "&&" {
+            if let Some(right_pair) = pairs.next() {
+                let right = parse_expression(right_pair)?;
+                left = ExpressionNode::BinaryOp {
+                    left: Box::new(left),
+                    operator: BinaryOperator::And,
+                    right: Box::new(right),
+                };
+            } else {
+                return Err(CclError::ParsingError("Missing right operand in logical AND".to_string()));
+            }
+        } else {
+            // This is an expression, not an operator
+            let right = parse_expression(op_pair)?;
+            left = ExpressionNode::BinaryOp {
+                left: Box::new(left),
+                operator: BinaryOperator::And,
+                right: Box::new(right),
+            };
+        }
     }
     
     Ok(left)
@@ -870,18 +898,28 @@ fn parse_equality(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
     let mut inner = pair.into_inner();
     let mut left = parse_expression(inner.next().unwrap())?;
     
-    while let (Some(op_str), Some(right_pair)) = (inner.next(), inner.next()) {
-        let operator = match op_str.as_str() {
+    // Process pairs of (operator, operand)
+    while let Some(next_pair) = inner.next() {
+        // First pair should be the operator
+        let operator = match next_pair.as_str() {
             "==" => BinaryOperator::Eq,
             "!=" => BinaryOperator::Neq,
-            _ => return Err(CclError::ParsingError(format!("Unknown equality operator: {}", op_str.as_str()))),
+            _ => {
+                return Err(CclError::ParsingError(format!("Expected equality operator, got: {}", next_pair.as_str())));
+            }
         };
-        let right = parse_expression(right_pair)?;
-        left = ExpressionNode::BinaryOp {
-            left: Box::new(left),
-            operator,
-            right: Box::new(right),
-        };
+        
+        // Second pair should be the operand
+        if let Some(right_pair) = inner.next() {
+            let right = parse_expression(right_pair)?;
+            left = ExpressionNode::BinaryOp {
+                left: Box::new(left),
+                operator,
+                right: Box::new(right),
+            };
+        } else {
+            return Err(CclError::ParsingError("Missing right operand in equality".to_string()));
+        }
     }
     
     Ok(left)
@@ -889,48 +927,96 @@ fn parse_equality(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
 
 fn parse_comparison(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
     // comparison = { addition ~ (("<" | "<=" | ">" | ">=") ~ addition)* }
-    let mut inner = pair.into_inner();
-    let mut left = parse_expression(inner.next().unwrap())?;
+    let full_text = pair.as_str();
+    let pair_span = pair.as_span();
+    let inner_pairs: Vec<_> = pair.into_inner().collect();
     
-    while let (Some(op_str), Some(right_pair)) = (inner.next(), inner.next()) {
-        let operator = match op_str.as_str() {
-            "<" => BinaryOperator::Lt,
-            "<=" => BinaryOperator::Lte,
-            ">" => BinaryOperator::Gt,
-            ">=" => BinaryOperator::Gte,
-            _ => return Err(CclError::ParsingError(format!("Unknown comparison operator: {}", op_str.as_str()))),
+    if inner_pairs.len() == 1 {
+        // No operators, just a single addition
+        return parse_expression(inner_pairs[0].clone());
+    }
+    
+    // Build left-associative binary operations
+    // Pest gives us only the operands, we need to infer operators from the source text
+    let mut result = parse_expression(inner_pairs[0].clone())?;
+    
+    for i in 1..inner_pairs.len() {
+        let right = parse_expression(inner_pairs[i].clone())?;
+        
+        // Find the operator between the previous operand and this one
+        let left_end = if i == 1 {
+            inner_pairs[0].as_span().end()
+        } else {
+            inner_pairs[i-1].as_span().end()
         };
-        let right = parse_expression(right_pair)?;
-        left = ExpressionNode::BinaryOp {
-            left: Box::new(left),
+        let right_start = inner_pairs[i].as_span().start();
+        
+        let operator_text = &full_text[left_end - pair_span.start()..right_start - pair_span.start()];
+        let operator = if operator_text.contains("<=") {
+            BinaryOperator::Lte
+        } else if operator_text.contains(">=") {
+            BinaryOperator::Gte
+        } else if operator_text.contains('<') {
+            BinaryOperator::Lt
+        } else if operator_text.contains('>') {
+            BinaryOperator::Gt
+        } else {
+            return Err(CclError::ParsingError(format!("Cannot determine comparison operator in: '{}'", operator_text)));
+        };
+        
+        result = ExpressionNode::BinaryOp {
+            left: Box::new(result),
             operator,
             right: Box::new(right),
         };
     }
     
-    Ok(left)
+    Ok(result)
 }
 
 fn parse_addition(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
     // addition = { multiplication ~ (("+" | "-") ~ multiplication)* }
-    let mut inner = pair.into_inner();
-    let mut left = parse_expression(inner.next().unwrap())?;
+    let full_text = pair.as_str();
+    let pair_span = pair.as_span();
+    let inner_pairs: Vec<_> = pair.into_inner().collect();
     
-    while let (Some(op_str), Some(right_pair)) = (inner.next(), inner.next()) {
-        let operator = match op_str.as_str() {
-            "+" => BinaryOperator::Add,
-            "-" => BinaryOperator::Sub,
-            _ => return Err(CclError::ParsingError(format!("Unknown addition operator: {}", op_str.as_str()))),
+    if inner_pairs.len() == 1 {
+        // No operators, just a single multiplication
+        return parse_expression(inner_pairs[0].clone());
+    }
+    
+    // Build left-associative binary operations
+    // Pest gives us only the operands, we need to infer operators from the source text
+    let mut result = parse_expression(inner_pairs[0].clone())?;
+    
+    for i in 1..inner_pairs.len() {
+        let right = parse_expression(inner_pairs[i].clone())?;
+        
+        // Find the operator between the previous operand and this one
+        let left_end = if i == 1 {
+            inner_pairs[0].as_span().end()
+        } else {
+            inner_pairs[i-1].as_span().end()
         };
-        let right = parse_expression(right_pair)?;
-        left = ExpressionNode::BinaryOp {
-            left: Box::new(left),
+        let right_start = inner_pairs[i].as_span().start();
+        
+        let operator_text = &full_text[left_end - pair_span.start()..right_start - pair_span.start()];
+        let operator = if operator_text.contains('+') {
+            BinaryOperator::Add
+        } else if operator_text.contains('-') {
+            BinaryOperator::Sub
+        } else {
+            return Err(CclError::ParsingError(format!("Cannot determine addition operator in: '{}'", operator_text)));
+        };
+        
+        result = ExpressionNode::BinaryOp {
+            left: Box::new(result),
             operator,
             right: Box::new(right),
         };
     }
     
-    Ok(left)
+    Ok(result)
 }
 
 fn parse_multiplication(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
@@ -938,19 +1024,29 @@ fn parse_multiplication(pair: Pair<Rule>) -> Result<ExpressionNode, CclError> {
     let mut inner = pair.into_inner();
     let mut left = parse_expression(inner.next().unwrap())?;
     
-    while let (Some(op_str), Some(right_pair)) = (inner.next(), inner.next()) {
-        let operator = match op_str.as_str() {
+    // Process pairs of (operator, operand)
+    while let Some(next_pair) = inner.next() {
+        // First pair should be the operator
+        let operator = match next_pair.as_str() {
             "*" => BinaryOperator::Mul,
             "/" => BinaryOperator::Div,
             "%" => BinaryOperator::Mod,
-            _ => return Err(CclError::ParsingError(format!("Unknown multiplication operator: {}", op_str.as_str()))),
+            _ => {
+                return Err(CclError::ParsingError(format!("Expected multiplication operator, got: {}", next_pair.as_str())));
+            }
         };
-        let right = parse_expression(right_pair)?;
-        left = ExpressionNode::BinaryOp {
-            left: Box::new(left),
-            operator,
-            right: Box::new(right),
-        };
+        
+        // Second pair should be the operand
+        if let Some(right_pair) = inner.next() {
+            let right = parse_expression(right_pair)?;
+            left = ExpressionNode::BinaryOp {
+                left: Box::new(left),
+                operator,
+                right: Box::new(right),
+            };
+        } else {
+            return Err(CclError::ParsingError("Missing right operand in multiplication".to_string()));
+        }
     }
     
     Ok(left)
@@ -1242,31 +1338,30 @@ pub(crate) fn parse_statement(pair: Pair<Rule>) -> Result<StatementNode, CclErro
 
 fn parse_let_statement(pair: Pair<Rule>) -> Result<StatementNode, CclError> {
     // let_stmt = { "let" ~ ("mut")? ~ identifier ~ (":" ~ type_expr)? ~ "=" ~ expr ~ ";" }
-    let mut inner = pair.into_inner();
+    let full_text = pair.as_str();
+    let inner_pairs: Vec<_> = pair.into_inner().collect();
     
-    let mut mutable = false;
-    let mut next = inner.next().unwrap();
+    // Check if the source text contains "mut" keyword (similar to binary operator fix)
+    let mutable = full_text.contains(" mut ");
     
-    // Check for "mut" keyword
-    if next.as_str() == "mut" {
-        mutable = true;
-        next = inner.next().unwrap();
-    }
-    
-    // Get identifier
-    let name = next.as_str().to_string();
+    // Get identifier (always the first inner pair)
+    let name = inner_pairs[0].as_str().to_string();
     
     // Check for optional type annotation
     let mut type_expr = None;
-    let mut value_pair = inner.next().unwrap();
+    let mut value_index = 1;
     
-    // If this is a type_expr, parse it and get the next item as value
-    if value_pair.as_rule() == Rule::type_expr {
-        type_expr = Some(parse_type_expr(value_pair)?);
-        value_pair = inner.next().unwrap();
+    // If next item is a type_expr, parse it and skip to the next index
+    if value_index < inner_pairs.len() && inner_pairs[value_index].as_rule() == Rule::type_expr {
+        type_expr = Some(parse_type_expr(inner_pairs[value_index].clone())?);
+        value_index += 1;
     }
     
-    let value = parse_expression(value_pair)?;
+    let value = if value_index < inner_pairs.len() {
+        parse_expression(inner_pairs[value_index].clone())?
+    } else {
+        return Err(CclError::ParsingError("Let statement missing value".to_string()));
+    };
     
     Ok(StatementNode::Let {
         mutable,
