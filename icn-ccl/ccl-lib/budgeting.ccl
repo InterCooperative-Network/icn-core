@@ -19,7 +19,7 @@ struct BudgetRequest {
     approved_by: Array<Did>,
     status: String,
     created_at: Integer,
-    deadline: Integer
+    deadline: Integer,
 }
 
 struct BudgetCategory {
@@ -27,7 +27,7 @@ struct BudgetCategory {
     allocated: Mana,
     spent: Mana,
     reserved: Mana,
-    approval_threshold: Integer
+    approval_threshold: Integer,
 }
 
 // Budget creation and management
@@ -35,10 +35,10 @@ fn create_budget_request(
     requestor: Did,
     amount: Mana,
     category: String,
-    description: String
+    description: String,
 ) -> BudgetRequest {
     let approval_level = determine_approval_level(amount);
-    
+
     let request = BudgetRequest {
         id: host_get_current_time(),
         requestor: requestor,
@@ -49,9 +49,9 @@ fn create_budget_request(
         approved_by: [],
         status: "pending",
         created_at: host_get_current_time(),
-        deadline: host_get_current_time() + (30 * DAY)
+        deadline: host_get_current_time() + (30 * DAY),
     };
-    
+
     return request;
 }
 
@@ -65,35 +65,32 @@ fn determine_approval_level(amount: Mana) -> Integer {
     }
 }
 
-fn approve_budget_request(
-    request: BudgetRequest,
-    approver: Did
-) -> BudgetRequest {
+fn approve_budget_request(request: BudgetRequest, approver: Did) -> BudgetRequest {
     // Check if approver has authority for this approval level
     if !has_approval_authority(approver, request.approval_level) {
         return request;
     }
-    
+
     // Check if already approved by this person
     if array_contains_did(request.approved_by, approver) {
         return request;
     }
-    
+
     // Add approval
     let updated_request = request;
     array_push_did(updated_request.approved_by, approver);
-    
+
     // Check if sufficient approvals
     if has_sufficient_approvals(updated_request) {
         updated_request.status = "approved";
     }
-    
+
     return updated_request;
 }
 
 fn has_approval_authority(approver: Did, level: Integer) -> Bool {
     let reputation = host_get_reputation();
-    
+
     if level == APPROVAL_SIMPLE {
         return reputation >= 100;
     } else if level == APPROVAL_COMMITTEE {
@@ -101,13 +98,13 @@ fn has_approval_authority(approver: Did, level: Integer) -> Bool {
     } else if level == APPROVAL_ASSEMBLY {
         return reputation >= 1000;
     }
-    
+
     return false;
 }
 
 fn has_sufficient_approvals(request: BudgetRequest) -> Bool {
     let approval_count = array_len(request.approved_by);
-    
+
     if request.approval_level == APPROVAL_SIMPLE {
         return approval_count >= 1;
     } else if request.approval_level == APPROVAL_COMMITTEE {
@@ -115,7 +112,7 @@ fn has_sufficient_approvals(request: BudgetRequest) -> Bool {
     } else if request.approval_level == APPROVAL_ASSEMBLY {
         return approval_count >= 7;
     }
-    
+
     return false;
 }
 
@@ -124,47 +121,56 @@ fn execute_budget_request(request: BudgetRequest) -> Bool {
     if request.status != "approved" {
         return false;
     }
-    
+
     if host_get_current_time() > request.deadline {
         return false;
     }
-    
+
     // Check if funds are available
     let available_funds = get_category_available_funds(request.category);
     if available_funds < request.amount {
         return false;
     }
-    
+
     // Execute the transfer
     allocate_funds(request.category, request.amount);
     transfer_mana(request.requestor, request.amount);
-    
+
     return true;
 }
 
 fn get_category_available_funds(category: String) -> Mana {
-    // TODO: Implement category budget tracking
-    return 50000; // Placeholder
+    // Query the token balance for this budget category.
+    // Categories are represented as token classes held by the caller
+    // (typically the cooperative treasury).
+    return get_token_balance(category, host_get_caller());
 }
 
 fn allocate_funds(category: String, amount: Mana) -> Bool {
-    // TODO: Implement fund allocation tracking
-    return true;
+    // Reduce the available allocation by burning category tokens
+    // from the treasury account.
+    return burn_tokens(category, host_get_caller(), amount);
 }
 
 fn transfer_mana(recipient: Did, amount: Mana) -> Bool {
-    // TODO: Implement actual mana transfer
-    return true;
+    // Transfer mana to the recipient using the mana token class.
+    return transfer_tokens("mana", host_get_caller(), recipient, amount);
 }
 
 // Helper functions for Did arrays (simplified)
 fn array_contains_did(arr: Array<Did>, item: Did) -> Bool {
-    // TODO: Implement proper DID comparison
+    let i = 0;
+    while i < array_len(arr) {
+        if arr[i] == item {
+            return true;
+        }
+        let i = i + 1;
+    }
     return false;
 }
 
 fn array_push_did(arr: Array<Did>, item: Did) -> Bool {
-    // TODO: Implement array push for DIDs
+    array_push(arr, item);
     return true;
 }
 
@@ -174,14 +180,14 @@ fn run() -> Bool {
         host_get_caller(),
         5000,
         "infrastructure",
-        "Server maintenance and upgrades"
+        "Server maintenance and upgrades",
     );
-    
+
     let approved_request = approve_budget_request(request, host_get_caller());
-    
+
     if approved_request.status == "approved" {
         return execute_budget_request(approved_request);
     }
-    
+
     return false;
 }

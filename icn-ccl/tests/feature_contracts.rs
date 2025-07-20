@@ -65,3 +65,9 @@ async fn string_concat_contract_runs() {
         .join("tests/contracts/string_concat.ccl");
     compile_and_run(&path, b"job_str", 10).await;
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn budgeting_contract_runs() {
+    let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("ccl-lib/budgeting.ccl");
+    compile_and_run(&path, b"job_budget", 1).await;
+}
