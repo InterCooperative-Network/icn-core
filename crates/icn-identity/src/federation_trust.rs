@@ -777,13 +777,21 @@ impl TrustPolicyEngine {
         for trustor_fed in trustor_federations {
             for trustee_fed in trustee_federations {
                 if let Some(bridge) = self.bridges.get(&(trustor_fed.clone(), trustee_fed.clone())) {
+                    // Skip expired bridges
+                    if let Some(expiry) = bridge.expires_at {
+                        let now = chrono::Utc::now().timestamp() as u64;
+                        if now >= expiry {
+                            continue;
+                        }
+                    }
+
                     if bridge.bridge_config.allowed_contexts.contains(context) {
                         // Calculate bridged trust level
                         let bridged_level = self.calculate_bridged_trust_level(
                             &bridge.trust.base.trust_level,
                             &bridge.bridge_config,
                         );
-                        
+
                         return Some(TrustValidationResult::Allowed {
                             effective_trust: bridged_level,
                             trust_path: vec![
