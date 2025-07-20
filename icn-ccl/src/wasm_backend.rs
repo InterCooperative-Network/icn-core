@@ -54,7 +54,7 @@ impl LocalEnv {
     }
 }
 
-const IMPORT_COUNT: u32 = 19; // 6 original + 13 new functions (8 economics + 5 identity)
+const IMPORT_COUNT: u32 = 22; // 6 original + 16 new functions (11 economics + 5 identity)
 
 pub struct WasmBackend {
     data: wasm_encoder::DataSection,
@@ -439,6 +439,35 @@ impl WasmBackend {
         );
         imports.import("icn", "host_execute_marketplace_transaction", wasm_encoder::EntityType::Function(ty_execute_market));
         fn_indices.insert("host_execute_marketplace_transaction".to_string(), next_index);
+        next_index += 1;
+
+        // === SCOPED TOKEN OPERATIONS ===
+        
+        let ty_create_scoped = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I32, ValType::I32, ValType::I32, ValType::I32, ValType::I32], // class_id, name, symbol, issuer, scope_type, scope_value
+            vec![ValType::I32] // bool
+        );
+        imports.import("icn", "host_create_scoped_token", wasm_encoder::EntityType::Function(ty_create_scoped));
+        fn_indices.insert("host_create_scoped_token".to_string(), next_index);
+        next_index += 1;
+
+        let ty_transfer_scoped = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I32, ValType::I32, ValType::I64, ValType::I32], // class_id, from, to, amount, required_scope
+            vec![ValType::I32] // bool
+        );
+        imports.import("icn", "host_transfer_scoped", wasm_encoder::EntityType::Function(ty_transfer_scoped));
+        fn_indices.insert("host_transfer_scoped".to_string(), next_index);
+        next_index += 1;
+
+        let ty_verify_constraints = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I32, ValType::I32, ValType::I32], // class_id, actor, operation, target_scope
+            vec![ValType::I32] // bool
+        );
+        imports.import("icn", "host_verify_token_constraints", wasm_encoder::EntityType::Function(ty_verify_constraints));
+        fn_indices.insert("host_verify_token_constraints".to_string(), next_index);
         next_index += 1;
 
         // === ADDITIONAL IDENTITY FUNCTIONS ===
@@ -1702,6 +1731,38 @@ impl WasmBackend {
                         Ok(ValType::I32) // transaction_id string pointer
                     }
                     
+                    // === SCOPED TOKEN OPERATIONS ===
+                    
+                    "create_scoped_token" => {
+                        // Map to host_create_scoped_token(class_id, name, symbol, issuer, scope_type, scope_value)
+                        for arg in args {
+                            self.emit_expression(arg, instrs, locals, indices)?;
+                        }
+                        let idx = indices.get("host_create_scoped_token").unwrap();
+                        instrs.push(Instruction::Call(*idx));
+                        Ok(ValType::I32)
+                    }
+                    
+                    "transfer_scoped" => {
+                        // Map to host_transfer_scoped(class_id, from, to, amount, required_scope)
+                        for arg in args {
+                            self.emit_expression(arg, instrs, locals, indices)?;
+                        }
+                        let idx = indices.get("host_transfer_scoped").unwrap();
+                        instrs.push(Instruction::Call(*idx));
+                        Ok(ValType::I32)
+                    }
+                    
+                    "verify_token_constraints" => {
+                        // Map to host_verify_token_constraints(class_id, actor, operation, target_scope)
+                        for arg in args {
+                            self.emit_expression(arg, instrs, locals, indices)?;
+                        }
+                        let idx = indices.get("host_verify_token_constraints").unwrap();
+                        instrs.push(Instruction::Call(*idx));
+                        Ok(ValType::I32)
+                    }
+                    
                     // === ADDITIONAL IDENTITY STDLIB FUNCTIONS ===
                     
                     "update_did_document" => {
@@ -1762,7 +1823,8 @@ impl WasmBackend {
                             | "host_verify_did_signature" | "host_verify_credential"
                             | "host_mint_time_tokens" | "host_extend_mutual_credit" 
                             | "host_update_did_document" | "host_revoke_credential" 
-                            | "host_verify_cooperative_membership" => ValType::I32,
+                            | "host_verify_cooperative_membership"
+                            | "host_create_scoped_token" | "host_transfer_scoped" | "host_verify_token_constraints" => ValType::I32,
                             
                             "host_get_caller" | "host_create_did" | "host_resolve_did" | "host_issue_credential"
                             | "host_record_time_work" | "host_create_credit_line" 

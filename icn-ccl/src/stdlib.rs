@@ -440,6 +440,50 @@ impl StdLibrary {
             description: "Execute marketplace transaction between buyer and seller".to_string(),
             category: StdCategory::Economics,
         });
+
+        // === SCOPED TOKEN OPERATIONS ===
+        
+        self.register_function(StdFunction {
+            name: "create_scoped_token".to_string(),
+            params: vec![
+                TypeAnnotationNode::String, // class_id
+                TypeAnnotationNode::String, // name
+                TypeAnnotationNode::String, // symbol
+                TypeAnnotationNode::Did,    // issuer
+                TypeAnnotationNode::String, // scope_type ("geographic", "community", "time")
+                TypeAnnotationNode::String, // scope_value
+            ],
+            return_type: TypeAnnotationNode::Bool,
+            description: "Create a token class with scoping constraints (geographic, community, or time-based)".to_string(),
+            category: StdCategory::Economics,
+        });
+
+        self.register_function(StdFunction {
+            name: "transfer_scoped".to_string(),
+            params: vec![
+                TypeAnnotationNode::String, // class_id
+                TypeAnnotationNode::Did,    // from
+                TypeAnnotationNode::Did,    // to
+                TypeAnnotationNode::Integer, // amount
+                TypeAnnotationNode::String, // required_scope
+            ],
+            return_type: TypeAnnotationNode::Bool,
+            description: "Transfer scoped tokens with scope validation (validates geographic/community constraints)".to_string(),
+            category: StdCategory::Economics,
+        });
+
+        self.register_function(StdFunction {
+            name: "verify_token_constraints".to_string(),
+            params: vec![
+                TypeAnnotationNode::String, // class_id
+                TypeAnnotationNode::Did,    // actor
+                TypeAnnotationNode::String, // operation ("transfer", "mint", "burn")
+                TypeAnnotationNode::String, // target_scope
+            ],
+            return_type: TypeAnnotationNode::Bool,
+            description: "Verify if token operation is allowed under scoping rules and transferability constraints".to_string(),
+            category: StdCategory::Economics,
+        });
     }
 
     /// Register identity and credential functions
@@ -1135,6 +1179,11 @@ mod tests {
         assert!(stdlib.get_function("extend_mutual_credit").is_some());
         assert!(stdlib.get_function("create_marketplace_offer").is_some());
         assert!(stdlib.get_function("execute_marketplace_transaction").is_some());
+        
+        // Should have scoped token functions
+        assert!(stdlib.get_function("create_scoped_token").is_some());
+        assert!(stdlib.get_function("transfer_scoped").is_some());
+        assert!(stdlib.get_function("verify_token_constraints").is_some());
         
         // Should have new identity functions
         assert!(stdlib.get_function("create_did").is_some());

@@ -1,0 +1,50 @@
+// Test scoped token operations in CCL
+fn test_scoped_token_operations() -> Integer {
+    let issuer = host_get_caller();
+    let recipient = host_get_caller();
+    
+    // Create a community-scoped token
+    let created = create_scoped_token(
+        "community_coin",
+        "Community Coin",
+        "CC",
+        issuer,
+        "community",
+        "LocalCoop"
+    );
+    
+    if !created {
+        return 1; // Failed to create scoped token
+    }
+    
+    // Verify token constraints before transfer
+    let can_transfer = verify_token_constraints(
+        "community_coin",
+        issuer,
+        "transfer",
+        "LocalCoop"
+    );
+    
+    if !can_transfer {
+        return 2; // Transfer not allowed by constraints
+    }
+    
+    // Transfer scoped tokens with validation
+    let transferred = transfer_scoped(
+        "community_coin",
+        issuer,
+        recipient,
+        100,
+        "LocalCoop"
+    );
+    
+    if !transferred {
+        return 3; // Scoped transfer failed
+    }
+    
+    return 0; // All scoped token operations successful
+}
+
+fn run() -> Integer {
+    return test_scoped_token_operations();
+} 
