@@ -54,7 +54,7 @@ impl LocalEnv {
     }
 }
 
-const IMPORT_COUNT: u32 = 22; // 6 original + 16 new functions (11 economics + 5 identity)
+const IMPORT_COUNT: u32 = 32; // 6 original + 26 new functions (11 economics + 15 identity)
 
 pub struct WasmBackend {
     data: wasm_encoder::DataSection,
@@ -468,6 +468,98 @@ impl WasmBackend {
         );
         imports.import("icn", "host_verify_token_constraints", wasm_encoder::EntityType::Function(ty_verify_constraints));
         fn_indices.insert("host_verify_token_constraints".to_string(), next_index);
+        next_index += 1;
+
+        // === ADVANCED IDENTITY FUNCTIONS ===
+        
+        let ty_discover_federations = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I64], // search_criteria, max_results
+            vec![ValType::I32] // array of federation IDs pointer
+        );
+        imports.import("icn", "host_discover_federations", wasm_encoder::EntityType::Function(ty_discover_federations));
+        fn_indices.insert("host_discover_federations".to_string(), next_index);
+        next_index += 1;
+
+        let ty_join_federation = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I32, ValType::I32], // member_did, federation_id, application_details
+            vec![ValType::I32] // bool
+        );
+        imports.import("icn", "host_join_federation", wasm_encoder::EntityType::Function(ty_join_federation));
+        fn_indices.insert("host_join_federation".to_string(), next_index);
+        next_index += 1;
+
+        let ty_leave_federation = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I32, ValType::I32], // member_did, federation_id, reason
+            vec![ValType::I32] // bool
+        );
+        imports.import("icn", "host_leave_federation", wasm_encoder::EntityType::Function(ty_leave_federation));
+        fn_indices.insert("host_leave_federation".to_string(), next_index);
+        next_index += 1;
+
+        let ty_verify_cross_federation = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I32, ValType::I32, ValType::I32], // verifier_did, source_federation, target_federation, credential_type
+            vec![ValType::I32] // bool
+        );
+        imports.import("icn", "host_verify_cross_federation", wasm_encoder::EntityType::Function(ty_verify_cross_federation));
+        fn_indices.insert("host_verify_cross_federation".to_string(), next_index);
+        next_index += 1;
+
+        let ty_rotate_keys = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I32, ValType::I32], // did, new_public_key, signature_from_old_key
+            vec![ValType::I32] // bool
+        );
+        imports.import("icn", "host_rotate_keys", wasm_encoder::EntityType::Function(ty_rotate_keys));
+        fn_indices.insert("host_rotate_keys".to_string(), next_index);
+        next_index += 1;
+
+        let ty_backup_keys = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I32, ValType::I32], // did, backup_method, backup_parameters
+            vec![ValType::I32] // backup_id string pointer
+        );
+        imports.import("icn", "host_backup_keys", wasm_encoder::EntityType::Function(ty_backup_keys));
+        fn_indices.insert("host_backup_keys".to_string(), next_index);
+        next_index += 1;
+
+        let ty_recover_keys = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I32, ValType::I32], // did, backup_id, recovery_proof
+            vec![ValType::I32] // bool
+        );
+        imports.import("icn", "host_recover_keys", wasm_encoder::EntityType::Function(ty_recover_keys));
+        fn_indices.insert("host_recover_keys".to_string(), next_index);
+        next_index += 1;
+
+        let ty_get_federation_metadata = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32], // federation_id
+            vec![ValType::I32] // metadata JSON pointer
+        );
+        imports.import("icn", "host_get_federation_metadata", wasm_encoder::EntityType::Function(ty_get_federation_metadata));
+        fn_indices.insert("host_get_federation_metadata".to_string(), next_index);
+        next_index += 1;
+
+        let ty_verify_federation_membership = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I32], // member_did, federation_id
+            vec![ValType::I32] // bool
+        );
+        imports.import("icn", "host_verify_federation_membership", wasm_encoder::EntityType::Function(ty_verify_federation_membership));
+        fn_indices.insert("host_verify_federation_membership".to_string(), next_index);
+        next_index += 1;
+
+        let ty_coordinate_cross_federation = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I32, ValType::I32, ValType::I32], // coordinator_did, federation_ids_array, action_type, action_parameters
+            vec![ValType::I32] // coordination_id string pointer
+        );
+        imports.import("icn", "host_coordinate_cross_federation_action", wasm_encoder::EntityType::Function(ty_coordinate_cross_federation));
+        fn_indices.insert("host_coordinate_cross_federation_action".to_string(), next_index);
         next_index += 1;
 
         // === ADDITIONAL IDENTITY FUNCTIONS ===
@@ -1775,6 +1867,112 @@ impl WasmBackend {
                         Ok(ValType::I32)
                     }
                     
+                    // === FEDERATION DISCOVERY & COORDINATION ===
+                    
+                    "discover_federations" => {
+                        // Map to host_discover_federations(search_criteria, max_results)
+                        for arg in args {
+                            self.emit_expression(arg, instrs, locals, indices)?;
+                        }
+                        let idx = indices.get("host_discover_federations").unwrap();
+                        instrs.push(Instruction::Call(*idx));
+                        Ok(ValType::I32) // array pointer
+                    }
+                    
+                    "join_federation" => {
+                        // Map to host_join_federation(member_did, federation_id, application_details)
+                        for arg in args {
+                            self.emit_expression(arg, instrs, locals, indices)?;
+                        }
+                        let idx = indices.get("host_join_federation").unwrap();
+                        instrs.push(Instruction::Call(*idx));
+                        Ok(ValType::I32)
+                    }
+                    
+                    "leave_federation" => {
+                        // Map to host_leave_federation(member_did, federation_id, reason)
+                        for arg in args {
+                            self.emit_expression(arg, instrs, locals, indices)?;
+                        }
+                        let idx = indices.get("host_leave_federation").unwrap();
+                        instrs.push(Instruction::Call(*idx));
+                        Ok(ValType::I32)
+                    }
+                    
+                    "verify_cross_federation" => {
+                        // Map to host_verify_cross_federation(verifier_did, source_federation, target_federation, credential_type)
+                        for arg in args {
+                            self.emit_expression(arg, instrs, locals, indices)?;
+                        }
+                        let idx = indices.get("host_verify_cross_federation").unwrap();
+                        instrs.push(Instruction::Call(*idx));
+                        Ok(ValType::I32)
+                    }
+                    
+                    // === KEY ROTATION & MANAGEMENT ===
+                    
+                    "rotate_keys" => {
+                        // Map to host_rotate_keys(did, new_public_key, signature_from_old_key)
+                        for arg in args {
+                            self.emit_expression(arg, instrs, locals, indices)?;
+                        }
+                        let idx = indices.get("host_rotate_keys").unwrap();
+                        instrs.push(Instruction::Call(*idx));
+                        Ok(ValType::I32)
+                    }
+                    
+                    "backup_keys" => {
+                        // Map to host_backup_keys(did, backup_method, backup_parameters)
+                        for arg in args {
+                            self.emit_expression(arg, instrs, locals, indices)?;
+                        }
+                        let idx = indices.get("host_backup_keys").unwrap();
+                        instrs.push(Instruction::Call(*idx));
+                        Ok(ValType::I32) // backup_id string pointer
+                    }
+                    
+                    "recover_keys" => {
+                        // Map to host_recover_keys(did, backup_id, recovery_proof)
+                        for arg in args {
+                            self.emit_expression(arg, instrs, locals, indices)?;
+                        }
+                        let idx = indices.get("host_recover_keys").unwrap();
+                        instrs.push(Instruction::Call(*idx));
+                        Ok(ValType::I32)
+                    }
+                    
+                    // === ADVANCED FEDERATION OPERATIONS ===
+                    
+                    "get_federation_metadata" => {
+                        // Map to host_get_federation_metadata(federation_id)
+                        for arg in args {
+                            self.emit_expression(arg, instrs, locals, indices)?;
+                        }
+                        let idx = indices.get("host_get_federation_metadata").unwrap();
+                        instrs.push(Instruction::Call(*idx));
+                        Ok(ValType::I32) // metadata JSON pointer
+                    }
+                    
+                    "verify_federation_membership" => {
+                        // Map to host_verify_federation_membership(member_did, federation_id)
+                        for arg in args {
+                            self.emit_expression(arg, instrs, locals, indices)?;
+                        }
+                        let idx = indices.get("host_verify_federation_membership").unwrap();
+                        instrs.push(Instruction::Call(*idx));
+                        Ok(ValType::I32)
+                    }
+                    
+                    "coordinate_cross_federation_action" => {
+                        // Map to host_coordinate_cross_federation_action(coordinator_did, federation_ids_array, action_type, action_parameters)
+                        for arg in args {
+                            self.emit_expression(arg, instrs, locals, indices)?;
+                        }
+                        let idx = indices.get("host_coordinate_cross_federation_action").unwrap();
+                        instrs.push(Instruction::Call(*idx));
+                        Ok(ValType::I32) // coordination_id string pointer
+                    }
+                    
                     "revoke_credential" => {
                         // Map to host_revoke_credential(issuer, credential_id, reason)
                         for arg in args {
@@ -1829,7 +2027,9 @@ impl WasmBackend {
                             "host_get_caller" | "host_create_did" | "host_resolve_did" | "host_issue_credential"
                             | "host_record_time_work" | "host_create_credit_line" 
                             | "host_create_marketplace_offer" | "host_execute_marketplace_transaction"
-                            | "host_create_cooperative_membership" => ValType::I32, // pointers/DIDs
+                            | "host_create_cooperative_membership" 
+                            | "host_discover_federations" | "host_backup_keys" | "host_get_federation_metadata"
+                            | "host_coordinate_cross_federation_action" => ValType::I32, // pointers/DIDs
                             
                             _ => ValType::I64,
                         };

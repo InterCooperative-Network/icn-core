@@ -599,6 +599,130 @@ impl StdLibrary {
             description: "Verify cooperative membership and authorization level".to_string(),
             category: StdCategory::Identity,
         });
+
+        // === FEDERATION DISCOVERY & COORDINATION ===
+        
+        self.register_function(StdFunction {
+            name: "discover_federations".to_string(),
+            params: vec![
+                TypeAnnotationNode::String, // search_criteria
+                TypeAnnotationNode::Integer, // max_results
+            ],
+            return_type: TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::String)), // federation IDs
+            description: "Discover available federations based on search criteria".to_string(),
+            category: StdCategory::Identity,
+        });
+
+        self.register_function(StdFunction {
+            name: "join_federation".to_string(),
+            params: vec![
+                TypeAnnotationNode::Did,    // member DID
+                TypeAnnotationNode::String, // federation ID
+                TypeAnnotationNode::String, // application details
+            ],
+            return_type: TypeAnnotationNode::Bool,
+            description: "Apply to join a federation with specified member DID".to_string(),
+            category: StdCategory::Identity,
+        });
+
+        self.register_function(StdFunction {
+            name: "leave_federation".to_string(),
+            params: vec![
+                TypeAnnotationNode::Did,    // member DID
+                TypeAnnotationNode::String, // federation ID
+                TypeAnnotationNode::String, // reason
+            ],
+            return_type: TypeAnnotationNode::Bool,
+            description: "Leave a federation and revoke associated credentials".to_string(),
+            category: StdCategory::Identity,
+        });
+
+        self.register_function(StdFunction {
+            name: "verify_cross_federation".to_string(),
+            params: vec![
+                TypeAnnotationNode::Did,    // verifier DID
+                TypeAnnotationNode::String, // source federation
+                TypeAnnotationNode::String, // target federation
+                TypeAnnotationNode::String, // credential type
+            ],
+            return_type: TypeAnnotationNode::Bool,
+            description: "Verify credentials are valid across different federations".to_string(),
+            category: StdCategory::Identity,
+        });
+
+        // === KEY ROTATION & MANAGEMENT ===
+        
+        self.register_function(StdFunction {
+            name: "rotate_keys".to_string(),
+            params: vec![
+                TypeAnnotationNode::Did,    // did to rotate
+                TypeAnnotationNode::String, // new public key
+                TypeAnnotationNode::String, // signature from old key
+            ],
+            return_type: TypeAnnotationNode::Bool,
+            description: "Rotate DID document keys while maintaining identity continuity".to_string(),
+            category: StdCategory::Identity,
+        });
+
+        self.register_function(StdFunction {
+            name: "backup_keys".to_string(),
+            params: vec![
+                TypeAnnotationNode::Did,    // did to backup
+                TypeAnnotationNode::String, // backup method ("encrypted", "multisig", "social")
+                TypeAnnotationNode::String, // backup parameters
+            ],
+            return_type: TypeAnnotationNode::String, // backup ID
+            description: "Create secure backup of DID keys using specified method".to_string(),
+            category: StdCategory::Identity,
+        });
+
+        self.register_function(StdFunction {
+            name: "recover_keys".to_string(),
+            params: vec![
+                TypeAnnotationNode::Did,    // did to recover
+                TypeAnnotationNode::String, // backup ID
+                TypeAnnotationNode::String, // recovery proof
+            ],
+            return_type: TypeAnnotationNode::Bool,
+            description: "Recover DID keys from backup with verification".to_string(),
+            category: StdCategory::Identity,
+        });
+
+        // === ADVANCED FEDERATION OPERATIONS ===
+        
+        self.register_function(StdFunction {
+            name: "get_federation_metadata".to_string(),
+            params: vec![
+                TypeAnnotationNode::String, // federation ID
+            ],
+            return_type: TypeAnnotationNode::String, // metadata JSON
+            description: "Get detailed metadata about a federation including policies and governance".to_string(),
+            category: StdCategory::Identity,
+        });
+
+        self.register_function(StdFunction {
+            name: "verify_federation_membership".to_string(),
+            params: vec![
+                TypeAnnotationNode::Did,    // member DID
+                TypeAnnotationNode::String, // federation ID
+            ],
+            return_type: TypeAnnotationNode::Bool,
+            description: "Check if a DID is currently a member of the specified federation".to_string(),
+            category: StdCategory::Identity,
+        });
+
+        self.register_function(StdFunction {
+            name: "coordinate_cross_federation_action".to_string(),
+            params: vec![
+                TypeAnnotationNode::Did,    // coordinator DID
+                TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::String)), // federation IDs
+                TypeAnnotationNode::String, // action type
+                TypeAnnotationNode::String, // action parameters
+            ],
+            return_type: TypeAnnotationNode::String, // coordination ID
+            description: "Coordinate governance actions across multiple federations".to_string(),
+            category: StdCategory::Identity,
+        });
     }
 
     /// Register utility functions
@@ -1195,6 +1319,18 @@ mod tests {
         assert!(stdlib.get_function("revoke_credential").is_some());
         assert!(stdlib.get_function("create_cooperative_membership").is_some());
         assert!(stdlib.get_function("verify_cooperative_membership").is_some());
+        
+        // Should have federation and key management functions
+        assert!(stdlib.get_function("discover_federations").is_some());
+        assert!(stdlib.get_function("join_federation").is_some());
+        assert!(stdlib.get_function("leave_federation").is_some());
+        assert!(stdlib.get_function("verify_cross_federation").is_some());
+        assert!(stdlib.get_function("rotate_keys").is_some());
+        assert!(stdlib.get_function("backup_keys").is_some());
+        assert!(stdlib.get_function("recover_keys").is_some());
+        assert!(stdlib.get_function("get_federation_metadata").is_some());
+        assert!(stdlib.get_function("verify_federation_membership").is_some());
+        assert!(stdlib.get_function("coordinate_cross_federation_action").is_some());
         
         // Should not have non-existent functions
         assert!(stdlib.get_function("non_existent").is_none());

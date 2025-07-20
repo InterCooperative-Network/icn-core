@@ -215,6 +215,10 @@ name = "test_scoped_tokens"
 path = "test_scoped_tokens.rs"
 
 [[bin]]
+name = "test_identity_federation"
+path = "test_identity_federation.rs"
+
+[[bin]]
 name = "test_final_infinite_loop_fix"
 path = "test_final_infinite_loop_fix.rs"
 
