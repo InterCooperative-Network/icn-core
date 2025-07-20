@@ -1,4 +1,30 @@
 import { StorageAdapter } from './types'
+import crypto from 'crypto'
+
+const SECRET = process.env.ICN_TS_SDK_SECRET || 'icn-default-secret'
+
+function getKey(): Buffer {
+  return crypto.createHash('sha256').update(SECRET).digest()
+}
+
+function encryptValue(plain: string): string {
+  const iv = crypto.randomBytes(12)
+  const cipher = crypto.createCipheriv('aes-256-gcm', getKey(), iv)
+  const encrypted = Buffer.concat([cipher.update(plain, 'utf8'), cipher.final()])
+  const tag = cipher.getAuthTag()
+  return Buffer.concat([iv, tag, encrypted]).toString('base64')
+}
+
+function decryptValue(payload: string): string {
+  const data = Buffer.from(payload, 'base64')
+  const iv = data.subarray(0, 12)
+  const tag = data.subarray(12, 28)
+  const encrypted = data.subarray(28)
+  const decipher = crypto.createDecipheriv('aes-256-gcm', getKey(), iv)
+  decipher.setAuthTag(tag)
+  const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()])
+  return decrypted.toString('utf8')
+}
 
 // Web localStorage adapter
 class WebStorageAdapter implements StorageAdapter {
@@ -165,12 +191,19 @@ export class ICNStorage {
 
   // Private key storage (encrypted in production)
   async getPrivateKey(): Promise<string | null> {
-    return this.adapter.getItem('private-key')
+    const stored = await this.adapter.getItem('private-key')
+    if (!stored) return null
+    try {
+      return decryptValue(stored)
+    } catch (error) {
+      console.warn('Failed to decrypt private key:', error)
+      return null
+    }
   }
 
   async setPrivateKey(key: string): Promise<void> {
-    // TODO: Encrypt private key before storage
-    await this.adapter.setItem('private-key', key)
+    const encrypted = encryptValue(key)
+    await this.adapter.setItem('private-key', encrypted)
   }
 
   async removePrivateKey(): Promise<void> {
