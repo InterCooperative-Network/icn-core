@@ -23,6 +23,26 @@ CCL replaces traditional legal infrastructure:
 - **Execution receipts replace court records**: Cryptographic proof of legal actions
 - **Federations replace jurisdictions**: Opt-in, programmable governance boundaries
 
+### CCL v0.1 Core Principles
+
+> **Note:** In v0.1, all voting and governance rights are derived strictly from membership, never from token holding or reputation. Mana is computation-only. Delegation is via explicit, non-tradable representation tokens.
+
+| **Principle** | **Source** | **Purpose** |
+|---------------|------------|-------------|
+| **Voting Rights** | Membership | Only members may vote or propose |
+| **Proposals** | Membership | Only members may submit proposals |
+| **Mana** | Computation | Rate-limiting and execution costs only |
+| **Tokens** | Value/Access/Delegation | Economic value and explicit delegation |
+| **Reputation** | Trust/Incentives | Social trust and mana regeneration bonuses |
+| **Privacy** | ZKP/Consent | Anonymous participation with verification |
+| **Federation** | Chain of Trust (VC) | Verifiable credentials across scopes |
+
+**Critical Distinctions:**
+- **Mana** is the exclusive meter for computational work and rate-limiting
+- **Tokens** represent economic value, access rights, or explicit delegation (not voting power)
+- **Reputation** provides trust scoring and mana regeneration bonuses, but never reduces access below baseline
+- **Membership** is the sole source of governance rights, proven by verifiable credentials
+
 ---
 
 ## 2 · Language Syntax
@@ -408,25 +428,106 @@ proposal ResourceAllocation {
 }
 ```
 
-### 5.3 Delegation
+### 5.3 Membership and Credentials
 
-#### Simple Delegation
+Every contract defines membership explicitly. Only members may vote or propose. Membership is proven by verifiable credentials issued by communities, cooperatives, or federations.
+
+#### Membership Credential Structure
 ```ccl
-fn delegate_vote(delegate_to: did, scope: string, duration: timestamp) {
-    require(caller_has_role(Member));
+struct MembershipCredential {
+    subject: did,           // The member's DID
+    issuer: did,            // The issuing community/cooperative DID
+    credential_type: string, // "membership", "role", etc.
+    scope: string,          // Contract scope this applies to
+    issued_at: timestamp,
+    expires_at: Option<timestamp>,
+    revoked: bool,
+    signature: Signature    // Cryptographic proof from issuer
+}
+```
+
+#### Membership Verification
+```ccl
+fn verify_membership(member: did, credential: MembershipCredential) -> bool {
+    require(credential.subject == member);
+    require(credential.scope == contract_scope());
+    require(!credential.revoked);
+    require(credential.expires_at.is_none() || credential.expires_at.unwrap() > now());
     
-    delegations[caller()] = Delegation {
+    // Verify cryptographic signature from issuer
+    verify_credential_signature(credential)
+}
+
+fn caller_has_membership() -> bool {
+    let credentials = get_member_credentials(caller());
+    credentials.iter().any(|cred| verify_membership(caller(), cred.clone()))
+}
+```
+
+### 5.4 Delegation via Representation Tokens
+
+Delegation is achieved through explicit, non-tradable, time-limited representation tokens rather than direct vote delegation.
+
+#### Representation Token
+```ccl
+struct RepresentationToken {
+    delegator: did,
+    delegate: did,
+    scope: string,           // What decisions this covers
+    issued_at: timestamp,
+    expires_at: timestamp,
+    revocable: bool,
+    max_decisions: Option<int>, // Limit number of decisions
+    used_decisions: int
+}
+```
+
+#### Issue Representation Token
+```ccl
+fn issue_representation(
+    delegate_to: did, 
+    scope: string, 
+    duration: Duration,
+    max_decisions: Option<int>
+) -> RepresentationToken {
+    require(caller_has_membership());
+    require(verify_membership(delegate_to, get_member_credentials(delegate_to)));
+    
+    let token = RepresentationToken {
+        delegator: caller(),
         delegate: delegate_to,
         scope: scope,
-        expires: now() + duration,
-        revocable: true
+        issued_at: now(),
+        expires_at: now() + duration,
+        revocable: true,
+        max_decisions: max_decisions,
+        used_decisions: 0
     };
     
-    emit VoteDelegated { 
+    representation_tokens[caller()].push(token);
+    
+    emit RepresentationIssued { 
         delegator: caller(), 
         delegate: delegate_to, 
-        scope: scope 
+        scope: scope,
+        expires_at: token.expires_at
     };
+    
+    token
+}
+
+fn revoke_representation(delegate: did, scope: string) {
+    let tokens = &mut representation_tokens[caller()];
+    for token in tokens {
+        if token.delegate == delegate && token.scope == scope {
+            token.revocable = false; // Mark as revoked
+            emit RepresentationRevoked {
+                delegator: caller(),
+                delegate: delegate,
+                scope: scope
+            };
+        }
+    }
 }
 ```
 
@@ -489,25 +590,44 @@ fn burn_tokens(amount: token<USD>) {
 
 ### 6.2 Mana System
 
+Mana is a regenerating compute resource that governs execution throughput and rate-limiting. 
+
+**Key Principles:**
+- Every member receives a **base mana regeneration rate** based on their membership status
+- Reputation may **increase** mana regeneration rate as an incentive bonus
+- Reputation may **never reduce** mana regeneration below the baseline
+- No member can be blocked from participation due to low mana or reputation
+
 #### Mana Regeneration
 ```ccl
 fn calculate_mana_regen(account: did) -> token<Mana> {
-    let base_rate = mana_config.base_regeneration_rate;
-    let reputation = reputation_scores[account];
+    let base_rate = get_membership_base_rate(account);  // Based on membership
+    let reputation_bonus = get_reputation_bonus(account);  // Always >= 0
     let time_factor = (now() - last_regen[account]) / 1.hour;
     
-    base_rate * reputation_multiplier(reputation) * time_factor
+    (base_rate + reputation_bonus) * time_factor
+}
+
+fn get_reputation_bonus(account: did) -> token<Mana> {
+    let reputation = reputation_scores[account];
+    // Reputation can only add bonus, never subtract from base
+    max(0, reputation * mana_config.reputation_bonus_rate)
 }
 ```
 
-#### Mana Spending
+#### Mana Spending (Computation Only)
 ```ccl
-fn spend_mana(account: did, amount: token<Mana>) -> bool {
+fn spend_mana(account: did, amount: token<Mana>, action: string) -> bool {
+    require(is_computational_action(action)); // Only for execution costs
     let available = current_mana_balance(account);
     
     if available >= amount {
         mana_balances[account] = available - amount;
-        emit ManaSpent { account: account, amount: amount };
+        emit ManaSpent { 
+            account: account, 
+            amount: amount, 
+            action: action 
+        };
         true
     } else {
         false
@@ -604,7 +724,28 @@ fn discover_federations(scope_filter: string) -> [FederationInfo] {
 
 ## 8 · Standard Library
 
-### 8.1 std::governance
+### 8.1 std::membership
+
+#### Membership Verification
+```ccl
+use std::membership::{
+    verify_membership,
+    issue_membership_credential,
+    revoke_membership,
+    get_member_credentials,
+    MembershipCredential
+};
+
+fn check_voting_eligibility(member: did) -> bool {
+    let credentials = get_member_credentials(member);
+    credentials.iter().any(|cred| 
+        verify_membership(member, cred.clone()) && 
+        cred.scope == contract_scope()
+    )
+}
+```
+
+### 8.2 std::governance
 
 #### Voting Functions
 ```ccl
@@ -628,18 +769,19 @@ fn execute_if_passed(proposal_id: int) {
 }
 ```
 
-#### Delegation Helpers
+#### Representation Management
 ```ccl
-use std::governance::delegation::{
-    delegate_vote,
-    revoke_delegation,
-    get_effective_voter
+use std::governance::representation::{
+    issue_representation_token,
+    revoke_representation,
+    get_active_representations,
+    RepresentationToken
 };
 ```
 
-### 8.2 std::economics
+### 8.3 std::economics
 
-#### Token Utilities
+#### Token Utilities (Value/Access/Delegation Only)
 ```ccl
 use std::economics::{
     transfer_tokens,
@@ -650,17 +792,19 @@ use std::economics::{
 };
 ```
 
-#### Mana Management
+#### Mana Management (Computation Only)
 ```ccl
 use std::economics::mana::{
     charge_mana,
     regenerate_mana,
     get_mana_balance,
+    get_membership_base_rate,
+    get_reputation_bonus,
     ManaConfig
 };
 ```
 
-### 8.3 std::identity
+### 8.4 std::identity
 
 #### DID Operations
 ```ccl
@@ -678,7 +822,7 @@ fn verify_member_credential(member: did) -> bool {
 }
 ```
 
-### 8.4 std::federation
+### 8.5 std::federation
 
 #### Federation Management
 ```ccl
@@ -1309,19 +1453,55 @@ contract EconomicSecurity {
 
 ### 15.1 Core Modules (Required)
 
+#### std::membership
+```ccl
+module std::membership {
+    // Membership verification (foundation of all governance rights)
+    fn verify_membership(member: did, credential: MembershipCredential) -> bool;
+    fn issue_membership_credential(issuer: did, subject: did, scope: string) -> MembershipCredential;
+    fn revoke_membership(issuer: did, credential_id: string) -> bool;
+    fn get_member_credentials(member: did) -> [MembershipCredential];
+    
+    // Membership queries
+    fn is_member(member: did, scope: string) -> bool;
+    fn get_membership_scope(member: did) -> [string];
+    fn count_members(scope: string) -> int;
+    
+    // Types
+    struct MembershipCredential {
+        subject: did,
+        issuer: did,
+        credential_type: string,
+        scope: string,
+        issued_at: timestamp,
+        expires_at: Option<timestamp>,
+        revoked: bool,
+        signature: Signature
+    }
+    
+    // Version: 1.0.0
+    // Upgradable: Security-critical, requires supermajority
+}
+```
+
 #### std::governance
 ```ccl
 module std::governance {
-    // Required functions
-    fn calculate_quorum(votes: [Vote], eligible: [did]) -> bool;
+    // Required functions (membership-based only)
+    fn calculate_quorum(votes: [Vote], eligible_members: [did]) -> bool;
     fn tally_votes(votes: [Vote]) -> VoteTally;
     fn check_threshold(tally: VoteTally, threshold: VoteThreshold) -> bool;
-    fn get_effective_voter(voter: did) -> did; // Follows delegation chain
+    fn verify_voting_eligibility(voter: did) -> bool; // Checks membership
+    
+    // Representation management (non-tradable delegation)
+    fn issue_representation_token(delegator: did, delegate: did, scope: string) -> RepresentationToken;
+    fn revoke_representation(delegator: did, delegate: did, scope: string) -> bool;
+    fn get_active_representations(delegator: did) -> [RepresentationToken];
     
     // Types
     enum VoteType { Majority, Supermajority(float), Consensus, Unanimous, Quadratic }
-    struct Vote { voter: did, choice: VoteChoice, weight: float, timestamp: timestamp }
-    struct VoteTally { yes: float, no: float, abstain: float, total_weight: float }
+    struct Vote { voter: did, choice: VoteChoice, timestamp: timestamp } // No weight field
+    struct VoteTally { yes: int, no: int, abstain: int, total_members: int }
     
     // Version: 1.0.0
     // Upgradable: Yes, via governance proposal
@@ -1331,16 +1511,22 @@ module std::governance {
 #### std::economics  
 ```ccl
 module std::economics {
-    // Token operations
+    // Token operations (value/access/delegation only, NOT voting)
     fn transfer_tokens(from: did, to: did, amount: token<T>) -> Result<(), TransferError>;
     fn mint_tokens(to: did, amount: token<T>) -> Result<(), MintError>;
     fn burn_tokens(from: did, amount: token<T>) -> Result<(), BurnError>;
     fn get_balance(account: did) -> token<T>;
     
-    // Mana management
-    fn charge_mana(account: did, amount: token<Mana>) -> Result<(), ManaError>;
+    // Mana management (computation and rate-limiting only)
+    fn charge_mana(account: did, amount: token<Mana>, action: string) -> Result<(), ManaError>;
     fn regenerate_mana(account: did) -> token<Mana>;
     fn get_mana_balance(account: did) -> token<Mana>;
+    fn get_membership_base_rate(account: did) -> token<Mana>; // Based on membership
+    fn get_reputation_bonus(account: did) -> token<Mana>; // Always >= 0, bonus only
+    
+    // Mana policy enforcement
+    fn is_computational_action(action: string) -> bool;
+    fn calculate_mana_cost(action: string, params: [any]) -> token<Mana>;
     
     // Economic calculations
     fn calculate_tax(amount: token<T>, rate: float) -> token<T>;
@@ -2005,9 +2191,12 @@ fn prove_mana_sufficiency_anonymous(
 ```
 
 **ZKP Use Cases:**
-- **Anonymous voting**: Prove eligibility without revealing identity
-- **Mana proofs**: Prove sufficient capacity without revealing balance
-- **Credential verification**: Prove qualifications without revealing details
+- **Anonymous voting**: Prove membership eligibility without revealing identity
+- **Anonymous mana usage**: Prove sufficient capacity without revealing balance or identity
+- **Membership verification**: Prove credentials without revealing details
+- **Selective disclosure**: Reveal only necessary information to auditors
+
+> **Note:** ZKP functions focus on proving **membership credentials**, not token holdings. Anonymous participation is based on verified membership in communities and cooperatives.
 - **Threshold proofs**: Prove values above/below limits without revealing amounts
 
 ### 20.2 Selective Disclosure
@@ -2072,7 +2261,8 @@ fn selective_audit_disclosure(
 ```ccl
 module std::zkp {
     /// Verify membership in a group without revealing identity
-    fn verify_membership(proof: ZKProof, group_id: string) -> bool;
+    /// Note: This proves membership credentials, NOT token holdings
+    fn verify_membership(proof: ZKProof, membership_group: string) -> bool;
     
     /// Verify a value is within a range without revealing the value
     fn verify_range_proof(
@@ -2095,17 +2285,20 @@ module std::zkp {
         disclosure_scope: string
     ) -> bool;
     
-    /// Generate anonymous mana charge proof
+    /// Generate anonymous mana charge proof (for computational actions only)
     fn prove_mana_charge(
         amount: token<Mana>,
-        account_proof: ZKProof
+        membership_proof: ZKProof
     ) -> ZKProof;
     
-    /// Verify anonymous reputation update authority
+    /// Verify anonymous reputation update authority (based on membership)
     fn verify_reputation_reporter(
-        reporter_proof: ZKProof,
+        membership_proof: ZKProof,
         reputation_scope: string
     ) -> bool;
+    
+    // Version: 1.0.0
+    // Note: All ZKP functions verify membership-based authority, never token ownership
 }
 ```
 
