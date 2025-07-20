@@ -1,0 +1,203 @@
+// CCL Cooperative Economy Demo Contract
+// Demonstrates the new economics and identity functions
+
+contract cooperative_token_economy {
+    metadata {
+        version: "1.0.0",
+        author: "ICN Core Development Team",
+        description: "Demonstrates cooperative token economy with reputation-based pricing",
+    }
+    
+    init {
+        // Create a work token class for the cooperative
+        let work_token_created = create_token_class(
+            "work_hours",
+            "Cooperative Work Hours", 
+            "CWH",
+            @admin_did
+        );
+        
+        // Create a local currency token
+        let currency_created = create_token_class(
+            "local_credits",
+            "Local Community Credits",
+            "LCC", 
+            @admin_did
+        );
+        
+        // Issue initial membership credentials
+        let membership_cred = create_cooperative_membership(
+            @admin_did,
+            "food_coop_001",
+            "founding_member",
+            5
+        );
+    }
+}
+
+fn record_cooperative_work(
+    worker: Did,
+    work_description: String,
+    hours: Integer,
+    verifier: Did
+) -> Bool {
+    // Verify the worker is a cooperative member
+    let is_member = verify_cooperative_membership(
+        worker,
+        "food_coop_001", 
+        1 // minimum level required
+    );
+    
+    if !is_member {
+        return false;
+    }
+    
+    // Record the time work
+    let time_record_id = record_time_work(
+        worker,
+        work_description,
+        hours,
+        verifier
+    );
+    
+    // Mint time-based tokens for the work
+    let tokens_minted = mint_time_tokens(
+        time_record_id,
+        worker,
+        hours
+    );
+    
+    // Also mint work hour tokens with reputation-based bonus
+    let reputation_bonus = mint_tokens_with_reputation(
+        "work_hours",
+        worker,
+        hours,
+        verifier
+    );
+    
+    return tokens_minted && reputation_bonus;
+}
+
+fn create_cooperative_marketplace() -> String {
+    // Create a marketplace offer for local produce
+    let offer_id = create_marketplace_offer(
+        @seller_did,
+        "organic_vegetables",
+        10, // quantity
+        5,  // price per unit  
+        "local_credits" // payment token class
+    );
+    
+    return offer_id;
+}
+
+fn reputation_based_pricing_demo(base_price: Integer, member_did: Did) -> Integer {
+    // Get the member's reputation score
+    let reputation = get_reputation(member_did);
+    
+    // Calculate discounted price based on reputation
+    let discounted_price = price_by_reputation(base_price, reputation);
+    
+    return discounted_price;
+}
+
+fn mutual_credit_demo(creditor: Did, debtor: Did) -> Bool {
+    // Create a mutual credit line between cooperative members
+    let credit_line_id = create_credit_line(
+        creditor,
+        debtor,
+        1000, // credit limit
+        200   // 2% interest rate (200 basis points)
+    );
+    
+    // Extend some credit for a specific purpose
+    let credit_extended = extend_mutual_credit(
+        credit_line_id,
+        250, // amount
+        "Equipment purchase for shared workshop"
+    );
+    
+    return credit_extended;
+}
+
+fn identity_verification_demo(member_did: Did) -> Bool {
+    // Create a new DID for a new member
+    let new_did = create_did("key", "");
+    
+    // Resolve an existing member's DID to get their public key
+    let did_document = resolve_did(member_did);
+    
+    // Issue a credential for workshop access
+    let workshop_cred = issue_credential(
+        @admin_did,        // issuer
+        member_did,        // holder
+        "workshop_access", // credential type
+        "{\"access_level\": \"basic\", \"expires\": \"2025-12-31\"}", // claims
+        1735689600 // expiration timestamp
+    );
+    
+    // Verify the credential is valid
+    let is_valid = verify_credential(workshop_cred, @admin_did);
+    
+    return is_valid;
+}
+
+fn token_economy_demo() -> Bool {
+    let member = @member_did;
+    
+    // Check current token balance
+    let current_balance = get_token_balance("work_hours", member);
+    
+    // Transfer some tokens to another member  
+    let transfer_success = transfer_tokens(
+        "work_hours",
+        member,
+        @other_member_did,
+        5 // transfer 5 work hour tokens
+    );
+    
+    // Mint additional tokens for completed work
+    let mint_success = mint_tokens(
+        "work_hours", 
+        member,
+        3 // 3 additional hours completed
+    );
+    
+    // Burn some tokens when work hours are used
+    let burn_success = burn_tokens(
+        "work_hours",
+        member, 
+        2 // 2 hours used for cooperative project
+    );
+    
+    return transfer_success && mint_success && burn_success;
+}
+
+// Main cooperative governance function
+fn manage_cooperative_resources() -> Bool {
+    // Record work and issue tokens
+    let work_recorded = record_cooperative_work(
+        @worker_did,
+        "Organize community garden",
+        8, // 8 hours of work
+        @supervisor_did
+    );
+    
+    // Create marketplace listing
+    let offer_created = create_cooperative_marketplace();
+    
+    // Demonstrate reputation-based pricing
+    let discounted_price = reputation_based_pricing_demo(100, @member_did);
+    
+    // Set up mutual credit between members
+    let credit_established = mutual_credit_demo(@member_a_did, @member_b_did);
+    
+    // Verify member identity and credentials
+    let identity_verified = identity_verification_demo(@new_member_did);
+    
+    // Manage token economy
+    let tokens_managed = token_economy_demo();
+    
+    return work_recorded && credit_established && 
+           identity_verified && tokens_managed;
+}
