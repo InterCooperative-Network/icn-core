@@ -90,6 +90,14 @@ path = "test_string_bool.rs"
 name = "test_strings_fixed"
 path = "test_strings_fixed.rs"
 
+[[bin]]
+name = "test_stdlib"
+path = "test_stdlib.rs"
+
+[[bin]]
+name = "test_stdlib_fixed"
+path = "test_stdlib_fixed.rs"
+
 # [[bin]]
 # name = "generate_ccl_job_spec"
 # path = "src/bin/generate_ccl_job_spec.rs"

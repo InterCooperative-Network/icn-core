@@ -70,6 +70,11 @@ impl StdLibrary {
         self.functions.keys().collect()
     }
 
+    /// Get all function name-function pairs
+    pub fn get_all_function_pairs(&self) -> Vec<(&String, &StdFunction)> {
+        self.functions.iter().collect()
+    }
+
     fn register_function(&mut self, func: StdFunction) {
         self.functions.insert(func.name.clone(), func);
     }
@@ -312,6 +317,14 @@ impl StdLibrary {
             category: StdCategory::Utility,
         });
 
+        self.register_function(StdFunction {
+            name: "validate_did".to_string(),
+            params: vec![TypeAnnotationNode::String],
+            return_type: TypeAnnotationNode::Bool,
+            description: "Validate DID format (alias for is_valid_did)".to_string(),
+            category: StdCategory::Utility,
+        });
+
         // Logging and events
         self.register_function(StdFunction {
             name: "log".to_string(),
@@ -483,6 +496,14 @@ impl StdLibrary {
             category: StdCategory::Math,
         });
 
+        self.register_function(StdFunction {
+            name: "sum".to_string(),
+            params: vec![TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Integer))],
+            return_type: TypeAnnotationNode::Integer,
+            description: "Sum all elements in an integer array".to_string(),
+            category: StdCategory::Math,
+        });
+
         // Percentage calculations for governance
         self.register_function(StdFunction {
             name: "percentage".to_string(),
@@ -514,6 +535,14 @@ impl StdLibrary {
             params: vec![TypeAnnotationNode::String],
             return_type: TypeAnnotationNode::String,
             description: "Calculate SHA-256 hash".to_string(),
+            category: StdCategory::Crypto,
+        });
+
+        self.register_function(StdFunction {
+            name: "hash_sha256".to_string(),
+            params: vec![TypeAnnotationNode::String],
+            return_type: TypeAnnotationNode::String,
+            description: "Calculate SHA-256 hash (alias for hash)".to_string(),
             category: StdCategory::Crypto,
         });
 

@@ -8,6 +8,7 @@ use crate::ast::{
     FieldNode, LValueNode,
 };
 use crate::error::CclError;
+use crate::stdlib::StdLibrary;
 use std::collections::HashMap;
 
 /// Symbol table entry containing type information
@@ -52,40 +53,18 @@ impl SemanticAnalyzer {
         analyzer
     }
 
-    /// Add built-in functions to the function table
+    /// Add built-in functions from the standard library to the function table
     fn add_builtin_functions(&mut self) {
-        // Mana operations
-        self.function_table.insert("get_mana".to_string(), FunctionSignature {
-            name: "get_mana".to_string(),
-            params: vec![TypeAnnotationNode::Did],
-            return_type: TypeAnnotationNode::Mana,
-        });
+        let stdlib = StdLibrary::new();
         
-        self.function_table.insert("transfer_mana".to_string(), FunctionSignature {
-            name: "transfer_mana".to_string(),
-            params: vec![TypeAnnotationNode::Did, TypeAnnotationNode::Did, TypeAnnotationNode::Mana],
-            return_type: TypeAnnotationNode::Bool,
-        });
-        
-        // Governance operations
-        self.function_table.insert("submit_proposal".to_string(), FunctionSignature {
-            name: "submit_proposal".to_string(),
-            params: vec![TypeAnnotationNode::Proposal],
-            return_type: TypeAnnotationNode::Bool,
-        });
-        
-        self.function_table.insert("cast_vote".to_string(), FunctionSignature {
-            name: "cast_vote".to_string(),
-            params: vec![TypeAnnotationNode::Proposal, TypeAnnotationNode::Vote],
-            return_type: TypeAnnotationNode::Bool,
-        });
-        
-        // Utility functions
-        self.function_table.insert("length".to_string(), FunctionSignature {
-            name: "length".to_string(),
-            params: vec![TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Custom("T".to_string())))],
-            return_type: TypeAnnotationNode::Integer,
-        });
+        // Add all standard library functions to the function table
+        for (name, std_func) in stdlib.get_all_function_pairs() {
+            self.function_table.insert(name.clone(), FunctionSignature {
+                name: std_func.name.clone(),
+                params: std_func.params.clone(),
+                return_type: std_func.return_type.clone(),
+            });
+        }
     }
 
     /// Analyze the entire AST for semantic correctness
