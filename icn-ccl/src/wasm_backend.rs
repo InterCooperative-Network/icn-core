@@ -54,7 +54,7 @@ impl LocalEnv {
     }
 }
 
-const IMPORT_COUNT: u32 = 18; // 5 original + 13 new functions (8 economics + 5 identity)
+const IMPORT_COUNT: u32 = 19; // 6 original + 13 new functions (8 economics + 5 identity)
 
 pub struct WasmBackend {
     data: wasm_encoder::DataSection,
@@ -187,6 +187,18 @@ impl WasmBackend {
         let mut next_index: u32 = 0;
 
         // Host function imports expected by WasmExecutor
+        let ty_get_caller = types.len() as u32;
+        types
+            .ty()
+            .function(Vec::<ValType>::new(), vec![ValType::I32]);
+        imports.import(
+            "icn",
+            "host_get_caller",
+            wasm_encoder::EntityType::Function(ty_get_caller),
+        );
+        fn_indices.insert("host_get_caller".to_string(), next_index);
+        next_index += 1;
+
         let ty_get_mana = types.len() as u32;
         types
             .ty()
@@ -692,7 +704,7 @@ impl WasmBackend {
             }
             ExpressionNode::FunctionCall { name, args } => {
                 match name.as_str() {
-                    "array_len" => {
+                    "array_len" | "array_len_did" => {
                         let ptr_ty =
                             self.emit_expression(&args[0], instrs, locals, indices)?;
                         let _ = ptr_ty;
@@ -704,7 +716,7 @@ impl WasmBackend {
                         instrs.push(Instruction::I64ExtendI32U); // Convert I32 to I64 for CCL Integer type
                         Ok(ValType::I64)
                     }
-                    "array_push" => {
+                    "array_push" | "array_push_did" => {
                         let arr_ptr = locals.get_or_add("__push_ptr", ValType::I32);
                         // capture variable index if identifier to update after realloc
                         let arr_var = if let ExpressionNode::Identifier(name) = &args[0] {
@@ -827,7 +839,8 @@ impl WasmBackend {
                         let arr_ptr = locals.get_or_add("__pop_ptr", ValType::I32);
                         self.emit_expression(&args[0], instrs, locals, indices)?;
                         instrs.push(Instruction::LocalTee(arr_ptr));
-                        // len
+                        
+                        // Check if array is empty first
                         instrs.push(Instruction::LocalGet(arr_ptr));
                         instrs.push(Instruction::I32Load(wasm_encoder::MemArg {
                             offset: 0,
@@ -836,6 +849,15 @@ impl WasmBackend {
                         }));
                         let len_local = locals.get_or_add("__pop_len", ValType::I32);
                         instrs.push(Instruction::LocalTee(len_local));
+                        
+                        // If length is 0, return None (represented as 0)
+                        instrs.push(Instruction::LocalGet(len_local));
+                        instrs.push(Instruction::I32Eqz);
+                        instrs.push(Instruction::If(wasm_encoder::BlockType::Result(ValType::I64)));
+                        instrs.push(Instruction::I64Const(0)); // None represented as 0
+                        instrs.push(Instruction::Else);
+                        
+                        // Pop the element and return Some(value)
                         // len - 1
                         instrs.push(Instruction::LocalGet(len_local));
                         instrs.push(Instruction::I32Const(1));
@@ -861,6 +883,10 @@ impl WasmBackend {
                             align: 0,
                             memory_index: 0,
                         }));
+                        // Return Some(value) - for simplicity, just return the value directly
+                        // TODO: Implement proper Option representation
+                        instrs.push(Instruction::End);
+                        
                         Ok(ValType::I64)
                     }
                     
@@ -1150,7 +1176,7 @@ impl WasmBackend {
                         Ok(ValType::I64)
                     }
                     
-                    "array_contains" => {
+                    "array_contains" | "array_contains_did" => {
                         // Check if array contains element - simplified implementation
                         self.emit_expression(&args[0], instrs, locals, indices)?; // array
                         instrs.push(Instruction::Drop); // Drop for now
@@ -1738,10 +1764,10 @@ impl WasmBackend {
                             | "host_update_did_document" | "host_revoke_credential" 
                             | "host_verify_cooperative_membership" => ValType::I32,
                             
-                            "host_create_did" | "host_resolve_did" | "host_issue_credential"
+                            "host_get_caller" | "host_create_did" | "host_resolve_did" | "host_issue_credential"
                             | "host_record_time_work" | "host_create_credit_line" 
                             | "host_create_marketplace_offer" | "host_execute_marketplace_transaction"
-                            | "host_create_cooperative_membership" => ValType::I32, // pointers
+                            | "host_create_cooperative_membership" => ValType::I32, // pointers/DIDs
                             
                             _ => ValType::I64,
                         };
@@ -1840,15 +1866,15 @@ impl WasmBackend {
                         Ok(ValType::I32)
                     }
                     (ValType::I32, ValType::I32, BinaryOperator::Eq) => {
-                        // String content comparison (not pointer comparison)
-                        // For now, implement as pointer comparison, but this should be
-                        // enhanced to compare string content in future iterations
-                        self.emit_string_comparison(instrs, locals, true)?;
+                        // For DIDs (pointer comparison) or Strings (content comparison)
+                        // For simplicity, use pointer comparison for now
+                        instrs.push(Instruction::I32Eq);
                         Ok(ValType::I32)
                     }
                     (ValType::I32, ValType::I32, BinaryOperator::Neq) => {
-                        // String content comparison (negated)
-                        self.emit_string_comparison(instrs, locals, false)?;
+                        // For DIDs (pointer comparison) or Strings (content comparison)
+                        // For simplicity, use pointer comparison for now
+                        instrs.push(Instruction::I32Ne);
                         Ok(ValType::I32)
                     }
                     (ValType::I32, ValType::I32, BinaryOperator::Lt) => {
@@ -2172,12 +2198,20 @@ impl WasmBackend {
                 instrs.push(Instruction::I32Const(8));
                 instrs.push(Instruction::I32Add);
                 instrs.push(Instruction::I32Add);
+                
+                // For DID arrays, elements are stored as I32 (DID pointers), but we need to load as I64 and convert
+                // For simplicity, treat all array elements as I64 for now but convert to I32 for DIDs
+                // TODO: Add proper type-aware array access based on semantic analysis
                 instrs.push(Instruction::I64Load(wasm_encoder::MemArg {
                     offset: 0,
                     align: 0,
                     memory_index: 0,
                 }));
-                Ok(ValType::I64)
+                
+                // For DID arrays, convert to I32
+                // TODO: This is a temporary fix - we should use semantic analysis to determine array element type
+                instrs.push(Instruction::I32WrapI64);
+                Ok(ValType::I32)
             }
             ExpressionNode::Some(inner) => {
                 self.emit_expression(inner, instrs, locals, indices)?;

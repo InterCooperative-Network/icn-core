@@ -942,6 +942,18 @@ impl SemanticAnalyzer {
                     }
                     
                     Ok(signature.return_type.clone())
+                } else if name.starts_with("host_") {
+                    // Handle host functions with known signatures
+                    let return_type = match name.as_str() {
+                        "host_get_caller" | "host_create_did" | "host_resolve_did" => TypeAnnotationNode::Did,
+                        "host_account_get_mana" | "host_get_reputation" | "host_get_token_balance" => TypeAnnotationNode::Mana,
+                        "host_submit_mesh_job" | "host_anchor_receipt" | "host_create_proposal" | "host_vote" => TypeAnnotationNode::Bool,
+                        "host_verify_did_signature" | "host_verify_credential" => TypeAnnotationNode::Bool,
+                        _ => TypeAnnotationNode::Integer, // Default for unknown host functions
+                    };
+                    
+                    // Note: We don't validate host function arguments as they're external
+                    Ok(return_type)
                 } else {
                     Err(CclError::UndefinedFunctionError {
                         function: name.clone(),
@@ -1215,15 +1227,18 @@ impl SemanticAnalyzer {
         match (left, op, right) {
             // Arithmetic operations
             (Integer, Add | Sub | Mul | Div, Integer) => Ok(Integer),
-            (Mana, Add | Sub, Mana) => Ok(Mana),
-            (Mana, Add | Sub, Integer) => Ok(Mana),
-            (Integer, Add | Sub, Mana) => Ok(Mana),
+            (Mana, Add | Sub | Mul | Div, Mana) => Ok(Mana),
+            (Mana, Add | Sub | Mul | Div, Integer) => Ok(Mana),
+            (Integer, Add | Sub | Mul | Div, Mana) => Ok(Mana),
             
             // Comparison operations
             (Integer, Eq | Neq | Lt | Lte | Gt | Gte, Integer) => Ok(Bool),
             (Mana, Eq | Neq | Lt | Lte | Gt | Gte, Mana) => Ok(Bool),
+            (Mana, Eq | Neq | Lt | Lte | Gt | Gte, Integer) => Ok(Bool),
+            (Integer, Eq | Neq | Lt | Lte | Gt | Gte, Mana) => Ok(Bool),
             (String, Eq | Neq, String) => Ok(Bool),
             (Bool, Eq | Neq, Bool) => Ok(Bool),
+            (Did, Eq | Neq, Did) => Ok(Bool),
             
             // Logical operations
             (Bool, And | Or, Bool) => Ok(Bool),

@@ -755,9 +755,10 @@ impl StdLibrary {
 
     /// Register array manipulation functions
     fn register_array_functions(&mut self) {
+        // Generic array functions for Integer arrays
         self.register_function(StdFunction {
             name: "array_length".to_string(),
-            params: vec![TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Integer))], // More specific type
+            params: vec![TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Integer))],
             return_type: TypeAnnotationNode::Integer,
             description: "Get array length".to_string(),
             category: StdCategory::Array,
@@ -765,7 +766,7 @@ impl StdLibrary {
 
         self.register_function(StdFunction {
             name: "array_len".to_string(),
-            params: vec![TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Integer))], // More specific type
+            params: vec![TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Integer))],
             return_type: TypeAnnotationNode::Integer,
             description: "Get array length (alias for array_length)".to_string(),
             category: StdCategory::Array,
@@ -774,7 +775,7 @@ impl StdLibrary {
         self.register_function(StdFunction {
             name: "array_push".to_string(),
             params: vec![
-                TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Integer)), // More specific type
+                TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Integer)),
                 TypeAnnotationNode::Integer,
             ],
             return_type: TypeAnnotationNode::Integer, // Return new length for simplicity
@@ -784,7 +785,7 @@ impl StdLibrary {
 
         self.register_function(StdFunction {
             name: "array_pop".to_string(),
-            params: vec![TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Integer))], // More specific type
+            params: vec![TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Integer))],
             return_type: TypeAnnotationNode::Option(Box::new(TypeAnnotationNode::Integer)),
             description: "Remove and return last element".to_string(),
             category: StdCategory::Array,
@@ -793,7 +794,7 @@ impl StdLibrary {
         self.register_function(StdFunction {
             name: "array_contains".to_string(),
             params: vec![
-                TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Integer)), // More specific type
+                TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Integer)),
                 TypeAnnotationNode::Integer,
             ],
             return_type: TypeAnnotationNode::Bool,
@@ -804,12 +805,43 @@ impl StdLibrary {
         self.register_function(StdFunction {
             name: "array_slice".to_string(),
             params: vec![
-                TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Integer)), // More specific type
+                TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Integer)),
                 TypeAnnotationNode::Integer, // start
                 TypeAnnotationNode::Integer, // end
             ],
             return_type: TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Integer)),
             description: "Extract slice of array".to_string(),
+            category: StdCategory::Array,
+        });
+
+        // DID array functions (needed for governance) - separate names to avoid conflicts
+        self.register_function(StdFunction {
+            name: "array_len_did".to_string(),
+            params: vec![TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Did))],
+            return_type: TypeAnnotationNode::Integer,
+            description: "Get array length for DID arrays".to_string(),
+            category: StdCategory::Array,
+        });
+
+        self.register_function(StdFunction {
+            name: "array_push_did".to_string(),
+            params: vec![
+                TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Did)),
+                TypeAnnotationNode::Did,
+            ],
+            return_type: TypeAnnotationNode::Integer,
+            description: "Add DID to end of array, returns new length".to_string(),
+            category: StdCategory::Array,
+        });
+
+        self.register_function(StdFunction {
+            name: "array_contains_did".to_string(),
+            params: vec![
+                TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Did)),
+                TypeAnnotationNode::Did,
+            ],
+            return_type: TypeAnnotationNode::Bool,
+            description: "Check if DID array contains element".to_string(),
             category: StdCategory::Array,
         });
     }

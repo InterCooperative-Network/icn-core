@@ -609,7 +609,7 @@ pub fn parse_type_expr(pair: Pair<Rule>) -> Result<TypeExprNode, CclError> {
             match pair.as_str() {
                 "Integer" => Ok(TypeExprNode::Integer),
                 "String" => Ok(TypeExprNode::String),
-                "Boolean" => Ok(TypeExprNode::Boolean),
+                "Boolean" | "Bool" => Ok(TypeExprNode::Boolean),
                 "Mana" => Ok(TypeExprNode::Mana),
                 "Did" => Ok(TypeExprNode::Did),
                 "Timestamp" => Ok(TypeExprNode::Timestamp),

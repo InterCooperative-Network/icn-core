@@ -203,7 +203,7 @@ type_expr = {
 }
 
 basic_type = {
-    "Integer" | "String" | "Boolean" | "Mana" | "Did" | "Timestamp" | "Duration"
+    "Integer" | "String" | "Boolean" | "Bool" | "Mana" | "Did" | "Timestamp" | "Duration"
 }
 
 array_type = {

@@ -40,7 +40,7 @@ fn transfer_mana(recipient: Did, amount: Mana) -> Bool {
 // CRITICAL FUNCTION: Tests the infinite loop fix
 fn array_contains_did(arr: Array<Did>, item: Did) -> Bool {
     let i = 0;
-    while i < array_len(arr) {
+    while i < array_len_did(arr) {
         if arr[i] == item {
             return true;
         }
@@ -52,6 +52,20 @@ fn array_contains_did(arr: Array<Did>, item: Did) -> Bool {
 // Function that uses the fixed array_contains_did
 fn check_approval_exists(approved_by: Array<Did>, approver: Did) -> Bool {
     return array_contains_did(approved_by, approver);
+}
+
+fn get_required_approval_level(amount: Mana) -> Integer {
+    if amount <= BUDGET_SMALL_LIMIT {
+        return APPROVAL_SIMPLE;
+    }
+    if amount <= BUDGET_MEDIUM_LIMIT {
+        return APPROVAL_COMMITTEE;
+    }
+    return APPROVAL_ASSEMBLY;
+}
+
+fn count_approvals(approvers: Array<Did>) -> Integer {
+    return array_len_did(approvers);
 }
 
 // Budget validation function
@@ -66,20 +80,6 @@ fn validate_expenditure(amount: Mana, category: String, approvers: Array<Did>) -
     let approval_count = count_approvals(approvers);
     
     return approval_count >= required_approval;
-}
-
-fn get_required_approval_level(amount: Mana) -> Integer {
-    if amount <= BUDGET_SMALL_LIMIT {
-        return APPROVAL_SIMPLE;
-    }
-    if amount <= BUDGET_MEDIUM_LIMIT {
-        return APPROVAL_COMMITTEE;
-    }
-    return APPROVAL_ASSEMBLY;
-}
-
-fn count_approvals(approvers: Array<Did>) -> Integer {
-    return array_len(approvers);
 }
 
 // Calculate budget health score (0-100)
