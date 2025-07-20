@@ -21,7 +21,7 @@ pub mod governance_std;
 
 pub use error::CclError;
 pub use metadata::ContractMetadata;
-pub use stdlib::StandardLibrary;
+pub use stdlib::StdLibrary as StandardLibrary;
 
 /// Compiles a CCL source string into WASM bytecode and metadata.
 pub fn compile_ccl_source_to_wasm(source: &str) -> Result<(Vec<u8>, ContractMetadata), CclError> {
@@ -32,10 +32,14 @@ pub fn compile_ccl_source_to_wasm(source: &str) -> Result<(Vec<u8>, ContractMeta
     ast_node = expand_macros(ast_node, &StandardLibrary::new())?;
 
     let mut semantic_analyzer = semantic_analyzer::SemanticAnalyzer::new();
-    semantic_analyzer.analyze(&ast_node)?;
+    match semantic_analyzer.analyze(&ast_node) {
+        Ok(()) => {},
+        Err(errors) => return Err(errors.into_iter().next().unwrap_or_else(|| 
+            CclError::SemanticError("Unknown semantic error".to_string()))),
+    }
 
-    let optimizer = optimizer::Optimizer::new();
-    let optimized_ast = optimizer.optimize(ast_node)?;
+    let mut optimizer = optimizer::Optimizer::new(optimizer::OptimizationLevel::Basic);
+    let optimized_ast = optimizer.optimize(ast_node);
 
     let mut backend = wasm_backend::WasmBackend::new();
     let (wasm, mut meta) = backend.compile_to_wasm(&optimized_ast)?;
@@ -70,10 +74,14 @@ pub fn compile_ccl_file_to_wasm(
     let ast_node = parser::parse_ccl_file(path)?;
 
     let mut semantic_analyzer = semantic_analyzer::SemanticAnalyzer::new();
-    semantic_analyzer.analyze(&ast_node)?;
+    match semantic_analyzer.analyze(&ast_node) {
+        Ok(()) => {},
+        Err(errors) => return Err(errors.into_iter().next().unwrap_or_else(|| 
+            CclError::SemanticError("Unknown semantic error".to_string()))),
+    }
 
-    let optimizer = optimizer::Optimizer::new();
-    let optimized_ast = optimizer.optimize(ast_node)?;
+    let mut optimizer = optimizer::Optimizer::new(optimizer::OptimizationLevel::Basic);
+    let optimized_ast = optimizer.optimize(ast_node);
 
     let mut backend = wasm_backend::WasmBackend::new();
     let (wasm, mut meta) = backend.compile_to_wasm(&optimized_ast)?;
@@ -103,9 +111,10 @@ fn expand_macros(ast: ast::AstNode, stdlib: &StandardLibrary) -> Result<ast::Ast
         let mut local_stdlib = stdlib.clone();
         
         // First pass: collect macro definitions and register them
+        // TODO: Implement macro registration in StandardLibrary
         for stmt in &stmts {
-            if let PolicyStatementNode::MacroDef { name, params, body } = stmt {
-                local_stdlib.register_macro(name.clone(), params.clone(), body.clone());
+            if let PolicyStatementNode::MacroDef { name: _, params: _, body: _ } = stmt {
+                // local_stdlib.register_macro(name.clone(), params.clone(), body.clone());
             }
         }
         

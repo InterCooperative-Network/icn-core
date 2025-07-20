@@ -208,16 +208,20 @@ impl WasmBackend {
                 body,
             }) = item
             {
-                let ret_ty = map_val_type(return_type)?;
+                let ret_ty = if let Some(return_type) = return_type {
+                    Some(map_val_type(&return_type.to_type_annotation())?)
+                } else {
+                    None
+                };
 
                 // Build parameter types for WASM function signature
                 let mut param_types = Vec::new();
                 for param in parameters {
-                    param_types.push(map_val_type(&param.type_ann)?);
+                    param_types.push(map_val_type(&param.type_expr.to_type_annotation())?);
                 }
 
                 let type_index = types.len();
-                types.ty().function(param_types.clone(), vec![ret_ty]);
+                types.ty().function(param_types.clone(), ret_ty.into_iter().collect());
                 functions.function(type_index as u32);
                 let func_index = next_index;
                 fn_indices.insert(name.clone(), func_index);
@@ -227,7 +231,7 @@ impl WasmBackend {
 
                 // Register function parameters (they don't go in locals.order, only in the name mapping)
                 for (i, param) in parameters.iter().enumerate() {
-                    let param_type = map_val_type(&param.type_ann)?;
+                    let param_type = map_val_type(&param.type_expr.to_type_annotation())?;
                     locals
                         .locals
                         .insert(param.name.clone(), (i as u32, param_type));
@@ -237,7 +241,10 @@ impl WasmBackend {
                 locals.next_local_index = parameters.len() as u32;
 
                 let mut instrs = Vec::<Instruction>::new();
-                self.emit_block(body, &mut instrs, &mut locals, return_type, &fn_indices)?;
+                let return_type_ann = return_type
+                    .map(|rt| rt.to_type_annotation())
+                    .unwrap_or(TypeAnnotationNode::Custom("void".to_string()));
+                self.emit_block(body, &mut instrs, &mut locals, &return_type_ann, &fn_indices)?;
                 instrs.push(Instruction::End);
 
                 let mut func = Function::new_with_locals_types(locals.order.clone());
@@ -343,11 +350,11 @@ impl WasmBackend {
                 instrs.push(Instruction::LocalGet(idx));
                 Ok(ty)
             }
-            ExpressionNode::FunctionCall { name, arguments } => {
+            ExpressionNode::FunctionCall { name, args } => {
                 match name.as_str() {
                     "array_len" => {
                         let ptr_ty =
-                            self.emit_expression(&arguments[0], instrs, locals, indices)?;
+                            self.emit_expression(&args[0], instrs, locals, indices)?;
                         let _ = ptr_ty;
                         instrs.push(Instruction::I32Load(wasm_encoder::MemArg {
                             offset: 0,
@@ -359,15 +366,15 @@ impl WasmBackend {
                     "array_push" => {
                         let arr_ptr = locals.get_or_add("__push_ptr", ValType::I32);
                         // capture variable index if identifier to update after realloc
-                        let arr_var = if let ExpressionNode::Identifier(name) = &arguments[0] {
-                            locals.get(name).map(|(idx, _)| idx)
+                        let arr_var = if let ExpressionNode::Identifier(name) = &args[0] {
+                            locals.get(&name).map(|(idx, _)| idx)
                         } else {
                             None
                         };
-                        self.emit_expression(&arguments[0], instrs, locals, indices)?;
+                        self.emit_expression(&args[0], instrs, locals, indices)?;
                         instrs.push(Instruction::LocalTee(arr_ptr));
                         let val_ty =
-                            self.emit_expression(&arguments[1], instrs, locals, indices)?;
+                            self.emit_expression(&args[1], instrs, locals, indices)?;
                         let val_is_i64 = val_ty == ValType::I64;
                         // load length
                         instrs.push(Instruction::LocalGet(arr_ptr));
@@ -476,7 +483,7 @@ impl WasmBackend {
                     }
                     "array_pop" => {
                         let arr_ptr = locals.get_or_add("__pop_ptr", ValType::I32);
-                        self.emit_expression(&arguments[0], instrs, locals, indices)?;
+                        self.emit_expression(&args[0], instrs, locals, indices)?;
                         instrs.push(Instruction::LocalTee(arr_ptr));
                         // len
                         instrs.push(Instruction::LocalGet(arr_ptr));
@@ -518,7 +525,7 @@ impl WasmBackend {
                         let idx = indices.get(name).ok_or_else(|| {
                             CclError::WasmGenerationError(format!("Unknown function {}", name))
                         })?;
-                        for arg in arguments {
+                        for arg in args {
                             self.emit_expression(arg, instrs, locals, indices)?;
                         }
                         instrs.push(Instruction::Call(*idx));
@@ -808,15 +815,15 @@ impl WasmBackend {
                 }));
                 Ok(ValType::I64)
             }
-            ExpressionNode::SomeExpr(inner) => {
+            ExpressionNode::Some(inner) => {
                 self.emit_expression(inner, instrs, locals, indices)?;
                 Ok(ValType::I64)
             }
-            ExpressionNode::NoneExpr => {
+            ExpressionNode::None => {
                 instrs.push(Instruction::I64Const(0));
                 Ok(ValType::I64)
             }
-            ExpressionNode::OkExpr(inner) => {
+            ExpressionNode::Ok(inner) => {
                 self.emit_expression(inner, instrs, locals, indices)?;
                 instrs.push(Instruction::I32WrapI64);
                 instrs.push(Instruction::I64ExtendI32U);
@@ -826,7 +833,7 @@ impl WasmBackend {
                 instrs.push(Instruction::I64Or);
                 Ok(ValType::I64)
             }
-            ExpressionNode::ErrExpr(inner) => {
+            ExpressionNode::Err(inner) => {
                 self.emit_expression(inner, instrs, locals, indices)?;
                 instrs.push(Instruction::I32WrapI64);
                 instrs.push(Instruction::I64ExtendI32U);
@@ -836,37 +843,7 @@ impl WasmBackend {
                 instrs.push(Instruction::I64Or);
                 Ok(ValType::I64)
             }
-            ExpressionNode::RequireProof(inner) => {
-                let ptr_local = locals.get_or_add("__proof_ptr", ValType::I32);
-                self.emit_expression(inner, instrs, locals, indices)?;
-                instrs.push(Instruction::LocalTee(ptr_local));
-                let len_local = locals.get_or_add("__proof_len", ValType::I32);
-                instrs.push(Instruction::LocalGet(ptr_local));
-                instrs.push(Instruction::I32Load(wasm_encoder::MemArg {
-                    offset: 0,
-                    align: 0,
-                    memory_index: 0,
-                }));
-                instrs.push(Instruction::LocalSet(len_local));
-                instrs.push(Instruction::LocalGet(ptr_local));
-                instrs.push(Instruction::I32Const(4));
-                instrs.push(Instruction::I32Add);
-                instrs.push(Instruction::LocalGet(len_local));
-                let idx = *indices.get("host_verify_zk_proof").ok_or_else(|| {
-                    CclError::WasmGenerationError("missing host_verify_zk_proof".into())
-                })?;
-                instrs.push(Instruction::Call(idx));
-                Ok(ValType::I32)
-            }
-            ExpressionNode::Match { value, arms } => {
-                self.emit_expression(value, instrs, locals, indices)?;
-                // Simplified: execute first arm
-                let (_pat, expr) = arms
-                    .first()
-                    .ok_or_else(|| CclError::WasmGenerationError("Empty match".to_string()))?
-                    .clone();
-                self.emit_expression(&expr, instrs, locals, indices)
-            }
+            // Legacy expressions removed - these should be handled by new CCL 0.1 constructs
             ExpressionNode::UnaryOp { operator, operand } => {
                 let operand_ty = self.emit_expression(operand, instrs, locals, indices)?;
                 match (operator, operand_ty) {
@@ -893,78 +870,7 @@ impl WasmBackend {
                     ))),
                 }
             }
-            ExpressionNode::TryExpr { expr, catch_arm } => {
-                let res_local = locals.get_or_add("__try_res", ValType::I64);
-                self.emit_expression(expr, instrs, locals, indices)?;
-                instrs.push(Instruction::LocalTee(res_local));
-                instrs.push(Instruction::I64Const(32));
-                instrs.push(Instruction::I64ShrU);
-                instrs.push(Instruction::I32WrapI64);
-                instrs.push(Instruction::If(wasm_encoder::BlockType::Result(ValType::I64)));
-                if let Some(catch_expr) = catch_arm {
-                    self.emit_expression(catch_expr, instrs, locals, indices)?;
-                } else {
-                    instrs.push(Instruction::LocalGet(res_local));
-                }
-                instrs.push(Instruction::Else);
-                instrs.push(Instruction::LocalGet(res_local));
-                instrs.push(Instruction::End);
-                Ok(ValType::I64)
-            }
-            ExpressionNode::MapLiteral(_entries) => {
-                // TODO: Implement map literal compilation to WASM
-                // Maps require runtime support for dynamic allocation
-                instrs.push(Instruction::Unreachable);
-                Err(CclError::WasmGenerationError("Map literals not yet implemented in WASM backend".to_string()))
-            }
-            ExpressionNode::MapAccess { map: _map, key: _key } => {
-                // TODO: Implement map access compilation to WASM
-                // Maps require runtime support for hash table operations
-                instrs.push(Instruction::Unreachable);
-                Err(CclError::WasmGenerationError("Map access not yet implemented in WASM backend".to_string()))
-            }
-            ExpressionNode::PanicExpr { message: _message } => {
-                // Panic compiles to unreachable instruction
-                instrs.push(Instruction::Unreachable);
-                // Panic never returns a value
-                Ok(ValType::I32) // Placeholder, this should be Never type
-            }
-            // Placeholder implementations for governance DSL expressions
-            ExpressionNode::EventEmit { .. } => {
-                // TODO: Implement event emission in WASM
-                instrs.push(Instruction::I32Const(0));
-                Ok(ValType::I32)
-            }
-            ExpressionNode::StateRead { .. } => {
-                // TODO: Implement state reading in WASM
-                instrs.push(Instruction::I32Const(0));
-                Ok(ValType::I32)
-            }
-            ExpressionNode::StateWrite { .. } => {
-                // TODO: Implement state writing in WASM
-                instrs.push(Instruction::I32Const(0));
-                Ok(ValType::I32)
-            }
-            ExpressionNode::TriggerAction { .. } => {
-                // TODO: Implement trigger actions in WASM
-                instrs.push(Instruction::I32Const(0));
-                Ok(ValType::I32)
-            }
-            ExpressionNode::CrossContractCall { .. } => {
-                // TODO: Implement cross-contract calls in WASM
-                instrs.push(Instruction::I32Const(0));
-                Ok(ValType::I32)
-            }
-            ExpressionNode::BreakExpr => {
-                // TODO: Implement break in WASM
-                instrs.push(Instruction::Br(0));
-                Ok(ValType::I32)
-            }
-            ExpressionNode::ContinueExpr => {
-                // TODO: Implement continue in WASM
-                instrs.push(Instruction::Br(1));
-                Ok(ValType::I32)
-            }
+            // All legacy expressions removed - CCL 0.1 uses new expression variants
         }
     }
 
@@ -980,7 +886,7 @@ impl WasmBackend {
         self.emit_mana_check(instrs, self.mana_per_instruction * 2); // Statements cost more
         
         match stmt {
-            StatementNode::Let { name, value } => {
+            StatementNode::Let { mutable: _, name, type_expr: _, value } => {
                 let ty = self.emit_expression(value, instrs, locals, indices)?;
                 let idx = locals.get_or_add(name, ty);
                 instrs.push(Instruction::LocalSet(idx));
@@ -990,22 +896,25 @@ impl WasmBackend {
                 instrs.push(Instruction::Drop);
             }
             StatementNode::Return(expr) => {
-                let ty = self.emit_expression(expr, instrs, locals, indices)?;
-                let expected = map_val_type(return_ty)?;
-                if ty != expected {
-                    return Err(CclError::WasmGenerationError(
-                        "Return type mismatch during codegen".to_string(),
-                    ));
+                if let Some(expr) = expr {
+                    let ty = self.emit_expression(expr, instrs, locals, indices)?;
+                    let expected = map_val_type(return_ty)?;
+                    if ty != expected {
+                        return Err(CclError::WasmGenerationError(
+                            "Return type mismatch during codegen".to_string(),
+                        ));
+                    }
                 }
                 instrs.push(Instruction::Return);
             }
             StatementNode::If {
                 condition,
                 then_block,
+                else_ifs,
                 else_block,
             } => {
                 self.emit_if_statement(
-                    condition, then_block, else_block, instrs, locals, return_ty, indices,
+                    condition, then_block, else_ifs, else_block, instrs, locals, return_ty, indices,
                 )?;
             }
             StatementNode::WhileLoop { condition, body } => {
@@ -1034,6 +943,50 @@ impl WasmBackend {
                     "Loop control not yet supported in WASM backend".to_string(),
                 ));
             }
+            StatementNode::Assignment { lvalue: _, value } => {
+                self.emit_expression(value, instrs, locals, indices)?;
+                instrs.push(Instruction::Drop); // Placeholder - should handle lvalue assignment
+            }
+            StatementNode::While { condition, body } => {
+                instrs.push(Instruction::Block(wasm_encoder::BlockType::Empty));
+                instrs.push(Instruction::Loop(wasm_encoder::BlockType::Empty));
+                let cond_ty = self.emit_expression(condition, instrs, locals, indices)?;
+                if cond_ty != ValType::I32 {
+                    return Err(CclError::WasmGenerationError(
+                        "While condition must be boolean".to_string(),
+                    ));
+                }
+                instrs.push(Instruction::I32Eqz);
+                instrs.push(Instruction::BrIf(1));
+                self.emit_block(body, instrs, locals, return_ty, indices)?;
+                instrs.push(Instruction::Br(0));
+                instrs.push(Instruction::End);
+                instrs.push(Instruction::End);
+            }
+            StatementNode::For { iterator: _, iterable, body } => {
+                // Simplified for loop - just emit body once
+                self.emit_expression(iterable, instrs, locals, indices)?;
+                instrs.push(Instruction::Drop); // Drop iterable value
+                self.emit_block(body, instrs, locals, return_ty, indices)?;
+            }
+            StatementNode::Match { expr, arms: _ } => {
+                // Simplified match - just emit expression
+                self.emit_expression(expr, instrs, locals, indices)?;
+                instrs.push(Instruction::Drop);
+            }
+            StatementNode::Emit { event_name: _, fields: _ } => {
+                // Event emission placeholder
+                instrs.push(Instruction::I32Const(0));
+                instrs.push(Instruction::Drop);
+            }
+            StatementNode::Require(expr) => {
+                self.emit_expression(expr, instrs, locals, indices)?;
+                // Add assertion logic - trap if false
+                instrs.push(Instruction::I32Eqz);
+                instrs.push(Instruction::If(wasm_encoder::BlockType::Empty));
+                instrs.push(Instruction::Unreachable);
+                instrs.push(Instruction::End);
+            }
         }
         Ok(())
     }
@@ -1043,6 +996,7 @@ impl WasmBackend {
         &mut self,
         condition: &ExpressionNode,
         then_block: &BlockNode,
+        else_ifs: &[(ExpressionNode, BlockNode)],
         else_block: &Option<BlockNode>,
         instrs: &mut Vec<Instruction>,
         locals: &mut LocalEnv,
@@ -1065,10 +1019,11 @@ impl WasmBackend {
                 if let StatementNode::If {
                     condition: c,
                     then_block: t,
+                    else_ifs: ei,
                     else_block: e,
                 } = &else_blk.statements[0]
                 {
-                    self.emit_if_statement(c, t, e, instrs, locals, return_ty, indices)?;
+                    self.emit_if_statement(c, t, ei, e, instrs, locals, return_ty, indices)?;
                 } else {
                     self.emit_block(else_blk, instrs, locals, return_ty, indices)?;
                 }

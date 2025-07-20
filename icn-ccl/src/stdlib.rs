@@ -1,629 +1,657 @@
 // icn-ccl/src/stdlib.rs
 //! CCL Standard Library
 //! 
-//! Provides constants, macros, and helper functions for CCL contracts.
+//! This module provides built-in functions and utilities for CCL contracts,
+//! including governance primitives, economic operations, and utility functions.
 
-use crate::ast::{ExpressionNode, TypeAnnotationNode, PolicyStatementNode};
+use crate::ast::{TypeAnnotationNode, ExpressionNode, LiteralNode};
 use crate::error::CclError;
-use crate::governance_std;
 use std::collections::HashMap;
 
-/// Standard constants available in CCL
-#[derive(Clone)]
-pub struct StandardLibrary {
-    pub constants: HashMap<String, (ExpressionNode, TypeAnnotationNode)>,
-    pub macros: HashMap<String, String>,
+/// Standard library function signature
+#[derive(Debug, Clone)]
+pub struct StdFunction {
+    pub name: String,
+    pub params: Vec<TypeAnnotationNode>,
+    pub return_type: TypeAnnotationNode,
+    pub description: String,
+    pub category: StdCategory,
 }
 
-impl StandardLibrary {
+/// Categories of standard library functions
+#[derive(Debug, Clone, PartialEq)]
+pub enum StdCategory {
+    Governance,
+    Economics,
+    Utility,
+    String,
+    Array,
+    Math,
+    Crypto,
+}
+
+/// CCL Standard Library
+pub struct StdLibrary {
+    functions: HashMap<String, StdFunction>,
+}
+
+impl StdLibrary {
+    /// Create a new standard library instance with all built-in functions
     pub fn new() -> Self {
-        let mut stdlib = StandardLibrary {
-            constants: HashMap::new(),
-            macros: HashMap::new(),
+        let mut stdlib = StdLibrary {
+            functions: HashMap::new(),
         };
         
-        // Add standard constants
-        stdlib.add_constants();
-        stdlib.add_macros();
-        stdlib.add_governance_helpers();
+        stdlib.register_governance_functions();
+        stdlib.register_economic_functions();
+        stdlib.register_utility_functions();
+        stdlib.register_string_functions();
+        stdlib.register_array_functions();
+        stdlib.register_math_functions();
+        stdlib.register_crypto_functions();
         
         stdlib
     }
-    
-    fn add_constants(&mut self) {
-        // Mathematical constants
-        self.constants.insert(
-            "MAX_MANA".to_string(),
-            (ExpressionNode::IntegerLiteral(1_000_000), TypeAnnotationNode::Mana)
-        );
-        
-        self.constants.insert(
-            "MIN_MANA".to_string(),
-            (ExpressionNode::IntegerLiteral(0), TypeAnnotationNode::Mana)
-        );
-        
-        // Governance constants
-        self.constants.insert(
-            "MAJORITY_THRESHOLD".to_string(),
-            (ExpressionNode::IntegerLiteral(51), TypeAnnotationNode::Integer)
-        );
-        
-        self.constants.insert(
-            "SUPERMAJORITY_THRESHOLD".to_string(),
-            (ExpressionNode::IntegerLiteral(67), TypeAnnotationNode::Integer)
-        );
-        
-        self.constants.insert(
-            "CONSENSUS_THRESHOLD".to_string(),
-            (ExpressionNode::IntegerLiteral(100), TypeAnnotationNode::Integer)
-        );
-        
-        // Time constants (in seconds)
-        self.constants.insert(
-            "MINUTE".to_string(),
-            (ExpressionNode::IntegerLiteral(60), TypeAnnotationNode::Integer)
-        );
-        
-        self.constants.insert(
-            "HOUR".to_string(),
-            (ExpressionNode::IntegerLiteral(3600), TypeAnnotationNode::Integer)
-        );
-        
-        self.constants.insert(
-            "DAY".to_string(),
-            (ExpressionNode::IntegerLiteral(86400), TypeAnnotationNode::Integer)
-        );
-        
-        self.constants.insert(
-            "WEEK".to_string(),
-            (ExpressionNode::IntegerLiteral(604800), TypeAnnotationNode::Integer)
-        );
-        
-        // Boolean constants
-        self.constants.insert(
-            "TRUE".to_string(),
-            (ExpressionNode::BooleanLiteral(true), TypeAnnotationNode::Bool)
-        );
-        
-        self.constants.insert(
-            "FALSE".to_string(),
-            (ExpressionNode::BooleanLiteral(false), TypeAnnotationNode::Bool)
-        );
-        
-        // Advanced governance constants
-        self.constants.insert(
-            "QUORUM_THRESHOLD".to_string(),
-            (ExpressionNode::IntegerLiteral(50), TypeAnnotationNode::Integer)
-        );
-        
-        self.constants.insert(
-            "HIGH_QUORUM_THRESHOLD".to_string(),
-            (ExpressionNode::IntegerLiteral(75), TypeAnnotationNode::Integer)
-        );
-        
-        self.constants.insert(
-            "MAX_REPUTATION".to_string(),
-            (ExpressionNode::IntegerLiteral(100), TypeAnnotationNode::Integer)
-        );
-        
-        self.constants.insert(
-            "MIN_REPUTATION".to_string(),
-            (ExpressionNode::IntegerLiteral(0), TypeAnnotationNode::Integer)
-        );
-        
-        self.constants.insert(
-            "DEFAULT_REPUTATION".to_string(),
-            (ExpressionNode::IntegerLiteral(50), TypeAnnotationNode::Integer)
-        );
-        
-        // Economic constants
-        self.constants.insert(
-            "BASIS_POINTS_100_PERCENT".to_string(),
-            (ExpressionNode::IntegerLiteral(10000), TypeAnnotationNode::Integer)
-        );
-        
-        self.constants.insert(
-            "DEFAULT_TRANSACTION_FEE".to_string(),
-            (ExpressionNode::IntegerLiteral(10), TypeAnnotationNode::Mana)
-        );
-        
-        self.constants.insert(
-            "DEMURRAGE_RATE_DAILY_BASIS_POINTS".to_string(),
-            (ExpressionNode::IntegerLiteral(27), TypeAnnotationNode::Integer) // ~1% annual
-        );
-        
-        // Proposal type constants
-        self.constants.insert(
-            "PROPOSAL_TYPE_SIMPLE".to_string(),
-            (ExpressionNode::IntegerLiteral(1), TypeAnnotationNode::Integer)
-        );
-        
-        self.constants.insert(
-            "PROPOSAL_TYPE_FINANCIAL".to_string(),
-            (ExpressionNode::IntegerLiteral(2), TypeAnnotationNode::Integer)
-        );
-        
-        self.constants.insert(
-            "PROPOSAL_TYPE_CONSTITUTIONAL".to_string(),
-            (ExpressionNode::IntegerLiteral(3), TypeAnnotationNode::Integer)
-        );
-        
-        // Voting period constants
-        self.constants.insert(
-            "VOTING_PERIOD_SHORT".to_string(),
-            (ExpressionNode::IntegerLiteral(259200), TypeAnnotationNode::Integer) // 3 days
-        );
-        
-        self.constants.insert(
-            "VOTING_PERIOD_STANDARD".to_string(),
-            (ExpressionNode::IntegerLiteral(604800), TypeAnnotationNode::Integer) // 7 days
-        );
-        
-        self.constants.insert(
-            "VOTING_PERIOD_EXTENDED".to_string(),
-            (ExpressionNode::IntegerLiteral(1209600), TypeAnnotationNode::Integer) // 14 days
-        );
-    }
-    
-    fn add_macros(&mut self) {
-        // Voting macros
-        self.macros.insert(
-            "is_majority".to_string(),
-            "fn is_majority(yes_votes: Integer, total_votes: Integer) -> Bool {
-                return (yes_votes * 100) / total_votes >= MAJORITY_THRESHOLD;
-            }".to_string()
-        );
-        
-        self.macros.insert(
-            "is_supermajority".to_string(),
-            "fn is_supermajority(yes_votes: Integer, total_votes: Integer) -> Bool {
-                return (yes_votes * 100) / total_votes >= SUPERMAJORITY_THRESHOLD;
-            }".to_string()
-        );
-        
-        self.macros.insert(
-            "is_consensus".to_string(),
-            "fn is_consensus(yes_votes: Integer, total_votes: Integer) -> Bool {
-                return (yes_votes * 100) / total_votes >= CONSENSUS_THRESHOLD;
-            }".to_string()
-        );
-        
-        // Mana management macros
-        self.macros.insert(
-            "has_sufficient_mana".to_string(),
-            "fn has_sufficient_mana(available: Mana, required: Mana) -> Bool {
-                return available >= required;
-            }".to_string()
-        );
-        
-        self.macros.insert(
-            "calculate_fee".to_string(),
-            "fn calculate_fee(base_cost: Mana, complexity: Integer) -> Mana {
-                return base_cost * complexity;
-            }".to_string()
-        );
-        
-        // Array helper macros
-        self.macros.insert(
-            "array_is_empty".to_string(),
-            "fn array_is_empty(arr: Array<Integer>) -> Bool {
-                return array_len(arr) == 0;
-            }".to_string()
-        );
-        
-        self.macros.insert(
-            "array_contains".to_string(),
-            "fn array_contains(arr: Array<Integer>, item: Integer) -> Bool {
-                let i = 0;
-                while i < array_len(arr) {
-                    if arr[i] == item {
-                        return true;
-                    }
-                    i = i + 1;
-                }
-                return false;
-            }".to_string()
-        );
-        
-        // Advanced governance macros
-        self.macros.insert(
-            "calculate_weighted_vote".to_string(),
-            "fn calculate_weighted_vote(reputation: Integer, stake: Mana, base_weight: Integer) -> Integer {
-                let rep_factor = reputation / 10; // Scale reputation
-                let stake_factor = stake / 100; // Scale stake
-                return base_weight + rep_factor + stake_factor;
-            }".to_string()
-        );
-        
-        
-        self.macros.insert(
-            "calculate_quadratic_cost".to_string(),
-            "fn calculate_quadratic_cost(votes: Integer) -> Mana {
-                return votes * votes;
-            }".to_string()
-        );
-        
-        // Resource allocation macros
-        self.macros.insert(
-            "allocate_proportional".to_string(),
-            "fn allocate_proportional(total_budget: Mana, priority_score: Integer, max_priority: Integer) -> Mana {
-                if max_priority == 0 { return 0; }
-                return (total_budget * priority_score) / max_priority;
-            }".to_string()
-        );
-        
-        self.macros.insert(
-            "calculate_dividend".to_string(),
-            "fn calculate_dividend(total_profit: Mana, member_contribution: Integer, total_contribution: Integer) -> Mana {
-                if total_contribution == 0 { return 0; }
-                return (total_profit * member_contribution) / total_contribution;
-            }".to_string()
-        );
-        
-        // Trust and reputation macros
-        self.macros.insert(
-            "update_reputation".to_string(),
-            "fn update_reputation(current: Integer, feedback: Integer, weight: Integer) -> Integer {
-                let weighted_feedback = feedback * weight;
-                let new_rep = (current * 9 + weighted_feedback) / 10; // Exponential moving average
-                if new_rep > 100 { return 100; }
-                if new_rep < 0 { return 0; }
-                return new_rep;
-            }".to_string()
-        );
-        
-        self.macros.insert(
-            "calculate_trust_score".to_string(),
-            "fn calculate_trust_score(interactions: Integer, positive_feedback: Integer) -> Integer {
-                if interactions == 0 { return 50; } // Neutral score for new members
-                let ratio = (positive_feedback * 100) / interactions;
-                return ratio;
-            }".to_string()
-        );
-        
-        // Economic calculation macros
-        self.macros.insert(
-            "apply_demurrage".to_string(),
-            "fn apply_demurrage(balance: Mana, rate_per_day: Integer, days: Integer) -> Mana {
-                let total_rate = rate_per_day * days;
-                let reduction = (balance * total_rate) / 10000; // Basis points
-                return balance - reduction;
-            }".to_string()
-        );
-        
-        self.macros.insert(
-            "calculate_interest".to_string(),
-            "fn calculate_interest(principal: Mana, rate_percent: Integer, time_days: Integer) -> Mana {
-                let daily_rate = rate_percent * 100 / 365; // Convert to daily basis points
-                let interest = (principal * daily_rate * time_days) / 1000000;
-                return interest;
-            }".to_string()
-        );
 
-        // Math utility macros
-        self.macros.insert(
-            "array_sum".to_string(),
-            "fn array_sum(arr: Array<Integer>) -> Integer {
-                let sum = 0;
-                let i = 0;
-                while i < array_len(arr) {
-                    sum = sum + arr[i];
-                    i = i + 1;
-                }
-                return sum;
-            }".to_string()
-        );
-
-        self.macros.insert(
-            "array_max".to_string(),
-            "fn array_max(arr: Array<Integer>) -> Integer {
-                if array_is_empty(arr) {
-                    panic(\"Cannot find max of empty array\");
-                }
-                let max = arr[0];
-                let i = 1;
-                while i < array_len(arr) {
-                    if arr[i] > max {
-                        max = arr[i];
-                    }
-                    i = i + 1;
-                }
-                return max;
-            }".to_string()
-        );
-
-        self.macros.insert(
-            "array_min".to_string(),
-            "fn array_min(arr: Array<Integer>) -> Integer {
-                if array_is_empty(arr) {
-                    panic(\"Cannot find min of empty array\");
-                }
-                let min = arr[0];
-                let i = 1;
-                while i < array_len(arr) {
-                    if arr[i] < min {
-                        min = arr[i];
-                    }
-                    i = i + 1;
-                }
-                return min;
-            }".to_string()
-        );
-
-        self.macros.insert(
-            "array_average".to_string(),
-            "fn array_average(arr: Array<Integer>) -> Integer {
-                if array_is_empty(arr) {
-                    panic(\"Cannot find average of empty array\");
-                }
-                return array_sum(arr) / array_len(arr);
-            }".to_string()
-        );
-
-        // Map utility macros
-        self.macros.insert(
-            "map_contains_key".to_string(),
-            "fn map_contains_key(map: Map<String, Integer>, key: String) -> Bool {
-                try {
-                    let _ = map[key];
-                    return true;
-                } catch {
-                    return false;
-                }
-            }".to_string()
-        );
-
-        self.macros.insert(
-            "map_get_or_default".to_string(),
-            "fn map_get_or_default(map: Map<String, Integer>, key: String, default: Integer) -> Integer {
-                try {
-                    return map[key];
-                } catch {
-                    return default;
-                }
-            }".to_string()
-        );
-
-        // String utility macros
-        self.macros.insert(
-            "string_is_empty".to_string(),
-            "fn string_is_empty(str: String) -> Bool {
-                return string_len(str) == 0;
-            }".to_string()
-        );
-
-        self.macros.insert(
-            "string_contains".to_string(),
-            "fn string_contains(haystack: String, needle: String) -> Bool {
-                return string_find(haystack, needle) >= 0;
-            }".to_string()
-        );
-
-        // Error handling macros
-        self.macros.insert(
-            "require".to_string(),
-            "fn require(condition: Bool, message: String) {
-                if !condition {
-                    panic(message);
-                }
-            }".to_string()
-        );
-
-        self.macros.insert(
-            "safe_divide".to_string(),
-            "fn safe_divide(a: Integer, b: Integer) -> Result<Integer, String> {
-                if b == 0 {
-                    return Err(\"Division by zero\");
-                }
-                return Ok(a / b);
-            }".to_string()
-        );
-
-        // Governance utility macros
-        self.macros.insert(
-            "calculate_weighted_vote".to_string(),
-            "fn calculate_weighted_vote(votes: Array<Integer>, weights: Array<Integer>) -> Integer {
-                require(array_len(votes) == array_len(weights), \"Votes and weights arrays must have same length\");
-                let weighted_sum = 0;
-                let i = 0;
-                while i < array_len(votes) {
-                    weighted_sum = weighted_sum + (votes[i] * weights[i]);
-                    i = i + 1;
-                }
-                return weighted_sum;
-            }".to_string()
-        );
-
+    /// Get all function names by category
+    pub fn get_functions_by_category(&self, category: StdCategory) -> Vec<&StdFunction> {
+        self.functions
+            .values()
+            .filter(|f| f.category == category)
+            .collect()
     }
-    
-    /// Get a constant value by name
-    pub fn get_constant(&self, name: &str) -> Option<&(ExpressionNode, TypeAnnotationNode)> {
-        self.constants.get(name)
+
+    /// Look up a function by name
+    pub fn get_function(&self, name: &str) -> Option<&StdFunction> {
+        self.functions.get(name)
     }
-    
-    /// Get a macro definition by name
-    pub fn get_macro(&self, name: &str) -> Option<&String> {
-        self.macros.get(name)
+
+    /// Get all function names
+    pub fn get_all_functions(&self) -> Vec<&String> {
+        self.functions.keys().collect()
     }
-    
-    /// Expand a macro call by replacing parameters
-    pub fn expand_macro(&self, name: &str, params: &[String], args: &[String]) -> Result<String, CclError> {
-        if let Some(macro_body) = self.get_macro(name) {
-            if params.len() != args.len() {
-                return Err(CclError::SemanticError(format!(
-                    "Macro {} expects {} parameters, got {}",
-                    name, params.len(), args.len()
-                )));
-            }
-            
-            let mut expanded = macro_body.clone();
-            for (param, arg) in params.iter().zip(args.iter()) {
-                expanded = expanded.replace(param, arg);
-            }
-            
-            Ok(expanded)
-        } else {
-            Err(CclError::SemanticError(format!("Unknown macro: {}", name)))
-        }
+
+    fn register_function(&mut self, func: StdFunction) {
+        self.functions.insert(func.name.clone(), func);
     }
-    
-    /// Get all available constant names
-    pub fn get_constant_names(&self) -> Vec<&str> {
-        self.constants.keys().map(|s| s.as_str()).collect()
+
+    /// Register governance-related functions
+    fn register_governance_functions(&mut self) {
+        // Proposal management
+        self.register_function(StdFunction {
+            name: "create_proposal".to_string(),
+            params: vec![
+                TypeAnnotationNode::String, // title
+                TypeAnnotationNode::String, // description
+                TypeAnnotationNode::Custom("ProposalType".to_string()),
+            ],
+            return_type: TypeAnnotationNode::Proposal,
+            description: "Create a new governance proposal".to_string(),
+            category: StdCategory::Governance,
+        });
+
+        self.register_function(StdFunction {
+            name: "submit_proposal".to_string(),
+            params: vec![TypeAnnotationNode::Proposal],
+            return_type: TypeAnnotationNode::Bool,
+            description: "Submit a proposal for voting".to_string(),
+            category: StdCategory::Governance,
+        });
+
+        self.register_function(StdFunction {
+            name: "vote_on_proposal".to_string(),
+            params: vec![
+                TypeAnnotationNode::Proposal,
+                TypeAnnotationNode::Vote,
+                TypeAnnotationNode::Did, // voter
+            ],
+            return_type: TypeAnnotationNode::Bool,
+            description: "Cast a vote on a proposal".to_string(),
+            category: StdCategory::Governance,
+        });
+
+        self.register_function(StdFunction {
+            name: "execute_proposal".to_string(),
+            params: vec![TypeAnnotationNode::Proposal],
+            return_type: TypeAnnotationNode::Bool,
+            description: "Execute a passed proposal".to_string(),
+            category: StdCategory::Governance,
+        });
+
+        // Role management
+        self.register_function(StdFunction {
+            name: "has_role".to_string(),
+            params: vec![
+                TypeAnnotationNode::Did,
+                TypeAnnotationNode::String, // role name
+            ],
+            return_type: TypeAnnotationNode::Bool,
+            description: "Check if a user has a specific role".to_string(),
+            category: StdCategory::Governance,
+        });
+
+        self.register_function(StdFunction {
+            name: "assign_role".to_string(),
+            params: vec![
+                TypeAnnotationNode::Did,
+                TypeAnnotationNode::String, // role name
+            ],
+            return_type: TypeAnnotationNode::Bool,
+            description: "Assign a role to a user".to_string(),
+            category: StdCategory::Governance,
+        });
+
+        self.register_function(StdFunction {
+            name: "revoke_role".to_string(),
+            params: vec![
+                TypeAnnotationNode::Did,
+                TypeAnnotationNode::String, // role name
+            ],
+            return_type: TypeAnnotationNode::Bool,
+            description: "Revoke a role from a user".to_string(),
+            category: StdCategory::Governance,
+        });
+
+        // Permission checking
+        self.register_function(StdFunction {
+            name: "check_permission".to_string(),
+            params: vec![
+                TypeAnnotationNode::Did,
+                TypeAnnotationNode::String, // permission name
+            ],
+            return_type: TypeAnnotationNode::Bool,
+            description: "Check if a user has a specific permission".to_string(),
+            category: StdCategory::Governance,
+        });
     }
-    
-    /// Get all available macro names
-    pub fn get_macro_names(&self) -> Vec<&str> {
-        self.macros.keys().map(|s| s.as_str()).collect()
+
+    /// Register economic/financial functions
+    fn register_economic_functions(&mut self) {
+        // Mana operations
+        self.register_function(StdFunction {
+            name: "get_balance".to_string(),
+            params: vec![TypeAnnotationNode::Did],
+            return_type: TypeAnnotationNode::Mana,
+            description: "Get the mana balance of an account".to_string(),
+            category: StdCategory::Economics,
+        });
+
+        self.register_function(StdFunction {
+            name: "transfer".to_string(),
+            params: vec![
+                TypeAnnotationNode::Did, // from
+                TypeAnnotationNode::Did, // to
+                TypeAnnotationNode::Mana, // amount
+            ],
+            return_type: TypeAnnotationNode::Bool,
+            description: "Transfer mana between accounts".to_string(),
+            category: StdCategory::Economics,
+        });
+
+        self.register_function(StdFunction {
+            name: "mint_mana".to_string(),
+            params: vec![
+                TypeAnnotationNode::Did, // to
+                TypeAnnotationNode::Mana, // amount
+            ],
+            return_type: TypeAnnotationNode::Bool,
+            description: "Mint new mana to an account".to_string(),
+            category: StdCategory::Economics,
+        });
+
+        self.register_function(StdFunction {
+            name: "burn_mana".to_string(),
+            params: vec![
+                TypeAnnotationNode::Did, // from
+                TypeAnnotationNode::Mana, // amount
+            ],
+            return_type: TypeAnnotationNode::Bool,
+            description: "Burn mana from an account".to_string(),
+            category: StdCategory::Economics,
+        });
+
+        // Economic calculations
+        self.register_function(StdFunction {
+            name: "calculate_fee".to_string(),
+            params: vec![
+                TypeAnnotationNode::Mana, // base amount
+                TypeAnnotationNode::Integer, // fee percentage (basis points)
+            ],
+            return_type: TypeAnnotationNode::Mana,
+            description: "Calculate transaction fee".to_string(),
+            category: StdCategory::Economics,
+        });
+
+        self.register_function(StdFunction {
+            name: "compound_interest".to_string(),
+            params: vec![
+                TypeAnnotationNode::Mana, // principal
+                TypeAnnotationNode::Integer, // rate (basis points)
+                TypeAnnotationNode::Integer, // periods
+            ],
+            return_type: TypeAnnotationNode::Mana,
+            description: "Calculate compound interest".to_string(),
+            category: StdCategory::Economics,
+        });
+
+        // Reputation and credit
+        self.register_function(StdFunction {
+            name: "get_reputation".to_string(),
+            params: vec![TypeAnnotationNode::Did],
+            return_type: TypeAnnotationNode::Integer,
+            description: "Get user's reputation score".to_string(),
+            category: StdCategory::Economics,
+        });
+
+        self.register_function(StdFunction {
+            name: "update_reputation".to_string(),
+            params: vec![
+                TypeAnnotationNode::Did,
+                TypeAnnotationNode::Integer, // delta
+            ],
+            return_type: TypeAnnotationNode::Bool,
+            description: "Update user's reputation score".to_string(),
+            category: StdCategory::Economics,
+        });
     }
-    
-    /// Check if a name is a standard library constant
-    pub fn is_standard_constant(&self, name: &str) -> bool {
-        self.constants.contains_key(name)
+
+    /// Register utility functions
+    fn register_utility_functions(&mut self) {
+        // Time functions
+        self.register_function(StdFunction {
+            name: "now".to_string(),
+            params: vec![],
+            return_type: TypeAnnotationNode::Custom("Timestamp".to_string()),
+            description: "Get current timestamp".to_string(),
+            category: StdCategory::Utility,
+        });
+
+        self.register_function(StdFunction {
+            name: "add_duration".to_string(),
+            params: vec![
+                TypeAnnotationNode::Custom("Timestamp".to_string()),
+                TypeAnnotationNode::Custom("Duration".to_string()),
+            ],
+            return_type: TypeAnnotationNode::Custom("Timestamp".to_string()),
+            description: "Add duration to timestamp".to_string(),
+            category: StdCategory::Utility,
+        });
+
+        self.register_function(StdFunction {
+            name: "days".to_string(),
+            params: vec![TypeAnnotationNode::Integer],
+            return_type: TypeAnnotationNode::Custom("Duration".to_string()),
+            description: "Create duration from days".to_string(),
+            category: StdCategory::Utility,
+        });
+
+        self.register_function(StdFunction {
+            name: "hours".to_string(),
+            params: vec![TypeAnnotationNode::Integer],
+            return_type: TypeAnnotationNode::Custom("Duration".to_string()),
+            description: "Create duration from hours".to_string(),
+            category: StdCategory::Utility,
+        });
+
+        // Validation functions
+        self.register_function(StdFunction {
+            name: "require".to_string(),
+            params: vec![
+                TypeAnnotationNode::Bool,
+                TypeAnnotationNode::String, // error message
+            ],
+            return_type: TypeAnnotationNode::Custom("void".to_string()),
+            description: "Assert condition with custom error message".to_string(),
+            category: StdCategory::Utility,
+        });
+
+        self.register_function(StdFunction {
+            name: "is_valid_did".to_string(),
+            params: vec![TypeAnnotationNode::String],
+            return_type: TypeAnnotationNode::Bool,
+            description: "Validate DID format".to_string(),
+            category: StdCategory::Utility,
+        });
+
+        // Logging and events
+        self.register_function(StdFunction {
+            name: "log".to_string(),
+            params: vec![TypeAnnotationNode::String],
+            return_type: TypeAnnotationNode::Custom("void".to_string()),
+            description: "Log a message".to_string(),
+            category: StdCategory::Utility,
+        });
+
+        self.register_function(StdFunction {
+            name: "emit_event".to_string(),
+            params: vec![
+                TypeAnnotationNode::String, // event name
+                TypeAnnotationNode::String, // event data (JSON)
+            ],
+            return_type: TypeAnnotationNode::Custom("void".to_string()),
+            description: "Emit a custom event".to_string(),
+            category: StdCategory::Utility,
+        });
     }
-    
-    /// Check if a name is a standard library macro
-    pub fn is_standard_macro(&self, name: &str) -> bool {
-        self.macros.contains_key(name)
+
+    /// Register string manipulation functions
+    fn register_string_functions(&mut self) {
+        self.register_function(StdFunction {
+            name: "string_length".to_string(),
+            params: vec![TypeAnnotationNode::String],
+            return_type: TypeAnnotationNode::Integer,
+            description: "Get string length".to_string(),
+            category: StdCategory::String,
+        });
+
+        self.register_function(StdFunction {
+            name: "string_concat".to_string(),
+            params: vec![TypeAnnotationNode::String, TypeAnnotationNode::String],
+            return_type: TypeAnnotationNode::String,
+            description: "Concatenate two strings".to_string(),
+            category: StdCategory::String,
+        });
+
+        self.register_function(StdFunction {
+            name: "string_substring".to_string(),
+            params: vec![
+                TypeAnnotationNode::String,
+                TypeAnnotationNode::Integer, // start
+                TypeAnnotationNode::Integer, // length
+            ],
+            return_type: TypeAnnotationNode::String,
+            description: "Extract substring".to_string(),
+            category: StdCategory::String,
+        });
+
+        self.register_function(StdFunction {
+            name: "string_contains".to_string(),
+            params: vec![TypeAnnotationNode::String, TypeAnnotationNode::String],
+            return_type: TypeAnnotationNode::Bool,
+            description: "Check if string contains substring".to_string(),
+            category: StdCategory::String,
+        });
+
+        self.register_function(StdFunction {
+            name: "string_to_upper".to_string(),
+            params: vec![TypeAnnotationNode::String],
+            return_type: TypeAnnotationNode::String,
+            description: "Convert string to uppercase".to_string(),
+            category: StdCategory::String,
+        });
+
+        self.register_function(StdFunction {
+            name: "string_to_lower".to_string(),
+            params: vec![TypeAnnotationNode::String],
+            return_type: TypeAnnotationNode::String,
+            description: "Convert string to lowercase".to_string(),
+            category: StdCategory::String,
+        });
     }
-    
-    /// Register a new macro with the standard library
-    pub fn register_macro(&mut self, name: String, _params: Vec<String>, body: String) {
-        // For now, we just store the body. In a full implementation,
-        // we'd store the parameters too for proper expansion
-        self.macros.insert(name, body);
+
+    /// Register array manipulation functions
+    fn register_array_functions(&mut self) {
+        self.register_function(StdFunction {
+            name: "array_length".to_string(),
+            params: vec![TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Custom("T".to_string())))],
+            return_type: TypeAnnotationNode::Integer,
+            description: "Get array length".to_string(),
+            category: StdCategory::Array,
+        });
+
+        self.register_function(StdFunction {
+            name: "array_push".to_string(),
+            params: vec![
+                TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Custom("T".to_string()))),
+                TypeAnnotationNode::Custom("T".to_string()),
+            ],
+            return_type: TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Custom("T".to_string()))),
+            description: "Add element to end of array".to_string(),
+            category: StdCategory::Array,
+        });
+
+        self.register_function(StdFunction {
+            name: "array_pop".to_string(),
+            params: vec![TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Custom("T".to_string())))],
+            return_type: TypeAnnotationNode::Option(Box::new(TypeAnnotationNode::Custom("T".to_string()))),
+            description: "Remove and return last element".to_string(),
+            category: StdCategory::Array,
+        });
+
+        self.register_function(StdFunction {
+            name: "array_contains".to_string(),
+            params: vec![
+                TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Custom("T".to_string()))),
+                TypeAnnotationNode::Custom("T".to_string()),
+            ],
+            return_type: TypeAnnotationNode::Bool,
+            description: "Check if array contains element".to_string(),
+            category: StdCategory::Array,
+        });
+
+        self.register_function(StdFunction {
+            name: "array_slice".to_string(),
+            params: vec![
+                TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Custom("T".to_string()))),
+                TypeAnnotationNode::Integer, // start
+                TypeAnnotationNode::Integer, // end
+            ],
+            return_type: TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Custom("T".to_string()))),
+            description: "Extract slice of array".to_string(),
+            category: StdCategory::Array,
+        });
     }
-    
-    /// Add governance helper functions for common patterns
-    pub fn add_governance_helpers(&mut self) {
-        for (name, body) in governance_std::governance_macros() {
-            self.macros.insert(name, body);
-        }
-        
-        // Consensus building with graduated penalties
-        self.macros.insert(
-            "calculate_consensus_penalty".to_string(),
-            "fn calculate_consensus_penalty(
-                dissent_level: Integer, 
-                penalty_rate: Integer
-            ) -> Mana {
-                if dissent_level <= 10 { return 0; } // No penalty for minor dissent
-                let excess_dissent = dissent_level - 10;
-                return (excess_dissent * penalty_rate) / 100;
-            }".to_string()
-        );
-        
-        // Resource allocation with fairness constraints
-        self.macros.insert(
-            "enforce_fair_allocation".to_string(),
-            "fn enforce_fair_allocation(
-                proposed_allocation: Mana,
-                member_max_share: Mana,
-                total_budget: Mana,
-                member_count: Integer
-            ) -> Mana {
-                let fair_share = total_budget / member_count;
-                let max_allowed = if member_max_share < fair_share * 2 { member_max_share } else { fair_share * 2 };
-                return if proposed_allocation > max_allowed { max_allowed } else { proposed_allocation };
-            }".to_string()
-        );
+
+    /// Register mathematical functions
+    fn register_math_functions(&mut self) {
+        self.register_function(StdFunction {
+            name: "abs".to_string(),
+            params: vec![TypeAnnotationNode::Integer],
+            return_type: TypeAnnotationNode::Integer,
+            description: "Absolute value".to_string(),
+            category: StdCategory::Math,
+        });
+
+        self.register_function(StdFunction {
+            name: "min".to_string(),
+            params: vec![TypeAnnotationNode::Integer, TypeAnnotationNode::Integer],
+            return_type: TypeAnnotationNode::Integer,
+            description: "Minimum of two values".to_string(),
+            category: StdCategory::Math,
+        });
+
+        self.register_function(StdFunction {
+            name: "max".to_string(),
+            params: vec![TypeAnnotationNode::Integer, TypeAnnotationNode::Integer],
+            return_type: TypeAnnotationNode::Integer,
+            description: "Maximum of two values".to_string(),
+            category: StdCategory::Math,
+        });
+
+        self.register_function(StdFunction {
+            name: "pow".to_string(),
+            params: vec![TypeAnnotationNode::Integer, TypeAnnotationNode::Integer],
+            return_type: TypeAnnotationNode::Integer,
+            description: "Raise to power".to_string(),
+            category: StdCategory::Math,
+        });
+
+        self.register_function(StdFunction {
+            name: "sqrt".to_string(),
+            params: vec![TypeAnnotationNode::Integer],
+            return_type: TypeAnnotationNode::Integer,
+            description: "Square root (integer)".to_string(),
+            category: StdCategory::Math,
+        });
+
+        // Percentage calculations for governance
+        self.register_function(StdFunction {
+            name: "percentage".to_string(),
+            params: vec![
+                TypeAnnotationNode::Integer, // value
+                TypeAnnotationNode::Integer, // total
+            ],
+            return_type: TypeAnnotationNode::Integer,
+            description: "Calculate percentage (returns basis points)".to_string(),
+            category: StdCategory::Math,
+        });
+
+        self.register_function(StdFunction {
+            name: "apply_percentage".to_string(),
+            params: vec![
+                TypeAnnotationNode::Integer, // value
+                TypeAnnotationNode::Integer, // percentage (basis points)
+            ],
+            return_type: TypeAnnotationNode::Integer,
+            description: "Apply percentage to value".to_string(),
+            category: StdCategory::Math,
+        });
     }
-    
-    /// Add cooperative economics helpers
-    pub fn add_economics_helpers(&mut self) {
-        // Mutual aid scoring
-        self.macros.insert(
-            "calculate_mutual_aid_score".to_string(),
-            "fn calculate_mutual_aid_score(
-                help_given: Integer,
-                help_received: Integer,
-                community_benefit: Integer
-            ) -> Integer {
-                let aid_balance = if help_given >= help_received { 
-                    help_given - help_received 
-                } else { 
-                    0 
-                };
-                let total_contribution = aid_balance + community_benefit;
-                return if total_contribution > 100 { 100 } else { total_contribution };
-            }".to_string()
-        );
-        
-        // Solidarity economy calculations
-        self.macros.insert(
-            "distribute_solidarity_fund".to_string(),
-            "fn distribute_solidarity_fund(
-                total_fund: Mana,
-                member_need_score: Integer,
-                total_need_score: Integer
-            ) -> Mana {
-                if total_need_score == 0 { return 0; }
-                let base_share = (total_fund * member_need_score) / total_need_score;
-                // Ensure minimum dignity amount
-                let min_amount = total_fund / 100; // 1% minimum
-                return if base_share < min_amount { min_amount } else { base_share };
-            }".to_string()
-        );
-    }
-    
-    /// Generate policy statements for all constants and macros
-    pub fn generate_statements(&self) -> Vec<PolicyStatementNode> {
-        let mut statements = Vec::new();
-        
-        // Add constants
-        for (name, (value, type_ann)) in &self.constants {
-            statements.push(PolicyStatementNode::ConstDef {
-                name: name.clone(),
-                value: value.clone(),
-                type_ann: type_ann.clone(),
-            });
-        }
-        
-        statements
+
+    /// Register cryptographic and security functions
+    fn register_crypto_functions(&mut self) {
+        self.register_function(StdFunction {
+            name: "hash".to_string(),
+            params: vec![TypeAnnotationNode::String],
+            return_type: TypeAnnotationNode::String,
+            description: "Calculate SHA-256 hash".to_string(),
+            category: StdCategory::Crypto,
+        });
+
+        self.register_function(StdFunction {
+            name: "verify_signature".to_string(),
+            params: vec![
+                TypeAnnotationNode::String, // message
+                TypeAnnotationNode::String, // signature
+                TypeAnnotationNode::Did,    // public key/DID
+            ],
+            return_type: TypeAnnotationNode::Bool,
+            description: "Verify digital signature".to_string(),
+            category: StdCategory::Crypto,
+        });
+
+        self.register_function(StdFunction {
+            name: "generate_id".to_string(),
+            params: vec![],
+            return_type: TypeAnnotationNode::String,
+            description: "Generate unique identifier".to_string(),
+            category: StdCategory::Crypto,
+        });
+
+        self.register_function(StdFunction {
+            name: "merkle_root".to_string(),
+            params: vec![TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::String))],
+            return_type: TypeAnnotationNode::String,
+            description: "Calculate Merkle tree root".to_string(),
+            category: StdCategory::Crypto,
+        });
     }
 }
 
-impl Default for StandardLibrary {
+impl Default for StdLibrary {
     fn default() -> Self {
         Self::new()
     }
 }
 
+/// Generate documentation for the standard library
+pub fn generate_stdlib_docs() -> String {
+    let stdlib = StdLibrary::new();
+    let mut docs = String::new();
+    
+    docs.push_str("# CCL Standard Library Functions\n\n");
+    
+    for category in [
+        StdCategory::Governance,
+        StdCategory::Economics,
+        StdCategory::Utility,
+        StdCategory::String,
+        StdCategory::Array,
+        StdCategory::Math,
+        StdCategory::Crypto,
+    ] {
+        docs.push_str(&format!("## {:?} Functions\n\n", category));
+        
+        let mut functions = stdlib.get_functions_by_category(category);
+        functions.sort_by(|a, b| a.name.cmp(&b.name));
+        
+        for func in functions {
+            docs.push_str(&format!("### `{}`\n\n", func.name));
+            docs.push_str(&format!("**Description:** {}\n\n", func.description));
+            
+            docs.push_str("**Parameters:**\n");
+            if func.params.is_empty() {
+                docs.push_str("- None\n");
+            } else {
+                for (i, param) in func.params.iter().enumerate() {
+                    docs.push_str(&format!("- `arg{}`: {:?}\n", i + 1, param));
+                }
+            }
+            
+            docs.push_str(&format!("\n**Returns:** {:?}\n\n", func.return_type));
+            docs.push_str("---\n\n");
+        }
+    }
+    
+    docs
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
-    fn test_stdlib_constants() {
-        let stdlib = StandardLibrary::new();
+    fn test_stdlib_creation() {
+        let stdlib = StdLibrary::new();
         
-        assert!(stdlib.get_constant("MAX_MANA").is_some());
-        assert!(stdlib.get_constant("MAJORITY_THRESHOLD").is_some());
-        assert!(stdlib.get_constant("NONEXISTENT").is_none());
+        // Should have functions from all categories
+        assert!(stdlib.get_function("transfer").is_some());
+        assert!(stdlib.get_function("create_proposal").is_some());
+        assert!(stdlib.get_function("string_length").is_some());
+        assert!(stdlib.get_function("array_length").is_some());
+        assert!(stdlib.get_function("now").is_some());
+        assert!(stdlib.get_function("hash").is_some());
+        
+        // Should not have non-existent functions
+        assert!(stdlib.get_function("non_existent").is_none());
     }
-    
+
     #[test]
-    fn test_stdlib_macros() {
-        let stdlib = StandardLibrary::new();
+    fn test_function_categories() {
+        let stdlib = StdLibrary::new();
         
-        assert!(stdlib.get_macro("is_majority").is_some());
-        assert!(stdlib.get_macro("has_sufficient_mana").is_some());
-        assert!(stdlib.get_macro("nonexistent").is_none());
+        let governance_funcs = stdlib.get_functions_by_category(StdCategory::Governance);
+        assert!(!governance_funcs.is_empty());
+        
+        let economic_funcs = stdlib.get_functions_by_category(StdCategory::Economics);
+        assert!(!economic_funcs.is_empty());
+        
+        // All governance functions should be in governance category
+        for func in governance_funcs {
+            assert_eq!(func.category, StdCategory::Governance);
+        }
     }
-    
+
     #[test]
-    fn test_macro_expansion() {
-        let stdlib = StandardLibrary::new();
+    fn test_transfer_function_signature() {
+        let stdlib = StdLibrary::new();
+        let transfer = stdlib.get_function("transfer").unwrap();
         
-        let result = stdlib.expand_macro(
-            "is_majority",
-            &["yes_votes".to_string(), "total_votes".to_string()],
-            &["10".to_string(), "20".to_string()]
-        );
+        assert_eq!(transfer.params.len(), 3);
+        assert_eq!(transfer.params[0], TypeAnnotationNode::Did);
+        assert_eq!(transfer.params[1], TypeAnnotationNode::Did);
+        assert_eq!(transfer.params[2], TypeAnnotationNode::Mana);
+        assert_eq!(transfer.return_type, TypeAnnotationNode::Bool);
+    }
+
+    #[test]
+    fn test_docs_generation() {
+        let docs = generate_stdlib_docs();
         
-        assert!(result.is_ok());
-        let expanded = result.unwrap();
-        assert!(expanded.contains("10"));
-        assert!(expanded.contains("20"));
+        assert!(docs.contains("# CCL Standard Library Functions"));
+        assert!(docs.contains("## Governance Functions"));
+        assert!(docs.contains("## Economics Functions"));
+        assert!(docs.contains("transfer"));
+        assert!(docs.contains("create_proposal"));
     }
 }

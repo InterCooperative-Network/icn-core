@@ -1,864 +1,902 @@
 // icn-ccl/src/semantic_analyzer.rs
 use crate::ast::{
-    ActionNode, AstNode, BinaryOperator, BlockNode, ExpressionNode, PolicyStatementNode,
-    StatementNode, TypeAnnotationNode, UnaryOperator,
+    AstNode, BinaryOperator, BlockNode, ExpressionNode, LiteralNode,
+    ParameterNode, PolicyStatementNode, StatementNode, TypeAnnotationNode,
+    TypeExprNode, UnaryOperator, FunctionDefinitionNode, ContractDeclarationNode,
+    RoleDeclarationNode, ProposalDeclarationNode, StateDeclarationNode,
+    ConstDeclarationNode, StructDefinitionNode, EnumDefinitionNode,
+    FieldNode, FieldInitNode, LValueNode, MatchArmNode, PatternNode,
 };
 use crate::error::CclError;
 use std::collections::HashMap;
 
-// Example symbol table entry
+/// Symbol table entry containing type information
 #[derive(Debug, Clone)]
-pub enum Symbol {
-    Variable {
-        type_ann: crate::ast::TypeAnnotationNode,
-    },
-    Function {
-        params: Vec<crate::ast::TypeAnnotationNode>,
-        return_type: crate::ast::TypeAnnotationNode,
-    },
-    // ... other symbol types
+pub struct Symbol {
+    pub name: String,
+    pub symbol_type: TypeAnnotationNode,
+    pub is_mutable: bool,
+    pub scope_level: usize,
 }
 
+/// Function signature for type checking
+#[derive(Debug, Clone)]
+pub struct FunctionSignature {
+    pub name: String,
+    pub params: Vec<TypeAnnotationNode>,
+    pub return_type: TypeAnnotationNode,
+}
+
+/// The semantic analyzer performs type checking and ensures the AST is semantically valid
 pub struct SemanticAnalyzer {
-    symbol_table_stack: Vec<HashMap<String, Symbol>>,
+    symbol_table: HashMap<String, Symbol>,
+    function_table: HashMap<String, FunctionSignature>,
+    current_scope_level: usize,
     current_return_type: Option<TypeAnnotationNode>,
+    errors: Vec<CclError>,
 }
 
 impl SemanticAnalyzer {
     pub fn new() -> Self {
         let mut analyzer = SemanticAnalyzer {
-            symbol_table_stack: vec![HashMap::new()], // Global scope
+            symbol_table: HashMap::new(),
+            function_table: HashMap::new(),
+            current_scope_level: 0,
             current_return_type: None,
+            errors: Vec::new(),
         };
-        let _ = analyzer.insert_symbol(
-            "host_get_reputation".to_string(),
-            Symbol::Function {
-                params: Vec::new(),
-                return_type: TypeAnnotationNode::Integer,
-            },
-        );
-        // Built-in helpers for array manipulation
-        let any = TypeAnnotationNode::Custom("Any".to_string());
-        let _ = analyzer.insert_symbol(
-            "array_len".to_string(),
-            Symbol::Function {
-                params: vec![TypeAnnotationNode::Array(Box::new(any.clone()))],
-                return_type: TypeAnnotationNode::Integer,
-            },
-        );
-        let _ = analyzer.insert_symbol(
-            "array_push".to_string(),
-            Symbol::Function {
-                params: vec![
-                    TypeAnnotationNode::Array(Box::new(any.clone())),
-                    any.clone(),
-                ],
-                return_type: TypeAnnotationNode::Integer,
-            },
-        );
-        let _ = analyzer.insert_symbol(
-            "array_pop".to_string(),
-            Symbol::Function {
-                params: vec![TypeAnnotationNode::Array(Box::new(any.clone()))],
-                return_type: any,
-            },
-        );
+        
+        // Add built-in functions
+        analyzer.add_builtin_functions();
+        
         analyzer
     }
 
-    pub fn analyze(&mut self, ast: &AstNode) -> Result<(), CclError> {
-        self.visit_node(ast)?;
-        Ok(())
+    /// Add built-in functions to the function table
+    fn add_builtin_functions(&mut self) {
+        // Mana operations
+        self.function_table.insert("get_mana".to_string(), FunctionSignature {
+            name: "get_mana".to_string(),
+            params: vec![TypeAnnotationNode::Did],
+            return_type: TypeAnnotationNode::Mana,
+        });
+        
+        self.function_table.insert("transfer_mana".to_string(), FunctionSignature {
+            name: "transfer_mana".to_string(),
+            params: vec![TypeAnnotationNode::Did, TypeAnnotationNode::Did, TypeAnnotationNode::Mana],
+            return_type: TypeAnnotationNode::Bool,
+        });
+        
+        // Governance operations
+        self.function_table.insert("submit_proposal".to_string(), FunctionSignature {
+            name: "submit_proposal".to_string(),
+            params: vec![TypeAnnotationNode::Proposal],
+            return_type: TypeAnnotationNode::Bool,
+        });
+        
+        self.function_table.insert("cast_vote".to_string(), FunctionSignature {
+            name: "cast_vote".to_string(),
+            params: vec![TypeAnnotationNode::Proposal, TypeAnnotationNode::Vote],
+            return_type: TypeAnnotationNode::Bool,
+        });
+        
+        // Utility functions
+        self.function_table.insert("length".to_string(), FunctionSignature {
+            name: "length".to_string(),
+            params: vec![TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Custom("T".to_string())))],
+            return_type: TypeAnnotationNode::Integer,
+        });
     }
 
-    fn push_scope(&mut self) {
-        self.symbol_table_stack.push(HashMap::new());
-    }
-
-    fn pop_scope(&mut self) {
-        self.symbol_table_stack.pop();
-    }
-
-    fn insert_symbol(&mut self, name: String, symbol: Symbol) -> Result<(), CclError> {
-        let scope = self
-            .symbol_table_stack
-            .last_mut()
-            .expect("scope stack should not be empty");
-        if scope.contains_key(&name) {
-            return Err(CclError::SemanticError(format!(
-                "Symbol `{}` already defined in this scope",
-                name
-            )));
-        }
-        scope.insert(name, symbol);
-        Ok(())
-    }
-
-    fn lookup_symbol(&self, name: &str) -> Option<&Symbol> {
-        for scope in self.symbol_table_stack.iter().rev() {
-            if let Some(sym) = scope.get(name) {
-                return Some(sym);
+    /// Analyze the entire AST for semantic correctness
+    pub fn analyze(&mut self, ast: &AstNode) -> Result<(), Vec<CclError>> {
+        match self.analyze_node(ast) {
+            Ok(()) => {
+                if self.errors.is_empty() {
+                    Ok(())
+                } else {
+                    Err(std::mem::take(&mut self.errors))
+                }
+            }
+            Err(err) => {
+                self.errors.push(err);
+                Err(std::mem::take(&mut self.errors))
             }
         }
-        None
     }
 
-    fn lookup_symbol_mut(&mut self, name: &str) -> Option<&mut Symbol> {
-        for scope in self.symbol_table_stack.iter_mut().rev() {
-            if let Some(sym) = scope.get_mut(name) {
-                return Some(sym);
-            }
-        }
-        None
-    }
-
-    fn visit_node(&mut self, node: &AstNode) -> Result<(), CclError> {
+    /// Analyze a specific AST node
+    fn analyze_node(&mut self, node: &AstNode) -> Result<(), CclError> {
         match node {
+            AstNode::Program(nodes) => {
+                for node in nodes {
+                    match node {
+                        crate::ast::TopLevelNode::Import(_) => {
+                            // Import validation would be done during parsing/linking
+                        }
+                        crate::ast::TopLevelNode::Contract(contract) => {
+                            self.analyze_contract(contract)?;
+                        }
+                    }
+                }
+            }
             AstNode::Policy(statements) => {
                 for stmt in statements {
-                    self.visit_policy_statement(stmt)?;
+                    self.analyze_policy_statement(stmt)?;
                 }
             }
-            AstNode::FunctionDefinition {
-                name,
-                parameters,
-                return_type,
-                body,
-            } => {
-                // register function in global scope
-                self.insert_symbol(
-                    name.clone(),
-                    Symbol::Function {
-                        params: parameters.iter().map(|p| p.type_ann.clone()).collect(),
-                        return_type: return_type.clone(),
-                    },
-                )?;
-
-                let prev_return = self.current_return_type.clone();
-                self.current_return_type = Some(return_type.clone());
-                self.push_scope();
-                for param in parameters {
-                    self.insert_symbol(
-                        param.name.clone(),
-                        Symbol::Variable {
-                            type_ann: param.type_ann.clone(),
-                        },
-                    )?;
-                }
-                let mut has_return = false;
-                self.visit_block(body, &mut has_return)?;
-                if !has_return {
-                    return Err(CclError::SemanticError(format!(
-                        "Function `{}` is missing return statement",
-                        name
-                    )));
-                }
-                self.pop_scope();
-                self.current_return_type = prev_return;
+            AstNode::FunctionDefinition { name, parameters, return_type, body } => {
+                self.analyze_function_definition(name, parameters, return_type.as_ref(), body)?;
             }
             AstNode::StructDefinition { name, fields } => {
-                self.insert_symbol(
-                    name.clone(),
-                    Symbol::Variable {
-                        type_ann: TypeAnnotationNode::Custom("struct".to_string()),
-                    },
-                )?;
-                self.push_scope();
-                for field in fields {
-                    self.insert_symbol(
-                        field.name.clone(),
-                        Symbol::Variable {
-                            type_ann: field.type_ann.clone(),
-                        },
-                    )?;
-                }
-                self.pop_scope();
+                self.analyze_struct_definition(name, fields)?;
             }
-            AstNode::RuleDefinition {
-                name,
-                condition,
-                action,
-            } => {
-                let cond_ty = self.evaluate_expression(condition)?;
-                if cond_ty != TypeAnnotationNode::Bool {
-                    return Err(CclError::TypeError(format!(
-                        "Condition of rule `{}` must be Bool",
-                        name
-                    )));
-                }
-                self.visit_action(action)?;
+            AstNode::ContractDeclaration { name, metadata: _, body } => {
+                self.analyze_contract_body(name, body)?;
             }
             AstNode::Block(block) => {
-                let mut _has_ret = false;
-                self.visit_block(block, &mut _has_ret)?;
+                self.analyze_block(block)?;
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    fn analyze_contract(&mut self, contract: &ContractDeclarationNode) -> Result<(), CclError> {
+        // Enter contract scope
+        self.enter_scope();
+        
+        // Analyze contract body
+        for item in &contract.body {
+            match item {
+                crate::ast::ContractBodyNode::Role(role) => {
+                    self.analyze_role(role)?;
+                }
+                crate::ast::ContractBodyNode::Proposal(proposal) => {
+                    self.analyze_proposal(proposal)?;
+                }
+                crate::ast::ContractBodyNode::Function(func) => {
+                    self.analyze_function_definition(&func.name, &func.parameters, func.return_type.as_ref(), &func.body)?;
+                }
+                crate::ast::ContractBodyNode::State(state) => {
+                    self.analyze_state_declaration(state)?;
+                }
+                crate::ast::ContractBodyNode::Struct(struct_def) => {
+                    self.analyze_struct_definition(&struct_def.name, &struct_def.fields)?;
+                }
+                crate::ast::ContractBodyNode::Enum(enum_def) => {
+                    self.analyze_enum_definition(enum_def)?;
+                }
+                crate::ast::ContractBodyNode::Const(const_def) => {
+                    self.analyze_const_declaration(const_def)?;
+                }
+            }
+        }
+        
+        // Exit contract scope
+        self.exit_scope();
+        
+        Ok(())
+    }
+
+    fn analyze_role(&mut self, _role: &RoleDeclarationNode) -> Result<(), CclError> {
+        // Role analysis - mostly syntactic validation
+        // Could add permission validation logic here
+        Ok(())
+    }
+
+    fn analyze_proposal(&mut self, proposal: &ProposalDeclarationNode) -> Result<(), CclError> {
+        // Analyze proposal fields
+        for field in &proposal.fields {
+            match field {
+                crate::ast::ProposalFieldNode::Execution(block) => {
+                    self.analyze_block(block)?;
+                }
+                _ => {
+                    // Other fields are mostly metadata
+                }
             }
         }
         Ok(())
     }
 
-    fn visit_policy_statement(
+    fn analyze_function_definition(
         &mut self,
-        stmt: &crate::ast::PolicyStatementNode,
+        name: &str,
+        parameters: &[ParameterNode],
+        return_type: Option<&TypeExprNode>,
+        body: &BlockNode,
     ) -> Result<(), CclError> {
-        match stmt {
-            crate::ast::PolicyStatementNode::FunctionDef(func_def_node) => {
-                self.visit_node(func_def_node)?;
+        // Register function in function table
+        let return_type_ann = return_type
+            .map(|rt| rt.to_type_annotation())
+            .unwrap_or(TypeAnnotationNode::Custom("void".to_string()));
+            
+        self.function_table.insert(name.to_string(), FunctionSignature {
+            name: name.to_string(),
+            params: parameters.iter().map(|p| p.type_expr.to_type_annotation()).collect(),
+            return_type: return_type_ann.clone(),
+        });
+
+        // Enter function scope
+        self.enter_scope();
+        self.current_return_type = Some(return_type_ann);
+
+        // Add parameters to symbol table
+        for param in parameters {
+            self.symbol_table.insert(param.name.clone(), Symbol {
+                name: param.name.clone(),
+                symbol_type: param.type_expr.to_type_annotation(),
+                is_mutable: false,
+                scope_level: self.current_scope_level,
+            });
+        }
+
+        // Analyze function body
+        self.analyze_block(body)?;
+
+        // Exit function scope
+        self.exit_scope();
+        self.current_return_type = None;
+
+        Ok(())
+    }
+
+    fn analyze_struct_definition(&mut self, name: &str, fields: &[FieldNode]) -> Result<(), CclError> {
+        // Validate field names are unique
+        let mut field_names = std::collections::HashSet::new();
+        for field in fields {
+            if !field_names.insert(&field.name) {
+                return Err(CclError::DuplicateFieldError {
+                    struct_name: name.to_string(),
+                    field_name: field.name.clone(),
+                });
             }
-            crate::ast::PolicyStatementNode::RuleDef(rule_def_node) => {
-                self.visit_node(rule_def_node)?;
-            }
-            crate::ast::PolicyStatementNode::Import { path, alias } => {
-                // For now, simply record the alias as a custom type symbol so later references
-                // to the imported name pass basic semantic checks. A full implementation would
-                // load and analyze the referenced module.
-                self.insert_symbol(
-                    alias.clone(),
-                    Symbol::Variable {
-                        type_ann: TypeAnnotationNode::Custom(format!("import<{path}>",)),
-                    },
-                )?
-            }
-            crate::ast::PolicyStatementNode::StructDef(def) => {
-                self.visit_node(def)?;
-            }
-            PolicyStatementNode::ConstDef {
-                name,
-                value,
-                type_ann,
-            } => {
-                let expr_type = self.evaluate_expression(value)?;
-                if !expr_type.compatible_with(type_ann) {
-                    return Err(CclError::TypeError(format!(
-                        "Constant {} type mismatch: expected {:?}, found {:?}",
-                        name, type_ann, expr_type
-                    )));
+        }
+
+        // Register struct type
+        let struct_type = TypeAnnotationNode::Custom(name.to_string());
+        self.symbol_table.insert(name.to_string(), Symbol {
+            name: name.to_string(),
+            symbol_type: struct_type,
+            is_mutable: false,
+            scope_level: self.current_scope_level,
+        });
+
+        Ok(())
+    }
+
+    fn analyze_enum_definition(&mut self, enum_def: &EnumDefinitionNode) -> Result<(), CclError> {
+        // Register enum type
+        let enum_type = TypeAnnotationNode::Custom(enum_def.name.clone());
+        self.symbol_table.insert(enum_def.name.clone(), Symbol {
+            name: enum_def.name.clone(),
+                            symbol_type: enum_type,
+            is_mutable: false,
+            scope_level: self.current_scope_level,
+        });
+
+        // Register enum variants
+        for variant in &enum_def.variants {
+            let variant_type = if variant.type_expr.is_some() {
+                // Constructor function
+                TypeAnnotationNode::Custom(format!("{}::{}", enum_def.name, variant.name))
+            } else {
+                // Unit variant
+                enum_type.clone()
+            };
+            
+            self.symbol_table.insert(
+                format!("{}::{}", enum_def.name, variant.name),
+                Symbol {
+                    name: format!("{}::{}", enum_def.name, variant.name),
+                    symbol_type: variant_type,
+                    is_mutable: false,
+                    scope_level: self.current_scope_level,
                 }
-                self.insert_symbol(
-                    name.clone(),
-                    Symbol::Variable {
-                        type_ann: type_ann.clone(),
-                    },
-                )?;
+            );
+        }
+
+        Ok(())
+    }
+
+    fn analyze_state_declaration(&mut self, state: &StateDeclarationNode) -> Result<(), CclError> {
+        // Check initial value type if present
+        if let Some(ref initial_value) = state.initial_value {
+            let value_type = self.evaluate_expression(initial_value)?;
+            let expected_type = state.type_expr.to_type_annotation();
+            
+            if !value_type.compatible_with(&expected_type) {
+                return Err(CclError::TypeMismatchError {
+                    expected: expected_type,
+                    found: value_type,
+                });
             }
-            PolicyStatementNode::MacroDef { name, .. } => {
-                // Macros are compile-time constructs, just register the name
-                self.insert_symbol(
-                    name.clone(),
-                    Symbol::Variable {
-                        type_ann: TypeAnnotationNode::Custom("Macro".to_string()),
-                    },
-                )?;
-            }
-            // Handle governance DSL statements
-            PolicyStatementNode::EventDef { name, fields } => {
-                // Register event definition
-                self.insert_symbol(
-                    name.clone(),
-                    Symbol::Variable {
-                        type_ann: TypeAnnotationNode::Custom("Event".to_string()),
-                    },
-                )?;
-                // Validate field types - basic validation
-                for (_field_name, _field_type) in fields {
-                    // TODO: Add proper type validation
+        }
+
+        // Register state variable
+        self.symbol_table.insert(state.name.clone(), Symbol {
+            name: state.name.clone(),
+            symbol_type: state.type_expr.to_type_annotation(),
+            is_mutable: true, // State variables are mutable by default
+            scope_level: self.current_scope_level,
+        });
+
+        Ok(())
+    }
+
+    fn analyze_const_declaration(&mut self, const_def: &ConstDeclarationNode) -> Result<(), CclError> {
+        // Check value type
+        let value_type = self.evaluate_expression(&const_def.value)?;
+        let expected_type = const_def.type_expr.to_type_annotation();
+        
+        if !value_type.compatible_with(&expected_type) {
+            return Err(CclError::TypeMismatchError {
+                expected: expected_type,
+                found: value_type,
+            });
+        }
+
+        // Register constant
+        self.symbol_table.insert(const_def.name.clone(), Symbol {
+            name: const_def.name.clone(),
+            symbol_type: expected_type,
+            is_mutable: false,
+            scope_level: self.current_scope_level,
+        });
+
+        Ok(())
+    }
+
+    fn analyze_contract_body(&mut self, _name: &str, body: &[crate::ast::ContractBodyNode]) -> Result<(), CclError> {
+        for item in body {
+            match item {
+                crate::ast::ContractBodyNode::Function(func) => {
+                    self.analyze_function_definition(&func.name, &func.parameters, func.return_type.as_ref(), &func.body)?;
                 }
-            }
-            PolicyStatementNode::StateDef {
-                name,
-                type_ann,
-                initial_value,
-            } => {
-                // Register state variable
-                self.insert_symbol(
-                    name.clone(),
-                    Symbol::Variable {
-                        type_ann: type_ann.clone(),
-                    },
-                )?;
-                // Validate initial value if present
-                if let Some(init_value) = initial_value {
-                    let _value_type = self.evaluate_expression(init_value)?;
-                    // TODO: Add type compatibility check
+                _ => {
+                    // Other items analyzed separately
                 }
-            }
-            PolicyStatementNode::TriggerDef {
-                name,
-                condition,
-                action,
-            } => {
-                // Register trigger
-                self.insert_symbol(
-                    name.clone(),
-                    Symbol::Variable {
-                        type_ann: TypeAnnotationNode::Custom("Trigger".to_string()),
-                    },
-                )?;
-                // Validate condition and action
-                let _condition_type = self.evaluate_expression(condition)?;
-                self.evaluate_expression(action)?;
             }
         }
         Ok(())
     }
 
-    fn visit_block(&mut self, block: &BlockNode, found_return: &mut bool) -> Result<(), CclError> {
-        self.push_scope();
+    fn analyze_policy_statement(&mut self, stmt: &PolicyStatementNode) -> Result<(), CclError> {
+        match stmt {
+            PolicyStatementNode::FunctionDef(func_ast) => {
+                if let AstNode::FunctionDefinition { name, parameters, return_type, body } = func_ast {
+                    self.analyze_function_definition(name, parameters, return_type.as_ref(), body)?;
+                }
+            }
+            PolicyStatementNode::StructDef(struct_ast) => {
+                if let AstNode::StructDefinition { name, fields } = struct_ast {
+                    self.analyze_struct_definition(name, fields)?;
+                }
+            }
+            PolicyStatementNode::ConstDef { name, value, type_ann } => {
+                let value_type = self.evaluate_expression(value)?;
+                if !value_type.compatible_with(type_ann) {
+                    return Err(CclError::TypeMismatchError {
+                        expected: type_ann.clone(),
+                        found: value_type,
+                    });
+                }
+                self.symbol_table.insert(name.clone(), Symbol {
+                    name: name.clone(),
+                    symbol_type: type_ann.clone(),
+                    is_mutable: false,
+                    scope_level: self.current_scope_level,
+                });
+            }
+            _ => {
+                // Other statements don't need special analysis
+            }
+        }
+        Ok(())
+    }
+
+    fn analyze_block(&mut self, block: &BlockNode) -> Result<(), CclError> {
+        self.enter_scope();
+        
         for stmt in &block.statements {
-            self.visit_statement(stmt, found_return)?;
+            self.analyze_statement(stmt)?;
         }
-        self.pop_scope();
+        
+        self.exit_scope();
         Ok(())
     }
 
-    fn visit_statement(
-        &mut self,
-        stmt: &StatementNode,
-        found_return: &mut bool,
-    ) -> Result<(), CclError> {
+    fn analyze_statement(&mut self, stmt: &StatementNode) -> Result<(), CclError> {
         match stmt {
-            StatementNode::Let { name, value } => {
-                let ty = self.evaluate_expression(value)?;
-                if let Some(Symbol::Variable { type_ann }) = self.lookup_symbol_mut(name) {
-                    if !ty.compatible_with(type_ann) {
-                        return Err(CclError::TypeError(format!(
-                            "Assignment type mismatch: expected {:?}, got {:?}",
-                            type_ann, ty
-                        )));
-                    }
-                    *type_ann = ty;
+            StatementNode::Let { mutable, name, type_expr, value } => {
+                let value_type = self.evaluate_expression(value)?;
+                
+                let expected_type = if let Some(type_expr) = type_expr {
+                    type_expr.to_type_annotation()
                 } else {
-                    self.insert_symbol(name.clone(), Symbol::Variable { type_ann: ty })?;
+                    value_type.clone()
+                };
+
+                if !value_type.compatible_with(&expected_type) {
+                    return Err(CclError::TypeMismatchError {
+                        expected: expected_type.clone(),
+                        found: value_type,
+                    });
+                }
+
+                self.symbol_table.insert(name.clone(), Symbol {
+                    name: name.clone(),
+                    symbol_type: expected_type,
+                    is_mutable: *mutable,
+                    scope_level: self.current_scope_level,
+                });
+            }
+            StatementNode::Assignment { lvalue, value } => {
+                let value_type = self.evaluate_expression(value)?;
+                let lvalue_type = self.evaluate_lvalue(lvalue)?;
+                
+                if !value_type.compatible_with(&lvalue_type) {
+                    return Err(CclError::TypeMismatchError {
+                        expected: lvalue_type,
+                        found: value_type,
+                    });
+                }
+            }
+            StatementNode::If { condition, then_block, else_ifs, else_block } => {
+                let cond_type = self.evaluate_expression(condition)?;
+                if !matches!(cond_type, TypeAnnotationNode::Bool) {
+                    return Err(CclError::TypeMismatchError {
+                        expected: TypeAnnotationNode::Bool,
+                        found: cond_type,
+                    });
+                }
+
+                self.analyze_block(then_block)?;
+                
+                for (elif_cond, elif_block) in else_ifs {
+                    let elif_cond_type = self.evaluate_expression(elif_cond)?;
+                    if !matches!(elif_cond_type, TypeAnnotationNode::Bool) {
+                        return Err(CclError::TypeMismatchError {
+                            expected: TypeAnnotationNode::Bool,
+                            found: elif_cond_type,
+                        });
+                    }
+                    self.analyze_block(elif_block)?;
+                }
+                
+                if let Some(else_blk) = else_block {
+                    self.analyze_block(else_blk)?;
+                }
+            }
+            StatementNode::While { condition, body } => {
+                let cond_type = self.evaluate_expression(condition)?;
+                if !matches!(cond_type, TypeAnnotationNode::Bool) {
+                    return Err(CclError::TypeMismatchError {
+                        expected: TypeAnnotationNode::Bool,
+                        found: cond_type,
+                    });
+                }
+                self.analyze_block(body)?;
+            }
+            StatementNode::For { iterator: _, iterable, body } => {
+                let _iterable_type = self.evaluate_expression(iterable)?;
+                // TODO: Validate iterable is actually iterable
+                self.analyze_block(body)?;
+            }
+            StatementNode::Match { expr, arms } => {
+                let expr_type = self.evaluate_expression(expr)?;
+                
+                for arm in arms {
+                    // TODO: Pattern type checking
+                    match &arm.body {
+                        crate::ast::Either::Left(expr) => {
+                            self.evaluate_expression(expr)?;
+                        }
+                        crate::ast::Either::Right(block) => {
+                            self.analyze_block(block)?;
+                        }
+                    }
+                }
+            }
+            StatementNode::Return(expr) => {
+                if let Some(expr) = expr {
+                    let expr_type = self.evaluate_expression(expr)?;
+                    if let Some(expected_return_type) = &self.current_return_type {
+                        if !expr_type.compatible_with(expected_return_type) {
+                            return Err(CclError::TypeMismatchError {
+                                expected: expected_return_type.clone(),
+                                found: expr_type,
+                            });
+                        }
+                    }
+                }
+            }
+            StatementNode::Emit { event_name: _, fields } => {
+                for field in fields {
+                    self.evaluate_expression(&field.value)?;
+                }
+            }
+            StatementNode::Require(expr) => {
+                let expr_type = self.evaluate_expression(expr)?;
+                if !matches!(expr_type, TypeAnnotationNode::Bool) {
+                    return Err(CclError::TypeMismatchError {
+                        expected: TypeAnnotationNode::Bool,
+                        found: expr_type,
+                    });
                 }
             }
             StatementNode::ExpressionStatement(expr) => {
                 self.evaluate_expression(expr)?;
             }
-            StatementNode::Return(expr) => {
-                let expr_ty = self.evaluate_expression(expr)?;
-                let expected = self.current_return_type.clone().ok_or_else(|| {
-                    CclError::InternalCompilerError("Return outside function".to_string())
-                })?;
-                if !expr_ty.compatible_with(&expected) {
-                    return Err(CclError::TypeError(format!(
-                        "Return type mismatch: expected {:?}, got {:?}",
-                        expected, expr_ty
-                    )));
-                }
-                *found_return = true;
-            }
-            StatementNode::If {
-                condition,
-                then_block,
-                else_block,
-            } => {
-                let cond_ty = self.evaluate_expression(condition)?;
-                if cond_ty != TypeAnnotationNode::Bool {
-                    return Err(CclError::TypeError("If condition must be Bool".to_string()));
-                }
-                self.visit_block(then_block, found_return)?;
-                if let Some(b) = else_block {
-                    self.visit_block(b, found_return)?;
-                }
-            }
+            // Legacy statements
             StatementNode::WhileLoop { condition, body } => {
-                let cond_ty = self.evaluate_expression(condition)?;
-                if cond_ty != TypeAnnotationNode::Bool {
-                    return Err(CclError::TypeError(
-                        "While condition must be Bool".to_string(),
-                    ));
+                let cond_type = self.evaluate_expression(condition)?;
+                if !matches!(cond_type, TypeAnnotationNode::Bool) {
+                    return Err(CclError::TypeMismatchError {
+                        expected: TypeAnnotationNode::Bool,
+                        found: cond_type,
+                    });
                 }
-                self.visit_block(body, found_return)?;
+                self.analyze_block(body)?;
             }
-            StatementNode::ForLoop {
-                iterator,
-                iterable,
-                body,
-            } => {
-                let iter_ty = self.evaluate_expression(iterable)?;
-                let elem_ty = match iter_ty {
-                    TypeAnnotationNode::Array(inner) => *inner,
-                    _ => {
-                        return Err(CclError::TypeError(
-                            "For loop iterable must be an Array".to_string(),
-                        ))
-                    }
-                };
-                self.push_scope();
-                self.insert_symbol(iterator.clone(), Symbol::Variable { type_ann: elem_ty })?;
-                self.visit_block(body, found_return)?;
-                self.pop_scope();
+            StatementNode::ForLoop { iterator: _, iterable, body } => {
+                let _iterable_type = self.evaluate_expression(iterable)?;
+                self.analyze_block(body)?;
             }
             StatementNode::Break | StatementNode::Continue => {
-                // Validity checked during parsing; nothing else to do
+                // Control flow statements don't need type checking
             }
         }
         Ok(())
     }
 
-    fn visit_action(&mut self, action: &ActionNode) -> Result<(), CclError> {
-        match action {
-            ActionNode::Allow | ActionNode::Deny => Ok(()),
-            ActionNode::Charge(expr) => {
-                let ty = self.evaluate_expression(expr)?;
-                if ty != TypeAnnotationNode::Integer && ty != TypeAnnotationNode::Mana {
-                    return Err(CclError::TypeError(
-                        "Charge amount must be Integer or Mana".to_string(),
-                    ));
+    fn evaluate_lvalue(&mut self, lvalue: &LValueNode) -> Result<TypeAnnotationNode, CclError> {
+        match lvalue {
+            LValueNode::Identifier(name) => {
+                if let Some(symbol) = self.symbol_table.get(name) {
+                    if !symbol.is_mutable {
+                        return Err(CclError::ImmutableAssignmentError {
+                            variable: name.clone(),
+                        });
+                    }
+                    Ok(symbol.symbol_type.clone())
+                } else {
+                    Err(CclError::UndefinedVariableError {
+                        variable: name.clone(),
+                    })
                 }
-                Ok(())
+            }
+            LValueNode::MemberAccess { object, member } => {
+                let object_type = self.evaluate_expression(object)?;
+                // TODO: Implement struct member type lookup
+                Ok(TypeAnnotationNode::Custom("member".to_string()))
+            }
+            LValueNode::IndexAccess { object, index } => {
+                let object_type = self.evaluate_expression(object)?;
+                let index_type = self.evaluate_expression(index)?;
+                
+                if !matches!(index_type, TypeAnnotationNode::Integer) {
+                    return Err(CclError::TypeMismatchError {
+                        expected: TypeAnnotationNode::Integer,
+                        found: index_type,
+                    });
+                }
+                
+                match object_type {
+                    TypeAnnotationNode::Array(element_type) => Ok(*element_type),
+                    _ => Err(CclError::TypeMismatchError {
+                        expected: TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Custom("T".to_string()))),
+                        found: object_type,
+                    }),
+                }
             }
         }
     }
 
+    /// Evaluate the type of an expression
     fn evaluate_expression(
         &mut self,
         expr: &ExpressionNode,
     ) -> Result<TypeAnnotationNode, CclError> {
         match expr {
-            ExpressionNode::IntegerLiteral(_) => Ok(TypeAnnotationNode::Integer),
-            ExpressionNode::BooleanLiteral(_) => Ok(TypeAnnotationNode::Bool),
-            ExpressionNode::StringLiteral(_) => Ok(TypeAnnotationNode::String),
+            ExpressionNode::Literal(lit) => Ok(self.literal_type(lit)),
+            ExpressionNode::Identifier(name) => {
+                if let Some(symbol) = self.symbol_table.get(name) {
+                    Ok(symbol.symbol_type.clone())
+                } else {
+                    Err(CclError::UndefinedVariableError {
+                        variable: name.clone(),
+                    })
+                }
+            }
+            ExpressionNode::BinaryOp { left, operator, right } => {
+                let left_type = self.evaluate_expression(left)?;
+                let right_type = self.evaluate_expression(right)?;
+                self.check_binary_op(&left_type, operator, &right_type)
+            }
+            ExpressionNode::UnaryOp { operator, operand } => {
+                let operand_type = self.evaluate_expression(operand)?;
+                self.check_unary_op(operator, &operand_type)
+            }
+            ExpressionNode::FunctionCall { name, args } => {
+                if let Some(signature) = self.function_table.get(name) {
+                    if args.len() != signature.params.len() {
+                        return Err(CclError::ArgumentCountMismatchError {
+                            function: name.clone(),
+                            expected: signature.params.len(),
+                            found: args.len(),
+                        });
+                    }
+                    
+                    for (arg, expected_type) in args.iter().zip(&signature.params) {
+                        let arg_type = self.evaluate_expression(arg)?;
+                        if !arg_type.compatible_with(expected_type) {
+                            return Err(CclError::TypeMismatchError {
+                                expected: expected_type.clone(),
+                                found: arg_type,
+                            });
+                        }
+                    }
+                    
+                    Ok(signature.return_type.clone())
+                } else {
+                    Err(CclError::UndefinedFunctionError {
+                        function: name.clone(),
+                    })
+                }
+            }
             ExpressionNode::ArrayLiteral(elements) => {
                 if elements.is_empty() {
-                    return Err(CclError::SemanticError(
-                        "Empty arrays are not supported".to_string(),
-                    ));
-                }
-
-                let first_type = self.evaluate_expression(&elements[0])?;
-                for element in elements.iter().skip(1) {
-                    let elem_type = self.evaluate_expression(element)?;
-                    if !elem_type.compatible_with(&first_type) {
-                        return Err(CclError::TypeError(format!(
-                            "Array elements must be of same type: expected {:?}, got {:?}",
-                            first_type, elem_type
-                        )));
+                    Ok(TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Custom("unknown".to_string()))))
+                } else {
+                    let first_type = self.evaluate_expression(&elements[0])?;
+                    for element in &elements[1..] {
+                        let element_type = self.evaluate_expression(element)?;
+                        if !element_type.compatible_with(&first_type) {
+                            return Err(CclError::TypeMismatchError {
+                                expected: first_type,
+                                found: element_type,
+                            });
+                        }
                     }
+                    Ok(TypeAnnotationNode::Array(Box::new(first_type)))
                 }
-                Ok(TypeAnnotationNode::Array(Box::new(first_type)))
             }
-            ExpressionNode::ArrayAccess { array, index } => {
-                let array_type = self.evaluate_expression(array)?;
+            ExpressionNode::StructLiteral { type_name, fields } => {
+                // TODO: Validate struct fields against struct definition
+                Ok(TypeAnnotationNode::Custom(type_name.clone()))
+            }
+            ExpressionNode::MemberAccess { object, member } => {
+                let _object_type = self.evaluate_expression(object)?;
+                // TODO: Implement proper member type lookup
+                Ok(TypeAnnotationNode::Custom("member".to_string()))
+            }
+            ExpressionNode::IndexAccess { object, index } => {
+                let object_type = self.evaluate_expression(object)?;
                 let index_type = self.evaluate_expression(index)?;
-
-                if !index_type.is_numeric() {
-                    return Err(CclError::TypeError(
-                        "Array index must be numeric".to_string(),
-                    ));
+                
+                if !matches!(index_type, TypeAnnotationNode::Integer) {
+                    return Err(CclError::TypeMismatchError {
+                        expected: TypeAnnotationNode::Integer,
+                        found: index_type,
+                    });
                 }
-
-                match array_type {
+                
+                match object_type {
                     TypeAnnotationNode::Array(element_type) => Ok(*element_type),
-                    _ => Err(CclError::TypeError(format!(
-                        "Cannot index into non-array type: {:?}",
-                        array_type
-                    ))),
+                    _ => Err(CclError::TypeMismatchError {
+                        expected: TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Custom("T".to_string()))),
+                        found: object_type,
+                    }),
                 }
             }
-            ExpressionNode::SomeExpr(inner) => {
+            ExpressionNode::Some(inner) => {
                 let inner_type = self.evaluate_expression(inner)?;
                 Ok(TypeAnnotationNode::Option(Box::new(inner_type)))
             }
-            ExpressionNode::NoneExpr => Ok(TypeAnnotationNode::Option(Box::new(
-                TypeAnnotationNode::Custom("Unknown".to_string()),
+            ExpressionNode::None => Ok(TypeAnnotationNode::Option(Box::new(
+                TypeAnnotationNode::Custom("unknown".to_string())
             ))),
-            ExpressionNode::OkExpr(inner) => {
+            ExpressionNode::Ok(inner) => {
                 let inner_type = self.evaluate_expression(inner)?;
                 Ok(TypeAnnotationNode::Result {
                     ok_type: Box::new(inner_type),
-                    err_type: Box::new(TypeAnnotationNode::String),
+                    err_type: Box::new(TypeAnnotationNode::Custom("unknown".to_string())),
                 })
             }
-            ExpressionNode::ErrExpr(inner) => {
+            ExpressionNode::Err(inner) => {
                 let inner_type = self.evaluate_expression(inner)?;
                 Ok(TypeAnnotationNode::Result {
-                    ok_type: Box::new(TypeAnnotationNode::Custom("Unknown".to_string())),
+                    ok_type: Box::new(TypeAnnotationNode::Custom("unknown".to_string())),
                     err_type: Box::new(inner_type),
                 })
             }
-            ExpressionNode::RequireProof(inner) => {
-                let ty = self.evaluate_expression(inner)?;
-                if ty != TypeAnnotationNode::String {
-                    return Err(CclError::TypeError(
-                        "require_proof expects String".to_string(),
-                    ));
+            // Governance expressions
+            ExpressionNode::Transfer { from: _, to: _, amount } => {
+                let amount_type = self.evaluate_expression(amount)?;
+                if !matches!(amount_type, TypeAnnotationNode::Mana | TypeAnnotationNode::Integer) {
+                    return Err(CclError::TypeMismatchError {
+                        expected: TypeAnnotationNode::Mana,
+                        found: amount_type,
+                    });
                 }
                 Ok(TypeAnnotationNode::Bool)
             }
-            ExpressionNode::Match { value, arms } => {
-                let _ = self.evaluate_expression(value)?;
-                let mut branch_ty: Option<TypeAnnotationNode> = None;
-                for (_, expr) in arms {
-                    let t = self.evaluate_expression(expr)?;
-                    if let Some(existing) = &branch_ty {
-                        if !existing.compatible_with(&t) {
-                            return Err(CclError::TypeError("Match arm type mismatch".to_string()));
-                        }
-                    } else {
-                        branch_ty = Some(t);
-                    }
+            ExpressionNode::Mint { to: _, amount } => {
+                let amount_type = self.evaluate_expression(amount)?;
+                if !matches!(amount_type, TypeAnnotationNode::Mana | TypeAnnotationNode::Integer) {
+                    return Err(CclError::TypeMismatchError {
+                        expected: TypeAnnotationNode::Mana,
+                        found: amount_type,
+                    });
                 }
-                Ok(branch_ty.unwrap_or(TypeAnnotationNode::Integer))
+                Ok(TypeAnnotationNode::Bool)
             }
-            ExpressionNode::TryExpr { expr, catch_arm } => {
-                let expr_type = self.evaluate_expression(expr)?;
-                if let Some(catch_expr) = catch_arm {
-                    let catch_type = self.evaluate_expression(catch_expr)?;
-                    // TODO: unify types for try expressions once the type system
-                    // supports proper union evaluation. The catch arm currently
-                    // does not influence the resulting type.
-                    let _ = catch_type;
-                    Ok(expr_type)
-                } else {
-                    Ok(expr_type)
+            ExpressionNode::Burn { from: _, amount } => {
+                let amount_type = self.evaluate_expression(amount)?;
+                if !matches!(amount_type, TypeAnnotationNode::Mana | TypeAnnotationNode::Integer) {
+                    return Err(CclError::TypeMismatchError {
+                        expected: TypeAnnotationNode::Mana,
+                        found: amount_type,
+                    });
                 }
+                Ok(TypeAnnotationNode::Bool)
             }
-            ExpressionNode::Identifier(name) => match self.lookup_symbol(name) {
-                Some(Symbol::Variable { type_ann }) => Ok(type_ann.clone()),
-                Some(Symbol::Function { .. }) => Err(CclError::TypeError(format!(
-                    "Function `{}` used without call",
-                    name
-                ))),
-                None => Err(CclError::SemanticError(format!(
-                    "Undefined identifier `{}`",
-                    name
-                ))),
-            },
-            ExpressionNode::FunctionCall { name, arguments } => match name.as_str() {
-                "array_len" => {
-                    if arguments.len() != 1 {
-                        return Err(CclError::TypeError("array_len expects one argument".into()));
-                    }
-                    let arr_ty = self.evaluate_expression(&arguments[0])?;
-                    match arr_ty {
-                        TypeAnnotationNode::Array(_) => Ok(TypeAnnotationNode::Integer),
-                        _ => Err(CclError::TypeError("array_len requires array".into())),
-                    }
+            // Legacy expressions
+            ExpressionNode::IntegerLiteral(_) => Ok(TypeAnnotationNode::Integer),
+            ExpressionNode::StringLiteral(_) => Ok(TypeAnnotationNode::String),
+            ExpressionNode::BooleanLiteral(_) => Ok(TypeAnnotationNode::Bool),
+            ExpressionNode::ArrayAccess { array, index } => {
+                let array_type = self.evaluate_expression(array)?;
+                let index_type = self.evaluate_expression(index)?;
+                
+                if !matches!(index_type, TypeAnnotationNode::Integer) {
+                    return Err(CclError::TypeMismatchError {
+                        expected: TypeAnnotationNode::Integer,
+                        found: index_type,
+                    });
                 }
-                "array_push" => {
-                    if arguments.len() != 2 {
-                        return Err(CclError::TypeError(
-                            "array_push expects two arguments".into(),
-                        ));
-                    }
-                    let arr_ty = self.evaluate_expression(&arguments[0])?;
-                    let val_ty = self.evaluate_expression(&arguments[1])?;
-                    match arr_ty {
-                        TypeAnnotationNode::Array(elem_ty) => {
-                            if !val_ty.compatible_with(&elem_ty) {
-                                Err(CclError::TypeError("push type mismatch".into()))
-                            } else {
-                                Ok(TypeAnnotationNode::Integer)
-                            }
-                        }
-                        _ => Err(CclError::TypeError("array_push requires array".into())),
-                    }
-                }
-                "array_pop" => {
-                    if arguments.len() != 1 {
-                        return Err(CclError::TypeError("array_pop expects one argument".into()));
-                    }
-                    let arr_ty = self.evaluate_expression(&arguments[0])?;
-                    match arr_ty {
-                        TypeAnnotationNode::Array(elem_ty) => Ok(*elem_ty),
-                        _ => Err(CclError::TypeError("array_pop requires array".into())),
-                    }
-                }
-                _ => {
-                    let symbol = self.lookup_symbol(name).cloned();
-                    match symbol {
-                        Some(Symbol::Function {
-                            params,
-                            return_type,
-                        }) => {
-                            if params.len() != arguments.len() {
-                                return Err(CclError::TypeError(format!(
-                                    "Function `{}` expects {} arguments, got {}",
-                                    name,
-                                    params.len(),
-                                    arguments.len()
-                                )));
-                            }
-                            for (arg_expr, param_ty) in arguments.iter().zip(params.iter()) {
-                                let arg_ty = self.evaluate_expression(arg_expr)?;
-                                if !arg_ty.compatible_with(param_ty) {
-                                    return Err(CclError::TypeError(format!(
-                                        "Argument type mismatch for `{}`: expected {:?}, got {:?}",
-                                        name, param_ty, arg_ty
-                                    )));
-                                }
-                            }
-                            Ok(return_type.clone())
-                        }
-                        Some(Symbol::Variable { .. }) => Err(CclError::TypeError(format!(
-                            "Variable `{}` used as function",
-                            name
-                        ))),
-                        None => Err(CclError::SemanticError(format!(
-                            "Undefined function `{}`",
-                            name
-                        ))),
-                    }
-                }
-            },
-            ExpressionNode::BinaryOp {
-                left,
-                operator,
-                right,
-            } => {
-                let l = self.evaluate_expression(left)?;
-                let r = self.evaluate_expression(right)?;
-                match operator {
-                    BinaryOperator::Add => {
-                        if l.is_numeric() && r.is_numeric() {
-                            Ok(TypeAnnotationNode::Integer)
-                        } else if l == TypeAnnotationNode::String && r == TypeAnnotationNode::String
-                        {
-                            Ok(TypeAnnotationNode::String) // String concatenation
-                        } else {
-                            Err(CclError::TypeError(
-                                "Addition requires Integer operands or String concatenation"
-                                    .to_string(),
-                            ))
-                        }
-                    }
-                    BinaryOperator::Sub | BinaryOperator::Mul | BinaryOperator::Div => {
-                        if l.is_numeric() && r.is_numeric() {
-                            Ok(TypeAnnotationNode::Integer)
-                        } else {
-                            Err(CclError::TypeError(
-                                "Arithmetic operations require Integer operands".to_string(),
-                            ))
-                        }
-                    }
-                    BinaryOperator::Concat => {
-                        if l == TypeAnnotationNode::String && r == TypeAnnotationNode::String {
-                            Ok(TypeAnnotationNode::String)
-                        } else {
-                            Err(CclError::TypeError(
-                                "String concatenation requires String operands".to_string(),
-                            ))
-                        }
-                    }
-                    BinaryOperator::Eq | BinaryOperator::Neq => {
-                        if l.compatible_with(&r) {
-                            Ok(TypeAnnotationNode::Bool)
-                        } else {
-                            Err(CclError::TypeError(
-                                "Equality operands must be of same type".to_string(),
-                            ))
-                        }
-                    }
-                    BinaryOperator::Lt
-                    | BinaryOperator::Gt
-                    | BinaryOperator::Lte
-                    | BinaryOperator::Gte => {
-                        if l.is_numeric() && r.is_numeric() {
-                            Ok(TypeAnnotationNode::Bool)
-                        } else {
-                            Err(CclError::TypeError(
-                                "Comparison operators require Integer operands".to_string(),
-                            ))
-                        }
-                    }
-                    BinaryOperator::And | BinaryOperator::Or => {
-                        if l == TypeAnnotationNode::Bool && r == TypeAnnotationNode::Bool {
-                            Ok(TypeAnnotationNode::Bool)
-                        } else {
-                            Err(CclError::TypeError(
-                                "Logical operators require Bool operands".to_string(),
-                            ))
-                        }
-                    }
-                }
-            }
-            ExpressionNode::MapLiteral(entries) => {
-                if entries.is_empty() {
-                    // For empty maps, we need explicit type annotation from context
-                    return Err(CclError::TypeError(
-                        "Empty map literal requires type annotation".to_string(),
-                    ));
-                }
-
-                // Infer key and value types from first entry
-                let (first_key, first_value) = &entries[0];
-                let key_type = self.evaluate_expression(first_key)?;
-                let value_type = self.evaluate_expression(first_value)?;
-
-                // Verify all entries have compatible types
-                for (key, value) in entries.iter().skip(1) {
-                    let k_type = self.evaluate_expression(key)?;
-                    let v_type = self.evaluate_expression(value)?;
-
-                    if !key_type.compatible_with(&k_type) {
-                        return Err(CclError::TypeError(
-                            "Inconsistent key types in map literal".to_string(),
-                        ));
-                    }
-                    if !value_type.compatible_with(&v_type) {
-                        return Err(CclError::TypeError(
-                            "Inconsistent value types in map literal".to_string(),
-                        ));
-                    }
-                }
-
-                Ok(TypeAnnotationNode::Map {
-                    key_type: Box::new(key_type),
-                    value_type: Box::new(value_type),
-                })
-            }
-            ExpressionNode::MapAccess { map, key } => {
-                let map_type = self.evaluate_expression(map)?;
-                let key_type = self.evaluate_expression(key)?;
-
-                match map_type {
-                    TypeAnnotationNode::Map {
-                        key_type: expected_key,
-                        value_type,
-                    } => {
-                        if key_type.compatible_with(&expected_key) {
-                            Ok(*value_type)
-                        } else {
-                            Err(CclError::TypeError("Map key type mismatch".to_string()))
-                        }
-                    }
-                    _ => Err(CclError::TypeError(
-                        "Map access on non-map type".to_string(),
-                    )),
-                }
-            }
-            ExpressionNode::PanicExpr { message } => {
-                let msg_type = self.evaluate_expression(message)?;
-                if msg_type == TypeAnnotationNode::String {
-                    // Panic never returns, but for type checking purposes we use a never type
-                    // For simplicity, we'll just return unit type
-                    Ok(TypeAnnotationNode::Custom("never".to_string()))
-                } else {
-                    Err(CclError::TypeError(
-                        "Panic message must be a string".to_string(),
-                    ))
-                }
-            }
-            // Handle governance DSL expressions
-            ExpressionNode::EventEmit { event_name, fields } => {
-                // Check if event is defined - simplified check
-                if self.lookup_symbol(event_name).is_none() {
-                    return Err(CclError::TypeError(format!(
-                        "Undefined event: {}",
-                        event_name
-                    )));
-                }
-                // Type check field values
-                for (_, field_expr) in fields {
-                    self.evaluate_expression(field_expr)?;
-                }
-                Ok(TypeAnnotationNode::Custom("Unit".to_string()))
-            }
-            ExpressionNode::StateRead { state_name } => {
-                // Check if state variable exists and return its type
-                if let Some(symbol) = self.lookup_symbol(state_name) {
-                    if let Symbol::Variable { type_ann } = symbol {
-                        Ok(type_ann.clone())
-                    } else {
-                        Err(CclError::TypeError(format!(
-                            "{} is not a state variable",
-                            state_name
-                        )))
-                    }
-                } else {
-                    Err(CclError::TypeError(format!(
-                        "Undefined state variable: {}",
-                        state_name
-                    )))
-                }
-            }
-            ExpressionNode::StateWrite { state_name, value } => {
-                // Check if state variable exists
-                if let Some(symbol) = self.lookup_symbol(state_name) {
-                    if let Symbol::Variable {
-                        type_ann: _type_ann,
-                    } = symbol
-                    {
-                        let _value_type = self.evaluate_expression(value)?;
-                        // TODO: Add type compatibility check
-                        Ok(TypeAnnotationNode::Custom("Unit".to_string()))
-                    } else {
-                        Err(CclError::TypeError(format!(
-                            "{} is not a state variable",
-                            state_name
-                        )))
-                    }
-                } else {
-                    Err(CclError::TypeError(format!(
-                        "Undefined state variable: {}",
-                        state_name
-                    )))
-                }
-            }
-            ExpressionNode::TriggerAction {
-                trigger_name,
-                params,
-            } => {
-                // Check if trigger exists
-                if self.lookup_symbol(trigger_name).is_none() {
-                    return Err(CclError::TypeError(format!(
-                        "Undefined trigger: {}",
-                        trigger_name
-                    )));
-                }
-                // Type check parameters
-                for param in params {
-                    self.evaluate_expression(param)?;
-                }
-                Ok(TypeAnnotationNode::Custom("Unit".to_string()))
-            }
-            ExpressionNode::CrossContractCall {
-                contract_address,
-                function_name: _,
-                params,
-            } => {
-                // Validate contract address
-                let addr_type = self.evaluate_expression(contract_address)?;
-                if !matches!(
-                    addr_type,
-                    TypeAnnotationNode::String | TypeAnnotationNode::Did
-                ) {
-                    return Err(CclError::TypeError(
-                        "Contract address must be string or DID".to_string(),
-                    ));
-                }
-                // Type check parameters
-                for param in params {
-                    self.evaluate_expression(param)?;
-                }
-                // Cross-contract calls can return any type, use generic for now
-                Ok(TypeAnnotationNode::Custom("Any".to_string()))
-            }
-            ExpressionNode::BreakExpr => Ok(TypeAnnotationNode::Custom("never".to_string())),
-            ExpressionNode::ContinueExpr => Ok(TypeAnnotationNode::Custom("never".to_string())),
-            ExpressionNode::UnaryOp { operator, operand } => {
-                let operand_ty = self.evaluate_expression(operand)?;
-                match operator {
-                    UnaryOperator::Not => {
-                        if operand_ty == TypeAnnotationNode::Bool {
-                            Ok(TypeAnnotationNode::Bool)
-                        } else {
-                            Err(CclError::TypeError(
-                                "Logical negation requires Bool operand".to_string(),
-                            ))
-                        }
-                    }
-                    UnaryOperator::Neg => {
-                        if operand_ty.is_numeric() {
-                            Ok(operand_ty) // Preserve the exact numeric type (Integer or Mana)
-                        } else {
-                            Err(CclError::TypeError(
-                                "Arithmetic negation requires numeric operand".to_string(),
-                            ))
-                        }
-                    }
+                
+                match array_type {
+                    TypeAnnotationNode::Array(element_type) => Ok(*element_type),
+                    _ => Err(CclError::TypeMismatchError {
+                        expected: TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Custom("T".to_string()))),
+                        found: array_type,
+                    }),
                 }
             }
         }
+    }
+
+    fn literal_type(&self, lit: &LiteralNode) -> TypeAnnotationNode {
+        match lit {
+            LiteralNode::Integer(_) => TypeAnnotationNode::Integer,
+            LiteralNode::Float(_) => TypeAnnotationNode::Custom("Float".to_string()),
+            LiteralNode::String(_) => TypeAnnotationNode::String,
+            LiteralNode::Boolean(_) => TypeAnnotationNode::Bool,
+            LiteralNode::Did(_) => TypeAnnotationNode::Did,
+            LiteralNode::Timestamp(_) => TypeAnnotationNode::Custom("Timestamp".to_string()),
+        }
+    }
+
+    /// Check if a binary operation is valid and return the result type
+    fn check_binary_op(
+        &self,
+        left: &TypeAnnotationNode,
+        op: &BinaryOperator,
+        right: &TypeAnnotationNode,
+    ) -> Result<TypeAnnotationNode, CclError> {
+        use BinaryOperator::*;
+        use TypeAnnotationNode::*;
+
+        match (left, op, right) {
+            // Arithmetic operations
+            (Integer, Add | Sub | Mul | Div, Integer) => Ok(Integer),
+            (Mana, Add | Sub, Mana) => Ok(Mana),
+            (Mana, Add | Sub, Integer) => Ok(Mana),
+            (Integer, Add | Sub, Mana) => Ok(Mana),
+            
+            // Comparison operations
+            (Integer, Eq | Neq | Lt | Lte | Gt | Gte, Integer) => Ok(Bool),
+            (Mana, Eq | Neq | Lt | Lte | Gt | Gte, Mana) => Ok(Bool),
+            (String, Eq | Neq, String) => Ok(Bool),
+            (Bool, Eq | Neq, Bool) => Ok(Bool),
+            
+            // Logical operations
+            (Bool, And | Or, Bool) => Ok(Bool),
+            
+            // String concatenation
+            (String, Concat, String) => Ok(String),
+            
+            _ => Err(CclError::InvalidBinaryOperationError {
+                left_type: left.clone(),
+                operator: op.clone(),
+                right_type: right.clone(),
+            }),
+        }
+    }
+
+    /// Check if a unary operation is valid and return the result type
+    fn check_unary_op(
+        &self,
+        op: &UnaryOperator,
+        operand: &TypeAnnotationNode,
+    ) -> Result<TypeAnnotationNode, CclError> {
+        use UnaryOperator::*;
+        use TypeAnnotationNode::*;
+
+        match (op, operand) {
+            (Not, Bool) => Ok(Bool),
+            (Neg, Integer) => Ok(Integer),
+            (Neg, Mana) => Ok(Mana),
+            _ => Err(CclError::InvalidUnaryOperationError {
+                operator: op.clone(),
+                operand_type: operand.clone(),
+            }),
+        }
+    }
+
+    fn enter_scope(&mut self) {
+        self.current_scope_level += 1;
+    }
+
+    fn exit_scope(&mut self) {
+        // Remove symbols from current scope
+        self.symbol_table.retain(|_, symbol| symbol.scope_level < self.current_scope_level);
+        self.current_scope_level -= 1;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ast::{BinaryOperator, ExpressionNode, LiteralNode};
+
+    #[test]
+    fn test_arithmetic_type_checking() {
+        let mut analyzer = SemanticAnalyzer::new();
+        
+        let expr = ExpressionNode::BinaryOp {
+            left: Box::new(ExpressionNode::Literal(LiteralNode::Integer(5))),
+            operator: BinaryOperator::Add,
+            right: Box::new(ExpressionNode::Literal(LiteralNode::Integer(3))),
+        };
+        
+        let result = analyzer.evaluate_expression(&expr).unwrap();
+        assert_eq!(result, TypeAnnotationNode::Integer);
+    }
+
+    #[test]
+    fn test_type_mismatch_error() {
+        let mut analyzer = SemanticAnalyzer::new();
+        
+        let expr = ExpressionNode::BinaryOp {
+            left: Box::new(ExpressionNode::Literal(LiteralNode::Integer(5))),
+            operator: BinaryOperator::Add,
+            right: Box::new(ExpressionNode::Literal(LiteralNode::String("hello".to_string()))),
+        };
+        
+        let result = analyzer.evaluate_expression(&expr);
+        assert!(result.is_err());
+        
+        if let Err(CclError::InvalidBinaryOperationError { .. }) = result {
+            // Expected error type
+        } else {
+            panic!("Expected InvalidBinaryOperationError");
+        }
+    }
+
+    #[test]
+    fn test_function_type_checking() {
+        let mut analyzer = SemanticAnalyzer::new();
+        
+        let expr = ExpressionNode::FunctionCall {
+            name: "get_mana".to_string(),
+            args: vec![ExpressionNode::Literal(LiteralNode::Did("did:example:123".to_string()))],
+        };
+        
+        let result = analyzer.evaluate_expression(&expr).unwrap();
+        assert_eq!(result, TypeAnnotationNode::Mana);
     }
 }

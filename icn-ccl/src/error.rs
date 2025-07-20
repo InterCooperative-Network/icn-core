@@ -81,6 +81,41 @@ pub enum CclError {
     
     #[error("Contract validation failed: {validator} failed with message: {message}")]
     ContractValidationFailed { validator: String, message: String },
+    
+    // Additional semantic analyzer error types
+    #[error("Type mismatch: expected {expected:?}, found {found:?}")]
+    TypeMismatchError { expected: crate::ast::TypeAnnotationNode, found: crate::ast::TypeAnnotationNode },
+    
+    #[error("Undefined variable: {variable}")]
+    UndefinedVariableError { variable: String },
+    
+    #[error("Undefined function: {function}")]
+    UndefinedFunctionError { function: String },
+    
+    #[error("Argument count mismatch: {function} expects {expected} arguments, got {found}")]
+    ArgumentCountMismatchError { function: String, expected: usize, found: usize },
+    
+    #[error("Duplicate field: {field_name} in struct {struct_name}")]
+    DuplicateFieldError { struct_name: String, field_name: String },
+    
+    #[error("Cannot assign to immutable variable: {variable}")]
+    ImmutableAssignmentError { variable: String },
+    
+    #[error("Invalid binary operation: {left_type:?} {operator:?} {right_type:?}")]
+    InvalidBinaryOperationError { 
+        left_type: crate::ast::TypeAnnotationNode, 
+        operator: crate::ast::BinaryOperator,
+        right_type: crate::ast::TypeAnnotationNode 
+    },
+    
+    #[error("Invalid unary operation: {operator:?} {operand_type:?}")]
+    InvalidUnaryOperationError { 
+        operator: crate::ast::UnaryOperator,
+        operand_type: crate::ast::TypeAnnotationNode 
+    },
+    
+    #[error("Code generation error: {0}")]
+    CodeGenError(String),
 }
 
 impl From<std::io::Error> for CclError {

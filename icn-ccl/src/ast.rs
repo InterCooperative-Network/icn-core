@@ -1,30 +1,210 @@
 // icn-ccl/src/ast.rs
 use serde::{Deserialize, Serialize};
-// Potentially use types from icn_common like Did if they appear in AST
-// use icn_common::Did;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum AstNode {
+    // Top-level program node
+    Program(Vec<TopLevelNode>),
+    
+    // Legacy support for simple policies
     Policy(Vec<PolicyStatementNode>),
+    
+    // New CCL 0.1 nodes
+    ContractDeclaration {
+        name: String,
+        metadata: Vec<ContractMetaNode>,
+        body: Vec<ContractBodyNode>,
+    },
+    
+    RoleDeclaration {
+        name: String,
+        extends: Option<String>,
+        body: Vec<RoleBodyNode>,
+    },
+    
+    ProposalDeclaration {
+        name: String,
+        fields: Vec<ProposalFieldNode>,
+    },
+    
     FunctionDefinition {
         name: String,
         parameters: Vec<ParameterNode>,
-        return_type: TypeAnnotationNode,
+        return_type: Option<TypeExprNode>,
         body: BlockNode,
     },
+    
     StructDefinition {
         name: String,
-        fields: Vec<ParameterNode>,
+        fields: Vec<FieldNode>,
     },
-    RuleDefinition {
+    
+    EnumDefinition {
         name: String,
-        condition: ExpressionNode,
-        action: ActionNode,
+        variants: Vec<EnumVariantNode>,
     },
+    
+    StateDeclaration {
+        name: String,
+        type_expr: TypeExprNode,
+        initial_value: Option<ExpressionNode>,
+    },
+    
+    ConstDeclaration {
+        name: String,
+        type_expr: TypeExprNode,
+        value: ExpressionNode,
+    },
+    
+    ImportStatement {
+        path: String,
+        alias: Option<String>,
+    },
+    
     Block(BlockNode),
-    // ... other top-level nodes
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum TopLevelNode {
+    Import(ImportStatementNode),
+    Contract(ContractDeclarationNode),
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ImportStatementNode {
+    pub path: String,
+    pub alias: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ContractDeclarationNode {
+    pub name: String,
+    pub metadata: Vec<ContractMetaNode>,
+    pub body: Vec<ContractBodyNode>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum ContractMetaNode {
+    Scope(String),
+    Version(String),
+    Extends(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum ContractBodyNode {
+    Role(RoleDeclarationNode),
+    Proposal(ProposalDeclarationNode),
+    Function(FunctionDefinitionNode),
+    State(StateDeclarationNode),
+    Struct(StructDefinitionNode),
+    Enum(EnumDefinitionNode),
+    Const(ConstDeclarationNode),
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RoleDeclarationNode {
+    pub name: String,
+    pub extends: Option<String>,
+    pub body: Vec<RoleBodyNode>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum RoleBodyNode {
+    Can(Vec<String>),
+    Requires(Vec<RequirementNode>),
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RequirementNode {
+    pub name: String,
+    pub expr: ExpressionNode,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ProposalDeclarationNode {
+    pub name: String,
+    pub fields: Vec<ProposalFieldNode>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum ProposalFieldNode {
+    Description(String),
+    Eligible(String),
+    Duration(DurationExprNode),
+    Quorum(u32), // percentage
+    Threshold(ThresholdTypeNode),
+    Execution(BlockNode),
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum ThresholdTypeNode {
+    Majority,
+    Supermajority { numerator: u32, denominator: u32 },
+    Consensus,
+    Unanimous,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DurationExprNode {
+    pub value: i64,
+    pub unit: DurationUnitNode,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum DurationUnitNode {
+    Days,
+    Hours,
+    Minutes,
+    Seconds,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct FunctionDefinitionNode {
+    pub name: String,
+    pub parameters: Vec<ParameterNode>,
+    pub return_type: Option<TypeExprNode>,
+    pub body: BlockNode,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct FieldNode {
+    pub name: String,
+    pub type_expr: TypeExprNode,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct EnumVariantNode {
+    pub name: String,
+    pub type_expr: Option<TypeExprNode>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct StateDeclarationNode {
+    pub name: String,
+    pub type_expr: TypeExprNode,
+    pub initial_value: Option<ExpressionNode>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ConstDeclarationNode {
+    pub name: String,
+    pub type_expr: TypeExprNode,
+    pub value: ExpressionNode,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct StructDefinitionNode {
+    pub name: String,
+    pub fields: Vec<FieldNode>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct EnumDefinitionNode {
+    pub name: String,
+    pub variants: Vec<EnumVariantNode>,
+}
+
+// Legacy policy statement nodes for backward compatibility
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum PolicyStatementNode {
     FunctionDef(AstNode), // Using AstNode::FunctionDefinition
@@ -54,36 +234,97 @@ pub enum PolicyStatementNode {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ParameterNode {
     pub name: String,
-    pub type_ann: TypeAnnotationNode,
+    pub type_expr: TypeExprNode,
 }
 
+// New unified type system for CCL 0.1
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum TypeExprNode {
+    // Basic types
+    Integer,
+    String,
+    Boolean,
+    Mana,
+    Did,
+    Timestamp,
+    Duration,
+    
+    // Compound types
+    Array(Box<TypeExprNode>),
+    Map { key_type: Box<TypeExprNode>, value_type: Box<TypeExprNode> },
+    Option(Box<TypeExprNode>),
+    Result { ok_type: Box<TypeExprNode>, err_type: Box<TypeExprNode> },
+    
+    // Custom types
+    Custom(String),
+}
+
+// Legacy type annotation for backward compatibility
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum TypeAnnotationNode {
     Mana,
     Bool,
-    Did, // Decentralized identifier type
+    Did,
     String,
     Integer,
-    Array(Box<TypeAnnotationNode>), // Arrays of any type, e.g., Array<Integer>
+    Array(Box<TypeAnnotationNode>),
     Map {
         key_type: Box<TypeAnnotationNode>,
         value_type: Box<TypeAnnotationNode>,
-    }, // Maps with typed keys and values, e.g., Map<String, Integer>
-    Proposal,                       // Governance proposal type
-    Vote,                           // Vote type for governance
-    Option(Box<TypeAnnotationNode>), // Option type with inner type
+    },
+    Proposal,
+    Vote,
+    Option(Box<TypeAnnotationNode>),
     Result {
         ok_type: Box<TypeAnnotationNode>,
         err_type: Box<TypeAnnotationNode>,
-    }, // Result type with success and error types
-    Custom(String), // For user-defined types or imported ones
+    },
+    Custom(String),
+}
+
+impl TypeExprNode {
+    /// Convert to legacy TypeAnnotationNode for backward compatibility
+    pub fn to_type_annotation(&self) -> TypeAnnotationNode {
+        match self {
+            TypeExprNode::Integer => TypeAnnotationNode::Integer,
+            TypeExprNode::String => TypeAnnotationNode::String,
+            TypeExprNode::Boolean => TypeAnnotationNode::Bool,
+            TypeExprNode::Mana => TypeAnnotationNode::Mana,
+            TypeExprNode::Did => TypeAnnotationNode::Did,
+            TypeExprNode::Array(inner) => TypeAnnotationNode::Array(Box::new(inner.to_type_annotation())),
+            TypeExprNode::Map { key_type, value_type } => TypeAnnotationNode::Map {
+                key_type: Box::new(key_type.to_type_annotation()),
+                value_type: Box::new(value_type.to_type_annotation()),
+            },
+            TypeExprNode::Option(inner) => TypeAnnotationNode::Option(Box::new(inner.to_type_annotation())),
+            TypeExprNode::Result { ok_type, err_type } => TypeAnnotationNode::Result {
+                ok_type: Box::new(ok_type.to_type_annotation()),
+                err_type: Box::new(err_type.to_type_annotation()),
+            },
+            TypeExprNode::Custom(name) => TypeAnnotationNode::Custom(name.clone()),
+            TypeExprNode::Timestamp => TypeAnnotationNode::Custom("Timestamp".to_string()),
+            TypeExprNode::Duration => TypeAnnotationNode::Custom("Duration".to_string()),
+        }
+    }
+    
+    /// Returns true if two types are considered compatible.
+    pub fn compatible_with(&self, other: &Self) -> bool {
+        self == other
+            || matches!(
+                (self, other),
+                (TypeExprNode::Mana, TypeExprNode::Integer)
+                    | (TypeExprNode::Integer, TypeExprNode::Mana)
+            )
+    }
+
+    /// Returns true if this type behaves like an integer number.
+    pub fn is_numeric(&self) -> bool {
+        matches!(self, TypeExprNode::Integer | TypeExprNode::Mana)
+    }
 }
 
 impl TypeAnnotationNode {
     /// Returns true if two types are considered compatible.
-    ///
-    /// Currently `Mana` and `Integer` are treated as interchangeable
-    /// since they share the same underlying WASM representation.
     pub fn compatible_with(&self, other: &Self) -> bool {
         self == other
             || matches!(
@@ -99,30 +340,6 @@ impl TypeAnnotationNode {
     pub fn is_numeric(&self) -> bool {
         matches!(self, TypeAnnotationNode::Integer | TypeAnnotationNode::Mana)
     }
-
-    /// Returns true if this type can be stored/compared
-    pub fn is_comparable(&self) -> bool {
-        matches!(
-            self,
-            TypeAnnotationNode::Integer
-                | TypeAnnotationNode::Mana
-                | TypeAnnotationNode::Bool
-                | TypeAnnotationNode::String
-                | TypeAnnotationNode::Did
-        )
-    }
-
-    /// Returns true if values of this type live in guest memory rather than
-    /// being passed directly on the stack. Strings, arrays, and maps are reference
-    /// types and therefore require memory management in the generated WASM.
-    pub fn requires_memory(&self) -> bool {
-        matches!(
-            self,
-            TypeAnnotationNode::String 
-                | TypeAnnotationNode::Array(_)
-                | TypeAnnotationNode::Map { .. }
-        )
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -132,17 +349,47 @@ pub struct BlockNode {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum StatementNode {
+    // Updated statements for CCL 0.1
     Let {
+        mutable: bool,
         name: String,
+        type_expr: Option<TypeExprNode>,
         value: ExpressionNode,
     },
-    ExpressionStatement(ExpressionNode),
-    Return(ExpressionNode),
+    Assignment {
+        lvalue: LValueNode,
+        value: ExpressionNode,
+    },
     If {
         condition: ExpressionNode,
         then_block: BlockNode,
+        else_ifs: Vec<(ExpressionNode, BlockNode)>,
         else_block: Option<BlockNode>,
     },
+    While {
+        condition: ExpressionNode,
+        body: BlockNode,
+    },
+    For {
+        iterator: String,
+        iterable: ExpressionNode,
+        body: BlockNode,
+    },
+    Match {
+        expr: ExpressionNode,
+        arms: Vec<MatchArmNode>,
+    },
+    Return(Option<ExpressionNode>),
+    Break,
+    Continue,
+    Emit {
+        event_name: String,
+        fields: Vec<FieldInitNode>,
+    },
+    Require(ExpressionNode),
+    ExpressionStatement(ExpressionNode),
+    
+    // Legacy statements for backward compatibility
     WhileLoop {
         condition: ExpressionNode,
         body: BlockNode,
@@ -152,86 +399,132 @@ pub enum StatementNode {
         iterable: ExpressionNode,
         body: BlockNode,
     },
-    Break,
-    Continue,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum LValueNode {
+    Identifier(String),
+    MemberAccess {
+        object: Box<ExpressionNode>,
+        member: String,
+    },
+    IndexAccess {
+        object: Box<ExpressionNode>,
+        index: Box<ExpressionNode>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MatchArmNode {
+    pub pattern: PatternNode,
+    pub body: Either<ExpressionNode, BlockNode>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum Either<A, B> {
+    Left(A),
+    Right(B),
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum PatternNode {
+    Literal(LiteralNode),
+    Identifier(String),
+    Wildcard,
+    Enum {
+        type_name: String,
+        variant: String,
+        inner: Option<Box<PatternNode>>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct FieldInitNode {
+    pub name: String,
+    pub value: ExpressionNode,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ExpressionNode {
-    IntegerLiteral(i64),
-    BooleanLiteral(bool),
-    StringLiteral(String),
-    ArrayLiteral(Vec<ExpressionNode>), // [1, 2, 3] or ["a", "b", "c"]
-    MapLiteral(Vec<(ExpressionNode, ExpressionNode)>), // {"key": value, "key2": value2}
+    // Literals
+    Literal(LiteralNode),
+    
+    // Variables and functions
     Identifier(String),
     FunctionCall {
         name: String,
-        arguments: Vec<ExpressionNode>,
+        args: Vec<ExpressionNode>,
     },
+    
+    // Binary operations
     BinaryOp {
         left: Box<ExpressionNode>,
         operator: BinaryOperator,
         right: Box<ExpressionNode>,
     },
+    
+    // Unary operations
     UnaryOp {
         operator: UnaryOperator,
         operand: Box<ExpressionNode>,
     },
+    
+    // Member access and indexing
+    MemberAccess {
+        object: Box<ExpressionNode>,
+        member: String,
+    },
+    IndexAccess {
+        object: Box<ExpressionNode>,
+        index: Box<ExpressionNode>,
+    },
+    
+    // Compound expressions
+    ArrayLiteral(Vec<ExpressionNode>),
+    StructLiteral {
+        type_name: String,
+        fields: Vec<FieldInitNode>,
+    },
+    
+    // Option and Result expressions
+    Some(Box<ExpressionNode>),
+    None,
+    Ok(Box<ExpressionNode>),
+    Err(Box<ExpressionNode>),
+    
+    // Special governance expressions
+    Transfer {
+        from: Box<ExpressionNode>,
+        to: Box<ExpressionNode>,
+        amount: Box<ExpressionNode>,
+    },
+    Mint {
+        to: Box<ExpressionNode>,
+        amount: Box<ExpressionNode>,
+    },
+    Burn {
+        from: Box<ExpressionNode>,
+        amount: Box<ExpressionNode>,
+    },
+    
+    // Legacy expressions
+    IntegerLiteral(i64),
+    StringLiteral(String),
+    BooleanLiteral(bool),
     ArrayAccess {
         array: Box<ExpressionNode>,
         index: Box<ExpressionNode>,
     },
-    MapAccess {
-        map: Box<ExpressionNode>,
-        key: Box<ExpressionNode>,
-    },
-    SomeExpr(Box<ExpressionNode>),
-    NoneExpr,
-    OkExpr(Box<ExpressionNode>),
-    ErrExpr(Box<ExpressionNode>),
-    RequireProof(Box<ExpressionNode>),
-    Match {
-        value: Box<ExpressionNode>,
-        arms: Vec<(ExpressionNode, ExpressionNode)>,
-    },
-    TryExpr {
-        expr: Box<ExpressionNode>,
-        catch_arm: Option<Box<ExpressionNode>>,
-    },
-    PanicExpr {
-        message: Box<ExpressionNode>,
-    },
-    
-    // Governance DSL expressions
-    EventEmit {
-        event_name: String,
-        fields: Vec<(String, ExpressionNode)>,
-    },
-    
-    StateRead {
-        state_name: String,
-    },
-    
-    StateWrite {
-        state_name: String,
-        value: Box<ExpressionNode>,
-    },
-    
-    TriggerAction {
-        trigger_name: String,
-        params: Vec<ExpressionNode>,
-    },
-    
-    CrossContractCall {
-        contract_address: Box<ExpressionNode>,
-        function_name: String,
-        params: Vec<ExpressionNode>,
-    },
-    
-    // Advanced control flow
-    BreakExpr,
-    ContinueExpr,
-    // ... other expression types (member access, etc.)
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum LiteralNode {
+    Integer(i64),
+    Float(f64),
+    String(String),
+    Boolean(bool),
+    Did(String),
+    Timestamp(String),
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -240,6 +533,7 @@ pub enum BinaryOperator {
     Sub,
     Mul,
     Div,
+    Mod,
     Eq,
     Neq,
     Lt,
@@ -248,21 +542,20 @@ pub enum BinaryOperator {
     Gte,
     And,
     Or,
-    Concat, // String concatenation: "hello" + " world"
+    Concat, // String concatenation
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum UnaryOperator {
-    Not, // Logical negation: !true -> false
-    Neg, // Arithmetic negation: -5 -> -5
+    Not, // Logical negation
+    Neg, // Arithmetic negation
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ActionNode {
     Allow,
     Deny,
-    Charge(ExpressionNode), // e.g., charge actor.mana(amount_expr)
-                            // ... other policy-specific actions
+    Charge(ExpressionNode),
 }
 
 /// Converts a Pest `Pair` into an AST node.
@@ -271,114 +564,48 @@ pub fn pair_to_ast(
 ) -> Result<AstNode, crate::error::CclError> {
     use crate::error::CclError;
     use crate::parser::{self, Rule};
+    
     match pair.as_rule() {
-        Rule::policy => {
+        Rule::program => {
             let mut items = Vec::new();
             for inner in pair.into_inner() {
                 match inner.as_rule() {
-                    Rule::function_definition => {
-                        items.push(PolicyStatementNode::FunctionDef(
-                            parser::parse_function_definition(inner)?,
-                        ));
+                    Rule::import_stmt => {
+                        // Parse import statement
+                        let import = parser::parse_import_statement(inner)?;
+                        items.push(TopLevelNode::Import(import));
                     }
-                    Rule::struct_definition => {
-                        items.push(PolicyStatementNode::StructDef(
-                            parser::parse_struct_definition(inner)?,
-                        ));
-                    }
-                    Rule::policy_statement => {
-                        let mut stmt_inner = inner.into_inner();
-                        let stmt = stmt_inner.next().ok_or_else(|| {
-                            CclError::ParsingError("Empty policy statement".to_string())
-                        })?;
-                        match stmt.as_rule() {
-                            Rule::rule_definition => items.push(PolicyStatementNode::RuleDef(
-                                parser::parse_rule_definition(stmt)?,
-                            )),
-                            Rule::import_statement => {
-                                let mut i = stmt.into_inner();
-                                let path_pair = i.next().ok_or_else(|| {
-                                    CclError::ParsingError("Import missing path".to_string())
-                                })?;
-                                let alias_pair = i.next().ok_or_else(|| {
-                                    CclError::ParsingError("Import missing alias".to_string())
-                                })?;
-                                let path = path_pair.as_str().trim_matches('"').to_string();
-                                let alias = alias_pair.as_str().to_string();
-                                items.push(PolicyStatementNode::Import { path, alias });
-                            }
-                            _ => {
-                                return Err(CclError::ParsingError(format!(
-                                    "Unexpected policy statement: {:?}",
-                                    stmt.as_rule()
-                                )));
-                            }
-                        }
+                    Rule::contract_decl => {
+                        // Parse contract declaration
+                        let contract = parser::parse_contract_declaration(inner)?;
+                        items.push(TopLevelNode::Contract(contract));
                     }
                     Rule::EOI => (),
                     _ => {
                         return Err(CclError::ParsingError(format!(
-                            "Unexpected rule in policy: {:?}",
+                            "Unexpected rule in program: {:?}",
                             inner.as_rule()
                         )));
                     }
                 }
             }
-            Ok(AstNode::Policy(items))
+            Ok(AstNode::Program(items))
         }
-        Rule::function_definition => parser::parse_function_definition(pair),
-        Rule::struct_definition => parser::parse_struct_definition(pair),
-        Rule::rule_definition => parser::parse_rule_definition(pair),
-        Rule::import_statement => {
-            let mut i = pair.into_inner();
-            let path_pair = i
-                .next()
-                .ok_or_else(|| CclError::ParsingError("Import missing path".to_string()))?;
-            let alias_pair = i
-                .next()
-                .ok_or_else(|| CclError::ParsingError("Import missing alias".to_string()))?;
-            let raw_path = path_pair.as_str().trim_matches('"');
-            let path = crate::parser::unescape_string(raw_path)?;
-            let alias = alias_pair.as_str().to_string();
-            Ok(AstNode::Policy(vec![PolicyStatementNode::Import {
-                path,
-                alias,
-            }]))
+        // Legacy support
+        Rule::fn_decl => {
+            let func = parser::parse_function_definition_new(pair)?;
+            Ok(AstNode::FunctionDefinition {
+                name: func.name,
+                parameters: func.parameters,
+                return_type: func.return_type,
+                body: func.body,
+            })
         }
-        Rule::block => Ok(AstNode::Block(parser::parse_block(pair)?)),
-        Rule::policy_statement => match parser::parse_policy_statement(pair)? {
-            PolicyStatementNode::RuleDef(rule) => Ok(rule),
-            PolicyStatementNode::Import { path, alias } => {
-                Ok(AstNode::Policy(vec![PolicyStatementNode::Import {
-                    path,
-                    alias,
-                }]))
-            }
-            PolicyStatementNode::FunctionDef(func) => Ok(func),
-            PolicyStatementNode::StructDef(def) => Ok(def),
-            PolicyStatementNode::ConstDef { name, value, type_ann } => {
-                Ok(AstNode::Policy(vec![PolicyStatementNode::ConstDef { name, value, type_ann }]))
-            }
-            PolicyStatementNode::MacroDef { name, params, body } => {
-                Ok(AstNode::Policy(vec![PolicyStatementNode::MacroDef { name, params, body }]))
-            }
-            // Placeholder implementations for governance DSL features
-            PolicyStatementNode::EventDef { name, fields } => {
-                Ok(AstNode::Policy(vec![PolicyStatementNode::EventDef { name, fields }]))
-            }
-            PolicyStatementNode::StateDef { name, type_ann, initial_value } => {
-                Ok(AstNode::Policy(vec![PolicyStatementNode::StateDef { name, type_ann, initial_value }]))
-            }
-            PolicyStatementNode::TriggerDef { name, condition, action } => {
-                Ok(AstNode::Policy(vec![PolicyStatementNode::TriggerDef { name, condition, action }]))
-            }
-        },
-        Rule::statement => Ok(AstNode::Block(BlockNode {
-            statements: vec![parser::parse_statement(pair)?],
-        })),
-        _ => unreachable!(
-            "pair_to_ast called with unsupported rule: {:?}",
-            pair.as_rule()
-        ),
+        _ => {
+            Err(CclError::ParsingError(format!(
+                "Unsupported top-level rule: {:?}",
+                pair.as_rule()
+            )))
+        }
     }
 }

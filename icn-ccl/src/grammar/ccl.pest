@@ -1,106 +1,468 @@
-// icn-ccl/src/grammar/ccl.pest
+// CCL 0.1 Grammar - Cooperative Contract Language
+// This grammar defines the syntax for legally-binding contracts, governance rules, and economic agreements
 
-// Define whitespace and comments (parsed but ignored by default)
-WHITESPACE = _{ " " | "\t" | NEWLINE }
-COMMENT = _{ "//" ~ (!NEWLINE ~ ANY)* }
+//////////////////////////
+// Lexical Elements
+//////////////////////////
 
-// Basic building blocks
-identifier = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
-integer_literal = @{ ASCII_DIGIT+ }
-// Strings may contain most punctuation and common escape sequences
-// like \n, \t, \\ and \". Newlines are not allowed unescaped.
-string_inner = { "\\" ~ ANY | !("\"" | NEWLINE) ~ ANY }
-string_literal = @{ "\"" ~ string_inner* ~ "\"" }
-boolean_literal = { "true" | "false" }
+WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
+COMMENT = _{ 
+    "//" ~ (!"\n" ~ ANY)* |
+    "/*" ~ (!"*/" ~ ANY)* ~ "*/"
+}
 
-// Top-level: A CCL policy is a sequence of statements or definitions
-policy = { SOI ~ (function_definition | struct_definition | const_definition | macro_definition | policy_statement)* ~ EOI }
+// Identifiers and Keywords
+identifier = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
+keyword = @{ 
+    "contract" | "role" | "proposal" | "fn" | "state" | "import" | "export" |
+    "when" | "then" | "if" | "else" | "match" | "for" | "while" | "loop" | 
+    "let" | "mut" | "return" | "break" | "continue" |
+    "true" | "false" | "Some" | "None" | "Ok" | "Err" |
+    "transfer" | "mint" | "burn" | "emit" | "require" |
+    "can" | "requires" | "extends" | "scope" | "version" |
+    "eligible" | "quorum" | "threshold" | "duration" | "execution" |
+    "majority" | "supermajority" | "consensus" | "unanimous"
+}
 
-// Example: Function Definition
-function_definition = { "fn" ~ identifier ~ "(" ~ (parameter ~ ("," ~ parameter)*)? ~ ")" ~ "->" ~ type_annotation ~ block }
-struct_definition = { "struct" ~ identifier ~ "{" ~ (parameter ~ ("," ~ parameter)*)? ~ "}" }
-const_definition = { "const" ~ identifier ~ ":" ~ type_annotation ~ "=" ~ expression ~ ";" }
-macro_definition = { "macro" ~ identifier ~ "(" ~ (identifier ~ ("," ~ identifier)*)? ~ ")" ~ "{" ~ (!"}") ~ ANY* ~ "}" }
-parameter = { identifier ~ ":" ~ type_annotation }
-type_annotation = { option_type | result_type | array_type | identifier }
-option_type = { "Option" ~ "<" ~ type_annotation ~ ">" }
-result_type = { "Result" ~ "<" ~ type_annotation ~ "," ~ type_annotation ~ ">" }
-array_type = { "Array" ~ "<" ~ type_annotation ~ ">" }
+// Literals
+integer = @{ ASCII_DIGIT+ }hnb
+float = @{ ASCII_DIGIT+ ~ "." ~ ASCII_DIGIT+ }
+string = @{ "\"" ~ ( "\\\"" | (!"\"" ~ ANY) )* ~ "\"" }
+boolean = { "true" | "false" }
 
-// Example: Policy Statement (e.g., a rule)
-policy_statement = { rule_definition | import_statement | event_definition | state_definition | trigger_definition }
-rule_definition = { "rule" ~ identifier ~ "when" ~ expression ~ "then" ~ action }
-import_statement = { "import" ~ string_literal ~ "as" ~ identifier ~ ";" }
+// Special literals
+did_literal = @{ "did:" ~ (ASCII_ALPHANUMERIC | ":" | "-" | "_")+ }
+scope_literal = @{ "\"" ~ (ASCII_ALPHANUMERIC | ":" | "_" | "-" | ".")+ ~ "\"" }
+timestamp_literal = @{ ASCII_DIGIT{4} ~ "-" ~ ASCII_DIGIT{2} ~ "-" ~ ASCII_DIGIT{2} ~ "T" ~ ASCII_DIGIT{2} ~ ":" ~ ASCII_DIGIT{2} ~ ":" ~ ASCII_DIGIT{2} ~ "Z" }
 
-// Governance DSL statements
-event_definition = { "event" ~ identifier ~ "{" ~ (event_field ~ ("," ~ event_field)*)? ~ "}" }
-event_field = { identifier ~ ":" ~ type_annotation }
-state_definition = { "state" ~ identifier ~ ":" ~ type_annotation ~ ("=" ~ expression)? ~ ";" }
-trigger_definition = { "trigger" ~ identifier ~ "when" ~ expression ~ "then" ~ expression ~ ";" }
+//////////////////////////
+// Top-level Structure
+//////////////////////////
 
-// Example: Block of statements
-block = { "{" ~ statement* ~ "}" }
-statement = { let_statement | expression_statement | return_statement | if_statement | while_statement | for_statement | break_statement | continue_statement }
-let_statement = { "let" ~ identifier ~ "=" ~ expression ~ ";" }
-expression_statement = { expression ~ ";" }
-return_statement = { "return" ~ expression ~ ";" }
-if_statement = { "if" ~ expression ~ block ~ else_part? }
-else_part = { "else" ~ (if_statement | block) }
-while_statement = { "while" ~ expression ~ block }
-for_statement = { "for" ~ identifier ~ "in" ~ expression ~ block }
-break_statement = { "break" ~ ";" }
-continue_statement = { "continue" ~ ";" }
+program = { SOI ~ (import_stmt | contract_decl)* ~ EOI }
 
-// Example: Expressions with proper precedence and unary operators
-expression = { try_expression | match_expression | logical_or }
-try_expression = { "try" ~ logical_or ~ ("catch" ~ logical_or)? }
-match_expression = { "match" ~ logical_or ~ "{" ~ match_arm+ ~ "}" }
-match_arm = { match_pattern ~ "=>" ~ expression ~ (","? ) }
-match_pattern = { integer_literal | boolean_literal | identifier | "_" }
-logical_or = { logical_and ~ (OR_OP ~ logical_and)* }
-logical_and = { equality ~ (AND_OP ~ equality)* }
-equality = { comparison ~ ((EQ_OP | NEQ_OP) ~ comparison)* }
-comparison = { addition ~ ((LTE_OP | LT_OP | GTE_OP | GT_OP) ~ addition)* }
-addition = { multiplication ~ ((ADD_OP | SUB_OP) ~ multiplication)* }
-multiplication = { unary ~ ((MUL_OP | DIV_OP) ~ unary)* }
-unary = { (NOT_OP | SUB_OP) ~ unary | primary }
-primary = { atom ~ ("[" ~ expression ~ "]")* }
-atom = { integer_literal | boolean_literal | string_literal | some_expr | none_expr | ok_expr | err_expr | require_proof_expr | event_emit | state_read | state_write | trigger_action | cross_contract_call | function_call | identifier | array_literal | "(" ~ expression ~ ")" }
-require_proof_expr = { "require_proof" ~ "(" ~ expression ~ ")" }
-some_expr = { "Some" ~ "(" ~ expression ~ ")" }
-none_expr = { "None" }
-ok_expr = { "Ok" ~ "(" ~ expression ~ ")" }
-err_expr = { "Err" ~ "(" ~ expression ~ ")" }
-array_literal = { "[" ~ expression ~ ("," ~ expression)* ~ "]" }
-function_call = { identifier ~ "(" ~ (expression ~ ("," ~ expression)*)? ~ ")" }
+//////////////////////////
+// Import Statements
+//////////////////////////
 
-// Governance DSL expressions
-event_emit = { "emit" ~ identifier ~ "{" ~ (field_assignment ~ ("," ~ field_assignment)*)? ~ "}" }
-field_assignment = { identifier ~ ":" ~ expression }
-state_read = { "state" ~ identifier }
-state_write = { "set_state" ~ identifier ~ "=" ~ expression }
-trigger_action = { "trigger" ~ identifier ~ "(" ~ (expression ~ ("," ~ expression)*)? ~ ")" }
-cross_contract_call = { "call" ~ expression ~ "." ~ identifier ~ "(" ~ (expression ~ ("," ~ expression)*)? ~ ")" }
+import_stmt = { "import" ~ string ~ ("as" ~ identifier)? ~ ";" }
+export_stmt = { "export" ~ identifier ~ ";" }
 
-ADD_OP = { "+" }
-SUB_OP = { "-" }
-MUL_OP = { "*" }
-DIV_OP = { "/" }
-EQ_OP  = { "==" }
-NEQ_OP = { "!=" }
-LTE_OP = { "<=" }
-LT_OP  = { "<" }
-GTE_OP = { ">=" }
-GT_OP  = { ">" }
-AND_OP = { "&&" }
-OR_OP  = { "||" }
-NOT_OP = { "!" }
+//////////////////////////
+// Contract Declarations
+//////////////////////////
 
-// Example: Actions (specific to policy rules)
-action = { ALLOW | DENY | CHARGE ~ expression }
-ALLOW = { "allow" }
-DENY = { "deny" }
-CHARGE = { "charge" }
+contract_decl = {
+    "contract" ~ identifier ~ "{" ~
+        contract_meta* ~
+        contract_body* ~
+    "}"
+}
 
-// Catch-all for errors or further development
-// UNEXPECTED = _{ ANY } // Uncomment for debugging grammar issues 
+contract_meta = {
+    scope_meta | version_meta | extends_meta
+}
+
+scope_meta = { "scope:" ~ scope_literal ~ ";" }
+version_meta = { "version:" ~ string ~ ";" }
+extends_meta = { "extends:" ~ identifier ~ ";" }
+
+contract_body = _{
+    role_decl |
+    proposal_decl |
+    fn_decl |
+    state_decl |
+    struct_decl |
+    enum_decl |
+    const_decl
+}
+
+//////////////////////////
+// Role Declarations
+//////////////////////////
+
+role_decl = {
+    "role" ~ identifier ~ ("extends" ~ identifier)? ~ "{" ~
+        role_body* ~
+    "}"
+}
+
+role_body = {
+    can_clause | requires_clause
+}
+
+can_clause = {
+    "can:" ~ "[" ~ permission_list? ~ "]" ~ ";"
+}
+
+requires_clause = {
+    "requires:" ~ "[" ~ requirement_list? ~ "]" ~ ";"
+}
+
+permission_list = {
+    identifier ~ ("," ~ identifier)*
+}
+
+requirement_list = {
+    requirement ~ ("," ~ requirement)*
+}
+
+requirement = {
+    identifier ~ ":" ~ expr
+}
+
+//////////////////////////
+// Proposal Declarations
+//////////////////////////
+
+proposal_decl = {
+    "proposal" ~ identifier ~ "{" ~
+        proposal_field* ~
+    "}"
+}
+
+proposal_field = {
+    proposal_meta | voting_config | execution_block
+}
+
+proposal_meta = {
+    description_meta | eligible_meta | duration_meta
+}
+
+description_meta = { "description:" ~ string ~ ";" }
+eligible_meta = { "eligible:" ~ identifier ~ ";" }
+duration_meta = { "duration:" ~ duration_expr ~ ";" }
+
+voting_config = {
+    quorum_config | threshold_config
+}
+
+quorum_config = { "quorum:" ~ percentage ~ ";" }
+threshold_config = { "threshold:" ~ threshold_type ~ ";" }
+
+threshold_type = {
+    "majority" | "supermajority" ~ "(" ~ fraction ~ ")" | "consensus" | "unanimous"
+}
+
+percentage = @{ ASCII_DIGIT+ ~ "%" }
+fraction = @{ ASCII_DIGIT+ ~ "/" ~ ASCII_DIGIT+ }
+duration_expr = { integer ~ duration_unit }
+duration_unit = { "days" | "hours" | "minutes" | "seconds" }
+
+execution_block = {
+    "execution:" ~ "{" ~ statement* ~ "}"
+}
+
+//////////////////////////
+// Function Declarations
+//////////////////////////
+
+fn_decl = {
+    "fn" ~ identifier ~ "(" ~ parameter_list? ~ ")" ~ return_type? ~ block
+}
+
+parameter_list = {
+    parameter ~ ("," ~ parameter)*
+}
+
+parameter = {
+    identifier ~ ":" ~ type_expr
+}
+
+return_type = {
+    "->" ~ type_expr
+}
+
+//////////////////////////
+// Type System
+//////////////////////////
+
+type_expr = {
+    basic_type | array_type | map_type | option_type | result_type | custom_type
+}
+
+basic_type = {
+    "Integer" | "String" | "Boolean" | "Mana" | "Did" | "Timestamp" | "Duration"
+}
+
+array_type = {
+    "[" ~ type_expr ~ "]"
+}
+
+map_type = {
+    "map" ~ "<" ~ type_expr ~ "," ~ type_expr ~ ">"
+}
+
+option_type = {
+    "Option" ~ "<" ~ type_expr ~ ">"
+}
+
+result_type = {
+    "Result" ~ "<" ~ type_expr ~ "," ~ type_expr ~ ">"
+}
+
+custom_type = {
+    identifier
+}
+
+//////////////////////////
+// State Declarations
+//////////////////////////
+
+state_decl = {
+    "state" ~ identifier ~ ":" ~ type_expr ~ ("=" ~ expr)? ~ ";"
+}
+
+//////////////////////////
+// Struct and Enum Declarations
+//////////////////////////
+
+struct_decl = {
+    "struct" ~ identifier ~ "{" ~ field_list? ~ "}"
+}
+
+field_list = {
+    field ~ ("," ~ field)*
+}
+
+field = {
+    identifier ~ ":" ~ type_expr
+}
+
+enum_decl = {
+    "enum" ~ identifier ~ "{" ~ variant_list? ~ "}"
+}
+
+variant_list = {
+    variant ~ ("," ~ variant)*
+}
+
+variant = {
+    identifier ~ ("(" ~ type_expr ~ ")")?
+}
+
+//////////////////////////
+// Constant Declarations
+//////////////////////////
+
+const_decl = {
+    "const" ~ identifier ~ ":" ~ type_expr ~ "=" ~ expr ~ ";"
+}
+
+//////////////////////////
+// Statements and Blocks
+//////////////////////////
+
+block = {
+    "{" ~ statement* ~ "}"
+}
+
+statement = {
+    let_stmt | assignment_stmt | if_stmt | while_stmt | for_stmt | 
+    match_stmt | return_stmt | break_stmt | continue_stmt | 
+    emit_stmt | require_stmt | expr_stmt
+}
+
+let_stmt = {
+    "let" ~ ("mut")? ~ identifier ~ (":" ~ type_expr)? ~ "=" ~ expr ~ ";"
+}
+
+assignment_stmt = {
+    lvalue ~ "=" ~ expr ~ ";"
+}
+
+lvalue = {
+    identifier | member_access | index_access
+}
+
+member_access = {
+    expr ~ "." ~ identifier
+}
+
+index_access = {
+    expr ~ "[" ~ expr ~ "]"
+}
+
+if_stmt = {
+    "if" ~ expr ~ block ~ ("else" ~ "if" ~ expr ~ block)* ~ ("else" ~ block)?
+}
+
+while_stmt = {
+    "while" ~ expr ~ block
+}
+
+for_stmt = {
+    "for" ~ identifier ~ "in" ~ expr ~ block
+}
+
+match_stmt = {
+    "match" ~ expr ~ "{" ~ match_arm* ~ "}"
+}
+
+match_arm = {
+    pattern ~ "=>" ~ (expr | block) ~ ","?
+}
+
+pattern = {
+    literal_pattern | identifier_pattern | wildcard_pattern | enum_pattern
+}
+
+literal_pattern = {
+    integer | string | boolean
+}
+
+identifier_pattern = {
+    identifier
+}
+
+wildcard_pattern = {
+    "_"
+}
+
+enum_pattern = {
+    identifier ~ "::" ~ identifier ~ ("(" ~ pattern ~ ")")?
+}
+
+return_stmt = {
+    "return" ~ expr? ~ ";"
+}
+
+break_stmt = {
+    "break" ~ ";"
+}
+
+continue_stmt = {
+    "continue" ~ ";"
+}
+
+emit_stmt = {
+    "emit" ~ identifier ~ "{" ~ field_init_list? ~ "}" ~ ";"
+}
+
+field_init_list = {
+    field_init ~ ("," ~ field_init)*
+}
+
+field_init = {
+    identifier ~ ":" ~ expr
+}
+
+require_stmt = {
+    "require" ~ "(" ~ expr ~ ")" ~ ";"
+}
+
+expr_stmt = {
+    expr ~ ";"
+}
+
+//////////////////////////
+// Expressions
+//////////////////////////
+
+expr = {
+    logical_or
+}
+
+logical_or = {
+    logical_and ~ ("||" ~ logical_and)*
+}
+
+logical_and = {
+    equality ~ ("&&" ~ equality)*
+}
+
+equality = {
+    comparison ~ (("==" | "!=") ~ comparison)*
+}
+
+comparison = {
+    addition ~ (("<" | "<=" | ">" | ">=") ~ addition)*
+}
+
+addition = {
+    multiplication ~ (("+" | "-") ~ multiplication)*
+}
+
+multiplication = {
+    unary ~ (("*" | "/" | "%") ~ unary)*
+}
+
+unary = {
+    ("!" | "-") ~ unary | postfix
+}
+
+postfix = {
+    primary ~ (call_suffix | member_suffix | index_suffix)*
+}
+
+call_suffix = {
+    "(" ~ arg_list? ~ ")"
+}
+
+member_suffix = {
+    "." ~ identifier
+}
+
+index_suffix = {
+    "[" ~ expr ~ "]"
+}
+
+arg_list = {
+    expr ~ ("," ~ expr)*
+}
+
+primary = {
+    literal | identifier | "(" ~ expr ~ ")" | array_literal | struct_literal |
+    some_expr | none_expr | ok_expr | err_expr
+}
+
+literal = {
+    integer | float | string | boolean | did_literal | timestamp_literal
+}
+
+array_literal = {
+    "[" ~ (expr ~ ("," ~ expr)*)? ~ "]"
+}
+
+struct_literal = {
+    identifier ~ "{" ~ field_init_list? ~ "}"
+}
+
+some_expr = {
+    "Some" ~ "(" ~ expr ~ ")"
+}
+
+none_expr = {
+    "None"
+}
+
+ok_expr = {
+    "Ok" ~ "(" ~ expr ~ ")"
+}
+
+err_expr = {
+    "Err" ~ "(" ~ expr ~ ")"
+}
+
+//////////////////////////
+// Special Expressions for Governance
+//////////////////////////
+
+transfer_expr = {
+    "transfer" ~ "(" ~ expr ~ "," ~ expr ~ "," ~ expr ~ ")"
+}
+
+mint_expr = {
+    "mint" ~ "(" ~ expr ~ "," ~ expr ~ ")"
+}
+
+burn_expr = {
+    "burn" ~ "(" ~ expr ~ "," ~ expr ~ ")"
+}
+
+//////////////////////////
+// Precedence and Associativity
+//////////////////////////
+
+// Operators are defined in order of precedence (lowest to highest)
+// Left-associative by default in Pest when using repetition with ~ 

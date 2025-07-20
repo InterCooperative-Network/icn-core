@@ -39,10 +39,14 @@ pub fn compile_ccl_file(
     let ast = parse_ccl_source(&source_code)?;
 
     let mut semantic_analyzer = SemanticAnalyzer::new();
-    semantic_analyzer.analyze(&ast)?;
+    match semantic_analyzer.analyze(&ast) {
+        Ok(()) => {},
+        Err(errors) => return Err(errors.into_iter().next().unwrap_or_else(|| 
+            CclError::SemanticError("Unknown semantic error".to_string()))),
+    }
 
-    let optimizer = Optimizer::new();
-    let optimized_ast = optimizer.optimize(ast)?; // AST might change to IR here
+    let mut optimizer = Optimizer::new(crate::optimizer::OptimizationLevel::Basic);
+    let optimized_ast = optimizer.optimize(ast); // AST might change to IR here
 
     let mut wasm_backend = WasmBackend::new();
     let (wasm_bytecode, mut metadata) = wasm_backend.compile_to_wasm(&optimized_ast)?;
@@ -91,7 +95,11 @@ pub fn check_ccl_file(source_path: &PathBuf) -> Result<(), CclError> {
     let source_code = fs::read_to_string(source_path)?;
     let ast = parse_ccl_source(&source_code)?;
     let mut semantic_analyzer = SemanticAnalyzer::new();
-    semantic_analyzer.analyze(&ast)?;
+    match semantic_analyzer.analyze(&ast) {
+        Ok(()) => {},
+        Err(errors) => return Err(errors.into_iter().next().unwrap_or_else(|| 
+            CclError::SemanticError("Unknown semantic error".to_string()))),
+    }
     info!("[CCL CLI Lib] {} passed checks.", source_path.display());
     Ok(())
 }
@@ -157,18 +165,7 @@ fn ast_to_string(ast: &AstNode, indent: usize) -> String {
             s.push_str(&block_to_string(body, indent));
             s
         }
-        AstNode::RuleDefinition {
-            name,
-            condition,
-            action,
-        } => {
-            format!(
-                "rule {} when {} then {}",
-                name,
-                expr_to_string(condition),
-                action_to_string(action)
-            )
-        }
+        // Legacy RuleDefinition removed in CCL 0.1
         AstNode::Block(b) => block_to_string(b, indent),
         AstNode::StructDefinition { .. } => "struct".to_string(),
     }
@@ -217,7 +214,7 @@ fn block_to_string(block: &BlockNode, indent: usize) -> String {
 
 fn stmt_to_string(stmt: &StatementNode, indent: usize) -> String {
     match stmt {
-        StatementNode::Let { name, value } => {
+        StatementNode::Let { mutable: _, name, type_expr: _, value } => {
             format!("let {} = {};", name, expr_to_string(value))
         }
         StatementNode::ExpressionStatement(e) => {
@@ -229,6 +226,7 @@ fn stmt_to_string(stmt: &StatementNode, indent: usize) -> String {
         StatementNode::If {
             condition,
             then_block,
+            else_ifs: _,
             else_block,
         } => {
             let mut s = String::new();
@@ -279,13 +277,13 @@ fn expr_to_string(expr: &ExpressionNode) -> String {
             format!("[{}]", items)
         }
         ExpressionNode::Identifier(s) => s.clone(),
-        ExpressionNode::FunctionCall { name, arguments } => {
-            let args = arguments
+        ExpressionNode::FunctionCall { name, args } => {
+            let arg_strs = args
                 .iter()
                 .map(expr_to_string)
                 .collect::<Vec<_>>()
                 .join(", ");
-            format!("{}({})", name, args)
+            format!("{}({})", name, arg_strs)
         }
         ExpressionNode::BinaryOp {
             left,
@@ -324,49 +322,34 @@ fn expr_to_string(expr: &ExpressionNode) -> String {
         ExpressionNode::ArrayAccess { array, index } => {
             format!("{}[{}]", expr_to_string(array), expr_to_string(index))
         }
-        ExpressionNode::SomeExpr(inner) => format!("Some({})", expr_to_string(inner)),
-        ExpressionNode::NoneExpr => "None".to_string(),
-        ExpressionNode::OkExpr(inner) => format!("Ok({})", expr_to_string(inner)),
-        ExpressionNode::ErrExpr(inner) => format!("Err({})", expr_to_string(inner)),
-        ExpressionNode::RequireProof(inner) => format!("require_proof({})", expr_to_string(inner)),
-        ExpressionNode::Match { value, .. } => format!("match {} ...", expr_to_string(value)),
-        ExpressionNode::TryExpr { expr, catch_arm } => {
-            if let Some(catch_expr) = catch_arm {
-                format!("try {} catch {}", expr_to_string(expr), expr_to_string(catch_expr))
-            } else {
-                format!("try {}", expr_to_string(expr))
-            }
+        ExpressionNode::Some(inner) => format!("Some({})", expr_to_string(inner)),
+        ExpressionNode::None => "None".to_string(),
+        ExpressionNode::Ok(inner) => format!("Ok({})", expr_to_string(inner)),
+        ExpressionNode::Err(inner) => format!("Err({})", expr_to_string(inner)),
+        // Legacy expressions removed in CCL 0.1
+        // All governance and legacy expressions removed in CCL 0.1
+    }
+}
+
+fn type_expr_to_string(ty: &crate::ast::TypeExprNode) -> String {
+    use crate::ast::TypeExprNode;
+    match ty {
+        TypeExprNode::Integer => "Integer".to_string(),
+        TypeExprNode::String => "String".to_string(),
+        TypeExprNode::Boolean => "Boolean".to_string(),
+        TypeExprNode::Mana => "Mana".to_string(),
+        TypeExprNode::Did => "Did".to_string(),
+        TypeExprNode::Timestamp => "Timestamp".to_string(),
+        TypeExprNode::Duration => "Duration".to_string(),
+        TypeExprNode::Custom(name) => name.clone(),
+        TypeExprNode::Array(inner) => format!("[{}]", type_expr_to_string(inner)),
+        TypeExprNode::Map { key_type, value_type } => {
+            format!("Map<{}, {}>", type_expr_to_string(key_type), type_expr_to_string(value_type))
         }
-        ExpressionNode::MapLiteral(entries) => {
-            let pairs: Vec<String> = entries.iter()
-                .map(|(k, v)| format!("{}: {}", expr_to_string(k), expr_to_string(v)))
-                .collect();
-            format!("{{{}}}", pairs.join(", "))
+        TypeExprNode::Option(inner) => format!("Option<{}>", type_expr_to_string(inner)),
+        TypeExprNode::Result { ok_type, err_type } => {
+            format!("Result<{}, {}>", type_expr_to_string(ok_type), type_expr_to_string(err_type))
         }
-        ExpressionNode::MapAccess { map, key } => {
-            format!("{}[{}]", expr_to_string(map), expr_to_string(key))
-        }
-        ExpressionNode::PanicExpr { message } => {
-            format!("panic({})", expr_to_string(message))
-        }
-        // Placeholder implementations for governance DSL expressions
-        ExpressionNode::EventEmit { event_name, .. } => {
-            format!("emit {}", event_name)
-        }
-        ExpressionNode::StateRead { state_name } => {
-            format!("state {}", state_name)
-        }
-        ExpressionNode::StateWrite { state_name, value } => {
-            format!("set_state {} = {}", state_name, expr_to_string(value))
-        }
-        ExpressionNode::TriggerAction { trigger_name, .. } => {
-            format!("trigger {}", trigger_name)
-        }
-        ExpressionNode::CrossContractCall { function_name, .. } => {
-            format!("call {}", function_name)
-        }
-        ExpressionNode::BreakExpr => "break".to_string(),
-        ExpressionNode::ContinueExpr => "continue".to_string(),
     }
 }
 
@@ -412,27 +395,14 @@ fn explain_ast(ast: &AstNode, target: Option<&str>) -> String {
                                 lines.push(format!(
                                     "Function `{}` returns `{}`.",
                                     name,
-                                    type_to_string(return_type)
+                                    return_type.as_ref().map(|rt| type_expr_to_string(rt)).unwrap_or_else(|| "void".to_string())
                                 ));
                             }
                         }
                     }
-                    PolicyStatementNode::RuleDef(inner) => {
-                        if let AstNode::RuleDefinition {
-                            name,
-                            condition,
-                            action,
-                        } = inner
-                        {
-                            if target.is_none() || target == Some(name) {
-                                lines.push(format!(
-                                    "Rule `{}` when {} then {}.",
-                                    name,
-                                    expr_to_string(condition),
-                                    action_to_string(action)
-                                ));
-                            }
-                        }
+                    PolicyStatementNode::RuleDef(_) => {
+                        // Legacy RuleDefinition removed in CCL 0.1
+                        lines.push("Legacy rule definition found - no longer supported in CCL 0.1".to_string());
                     }
                     PolicyStatementNode::Import { path, alias } => {
                         if target.is_none() {
