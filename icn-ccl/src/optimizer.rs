@@ -5,7 +5,7 @@ use crate::ast::{
     UnaryOperator, ParameterNode, FunctionDefinitionNode, ContractDeclarationNode,
     RoleDeclarationNode, ProposalDeclarationNode, StateDeclarationNode,
     ConstDeclarationNode, StructDefinitionNode, EnumDefinitionNode,
-    FieldNode, FieldInitNode,
+    FieldNode, FieldInitNode, MatchArmNode,
 };
 
 /// The optimizer applies various transformations to the AST to improve
@@ -85,17 +85,19 @@ impl Optimizer {
                     .collect();
                 AstNode::Policy(optimized_stmts)
             }
-            AstNode::FunctionDefinition { name, parameters, return_type, body } => {
+            AstNode::FunctionDefinition { name, parameters, return_type, body, .. } => {
                 AstNode::FunctionDefinition {
                     name,
+                    type_parameters: Vec::new(), // TODO: Implement generic optimization
                     parameters: parameters.into_iter().map(|p| self.fold_parameter(p)).collect(),
                     return_type: return_type.map(|rt| self.fold_type_expr(rt)),
                     body: self.fold_block(body),
                 }
             }
-            AstNode::StructDefinition { name, fields } => {
+            AstNode::StructDefinition { name, fields, .. } => {
                 AstNode::StructDefinition {
                     name,
+                    type_parameters: Vec::new(), // TODO: Implement generic optimization
                     fields: fields.into_iter().map(|f| self.fold_field(f)).collect(),
                 }
             }
@@ -157,6 +159,7 @@ impl Optimizer {
     fn fold_function_definition(&mut self, func: FunctionDefinitionNode) -> FunctionDefinitionNode {
         FunctionDefinitionNode {
             name: func.name,
+            type_parameters: func.type_parameters, // TODO: Implement generic optimization
             parameters: func.parameters.into_iter().map(|p| self.fold_parameter(p)).collect(),
             return_type: func.return_type.map(|rt| self.fold_type_expr(rt)),
             body: self.fold_block(func.body),
@@ -182,6 +185,7 @@ impl Optimizer {
     fn fold_struct_definition(&mut self, struct_def: StructDefinitionNode) -> StructDefinitionNode {
         StructDefinitionNode {
             name: struct_def.name,
+            type_parameters: struct_def.type_parameters, // TODO: Implement generic optimization
             fields: struct_def.fields.into_iter().map(|f| self.fold_field(f)).collect(),
         }
     }
@@ -189,6 +193,7 @@ impl Optimizer {
     fn fold_enum_definition(&mut self, enum_def: EnumDefinitionNode) -> EnumDefinitionNode {
         EnumDefinitionNode {
             name: enum_def.name,
+            type_parameters: enum_def.type_parameters, // TODO: Implement generic optimization
             variants: enum_def.variants.into_iter().map(|v| {
                 crate::ast::EnumVariantNode {
                     name: v.name,
@@ -344,10 +349,8 @@ impl Optimizer {
                     arms: arms.into_iter().map(|arm| {
                         crate::ast::MatchArmNode {
                             pattern: arm.pattern,
-                            body: match arm.body {
-                                crate::ast::Either::Left(expr) => crate::ast::Either::Left(self.fold_expr(expr)),
-                                crate::ast::Either::Right(block) => crate::ast::Either::Right(self.fold_block(block)),
-                            },
+                            guard: arm.guard.map(|g| self.fold_expr(g)),
+                            body: self.fold_expr(arm.body),
                         }
                     }).collect(),
                 }
@@ -527,6 +530,20 @@ impl Optimizer {
             }
             ExpressionNode::EnumValue { enum_name, variant } => {
                 ExpressionNode::EnumValue { enum_name, variant }
+            }
+            
+            // Match expressions
+            ExpressionNode::Match { expr, arms } => {
+                ExpressionNode::Match {
+                    expr: Box::new(self.fold_expr(*expr)),
+                    arms: arms.into_iter().map(|arm| {
+                        MatchArmNode {
+                            pattern: arm.pattern,
+                            guard: arm.guard.map(|g| self.fold_expr(g)),
+                            body: self.fold_expr(arm.body),
+                        }
+                    }).collect(),
+                }
             }
         }
     }

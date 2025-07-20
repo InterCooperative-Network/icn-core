@@ -442,6 +442,14 @@ fn type_expr_to_string(ty: &crate::ast::TypeExprNode) -> String {
         TypeExprNode::Result { ok_type, err_type } => {
             format!("Result<{}, {}>", type_expr_to_string(ok_type), type_expr_to_string(err_type))
         }
+        TypeExprNode::TypeParameter(name) => name.clone(),
+        TypeExprNode::GenericInstantiation { base_type, type_args } => {
+            let args = type_args.iter()
+                .map(type_expr_to_string)
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("{}<{}>", base_type, args)
+        }
     }
 }
 

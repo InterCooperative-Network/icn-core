@@ -261,6 +261,7 @@ impl WasmBackend {
                                         // Convert to PolicyStatementNode for backward compatibility
                                         let func_ast = AstNode::FunctionDefinition {
                                             name: func.name.clone(),
+                                            type_parameters: func.type_parameters.clone(),
                                             parameters: func.parameters.clone(),
                                             return_type: func.return_type.clone(),
                                             body: func.body.clone(),
@@ -279,6 +280,7 @@ impl WasmBackend {
                             // Handle standalone function (legacy syntax support)
                             let func_ast = AstNode::FunctionDefinition {
                                 name: func.name.clone(),
+                                type_parameters: func.type_parameters.clone(),
                                 parameters: func.parameters.clone(),
                                 return_type: func.return_type.clone(),
                                 body: func.body.clone(),
@@ -307,6 +309,7 @@ impl WasmBackend {
                 parameters,
                 return_type,
                 body,
+                ..
             }) = item
             {
                 let ret_ty = if let Some(ref return_type_ref) = return_type {
