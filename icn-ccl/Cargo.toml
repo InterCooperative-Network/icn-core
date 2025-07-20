@@ -135,6 +135,10 @@ name = "test_else_if_fix"
 path = "test_else_if_fix.rs"
 
 [[bin]]
+name = "test_while_loops"
+path = "test_while_loops.rs"
+
+[[bin]]
 name = "test_else_if_comprehensive"
 path = "test_else_if_comprehensive.rs"
 

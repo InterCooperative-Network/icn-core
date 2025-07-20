@@ -2645,7 +2645,7 @@ impl WasmBackend {
         &mut self,
         condition: &ExpressionNode,
         then_block: &BlockNode,
-        _else_ifs: &[(ExpressionNode, BlockNode)],
+        else_ifs: &[(ExpressionNode, BlockNode)], // FIXED: Remove underscore to use parameter
         else_block: &Option<BlockNode>,
         instrs: &mut Vec<Instruction>,
         locals: &mut LocalEnv,
@@ -2660,31 +2660,35 @@ impl WasmBackend {
             ));
         }
 
-        if let Some(else_blk) = else_block {
-            instrs.push(Instruction::If(wasm_encoder::BlockType::Empty));
-            self.emit_block(then_block, instrs, locals, return_ty, indices)?;
+        // FIXED: Properly handle else-if chains
+        instrs.push(Instruction::If(wasm_encoder::BlockType::Empty));
+        self.emit_block(then_block, instrs, locals, return_ty, indices)?;
+        
+        // Process else-if chains recursively
+        if !else_ifs.is_empty() {
             instrs.push(Instruction::Else);
-            if else_blk.statements.len() == 1 {
-                if let StatementNode::If {
-                    condition: c,
-                    then_block: t,
-                    else_ifs: ei,
-                    else_block: e,
-                } = &else_blk.statements[0]
-                {
-                    self.emit_if_statement(c, t, ei, e, instrs, locals, return_ty, indices)?;
-                } else {
-                    self.emit_block(else_blk, instrs, locals, return_ty, indices)?;
-                }
-            } else {
-                self.emit_block(else_blk, instrs, locals, return_ty, indices)?;
-            }
-            instrs.push(Instruction::End);
-        } else {
-            instrs.push(Instruction::If(wasm_encoder::BlockType::Empty));
-            self.emit_block(then_block, instrs, locals, return_ty, indices)?;
-            instrs.push(Instruction::End);
+            
+            // Emit the first else-if as a nested if statement
+            let (elif_condition, elif_block) = &else_ifs[0];
+            let remaining_else_ifs = &else_ifs[1..];
+            
+            self.emit_if_statement(
+                elif_condition, 
+                elif_block, 
+                remaining_else_ifs, 
+                else_block, 
+                instrs, 
+                locals, 
+                return_ty, 
+                indices
+            )?;
+        } else if let Some(else_blk) = else_block {
+            // No else-ifs, just final else block
+            instrs.push(Instruction::Else);
+            self.emit_block(else_blk, instrs, locals, return_ty, indices)?;
         }
+        
+        instrs.push(Instruction::End);
         Ok(())
     }
 
