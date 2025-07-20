@@ -2188,8 +2188,8 @@ impl RuntimeContext {
         // 2. Verify the checkpoint signature against the executor's DID
         let verifying_key = self
             .did_resolver
-            .resolve_verifying_key(&checkpoint.executor_did)
-            .map_err(|e| HostAbiError::DidResolutionFailed(format!("{e}")))?;
+            .resolve(&checkpoint.executor_did)
+            .map_err(|e| HostAbiError::InvalidParameters(format!("DID resolution failed: {e}")))?;
 
         checkpoint
             .verify_signature(&verifying_key)
@@ -2218,7 +2218,7 @@ impl RuntimeContext {
             timestamp: checkpoint.timestamp,
             author_did: checkpoint.executor_did.clone(),
             signature: None,
-            scope: Some(format!("checkpoint:{}", checkpoint.job_id)),
+            scope: Some(NodeScope(format!("checkpoint:{}", checkpoint.job_id))),
         };
 
         // 4. Store in DAG
@@ -2249,8 +2249,8 @@ impl RuntimeContext {
         // 2. Verify the partial output signature against the executor's DID
         let verifying_key = self
             .did_resolver
-            .resolve_verifying_key(&partial_output.executor_did)
-            .map_err(|e| HostAbiError::DidResolutionFailed(format!("{e}")))?;
+            .resolve(&partial_output.executor_did)
+            .map_err(|e| HostAbiError::InvalidParameters(format!("DID resolution failed: {e}")))?;
 
         partial_output
             .verify_signature(&verifying_key)
@@ -2279,7 +2279,7 @@ impl RuntimeContext {
             timestamp: partial_output.timestamp,
             author_did: partial_output.executor_did.clone(),
             signature: None,
-            scope: Some(format!("partial_output:{}", partial_output.job_id)),
+            scope: Some(NodeScope(format!("partial_output:{}", partial_output.job_id))),
         };
 
         // 4. Store in DAG
