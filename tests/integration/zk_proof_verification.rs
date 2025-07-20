@@ -1,7 +1,7 @@
 use ark_serialize::CanonicalSerialize;
 use icn_common::{Cid, Did, ZkCredentialProof, ZkProofType};
 use icn_identity::{generate_ed25519_keypair, sign_message, verify_signature, SignatureBytes};
-use icn_node::app_router_with_options;
+use icn_node::{app_router_with_options, RuntimeMode};
 use icn_zk::{prepare_vk, prove, setup, AgeOver18Circuit};
 use rand_core::OsRng;
 use reqwest::Client;
@@ -51,6 +51,7 @@ async fn zk_proof_verification_route() {
     assert!(manager.verify_vk_signature());
     let _prepared_vk = prepare_vk(&manager.pk);
     let (router, _ctx) = app_router_with_options(
+        RuntimeMode::Testing,
         None,
         None,
         None,

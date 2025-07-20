@@ -2,7 +2,7 @@ use icn_api::identity_trait::{
     DisclosureRequest, DisclosureResponse, IssueCredentialRequest, CredentialResponse,
 };
 use icn_common::{Cid, Did};
-use icn_node::app_router_with_options;
+use icn_node::{app_router_with_options, RuntimeMode};
 use reqwest::{Client, StatusCode};
 use std::collections::BTreeMap;
 use tokio::task;
@@ -12,6 +12,7 @@ use tokio::time::{sleep, Duration};
 async fn credential_disclose_route() {
     std::fs::write("fixtures/mana_ledger.tmp", "{\"balances\":{}}").unwrap();
     let (router, ctx) = app_router_with_options(
+        RuntimeMode::Testing,
         None,
         None,
         None,
@@ -71,6 +72,7 @@ async fn credential_disclose_route() {
 async fn disclosure_fails_when_expired() {
     std::fs::write("fixtures/mana_ledger.tmp", "{\"balances\":{}}").unwrap();
     let (router, ctx) = app_router_with_options(
+        RuntimeMode::Testing,
         None,
         None,
         None,
