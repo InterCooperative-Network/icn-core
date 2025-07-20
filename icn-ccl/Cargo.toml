@@ -98,6 +98,14 @@ path = "test_stdlib.rs"
 name = "test_stdlib_fixed"
 path = "test_stdlib_fixed.rs"
 
+[[bin]]
+name = "governance_example"
+path = "governance_example.rs"
+
+[[bin]]
+name = "governance_example_simple"
+path = "governance_example_simple.rs"
+
 # [[bin]]
 # name = "generate_ccl_job_spec"
 # path = "src/bin/generate_ccl_job_spec.rs"
