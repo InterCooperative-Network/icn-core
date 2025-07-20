@@ -1,0 +1,16 @@
+// ULTIMATE BASIC TEST: Just verify i = i + 1 works in a loop
+// This is the exact pattern that was causing infinite loops
+
+fn test_basic_loop() -> Integer {
+    let i = 0;
+    
+    while i < 3 {
+        i = i + 1;  // CRITICAL: This was the infinite loop bug
+    }
+    
+    return i; // Should return 3
+}
+
+fn run() -> Integer {
+    return test_basic_loop();
+} 

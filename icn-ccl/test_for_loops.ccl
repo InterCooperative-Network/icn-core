@@ -1,0 +1,65 @@
+// Comprehensive for loop test - verifying iteration over arrays
+
+fn test_basic_for_loop() -> Integer {
+    let sum = 0;
+    let numbers = [1, 2, 3, 4, 5];
+    
+    for item in numbers {
+        sum = sum + item;
+    }
+    
+    return sum; // Should return 15 (1+2+3+4+5)
+}
+
+fn test_for_loop_with_conditions() -> Integer {
+    let even_sum = 0;
+    let numbers = [1, 2, 3, 4, 5];
+    
+    for num in numbers {
+        if num > 2 {
+            even_sum = even_sum + num;
+        }
+    }
+    
+    return even_sum; // Should return 12 (3+4+5)
+}
+
+fn test_nested_for_loops() -> Integer {
+    let total = 0;
+    let outer_array = [1, 2, 3];
+    let inner_array = [10, 20];
+    
+    for outer in outer_array {
+        for inner in inner_array {
+            total = total + outer + inner;
+        }
+    }
+    
+    // (1+10) + (1+20) + (2+10) + (2+20) + (3+10) + (3+20)
+    // = 11 + 21 + 12 + 22 + 13 + 23 = 102
+    return total;
+}
+
+fn test_for_loop_array_processing() -> Integer {
+    let max_value = 0;
+    let values = [5, 12, 8, 23, 16];
+    
+    for value in values {
+        if value > max_value {
+            max_value = value;
+        }
+    }
+    
+    return max_value; // Should return 23
+}
+
+fn run() -> Integer {
+    // Test all for loop patterns
+    let basic = test_basic_for_loop();           // Should be 15
+    let conditional = test_for_loop_with_conditions(); // Should be 12  
+    let nested = test_nested_for_loops();       // Should be 102
+    let max_finding = test_for_loop_array_processing(); // Should be 23
+    
+    // Return sum to verify all worked: 15 + 12 + 102 + 23 = 152
+    return basic + conditional + nested + max_finding;
+} 

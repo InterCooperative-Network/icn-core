@@ -1,0 +1,67 @@
+// FINAL TEST: Verify infinite loop bug is completely fixed
+// Uses only the most basic CCL features that are fully implemented
+
+// Basic array contains function - this was causing infinite loops
+fn array_contains_simple(arr: Array<Integer>, item: Integer) -> Bool {
+    let i = 0;
+    let len = 3; // Fixed length for testing
+    
+    while i < len {
+        if arr[i] == item {
+            return true;
+        }
+        i = i + 1;  // CRITICAL: This was causing infinite loops before the fix
+    }
+    return false;
+}
+
+// Test loop counter increments work
+fn test_counter_loops() -> Integer {
+    let counter = 0;
+    let limit = 5;
+    
+    while counter < limit {
+        counter = counter + 1;  // Test variable reassignment
+    }
+    
+    return counter; // Should return 5
+}
+
+// Test nested loops work correctly
+fn test_nested_loops() -> Integer {
+    let outer = 0;
+    let inner = 0;
+    let result = 0;
+    
+    while outer < 3 {
+        inner = 0;
+        while inner < 2 {
+            result = result + 1;
+            inner = inner + 1;  // Inner loop counter
+        }
+        outer = outer + 1;  // Outer loop counter
+    }
+    
+    return result; // Should return 6 (3 * 2)
+}
+
+// Main test function
+fn run() -> Integer {
+    // Test basic array contains (the original infinite loop bug)
+    let test_array = [1, 2, 3];
+    let found = array_contains_simple(test_array, 2);
+    
+    if found {
+        // Test counter loops
+        let counter_result = test_counter_loops();
+        if counter_result == 5 {
+            // Test nested loops
+            let nested_result = test_nested_loops();
+            if nested_result == 6 {
+                return 42; // All tests passed!
+            }
+        }
+    }
+    
+    return 99; // Something failed
+} 

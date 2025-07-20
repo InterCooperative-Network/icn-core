@@ -1,0 +1,79 @@
+// Test struct field access functionality - basic implementation should already work
+
+struct Member {
+    name: String,
+    reputation: Integer,
+    active: Boolean
+}
+
+struct Proposal {
+    id: Integer,
+    title: String,
+    votes_for: Integer,
+    votes_against: Integer
+}
+
+fn test_basic_struct_creation() -> Integer {
+    let member = Member {
+        name: "Alice",
+        reputation: 100,
+        active: true
+    };
+    
+    return member.reputation; // Should return 100
+}
+
+fn test_struct_field_access() -> Integer {
+    let proposal = Proposal {
+        id: 1,
+        title: "Budget Proposal",
+        votes_for: 25,
+        votes_against: 5
+    };
+    
+    let total_votes = proposal.votes_for + proposal.votes_against;
+    return total_votes; // Should return 30
+}
+
+fn test_multiple_struct_operations() -> Integer {
+    let member1 = Member {
+        name: "Bob",
+        reputation: 75,
+        active: true
+    };
+    
+    let member2 = Member {
+        name: "Carol",
+        reputation: 90,
+        active: false
+    };
+    
+    // Test accessing different fields
+    let combined_reputation = member1.reputation + member2.reputation;
+    return combined_reputation; // Should return 165
+}
+
+fn test_struct_in_conditions() -> Integer {
+    let member = Member {
+        name: "Dave",
+        reputation: 50,
+        active: true
+    };
+    
+    if member.reputation > 60 {
+        return 1;
+    } else {
+        return 0; // Should return this since reputation is 50
+    }
+}
+
+fn run() -> Integer {
+    // Test all struct operations
+    let basic = test_basic_struct_creation();      // Should be 100
+    let field_access = test_struct_field_access(); // Should be 30  
+    let multiple = test_multiple_struct_operations(); // Should be 165
+    let conditional = test_struct_in_conditions(); // Should be 0
+    
+    // Return sum to verify all worked: 100 + 30 + 165 + 0 = 295
+    return basic + field_access + multiple + conditional;
+} 

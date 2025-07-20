@@ -1,0 +1,34 @@
+// Minimal test to prove the infinite loop bug is FIXED
+// This uses only basic CCL features that are currently supported
+
+// Simple array helper function - this is where the bug was
+fn array_contains_did_fixed(arr: Array<Did>, item: Did) -> Bool {
+    let i = 0;
+    while i < array_len(arr) {
+        if arr[i] == item {
+            return true;
+        }
+        i = i + 1;  // FIXED: was "let i = i + 1;" causing infinite loop
+    }
+    return false;
+}
+
+// Test function to demonstrate the fix works
+fn test_loop_fix() -> Integer {
+    let caller = host_get_caller();
+    let test_array = [caller]; // Array containing the caller's DID
+    
+    // This call should NOT hang in an infinite loop anymore
+    let found = array_contains_did_fixed(test_array, caller);
+    
+    if found {
+        return 1; // Success - found the DID and didn't hang
+    } else {
+        return 0; // Failure - should have found it
+    }
+}
+
+// Main function proving the infinite loop fix
+fn run() -> Integer {
+    return test_loop_fix();
+} 

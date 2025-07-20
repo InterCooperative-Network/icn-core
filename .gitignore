@@ -43,6 +43,4 @@ test_contract*.rs
 *.rcgu.o
 simple_policy.wasm
 test_contracts/
-icn-ccl/test_*.ccl
-icn-ccl/test_*.rs
 icn-devnet/launch_output.txt

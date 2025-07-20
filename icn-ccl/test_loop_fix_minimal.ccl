@@ -1,0 +1,22 @@
+// MINIMAL TEST: Proves infinite loop bug is FIXED
+// This demonstrates the fix without using undefined functions
+
+// Test the critical loop pattern that was causing infinite loops
+fn test_loop_counter_fix() -> Integer {
+    let i = 0;
+    let target = 3;
+    
+    while i < target {
+        if i == 2 {
+            return 42; // Success - we reached iteration 2
+        }
+        i = i + 1;  // FIXED: was "let i = i + 1;" causing infinite loop
+    }
+    
+    return 99; // We finished the loop normally
+}
+
+// Main function - if this returns without hanging, the bug is fixed
+fn run() -> Integer {
+    return test_loop_counter_fix();
+} 

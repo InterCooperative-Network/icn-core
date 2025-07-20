@@ -1,0 +1,64 @@
+// Simplified array operations test - focusing on core functionality that works
+
+fn test_array_creation_and_length() -> Integer {
+    let numbers = [1, 2, 3, 4, 5];
+    return array_len(numbers); // Should return 5
+}
+
+fn test_array_push_operations() -> Integer {
+    let items = [10, 20];
+    array_push(items, 30);
+    array_push(items, 40);
+    
+    return array_len(items); // Should return 4 after pushes
+}
+
+fn test_array_access() -> Integer {
+    let data = [5, 10, 15, 20];
+    
+    // Test array access
+    let second = data[1]; // Should be 10
+    let fourth = data[3]; // Should be 20
+    
+    return second + fourth; // Should return 10 + 20 = 30
+}
+
+fn test_array_method_syntax() -> Integer {
+    let collection = [1, 2, 3, 4, 5, 6];
+    return collection.length(); // Should return 6
+}
+
+fn test_governance_vote_counting() -> Integer {
+    let votes_for = [45, 67, 89, 23];
+    let votes_against = [12, 34, 56];
+    
+    // Count total votes
+    let total_for = array_len(votes_for);   // 4
+    let total_against = array_len(votes_against); // 3
+    
+    return total_for + total_against; // Should return 7
+}
+
+fn test_member_management() -> Integer {
+    let member_ids = [101, 102, 103];
+    
+    // Add new members
+    array_push(member_ids, 104);
+    array_push(member_ids, 105);
+    
+    // Get final count
+    return array_len(member_ids); // Should return 5
+}
+
+fn run() -> Integer {
+    // Test core array operations that work well
+    let creation = test_array_creation_and_length();     // Should be 5
+    let push_ops = test_array_push_operations();         // Should be 4
+    let access = test_array_access();                    // Should be 30
+    let methods = test_array_method_syntax();            // Should be 6
+    let voting = test_governance_vote_counting();        // Should be 7
+    let members = test_member_management();              // Should be 5
+    
+    // Return sum to verify all worked: 5 + 4 + 30 + 6 + 7 + 5 = 57
+    return creation + push_ops + access + methods + voting + members;
+} 

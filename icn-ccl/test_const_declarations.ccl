@@ -1,0 +1,50 @@
+// Test const declarations at different levels - should test current implementation
+
+// Top-level constants
+const GOVERNANCE_QUORUM: Integer = 66;
+const MAX_PROPOSAL_DURATION: Integer = 30;
+const VOTING_THRESHOLD: Integer = 50;
+const NETWORK_NAME: String = "ICN Governance";
+
+fn test_const_usage() -> Integer {
+    // Test using constants in calculations
+    let required_votes = GOVERNANCE_QUORUM;
+    let max_duration = MAX_PROPOSAL_DURATION;
+    
+    return required_votes + max_duration; // Should return 96
+}
+
+fn test_const_in_conditions() -> Integer {
+    if VOTING_THRESHOLD > 40 {
+        return 1; // Should return this
+    } else {
+        return 0;
+    }
+}
+
+fn test_const_in_complex_expression() -> Integer {
+    let total_threshold = GOVERNANCE_QUORUM + VOTING_THRESHOLD; // 66 + 50 = 116
+    let adjusted = total_threshold - MAX_PROPOSAL_DURATION; // 116 - 30 = 86
+    
+    return adjusted;
+}
+
+// Test constants within contracts
+contract GovernanceContract {
+    const MIN_REPUTATION: Integer = 100;
+    const DEFAULT_MANA: Integer = 1000;
+    
+    fn test_contract_constants() -> Integer {
+        return MIN_REPUTATION + DEFAULT_MANA; // Should return 1100
+    }
+}
+
+fn run() -> Integer {
+    // Test all const usage patterns
+    let basic_usage = test_const_usage();                    // Should be 96
+    let conditional = test_const_in_conditions();            // Should be 1  
+    let complex_expr = test_const_in_complex_expression();   // Should be 86
+    
+    // Return sum to verify all worked: 96 + 1 + 86 = 183
+    return basic_usage + conditional + complex_expr;
+} 
