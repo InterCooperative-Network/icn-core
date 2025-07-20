@@ -68,6 +68,10 @@ pub enum AstNode {
 pub enum TopLevelNode {
     Import(ImportStatementNode),
     Contract(ContractDeclarationNode),
+    Function(FunctionDeclarationNode),
+    Struct(StructDeclarationNode),
+    Enum(EnumDeclarationNode),
+    Const(ConstDeclarationNode),
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -75,6 +79,11 @@ pub struct ImportStatementNode {
     pub path: String,
     pub alias: Option<String>,
 }
+
+// Type aliases for top-level nodes (reusing contract body node types)
+pub type FunctionDeclarationNode = FunctionDefinitionNode;
+pub type StructDeclarationNode = StructDefinitionNode;
+pub type EnumDeclarationNode = EnumDefinitionNode;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ContractDeclarationNode {
@@ -589,6 +598,26 @@ pub fn pair_to_ast(
                         let contract = parser::parse_contract_declaration(inner)?;
                         items.push(TopLevelNode::Contract(contract));
                     }
+                    Rule::fn_decl => {
+                        // Parse standalone function declaration
+                        let function = parser::parse_function_definition_new(inner)?;
+                        items.push(TopLevelNode::Function(function));
+                    }
+                    Rule::struct_decl => {
+                        // Parse standalone struct declaration
+                        let struct_def = parser::parse_struct_declaration(inner)?;
+                        items.push(TopLevelNode::Struct(struct_def));
+                    }
+                    Rule::enum_decl => {
+                        // Parse standalone enum declaration
+                        let enum_def = parser::parse_enum_declaration(inner)?;
+                        items.push(TopLevelNode::Enum(enum_def));
+                    }
+                    // Rule::const_decl => {
+                    //     // Parse standalone const declaration
+                    //     let const_def = parser::parse_const_declaration(inner)?;
+                    //     items.push(TopLevelNode::Const(const_def));
+                    // }
                     Rule::EOI => (),
                     _ => {
                         return Err(CclError::ParsingError(format!(

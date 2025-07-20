@@ -59,6 +59,22 @@ impl Optimizer {
                         crate::ast::TopLevelNode::Contract(contract) => {
                             crate::ast::TopLevelNode::Contract(self.fold_contract(contract))
                         }
+                        crate::ast::TopLevelNode::Function(function) => {
+                            // TODO: Optimize standalone functions
+                            crate::ast::TopLevelNode::Function(function)
+                        }
+                        crate::ast::TopLevelNode::Struct(struct_def) => {
+                            // TODO: Optimize standalone structs
+                            crate::ast::TopLevelNode::Struct(struct_def)
+                        }
+                        crate::ast::TopLevelNode::Enum(enum_def) => {
+                            // TODO: Optimize standalone enums
+                            crate::ast::TopLevelNode::Enum(enum_def)
+                        }
+                        crate::ast::TopLevelNode::Const(const_def) => {
+                            // TODO: Optimize standalone constants
+                            crate::ast::TopLevelNode::Const(const_def)
+                        }
                     })
                     .collect();
                 AstNode::Program(optimized_nodes)

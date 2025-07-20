@@ -622,7 +622,7 @@ fn parse_state_declaration(pair: Pair<Rule>) -> Result<StateDeclarationNode, Ccl
     })
 }
 
-fn parse_struct_declaration(pair: Pair<Rule>) -> Result<StructDefinitionNode, CclError> {
+pub fn parse_struct_declaration(pair: Pair<Rule>) -> Result<StructDefinitionNode, CclError> {
     // struct_decl = { "struct" ~ identifier ~ "{" ~ field_list? ~ "}" }
     let mut inner = pair.into_inner();
     
@@ -668,7 +668,7 @@ fn parse_field(pair: Pair<Rule>) -> Result<FieldNode, CclError> {
     Ok(FieldNode { name, type_expr })
 }
 
-fn parse_enum_declaration(pair: Pair<Rule>) -> Result<EnumDefinitionNode, CclError> {
+pub fn parse_enum_declaration(pair: Pair<Rule>) -> Result<EnumDefinitionNode, CclError> {
     // enum_decl = { "enum" ~ identifier ~ "{" ~ variant_list? ~ "}" }
     let mut inner = pair.into_inner();
     
@@ -1706,6 +1706,22 @@ pub fn parse_ccl_source(source: &str) -> Result<AstNode, CclError> {
                         let contract = parse_contract_declaration(pair_in_program)?;
                         top_level_nodes.push(crate::ast::TopLevelNode::Contract(contract));
                     }
+                    Rule::fn_decl => {
+                        let function = parse_function_definition_new(pair_in_program)?;
+                        top_level_nodes.push(crate::ast::TopLevelNode::Function(function));
+                    }
+                    Rule::struct_decl => {
+                        let struct_def = parse_struct_declaration(pair_in_program)?;
+                        top_level_nodes.push(crate::ast::TopLevelNode::Struct(struct_def));
+                    }
+                    Rule::enum_decl => {
+                        let enum_def = parse_enum_declaration(pair_in_program)?;
+                        top_level_nodes.push(crate::ast::TopLevelNode::Enum(enum_def));
+                    }
+                    // Rule::const_decl => {
+                    //     let const_def = parse_const_declaration(pair_in_program)?;
+                    //     top_level_nodes.push(crate::ast::TopLevelNode::Const(const_def));
+                    // }
                     Rule::EOI => (),
                     _ => {
                         return Err(CclError::ParsingError(format!(
@@ -1769,6 +1785,22 @@ fn alias_ast(ast: AstNode, alias: &str) -> AstNode {
                             body: contract.body,
                         };
                         crate::ast::TopLevelNode::Contract(aliased_contract)
+                    }
+                    crate::ast::TopLevelNode::Function(function) => {
+                        // TODO: Alias standalone functions if needed
+                        crate::ast::TopLevelNode::Function(function)
+                    }
+                    crate::ast::TopLevelNode::Struct(struct_def) => {
+                        // TODO: Alias standalone structs if needed
+                        crate::ast::TopLevelNode::Struct(struct_def)
+                    }
+                    crate::ast::TopLevelNode::Enum(enum_def) => {
+                        // TODO: Alias standalone enums if needed
+                        crate::ast::TopLevelNode::Enum(enum_def)
+                    }
+                    crate::ast::TopLevelNode::Const(const_def) => {
+                        // TODO: Alias standalone constants if needed
+                        crate::ast::TopLevelNode::Const(const_def)
                     }
                 }
             }).collect();
