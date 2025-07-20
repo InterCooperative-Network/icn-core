@@ -21,7 +21,8 @@ keyword = @{
     "transfer" | "mint" | "burn" | "emit" | "require" |
     "can" | "requires" | "extends" | "scope" | "version" |
     "eligible" | "quorum" | "threshold" | "duration" | "execution" |
-    "majority" | "supermajority" | "consensus" | "unanimous"
+    "majority" | "supermajority" | "consensus" | "unanimous" |
+    "struct" | "enum" | "const"
 }
 
 // Literals
@@ -422,7 +423,7 @@ arg_list = {
 }
 
 primary = {
-    literal | identifier | "(" ~ expr ~ ")" | array_literal | struct_literal |
+    literal | struct_literal | enum_value | identifier | "(" ~ expr ~ ")" | array_literal |
     some_expr | none_expr | ok_expr | err_expr
 }
 
@@ -436,6 +437,10 @@ array_literal = {
 
 struct_literal = {
     identifier ~ "{" ~ field_init_list? ~ "}"
+}
+
+enum_value = {
+    identifier ~ "::" ~ identifier
 }
 
 some_expr = {

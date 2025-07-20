@@ -106,6 +106,18 @@ path = "governance_example.rs"
 name = "governance_example_simple"
 path = "governance_example_simple.rs"
 
+[[bin]]
+name = "test_structs"
+path = "test_structs.rs"
+
+[[bin]]
+name = "test_simple_struct"
+path = "test_simple_struct.rs"
+
+[[bin]]
+name = "test_struct_instantiation"
+path = "test_struct_instantiation.rs"
+
 # [[bin]]
 # name = "generate_ccl_job_spec"
 # path = "src/bin/generate_ccl_job_spec.rs"

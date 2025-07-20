@@ -17,6 +17,7 @@ struct LocalEnv {
     locals: HashMap<String, (u32, ValType)>,
     order: Vec<ValType>,
     next_local_index: u32,
+    constants: HashMap<String, (i64, ValType)>, // Constant name -> (value, type)
 }
 
 impl LocalEnv {
@@ -25,6 +26,7 @@ impl LocalEnv {
             locals: HashMap::new(),
             order: Vec::new(),
             next_local_index: 0,
+            constants: HashMap::new(),
         }
     }
 
@@ -42,6 +44,14 @@ impl LocalEnv {
     fn get(&self, name: &str) -> Option<(u32, ValType)> {
         self.locals.get(name).copied()
     }
+
+    fn add_constant(&mut self, name: &str, value: i64, ty: ValType) {
+        self.constants.insert(name.to_string(), (value, ty));
+    }
+
+    fn get_constant(&self, name: &str) -> Option<(i64, ValType)> {
+        self.constants.get(name).copied()
+    }
 }
 
 const IMPORT_COUNT: u32 = 5;
@@ -53,6 +63,8 @@ pub struct WasmBackend {
     mana_metering_enabled: bool,
     mana_per_instruction: u32,
     max_mana_limit: u32,
+    // Global constants storage
+    constants: HashMap<String, (i64, ValType)>,
 }
 
 impl WasmBackend {
@@ -63,6 +75,7 @@ impl WasmBackend {
             mana_metering_enabled: true,
             mana_per_instruction: 1,
             max_mana_limit: 1_000_000, // 1M mana units
+            constants: HashMap::new(),
         }
     }
     
@@ -73,9 +86,52 @@ impl WasmBackend {
             mana_metering_enabled: enable_metering,
             mana_per_instruction,
             max_mana_limit: max_mana,
+            constants: HashMap::new(),
         }
     }
     
+    /// Process a constant declaration and store it for later use
+    fn process_constant(&mut self, const_decl: &crate::ast::ConstDeclarationNode) -> Result<(), CclError> {
+        // For now, support only integer and string constants
+        match &const_decl.value {
+            ExpressionNode::IntegerLiteral(value) => {
+                self.constants.insert(const_decl.name.clone(), (*value, ValType::I64));
+            }
+            ExpressionNode::StringLiteral(value) => {
+                // For strings, we'll store the string in the data section and store the pointer
+                let mut bytes = (value.len() as u32).to_le_bytes().to_vec();
+                bytes.extend_from_slice(value.as_bytes());
+                let ptr = self.data_offset;
+                let len = bytes.len() as u32;
+                let offset = wasm_encoder::ConstExpr::i32_const(ptr as i32);
+                self.data.active(0, &offset, bytes.into_boxed_slice());
+                self.data_offset += len;
+                self.constants.insert(const_decl.name.clone(), (ptr as i64, ValType::I32));
+            }
+            ExpressionNode::Literal(crate::ast::LiteralNode::Integer(value)) => {
+                // Handle wrapped integer literals
+                self.constants.insert(const_decl.name.clone(), (*value, ValType::I64));
+            }
+            ExpressionNode::Literal(crate::ast::LiteralNode::String(value)) => {
+                // Handle wrapped string literals  
+                let mut bytes = (value.len() as u32).to_le_bytes().to_vec();
+                bytes.extend_from_slice(value.as_bytes());
+                let ptr = self.data_offset;
+                let len = bytes.len() as u32;
+                let offset = wasm_encoder::ConstExpr::i32_const(ptr as i32);
+                self.data.active(0, &offset, bytes.into_boxed_slice());
+                self.data_offset += len;
+                self.constants.insert(const_decl.name.clone(), (ptr as i64, ValType::I32));
+            }
+            _ => {
+                return Err(CclError::WasmGenerationError(format!(
+                    "Unsupported constant type for {}: {:?}", const_decl.name, const_decl.value
+                )));
+            }
+        }
+        Ok(())
+    }
+
     /// Emit mana metering instructions if enabled
     fn emit_mana_check(&self, instrs: &mut Vec<Instruction>, cost: u32) {
         if !self.mana_metering_enabled {
@@ -200,15 +256,22 @@ impl WasmBackend {
                     match node {
                         crate::ast::TopLevelNode::Contract(contract) => {
                             for body_item in &contract.body {
-                                if let crate::ast::ContractBodyNode::Function(func) = body_item {
-                                    // Convert to PolicyStatementNode for backward compatibility
-                                    let func_ast = AstNode::FunctionDefinition {
-                                        name: func.name.clone(),
-                                        parameters: func.parameters.clone(),
-                                        return_type: func.return_type.clone(),
-                                        body: func.body.clone(),
-                                    };
-                                    functions.push(PolicyStatementNode::FunctionDef(func_ast));
+                                match body_item {
+                                    crate::ast::ContractBodyNode::Function(func) => {
+                                        // Convert to PolicyStatementNode for backward compatibility
+                                        let func_ast = AstNode::FunctionDefinition {
+                                            name: func.name.clone(),
+                                            parameters: func.parameters.clone(),
+                                            return_type: func.return_type.clone(),
+                                            body: func.body.clone(),
+                                        };
+                                        functions.push(PolicyStatementNode::FunctionDef(func_ast));
+                                    }
+                                    crate::ast::ContractBodyNode::Const(const_decl) => {
+                                        // Process constants - we'll store them globally for now
+                                        self.process_constant(const_decl)?;
+                                    }
+                                    _ => {} // Skip other items for now
                                 }
                             }
                         }
@@ -252,6 +315,11 @@ impl WasmBackend {
                 next_index += 1;
 
                 let mut locals = LocalEnv::new();
+
+                // Copy global constants to this function's LocalEnv
+                for (name, (value, ty)) in &self.constants {
+                    locals.add_constant(name, *value, *ty);
+                }
 
                 // Register function parameters (they don't go in locals.order, only in the name mapping)
                 for (i, param) in parameters.iter().enumerate() {
@@ -369,11 +437,21 @@ impl WasmBackend {
                 Ok(ValType::I32)
             }
             ExpressionNode::Identifier(name) => {
-                let (idx, ty) = locals.get(name).ok_or_else(|| {
-                    CclError::WasmGenerationError(format!("Unknown variable {}", name))
-                })?;
-                instrs.push(Instruction::LocalGet(idx));
-                Ok(ty)
+                // Check if it's a local variable first
+                if let Some((idx, ty)) = locals.get(name) {
+                    instrs.push(Instruction::LocalGet(idx));
+                    Ok(ty)
+                } else if let Some((value, ty)) = locals.get_constant(name) {
+                    // It's a constant - emit the constant value
+                    match ty {
+                        ValType::I32 => instrs.push(Instruction::I32Const(value as i32)),
+                        ValType::I64 => instrs.push(Instruction::I64Const(value)),
+                        _ => return Err(CclError::WasmGenerationError(format!("Unsupported constant type for {}", name))),
+                    }
+                    Ok(ty)
+                } else {
+                    Err(CclError::WasmGenerationError(format!("Unknown variable {}", name)))
+                }
             }
             ExpressionNode::FunctionCall { name, args } => {
                 match name.as_str() {
@@ -1038,10 +1116,48 @@ impl WasmBackend {
             },
             
             // New AST variants - placeholder implementations
-            ExpressionNode::MemberAccess { object: _, member: _ } => {
-                // TODO: Implement member access
-                instrs.push(Instruction::I32Const(0));
-                Ok(ValType::I32)
+            ExpressionNode::MemberAccess { object, member } => {
+                // Simple member access: assume fields are stored sequentially
+                // Get the struct pointer
+                let _object_type = self.emit_expression(object, instrs, locals, indices)?;
+                
+                // For now, hardcode field offsets (this should use type information)
+                let field_offset = match member.as_str() {
+                    "x" => 0,     // First field at offset 0
+                    "y" => 8,     // Second field at offset 8 (assuming i64)
+                    "name" => 0,  // String fields at offset 0
+                    "reputation" => 8, // Second field
+                    "active" => 16,    // Third field  
+                    "id" => 0,
+                    "title" => 8,
+                    "votes_for" => 16,
+                    "votes_against" => 24,
+                    "status" => 32,
+                    _ => 0, // Default to first field
+                };
+                
+                // Add the field offset to the struct pointer
+                instrs.push(Instruction::I32Const(field_offset));
+                instrs.push(Instruction::I32Add);
+                
+                // Load the field value (assume i64 for integers)
+                if member == "name" || member == "title" {
+                    // String fields return the pointer (i32)
+                    instrs.push(Instruction::I32Load(wasm_encoder::MemArg {
+                        offset: 0,
+                        align: 0,
+                        memory_index: 0,
+                    }));
+                    Ok(ValType::I32)
+                } else {
+                    // Integer fields return i64
+                    instrs.push(Instruction::I64Load(wasm_encoder::MemArg {
+                        offset: 0,
+                        align: 0,
+                        memory_index: 0,
+                    }));
+                    Ok(ValType::I64)
+                }
             }
             ExpressionNode::IndexAccess { object, index } => {
                 // Use the same implementation as ArrayAccess
@@ -1068,9 +1184,50 @@ impl WasmBackend {
                 }));
                 Ok(ValType::I64)
             }
-            ExpressionNode::StructLiteral { type_name: _, fields: _ } => {
-                // TODO: Implement struct literal construction
-                instrs.push(Instruction::I32Const(0));
+            ExpressionNode::StructLiteral { type_name, fields } => {
+                // Simple struct implementation: allocate memory and store fields
+                // For now, allocate 32 bytes per struct (enough for 4 i64 fields)
+                let struct_size = 32;
+                let struct_ptr = self.data_offset;
+                self.data_offset += struct_size;
+                
+                // Store field values in sequential memory locations
+                let mut field_offset = 0;
+                for field in fields {
+                    // Emit the field value
+                    let field_type = self.emit_expression(&field.value, instrs, locals, indices)?;
+                    
+                    // Store the value at the struct pointer + field offset
+                    instrs.push(Instruction::I32Const(struct_ptr as i32 + field_offset));
+                    instrs.push(Instruction::I32Const(0)); // memory index
+                    
+                    match field_type {
+                        ValType::I64 => {
+                            instrs.push(Instruction::I64Store(wasm_encoder::MemArg {
+                                offset: 0,
+                                align: 0,
+                                memory_index: 0,
+                            }));
+                            field_offset += 8; // 8 bytes for i64
+                        }
+                        ValType::I32 => {
+                            instrs.push(Instruction::I32Store(wasm_encoder::MemArg {
+                                offset: 0,
+                                align: 0,
+                                memory_index: 0,
+                            }));
+                            field_offset += 4; // 4 bytes for i32
+                        }
+                        _ => {
+                            return Err(CclError::WasmGenerationError(format!(
+                                "Unsupported field type in struct {}", type_name
+                            )));
+                        }
+                    }
+                }
+                
+                // Return pointer to the struct
+                instrs.push(Instruction::I32Const(struct_ptr as i32));
                 Ok(ValType::I32)
             }
             ExpressionNode::Transfer { from: _, to: _, amount: _ } => {

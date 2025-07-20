@@ -490,6 +490,10 @@ pub enum ExpressionNode {
         type_name: String,
         fields: Vec<FieldInitNode>,
     },
+    EnumValue {
+        enum_name: String,
+        variant: String,
+    },
     
     // Option and Result expressions
     Some(Box<ExpressionNode>),

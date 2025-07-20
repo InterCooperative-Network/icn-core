@@ -28,10 +28,18 @@ pub struct FunctionSignature {
     pub return_type: TypeAnnotationNode,
 }
 
+/// Represents a struct type definition
+#[derive(Debug, Clone)]
+pub struct StructType {
+    pub name: String,
+    pub fields: HashMap<String, TypeAnnotationNode>,
+}
+
 /// The semantic analyzer performs type checking and ensures the AST is semantically valid
 pub struct SemanticAnalyzer {
     symbol_table: HashMap<String, Symbol>,
     function_table: HashMap<String, FunctionSignature>,
+    struct_table: HashMap<String, StructType>, // Track struct definitions
     current_scope_level: usize,
     current_return_type: Option<TypeAnnotationNode>,
     errors: Vec<CclError>,
@@ -42,6 +50,7 @@ impl SemanticAnalyzer {
         let mut analyzer = SemanticAnalyzer {
             symbol_table: HashMap::new(),
             function_table: HashMap::new(),
+            struct_table: HashMap::new(),
             current_scope_level: 0,
             current_return_type: None,
             errors: Vec::new(),
@@ -125,7 +134,15 @@ impl SemanticAnalyzer {
         // Enter contract scope
         self.enter_scope();
         
-        // Analyze contract body
+        // First pass: Register struct types so they're available for function analysis
+        for item in &contract.body {
+            if let crate::ast::ContractBodyNode::Struct(struct_def) = item {
+                self.analyze_struct_definition(&struct_def.name, &struct_def.fields)?;
+                self.register_struct_type(struct_def)?;
+            }
+        }
+        
+        // Second pass: Analyze everything else (now that struct types are known)
         for item in &contract.body {
             match item {
                 crate::ast::ContractBodyNode::Role(role) => {
@@ -140,14 +157,14 @@ impl SemanticAnalyzer {
                 crate::ast::ContractBodyNode::State(state) => {
                     self.analyze_state_declaration(state)?;
                 }
-                crate::ast::ContractBodyNode::Struct(struct_def) => {
-                    self.analyze_struct_definition(&struct_def.name, &struct_def.fields)?;
-                }
                 crate::ast::ContractBodyNode::Enum(enum_def) => {
                     self.analyze_enum_definition(enum_def)?;
                 }
                 crate::ast::ContractBodyNode::Const(const_def) => {
                     self.analyze_const_declaration(const_def)?;
+                }
+                _ => {
+                    // Structs already processed in first pass
                 }
             }
         }
@@ -328,16 +345,43 @@ impl SemanticAnalyzer {
     }
 
     fn analyze_contract_body(&mut self, _name: &str, body: &[crate::ast::ContractBodyNode]) -> Result<(), CclError> {
+        // First pass: Register all struct types
+        for item in body {
+            if let crate::ast::ContractBodyNode::Struct(struct_def) = item {
+                self.analyze_struct_definition(&struct_def.name, &struct_def.fields)?;
+                self.register_struct_type(struct_def)?;
+            }
+        }
+        
+        // Second pass: Analyze functions (now that struct types are known)
         for item in body {
             match item {
                 crate::ast::ContractBodyNode::Function(func) => {
                     self.analyze_function_definition(&func.name, &func.parameters, func.return_type.as_ref(), &func.body)?;
                 }
                 _ => {
-                    // Other items analyzed separately
+                    // Other items already processed or analyzed separately
                 }
             }
         }
+        Ok(())
+    }
+
+    /// Register a struct type in the struct table for later type checking
+    fn register_struct_type(&mut self, struct_def: &crate::ast::StructDefinitionNode) -> Result<(), CclError> {
+        let mut fields = HashMap::new();
+        
+        for field in &struct_def.fields {
+            let field_type = field.type_expr.to_type_annotation();
+            fields.insert(field.name.clone(), field_type);
+        }
+        
+        let struct_type = StructType {
+            name: struct_def.name.clone(),
+            fields,
+        };
+        
+        self.struct_table.insert(struct_def.name.clone(), struct_type);
         Ok(())
     }
 
@@ -703,13 +747,40 @@ impl SemanticAnalyzer {
                 }
             }
             ExpressionNode::StructLiteral { type_name, fields: _ } => {
-                // TODO: Validate struct fields against struct definition
+
+                // Validate that the struct type exists
+                if !self.struct_table.contains_key(type_name) {
+                    return Err(CclError::SemanticError(format!("Unknown struct type: {}", type_name)));
+                }
+                // TODO: Validate struct fields against definition
                 Ok(TypeAnnotationNode::Custom(type_name.clone()))
             }
-            ExpressionNode::MemberAccess { object, member: _ } => {
-                let _object_type = self.evaluate_expression(object)?;
-                // TODO: Implement proper member type lookup
-                Ok(TypeAnnotationNode::Custom("member".to_string()))
+            ExpressionNode::MemberAccess { object, member } => {
+                let object_type = self.evaluate_expression(object)?;
+                
+                // Check if the object is a struct type and get the member type
+                match object_type {
+                    TypeAnnotationNode::Custom(struct_name) => {
+                        if let Some(struct_type) = self.struct_table.get(&struct_name) {
+                            if let Some(member_type) = struct_type.fields.get(member) {
+                                Ok(member_type.clone())
+                            } else {
+                                Err(CclError::SemanticError(format!(
+                                    "Struct {} has no member named {}", struct_name, member
+                                )))
+                            }
+                        } else {
+                            Err(CclError::SemanticError(format!(
+                                "Cannot access member {} on non-struct type", member
+                            )))
+                        }
+                    }
+                    _ => {
+                        Err(CclError::SemanticError(format!(
+                            "Cannot access member {} on type {:?}", member, object_type
+                        )))
+                    }
+                }
             }
             ExpressionNode::IndexAccess { object, index } => {
                 let object_type = self.evaluate_expression(object)?;
