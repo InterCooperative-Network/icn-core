@@ -1,6 +1,6 @@
 use base64;
 use bincode;
-use icn_node::app_router_with_options;
+use icn_node::{app_router_with_options, RuntimeMode};
 use reqwest::Client;
 use serde_json::json;
 use tokio::task;
@@ -9,8 +9,9 @@ use tokio::task;
 async fn test_stub_endpoints_full_lifecycle() {
     println!("Testing ICN Stub Endpoints");
 
-    // Create router without API key (None) to disable authentication
+    // Create router in testing mode for deterministic behavior
     let (router, _ctx) = app_router_with_options(
+        RuntimeMode::Testing, // Use testing mode for stub services
         None, // No API key required
         None, // No auth token required
         None, // No rate limit

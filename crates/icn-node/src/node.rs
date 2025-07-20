@@ -105,6 +105,55 @@ use icn_network::libp2p_service::{Libp2pNetworkService, NetworkConfig};
 #[cfg(feature = "enable-libp2p")]
 use libp2p::Multiaddr;
 
+/// Runtime configuration mode for explicit service selection
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RuntimeMode {
+    /// Production mode - uses all production services, persistent storage
+    Production,
+    /// Development mode - mixed services, suitable for local development
+    Development,
+    /// Testing mode - uses stub services, in-memory storage, deterministic behavior
+    Testing,
+}
+
+impl RuntimeMode {
+    /// Get appropriate storage backend for this mode
+    pub fn default_storage_backend(&self) -> StorageBackendType {
+        match self {
+            RuntimeMode::Production => crate::config::default_storage_backend(),
+            RuntimeMode::Development => crate::config::default_storage_backend(),
+            RuntimeMode::Testing => StorageBackendType::Memory,
+        }
+    }
+
+    /// Get appropriate mana ledger backend for this mode
+    pub fn default_mana_ledger_backend(&self) -> icn_runtime::context::LedgerBackend {
+        match self {
+            RuntimeMode::Production => crate::config::default_ledger_backend(),
+            RuntimeMode::Development => crate::config::default_ledger_backend(),
+            RuntimeMode::Testing => icn_runtime::context::LedgerBackend::File,
+        }
+    }
+
+    /// Get appropriate mana ledger path for this mode
+    pub fn default_mana_ledger_path(&self) -> PathBuf {
+        match self {
+            RuntimeMode::Production => PathBuf::from("./mana_ledger.json"),
+            RuntimeMode::Development => PathBuf::from("./dev_mana_ledger.json"),
+            RuntimeMode::Testing => PathBuf::from("./tests/fixtures/mana_ledger.json"),
+        }
+    }
+
+    /// Get appropriate storage path for this mode
+    pub fn default_storage_path(&self) -> PathBuf {
+        match self {
+            RuntimeMode::Production => PathBuf::from("./production_dag_store"),
+            RuntimeMode::Development => PathBuf::from("./dev_dag_store"),
+            RuntimeMode::Testing => PathBuf::from("./test_dag_store"),
+        }
+    }
+}
+
 // Initialize node start time (call this when the node starts)
 fn init_node_start_time() {
     let start_time = SystemTime::now()
@@ -695,45 +744,70 @@ pub async fn build_network_service(
 
 // --- Public App Constructor (for tests or embedding) ---
 pub async fn app_router() -> Router {
-    app_router_with_options(None, None, None, None, None, None, None, None, None, None)
+    app_router_with_options(
+        RuntimeMode::Testing, // Default to testing mode for backward compatibility
+        None, None, None, None, None, None, None, None, None, None
+    )
         .await
         .0
 }
 
-/// Construct a router for tests or embedding with optional API key and rate limit.
+/// Construct a router with explicit runtime mode configuration.
+/// 
+/// **🏭 PRODUCTION**: Use `RuntimeMode::Production` for production deployments
+/// **🛠️ DEVELOPMENT**: Use `RuntimeMode::Development` for local development  
+/// **🧪 TESTING**: Use `RuntimeMode::Testing` for tests and temporary instances
+/// 
+/// This function creates a complete ICN node router with the specified service configuration.
+/// The runtime mode determines which services are used:
+/// - Production: All real services, persistent storage, production backends
+/// - Development: Mixed services, suitable for local development with networking
+/// - Testing: Stub services, in-memory storage, deterministic behavior
 #[allow(clippy::too_many_arguments)]
 pub async fn app_router_with_options(
+    runtime_mode: RuntimeMode,
     api_key: Option<String>,
     auth_token: Option<String>,
     rate_limit: Option<u64>,
-    _mana_ledger_backend: Option<icn_runtime::context::LedgerBackend>,
+    mana_ledger_backend: Option<icn_runtime::context::LedgerBackend>,
     mana_ledger_path: Option<PathBuf>,
     storage_backend: Option<StorageBackendType>,
     storage_path: Option<PathBuf>,
-    _governance_db_path: Option<PathBuf>,
+    governance_db_path: Option<PathBuf>,
     #[cfg_attr(not(feature = "persist-sled"), allow(unused_variables))] reputation_db_path: Option<
         PathBuf,
     >,
     parameter_store_path: Option<PathBuf>,
 ) -> (Router, Arc<RuntimeContext>) {
-    // Generate a new identity for this test/embedded instance
+    // Generate a new identity for this instance
     let (sk, pk) = generate_ed25519_keypair();
     let node_did_string = did_key_from_verifying_key(&pk);
-    let node_did = Did::from_str(&node_did_string).expect("Failed to create test node DID");
-    info!("Test/Embedded Node DID: {}", node_did);
+    let node_did = Did::from_str(&node_did_string)
+        .expect("Failed to create node DID");
+    
+    match runtime_mode {
+        RuntimeMode::Production => info!("🏭 Production Node DID: {}", node_did),
+        RuntimeMode::Development => info!("🛠️ Development Node DID: {}", node_did),
+        RuntimeMode::Testing => info!("🧪 Testing Node DID: {}", node_did),
+    }
 
-    let _signer = Arc::new(Ed25519Signer::new_with_keys(sk, pk)); // Not used with stubs
+    let signer = Arc::new(Ed25519Signer::new_with_keys(sk, pk));
+    
+    // Configure storage backends based on runtime mode
+    let storage_backend = storage_backend.unwrap_or_else(|| runtime_mode.default_storage_backend());
+    let storage_path = storage_path.unwrap_or_else(|| runtime_mode.default_storage_path());
+    let mana_ledger_backend = mana_ledger_backend.unwrap_or_else(|| runtime_mode.default_mana_ledger_backend());
+    let mana_ledger_path = mana_ledger_path.unwrap_or_else(|| runtime_mode.default_mana_ledger_path());
+    
     let mut cfg = NodeConfig {
         storage: StorageConfig {
-            storage_backend: storage_backend.unwrap_or(StorageBackendType::Memory),
-            storage_path: storage_path
-                .clone()
-                .unwrap_or_else(|| PathBuf::from("./dag_store")),
-            mana_ledger_path: mana_ledger_path
-                .clone()
-                .unwrap_or_else(|| PathBuf::from("./tests/fixtures/mana_ledger.json")),
+            storage_backend,
+            storage_path: storage_path.clone(),
+            mana_ledger_path: mana_ledger_path.clone(),
+            mana_ledger_backend,
             ..Default::default()
         },
+        test_mode: matches!(runtime_mode, RuntimeMode::Testing),
         ..NodeConfig::default()
     };
     cfg.apply_env_overrides();
@@ -747,59 +821,88 @@ pub async fn app_router_with_options(
         .await
         .expect("Failed to init DAG store for test context");
 
-    #[cfg(feature = "enable-libp2p")]
-    let (_mesh_network_service, service_dyn) = {
-        let cfg = NetworkConfig::default();
-        let service = Libp2pNetworkService::new(cfg)
-            .await
-            .expect("Failed to create libp2p service");
-        let service_dyn: Arc<dyn NetworkService> = Arc::new(service);
-        let default_service = DefaultMeshNetworkService::new(service_dyn.clone(), _signer.clone());
-        (
-            Arc::new(MeshNetworkServiceType::Default(default_service)),
-            Some(service_dyn),
-        )
-    };
-    #[cfg(not(feature = "enable-libp2p"))]
-    let (_mesh_network_service, service_dyn) = {
-        let stub_service = StubMeshNetworkService::new();
-        (
-            Arc::new(MeshNetworkServiceType::Stub(stub_service)),
-            None::<Arc<dyn icn_network::NetworkService>>,
-        )
-    };
-    // GovernanceModule is initialized inside RuntimeContext::new
-
-    // Create production-ready RuntimeContext with proper services
-    let _node_did_string = node_did.to_string();
-
     // Create mana ledger with initial balance
     let mana_ledger = icn_runtime::context::SimpleManaLedger::new_with_backend(
-        mana_ledger_path.unwrap_or_else(|| PathBuf::from("./tests/fixtures/mana_ledger.json")),
-        _mana_ledger_backend.unwrap_or(icn_runtime::context::LedgerBackend::File),
+        mana_ledger_path,
+        mana_ledger_backend,
     );
     mana_ledger
         .set_balance(&node_did, 1000)
         .expect("Failed to set initial mana balance");
 
-    // Create production RuntimeContext using the mesh network service we created above
+    // Create RuntimeContext using the appropriate constructor for the runtime mode
     #[cfg_attr(not(feature = "persist-sled"), allow(unused_mut))]
-    let mut rt_ctx = {
-        #[cfg(feature = "enable-libp2p")]
-        {
-            // For production/development with real networking
-            RuntimeContext::new_for_development(
-                node_did.clone(),
-                _signer.clone(),
-                mana_ledger,
-                service_dyn,
-                Some(dag_store_for_rt.clone()),
-            )
-            .expect("Failed to create production RuntimeContext")
+    let mut rt_ctx = match runtime_mode {
+        RuntimeMode::Production => {
+            info!("🏭 Creating production RuntimeContext with all real services");
+            
+            #[cfg(feature = "enable-libp2p")]
+            {
+                // Create real libp2p network service for production
+                let net_cfg = NetworkConfig::production();
+                let network_service = Arc::new(
+                    Libp2pNetworkService::new(net_cfg)
+                        .await
+                        .expect("Failed to create libp2p service for production")
+                );
+                
+                RuntimeContext::new_for_production(
+                    node_did.clone(),
+                    network_service,
+                    signer.clone(),
+                    Arc::new(icn_identity::KeyDidResolver),
+                    dag_store_for_rt.clone(),
+                    mana_ledger,
+                    Arc::new(icn_reputation::InMemoryReputationStore::new()),
+                    None,
+                )
+                .expect("Failed to create production RuntimeContext")
+            }
+            #[cfg(not(feature = "enable-libp2p"))]
+            {
+                return (
+                    Router::new(),
+                    Arc::new(RuntimeContext::new_for_testing(node_did.clone(), Some(1000))
+                        .expect("Fallback to testing context"))
+                );
+            }
         }
-        #[cfg(not(feature = "enable-libp2p"))]
-        {
-            // For testing without networking - use stub services
+        RuntimeMode::Development => {
+            info!("🛠️ Creating development RuntimeContext with mixed services");
+            
+            #[cfg(feature = "enable-libp2p")]
+            {
+                // Create libp2p service for development
+                let net_cfg = NetworkConfig::development();
+                let network_service = Arc::new(
+                    Libp2pNetworkService::new(net_cfg)
+                        .await
+                        .expect("Failed to create libp2p service for development")
+                );
+                
+                RuntimeContext::new_for_development(
+                    node_did.clone(),
+                    signer.clone(),
+                    mana_ledger,
+                    Some(network_service),
+                    Some(dag_store_for_rt.clone()),
+                )
+                .expect("Failed to create development RuntimeContext")
+            }
+            #[cfg(not(feature = "enable-libp2p"))]
+            {
+                RuntimeContext::new_for_development(
+                    node_did.clone(),
+                    signer.clone(),
+                    mana_ledger,
+                    None, // No network service
+                    Some(dag_store_for_rt.clone()),
+                )
+                .expect("Failed to create development RuntimeContext")
+            }
+        }
+        RuntimeMode::Testing => {
+            info!("🧪 Creating testing RuntimeContext with stub services");
             RuntimeContext::new_for_testing(node_did.clone(), Some(1000))
                 .expect("Failed to create testing RuntimeContext")
         }
@@ -807,7 +910,7 @@ pub async fn app_router_with_options(
 
     #[cfg(feature = "persist-sled")]
     {
-        let gov_path = _governance_db_path.unwrap_or_else(|| PathBuf::from("./governance_db"));
+        let gov_path = governance_db_path.unwrap_or_else(|| PathBuf::from("./governance_db"));
         let gov_mod = icn_governance::GovernanceModule::new_sled(gov_path)
             .unwrap_or_else(|_| icn_governance::GovernanceModule::new());
         if let Some(ctx) = Arc::get_mut(&mut rt_ctx) {
@@ -820,10 +923,11 @@ pub async fn app_router_with_options(
         }
     }
 
-    #[cfg(feature = "enable-libp2p")]
-    info!("✅ Node initialized with 1000 mana (production services with libp2p)");
-    #[cfg(not(feature = "enable-libp2p"))]
-    info!("✅ Node initialized with 1000 mana (testing services without libp2p)");
+    match runtime_mode {
+        RuntimeMode::Production => info!("✅ Production node initialized with 1000 mana and real services"),
+        RuntimeMode::Development => info!("✅ Development node initialized with 1000 mana and mixed services"),
+        RuntimeMode::Testing => info!("✅ Testing node initialized with 1000 mana and stub services"),
+    }
 
     rt_ctx.clone().spawn_mesh_job_manager().await; // Start the job manager
 
