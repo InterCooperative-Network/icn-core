@@ -1,208 +1,130 @@
-# ICN Core Documentation
+# ICN Documentation Directory
 
-> **InterCooperative Network (ICN)**: Production-ready infrastructure for a cooperative digital economy
+This directory contains comprehensive documentation for the InterCooperative Network (ICN) project. The documentation is organized into logical categories for easy navigation.
 
-## 🌟 **Start Here: Welcome to ICN**
+## 📁 Directory Structure
 
-**New to ICN?** Begin with our comprehensive introduction that explains the vision, principles, and transformative potential of cooperative digital infrastructure:
+### **Core Documentation**
+- **[INTRODUCTION.md](INTRODUCTION.md)** - Overview of ICN and its purpose
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** - System architecture and design
+- **[API.md](API.md)** - Complete API reference
+- **[DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md)** - Developer onboarding and workflows
+- **[GLOSSARY.md](GLOSSARY.md)** - Terminology and definitions
 
-### **📖 [Welcome to the InterCooperative Network](INTRODUCTION.md)**
+### **📚 Organized Documentation**
 
-*A book-like introduction that serves as both welcome and manifesto—explaining why ICN exists, what it enables, and how you can participate in building the cooperative digital economy.*
+#### **[ccl/](ccl/)** - Cooperative Contract Language
+- **[ccl_visual_editor_plan.md](ccl/ccl_visual_editor_plan.md)** - Visual contract editor implementation plan
+- **[ccl_wasm_tasks.md](ccl/ccl_wasm_tasks.md)** - CCL WASM integration status and tasks
+- **[CCL_DEVELOPMENT_ROADMAP.md](ccl/CCL_DEVELOPMENT_ROADMAP.md)** - CCL development roadmap
+- **[CCL_WASM_MEMORY_MILESTONE_COMPLETE.md](ccl/CCL_WASM_MEMORY_MILESTONE_COMPLETE.md)** - Memory management milestone
+- **[README_CCL_LAUNCH.md](ccl/README_CCL_LAUNCH.md)** - CCL launch package documentation
 
-**This is your essential starting point** whether you're a community organizer, developer, technologist, or movement builder.
+#### **[status/](status/)** - Implementation Status Reports
+- **[ICN_CORE_CURRENT_STATE_2025.md](status/ICN_CORE_CURRENT_STATE_2025.md)** - Current implementation state
+- **[STATUS.md](status/STATUS.md)** - Overall project status
+- **[ICN_IMPLEMENTATION_STATUS_MATRIX.md](status/ICN_IMPLEMENTATION_STATUS_MATRIX.md)** - Detailed implementation matrix
+- **[ICN_CORE_TESTING_REPORT.md](status/ICN_CORE_TESTING_REPORT.md)** - Comprehensive testing report
+- **[COMPREHENSIVE_E2E_TEST_SUMMARY.md](status/COMPREHENSIVE_E2E_TEST_SUMMARY.md)** - End-to-end test results
 
----
+#### **[phases/](phases/)** - Development Phase Reports  
+- **[PHASE_1_COMPLETION.md](phases/PHASE_1_COMPLETION.md)** - Phase 1 completion report
+- **[PHASE_2A_COMPLETION.md](phases/PHASE_2A_COMPLETION.md)** - Phase 2A completion report
+- **[PHASE_2A_DEMO.md](phases/PHASE_2A_DEMO.md)** - Phase 2A demonstration
+- **[PHASE_2B_SUCCESS.md](phases/PHASE_2B_SUCCESS.md)** - Phase 2B success report
+- **[PHASE_3_COMPLETION.md](phases/PHASE_3_COMPLETION.md)** - Phase 3 completion report
+- **[PHASE_3_HTTP_GATEWAY_SUCCESS.md](phases/PHASE_3_HTTP_GATEWAY_SUCCESS.md)** - HTTP gateway success
+- **[PHASE_4_FEDERATION_DEVNET.md](phases/PHASE_4_FEDERATION_DEVNET.md)** - Federation devnet phase
+- **[PHASE_5_EXECUTION_PLAN.md](phases/PHASE_5_EXECUTION_PLAN.md)** - Phase 5 execution plan
+- **[PHASE_5_COMPLETE_IMPLEMENTATION.md](phases/PHASE_5_COMPLETE_IMPLEMENTATION.md)** - Phase 5 completion
+- **[PHASE_5_MESH_NETWORK_UPGRADE.md](phases/PHASE_5_MESH_NETWORK_UPGRADE.md)** - Mesh network upgrade
 
-## 🚀 Quick Navigation
+#### **[planning/](planning/)** - Strategic Planning Documents
+- **[ICN_NEXT_STEPS_SUMMARY.md](planning/ICN_NEXT_STEPS_SUMMARY.md)** - Next steps summary
+- **[ICN_ROADMAP_2025.md](planning/ICN_ROADMAP_2025.md)** - 2025 strategic roadmap
+- **[ROADMAP_SUMMARY.md](planning/ROADMAP_SUMMARY.md)** - High-level roadmap summary
+- **[MULTI_NODE_GUIDE.md](planning/MULTI_NODE_GUIDE.md)** - Multi-node deployment guide
 
-### **For New Users**
-- **[📖 Introduction & Manifesto](INTRODUCTION.md)** - *Start here: The vision and reality of cooperative infrastructure*
-- **[⚡ Getting Started](guides/getting-started.md)** - *Run your first ICN node in 10 minutes*
-- **[🎯 Core Concepts](guides/concepts.md)** - *Understand the fundamental principles*
-- **[🏗️ Architecture Overview](guides/architecture.md)** - *See how everything fits together*
+### **🔧 Feature-Specific Documentation**
 
-### **For Developers**
-- **[💻 Developer Guide](guides/development.md)** - *Complete development environment setup*
-- **[🔌 API Reference](api/)** - *HTTP endpoints, Host ABI, and protocol documentation*
-- **[📚 Crate Documentation](crates/)** - *Implementation details for each component*
-- **[🧪 Examples & Tutorials](examples/)** - *Practical code examples and patterns*
+#### **CCL (Cooperative Contract Language)**
+- **[CCL_LANGUAGE_REFERENCE.md](CCL_LANGUAGE_REFERENCE.md)** - Complete language reference
+- **[CCL_SPEC_0_1.md](CCL_SPEC_0_1.md)** - CCL 0.1 specification
+- **[CCL_INTEGRATION_SUMMARY.md](CCL_INTEGRATION_SUMMARY.md)** - Integration summary
+- **[CCL_IMPLEMENTATION_ROADMAP.md](CCL_IMPLEMENTATION_ROADMAP.md)** - Implementation roadmap
+- **[howto-create-contract.md](howto-create-contract.md)** - Contract creation guide
 
-### **For Operators**
-- **[🚀 Deployment Guide](guides/deployment.md)** - *Production deployment and operations*
-- **[⚙️ Configuration](guides/configuration.md)** - *Network, storage, and runtime configuration*
-- **[📊 Monitoring](guides/monitoring.md)** - *Metrics, logging, and observability*
-- **[🔧 Troubleshooting](guides/troubleshooting.md)** - *Common issues and solutions*
+#### **Economics & Governance**
+- **[MANA_REPUTATION_SYSTEM.md](MANA_REPUTATION_SYSTEM.md)** - Mana and reputation system
+- **[governance-framework.md](governance-framework.md)** - Governance framework
+- **[economics-models.md](economics-models.md)** - Economic models
+- **[mana_policies.md](mana_policies.md)** - Mana policies
 
----
+#### **Security & Federation**
+- **[PRODUCTION_SECURITY_GUIDE.md](PRODUCTION_SECURITY_GUIDE.md)** - Production security guide
+- **[FEDERATION_TRUST.md](FEDERATION_TRUST.md)** - Federation trust model
+- **[zk_disclosure.md](zk_disclosure.md)** - Zero-knowledge disclosure
+- **[zk_circuit_development.md](zk_circuit_development.md)** - ZK circuit development
 
-## 📊 **Current Status: 77% Complete & Production-Ready**
+#### **Operations & Deployment**
+- **[deployment-guide.md](deployment-guide.md)** - Deployment guide
+- **[monitoring.md](monitoring.md)** - Monitoring and observability
+- **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - Troubleshooting guide
 
-ICN Core is **remarkably mature infrastructure**, not a prototype:
+### **📖 Getting Started**
 
-### ✅ **Production-Ready Components**
-- **🏗️ Runtime Engine** - WASM execution with comprehensive security
-- **🌐 P2P Networking** - Real libp2p-based mesh networking  
-- **💼 Distributed Computing** - Job bidding, execution, and verification
-- **🏛️ Democratic Governance** - Proposal creation and transparent voting
-- **💰 Economic Systems** - Mana generation, spending, and reputation
-- **🔒 Security Layer** - Ed25519 signatures and trust validation
-- **📦 DAG Storage** - Content-addressed storage with integrity
+#### **For New Contributors**
+1. Start with **[INTRODUCTION.md](INTRODUCTION.md)** for project overview
+2. Read **[DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md)** for development setup
+3. Review **[CONTRIBUTOR_SETUP.md](CONTRIBUTOR_SETUP.md)** for environment setup
+4. Check **[status/STATUS.md](status/STATUS.md)** for current implementation state
 
-### 🔧 **In Development**
-- Additional storage backends and optimizations
-- Enhanced federation management tools
-- Advanced governance policy frameworks
-- Extended mutual aid capabilities
+#### **For Understanding ICN**
+1. **[ARCHITECTURE.md](ARCHITECTURE.md)** - System design and components
+2. **[ICN_FEATURE_OVERVIEW.md](ICN_FEATURE_OVERVIEW.md)** - Feature overview
+3. **[GLOSSARY.md](GLOSSARY.md)** - Key terminology
+4. **[API.md](API.md)** - API reference
 
-**[View Complete Status →](STATUS.md)**
+#### **For CCL Development**
+1. **[CCL_LANGUAGE_REFERENCE.md](CCL_LANGUAGE_REFERENCE.md)** - Language basics
+2. **[ccl/ccl_visual_editor_plan.md](ccl/ccl_visual_editor_plan.md)** - Visual editor plans
+3. **[howto-create-contract.md](howto-create-contract.md)** - Contract creation
+4. **[CCL_SPEC_0_1.md](CCL_SPEC_0_1.md)** - Complete specification
 
----
+### **📋 Additional Files**
+- **[DOCUMENTATION_CLEANUP.md](DOCUMENTATION_CLEANUP.md)** - Documentation organization notes
+- **[FIX_SUMMARY.md](FIX_SUMMARY.md)** - Bug fixes and improvements
+- **[FEDERATION_CLI_EXAMPLES.md](FEDERATION_CLI_EXAMPLES.md)** - CLI usage examples
+- **[TRUST_ATTESTATION_IMPLEMENTATION.md](TRUST_ATTESTATION_IMPLEMENTATION.md)** - Trust implementation
+- **[enhanced-job-management-summary.md](enhanced-job-management-summary.md)** - Job management improvements
 
-## 🏗️ **Core Architecture**
+### **🔍 Finding Information**
 
-ICN consists of **18 specialized Rust crates** that work together to provide cooperative infrastructure:
+**Quick Reference:**
+- **Current Status**: [status/STATUS.md](status/STATUS.md)
+- **Getting Started**: [QUICKSTART.md](QUICKSTART.md)
+- **API Reference**: [API.md](API.md)
+- **Architecture**: [ARCHITECTURE.md](ARCHITECTURE.md)
+- **CCL Guide**: [CCL_LANGUAGE_REFERENCE.md](CCL_LANGUAGE_REFERENCE.md)
 
-### **📁 Foundation Layer**
-- **[`icn-common`](crates/icn-common.md)** - *Shared types, utilities, and error handling*
-
-### **🎛️ Orchestration Layer**  
-- **[`icn-runtime`](crates/icn-runtime.md)** - *WASM execution, state management, and Host ABI*
-
-### **🌐 Application Layer**
-- **[`icn-mesh`](crates/icn-mesh.md)** - *Distributed computing and job orchestration*
-- **[`icn-governance`](crates/icn-governance.md)** - *Democratic governance and proposals*
-- **[`icn-economics`](crates/icn-economics.md)** - *Mana system and economic enforcement*
-
-### **🔧 Infrastructure Layer**
-- **[`icn-identity`](crates/icn-identity.md)** - *DID management and credential verification*
-- **[`icn-dag`](crates/icn-dag.md)** - *Content-addressed storage and integrity*
-- **[`icn-network`](crates/icn-network.md)** - *P2P networking and message routing*
-
-### **🔌 Interface Layer**
-- **[`icn-api`](crates/icn-api.md)** - *External interfaces and service traits*
-- **[`icn-cli`](crates/icn-cli.md)** - *Command-line interface*
-- **[`icn-node`](crates/icn-node.md)** - *Main node binary and HTTP server*
-
-**[View All Crates →](crates/)**
-
----
-
-## 🎯 **Documentation by Role**
-
-### **👥 Community Organizers**
-*You don't need to be technical to benefit from ICN*
-
-- **[📖 Introduction](INTRODUCTION.md)** - Understand the cooperative vision
-- **[⚡ Getting Started](guides/getting-started.md)** - See ICN in action
-- **[🤝 Community Use Cases](guides/community-cases.md)** - Real-world applications
-- **[🎯 Governance Guide](guides/governance.md)** - Democratic decision-making
-
-### **💻 Application Developers**  
-*Build cooperative applications on ICN infrastructure*
-
-- **[💻 Developer Guide](guides/development.md)** - Development environment setup
-- **[🔌 API Documentation](api/)** - Complete API reference
-- **[🧩 Integration Patterns](guides/integration.md)** - Common development patterns
-- **[🧪 Examples](examples/)** - Working code examples
-
-### **🔧 Infrastructure Operators**
-*Deploy and manage ICN infrastructure*
-
-- **[🚀 Deployment Guide](guides/deployment.md)** - Production deployment
-- **[⚙️ Configuration Reference](guides/configuration.md)** - All configuration options
-- **[📊 Operations Manual](guides/operations.md)** - Monitoring and maintenance
-- **[🆘 Incident Response](guides/incident-response.md)** - Handle operational issues
-
-### **🏗️ Core Contributors**
-*Contribute to ICN Core development*
-
-- **[🛠️ Contributing Guide](../CONTRIBUTING.md)** - Code standards and workflow
-- **[📐 Architecture Deep Dive](guides/architecture-detailed.md)** - Internal system design
-- **[🧪 Testing Guide](guides/testing.md)** - Test frameworks and patterns
-- **[📝 Documentation System](DOCUMENTATION_SYSTEM.md)** - Maintain documentation
+**For Specific Topics:**
+- **Search within category folders** (ccl/, status/, phases/, planning/)
+- **Check the main docs directory** for cross-cutting concerns
+- **Review examples/** for code samples and templates
 
 ---
 
-## 🔧 **Working with the Code**
+## 🎯 **Documentation Goals**
 
-### **Quick Commands**
-```bash
-# Get started in 3 commands
-git clone https://github.com/InterCooperative/icn-core
-cd icn-core
-just setup && just build && just run
+This documentation aims to:
+1. **Onboard new contributors** efficiently
+2. **Document current capabilities** comprehensively  
+3. **Track development progress** transparently
+4. **Guide production deployment** safely
+5. **Support cooperative adoption** effectively
 
-# Development workflow
-just test      # Run all tests
-just lint      # Check code quality  
-just docs      # Generate documentation
-just check     # Quick compile check
-```
-
-### **Key Resources**
-- **[📦 Cargo Workspace](../Cargo.toml)** - *18 crates working together*
-- **[⚙️ Just Commands](../justfile)** - *Common development tasks*
-- **[🔧 CI Pipeline](../.github/workflows/)** - *Automated testing and validation*
-- **[🧪 Integration Tests](../tests/)** - *End-to-end system testing*
+The ICN project represents one of the most complete implementations of cooperative digital infrastructure ever created. This documentation reflects that scope and sophistication.
 
 ---
 
-## 🌍 **Join the Movement**
-
-### **Community & Support**
-- **[💬 Community Forum](https://community.intercooperative.network)** - Connect with other communities
-- **[💭 Development Chat](https://chat.intercooperative.network)** - Real-time development discussion
-- **[📅 Monthly Calls](https://calendar.intercooperative.network)** - Regular community meetings
-- **[🐛 Issue Tracker](https://github.com/InterCooperative/icn-core/issues)** - Report bugs and request features
-
-### **Contributing**
-- **[🤝 Contributing Guide](../CONTRIBUTING.md)** - How to contribute code
-- **[📝 Documentation](DOCUMENTATION_SYSTEM.md)** - Help improve documentation
-- **[🧪 Testing](guides/testing.md)** - Add test coverage
-- **[🌐 Translation](guides/translation.md)** - Help translate documentation
-
-### **Stay Connected**
-- **[📰 Blog](https://blog.intercooperative.network)** - Project updates and insights
-- **[🐦 Social Media](https://social.intercooperative.network)** - Follow development progress
-- **[📧 Newsletter](https://newsletter.intercooperative.network)** - Monthly project updates
-
----
-
-## 🔮 **What's Next**
-
-The foundation is built. Now we're scaling the cooperative digital economy:
-
-### **Short Term (1-3 months)**
-- Complete documentation for remaining crates
-- Enhanced federation management tools
-- Advanced governance policy frameworks
-- Production deployment improvements
-
-### **Medium Term (3-6 months)**
-- Multi-language client SDKs
-- Advanced economic modeling tools
-- Enhanced mutual aid capabilities
-- Cross-federation coordination protocols
-
-### **Long Term (6+ months)**
-- AI-powered resource optimization
-- Advanced privacy-preserving features
-- Integration with external economic systems
-- Global federation coordination infrastructure
-
-**[View Full Roadmap →](ROADMAP.md)**
-
----
-
-## 💡 **Need Help?**
-
-- **📖 Start with the [Introduction](INTRODUCTION.md)** for the big picture
-- **⚡ Try the [Getting Started Guide](guides/getting-started.md)** for hands-on experience
-- **🔍 Search the [API Documentation](api/)** for technical details
-- **💬 Ask in [Community Forum](https://community.intercooperative.network)** for support
-- **🐛 [Report Issues](https://github.com/InterCooperative/icn-core/issues)** for bugs or feature requests
-
----
-
-*Building the infrastructure for a cooperative digital economy, one community at a time.* 
+**💡 Tip**: Use your editor's search functionality to quickly find specific topics across all documentation files. 

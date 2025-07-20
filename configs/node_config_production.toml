@@ -1,0 +1,26 @@
+node_name = "ICN Production Node"
+
+[storage]
+storage_backend = "sled"
+storage_path = "./icn_data/node_store"
+mana_ledger_backend = "sled"
+mana_ledger_path = "./icn_data/mana_ledger.sled"
+reputation_db_path = "./icn_data/reputation.sled"
+governance_db_path = "./icn_data/governance.sled"
+
+[identity]
+node_did_path = "./icn_data/node_did.txt"
+node_private_key_path = "./icn_data/node_sk.bs58"
+
+[http]
+http_listen_addr = "0.0.0.0:5001"
+api_key = "production-node-key"
+
+[p2p]
+listen_address = "/ip4/0.0.0.0/tcp/4001"
+enable_p2p = true
+enable_mdns = true
+
+# Production settings
+test_mode = false
+key_rotation_days = 90 

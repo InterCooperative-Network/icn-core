@@ -26,10 +26,12 @@ cargo run --bin icn-cli -- info
 
 **Next Steps**: [Complete Getting Started Guide](docs/beginner/README.md)
 
-### Documentation Hub
-📚 **[All Documentation](docs/README.md)** - Centralized documentation index  
-📊 **[Current Status](STATUS.md)** - Implementation progress and capabilities  
+### Documentation Hub 📚
+📖 **[Documentation Index](DOCUMENTATION_INDEX.md)** - Quick navigation guide  
+📚 **[Complete Documentation](docs/README.md)** - Full documentation directory  
+📊 **[Current Status](docs/status/STATUS.md)** - Implementation progress and capabilities  
 🏗️ **[Architecture Guide](docs/ARCHITECTURE.md)** - System design and component overview  
+🎨 **[Visual Editor Plan](docs/ccl/ccl_visual_editor_plan.md)** - CCL visual contract editor  
 
 ---
 

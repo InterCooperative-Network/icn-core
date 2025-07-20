@@ -1,0 +1,8 @@
+fn calculate_simple_cost(cores: Integer) -> Mana {
+    let base_cost = cores * 15;
+    return base_cost;
+}
+
+fn run() -> Integer {
+    return calculate_simple_cost(3);
+}
