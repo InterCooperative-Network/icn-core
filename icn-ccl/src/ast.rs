@@ -447,7 +447,8 @@ pub enum LValueNode {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MatchArmNode {
     pub pattern: PatternNode,
-    pub body: Either<ExpressionNode, BlockNode>,
+    pub guard: Option<ExpressionNode>, // Optional guard condition
+    pub body: ExpressionNode, // Simplified: match arms return expressions
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -459,13 +460,25 @@ pub enum Either<A, B> {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum PatternNode {
     Literal(LiteralNode),
-    Identifier(String),
+    Variable(String),
     Wildcard,
+    Struct {
+        name: String,
+        fields: Vec<StructFieldPattern>,
+    },
     Enum {
         type_name: String,
         variant: String,
         inner: Option<Box<PatternNode>>,
     },
+    Tuple(Vec<PatternNode>),
+    Array(Vec<PatternNode>),
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct StructFieldPattern {
+    pub name: String,
+    pub pattern: Option<PatternNode>, // None means shorthand syntax
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -545,6 +558,12 @@ pub enum ExpressionNode {
     Burn {
         from: Box<ExpressionNode>,
         amount: Box<ExpressionNode>,
+    },
+    
+    // Match expressions
+    Match {
+        expr: Box<ExpressionNode>,
+        arms: Vec<MatchArmNode>,
     },
     
     // Legacy expressions

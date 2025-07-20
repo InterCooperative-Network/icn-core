@@ -673,13 +673,9 @@ impl SemanticAnalyzer {
                 
                 for arm in arms {
                     // TODO: Pattern type checking
-                    match &arm.body {
-                        crate::ast::Either::Left(expr) => {
-                            self.evaluate_expression(expr)?;
-                        }
-                        crate::ast::Either::Right(block) => {
-                            self.analyze_block(block)?;
-                        }
+                    self.evaluate_expression(&arm.body)?;
+                    if let Some(guard) = &arm.guard {
+                        self.evaluate_expression(guard)?;
                     }
                 }
             }
@@ -1027,6 +1023,31 @@ impl SemanticAnalyzer {
                     key_type: Box::new(TypeAnnotationNode::String),
                     value_type: Box::new(TypeAnnotationNode::Integer),
                 })
+            }
+            ExpressionNode::Match { expr, arms } => {
+                // Evaluate the match expression type
+                let _expr_type = self.evaluate_expression(expr)?;
+                
+                // For now, assume all arms return the same type
+                // TODO: Implement proper exhaustiveness checking and type unification
+                if let Some(first_arm) = arms.first() {
+                    let arm_type = self.evaluate_expression(&first_arm.body)?;
+                    
+                    // Check guard if present
+                    if let Some(guard) = &first_arm.guard {
+                        let guard_type = self.evaluate_expression(guard)?;
+                        if !matches!(guard_type, TypeAnnotationNode::Bool) {
+                            return Err(CclError::TypeMismatchError {
+                                expected: TypeAnnotationNode::Bool,
+                                found: guard_type,
+                            });
+                        }
+                    }
+                    
+                    Ok(arm_type)
+                } else {
+                    Err(CclError::SemanticError("Match expression must have at least one arm".to_string()))
+                }
             }
         }
     }

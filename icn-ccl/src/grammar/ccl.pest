@@ -331,31 +331,7 @@ for_stmt = {
 }
 
 match_stmt = {
-    "match" ~ expr ~ "{" ~ match_arm* ~ "}"
-}
-
-match_arm = {
-    pattern ~ "=>" ~ (expr | block) ~ ","?
-}
-
-pattern = {
-    literal_pattern | identifier_pattern | wildcard_pattern | enum_pattern
-}
-
-literal_pattern = {
-    integer | string | boolean
-}
-
-identifier_pattern = {
-    identifier
-}
-
-wildcard_pattern = {
-    "_"
-}
-
-enum_pattern = {
-    identifier ~ "::" ~ identifier ~ ("(" ~ pattern ~ ")")?
+    match_expr
 }
 
 return_stmt = {
@@ -457,7 +433,7 @@ arg_list = {
 primary = {
     literal | struct_literal | enum_value | array_literal |
     some_expr | none_expr | ok_expr | err_expr |
-    identifier | "(" ~ expr ~ ")"
+    match_expr | identifier | "(" ~ expr ~ ")"
 }
 
 literal = {
@@ -506,6 +482,67 @@ mint_expr = {
 
 burn_expr = {
     "burn" ~ "(" ~ expr ~ "," ~ expr ~ ")"
+}
+
+//////////////////////////
+// Match Expressions
+//////////////////////////
+
+match_expr = {
+    "match" ~ expr ~ "{" ~ match_arm+ ~ "}"
+}
+
+match_arm = {
+    pattern ~ ("if" ~ expr)? ~ "=>" ~ expr ~ ","?
+}
+
+pattern = {
+    wildcard_pattern |
+    literal_pattern |
+    variable_pattern |
+    struct_pattern |
+    enum_pattern |
+    tuple_pattern |
+    array_pattern
+}
+
+wildcard_pattern = { "_" }
+
+literal_pattern = {
+    integer | float | string | boolean
+}
+
+variable_pattern = {
+    identifier
+}
+
+struct_pattern = {
+    identifier ~ "{" ~ struct_field_pattern_list? ~ "}"
+}
+
+struct_field_pattern_list = {
+    struct_field_pattern ~ ("," ~ struct_field_pattern)*
+}
+
+struct_field_pattern = {
+    identifier ~ ":" ~ pattern |
+    identifier  // Shorthand for field: field
+}
+
+enum_pattern = {
+    identifier ~ "::" ~ identifier ~ ("(" ~ pattern_list? ~ ")")?
+}
+
+pattern_list = {
+    pattern ~ ("," ~ pattern)*
+}
+
+tuple_pattern = {
+    "(" ~ pattern_list? ~ ")"
+}
+
+array_pattern = {
+    "[" ~ pattern_list? ~ "]"
 }
 
 //////////////////////////

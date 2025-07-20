@@ -5,7 +5,7 @@ use crate::ast::{
     UnaryOperator, ParameterNode, FunctionDefinitionNode, ContractDeclarationNode,
     RoleDeclarationNode, ProposalDeclarationNode, StateDeclarationNode,
     ConstDeclarationNode, StructDefinitionNode, EnumDefinitionNode,
-    FieldNode, FieldInitNode,
+    FieldNode, FieldInitNode, MatchArmNode,
 };
 
 /// The optimizer applies various transformations to the AST to improve
@@ -349,10 +349,8 @@ impl Optimizer {
                     arms: arms.into_iter().map(|arm| {
                         crate::ast::MatchArmNode {
                             pattern: arm.pattern,
-                            body: match arm.body {
-                                crate::ast::Either::Left(expr) => crate::ast::Either::Left(self.fold_expr(expr)),
-                                crate::ast::Either::Right(block) => crate::ast::Either::Right(self.fold_block(block)),
-                            },
+                            guard: arm.guard.map(|g| self.fold_expr(g)),
+                            body: self.fold_expr(arm.body),
                         }
                     }).collect(),
                 }
@@ -532,6 +530,20 @@ impl Optimizer {
             }
             ExpressionNode::EnumValue { enum_name, variant } => {
                 ExpressionNode::EnumValue { enum_name, variant }
+            }
+            
+            // Match expressions
+            ExpressionNode::Match { expr, arms } => {
+                ExpressionNode::Match {
+                    expr: Box::new(self.fold_expr(*expr)),
+                    arms: arms.into_iter().map(|arm| {
+                        MatchArmNode {
+                            pattern: arm.pattern,
+                            guard: arm.guard.map(|g| self.fold_expr(g)),
+                            body: self.fold_expr(arm.body),
+                        }
+                    }).collect(),
+                }
             }
         }
     }
