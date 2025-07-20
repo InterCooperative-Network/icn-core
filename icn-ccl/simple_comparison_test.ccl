@@ -1,0 +1,8 @@
+contract SimpleComparison {
+    scope: "test.org";
+    version: "1.0.0";
+    
+    fn test_simple() -> Boolean {
+        return 5 < 3;
+    }
+} 

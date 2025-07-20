@@ -1,6 +1,6 @@
 // icn-ccl/src/cli.rs
 use crate::ast::{
-    ActionNode, AstNode, BlockNode, ExpressionNode, PolicyStatementNode, StatementNode,
+    AstNode, BlockNode, ExpressionNode, PolicyStatementNode, StatementNode,
     TypeAnnotationNode, UnaryOperator,
 };
 use crate::error::CclError;
@@ -447,13 +447,6 @@ fn type_to_string(ty: &TypeAnnotationNode) -> String {
     }
 }
 
-fn action_to_string(action: &ActionNode) -> String {
-    match action {
-        ActionNode::Allow => "allow".to_string(),
-        ActionNode::Deny => "deny".to_string(),
-        ActionNode::Charge(e) => format!("charge {}", expr_to_string(e)),
-    }
-}
 
 fn explain_ast(ast: &AstNode, target: Option<&str>) -> String {
     match ast {

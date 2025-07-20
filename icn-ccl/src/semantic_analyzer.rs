@@ -567,8 +567,8 @@ impl SemanticAnalyzer {
                     })
                 }
             }
-            LValueNode::MemberAccess { object, member } => {
-                let object_type = self.evaluate_expression(object)?;
+            LValueNode::MemberAccess { object, member: _ } => {
+                let _object_type = self.evaluate_expression(object)?;
                 // TODO: Implement struct member type lookup
                 Ok(TypeAnnotationNode::Custom("member".to_string()))
             }
@@ -664,11 +664,11 @@ impl SemanticAnalyzer {
                     Ok(TypeAnnotationNode::Array(Box::new(first_type)))
                 }
             }
-            ExpressionNode::StructLiteral { type_name, fields } => {
+            ExpressionNode::StructLiteral { type_name, fields: _ } => {
                 // TODO: Validate struct fields against struct definition
                 Ok(TypeAnnotationNode::Custom(type_name.clone()))
             }
-            ExpressionNode::MemberAccess { object, member } => {
+            ExpressionNode::MemberAccess { object, member: _ } => {
                 let _object_type = self.evaluate_expression(object)?;
                 // TODO: Implement proper member type lookup
                 Ok(TypeAnnotationNode::Custom("member".to_string()))

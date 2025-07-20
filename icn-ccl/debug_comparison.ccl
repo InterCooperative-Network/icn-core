@@ -1,0 +1,10 @@
+contract DebugComparison {
+    scope: "debug.example.org";
+    version: "1.0.0";
+    
+    fn test_comparison() -> Boolean {
+        let x = 5;
+        let y = 3;
+        return x < y;
+    }
+} 

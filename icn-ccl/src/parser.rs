@@ -2,7 +2,7 @@
 #![allow(clippy::while_let_on_iterator)]
 use crate::ast::{
     AstNode, BinaryOperator, BlockNode, ExpressionNode, ParameterNode,
-    PolicyStatementNode, StatementNode, TypeAnnotationNode, TypeExprNode, UnaryOperator,
+    PolicyStatementNode, StatementNode, TypeExprNode, UnaryOperator,
     ContractDeclarationNode, ContractMetaNode, ContractBodyNode, RoleDeclarationNode, 
     RoleBodyNode, RequirementNode, ProposalDeclarationNode, ProposalFieldNode,
     ThresholdTypeNode, DurationExprNode, DurationUnitNode, FunctionDefinitionNode,
@@ -1293,6 +1293,12 @@ fn parse_assignment_statement(pair: Pair<Rule>) -> Result<StatementNode, CclErro
 
 fn parse_lvalue(pair: Pair<Rule>) -> Result<LValueNode, CclError> {
     match pair.as_rule() {
+        Rule::lvalue => {
+            // Handle the wrapper lvalue rule by extracting the inner lvalue type
+            let inner = pair.into_inner().next()
+                .ok_or_else(|| CclError::ParsingError("Empty lvalue rule".to_string()))?;
+            parse_lvalue(inner)
+        }
         Rule::identifier => Ok(LValueNode::Identifier(pair.as_str().to_string())),
         Rule::member_access => {
             let mut inner = pair.into_inner();
@@ -1553,29 +1559,7 @@ pub fn parse_ccl_source(source: &str) -> Result<AstNode, CclError> {
     }
 }
 
-// Legacy function definitions for backward compatibility
-pub(crate) fn parse_function_definition(pair: Pair<Rule>) -> Result<AstNode, CclError> {
-    let func_def = parse_function_declaration(pair)?;
-    Ok(AstNode::FunctionDefinition {
-        name: func_def.name,
-        parameters: func_def.parameters,
-        return_type: func_def.return_type,
-        body: func_def.body,
-    })
-}
 
-pub(crate) fn parse_struct_definition(pair: Pair<Rule>) -> Result<AstNode, CclError> {
-    let struct_def = parse_struct_declaration(pair)?;
-    Ok(AstNode::StructDefinition {
-        name: struct_def.name,
-        fields: struct_def.fields,
-    })
-}
-
-pub(crate) fn parse_type_annotation(pair: Pair<Rule>) -> Result<TypeAnnotationNode, CclError> {
-    let type_expr = parse_type_expr(pair)?;
-    Ok(type_expr.to_type_annotation())
-}
 
 /// Parse a CCL file from disk, recursively loading any imported modules.
 pub fn parse_ccl_file(path: &std::path::Path) -> Result<AstNode, CclError> {
@@ -1625,17 +1609,7 @@ fn alias_ast(ast: AstNode, alias: &str) -> AstNode {
     }
 }
 
-fn alias_stmt(stmt: PolicyStatementNode, alias: &str) -> PolicyStatementNode {
-    match stmt {
-        PolicyStatementNode::FunctionDef(func) => {
-            PolicyStatementNode::FunctionDef(alias_ast(func, alias))
-        }
-        PolicyStatementNode::StructDef(struct_def) => {
-            PolicyStatementNode::StructDef(alias_ast(struct_def, alias))
-        }
-        other => other,
-    }
-}
+
 
 fn load_imports(ast: &mut AstNode, base: &std::path::Path) -> Result<(), CclError> {
     match ast {
@@ -1705,37 +1679,7 @@ fn load_imports(ast: &mut AstNode, base: &std::path::Path) -> Result<(), CclErro
     Ok(())
 }
 
-pub(crate) fn parse_const_definition(pair: Pair<Rule>) -> Result<PolicyStatementNode, CclError> {
-    let const_def = parse_const_declaration(pair)?;
-    Ok(PolicyStatementNode::ConstDef {
-        name: const_def.name,
-        value: const_def.value,
-        type_ann: const_def.type_expr.to_type_annotation(),
-    })
-}
 
-pub(crate) fn parse_macro_definition(pair: Pair<Rule>) -> Result<PolicyStatementNode, CclError> {
-    // Legacy macro support - not fully implemented in CCL 0.1
-    let mut inner = pair.into_inner();
-    let name = inner.next().unwrap().as_str().to_string();
-    let mut params = Vec::new();
-    
-    while let Some(param) = inner.next() {
-        if param.as_rule() == Rule::identifier {
-            params.push(param.as_str().to_string());
-        } else {
-            // This is the body
-            let body = param.as_str().to_string();
-            return Ok(PolicyStatementNode::MacroDef { name, params, body });
-        }
-    }
-    
-    Ok(PolicyStatementNode::MacroDef { 
-        name, 
-        params, 
-        body: "".to_string() 
-    })
-}
 
 // Note: TryExpr removed in CCL 0.1 - try/catch replaced with Result type
 

@@ -98,15 +98,15 @@ contract ControlFlowDemo {
     version: "1.0.0";
     
     fn run() -> Integer {
-        let count = 0;
-        let sum = 0;
+        let mut count = 0;
+        let mut sum = 0;
         while count < 5 {
             if count < 3 {
-                let sum = sum + count;
+                sum = sum + count;
             } else {
-                let sum = sum + 1;
+                sum = sum + 1;
             }
-            let count = count + 1;
+            count = count + 1;
         }
         return sum;
     }

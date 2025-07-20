@@ -108,7 +108,7 @@ fn expand_macros(ast: ast::AstNode, stdlib: &StandardLibrary) -> Result<ast::Ast
 
     if let AstNode::Policy(stmts) = ast {
         let mut expanded = Vec::new();
-        let mut local_stdlib = stdlib.clone();
+        let _local_stdlib = stdlib;
         
         // First pass: collect macro definitions and register them
         // TODO: Implement macro registration in StandardLibrary

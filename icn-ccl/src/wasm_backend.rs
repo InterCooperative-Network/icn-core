@@ -906,9 +906,16 @@ impl WasmBackend {
                     instrs.push(Instruction::F64Const((*f).into()));
                     Ok(ValType::F64)
                 }
-                crate::ast::LiteralNode::String(_s) => {
-                    // TODO: Implement string storage in linear memory
-                    instrs.push(Instruction::I32Const(0)); // placeholder
+                crate::ast::LiteralNode::String(s) => {
+                    // Store string in linear memory with length prefix: [len: u32][bytes...]
+                    let mut bytes = (s.len() as u32).to_le_bytes().to_vec();
+                    bytes.extend_from_slice(s.as_bytes());
+                    let ptr = self.data_offset;
+                    let len = bytes.len() as u32;
+                    let offset = wasm_encoder::ConstExpr::i32_const(ptr as i32);
+                    self.data.active(0, &offset, bytes.into_boxed_slice());
+                    self.data_offset += len;
+                    instrs.push(Instruction::I32Const(ptr as i32));
                     Ok(ValType::I32)
                 }
                 crate::ast::LiteralNode::Boolean(b) => {
@@ -933,10 +940,30 @@ impl WasmBackend {
                 instrs.push(Instruction::I32Const(0));
                 Ok(ValType::I32)
             }
-            ExpressionNode::IndexAccess { object: _, index: _ } => {
-                // TODO: Implement index access (use ArrayAccess implementation)
-                instrs.push(Instruction::I32Const(0));
-                Ok(ValType::I32)
+            ExpressionNode::IndexAccess { object, index } => {
+                // Use the same implementation as ArrayAccess
+                let arr_ty = self.emit_expression(object, instrs, locals, indices)?;
+                let arr_local = locals.get_or_add("__arr", ValType::I32);
+                instrs.push(Instruction::LocalTee(arr_local));
+                let _ = arr_ty;
+                let idx_ty = self.emit_expression(index, instrs, locals, indices)?;
+                if idx_ty == ValType::I64 {
+                    instrs.push(Instruction::I32WrapI64);
+                }
+                let idx_local = locals.get_or_add("__idx", ValType::I32);
+                instrs.push(Instruction::LocalTee(idx_local));
+                instrs.push(Instruction::I32Const(8));
+                instrs.push(Instruction::I32Mul);
+                instrs.push(Instruction::LocalGet(arr_local));
+                instrs.push(Instruction::I32Const(8));
+                instrs.push(Instruction::I32Add);
+                instrs.push(Instruction::I32Add);
+                instrs.push(Instruction::I64Load(wasm_encoder::MemArg {
+                    offset: 0,
+                    align: 0,
+                    memory_index: 0,
+                }));
+                Ok(ValType::I64)
             }
             ExpressionNode::StructLiteral { type_name: _, fields: _ } => {
                 // TODO: Implement struct literal construction
@@ -1032,9 +1059,9 @@ impl WasmBackend {
                     "Loop control not yet supported in WASM backend".to_string(),
                 ));
             }
-            StatementNode::Assignment { lvalue: _, value } => {
-                self.emit_expression(value, instrs, locals, indices)?;
-                instrs.push(Instruction::Drop); // Placeholder - should handle lvalue assignment
+            StatementNode::Assignment { lvalue, value } => {
+                let value_ty = self.emit_expression(value, instrs, locals, indices)?;
+                self.emit_lvalue_assignment(lvalue, value_ty, instrs, locals, indices)?;
             }
             StatementNode::While { condition, body } => {
                 instrs.push(Instruction::Block(wasm_encoder::BlockType::Empty));
@@ -1085,7 +1112,7 @@ impl WasmBackend {
         &mut self,
         condition: &ExpressionNode,
         then_block: &BlockNode,
-        else_ifs: &[(ExpressionNode, BlockNode)],
+        _else_ifs: &[(ExpressionNode, BlockNode)],
         else_block: &Option<BlockNode>,
         instrs: &mut Vec<Instruction>,
         locals: &mut LocalEnv,
@@ -1126,6 +1153,40 @@ impl WasmBackend {
             instrs.push(Instruction::End);
         }
         Ok(())
+    }
+
+    fn emit_lvalue_assignment(
+        &mut self,
+        lvalue: &crate::ast::LValueNode,
+        _value_ty: ValType,
+        instrs: &mut Vec<Instruction>,
+        locals: &mut LocalEnv,
+        _indices: &HashMap<String, u32>,
+    ) -> Result<(), CclError> {
+        match lvalue {
+            crate::ast::LValueNode::Identifier(name) => {
+                // Assign to local variable
+                let (idx, _ty) = locals.get(name).ok_or_else(|| {
+                    CclError::WasmGenerationError(format!("Unknown variable {}", name))
+                })?;
+                instrs.push(Instruction::LocalSet(idx));
+                Ok(())
+            }
+            crate::ast::LValueNode::MemberAccess { object: _, member: _ } => {
+                // TODO: Implement struct member assignment
+                instrs.push(Instruction::Drop); // Drop the value for now
+                Err(CclError::WasmGenerationError(
+                    "Member access assignment not yet supported".to_string(),
+                ))
+            }
+            crate::ast::LValueNode::IndexAccess { object: _, index: _ } => {
+                // TODO: Implement array index assignment
+                instrs.push(Instruction::Drop); // Drop the value for now
+                Err(CclError::WasmGenerationError(
+                    "Index access assignment not yet supported".to_string(),
+                ))
+            }
+        }
     }
 
     fn emit_block(
