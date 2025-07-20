@@ -332,13 +332,18 @@ fn register_mesh_metrics(registry: &mut Registry) {
 /// Register runtime-related metrics
 #[cfg(feature = "runtime-metrics")]
 fn register_runtime_metrics(registry: &mut Registry) {
-    use icn_runtime::metrics::{
-        HOST_ACCOUNT_CREDIT_MANA_CALLS, HOST_ACCOUNT_GET_MANA_CALLS, HOST_ACCOUNT_SPEND_MANA_CALLS,
-        HOST_ANCHOR_RECEIPT_CALLS, HOST_GET_PENDING_MESH_JOBS_CALLS, HOST_SUBMIT_MESH_JOB_CALLS,
-        MANA_ACCOUNTS_GAUGE, RECEIPTS_ANCHORED, WASM_MEMORY_GROWTH_DENIED,
-        WASM_TABLE_GROWTH_DENIED,
-    };
+    // TODO: Move this to icn-runtime to avoid circular dependency
+    // The runtime should register its own metrics directly
+    // use icn_runtime::metrics::{
+    //     HOST_ACCOUNT_CREDIT_MANA_CALLS, HOST_ACCOUNT_GET_MANA_CALLS, HOST_ACCOUNT_SPEND_MANA_CALLS,
+    //     HOST_ANCHOR_RECEIPT_CALLS, HOST_GET_PENDING_MESH_JOBS_CALLS, HOST_SUBMIT_MESH_JOB_CALLS,
+    //     MANA_ACCOUNTS_GAUGE, RECEIPTS_ANCHORED, WASM_MEMORY_GROWTH_DENIED,
+    //     WASM_TABLE_GROWTH_DENIED,
+    // };
 
+    // TODO: Temporarily commented out to fix circular dependency
+    // These metrics should be registered directly by icn-runtime
+    /*
     registry.register(
         "runtime_host_submit_mesh_job_calls_total",
         "Number of host_submit_mesh_job calls",
@@ -374,6 +379,8 @@ fn register_runtime_metrics(registry: &mut Registry) {
         "Number of receipts anchored to the DAG",
         RECEIPTS_ANCHORED.clone(),
     );
+    */
+    /*
     registry.register(
         "runtime_wasm_memory_growth_denied_total",
         "Number of denied WASM memory growth attempts",
@@ -389,6 +396,7 @@ fn register_runtime_metrics(registry: &mut Registry) {
         "Number of accounts in the mana ledger",
         MANA_ACCOUNTS_GAUGE.clone(),
     );
+    */
 }
 
 /// Register system-level metrics

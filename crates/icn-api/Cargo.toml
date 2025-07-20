@@ -30,7 +30,7 @@ name = "generate-ts-sdk"
 path = "src/bin/generate-ts-sdk.rs"
 
 [features]
-default = []
+default = ["runtime-metrics"]
 types-only = [] # Allows depending only on types, no extra code, if types are pub
 axum-endpoint = ["axum"]
 runtime-metrics = ["icn-economics", "icn-mesh"]

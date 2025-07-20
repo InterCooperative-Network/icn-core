@@ -1,6 +1,6 @@
 use icn_common::Did;
 use icn_governance::{ProposalSubmission, ProposalType, VoteOption};
-use icn_node::app_router_with_options;
+use icn_node::{app_router_with_options, RuntimeMode};
 use reqwest::Client;
 use std::str::FromStr;
 use tokio::task;
@@ -9,6 +9,7 @@ use tokio::time::{sleep, Duration};
 #[tokio::test]
 async fn system_parameter_change_updates_rate_limit() {
     let (router, ctx) = app_router_with_options(
+        RuntimeMode::Testing,
         None,
         None,
         Some(2),
