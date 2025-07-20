@@ -89,3 +89,44 @@ fn test_for_loop_semantics() {
     let res = analyze_ok(src);
     assert!(res.is_ok());
 }
+
+#[test]
+fn test_standalone_struct_usage() {
+    let src = r#"
+        struct Point { x: Integer, y: Integer }
+        fn run() -> Integer {
+            let p = Point { x: 1, y: 2 };
+            return p.x;
+        }
+    "#;
+    let res = analyze_ok(src);
+    assert!(res.is_ok());
+}
+
+#[test]
+fn test_struct_member_not_found() {
+    let src = "struct P { x: Integer } fn bad() -> Integer { let p = P { x: 1 }; return p.y; }";
+    let res = analyze_ok(src);
+    assert!(matches!(res, Err(CclError::SemanticError(_))));
+}
+
+#[test]
+fn test_const_declaration() {
+    let src = "const ANSWER: Integer = 42; fn run() -> Integer { return ANSWER; }";
+    let res = analyze_ok(src);
+    assert!(res.is_ok());
+}
+
+#[test]
+fn test_match_pattern_type_error() {
+    let src = "fn run() -> Integer { let v = 1; match v { true => 0, _ => 1 } }";
+    let res = analyze_ok(src);
+    assert!(matches!(res, Err(CclError::TypeMismatchError { .. })));
+}
+
+#[test]
+fn test_enum_definition_usage() {
+    let src = "enum Color { Red, Blue } fn run() -> Integer { let c = Color::Red; match c { Color::Red => 1, _ => 0 } }";
+    let res = analyze_ok(src);
+    assert!(res.is_ok());
+}
