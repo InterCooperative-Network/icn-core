@@ -777,8 +777,8 @@ impl StdLibrary {
                 TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Integer)), // More specific type
                 TypeAnnotationNode::Integer,
             ],
-            return_type: TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Integer)),
-            description: "Add element to end of array".to_string(),
+            return_type: TypeAnnotationNode::Integer, // Return new length for simplicity
+            description: "Add element to end of array, returns new length".to_string(),
             category: StdCategory::Array,
         });
 

@@ -701,7 +701,8 @@ impl WasmBackend {
                             align: 0,
                             memory_index: 0,
                         }));
-                        Ok(ValType::I32)
+                        instrs.push(Instruction::I64ExtendI32U); // Convert I32 to I64 for CCL Integer type
+                        Ok(ValType::I64)
                     }
                     "array_push" => {
                         let arr_ptr = locals.get_or_add("__push_ptr", ValType::I32);
@@ -819,7 +820,8 @@ impl WasmBackend {
                             memory_index: 0,
                         }));
                         instrs.push(Instruction::LocalGet(len_local));
-                        Ok(ValType::I32)
+                        instrs.push(Instruction::I64ExtendI32U); // Convert I32 to I64 for CCL Integer type
+                        Ok(ValType::I64)
                     }
                     "array_pop" => {
                         let arr_ptr = locals.get_or_add("__pop_ptr", ValType::I32);
