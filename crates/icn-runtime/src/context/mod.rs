@@ -3,10 +3,12 @@
 //! This module contains all the types and implementations related to the runtime context,
 //! including error handling, mana management, signers, network services, and more.
 
+pub mod advanced_ccl_wasm;
 pub mod compile_checks;
 pub mod cross_component_coordinator;
 pub mod enhanced_dag_sync;
 pub mod errors;
+pub mod federation_integration;
 pub mod host_environment;
 pub mod mana;
 pub mod mesh_network;
@@ -19,6 +21,9 @@ pub mod smart_p2p_routing;
 pub mod stubs;
 
 // Re-export important types for convenience
+pub use advanced_ccl_wasm::{
+    AdvancedCclWasmBackend, CclExecutionConfig, CclExecutionResult, CclPerformanceMetrics, OptimizationLevel,
+};
 pub use compile_checks::ProductionReady;
 pub use cross_component_coordinator::{
     CrossComponentCoordinator, DagOperation, DagOperationResult, Priority, SystemStatus,
@@ -28,6 +33,9 @@ pub use enhanced_dag_sync::{
     EnhancedDagSync, PropagationPriority, PropagationStrategy, SyncHealth, SyncResult, NetworkConditions,
 };
 pub use errors::HostAbiError;
+pub use federation_integration::{
+    FederationIntegration, FederationAwareJobSelection, FederationBidInfo,
+};
 pub use host_environment::{ConcreteHostEnvironment, HostEnvironment};
 pub use mana::{LedgerBackend, ManaRepository, SimpleManaLedger};
 pub use mesh_network::{

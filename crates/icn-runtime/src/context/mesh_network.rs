@@ -244,6 +244,154 @@ impl DefaultMeshNetworkService {
         }
     }
 
+    /// Convert a DID to a network PeerId (simplified mapping for now)
+    /// Calculate estimated duration for job execution based on bid resources
+    fn calculate_estimated_duration(&self, bid: &icn_mesh::MeshJobBid) -> Result<u64, HostAbiError> {
+        // Simple estimation based on offered resources
+        // In a real implementation, this would be more sophisticated
+        let base_duration = 120; // 2 minutes base
+        let resource_factor = (bid.resources.cpu_cores as f64 / 4.0).max(0.25);
+        Ok((base_duration as f64 / resource_factor) as u64)
+    }
+
+    /// Get executor reputation score
+    fn get_executor_reputation(&self, executor_did: &Did) -> Result<u64, HostAbiError> {
+        if let Some(ref reputation_store) = self.reputation_store {
+            Ok(reputation_store.get_reputation(executor_did))
+        } else {
+            // Default reputation if no store available
+            Ok(50) // Neutral reputation
+        }
+    }
+
+    /// Get executor capabilities
+    fn get_executor_capabilities(&self, executor_did: &Did) -> Vec<icn_protocol::ExecutorCapability> {
+        // In a real implementation, this would query a capabilities registry
+        // For now, return basic capabilities based on DID type
+        match executor_did.method.as_str() {
+            "key" => vec![icn_protocol::ExecutorCapability::BasicCompute],
+            "web" => vec![
+                icn_protocol::ExecutorCapability::BasicCompute,
+                icn_protocol::ExecutorCapability::WebServices,
+            ],
+            "peer" => vec![
+                icn_protocol::ExecutorCapability::BasicCompute,
+                icn_protocol::ExecutorCapability::P2pServices,
+            ],
+            _ => vec![icn_protocol::ExecutorCapability::BasicCompute],
+        }
+    }
+
+    /// Get executor federations
+    fn get_executor_federations(&self, executor_did: &Did) -> Vec<String> {
+        if let Some(ref federation_service) = self.federation_service {
+            // In a real implementation, this would query federation memberships
+            // For now, return empty list as placeholder
+            Vec::new()
+        } else {
+            Vec::new()
+        }
+    }
+
+    /// Get executor trust scope
+    fn get_executor_trust_scope(&self, _executor_did: &Did) -> Option<String> {
+        // In a real implementation, this would determine trust scope
+        // For now, return basic trust level
+        Some("basic".to_string())
+    }
+
+    /// Enhanced bid filtering with reputation and federation constraints
+    async fn filter_bids_by_reputation_and_federation(
+        &self,
+        bids: &[icn_mesh::MeshJobBid],
+        min_reputation: Option<u64>,
+        allowed_federations: &[String],
+    ) -> Result<Vec<icn_mesh::MeshJobBid>, HostAbiError> {
+        let mut filtered_bids = Vec::new();
+
+        for bid in bids {
+            // Check reputation threshold
+            if let Some(min_rep) = min_reputation {
+                let reputation = self.get_executor_reputation(&bid.executor_did)?;
+                if reputation < min_rep {
+                    log::debug!(
+                        "[MeshNetwork] Filtering out bid from {} - reputation {} < minimum {}",
+                        bid.executor_did,
+                        reputation,
+                        min_rep
+                    );
+                    continue;
+                }
+            }
+
+            // Check federation membership
+            if !allowed_federations.is_empty() {
+                let executor_federations = self.get_executor_federations(&bid.executor_did);
+                let has_allowed_federation = executor_federations
+                    .iter()
+                    .any(|fed| allowed_federations.contains(fed));
+                
+                if !has_allowed_federation {
+                    log::debug!(
+                        "[MeshNetwork] Filtering out bid from {} - not in allowed federations: {:?}",
+                        bid.executor_did,
+                        allowed_federations
+                    );
+                    continue;
+                }
+            }
+
+            filtered_bids.push(bid.clone());
+        }
+
+        log::info!(
+            "[MeshNetwork] Filtered {} bids down to {} based on reputation and federation requirements",
+            bids.len(),
+            filtered_bids.len()
+        );
+
+        Ok(filtered_bids)
+    }
+
+    /// Update executor reputation based on job execution results
+    async fn update_executor_reputation(
+        &self,
+        executor_did: &Did,
+        job_successful: bool,
+        execution_quality: f64, // 0.0 to 1.0 rating
+    ) -> Result<(), HostAbiError> {
+        if let Some(ref reputation_store) = self.reputation_store {
+            let current_reputation = reputation_store.get_reputation(executor_did);
+            
+            // Calculate reputation change
+            let reputation_delta = if job_successful {
+                // Successful execution increases reputation
+                let base_increase = 2;
+                let quality_bonus = (execution_quality * 3.0) as i64;
+                base_increase + quality_bonus
+            } else {
+                // Failed execution decreases reputation
+                -5
+            };
+
+            let new_reputation = ((current_reputation as i64) + reputation_delta)
+                .max(0)
+                .min(100) as u64;
+
+            reputation_store.set_score(executor_did.clone(), new_reputation);
+
+            log::info!(
+                "[MeshNetwork] Updated reputation for {}: {} -> {} (change: {})",
+                executor_did,
+                current_reputation,
+                new_reputation,
+                reputation_delta
+            );
+        }
+
+        Ok(())
+    }
+
     #[cfg(feature = "enable-libp2p")]
     pub fn get_underlying_broadcast_service(
         &self,

@@ -122,10 +122,7 @@ impl ServiceConfigBuilder {
             .clone()
             .ok_or_else(|| CommonError::InternalError("Signer is required".to_string()))?;
 
-        let did_resolver = self
-            .did_resolver
-            .clone()
-            .ok_or_else(|| CommonError::InternalError("DID resolver is required".to_string()))?;
+        let did_resolver = self.create_did_resolver();
 
         let mana_ledger = self
             .mana_ledger
@@ -173,27 +170,70 @@ impl ServiceConfigBuilder {
     ) -> Result<Arc<MeshNetworkServiceType>, CommonError> {
         match self.environment {
             ServiceEnvironment::Production => {
-                let network_service = self.network_service.as_ref().ok_or_else(|| {
-                    CommonError::InternalError(
-                        "Network service required for production".to_string(),
-                    )
-                })?;
-                let service = Arc::new(MeshNetworkServiceType::Default(
-                    DefaultMeshNetworkService::new(network_service.clone(), signer.clone()),
-                ));
+                // First try to use provided network service
+                if let Some(network_service) = self.network_service.as_ref() {
+                    let service = Arc::new(MeshNetworkServiceType::Default(
+                        DefaultMeshNetworkService::new(network_service.clone(), signer.clone()),
+                    ));
+                    
+                    // Compile-time check for production builds
+                    #[cfg(all(feature = "production", not(feature = "allow-stubs")))]
+                    {
+                        // This will be checked at runtime to ensure we're not using stubs
+                        if matches!(&*service, MeshNetworkServiceType::Stub(_)) {
+                            return Err(CommonError::InternalError(
+                                "Stub mesh network service cannot be used in production".to_string(),
+                            ));
+                        }
+                    }
+                    
+                    return Ok(service);
+                }
 
-                // Compile-time check for production builds
-                #[cfg(all(feature = "production", not(feature = "allow-stubs")))]
+                // If no network service provided, try to create libp2p service with defaults
+                #[cfg(feature = "enable-libp2p")]
                 {
-                    // This will be checked at runtime to ensure we're not using stubs
-                    if matches!(&*service, MeshNetworkServiceType::Stub(_)) {
-                        return Err(CommonError::InternalError(
-                            "Stub mesh network service cannot be used in production".to_string(),
-                        ));
+                    use icn_network::libp2p_service::{Libp2pNetworkService, NetworkConfig};
+                    use icn_common::SystemTimeProvider;
+                    
+                    log::info!("Creating production libp2p network service with default configuration");
+                    let network_config = NetworkConfig::production();
+                    let time_provider = Arc::new(SystemTimeProvider);
+                    
+                    match tokio::runtime::Handle::try_current() {
+                        Ok(_) => {
+                            // We're in an async context, create the service
+                            let libp2p_service = match Libp2pNetworkService::new(network_config).await {
+                                Ok(service) => Arc::new(service) as Arc<dyn icn_network::NetworkService>,
+                                Err(e) => {
+                                    log::warn!("Failed to create libp2p service: {}. Falling back to error.", e);
+                                    return Err(CommonError::InternalError(
+                                        format!("Failed to create production network service: {}", e)
+                                    ));
+                                }
+                            };
+                            
+                            let service = Arc::new(MeshNetworkServiceType::Default(
+                                DefaultMeshNetworkService::new(libp2p_service, signer.clone()),
+                            ));
+                            return Ok(service);
+                        },
+                        Err(_) => {
+                            // Not in async context, return error with helpful message
+                            return Err(CommonError::InternalError(
+                                "Production environment requires network service or async context for auto-creation".to_string(),
+                            ));
+                        }
                     }
                 }
 
-                Ok(service)
+                // If libp2p feature is not enabled, require explicit network service
+                #[cfg(not(feature = "enable-libp2p"))]
+                {
+                    return Err(CommonError::InternalError(
+                        "Production environment requires either explicit network service or libp2p feature enabled".to_string(),
+                    ));
+                }
             }
             ServiceEnvironment::Development => {
                 if let Some(network_service) = &self.network_service {
@@ -268,6 +308,39 @@ impl ServiceConfigBuilder {
             .as_ref()
             .map(|provider| provider.clone())
             .unwrap_or_else(|| Arc::new(icn_common::SystemTimeProvider))
+    }
+
+    /// Create DID resolver with enhanced capabilities
+    fn create_did_resolver(&self) -> Arc<dyn icn_identity::DidResolver> {
+        if let Some(resolver) = &self.did_resolver {
+            return resolver.clone();
+        }
+
+        // Create enhanced DID resolver with production capabilities
+        let time_provider = self.create_time_provider();
+        
+        match self.environment {
+            ServiceEnvironment::Production | ServiceEnvironment::Development => {
+                // Use enhanced resolver with caching and multiple method support
+                let config = icn_identity::DidResolutionConfig {
+                    cache_ttl_seconds: 3600, // 1 hour cache
+                    max_cache_size: 10000,
+                    web_timeout_seconds: 30,
+                    enable_fallback: true,
+                    method_preference: vec![
+                        "key".to_string(),
+                        "peer".to_string(),
+                        "web".to_string(),
+                    ],
+                };
+                
+                Arc::new(icn_identity::EnhancedDidResolver::new(config, time_provider))
+            }
+            ServiceEnvironment::Testing => {
+                // For testing, use simple key resolver for faster tests
+                Arc::new(icn_identity::KeyDidResolver)
+            }
+        }
     }
 }
 
@@ -365,7 +438,6 @@ impl ServiceConfig {
         let mut builder = ServiceConfigBuilder::new(ServiceEnvironment::Development)
             .with_identity(current_identity)
             .with_signer(signer)
-            .with_did_resolver(Arc::new(icn_identity::KeyDidResolver))
             .with_mana_ledger(mana_ledger);
 
         if let Some(network_service) = network_service {
@@ -401,7 +473,6 @@ impl ServiceConfig {
         ServiceConfigBuilder::new(ServiceEnvironment::Testing)
             .with_identity(current_identity)
             .with_signer(Arc::new(super::signers::StubSigner::new()))
-            .with_did_resolver(Arc::new(icn_identity::KeyDidResolver))
             .with_mana_ledger(mana_ledger)
             .build()
     }
