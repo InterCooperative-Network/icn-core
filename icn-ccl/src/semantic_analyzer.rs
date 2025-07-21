@@ -670,7 +670,7 @@ impl SemanticAnalyzer {
     fn analyze_statement(&mut self, stmt: &StatementNode) -> Result<(), CclError> {
         match stmt {
             StatementNode::Let {
-                mutable,
+                mutable: _,
                 name,
                 type_expr,
                 value,
@@ -900,8 +900,8 @@ impl SemanticAnalyzer {
                 if let TypeAnnotationNode::Custom(struct_name) = expected {
                     if struct_name != name {
                         return Err(CclError::TypeMismatchError {
-                            expected: TypeAnnotationNode::Custom(name.clone()),
-                            found: expected.clone(),
+                            expected: expected.clone(),
+                            found: TypeAnnotationNode::Custom(name.clone()),
                         });
                     }
                     if let Some(def) = self.struct_table.get(name).cloned() {
@@ -938,8 +938,8 @@ impl SemanticAnalyzer {
                 if let TypeAnnotationNode::Custom(t) = expected {
                     if t != type_name {
                         return Err(CclError::TypeMismatchError {
-                            expected: TypeAnnotationNode::Custom(type_name.clone()),
-                            found: expected.clone(),
+                            expected: expected.clone(),
+                            found: TypeAnnotationNode::Custom(type_name.clone()),
                         });
                     }
                 }
@@ -962,7 +962,7 @@ impl SemanticAnalyzer {
                     }
                 } else {
                     return Err(CclError::TypeMismatchError {
-                        expected: TypeAnnotationNode::Array(Box::new(expected.clone())),
+                        expected: TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Custom("T".to_string()))),
                         found: expected.clone(),
                     });
                 }
@@ -1516,7 +1516,7 @@ mod tests {
         let mut analyzer = SemanticAnalyzer::new();
 
         let expr = ExpressionNode::FunctionCall {
-            name: "get_mana".to_string(),
+            name: "get_balance".to_string(),
             args: vec![ExpressionNode::Literal(LiteralNode::Did(
                 "did:example:123".to_string(),
             ))],

@@ -2,7 +2,7 @@
 #![allow(clippy::while_let_on_iterator)]
 use crate::ast::{
     AstNode, BinaryOperator, BlockNode, ConstDeclarationNode, ContractBodyNode,
-    ContractDeclarationNode, ContractMetaNode, DurationExprNode, DurationUnitNode, Either,
+    ContractDeclarationNode, ContractMetaNode, DurationExprNode, DurationUnitNode,
     EnumDefinitionNode, EnumVariantNode, ExpressionNode, FieldInitNode, FieldNode,
     FunctionDefinitionNode, ImportStatementNode, LValueNode, LiteralNode, MatchArmNode,
     ParameterNode, PatternNode, PolicyStatementNode, ProposalDeclarationNode, ProposalFieldNode,
@@ -538,7 +538,7 @@ fn parse_parameter_list(pair: Pair<Rule>) -> Result<Vec<ParameterNode>, CclError
 
 fn parse_type_parameters(pair: Pair<Rule>) -> Result<Vec<TypeParameterNode>, CclError> {
     // type_parameters = { "<" ~ type_parameter_list ~ ">" }
-    let mut inner = pair.into_inner();
+    let inner = pair.into_inner();
 
     for item in inner {
         if item.as_rule() == Rule::type_parameter_list {
@@ -2305,7 +2305,7 @@ fn load_imports(ast: &mut AstNode, base: &std::path::Path) -> Result<(), CclErro
 mod tests {
     use super::*;
     use crate::ast::{
-        AstNode, BlockNode, ExpressionNode, PolicyStatementNode, StatementNode, TypeAnnotationNode,
+        AstNode, BlockNode, ExpressionNode, PolicyStatementNode, StatementNode,
     };
 
     #[test]
@@ -2320,11 +2320,12 @@ mod tests {
                 let expected_ast = AstNode::Policy(vec![PolicyStatementNode::FunctionDef(
                     AstNode::FunctionDefinition {
                         name: "get_value".to_string(),
+                        type_parameters: vec![],
                         parameters: vec![],
-                        return_type: TypeAnnotationNode::Integer,
+                        return_type: Some(TypeExprNode::Integer),
                         body: BlockNode {
                             statements: vec![StatementNode::Return(
-                                ExpressionNode::IntegerLiteral(42),
+                                Some(ExpressionNode::IntegerLiteral(42)),
                             )],
                         },
                     },
