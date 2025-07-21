@@ -7,8 +7,8 @@ use crate::error::CclError;
 use crate::metadata::ContractMetadata;
 use std::cmp::min;
 use wasm_encoder::{
-    CodeSection, ExportKind, ExportSection, Function, FunctionSection, ImportSection, Instruction,
-    Module, TypeSection, ValType,
+    BlockType, CodeSection, ExportKind, ExportSection, Function, FunctionSection, ImportSection, 
+    Instruction, Module, TypeSection, ValType,
 };
 
 use std::collections::HashMap;
@@ -1352,8 +1352,38 @@ impl WasmBackend {
                             align: 0,
                             memory_index: 0,
                         }));
-                        // Return Some(value) - for simplicity, just return the value directly
-                        // TODO: Implement proper Option representation
+                        // Return Some(value) using proper Option representation
+                        // Option<T> = [tag: u32][value: T] where tag = 0 for None, 1 for Some
+                        let option_ptr = locals.get_or_add("__option_ptr", ValType::I32);
+                        
+                        // Allocate memory for Option<I64> (4 bytes tag + 8 bytes value = 12 bytes)
+                        instrs.push(Instruction::GlobalGet(0)); // Current heap pointer
+                        instrs.push(Instruction::LocalTee(option_ptr));
+                        
+                        // Store tag = 1 (Some)
+                        instrs.push(Instruction::I32Const(1));
+                        instrs.push(Instruction::I32Store(wasm_encoder::MemArg {
+                            offset: 0,
+                            align: 0,
+                            memory_index: 0,
+                        }));
+                        
+                        // Store value (already on stack from I64Load above)
+                        instrs.push(Instruction::LocalGet(option_ptr));
+                        instrs.push(Instruction::I64Store(wasm_encoder::MemArg {
+                            offset: 4, // After the tag
+                            align: 0,
+                            memory_index: 0,
+                        }));
+                        
+                        // Update heap pointer (12 bytes allocated)
+                        instrs.push(Instruction::GlobalGet(0));
+                        instrs.push(Instruction::I32Const(12));
+                        instrs.push(Instruction::I32Add);
+                        instrs.push(Instruction::GlobalSet(0));
+                        
+                        // Return pointer to Option
+                        instrs.push(Instruction::LocalGet(option_ptr));
                         instrs.push(Instruction::End);
 
                         Ok(ValType::I64)
@@ -1597,37 +1627,359 @@ impl WasmBackend {
                     }
 
                     "string_contains" => {
-                        // Check if string contains substring - simplified implementation
-                        self.emit_expression(&args[0], instrs, locals, indices)?; // haystack
-                        instrs.push(Instruction::Drop); // Drop for now
-                        self.emit_expression(&args[1], instrs, locals, indices)?; // needle
-                        instrs.push(Instruction::Drop); // Drop for now
-                                                        // TODO: Implement proper string searching algorithm
-                        instrs.push(Instruction::I32Const(1)); // Return true for now
+                        // Check if string contains substring - Boyer-Moore-inspired algorithm
+                        let haystack_ptr = locals.get_or_add("__haystack_ptr", ValType::I32);
+                        let needle_ptr = locals.get_or_add("__needle_ptr", ValType::I32);
+                        let haystack_len = locals.get_or_add("__haystack_len", ValType::I32);
+                        let needle_len = locals.get_or_add("__needle_len", ValType::I32);
+                        let i = locals.get_or_add("__search_i", ValType::I32);
+                        let j = locals.get_or_add("__search_j", ValType::I32);
+                        let match_found = locals.get_or_add("__match_found", ValType::I32);
+                        
+                        // Get haystack string
+                        self.emit_expression(&args[0], instrs, locals, indices)?;
+                        instrs.push(Instruction::LocalTee(haystack_ptr));
+                        instrs.push(Instruction::I32Load(wasm_encoder::MemArg {
+                            offset: 0,
+                            align: 0,
+                            memory_index: 0,
+                        }));
+                        instrs.push(Instruction::LocalSet(haystack_len));
+                        
+                        // Get needle string
+                        self.emit_expression(&args[1], instrs, locals, indices)?;
+                        instrs.push(Instruction::LocalTee(needle_ptr));
+                        instrs.push(Instruction::I32Load(wasm_encoder::MemArg {
+                            offset: 0,
+                            align: 0,
+                            memory_index: 0,
+                        }));
+                        instrs.push(Instruction::LocalSet(needle_len));
+                        
+                        // Initialize search variables
+                        instrs.push(Instruction::I32Const(0));
+                        instrs.push(Instruction::LocalSet(match_found));
+                        instrs.push(Instruction::I32Const(0));
+                        instrs.push(Instruction::LocalSet(i));
+                        
+                        // Outer loop: iterate through haystack
+                        instrs.push(Instruction::Loop(BlockType::Empty));
+                        
+                        // Check if we've reached the end of viable positions
+                        instrs.push(Instruction::LocalGet(i));
+                        instrs.push(Instruction::LocalGet(haystack_len));
+                        instrs.push(Instruction::LocalGet(needle_len));
+                        instrs.push(Instruction::I32Sub);
+                        instrs.push(Instruction::I32GtS);
+                        instrs.push(Instruction::BrIf(1)); // Break from loop
+                        
+                        // Inner loop: compare characters
+                        instrs.push(Instruction::I32Const(0));
+                        instrs.push(Instruction::LocalSet(j));
+                        instrs.push(Instruction::I32Const(1));
+                        instrs.push(Instruction::LocalSet(match_found)); // Assume match until proven otherwise
+                        
+                        instrs.push(Instruction::Loop(BlockType::Empty));
+                        
+                        // Check if we've compared all needle characters
+                        instrs.push(Instruction::LocalGet(j));
+                        instrs.push(Instruction::LocalGet(needle_len));
+                        instrs.push(Instruction::I32GeS);
+                        instrs.push(Instruction::BrIf(1)); // Break from inner loop
+                        
+                        // Compare characters
+                        // haystack[i + j]
+                        instrs.push(Instruction::LocalGet(haystack_ptr));
+                        instrs.push(Instruction::I32Const(4)); // Skip length field
+                        instrs.push(Instruction::I32Add);
+                        instrs.push(Instruction::LocalGet(i));
+                        instrs.push(Instruction::I32Add);
+                        instrs.push(Instruction::LocalGet(j));
+                        instrs.push(Instruction::I32Add);
+                        instrs.push(Instruction::I32Load8U(wasm_encoder::MemArg {
+                            offset: 0,
+                            align: 0,
+                            memory_index: 0,
+                        }));
+                        
+                        // needle[j]
+                        instrs.push(Instruction::LocalGet(needle_ptr));
+                        instrs.push(Instruction::I32Const(4)); // Skip length field
+                        instrs.push(Instruction::I32Add);
+                        instrs.push(Instruction::LocalGet(j));
+                        instrs.push(Instruction::I32Add);
+                        instrs.push(Instruction::I32Load8U(wasm_encoder::MemArg {
+                            offset: 0,
+                            align: 0,
+                            memory_index: 0,
+                        }));
+                        
+                        // Compare
+                        instrs.push(Instruction::I32Ne);
+                        instrs.push(Instruction::If(BlockType::Empty));
+                        {
+                            // Characters don't match
+                            instrs.push(Instruction::I32Const(0));
+                            instrs.push(Instruction::LocalSet(match_found));
+                            instrs.push(Instruction::Br(1)); // Break from inner loop
+                        }
+                        instrs.push(Instruction::End);
+                        
+                        // Increment j
+                        instrs.push(Instruction::LocalGet(j));
+                        instrs.push(Instruction::I32Const(1));
+                        instrs.push(Instruction::I32Add);
+                        instrs.push(Instruction::LocalSet(j));
+                        
+                        instrs.push(Instruction::Br(0)); // Continue inner loop
+                        instrs.push(Instruction::End); // End inner loop
+                        
+                        // Check if we found a match
+                        instrs.push(Instruction::LocalGet(match_found));
+                        instrs.push(Instruction::BrIf(1)); // Break from outer loop if match found
+                        
+                        // Increment i
+                        instrs.push(Instruction::LocalGet(i));
+                        instrs.push(Instruction::I32Const(1));
+                        instrs.push(Instruction::I32Add);
+                        instrs.push(Instruction::LocalSet(i));
+                        
+                        instrs.push(Instruction::Br(0)); // Continue outer loop
+                        instrs.push(Instruction::End); // End outer loop
+                        
+                        // Return match result
+                        instrs.push(Instruction::LocalGet(match_found));
                         Ok(ValType::I32)
                     }
 
                     "string_to_upper" => {
-                        // Convert string to uppercase - simplified implementation
-                        let str_ptr = locals.get_or_add("__str_upper_ptr", ValType::I32);
+                        // Convert string to uppercase - proper implementation
+                        let input_ptr = locals.get_or_add("__str_input_ptr", ValType::I32);
+                        let output_ptr = locals.get_or_add("__str_output_ptr", ValType::I32);
+                        let str_len = locals.get_or_add("__str_len", ValType::I32);
+                        let i = locals.get_or_add("__case_i", ValType::I32);
+                        let char_val = locals.get_or_add("__char_val", ValType::I32);
+                        
+                        // Get input string
                         self.emit_expression(&args[0], instrs, locals, indices)?;
-                        instrs.push(Instruction::LocalSet(str_ptr));
-
-                        // For now, just return the original string pointer
-                        // TODO: Implement proper case conversion
-                        instrs.push(Instruction::LocalGet(str_ptr));
+                        instrs.push(Instruction::LocalTee(input_ptr));
+                        
+                        // Get string length
+                        instrs.push(Instruction::I32Load(wasm_encoder::MemArg {
+                            offset: 0,
+                            align: 0,
+                            memory_index: 0,
+                        }));
+                        instrs.push(Instruction::LocalSet(str_len));
+                        
+                        // Allocate memory for output string
+                        instrs.push(Instruction::GlobalGet(0)); // Current heap pointer
+                        instrs.push(Instruction::LocalTee(output_ptr));
+                        
+                        // Store length in output string
+                        instrs.push(Instruction::LocalGet(str_len));
+                        instrs.push(Instruction::I32Store(wasm_encoder::MemArg {
+                            offset: 0,
+                            align: 0,
+                            memory_index: 0,
+                        }));
+                        
+                        // Initialize loop counter
+                        instrs.push(Instruction::I32Const(0));
+                        instrs.push(Instruction::LocalSet(i));
+                        
+                        // Loop through each character
+                        instrs.push(Instruction::Loop(BlockType::Empty));
+                        
+                        // Check if we've processed all characters
+                        instrs.push(Instruction::LocalGet(i));
+                        instrs.push(Instruction::LocalGet(str_len));
+                        instrs.push(Instruction::I32GeS);
+                        instrs.push(Instruction::BrIf(1)); // Break from loop
+                        
+                        // Load character from input
+                        instrs.push(Instruction::LocalGet(input_ptr));
+                        instrs.push(Instruction::I32Const(4)); // Skip length field
+                        instrs.push(Instruction::I32Add);
+                        instrs.push(Instruction::LocalGet(i));
+                        instrs.push(Instruction::I32Add);
+                        instrs.push(Instruction::I32Load8U(wasm_encoder::MemArg {
+                            offset: 0,
+                            align: 0,
+                            memory_index: 0,
+                        }));
+                        instrs.push(Instruction::LocalSet(char_val));
+                        
+                        // Convert to uppercase if lowercase (a-z = 97-122 -> A-Z = 65-90)
+                        instrs.push(Instruction::LocalGet(char_val));
+                        instrs.push(Instruction::I32Const(97)); // 'a'
+                        instrs.push(Instruction::I32GeS);
+                        instrs.push(Instruction::LocalGet(char_val));
+                        instrs.push(Instruction::I32Const(122)); // 'z'
+                        instrs.push(Instruction::I32LeS);
+                        instrs.push(Instruction::I32And);
+                        instrs.push(Instruction::If(BlockType::Empty));
+                        {
+                            // Convert to uppercase
+                            instrs.push(Instruction::LocalGet(char_val));
+                            instrs.push(Instruction::I32Const(32)); // 'a' - 'A' = 32
+                            instrs.push(Instruction::I32Sub);
+                            instrs.push(Instruction::LocalSet(char_val));
+                        }
+                        instrs.push(Instruction::End);
+                        
+                        // Store character in output
+                        instrs.push(Instruction::LocalGet(output_ptr));
+                        instrs.push(Instruction::I32Const(4)); // Skip length field
+                        instrs.push(Instruction::I32Add);
+                        instrs.push(Instruction::LocalGet(i));
+                        instrs.push(Instruction::I32Add);
+                        instrs.push(Instruction::LocalGet(char_val));
+                        instrs.push(Instruction::I32Store8(wasm_encoder::MemArg {
+                            offset: 0,
+                            align: 0,
+                            memory_index: 0,
+                        }));
+                        
+                        // Increment counter
+                        instrs.push(Instruction::LocalGet(i));
+                        instrs.push(Instruction::I32Const(1));
+                        instrs.push(Instruction::I32Add);
+                        instrs.push(Instruction::LocalSet(i));
+                        
+                        instrs.push(Instruction::Br(0)); // Continue loop
+                        instrs.push(Instruction::End); // End loop
+                        
+                        // Update heap pointer
+                        let total_size = 4; // Length field + string data (will be calculated dynamically)
+                        instrs.push(Instruction::GlobalGet(0));
+                        instrs.push(Instruction::LocalGet(str_len));
+                        instrs.push(Instruction::I32Const(total_size));
+                        instrs.push(Instruction::I32Add);
+                        instrs.push(Instruction::I32Add);
+                        instrs.push(Instruction::I32Const(3));
+                        instrs.push(Instruction::I32Add);
+                        instrs.push(Instruction::I32Const(!3i32));
+                        instrs.push(Instruction::I32And); // Align to 4-byte boundary
+                        instrs.push(Instruction::GlobalSet(0));
+                        
+                        // Return pointer to output string
+                        instrs.push(Instruction::LocalGet(output_ptr));
                         Ok(ValType::I32)
                     }
 
                     "string_to_lower" => {
-                        // Convert string to lowercase - simplified implementation
-                        let str_ptr = locals.get_or_add("__str_lower_ptr", ValType::I32);
+                        // Convert string to lowercase - proper implementation
+                        let input_ptr = locals.get_or_add("__str_input_ptr", ValType::I32);
+                        let output_ptr = locals.get_or_add("__str_output_ptr", ValType::I32);
+                        let str_len = locals.get_or_add("__str_len", ValType::I32);
+                        let i = locals.get_or_add("__case_i", ValType::I32);
+                        let char_val = locals.get_or_add("__char_val", ValType::I32);
+                        
+                        // Get input string
                         self.emit_expression(&args[0], instrs, locals, indices)?;
-                        instrs.push(Instruction::LocalSet(str_ptr));
-
-                        // For now, just return the original string pointer
-                        // TODO: Implement proper case conversion
-                        instrs.push(Instruction::LocalGet(str_ptr));
+                        instrs.push(Instruction::LocalTee(input_ptr));
+                        
+                        // Get string length
+                        instrs.push(Instruction::I32Load(wasm_encoder::MemArg {
+                            offset: 0,
+                            align: 0,
+                            memory_index: 0,
+                        }));
+                        instrs.push(Instruction::LocalSet(str_len));
+                        
+                        // Allocate memory for output string
+                        instrs.push(Instruction::GlobalGet(0)); // Current heap pointer
+                        instrs.push(Instruction::LocalTee(output_ptr));
+                        
+                        // Store length in output string
+                        instrs.push(Instruction::LocalGet(str_len));
+                        instrs.push(Instruction::I32Store(wasm_encoder::MemArg {
+                            offset: 0,
+                            align: 0,
+                            memory_index: 0,
+                        }));
+                        
+                        // Initialize loop counter
+                        instrs.push(Instruction::I32Const(0));
+                        instrs.push(Instruction::LocalSet(i));
+                        
+                        // Loop through each character
+                        instrs.push(Instruction::Loop(BlockType::Empty));
+                        
+                        // Check if we've processed all characters
+                        instrs.push(Instruction::LocalGet(i));
+                        instrs.push(Instruction::LocalGet(str_len));
+                        instrs.push(Instruction::I32GeS);
+                        instrs.push(Instruction::BrIf(1)); // Break from loop
+                        
+                        // Load character from input
+                        instrs.push(Instruction::LocalGet(input_ptr));
+                        instrs.push(Instruction::I32Const(4)); // Skip length field
+                        instrs.push(Instruction::I32Add);
+                        instrs.push(Instruction::LocalGet(i));
+                        instrs.push(Instruction::I32Add);
+                        instrs.push(Instruction::I32Load8U(wasm_encoder::MemArg {
+                            offset: 0,
+                            align: 0,
+                            memory_index: 0,
+                        }));
+                        instrs.push(Instruction::LocalSet(char_val));
+                        
+                        // Convert to lowercase if uppercase (A-Z = 65-90 -> a-z = 97-122)
+                        instrs.push(Instruction::LocalGet(char_val));
+                        instrs.push(Instruction::I32Const(65)); // 'A'
+                        instrs.push(Instruction::I32GeS);
+                        instrs.push(Instruction::LocalGet(char_val));
+                        instrs.push(Instruction::I32Const(90)); // 'Z'
+                        instrs.push(Instruction::I32LeS);
+                        instrs.push(Instruction::I32And);
+                        instrs.push(Instruction::If(BlockType::Empty));
+                        {
+                            // Convert to lowercase
+                            instrs.push(Instruction::LocalGet(char_val));
+                            instrs.push(Instruction::I32Const(32)); // 'a' - 'A' = 32
+                            instrs.push(Instruction::I32Add);
+                            instrs.push(Instruction::LocalSet(char_val));
+                        }
+                        instrs.push(Instruction::End);
+                        
+                        // Store character in output
+                        instrs.push(Instruction::LocalGet(output_ptr));
+                        instrs.push(Instruction::I32Const(4)); // Skip length field
+                        instrs.push(Instruction::I32Add);
+                        instrs.push(Instruction::LocalGet(i));
+                        instrs.push(Instruction::I32Add);
+                        instrs.push(Instruction::LocalGet(char_val));
+                        instrs.push(Instruction::I32Store8(wasm_encoder::MemArg {
+                            offset: 0,
+                            align: 0,
+                            memory_index: 0,
+                        }));
+                        
+                        // Increment counter
+                        instrs.push(Instruction::LocalGet(i));
+                        instrs.push(Instruction::I32Const(1));
+                        instrs.push(Instruction::I32Add);
+                        instrs.push(Instruction::LocalSet(i));
+                        
+                        instrs.push(Instruction::Br(0)); // Continue loop
+                        instrs.push(Instruction::End); // End loop
+                        
+                        // Update heap pointer (same logic as string_to_upper)
+                        instrs.push(Instruction::GlobalGet(0));
+                        instrs.push(Instruction::LocalGet(str_len));
+                        instrs.push(Instruction::I32Const(4)); // Length field
+                        instrs.push(Instruction::I32Add);
+                        instrs.push(Instruction::I32Add);
+                        instrs.push(Instruction::I32Const(3));
+                        instrs.push(Instruction::I32Add);
+                        instrs.push(Instruction::I32Const(!3i32));
+                        instrs.push(Instruction::I32And); // Align to 4-byte boundary
+                        instrs.push(Instruction::GlobalSet(0));
+                        
+                        // Return pointer to output string
+                        instrs.push(Instruction::LocalGet(output_ptr));
                         Ok(ValType::I32)
                     }
 
@@ -1646,13 +1998,85 @@ impl WasmBackend {
                     }
 
                     "array_contains" | "array_contains_did" => {
-                        // Check if array contains element - simplified implementation
-                        self.emit_expression(&args[0], instrs, locals, indices)?; // array
-                        instrs.push(Instruction::Drop); // Drop for now
-                        self.emit_expression(&args[1], instrs, locals, indices)?; // element
-                        instrs.push(Instruction::Drop); // Drop for now
-                                                        // TODO: Implement proper array searching
-                        instrs.push(Instruction::I32Const(0)); // Return false for now
+                        // Check if array contains element - proper implementation
+                        let array_ptr = locals.get_or_add("__array_ptr", ValType::I32);
+                        let element_val = locals.get_or_add("__element_val", ValType::I64);
+                        let array_len = locals.get_or_add("__array_len", ValType::I32);
+                        let i = locals.get_or_add("__search_i", ValType::I32);
+                        let current_element = locals.get_or_add("__current_element", ValType::I64);
+                        let found = locals.get_or_add("__found", ValType::I32);
+                        
+                        // Get array pointer
+                        self.emit_expression(&args[0], instrs, locals, indices)?;
+                        instrs.push(Instruction::LocalSet(array_ptr));
+                        
+                        // Get element to search for
+                        self.emit_expression(&args[1], instrs, locals, indices)?;
+                        instrs.push(Instruction::LocalSet(element_val));
+                        
+                        // Get array length
+                        instrs.push(Instruction::LocalGet(array_ptr));
+                        instrs.push(Instruction::I32Load(wasm_encoder::MemArg {
+                            offset: 0,
+                            align: 0,
+                            memory_index: 0,
+                        }));
+                        instrs.push(Instruction::LocalSet(array_len));
+                        
+                        // Initialize search variables
+                        instrs.push(Instruction::I32Const(0));
+                        instrs.push(Instruction::LocalSet(i));
+                        instrs.push(Instruction::I32Const(0));
+                        instrs.push(Instruction::LocalSet(found));
+                        
+                        // Loop through array elements
+                        instrs.push(Instruction::Loop(BlockType::Empty));
+                        
+                        // Check if we've searched all elements
+                        instrs.push(Instruction::LocalGet(i));
+                        instrs.push(Instruction::LocalGet(array_len));
+                        instrs.push(Instruction::I32GeS);
+                        instrs.push(Instruction::BrIf(1)); // Break from loop
+                        
+                        // Load current array element (assuming 8-byte elements for I64)
+                        instrs.push(Instruction::LocalGet(array_ptr));
+                        instrs.push(Instruction::I32Const(4)); // Skip length field
+                        instrs.push(Instruction::I32Add);
+                        instrs.push(Instruction::LocalGet(i));
+                        instrs.push(Instruction::I32Const(8)); // 8 bytes per element
+                        instrs.push(Instruction::I32Mul);
+                        instrs.push(Instruction::I32Add);
+                        instrs.push(Instruction::I64Load(wasm_encoder::MemArg {
+                            offset: 0,
+                            align: 0,
+                            memory_index: 0,
+                        }));
+                        instrs.push(Instruction::LocalSet(current_element));
+                        
+                        // Compare with target element
+                        instrs.push(Instruction::LocalGet(current_element));
+                        instrs.push(Instruction::LocalGet(element_val));
+                        instrs.push(Instruction::I64Eq);
+                        instrs.push(Instruction::If(BlockType::Empty));
+                        {
+                            // Found match
+                            instrs.push(Instruction::I32Const(1));
+                            instrs.push(Instruction::LocalSet(found));
+                            instrs.push(Instruction::Br(1)); // Break from loop
+                        }
+                        instrs.push(Instruction::End);
+                        
+                        // Increment counter
+                        instrs.push(Instruction::LocalGet(i));
+                        instrs.push(Instruction::I32Const(1));
+                        instrs.push(Instruction::I32Add);
+                        instrs.push(Instruction::LocalSet(i));
+                        
+                        instrs.push(Instruction::Br(0)); // Continue loop
+                        instrs.push(Instruction::End); // End loop
+                        
+                        // Return found result
+                        instrs.push(Instruction::LocalGet(found));
                         Ok(ValType::I32)
                     }
 
@@ -3052,14 +3476,53 @@ impl WasmBackend {
                     instrs.push(Instruction::I32Const(if *b { 1 } else { 0 }));
                     Ok(ValType::I32)
                 }
-                crate::ast::LiteralNode::Did(_) => {
-                    // TODO: Implement DID handling
-                    instrs.push(Instruction::I32Const(0));
+                crate::ast::LiteralNode::Did(did) => {
+                    // Implement DID handling - DIDs are stored as strings
+                    let did_str = did.to_string();
+                    let did_bytes = did_str.as_bytes();
+                    let did_len = did_bytes.len();
+                    
+                    // Allocate memory for string: [length: u32][data: bytes]
+                    let string_ptr = locals.get_or_add("__did_string_ptr", ValType::I32);
+                    
+                    // Get current heap pointer
+                    instrs.push(Instruction::GlobalGet(0));
+                    instrs.push(Instruction::LocalTee(string_ptr));
+                    
+                    // Store string length
+                    instrs.push(Instruction::I32Const(did_len as i32));
+                    instrs.push(Instruction::I32Store(wasm_encoder::MemArg {
+                        offset: 0,
+                        align: 0,
+                        memory_index: 0,
+                    }));
+                    
+                    // Store string data
+                    for (i, &byte) in did_bytes.iter().enumerate() {
+                        instrs.push(Instruction::LocalGet(string_ptr));
+                        instrs.push(Instruction::I32Const(byte as i32));
+                        instrs.push(Instruction::I32Store8(wasm_encoder::MemArg {
+                            offset: 4 + i as u64, // After the length field
+                            align: 0,
+                            memory_index: 0,
+                        }));
+                    }
+                    
+                    // Update heap pointer (4 bytes length + string data, aligned to 4 bytes)
+                    let total_size = 4 + ((did_len + 3) & !3); // Align to 4-byte boundary
+                    instrs.push(Instruction::GlobalGet(0));
+                    instrs.push(Instruction::I32Const(total_size as i32));
+                    instrs.push(Instruction::I32Add);
+                    instrs.push(Instruction::GlobalSet(0));
+                    
+                    // Return pointer to string
+                    instrs.push(Instruction::LocalGet(string_ptr));
                     Ok(ValType::I32)
                 }
-                crate::ast::LiteralNode::Timestamp(_) => {
-                    // TODO: Implement timestamp handling
-                    instrs.push(Instruction::I64Const(0));
+                crate::ast::LiteralNode::Timestamp(timestamp) => {
+                    // Implement timestamp handling - timestamps are 64-bit Unix timestamps
+                    let timestamp_value = timestamp.parse::<i64>().unwrap_or(0);
+                    instrs.push(Instruction::I64Const(timestamp_value));
                     Ok(ValType::I64)
                 }
             },

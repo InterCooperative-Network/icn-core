@@ -154,6 +154,31 @@ pub struct MeshBidSubmissionMessage {
     pub offered_resources: ResourceRequirements,
     /// Executor's current reputation score
     pub reputation_score: u64,
+    /// Executor's capabilities for job execution
+    pub executor_capabilities: Vec<ExecutorCapability>,
+    /// Federations the executor belongs to
+    pub executor_federations: Vec<String>,
+    /// Trust scope for the executor
+    pub executor_trust_scope: Option<String>,
+}
+
+/// Capabilities that an executor can advertise
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum ExecutorCapability {
+    /// Can execute CCL WASM contracts
+    CclWasm,
+    /// Can execute Docker containers
+    Docker,
+    /// Can handle large datasets
+    LargeDatasets,
+    /// Has GPU acceleration available
+    GpuAcceleration,
+    /// Supports high-security isolated execution
+    SecureExecution,
+    /// Can provide high availability
+    HighAvailability,
+    /// Specialized computational capability
+    Specialized { name: String, version: String },
 }
 
 /// Notify network of job assignment to selected executor
