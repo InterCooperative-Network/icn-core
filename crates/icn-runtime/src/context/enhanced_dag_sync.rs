@@ -7,7 +7,7 @@ use crate::context::{
     DagStorageService, DagStoreMutexType, HostAbiError, MeshNetworkServiceType,
 };
 use icn_common::{Cid, Did, TimeProvider};
-use icn_governance::GovernanceModule;
+// Note: GovernanceModule may be needed for future governance-driven sync policies
 use icn_reputation::ReputationStore;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;

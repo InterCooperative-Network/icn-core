@@ -178,7 +178,7 @@ impl CrossComponentCoordinator {
         info!("Propagating block {} with priority {:?}", block_cid, priority);
         
         // Use enhanced DAG sync for intelligent propagation
-        self.dag_sync.propagate_block(block_cid, priority, target_peers).await?;
+        self.dag_sync.propagate_block(block_cid.clone(), priority, target_peers).await?;
         
         // Record metrics
         self.metrics.record_block_propagation(&block_cid, &priority);
