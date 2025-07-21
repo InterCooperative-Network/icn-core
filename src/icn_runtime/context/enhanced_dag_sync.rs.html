@@ -3,7 +3,7 @@
 <a href=#3 id=3 data-nosnippet>3</a>//! This module provides intelligent DAG synchronization that leverages network
 <a href=#4 id=4 data-nosnippet>4</a>//! conditions, peer reputation, and adaptive strategies for optimal performance.
 <a href=#5 id=5 data-nosnippet>5</a>
-<a href=#6 id=6 data-nosnippet>6</a></span><span class="kw">use </span><span class="kw">crate</span>::context::{
+<a href=#6 id=6 data-nosnippet>6</a></span><span class="kw">use super</span>::{
 <a href=#7 id=7 data-nosnippet>7</a>    DagStorageService, DagStoreMutexType, HostAbiError, MeshNetworkServiceType,
 <a href=#8 id=8 data-nosnippet>8</a>};
 <a href=#9 id=9 data-nosnippet>9</a><span class="kw">use </span>icn_common::{Cid, Did, TimeProvider};
@@ -81,7 +81,7 @@
 <a href=#81 id=81 data-nosnippet>81</a>}
 <a href=#82 id=82 data-nosnippet>82</a>
 <a href=#83 id=83 data-nosnippet>83</a><span class="doccomment">/// Priority levels for DAG block propagation
-<a href=#84 id=84 data-nosnippet>84</a></span><span class="attr">#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+<a href=#84 id=84 data-nosnippet>84</a></span><span class="attr">#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
 <a href=#85 id=85 data-nosnippet>85</a></span><span class="kw">pub enum </span>PropagationPriority {
 <a href=#86 id=86 data-nosnippet>86</a>    <span class="doccomment">/// Low priority - eventual consistency
 <a href=#87 id=87 data-nosnippet>87</a>    </span>Low,
