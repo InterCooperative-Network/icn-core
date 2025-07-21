@@ -862,8 +862,8 @@ pub async fn app_router_with_options(
             {
                 return (
                     Router::new(),
-                    Arc::new(RuntimeContext::new_for_testing(node_did.clone(), Some(1000))
-                        .expect("Fallback to testing context"))
+                    RuntimeContext::new_for_testing(node_did.clone(), Some(1000))
+                        .expect("Fallback to testing context")
                 );
             }
         }
@@ -1814,12 +1814,12 @@ struct JsonErrorResponse {
 fn map_rust_error_to_json_response<E: std::fmt::Display>(
     err: E,
     status_code: StatusCode,
-) -> (StatusCode, Json<JsonErrorResponse>) {
+) -> (StatusCode, Json<serde_json::Value>) {
     (
         status_code,
-        Json(JsonErrorResponse {
-            error: err.to_string(),
-        }),
+        Json(serde_json::json!({
+            "error": err.to_string(),
+        })),
     )
 }
 
@@ -3283,8 +3283,7 @@ async fn mesh_get_job_progress_handler(
             return map_rust_error_to_json_response(
                 format!("Invalid job ID format: {}", e),
                 StatusCode::BAD_REQUEST,
-            )
-            .into_response();
+            );
         }
     };
 
@@ -3335,8 +3334,7 @@ async fn mesh_get_job_stream_handler(
             return map_rust_error_to_json_response(
                 format!("Invalid job ID format: {}", e),
                 StatusCode::BAD_REQUEST,
-            )
-            .into_response();
+            );
         }
     };
 
@@ -3363,7 +3361,7 @@ async fn mesh_get_job_stream_handler(
         }),
     ];
 
-    (StatusCode::OK, Json(stream_chunks))
+    (StatusCode::OK, Json(serde_json::Value::Array(stream_chunks)))
 }
 
 // POST /mesh/jobs/{job_id}/cancel - Cancel a running job
@@ -3384,8 +3382,7 @@ async fn mesh_cancel_job_handler(
             return map_rust_error_to_json_response(
                 format!("Invalid job ID format: {}", e),
                 StatusCode::BAD_REQUEST,
-            )
-            .into_response();
+            );
         }
     };
 
@@ -3445,8 +3442,7 @@ async fn mesh_resume_job_handler(
             return map_rust_error_to_json_response(
                 format!("Invalid job ID format: {}", e),
                 StatusCode::BAD_REQUEST,
-            )
-            .into_response();
+            );
         }
     };
 
