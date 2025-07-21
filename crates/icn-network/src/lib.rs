@@ -14,6 +14,16 @@
 pub mod error;
 pub use error::MeshNetworkError;
 pub mod metrics;
+pub mod service_factory;
+pub mod adaptive_routing;
+pub use service_factory::{
+    NetworkServiceFactory, NetworkServiceOptions, NetworkServiceOptionsBuilder,
+    NetworkServiceConfig, NetworkEnvironment, BootstrapPeer, NetworkServiceCreationResult,
+};
+pub use adaptive_routing::{
+    AdaptiveRoutingEngine, AdaptiveRoutingConfig, RouteInfo, NetworkTopology,
+    AdaptiveNetworkService, RoutingEvent, RouteSelectionWeights,
+};
 
 use async_trait::async_trait;
 use downcast_rs::{impl_downcast, DowncastSync};

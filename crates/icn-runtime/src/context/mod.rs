@@ -13,10 +13,12 @@ pub mod mesh_network;
 pub mod realtime_ccl_integration;
 pub mod resource_ledger;
 pub mod runtime_context;
+pub mod runtime_factory;
 pub mod service_config;
 pub mod signers;
 pub mod smart_p2p_routing;
 pub mod stubs;
+pub mod comprehensive_coordinator;
 
 // Re-export important types for convenience
 pub use compile_checks::ProductionReady;
@@ -53,6 +55,13 @@ pub use smart_p2p_routing::{
     SmartP2pRouter, RoutingStrategy, MessagePriority, RoutePath, PeerRouteInfo, RoutingMetrics,
 };
 pub use stubs::{RuntimeStubDagStore, StubDagStore, StubMeshNetworkService};
+pub use runtime_factory::{
+    RuntimeContextFactory, RuntimeCreationConfig, RuntimeCreationConfigBuilder, RuntimeEnvironment,
+};
+pub use comprehensive_coordinator::{
+    ComprehensiveCoordinator, ComprehensiveCoordinationConfig, CoordinationEvent,
+    SystemHealthStatus, ComprehensiveCoordinationStats, OptimizationExecutionResult,
+};
 
 // Conditional compilation helpers for DAG storage service
 pub type DagStorageService = dyn icn_dag::AsyncStorageService<icn_common::DagBlock> + Send;

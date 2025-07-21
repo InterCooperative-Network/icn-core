@@ -876,17 +876,12 @@ impl DefaultMeshNetworkService {
     fn get_executor_reputation(&self, executor_did: &icn_common::Did) -> Result<u64, HostAbiError> {
         // Use real reputation store if available
         if let Some(ref reputation_store) = self.reputation_store {
-            match reputation_store.get_reputation(executor_did) {
-                Ok(Some(reputation)) => {
-                    debug!("Retrieved reputation for {}: {}", executor_did, reputation);
-                    return Ok(reputation as u64);
-                }
-                Ok(None) => {
-                    debug!("No reputation found for {}, using default", executor_did);
-                }
-                Err(e) => {
-                    debug!("Error retrieving reputation for {}: {}", executor_did, e);
-                }
+            let reputation = reputation_store.get_reputation(executor_did);
+            if reputation > 0 {
+                debug!("Retrieved reputation for {}: {}", executor_did, reputation);
+                return Ok(reputation);
+            } else {
+                debug!("No reputation found for {}, using default", executor_did);
             }
         }
         

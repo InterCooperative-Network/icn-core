@@ -71,6 +71,11 @@ pub use federation_manager::{
     FederationManager, FederationMembershipService, FederationInfo, MembershipStatus,
     FederationCapabilities, FederationRegistry,
 };
+pub mod federation_integration;
+pub use federation_integration::{
+    FederationIntegrationEngine, FederationIntegrationConfig, FederationEvent,
+    ResourceType, SharingTerms, FederationIntegrationStats,
+};
 
 // --- Core Cryptographic Operations & DID:key generation ---
 

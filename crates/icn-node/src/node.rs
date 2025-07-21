@@ -698,48 +698,75 @@ async fn correlation_id_middleware(
 pub async fn build_network_service(
     config: &NodeConfig,
 ) -> Result<Arc<dyn NetworkService>, CommonError> {
+    use icn_network::{NetworkServiceFactory, NetworkServiceOptionsBuilder, NetworkEnvironment, service_factory::NetworkServiceConfig};
+    
     info!(
         "🚀 Building network service - test_mode: {}, enable_p2p: {}",
         config.test_mode, config.p2p.enable_p2p
     );
 
-    if config.test_mode {
-        info!("🧪 Test mode enabled - using stub network service");
-        return Ok(Arc::new(icn_network::StubNetworkService::default()));
-    }
+    // Determine environment based on configuration
+    let environment = if config.test_mode {
+        info!("🧪 Test mode enabled - using testing environment");
+        NetworkEnvironment::Testing
+    } else if config.p2p.enable_p2p {
+        info!("🏭 P2P enabled - using production environment");
+        NetworkEnvironment::Production
+    } else {
+        info!("🛠️ P2P disabled - using development environment");
+        NetworkEnvironment::Development
+    };
 
-    if config.p2p.enable_p2p {
-        #[cfg(feature = "enable-libp2p")]
-        {
-            info!("🔧 Attempting to create libp2p network service...");
-            let net_cfg = config.libp2p_config()?;
-            info!("✅ libp2p config created successfully");
-
-            match icn_network::libp2p_service::Libp2pNetworkService::new(net_cfg).await {
-                Ok(service) => {
-                    info!("✅ Libp2p network service created successfully!");
-                    return Ok(Arc::new(service));
-                }
-                Err(e) => {
-                    error!("❌ Libp2p service creation failed: {}", e);
-                    error!("🔄 Falling back to stub network service due to libp2p failure");
-                    return Err(CommonError::NetworkError(format!(
-                        "Failed to create libp2p service: {}",
-                        e
-                    )));
-                }
+    // Create network service configuration
+    let net_config = NetworkServiceConfig {
+        listen_addresses: config.p2p.listen_addresses.clone(),
+        bootstrap_peers: config.p2p.bootstrap_peers.iter().map(|peer| {
+            icn_network::BootstrapPeer {
+                peer_id: peer.peer_id.clone(),
+                address: peer.multiaddr.clone(),
+                weight: Some(1),
+                trusted: true,
             }
+        }).collect(),
+        enable_mdns: config.p2p.enable_mdns,
+        max_peers: config.p2p.max_peers as usize,
+        connection_timeout_ms: config.p2p.connection_timeout_ms,
+        request_timeout_ms: config.p2p.request_timeout_ms,
+        heartbeat_interval_ms: config.p2p.heartbeat_interval_ms,
+        bootstrap_interval_secs: config.p2p.bootstrap_interval_secs,
+        peer_discovery_interval_secs: config.p2p.peer_discovery_interval_secs,
+        kademlia_replication_factor: config.p2p.kademlia_replication_factor as usize,
+        ..Default::default()
+    };
+
+    // Build network service using the factory
+    let options = NetworkServiceOptionsBuilder::new()
+        .environment(environment)
+        .config(net_config)
+        .allow_fallback(config.test_mode || environment == NetworkEnvironment::Development) // Allow fallback in test/dev mode
+        .build();
+
+    match NetworkServiceFactory::create(options).await {
+        icn_network::NetworkServiceCreationResult::Libp2p(service) => {
+            info!("✅ Libp2p network service created successfully!");
+            Ok(service)
         }
-        #[cfg(not(feature = "enable-libp2p"))]
-        {
-            return Err(CommonError::ConfigError(
-                "libp2p support not compiled".into(),
-            ));
+        icn_network::NetworkServiceCreationResult::Stub(service) => {
+            if config.test_mode {
+                info!("✅ Stub network service created for testing");
+            } else {
+                warn!("⚠️ Using stub network service in non-test mode");
+            }
+            Ok(service)
+        }
+        icn_network::NetworkServiceCreationResult::Failed(e) => {
+            error!("❌ Network service creation failed: {}", e);
+            Err(CommonError::NetworkError(format!(
+                "Failed to create network service: {}",
+                e
+            )))
         }
     }
-
-    info!("🔄 P2P disabled - using stub network service");
-    Ok(Arc::new(icn_network::StubNetworkService::default()))
 }
 
 // --- Public App Constructor (for tests or embedding) ---

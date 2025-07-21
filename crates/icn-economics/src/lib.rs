@@ -24,6 +24,9 @@ pub mod mutual_aid;
 pub mod mutual_credit;
 pub mod reputation_tokens;
 pub mod time_banking;
+
+/// Comprehensive economic automation and policy enforcement
+pub mod automation;
 pub use explorer::{FlowStats, LedgerExplorer};
 pub use ledger::FileResourceLedger;
 pub use ledger::{
@@ -50,6 +53,10 @@ pub use mutual_credit::{
 pub use reputation_tokens::{grant_reputation_tokens, use_reputation_tokens, REPUTATION_CLASS};
 pub use time_banking::{
     InMemoryTimeBankingStore, TimeBankingStore, TimeRecord, TimeRecordStatus, WorkStatistics,
+};
+pub use automation::{
+    EconomicAutomationEngine, EconomicAutomationConfig, EconomicEvent,
+    EconomicHealthMetrics, EconomicAutomationStats,
 };
 
 #[cfg(test)]

@@ -32,8 +32,14 @@ pub mod budgeting;
 pub mod federation_governance;
 pub mod metrics;
 pub mod scoped_policy;
+pub mod automation;
 
 pub use budgeting::{apply_budget_allocation, BudgetProposal};
+pub use automation::{
+    GovernanceAutomationEngine, GovernanceAutomationConfig, GovernanceEvent,
+    ExecutionResult, EnforcementAction, VoteWeight as AutomationVoteWeight, 
+    VotingResult, GovernanceAutomationStats, ReminderType,
+};
 
 /// Trait for governance execution hooks.
 ///
