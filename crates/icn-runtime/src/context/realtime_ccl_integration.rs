@@ -16,6 +16,7 @@ use std::time::{Duration, Instant};
 use tokio::sync::{RwLock, Mutex};
 use tracing::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
+use bincode;
 
 /// Real-time CCL integration coordinator
 pub struct CclIntegrationCoordinator {
