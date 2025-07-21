@@ -71,6 +71,10 @@ path = "integration/host_zk_roundtrip.rs"
 name = "p2p_dag_e2e"
 path = "integration/p2p_dag_e2e.rs"
 
+[[test]]
+name = "p2p_dag_e2e_fixed"
+path = "integration/p2p_dag_e2e_fixed.rs"
+
 [features]
 default = []
 enable-libp2p = ["icn-node/with-libp2p", "icn-runtime/enable-libp2p"]
