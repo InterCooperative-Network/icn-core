@@ -7,14 +7,14 @@
              'life0: 'async_trait</span>;
 <span class="item-spacer"></span>    fn <a href="#tymethod.get_job_progress" class="fn">get_job_progress</a>&lt;'life0, 'life1, 'async_trait&gt;(
         &amp;'life0 self,
-        job_id: &amp;'life1 JobId,
+        job_id: &amp;'life1 <a class="struct" href="../../icn_mesh/struct.JobId.html" title="struct icn_mesh::JobId">JobId</a>,
     ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.88.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.88.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="struct" href="struct.JobProgressResponse.html" title="struct icn_api::mesh_trait::JobProgressResponse">JobProgressResponse</a>, <a class="enum" href="../../icn_common/enum.CommonError.html" title="enum icn_common::CommonError">CommonError</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;
        <span class="where">where Self: 'async_trait,
              'life0: 'async_trait,
              'life1: 'async_trait</span>;
 <span class="item-spacer"></span>    fn <a href="#tymethod.get_job_stream" class="fn">get_job_stream</a>&lt;'life0, 'life1, 'async_trait&gt;(
         &amp;'life0 self,
-        job_id: &amp;'life1 JobId,
+        job_id: &amp;'life1 <a class="struct" href="../../icn_mesh/struct.JobId.html" title="struct icn_mesh::JobId">JobId</a>,
         from_sequence: <a class="enum" href="https://doc.rust-lang.org/1.88.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.88.0/std/primitive.u64.html">u64</a>&gt;,
     ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.88.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.88.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="struct" href="struct.JobStreamChunk.html" title="struct icn_api::mesh_trait::JobStreamChunk">JobStreamChunk</a>&gt;, <a class="enum" href="../../icn_common/enum.CommonError.html" title="enum icn_common::CommonError">CommonError</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;
        <span class="where">where Self: 'async_trait,
@@ -22,21 +22,21 @@
              'life1: 'async_trait</span>;
 <span class="item-spacer"></span>    fn <a href="#tymethod.get_latest_job_chunk" class="fn">get_latest_job_chunk</a>&lt;'life0, 'life1, 'async_trait&gt;(
         &amp;'life0 self,
-        job_id: &amp;'life1 JobId,
+        job_id: &amp;'life1 <a class="struct" href="../../icn_mesh/struct.JobId.html" title="struct icn_mesh::JobId">JobId</a>,
     ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.88.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.88.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="enum" href="https://doc.rust-lang.org/1.88.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="struct" href="struct.JobStreamChunk.html" title="struct icn_api::mesh_trait::JobStreamChunk">JobStreamChunk</a>&gt;, <a class="enum" href="../../icn_common/enum.CommonError.html" title="enum icn_common::CommonError">CommonError</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;
        <span class="where">where Self: 'async_trait,
              'life0: 'async_trait,
              'life1: 'async_trait</span>;
 <span class="item-spacer"></span>    fn <a href="#tymethod.cancel_job" class="fn">cancel_job</a>&lt;'life0, 'life1, 'async_trait&gt;(
         &amp;'life0 self,
-        job_id: &amp;'life1 JobId,
+        job_id: &amp;'life1 <a class="struct" href="../../icn_mesh/struct.JobId.html" title="struct icn_mesh::JobId">JobId</a>,
     ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.88.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.88.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.88.0/std/primitive.bool.html">bool</a>, <a class="enum" href="../../icn_common/enum.CommonError.html" title="enum icn_common::CommonError">CommonError</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;
        <span class="where">where Self: 'async_trait,
              'life0: 'async_trait,
              'life1: 'async_trait</span>;
 <span class="item-spacer"></span>    fn <a href="#tymethod.resume_job" class="fn">resume_job</a>&lt;'life0, 'life1, 'async_trait&gt;(
         &amp;'life0 self,
-        job_id: &amp;'life1 JobId,
+        job_id: &amp;'life1 <a class="struct" href="../../icn_mesh/struct.JobId.html" title="struct icn_mesh::JobId">JobId</a>,
     ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.88.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.88.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.88.0/std/primitive.bool.html">bool</a>, <a class="enum" href="../../icn_common/enum.CommonError.html" title="enum icn_common::CommonError">CommonError</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;
        <span class="where">where Self: 'async_trait,
              'life0: 'async_trait,
@@ -48,7 +48,7 @@
              'life0: 'async_trait</span>;
 <span class="item-spacer"></span>    fn <a href="#tymethod.get_job_metrics" class="fn">get_job_metrics</a>&lt;'life0, 'life1, 'async_trait&gt;(
         &amp;'life0 self,
-        job_id: &amp;'life1 JobId,
+        job_id: &amp;'life1 <a class="struct" href="../../icn_mesh/struct.JobId.html" title="struct icn_mesh::JobId">JobId</a>,
     ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.88.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.88.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.88.0/std/collections/hash/map/struct.HashMap.html" title="struct std::collections::hash::map::HashMap">HashMap</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>, <a class="primitive" href="https://doc.rust-lang.org/1.88.0/std/primitive.f64.html">f64</a>&gt;, <a class="enum" href="../../icn_common/enum.CommonError.html" title="enum icn_common::CommonError">CommonError</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;
        <span class="where">where Self: 'async_trait,
              'life0: 'async_trait,
@@ -61,7 +61,7 @@
     'life0: 'async_trait,</div></h4></section></summary><div class="docblock"><p>Retrieve the current queue of jobs for the local executor.</p>
 </div></details><details class="toggle method-toggle" open><summary><section id="tymethod.get_job_progress" class="method"><a class="src rightside" href="../../src/icn_api/mesh_trait.rs.html#79">Source</a><h4 class="code-header">fn <a href="#tymethod.get_job_progress" class="fn">get_job_progress</a>&lt;'life0, 'life1, 'async_trait&gt;(
     &amp;'life0 self,
-    job_id: &amp;'life1 JobId,
+    job_id: &amp;'life1 <a class="struct" href="../../icn_mesh/struct.JobId.html" title="struct icn_mesh::JobId">JobId</a>,
 ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.88.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.88.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="struct" href="struct.JobProgressResponse.html" title="struct icn_api::mesh_trait::JobProgressResponse">JobProgressResponse</a>, <a class="enum" href="../../icn_common/enum.CommonError.html" title="enum icn_common::CommonError">CommonError</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;<div class="where">where
     Self: 'async_trait,
     'life0: 'async_trait,
@@ -69,7 +69,7 @@
 Returns current progress, checkpoints, and partial outputs.</p>
 </div></details><details class="toggle method-toggle" open><summary><section id="tymethod.get_job_stream" class="method"><a class="src rightside" href="../../src/icn_api/mesh_trait.rs.html#83-87">Source</a><h4 class="code-header">fn <a href="#tymethod.get_job_stream" class="fn">get_job_stream</a>&lt;'life0, 'life1, 'async_trait&gt;(
     &amp;'life0 self,
-    job_id: &amp;'life1 JobId,
+    job_id: &amp;'life1 <a class="struct" href="../../icn_mesh/struct.JobId.html" title="struct icn_mesh::JobId">JobId</a>,
     from_sequence: <a class="enum" href="https://doc.rust-lang.org/1.88.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.88.0/std/primitive.u64.html">u64</a>&gt;,
 ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.88.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.88.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="struct" href="struct.JobStreamChunk.html" title="struct icn_api::mesh_trait::JobStreamChunk">JobStreamChunk</a>&gt;, <a class="enum" href="../../icn_common/enum.CommonError.html" title="enum icn_common::CommonError">CommonError</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;<div class="where">where
     Self: 'async_trait,
@@ -78,7 +78,7 @@ Returns current progress, checkpoints, and partial outputs.</p>
 Returns available output chunks in order.</p>
 </div></details><details class="toggle method-toggle" open><summary><section id="tymethod.get_latest_job_chunk" class="method"><a class="src rightside" href="../../src/icn_api/mesh_trait.rs.html#91-94">Source</a><h4 class="code-header">fn <a href="#tymethod.get_latest_job_chunk" class="fn">get_latest_job_chunk</a>&lt;'life0, 'life1, 'async_trait&gt;(
     &amp;'life0 self,
-    job_id: &amp;'life1 JobId,
+    job_id: &amp;'life1 <a class="struct" href="../../icn_mesh/struct.JobId.html" title="struct icn_mesh::JobId">JobId</a>,
 ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.88.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.88.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="enum" href="https://doc.rust-lang.org/1.88.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="struct" href="struct.JobStreamChunk.html" title="struct icn_api::mesh_trait::JobStreamChunk">JobStreamChunk</a>&gt;, <a class="enum" href="../../icn_common/enum.CommonError.html" title="enum icn_common::CommonError">CommonError</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;<div class="where">where
     Self: 'async_trait,
     'life0: 'async_trait,
@@ -86,7 +86,7 @@ Returns available output chunks in order.</p>
 Useful for real-time monitoring.</p>
 </div></details><details class="toggle method-toggle" open><summary><section id="tymethod.cancel_job" class="method"><a class="src rightside" href="../../src/icn_api/mesh_trait.rs.html#98">Source</a><h4 class="code-header">fn <a href="#tymethod.cancel_job" class="fn">cancel_job</a>&lt;'life0, 'life1, 'async_trait&gt;(
     &amp;'life0 self,
-    job_id: &amp;'life1 JobId,
+    job_id: &amp;'life1 <a class="struct" href="../../icn_mesh/struct.JobId.html" title="struct icn_mesh::JobId">JobId</a>,
 ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.88.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.88.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.88.0/std/primitive.bool.html">bool</a>, <a class="enum" href="../../icn_common/enum.CommonError.html" title="enum icn_common::CommonError">CommonError</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;<div class="where">where
     Self: 'async_trait,
     'life0: 'async_trait,
@@ -94,7 +94,7 @@ Useful for real-time monitoring.</p>
 This will attempt to stop execution and clean up resources.</p>
 </div></details><details class="toggle method-toggle" open><summary><section id="tymethod.resume_job" class="method"><a class="src rightside" href="../../src/icn_api/mesh_trait.rs.html#102">Source</a><h4 class="code-header">fn <a href="#tymethod.resume_job" class="fn">resume_job</a>&lt;'life0, 'life1, 'async_trait&gt;(
     &amp;'life0 self,
-    job_id: &amp;'life1 JobId,
+    job_id: &amp;'life1 <a class="struct" href="../../icn_mesh/struct.JobId.html" title="struct icn_mesh::JobId">JobId</a>,
 ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.88.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.88.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.88.0/std/primitive.bool.html">bool</a>, <a class="enum" href="../../icn_common/enum.CommonError.html" title="enum icn_common::CommonError">CommonError</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;<div class="where">where
     Self: 'async_trait,
     'life0: 'async_trait,
@@ -108,7 +108,7 @@ Returns whether the job was successfully resumed.</p>
 Returns Prometheus-compatible metrics about job execution.</p>
 </div></details><details class="toggle method-toggle" open><summary><section id="tymethod.get_job_metrics" class="method"><a class="src rightside" href="../../src/icn_api/mesh_trait.rs.html#110">Source</a><h4 class="code-header">fn <a href="#tymethod.get_job_metrics" class="fn">get_job_metrics</a>&lt;'life0, 'life1, 'async_trait&gt;(
     &amp;'life0 self,
-    job_id: &amp;'life1 JobId,
+    job_id: &amp;'life1 <a class="struct" href="../../icn_mesh/struct.JobId.html" title="struct icn_mesh::JobId">JobId</a>,
 ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.88.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.88.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.88.0/std/collections/hash/map/struct.HashMap.html" title="struct std::collections::hash::map::HashMap">HashMap</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>, <a class="primitive" href="https://doc.rust-lang.org/1.88.0/std/primitive.f64.html">f64</a>&gt;, <a class="enum" href="../../icn_common/enum.CommonError.html" title="enum icn_common::CommonError">CommonError</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;<div class="where">where
     Self: 'async_trait,
     'life0: 'async_trait,
