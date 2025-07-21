@@ -7,10 +7,12 @@
 //! - Health monitoring and auto-recovery
 //! - Performance optimization across components
 
-use crate::context::{
+use super::{
     DagStorageService, DagStoreMutexType, HostAbiError, MeshNetworkServiceType,
-    enhanced_dag_sync::{EnhancedDagSync, PropagationPriority, SyncResult},
 };
+use super::enhanced_dag_sync::{EnhancedDagSync, PropagationPriority, SyncResult};
+use super::smart_p2p_routing::{SmartP2pRouter, MessagePriority, RoutingStrategy, RoutePath};
+use super::realtime_ccl_integration::{CclIntegrationCoordinator, GovernanceEventType, PropagationPriority as CclPropagationPriority};
 use icn_common::{Cid, Did, TimeProvider};
 use icn_governance::GovernanceModule;
 use icn_reputation::ReputationStore;
@@ -27,6 +29,10 @@ pub struct CrossComponentCoordinator {
     pub network_dag_manager: Arc<NetworkDagManager>,
     /// Enhanced DAG synchronization service
     pub dag_sync: Arc<EnhancedDagSync>,
+    /// Smart P2P routing with reputation-based selection
+    pub smart_p2p_router: Arc<SmartP2pRouter>,
+    /// Real-time CCL integration coordinator
+    pub ccl_integration: Arc<CclIntegrationCoordinator>,
     /// Economics-driven decision engine
     pub economics_engine: Arc<EconomicsDecisionEngine>,
     /// Health monitoring and recovery system
@@ -76,11 +82,31 @@ impl CrossComponentCoordinator {
             time_provider.clone(),
         ));
 
+        let smart_p2p_router = Arc::new(SmartP2pRouter::new(
+            mesh_network_service.clone(),
+            reputation_store.clone(),
+            current_identity.clone(),
+            time_provider.clone(),
+        ));
+
+        let ccl_integration = Arc::new(CclIntegrationCoordinator::new(
+            mesh_network_service.clone(),
+            dag_store.clone(),
+            governance_module.clone(),
+            smart_p2p_router.clone(),
+            dag_sync.clone(),
+            reputation_store.clone(),
+            current_identity.clone(),
+            time_provider.clone(),
+        ));
+
         let metrics = Arc::new(IntegrationMetrics::new());
 
         Self {
             network_dag_manager,
             dag_sync,
+            smart_p2p_router,
+            ccl_integration,
             economics_engine,
             health_monitor,
             performance_optimizer,
@@ -148,6 +174,22 @@ impl CrossComponentCoordinator {
             }
         });
 
+        // Start smart P2P routing service
+        let smart_router = self.smart_p2p_router.clone();
+        tokio::spawn(async move {
+            if let Err(e) = smart_router.start().await {
+                error!("Smart P2P router failed to start: {}", e);
+            }
+        });
+
+        // Start real-time CCL integration service
+        let ccl_integration = self.ccl_integration.clone();
+        tokio::spawn(async move {
+            if let Err(e) = ccl_integration.start().await {
+                error!("CCL integration service failed to start: {}", e);
+            }
+        });
+
         info!("Cross-component coordinator background tasks started");
         Ok(())
     }
@@ -212,6 +254,146 @@ impl CrossComponentCoordinator {
               sync_result.blocks_received, sync_result.blocks_sent);
         
         Ok(sync_result)
+    }
+
+    /// Route a message intelligently using reputation-based peer selection
+    pub async fn route_message_intelligently(
+        &self,
+        target_peer: Did,
+        payload: Vec<u8>,
+        priority: MessagePriority,
+        routing_strategy: Option<RoutingStrategy>,
+    ) -> Result<String, HostAbiError> {
+        info!("Routing message to {} with priority {:?} using intelligent selection", 
+              target_peer, priority);
+        
+        // Use the smart P2P router for intelligent routing
+        let message_id = self.smart_p2p_router.route_message(
+            target_peer.clone(), 
+            payload, 
+            priority, 
+            None // No deadline for now
+        ).await?;
+        
+        // Record routing metrics
+        self.metrics.record_intelligent_routing(&target_peer, &priority, &routing_strategy);
+        
+        info!("Message {} queued for intelligent routing to {}", message_id, target_peer);
+        Ok(message_id)
+    }
+
+    /// Get optimal routing path for a target peer using reputation and network analysis
+    pub async fn get_optimal_routing_path(&self, target_peer: &Did) -> Result<Option<RoutePath>, HostAbiError> {
+        info!("Finding optimal routing path to peer: {}", target_peer);
+        
+        // First check health status to ensure system is ready
+        let health_status = self.health_monitor.check_component_health().await;
+        if !health_status.is_healthy() {
+            warn!("System health issues detected before routing path calculation: {:?}", health_status);
+        }
+        
+        // Use smart P2P router to find best route
+        let route = self.smart_p2p_router.get_best_route(target_peer).await?;
+        
+        if let Some(ref path) = route {
+            info!("Found optimal route to {} via {} hops with quality score {:.2}", 
+                  target_peer, path.path_peers.len(), path.path_quality);
+        } else {
+            warn!("No routing path found to peer: {}", target_peer);
+        }
+        
+        Ok(route)
+    }
+
+    /// Update peer reputation and trigger routing recalculation
+    pub async fn update_peer_reputation_and_routes(&self, peer_id: &Did, new_reputation: u64) -> Result<(), HostAbiError> {
+        info!("Updating reputation for peer {} to {} and recalculating routes", peer_id, new_reputation);
+        
+        // Update reputation in the smart router
+        self.smart_p2p_router.update_peer_reputation(peer_id, new_reputation).await?;
+        
+        // Trigger network topology rediscovery if reputation changed significantly
+        self.smart_p2p_router.discover_network_topology().await?;
+        
+        // Record the reputation update in metrics
+        self.metrics.record_reputation_update(peer_id, new_reputation);
+        
+        info!("Reputation update and route recalculation completed for peer: {}", peer_id);
+        Ok(())
+    }
+
+    /// Submit a governance proposal with real-time P2P propagation
+    pub async fn submit_governance_proposal_realtime(
+        &self,
+        proposal_data: Vec<u8>,
+        priority: PropagationPriority,
+        target_nodes: Option<Vec<Did>>,
+    ) -> Result<String, HostAbiError> {
+        info!("Submitting governance proposal with real-time coordination");
+        
+        // Use CCL integration for real-time proposal submission
+        let proposal_id = self.ccl_integration.submit_proposal_realtime(
+            proposal_data,
+            priority,
+            target_nodes,
+        ).await?;
+        
+        // Record the proposal submission in metrics
+        self.metrics.record_governance_proposal_submission(&proposal_id, &priority);
+        
+        info!("Governance proposal {} submitted with real-time integration", proposal_id);
+        Ok(proposal_id.to_string())
+    }
+
+    /// Cast a vote on a governance proposal with immediate network propagation
+    pub async fn cast_governance_vote_realtime(
+        &self,
+        proposal_id: String,
+        vote_option: String,
+        priority: PropagationPriority,
+    ) -> Result<(), HostAbiError> {
+        info!("Casting governance vote with real-time coordination");
+        
+        // Parse proposal ID
+        let parsed_proposal_id = icn_governance::ProposalId::from(
+            icn_common::Cid::new_v1_sha256(0x71, proposal_id.as_bytes())
+        );
+        
+        // Use CCL integration for real-time vote casting
+        self.ccl_integration.cast_vote_realtime(
+            parsed_proposal_id.clone(),
+            vote_option.clone(),
+            priority,
+        ).await?;
+        
+        // Record the vote in metrics
+        self.metrics.record_governance_vote_cast(&parsed_proposal_id, &vote_option, &priority);
+        
+        info!("Governance vote cast with real-time integration");
+        Ok(())
+    }
+
+    /// Execute a governance proposal with real-time status updates
+    pub async fn execute_governance_proposal_realtime(
+        &self,
+        proposal_id: String,
+    ) -> Result<(), HostAbiError> {
+        info!("Executing governance proposal with real-time coordination");
+        
+        // Parse proposal ID
+        let parsed_proposal_id = icn_governance::ProposalId::from(
+            icn_common::Cid::new_v1_sha256(0x71, proposal_id.as_bytes())
+        );
+        
+        // Use CCL integration for real-time execution
+        self.ccl_integration.execute_proposal_realtime(parsed_proposal_id.clone()).await?;
+        
+        // Record the execution in metrics
+        self.metrics.record_governance_proposal_execution(&parsed_proposal_id);
+        
+        info!("Governance proposal executed with real-time integration");
+        Ok(())
+    }
     }
 }
 
@@ -1109,6 +1291,94 @@ impl IntegrationMetrics {
         
         debug!("Recorded DAG sync: {} blocks received, {} blocks sent, duration: {:?}", 
                sync_result.blocks_received, sync_result.blocks_sent, sync_result.duration);
+    }
+
+    /// Record an intelligent routing event
+    pub fn record_intelligent_routing(&self, target_peer: &Did, priority: &MessagePriority, strategy: &Option<RoutingStrategy>) {
+        let routing_type = match strategy {
+            Some(RoutingStrategy::Direct) => "direct",
+            Some(RoutingStrategy::ReputationBased { .. }) => "reputation_based",
+            Some(RoutingStrategy::LowestLatency) => "lowest_latency",
+            Some(RoutingStrategy::MostReliable { .. }) => "most_reliable",
+            Some(RoutingStrategy::Redundant { .. }) => "redundant",
+            Some(RoutingStrategy::Adaptive) => "adaptive",
+            Some(RoutingStrategy::Geographic) => "geographic",
+            Some(RoutingStrategy::LoadBalanced) => "load_balanced",
+            None => "auto_select",
+        };
+        
+        let operation_type = format!("intelligent_routing_{}_priority_{}", routing_type, format!("{:?}", priority).to_lowercase());
+        
+        tokio::spawn({
+            let operation_counts = self.operation_counts.clone();
+            async move {
+                let mut counts = operation_counts.write().await;
+                *counts.entry(operation_type).or_insert(0) += 1;
+            }
+        });
+        
+        debug!("Recorded intelligent routing for {} with priority {:?} and strategy {:?}", 
+               target_peer, priority, strategy);
+    }
+
+    /// Record a reputation update event
+    pub fn record_reputation_update(&self, peer_id: &Did, new_reputation: u64) {
+        let operation_type = format!("reputation_update_{}", if new_reputation > 500 { "high" } else { "low" });
+        
+        tokio::spawn({
+            let operation_counts = self.operation_counts.clone();
+            async move {
+                let mut counts = operation_counts.write().await;
+                *counts.entry(operation_type).or_insert(0) += 1;
+            }
+        });
+        
+        debug!("Recorded reputation update for {} to score {}", peer_id, new_reputation);
+    }
+
+    /// Record a governance proposal submission
+    pub fn record_governance_proposal_submission(&self, proposal_id: &icn_governance::ProposalId, priority: &PropagationPriority) {
+        let operation_type = format!("governance_proposal_submission_{:?}", priority).to_lowercase();
+        
+        tokio::spawn({
+            let operation_counts = self.operation_counts.clone();
+            async move {
+                let mut counts = operation_counts.write().await;
+                *counts.entry(operation_type).or_insert(0) += 1;
+            }
+        });
+        
+        debug!("Recorded governance proposal submission: {} with priority {:?}", proposal_id, priority);
+    }
+
+    /// Record a governance vote cast
+    pub fn record_governance_vote_cast(&self, proposal_id: &icn_governance::ProposalId, vote_option: &str, priority: &PropagationPriority) {
+        let operation_type = format!("governance_vote_cast_{}_{:?}", vote_option, priority).to_lowercase();
+        
+        tokio::spawn({
+            let operation_counts = self.operation_counts.clone();
+            async move {
+                let mut counts = operation_counts.write().await;
+                *counts.entry(operation_type).or_insert(0) += 1;
+            }
+        });
+        
+        debug!("Recorded governance vote cast: {} option {} with priority {:?}", proposal_id, vote_option, priority);
+    }
+
+    /// Record a governance proposal execution
+    pub fn record_governance_proposal_execution(&self, proposal_id: &icn_governance::ProposalId) {
+        let operation_type = "governance_proposal_execution".to_string();
+        
+        tokio::spawn({
+            let operation_counts = self.operation_counts.clone();
+            async move {
+                let mut counts = operation_counts.write().await;
+                *counts.entry(operation_type).or_insert(0) += 1;
+            }
+        });
+        
+        debug!("Recorded governance proposal execution: {}", proposal_id);
     }
 }
 
