@@ -43,7 +43,7 @@ use icn_identity::{
     did_key_from_verifying_key, generate_ed25519_keypair,
     zk::{DummyProver, ZkProver},
     CooperativeRegistry, Credential, DisclosedCredential,
-    ExecutionReceipt as IdentityExecutionReceipt, InMemoryCredentialStore, SignatureBytes,
+    ExecutionReceipt as IdentityExecutionReceipt, InMemoryCredentialStore, RevocationRegistry, SignatureBytes,
 };
 use icn_mesh::{ActualMeshJob, JobId, JobSpec};
 #[allow(unused_imports)]

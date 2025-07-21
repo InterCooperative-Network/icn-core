@@ -15,30 +15,6 @@ name = "demo_with_devnet"
 path = "demo_with_devnet.rs"
 
 [[bin]]
-name = "test_parameter_fix"
-path = "test_parameter_fix.rs"
-
-[[bin]]
-name = "test_working_features"
-path = "test_working_features.rs"
-
-[[bin]]
-name = "test_governance_policy"
-path = "test_governance_policy.rs"
-
-# [[bin]]
-# name = "test_ccl_devnet_integration" 
-# path = "test_ccl_devnet_integration.rs"
-
-[[bin]]
-name = "test_cooperative_contracts"
-path = "test_cooperative_contracts.rs"
-
-[[bin]]
-name = "test_individual_contracts"
-path = "test_individual_contracts.rs"
-
-[[bin]]
 name = "test_else_if"
 path = "test_else_if.rs"
 
@@ -57,10 +33,6 @@ path = "test_simple_for.rs"
 [[bin]]
 name = "test_for_arithmetic"
 path = "test_for_arithmetic.rs"
-
-[[bin]]
-name = "debug_equality"
-path = "debug_equality.rs"
 
 [[bin]]
 name = "test_original_problems"
@@ -127,10 +99,6 @@ name = "final_demo_contract"
 path = "final_demo_contract.rs"
 
 [[bin]]
-name = "working_features_demo"
-path = "working_features_demo.rs"
-
-[[bin]]
 name = "test_else_if_fix"
 path = "test_else_if_fix.rs"
 
@@ -157,46 +125,6 @@ path = "test_array_operations.rs"
 [[bin]]
 name = "test_array_operations_simple"
 path = "test_array_operations_simple.rs"
-
-[[bin]]
-name = "test_else_if_comprehensive"
-path = "test_else_if_comprehensive.rs"
-
-[[bin]]
-name = "test_all_cooperative_contracts"
-path = "test_all_cooperative_contracts.rs"
-
-# [[bin]]
-# name = "test_simple_standalone"
-# path = "test_simple_standalone.rs"
-
-[[bin]]
-name = "test_string_array_improvements"
-path = "test_string_array_improvements.rs"
-
-[[bin]]
-name = "test_simple_compilation"
-path = "test_simple_compilation.rs"
-
-[[bin]]
-name = "test_option_result"
-path = "test_option_result.rs"
-
-[[bin]]
-name = "test_comprehensive_improvements"
-path = "test_comprehensive_improvements.rs"
-
-[[bin]]
-name = "test_gte_operator"
-path = "test_gte_operator.rs"
-
-[[bin]]
-name = "test_simple_gte"
-path = "test_simple_gte.rs"
-
-[[bin]]
-name = "demo_ccl_improvements_success"
-path = "demo_ccl_improvements_success.rs"
 
 [[bin]]
 name = "test_mutable_fix"
@@ -231,14 +159,25 @@ name = "test_ultimate_basic"
 path = "test_ultimate_basic.rs"
 
 [[bin]]
-name = "verify_infinite_loop_fix"
-path = "verify_infinite_loop_fix.rs"
+name = "demo_ccl_improvements_success"
+path = "demo_ccl_improvements_success.rs"
 
+# Additional test files found
+[[bin]]
+name = "test_budgeting_fix"
+path = "test_budgeting_fix.rs"
 
+[[bin]]
+name = "test_budgeting_simple"
+path = "test_budgeting_simple.rs"
 
-# [[bin]]
-# name = "generate_ccl_job_spec"
-# path = "src/bin/generate_ccl_job_spec.rs"
+[[bin]]
+name = "test_simple_ccl"
+path = "test_simple_ccl.rs"
+
+[[bin]]
+name = "test_struct_debug"
+path = "test_struct_debug.rs"
 
 
 [dependencies]
