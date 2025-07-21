@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["Optimizer"]};
+window.SIDEBAR_ITEMS = {"enum":["OptimizationLevel"],"struct":["Optimizer"]};

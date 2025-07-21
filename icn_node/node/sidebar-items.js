@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["WebSocketEvent"],"fn":["app_router","app_router_from_context","app_router_with_options","build_network_service","load_or_generate_identity","run_node"],"struct":["Cli","StubBidRequest","StubReceiptRequest","SubmitJobRequest","SubmitReceiptRequest"]};
+window.SIDEBAR_ITEMS = {"enum":["RuntimeMode","WebSocketEvent"],"fn":["app_router","app_router_from_context","app_router_with_options","build_network_service","load_or_generate_identity","run_node"],"struct":["Cli","StubBidRequest","StubReceiptRequest","SubmitJobRequest","SubmitReceiptRequest"]};

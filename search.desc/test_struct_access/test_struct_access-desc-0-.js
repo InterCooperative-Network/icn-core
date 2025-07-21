@@ -1,0 +1,1 @@
+searchState.loadedDescShard("test_struct_access", 0, "")

@@ -139,51 +139,49 @@
 <a href=#139 id=139 data-nosnippet>139</a>
 <a href=#140 id=140 data-nosnippet>140</a>    <span class="doccomment">/// Spend mana from an account.
 <a href=#141 id=141 data-nosnippet>141</a>    </span><span class="kw">pub fn </span>spend(<span class="kw-2">&amp;</span><span class="self">self</span>, account: <span class="kw-2">&amp;</span>Did, amount: u64) -&gt; <span class="prelude-ty">Result</span>&lt;(), HostAbiError&gt; {
-<a href=#142 id=142 data-nosnippet>142</a>        <span class="self">self</span>.ledger.spend(account, amount).map_err(|err| {
-<a href=#143 id=143 data-nosnippet>143</a>            <span class="kw">match </span>err {
-<a href=#144 id=144 data-nosnippet>144</a>                CommonError::PolicyDenied(msg) <span class="kw">if </span>msg.contains(<span class="string">"Insufficient mana"</span>) =&gt; {
-<a href=#145 id=145 data-nosnippet>145</a>                    HostAbiError::InsufficientMana
-<a href=#146 id=146 data-nosnippet>146</a>                }
-<a href=#147 id=147 data-nosnippet>147</a>                other =&gt; HostAbiError::from(other),
-<a href=#148 id=148 data-nosnippet>148</a>            }
-<a href=#149 id=149 data-nosnippet>149</a>        })
-<a href=#150 id=150 data-nosnippet>150</a>    }
-<a href=#151 id=151 data-nosnippet>151</a>
-<a href=#152 id=152 data-nosnippet>152</a>    <span class="doccomment">/// Credit mana to an account.
-<a href=#153 id=153 data-nosnippet>153</a>    </span><span class="kw">pub fn </span>credit(<span class="kw-2">&amp;</span><span class="self">self</span>, account: <span class="kw-2">&amp;</span>Did, amount: u64) -&gt; <span class="prelude-ty">Result</span>&lt;(), HostAbiError&gt; {
-<a href=#154 id=154 data-nosnippet>154</a>        <span class="self">self</span>.ledger.credit(account, amount)<span class="question-mark">?</span>;
-<a href=#155 id=155 data-nosnippet>155</a>        <span class="prelude-val">Ok</span>(())
-<a href=#156 id=156 data-nosnippet>156</a>    }
-<a href=#157 id=157 data-nosnippet>157</a>
-<a href=#158 id=158 data-nosnippet>158</a>    <span class="doccomment">/// Credit mana to all accounts.
-<a href=#159 id=159 data-nosnippet>159</a>    </span><span class="kw">pub fn </span>credit_all(<span class="kw-2">&amp;</span><span class="self">self</span>, amount: u64) -&gt; <span class="prelude-ty">Result</span>&lt;(), HostAbiError&gt; {
-<a href=#160 id=160 data-nosnippet>160</a>        <span class="self">self</span>.ledger.credit_all(amount)<span class="question-mark">?</span>;
-<a href=#161 id=161 data-nosnippet>161</a>        <span class="prelude-val">Ok</span>(())
-<a href=#162 id=162 data-nosnippet>162</a>    }
-<a href=#163 id=163 data-nosnippet>163</a>}
-<a href=#164 id=164 data-nosnippet>164</a>
-<a href=#165 id=165 data-nosnippet>165</a><span class="kw">impl </span>icn_economics::ManaLedger <span class="kw">for </span>SimpleManaLedger {
-<a href=#166 id=166 data-nosnippet>166</a>    <span class="kw">fn </span>get_balance(<span class="kw-2">&amp;</span><span class="self">self</span>, did: <span class="kw-2">&amp;</span>Did) -&gt; u64 {
-<a href=#167 id=167 data-nosnippet>167</a>        <span class="self">self</span>.ledger.get_balance(did)
-<a href=#168 id=168 data-nosnippet>168</a>    }
-<a href=#169 id=169 data-nosnippet>169</a>
-<a href=#170 id=170 data-nosnippet>170</a>    <span class="kw">fn </span>set_balance(<span class="kw-2">&amp;</span><span class="self">self</span>, did: <span class="kw-2">&amp;</span>Did, amount: u64) -&gt; <span class="prelude-ty">Result</span>&lt;(), CommonError&gt; {
-<a href=#171 id=171 data-nosnippet>171</a>        <span class="self">self</span>.ledger.set_balance(did, amount)
-<a href=#172 id=172 data-nosnippet>172</a>    }
-<a href=#173 id=173 data-nosnippet>173</a>
-<a href=#174 id=174 data-nosnippet>174</a>    <span class="kw">fn </span>spend(<span class="kw-2">&amp;</span><span class="self">self</span>, did: <span class="kw-2">&amp;</span>Did, amount: u64) -&gt; <span class="prelude-ty">Result</span>&lt;(), CommonError&gt; {
-<a href=#175 id=175 data-nosnippet>175</a>        <span class="self">self</span>.ledger.spend(did, amount)
-<a href=#176 id=176 data-nosnippet>176</a>    }
-<a href=#177 id=177 data-nosnippet>177</a>
-<a href=#178 id=178 data-nosnippet>178</a>    <span class="kw">fn </span>credit(<span class="kw-2">&amp;</span><span class="self">self</span>, did: <span class="kw-2">&amp;</span>Did, amount: u64) -&gt; <span class="prelude-ty">Result</span>&lt;(), CommonError&gt; {
-<a href=#179 id=179 data-nosnippet>179</a>        <span class="self">self</span>.ledger.credit(did, amount)
-<a href=#180 id=180 data-nosnippet>180</a>    }
-<a href=#181 id=181 data-nosnippet>181</a>
-<a href=#182 id=182 data-nosnippet>182</a>    <span class="kw">fn </span>credit_all(<span class="kw-2">&amp;</span><span class="self">self</span>, amount: u64) -&gt; <span class="prelude-ty">Result</span>&lt;(), CommonError&gt; {
-<a href=#183 id=183 data-nosnippet>183</a>        <span class="self">self</span>.ledger.credit_all(amount)
-<a href=#184 id=184 data-nosnippet>184</a>    }
-<a href=#185 id=185 data-nosnippet>185</a>
-<a href=#186 id=186 data-nosnippet>186</a>    <span class="kw">fn </span>all_accounts(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Vec&lt;Did&gt; {
-<a href=#187 id=187 data-nosnippet>187</a>        <span class="self">self</span>.ledger.all_accounts()
-<a href=#188 id=188 data-nosnippet>188</a>    }
-<a href=#189 id=189 data-nosnippet>189</a>} </code></pre></div></section></main></body></html>
+<a href=#142 id=142 data-nosnippet>142</a>        <span class="self">self</span>.ledger.spend(account, amount).map_err(|err| <span class="kw">match </span>err {
+<a href=#143 id=143 data-nosnippet>143</a>            CommonError::PolicyDenied(msg) <span class="kw">if </span>msg.contains(<span class="string">"Insufficient mana"</span>) =&gt; {
+<a href=#144 id=144 data-nosnippet>144</a>                HostAbiError::InsufficientMana
+<a href=#145 id=145 data-nosnippet>145</a>            }
+<a href=#146 id=146 data-nosnippet>146</a>            other =&gt; HostAbiError::from(other),
+<a href=#147 id=147 data-nosnippet>147</a>        })
+<a href=#148 id=148 data-nosnippet>148</a>    }
+<a href=#149 id=149 data-nosnippet>149</a>
+<a href=#150 id=150 data-nosnippet>150</a>    <span class="doccomment">/// Credit mana to an account.
+<a href=#151 id=151 data-nosnippet>151</a>    </span><span class="kw">pub fn </span>credit(<span class="kw-2">&amp;</span><span class="self">self</span>, account: <span class="kw-2">&amp;</span>Did, amount: u64) -&gt; <span class="prelude-ty">Result</span>&lt;(), HostAbiError&gt; {
+<a href=#152 id=152 data-nosnippet>152</a>        <span class="self">self</span>.ledger.credit(account, amount)<span class="question-mark">?</span>;
+<a href=#153 id=153 data-nosnippet>153</a>        <span class="prelude-val">Ok</span>(())
+<a href=#154 id=154 data-nosnippet>154</a>    }
+<a href=#155 id=155 data-nosnippet>155</a>
+<a href=#156 id=156 data-nosnippet>156</a>    <span class="doccomment">/// Credit mana to all accounts.
+<a href=#157 id=157 data-nosnippet>157</a>    </span><span class="kw">pub fn </span>credit_all(<span class="kw-2">&amp;</span><span class="self">self</span>, amount: u64) -&gt; <span class="prelude-ty">Result</span>&lt;(), HostAbiError&gt; {
+<a href=#158 id=158 data-nosnippet>158</a>        <span class="self">self</span>.ledger.credit_all(amount)<span class="question-mark">?</span>;
+<a href=#159 id=159 data-nosnippet>159</a>        <span class="prelude-val">Ok</span>(())
+<a href=#160 id=160 data-nosnippet>160</a>    }
+<a href=#161 id=161 data-nosnippet>161</a>}
+<a href=#162 id=162 data-nosnippet>162</a>
+<a href=#163 id=163 data-nosnippet>163</a><span class="kw">impl </span>icn_economics::ManaLedger <span class="kw">for </span>SimpleManaLedger {
+<a href=#164 id=164 data-nosnippet>164</a>    <span class="kw">fn </span>get_balance(<span class="kw-2">&amp;</span><span class="self">self</span>, did: <span class="kw-2">&amp;</span>Did) -&gt; u64 {
+<a href=#165 id=165 data-nosnippet>165</a>        <span class="self">self</span>.ledger.get_balance(did)
+<a href=#166 id=166 data-nosnippet>166</a>    }
+<a href=#167 id=167 data-nosnippet>167</a>
+<a href=#168 id=168 data-nosnippet>168</a>    <span class="kw">fn </span>set_balance(<span class="kw-2">&amp;</span><span class="self">self</span>, did: <span class="kw-2">&amp;</span>Did, amount: u64) -&gt; <span class="prelude-ty">Result</span>&lt;(), CommonError&gt; {
+<a href=#169 id=169 data-nosnippet>169</a>        <span class="self">self</span>.ledger.set_balance(did, amount)
+<a href=#170 id=170 data-nosnippet>170</a>    }
+<a href=#171 id=171 data-nosnippet>171</a>
+<a href=#172 id=172 data-nosnippet>172</a>    <span class="kw">fn </span>spend(<span class="kw-2">&amp;</span><span class="self">self</span>, did: <span class="kw-2">&amp;</span>Did, amount: u64) -&gt; <span class="prelude-ty">Result</span>&lt;(), CommonError&gt; {
+<a href=#173 id=173 data-nosnippet>173</a>        <span class="self">self</span>.ledger.spend(did, amount)
+<a href=#174 id=174 data-nosnippet>174</a>    }
+<a href=#175 id=175 data-nosnippet>175</a>
+<a href=#176 id=176 data-nosnippet>176</a>    <span class="kw">fn </span>credit(<span class="kw-2">&amp;</span><span class="self">self</span>, did: <span class="kw-2">&amp;</span>Did, amount: u64) -&gt; <span class="prelude-ty">Result</span>&lt;(), CommonError&gt; {
+<a href=#177 id=177 data-nosnippet>177</a>        <span class="self">self</span>.ledger.credit(did, amount)
+<a href=#178 id=178 data-nosnippet>178</a>    }
+<a href=#179 id=179 data-nosnippet>179</a>
+<a href=#180 id=180 data-nosnippet>180</a>    <span class="kw">fn </span>credit_all(<span class="kw-2">&amp;</span><span class="self">self</span>, amount: u64) -&gt; <span class="prelude-ty">Result</span>&lt;(), CommonError&gt; {
+<a href=#181 id=181 data-nosnippet>181</a>        <span class="self">self</span>.ledger.credit_all(amount)
+<a href=#182 id=182 data-nosnippet>182</a>    }
+<a href=#183 id=183 data-nosnippet>183</a>
+<a href=#184 id=184 data-nosnippet>184</a>    <span class="kw">fn </span>all_accounts(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Vec&lt;Did&gt; {
+<a href=#185 id=185 data-nosnippet>185</a>        <span class="self">self</span>.ledger.all_accounts()
+<a href=#186 id=186 data-nosnippet>186</a>    }
+<a href=#187 id=187 data-nosnippet>187</a>}</code></pre></div></section></main></body></html>

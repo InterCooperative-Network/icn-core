@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["Symbol"],"struct":["SemanticAnalyzer"]};
+window.SIDEBAR_ITEMS = {"struct":["FunctionSignature","MonomorphizedInstance","SemanticAnalyzer","StructType","Symbol","TypeParameterScope"]};

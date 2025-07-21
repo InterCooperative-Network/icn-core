@@ -1,0 +1,1 @@
+searchState.loadedDescShard("ultimate_governance_contract", 0, "")

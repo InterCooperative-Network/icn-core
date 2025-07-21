@@ -1,0 +1,1 @@
+searchState.loadedDescShard("test_struct_instantiation", 0, "")

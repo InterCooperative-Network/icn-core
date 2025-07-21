@@ -61,21 +61,22 @@
 <a href=#61 id=61 data-nosnippet>61</a>        cid: Cid::new_v1_dummy(<span class="number">0x55</span>, <span class="number">0x12</span>, <span class="string">b"resource_event"</span>),
 <a href=#62 id=62 data-nosnippet>62</a>        scope: scope.clone(),
 <a href=#63 id=63 data-nosnippet>63</a>    };
-<a href=#64 id=64 data-nosnippet>64</a>    <span class="kw">let </span>data = bincode::serialize(<span class="kw-2">&amp;</span>entry_tmp).map_err(|e| CommonError::SerializationError(e.to_string()))<span class="question-mark">?</span>;
-<a href=#65 id=65 data-nosnippet>65</a>    <span class="kw">let </span>cid = compute_merkle_cid(<span class="number">0x71</span>, <span class="kw-2">&amp;</span>data, <span class="kw-2">&amp;</span>[], timestamp, did, <span class="kw-2">&amp;</span><span class="prelude-val">None</span>, <span class="kw-2">&amp;</span>scope);
-<a href=#66 id=66 data-nosnippet>66</a>    <span class="kw">let </span>entry = ResourceLedgerEntry {
-<a href=#67 id=67 data-nosnippet>67</a>        cid: cid.clone(),
-<a href=#68 id=68 data-nosnippet>68</a>        ..entry_tmp
-<a href=#69 id=69 data-nosnippet>69</a>    };
-<a href=#70 id=70 data-nosnippet>70</a>    <span class="kw">let </span>block = DagBlock {
-<a href=#71 id=71 data-nosnippet>71</a>        cid: cid.clone(),
-<a href=#72 id=72 data-nosnippet>72</a>        data,
-<a href=#73 id=73 data-nosnippet>73</a>        links: <span class="macro">vec!</span>[],
-<a href=#74 id=74 data-nosnippet>74</a>        timestamp,
-<a href=#75 id=75 data-nosnippet>75</a>        author_did: did.clone(),
-<a href=#76 id=76 data-nosnippet>76</a>        signature: <span class="prelude-val">None</span>,
-<a href=#77 id=77 data-nosnippet>77</a>        scope,
-<a href=#78 id=78 data-nosnippet>78</a>    };
-<a href=#79 id=79 data-nosnippet>79</a>    dag_store.put(<span class="kw-2">&amp;</span>block).<span class="kw">await</span><span class="question-mark">?</span>;
-<a href=#80 id=80 data-nosnippet>80</a>    <span class="prelude-val">Ok</span>(cid)
-<a href=#81 id=81 data-nosnippet>81</a>}</code></pre></div></section></main></body></html>
+<a href=#64 id=64 data-nosnippet>64</a>    <span class="kw">let </span>data = bincode::serialize(<span class="kw-2">&amp;</span>entry_tmp)
+<a href=#65 id=65 data-nosnippet>65</a>        .map_err(|e| CommonError::SerializationError(e.to_string()))<span class="question-mark">?</span>;
+<a href=#66 id=66 data-nosnippet>66</a>    <span class="kw">let </span>cid = compute_merkle_cid(<span class="number">0x71</span>, <span class="kw-2">&amp;</span>data, <span class="kw-2">&amp;</span>[], timestamp, did, <span class="kw-2">&amp;</span><span class="prelude-val">None</span>, <span class="kw-2">&amp;</span>scope);
+<a href=#67 id=67 data-nosnippet>67</a>    <span class="kw">let </span>entry = ResourceLedgerEntry {
+<a href=#68 id=68 data-nosnippet>68</a>        cid: cid.clone(),
+<a href=#69 id=69 data-nosnippet>69</a>        ..entry_tmp
+<a href=#70 id=70 data-nosnippet>70</a>    };
+<a href=#71 id=71 data-nosnippet>71</a>    <span class="kw">let </span>block = DagBlock {
+<a href=#72 id=72 data-nosnippet>72</a>        cid: cid.clone(),
+<a href=#73 id=73 data-nosnippet>73</a>        data,
+<a href=#74 id=74 data-nosnippet>74</a>        links: <span class="macro">vec!</span>[],
+<a href=#75 id=75 data-nosnippet>75</a>        timestamp,
+<a href=#76 id=76 data-nosnippet>76</a>        author_did: did.clone(),
+<a href=#77 id=77 data-nosnippet>77</a>        signature: <span class="prelude-val">None</span>,
+<a href=#78 id=78 data-nosnippet>78</a>        scope,
+<a href=#79 id=79 data-nosnippet>79</a>    };
+<a href=#80 id=80 data-nosnippet>80</a>    dag_store.put(<span class="kw-2">&amp;</span>block).<span class="kw">await</span><span class="question-mark">?</span>;
+<a href=#81 id=81 data-nosnippet>81</a>    <span class="prelude-val">Ok</span>(cid)
+<a href=#82 id=82 data-nosnippet>82</a>}</code></pre></div></section></main></body></html>

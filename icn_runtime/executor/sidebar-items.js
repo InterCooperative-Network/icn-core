@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["ICNResourceLimiter","SimpleExecutor","WasmExecutor","WasmExecutorConfig","WasmModuleValidator","WasmSecurityLimits"],"trait":["JobExecutor"]};
+window.SIDEBAR_ITEMS = {"struct":["CheckpointManager","ICNResourceLimiter","SimpleExecutor","WasmExecutor","WasmExecutorConfig","WasmModuleValidator","WasmSecurityLimits"],"trait":["JobExecutor"]};

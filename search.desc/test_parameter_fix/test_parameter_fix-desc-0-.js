@@ -1,1 +1,0 @@
-searchState.loadedDescShard("test_parameter_fix", 0, "")

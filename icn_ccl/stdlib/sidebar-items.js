@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["StandardLibrary"]};
+window.SIDEBAR_ITEMS = {"enum":["StdCategory"],"fn":["generate_stdlib_docs"],"struct":["StdFunction","StdLibrary"]};

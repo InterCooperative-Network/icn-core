@@ -1,0 +1,1 @@
+searchState.loadedDescShard("test_budgeting_contract", 0, "")
