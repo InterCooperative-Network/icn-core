@@ -4,6 +4,7 @@
 //! network topology, and adaptive routing strategies for optimal message delivery.
 
 use super::{DagStorageService, DagStoreMutexType, HostAbiError, MeshNetworkServiceType};
+use super::mesh_network::MeshNetworkService;
 use icn_common::{Did, TimeProvider};
 use icn_reputation::ReputationStore;
 use std::collections::{HashMap, VecDeque};
@@ -160,7 +161,7 @@ pub struct QueuedMessage {
 }
 
 /// Message priority levels for routing decisions
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum MessagePriority {
     /// Background/eventual delivery
     Low,

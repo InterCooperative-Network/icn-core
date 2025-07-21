@@ -37,6 +37,12 @@ pub enum HostAbiError {
     NetworkError(String),
     #[error("Serialization error: {0}")]
     SerializationError(String),
+    #[error("Governance error: {0}")]
+    GovernanceError(String),
+    #[error("Invalid input: {0}")]
+    InvalidInput(String),
+    #[error("DAG error: {0}")]
+    DagError(String),
 }
 
 impl From<CommonError> for HostAbiError {

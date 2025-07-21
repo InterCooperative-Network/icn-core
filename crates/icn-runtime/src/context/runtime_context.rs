@@ -215,6 +215,64 @@ impl MeshNetworkService for MeshNetworkServiceType {
             MeshNetworkServiceType::Default(s) => s.submit_execution_receipt(receipt).await,
         }
     }
+
+    // Additional methods for Smart P2P Routing and CCL Integration
+
+    async fn get_connected_peers(&self) -> Result<Vec<Did>, HostAbiError> {
+        match self {
+            MeshNetworkServiceType::Stub(s) => s.get_connected_peers().await,
+            MeshNetworkServiceType::Default(s) => s.get_connected_peers().await,
+        }
+    }
+
+    async fn ping_peer(&self, peer_id: Did) -> Result<super::mesh_network::PingResult, HostAbiError> {
+        match self {
+            MeshNetworkServiceType::Stub(s) => s.ping_peer(peer_id).await,
+            MeshNetworkServiceType::Default(s) => s.ping_peer(peer_id).await,
+        }
+    }
+
+    async fn get_peer_statistics(&self, peer_id: Did) -> Result<super::mesh_network::PeerStatistics, HostAbiError> {
+        match self {
+            MeshNetworkServiceType::Stub(s) => s.get_peer_statistics(peer_id).await,
+            MeshNetworkServiceType::Default(s) => s.get_peer_statistics(peer_id).await,
+        }
+    }
+
+    async fn send_direct_message(&self, peer_id: Did, payload: Vec<u8>) -> Result<(), HostAbiError> {
+        match self {
+            MeshNetworkServiceType::Stub(s) => s.send_direct_message(peer_id, payload).await,
+            MeshNetworkServiceType::Default(s) => s.send_direct_message(peer_id, payload).await,
+        }
+    }
+
+    async fn send_multi_hop_message(&self, path: Vec<Did>, payload: Vec<u8>) -> Result<(), HostAbiError> {
+        match self {
+            MeshNetworkServiceType::Stub(s) => s.send_multi_hop_message(path, payload).await,
+            MeshNetworkServiceType::Default(s) => s.send_multi_hop_message(path, payload).await,
+        }
+    }
+
+    async fn query_peer_connections(&self, peer_id: Did) -> Result<Vec<Did>, HostAbiError> {
+        match self {
+            MeshNetworkServiceType::Stub(s) => s.query_peer_connections(peer_id).await,
+            MeshNetworkServiceType::Default(s) => s.query_peer_connections(peer_id).await,
+        }
+    }
+
+    async fn get_average_network_latency(&self) -> Result<f64, HostAbiError> {
+        match self {
+            MeshNetworkServiceType::Stub(s) => s.get_average_network_latency().await,
+            MeshNetworkServiceType::Default(s) => s.get_average_network_latency().await,
+        }
+    }
+
+    async fn is_network_partitioned(&self) -> Result<bool, HostAbiError> {
+        match self {
+            MeshNetworkServiceType::Stub(s) => s.is_network_partitioned().await,
+            MeshNetworkServiceType::Default(s) => s.is_network_partitioned().await,
+        }
+    }
 }
 
 /// Core runtime context for the ICN node.

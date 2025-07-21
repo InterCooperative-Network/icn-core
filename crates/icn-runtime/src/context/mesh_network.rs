@@ -60,6 +60,36 @@ pub const PROPOSAL_COST_MANA: u64 = 10;
 pub const VOTE_COST_MANA: u64 = 1;
 pub const ZK_VERIFY_COST_MANA: u64 = 2;
 
+/// Result of pinging a peer
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PingResult {
+    /// Round-trip time for the ping
+    pub round_trip_time: StdDuration,
+    /// Whether the ping was successful
+    pub success: bool,
+    /// Error message if ping failed
+    pub error: Option<String>,
+}
+
+/// Detailed statistics for a specific peer
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct PeerStatistics {
+    /// Total messages sent to this peer
+    pub total_messages: u64,
+    /// Successful message deliveries
+    pub successful_messages: u64,
+    /// Failed message deliveries
+    pub failed_messages: u64,
+    /// Average round-trip latency
+    pub avg_latency_ms: f64,
+    /// Estimated bandwidth to this peer
+    pub estimated_bandwidth: Option<u64>,
+    /// Last successful communication
+    pub last_success: Option<SystemTime>,
+    /// Connection reliability score (0.0 - 1.0)
+    pub reliability: f64,
+}
+
 /// Mesh network service trait for handling mesh jobs, proposals, and votes.
 /// Using async_trait to make it object-safe
 #[async_trait::async_trait]
@@ -87,6 +117,33 @@ pub trait MeshNetworkService: Send + Sync + std::fmt::Debug {
         &self,
         receipt: &icn_identity::ExecutionReceipt,
     ) -> Result<(), HostAbiError>;
+    
+    // Additional methods needed for Smart P2P Routing and CCL Integration
+    
+    /// Get list of currently connected peers
+    async fn get_connected_peers(&self) -> Result<Vec<Did>, HostAbiError>;
+    
+    /// Ping a specific peer to measure latency and connectivity
+    async fn ping_peer(&self, peer_id: Did) -> Result<PingResult, HostAbiError>;
+    
+    /// Get detailed statistics for a specific peer
+    async fn get_peer_statistics(&self, peer_id: Did) -> Result<PeerStatistics, HostAbiError>;
+    
+    /// Send a direct message to a specific peer
+    async fn send_direct_message(&self, peer_id: Did, payload: Vec<u8>) -> Result<(), HostAbiError>;
+    
+    /// Send a message via multiple hops through specified peers
+    async fn send_multi_hop_message(&self, path: Vec<Did>, payload: Vec<u8>) -> Result<(), HostAbiError>;
+    
+    /// Query connections of a specific peer to discover network topology
+    async fn query_peer_connections(&self, peer_id: Did) -> Result<Vec<Did>, HostAbiError>;
+    
+    /// Get average network latency across all connected peers
+    async fn get_average_network_latency(&self) -> Result<f64, HostAbiError>;
+    
+    /// Check if the network appears to be partitioned
+    async fn is_network_partitioned(&self) -> Result<bool, HostAbiError>;
+    
     fn as_any(&self) -> &dyn std::any::Any;
 }
 
@@ -132,6 +189,24 @@ impl DefaultMeshNetworkService {
             sender: self.signer.did(),
             signature: SignatureBytes(sig),
         })
+    }
+
+    /// Convert a network PeerId to a DID (simplified mapping for now)
+    fn peer_id_to_did(&self, peer_id: &icn_network::PeerId) -> Did {
+        // For now, create a DID from the peer ID string
+        // In a real implementation, this would involve proper DID resolution
+        icn_common::Did::new("peer", &peer_id.0)
+    }
+
+    /// Convert a DID to a network PeerId (simplified mapping for now)
+    fn did_to_peer_id(&self, did: &Did) -> icn_network::PeerId {
+        // Extract the identifier part from the DID
+        let did_str = did.to_string();
+        if let Some(id_part) = did_str.split(':').last() {
+            icn_network::PeerId(id_part.to_string())
+        } else {
+            icn_network::PeerId(did_str)
+        }
     }
 
     #[cfg(feature = "enable-libp2p")]
@@ -552,5 +627,199 @@ impl MeshNetworkService for DefaultMeshNetworkService {
             job_id
         );
         Ok(None)
+    }
+
+    // Additional methods for Smart P2P Routing and CCL Integration
+
+    async fn get_connected_peers(&self) -> Result<Vec<Did>, HostAbiError> {
+        // Get network statistics to find connected peers
+        let stats = self.inner.get_network_stats().await
+            .map_err(|e| HostAbiError::NetworkError(format!("Failed to get network stats: {}", e)))?;
+
+        // Try to discover peers to get a current list
+        let peer_ids = self.inner.discover_peers(None).await
+            .map_err(|e| HostAbiError::NetworkError(format!("Failed to discover peers: {}", e)))?;
+
+        // Convert PeerIds to DIDs
+        let dids: Vec<Did> = peer_ids.iter()
+            .map(|peer_id| self.peer_id_to_did(peer_id))
+            .collect();
+
+        debug!("Found {} connected peers", dids.len());
+        Ok(dids)
+    }
+
+    async fn ping_peer(&self, peer_id: Did) -> Result<PingResult, HostAbiError> {
+        let network_peer_id = self.did_to_peer_id(&peer_id);
+        let start_time = SystemTime::now();
+
+        // Create a simple ping message
+        let ping_message = ProtocolMessage {
+            payload: MessagePayload::GossipMessage(icn_protocol::GossipMessage {
+                topic: "ping".to_string(),
+                payload: b"ping".to_vec(),
+                ttl: 1,
+            }),
+            timestamp: current_timestamp(),
+            sender: self.signer.did(),
+            recipient: Some(peer_id.clone()),
+            signature: SignatureBytes(Vec::new()),
+            version: 1,
+        };
+
+        // Send the ping message
+        match self.inner.send_message(&network_peer_id, ping_message).await {
+            Ok(_) => {
+                let round_trip_time = start_time.elapsed()
+                    .unwrap_or(StdDuration::from_millis(0));
+                
+                Ok(PingResult {
+                    round_trip_time,
+                    success: true,
+                    error: None,
+                })
+            }
+            Err(e) => {
+                let round_trip_time = start_time.elapsed()
+                    .unwrap_or(StdDuration::from_millis(5000)); // Default high latency for failed pings
+                
+                Ok(PingResult {
+                    round_trip_time,
+                    success: false,
+                    error: Some(e.to_string()),
+                })
+            }
+        }
+    }
+
+    async fn get_peer_statistics(&self, peer_id: Did) -> Result<PeerStatistics, HostAbiError> {
+        // For now, return default statistics
+        // In a real implementation, this would track actual peer performance
+        let network_peer_id = self.did_to_peer_id(&peer_id);
+        
+        // Try to ping the peer to get basic connectivity info
+        match self.ping_peer(peer_id.clone()).await {
+            Ok(ping_result) => {
+                let stats = if ping_result.success {
+                    PeerStatistics {
+                        total_messages: 1,
+                        successful_messages: 1,
+                        failed_messages: 0,
+                        avg_latency_ms: ping_result.round_trip_time.as_millis() as f64,
+                        estimated_bandwidth: Some(1_000_000), // 1 Mbps default
+                        last_success: Some(SystemTime::now()),
+                        reliability: 1.0,
+                    }
+                } else {
+                    PeerStatistics {
+                        total_messages: 1,
+                        successful_messages: 0,
+                        failed_messages: 1,
+                        avg_latency_ms: ping_result.round_trip_time.as_millis() as f64,
+                        estimated_bandwidth: None,
+                        last_success: None,
+                        reliability: 0.0,
+                    }
+                };
+                
+                Ok(stats)
+            }
+            Err(_) => {
+                // Return default failed statistics
+                Ok(PeerStatistics::default())
+            }
+        }
+    }
+
+    async fn send_direct_message(&self, peer_id: Did, payload: Vec<u8>) -> Result<(), HostAbiError> {
+        let network_peer_id = self.did_to_peer_id(&peer_id);
+        
+        let message = ProtocolMessage {
+            payload: MessagePayload::GossipMessage(icn_protocol::GossipMessage {
+                topic: "direct_message".to_string(),
+                payload,
+                ttl: 1,
+            }),
+            timestamp: current_timestamp(),
+            sender: self.signer.did(),
+            recipient: Some(peer_id),
+            signature: SignatureBytes(Vec::new()),
+            version: 1,
+        };
+
+        self.inner.send_message(&network_peer_id, message).await
+            .map_err(|e| HostAbiError::NetworkError(format!("Failed to send direct message: {}", e)))
+    }
+
+    async fn send_multi_hop_message(&self, path: Vec<Did>, payload: Vec<u8>) -> Result<(), HostAbiError> {
+        if path.is_empty() {
+            return Err(HostAbiError::InvalidInput("Empty routing path".to_string()));
+        }
+
+        // For multi-hop routing, we'll send to the first peer in the path
+        // In a real implementation, this would include routing information in the message
+        let first_peer = &path[0];
+        
+        // Create a routing message that includes the full path
+        let routing_payload = bincode::serialize(&(path.clone(), payload))
+            .map_err(|e| HostAbiError::SerializationError(e.to_string()))?;
+
+        let message = ProtocolMessage {
+            payload: MessagePayload::GossipMessage(icn_protocol::GossipMessage {
+                topic: "multi_hop_routing".to_string(),
+                payload: routing_payload,
+                ttl: path.len() as u32 + 1,
+            }),
+            timestamp: current_timestamp(),
+            sender: self.signer.did(),
+            recipient: Some(first_peer.clone()),
+            signature: SignatureBytes(Vec::new()),
+            version: 1,
+        };
+
+        let network_peer_id = self.did_to_peer_id(first_peer);
+        self.inner.send_message(&network_peer_id, message).await
+            .map_err(|e| HostAbiError::NetworkError(format!("Failed to send multi-hop message: {}", e)))
+    }
+
+    async fn query_peer_connections(&self, peer_id: Did) -> Result<Vec<Did>, HostAbiError> {
+        // For now, simulate peer connections by discovering peers
+        // In a real implementation, this would query the specific peer for its connections
+        let network_peer_id = self.did_to_peer_id(&peer_id);
+        
+        // Try to discover peers that might be connected to this peer
+        let all_peers = self.inner.discover_peers(Some(network_peer_id.0.clone())).await
+            .map_err(|e| HostAbiError::NetworkError(format!("Failed to query peer connections: {}", e)))?;
+
+        // Convert to DIDs and filter out the queried peer itself
+        let connections: Vec<Did> = all_peers.iter()
+            .map(|p| self.peer_id_to_did(p))
+            .filter(|did| *did != peer_id)
+            .take(5) // Limit to 5 connections for performance
+            .collect();
+
+        debug!("Peer {} has {} connections", peer_id, connections.len());
+        Ok(connections)
+    }
+
+    async fn get_average_network_latency(&self) -> Result<f64, HostAbiError> {
+        let stats = self.inner.get_network_stats().await
+            .map_err(|e| HostAbiError::NetworkError(format!("Failed to get network stats: {}", e)))?;
+
+        // Return average latency from network stats, or default if not available
+        Ok(stats.avg_latency_ms.unwrap_or(200) as f64) // Default to 200ms
+    }
+
+    async fn is_network_partitioned(&self) -> Result<bool, HostAbiError> {
+        let stats = self.inner.get_network_stats().await
+            .map_err(|e| HostAbiError::NetworkError(format!("Failed to get network stats: {}", e)))?;
+
+        // Simple heuristic: if we have very few peers, we might be partitioned
+        let is_partitioned = stats.peer_count < 2 || stats.failed_connections > stats.peer_count as u64 * 2;
+        
+        debug!("Network partition status: {} (peers: {}, failed: {})", 
+               is_partitioned, stats.peer_count, stats.failed_connections);
+        
+        Ok(is_partitioned)
     }
 }

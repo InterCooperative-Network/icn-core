@@ -394,7 +394,6 @@ impl CrossComponentCoordinator {
         info!("Governance proposal executed with real-time integration");
         Ok(())
     }
-    }
 }
 
 /// Network-DAG integration manager for coordinated operations

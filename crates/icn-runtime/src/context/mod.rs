@@ -32,7 +32,8 @@ pub use host_environment::{ConcreteHostEnvironment, HostEnvironment};
 pub use mana::{LedgerBackend, ManaRepository, SimpleManaLedger};
 pub use mesh_network::{
     BidId, DefaultMeshNetworkService, JobAssignmentNotice, LocalMeshSubmitReceiptMessage,
-    MeshJobStateChange, MeshNetworkService, SelectionPolicy, PROPOSAL_COST_MANA, VOTE_COST_MANA,
+    MeshJobStateChange, MeshNetworkService, PeerStatistics, PingResult, SelectionPolicy, 
+    PROPOSAL_COST_MANA, VOTE_COST_MANA,
 };
 pub use realtime_ccl_integration::{
     CclIntegrationCoordinator, GovernanceEvent, GovernanceEventType, ProposalStatus,

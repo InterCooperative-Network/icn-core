@@ -137,7 +137,7 @@ pub struct GovernanceEvent {
 }
 
 /// Types of governance events
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum GovernanceEventType {
     /// New proposal created
     ProposalCreated,
