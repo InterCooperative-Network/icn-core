@@ -50,3 +50,9 @@ test_contract*.rs
 simple_policy.wasm
 test_contracts/
 icn-devnet/launch_output.txt
+test-dag-fix/ba/fy/bafyrelwyzssjhwmxxvlwrtxgr243nrgerpyy4kisbr5zfcmle3t3marh
+test-dag-fix/dag.root
+test-dag-fix/dag.root
+test-dag-fix/ba/fy/bafyrfz6ya6hv3wz32vtbc7sce3w3lnktjv22z37p3wjtag7xljyboqxy
+test-dag-fix/ba/fy/bafyrfdtd3iw5qasv5priabaxpepwgkli2s75z5wcm4dern6xuhpl54cd
+test-dag-fix/ba/fy/bafyrfrt3wfbleiegb52xf3yufsx7gdj3arijth6yz7gh6t2oo4567ubx
