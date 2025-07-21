@@ -15,17 +15,14 @@ mod p2p_dag_e2e_tests {
     use icn_common::{compute_merkle_cid, Cid, DagBlock, DagLink, Did, SystemTimeProvider, TimeProvider};
     use icn_dag::{InMemoryDagStore, StorageService};
     use icn_identity::{generate_ed25519_keypair, SignatureBytes, ExecutionReceipt};
-    use icn_mesh::{ActualMeshJob, JobSpec};
     use icn_network::{
         libp2p_service::{Libp2pNetworkService, NetworkConfig},
-        NetworkService, PeerId
+        NetworkService
     };
     use icn_protocol::{
         MessagePayload, ProtocolMessage, DagBlockAnnouncementMessage, DagBlockRequestMessage,
-        DagBlockResponseMessage, MeshReceiptSubmissionMessage, ExecutionMetadata,
-        JobKind, ResourceRequirements
+        MeshReceiptSubmissionMessage, ExecutionMetadata
     };
-    use std::collections::{HashMap, HashSet};
     use std::str::FromStr;
     use std::sync::{Arc, Mutex};
     use std::time::{Duration, Instant};
@@ -42,7 +39,7 @@ mod p2p_dag_e2e_tests {
     }
 
     impl TestNode {
-        async fn new(name: &str) -> Self {
+        async fn new(_name: &str) -> Self {
             let (signing_key, public_key) = generate_ed25519_keypair();
             let did_string = icn_identity::did_key_from_verifying_key(&public_key);
             let did = Did::from_str(&did_string).unwrap();
@@ -95,13 +92,13 @@ mod p2p_dag_e2e_tests {
         /// Store a block in the local DAG
         async fn store_block(&self, block: &DagBlock) {
             let mut store = self.dag_store.lock().unwrap();
-            store.store_block(block.clone()).await.unwrap();
+            store.put(block).unwrap();
         }
 
         /// Retrieve a block from the local DAG
         async fn get_block(&self, cid: &Cid) -> Option<DagBlock> {
-            let mut store = self.dag_store.lock().unwrap();
-            store.get_block(cid).await.unwrap()
+            let store = self.dag_store.lock().unwrap();
+            store.get(cid).unwrap()
         }
 
         /// Announce a DAG block to the network
@@ -383,7 +380,7 @@ mod p2p_dag_e2e_tests {
                     // Store block locally
                     {
                         let mut store = dag_store.lock().unwrap();
-                        store.store_block(block.clone()).await.unwrap();
+                        store.put(&block).unwrap();
                     }
 
                     // Announce to network
@@ -432,7 +429,7 @@ mod p2p_dag_e2e_tests {
 
         // Create a valid block
         let valid_data = b"valid_block_data";
-        let mut valid_block = network.nodes[0].create_test_block(valid_data, vec![]);
+        let valid_block = network.nodes[0].create_test_block(valid_data, vec![]);
 
         // Verify the block passes integrity checks
         assert!(icn_common::verify_block_integrity(&valid_block).is_ok());
