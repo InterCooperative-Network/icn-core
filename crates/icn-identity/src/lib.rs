@@ -62,6 +62,15 @@ pub use trust_verification::{
 pub mod delegated_credential;
 pub mod metrics;
 pub use delegated_credential::{verify_delegation_chain, DelegatedCredential};
+pub mod enhanced_did_resolver;
+pub use enhanced_did_resolver::{
+    EnhancedDidResolver, EnhancedDidResolverBuilder, DidResolutionConfig, ResolutionStats, MethodStats,
+};
+pub mod federation_manager;
+pub use federation_manager::{
+    FederationManager, FederationMembershipService, FederationInfo, MembershipStatus,
+    FederationCapabilities, FederationRegistry,
+};
 
 // --- Core Cryptographic Operations & DID:key generation ---
 
