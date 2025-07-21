@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/icn-logo.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    
+    <!-- SEO and Social Meta Tags -->
+    <title>ICN Explorer - InterCooperative Network Browser</title>
+    <meta name="description" content="Real-time DAG explorer and network browser for the InterCooperative Network. Monitor jobs, track economic activity, and visualize network topology." />
+    <meta name="keywords" content="ICN, InterCooperative Network, DAG, blockchain explorer, mesh computing, decentralized" />
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://explorer.intercooperative.network/" />
+    <meta property="og:title" content="ICN Explorer - Network Browser" />
+    <meta property="og:description" content="Real-time DAG explorer and network browser for the InterCooperative Network" />
+    <meta property="og:image" content="/icn-explorer-preview.png" />
+    
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:url" content="https://explorer.intercooperative.network/" />
+    <meta property="twitter:title" content="ICN Explorer - Network Browser" />
+    <meta property="twitter:description" content="Real-time DAG explorer and network browser for the InterCooperative Network" />
+    <meta property="twitter:image" content="/icn-explorer-preview.png" />
+    
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#2563eb" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="ICN Explorer" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.json" />
+    
+    <!-- Performance Optimizations -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+    
+    <!-- Security Headers -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' ws: wss:;" />
+    <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+    <meta http-equiv="X-Frame-Options" content="DENY" />
+    <meta http-equiv="X-XSS-Protection" content="1; mode=block" />
+    
+    <!-- Dark Mode Support -->
+    <script>
+      // Prevent flash of wrong theme
+      (function() {
+        try {
+          const theme = localStorage.getItem('theme') || 
+            (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+          document.documentElement.classList.toggle('dark', theme === 'dark');
+        } catch (e) {
+          console.warn('Theme detection failed:', e);
+        }
+      })();
+    </script>
+    
+    <!-- Loading Styles -->
+    <style>
+      #loading {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        transition: opacity 0.3s ease-out;
+      }
+      
+      .loading-spinner {
+        width: 60px;
+        height: 60px;
+        border: 3px solid rgba(255, 255, 255, 0.3);
+        border-radius: 50%;
+        border-top-color: white;
+        animation: spin 1s ease-in-out infinite;
+      }
+      
+      .loading-text {
+        color: white;
+        font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        font-size: 18px;
+        font-weight: 500;
+        margin-top: 24px;
+      }
+      
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+      
+      /* Hide loading when app loads */
+      .app-loaded #loading {
+        opacity: 0;
+        pointer-events: none;
+      }
+    </style>
+  </head>
+  
+  <body class="antialiased">
+    <!-- Loading Screen -->
+    <div id="loading">
+      <div class="text-center">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Loading ICN Explorer...</div>
+      </div>
+    </div>
+    
+    <!-- App Root -->
+    <div id="root"></div>
+    
+    <!-- Main Application Script -->
+    <script type="module" src="/src/main.tsx"></script>
+    
+    <!-- Performance Monitoring -->
+    <script>
+      // Mark when the page starts loading
+      window.performance.mark('page-start');
+      
+      // Hide loading screen when app is ready
+      window.addEventListener('load', function() {
+        setTimeout(function() {
+          document.body.classList.add('app-loaded');
+          window.performance.mark('app-loaded');
+          window.performance.measure('page-load-time', 'page-start', 'app-loaded');
+        }, 100);
+      });
+      
+      // Service Worker Registration (for PWA)
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function() {
+          navigator.serviceWorker.register('/sw.js')
+            .then(function(registration) {
+              console.log('SW registered: ', registration);
+            })
+            .catch(function(registrationError) {
+              console.log('SW registration failed: ', registrationError);
+            });
+        });
+      }
+    </script>
+  </body>
+</html> 
