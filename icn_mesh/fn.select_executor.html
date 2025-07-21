@@ -3,7 +3,7 @@
     job_spec: &amp;<a class="struct" href="struct.JobSpec.html" title="struct icn_mesh::JobSpec">JobSpec</a>,
     bids: <a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="struct" href="struct.MeshJobBid.html" title="struct icn_mesh::MeshJobBid">MeshJobBid</a>&gt;,
     policy: &amp;<a class="struct" href="struct.SelectionPolicy.html" title="struct icn_mesh::SelectionPolicy">SelectionPolicy</a>,
-    reputation_store: &amp;dyn ReputationStore,
+    reputation_store: &amp;dyn <a class="trait" href="../icn_reputation/trait.ReputationStore.html" title="trait icn_reputation::ReputationStore">ReputationStore</a>,
     mana_ledger: &amp;dyn ManaLedger,
     latency_store: &amp;dyn <a class="trait" href="trait.LatencyStore.html" title="trait icn_mesh::LatencyStore">LatencyStore</a>,
     capability_checker: &amp;dyn <a class="trait" href="trait.DynamicCapabilityChecker.html" title="trait icn_mesh::DynamicCapabilityChecker">DynamicCapabilityChecker</a>,
