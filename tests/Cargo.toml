@@ -67,6 +67,10 @@ path = "integration/zk_proof_verification.rs"
 name = "host_zk_roundtrip"
 path = "integration/host_zk_roundtrip.rs"
 
+[[test]]
+name = "p2p_dag_e2e"
+path = "integration/p2p_dag_e2e.rs"
+
 [features]
 default = []
 enable-libp2p = ["icn-node/with-libp2p", "icn-runtime/enable-libp2p"]
@@ -91,9 +95,13 @@ icn-common = { path = "../crates/icn-common" }
 icn-protocol = { path = "../crates/icn-protocol" }
 icn-identity = { path = "../crates/icn-identity" }
 icn-network = { path = "../crates/icn-network" }
+icn-dag = { path = "../crates/icn-dag" }
 icn-api = { path = "../crates/icn-api" }
 icn-zk = { path = "../crates/icn-zk" }
 ark-groth16 = "0.4"
 ark-bn254 = "0.4"
 ark-serialize = "0.4"
 rand_core = "0.6"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["fmt"] }
+ed25519-dalek = { version = "2.0.0-pre.3", features = ["rand_core"] }
