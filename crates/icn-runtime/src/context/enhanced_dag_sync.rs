@@ -3,7 +3,7 @@
 //! This module provides intelligent DAG synchronization that leverages network
 //! conditions, peer reputation, and adaptive strategies for optimal performance.
 
-use crate::context::{
+use super::{
     DagStorageService, DagStoreMutexType, HostAbiError, MeshNetworkServiceType,
 };
 use icn_common::{Cid, Did, TimeProvider};
