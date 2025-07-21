@@ -19,6 +19,12 @@ tmp/
 icn-ccl/governance_db/
 *.sled
 icn_data/
+
+# DAG storage directories and test artifacts
+test-dag-storage*/
+*_dag_store/
+dev_dag_store/
+production_dag_store/
 icn-devnet/certs/cert.pem
 icn-devnet/certs/key.pem
 rustc-ice-*.txt

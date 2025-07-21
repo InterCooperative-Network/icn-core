@@ -435,16 +435,16 @@ impl NodeConfig {
         if let Some(v) = &cli.bootstrap_peers {
             self.p2p.bootstrap_peers = Some(v.clone());
         }
-        if matches.contains_id("enable_p2p") {
+        if cli.enable_p2p {
             self.p2p.enable_p2p = true;
         }
-        if matches.contains_id("enable_mdns") {
+        if cli.enable_mdns {
             self.p2p.enable_mdns = true;
         }
-        if cli.test_mode || matches.contains_id("test_mode") {
+        if cli.test_mode {
             self.test_mode = true;
         }
-        if cli.demo || matches.contains_id("demo") {
+        if cli.demo {
             self.demo = true;
             // Demo mode implies memory-only storage
             self.storage.storage_backend = StorageBackendType::Memory;
