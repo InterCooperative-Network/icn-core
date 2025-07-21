@@ -342,7 +342,7 @@ impl CrossComponentCoordinator {
         self.metrics.record_governance_proposal_submission(&proposal_id, &priority);
         
         info!("Governance proposal {:?} submitted with real-time integration", proposal_id);
-        Ok(proposal_id.to_string())
+        Ok(proposal_id.0)
     }
 
     /// Cast a vote on a governance proposal with immediate network propagation
@@ -355,9 +355,7 @@ impl CrossComponentCoordinator {
         info!("Casting governance vote with real-time coordination");
         
         // Parse proposal ID
-        let parsed_proposal_id = icn_governance::ProposalId::from(
-            icn_common::Cid::new_v1_sha256(0x71, proposal_id.as_bytes())
-        );
+        let parsed_proposal_id = icn_governance::ProposalId(proposal_id.clone());
         
         // Use CCL integration for real-time vote casting
         self.ccl_integration.cast_vote_realtime(
@@ -381,9 +379,7 @@ impl CrossComponentCoordinator {
         info!("Executing governance proposal with real-time coordination");
         
         // Parse proposal ID
-        let parsed_proposal_id = icn_governance::ProposalId::from(
-            icn_common::Cid::new_v1_sha256(0x71, proposal_id.as_bytes())
-        );
+        let parsed_proposal_id = icn_governance::ProposalId(proposal_id.clone());
         
         // Use CCL integration for real-time execution
         self.ccl_integration.execute_proposal_realtime(parsed_proposal_id.clone()).await?;

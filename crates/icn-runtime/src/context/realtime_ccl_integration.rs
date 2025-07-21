@@ -370,7 +370,7 @@ impl CclIntegrationCoordinator {
         let event = GovernanceEvent {
             event_type: GovernanceEventType::ProposalCreated,
             timestamp: self.time_provider.unix_seconds(),
-            proposal_id: Some(ProposalId::from(proposal_cid.clone())),
+            proposal_id: Some(ProposalId(proposal_cid.to_string())),
             originator: self.node_identity.clone(),
             payload: proposal_data.clone(),
             propagation_priority: priority,
@@ -406,7 +406,7 @@ impl CclIntegrationCoordinator {
         // Record event in tracker
         self.record_governance_event(event).await?;
 
-        info!("Proposal {} submitted with real-time integration in {:.2}ms", 
+        info!("Proposal {:?} submitted with real-time integration in {:.2}ms", 
               proposal_id, start_time.elapsed().as_millis());
 
         Ok(proposal_id)
@@ -419,7 +419,7 @@ impl CclIntegrationCoordinator {
         vote_option: String,
         priority: PropagationPriority,
     ) -> Result<(), HostAbiError> {
-        info!("Casting vote on proposal {} with real-time propagation", proposal_id);
+        info!("Casting vote on proposal {:?} with real-time propagation", proposal_id);
 
         let start_time = Instant::now();
 
@@ -469,7 +469,7 @@ impl CclIntegrationCoordinator {
         // Record the event
         self.record_governance_event(event).await?;
 
-        info!("Vote cast on proposal {} in {:.2}ms", proposal_id, start_time.elapsed().as_millis());
+        info!("Vote cast on proposal {:?} in {:.2}ms", proposal_id, start_time.elapsed().as_millis());
         Ok(())
     }
 
@@ -478,7 +478,7 @@ impl CclIntegrationCoordinator {
         &self,
         proposal_id: ProposalId,
     ) -> Result<(), HostAbiError> {
-        info!("Executing proposal {} with real-time status updates", proposal_id);
+        info!("Executing proposal {:?} with real-time status updates", proposal_id);
 
         let start_time = Instant::now();
 
@@ -560,12 +560,12 @@ impl CclIntegrationCoordinator {
 
         match execution_result {
             Ok(_) => {
-                info!("Proposal {} executed successfully in {:.2}ms", 
+                info!("Proposal {:?} executed successfully in {:.2}ms", 
                       proposal_id, start_time.elapsed().as_millis());
                 Ok(())
             }
             Err(e) => {
-                error!("Proposal {} execution failed in {:.2}ms: {}", 
+                error!("Proposal {:?} execution failed in {:.2}ms: {}", 
                        proposal_id, start_time.elapsed().as_millis(), e);
                 Err(e)
             }
@@ -653,7 +653,7 @@ impl CclIntegrationCoordinator {
 
     async fn anchor_proposal_in_dag(&self, proposal_data: &[u8]) -> Result<Cid, HostAbiError> {
         // Anchor the proposal data in the DAG with proper content addressing
-        let dag_store = self.dag_store.lock().await;
+        let mut dag_store = self.dag_store.lock().await;
         
         // Create a structured proposal block
         let proposal_block = ProposalBlock {
@@ -748,7 +748,7 @@ impl CclIntegrationCoordinator {
 
     async fn submit_to_governance_module(&self, proposal_data: &[u8]) -> Result<ProposalId, HostAbiError> {
         // Submit proposal to the governance module
-        let governance = self.governance_module.lock().await;
+        let mut governance = self.governance_module.lock().await;
         
         // Parse proposal data into governance module format
         let proposal = match self.parse_proposal_data(proposal_data).await {
@@ -759,10 +759,21 @@ impl CclIntegrationCoordinator {
             }
         };
         
+        // Create ProposalSubmission for governance module
+        let proposal_submission = icn_governance::ProposalSubmission {
+            proposer: self.node_identity.clone(),
+            proposal_type: proposal.proposal_type,
+            description: proposal.description,
+            duration_secs: 3600 * 24 * 7, // 1 week default
+            quorum: None,
+            threshold: None,
+            content_cid: proposal.content_cid,
+        };
+        
         // Submit to governance module
-        match governance.submit_proposal(proposal, self.node_identity.clone()).await {
+        match governance.submit_proposal(proposal_submission) {
             Ok(proposal_id) => {
-                info!("Proposal submitted to governance module with ID: {}", proposal_id);
+                info!("Proposal submitted to governance module with ID: {:?}", proposal_id);
                 Ok(proposal_id)
             }
             Err(e) => {
@@ -776,25 +787,25 @@ impl CclIntegrationCoordinator {
         // Retrieve proposal from governance module
         let governance = self.governance_module.lock().await;
         
-        governance.get_proposal(proposal_id.clone()).await
-            .map_err(|e| HostAbiError::GovernanceError(format!("Failed to retrieve proposal: {}", e)))
+        governance.get_proposal(proposal_id)
+            .map_err(|e| HostAbiError::GovernanceError(format!("Failed to retrieve proposal: {}", e)))?
+            .ok_or_else(|| HostAbiError::GovernanceError("Proposal not found".to_string()))
     }
 
     async fn submit_vote_to_governance(&self, proposal_id: &ProposalId, vote_option: &str) -> Result<(), HostAbiError> {
         // Submit vote to governance module
-        let governance = self.governance_module.lock().await;
+        let mut governance = self.governance_module.lock().await;
         
-        // Create vote object
-        let vote = Vote {
-            proposal_id: proposal_id.clone(),
-            voter: self.node_identity.clone(),
-            option: vote_option.to_string(),
-            timestamp: self.time_provider.unix_seconds(),
-            reputation_at_vote: self.reputation_store.get_reputation(&self.node_identity),
+        // Parse vote option
+        let vote_option_enum = match vote_option.to_lowercase().as_str() {
+            "yes" => icn_governance::VoteOption::Yes,
+            "no" => icn_governance::VoteOption::No,
+            "abstain" => icn_governance::VoteOption::Abstain,
+            _ => return Err(HostAbiError::InvalidInput(format!("Invalid vote option: {}", vote_option))),
         };
         
         // Submit vote to governance
-        governance.cast_vote(vote).await
+        governance.cast_vote(self.node_identity.clone(), proposal_id, vote_option_enum)
             .map_err(|e| HostAbiError::GovernanceError(format!("Failed to submit vote: {}", e)))?;
         
         // Also anchor vote in DAG for transparency and verification
@@ -807,17 +818,28 @@ impl CclIntegrationCoordinator {
         // Check if proposal has reached quorum
         let governance = self.governance_module.lock().await;
         
-        let quorum_info = governance.check_quorum(&active_proposal.proposal.id).await
-            .map_err(|e| HostAbiError::GovernanceError(format!("Failed to check quorum: {}", e)))?;
+        // Get proposal to check its status
+        let proposal_opt = governance.get_proposal(&active_proposal.proposal.id)
+            .map_err(|e| HostAbiError::GovernanceError(format!("Failed to get proposal: {}", e)))?;
             
-        Ok(quorum_info.reached)
+        if let Some(proposal) = proposal_opt {
+            // Tally votes to check if quorum is reached
+            let (yes_votes, no_votes, abstain_votes) = governance.tally_votes(&proposal);
+            let total_votes = yes_votes + no_votes + abstain_votes;
+            
+            // Simple quorum check - you could make this more sophisticated
+            let quorum_threshold = 3; // Minimum votes needed
+            Ok(total_votes >= quorum_threshold)
+        } else {
+            Ok(false)
+        }
     }
 
     async fn execute_in_governance_module(&self, proposal_id: &ProposalId) -> Result<(), HostAbiError> {
         // Execute the proposal through governance module
-        let governance = self.governance_module.lock().await;
+        let mut governance = self.governance_module.lock().await;
         
-        governance.execute_proposal(proposal_id.clone()).await
+        governance.execute_proposal(proposal_id)
                          .map_err(|e| HostAbiError::GovernanceError(format!("Failed to execute proposal: {}", e)))
     }
 
@@ -1262,29 +1284,21 @@ impl CclIntegrationCoordinator {
         // Synchronize governance state across the network
         let governance = governance_module.lock().await;
         
-        // Get current governance state hash
-        let state_hash = governance.get_state_hash().await
-            .map_err(|e| HostAbiError::GovernanceError(format!("Failed to get state hash: {}", e)))?;
+        // Create a simple state hash based on proposal count
+        // In a real implementation, this would be a comprehensive state hash
+        let proposals = governance.list_proposals()
+            .map_err(|e| HostAbiError::GovernanceError(format!("Failed to list proposals: {}", e)))?;
+        let state_hash = format!("gov_state_{}", proposals.len());
         
-        // Check if our state is in sync with the network
-        match dag_sync.check_governance_sync(state_hash.clone()).await {
-            Ok(sync_status) => {
-                if !sync_status.is_synced {
-                    info!("Governance state out of sync, triggering resync");
-                    
-                    // Trigger resynchronization
-                    dag_sync.request_governance_sync().await
-                        .map_err(|e| HostAbiError::DagError(format!("Failed to request governance sync: {}", e)))?;
-                }
-            }
-            Err(e) => {
-                warn!("Failed to check governance sync status: {}", e);
-            }
-        }
+        // Simple synchronization check - in a real implementation this would be more sophisticated
+        debug!("Current governance state hash: {}", state_hash);
         
-        // Periodically propagate our governance state
-        dag_sync.propagate_governance_state(state_hash, PropagationPriority::Normal).await
-            .map_err(|e| HostAbiError::DagError(format!("Failed to propagate governance state: {}", e)))?;
+        // For now, just log the synchronization attempt
+        // In a real implementation, you would:
+        // 1. Compare state hashes with peers
+        // 2. Request missing proposals/votes
+        // 3. Propagate state updates
+        info!("Governance state synchronization completed (stub implementation)");
         
         Ok(())
     }

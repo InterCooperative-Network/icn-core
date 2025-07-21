@@ -952,28 +952,35 @@ impl SmartP2pRouter {
         for intermediate_peer in &direct_peers {
             for target_peer in &two_hop_peers {
                 // Try to find routes through intermediate peer to 2-hop targets
-                if let Some(routes_to_target) = routing_table.multi_hop_routes.get(target_peer) {
-                    for existing_route in routes_to_target {
-                        if existing_route.path_peers.len() == 2 {
-                            // Create 3-hop route
-                            let mut new_path = vec![intermediate_peer.clone()];
-                            new_path.extend_from_slice(&existing_route.path_peers);
-                            
-                            let route = RoutePath {
-                                path_peers: new_path,
-                                path_quality: existing_route.path_quality * 0.8, // Degrade quality for longer paths
-                                estimated_latency_ms: existing_route.estimated_latency_ms + 100, // Add overhead
-                                reliability: existing_route.reliability * 0.9, // Reduce reliability
-                                last_used: Instant::now(),
-                                success_rate: existing_route.success_rate * 0.9,
-                            };
-                            
-                            routing_table.multi_hop_routes
-                                .entry(target_peer.clone())
-                                .or_insert_with(Vec::new)
-                                .push(route);
-                        }
-                    }
+                // Collect routes to process to avoid borrow conflicts
+                let routes_to_extend: Vec<RoutePath> = if let Some(routes_to_target) = routing_table.multi_hop_routes.get(target_peer) {
+                    routes_to_target.iter()
+                        .filter(|route| route.path_peers.len() == 2)
+                        .cloned()
+                        .collect()
+                } else {
+                    Vec::new()
+                };
+                
+                // Now create and add extended routes
+                for existing_route in routes_to_extend {
+                    // Create 3-hop route
+                    let mut new_path = vec![intermediate_peer.clone()];
+                    new_path.extend_from_slice(&existing_route.path_peers);
+                    
+                    let route = RoutePath {
+                        path_peers: new_path,
+                        path_quality: existing_route.path_quality * 0.8, // Degrade quality for longer paths
+                        estimated_latency_ms: existing_route.estimated_latency_ms + 100, // Add overhead
+                        reliability: existing_route.reliability * 0.9, // Reduce reliability
+                        last_used: Instant::now(),
+                        success_rate: existing_route.success_rate * 0.9,
+                    };
+                    
+                    routing_table.multi_hop_routes
+                        .entry(target_peer.clone())
+                        .or_insert_with(Vec::new)
+                        .push(route);
                 }
             }
         }
@@ -1127,10 +1134,11 @@ impl SmartP2pRouter {
                         
                         // Schedule retry with backoff
                         let backoff_delay = Duration::from_millis(100 * (1 << (message.attempts - 1)).min(32));
+                        let message_queue_clone = message_queue.clone();
                         
                         tokio::spawn(async move {
                             tokio::time::sleep(backoff_delay).await;
-                            if let Ok(mut queue) = message_queue.try_lock() {
+                            if let Ok(mut queue) = message_queue_clone.try_lock() {
                                 if queue.retry_queue.len() < queue.max_sizes.retry_queue_max {
                                     queue.retry_queue.push_back(message);
                                 }
