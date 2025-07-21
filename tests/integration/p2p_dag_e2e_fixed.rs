@@ -16,7 +16,7 @@ mod enhanced_p2p_dag_tests {
         DagBlockResponseMessage
     };
     use std::collections::{HashMap, HashSet};
-    use std::sync::{Arc, Mutex};
+    use std::sync::{Arc, Mutex, Once};
     use std::time::{Duration, Instant};
     use tokio::time::{sleep, timeout};
     use tokio::sync::RwLock;
@@ -228,7 +228,7 @@ mod enhanced_p2p_dag_tests {
             network_config.bootstrap_peers = bootstrap_peers;
 
             let network_service = Arc::new(Libp2pNetworkService::new(network_config).await.unwrap());
-            let peer_id = PeerId::from(network_service.local_peer_id());
+            let peer_id = PeerId::from(*network_service.local_peer_id());
             let did = Did::new("test", &format!("node_{}", name));
             let dag_store = Arc::new(Mutex::new(InMemoryDagStore::new()));
 
@@ -342,7 +342,7 @@ mod enhanced_p2p_dag_tests {
             
             // Create bootstrap node
             let bootstrap_node = EnhancedTestNode::new("bootstrap", vec![]).await;
-            let bootstrap_peer_id = bootstrap_node.network_service.local_peer_id();
+            let bootstrap_peer_id = *bootstrap_node.network_service.local_peer_id();
             
             // Get bootstrap addresses
             let bootstrap_addrs = bootstrap_node.network_service.listening_addresses();
@@ -492,10 +492,18 @@ mod enhanced_p2p_dag_tests {
         }
     }
 
+    static INIT: Once = Once::new();
+
+    fn init_tracing() {
+        INIT.call_once(|| {
+            tracing_subscriber::fmt::init();
+        });
+    }
+
     // Tests
     #[tokio::test]
     async fn test_enhanced_network_setup() {
-        tracing_subscriber::fmt::init();
+        init_tracing();
         
         let _network = timeout(Duration::from_secs(30), EnhancedTestNetwork::new(3))
             .await
@@ -506,7 +514,7 @@ mod enhanced_p2p_dag_tests {
 
     #[tokio::test]
     async fn test_real_distributed_storage_enhanced() {
-        tracing_subscriber::fmt::init();
+        init_tracing();
         
         let network = timeout(Duration::from_secs(30), EnhancedTestNetwork::new(3))
             .await
@@ -522,7 +530,7 @@ mod enhanced_p2p_dag_tests {
 
     #[tokio::test]
     async fn test_concurrent_operations_enhanced() {
-        tracing_subscriber::fmt::init();
+        init_tracing();
         
         let network = timeout(Duration::from_secs(30), EnhancedTestNetwork::new(3))
             .await
