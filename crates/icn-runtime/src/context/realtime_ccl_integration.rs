@@ -7,6 +7,7 @@ use super::{
     DagStorageService, DagStoreMutexType, HostAbiError, MeshNetworkServiceType,
     SmartP2pRouter, MessagePriority, EnhancedDagSync, PropagationPriority,
 };
+use super::mesh_network::MeshNetworkService;
 use icn_common::{Cid, Did, TimeProvider};
 use icn_governance::{GovernanceModule, Proposal, Vote, ProposalId};
 use icn_reputation::ReputationStore;
@@ -671,13 +672,24 @@ impl CclIntegrationCoordinator {
             HostAbiError::InternalError(format!("Failed to serialize proposal block: {}", e))
         })?;
         
-        // Store in DAG and get content identifier
-        let cid = dag_store.store_blob(&serialized_block).await.map_err(|e| {
+        // Create DagBlock and store in DAG
+        let cid = icn_common::Cid::new_v1_sha256(0x70, &serialized_block);
+        let dag_block = icn_common::DagBlock {
+            cid: cid.clone(),
+            data: serialized_block,
+            links: Vec::new(),
+            timestamp: self.time_provider.unix_seconds(),
+            author_did: self.node_identity.clone(),
+            signature: None, // Could be signed if needed
+            scope: Some(icn_common::NodeScope("governance".to_string())),
+        };
+        
+        dag_store.put(&dag_block).await.map_err(|e| {
             HostAbiError::DagError(format!("Failed to store proposal in DAG: {}", e))
         })?;
         
         // Trigger immediate propagation to connected peers
-        self.dag_sync.propagate_block_immediate(cid.clone(), PropagationPriority::High).await
+        self.dag_sync.propagate_block(cid.clone(), PropagationPriority::High, None).await
             .map_err(|e| {
                 warn!("Failed to immediately propagate proposal block: {}", e);
                 // Don't fail the operation, just log the warning
@@ -844,14 +856,27 @@ impl CclIntegrationCoordinator {
             HostAbiError::InternalError(format!("Failed to serialize vote block: {}", e))
         })?;
         
-        // Store in DAG
-        let dag_store = self.dag_store.lock().await;
-        let cid = dag_store.store_blob(&serialized_vote).await.map_err(|e| {
-            HostAbiError::DagError(format!("Failed to store vote in DAG: {}", e))
-        })?;
+        // Create DagBlock and store in DAG
+        let cid = icn_common::Cid::new_v1_sha256(0x70, &serialized_vote);
+        let dag_block = icn_common::DagBlock {
+            cid: cid.clone(),
+            data: serialized_vote,
+            links: Vec::new(),
+            timestamp: self.time_provider.unix_seconds(),
+            author_did: self.node_identity.clone(),
+            signature: None, // Could be signed if needed
+            scope: Some(icn_common::NodeScope("governance".to_string())),
+        };
+        
+        {
+            let mut dag_store = self.dag_store.lock().await;
+            dag_store.put(&dag_block).await.map_err(|e| {
+                HostAbiError::DagError(format!("Failed to store vote in DAG: {}", e))
+            })?;
+        }
         
         // Trigger immediate propagation
-        self.dag_sync.propagate_block_immediate(cid.clone(), PropagationPriority::High).await
+        self.dag_sync.propagate_block(cid.clone(), PropagationPriority::High, None).await
             .map_err(|e| {
                 warn!("Failed to immediately propagate vote block: {}", e);
                 e
@@ -1013,11 +1038,11 @@ impl CclIntegrationCoordinator {
             }
             GovernanceEventType::EmergencyAction => {
                 // Handle emergency governance actions
-                debug!("Processing emergency governance action for proposal {}", proposal_id);
+                debug!("Processing emergency governance action for proposal {:?}", proposal_id);
             }
             GovernanceEventType::ParameterChanged => {
                 // Handle parameter changes
-                debug!("Processing parameter change for proposal {}", proposal_id);
+                debug!("Processing parameter change for proposal {:?}", proposal_id);
             }
         }
         
@@ -1106,7 +1131,7 @@ impl CclIntegrationCoordinator {
                     let old_status = active_proposal.status;
                     active_proposal.status = new_status;
                     
-                    debug!("Proposal {} status changed from {:?} to {:?}", 
+                    debug!("Proposal {:?} status changed from {:?} to {:?}", 
                            proposal_id, old_status, new_status);
                     
                     // Update timing metrics based on state transition
@@ -1131,7 +1156,7 @@ impl CclIntegrationCoordinator {
             // Remove expired proposals
             for proposal_id in expired_proposals {
                 if let Some(removed_proposal) = proposals.remove(&proposal_id) {
-                    info!("Archived proposal {} after completion/expiration", proposal_id);
+                    info!("Archived proposal {:?} after completion/expiration", proposal_id);
                     
                     // Optionally store final metrics somewhere for historical analysis
                     Self::archive_proposal_metrics(&proposal_id, &removed_proposal).await?;
@@ -1156,11 +1181,11 @@ impl CclIntegrationCoordinator {
         match active_proposal.status {
             ProposalStatus::Voting => {
                 if processing_duration > Duration::from_secs(60) && active_proposal.vote_tracker.votes_received == 0 {
-                    debug!("Proposal {} has no votes after 1 minute", active_proposal.proposal.id);
+                    debug!("Proposal {:?} has no votes after 1 minute", active_proposal.proposal.id);
                 }
             }
             ProposalStatus::QuorumReached => {
-                debug!("Proposal {} reached quorum with {} votes ({:.1}% participation)", 
+                debug!("Proposal {:?} reached quorum with {} votes ({:.1}% participation)", 
                        active_proposal.proposal.id,
                        active_proposal.vote_tracker.votes_received,
                        active_proposal.vote_tracker.participation_rate * 100.0);
@@ -1178,7 +1203,7 @@ impl CclIntegrationCoordinator {
         // Archive proposal metrics for historical analysis
         // In a real implementation, this would store metrics in a persistent store
         
-        info!("Archiving metrics for proposal {}: {:?}", proposal_id, active_proposal.metrics);
+        info!("Archiving metrics for proposal {:?}: {:?}", proposal_id, active_proposal.metrics);
         
         // Metrics could be stored in:
         // - DAG for permanent record

@@ -12,7 +12,7 @@ use super::{
 };
 use super::enhanced_dag_sync::{EnhancedDagSync, PropagationPriority, SyncResult};
 use super::smart_p2p_routing::{SmartP2pRouter, MessagePriority, RoutingStrategy, RoutePath};
-use super::realtime_ccl_integration::{CclIntegrationCoordinator, GovernanceEventType, PropagationPriority as CclPropagationPriority};
+use super::realtime_ccl_integration::{CclIntegrationCoordinator, GovernanceEventType};
 use icn_common::{Cid, Did, TimeProvider};
 use icn_governance::GovernanceModule;
 use icn_reputation::ReputationStore;
@@ -341,7 +341,7 @@ impl CrossComponentCoordinator {
         // Record the proposal submission in metrics
         self.metrics.record_governance_proposal_submission(&proposal_id, &priority);
         
-        info!("Governance proposal {} submitted with real-time integration", proposal_id);
+        info!("Governance proposal {:?} submitted with real-time integration", proposal_id);
         Ok(proposal_id.to_string())
     }
 
@@ -1347,7 +1347,7 @@ impl IntegrationMetrics {
             }
         });
         
-        debug!("Recorded governance proposal submission: {} with priority {:?}", proposal_id, priority);
+        debug!("Recorded governance proposal submission: {:?} with priority {:?}", proposal_id, priority);
     }
 
     /// Record a governance vote cast
@@ -1362,7 +1362,7 @@ impl IntegrationMetrics {
             }
         });
         
-        debug!("Recorded governance vote cast: {} option {} with priority {:?}", proposal_id, vote_option, priority);
+        debug!("Recorded governance vote cast: {:?} option {} with priority {:?}", proposal_id, vote_option, priority);
     }
 
     /// Record a governance proposal execution
@@ -1377,7 +1377,7 @@ impl IntegrationMetrics {
             }
         });
         
-        debug!("Recorded governance proposal execution: {}", proposal_id);
+        debug!("Recorded governance proposal execution: {:?}", proposal_id);
     }
 }
 

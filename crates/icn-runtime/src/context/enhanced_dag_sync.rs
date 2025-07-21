@@ -81,7 +81,7 @@ pub struct PropagationTask {
 }
 
 /// Priority levels for DAG block propagation
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
 pub enum PropagationPriority {
     /// Low priority - eventual consistency
     Low,
