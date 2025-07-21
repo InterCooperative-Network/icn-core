@@ -435,16 +435,16 @@
 <a href=#435 id=435 data-nosnippet>435</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(v) = <span class="kw-2">&amp;</span>cli.bootstrap_peers {
 <a href=#436 id=436 data-nosnippet>436</a>            <span class="self">self</span>.p2p.bootstrap_peers = <span class="prelude-val">Some</span>(v.clone());
 <a href=#437 id=437 data-nosnippet>437</a>        }
-<a href=#438 id=438 data-nosnippet>438</a>        <span class="kw">if </span>matches.contains_id(<span class="string">"enable_p2p"</span>) {
+<a href=#438 id=438 data-nosnippet>438</a>        <span class="kw">if </span>cli.enable_p2p {
 <a href=#439 id=439 data-nosnippet>439</a>            <span class="self">self</span>.p2p.enable_p2p = <span class="bool-val">true</span>;
 <a href=#440 id=440 data-nosnippet>440</a>        }
-<a href=#441 id=441 data-nosnippet>441</a>        <span class="kw">if </span>matches.contains_id(<span class="string">"enable_mdns"</span>) {
+<a href=#441 id=441 data-nosnippet>441</a>        <span class="kw">if </span>cli.enable_mdns {
 <a href=#442 id=442 data-nosnippet>442</a>            <span class="self">self</span>.p2p.enable_mdns = <span class="bool-val">true</span>;
 <a href=#443 id=443 data-nosnippet>443</a>        }
-<a href=#444 id=444 data-nosnippet>444</a>        <span class="kw">if </span>cli.test_mode || matches.contains_id(<span class="string">"test_mode"</span>) {
+<a href=#444 id=444 data-nosnippet>444</a>        <span class="kw">if </span>cli.test_mode {
 <a href=#445 id=445 data-nosnippet>445</a>            <span class="self">self</span>.test_mode = <span class="bool-val">true</span>;
 <a href=#446 id=446 data-nosnippet>446</a>        }
-<a href=#447 id=447 data-nosnippet>447</a>        <span class="kw">if </span>cli.demo || matches.contains_id(<span class="string">"demo"</span>) {
+<a href=#447 id=447 data-nosnippet>447</a>        <span class="kw">if </span>cli.demo {
 <a href=#448 id=448 data-nosnippet>448</a>            <span class="self">self</span>.demo = <span class="bool-val">true</span>;
 <a href=#449 id=449 data-nosnippet>449</a>            <span class="comment">// Demo mode implies memory-only storage
 <a href=#450 id=450 data-nosnippet>450</a>            </span><span class="self">self</span>.storage.storage_backend = StorageBackendType::Memory;
