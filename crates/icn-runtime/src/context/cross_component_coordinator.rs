@@ -252,7 +252,7 @@ impl NetworkDagManager {
         // Try local retrieval first
         {
             let store = self.dag_store.lock().await;
-            if let Ok(block) = store.get(&cid).await {
+            if let Some(block) = store.get(&cid).await.ok() {
                 debug!("Found block locally: {}", cid);
                 return Ok(DagOperationResult::Retrieve { 
                     cid, 
@@ -478,8 +478,8 @@ impl EconomicsDecisionEngine {
     }
 
     async fn compute_optimization(&self, operation: &DagOperation) -> Result<OperationOptimization, HostAbiError> {
-        // Get current reputation
-        let current_reputation = self.reputation_store.get_reputation(&self.current_identity);
+        // Get current reputation (convert u64 to f64)
+        let current_reputation = self.reputation_store.get_reputation(&self.current_identity) as f64;
         
         // Get governance policies (simplified for now)
         let governance_policies = self.get_relevant_policies().await?;
@@ -979,11 +979,12 @@ impl IntegrationMetrics {
         });
 
         if !result.was_successful() {
+            let operation_type = result.operation_type();
             tokio::spawn({
                 let error_counts = self.error_counts.clone();
                 async move {
                     let mut counts = error_counts.write().await;
-                    *counts.entry(result.operation_type()).or_insert(0) += 1;
+                    *counts.entry(operation_type).or_insert(0) += 1;
                 }
             });
         }
@@ -1089,11 +1090,21 @@ impl CachedDecision {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct SyncState {
     pub last_maintenance: Instant,
     pub sync_errors: usize,
     pub successful_syncs: usize,
+}
+
+impl Default for SyncState {
+    fn default() -> Self {
+        Self {
+            last_maintenance: Instant::now(),
+            sync_errors: 0,
+            successful_syncs: 0,
+        }
+    }
 }
 
 impl SyncState {

@@ -114,7 +114,7 @@ use serde_json;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration as StdDuration;
-use sysinfo::{System, SystemExt};
+use sysinfo::System;
 use tokio::sync::{mpsc, Mutex as TokioMutex};
 
 /// Parameter key for the mana capacity limit managed via governance.
@@ -483,6 +483,25 @@ impl RuntimeContext {
         Arc::new(map)
     }
 
+    /// Create a cross-component coordinator with the given services
+    fn create_cross_component_coordinator(
+        mesh_network_service: Arc<MeshNetworkServiceType>,
+        dag_store: Arc<DagStoreMutexType<DagStorageService>>,
+        governance_module: Arc<DagStoreMutexType<GovernanceModule>>,
+        reputation_store: Arc<dyn ReputationStore>,
+        current_identity: Did,
+        time_provider: Arc<dyn TimeProvider>,
+    ) -> Arc<CrossComponentCoordinator> {
+        Arc::new(CrossComponentCoordinator::new(
+            mesh_network_service,
+            dag_store,
+            governance_module,
+            reputation_store,
+            current_identity,
+            time_provider,
+        ))
+    }
+
     /// Validate that production services are being used correctly.
     ///
     /// This function performs runtime checks to ensure that stub services
@@ -565,6 +584,19 @@ impl RuntimeContext {
         // Keep the temp file alive by storing it
         std::mem::forget(temp_file);
         let mana_ledger = SimpleManaLedger::new(temp_path);
+
+        let dag_store = Arc::new(DagStoreMutexType::new(StubDagStore::new()))
+            as Arc<DagStoreMutexType<DagStorageService>>;
+        
+        // Create cross-component coordinator
+        let cross_component_coordinator = Self::create_cross_component_coordinator(
+            mesh_network_service.clone(),
+            dag_store.clone(),
+            governance_module.clone(),
+            reputation_store.clone(),
+            current_identity.clone(),
+            time_provider.clone(),
+        );
 
         Ok(Arc::new(Self {
             current_identity,
@@ -812,14 +844,14 @@ impl RuntimeContext {
         let parameters = Self::default_parameters();
 
         // Initialize cross-component coordinator with all services
-        let cross_component_coordinator = Arc::new(CrossComponentCoordinator::new(
+        let cross_component_coordinator = Self::create_cross_component_coordinator(
             config.mesh_network_service.clone(),
             config.dag_store.clone(),
             governance_module.clone(),
             config.reputation_store.clone(),
             config.current_identity.clone(),
             config.time_provider.clone(),
-        ));
+        );
 
         Ok(Arc::new(Self {
             current_identity: config.current_identity,
