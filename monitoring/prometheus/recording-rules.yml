@@ -1,0 +1,226 @@
+groups:
+  - name: icn_node_aggregations
+    interval: 30s
+    rules:
+      # Node Health Aggregations
+      - record: icn:node_health_score
+        expr: |
+          (
+            clamp_max(
+              (
+                (rate(http_requests_total[5m]) > 0) +
+                (up == 1) +
+                (icn:node_peer_connectivity_ratio > 0.7) +
+                (icn:node_mana_balance_ratio > 0.1) +
+                (rate(runtime_jobs_failed_total[5m]) < 0.1)
+              ) / 5, 1
+            )
+          )
+        labels:
+          aggregation: "health"
+
+      # Network Connectivity Health
+      - record: icn:node_peer_connectivity_ratio
+        expr: |
+          (
+            network_peer_count / 
+            on() group_left() 
+            (max(network_peer_count) or vector(1))
+          )
+        labels:
+          aggregation: "network"
+
+      # Economic Health
+      - record: icn:node_mana_balance_ratio
+        expr: |
+          (
+            mana_supply_total / 
+            on() group_left() 
+            (max(mana_supply_total) or vector(1))
+          )
+        labels:
+          aggregation: "economics"
+
+      # Job Execution Performance
+      - record: icn:job_success_rate_5m
+        expr: |
+          (
+            rate(runtime_jobs_completed_total[5m]) / 
+            (rate(runtime_jobs_completed_total[5m]) + rate(runtime_jobs_failed_total[5m]))
+          )
+        labels:
+          aggregation: "performance"
+
+      - record: icn:job_throughput_5m
+        expr: |
+          rate(runtime_jobs_completed_total[5m])
+        labels:
+          aggregation: "performance"
+
+      - record: icn:avg_job_duration_5m
+        expr: |
+          rate(mesh_job_execution_duration_seconds_sum[5m]) / 
+          rate(mesh_job_execution_duration_seconds_count[5m])
+        labels:
+          aggregation: "performance"
+
+  - name: icn_federation_aggregations
+    interval: 60s
+    rules:
+      # Federation-wide Health
+      - record: icn:federation_node_count
+        expr: count(up{job="icn-node"})
+        labels:
+          aggregation: "federation"
+
+      - record: icn:federation_healthy_nodes
+        expr: count(icn:node_health_score > 0.7)
+        labels:
+          aggregation: "federation"
+
+      - record: icn:federation_health_ratio
+        expr: |
+          (
+            icn:federation_healthy_nodes / 
+            icn:federation_node_count
+          )
+        labels:
+          aggregation: "federation"
+
+      # Federation Economic Metrics
+      - record: icn:federation_total_mana
+        expr: sum(mana_supply_total)
+        labels:
+          aggregation: "economics"
+
+      - record: icn:federation_mana_velocity
+        expr: |
+          (
+            sum(rate(economics_mana_spending_operations_total[5m])) /
+            sum(mana_supply_total)
+          )
+        labels:
+          aggregation: "economics"
+
+      # Federation Job Metrics  
+      - record: icn:federation_job_backlog
+        expr: sum(mesh_jobs_pending)
+        labels:
+          aggregation: "jobs"
+
+      - record: icn:federation_active_jobs
+        expr: sum(mesh_jobs_executing)
+        labels:
+          aggregation: "jobs"
+
+      - record: icn:federation_job_completion_rate
+        expr: sum(rate(runtime_jobs_completed_total[5m]))
+        labels:
+          aggregation: "jobs"
+
+  - name: icn_governance_aggregations
+    interval: 120s
+    rules:
+      # Governance Activity
+      - record: icn:governance_proposal_rate
+        expr: rate(governance_proposals_submitted_total[1h])
+        labels:
+          aggregation: "governance"
+
+      - record: icn:governance_voting_participation
+        expr: |
+          (
+            rate(governance_votes_cast_total[1h]) /
+            (rate(governance_proposals_submitted_total[1h]) * icn:federation_node_count)
+          )
+        labels:
+          aggregation: "governance"
+
+      - record: icn:governance_execution_success_rate
+        expr: |
+          (
+            rate(governance_proposals_executed_total[1h]) /
+            rate(governance_proposals_submitted_total[1h])
+          )
+        labels:
+          aggregation: "governance"
+
+  - name: icn_security_aggregations
+    interval: 30s
+    rules:
+      # Security Metrics
+      - record: icn:auth_failure_rate_5m
+        expr: rate(auth_failures_total[5m])
+        labels:
+          aggregation: "security"
+
+      - record: icn:rate_limit_violation_rate_5m
+        expr: rate(rate_limit_violations_total[5m])
+        labels:
+          aggregation: "security"
+
+      - record: icn:proof_verification_failure_rate_5m
+        expr: |
+          (
+            rate(identity_proof_verification_failures_total[5m]) /
+            (rate(identity_proofs_verified_total[5m]) + rate(identity_proof_verification_failures_total[5m]))
+          )
+        labels:
+          aggregation: "security"
+
+  - name: icn_system_aggregations
+    interval: 30s
+    rules:
+      # System Resource Usage
+      - record: icn:node_memory_usage_ratio
+        expr: |
+          (
+            system_memory_usage_bytes / 
+            (system_memory_usage_bytes + 1073741824)  # Assume at least 1GB available
+          )
+        labels:
+          aggregation: "system"
+
+      - record: icn:node_cpu_usage_ratio
+        expr: |
+          rate(system_cpu_usage_percent[5m]) / 100
+        labels:
+          aggregation: "system"
+
+      - record: icn:http_error_rate_5m
+        expr: |
+          (
+            rate(http_errors_total[5m]) /
+            rate(http_requests_total[5m])
+          )
+        labels:
+          aggregation: "system"
+
+      - record: icn:http_latency_p95_5m
+        expr: |
+          histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))
+        labels:
+          aggregation: "system"
+
+  - name: icn_storage_aggregations
+    interval: 60s
+    rules:
+      # DAG Storage Metrics
+      - record: icn:dag_growth_rate_1h
+        expr: rate(dag_storage_size_bytes[1h])
+        labels:
+          aggregation: "storage"
+
+      - record: icn:dag_operation_success_rate_5m
+        expr: |
+          (
+            rate(dag_put_calls_total[5m]) /
+            (rate(dag_put_calls_total[5m]) + rate(dag_get_calls_total[5m]))
+          )
+        labels:
+          aggregation: "storage"
+
+      - record: icn:receipt_anchoring_rate_5m
+        expr: rate(runtime_receipts_anchored_total[5m])
+        labels:
+          aggregation: "storage" 

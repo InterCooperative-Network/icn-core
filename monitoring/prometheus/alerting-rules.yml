@@ -1,0 +1,287 @@
+groups:
+  - name: icn_critical_alerts
+    rules:
+      # Node Health Critical Alerts
+      - alert: ICNNodeDown
+        expr: up{job="icn-node"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: node
+        annotations:
+          summary: "ICN node {{ $labels.instance }} is down"
+          description: "ICN node {{ $labels.instance }} has been down for more than 1 minute."
+          runbook: "Check node logs and system resources. Restart if necessary."
+
+      - alert: ICNNodeUnhealthy
+        expr: icn:node_health_score < 0.5
+        for: 5m
+        labels:
+          severity: critical
+          component: node
+        annotations:
+          summary: "ICN node {{ $labels.instance }} is unhealthy"
+          description: "Node health score is {{ $value }}, indicating severe operational issues."
+          runbook: "Check node connectivity, mana balance, and job execution status."
+
+      # Federation Health Critical Alerts
+      - alert: ICNFederationPartition
+        expr: icn:federation_health_ratio < 0.6
+        for: 3m
+        labels:
+          severity: critical
+          component: federation
+        annotations:
+          summary: "ICN federation experiencing network partition"
+          description: "Only {{ $value }}% of federation nodes are healthy, indicating potential network partition."
+          runbook: "Check network connectivity between nodes. Investigate P2P connections."
+
+      - alert: ICNLowNodeCount
+        expr: icn:federation_node_count < 3
+        for: 2m
+        labels:
+          severity: critical
+          component: federation
+        annotations:
+          summary: "ICN federation has too few nodes"
+          description: "Federation only has {{ $value }} nodes, below minimum for safe operation."
+          runbook: "Add more nodes to the federation or investigate node failures."
+
+  - name: icn_warning_alerts
+    rules:
+      # Performance Warning Alerts
+      - alert: ICNHighJobFailureRate
+        expr: icn:job_success_rate_5m < 0.8
+        for: 10m
+        labels:
+          severity: warning
+          component: mesh
+        annotations:
+          summary: "High job failure rate detected"
+          description: "Job success rate is {{ $value }}, indicating execution issues."
+          runbook: "Check executor health, resource availability, and job specifications."
+
+      - alert: ICNJobBacklogGrowing
+        expr: increase(icn:federation_job_backlog[10m]) > 50
+        for: 5m
+        labels:
+          severity: warning
+          component: mesh
+        annotations:
+          summary: "Job backlog growing rapidly"
+          description: "Job backlog increased by {{ $value }} jobs in 10 minutes."
+          runbook: "Scale up executors or investigate job processing bottlenecks."
+
+      - alert: ICNSlowJobExecution
+        expr: icn:avg_job_duration_5m > 300
+        for: 15m
+        labels:
+          severity: warning
+          component: mesh
+        annotations:
+          summary: "Job execution times are high"
+          description: "Average job duration is {{ $value }} seconds."
+          runbook: "Check executor performance and resource constraints."
+
+      # Network Warning Alerts
+      - alert: ICNLowPeerConnectivity
+        expr: icn:node_peer_connectivity_ratio < 0.5
+        for: 10m
+        labels:
+          severity: warning
+          component: network
+        annotations:
+          summary: "Node {{ $labels.instance }} has low peer connectivity"
+          description: "Node connectivity ratio is {{ $value }}, indicating network issues."
+          runbook: "Check firewall settings, NAT configuration, and bootstrap peers."
+
+      - alert: ICNHighNetworkLatency
+        expr: network_ping_rtt_avg_ms > 1000
+        for: 5m
+        labels:
+          severity: warning
+          component: network
+        annotations:
+          summary: "High network latency detected"
+          description: "Average ping RTT is {{ $value }}ms, indicating network congestion."
+          runbook: "Check network infrastructure and routing between nodes."
+
+  - name: icn_security_alerts
+    rules:
+      # Security Critical Alerts
+      - alert: ICNHighAuthFailureRate
+        expr: icn:auth_failure_rate_5m > 0.1
+        for: 2m
+        labels:
+          severity: critical
+          component: security
+        annotations:
+          summary: "High authentication failure rate"
+          description: "Authentication failure rate is {{ $value }} per second, possible attack."
+          runbook: "Check for brute force attacks. Review authentication logs."
+
+      - alert: ICNProofVerificationFailures
+        expr: icn:proof_verification_failure_rate_5m > 0.2
+        for: 5m
+        labels:
+          severity: warning
+          component: security
+        annotations:
+          summary: "High proof verification failure rate"
+          description: "{{ $value }}% of proof verifications are failing."
+          runbook: "Check ZK proof generation and verification logic."
+
+      - alert: ICNRateLimitViolations
+        expr: icn:rate_limit_violation_rate_5m > 0.5
+        for: 3m
+        labels:
+          severity: warning
+          component: security
+        annotations:
+          summary: "High rate limit violation rate"
+          description: "Rate limit violations at {{ $value }} per second."
+          runbook: "Check for abusive clients. Consider adjusting rate limits."
+
+  - name: icn_economic_alerts
+    rules:
+      # Economic Warning Alerts
+      - alert: ICNLowManaSupply
+        expr: icn:federation_total_mana < 10000
+        for: 10m
+        labels:
+          severity: warning
+          component: economics
+        annotations:
+          summary: "Low total mana supply in federation"
+          description: "Total mana supply is {{ $value }}, may affect job execution."
+          runbook: "Check mana regeneration rates and account balances."
+
+      - alert: ICNHighManaVelocity
+        expr: icn:federation_mana_velocity > 0.5
+        for: 15m
+        labels:
+          severity: warning
+          component: economics
+        annotations:
+          summary: "High mana velocity detected"
+          description: "Mana velocity is {{ $value }}, indicating high resource consumption."
+          runbook: "Monitor for resource-intensive jobs or potential abuse."
+
+      - alert: ICNManaAccountImbalance
+        expr: max(mana_supply_total) / min(mana_supply_total) > 10
+        for: 20m
+        labels:
+          severity: warning
+          component: economics
+        annotations:
+          summary: "Large mana imbalance between accounts"
+          description: "Ratio between highest and lowest mana accounts is {{ $value }}."
+          runbook: "Check for mana distribution issues or account problems."
+
+  - name: icn_governance_alerts
+    rules:
+      # Governance Warning Alerts
+      - alert: ICNLowGovernanceParticipation
+        expr: icn:governance_voting_participation < 0.3
+        for: 1h
+        labels:
+          severity: warning
+          component: governance
+        annotations:
+          summary: "Low governance participation rate"
+          description: "Only {{ $value }}% of nodes are participating in governance."
+          runbook: "Investigate node governance capabilities and engagement."
+
+      - alert: ICNStagnantGovernance
+        expr: rate(governance_proposals_submitted_total[4h]) == 0
+        for: 24h
+        labels:
+          severity: info
+          component: governance
+        annotations:
+          summary: "No governance activity for 24 hours"
+          description: "No new proposals have been submitted in the last 24 hours."
+          runbook: "Normal unless expecting specific governance changes."
+
+  - name: icn_system_alerts
+    rules:
+      # System Resource Warning Alerts
+      - alert: ICNHighMemoryUsage
+        expr: icn:node_memory_usage_ratio > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "High memory usage on node {{ $labels.instance }}"
+          description: "Memory usage is {{ $value }}% of available memory."
+          runbook: "Check for memory leaks. Consider increasing memory or reducing load."
+
+      - alert: ICNHighCPUUsage
+        expr: icn:node_cpu_usage_ratio > 0.8
+        for: 10m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "High CPU usage on node {{ $labels.instance }}"
+          description: "CPU usage is {{ $value }}% over the last 5 minutes."
+          runbook: "Check for CPU-intensive jobs or processes."
+
+      - alert: ICNHighHTTPErrorRate
+        expr: icn:http_error_rate_5m > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          component: api
+        annotations:
+          summary: "High HTTP error rate"
+          description: "{{ $value }}% of HTTP requests are returning errors."
+          runbook: "Check API endpoints and client requests."
+
+      - alert: ICNHighHTTPLatency
+        expr: icn:http_latency_p95_5m > 5
+        for: 10m
+        labels:
+          severity: warning
+          component: api
+        annotations:
+          summary: "High HTTP response latency"
+          description: "95th percentile response time is {{ $value }} seconds."
+          runbook: "Check API performance and backend processing times."
+
+  - name: icn_storage_alerts
+    rules:
+      # Storage Warning Alerts
+      - alert: ICNHighDAGGrowthRate
+        expr: icn:dag_growth_rate_1h > 100000000  # 100MB/hour
+        for: 30m
+        labels:
+          severity: warning
+          component: storage
+        annotations:
+          summary: "High DAG storage growth rate"
+          description: "DAG storage growing at {{ $value }} bytes per hour."
+          runbook: "Monitor storage capacity and consider cleanup policies."
+
+      - alert: ICNLowReceiptAnchoringRate
+        expr: icn:receipt_anchoring_rate_5m < 0.1
+        for: 15m
+        labels:
+          severity: warning
+          component: storage
+        annotations:
+          summary: "Low receipt anchoring rate"
+          description: "Receipt anchoring rate is {{ $value }} per second."
+          runbook: "Check DAG storage health and anchoring process."
+
+      - alert: ICNDAGOperationFailures
+        expr: icn:dag_operation_success_rate_5m < 0.95
+        for: 10m
+        labels:
+          severity: warning
+          component: storage
+        annotations:
+          summary: "DAG operation failures detected"
+          description: "DAG operation success rate is {{ $value }}."
+          runbook: "Check DAG storage backend health and connectivity." 

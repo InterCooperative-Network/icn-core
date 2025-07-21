@@ -330,73 +330,13 @@ fn register_mesh_metrics(registry: &mut Registry) {
 }
 
 /// Register runtime-related metrics
+/// NOTE: Runtime metrics are now registered directly by icn-runtime
+/// via icn_runtime::register_runtime_metrics() to avoid circular dependency
 #[cfg(feature = "runtime-metrics")]
 fn register_runtime_metrics(registry: &mut Registry) {
-    // TODO: Move this to icn-runtime to avoid circular dependency
-    // The runtime should register its own metrics directly
-    // use icn_runtime::metrics::{
-    //     HOST_ACCOUNT_CREDIT_MANA_CALLS, HOST_ACCOUNT_GET_MANA_CALLS, HOST_ACCOUNT_SPEND_MANA_CALLS,
-    //     HOST_ANCHOR_RECEIPT_CALLS, HOST_GET_PENDING_MESH_JOBS_CALLS, HOST_SUBMIT_MESH_JOB_CALLS,
-    //     MANA_ACCOUNTS_GAUGE, RECEIPTS_ANCHORED, WASM_MEMORY_GROWTH_DENIED,
-    //     WASM_TABLE_GROWTH_DENIED,
-    // };
-
-    // TODO: Temporarily commented out to fix circular dependency
-    // These metrics should be registered directly by icn-runtime
-    /*
-    registry.register(
-        "runtime_host_submit_mesh_job_calls_total",
-        "Number of host_submit_mesh_job calls",
-        HOST_SUBMIT_MESH_JOB_CALLS.clone(),
-    );
-    registry.register(
-        "runtime_host_get_pending_mesh_jobs_calls_total",
-        "Number of host_get_pending_mesh_jobs calls",
-        HOST_GET_PENDING_MESH_JOBS_CALLS.clone(),
-    );
-    registry.register(
-        "runtime_host_account_get_mana_calls_total",
-        "Number of host_account_get_mana calls",
-        HOST_ACCOUNT_GET_MANA_CALLS.clone(),
-    );
-    registry.register(
-        "runtime_host_account_spend_mana_calls_total",
-        "Number of host_account_spend_mana calls",
-        HOST_ACCOUNT_SPEND_MANA_CALLS.clone(),
-    );
-    registry.register(
-        "runtime_host_account_credit_mana_calls_total",
-        "Number of host_account_credit_mana calls",
-        HOST_ACCOUNT_CREDIT_MANA_CALLS.clone(),
-    );
-    registry.register(
-        "runtime_host_anchor_receipt_calls_total",
-        "Number of host_anchor_receipt calls",
-        HOST_ANCHOR_RECEIPT_CALLS.clone(),
-    );
-    registry.register(
-        "runtime_receipts_anchored_total",
-        "Number of receipts anchored to the DAG",
-        RECEIPTS_ANCHORED.clone(),
-    );
-    */
-    /*
-    registry.register(
-        "runtime_wasm_memory_growth_denied_total",
-        "Number of denied WASM memory growth attempts",
-        WASM_MEMORY_GROWTH_DENIED.clone(),
-    );
-    registry.register(
-        "runtime_wasm_table_growth_denied_total",
-        "Number of denied WASM table growth attempts",
-        WASM_TABLE_GROWTH_DENIED.clone(),
-    );
-    registry.register(
-        "mana_accounts",
-        "Number of accounts in the mana ledger",
-        MANA_ACCOUNTS_GAUGE.clone(),
-    );
-    */
+    // Runtime metrics are now handled by icn-runtime crate directly
+    // This function is kept for compatibility but does nothing
+    let _ = registry; // Suppress unused parameter warning
 }
 
 /// Register system-level metrics
