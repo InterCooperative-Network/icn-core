@@ -3,13 +3,10 @@
 //! Tests the actual implemented methods in SmartP2pRouter and related components.
 
 use icn_runtime::context::{
-    RuntimeContext, RuntimeContextBuilder, EnvironmentType, CrossComponentCoordinator,
-    HostAbiError, MessagePriority, PropagationPriority,
+    RuntimeContextBuilder, EnvironmentType, HostAbiError,
 };
-use icn_common::{Did, TimeProvider};
+use icn_common::Did;
 use std::str::FromStr;
-use std::sync::Arc;
-use std::time::Duration;
 use tokio;
 
 /// Test Smart P2P Router initialization through RuntimeContext
@@ -188,12 +185,15 @@ async fn test_system_status() -> Result<(), Box<dyn std::error::Error>> {
     let status = coordinator.get_system_status().await;
     
     println!("✅ System status retrieved:");
-    println!("  - Smart router active: {}", status.smart_router_active);
-    println!("  - CCL integration active: {}", status.ccl_integration_active);
-    println!("  - DAG sync active: {}", status.dag_sync_active);
+    println!("  - Health: {:?}", status.health);
+    println!("  - Performance total ops: {}", status.performance.total_operations);
+    println!("  - Performance success rate: {:.1}%", status.performance.success_rate * 100.0);
+    println!("  - Integration operation counts: {:?}", status.integration.operation_counts);
+    println!("  - Network DAG sync health: {}", status.network_dag.sync_health);
     
     // Verify status structure is reasonable
-    assert!(status.smart_router_active || !status.smart_router_active); // Always true, just checking access
+    assert!(status.performance.total_operations >= 0);
+    assert!(status.performance.success_rate >= 0.0 && status.performance.success_rate <= 1.0);
     
     Ok(())
 }
@@ -278,11 +278,15 @@ async fn test_intelligent_dag_sync() -> Result<(), Box<dyn std::error::Error>> {
     match sync_result {
         Ok(result) => {
             println!("✅ Intelligent DAG sync completed:");
-            println!("  - Blocks synced: {}", result.blocks_synced);
-            println!("  - Success: {}", result.success);
+            println!("  - Blocks received: {}", result.blocks_received);
+            println!("  - Blocks sent: {}", result.blocks_sent);
+            println!("  - Peers contacted: {}", result.peers_contacted);
+            println!("  - Strategy used: {}", result.strategy_used);
             
             // Verify result structure
-            assert!(result.blocks_synced >= 0);
+            assert!(result.blocks_received >= 0);
+            assert!(result.blocks_sent >= 0);
+            assert!(result.peers_contacted >= 0);
         }
         Err(HostAbiError::NetworkError(_)) => {
             println!("✅ DAG sync failed as expected (no network in test)");
@@ -307,8 +311,8 @@ async fn test_component_health_check() -> Result<(), Box<dyn std::error::Error>>
 
     let coordinator = &runtime_ctx.cross_component_coordinator;
     
-    // Test component health check
-    let health_status = coordinator.check_component_health().await;
+    // Test component health check through health monitor
+    let health_status = coordinator.health_monitor.check_component_health().await;
     
     println!("✅ Component health check completed: {:?}", health_status);
     

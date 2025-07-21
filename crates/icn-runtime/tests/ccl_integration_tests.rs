@@ -3,12 +3,10 @@
 //! Tests the actual implemented methods in CclIntegrationCoordinator and related components.
 
 use icn_runtime::context::{
-    RuntimeContext, RuntimeContextBuilder, EnvironmentType, CrossComponentCoordinator,
-    HostAbiError, PropagationPriority, MessagePriority,
+    RuntimeContextBuilder, EnvironmentType, HostAbiError,
 };
-use icn_common::{Did, TimeProvider};
+use icn_common::Did;
 use std::str::FromStr;
-use std::sync::Arc;
 use std::time::Duration;
 use tokio;
 
@@ -75,12 +73,14 @@ async fn test_ccl_integration_in_system_status() -> Result<(), Box<dyn std::erro
     let status = coordinator.get_system_status().await;
     
     println!("✅ System status includes CCL integration:");
-    println!("  - CCL integration active: {}", status.ccl_integration_active);
-    println!("  - Smart router active: {}", status.smart_router_active);
-    println!("  - DAG sync active: {}", status.dag_sync_active);
+    println!("  - Health: {:?}", status.health);
+    println!("  - Performance total ops: {}", status.performance.total_operations);
+    println!("  - Integration operation counts: {:?}", status.integration.operation_counts);
+    println!("  - Network DAG sync health: {}", status.network_dag.sync_health);
     
-    // Verify status structure includes CCL integration
-    assert!(status.ccl_integration_active || !status.ccl_integration_active); // Always true, just checking access
+    // Verify status structure includes relevant information
+    assert!(status.performance.total_operations >= 0);
+    assert!(status.performance.success_rate >= 0.0 && status.performance.success_rate <= 1.0);
     
     Ok(())
 }
@@ -128,11 +128,14 @@ async fn test_dag_sync_for_ccl_integration() -> Result<(), Box<dyn std::error::E
     match sync_result {
         Ok(result) => {
             println!("✅ DAG sync for CCL integration completed:");
-            println!("  - Blocks synced: {}", result.blocks_synced);
-            println!("  - Success: {}", result.success);
+            println!("  - Blocks received: {}", result.blocks_received);
+            println!("  - Blocks sent: {}", result.blocks_sent);
+            println!("  - Peers contacted: {}", result.peers_contacted);
+            println!("  - Strategy used: {}", result.strategy_used);
             
             // Verify result structure
-            assert!(result.blocks_synced >= 0);
+            assert!(result.blocks_received >= 0);
+            assert!(result.blocks_sent >= 0);
         }
         Err(HostAbiError::NetworkError(_)) => {
             println!("✅ DAG sync failed as expected (no network in test)");
@@ -157,18 +160,17 @@ async fn test_dag_sync_status_for_ccl() -> Result<(), Box<dyn std::error::Error>
 
     let coordinator = &runtime_ctx.cross_component_coordinator;
     
-    // Test getting DAG sync status which affects CCL integration
-    let sync_status = coordinator.get_sync_status().await;
+    // Test getting DAG sync status through network dag manager
+    let sync_status = coordinator.network_dag_manager.get_sync_status().await;
     
     println!("✅ DAG sync status for CCL integration:");
-    println!("  - Connected peers: {}", sync_status.connected_peers);
-    println!("  - Pending blocks: {}", sync_status.pending_blocks);
-    println!("  - Sync quality: {:.2}", sync_status.sync_quality);
+    println!("  - Sync health: {}", sync_status.sync_health);
+    println!("  - Pending propagations: {}", sync_status.pending_propagations);
+    println!("  - Last maintenance: {:?}", sync_status.last_maintenance);
     
     // Verify sync status structure
-    assert!(sync_status.connected_peers >= 0);
-    assert!(sync_status.pending_blocks >= 0);
-    assert!(sync_status.sync_quality >= 0.0 && sync_status.sync_quality <= 1.0);
+    assert!(sync_status.pending_propagations >= 0);
+    assert!(!sync_status.sync_health.is_empty());
     
     Ok(())
 }
@@ -184,17 +186,17 @@ async fn test_ccl_integration_metrics() -> Result<(), Box<dyn std::error::Error>
 
     let coordinator = &runtime_ctx.cross_component_coordinator;
     
-    // Test getting current performance metrics which include CCL integration
-    let metrics = coordinator.get_current_metrics().await;
+    // Test getting current performance metrics through performance optimizer
+    let metrics = coordinator.performance_optimizer.get_current_metrics().await;
     
     println!("✅ Performance metrics including CCL integration:");
-    println!("  - Operations per second: {:.2}", metrics.operations_per_second);
-    println!("  - Average latency: {:.2}ms", metrics.average_latency_ms);
+    println!("  - Total operations: {}", metrics.total_operations);
+    println!("  - Successful operations: {}", metrics.successful_operations);
     println!("  - Success rate: {:.1}%", metrics.success_rate * 100.0);
     
     // Verify metrics structure
-    assert!(metrics.operations_per_second >= 0.0);
-    assert!(metrics.average_latency_ms >= 0.0);
+    assert!(metrics.total_operations >= 0);
+    assert!(metrics.successful_operations >= 0);
     assert!(metrics.success_rate >= 0.0 && metrics.success_rate <= 1.0);
     
     Ok(())
@@ -211,8 +213,8 @@ async fn test_ccl_integration_health_check() -> Result<(), Box<dyn std::error::E
 
     let coordinator = &runtime_ctx.cross_component_coordinator;
     
-    // Test component health check which should include CCL integration
-    let health_status = coordinator.check_component_health().await;
+    // Test component health check through health monitor
+    let health_status = coordinator.health_monitor.check_component_health().await;
     
     println!("✅ Component health check includes CCL integration: {:?}", health_status);
     
@@ -233,18 +235,18 @@ async fn test_ccl_integration_metrics_summary() -> Result<(), Box<dyn std::error
 
     let coordinator = &runtime_ctx.cross_component_coordinator;
     
-    // Test getting integration metrics summary
-    let summary = coordinator.get_summary().await;
+    // Test getting integration metrics summary through metrics
+    let summary = coordinator.metrics.get_summary().await;
     
     println!("✅ Integration metrics summary (includes CCL):");
-    println!("  - Total operations: {}", summary.total_operations);
-    println!("  - Success rate: {:.1}%", summary.success_rate * 100.0);
-    println!("  - Average execution time: {:.2}ms", summary.avg_execution_time_ms);
+    println!("  - Operation counts: {:?}", summary.operation_counts);
+    println!("  - Error counts: {:?}", summary.error_counts);
+    println!("  - Latency stats: {:?}", summary.latency_stats);
     
-    // Verify summary structure
-    assert!(summary.total_operations >= 0);
-    assert!(summary.success_rate >= 0.0 && summary.success_rate <= 1.0);
-    assert!(summary.avg_execution_time_ms >= 0.0);
+    // Verify summary structure (just checking that we can access the fields)
+    let _op_count = summary.operation_counts.len();
+    let _err_count = summary.error_counts.len();
+    let _latency_count = summary.latency_stats.len();
     
     Ok(())
 }
@@ -260,8 +262,8 @@ async fn test_sync_maintenance_for_ccl() -> Result<(), Box<dyn std::error::Error
 
     let coordinator = &runtime_ctx.cross_component_coordinator;
     
-    // Test running sync maintenance which CCL integration depends on
-    coordinator.run_sync_maintenance().await;
+    // Test running sync maintenance through network dag manager
+    coordinator.network_dag_manager.run_sync_maintenance().await;
     
     println!("✅ Sync maintenance for CCL integration completed successfully");
     
@@ -279,11 +281,11 @@ async fn test_continuous_monitoring_with_ccl() -> Result<(), Box<dyn std::error:
 
     let coordinator = &runtime_ctx.cross_component_coordinator;
     
-    // Start continuous monitoring (which includes CCL integration) for a short time
+    // Start continuous monitoring through health monitor for a short time
     let monitoring_task = tokio::spawn({
-        let coordinator = coordinator.clone();
+        let health_monitor = coordinator.health_monitor.clone();
         async move {
-            coordinator.run_continuous_monitoring().await;
+            health_monitor.run_continuous_monitoring().await;
         }
     });
     
