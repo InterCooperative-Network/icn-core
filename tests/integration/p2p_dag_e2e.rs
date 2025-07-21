@@ -126,7 +126,7 @@ mod p2p_dag_e2e_tests {
             // Create a block request message
             let request_msg = ProtocolMessage::new(
                 MessagePayload::DagBlockRequest(DagBlockRequestMessage {
-                    block_cid: *cid,
+                    block_cid: cid.clone(),
                     priority: 128, // Medium priority
                 }),
                 self.did.clone(),
@@ -148,7 +148,7 @@ mod p2p_dag_e2e_tests {
         async fn announce_block(&self, block: &DagBlock) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             let announcement = ProtocolMessage::new(
                 MessagePayload::DagBlockAnnouncement(DagBlockAnnouncementMessage {
-                    block_cid: block.cid,
+                    block_cid: block.cid.clone(),
                     block_size: block.data.len() as u64,
                     link_count: block.links.len() as u32,
                     created_at: block.timestamp,
@@ -245,7 +245,7 @@ mod p2p_dag_e2e_tests {
             // Create a test block on node 0
             let test_data = b"distributed_storage_test_data";
             let block = self.nodes[0].create_test_block(test_data, vec![]);
-            let block_cid = block.cid;
+            let block_cid = block.cid.clone();
             
             // Store the block on node 0
             self.nodes[0].store_block(&block).await?;
@@ -301,7 +301,7 @@ mod p2p_dag_e2e_tests {
                     
                     let announcement = ProtocolMessage::new(
                         MessagePayload::DagBlockAnnouncement(DagBlockAnnouncementMessage {
-                            block_cid: block.cid,
+                            block_cid: block.cid.clone(),
                             block_size: block.data.len() as u64,
                             link_count: block.links.len() as u32,
                             created_at: block.timestamp,
