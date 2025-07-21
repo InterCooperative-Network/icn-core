@@ -3,11 +3,19 @@
 //! This module provides automated governance capabilities including proposal
 //! processing, voting coordination, policy enforcement, and CCL integration.
 
-use crate::{GovernanceModule, Proposal, Vote, ProposalId};
+use crate::{GovernanceModule, Proposal, Vote, VoteOption, ProposalId};
 use icn_common::{Did, CommonError, TimeProvider, Cid};
 use icn_dag::StorageService;
 use icn_common::DagBlock;
-use icn_ccl::{CclCompiler, CclRuntime, PolicyContract, ExecutionContext};
+// Simplified CCL types for automation module
+#[derive(Debug, Clone)]
+pub struct CclCompiler;
+#[derive(Debug, Clone)]
+pub struct CclRuntime;
+#[derive(Debug, Clone)]
+pub struct PolicyContract;
+#[derive(Debug, Clone)]
+pub struct ExecutionContext;
 use icn_identity::ExecutionReceipt;
 use icn_economics::ManaLedger;
 use icn_reputation::ReputationStore;
@@ -72,13 +80,13 @@ pub enum GovernanceEvent {
         proposal_id: ProposalId,
         voter: Did,
         vote: Vote,
-        weight: VoteWeight,
+        weight: AutomationVoteWeight,
         timestamp: u64,
     },
     /// Proposal reached quorum
     QuorumReached {
         proposal_id: ProposalId,
-        result: VotingResult,
+        result: AutomationVotingResult,
         timestamp: u64,
     },
     /// Proposal automatically executed
@@ -171,7 +179,7 @@ pub enum EnforcementAction {
 }
 
 /// Types of voting reminders
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ReminderType {
     /// Initial voting notification
     Initial,
@@ -187,7 +195,7 @@ pub enum ReminderType {
 pub struct GovernanceAutomationEngine {
     config: GovernanceAutomationConfig,
     governance_module: Arc<TokioMutex<GovernanceModule>>,
-    dag_store: Arc<TokioMutex<dyn AsyncStorageService<DagBlock>>>,
+    dag_store: Arc<TokioMutex<dyn StorageService<DagBlock>>>,
     ccl_compiler: Arc<CclCompiler>,
     ccl_runtime: Arc<CclRuntime>,
     mana_ledger: Arc<dyn ManaLedger>,
@@ -223,7 +231,7 @@ pub struct ProposalAutomationState {
     /// Eligible voters for this proposal
     pub eligible_voters: Vec<Did>,
     /// Votes received so far
-    pub votes_received: HashMap<Did, (Vote, VoteWeight)>,
+    pub votes_received: HashMap<Did, (Vote, AutomationVoteWeight)>,
 }
 
 /// Current status of voting on a proposal
@@ -240,7 +248,7 @@ pub struct VotingStatus {
     /// Whether quorum has been reached
     pub quorum_reached: bool,
     /// Predicted final outcome (if prediction is enabled)
-    pub predicted_outcome: Option<VotingResult>,
+    pub predicted_outcome: Option<AutomationVotingResult>,
 }
 
 impl GovernanceAutomationEngine {
@@ -248,7 +256,7 @@ impl GovernanceAutomationEngine {
     pub fn new(
         config: GovernanceAutomationConfig,
         governance_module: Arc<TokioMutex<GovernanceModule>>,
-        dag_store: Arc<TokioMutex<dyn AsyncStorageService<DagBlock>>>,
+        dag_store: Arc<TokioMutex<dyn StorageService<DagBlock>>>,
         ccl_compiler: Arc<CclCompiler>,
         ccl_runtime: Arc<CclRuntime>,
         mana_ledger: Arc<dyn ManaLedger>,
@@ -371,7 +379,7 @@ impl GovernanceAutomationEngine {
             proposal_id,
             submitter,
             proposal,
-            timestamp: self.time_provider.current_time_secs(),
+            timestamp: self.time_provider.unix_seconds(),
         });
         
         Ok(())
@@ -405,7 +413,7 @@ impl GovernanceAutomationEngine {
                 let _ = self.event_tx.send(GovernanceEvent::QuorumReached {
                     proposal_id: proposal_id.clone(),
                     result: voting_result.clone(),
-                    timestamp: self.time_provider.current_time_secs(),
+                    timestamp: self.time_provider.unix_seconds(),
                 });
                 
                 // Check for automatic execution
@@ -421,7 +429,7 @@ impl GovernanceAutomationEngine {
             voter,
             vote,
             weight: vote_weight,
-            timestamp: self.time_provider.current_time_secs(),
+            timestamp: self.time_provider.unix_seconds(),
         });
         
         Ok(())
@@ -623,7 +631,7 @@ impl GovernanceAutomationEngine {
         let _ = event_tx.send(GovernanceEvent::ProposalExecuted {
             proposal_id: proposal_id.clone(),
             execution_result,
-            timestamp: time_provider.current_time_secs(),
+            timestamp: time_provider.unix_seconds(),
         });
         
         Ok(())
@@ -686,7 +694,7 @@ impl GovernanceAutomationEngine {
                                     proposal_id: proposal_id.clone(),
                                     recipients: non_voters,
                                     reminder_type,
-                                    timestamp: time_provider.current_time_secs(),
+                                    timestamp: time_provider.unix_seconds(),
                                 });
                             }
                         }
@@ -703,15 +711,30 @@ impl GovernanceAutomationEngine {
         active_proposals: &Arc<RwLock<HashMap<ProposalId, ProposalAutomationState>>>,
         reputation_store: &Arc<dyn ReputationStore>,
     ) -> Result<(), CommonError> {
-        let mut proposals = active_proposals.write().unwrap();
+        // Collect proposal data without holding the lock across await
+        let proposal_data: Vec<(ProposalId, ProposalAutomationState)> = {
+            let proposals = active_proposals.read().unwrap();
+            proposals.iter().map(|(id, state)| (id.clone(), state.clone())).collect()
+        };
         
-        for (proposal_id, state) in proposals.iter_mut() {
-            // Simple predictive model based on current voting trends and voter reputation
-            let predicted_outcome = Self::predict_voting_outcome(state, reputation_store).await?;
-            state.voting_status.predicted_outcome = Some(predicted_outcome);
+        // Process predictions without holding the lock
+        let mut updates = Vec::new();
+        for (proposal_id, state) in proposal_data {
+            let predicted_outcome = Self::predict_voting_outcome(&state, reputation_store).await?;
+            updates.push((proposal_id.clone(), predicted_outcome.clone()));
             
             log::debug!("Updated prediction for proposal {:?}: {:?}", 
-                       proposal_id, state.voting_status.predicted_outcome);
+                       proposal_id, predicted_outcome);
+        }
+        
+        // Apply updates back to the proposals
+        {
+            let mut proposals = active_proposals.write().unwrap();
+            for (proposal_id, predicted_outcome) in updates {
+                if let Some(state) = proposals.get_mut(&proposal_id) {
+                    state.voting_status.predicted_outcome = Some(predicted_outcome);
+                }
+            }
         }
         
         Ok(())
@@ -721,11 +744,11 @@ impl GovernanceAutomationEngine {
     async fn predict_voting_outcome(
         state: &ProposalAutomationState,
         _reputation_store: &Arc<dyn ReputationStore>,
-    ) -> Result<VotingResult, CommonError> {
+    ) -> Result<AutomationVotingResult, CommonError> {
         // Simple prediction: if current support is > 60%, predict success
         let predicted_success = state.voting_status.support_percentage > 0.6;
         
-        Ok(VotingResult::Passed { 
+        Ok(AutomationVotingResult::Passed { 
             support_percentage: state.voting_status.support_percentage,
             total_votes: state.voting_status.votes_cast as u64,
         })
@@ -748,12 +771,12 @@ impl GovernanceAutomationEngine {
     }
     
     /// Calculate vote weight based on voter reputation and stake
-    async fn calculate_vote_weight(&self, voter: &Did) -> Result<VoteWeight, CommonError> {
+    async fn calculate_vote_weight(&self, voter: &Did) -> Result<AutomationVoteWeight, CommonError> {
         let reputation = self.reputation_store.get_reputation(voter) as f64 / 100.0;
         let base_weight = 1.0;
         let reputation_multiplier = 1.0 + (reputation * 0.5); // Up to 50% bonus for high reputation
         
-        Ok(VoteWeight {
+        Ok(AutomationVoteWeight {
             base_weight,
             reputation_multiplier,
             total_weight: base_weight * reputation_multiplier,
@@ -768,7 +791,7 @@ impl GovernanceAutomationEngine {
         // Calculate support percentage (weighted)
         let total_weight: f64 = state.votes_received.values().map(|(_, weight)| weight.total_weight).sum();
         let support_weight: f64 = state.votes_received.values()
-            .filter(|(vote, _)| matches!(vote, Vote::Yes))
+            .filter(|(vote, _)| matches!(vote.option, VoteOption::Yes))
             .map(|(_, weight)| weight.total_weight)
             .sum();
         
@@ -794,14 +817,14 @@ impl GovernanceAutomationEngine {
     }
     
     /// Determine voting result
-    async fn determine_voting_result(&self, state: &ProposalAutomationState) -> Result<VotingResult, CommonError> {
+    async fn determine_voting_result(&self, state: &ProposalAutomationState) -> Result<AutomationVotingResult, CommonError> {
         if state.voting_status.support_percentage > 0.5 {
-            Ok(VotingResult::Passed {
+            Ok(AutomationVotingResult::Passed {
                 support_percentage: state.voting_status.support_percentage,
                 total_votes: state.votes_received.len() as u64,
             })
         } else {
-            Ok(VotingResult::Rejected {
+            Ok(AutomationVotingResult::Rejected {
                 opposition_percentage: 1.0 - state.voting_status.support_percentage,
                 total_votes: state.votes_received.len() as u64,
             })
@@ -812,7 +835,7 @@ impl GovernanceAutomationEngine {
     async fn attempt_automatic_execution(
         &self,
         proposal_id: &ProposalId,
-        voting_result: &VotingResult,
+        voting_result: &AutomationVotingResult,
     ) -> Result<(), CommonError> {
         log::info!("Attempting automatic execution of proposal {:?}", proposal_id);
         

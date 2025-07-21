@@ -5,12 +5,23 @@
 
 use crate::{NetworkService, MeshNetworkError, PeerId, NetworkStats};
 use icn_common::{Did, TimeProvider, CommonError};
-use icn_reputation::ReputationStore;
+// Simplified ReputationStore trait to avoid circular dependencies
+pub trait ReputationStore: Send + Sync {
+    fn get_reputation(&self, did: &Did) -> u32;
+}
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, RwLock};
-use std::time::{Duration, Instant};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::mpsc;
+
+// Helper function to get current Unix timestamp
+fn current_timestamp() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+}
 
 /// Configuration for adaptive routing behavior
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -82,18 +93,18 @@ pub struct RouteInfo {
     pub destination: Did,
     /// Intermediate peers in the route
     pub hops: Vec<PeerId>,
-    /// Estimated latency for this route
-    pub latency: Duration,
+    /// Estimated latency for this route (milliseconds)
+    pub latency: u64,
     /// Success rate over the performance window
     pub success_rate: f64,
-    /// Last time this route was used
-    pub last_used: Instant,
+    /// Last time this route was used (Unix timestamp)
+    pub last_used: u64,
     /// Number of times this route has been used
     pub usage_count: u64,
     /// Estimated bandwidth capacity
     pub bandwidth_estimate: u64,
-    /// Route discovery timestamp
-    pub discovered_at: Instant,
+    /// Route discovery timestamp (Unix timestamp)
+    pub discovered_at: u64,
     /// Whether this route is currently healthy
     pub is_healthy: bool,
 }
@@ -101,7 +112,7 @@ pub struct RouteInfo {
 impl RouteInfo {
     /// Calculate a composite score for route selection
     pub fn calculate_score(&self, weights: &RouteSelectionWeights, reputation_scores: &HashMap<PeerId, f64>) -> f64 {
-        let latency_score = 1.0 - (self.latency.as_millis() as f64 / 10000.0).min(1.0);
+        let latency_score = 1.0 - (self.latency as f64 / 10000.0).min(1.0);
         let success_score = self.success_rate;
         let hop_score = 1.0 - (self.hops.len() as f64 / 10.0).min(1.0);
         let bandwidth_score = (self.bandwidth_estimate as f64 / 1_000_000.0).min(1.0); // Normalize to 1Mbps
@@ -124,14 +135,12 @@ impl RouteInfo {
     }
     
     /// Update route performance based on a successful transmission
-    pub fn record_success(&mut self, latency: Duration) {
-        self.last_used = Instant::now();
+    pub fn record_success(&mut self, latency_ms: u64) {
+        self.last_used = current_timestamp();
         self.usage_count += 1;
         
         // Update rolling average latency
-        self.latency = Duration::from_millis(
-            ((self.latency.as_millis() as f64 * 0.8) + (latency.as_millis() as f64 * 0.2)) as u64
-        );
+        self.latency = ((self.latency as f64 * 0.8) + (latency_ms as f64 * 0.2)) as u64;
         
         // Update success rate (exponential moving average)
         self.success_rate = self.success_rate * 0.9 + 0.1;
@@ -140,7 +149,7 @@ impl RouteInfo {
     
     /// Update route performance based on a failed transmission
     pub fn record_failure(&mut self) {
-        self.last_used = Instant::now();
+        self.last_used = current_timestamp();
         self.usage_count += 1;
         
         // Update success rate (exponential moving average)
@@ -310,7 +319,7 @@ impl AdaptiveRoutingEngine {
         destination: &Did,
         route_hops: &[PeerId],
         success: bool,
-        latency: Option<Duration>,
+        latency_ms: Option<u64>,
     ) -> Result<(), MeshNetworkError> {
         let mut routes = self.routes.write().unwrap();
         let mut metrics = self.route_metrics.write().unwrap();
@@ -322,10 +331,10 @@ impl AdaptiveRoutingEngine {
             if let Some(route) = destination_routes.iter_mut().find(|r| r.hops == route_hops) {
                 if success {
                     metrics.successful_routes += 1;
-                    if let Some(lat) = latency {
-                        route.record_success(lat);
+                    if let Some(lat_ms) = latency_ms {
+                        route.record_success(lat_ms);
                     } else {
-                        route.record_success(route.latency); // Use previous estimate
+                        route.record_success(route.latency); // Use previous estimate (already in ms)
                     }
                 } else {
                     metrics.failed_routes += 1;
@@ -374,12 +383,12 @@ impl AdaptiveRoutingEngine {
         let route = RouteInfo {
             destination: destination.clone(),
             hops: vec![], // Direct connection
-            latency: Duration::from_millis(100), // Initial estimate
+            latency: 100, // Initial estimate in milliseconds
             success_rate: 1.0, // Start optimistic
-            last_used: Instant::now(),
+            last_used: current_timestamp(),
             usage_count: 0,
             bandwidth_estimate: 1_000_000, // 1 Mbps initial estimate
-            discovered_at: Instant::now(),
+            discovered_at: current_timestamp(),
             is_healthy: true,
         };
         
@@ -404,7 +413,7 @@ impl AdaptiveRoutingEngine {
         for peer in &peers {
             // Query peer for routes to destination
             if let Ok(route) = self.query_peer_for_route(peer, destination).await {
-                self.add_discovered_route(destination, route).await?;
+                self.add_discovered_route(destination, route.clone()).await?;
                 return Ok(Some(route));
             }
         }
@@ -475,7 +484,7 @@ impl AdaptiveRoutingEngine {
         config: &AdaptiveRoutingConfig,
         event_tx: &mpsc::UnboundedSender<RoutingEvent>,
     ) -> Result<(), MeshNetworkError> {
-        let now = Instant::now();
+        let now = current_timestamp();
         let mut routes_guard = routes.write().unwrap();
         let mut metrics_guard = metrics.write().unwrap();
         
@@ -488,7 +497,7 @@ impl AdaptiveRoutingEngine {
                 total_routes += 1;
                 
                 // Remove very old routes
-                if now.duration_since(route.last_used) > config.performance_window * 3 {
+                if now > route.last_used && (now - route.last_used) > config.performance_window.as_secs() * 3 {
                     return false;
                 }
                 
@@ -619,7 +628,7 @@ impl AdaptiveNetworkService {
         destination: &Did,
         message: Vec<u8>,
     ) -> Result<(), MeshNetworkError> {
-        let start_time = Instant::now();
+        let start_time = current_timestamp();
         
         // Find best route to destination
         let route = match self.routing_engine.find_best_route(destination).await? {
@@ -634,14 +643,14 @@ impl AdaptiveNetworkService {
         
         // Attempt to send message
         let result = self.send_via_route(&route, message).await;
-        let latency = start_time.elapsed();
+        let latency_ms = current_timestamp() - start_time;
         
         // Record routing result
         self.routing_engine.record_route_result(
             destination,
             &route.hops,
             result.is_ok(),
-            Some(latency),
+            Some(latency_ms),
         ).await?;
         
         result
@@ -717,12 +726,12 @@ mod tests {
         let route = RouteInfo {
             destination: Did::new("test", "destination"),
             hops: vec![],
-            latency: Duration::from_millis(100),
+            latency: 100,
             success_rate: 0.95,
-            last_used: Instant::now(),
+            last_used: current_timestamp(),
             usage_count: 10,
             bandwidth_estimate: 1_000_000,
-            discovered_at: Instant::now(),
+            discovered_at: current_timestamp(),
             is_healthy: true,
         };
         
@@ -736,12 +745,12 @@ mod tests {
         let mut route = RouteInfo {
             destination: Did::new("test", "destination"),
             hops: vec![],
-            latency: Duration::from_millis(100),
+            latency: 100,
             success_rate: 0.8,
-            last_used: Instant::now(),
+            last_used: current_timestamp(),
             usage_count: 0,
             bandwidth_estimate: 1_000_000,
-            discovered_at: Instant::now(),
+            discovered_at: current_timestamp(),
             is_healthy: true,
         };
         

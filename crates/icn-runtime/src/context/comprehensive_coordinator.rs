@@ -13,6 +13,7 @@ use icn_network::{
     AdaptiveRoutingEngine, AdaptiveRoutingConfig, NetworkService,
     RoutingEvent, NetworkTopology,
 };
+use icn_network::adaptive_routing::RoutePerformanceMetrics;
 use icn_governance::{
     GovernanceAutomationEngine, GovernanceAutomationConfig, GovernanceEvent,
     GovernanceAutomationStats,
@@ -21,15 +22,34 @@ use icn_identity::{
     FederationIntegrationEngine, FederationIntegrationConfig, FederationEvent,
     FederationIntegrationStats,
 };
-use icn_reputation::{
-    ReputationIntegrationEngine, ReputationIntegrationConfig, ReputationEvent,
-    ReputationIntegrationStats,
-};
+// Temporarily commented out due to circular dependencies
+// use icn_reputation::{
+//     ReputationIntegrationEngine, ReputationIntegrationConfig, ReputationEvent,
+//     ReputationIntegrationStats,
+// };
+
+// Simplified reputation types for coordinator
+#[derive(Debug, Clone)]
+pub struct ReputationIntegrationEngine;
+
+impl ReputationIntegrationEngine {
+    pub fn get_integration_stats(&self) -> ReputationIntegrationStats {
+        ReputationIntegrationStats
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ReputationIntegrationConfig;
+#[derive(Debug, Clone)]
+pub struct ReputationEvent;
+#[derive(Debug, Clone)]
+pub struct ReputationIntegrationStats;
 use icn_economics::{
     EconomicAutomationEngine, EconomicAutomationConfig, EconomicEvent,
     EconomicAutomationStats,
 };
-use icn_dag::{DagBlock, AsyncStorageService};
+use icn_dag::AsyncStorageService;
+use icn_common::DagBlock;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, RwLock};
@@ -981,7 +1001,7 @@ pub struct ComprehensiveCoordinationStats {
 #[derive(Debug, Clone)]
 pub struct SystemStats {
     /// Routing system stats
-    pub routing: icn_network::RoutePerformanceMetrics,
+    pub routing: RoutePerformanceMetrics,
     /// Governance automation stats
     pub governance: GovernanceAutomationStats,
     /// Federation integration stats
