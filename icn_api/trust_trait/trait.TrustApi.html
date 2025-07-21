@@ -4,7 +4,7 @@
         &amp;'life0 self,
         from: &amp;'life1 <a class="struct" href="../../icn_common/struct.Did.html" title="struct icn_common::Did">Did</a>,
         to: &amp;'life2 <a class="struct" href="../../icn_common/struct.Did.html" title="struct icn_common::Did">Did</a>,
-        context: &amp;'life3 TrustContext,
+        context: &amp;'life3 <a class="enum" href="../../icn_identity/federation_trust/enum.TrustContext.html" title="enum icn_identity::federation_trust::TrustContext">TrustContext</a>,
     ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.88.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.88.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="enum" href="https://doc.rust-lang.org/1.88.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="struct" href="struct.TrustRelationshipInfo.html" title="struct icn_api::trust_trait::TrustRelationshipInfo">TrustRelationshipInfo</a>&gt;, <a class="enum" href="../../icn_common/enum.CommonError.html" title="enum icn_common::CommonError">CommonError</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;
        <span class="where">where Self: 'async_trait,
              'life0: 'async_trait,
@@ -49,7 +49,7 @@
         &amp;'life0 self,
         from: &amp;'life1 <a class="struct" href="../../icn_common/struct.Did.html" title="struct icn_common::Did">Did</a>,
         to: &amp;'life2 <a class="struct" href="../../icn_common/struct.Did.html" title="struct icn_common::Did">Did</a>,
-        context: &amp;'life3 TrustContext,
+        context: &amp;'life3 <a class="enum" href="../../icn_identity/federation_trust/enum.TrustContext.html" title="enum icn_identity::federation_trust::TrustContext">TrustContext</a>,
     ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.88.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.88.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.88.0/std/primitive.unit.html">()</a>, <a class="enum" href="../../icn_common/enum.CommonError.html" title="enum icn_common::CommonError">CommonError</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;
        <span class="where">where Self: 'async_trait,
              'life0: 'async_trait,
@@ -63,7 +63,7 @@
              'life0: 'async_trait</span>;
 <span class="item-spacer"></span>    fn <a href="#tymethod.get_federation_trust_stats" class="fn">get_federation_trust_stats</a>&lt;'life0, 'life1, 'async_trait&gt;(
         &amp;'life0 self,
-        federation: &amp;'life1 FederationId,
+        federation: &amp;'life1 <a class="struct" href="../../icn_identity/federation_trust/struct.FederationId.html" title="struct icn_identity::federation_trust::FederationId">FederationId</a>,
     ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.88.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.88.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="struct" href="struct.FederationTrustStats.html" title="struct icn_api::trust_trait::FederationTrustStats">FederationTrustStats</a>, <a class="enum" href="../../icn_common/enum.CommonError.html" title="enum icn_common::CommonError">CommonError</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;
        <span class="where">where Self: 'async_trait,
              'life0: 'async_trait,
@@ -92,7 +92,7 @@
         &amp;'life0 self,
         actor: &amp;'life1 <a class="struct" href="../../icn_common/struct.Did.html" title="struct icn_common::Did">Did</a>,
         target: &amp;'life2 <a class="struct" href="../../icn_common/struct.Did.html" title="struct icn_common::Did">Did</a>,
-        context: &amp;'life3 TrustContext,
+        context: &amp;'life3 <a class="enum" href="../../icn_identity/federation_trust/enum.TrustContext.html" title="enum icn_identity::federation_trust::TrustContext">TrustContext</a>,
         operation: &amp;'life4 <a class="primitive" href="https://doc.rust-lang.org/1.88.0/std/primitive.str.html">str</a>,
     ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.88.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.88.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.88.0/std/primitive.bool.html">bool</a>, <a class="enum" href="../../icn_common/enum.CommonError.html" title="enum icn_common::CommonError">CommonError</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;
        <span class="where">where Self: 'async_trait,
@@ -105,7 +105,7 @@
         &amp;'life0 self,
         entity: &amp;'life1 <a class="struct" href="../../icn_common/struct.Did.html" title="struct icn_common::Did">Did</a>,
         max_distance: <a class="enum" href="https://doc.rust-lang.org/1.88.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.88.0/std/primitive.usize.html">usize</a>&gt;,
-        min_trust_level: <a class="enum" href="https://doc.rust-lang.org/1.88.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;TrustLevel&gt;,
+        min_trust_level: <a class="enum" href="https://doc.rust-lang.org/1.88.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="enum" href="../../icn_identity/cooperative_schemas/enum.TrustLevel.html" title="enum icn_identity::cooperative_schemas::TrustLevel">TrustLevel</a>&gt;,
     ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.88.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.88.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;(<a class="struct" href="../../icn_common/struct.Did.html" title="struct icn_common::Did">Did</a>, <a class="struct" href="struct.TrustPath.html" title="struct icn_api::trust_trait::TrustPath">TrustPath</a>)&gt;, <a class="enum" href="../../icn_common/enum.CommonError.html" title="enum icn_common::CommonError">CommonError</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;
        <span class="where">where Self: 'async_trait,
              'life0: 'async_trait,
@@ -115,7 +115,7 @@
     &amp;'life0 self,
     from: &amp;'life1 <a class="struct" href="../../icn_common/struct.Did.html" title="struct icn_common::Did">Did</a>,
     to: &amp;'life2 <a class="struct" href="../../icn_common/struct.Did.html" title="struct icn_common::Did">Did</a>,
-    context: &amp;'life3 TrustContext,
+    context: &amp;'life3 <a class="enum" href="../../icn_identity/federation_trust/enum.TrustContext.html" title="enum icn_identity::federation_trust::TrustContext">TrustContext</a>,
 ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.88.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.88.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="enum" href="https://doc.rust-lang.org/1.88.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="struct" href="struct.TrustRelationshipInfo.html" title="struct icn_api::trust_trait::TrustRelationshipInfo">TrustRelationshipInfo</a>&gt;, <a class="enum" href="../../icn_common/enum.CommonError.html" title="enum icn_common::CommonError">CommonError</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;<div class="where">where
     Self: 'async_trait,
     'life0: 'async_trait,
@@ -160,7 +160,7 @@
     &amp;'life0 self,
     from: &amp;'life1 <a class="struct" href="../../icn_common/struct.Did.html" title="struct icn_common::Did">Did</a>,
     to: &amp;'life2 <a class="struct" href="../../icn_common/struct.Did.html" title="struct icn_common::Did">Did</a>,
-    context: &amp;'life3 TrustContext,
+    context: &amp;'life3 <a class="enum" href="../../icn_identity/federation_trust/enum.TrustContext.html" title="enum icn_identity::federation_trust::TrustContext">TrustContext</a>,
 ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.88.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.88.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.88.0/std/primitive.unit.html">()</a>, <a class="enum" href="../../icn_common/enum.CommonError.html" title="enum icn_common::CommonError">CommonError</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;<div class="where">where
     Self: 'async_trait,
     'life0: 'async_trait,
@@ -174,7 +174,7 @@
     'life0: 'async_trait,</div></h4></section></summary><div class="docblock"><p>Get trust graph statistics</p>
 </div></details><details class="toggle method-toggle" open><summary><section id="tymethod.get_federation_trust_stats" class="method"><a class="src rightside" href="../../src/icn_api/trust_trait.rs.html#247-250">Source</a><h4 class="code-header">fn <a href="#tymethod.get_federation_trust_stats" class="fn">get_federation_trust_stats</a>&lt;'life0, 'life1, 'async_trait&gt;(
     &amp;'life0 self,
-    federation: &amp;'life1 FederationId,
+    federation: &amp;'life1 <a class="struct" href="../../icn_identity/federation_trust/struct.FederationId.html" title="struct icn_identity::federation_trust::FederationId">FederationId</a>,
 ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.88.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.88.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="struct" href="struct.FederationTrustStats.html" title="struct icn_api::trust_trait::FederationTrustStats">FederationTrustStats</a>, <a class="enum" href="../../icn_common/enum.CommonError.html" title="enum icn_common::CommonError">CommonError</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;<div class="where">where
     Self: 'async_trait,
     'life0: 'async_trait,
@@ -203,7 +203,7 @@
     &amp;'life0 self,
     actor: &amp;'life1 <a class="struct" href="../../icn_common/struct.Did.html" title="struct icn_common::Did">Did</a>,
     target: &amp;'life2 <a class="struct" href="../../icn_common/struct.Did.html" title="struct icn_common::Did">Did</a>,
-    context: &amp;'life3 TrustContext,
+    context: &amp;'life3 <a class="enum" href="../../icn_identity/federation_trust/enum.TrustContext.html" title="enum icn_identity::federation_trust::TrustContext">TrustContext</a>,
     operation: &amp;'life4 <a class="primitive" href="https://doc.rust-lang.org/1.88.0/std/primitive.str.html">str</a>,
 ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.88.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.88.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.88.0/std/primitive.bool.html">bool</a>, <a class="enum" href="../../icn_common/enum.CommonError.html" title="enum icn_common::CommonError">CommonError</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;<div class="where">where
     Self: 'async_trait,
@@ -216,7 +216,7 @@
     &amp;'life0 self,
     entity: &amp;'life1 <a class="struct" href="../../icn_common/struct.Did.html" title="struct icn_common::Did">Did</a>,
     max_distance: <a class="enum" href="https://doc.rust-lang.org/1.88.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.88.0/std/primitive.usize.html">usize</a>&gt;,
-    min_trust_level: <a class="enum" href="https://doc.rust-lang.org/1.88.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;TrustLevel&gt;,
+    min_trust_level: <a class="enum" href="https://doc.rust-lang.org/1.88.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="enum" href="../../icn_identity/cooperative_schemas/enum.TrustLevel.html" title="enum icn_identity::cooperative_schemas::TrustLevel">TrustLevel</a>&gt;,
 ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.88.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.88.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;(<a class="struct" href="../../icn_common/struct.Did.html" title="struct icn_common::Did">Did</a>, <a class="struct" href="struct.TrustPath.html" title="struct icn_api::trust_trait::TrustPath">TrustPath</a>)&gt;, <a class="enum" href="../../icn_common/enum.CommonError.html" title="enum icn_common::CommonError">CommonError</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;<div class="where">where
     Self: 'async_trait,
     'life0: 'async_trait,

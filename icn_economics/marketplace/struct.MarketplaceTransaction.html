@@ -2,8 +2,8 @@
     pub transaction_id: <a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>,
     pub offer_id: <a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>,
     pub bid_id: <a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>,
-    pub seller: <a class="struct" href="../../icn_common/struct.Did.html" title="struct icn_common::Did">Did</a>,
-    pub buyer: <a class="struct" href="../../icn_common/struct.Did.html" title="struct icn_common::Did">Did</a>,
+    pub seller: Did,
+    pub buyer: Did,
     pub item_type: <a class="enum" href="enum.ItemType.html" title="enum icn_economics::marketplace::ItemType">ItemType</a>,
     pub quantity: <a class="primitive" href="https://doc.rust-lang.org/1.88.0/std/primitive.u64.html">u64</a>,
     pub price_per_unit: <a class="primitive" href="https://doc.rust-lang.org/1.88.0/std/primitive.u64.html">u64</a>,
@@ -16,8 +16,8 @@
 </div></details><h2 id="fields" class="fields section-header">Fields<a href="#fields" class="anchor">§</a></h2><span id="structfield.transaction_id" class="structfield section-header"><a href="#structfield.transaction_id" class="anchor field">§</a><code>transaction_id: <a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/string/struct.String.html" title="struct alloc::string::String">String</a></code></span><div class="docblock"><p>Unique identifier for this transaction.</p>
 </div><span id="structfield.offer_id" class="structfield section-header"><a href="#structfield.offer_id" class="anchor field">§</a><code>offer_id: <a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/string/struct.String.html" title="struct alloc::string::String">String</a></code></span><div class="docblock"><p>Offer that was fulfilled.</p>
 </div><span id="structfield.bid_id" class="structfield section-header"><a href="#structfield.bid_id" class="anchor field">§</a><code>bid_id: <a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/string/struct.String.html" title="struct alloc::string::String">String</a></code></span><div class="docblock"><p>Winning bid.</p>
-</div><span id="structfield.seller" class="structfield section-header"><a href="#structfield.seller" class="anchor field">§</a><code>seller: <a class="struct" href="../../icn_common/struct.Did.html" title="struct icn_common::Did">Did</a></code></span><div class="docblock"><p>Seller DID.</p>
-</div><span id="structfield.buyer" class="structfield section-header"><a href="#structfield.buyer" class="anchor field">§</a><code>buyer: <a class="struct" href="../../icn_common/struct.Did.html" title="struct icn_common::Did">Did</a></code></span><div class="docblock"><p>Buyer DID.</p>
+</div><span id="structfield.seller" class="structfield section-header"><a href="#structfield.seller" class="anchor field">§</a><code>seller: Did</code></span><div class="docblock"><p>Seller DID.</p>
+</div><span id="structfield.buyer" class="structfield section-header"><a href="#structfield.buyer" class="anchor field">§</a><code>buyer: Did</code></span><div class="docblock"><p>Buyer DID.</p>
 </div><span id="structfield.item_type" class="structfield section-header"><a href="#structfield.item_type" class="anchor field">§</a><code>item_type: <a class="enum" href="enum.ItemType.html" title="enum icn_economics::marketplace::ItemType">ItemType</a></code></span><div class="docblock"><p>Item type and details.</p>
 </div><span id="structfield.quantity" class="structfield section-header"><a href="#structfield.quantity" class="anchor field">§</a><code>quantity: <a class="primitive" href="https://doc.rust-lang.org/1.88.0/std/primitive.u64.html">u64</a></code></span><div class="docblock"><p>Quantity traded.</p>
 </div><span id="structfield.price_per_unit" class="structfield section-header"><a href="#structfield.price_per_unit" class="anchor field">§</a><code>price_per_unit: <a class="primitive" href="https://doc.rust-lang.org/1.88.0/std/primitive.u64.html">u64</a></code></span><div class="docblock"><p>Final price per unit.</p>

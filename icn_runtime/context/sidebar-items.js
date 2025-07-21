@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["compile_checks","errors","host_environment","mana","mesh_network","resource_ledger","runtime_context","service_config","signers","stubs"],"type":["DagStorageService","DagStoreMutexType"]};
+window.SIDEBAR_ITEMS = {"mod":["compile_checks","cross_component_coordinator","enhanced_dag_sync","errors","host_environment","mana","mesh_network","resource_ledger","runtime_context","service_config","signers","stubs"],"type":["DagStorageService","DagStoreMutexType"]};
