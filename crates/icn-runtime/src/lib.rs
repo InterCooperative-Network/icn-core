@@ -910,6 +910,127 @@ pub async fn verify_zk_proof(
     Ok(host_verify_zk_proof(ctx, &json).await?)
 }
 
+/// Register runtime-specific metrics with a provided registry
+/// This function should be called by icn-node to register runtime metrics
+/// and avoid circular dependency issues
+pub fn register_runtime_metrics(registry: &mut prometheus_client::registry::Registry) {
+    use metrics::*;
+    
+    registry.register(
+        "runtime_host_submit_mesh_job_calls_total",
+        "Number of host_submit_mesh_job calls",
+        HOST_SUBMIT_MESH_JOB_CALLS.clone(),
+    );
+    
+    registry.register(
+        "runtime_host_get_pending_mesh_jobs_calls_total", 
+        "Number of host_get_pending_mesh_jobs calls",
+        HOST_GET_PENDING_MESH_JOBS_CALLS.clone(),
+    );
+    
+    registry.register(
+        "runtime_host_account_get_mana_calls_total",
+        "Number of host_account_get_mana calls", 
+        HOST_ACCOUNT_GET_MANA_CALLS.clone(),
+    );
+    
+    registry.register(
+        "runtime_host_account_spend_mana_calls_total",
+        "Number of host_account_spend_mana calls",
+        HOST_ACCOUNT_SPEND_MANA_CALLS.clone(),
+    );
+    
+    registry.register(
+        "runtime_host_account_credit_mana_calls_total",
+        "Number of host_account_credit_mana calls", 
+        HOST_ACCOUNT_CREDIT_MANA_CALLS.clone(),
+    );
+    
+    registry.register(
+        "runtime_host_anchor_receipt_calls_total",
+        "Number of host_anchor_receipt calls",
+        HOST_ANCHOR_RECEIPT_CALLS.clone(),
+    );
+    
+    registry.register(
+        "runtime_jobs_submitted_total",
+        "Total number of jobs submitted via runtime",
+        JOBS_SUBMITTED.clone(),
+    );
+    
+    registry.register(
+        "runtime_jobs_completed_total", 
+        "Total number of jobs completed successfully",
+        JOBS_COMPLETED.clone(),
+    );
+    
+    registry.register(
+        "runtime_jobs_failed_total",
+        "Total number of jobs that failed",
+        JOBS_FAILED.clone(),
+    );
+    
+    registry.register(
+        "runtime_jobs_active",
+        "Number of jobs currently active",
+        JOBS_ACTIVE_GAUGE.clone(),
+    );
+    
+    registry.register(
+        "runtime_receipts_anchored_total",
+        "Number of receipts anchored to the DAG",
+        RECEIPTS_ANCHORED.clone(),
+    );
+    
+    registry.register(
+        "runtime_wasm_memory_growth_denied_total",
+        "Number of denied WASM memory growth attempts",
+        WASM_MEMORY_GROWTH_DENIED.clone(),
+    );
+    
+    registry.register(
+        "runtime_wasm_table_growth_denied_total", 
+        "Number of denied WASM table growth attempts",
+        WASM_TABLE_GROWTH_DENIED.clone(),
+    );
+    
+    registry.register(
+        "runtime_mana_accounts_total",
+        "Number of accounts in the mana ledger",
+        MANA_ACCOUNTS_GAUGE.clone(),
+    );
+    
+    registry.register(
+        "runtime_checkpoints_anchored_total",
+        "Number of checkpoints anchored to the DAG",
+        CHECKPOINTS_ANCHORED.clone(),
+    );
+    
+    registry.register(
+        "runtime_partial_outputs_anchored_total",
+        "Number of partial outputs anchored to the DAG", 
+        PARTIAL_OUTPUTS_ANCHORED.clone(),
+    );
+    
+    registry.register(
+        "runtime_long_running_jobs",
+        "Number of jobs with active checkpoints",
+        LONG_RUNNING_JOBS_GAUGE.clone(),
+    );
+    
+    registry.register(
+        "runtime_job_resumes_total",
+        "Number of successful job resumes from checkpoints",
+        JOB_RESUMES.clone(),
+    );
+    
+    registry.register(
+        "runtime_job_cancellations_total",
+        "Number of job cancellations",
+        JOB_CANCELLATIONS.clone(),
+    );
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

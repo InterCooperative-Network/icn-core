@@ -1993,16 +1993,19 @@ async fn readiness_handler(State(state): State<AppState>) -> impl IntoResponse {
 }
 
 // GET /metrics – Prometheus metrics text
-async fn metrics_handler() -> impl IntoResponse {
+async fn metrics_handler(State(state): State<AppState>) -> impl IntoResponse {
     use icn_api::metrics::{register_core_metrics, update_system_metrics};
     use prometheus_client::metrics::{gauge::Gauge, histogram::Histogram};
 
     let mut registry = Registry::default();
 
-    // Register all core metrics
+    // Register all core metrics (excluding runtime metrics due to circular dependency)
     register_core_metrics(&mut registry);
+    
+    // Register runtime metrics directly to avoid circular dependency
+    icn_runtime::register_runtime_metrics(&mut registry);
 
-    // Add additional node-specific metrics
+    // Add enhanced node-specific metrics
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
@@ -2021,6 +2024,86 @@ async fn metrics_handler() -> impl IntoResponse {
     let process_id_gauge: Gauge<f64, std::sync::atomic::AtomicU64> = Gauge::default();
     process_id_gauge.set(process::id() as f64);
     registry.register("node_process_id", "Node process ID", process_id_gauge);
+
+    // Add federation-specific metrics
+    let runtime_ctx = &state.runtime_context;
+    
+    // Mana ledger metrics
+    let mana_account_count = runtime_ctx.mana_ledger.all_accounts().len();
+    let mana_accounts_gauge: Gauge<f64, std::sync::atomic::AtomicU64> = Gauge::default();
+    mana_accounts_gauge.set(mana_account_count as f64);
+    registry.register(
+        "node_mana_accounts_active",
+        "Number of active mana accounts on this node",
+        mana_accounts_gauge,
+    );
+    
+    // Job state metrics
+    let job_states = &runtime_ctx.job_states;
+    let total_jobs = job_states.len();
+    let mut pending_jobs = 0;
+    let mut assigned_jobs = 0;
+    let mut completed_jobs = 0;
+    let mut failed_jobs = 0;
+    
+    for job_state in job_states.iter() {
+        match &*job_state.value() {
+            icn_mesh::JobState::Pending => pending_jobs += 1,
+            icn_mesh::JobState::Assigned { .. } => assigned_jobs += 1,
+            icn_mesh::JobState::Completed { .. } => completed_jobs += 1,
+            icn_mesh::JobState::Failed { .. } => failed_jobs += 1,
+        }
+    }
+    
+    let node_total_jobs_gauge: Gauge<f64, std::sync::atomic::AtomicU64> = Gauge::default();
+    node_total_jobs_gauge.set(total_jobs as f64);
+    registry.register(
+        "node_total_jobs",
+        "Total number of jobs tracked by this node",
+        node_total_jobs_gauge,
+    );
+    
+    let node_pending_jobs_gauge: Gauge<f64, std::sync::atomic::AtomicU64> = Gauge::default();
+    node_pending_jobs_gauge.set(pending_jobs as f64);
+    registry.register(
+        "node_pending_jobs",
+        "Number of pending jobs on this node",
+        node_pending_jobs_gauge,
+    );
+    
+    let node_assigned_jobs_gauge: Gauge<f64, std::sync::atomic::AtomicU64> = Gauge::default();
+    node_assigned_jobs_gauge.set(assigned_jobs as f64);
+    registry.register(
+        "node_assigned_jobs", 
+        "Number of assigned jobs on this node",
+        node_assigned_jobs_gauge,
+    );
+    
+    let node_completed_jobs_gauge: Gauge<f64, std::sync::atomic::AtomicU64> = Gauge::default();
+    node_completed_jobs_gauge.set(completed_jobs as f64);
+    registry.register(
+        "node_completed_jobs",
+        "Number of completed jobs on this node", 
+        node_completed_jobs_gauge,
+    );
+    
+    let node_failed_jobs_gauge: Gauge<f64, std::sync::atomic::AtomicU64> = Gauge::default();
+    node_failed_jobs_gauge.set(failed_jobs as f64);
+    registry.register(
+        "node_failed_jobs",
+        "Number of failed jobs on this node",
+        node_failed_jobs_gauge,
+    );
+
+    // Network connectivity metrics
+    let peer_count = icn_network::metrics::PEER_COUNT_GAUGE.get();
+    let node_peer_count_gauge: Gauge<f64, std::sync::atomic::AtomicU64> = Gauge::default();
+    node_peer_count_gauge.set(peer_count as f64);
+    registry.register(
+        "node_connected_peers",
+        "Number of peers connected to this node",
+        node_peer_count_gauge,
+    );
 
     // Update system metrics before collecting
     update_system_metrics();
