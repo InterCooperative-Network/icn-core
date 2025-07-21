@@ -105,3 +105,5 @@ rand_core = "0.6"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt"] }
 ed25519-dalek = { version = "2.0.0-pre.3", features = ["rand_core"] }
+futures = "0.3"
+libp2p = { version = "0.56", features = ["tcp", "dns", "noise", "yamux", "gossipsub", "mdns", "kad", "ping", "request-response", "macros"] }
