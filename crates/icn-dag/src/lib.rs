@@ -920,6 +920,11 @@ impl AsyncStorageService<DagBlock> for TokioFileDagStore {
                 if typ.is_dir() {
                     stack.push(path);
                 } else if typ.is_file() {
+                    // Skip the dag.root file
+                    if path.file_name() == Some(std::ffi::OsStr::new("dag.root")) {
+                        continue;
+                    }
+                    
                     let mut file = TokioFile::open(&path).await.map_err(|e| {
                         CommonError::IoError(format!("Failed to open file {:?}: {}", path, e))
                     })?;
