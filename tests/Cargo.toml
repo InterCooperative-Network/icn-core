@@ -75,6 +75,10 @@ path = "integration/p2p_dag_e2e.rs"
 name = "p2p_dag_e2e_fixed"
 path = "integration/p2p_dag_e2e_fixed.rs"
 
+[[test]]
+name = "p2p_dag_enhanced"
+path = "integration/p2p_dag_enhanced.rs"
+
 [features]
 default = []
 enable-libp2p = ["icn-node/with-libp2p", "icn-runtime/enable-libp2p"]

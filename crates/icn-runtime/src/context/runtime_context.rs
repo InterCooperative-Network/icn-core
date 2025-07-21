@@ -237,6 +237,8 @@ pub struct RuntimeContext {
     pub system_info: Arc<dyn SystemInfoProvider>,
     pub time_provider: Arc<dyn icn_common::TimeProvider>,
     pub default_receipt_wait_ms: u64,
+    /// Enhanced cross-component coordinator for intelligent service integration
+    pub cross_component_coordinator: Arc<CrossComponentCoordinator>,
 }
 
 impl std::fmt::Debug for RuntimeContext {
@@ -257,6 +259,7 @@ use std::str::FromStr;
 
 // Add governance-specific types
 use super::mesh_network::{PROPOSAL_COST_MANA, VOTE_COST_MANA};
+use super::cross_component_coordinator::{CrossComponentCoordinator, DagOperation, Priority};
 use icn_governance::{Proposal, ProposalId, ProposalSubmission, ProposalType, Vote, VoteOption};
 use serde::{Deserialize, Serialize};
 
@@ -808,6 +811,16 @@ impl RuntimeContext {
         let governance_module = Arc::new(DagStoreMutexType::new(GovernanceModule::new()));
         let parameters = Self::default_parameters();
 
+        // Initialize cross-component coordinator with all services
+        let cross_component_coordinator = Arc::new(CrossComponentCoordinator::new(
+            config.mesh_network_service.clone(),
+            config.dag_store.clone(),
+            governance_module.clone(),
+            config.reputation_store.clone(),
+            config.current_identity.clone(),
+            config.time_provider.clone(),
+        ));
+
         Ok(Arc::new(Self {
             current_identity: config.current_identity,
             mana_ledger: config.mana_ledger,
@@ -828,6 +841,7 @@ impl RuntimeContext {
             system_info: Arc::new(SysinfoSystemInfoProvider),
             time_provider: config.time_provider,
             default_receipt_wait_ms: 30000,
+            cross_component_coordinator,
         }))
     }
 

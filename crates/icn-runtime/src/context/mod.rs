@@ -4,6 +4,7 @@
 //! including error handling, mana management, signers, network services, and more.
 
 pub mod compile_checks;
+pub mod cross_component_coordinator;
 pub mod errors;
 pub mod host_environment;
 pub mod mana;
@@ -16,6 +17,10 @@ pub mod stubs;
 
 // Re-export important types for convenience
 pub use compile_checks::ProductionReady;
+pub use cross_component_coordinator::{
+    CrossComponentCoordinator, DagOperation, DagOperationResult, Priority, SystemStatus,
+    HealthStatus, PerformanceMetrics, IntegrationMetricsSummary,
+};
 pub use errors::HostAbiError;
 pub use host_environment::{ConcreteHostEnvironment, HostEnvironment};
 pub use mana::{LedgerBackend, ManaRepository, SimpleManaLedger};
