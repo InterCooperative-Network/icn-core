@@ -6,9 +6,37 @@
 use crate::{ManaLedger, ResourceLedger, TokenClassId, TokenType};
 use icn_common::{CommonError, Did, TimeProvider};
 use icn_reputation::ReputationStore;
-use icn_governance::{GovernanceModule, Proposal};
-use icn_mesh::{MeshJob, JobBid};
-use icn_dag::{DagBlock, AsyncStorageService};
+// Temporarily simplified to avoid circular dependencies
+// use icn_governance::{GovernanceModule, Proposal};
+// use icn_mesh::{MeshJob, JobBid};
+use icn_dag::StorageService;
+use icn_common::DagBlock;
+
+// Simplified types to avoid circular dependencies
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MeshJob {
+    pub job_id: String,
+    pub job_type: Option<String>,
+    pub command: String,
+    pub estimated_cost: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct JobBid {
+    pub bidder: Did,
+    pub cost_bid: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Proposal {
+    pub id: String,
+    pub title: String,
+    pub description: String,
+}
+
+pub trait GovernanceModule: Send + Sync {
+    fn get_proposal(&self, id: &str) -> Result<Option<Proposal>, CommonError>;
+}
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque, BTreeMap};
 use std::sync::{Arc, RwLock};
@@ -352,8 +380,8 @@ pub struct EconomicAutomationEngine {
     mana_ledger: Arc<dyn ManaLedger>,
     resource_ledger: Arc<dyn ResourceLedger>,
     reputation_store: Arc<dyn ReputationStore>,
-    governance_module: Arc<TokioMutex<GovernanceModule>>,
-    dag_store: Arc<TokioMutex<dyn AsyncStorageService<DagBlock>>>,
+    governance_module: Arc<TokioMutex<dyn GovernanceModule>>,
+    dag_store: Arc<TokioMutex<dyn StorageService<DagBlock>>>,
     time_provider: Arc<dyn TimeProvider>,
     
     // Economic state
@@ -505,8 +533,8 @@ impl EconomicAutomationEngine {
         mana_ledger: Arc<dyn ManaLedger>,
         resource_ledger: Arc<dyn ResourceLedger>,
         reputation_store: Arc<dyn ReputationStore>,
-        governance_module: Arc<TokioMutex<GovernanceModule>>,
-        dag_store: Arc<TokioMutex<dyn AsyncStorageService<DagBlock>>>,
+        governance_module: Arc<TokioMutex<dyn GovernanceModule>>,
+        dag_store: Arc<TokioMutex<dyn StorageService<DagBlock>>>,
         time_provider: Arc<dyn TimeProvider>,
     ) -> Self {
         let (event_tx, event_rx) = mpsc::unbounded_channel();
@@ -685,7 +713,7 @@ impl EconomicAutomationEngine {
                             amount,
                             recipient: did.clone(),
                             allocation_strategy: plan.strategy.clone(),
-                            timestamp: self.time_provider.current_time_secs(),
+                            timestamp: self.time_provider.unix_seconds(),
                         });
                     }
                     Err(e) => {
@@ -727,7 +755,7 @@ impl EconomicAutomationEngine {
         match penalty.penalty_type {
             PenaltyType::ManaPenalty => {
                 if let Some(amount) = penalty.amount {
-                    self.mana_ledger.debit(violator, amount)?;
+                    self.mana_ledger.spend(violator, amount)?;
                     log::info!("Applied mana penalty of {} to {}", amount, violator);
                 }
             }

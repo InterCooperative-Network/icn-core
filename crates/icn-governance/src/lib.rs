@@ -36,9 +36,9 @@ pub mod automation;
 
 pub use budgeting::{apply_budget_allocation, BudgetProposal};
 pub use automation::{
-    GovernanceAutomationEngine, GovernanceAutomationConfig, GovernanceEvent,
-    ExecutionResult, EnforcementAction, VoteWeight as AutomationVoteWeight, 
-    VotingResult, GovernanceAutomationStats, ReminderType,
+    GovernanceAutomationEngine, GovernanceAutomationConfig, GovernanceEvent as AutomationGovernanceEvent,
+          ExecutionResult, EnforcementAction, AutomationVoteWeight, 
+      AutomationVotingResult, GovernanceAutomationStats, ReminderType,
 };
 
 /// Trait for governance execution hooks.

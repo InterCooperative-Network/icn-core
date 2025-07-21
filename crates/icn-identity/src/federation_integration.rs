@@ -8,11 +8,113 @@ use crate::{
     Did, DidResolver, ExecutionReceipt, TrustPolicyEngine,
 };
 use icn_common::{CommonError, TimeProvider, Cid};
-use icn_network::{NetworkService, AdaptiveRoutingEngine, PeerId};
-use icn_governance::{GovernanceModule, Proposal, GovernanceAutomationEngine};
-use icn_reputation::ReputationStore;
-use icn_economics::ManaLedger;
-use icn_dag::{DagBlock, AsyncStorageService};
+// Temporarily simplified to avoid circular dependencies
+// use icn_network::{NetworkService, AdaptiveRoutingEngine, PeerId};
+// use icn_governance::{GovernanceModule, Proposal, GovernanceAutomationEngine};
+// use icn_reputation::ReputationStore;
+// use icn_economics::ManaLedger;
+use icn_dag::StorageService;
+use icn_common::DagBlock;
+
+// Simplified traits and types to avoid circular dependencies
+use std::future::Future;
+use std::pin::Pin;
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct PeerId(pub String);
+
+pub trait NetworkService: Send + Sync {
+    fn discover_peers(
+        &self, 
+        _filter: Option<String>
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<PeerId>, CommonError>> + Send + '_>>;
+    
+    fn send_message(
+        &self, 
+        _peer: &PeerId, 
+        _message: Vec<u8>
+    ) -> Pin<Box<dyn Future<Output = Result<(), CommonError>> + Send + '_>>;
+}
+
+// Stub implementation for testing
+pub struct StubNetworkService;
+
+impl NetworkService for StubNetworkService {
+    fn discover_peers(
+        &self, 
+        _filter: Option<String>
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<PeerId>, CommonError>> + Send + '_>> {
+        Box::pin(async move {
+            Ok(vec![
+                PeerId("peer1".to_string()),
+                PeerId("peer2".to_string()),
+            ])
+        })
+    }
+    
+    fn send_message(
+        &self, 
+        _peer: &PeerId, 
+        _message: Vec<u8>
+    ) -> Pin<Box<dyn Future<Output = Result<(), CommonError>> + Send + '_>> {
+        Box::pin(async move { Ok(()) })
+    }
+}
+
+pub struct AdaptiveRoutingEngine;
+
+impl AdaptiveRoutingEngine {
+    pub fn get_performance_metrics(&self) -> RoutePerformanceMetrics {
+        RoutePerformanceMetrics::default()
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct RoutePerformanceMetrics {
+    pub total_routing_decisions: u64,
+    pub successful_routes: u64,
+    pub failed_routes: u64,
+}
+
+pub trait ReputationStore: Send + Sync {
+    fn get_reputation(&self, _did: &Did) -> u64 { 50 }
+}
+
+pub trait ManaLedger: Send + Sync {
+    fn get_balance(&self, _did: &Did) -> Result<u64, CommonError> { Ok(1000) }
+    fn spend(&self, _did: &Did, _amount: u64) -> Result<(), CommonError> { Ok(()) }
+    fn credit(&self, _did: &Did, _amount: u64) -> Result<(), CommonError> { Ok(()) }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Proposal {
+    pub id: String,
+    pub title: String,
+    pub description: String,
+}
+
+pub trait GovernanceModule: Send + Sync {
+    fn get_proposal(&self, _id: &str) -> Result<Option<Proposal>, CommonError> { Ok(None) }
+}
+
+pub struct GovernanceAutomationEngine;
+
+impl GovernanceAutomationEngine {
+    pub fn get_automation_stats(&self) -> GovernanceAutomationStats {
+        GovernanceAutomationStats::default()
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct GovernanceAutomationStats {
+    pub total_active_proposals: usize,
+    pub proposals_awaiting_votes: usize,
+    pub proposals_with_quorum: usize,
+    pub auto_executable_proposals: usize,
+    pub avg_participation_rate: f64,
+    pub avg_support_rate: f64,
+}
+
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, RwLock};
@@ -355,12 +457,12 @@ pub struct FederationIntegrationEngine {
     federation_manager: Arc<FederationManager>,
     network_service: Arc<dyn NetworkService>,
     adaptive_routing: Arc<AdaptiveRoutingEngine>,
-    governance_module: Arc<TokioMutex<GovernanceModule>>,
+    governance_module: Arc<TokioMutex<dyn GovernanceModule>>,
     governance_automation: Arc<GovernanceAutomationEngine>,
     did_resolver: Arc<dyn DidResolver>,
     reputation_store: Arc<dyn ReputationStore>,
     mana_ledger: Arc<dyn ManaLedger>,
-    dag_store: Arc<TokioMutex<dyn AsyncStorageService<DagBlock>>>,
+    dag_store: Arc<TokioMutex<dyn StorageService<DagBlock>>>,
     time_provider: Arc<dyn TimeProvider>,
     
     // Integration state
@@ -575,12 +677,12 @@ impl FederationIntegrationEngine {
         federation_manager: Arc<FederationManager>,
         network_service: Arc<dyn NetworkService>,
         adaptive_routing: Arc<AdaptiveRoutingEngine>,
-        governance_module: Arc<TokioMutex<GovernanceModule>>,
+        governance_module: Arc<TokioMutex<dyn GovernanceModule>>,
         governance_automation: Arc<GovernanceAutomationEngine>,
         did_resolver: Arc<dyn DidResolver>,
         reputation_store: Arc<dyn ReputationStore>,
         mana_ledger: Arc<dyn ManaLedger>,
-        dag_store: Arc<TokioMutex<dyn AsyncStorageService<DagBlock>>>,
+        dag_store: Arc<TokioMutex<dyn StorageService<DagBlock>>>,
         time_provider: Arc<dyn TimeProvider>,
     ) -> Self {
         let (event_tx, event_rx) = mpsc::unbounded_channel();
@@ -895,7 +997,7 @@ impl FederationIntegrationEngine {
     
     async fn synchronize_federations(
         _active_federations: &Arc<RwLock<HashMap<String, FederationState>>>,
-        _dag_store: &Arc<TokioMutex<dyn AsyncStorageService<DagBlock>>>,
+        _dag_store: &Arc<TokioMutex<dyn StorageService<DagBlock>>>,
         _config: &FederationIntegrationConfig,
         _event_tx: &mpsc::UnboundedSender<FederationEvent>,
         _time_provider: &Arc<dyn TimeProvider>,

@@ -3,9 +3,10 @@
 //! This module provides automated governance capabilities including proposal
 //! processing, voting coordination, policy enforcement, and CCL integration.
 
-use crate::{GovernanceModule, Proposal, Vote, ProposalId, VoteWeight, VotingResult};
+use crate::{GovernanceModule, Proposal, Vote, ProposalId};
 use icn_common::{Did, CommonError, TimeProvider, Cid};
-use icn_dag::{DagBlock, AsyncStorageService};
+use icn_dag::StorageService;
+use icn_common::DagBlock;
 use icn_ccl::{CclCompiler, CclRuntime, PolicyContract, ExecutionContext};
 use icn_identity::ExecutionReceipt;
 use icn_economics::ManaLedger;
@@ -872,14 +873,14 @@ pub struct GovernanceAutomationStats {
 
 // Additional types needed for compilation
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct VoteWeight {
+pub struct AutomationVoteWeight {
     pub base_weight: f64,
     pub reputation_multiplier: f64,
     pub total_weight: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum VotingResult {
+pub enum AutomationVotingResult {
     Passed {
         support_percentage: f64,
         total_votes: u64,
