@@ -93,7 +93,7 @@ use bincode;
 use dashmap::DashMap;
 use icn_common::{
     compute_merkle_cid, Cid, CommonError, DagBlock, Did, NodeScope, SysinfoSystemInfoProvider,
-    SystemInfoProvider,
+    SystemInfoProvider, TimeProvider,
 };
 use icn_economics::{LedgerEvent, ManaLedger};
 use icn_governance::GovernanceModule;
@@ -110,6 +110,7 @@ use icn_mesh::{
     ActualMeshJob, Job, JobAssignment, JobBid, JobId, JobLifecycle, JobLifecycleStatus, JobReceipt,
     JobState,
 };
+use icn_reputation::ReputationStore;
 use serde_json;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -259,7 +260,7 @@ use std::str::FromStr;
 
 // Add governance-specific types
 use super::mesh_network::{PROPOSAL_COST_MANA, VOTE_COST_MANA};
-use super::cross_component_coordinator::{CrossComponentCoordinator, DagOperation, Priority};
+use super::cross_component_coordinator::CrossComponentCoordinator;
 use icn_governance::{Proposal, ProposalId, ProposalSubmission, ProposalType, Vote, VoteOption};
 use serde::{Deserialize, Serialize};
 
@@ -543,7 +544,7 @@ impl RuntimeContext {
     /// Query CPU core count and available memory in MB using sysinfo.
     fn available_system_resources() -> (u32, u32) {
         let mut sys = System::new();
-        sys.refresh_cpu();
+        sys.refresh_cpu_all();
         sys.refresh_memory();
         let cpu = sys.cpus().len() as u32;
         let memory_mb = (sys.available_memory() / 1024) as u32;
@@ -608,8 +609,7 @@ impl RuntimeContext {
             mesh_network_service,
             signer,
             did_resolver,
-            dag_store: Arc::new(DagStoreMutexType::new(StubDagStore::new()))
-                as Arc<DagStoreMutexType<DagStorageService>>,
+            dag_store,
             reputation_store,
             trust_engine: Arc::new(TokioMutex::new(TrustPolicyEngine::new())),
             latency_store,
@@ -619,6 +619,7 @@ impl RuntimeContext {
             system_info,
             time_provider,
             default_receipt_wait_ms: 30000,
+            cross_component_coordinator,
         }))
     }
 
@@ -712,6 +713,19 @@ impl RuntimeContext {
         let system_info = Arc::new(SysinfoSystemInfoProvider);
         let mana_ledger = SimpleManaLedger::new(ledger_path);
 
+        let dag_store = Arc::new(DagStoreMutexType::new(StubDagStore::new()))
+            as Arc<DagStoreMutexType<DagStorageService>>;
+        
+        // Create cross-component coordinator
+        let cross_component_coordinator = Self::create_cross_component_coordinator(
+            mesh_network_service.clone(),
+            dag_store.clone(),
+            governance_module.clone(),
+            reputation_store.clone(),
+            current_identity.clone(),
+            time_provider.clone(),
+        );
+
         Ok(Arc::new(Self {
             current_identity,
             mana_ledger,
@@ -722,8 +736,7 @@ impl RuntimeContext {
             mesh_network_service,
             signer,
             did_resolver,
-            dag_store: Arc::new(DagStoreMutexType::new(StubDagStore::new()))
-                as Arc<DagStoreMutexType<DagStorageService>>,
+            dag_store,
             reputation_store,
             trust_engine: Arc::new(TokioMutex::new(TrustPolicyEngine::new())),
             latency_store,
@@ -733,6 +746,7 @@ impl RuntimeContext {
             system_info,
             time_provider,
             default_receipt_wait_ms: 30000,
+            cross_component_coordinator,
         }))
     }
 
@@ -766,6 +780,19 @@ impl RuntimeContext {
         let mana_ledger = SimpleManaLedger::new(ledger_path);
         let system_info = Arc::new(SysinfoSystemInfoProvider);
 
+        let dag_store = Arc::new(DagStoreMutexType::new(StubDagStore::new()))
+            as Arc<DagStoreMutexType<DagStorageService>>;
+        
+        // Create cross-component coordinator
+        let cross_component_coordinator = Self::create_cross_component_coordinator(
+            mesh_network_service.clone(),
+            dag_store.clone(),
+            governance_module.clone(),
+            reputation_store.clone(),
+            current_identity.clone(),
+            time_provider.clone(),
+        );
+
         Ok(Arc::new(Self {
             current_identity,
             mana_ledger,
@@ -776,8 +803,7 @@ impl RuntimeContext {
             mesh_network_service,
             signer,
             did_resolver,
-            dag_store: Arc::new(DagStoreMutexType::new(StubDagStore::new()))
-                as Arc<DagStoreMutexType<DagStorageService>>,
+            dag_store,
             reputation_store,
             trust_engine: Arc::new(TokioMutex::new(TrustPolicyEngine::new())),
             latency_store,
@@ -787,6 +813,7 @@ impl RuntimeContext {
             system_info,
             time_provider,
             default_receipt_wait_ms: 30000,
+            cross_component_coordinator,
         }))
     }
 
@@ -996,6 +1023,19 @@ impl RuntimeContext {
         std::mem::forget(temp_file);
         let mana_ledger = SimpleManaLedger::new(temp_path);
 
+        let dag_store = Arc::new(DagStoreMutexType::new(StubDagStore::new()))
+            as Arc<DagStoreMutexType<DagStorageService>>;
+        
+        // Create cross-component coordinator
+        let cross_component_coordinator = Self::create_cross_component_coordinator(
+            mesh_network_service.clone(),
+            dag_store.clone(),
+            governance_module.clone(),
+            reputation_store.clone(),
+            current_identity.clone(),
+            time_provider.clone(),
+        );
+
         let ctx = Arc::new(Self {
             current_identity: current_identity.clone(),
             mana_ledger,
@@ -1006,8 +1046,7 @@ impl RuntimeContext {
             mesh_network_service,
             signer,
             did_resolver,
-            dag_store: Arc::new(DagStoreMutexType::new(StubDagStore::new()))
-                as Arc<DagStoreMutexType<DagStorageService>>,
+            dag_store,
             reputation_store,
             trust_engine: Arc::new(TokioMutex::new(TrustPolicyEngine::new())),
             latency_store: Arc::new(icn_mesh::NoOpLatencyStore) as Arc<dyn icn_mesh::LatencyStore>,
@@ -1017,6 +1056,7 @@ impl RuntimeContext {
             system_info: Arc::new(SysinfoSystemInfoProvider),
             time_provider,
             default_receipt_wait_ms: 30000,
+            cross_component_coordinator,
         });
 
         // Set initial mana if provided
@@ -1057,6 +1097,19 @@ impl RuntimeContext {
         std::mem::forget(temp_file);
         let mana_ledger = SimpleManaLedger::new(temp_path);
 
+        let dag_store = Arc::new(DagStoreMutexType::new(StubDagStore::new()))
+            as Arc<DagStoreMutexType<DagStorageService>>;
+        
+        // Create cross-component coordinator
+        let cross_component_coordinator = Self::create_cross_component_coordinator(
+            mesh_network_service.clone(),
+            dag_store.clone(),
+            governance_module.clone(),
+            reputation_store.clone(),
+            current_identity.clone(),
+            time_provider.clone(),
+        );
+
         let ctx = Arc::new(Self {
             current_identity: current_identity.clone(),
             mana_ledger,
@@ -1067,8 +1120,7 @@ impl RuntimeContext {
             mesh_network_service,
             signer,
             did_resolver,
-            dag_store: Arc::new(DagStoreMutexType::new(StubDagStore::new()))
-                as Arc<DagStoreMutexType<DagStorageService>>,
+            dag_store,
             reputation_store,
             trust_engine: Arc::new(TokioMutex::new(TrustPolicyEngine::new())),
             latency_store,
@@ -1078,6 +1130,7 @@ impl RuntimeContext {
             system_info,
             time_provider,
             default_receipt_wait_ms: 30000,
+            cross_component_coordinator,
         });
 
         if let Some(mana) = initial_mana {
@@ -1118,6 +1171,16 @@ impl RuntimeContext {
         std::mem::forget(temp_file);
         let mana_ledger = SimpleManaLedger::new(temp_path);
 
+        // Create cross-component coordinator
+        let cross_component_coordinator = Self::create_cross_component_coordinator(
+            mesh_network_service.clone(),
+            dag_store.clone(),
+            governance_module.clone(),
+            reputation_store.clone(),
+            current_identity.clone(),
+            time_provider.clone(),
+        );
+
         Arc::new(Self {
             current_identity,
             mana_ledger,
@@ -1138,6 +1201,7 @@ impl RuntimeContext {
             system_info: Arc::new(SysinfoSystemInfoProvider),
             time_provider,
             default_receipt_wait_ms: 30000,
+            cross_component_coordinator,
         })
     }
 
@@ -1199,6 +1263,16 @@ impl RuntimeContext {
         let time_provider = Arc::new(icn_common::SystemTimeProvider);
         let system_info = Arc::new(SysinfoSystemInfoProvider);
 
+        // Create cross-component coordinator
+        let cross_component_coordinator = Self::create_cross_component_coordinator(
+            mesh_network_service.clone(),
+            dag_store.clone(),
+            governance_module.clone(),
+            reputation_store.clone(),
+            current_identity.clone(),
+            time_provider.clone(),
+        );
+
         Ok(Arc::new(Self {
             current_identity,
             mana_ledger,
@@ -1219,6 +1293,7 @@ impl RuntimeContext {
             system_info,
             time_provider,
             default_receipt_wait_ms: 30000,
+            cross_component_coordinator,
         }))
     }
 
@@ -1242,6 +1317,16 @@ impl RuntimeContext {
         let reputation_store = Arc::new(icn_reputation::InMemoryReputationStore::new());
         let parameters = Self::default_parameters();
 
+        // Create cross-component coordinator
+        let cross_component_coordinator = Self::create_cross_component_coordinator(
+            mesh_network_service.clone(),
+            dag_store.clone(),
+            governance_module.clone(),
+            reputation_store.clone(),
+            current_identity.clone(),
+            time_provider.clone(),
+        );
+
         Arc::new(Self {
             current_identity,
             mana_ledger,
@@ -1262,6 +1347,7 @@ impl RuntimeContext {
             system_info: Arc::new(SysinfoSystemInfoProvider),
             time_provider,
             default_receipt_wait_ms: 30000,
+            cross_component_coordinator,
         })
     }
 

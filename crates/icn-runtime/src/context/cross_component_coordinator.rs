@@ -8,13 +8,13 @@
 //! - Performance optimization across components
 
 use crate::context::{
-    DagStorageService, DagStoreMutexType, HostAbiError, MeshNetworkServiceType, Signer,
+    DagStorageService, DagStoreMutexType, HostAbiError, MeshNetworkServiceType,
+    enhanced_dag_sync::{EnhancedDagSync, PropagationPriority, SyncResult},
 };
-use icn_common::{Cid, CommonError, Did, TimeProvider};
+use icn_common::{Cid, Did, TimeProvider};
 use icn_governance::GovernanceModule;
-use icn_mesh::JobId;
 use icn_reputation::ReputationStore;
-use serde::{Deserialize, Serialize};
+// Note: Serialize/Deserialize may be needed for future state persistence
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -25,6 +25,8 @@ use tracing::{debug, error, info, warn};
 pub struct CrossComponentCoordinator {
     /// Network-DAG integration manager
     pub network_dag_manager: Arc<NetworkDagManager>,
+    /// Enhanced DAG synchronization service
+    pub dag_sync: Arc<EnhancedDagSync>,
     /// Economics-driven decision engine
     pub economics_engine: Arc<EconomicsDecisionEngine>,
     /// Health monitoring and recovery system
@@ -66,10 +68,19 @@ impl CrossComponentCoordinator {
 
         let performance_optimizer = Arc::new(PerformanceOptimizer::new());
 
+        let dag_sync = Arc::new(EnhancedDagSync::new(
+            mesh_network_service.clone(),
+            dag_store.clone(),
+            reputation_store.clone(),
+            current_identity.clone(),
+            time_provider.clone(),
+        ));
+
         let metrics = Arc::new(IntegrationMetrics::new());
 
         Self {
             network_dag_manager,
+            dag_sync,
             economics_engine,
             health_monitor,
             performance_optimizer,
@@ -129,6 +140,15 @@ impl CrossComponentCoordinator {
             network_dag_manager.run_sync_maintenance().await;
         });
 
+        // Start enhanced DAG synchronization
+        let dag_sync = self.dag_sync.clone();
+        tokio::spawn(async move {
+            if let Err(e) = dag_sync.start().await {
+                error!("Enhanced DAG sync failed to start: {}", e);
+            }
+        });
+
+        info!("Cross-component coordinator background tasks started");
         Ok(())
     }
 
@@ -146,6 +166,52 @@ impl CrossComponentCoordinator {
             network_dag: network_dag_status,
             timestamp: chrono::Utc::now(),
         }
+    }
+
+    /// Intelligently propagate a DAG block with network-aware optimization
+    pub async fn propagate_block_intelligently(
+        &self,
+        block_cid: Cid,
+        priority: PropagationPriority,
+        target_peers: Option<Vec<Did>>,
+    ) -> Result<(), HostAbiError> {
+        info!("Propagating block {} with priority {:?}", block_cid, priority);
+        
+        // Use enhanced DAG sync for intelligent propagation
+        self.dag_sync.propagate_block(block_cid, priority, target_peers).await?;
+        
+        // Record metrics
+        self.metrics.record_block_propagation(&block_cid, &priority);
+        
+        Ok(())
+    }
+
+    /// Perform intelligent network-wide DAG synchronization
+    pub async fn sync_dag_intelligently(&self) -> Result<SyncResult, HostAbiError> {
+        info!("Starting intelligent DAG synchronization");
+        
+        // Check system health before sync
+        let health_status = self.health_monitor.check_component_health().await;
+        if !health_status.is_healthy() {
+            warn!("System health issues detected before DAG sync: {:?}", health_status);
+        }
+        
+        // Perform enhanced synchronization
+        let sync_result = self.dag_sync.sync_with_network().await?;
+        
+        // Learn from sync performance
+        let sync_duration = sync_result.duration;
+        if sync_duration > Duration::from_secs(30) {
+            warn!("DAG sync took longer than expected: {:?}", sync_duration);
+        }
+        
+        // Record metrics
+        self.metrics.record_dag_sync(&sync_result);
+        
+        info!("DAG synchronization completed: {} blocks received, {} blocks sent", 
+              sync_result.blocks_received, sync_result.blocks_sent);
+        
+        Ok(sync_result)
     }
 }
 
@@ -256,7 +322,7 @@ impl NetworkDagManager {
                 debug!("Found block locally: {}", cid);
                 return Ok(DagOperationResult::Retrieve { 
                     cid, 
-                    data: block.data,
+                    data: block.unwrap().data,
                     source: RetrievalSource::Local,
                 });
             }
@@ -1000,6 +1066,49 @@ impl IntegrationMetrics {
             error_counts,
             latency_stats,
         }
+    }
+
+    /// Record a block propagation event
+    pub fn record_block_propagation(&self, block_cid: &Cid, priority: &PropagationPriority) {
+        let operation_type = format!("block_propagation_{:?}", priority).to_lowercase();
+        
+        tokio::spawn({
+            let operation_counts = self.operation_counts.clone();
+            async move {
+                let mut counts = operation_counts.write().await;
+                *counts.entry(operation_type).or_insert(0) += 1;
+            }
+        });
+        
+        debug!("Recorded block propagation for {} with priority {:?}", block_cid, priority);
+    }
+
+    /// Record a DAG synchronization event
+    pub fn record_dag_sync(&self, sync_result: &SyncResult) {
+        let operation_type = "dag_sync".to_string();
+        
+        tokio::spawn({
+            let operation_counts = self.operation_counts.clone();
+            let latency_stats = self.latency_stats.clone();
+            let duration = sync_result.duration;
+            async move {
+                // Record operation count
+                {
+                    let mut counts = operation_counts.write().await;
+                    *counts.entry(operation_type.clone()).or_insert(0) += 1;
+                }
+                
+                // Record latency
+                {
+                    let mut stats = latency_stats.write().await;
+                    let latency_stat = stats.entry(operation_type).or_insert_with(LatencyStats::default);
+                    latency_stat.add_sample(duration);
+                }
+            }
+        });
+        
+        debug!("Recorded DAG sync: {} blocks received, {} blocks sent, duration: {:?}", 
+               sync_result.blocks_received, sync_result.blocks_sent, sync_result.duration);
     }
 }
 

@@ -5,6 +5,7 @@
 
 pub mod compile_checks;
 pub mod cross_component_coordinator;
+pub mod enhanced_dag_sync;
 pub mod errors;
 pub mod host_environment;
 pub mod mana;
@@ -20,6 +21,9 @@ pub use compile_checks::ProductionReady;
 pub use cross_component_coordinator::{
     CrossComponentCoordinator, DagOperation, DagOperationResult, Priority, SystemStatus,
     HealthStatus, PerformanceMetrics, IntegrationMetricsSummary,
+};
+pub use enhanced_dag_sync::{
+    EnhancedDagSync, PropagationPriority, PropagationStrategy, SyncHealth, SyncResult, NetworkConditions,
 };
 pub use errors::HostAbiError;
 pub use host_environment::{ConcreteHostEnvironment, HostEnvironment};
