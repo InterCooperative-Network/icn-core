@@ -369,7 +369,7 @@ impl AdvancedCclWasmBackend {
         let wasm_bytes = {
             let dag_store = self.dag_store.lock().await;
             dag_store
-                .get_block(module_cid)
+                .retrieve(module_cid)
                 .await
                 .map_err(|e| HostAbiError::DagError(format!("Failed to load WASM module: {}", e)))?
                 .ok_or_else(|| HostAbiError::DagError("WASM module not found in DAG".to_string()))?
@@ -450,13 +450,17 @@ impl AdvancedCclWasmBackend {
 
         let mut store = Store::new(&self.engine, context);
 
-        // Set resource limits
-        store.limiter(|_| &mut ResourceLimiter {
-            max_memory: self.execution_config.max_memory_bytes,
-            max_instructions: self.execution_config.max_instructions,
-            current_memory: 0,
-            current_instructions: 0,
-        });
+        // TODO: Fix resource limiter - wasmtime API lifetime issue
+        // Need to properly implement Store resource limiting
+        // The limiter API requires complex lifetime management that needs refactoring
+        //
+        // let mut limiter = ResourceLimiter {
+        //     max_memory: self.execution_config.max_memory_bytes,
+        //     max_instructions: self.execution_config.max_instructions,
+        //     current_memory: 0,
+        //     current_instructions: 0,
+        // };
+        // store.limiter(|_| &mut limiter);
 
         // Instantiate the module
         let instance = self.linker.instantiate(&mut store, &module).map_err(|e| {

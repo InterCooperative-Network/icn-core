@@ -6,7 +6,7 @@
 use super::{HostAbiError, MeshNetworkServiceType};
 use icn_common::{CommonError, Did, TimeProvider};
 use icn_identity::{
-    FederationInfo, FederationManager, FederationMembershipService, MembershipStatus,
+    FederationInfo, FederationManager, FederationMembershipService, FederationType, FederationStatus, MembershipStatus,
 };
 use icn_reputation::ReputationStore;
 use log::{debug, error, info, warn};
@@ -127,16 +127,33 @@ impl FederationIntegration {
             }
         };
 
-        // Update cache with discovered federations
+        // Convert protocol FederationInfo to identity FederationInfo and update cache
+        let mut identity_federations = Vec::new();
         {
             let mut cache = self.federation_cache.write().await;
-            for federation in &discovered {
-                cache.insert(federation.federation_id.clone(), federation.clone());
+            for protocol_federation in &discovered {
+                // Convert icn_protocol::FederationInfo to icn_identity::FederationInfo
+                let identity_federation = icn_identity::FederationInfo {
+                    federation_id: protocol_federation.federation_id.clone(),
+                    name: format!("Federation {}", protocol_federation.federation_id), // Default name
+                    description: "Discovered federation".to_string(), // Default description
+                    admin_did: self.node_identity.clone(), // Use our identity as fallback
+                    created_at: chrono::Utc::now().timestamp() as u64,
+                    federation_type: FederationType::General, // Default type
+                    geographic_scope: None,
+                    membership_policy: icn_identity::MembershipPolicy::Open,
+                    required_capabilities: Vec::new(),
+                    status: icn_identity::FederationStatus::Active,
+                    metadata: std::collections::HashMap::new(),
+                };
+                
+                cache.insert(protocol_federation.federation_id.clone(), identity_federation.clone());
+                identity_federations.push(identity_federation);
             }
         }
 
-        info!("Discovered {} federations from network", discovered.len());
-        Ok(discovered)
+        info!("Discovered {} federations from network", identity_federations.len());
+        Ok(identity_federations)
     }
 
     /// Get cached federations without network discovery
@@ -275,18 +292,17 @@ impl FederationIntegration {
             for federation in &all_federations {
                 if federation.federation_id == our_federation.federation_id {
                     // Check if peer is also in this federation
-                    if let Ok(Some(peer_status)) = self
+                    if self
                         .federation_manager
-                        .get_membership_status(&federation.federation_id, peer_did)
-                        .await
+                        .membership_service()
+                        .is_member(peer_did, &federation.federation_id)
                     {
-                        if peer_status == MembershipStatus::Active {
                             shared_federations += 1;
                             // Add trust based on federation type and reputation
                             let federation_weight = match federation.federation_type {
-                                icn_identity::FederationType::Governance => 2.0,
-                                icn_identity::FederationType::Compute => 1.5,
-                                icn_identity::FederationType::Economic => 1.8,
+                                FederationType::Governance => 2.0,
+                                FederationType::Compute => 1.5,
+                                FederationType::Economic => 1.8,
                                 _ => 1.0,
                             };
                             trust_score += federation_weight;

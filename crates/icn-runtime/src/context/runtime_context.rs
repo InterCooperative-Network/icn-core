@@ -933,7 +933,7 @@ impl RuntimeContext {
     /// Create a new RuntimeContext from a service configuration.
     /// This is the preferred method as it ensures type-safe service mapping.
     pub fn from_service_config(config: ServiceConfig) -> Result<Arc<Self>, CommonError> {
-        icn_runtime::execution_monitor::init_logger();
+        crate::execution_monitor::init_logger();
         // Validate the configuration before using it
         config.validate()?;
 
@@ -3984,7 +3984,7 @@ impl RuntimeContext {
         job: &ActualMeshJob,
         _agreed_cost: u64, // Marked as unused for now
     ) -> Result<icn_identity::ExecutionReceipt, HostAbiError> {
-        icn_runtime::execution_monitor::clear_logs();
+        crate::execution_monitor::clear_logs();
         let job_id = &job.id;
         let executor_did = ctx.current_identity.clone();
 
