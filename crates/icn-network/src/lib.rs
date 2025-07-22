@@ -118,6 +118,12 @@ where
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct PeerId(pub String);
 
+impl std::fmt::Display for PeerId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 impl PeerId {
     /// Construct from a raw string.
     pub fn from_string(s: String) -> Self {

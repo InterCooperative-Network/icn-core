@@ -48,6 +48,9 @@ pub enum MeshNetworkError {
         reason: String,
     },
 
+    #[error("Routing error: {0}")]
+    RoutingError(String),
+
     /// Error occurred during the libp2p noise handshake phase
     #[error("Handshake failed: {0}")]
     HandshakeFailed(String),
