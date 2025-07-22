@@ -719,13 +719,28 @@ pub async fn build_network_service(
 
     // Create network service configuration
     let net_config = NetworkServiceConfig {
-        listen_addresses: config.p2p.listen_addresses.clone(),
-        bootstrap_peers: config.p2p.bootstrap_peers.iter().map(|peer| {
-            icn_network::BootstrapPeer {
-                peer_id: peer.peer_id.clone(),
-                address: peer.multiaddr.clone(),
-                weight: Some(1),
-                trusted: true,
+        listen_addresses: {
+            let mut addresses = vec![config.p2p.listen_address.clone()];
+            addresses.extend(config.p2p.additional_listen_addresses.iter().cloned());
+            addresses
+        },
+        bootstrap_peers: config.p2p.bootstrap_peers.as_ref().unwrap_or(&Vec::new()).iter().map(|peer_addr| {
+            // Parse peer address in format: peer_id@multiaddr or just multiaddr
+            if let Some((peer_id, addr)) = peer_addr.split_once('@') {
+                icn_network::BootstrapPeer {
+                    peer_id: peer_id.to_string(),
+                    address: addr.to_string(),
+                    weight: Some(1),
+                    trusted: true,
+                }
+            } else {
+                // If no peer ID provided, use empty string and let the network layer handle it
+                icn_network::BootstrapPeer {
+                    peer_id: String::new(),
+                    address: peer_addr.clone(),
+                    weight: Some(1),
+                    trusted: true,
+                }
             }
         }).collect(),
         enable_mdns: config.p2p.enable_mdns,
