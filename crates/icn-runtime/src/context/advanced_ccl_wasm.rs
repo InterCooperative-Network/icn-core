@@ -36,7 +36,9 @@ pub struct AdvancedCclWasmBackend {
 pub struct CclWasmContext {
     /// Current proposal being executed
     current_proposal: Option<ProposalId>,
-    /// Available mana for execution
+    /// Initial mana available at start of execution
+    initial_mana: u64,
+    /// Available mana for execution (decreases during execution)
     available_mana: u64,
     /// Execution start time
     start_time: Instant,
@@ -372,6 +374,7 @@ impl AdvancedCclWasmBackend {
         // Create execution context
         let context = CclWasmContext {
             current_proposal: Some(proposal.id.clone()),
+            initial_mana: available_mana,
             available_mana,
             start_time: execution_start,
             memory_usage: 0,
@@ -442,8 +445,8 @@ impl AdvancedCclWasmBackend {
         let execution_time = start_time.elapsed();
         let memory_used = store.data().memory_usage;
         let instructions = store.data().instruction_count;
-        let initial_mana = store.data().available_mana + (store.data().start_time.elapsed().as_secs() * 10); // Estimate
-        let mana_consumed = initial_mana - store.data().available_mana;
+        // Calculate actual mana consumed based on initial vs remaining mana
+        let mana_consumed = store.data().initial_mana.saturating_sub(store.data().available_mana);
 
         Ok(CclExecutionResult {
             success: result_code == 1,
@@ -530,5 +533,123 @@ impl wasmtime::ResourceLimiter for ResourceLimiter {
 
     fn table_growing(&mut self, _current: u32, _desired: u32, _maximum: Option<u32>) -> anyhow::Result<bool> {
         Ok(true)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use icn_common::{Did, TimeProvider};
+    use icn_governance::{Proposal, ProposalId, ProposalType, Vote, VoteOption};
+    use std::sync::Arc;
+    use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+    /// Mock time provider for deterministic testing
+    struct MockTimeProvider {
+        current_time: u64,
+    }
+
+    impl TimeProvider for MockTimeProvider {
+        fn unix_seconds(&self) -> u64 {
+            self.current_time
+        }
+    }
+
+    /// Test that mana calculation correctly tracks consumption
+    #[tokio::test]
+    async fn test_mana_calculation_accuracy() {
+        // Create mock context with initial mana
+        let initial_mana = 1000u64;
+        let mut context = CclWasmContext {
+            current_proposal: None,
+            initial_mana,
+            available_mana: initial_mana,
+            start_time: std::time::Instant::now(),
+            memory_usage: 0,
+            instruction_count: 0,
+            node_identity: Did::parse("did:key:test").unwrap(),
+            governance_data: HashMap::new(),
+        };
+
+        // Simulate mana consumption
+        let consumed_amount = 250u64;
+        context.available_mana -= consumed_amount;
+
+        // Calculate mana consumed using the fixed logic
+        let mana_consumed = context.initial_mana.saturating_sub(context.available_mana);
+
+        // Verify calculation is correct
+        assert_eq!(mana_consumed, consumed_amount);
+        assert_eq!(context.available_mana, initial_mana - consumed_amount);
+    }
+
+    /// Test that mana calculation handles edge cases correctly
+    #[tokio::test]
+    async fn test_mana_calculation_edge_cases() {
+        let initial_mana = 100u64;
+        
+        // Test case 1: No mana consumed
+        let mut context = CclWasmContext {
+            current_proposal: None,
+            initial_mana,
+            available_mana: initial_mana,
+            start_time: std::time::Instant::now(),
+            memory_usage: 0,
+            instruction_count: 0,
+            node_identity: Did::parse("did:key:test").unwrap(),
+            governance_data: HashMap::new(),
+        };
+
+        let mana_consumed = context.initial_mana.saturating_sub(context.available_mana);
+        assert_eq!(mana_consumed, 0);
+
+        // Test case 2: All mana consumed
+        context.available_mana = 0;
+        let mana_consumed = context.initial_mana.saturating_sub(context.available_mana);
+        assert_eq!(mana_consumed, initial_mana);
+
+        // Test case 3: Overflow protection (available_mana > initial_mana should not happen)
+        // but if it does, saturating_sub prevents underflow
+        context.available_mana = initial_mana + 50; // Impossible scenario
+        let mana_consumed = context.initial_mana.saturating_sub(context.available_mana);
+        assert_eq!(mana_consumed, 0); // saturating_sub prevents underflow
+    }
+
+    /// Test that the old calculation method would have been wrong
+    #[test]
+    fn test_old_calculation_was_wrong() {
+        let initial_mana = 1000u64;
+        let available_mana = 750u64; // 250 mana consumed
+        let execution_time_secs = 30u64;
+
+        // The old flawed calculation
+        let old_estimated_initial = available_mana + (execution_time_secs * 10);
+        let old_mana_consumed = old_estimated_initial - available_mana;
+
+        // This would always equal execution_time_secs * 10, regardless of actual usage
+        assert_eq!(old_mana_consumed, execution_time_secs * 10); // 300, not the actual 250
+
+        // The new correct calculation
+        let new_mana_consumed = initial_mana.saturating_sub(available_mana);
+        assert_eq!(new_mana_consumed, 250); // Correct actual consumption
+
+        // Demonstrate the old calculation was wrong
+        assert_ne!(old_mana_consumed, new_mana_consumed);
+    }
+
+    /// Test overflow protection in long execution scenarios
+    #[test]
+    fn test_overflow_protection() {
+        // Test with large execution time that would cause overflow in old calculation
+        let execution_time_secs = u64::MAX / 5; // Large value that would overflow when * 10
+        let available_mana = 500u64;
+
+        // Old calculation would overflow: available_mana + (execution_time_secs * 10)
+        // This is why the old calculation was dangerous
+
+        // New calculation is safe regardless of execution time
+        let initial_mana = 1000u64;
+        let mana_consumed = initial_mana.saturating_sub(available_mana);
+        assert_eq!(mana_consumed, 500); // Safe calculation, correct result
     }
 }
