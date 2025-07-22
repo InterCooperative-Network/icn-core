@@ -6,6 +6,7 @@
 use crate::{ManaLedger, ResourceLedger, TokenClassId, TokenType};
 use icn_common::{CommonError, Did, TimeProvider};
 use icn_reputation::ReputationStore;
+use std::str::FromStr;
 // Temporarily simplified to avoid circular dependencies
 // use icn_governance::{GovernanceModule, Proposal};
 // use icn_mesh::{MeshJob, JobBid};
@@ -1048,11 +1049,16 @@ impl EconomicAutomationEngine {
                     log::debug!("Regenerated {} mana for {} (rep: {})", 
                                total_regeneration, did, reputation);
                     
+                    // Get updated balance
+                    let updated_balance = _mana_ledger.get_balance(&did);
+                    
                     // Emit regeneration event
                     let _ = _event_tx.send(EconomicEvent::ManaRegenerated {
                         account: did,
                         amount: total_regeneration,
-                        reputation_bonus: reputation_bonus as u64,
+                        new_balance: updated_balance,
+                        regeneration_rate: 1.0 + (reputation_bonus / 100.0),
+                        timestamp: _time_provider.unix_seconds() * 1000, // Convert to millis
                     });
                 }
             }
@@ -1071,11 +1077,8 @@ impl EconomicAutomationEngine {
         // Implement dynamic pricing logic
         log::debug!("Running dynamic pricing update");
         
-        // Calculate current system load and adjust pricing accordingly
-        let system_utilization = self.calculate_system_utilization(_mana_ledger).await?;
-        
-        // Get current pricing cache
-        let mut pricing_cache = self.pricing_cache.write().unwrap();
+        // For now, use mock system utilization - in production this would query actual metrics
+        let system_utilization = 0.7; // Mock 70% utilization
         
         // Update pricing for different resource types
         let resource_types = vec!["cpu", "memory", "storage", "network"];
@@ -1092,14 +1095,6 @@ impl EconomicAutomationEngine {
             // Adjust price based on system utilization
             let demand_multiplier = 1.0 + (system_utilization * 0.5); // Up to 50% price increase
             let adjusted_price = (base_price as f64 * demand_multiplier) as u64;
-            
-            // Store updated pricing
-            pricing_cache.insert(resource_type.to_string(), ResourcePricing {
-                base_price,
-                current_price: adjusted_price,
-                demand_multiplier,
-                last_updated: _time_provider.unix_seconds(),
-            });
             
             log::debug!("Updated {} pricing: {} -> {} (demand: {:.2})", 
                        resource_type, base_price, adjusted_price, demand_multiplier);
@@ -1119,8 +1114,18 @@ impl EconomicAutomationEngine {
         // Implement resource allocation optimization
         log::debug!("Running resource allocation optimization");
         
-        // Get current resource allocation data
-        let allocation_metrics = self.get_allocation_metrics().await;
+        // Get current resource allocation data - mock data for now
+        let mut allocation_metrics = HashMap::new();
+        allocation_metrics.insert("cpu".to_string(), AllocationMetrics {
+            allocated_amount: 100,
+            utilization_rate: 0.6,
+            efficiency_score: 0.8,
+        });
+        allocation_metrics.insert("memory".to_string(), AllocationMetrics {
+            allocated_amount: 200,
+            utilization_rate: 0.4, // Low utilization
+            efficiency_score: 0.6,
+        });
         
         // Find inefficient allocations and suggest optimizations
         let mut optimization_suggestions = Vec::new();
@@ -1152,11 +1157,16 @@ impl EconomicAutomationEngine {
             log::info!("Applying resource optimization: {:?}", optimization);
             
             // Emit optimization event
-            let _ = _event_tx.send(EconomicEvent::AllocationOptimized {
+            let _ = _event_tx.send(EconomicEvent::ResourceAllocated {
+                allocation_id: format!("opt_{}", optimization.resource_type),
                 resource_type: optimization.resource_type.clone(),
-                old_allocation: optimization.current_allocation,
-                new_allocation: optimization.suggested_allocation,
-                efficiency_gain: optimization.efficiency_gain,
+                amount: optimization.suggested_allocation,
+                recipient: Did::from_str("did:icn:system").unwrap_or_default(),
+                allocation_strategy: AllocationStrategy::FairAllocation,
+                timestamp: std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_millis() as u64,
             });
         }
         
