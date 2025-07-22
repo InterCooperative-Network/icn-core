@@ -79,6 +79,7 @@
 //! # }
 //! ```
 
+use super::dag_store_wrapper::DagStoreWrapper;
 use super::errors::HostAbiError;
 use super::mana::SimpleManaLedger;
 use super::mesh_network::{
@@ -300,7 +301,7 @@ pub struct RuntimeContext {
     pub mesh_network_service: Arc<MeshNetworkServiceType>,
     pub signer: Arc<dyn Signer>,
     pub did_resolver: Arc<dyn icn_identity::DidResolver>,
-    pub dag_store: Arc<DagStoreMutexType<DagStorageService>>,
+    pub dag_store: DagStoreWrapper,
     pub reputation_store: Arc<dyn icn_reputation::ReputationStore>,
     pub trust_engine: Arc<TokioMutex<TrustPolicyEngine>>,
     pub latency_store: Arc<dyn icn_mesh::LatencyStore>,
@@ -381,7 +382,7 @@ pub struct RuntimeContextParams {
     pub mesh_network_service: Arc<MeshNetworkServiceType>,
     pub signer: Arc<dyn Signer>,
     pub did_resolver: Arc<dyn icn_identity::DidResolver>,
-    pub dag_store: Arc<DagStoreMutexType<DagStorageService>>,
+    pub dag_store: DagStoreWrapper,
     pub mana_ledger: SimpleManaLedger,
     pub reputation_path: PathBuf,
     pub latency_store: Arc<dyn icn_mesh::LatencyStore>,
@@ -395,7 +396,7 @@ pub struct RuntimeContextBuilder {
     environment: EnvironmentType,
     network_service: Option<Arc<dyn icn_network::NetworkService>>,
     signer: Option<Arc<dyn Signer>>,
-    dag_store: Option<Arc<DagStoreMutexType<DagStorageService>>>,
+    dag_store: Option<DagStoreWrapper>,
     mana_ledger: Option<SimpleManaLedger>,
     reputation_store: Option<Arc<dyn icn_reputation::ReputationStore>>,
     policy_enforcer: Option<Arc<dyn icn_governance::scoped_policy::ScopedPolicyEnforcer>>,
@@ -448,7 +449,7 @@ impl RuntimeContextBuilder {
     }
 
     /// Set the DAG store (required for production).
-    pub fn with_dag_store(mut self, store: Arc<DagStoreMutexType<DagStorageService>>) -> Self {
+    pub fn with_dag_store(mut self, store: DagStoreWrapper) -> Self {
         self.dag_store = Some(store);
         self
     }
@@ -559,7 +560,7 @@ impl RuntimeContext {
     /// Create a cross-component coordinator with the given services
     fn create_cross_component_coordinator(
         mesh_network_service: Arc<MeshNetworkServiceType>,
-        dag_store: Arc<DagStoreMutexType<DagStorageService>>,
+        dag_store: &DagStoreWrapper,
         governance_module: Arc<DagStoreMutexType<GovernanceModule>>,
         reputation_store: Arc<dyn ReputationStore>,
         current_identity: Did,
@@ -567,7 +568,7 @@ impl RuntimeContext {
     ) -> Arc<CrossComponentCoordinator> {
         Arc::new(CrossComponentCoordinator::new(
             mesh_network_service,
-            dag_store,
+            dag_store.clone_inner(),
             governance_module,
             reputation_store,
             current_identity,
@@ -594,21 +595,8 @@ impl RuntimeContext {
             ));
         }
 
-        // Check DAG store type
-        let dag_store = self.dag_store.clone();
-        tokio::task::block_in_place(|| {
-            let rt = tokio::runtime::Handle::current();
-            rt.block_on(async {
-                let store = dag_store.lock().await;
-                if store.as_any().is::<super::stubs::StubDagStore>() {
-                    return Err(CommonError::InternalError(
-                        "❌ PRODUCTION ERROR: Stub DAG store detected in production context."
-                            .to_string(),
-                    ));
-                }
-                Ok(())
-            })
-        })?;
+        // Check DAG store type (synchronous check)
+        self.dag_store.validate_for_production()?;
 
         Ok(())
     }
@@ -627,75 +615,22 @@ impl RuntimeContext {
     ///
     /// **⚠️ DEPRECATED**: This method is deprecated in favor of `new_testing()` which provides
     /// clearer semantics and better error handling. Use `new_testing()` instead.
+    ///
+    /// **⚠️ STUB SERVICES**: This method uses stub services and should NEVER be used in production.
     #[deprecated(
         since = "0.2.0",
-        note = "Use `new_testing()` instead for clearer semantics"
+        note = "Use `new_testing()` instead for clearer semantics. This method uses stub services that are not suitable for production."
     )]
     pub fn new_with_stubs(current_identity_str: &str) -> Result<Arc<Self>, CommonError> {
-        // TODO: Initialize execution monitor logger
         let current_identity = Did::from_str(current_identity_str)
             .map_err(|e| CommonError::InternalError(format!("Invalid DID: {}", e)))?;
-
-        let (tx, rx) = mpsc::channel(128);
-        let job_states = Arc::new(DashMap::new());
-        let governance_module = Arc::new(DagStoreMutexType::new(GovernanceModule::new()));
-        let mesh_network_service =
-            Arc::new(MeshNetworkServiceType::Stub(StubMeshNetworkService::new()));
-        let signer = Arc::new(super::signers::StubSigner::new());
-        let did_resolver = Arc::new(icn_identity::KeyDidResolver);
-        let reputation_store = Arc::new(icn_reputation::InMemoryReputationStore::new());
-        let latency_store = Arc::new(icn_mesh::NoOpLatencyStore) as Arc<dyn icn_mesh::LatencyStore>;
-        let parameters = Self::default_parameters();
-        let policy_enforcer = None;
-        let time_provider = Arc::new(icn_common::SystemTimeProvider);
-        let system_info = Arc::new(SysinfoSystemInfoProvider);
-
-        // Use a temporary file for testing to avoid file system issues
-        let temp_file = tempfile::NamedTempFile::new()
-            .map_err(|e| CommonError::IoError(format!("Failed to create temp file: {}", e)))?;
-        let temp_path = temp_file.path().to_path_buf();
-        // Keep the temp file alive by storing it
-        std::mem::forget(temp_file);
-        let mana_ledger = SimpleManaLedger::new(temp_path);
-
-        let dag_store = Arc::new(DagStoreMutexType::new(StubDagStore::new()))
-            as Arc<DagStoreMutexType<DagStorageService>>;
-
-        // Create cross-component coordinator
-        let cross_component_coordinator = Self::create_cross_component_coordinator(
-            mesh_network_service.clone(),
-            dag_store.clone(),
-            governance_module.clone(),
-            reputation_store.clone(),
-            current_identity.clone(),
-            time_provider.clone(),
-        );
-
-        Ok(Arc::new(Self {
-            current_identity,
-            mana_ledger,
-            pending_mesh_jobs_tx: tx,
-            pending_mesh_jobs_rx: TokioMutex::new(rx),
-            job_states,
-            governance_module,
-            mesh_network_service,
-            signer,
-            did_resolver,
-            dag_store,
-            reputation_store,
-            trust_engine: Arc::new(TokioMutex::new(TrustPolicyEngine::new())),
-            latency_store,
-            parameters,
-            policy_enforcer,
-            resource_ledger: TokioMutex::new(super::resource_ledger::ResourceLedger::new()),
-            system_info,
-            time_provider,
-            default_receipt_wait_ms: 30000,
-            cross_component_coordinator,
-        }))
+        
+        Self::new_testing(current_identity, None)
     }
 
     /// Create a new context with stubs and initial mana balance (convenience method for tests).
+    ///
+    /// **⚠️ STUB SERVICES**: This method uses stub services and should NEVER be used in production.
     pub fn new_with_stubs_and_mana(
         current_identity_str: &str,
         initial_mana: u64,
@@ -945,7 +880,7 @@ impl RuntimeContext {
         // Initialize cross-component coordinator with all services
         let cross_component_coordinator = Self::create_cross_component_coordinator(
             config.mesh_network_service.clone(),
-            config.dag_store.clone(),
+            &config.dag_store,
             governance_module.clone(),
             config.reputation_store.clone(),
             config.current_identity.clone(),
@@ -984,7 +919,7 @@ impl RuntimeContext {
     /// **Services Used:**
     /// - Network: Real libp2p networking service
     /// - Signer: Ed25519 cryptographic signer
-    /// - DAG Store: Persistent storage backend (PostgreSQL, RocksDB, etc.)
+    /// - DAG Store: Persistent storage backend (Sled, RocksDB, SQLite, or PostgreSQL)
     /// - Mana Ledger: Persistent mana ledger
     /// - Reputation Store: Persistent reputation storage
     ///
@@ -999,11 +934,14 @@ impl RuntimeContext {
         network_service: Arc<dyn icn_network::NetworkService>,
         signer: Arc<dyn Signer>,
         did_resolver: Arc<dyn icn_identity::DidResolver>,
-        dag_store: Arc<DagStoreMutexType<DagStorageService>>,
+        dag_store: DagStoreWrapper,
         mana_ledger: SimpleManaLedger,
         reputation_store: Arc<dyn icn_reputation::ReputationStore>,
         policy_enforcer: Option<Arc<dyn icn_governance::scoped_policy::ScopedPolicyEnforcer>>,
     ) -> Result<Arc<Self>, CommonError> {
+        // Validate that no stub services are being used in production (synchronous check)
+        dag_store.validate_for_production()?;
+
         let config = ServiceConfig::production(
             current_identity,
             network_service,
@@ -1013,6 +951,32 @@ impl RuntimeContext {
             mana_ledger,
             reputation_store,
             policy_enforcer,
+        )?;
+        Self::from_service_config(config)
+    }
+
+    /// Create a production RuntimeContext with automatic storage backend creation.
+    ///
+    /// **🏭 PRODUCTION**: This is a convenience method that automatically creates
+    /// the appropriate persistent DAG storage backend for production use.
+    ///
+    /// **Use when:**
+    /// - You want automatic backend selection (Sled > RocksDB > SQLite > PostgreSQL)
+    /// - You have a storage directory but don't want to manually create the DAG store
+    /// - You're setting up a production node with minimal configuration
+    pub fn new_for_production_with_storage(
+        current_identity: Did,
+        network_service: Arc<dyn icn_network::NetworkService>,
+        signer: Arc<dyn Signer>,
+        storage_path: std::path::PathBuf,
+        mana_ledger: SimpleManaLedger,
+    ) -> Result<Arc<Self>, CommonError> {
+        let config = ServiceConfig::production_with_storage(
+            current_identity,
+            network_service,
+            signer,
+            storage_path,
+            mana_ledger,
         )?;
         Self::from_service_config(config)
     }
@@ -1050,6 +1014,27 @@ impl RuntimeContext {
         Self::from_service_config(config)
     }
 
+    /// Create a development RuntimeContext with automatic storage creation.
+    ///
+    /// **🛠️ DEVELOPMENT**: Convenience method for development setups.
+    /// If storage_path is provided, uses persistent storage. Otherwise uses stub storage.
+    pub fn new_development_with_storage(
+        current_identity: Did,
+        signer: Arc<dyn Signer>,
+        mana_ledger: SimpleManaLedger,
+        network_service: Option<Arc<dyn icn_network::NetworkService>>,
+        storage_path: Option<std::path::PathBuf>,
+    ) -> Result<Arc<Self>, CommonError> {
+        let config = ServiceConfig::development_with_storage(
+            current_identity,
+            signer,
+            mana_ledger,
+            network_service,
+            storage_path,
+        )?;
+        Self::from_service_config(config)
+    }
+
     /// Create a testing RuntimeContext with all stub services.
     ///
     /// **🧪 TESTING**: This method creates a completely isolated testing environment
@@ -1058,7 +1043,7 @@ impl RuntimeContext {
     /// **Services Used:**
     /// - Network: Stub network service (no real networking)
     /// - Signer: Stub signer (deterministic signatures)
-    /// - DAG Store: In-memory stub store
+    /// - DAG Store: In-memory stub store (no persistence)
     /// - Mana Ledger: Temporary file-based ledger
     /// - Reputation Store: In-memory reputation store
     ///
@@ -1075,72 +1060,8 @@ impl RuntimeContext {
         current_identity: Did,
         initial_mana: Option<u64>,
     ) -> Result<Arc<Self>, CommonError> {
-        let (tx, rx) = mpsc::channel(128);
-        let job_states = Arc::new(DashMap::new());
-        let governance_module = Arc::new(DagStoreMutexType::new(GovernanceModule::new()));
-        let mesh_network_service =
-            Arc::new(MeshNetworkServiceType::Stub(StubMeshNetworkService::new()));
-        let signer = Arc::new(super::signers::StubSigner::new());
-        let did_resolver = Arc::new(icn_identity::KeyDidResolver);
-        let reputation_store = Arc::new(icn_reputation::InMemoryReputationStore::new());
-        let parameters = Self::default_parameters();
-        let policy_enforcer = None;
-        let time_provider = Arc::new(icn_common::SystemTimeProvider);
-
-        // Use a temporary file for testing
-        let temp_file = tempfile::NamedTempFile::new().map_err(|e| {
-            CommonError::IoError(format!("Failed to create temp file for testing: {}", e))
-        })?;
-        let temp_path = temp_file.path().to_path_buf();
-        std::mem::forget(temp_file);
-        let mana_ledger = SimpleManaLedger::new(temp_path);
-
-        let dag_store = Arc::new(DagStoreMutexType::new(StubDagStore::new()))
-            as Arc<DagStoreMutexType<DagStorageService>>;
-
-        // Create cross-component coordinator
-        let cross_component_coordinator = Self::create_cross_component_coordinator(
-            mesh_network_service.clone(),
-            dag_store.clone(),
-            governance_module.clone(),
-            reputation_store.clone(),
-            current_identity.clone(),
-            time_provider.clone(),
-        );
-
-        let ctx = Arc::new(Self {
-            current_identity: current_identity.clone(),
-            mana_ledger,
-            pending_mesh_jobs_tx: tx,
-            pending_mesh_jobs_rx: TokioMutex::new(rx),
-            job_states,
-            governance_module,
-            mesh_network_service,
-            signer,
-            did_resolver,
-            dag_store,
-            reputation_store,
-            trust_engine: Arc::new(TokioMutex::new(TrustPolicyEngine::new())),
-            latency_store: Arc::new(icn_mesh::NoOpLatencyStore) as Arc<dyn icn_mesh::LatencyStore>,
-            parameters,
-            policy_enforcer,
-            resource_ledger: TokioMutex::new(super::resource_ledger::ResourceLedger::new()),
-            system_info: Arc::new(SysinfoSystemInfoProvider),
-            time_provider,
-            default_receipt_wait_ms: 30000,
-            cross_component_coordinator,
-        });
-
-        // Set initial mana if provided
-        if let Some(mana) = initial_mana {
-            ctx.mana_ledger
-                .set_balance(&current_identity, mana)
-                .map_err(|e| {
-                    CommonError::InternalError(format!("Failed to set initial mana: {}", e))
-                })?;
-        }
-
-        Ok(ctx)
+        let config = ServiceConfig::testing(current_identity.clone(), initial_mana)?;
+        Self::from_service_config(config)
     }
 
     /// Create a testing context with a custom system info provider.
@@ -1578,7 +1499,7 @@ impl RuntimeContext {
             scope: None,
         };
 
-        let mut dag_store = self.dag_store.lock().await;
+        let mut dag_store = self.dag_store.inner().lock().await;
         dag_store.put(&dag_block).await.map_err(|e| {
             HostAbiError::DagOperationFailed(format!("Failed to store job DAG block: {}", e))
         })?;
@@ -1615,7 +1536,7 @@ impl RuntimeContext {
             scope: None,
         };
 
-        let mut dag_store = self.dag_store.lock().await;
+        let mut dag_store = self.dag_store.inner().lock().await;
         dag_store.put(&dag_block).await.map_err(|e| {
             HostAbiError::DagOperationFailed(format!("Failed to store bid DAG block: {}", e))
         })?;
@@ -1655,7 +1576,7 @@ impl RuntimeContext {
             scope: None,
         };
 
-        let mut dag_store = self.dag_store.lock().await;
+        let mut dag_store = self.dag_store.inner().lock().await;
         dag_store.put(&dag_block).await.map_err(|e| {
             HostAbiError::DagOperationFailed(format!("Failed to store assignment DAG block: {}", e))
         })?;
@@ -1692,7 +1613,7 @@ impl RuntimeContext {
             scope: None,
         };
 
-        let mut dag_store = self.dag_store.lock().await;
+        let mut dag_store = self.dag_store.inner().lock().await;
         dag_store.put(&dag_block).await.map_err(|e| {
             HostAbiError::DagOperationFailed(format!("Failed to store receipt DAG block: {}", e))
         })?;
@@ -2149,7 +2070,7 @@ impl RuntimeContext {
             scope: None,
         };
 
-        let mut dag_store = self.dag_store.lock().await;
+        let mut dag_store = self.dag_store.inner().lock().await;
         dag_store.put(&dag_block).await.map_err(|e| {
             HostAbiError::DagOperationFailed(format!("Failed to store status update: {}", e))
         })?;
@@ -2173,7 +2094,7 @@ impl RuntimeContext {
             job_id
         );
 
-        let dag_store = self.dag_store.lock().await;
+        let dag_store = self.dag_store.inner().lock().await;
 
         // 1. Get the job node
         let job_block = dag_store.get(&job_id.0).await.map_err(|e| {
@@ -2238,7 +2159,7 @@ impl RuntimeContext {
 
     /// Retrieve synchronization status of the local DAG.
     pub async fn get_dag_sync_status(&self) -> Result<icn_common::DagSyncStatus, HostAbiError> {
-        let store = self.dag_store.lock().await;
+        let store = self.dag_store.inner().lock().await;
         let root = icn_dag::current_root(&*store).await.map_err(|e| {
             HostAbiError::DagOperationFailed(format!("Failed to get DAG root: {}", e))
         })?;
@@ -2273,7 +2194,7 @@ impl RuntimeContext {
             signature: None,
             scope: None,
         };
-        let mut dag = self.dag_store.lock().await;
+        let mut dag = self.dag_store.inner().lock().await;
         if let Err(e) = dag.put(&block).await {
             log::warn!("[record_ledger_event] store failed: {e}");
         }
@@ -2366,7 +2287,7 @@ impl RuntimeContext {
 
         // Store in DAG
         {
-            let mut dag_store = self.dag_store.lock().await;
+            let mut dag_store = self.dag_store.inner().lock().await;
             dag_store.put(&block).await.map_err(|e| {
                 HostAbiError::DagOperationFailed(format!("Failed to store receipt: {}", e))
             })?;
@@ -2427,7 +2348,7 @@ impl RuntimeContext {
 
         // 4. Store in DAG
         {
-            let mut dag_store = self.dag_store.lock().await;
+            let mut dag_store = self.dag_store.inner().lock().await;
             dag_store.put(&block).await.map_err(|e| {
                 HostAbiError::DagOperationFailed(format!("Failed to store checkpoint: {}", e))
             })?;
@@ -2491,7 +2412,7 @@ impl RuntimeContext {
 
         // 4. Store in DAG
         {
-            let mut dag_store = self.dag_store.lock().await;
+            let mut dag_store = self.dag_store.inner().lock().await;
             dag_store.put(&block).await.map_err(|e| {
                 HostAbiError::DagOperationFailed(format!("Failed to store partial output: {}", e))
             })?;
@@ -2528,7 +2449,7 @@ impl RuntimeContext {
             signature: None,
             scope: None,
         };
-        let mut dag = self.dag_store.lock().await;
+        let mut dag = self.dag_store.inner().lock().await;
         dag.put(&block).await.map_err(|e| {
             HostAbiError::DagOperationFailed(format!("Failed to store parameter update: {}", e))
         })?;
@@ -2605,7 +2526,7 @@ impl RuntimeContext {
                 scope: None,
             };
             {
-                let mut dag_store = self.dag_store.lock().await;
+                let mut dag_store = self.dag_store.inner().lock().await;
                 dag_store.put(&block).await.map_err(|e| {
                     HostAbiError::DagOperationFailed(format!(
                         "Failed to store proposal body: {}",
@@ -2865,7 +2786,7 @@ impl RuntimeContext {
         }
 
         let ts = self.time_provider.unix_seconds();
-        let mut store = self.dag_store.lock().await;
+        let mut store = self.dag_store.inner().lock().await;
         let cid = super::resource_ledger::record_resource_event(
             &mut *store,
             &self.current_identity,
@@ -4018,7 +3939,7 @@ impl RuntimeContext {
                 };
 
                 {
-                    let mut dag_store = ctx.dag_store.lock().await;
+                    let mut dag_store = ctx.dag_store.inner().lock().await;
                     dag_store.put(&result_block).await.map_err(|e| {
                         HostAbiError::DagOperationFailed(format!("Failed to store result: {}", e))
                     })?;
@@ -4083,7 +4004,7 @@ impl RuntimeContext {
     pub async fn integrity_check_once(&self) -> Result<(), CommonError> {
         log::info!("Performing integrity check on DAG store");
 
-        let store = self.dag_store.lock().await;
+        let store = self.dag_store.inner().lock().await;
 
         // Get all blocks and verify their integrity
         let mut verified_count = 0;
