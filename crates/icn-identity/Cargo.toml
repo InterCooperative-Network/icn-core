@@ -30,7 +30,7 @@ curve25519-dalek = "4"
 merlin = "3"
 icn-zk = { path = "../icn-zk" }
 ark-groth16 = "0.4"
-ark-bn254 = "0.4"
+ark-bn254 = "0.5"
 ark-serialize = "0.4"
 ark-std = "0.4"
 ark-relations = "0.4"
