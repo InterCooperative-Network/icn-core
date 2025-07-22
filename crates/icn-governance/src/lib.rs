@@ -67,6 +67,12 @@ where
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ProposalId(pub String); // Could be a hash of the proposal content
 
+impl std::fmt::Display for ProposalId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 impl std::str::FromStr for ProposalId {
     type Err = icn_common::CommonError; // Or a more specific error type if desired
     fn from_str(s: &str) -> Result<Self, Self::Err> {

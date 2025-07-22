@@ -5,6 +5,7 @@
 
 use crate::{NetworkService, MeshNetworkError, PeerId, NetworkStats};
 use icn_common::{Did, TimeProvider, CommonError};
+use std::str::FromStr;
 use icn_core_traits::ReputationStore;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};

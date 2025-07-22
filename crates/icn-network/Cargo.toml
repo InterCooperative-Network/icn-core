@@ -33,6 +33,7 @@ libp2p = { version = "0.56", features = ["tcp", "dns", "noise", "yamux", "gossip
 libp2p-dns = { version = "0.44", features = ["tokio"], optional = true }
 libp2p-mdns = { version = "0.48", features = ["tokio"], optional = true }
 libp2p-tcp = { version = "0.44", features = ["tokio"], optional = true }
+serde_json.workspace = true
 
 [dev-dependencies]
 # No specific dev-dependencies here yet, but could add things like criterion for benchmarks

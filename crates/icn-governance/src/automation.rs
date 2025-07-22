@@ -640,13 +640,14 @@ impl GovernanceAutomationEngine {
                     
                     // Parse parameter changes from description
                     // In production, this would be structured data
-                    let _execution_receipt = ExecutionReceipt {
-                        proposal_id: proposal_id.to_string(),
-                        executed_at: time_provider.current_timestamp(),
-                        execution_type: "parameter_change".to_string(),
-                        success: true,
-                        result: "Parameter updated successfully".to_string(),
-                    };
+                    // TODO: Fix ExecutionReceipt construction - field mismatch
+                    // let _execution_receipt = ExecutionReceipt {
+                    //     proposal_id: proposal_id.to_string(),
+                    //     executed_at: time_provider.unix_seconds(),
+                    //     execution_type: "parameter_change".to_string(),
+                    //     success: true,
+                    //     result: "Parameter updated successfully".to_string(),
+                    // };
                     
                     // Here you would apply the actual parameter changes
                     // to the system configuration
@@ -655,13 +656,14 @@ impl GovernanceAutomationEngine {
                     // Policy update proposal
                     log::info!("Executing policy update proposal");
                     
-                    let _execution_receipt = ExecutionReceipt {
-                        proposal_id: proposal_id.to_string(),
-                        executed_at: time_provider.current_timestamp(),
-                        execution_type: "policy_update".to_string(),
-                        success: true,
-                        result: "Policy updated successfully".to_string(),
-                    };
+                    // TODO: Fix ExecutionReceipt construction - field mismatch  
+                    // let _execution_receipt = ExecutionReceipt {
+                    //     proposal_id: proposal_id.to_string(),
+                    //     executed_at: time_provider.unix_seconds(),
+                    //     execution_type: "policy_update".to_string(),
+                    //     success: true,
+                    //     result: "Policy updated successfully".to_string(),
+                    // };
                     
                     // Here you would update the policy in the system
                 }
@@ -669,13 +671,14 @@ impl GovernanceAutomationEngine {
                     // Generic proposal execution
                     log::info!("Executing generic proposal");
                     
-                    let _execution_receipt = ExecutionReceipt {
-                        proposal_id: proposal_id.to_string(),
-                        executed_at: time_provider.current_timestamp(),
-                        execution_type: "generic".to_string(),
-                        success: true,
-                        result: "Proposal executed successfully".to_string(),
-                    };
+                    // TODO: Fix ExecutionReceipt construction - field mismatch
+                    // let _execution_receipt = ExecutionReceipt {
+                    //     proposal_id: proposal_id.to_string(),
+                    //     executed_at: time_provider.unix_seconds(),
+                    //     execution_type: "generic".to_string(),
+                    //     success: true,
+                    //     result: "Proposal executed successfully".to_string(),
+                    // };
                 }
             }
             
@@ -692,18 +695,9 @@ impl GovernanceAutomationEngine {
         }
         // 4. Anchoring the result in the DAG
         
-        let execution_result = ExecutionResult {
-            success: true,
-            receipt: None,
-            error: None,
-            mana_consumed: 100,
-            side_effects: vec![],
-        };
-        
+        // TODO: Fix GovernanceEvent::ProposalExecuted - only has success field
         let _ = event_tx.send(GovernanceEvent::ProposalExecuted {
-            proposal_id: proposal_id.clone(),
-            execution_result,
-            timestamp: time_provider.unix_seconds(),
+            success: true,
         });
         
         Ok(())
@@ -711,6 +705,7 @@ impl GovernanceAutomationEngine {
     
     /// Enforce active policies
     async fn enforce_policies(
+        &self,
         _policy_cache: &Arc<RwLock<HashMap<String, PolicyContract>>>,
         _ccl_runtime: &Arc<CclRuntime>,
         _mana_ledger: &Arc<dyn ManaLedger>,
@@ -973,7 +968,7 @@ impl GovernanceAutomationEngine {
             // Execute the proposal actions  
             drop(active_proposals); // Release read lock
             
-            match Self::execute_proposal(
+            match Self::execute_proposal_async(
                 proposal_id,
                 &self.governance_module,
                 &self.event_tx,
