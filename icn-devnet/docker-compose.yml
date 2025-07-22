@@ -16,6 +16,7 @@ services:
       - ICN_ENABLE_MDNS=true
       - ICN_STORAGE_BACKEND=memory
       - ICN_HTTP_API_KEY=devnet-a-key
+      - ICN_LOG_LEVEL=debug
 
       - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
     ports:
@@ -49,6 +50,7 @@ services:
       - ICN_BOOTSTRAP_PEERS=/ip4/icn-node-a/tcp/4001
       - ICN_STORAGE_BACKEND=memory
       - ICN_HTTP_API_KEY=devnet-b-key
+      - ICN_LOG_LEVEL=debug
       - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
     ports:
       - "5002:7845"  # HTTP API
@@ -83,6 +85,7 @@ services:
       - ICN_BOOTSTRAP_PEERS=/ip4/icn-node-a/tcp/4001
       - ICN_STORAGE_BACKEND=memory
       - ICN_HTTP_API_KEY=devnet-c-key
+      - ICN_LOG_LEVEL=debug
       - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
     ports:
       - "5003:7845"  # HTTP API
@@ -117,6 +120,7 @@ services:
       - ICN_BOOTSTRAP_PEERS=/ip4/icn-node-a/tcp/4001
       - ICN_STORAGE_BACKEND=memory
       - ICN_HTTP_API_KEY=devnet-d-key
+      - ICN_LOG_LEVEL=debug
       - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
     ports:
       - "5004:7845"  # HTTP API
@@ -151,6 +155,7 @@ services:
       - ICN_BOOTSTRAP_PEERS=/ip4/icn-node-a/tcp/4001
       - ICN_STORAGE_BACKEND=memory
       - ICN_HTTP_API_KEY=devnet-e-key
+      - ICN_LOG_LEVEL=debug
       - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
     ports:
       - "5005:7845"  # HTTP API
@@ -185,6 +190,7 @@ services:
       - ICN_BOOTSTRAP_PEERS=/ip4/icn-node-a/tcp/4001
       - ICN_STORAGE_BACKEND=memory
       - ICN_HTTP_API_KEY=devnet-f-key
+      - ICN_LOG_LEVEL=debug
       - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
     ports:
       - "5006:7845"  # HTTP API
@@ -219,6 +225,7 @@ services:
       - ICN_BOOTSTRAP_PEERS=/ip4/icn-node-a/tcp/4001
       - ICN_STORAGE_BACKEND=memory
       - ICN_HTTP_API_KEY=devnet-g-key
+      - ICN_LOG_LEVEL=debug
       - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
     ports:
       - "5007:7845"  # HTTP API
@@ -253,6 +260,7 @@ services:
       - ICN_BOOTSTRAP_PEERS=/ip4/icn-node-a/tcp/4001
       - ICN_STORAGE_BACKEND=memory
       - ICN_HTTP_API_KEY=devnet-h-key
+      - ICN_LOG_LEVEL=debug
       - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
     ports:
       - "5008:7845"  # HTTP API
@@ -287,6 +295,7 @@ services:
       - ICN_BOOTSTRAP_PEERS=/ip4/icn-node-a/tcp/4001
       - ICN_STORAGE_BACKEND=memory
       - ICN_HTTP_API_KEY=devnet-i-key
+      - ICN_LOG_LEVEL=debug
       - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
     ports:
       - "5009:7845"  # HTTP API
@@ -321,6 +330,7 @@ services:
       - ICN_BOOTSTRAP_PEERS=/ip4/icn-node-a/tcp/4001
       - ICN_STORAGE_BACKEND=memory
       - ICN_HTTP_API_KEY=devnet-j-key
+      - ICN_LOG_LEVEL=debug
       - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
     ports:
       - "5010:7845"  # HTTP API

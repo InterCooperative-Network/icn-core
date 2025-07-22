@@ -19,6 +19,15 @@ ARGS=(
     --storage-backend "${ICN_STORAGE_BACKEND:-memory}"
 )
 
+# Force development mode to enable real networking (not test mode)
+# This ensures we get DefaultMeshNetworkService with libp2p instead of StubMeshNetworkService
+ARGS+=(--dev)  # Development mode for real networking
+
+# Add API key if provided
+if [ -n "${ICN_HTTP_API_KEY}" ]; then
+    ARGS+=(--api-key "${ICN_HTTP_API_KEY}")
+fi
+
 # Add node name if provided
 if [ -n "${ICN_NODE_NAME}" ]; then
     ARGS+=(--node-name "${ICN_NODE_NAME}")
@@ -57,6 +66,9 @@ fi
 if [ "${ICN_ENABLE_MDNS}" = "true" ]; then
     ARGS+=(--enable-mdns)
 fi
+
+# Add log level configuration for debugging
+ARGS+=(--log-level "${ICN_LOG_LEVEL:-debug}")
 
 echo "🔧 Command: icn-node ${ARGS[*]}"
 
