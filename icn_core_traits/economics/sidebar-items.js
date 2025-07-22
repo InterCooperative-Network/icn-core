@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["PricingModel","ResourcePriority","TransactionType"],"struct":["EconomicHealth","EconomicPolicy","ManaTransaction","ResourceAllocation","ResourceSpec","ResourceUtilization"],"trait":["EconomicProvider","ManaProvider","ResourceProvider"]};

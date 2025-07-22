@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["OptimizationLevel"],"struct":["AdvancedCclWasmBackend","CclExecutionConfig","CclExecutionResult","CclPerformanceMetrics","CclWasmContext","CompilationStats","MemoryUsageStats","OptimizationStats"]};

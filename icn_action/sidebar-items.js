@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Action","ActionError","QrErrorCorrection","QrFormat","VoteChoice"],"mod":["encoder","qr"],"struct":["QrMetadata"]};

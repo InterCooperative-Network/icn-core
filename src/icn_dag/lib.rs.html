@@ -924,7 +924,7 @@
 <a href=#924 id=924 data-nosnippet>924</a>                    </span><span class="kw">if </span>path.file_name() == <span class="prelude-val">Some</span>(std::ffi::OsStr::new(<span class="string">"dag.root"</span>)) {
 <a href=#925 id=925 data-nosnippet>925</a>                        <span class="kw">continue</span>;
 <a href=#926 id=926 data-nosnippet>926</a>                    }
-<a href=#927 id=927 data-nosnippet>927</a>                    
+<a href=#927 id=927 data-nosnippet>927</a>
 <a href=#928 id=928 data-nosnippet>928</a>                    <span class="kw">let </span><span class="kw-2">mut </span>file = TokioFile::open(<span class="kw-2">&amp;</span>path).<span class="kw">await</span>.map_err(|e| {
 <a href=#929 id=929 data-nosnippet>929</a>                        CommonError::IoError(<span class="macro">format!</span>(<span class="string">"Failed to open file {:?}: {}"</span>, path, e))
 <a href=#930 id=930 data-nosnippet>930</a>                    })<span class="question-mark">?</span>;

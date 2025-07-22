@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["RoutingEvent"],"struct":["AdaptiveNetworkService","AdaptiveRoutingConfig","AdaptiveRoutingEngine","NetworkTopology","RouteInfo","RoutePerformanceMetrics","RouteSelectionWeights"],"trait":["ReputationStore"]};
+window.SIDEBAR_ITEMS = {"enum":["RoutingEvent"],"struct":["AdaptiveNetworkService","AdaptiveRoutingConfig","AdaptiveRoutingEngine","NetworkTopology","RouteInfo","RoutePerformanceMetrics","RouteSelectionWeights"]};

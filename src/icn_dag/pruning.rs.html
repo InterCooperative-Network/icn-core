@@ -117,7 +117,7 @@
 <a href=#117 id=117 data-nosnippet>117</a>        </span><span class="kw">let </span>blocks_to_keep = <span class="self">self</span>.calculate_blocks_to_keep(<span class="kw-2">&amp;</span>all_blocks).<span class="kw">await</span><span class="question-mark">?</span>;
 <a href=#118 id=118 data-nosnippet>118</a>
 <a href=#119 id=119 data-nosnippet>119</a>        <span class="comment">// Remove blocks not in the keep set
-<a href=#120 id=120 data-nosnippet>120</a>        </span><span class="kw">for </span>(cid, (block, metadata)) <span class="kw">in </span>all_blocks {
+<a href=#120 id=120 data-nosnippet>120</a>        </span><span class="kw">for </span>(cid, (block, _metadata)) <span class="kw">in </span>all_blocks {
 <a href=#121 id=121 data-nosnippet>121</a>            <span class="kw">if </span>!blocks_to_keep.contains(<span class="kw-2">&amp;</span>cid) {
 <a href=#122 id=122 data-nosnippet>122</a>                <span class="kw">match </span><span class="self">self</span>.store.delete(<span class="kw-2">&amp;</span>cid) {
 <a href=#123 id=123 data-nosnippet>123</a>                    <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; {
@@ -215,7 +215,7 @@
 <a href=#215 id=215 data-nosnippet>215</a>            .as_secs();
 <a href=#216 id=216 data-nosnippet>216</a>
 <a href=#217 id=217 data-nosnippet>217</a>        <span class="comment">// Always keep pinned blocks
-<a href=#218 id=218 data-nosnippet>218</a>        </span><span class="kw">for </span>(cid, (_block, metadata)) <span class="kw">in </span>all_blocks {
+<a href=#218 id=218 data-nosnippet>218</a>        </span><span class="kw">for </span>(_block, metadata) <span class="kw">in </span>all_blocks.values() {
 <a href=#219 id=219 data-nosnippet>219</a>            <span class="kw">if </span>metadata.pinned {
 <a href=#220 id=220 data-nosnippet>220</a>                <span class="comment">// keep_set.insert(cid.clone());
 <a href=#221 id=221 data-nosnippet>221</a>            </span>}
@@ -223,7 +223,7 @@
 <a href=#223 id=223 data-nosnippet>223</a>
 <a href=#224 id=224 data-nosnippet>224</a>        <span class="comment">// Keep blocks that are not too old
 <a href=#225 id=225 data-nosnippet>225</a>        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(max_age) = <span class="self">self</span>.config.max_age_seconds {
-<a href=#226 id=226 data-nosnippet>226</a>            <span class="kw">for </span>(cid, (block, _metadata)) <span class="kw">in </span>all_blocks {
+<a href=#226 id=226 data-nosnippet>226</a>            <span class="kw">for </span>(block, _metadata) <span class="kw">in </span>all_blocks.values() {
 <a href=#227 id=227 data-nosnippet>227</a>                <span class="kw">if </span>current_time - block.timestamp &lt; max_age {
 <a href=#228 id=228 data-nosnippet>228</a>                    <span class="comment">// keep_set.insert(cid.clone());
 <a href=#229 id=229 data-nosnippet>229</a>                </span>}
@@ -270,7 +270,7 @@
 <a href=#270 id=270 data-nosnippet>270</a>            .as_secs();
 <a href=#271 id=271 data-nosnippet>271</a>
 <a href=#272 id=272 data-nosnippet>272</a>        <span class="comment">// Always keep pinned blocks
-<a href=#273 id=273 data-nosnippet>273</a>        </span><span class="kw">for </span>(cid, (_block, metadata)) <span class="kw">in </span>all_blocks {
+<a href=#273 id=273 data-nosnippet>273</a>        </span><span class="kw">for </span>(_block, metadata) <span class="kw">in </span>all_blocks.values() {
 <a href=#274 id=274 data-nosnippet>274</a>            <span class="kw">if </span>metadata.pinned {
 <a href=#275 id=275 data-nosnippet>275</a>                <span class="comment">// keep_set.insert(cid.clone());
 <a href=#276 id=276 data-nosnippet>276</a>            </span>}
@@ -278,7 +278,7 @@
 <a href=#278 id=278 data-nosnippet>278</a>
 <a href=#279 id=279 data-nosnippet>279</a>        <span class="comment">// Keep blocks that are not too old
 <a href=#280 id=280 data-nosnippet>280</a>        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(max_age) = <span class="self">self</span>.config.max_age_seconds {
-<a href=#281 id=281 data-nosnippet>281</a>            <span class="kw">for </span>(cid, (block, _metadata)) <span class="kw">in </span>all_blocks {
+<a href=#281 id=281 data-nosnippet>281</a>            <span class="kw">for </span>(block, _metadata) <span class="kw">in </span>all_blocks.values() {
 <a href=#282 id=282 data-nosnippet>282</a>                <span class="kw">if </span>current_time - block.timestamp &lt; max_age {
 <a href=#283 id=283 data-nosnippet>283</a>                    <span class="comment">// keep_set.insert(cid.clone());
 <a href=#284 id=284 data-nosnippet>284</a>                </span>}

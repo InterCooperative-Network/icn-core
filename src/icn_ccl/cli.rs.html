@@ -551,7 +551,7 @@
 <a href=#551 id=551 data-nosnippet>551</a>                                    name,
 <a href=#552 id=552 data-nosnippet>552</a>                                    return_type
 <a href=#553 id=553 data-nosnippet>553</a>                                        .as_ref()
-<a href=#554 id=554 data-nosnippet>554</a>                                        .map(|rt| type_expr_to_string(rt))
+<a href=#554 id=554 data-nosnippet>554</a>                                        .map(type_expr_to_string)
 <a href=#555 id=555 data-nosnippet>555</a>                                        .unwrap_or_else(|| <span class="string">"void"</span>.to_string())
 <a href=#556 id=556 data-nosnippet>556</a>                                ));
 <a href=#557 id=557 data-nosnippet>557</a>                            }

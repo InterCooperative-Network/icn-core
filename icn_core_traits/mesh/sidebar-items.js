@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ExecutorStatus","JobExecutionStatus"],"struct":["ExecutorCapabilities","ExecutorInfo","ExecutorMetrics","ExecutorRegistration","JobBid","JobInfo","JobResults","JobSpec","JobStatus","JobSubmission","MeshStats","ResourceRequirements","ResourceUsage"],"trait":["ExecutorProvider","JobProvider","MeshProvider"]};
