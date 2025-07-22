@@ -47,6 +47,22 @@ name = "test_arrays"
 path = "test_arrays.rs"
 
 [[bin]]
+name = "test_ccl_comprehensive"
+path = "test_ccl_comprehensive.rs"
+
+[[bin]]
+name = "test_binary_ops_debug"
+path = "test_binary_ops_debug.rs"
+
+[[bin]]
+name = "test_complex_ops_debug"
+path = "test_complex_ops_debug.rs"
+
+[[bin]]
+name = "test_comprehensive_parts"
+path = "test_comprehensive_parts.rs"
+
+[[bin]]
 name = "test_assignment"
 path = "test_assignment.rs"
 

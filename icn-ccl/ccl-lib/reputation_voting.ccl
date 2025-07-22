@@ -4,6 +4,7 @@
 const BASE_VOTING_POWER: Integer = 1;
 const REPUTATION_MULTIPLIER: Integer = 10;
 const QUADRATIC_SCALING: Bool = true;
+const WEEK: Integer = 604800; // 7 days * 24 hours * 60 minutes * 60 seconds
 
 struct ReputationVote {
     voter: Did,
@@ -121,13 +122,22 @@ fn sqrt_integer(n: Integer) -> Integer {
 }
 
 fn has_already_voted(votes: Array<ReputationVote>, voter: Did) -> Bool {
-    // TODO: Implement proper vote checking
-    // For now, return false to allow voting
+    let i = 0;
+    let len = array_len(votes);
+    
+    while i < len {
+        let vote = votes[i];
+        if vote.voter == voter {
+            return true;
+        }
+        i = i + 1;
+    }
+    
     return false;
 }
 
 fn array_push_vote(votes: Array<ReputationVote>, vote: ReputationVote) -> Bool {
-    // TODO: Implement array push for votes
+    array_push(votes, vote);
     return true;
 }
 
@@ -136,8 +146,20 @@ fn calculate_reputation_results(proposal: ReputationProposal) -> String {
     let no_weight = 0;
     let abstain_weight = 0;
     
-    // TODO: Iterate through votes and sum weights by choice
-    // For now, return placeholder result
+    let i = 0;
+    let len = array_len(proposal.votes);
+    
+    while i < len {
+        let vote = proposal.votes[i];
+        if vote.choice == "yes" {
+            yes_weight = yes_weight + vote.weight;
+        } else if vote.choice == "no" {
+            no_weight = no_weight + vote.weight;
+        } else if vote.choice == "abstain" {
+            abstain_weight = abstain_weight + vote.weight;
+        }
+        i = i + 1;
+    }
     
     if yes_weight > no_weight {
         return "passed";
