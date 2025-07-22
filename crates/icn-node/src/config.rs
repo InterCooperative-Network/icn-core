@@ -87,10 +87,34 @@ pub struct HttpConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct P2pConfig {
+    /// Primary listen address for P2P networking
     pub listen_address: String,
+    /// Additional listen addresses
+    pub additional_listen_addresses: Vec<String>,
+    /// Bootstrap peers to connect to on startup
     pub bootstrap_peers: Option<Vec<String>>,
+    /// Enable P2P networking
     pub enable_p2p: bool,
+    /// Enable mDNS peer discovery
     pub enable_mdns: bool,
+    /// Maximum number of peers to maintain connections with
+    pub max_peers: usize,
+    /// Maximum peers allowed per IP address
+    pub max_peers_per_ip: usize,
+    /// Connection timeout in milliseconds
+    pub connection_timeout_ms: u64,
+    /// Request timeout in milliseconds
+    pub request_timeout_ms: u64,
+    /// Heartbeat interval in milliseconds
+    pub heartbeat_interval_ms: u64,
+    /// Bootstrap retry interval in seconds
+    pub bootstrap_interval_secs: u64,
+    /// Peer discovery interval in seconds
+    pub peer_discovery_interval_secs: u64,
+    /// Kademlia DHT replication factor
+    pub kademlia_replication_factor: usize,
+    /// Custom protocol ID for network isolation
+    pub protocol_id: Option<String>,
 }
 
 /// Configuration values for running an ICN node.
@@ -226,9 +250,19 @@ impl Default for P2pConfig {
     fn default() -> Self {
         Self {
             listen_address: "/ip4/0.0.0.0/tcp/0".to_string(),
+            additional_listen_addresses: Vec::new(),
             bootstrap_peers: None,
             enable_p2p: cfg!(feature = "enable-libp2p"),
             enable_mdns: true,
+            max_peers: 100,
+            max_peers_per_ip: 5,
+            connection_timeout_ms: 30000,
+            request_timeout_ms: 10000,
+            heartbeat_interval_ms: 15000,
+            bootstrap_interval_secs: 300,
+            peer_discovery_interval_secs: 60,
+            kademlia_replication_factor: 20,
+            protocol_id: None,
         }
     }
 }
@@ -349,12 +383,7 @@ impl NodeConfig {
         if let Ok(val) = std::env::var("ICN_NODE_NAME") {
             self.node_name = val;
         }
-        if let Ok(val) = std::env::var("ICN_LISTEN_ADDRESS") {
-            self.p2p.listen_address = val;
-        }
-        if let Ok(val) = std::env::var("ICN_BOOTSTRAP_PEERS") {
-            self.p2p.bootstrap_peers = Some(val.split(',').map(|s| s.to_string()).collect());
-        }
+        // These are handled by p2p.update_from_env() now
         set_opt_from_env!(self.http.api_key, "ICN_HTTP_API_KEY");
         set_opt_from_env!(self.http.auth_token, "ICN_AUTH_TOKEN");
         if let Ok(val) = std::env::var("ICN_AUTH_TOKEN_PATH") {

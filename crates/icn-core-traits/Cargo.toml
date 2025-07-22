@@ -1,0 +1,15 @@
+[package]
+name = "icn-core-traits"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Shared traits and interfaces for ICN Core to break circular dependencies"
+
+[dependencies]
+icn-common = { path = "../icn-common" }
+serde = { version = "1.0", features = ["derive"] }
+async-trait = "0.1"
+log = "0.4"
+thiserror = "2.0"
+tokio = { version = "1.0", features = ["sync"] }

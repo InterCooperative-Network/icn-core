@@ -30,8 +30,7 @@ pub mod trust_graph;
 pub mod trust_pathfinding;
 
 /// Comprehensive reputation integration with executor selection, networking, and governance
-// Temporarily disabled due to circular dependencies - needs refactoring
-// pub mod integration;
+pub mod integration;
 
 // Re-export key types for convenient access
 pub use trust_aggregation::{
@@ -43,11 +42,10 @@ pub use trust_decay::{
 };
 pub use trust_graph::{TrustEdge, TrustGraph};
 pub use trust_pathfinding::{PathDiscoveryConfig, TrustPath, TrustPathfinder};
-// Temporarily disabled due to circular dependencies - needs refactoring
-// pub use integration::{
-//     ReputationIntegrationEngine, ReputationIntegrationConfig, ReputationEvent,
-//     ExecutionQuality, ReputationBasedExecutorSelection, ReputationIntegrationStats,
-// };
+pub use integration::{
+    ReputationIntegrationEngine, ReputationIntegrationConfig, ReputationEvent,
+    ExecutionQuality, ReputationBasedExecutorSelection, ReputationIntegrationStats,
+};
 
 /// Store for retrieving and updating executor reputation scores.
 pub trait ReputationStore: Send + Sync {
