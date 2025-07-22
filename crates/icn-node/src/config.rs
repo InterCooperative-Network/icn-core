@@ -138,6 +138,10 @@ pub struct NodeConfig {
     pub key_rotation_days: u64,
     /// Peers this node has joined in a federation.
     pub federation_peers: Vec<String>,
+    /// Capabilities this node advertises for mesh execution.
+    pub executor_capabilities: Vec<String>,
+    /// Federations this node is a member of.
+    pub federations: Vec<String>,
 }
 
 pub(crate) fn default_ledger_backend() -> icn_runtime::context::LedgerBackend {
@@ -279,6 +283,8 @@ impl Default for NodeConfig {
             demo: false,
             key_rotation_days: 90,
             federation_peers: Vec::new(),
+            executor_capabilities: Vec::new(),
+            federations: Vec::new(),
         }
     }
 }
