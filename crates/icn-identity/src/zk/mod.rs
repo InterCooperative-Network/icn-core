@@ -404,8 +404,8 @@ impl Default for Groth16Prover {
         let km = Groth16KeyManager::new(
             "age_over_18",
             Groth16KeySource::Circuit(AgeOver18Circuit {
-                birth_year: 0,
-                current_year: 0,
+                birth_year: 2000,
+                current_year: 2020,
             }),
             &sk,
         )
@@ -875,17 +875,19 @@ mod tests {
         let km = Groth16KeyManager::new(
             "age_over_18",
             Groth16KeySource::Circuit(AgeOver18Circuit {
-                birth_year: 0,
-                current_year: 0,
+                birth_year: 2000,
+                current_year: 2020,
             }),
             &sk,
         )
         .unwrap();
         let verifier_vk = icn_zk::prepare_vk(km.proving_key());
+        let reputation_store = std::sync::Arc::new(icn_reputation::InMemoryReputationStore::new());
+        reputation_store.set_score(issuer_did.clone(), 100);
         let issuer =
             CredentialIssuer::new(issuer_did, sk).with_prover(Box::new(Groth16Prover::new(
                 km.clone(),
-                std::sync::Arc::new(icn_reputation::InMemoryReputationStore::new()),
+                reputation_store.clone(),
                 icn_zk::ReputationThresholds::default(),
             )));
         let (_, proof_opt) = issuer
@@ -903,7 +905,7 @@ mod tests {
         let verifier = Groth16Verifier::new(
             verifier_vk,
             vec![ark_bn254::Fr::from(2020u64)],
-            std::sync::Arc::new(icn_reputation::InMemoryReputationStore::new()),
+            reputation_store,
             icn_zk::ReputationThresholds::default(),
         );
         assert!(verifier.verify(&proof).unwrap());
@@ -972,8 +974,8 @@ mod tests {
         let km = Groth16KeyManager::new(
             "age_over_18",
             Groth16KeySource::Circuit(AgeOver18Circuit {
-                birth_year: 0,
-                current_year: 0,
+                birth_year: 2000,
+                current_year: 2020,
             }),
             &sk,
         )
