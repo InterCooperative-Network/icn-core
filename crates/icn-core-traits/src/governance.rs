@@ -2,7 +2,7 @@
 
 use crate::CoreTraitsError;
 use async_trait::async_trait;
-use icn_common::{Did, CommonError, Cid};
+use icn_common::{Did, Cid};
 use serde::{Deserialize, Serialize};
 
 /// Governance provider trait

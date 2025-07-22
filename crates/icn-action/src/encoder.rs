@@ -7,7 +7,7 @@ use icn_common::{Did, Cid};
 use std::collections::HashMap;
 use std::str::FromStr;
 use url::Url;
-use base64::{engine::general_purpose, Engine as _};
+use base64::{Engine as _};
 
 /// Encodes and decodes actions to/from URLs
 pub struct ActionEncoder;

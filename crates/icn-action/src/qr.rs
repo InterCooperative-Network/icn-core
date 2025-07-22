@@ -9,7 +9,7 @@ use image::{ImageBuffer, Rgb};
 #[cfg(feature = "qr")]
 use qrcode::{QrCode, EcLevel};
 
-use std::io::Write;
+
 
 /// QR code generator for ICN actions
 pub struct QrGenerator;
@@ -98,7 +98,7 @@ impl QrGenerator {
         #[cfg(not(feature = "qr"))]
         {
             // Simple fallback - just show the URL in a box
-            let border = "+" + &"-".repeat(action_url.len() + 2) + "+";
+            let border = format!("{}{}{}","+", "-".repeat(action_url.len() + 2), "+");
             let content = format!("| {} |", action_url);
             Ok(format!("{}\n{}\n{}\n[QR Code would be here with --features qr]", border, content, border))
         }

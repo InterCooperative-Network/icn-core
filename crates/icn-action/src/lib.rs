@@ -39,7 +39,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::str::FromStr;
 use thiserror::Error;
-use url::Url;
+
 
 pub mod qr;
 pub mod encoder;

@@ -117,7 +117,7 @@ impl<S: StorageService<DagBlock>> DagMaintenance<S> {
         let blocks_to_keep = self.calculate_blocks_to_keep(&all_blocks).await?;
 
         // Remove blocks not in the keep set
-        for (cid, (block, metadata)) in all_blocks {
+        for (cid, (block, _metadata)) in all_blocks {
             if !blocks_to_keep.contains(&cid) {
                 match self.store.delete(&cid) {
                     Ok(_) => {
@@ -215,7 +215,7 @@ impl<S: StorageService<DagBlock>> DagMaintenance<S> {
             .as_secs();
 
         // Always keep pinned blocks
-        for (cid, (_block, metadata)) in all_blocks {
+        for (_cid, (_block, metadata)) in all_blocks {
             if metadata.pinned {
                 // keep_set.insert(cid.clone());
             }
@@ -223,7 +223,7 @@ impl<S: StorageService<DagBlock>> DagMaintenance<S> {
 
         // Keep blocks that are not too old
         if let Some(max_age) = self.config.max_age_seconds {
-            for (cid, (block, _metadata)) in all_blocks {
+            for (_cid, (block, _metadata)) in all_blocks {
                 if current_time - block.timestamp < max_age {
                     // keep_set.insert(cid.clone());
                 }
@@ -270,7 +270,7 @@ impl<S: StorageService<DagBlock>> DagMaintenance<S> {
             .as_secs();
 
         // Always keep pinned blocks
-        for (cid, (_block, metadata)) in all_blocks {
+        for (_cid, (_block, metadata)) in all_blocks {
             if metadata.pinned {
                 // keep_set.insert(cid.clone());
             }
@@ -278,7 +278,7 @@ impl<S: StorageService<DagBlock>> DagMaintenance<S> {
 
         // Keep blocks that are not too old
         if let Some(max_age) = self.config.max_age_seconds {
-            for (cid, (block, _metadata)) in all_blocks {
+            for (_cid, (block, _metadata)) in all_blocks {
                 if current_time - block.timestamp < max_age {
                     // keep_set.insert(cid.clone());
                 }

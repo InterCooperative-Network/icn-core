@@ -497,6 +497,14 @@ pub fn parse_cid_from_string(cid_str: &str) -> Result<Cid, CommonError> {
     Cid::from_bytes(&data)
 }
 
+impl std::str::FromStr for Cid {
+    type Err = CommonError;
+    
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        parse_cid_from_string(s)
+    }
+}
+
 impl fmt::Display for Cid {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.to_string())

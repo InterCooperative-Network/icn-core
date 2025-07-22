@@ -4,9 +4,9 @@
 use crate::StorageService;
 use icn_common::{Cid, CommonError, DagBlock};
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::io::{Read, Write};
-use std::path::Path;
+
 
 /// DAG snapshot metadata
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -334,7 +334,7 @@ impl<S: StorageService<DagBlock>> DagSnapshots<S> {
         let total_blocks = snapshot.blocks.len();
         let mut processed = 0;
 
-        for (cid, block) in snapshot.blocks {
+        for (_cid, block) in snapshot.blocks {
             self.store.put(&block)?;
             processed += 1;
             progress.on_progress(processed, total_blocks, "Applying snapshot...");
@@ -342,7 +342,7 @@ impl<S: StorageService<DagBlock>> DagSnapshots<S> {
 
         // Apply metadata if included
         if let Some(metadata_map) = snapshot.block_metadata {
-            for (cid, metadata) in metadata_map {
+            for (_cid, _metadata) in metadata_map {
                 // TODO: Apply block metadata to store
                 // This would require extending the DagStore trait
             }

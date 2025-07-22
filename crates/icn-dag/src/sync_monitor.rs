@@ -5,7 +5,7 @@ use crate::StorageService;
 use icn_common::{Cid, CommonError, DagBlock, Did};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Information about a missing block
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -86,7 +86,7 @@ pub enum AlertSeverity {
 
 /// DAG synchronization monitor
 pub struct DagSyncMonitor<S: StorageService<DagBlock>> {
-    store: S,
+    _store: S,
     config: SyncConfig,
     missing_blocks: HashMap<Cid, MissingBlock>,
     last_check: SystemTime,
@@ -95,7 +95,7 @@ pub struct DagSyncMonitor<S: StorageService<DagBlock>> {
 impl<S: StorageService<DagBlock>> DagSyncMonitor<S> {
     pub fn new(store: S, config: SyncConfig) -> Self {
         Self {
-            store,
+            _store: store,
             config,
             missing_blocks: HashMap::new(),
             last_check: SystemTime::now(),
