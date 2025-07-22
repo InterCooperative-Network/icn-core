@@ -603,6 +603,8 @@ impl RuntimeContext {
 - **Multi-Language Support**: Support for languages beyond WASM
 - **Advanced Checkpointing**: Resume execution from arbitrary points
 - **Resource Prediction**: ML-based resource usage prediction
+- **Intelligent Load Balancing**: Dynamic workload distribution across peers
+- **Resilience Monitoring**: Automatic recovery from detected anomalies
 - **Hot Reloading**: Update runtime without restart
 - **Advanced Trust Models**: More sophisticated trust policies
 
