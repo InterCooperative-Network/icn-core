@@ -8,6 +8,7 @@ pub mod compile_checks;
 pub mod comprehensive_coordinator;
 pub mod cross_component_coordinator;
 pub mod dag_store_factory;
+pub mod dag_store_wrapper;
 pub mod enhanced_dag_sync;
 pub mod errors;
 pub mod federation_integration;
@@ -43,6 +44,7 @@ pub use cross_component_coordinator::{
 pub use dag_store_factory::{
     DagStoreBackend, DagStoreConfig, DagStoreFactory, DagStoreOptions,
 };
+pub use dag_store_wrapper::{DagStoreType, DagStoreWrapper};
 pub use enhanced_dag_sync::{
     EnhancedDagSync, NetworkConditions, PropagationPriority, PropagationStrategy, SyncHealth,
     SyncResult,

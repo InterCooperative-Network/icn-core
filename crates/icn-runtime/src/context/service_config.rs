@@ -4,6 +4,7 @@
 //! that stub services are never accidentally used in production.
 
 use super::dag_store_factory::{DagStoreConfig, DagStoreFactory};
+use super::dag_store_wrapper::DagStoreWrapper;
 use super::mesh_network::DefaultMeshNetworkService;
 use super::runtime_context::MeshNetworkServiceType;
 use super::signers::Signer;
@@ -32,7 +33,7 @@ pub struct ServiceConfigBuilder {
     network_service: Option<Arc<dyn icn_network::NetworkService>>,
     signer: Option<Arc<dyn Signer>>,
     did_resolver: Option<Arc<dyn icn_identity::DidResolver>>,
-    dag_store: Option<Arc<DagStoreMutexType<DagStorageService>>>,
+    dag_store: Option<DagStoreWrapper>,
     mana_ledger: Option<super::mana::SimpleManaLedger>,
     reputation_store: Option<Arc<dyn ReputationStore>>,
     time_provider: Option<Arc<dyn icn_common::TimeProvider>>,
@@ -81,7 +82,7 @@ impl ServiceConfigBuilder {
     }
 
     /// Set the DAG store (required for production)
-    pub fn with_dag_store(mut self, store: Arc<DagStoreMutexType<DagStorageService>>) -> Self {
+    pub fn with_dag_store(mut self, store: DagStoreWrapper) -> Self {
         self.dag_store = Some(store);
         self
     }
@@ -247,28 +248,14 @@ impl ServiceConfigBuilder {
     }
 
     /// Create DAG store based on environment
-    fn create_dag_store(&self) -> Result<Arc<DagStoreMutexType<DagStorageService>>, CommonError> {
+    fn create_dag_store(&self) -> Result<DagStoreWrapper, CommonError> {
         match self.environment {
             ServiceEnvironment::Production => {
                 // For production, require explicit DAG store to ensure persistence
-                if let Some(store) = &self.dag_store {
-                    // Validate that it's not a stub store
-                    let store_clone = store.clone();
-                    let is_stub = tokio::task::block_in_place(|| {
-                        let rt = tokio::runtime::Handle::current();
-                        rt.block_on(async {
-                            let store_guard = store_clone.lock().await;
-                            store_guard.as_any().is::<StubDagStore>()
-                        })
-                    });
-                    
-                    if is_stub {
-                        return Err(CommonError::InternalError(
-                            "❌ PRODUCTION ERROR: Stub DAG store cannot be used in production. Use DagStoreFactory::create_production() to create a persistent store.".to_string()
-                        ));
-                    }
-                    
-                    Ok(store.clone())
+                if let Some(store_wrapper) = &self.dag_store {
+                    // Validate that it's not a stub store (synchronous check)
+                    store_wrapper.validate_for_production()?;
+                    Ok(store_wrapper.clone())
                 } else {
                     // If no explicit store provided, try to create a default production store
                     // This requires a storage path, which we don't have in this context
@@ -278,8 +265,8 @@ impl ServiceConfigBuilder {
                 }
             }
             ServiceEnvironment::Development => {
-                if let Some(store) = &self.dag_store {
-                    Ok(store.clone())
+                if let Some(store_wrapper) = &self.dag_store {
+                    Ok(store_wrapper.clone())
                 } else {
                     // For development, use factory to create a stub store
                     Ok(DagStoreFactory::create_testing())
@@ -352,7 +339,7 @@ pub struct ServiceConfig {
     pub mesh_network_service: Arc<MeshNetworkServiceType>,
     pub signer: Arc<dyn Signer>,
     pub did_resolver: Arc<dyn icn_identity::DidResolver>,
-    pub dag_store: Arc<DagStoreMutexType<DagStorageService>>,
+    pub dag_store: DagStoreWrapper,
     pub mana_ledger: super::mana::SimpleManaLedger,
     pub reputation_store: Arc<dyn ReputationStore>,
     pub time_provider: Arc<dyn icn_common::TimeProvider>,
@@ -371,21 +358,8 @@ impl ServiceConfig {
                     ));
                 }
 
-                // Check if DAG store is a stub (this is a bit tricky due to trait objects)
-                // We'll use a runtime check
-                let dag_store = self.dag_store.clone();
-                tokio::task::block_in_place(|| {
-                    let rt = tokio::runtime::Handle::current();
-                    rt.block_on(async {
-                        let store = dag_store.lock().await;
-                        if store.as_any().is::<StubDagStore>() {
-                            return Err(CommonError::InternalError(
-                                "Stub DAG store cannot be used in production".to_string(),
-                            ));
-                        }
-                        Ok(())
-                    })
-                })
+                // Check if DAG store is a stub (synchronous check)
+                self.dag_store.validate_for_production()
             }
             ServiceEnvironment::Development | ServiceEnvironment::Testing => {
                 // Allow any configuration for dev/test
@@ -404,7 +378,7 @@ impl ServiceConfig {
         network_service: Arc<dyn icn_network::NetworkService>,
         signer: Arc<dyn Signer>,
         did_resolver: Arc<dyn icn_identity::DidResolver>,
-        dag_store: Arc<DagStoreMutexType<DagStorageService>>,
+        dag_store: DagStoreWrapper,
         mana_ledger: super::mana::SimpleManaLedger,
         reputation_store: Arc<dyn ReputationStore>,
         policy_enforcer: Option<Arc<dyn icn_governance::scoped_policy::ScopedPolicyEnforcer>>,
@@ -434,7 +408,7 @@ impl ServiceConfig {
         signer: Arc<dyn Signer>,
         mana_ledger: super::mana::SimpleManaLedger,
         network_service: Option<Arc<dyn icn_network::NetworkService>>,
-        dag_store: Option<Arc<DagStoreMutexType<DagStorageService>>>,
+        dag_store: Option<DagStoreWrapper>,
     ) -> Result<Self, CommonError> {
         let mut builder = ServiceConfigBuilder::new(ServiceEnvironment::Development)
             .with_identity(current_identity)

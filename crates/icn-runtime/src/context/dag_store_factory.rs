@@ -6,6 +6,7 @@
 //! - Testing contexts default to stubs but can use real backends when needed
 //! - Backend selection is based on available features and user preferences
 
+use super::dag_store_wrapper::{DagStoreType, DagStoreWrapper};
 use super::stubs::StubDagStore;
 use super::{DagStorageService, DagStoreMutexType};
 use icn_common::CommonError;
@@ -146,24 +147,27 @@ pub struct DagStoreFactory;
 
 impl DagStoreFactory {
     /// Create a DAG store based on configuration
-    pub fn create(config: &DagStoreConfig) -> Result<Arc<DagStoreMutexType<DagStorageService>>, CommonError> {
+    pub fn create(config: &DagStoreConfig) -> Result<DagStoreWrapper, CommonError> {
         match config.backend {
             #[cfg(feature = "persist-sled")]
             DagStoreBackend::Sled => {
                 let store = icn_dag::sled_store::SledDagStore::new(config.storage_path.clone())?;
-                Ok(Arc::new(DagStoreMutexType::new(store)))
+                let wrapped_store = Arc::new(DagStoreMutexType::new(store));
+                Ok(DagStoreWrapper::production(wrapped_store, DagStoreType::Sled))
             }
 
             #[cfg(feature = "persist-rocksdb")]
             DagStoreBackend::RocksDB => {
                 let store = icn_dag::rocksdb_store::RocksDagStore::new(config.storage_path.clone())?;
-                Ok(Arc::new(DagStoreMutexType::new(store)))
+                let wrapped_store = Arc::new(DagStoreMutexType::new(store));
+                Ok(DagStoreWrapper::production(wrapped_store, DagStoreType::RocksDB))
             }
 
             #[cfg(feature = "persist-sqlite")]
             DagStoreBackend::SQLite => {
                 let store = icn_dag::sqlite_store::SqliteDagStore::new(config.storage_path.clone())?;
-                Ok(Arc::new(DagStoreMutexType::new(store)))
+                let wrapped_store = Arc::new(DagStoreMutexType::new(store));
+                Ok(DagStoreWrapper::production(wrapped_store, DagStoreType::SQLite))
             }
 
             #[cfg(feature = "persist-postgres")]
@@ -171,12 +175,14 @@ impl DagStoreFactory {
                 // For PostgreSQL, the storage_path is used as connection string or config path
                 let config_str = config.storage_path.to_string_lossy().to_string();
                 let store = icn_dag::postgres_store::PostgresDagStore::new(&config_str)?;
-                Ok(Arc::new(DagStoreMutexType::new(store)))
+                let wrapped_store = Arc::new(DagStoreMutexType::new(store));
+                Ok(DagStoreWrapper::production(wrapped_store, DagStoreType::PostgreSQL))
             }
 
             DagStoreBackend::Stub => {
                 let store = StubDagStore::new();
-                Ok(Arc::new(DagStoreMutexType::new(store)))
+                let wrapped_store = Arc::new(DagStoreMutexType::new(store));
+                Ok(DagStoreWrapper::stub(wrapped_store))
             }
 
             // Handle disabled features
@@ -203,20 +209,20 @@ impl DagStoreFactory {
     }
 
     /// Create a production DAG store with default settings
-    pub fn create_production(storage_path: PathBuf) -> Result<Arc<DagStoreMutexType<DagStorageService>>, CommonError> {
+    pub fn create_production(storage_path: PathBuf) -> Result<DagStoreWrapper, CommonError> {
         let config = DagStoreConfig::production(storage_path)?;
         config.validate_for_production()?;
         Self::create(&config)
     }
 
     /// Create a development DAG store with fallback to stub
-    pub fn create_development(storage_path: Option<PathBuf>) -> Result<Arc<DagStoreMutexType<DagStorageService>>, CommonError> {
+    pub fn create_development(storage_path: Option<PathBuf>) -> Result<DagStoreWrapper, CommonError> {
         let config = DagStoreConfig::development(storage_path);
         Self::create(&config)
     }
 
     /// Create a testing DAG store (always stub)
-    pub fn create_testing() -> Arc<DagStoreMutexType<DagStorageService>> {
+    pub fn create_testing() -> DagStoreWrapper {
         let config = DagStoreConfig::testing();
         Self::create(&config).expect("Stub DAG store creation should never fail")
     }
@@ -278,8 +284,10 @@ mod tests {
         let config = DagStoreConfig::testing();
         assert_eq!(config.backend, DagStoreBackend::Stub);
         
-        let store = DagStoreFactory::create_testing();
-        assert!(store.try_lock().is_ok());
+        let store_wrapper = DagStoreFactory::create_testing();
+        assert!(store_wrapper.is_stub());
+        assert!(!store_wrapper.is_production_ready());
+        assert!(store_wrapper.inner().try_lock().is_ok());
     }
 
     #[test]
@@ -306,7 +314,11 @@ mod tests {
             options: DagStoreOptions::default(),
         };
         
-        let store = DagStoreFactory::create(&config);
-        assert!(store.is_ok());
+        let store_wrapper = DagStoreFactory::create(&config);
+        assert!(store_wrapper.is_ok());
+        let wrapper = store_wrapper.unwrap();
+        assert!(wrapper.is_production_ready());
+        assert!(!wrapper.is_stub());
+        assert_eq!(wrapper.get_type(), DagStoreType::Sled);
     }
 }

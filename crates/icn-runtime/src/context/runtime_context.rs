@@ -79,6 +79,7 @@
 //! # }
 //! ```
 
+use super::dag_store_wrapper::DagStoreWrapper;
 use super::errors::HostAbiError;
 use super::mana::SimpleManaLedger;
 use super::mesh_network::{
@@ -300,7 +301,7 @@ pub struct RuntimeContext {
     pub mesh_network_service: Arc<MeshNetworkServiceType>,
     pub signer: Arc<dyn Signer>,
     pub did_resolver: Arc<dyn icn_identity::DidResolver>,
-    pub dag_store: Arc<DagStoreMutexType<DagStorageService>>,
+    pub dag_store: DagStoreWrapper,
     pub reputation_store: Arc<dyn icn_reputation::ReputationStore>,
     pub trust_engine: Arc<TokioMutex<TrustPolicyEngine>>,
     pub latency_store: Arc<dyn icn_mesh::LatencyStore>,
@@ -381,7 +382,7 @@ pub struct RuntimeContextParams {
     pub mesh_network_service: Arc<MeshNetworkServiceType>,
     pub signer: Arc<dyn Signer>,
     pub did_resolver: Arc<dyn icn_identity::DidResolver>,
-    pub dag_store: Arc<DagStoreMutexType<DagStorageService>>,
+    pub dag_store: DagStoreWrapper,
     pub mana_ledger: SimpleManaLedger,
     pub reputation_path: PathBuf,
     pub latency_store: Arc<dyn icn_mesh::LatencyStore>,
@@ -395,7 +396,7 @@ pub struct RuntimeContextBuilder {
     environment: EnvironmentType,
     network_service: Option<Arc<dyn icn_network::NetworkService>>,
     signer: Option<Arc<dyn Signer>>,
-    dag_store: Option<Arc<DagStoreMutexType<DagStorageService>>>,
+    dag_store: Option<DagStoreWrapper>,
     mana_ledger: Option<SimpleManaLedger>,
     reputation_store: Option<Arc<dyn icn_reputation::ReputationStore>>,
     policy_enforcer: Option<Arc<dyn icn_governance::scoped_policy::ScopedPolicyEnforcer>>,
@@ -448,7 +449,7 @@ impl RuntimeContextBuilder {
     }
 
     /// Set the DAG store (required for production).
-    pub fn with_dag_store(mut self, store: Arc<DagStoreMutexType<DagStorageService>>) -> Self {
+    pub fn with_dag_store(mut self, store: DagStoreWrapper) -> Self {
         self.dag_store = Some(store);
         self
     }
@@ -559,7 +560,7 @@ impl RuntimeContext {
     /// Create a cross-component coordinator with the given services
     fn create_cross_component_coordinator(
         mesh_network_service: Arc<MeshNetworkServiceType>,
-        dag_store: Arc<DagStoreMutexType<DagStorageService>>,
+        dag_store: &DagStoreWrapper,
         governance_module: Arc<DagStoreMutexType<GovernanceModule>>,
         reputation_store: Arc<dyn ReputationStore>,
         current_identity: Did,
@@ -567,7 +568,7 @@ impl RuntimeContext {
     ) -> Arc<CrossComponentCoordinator> {
         Arc::new(CrossComponentCoordinator::new(
             mesh_network_service,
-            dag_store,
+            dag_store.clone_inner(),
             governance_module,
             reputation_store,
             current_identity,
@@ -594,21 +595,8 @@ impl RuntimeContext {
             ));
         }
 
-        // Check DAG store type
-        let dag_store = self.dag_store.clone();
-        tokio::task::block_in_place(|| {
-            let rt = tokio::runtime::Handle::current();
-            rt.block_on(async {
-                let store = dag_store.lock().await;
-                if store.as_any().is::<super::stubs::StubDagStore>() {
-                    return Err(CommonError::InternalError(
-                        "❌ PRODUCTION ERROR: Stub DAG store detected in production context."
-                            .to_string(),
-                    ));
-                }
-                Ok(())
-            })
-        })?;
+        // Check DAG store type (synchronous check)
+        self.dag_store.validate_for_production()?;
 
         Ok(())
     }
@@ -892,7 +880,7 @@ impl RuntimeContext {
         // Initialize cross-component coordinator with all services
         let cross_component_coordinator = Self::create_cross_component_coordinator(
             config.mesh_network_service.clone(),
-            config.dag_store.clone(),
+            &config.dag_store,
             governance_module.clone(),
             config.reputation_store.clone(),
             config.current_identity.clone(),
@@ -946,28 +934,13 @@ impl RuntimeContext {
         network_service: Arc<dyn icn_network::NetworkService>,
         signer: Arc<dyn Signer>,
         did_resolver: Arc<dyn icn_identity::DidResolver>,
-        dag_store: Arc<DagStoreMutexType<DagStorageService>>,
+        dag_store: DagStoreWrapper,
         mana_ledger: SimpleManaLedger,
         reputation_store: Arc<dyn icn_reputation::ReputationStore>,
         policy_enforcer: Option<Arc<dyn icn_governance::scoped_policy::ScopedPolicyEnforcer>>,
     ) -> Result<Arc<Self>, CommonError> {
-        // Validate that no stub services are being used in production
-        {
-            let store_clone = dag_store.clone();
-            let is_stub = tokio::task::block_in_place(|| {
-                let rt = tokio::runtime::Handle::current();
-                rt.block_on(async {
-                    let store_guard = store_clone.lock().await;
-                    store_guard.as_any().is::<StubDagStore>()
-                })
-            });
-            
-            if is_stub {
-                return Err(CommonError::InternalError(
-                    "❌ PRODUCTION ERROR: Stub DAG store cannot be used in production. Use DagStoreFactory::create_production() to create a persistent store.".to_string()
-                ));
-            }
-        }
+        // Validate that no stub services are being used in production (synchronous check)
+        dag_store.validate_for_production()?;
 
         let config = ServiceConfig::production(
             current_identity,
@@ -1526,7 +1499,7 @@ impl RuntimeContext {
             scope: None,
         };
 
-        let mut dag_store = self.dag_store.lock().await;
+        let mut dag_store = self.dag_store.inner().lock().await;
         dag_store.put(&dag_block).await.map_err(|e| {
             HostAbiError::DagOperationFailed(format!("Failed to store job DAG block: {}", e))
         })?;
@@ -1563,7 +1536,7 @@ impl RuntimeContext {
             scope: None,
         };
 
-        let mut dag_store = self.dag_store.lock().await;
+        let mut dag_store = self.dag_store.inner().lock().await;
         dag_store.put(&dag_block).await.map_err(|e| {
             HostAbiError::DagOperationFailed(format!("Failed to store bid DAG block: {}", e))
         })?;
@@ -1603,7 +1576,7 @@ impl RuntimeContext {
             scope: None,
         };
 
-        let mut dag_store = self.dag_store.lock().await;
+        let mut dag_store = self.dag_store.inner().lock().await;
         dag_store.put(&dag_block).await.map_err(|e| {
             HostAbiError::DagOperationFailed(format!("Failed to store assignment DAG block: {}", e))
         })?;
@@ -1640,7 +1613,7 @@ impl RuntimeContext {
             scope: None,
         };
 
-        let mut dag_store = self.dag_store.lock().await;
+        let mut dag_store = self.dag_store.inner().lock().await;
         dag_store.put(&dag_block).await.map_err(|e| {
             HostAbiError::DagOperationFailed(format!("Failed to store receipt DAG block: {}", e))
         })?;
@@ -2097,7 +2070,7 @@ impl RuntimeContext {
             scope: None,
         };
 
-        let mut dag_store = self.dag_store.lock().await;
+        let mut dag_store = self.dag_store.inner().lock().await;
         dag_store.put(&dag_block).await.map_err(|e| {
             HostAbiError::DagOperationFailed(format!("Failed to store status update: {}", e))
         })?;
@@ -2121,7 +2094,7 @@ impl RuntimeContext {
             job_id
         );
 
-        let dag_store = self.dag_store.lock().await;
+        let dag_store = self.dag_store.inner().lock().await;
 
         // 1. Get the job node
         let job_block = dag_store.get(&job_id.0).await.map_err(|e| {
@@ -2186,7 +2159,7 @@ impl RuntimeContext {
 
     /// Retrieve synchronization status of the local DAG.
     pub async fn get_dag_sync_status(&self) -> Result<icn_common::DagSyncStatus, HostAbiError> {
-        let store = self.dag_store.lock().await;
+        let store = self.dag_store.inner().lock().await;
         let root = icn_dag::current_root(&*store).await.map_err(|e| {
             HostAbiError::DagOperationFailed(format!("Failed to get DAG root: {}", e))
         })?;
@@ -2221,7 +2194,7 @@ impl RuntimeContext {
             signature: None,
             scope: None,
         };
-        let mut dag = self.dag_store.lock().await;
+        let mut dag = self.dag_store.inner().lock().await;
         if let Err(e) = dag.put(&block).await {
             log::warn!("[record_ledger_event] store failed: {e}");
         }
@@ -2314,7 +2287,7 @@ impl RuntimeContext {
 
         // Store in DAG
         {
-            let mut dag_store = self.dag_store.lock().await;
+            let mut dag_store = self.dag_store.inner().lock().await;
             dag_store.put(&block).await.map_err(|e| {
                 HostAbiError::DagOperationFailed(format!("Failed to store receipt: {}", e))
             })?;
@@ -2375,7 +2348,7 @@ impl RuntimeContext {
 
         // 4. Store in DAG
         {
-            let mut dag_store = self.dag_store.lock().await;
+            let mut dag_store = self.dag_store.inner().lock().await;
             dag_store.put(&block).await.map_err(|e| {
                 HostAbiError::DagOperationFailed(format!("Failed to store checkpoint: {}", e))
             })?;
@@ -2439,7 +2412,7 @@ impl RuntimeContext {
 
         // 4. Store in DAG
         {
-            let mut dag_store = self.dag_store.lock().await;
+            let mut dag_store = self.dag_store.inner().lock().await;
             dag_store.put(&block).await.map_err(|e| {
                 HostAbiError::DagOperationFailed(format!("Failed to store partial output: {}", e))
             })?;
@@ -2476,7 +2449,7 @@ impl RuntimeContext {
             signature: None,
             scope: None,
         };
-        let mut dag = self.dag_store.lock().await;
+        let mut dag = self.dag_store.inner().lock().await;
         dag.put(&block).await.map_err(|e| {
             HostAbiError::DagOperationFailed(format!("Failed to store parameter update: {}", e))
         })?;
@@ -2553,7 +2526,7 @@ impl RuntimeContext {
                 scope: None,
             };
             {
-                let mut dag_store = self.dag_store.lock().await;
+                let mut dag_store = self.dag_store.inner().lock().await;
                 dag_store.put(&block).await.map_err(|e| {
                     HostAbiError::DagOperationFailed(format!(
                         "Failed to store proposal body: {}",
@@ -2813,7 +2786,7 @@ impl RuntimeContext {
         }
 
         let ts = self.time_provider.unix_seconds();
-        let mut store = self.dag_store.lock().await;
+        let mut store = self.dag_store.inner().lock().await;
         let cid = super::resource_ledger::record_resource_event(
             &mut *store,
             &self.current_identity,
@@ -3966,7 +3939,7 @@ impl RuntimeContext {
                 };
 
                 {
-                    let mut dag_store = ctx.dag_store.lock().await;
+                    let mut dag_store = ctx.dag_store.inner().lock().await;
                     dag_store.put(&result_block).await.map_err(|e| {
                         HostAbiError::DagOperationFailed(format!("Failed to store result: {}", e))
                     })?;
@@ -4031,7 +4004,7 @@ impl RuntimeContext {
     pub async fn integrity_check_once(&self) -> Result<(), CommonError> {
         log::info!("Performing integrity check on DAG store");
 
-        let store = self.dag_store.lock().await;
+        let store = self.dag_store.inner().lock().await;
 
         // Get all blocks and verify their integrity
         let mut verified_count = 0;
