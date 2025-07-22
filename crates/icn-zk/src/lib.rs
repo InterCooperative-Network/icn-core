@@ -6,6 +6,7 @@ use ark_relations::r1cs::{ConstraintSynthesizer, SynthesisError};
 use ark_snark::SNARK;
 use ark_std::rand::{CryptoRng, RngCore};
 use rayon::prelude::*;
+use rand::rngs::OsRng;
 
 mod circuits;
 #[cfg(feature = "devtools")]
@@ -76,7 +77,7 @@ where
         .par_iter()
         .cloned()
         .map(|c| {
-            let mut rng = ark_std::rand::rngs::OsRng;
+            let mut rng = OsRng;
             Groth16::<Bn254>::prove(pk, c, &mut rng)
         })
         .collect()

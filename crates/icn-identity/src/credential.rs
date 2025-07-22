@@ -359,15 +359,18 @@ mod tests {
         let km = Groth16KeyManager::new(
             "age_over_18",
             Groth16KeySource::Circuit(AgeOver18Circuit {
-                birth_year: 0,
-                current_year: 0,
+                birth_year: 2000,
+                current_year: 2020,
             }),
             &sk,
         )
         .unwrap();
+        let reputation_store = std::sync::Arc::new(icn_reputation::InMemoryReputationStore::new());
+        // Set reputation for the issuer to meet the threshold
+        reputation_store.set_score(issuer.clone(), 100);
         let prover = Groth16Prover::new(
             km.clone(),
-            std::sync::Arc::new(icn_reputation::InMemoryReputationStore::new()),
+            reputation_store.clone(),
             icn_zk::ReputationThresholds::default(),
         );
         let issuer = CredentialIssuer::new(issuer, sk).with_prover(Box::new(prover));
@@ -385,7 +388,7 @@ mod tests {
         let verifier = Groth16Verifier::new(
             icn_zk::prepare_vk(km.proving_key()),
             vec![ark_bn254::Fr::from(2020u64)],
-            std::sync::Arc::new(icn_reputation::InMemoryReputationStore::new()),
+            reputation_store,
             icn_zk::ReputationThresholds::default(),
         );
         assert!(verifier.verify(&proof).unwrap());
