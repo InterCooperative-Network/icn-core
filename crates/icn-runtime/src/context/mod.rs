@@ -7,6 +7,7 @@ pub mod advanced_ccl_wasm;
 pub mod compile_checks;
 pub mod comprehensive_coordinator;
 pub mod cross_component_coordinator;
+pub mod dag_store_factory;
 pub mod enhanced_dag_sync;
 pub mod errors;
 pub mod federation_integration;
@@ -22,6 +23,9 @@ pub mod signers;
 pub mod smart_p2p_routing;
 pub mod stubs;
 
+#[cfg(test)]
+pub mod dag_storage_tests;
+
 // Re-export important types for convenience
 pub use advanced_ccl_wasm::{
     AdvancedCclWasmBackend, CclExecutionConfig, CclExecutionResult, CclPerformanceMetrics,
@@ -35,6 +39,9 @@ pub use comprehensive_coordinator::{
 pub use cross_component_coordinator::{
     CrossComponentCoordinator, DagOperation, DagOperationResult, HealthStatus,
     IntegrationMetricsSummary, PerformanceMetrics, Priority, SystemStatus,
+};
+pub use dag_store_factory::{
+    DagStoreBackend, DagStoreConfig, DagStoreFactory, DagStoreOptions,
 };
 pub use enhanced_dag_sync::{
     EnhancedDagSync, NetworkConditions, PropagationPriority, PropagationStrategy, SyncHealth,

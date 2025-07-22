@@ -627,75 +627,22 @@ impl RuntimeContext {
     ///
     /// **⚠️ DEPRECATED**: This method is deprecated in favor of `new_testing()` which provides
     /// clearer semantics and better error handling. Use `new_testing()` instead.
+    ///
+    /// **⚠️ STUB SERVICES**: This method uses stub services and should NEVER be used in production.
     #[deprecated(
         since = "0.2.0",
-        note = "Use `new_testing()` instead for clearer semantics"
+        note = "Use `new_testing()` instead for clearer semantics. This method uses stub services that are not suitable for production."
     )]
     pub fn new_with_stubs(current_identity_str: &str) -> Result<Arc<Self>, CommonError> {
-        // TODO: Initialize execution monitor logger
         let current_identity = Did::from_str(current_identity_str)
             .map_err(|e| CommonError::InternalError(format!("Invalid DID: {}", e)))?;
-
-        let (tx, rx) = mpsc::channel(128);
-        let job_states = Arc::new(DashMap::new());
-        let governance_module = Arc::new(DagStoreMutexType::new(GovernanceModule::new()));
-        let mesh_network_service =
-            Arc::new(MeshNetworkServiceType::Stub(StubMeshNetworkService::new()));
-        let signer = Arc::new(super::signers::StubSigner::new());
-        let did_resolver = Arc::new(icn_identity::KeyDidResolver);
-        let reputation_store = Arc::new(icn_reputation::InMemoryReputationStore::new());
-        let latency_store = Arc::new(icn_mesh::NoOpLatencyStore) as Arc<dyn icn_mesh::LatencyStore>;
-        let parameters = Self::default_parameters();
-        let policy_enforcer = None;
-        let time_provider = Arc::new(icn_common::SystemTimeProvider);
-        let system_info = Arc::new(SysinfoSystemInfoProvider);
-
-        // Use a temporary file for testing to avoid file system issues
-        let temp_file = tempfile::NamedTempFile::new()
-            .map_err(|e| CommonError::IoError(format!("Failed to create temp file: {}", e)))?;
-        let temp_path = temp_file.path().to_path_buf();
-        // Keep the temp file alive by storing it
-        std::mem::forget(temp_file);
-        let mana_ledger = SimpleManaLedger::new(temp_path);
-
-        let dag_store = Arc::new(DagStoreMutexType::new(StubDagStore::new()))
-            as Arc<DagStoreMutexType<DagStorageService>>;
-
-        // Create cross-component coordinator
-        let cross_component_coordinator = Self::create_cross_component_coordinator(
-            mesh_network_service.clone(),
-            dag_store.clone(),
-            governance_module.clone(),
-            reputation_store.clone(),
-            current_identity.clone(),
-            time_provider.clone(),
-        );
-
-        Ok(Arc::new(Self {
-            current_identity,
-            mana_ledger,
-            pending_mesh_jobs_tx: tx,
-            pending_mesh_jobs_rx: TokioMutex::new(rx),
-            job_states,
-            governance_module,
-            mesh_network_service,
-            signer,
-            did_resolver,
-            dag_store,
-            reputation_store,
-            trust_engine: Arc::new(TokioMutex::new(TrustPolicyEngine::new())),
-            latency_store,
-            parameters,
-            policy_enforcer,
-            resource_ledger: TokioMutex::new(super::resource_ledger::ResourceLedger::new()),
-            system_info,
-            time_provider,
-            default_receipt_wait_ms: 30000,
-            cross_component_coordinator,
-        }))
+        
+        Self::new_testing(current_identity, None)
     }
 
     /// Create a new context with stubs and initial mana balance (convenience method for tests).
+    ///
+    /// **⚠️ STUB SERVICES**: This method uses stub services and should NEVER be used in production.
     pub fn new_with_stubs_and_mana(
         current_identity_str: &str,
         initial_mana: u64,
@@ -984,7 +931,7 @@ impl RuntimeContext {
     /// **Services Used:**
     /// - Network: Real libp2p networking service
     /// - Signer: Ed25519 cryptographic signer
-    /// - DAG Store: Persistent storage backend (PostgreSQL, RocksDB, etc.)
+    /// - DAG Store: Persistent storage backend (Sled, RocksDB, SQLite, or PostgreSQL)
     /// - Mana Ledger: Persistent mana ledger
     /// - Reputation Store: Persistent reputation storage
     ///
@@ -1004,6 +951,24 @@ impl RuntimeContext {
         reputation_store: Arc<dyn icn_reputation::ReputationStore>,
         policy_enforcer: Option<Arc<dyn icn_governance::scoped_policy::ScopedPolicyEnforcer>>,
     ) -> Result<Arc<Self>, CommonError> {
+        // Validate that no stub services are being used in production
+        {
+            let store_clone = dag_store.clone();
+            let is_stub = tokio::task::block_in_place(|| {
+                let rt = tokio::runtime::Handle::current();
+                rt.block_on(async {
+                    let store_guard = store_clone.lock().await;
+                    store_guard.as_any().is::<StubDagStore>()
+                })
+            });
+            
+            if is_stub {
+                return Err(CommonError::InternalError(
+                    "❌ PRODUCTION ERROR: Stub DAG store cannot be used in production. Use DagStoreFactory::create_production() to create a persistent store.".to_string()
+                ));
+            }
+        }
+
         let config = ServiceConfig::production(
             current_identity,
             network_service,
@@ -1013,6 +978,32 @@ impl RuntimeContext {
             mana_ledger,
             reputation_store,
             policy_enforcer,
+        )?;
+        Self::from_service_config(config)
+    }
+
+    /// Create a production RuntimeContext with automatic storage backend creation.
+    ///
+    /// **🏭 PRODUCTION**: This is a convenience method that automatically creates
+    /// the appropriate persistent DAG storage backend for production use.
+    ///
+    /// **Use when:**
+    /// - You want automatic backend selection (Sled > RocksDB > SQLite > PostgreSQL)
+    /// - You have a storage directory but don't want to manually create the DAG store
+    /// - You're setting up a production node with minimal configuration
+    pub fn new_for_production_with_storage(
+        current_identity: Did,
+        network_service: Arc<dyn icn_network::NetworkService>,
+        signer: Arc<dyn Signer>,
+        storage_path: std::path::PathBuf,
+        mana_ledger: SimpleManaLedger,
+    ) -> Result<Arc<Self>, CommonError> {
+        let config = ServiceConfig::production_with_storage(
+            current_identity,
+            network_service,
+            signer,
+            storage_path,
+            mana_ledger,
         )?;
         Self::from_service_config(config)
     }
@@ -1050,6 +1041,27 @@ impl RuntimeContext {
         Self::from_service_config(config)
     }
 
+    /// Create a development RuntimeContext with automatic storage creation.
+    ///
+    /// **🛠️ DEVELOPMENT**: Convenience method for development setups.
+    /// If storage_path is provided, uses persistent storage. Otherwise uses stub storage.
+    pub fn new_development_with_storage(
+        current_identity: Did,
+        signer: Arc<dyn Signer>,
+        mana_ledger: SimpleManaLedger,
+        network_service: Option<Arc<dyn icn_network::NetworkService>>,
+        storage_path: Option<std::path::PathBuf>,
+    ) -> Result<Arc<Self>, CommonError> {
+        let config = ServiceConfig::development_with_storage(
+            current_identity,
+            signer,
+            mana_ledger,
+            network_service,
+            storage_path,
+        )?;
+        Self::from_service_config(config)
+    }
+
     /// Create a testing RuntimeContext with all stub services.
     ///
     /// **🧪 TESTING**: This method creates a completely isolated testing environment
@@ -1058,7 +1070,7 @@ impl RuntimeContext {
     /// **Services Used:**
     /// - Network: Stub network service (no real networking)
     /// - Signer: Stub signer (deterministic signatures)
-    /// - DAG Store: In-memory stub store
+    /// - DAG Store: In-memory stub store (no persistence)
     /// - Mana Ledger: Temporary file-based ledger
     /// - Reputation Store: In-memory reputation store
     ///
@@ -1075,72 +1087,8 @@ impl RuntimeContext {
         current_identity: Did,
         initial_mana: Option<u64>,
     ) -> Result<Arc<Self>, CommonError> {
-        let (tx, rx) = mpsc::channel(128);
-        let job_states = Arc::new(DashMap::new());
-        let governance_module = Arc::new(DagStoreMutexType::new(GovernanceModule::new()));
-        let mesh_network_service =
-            Arc::new(MeshNetworkServiceType::Stub(StubMeshNetworkService::new()));
-        let signer = Arc::new(super::signers::StubSigner::new());
-        let did_resolver = Arc::new(icn_identity::KeyDidResolver);
-        let reputation_store = Arc::new(icn_reputation::InMemoryReputationStore::new());
-        let parameters = Self::default_parameters();
-        let policy_enforcer = None;
-        let time_provider = Arc::new(icn_common::SystemTimeProvider);
-
-        // Use a temporary file for testing
-        let temp_file = tempfile::NamedTempFile::new().map_err(|e| {
-            CommonError::IoError(format!("Failed to create temp file for testing: {}", e))
-        })?;
-        let temp_path = temp_file.path().to_path_buf();
-        std::mem::forget(temp_file);
-        let mana_ledger = SimpleManaLedger::new(temp_path);
-
-        let dag_store = Arc::new(DagStoreMutexType::new(StubDagStore::new()))
-            as Arc<DagStoreMutexType<DagStorageService>>;
-
-        // Create cross-component coordinator
-        let cross_component_coordinator = Self::create_cross_component_coordinator(
-            mesh_network_service.clone(),
-            dag_store.clone(),
-            governance_module.clone(),
-            reputation_store.clone(),
-            current_identity.clone(),
-            time_provider.clone(),
-        );
-
-        let ctx = Arc::new(Self {
-            current_identity: current_identity.clone(),
-            mana_ledger,
-            pending_mesh_jobs_tx: tx,
-            pending_mesh_jobs_rx: TokioMutex::new(rx),
-            job_states,
-            governance_module,
-            mesh_network_service,
-            signer,
-            did_resolver,
-            dag_store,
-            reputation_store,
-            trust_engine: Arc::new(TokioMutex::new(TrustPolicyEngine::new())),
-            latency_store: Arc::new(icn_mesh::NoOpLatencyStore) as Arc<dyn icn_mesh::LatencyStore>,
-            parameters,
-            policy_enforcer,
-            resource_ledger: TokioMutex::new(super::resource_ledger::ResourceLedger::new()),
-            system_info: Arc::new(SysinfoSystemInfoProvider),
-            time_provider,
-            default_receipt_wait_ms: 30000,
-            cross_component_coordinator,
-        });
-
-        // Set initial mana if provided
-        if let Some(mana) = initial_mana {
-            ctx.mana_ledger
-                .set_balance(&current_identity, mana)
-                .map_err(|e| {
-                    CommonError::InternalError(format!("Failed to set initial mana: {}", e))
-                })?;
-        }
-
-        Ok(ctx)
+        let config = ServiceConfig::testing(current_identity.clone(), initial_mana)?;
+        Self::from_service_config(config)
     }
 
     /// Create a testing context with a custom system info provider.

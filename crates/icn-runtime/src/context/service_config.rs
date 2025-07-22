@@ -3,6 +3,7 @@
 //! This module provides type-safe service creation and mapping to ensure
 //! that stub services are never accidentally used in production.
 
+use super::dag_store_factory::{DagStoreConfig, DagStoreFactory};
 use super::mesh_network::DefaultMeshNetworkService;
 use super::runtime_context::MeshNetworkServiceType;
 use super::signers::Signer;
@@ -10,6 +11,7 @@ use super::stubs::{StubDagStore, StubMeshNetworkService};
 use super::{DagStorageService, DagStoreMutexType};
 use icn_common::{CommonError, Did};
 use icn_reputation::ReputationStore;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 /// Service configuration environments
@@ -247,22 +249,45 @@ impl ServiceConfigBuilder {
     /// Create DAG store based on environment
     fn create_dag_store(&self) -> Result<Arc<DagStoreMutexType<DagStorageService>>, CommonError> {
         match self.environment {
-            ServiceEnvironment::Production => self
-                .dag_store
-                .as_ref()
-                .ok_or_else(|| {
-                    CommonError::InternalError("DAG store required for production".to_string())
-                })
-                .cloned(),
+            ServiceEnvironment::Production => {
+                // For production, require explicit DAG store to ensure persistence
+                if let Some(store) = &self.dag_store {
+                    // Validate that it's not a stub store
+                    let store_clone = store.clone();
+                    let is_stub = tokio::task::block_in_place(|| {
+                        let rt = tokio::runtime::Handle::current();
+                        rt.block_on(async {
+                            let store_guard = store_clone.lock().await;
+                            store_guard.as_any().is::<StubDagStore>()
+                        })
+                    });
+                    
+                    if is_stub {
+                        return Err(CommonError::InternalError(
+                            "❌ PRODUCTION ERROR: Stub DAG store cannot be used in production. Use DagStoreFactory::create_production() to create a persistent store.".to_string()
+                        ));
+                    }
+                    
+                    Ok(store.clone())
+                } else {
+                    // If no explicit store provided, try to create a default production store
+                    // This requires a storage path, which we don't have in this context
+                    Err(CommonError::InternalError(
+                        "DAG store is required for production environment. Use DagStoreFactory::create_production() to create one.".to_string()
+                    ))
+                }
+            }
             ServiceEnvironment::Development => {
                 if let Some(store) = &self.dag_store {
                     Ok(store.clone())
                 } else {
-                    Ok(Arc::new(DagStoreMutexType::new(StubDagStore::new())))
+                    // For development, use factory to create a stub store
+                    Ok(DagStoreFactory::create_testing())
                 }
             }
             ServiceEnvironment::Testing => {
-                Ok(Arc::new(DagStoreMutexType::new(StubDagStore::new())))
+                // Always use stub for testing, even if a real store was provided
+                Ok(DagStoreFactory::create_testing())
             }
         }
     }
@@ -451,5 +476,49 @@ impl ServiceConfig {
             .with_signer(Arc::new(super::signers::StubSigner::new()))
             .with_mana_ledger(mana_ledger)
             .build()
+    }
+
+    /// Create a production configuration with automatic DAG store creation
+    pub fn production_with_storage(
+        current_identity: Did,
+        network_service: Arc<dyn icn_network::NetworkService>,
+        signer: Arc<dyn Signer>,
+        storage_path: PathBuf,
+        mana_ledger: super::mana::SimpleManaLedger,
+    ) -> Result<Self, CommonError> {
+        // Create production DAG store
+        let dag_store = DagStoreFactory::create_production(storage_path)?;
+
+        let did_resolver = Arc::new(icn_identity::KeyDidResolver);
+        let reputation_store = Arc::new(icn_reputation::InMemoryReputationStore::new());
+
+        Self::production(
+            current_identity,
+            network_service,
+            signer,
+            did_resolver,
+            dag_store,
+            mana_ledger,
+            reputation_store,
+            None,
+        )
+    }
+
+    /// Create a development configuration with optional persistent storage
+    pub fn development_with_storage(
+        current_identity: Did,
+        signer: Arc<dyn Signer>,
+        mana_ledger: super::mana::SimpleManaLedger,
+        network_service: Option<Arc<dyn icn_network::NetworkService>>,
+        storage_path: Option<PathBuf>,
+    ) -> Result<Self, CommonError> {
+        // Create DAG store based on whether storage path is provided
+        let dag_store = if let Some(path) = storage_path {
+            Some(DagStoreFactory::create_production(path)?)
+        } else {
+            None
+        };
+
+        Self::development(current_identity, signer, mana_ledger, network_service, dag_store)
     }
 }
