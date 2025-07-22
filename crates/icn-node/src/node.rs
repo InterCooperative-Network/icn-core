@@ -976,6 +976,16 @@ pub async fn app_router_with_options(
     // Start the executor manager so this node can act as an executor
     rt_ctx.clone().spawn_mesh_executor_manager().await;
 
+    // Populate runtime parameters from node configuration
+    rt_ctx.parameters.insert(
+        "executor_capabilities".to_string(),
+        cfg.executor_capabilities.join(","),
+    );
+    rt_ctx.parameters.insert(
+        "executor_federations".to_string(),
+        cfg.federations.join(","),
+    );
+
     info!("ICN RuntimeContext initialized and JobManager + ExecutorManager spawned.");
 
     let config = Arc::new(TokioMutex::new(cfg.clone()));

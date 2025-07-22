@@ -919,7 +919,7 @@ impl RuntimeContext {
     /// Create a new RuntimeContext from a service configuration.
     /// This is the preferred method as it ensures type-safe service mapping.
     pub fn from_service_config(config: ServiceConfig) -> Result<Arc<Self>, CommonError> {
-        // TODO: Initialize execution monitor logger
+        icn_runtime::execution_monitor::init_logger();
         // Validate the configuration before using it
         config.validate()?;
 
@@ -3715,8 +3715,16 @@ impl RuntimeContext {
                 memory_mb: available_memory,
                 storage_mb: 0,
             },
-            executor_capabilities: vec![], // TODO: Get from node config
-            executor_federations: vec![],  // TODO: Get from node federation
+            executor_capabilities: ctx
+                .parameters
+                .get("executor_capabilities")
+                .map(|v| v.value().split(',').map(|s| s.to_string()).collect())
+                .unwrap_or_default(),
+            executor_federations: ctx
+                .parameters
+                .get("executor_federations")
+                .map(|v| v.value().split(',').map(|s| s.to_string()).collect())
+                .unwrap_or_default(),
             executor_trust_scope: ctx
                 .parameters
                 .get("executor_trust_scope")
@@ -3880,8 +3888,16 @@ impl RuntimeContext {
                 memory_mb: available_memory,
                 storage_mb: 0,
             },
-            executor_capabilities: vec![], // TODO: Get from node config
-            executor_federations: vec![],  // TODO: Get from node federation
+            executor_capabilities: ctx
+                .parameters
+                .get("executor_capabilities")
+                .map(|v| v.value().split(',').map(|s| s.to_string()).collect())
+                .unwrap_or_default(),
+            executor_federations: ctx
+                .parameters
+                .get("executor_federations")
+                .map(|v| v.value().split(',').map(|s| s.to_string()).collect())
+                .unwrap_or_default(),
             executor_trust_scope: ctx
                 .parameters
                 .get("executor_trust_scope")
@@ -3951,7 +3967,7 @@ impl RuntimeContext {
         job: &ActualMeshJob,
         _agreed_cost: u64, // Marked as unused for now
     ) -> Result<icn_identity::ExecutionReceipt, HostAbiError> {
-        // TODO: Clear execution logs
+        icn_runtime::execution_monitor::clear_logs();
         let job_id = &job.id;
         let executor_did = ctx.current_identity.clone();
 
