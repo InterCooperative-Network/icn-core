@@ -111,47 +111,10 @@
 <a href=#111 id=111 data-nosnippet>111</a></span><span class="kw">pub use </span>cli::{check_ccl_file, compile_ccl_file, explain_ccl_policy, format_ccl_file};
 <a href=#112 id=112 data-nosnippet>112</a>
 <a href=#113 id=113 data-nosnippet>113</a><span class="doccomment">/// Expand macro definitions in the given AST using the standard library.
-<a href=#114 id=114 data-nosnippet>114</a></span><span class="kw">fn </span>expand_macros(ast: ast::AstNode, stdlib: <span class="kw-2">&amp;</span>StandardLibrary) -&gt; <span class="prelude-ty">Result</span>&lt;ast::AstNode, CclError&gt; {
-<a href=#115 id=115 data-nosnippet>115</a>    <span class="kw">use </span>ast::{AstNode, PolicyStatementNode};
-<a href=#116 id=116 data-nosnippet>116</a>
-<a href=#117 id=117 data-nosnippet>117</a>    <span class="kw">if let </span>AstNode::Policy(stmts) = ast {
-<a href=#118 id=118 data-nosnippet>118</a>        <span class="kw">let </span><span class="kw-2">mut </span>expanded = Vec::new();
-<a href=#119 id=119 data-nosnippet>119</a>        <span class="kw">let </span>_local_stdlib = stdlib;
-<a href=#120 id=120 data-nosnippet>120</a>
-<a href=#121 id=121 data-nosnippet>121</a>        <span class="comment">// First pass: collect macro definitions and register them
-<a href=#122 id=122 data-nosnippet>122</a>        // TODO: Implement macro registration in StandardLibrary
-<a href=#123 id=123 data-nosnippet>123</a>        </span><span class="kw">for </span>stmt <span class="kw">in </span><span class="kw-2">&amp;</span>stmts {
-<a href=#124 id=124 data-nosnippet>124</a>            <span class="kw">if let </span>PolicyStatementNode::MacroDef {
-<a href=#125 id=125 data-nosnippet>125</a>                name: <span class="kw">_</span>,
-<a href=#126 id=126 data-nosnippet>126</a>                params: <span class="kw">_</span>,
-<a href=#127 id=127 data-nosnippet>127</a>                body: <span class="kw">_</span>,
-<a href=#128 id=128 data-nosnippet>128</a>            } = stmt
-<a href=#129 id=129 data-nosnippet>129</a>            {
-<a href=#130 id=130 data-nosnippet>130</a>                <span class="comment">// local_stdlib.register_macro(name.clone(), params.clone(), body.clone());
-<a href=#131 id=131 data-nosnippet>131</a>            </span>}
-<a href=#132 id=132 data-nosnippet>132</a>        }
-<a href=#133 id=133 data-nosnippet>133</a>
-<a href=#134 id=134 data-nosnippet>134</a>        <span class="comment">// Second pass: process statements
-<a href=#135 id=135 data-nosnippet>135</a>        // For now, we just keep all statements including macro definitions
-<a href=#136 id=136 data-nosnippet>136</a>        // TODO: Implement full macro expansion in expressions
-<a href=#137 id=137 data-nosnippet>137</a>        </span><span class="kw">for </span>stmt <span class="kw">in </span>stmts {
-<a href=#138 id=138 data-nosnippet>138</a>            <span class="kw">match </span>stmt {
-<a href=#139 id=139 data-nosnippet>139</a>                PolicyStatementNode::MacroDef { .. } =&gt; {
-<a href=#140 id=140 data-nosnippet>140</a>                    <span class="comment">// Keep macro definitions in the output
-<a href=#141 id=141 data-nosnippet>141</a>                    </span>expanded.push(stmt);
-<a href=#142 id=142 data-nosnippet>142</a>                }
-<a href=#143 id=143 data-nosnippet>143</a>                other =&gt; {
-<a href=#144 id=144 data-nosnippet>144</a>                    <span class="comment">// For now, just keep other statements as-is
-<a href=#145 id=145 data-nosnippet>145</a>                    // TODO: In a full implementation, we would recursively
-<a href=#146 id=146 data-nosnippet>146</a>                    // traverse expressions in these statements to find and expand macro calls
-<a href=#147 id=147 data-nosnippet>147</a>                    </span>expanded.push(other);
-<a href=#148 id=148 data-nosnippet>148</a>                }
-<a href=#149 id=149 data-nosnippet>149</a>            }
-<a href=#150 id=150 data-nosnippet>150</a>        }
-<a href=#151 id=151 data-nosnippet>151</a>        <span class="prelude-val">Ok</span>(AstNode::Policy(expanded))
-<a href=#152 id=152 data-nosnippet>152</a>    } <span class="kw">else </span>{
-<a href=#153 id=153 data-nosnippet>153</a>        <span class="comment">// For non-Policy nodes, return as-is for now
-<a href=#154 id=154 data-nosnippet>154</a>        // TODO: Implement macro expansion for other node types
-<a href=#155 id=155 data-nosnippet>155</a>        </span><span class="prelude-val">Ok</span>(ast)
-<a href=#156 id=156 data-nosnippet>156</a>    }
-<a href=#157 id=157 data-nosnippet>157</a>}</code></pre></div></section></main></body></html>
+<a href=#114 id=114 data-nosnippet>114</a></span><span class="kw">fn </span>expand_macros(ast: ast::AstNode, _stdlib: <span class="kw-2">&amp;</span>StandardLibrary) -&gt; <span class="prelude-ty">Result</span>&lt;ast::AstNode, CclError&gt; {
+<a href=#115 id=115 data-nosnippet>115</a>    <span class="comment">// For now, keep this simple and functional
+<a href=#116 id=116 data-nosnippet>116</a>    // Just return the AST as-is since macro expansion is complex
+<a href=#117 id=117 data-nosnippet>117</a>    // and the main functionality should work without it
+<a href=#118 id=118 data-nosnippet>118</a>    // TODO: Implement full macro expansion when AST structure is stable
+<a href=#119 id=119 data-nosnippet>119</a>    </span><span class="prelude-val">Ok</span>(ast)
+<a href=#120 id=120 data-nosnippet>120</a>}</code></pre></div></section></main></body></html>
